@@ -17,11 +17,21 @@ import './RowMenu.css';
  */
 const MENU_WIDTH = 200;
 
-export default function RowMenu({ items, label = 'More actions' }) {
+export type RowMenuItem = {
+  key: string;
+  label: React.ReactNode;
+  icon?: React.ComponentType<{ size?: number }>;
+  onClick: () => void;
+  danger?: boolean;
+  title?: string;
+  divider?: boolean;
+};
+
+export default function RowMenu({ items, label = 'More actions' }: { items: RowMenuItem[]; label?: string }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState(null);
-  const buttonRef = useRef(null);
-  const menuRef = useRef(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     if (!open || !buttonRef.current) return;
@@ -36,11 +46,11 @@ export default function RowMenu({ items, label = 'More actions' }) {
   useEffect(() => {
     if (!open) return undefined;
     const close = () => setOpen(false);
-    const onDown = (e) => {
-      if (menuRef.current?.contains(e.target) || buttonRef.current?.contains(e.target)) return;
+    const onDown = (e: Event) => {
+      if (menuRef.current?.contains(e.target as Node) || buttonRef.current?.contains(e.target as Node)) return;
       close();
     };
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { close(); buttonRef.current?.focus(); }
     };
     document.addEventListener('mousedown', onDown);

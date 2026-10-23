@@ -22,6 +22,16 @@ import './Pagination.css';
  *   totalCount          {number}   – total rows across all pages; shows "Showing 1–50 of 312"
  *   children            {node}     – optional extra content shown after the "Showing" text
  */
+export type PaginationProps = {
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+    rowsPerPage?: number;
+    onRowsPerPageChange?: (rows: number) => void;
+    totalCount?: number | null;
+    children?: React.ReactNode;
+};
+
 const Pagination = ({
     currentPage,
     totalPages,
@@ -30,24 +40,24 @@ const Pagination = ({
     onRowsPerPageChange,
     totalCount,
     children,
-}) => {
+}: PaginationProps) => {
     if (!totalPages || totalPages < 1) return null;
 
-    const goTo = (page) => {
+    const goTo = (page: number) => {
         const p = Math.max(1, Math.min(totalPages, page));
         if (p !== currentPage) onPageChange(p);
     };
 
     const hasRowsSelect = !!onRowsPerPageChange && rowsPerPage !== undefined;
     const hasRange = totalCount !== undefined && totalCount !== null && !!rowsPerPage;
-    const range = hasRange ? getPageRange(currentPage, rowsPerPage, totalCount) : null;
+    const range = hasRange ? getPageRange(currentPage, rowsPerPage as number, totalCount) : null;
     const pages = getPageButtons(currentPage, totalPages);
 
     return (
         <nav className="spag-root" aria-label="Pages">
             {hasRange && (
                 <span className="spag-range" aria-live="polite">
-                    Showing <b>{range.from.toLocaleString()}–{range.to.toLocaleString()}</b> of {Number(totalCount).toLocaleString()}
+                    Showing <b>{range!.from.toLocaleString()}–{range!.to.toLocaleString()}</b> of {Number(totalCount).toLocaleString()}
                 </span>
             )}
             {children}
@@ -94,7 +104,7 @@ const Pagination = ({
                     <select
                         className="spag-rows-select"
                         value={rowsPerPage}
-                        onChange={(e) => onRowsPerPageChange(Number(e.target.value))}
+                        onChange={(e) => onRowsPerPageChange!(Number(e.target.value))}
                         aria-label="Rows per page"
                     >
                         {ROWS_PER_PAGE_OPTIONS.map((opt) => (

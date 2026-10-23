@@ -17,9 +17,11 @@ import {
  * remembered pick the person has since lost access to quietly falls back.
  */
 
-const storageKey = (screen, user) => `locationFilter:${screen}:${user?.id || user?._id || ''}`;
+type FilterUser = { id?: string; _id?: string } | null | undefined;
 
-const readStored = (key) => {
+const storageKey = (screen: string, user: FilterUser): string => `locationFilter:${screen}:${user?.id || user?._id || ''}`;
+
+const readStored = (key: string): unknown => {
   try {
     const raw = sessionStorage.getItem(key);
     return raw === null ? null : JSON.parse(raw);
@@ -28,7 +30,7 @@ const readStored = (key) => {
   }
 };
 
-const writeStored = (key, value) => {
+const writeStored = (key: string, value: unknown): void => {
   try {
     sessionStorage.setItem(key, JSON.stringify(value));
   } catch {
@@ -37,14 +39,14 @@ const writeStored = (key, value) => {
 };
 
 /** A single-choice filter: [value, setValue], with '' meaning All locations. */
-export const useLocationFilter = (screen, user, options) => {
+export const useLocationFilter = (screen: string, user: FilterUser, options: unknown[] | undefined): [string, (next: unknown) => void] => {
   const key = storageKey(screen, user);
-  const [picks, setPicks] = useState({});
+  const [picks, setPicks] = useState<Record<string, unknown>>({});
   const names = locationNames(options);
   const picked = key in picks ? picks[key] : readStored(key);
-  const value = resolveStoredLocation(picked, names) ?? defaultLocationFor(user, names);
+  const value: string = resolveStoredLocation(picked, names) ?? defaultLocationFor(user, names);
 
-  const setValue = (next) => {
+  const setValue = (next: unknown) => {
     const v = typeof next === 'string' ? next : '';
     setPicks(p => ({ ...p, [key]: v }));
     writeStored(key, v);
@@ -59,19 +61,19 @@ export const useLocationFilter = (screen, user, options) => {
  * for a screen with its own rule — Inventory's, which must not open on its
  * consignment sites (src/utils/inventoryLocations.js).
  */
-export const useLocationsFilter = (screen, user, options, defaultValues = null) => {
+export const useLocationsFilter = (screen: string, user: FilterUser, options: unknown[] | undefined, defaultValues: string[] | null = null): [string[], (next: unknown) => void] => {
   const key = storageKey(screen, user);
-  const [picks, setPicks] = useState({});
+  const [picks, setPicks] = useState<Record<string, unknown>>({});
   const names = locationNames(options);
   const picked = key in picks ? picks[key] : readStored(key);
-  const resolved = resolveStoredLocations(picked, names)
+  const resolved: string[] = resolveStoredLocations(picked, names)
     ?? (Array.isArray(defaultValues) ? defaultValues.filter(v => names.includes(v)) : defaultLocationsFor(user, names));
 
   // A fresh array every render would re-fire every effect that depends on it.
   const stable = JSON.stringify(resolved);
-  const values = useMemo(() => JSON.parse(stable), [stable]);
+  const values = useMemo<string[]>(() => JSON.parse(stable), [stable]);
 
-  const setValues = (next) => {
+  const setValues = (next: unknown) => {
     const v = Array.isArray(next) ? next : [];
     setPicks(p => ({ ...p, [key]: v }));
     writeStored(key, v);

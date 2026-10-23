@@ -56,7 +56,31 @@ import './Calendar.css';
 const PANEL_HEIGHT = 400; // the tallest the calendar gets, with its shortcuts
 const PANEL_WIDTH = 320;
 
-const pad = (n) => String(n).padStart(2, '0');
+type Placement = { kind: 'float'; vertical: 'up' | 'down'; align: 'left' | 'right' } | { kind: 'sheet' };
+type Shortcut = { label: string; value: string };
+/** The props every picker field takes (DatePicker, MonthPicker, YearPicker). */
+type FieldProps = {
+    id?: string;
+    error?: unknown;
+    status?: unknown;
+    disabled?: boolean;
+    placeholder?: string;
+    shortcuts?: Shortcut[];
+    clearable?: boolean;
+    onBlur?: () => void;
+    variant?: 'field' | 'bare';
+    className?: string;
+    triggerClassName?: string;
+    sheetTitle?: string;
+    ariaLabel?: string;
+    icon?: 'clock' | 'none';
+    /** A screen on a branch's clock passes its today ('YYYY-MM-DD'). */
+    today?: string;
+    min?: string;
+    max?: string;
+};
+
+const pad = (n: number): string => String(n).padStart(2, '0');
 
 // ── Where the calendar opens ───────────────────────────────────────────────
 
@@ -64,7 +88,7 @@ const pad = (n) => String(n).padStart(2, '0');
  * Float below / above / aligned left or right of the field, or fall back to a
  * sheet — measured against the window and every ancestor that would clip it.
  */
-function choosePlacement(anchor, width = PANEL_WIDTH, height = PANEL_HEIGHT) {
+function choosePlacement(anchor: HTMLElement | null, width = PANEL_WIDTH, height = PANEL_HEIGHT): Placement {
     if (!anchor) return { kind: 'float', vertical: 'down', align: 'left' };
     let box = { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight };
     for (let node = anchor.parentElement; node && node !== document.body && node !== document.documentElement; node = node.parentElement) {
@@ -90,12 +114,18 @@ function PickerShell({
     id, text, placeholder, icon, disabled, error, status, className = '', triggerClassName = '',
     variant = 'field', ariaLabel, sheetTitle, onBlur, panelWidth = PANEL_WIDTH, panelHeight = PANEL_HEIGHT,
     panelLabel, children
+}: Omit<FieldProps, 'shortcuts' | 'clearable' | 'today' | 'min' | 'max'> & {
+    text: string;
+    panelWidth?: number;
+    panelHeight?: number;
+    panelLabel?: string;
+    children: (api: { close: (refocus?: boolean) => void; big: boolean }) => React.ReactNode;
 }) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
-    const [placement, setPlacement] = useState({ kind: 'float', vertical: 'down', align: 'left' });
-    const wrapRef = useRef(null);
-    const triggerRef = useRef(null);
+    const [placement, setPlacement] = useState<Placement>({ kind: 'float', vertical: 'down', align: 'left' });
+    const wrapRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
 
     const close = (refocus = true) => {
         if (!open) return;
@@ -111,7 +141,7 @@ function PickerShell({
 
     useEffect(() => {
         if (!open || placement.kind !== 'float') return undefined;
-        const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) close(false); };
+        const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as Node)) close(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
         // eslint-disable-next-line react-hooks/exhaustive-deps -- close is rebuilt every render; this effect only needs the current one while open
@@ -121,7 +151,7 @@ function PickerShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only a change of `disabled` should run this
     useEffect(() => { if (disabled && open) close(false); }, [disabled]);
 
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Escape' && open) {
             // Handled here: the form or Filters panel around it stays open.
             e.preventDefault();
@@ -129,10 +159,10 @@ function PickerShell({
             close();
         }
     };
-    const onFocusOut = (e) => {
+    const onFocusOut = (e: React.FocusEvent) => {
         // Tabbing out of an open calendar closes it. (A click on its padding
         // has no relatedTarget in Safari — mousedown handles real outside clicks.)
-        if (open && placement.kind === 'float' && e.relatedTarget && !wrapRef.current?.contains(e.relatedTarget)) close(false);
+        if (open && placement.kind === 'float' && e.relatedTarget && !wrapRef.current?.contains(e.relatedTarget as Node)) close(false);
     };
 
     const panel = open ? children({ close, big: placement.kind === 'sheet' }) : null;
@@ -183,8 +213,8 @@ function PickerShell({
             {open && placement.kind === 'float' && (
                 <div
                     className="cal-float"
-                    data-vertical={placement.vertical}
-                    data-align={placement.align}
+                    data-vertical={placement.kind === 'float' ? placement.vertical : undefined}
+                    data-align={placement.kind === 'float' ? placement.align : undefined}
                     style={panelWidth === PANEL_WIDTH ? undefined : { width: panelWidth }}
                     role="dialog"
                     aria-label={panelLabel || sheetTitle}
@@ -203,7 +233,7 @@ function PickerShell({
 
 // ── The calendar itself (Date / Month / Year grids) ────────────────────────
 
-const Chevron = ({ dir }) => (dir === 'left'
+const Chevron = ({ dir }: { dir: 'left' | 'right' }) => (dir === 'left'
     ? <ChevronLeft size={18} strokeWidth={2.2} aria-hidden="true" />
     : <ChevronRight size={18} strokeWidth={2.2} aria-hidden="true" />);
 
@@ -212,20 +242,26 @@ const Chevron = ({ dir }) => (dir === 'left'
  * and year grids a click away), 'month' or 'year'. `value` is in the mode's
  * own format; `onPick` gets the new value in it.
  */
+export type CalendarMode = 'date' | 'month' | 'year';
+
 export function CalendarPanel({
     mode = 'date', value = '', onPick, onClear, min = '', max = '', shortcuts, clearable = false,
     highlightWeek = false, weekStart = WEEK_STARTS_ON, big = false, today: todayProp
+}: {
+    mode?: CalendarMode; value?: string; onPick: (value: string) => void; onClear?: () => void;
+    min?: string; max?: string; shortcuts?: Shortcut[]; clearable?: boolean;
+    highlightWeek?: boolean; weekStart?: number; big?: boolean; today?: string;
 }) {
-    const today = isValidISO(todayProp) ? todayProp : todayISO();
-    const rootRef = useRef(null);
+    const today: string = isValidISO(todayProp) ? (todayProp as string) : todayISO();
+    const rootRef = useRef<HTMLDivElement>(null);
     const focusNext = useRef(true); // move real focus to the cell after the next render
 
     const startDay = (() => {
         if (mode === 'date' && isValidISO(value)) return value.slice(0, 10);
         return clampDay(today, min, max);
     })();
-    const startParts = parseISO(startDay);
-    const [view, setView] = useState(mode === 'date' ? 'day' : mode);
+    const startParts = parseISO(startDay)!;
+    const [view, setView] = useState<'day' | 'month' | 'year'>(mode === 'date' ? 'day' : mode);
     const [curY, setCurY] = useState(() => {
         if (mode === 'month') return parseMonth(value)?.y ?? startParts.y;
         if (mode === 'year') return parseYear(value) ?? startParts.y;
@@ -241,8 +277,8 @@ export function CalendarPanel({
         const root = rootRef.current;
         if (!root) return;
         const target = view === 'day'
-            ? root.querySelector(`[data-iso="${focusIso}"]:not(:disabled)`)
-            : root.querySelector('[data-cell][tabindex="0"]:not(:disabled)') || root.querySelector('[data-cell]:not(:disabled)');
+            ? root.querySelector<HTMLElement>(`[data-iso="${focusIso}"]:not(:disabled)`)
+            : root.querySelector<HTMLElement>('[data-cell][tabindex="0"]:not(:disabled)') || root.querySelector<HTMLElement>('[data-cell]:not(:disabled)');
         target?.focus({ preventScroll: true });
     });
 
@@ -253,16 +289,16 @@ export function CalendarPanel({
     const dateMode = mode === 'date';
 
     // ── Moving between months / years / decades ──
-    const showMonthOf = (iso) => {
-        const p = parseISO(iso);
+    const showMonthOf = (iso: string) => {
+        const p = parseISO(iso)!;
         setCurY(p.y);
         setCurM(p.m);
         setFocusIso(iso);
     };
-    const step = (dir) => {
+    const step = (dir: number) => {
         if (view === 'day') {
             const next = shiftMonth(`${curY}-${pad(curM + 1)}-01`, dir);
-            const p = parseISO(next);
+            const p = parseISO(next)!;
             setCurY(p.y);
             setCurM(p.m);
             setFocusIso(withMonth(focusIso, next.slice(0, 7)));
@@ -272,7 +308,7 @@ export function CalendarPanel({
             setDec(dec + 10 * dir);
         }
     };
-    const stepDisabled = (dir) => {
+    const stepDisabled = (dir: number) => {
         if (view === 'day') {
             const first = `${curY}-${pad(curM + 1)}-01`;
             return dir < 0 ? Boolean(min) && shiftDay(first, -1) < min : Boolean(max) && shiftMonth(first, 1) > max;
@@ -282,15 +318,15 @@ export function CalendarPanel({
     };
 
     // ── Picking ──
-    const pickDay = (iso) => { if (!dayOutside(iso, min, max)) onPick(iso); };
-    const pickMonthCell = (m) => {
+    const pickDay = (iso: string) => { if (!dayOutside(iso, min, max)) onPick(iso); };
+    const pickMonthCell = (m: number) => {
         if (mode === 'month') { onPick(`${curY}-${pad(m + 1)}`); return; }
         setCurM(m);
         setFocusIso(withMonth(focusIso, `${curY}-${pad(m + 1)}`));
         focusNext.current = true;
         setView('day');
     };
-    const pickYearCell = (y) => {
+    const pickYearCell = (y: number) => {
         if (mode === 'year') { onPick(String(y)); return; }
         setCurY(y);
         focusNext.current = true;
@@ -298,8 +334,8 @@ export function CalendarPanel({
     };
 
     // ── Keyboard ──
-    const onKeyDown = (e) => {
-        const t = e.target;
+    const onKeyDown = (e: React.KeyboardEvent) => {
+        const t = e.target as HTMLButtonElement;
         if (view === 'day' && t.dataset?.iso) {
             const next = dayAfterKey(t.dataset.iso, e.key, e.shiftKey, weekStart);
             if (!next) return;
@@ -308,10 +344,10 @@ export function CalendarPanel({
             focusNext.current = true;
             showMonthOf(next);
         } else if (view !== 'day' && t.dataset?.cell !== undefined) {
-            const jump = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -3, ArrowDown: 3 }[e.key];
+            const jump = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -3, ArrowDown: 3 } as Record<string, number>)[e.key];
             if (!jump) return;
             e.preventDefault();
-            const cells = [...rootRef.current.querySelectorAll('[data-cell]')];
+            const cells = [...rootRef.current!.querySelectorAll<HTMLButtonElement>('[data-cell]')];
             let i = cells.indexOf(t);
             for (;;) {
                 i += jump;
@@ -325,10 +361,10 @@ export function CalendarPanel({
     // ── What each view draws ──
     const days = view === 'day' ? monthGrid(curY, curM, weekStart) : [];
     const heldCell = view === 'month'
-        ? (mode === 'month' ? (selectedMonth && parseMonth(selectedMonth).y === curY ? parseMonth(selectedMonth).m : -1) : curM)
+        ? (mode === 'month' ? (selectedMonth && parseMonth(selectedMonth)!.y === curY ? parseMonth(selectedMonth)!.m : -1) : curM)
         : -1;
     const heldYear = view === 'year' ? (mode === 'year' ? selectedYear : curY) : null;
-    const tq = parseISO(today);
+    const tq = parseISO(today)!;
 
     // The cell a Tab lands on in the month / year grid: the held one, else the first usable.
     const monthCells = MONTH_SHORT.map((label, m) => ({
@@ -353,7 +389,7 @@ export function CalendarPanel({
     }));
     const showClear = clearable && Boolean(value);
 
-    const titleButton = (label, aria, to) => (
+    const titleButton = (label: React.ReactNode, aria: string, to: 'month' | 'year') => (
         <button type="button" className="cal-tbtn" aria-label={aria} onClick={() => { focusNext.current = true; setView(to); if (to === 'year') setDec(decadeStart(curY)); }}>
             {label}<ChevronDown size={14} strokeWidth={2.4} aria-hidden="true" />
         </button>
@@ -382,7 +418,7 @@ export function CalendarPanel({
                         <div className="cal-wd" aria-hidden="true">{weekdayLabels(weekStart).map((w) => <span key={w}>{w}</span>)}</div>
                         <div className="cal-days" role="group" aria-label={`${MONTH_NAMES[curM]} ${curY}`}>
                             {days.map((iso) => {
-                                const p = parseISO(iso);
+                                const p = parseISO(iso)!;
                                 const off = dayOutside(iso, min, max);
                                 const inBand = week && iso >= week.start && iso <= week.end;
                                 const cls = [
@@ -466,9 +502,11 @@ export function DatePicker({
     id, value = '', onChange, min = '', max = '', error, status, disabled, placeholder = 'Pick a date',
     shortcuts, clearable = false, highlightWeek = false, onBlur, variant = 'field', className, triggerClassName,
     sheetTitle = 'Date', ariaLabel, formatText = formatDateText, icon, today
+}: FieldProps & {
+    value?: string | null; onChange?: (value: string) => void; highlightWeek?: boolean; formatText?: (iso: string) => string;
 }) {
     const autoId = useId();
-    const text = isValidISO(value) ? formatText(value.slice(0, 10)) : '';
+    const text = isValidISO(value) ? formatText((value as string).slice(0, 10)) : '';
     return (
         <PickerShell
             id={id || autoId} text={text} placeholder={placeholder} icon={icon} disabled={disabled} error={error} status={status}
@@ -477,7 +515,7 @@ export function DatePicker({
         >
             {({ close, big }) => (
                 <CalendarPanel
-                    mode="date" value={value} min={min} max={max} shortcuts={shortcuts} clearable={clearable}
+                    mode="date" value={value || ''} min={min} max={max} shortcuts={shortcuts} clearable={clearable}
                     highlightWeek={highlightWeek} big={big} today={today}
                     onPick={(v) => { onChange?.(v); close(); }}
                     onClear={() => { onChange?.(''); close(); }}
@@ -492,9 +530,9 @@ export function MonthPicker({
     id, value = '', onChange, min = '', max = '', error, status, disabled, placeholder = 'Pick a month',
     shortcuts, clearable = false, onBlur, variant = 'field', className, triggerClassName,
     sheetTitle = 'Month', ariaLabel, formatText = formatMonthText, icon, today
-}) {
+}: FieldProps & { value?: string | null; onChange?: (value: string) => void; formatText?: (ym: string) => string }) {
     const autoId = useId();
-    const text = parseMonth(value) ? formatText(value) : '';
+    const text = parseMonth(value) ? formatText(value as string) : '';
     return (
         <PickerShell
             id={id || autoId} text={text} placeholder={placeholder} icon={icon} disabled={disabled} error={error} status={status}
@@ -503,7 +541,7 @@ export function MonthPicker({
         >
             {({ close, big }) => (
                 <CalendarPanel
-                    mode="month" value={value} min={min} max={max} shortcuts={shortcuts} clearable={clearable} big={big} today={today}
+                    mode="month" value={value || ''} min={min} max={max} shortcuts={shortcuts} clearable={clearable} big={big} today={today}
                     onPick={(v) => { onChange?.(v); close(); }}
                     onClear={() => { onChange?.(''); close(); }}
                 />
@@ -517,7 +555,7 @@ export function YearPicker({
     id, value = '', onChange, min = '', max = '', error, status, disabled, placeholder = 'Pick a year',
     shortcuts, clearable = false, onBlur, variant = 'field', className, triggerClassName,
     sheetTitle = 'Year', ariaLabel, formatText = String, icon, today
-}) {
+}: FieldProps & { value?: string | number | null; onChange?: (value: string) => void; formatText?: (year: number) => string }) {
     const autoId = useId();
     const year = parseYear(value);
     return (
@@ -543,20 +581,22 @@ const HOURS = Array.from({ length: 12 }, (_, i) => i + 1);
 const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
 const PERIODS = ['AM', 'PM'];
 
-function TimeColumn({ label, items, selected, format = (v) => v, onPick }) {
-    const colRef = useRef(null);
+function TimeColumn<T extends string | number>({ label, items, selected, format = (v: T) => v, onPick }: {
+    label: string; items: T[]; selected: T; format?: (v: T) => React.ReactNode; onPick: (v: T) => void;
+}) {
+    const colRef = useRef<HTMLDivElement>(null);
     // Bring the chosen row into view inside its own column — scrollIntoView
     // would scroll every box around it too (body is one; see LocationPicker).
     useEffect(() => {
         const col = colRef.current;
-        const row = col?.querySelector('[aria-pressed="true"]');
+        const row = col?.querySelector<HTMLElement>('[aria-pressed="true"]');
         if (col && row) col.scrollTop = row.offsetTop - col.clientHeight / 2 + row.clientHeight / 2;
     }, []);
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: React.KeyboardEvent) => {
         if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
         e.preventDefault();
-        const rows = [...colRef.current.querySelectorAll('button')];
-        const i = rows.indexOf(e.target);
+        const rows = [...colRef.current!.querySelectorAll('button')];
+        const i = rows.indexOf(e.target as HTMLButtonElement);
         rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))]?.focus({ preventScroll: true });
     };
     return (
@@ -583,7 +623,10 @@ function TimeColumn({ label, items, selected, format = (v) => v, onPick }) {
  * "YYYY-MM-DDTHH:mm:ss.000" strings (no zone). An empty value starts at now,
  * rounded to five minutes, as soon as it mounts.
  */
-export function DateTimePicker({ id, value, onChange, error, disabled, className = '', sheetTitle = 'Start time', ariaLabel = 'Start' }) {
+export function DateTimePicker({ id, value, onChange, error, disabled, className = '', sheetTitle = 'Start time', ariaLabel = 'Start' }: {
+    id?: string; value?: string | null; onChange?: (value: string) => void; error?: unknown; disabled?: boolean;
+    className?: string; sheetTitle?: string; ariaLabel?: string;
+}) {
     const autoId = useId();
     const baseId = id || autoId;
 
@@ -600,7 +643,7 @@ export function DateTimePicker({ id, value, onChange, error, disabled, className
                 id={`${baseId}-date`}
                 className="cal-dt-date"
                 value={value ? localDateTime(when).slice(0, 10) : ''}
-                onChange={(iso) => iso && onChange?.(withDay(localDateTime(when), iso))}
+                onChange={(iso) => iso && onChange?.(withDay(localDateTime(when), iso) as string)}
                 error={error}
                 disabled={disabled}
                 ariaLabel={`${ariaLabel} date`}

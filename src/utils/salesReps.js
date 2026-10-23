@@ -172,7 +172,9 @@ export function startingRepFor({ staff = [], branch = '', branchReps = {}, creat
  * `options` are { value, label, location, id? }; `you` is the signed-in
  * person's id (or the value they'd have); `query` narrows by name or branch.
  * A blank value (None / Unassigned) is left to the caller to show first.
- * @returns {{ group, options }[]}
+ * @param {any[]} [options]
+ * @param {{ you?: string, query?: string }} [opts]
+ * @returns {{ group: string, options: any[] }[]}
  */
 export function groupRepOptions(options = [], { you = '', query = '' } = {}) {
     const q = String(query || '').trim().toLowerCase();

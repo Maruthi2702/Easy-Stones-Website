@@ -36,7 +36,7 @@ import './FormModal.css';
  */
 
 // The nearest ancestor that would cut the list off, if it isn't a form body.
-const clipParentOf = (el) => {
+const clipParentOf = (el: Element | null | undefined): HTMLElement | null => {
     for (let node = el?.parentElement; node && node !== document.body; node = node.parentElement) {
         const { overflowY } = window.getComputedStyle(node);
         if (overflowY !== 'visible') return node;
@@ -44,32 +44,50 @@ const clipParentOf = (el) => {
     return null;
 };
 
+export type LocationPickerProps = {
+    id: string;
+    value?: string | null;
+    onChange?: (value: string) => void;
+    /** Location names or Location documents. */
+    options?: unknown[];
+    user?: unknown;
+    home?: string;
+    allLabel?: string | null;
+    noneLabel?: string | null;
+    placeholder?: string;
+    sheetTitle?: string;
+    labelOf?: ((name: string) => string) | null;
+    error?: unknown;
+    disabled?: boolean;
+    className?: string;
+};
+
 export default function LocationPicker({
     id, value, onChange, options = [], user = null, home: homeProp,
     allLabel = null, noneLabel = null, placeholder = 'Choose a location',
     sheetTitle = 'Location', labelOf = null, error, disabled, className = ''
-}) {
+}: LocationPickerProps) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
-    const [pos, setPos] = useState({ placement: 'down', maxHeight: 440 });
-    const wrapRef = useRef(null);
-    const triggerRef = useRef(null);
-    const searchRef = useRef(null);
-    const listRef = useRef(null);
+    const [pos, setPos] = useState<{ placement: 'up' | 'down'; maxHeight: number }>({ placement: 'down', maxHeight: 440 });
+    const wrapRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
     const listId = `${id}-list`;
 
     const current = typeof value === 'string' ? value : '';
-    const home = homeProp ?? homeLocationOf(user);
+    const home: string = homeProp ?? homeLocationOf(user);
     const blankLabel = allLabel ?? noneLabel;
-    const names = useMemo(
+    const names = useMemo<string[]>(
         () => orderLocations(current ? [...options, current] : options, home),
         [options, current, home]
     );
     const searchable = names.length + (blankLabel ? 1 : 0) >= LOCATION_SEARCH_FROM;
     const typed = query.trim();
-    const shown = useMemo(() => matchLocations(names, typed), [names, typed]);
+    const shown = useMemo<string[]>(() => matchLocations(names, typed), [names, typed]);
     const showBlank = Boolean(blankLabel) && !typed;
     const homeShown = Boolean(home) && shown[0] === home;
     // What the arrow keys move through, in the order on screen.
@@ -78,7 +96,7 @@ export default function LocationPicker({
         [showBlank, shown]
     );
 
-    const nameFor = (n) => (labelOf ? labelOf(n) : n);
+    const nameFor = (n: string) => (labelOf ? labelOf(n) : n);
 
     const close = (refocus = true) => {
         setOpen(false);
@@ -86,7 +104,7 @@ export default function LocationPicker({
         setActive(0);
         if (refocus) triggerRef.current?.focus({ preventScroll: true });
     };
-    const choose = (v) => {
+    const choose = (v: string) => {
         onChange?.(v);
         close();
     };
@@ -105,7 +123,7 @@ export default function LocationPicker({
     useEffect(() => {
         if (!open || isPhone) return undefined;
         (searchRef.current || listRef.current)?.focus({ preventScroll: true });
-        const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) close(false); };
+        const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as Node)) close(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
     }, [open, isPhone]);
@@ -121,12 +139,12 @@ export default function LocationPicker({
         if (!row || !box) return;
         const r = row.getBoundingClientRect();
         const b = box.getBoundingClientRect();
-        const covered = box.querySelector(':scope > .fm-search')?.offsetHeight || 0; // the sticky search box
+        const covered = box.querySelector<HTMLElement>(':scope > .fm-search')?.offsetHeight || 0; // the sticky search box
         if (r.top < b.top + covered) box.scrollTop -= b.top + covered - r.top;
         else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom;
     }, [open, active, id]);
 
-    const onKeyDown = (e) => {
+    const onKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
             if (flat.length) setActive((i) => (i + (e.key === 'ArrowDown' ? 1 : -1) + flat.length) % flat.length);
@@ -144,7 +162,7 @@ export default function LocationPicker({
         }
     };
 
-    const row = (v, i) => (
+    const row = (v: string, i: number) => (
         <button
             key={v || '__blank'}
             id={`${id}-opt-${i}`}

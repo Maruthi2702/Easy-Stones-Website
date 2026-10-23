@@ -33,8 +33,8 @@ event listeners like click-outside):
 
 ## Pagination: one component, one flow, everywhere
 
-Every paginated list uses `src/components/shared/Pagination.jsx` with its page
-state from `usePagination()` in `src/components/shared/paginationConfig.js`.
+Every paginated list uses `src/components/shared/Pagination.tsx` with its page
+state from `usePagination()` in `src/components/shared/paginationConfig.ts`.
 Rows per page is always **25 / 50 / 100, default 50** (`ROWS_PER_PAGE_OPTIONS`,
 `DEFAULT_ROWS_PER_PAGE`) — the component no longer accepts custom options.
 Changing rows per page goes back to page 1; changing a search/filter/sort
@@ -73,9 +73,9 @@ asks for the count to be typed (`src/utils/customerBulkDelete.js`). What a creat
 (never password, login state, the map point or the rep's name).
 
 Every customer dropdown reads the one shared list,
-`useCustomerOptions()` in `src/api/customerOptions.js` (or SalesPage's
+`useCustomerOptions()` in `src/api/customerOptions.ts` (or SalesPage's
 `customerOptions`, which is the same list), shaped by
-`src/utils/customerOptions.js`: the name rule, A–Z sort, the city under the
+`src/utils/customerOptions.ts`: the name rule, A–Z sort, the city under the
 name, and search by name/city/contact. A new customer dropdown uses those —
 don't map `/api/customers/dropdown` by hand again.
 
@@ -88,7 +88,7 @@ List filter use `toSalesRepList` (by id; deactivated reps kept, marked, for
 filtering — the Add/Edit customer form offers them only when already set).
 Every dropdown that saves a rep's **name** — Selection Sheet (the visit's
 branch), Delivery (your branches), Location's sales person (any branch) —
-uses `useSalesRepOptions()` in `src/api/salesRepOptions.js`, built on
+uses `useSalesRepOptions()` in `src/api/salesRepOptions.ts`, built on
 `salesRepNameOptions`: active reps only, A–Z, and whoever is already saved
 stays at the top. A new rep dropdown uses those; don't filter
 `/api/salesreps` by hand again.
@@ -97,7 +97,7 @@ Every rep dropdown and filter also **looks** the same (the Customer List
 filter's format, the user's call 2026-10-10): a search box, None /
 Unassigned first, then reps under a heading for their branch (branches and
 names A–Z, "Other" last) with you marked "(you)" — `groupRepOptions`. On a
-form that's `src/components/shared/form/RepPicker.jsx` (not FormPicker);
+form that's `src/components/shared/form/RepPicker.tsx` (not FormPicker);
 the Customer List filter and the Route Planner's rep filter render the same
 groups. A new rep dropdown or filter uses these. (The old `DeliveryModal` still has its own
 until it's deleted.)
@@ -117,7 +117,7 @@ to `true`; customers and deliveries still use the rule.
 ## Locations: one dropdown, one order (2026-10-17)
 
 Every single-choice location field and filter is
-`src/components/shared/form/LocationPicker.jsx` (the user's call): the
+`src/components/shared/form/LocationPicker.tsx` (the user's call): the
 blank choice ("All locations" on a filter, None where a form allows it), the
 home location marked "· Home", then every other location A–Z, with a search
 box from 8 choices — `orderLocations` / `matchLocations` in
@@ -138,13 +138,13 @@ too (it's a scroll box, index.css), which jumped the page when it opened.
 Every date, month and year field is `src/components/shared/calendar/` (the
 user's call; design in the claude.ai artifact **Calendar picker canvas**,
 https://claude.ai/artifact/5kTECs8HvXNyPAnHTMHg3a): `DatePicker`, `MonthPicker`,
-`YearPicker` and `DateTimePicker` in `Calendar.jsx`, the look in `Calendar.css`,
-every date rule in `calendarDates.js` (tested). Values are plain strings
+`YearPicker` and `DateTimePicker` in `Calendar.tsx`, the look in `Calendar.css`,
+every date rule in `calendarDates.ts` (tested). Values are plain strings
 (`YYYY-MM-DD`, `YYYY-MM`, `YYYY`, local `YYYY-MM-DDTHH:mm:ss.000`) and
 `onChange` gets the string, not an event. **Never use a native
 `<input type="date|month">` or build a picker by hand**, and don't do a
 picker's date arithmetic (shift a day/month, clamp the 31st, name a month)
-elsewhere — add it to `calendarDates.js`. A calendar bug is in those three
+elsewhere — add it to `calendarDates.ts`. A calendar bug is in those three
 files. The week starts on Monday (`WEEK_STARTS_ON`, matching the Delivery
 Schedule board). The popover floats inside its field (never portaled — the
 CustomSelect incident) and falls back to a bottom sheet on phones, or on
@@ -166,7 +166,7 @@ artifacts **Phone tab bar canvas** https://claude.ai/artifact/Qxs7fJxBs6MGJYiXow
 and **Phone menu search** https://claude.ai/artifact/GZ622Er9juw3MXzr6JjySA).
 Dashboard · two modules (Sales, Operations by default) · **More**. What sits
 on the bar, which tab is lit and what the page search finds are in
-`src/utils/phoneNav.js` (tested): the bar takes the first two modules the login
+`src/utils/phoneNav.ts` (tested): the bar takes the first two modules the login
 can open in the admin's Side Nav Order and More lists the rest, so a new page
 or module in `navPins.js` shows up with no phone-specific change (its icon goes
 in `src/components/sales/navIcons.js`, shared with the desktop rail). Customers
@@ -273,7 +273,7 @@ Left on `manage_users` on purpose: the Delivery Schedule's column arranging.
 
 Users & Roles → Users list has an **Online** column, a live "Online now (N)"
 filter and "Last seen …" for people who are away. Every signed-in tab opens a
-socket (`PresenceReporter` → `src/api/presence.js`) that says who it is
+socket (`PresenceReporter` → `src/api/presence.ts`) that says who it is
 (`presence_hello`, a staff token only — customers are refused) and, at most
 once a minute while the mouse/keys/touch are used in a visible tab,
 `presence_active`. The server keeps the list **in memory**
@@ -284,7 +284,7 @@ pushes it (`presence_update`) only to sockets whose user has `manage_users`;
 most every 5 min while online and on the last tab closing) and `lastLoginAt`
 are on the User record. One server instance only — two would each hold half
 the list. A phone's background tab disconnects, so it shows "Last seen". The
-display rules are `src/utils/userPresence.js`.
+display rules are `src/utils/userPresence.ts`.
 
 ## Permits: sources and the accuracy rules (2026-10-11; King County 2026-10-14)
 
@@ -504,7 +504,7 @@ resource). The drawer's ↑↓ steps through the day's route stops when the cust
 is on a planned day, and is absent otherwise. **Add to calendar** opens
 `ScheduleVisitSheet` (a FormModal with the shared DatePicker: Tomorrow / Next
 week / In 2 weeks, the first free start that day, what's already booked —
-`src/utils/visitSlots.js`, tested); it books that day, or moves the existing
+`src/utils/visitSlots.ts`, tested); it books that day, or moves the existing
 entry (`PUT /api/schedule/:id`). On a phone the panel leaves a strip of map at
 the top (`.cl-drawer.rpv2-host`). Only **checked reps' customers are loaded** (ticking
 one fetches just theirs). The Filter reads Sales reps → Customer type → Days since
@@ -513,7 +513,7 @@ last visit; pins are map pins coloured by type (set A, `TYPE_COLORS` in
 colours" switch, saved as `routePlannerFilters.pinColors`). Saved filters load
 once and save only on a real change (`saveFilter`) — saving the empty starting
 value before the real one loaded is what used to reset the rep ticks on every
-open. **Location** (`src/utils/geolocationAccess.js`): nothing prompts on its own;
+open. **Location** (`src/utils/geolocationAccess.ts`): nothing prompts on its own;
 the map opens on the last known spot, only a tap on Locate asks, and once the
 browser has it allowed the position is followed quietly (only while the screen
 and tab are showing). The permission itself is the browser's, not ours to keep.
@@ -553,6 +553,23 @@ the form closes and the visit shows on the customer at once (`handleSaveVisit`);
 the request goes behind it, a failure takes the visit back off and reopens the
 form with what was typed, and closing the tab mid-send asks first
 (`beforeunload`). A photo uploaded and then never saved stays in Cloudinary.
+
+## TypeScript: browser files only until Node 24 (2026-10-23, on `feat/typescript`)
+
+The plan is `MIGRATION_NOTES.md` §1. A file **only the browser loads** may be
+`.ts`/`.tsx`; anything `server.js` (or a script) reaches stays `.js` until
+Render runs Node 24 — Node 20 can't load `.ts` and the server would crash at
+start. `scripts/check-server-ts.mjs` walks what the server loads and fails on a
+`.ts` file or an import Node can't find as written (the missing-`.js` crash of
+2026-10-23); `npm run build` runs it first, so on Render a bad import fails the
+deploy instead of the live server. `npm run typecheck` = `tsc` + that check.
+`.ts`/`.tsx` are strict; JavaScript is read for its exports but not checked.
+Shared shapes are in `src/types/` (`Loose` marks a record not typed yet — a
+spot to tighten). A shared `.js` file a typed one imports gets JSDoc types
+when TypeScript misreads a parameter (`= []` reads as an always-empty list).
+A conversion is types only: `git mv`, annotations, importers that named the
+file with `.js` lose the extension, no behaviour change; check with typecheck,
+`npm test`, `vite build`, and the screen by hand.
 
 ## Forms: one template, everywhere
 
@@ -636,7 +653,7 @@ against.
 
 ## Automated tests are narrow — most verification is still manual
 
-`npm test` runs Vitest (`vite.config.js`'s `test` block, `src/**/*.test.js`).
+`npm test` runs Vitest (`vite.config.js`'s `test` block, `src/**/*.test.{js,ts}`).
 As of 2026-08-28 that covers the pure, no-DOM business logic in
 `src/utils/routePlan.js` and `src/components/sales/routePlannerV2/helpers.js`
 (great-circle distance, point-in-polygon, stop ordering/scheduling math,
@@ -657,19 +674,19 @@ ticket line; the routes, in `src/routes/dailyReportManualTransfers.test.js`), an
 (`src/utils/customerList.js`: status labels, the ⚠ data-quality checks and
 the "Incomplete" query that must match them, saved views, A–Z, role-scoped
 filter options), the shared pagination sizes/range math
-(`src/components/shared/paginationConfig.js`), and the location-filter rules
+(`src/components/shared/paginationConfig.ts`), and the location-filter rules
 every screen's location filter shares (`src/utils/locationFilter.js`: home
 location, which branch a filter opens on, remembered picks, and the server's
 home-location validation), and who can be picked as a sales rep (`src/utils/salesReps.js`: the role
 rule, branches, deactivated and already-saved reps), and Add User's rules (`src/utils/userForm.js`:
 username suggestion and format, required fields, temporary passwords, the
 Locations/home rule, role summaries), and the Selection Sheet's slab-tag
-scanner (`src/utils/stoneLabel.js`: reading lot/slab/size/material out of OCR
+scanner (`src/utils/stoneLabel.ts`: reading lot/slab/size/material out of OCR
 text, rejecting wrong-rotation garbage, and when a lot may be matched to
-stock or name the material; `src/utils/tagLine.js`: what one printed tag line
+stock or name the material; `src/utils/tagLine.ts`: what one printed tag line
 says, how the tags in one photo combine — lot copies cross-checked, one row
 per lot with its slabs together — and which sheet rows they fill;
-`src/utils/tagPhoto.js`: a photo's tilt, the printed line in a strip cut
+`src/utils/tagPhoto.ts`: a photo's tilt, the printed line in a strip cut
 beside a barcode, and the levelling score). The scan itself
 (`selectionSheet/readTagPhoto.js`: barcodes with zxing-wasm, then each
 tag's line with Tesseract) is checked by hand on real tag photos — and Add / Edit location's rules (`src/utils/locationForm.js`:
@@ -690,7 +707,7 @@ Check In switch each route needs), and the Check In permissions
 from them, what a check-in save needs, the migration) and Lost Sales access
 (`src/utils/lostSaleAccess.js`), and the email's
 contents (`src/services/emailService.test.js`),
-and Add / Edit customer's rules (`src/utils/customerForm.js`: stored option
+and Add / Edit customer's rules (`src/utils/customerForm.ts`: stored option
 values, new-customer defaults, record ↔ form mapping, required fields, the
 email/marketing-email sync, the change count, and what a business-card scan
 fills in), and the Delivery form's packing-list reader
@@ -698,20 +715,20 @@ fills in), and the Delivery form's packing-list reader
 the order row and the slab count out of a StoneProfits packing list PDF, and
 which empty form fields an upload fills — Sales Orders, Pick Tickets and
 Invoices read the same way), and Add / Edit delivery's rules
-(`src/utils/deliveryForm.js`: which fields each delivery type uses, Pending
+(`src/utils/deliveryForm.ts`: which fields each delivery type uses, Pending
 vs. a required date, the driver list with each truck's load and the full
 ones greyed out, a 3rd-party truck's optional carrier / BOL / agreed price,
 transfer checks, the change count, and the save body), and the customer
 write rules (`src/utils/customerRecord.js`: what a create/edit may write,
 defaults, the placeholder email, protected fields) and dropdown rules
-(`src/utils/customerOptions.js`: name, address parts, sort, search), and
+(`src/utils/customerOptions.ts`: name, address parts, sort, search), and
 the Check-In Log's branch clock (`src/utils/checkInClock.js`: which day and
 month a check-in belongs to on its own branch's clock, the per-zone query the
 list's month filter and counts use, and the date/time/"Today" shown and
 exported), and the Check-In Log's exports (`src/utils/checkInExport.js`: the
 Excel rows, the PDF's filter line, link and row cap; `src/utils/checkInLogPdf.js`:
 that the PDF builds, pages, and survives characters its font lacks), and the
-3rd-Party Freight screen's rules (`src/utils/freightView.js`: its tabs and
+3rd-Party Freight screen's rules (`src/utils/freightView.ts`: its tabs and
 counts, charges grouped by carrier, what a selection offers — Approve,
 Approve & pay, Mark paid — and why not, payment wording and the Excel rows),
 and the Delivery Schedule's column order per branch
@@ -741,7 +758,7 @@ Accounting's server rules and API have their own tests in
 included). Cart & Holds do too: `src/holds/*.test.js` (expiry and totals
 rules, the one-hold-per-slab lock, every edit, the expiry job, the customer
 letter PDF and what its Hide boxes leave out — `holdLetter.js`), and
-the Holds screens' rules in `src/utils/holdView.js` (tabs, expiry wording,
+the Holds screens' rules in `src/utils/holdView.ts` (tabs, expiry wording,
 which buttons each permission shows, the price editor, Extend's picks, cart
 slabs offered to a hold, history wording, the Edit form's patch).
 Permits do too: `src/permits/*.test.js` (every source's lead types and the

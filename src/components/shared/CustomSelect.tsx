@@ -7,6 +7,26 @@ import './CustomSelect.css';
  * Reusable CustomSelect component matching the Easy Stones dark/gold design system.
  * Replaces native browser <select> elements to avoid native macOS/Windows blue menus.
  */
+type OptionValue = string | number;
+export type CustomSelectOption = OptionValue | { value: OptionValue; label?: React.ReactNode; disabled?: boolean; icon?: unknown };
+
+export type CustomSelectProps = {
+  value?: OptionValue | null;
+  /** Called like a native select's onChange: `{ target: { value } }`. */
+  onChange?: (e: { target: { value: OptionValue } }) => void;
+  options?: CustomSelectOption[];
+  placeholder?: React.ReactNode;
+  className?: string;
+  disabled?: boolean;
+  style?: React.CSSProperties;
+  triggerClassName?: string;
+  triggerContent?: React.ReactNode;
+  triggerTitle?: string;
+  triggerAriaLabel?: string;
+  menuWidth?: number;
+  menuAlign?: 'left' | 'right';
+};
+
 const CustomSelect = ({
   value,
   onChange,
@@ -29,11 +49,11 @@ const CustomSelect = ({
   // off its right side rather than its left or the menu runs off screen.
   menuWidth,
   menuAlign = 'left'
-}) => {
+}: CustomSelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [coords, setCoords] = useState(null);
-  const containerRef = useRef(null);
-  const popoverRef = useRef(null);
+  const [coords, setCoords] = useState<{ left: number; width: number; top: number | null; bottom: number | null } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   // Normalize options array to [{ value, label, disabled }]
   const normalizedOptions = options.map(opt => {
@@ -104,16 +124,16 @@ const CustomSelect = ({
   // Close dropdown on click outside — the popover no longer lives inside
   // containerRef in the real DOM once portaled, so it needs its own check.
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      const inTrigger = containerRef.current?.contains(e.target);
-      const inPopover = popoverRef.current?.contains(e.target);
+    const handleClickOutside = (e: MouseEvent) => {
+      const inTrigger = containerRef.current?.contains(e.target as Node);
+      const inPopover = popoverRef.current?.contains(e.target as Node);
       if (!inTrigger && !inPopover) setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSelect = (optValue, isDisabled) => {
+  const handleSelect = (optValue: OptionValue, isDisabled: boolean) => {
     if (isDisabled || disabled) return;
     if (onChange) {
       onChange({ target: { value: optValue } });

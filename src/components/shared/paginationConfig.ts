@@ -17,11 +17,11 @@ export const ROWS_PER_PAGE_OPTIONS = [25, 50, 100];
 export const DEFAULT_ROWS_PER_PAGE = 50;
 
 /** Number of pages for `totalCount` rows — never less than 1. */
-export const pageCount = (totalCount, rowsPerPage) =>
+export const pageCount = (totalCount: unknown, rowsPerPage: number): number =>
     Math.max(1, Math.ceil((Number(totalCount) || 0) / rowsPerPage));
 
 /** 1-indexed { from, to } of the rows shown on `page`; { 0, 0 } when empty. */
-export const getPageRange = (page, rowsPerPage, totalCount) => {
+export const getPageRange = (page: number, rowsPerPage: number, totalCount: unknown): { from: number; to: number } => {
     const total = Number(totalCount) || 0;
     if (total <= 0) return { from: 0, to: 0 };
     const from = Math.min((page - 1) * rowsPerPage + 1, total);
@@ -33,8 +33,8 @@ export const getPageRange = (page, rowsPerPage, totalCount) => {
  * sorted and de-duplicated. The pager draws "…" wherever two neighbours
  * aren't consecutive, e.g. page 6 of 13 → [1, 5, 6, 7, 13] → 1 … 5 6 7 … 13.
  */
-export const getPageButtons = (page, totalPages) => {
-    const out = [];
+export const getPageButtons = (page: number, totalPages: number): number[] => {
+    const out: number[] = [];
     [1, page - 1, page, page + 1, totalPages].forEach((p) => {
         if (p >= 1 && p <= totalPages && !out.includes(p)) out.push(p);
     });
@@ -46,11 +46,11 @@ export const getPageButtons = (page, totalPages) => {
  * DEFAULT_ROWS_PER_PAGE, and changing rows-per-page jumps back to page 1.
  * Call `resetPage()` whenever a search/filter/sort changes the result set.
  */
-export function usePagination({ initialPage = 1 } = {}) {
+export function usePagination({ initialPage = 1 }: { initialPage?: number } = {}) {
     const [currentPage, setCurrentPage] = useState(initialPage);
     const [rowsPerPage, setRowsPerPageState] = useState(DEFAULT_ROWS_PER_PAGE);
 
-    const setRowsPerPage = useCallback((n) => {
+    const setRowsPerPage = useCallback((n: number) => {
         setRowsPerPageState(n);
         setCurrentPage(1);
     }, []);

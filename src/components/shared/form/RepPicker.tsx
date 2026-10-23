@@ -17,29 +17,45 @@ import { groupRepOptions } from '../../../utils/salesReps';
  * toSalesRepList. `noneLabel` adds the blank choice (omit it where a rep is
  * required). `you` is the signed-in person's id.
  */
+/** A rep as the picker shows them (useSalesRepOptions / toSalesRepList). */
+export type RepOption = { value: string; label: string; location?: string; id?: string };
+
+export type RepPickerProps = {
+    id: string;
+    value?: string | null;
+    onChange: (value: string) => void;
+    options?: RepOption[];
+    noneLabel?: string | null;
+    placeholder?: string;
+    sheetTitle?: string;
+    you?: string;
+    error?: unknown;
+    disabled?: boolean;
+};
+
 export default function RepPicker({
     id, value, onChange, options = [], noneLabel = null, placeholder = 'Choose a sales rep',
     sheetTitle = 'Sales rep', you = '', error, disabled
-}) {
+}: RepPickerProps) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
-    const [pos, setPos] = useState({ placement: 'down', maxHeight: 440 });
-    const wrapRef = useRef(null);
-    const triggerRef = useRef(null);
-    const searchRef = useRef(null);
+    const [pos, setPos] = useState<{ placement: 'up' | 'down'; maxHeight: number }>({ placement: 'down', maxHeight: 440 });
+    const wrapRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
     const listId = `${id}-list`;
 
     const groups = useMemo(() => groupRepOptions(options, { you, query }), [options, you, query]);
     const showNone = noneLabel && !query.trim();
     // What the arrow keys move through, in the order on screen.
-    const flat = useMemo(
-        () => [...(showNone ? [{ value: '', label: noneLabel }] : []), ...groups.flatMap((g) => g.options)],
+    const flat = useMemo<RepOption[]>(
+        () => [...(showNone ? [{ value: '', label: noneLabel as string }] : []), ...groups.flatMap((g) => g.options)],
         [showNone, noneLabel, groups]
     );
-    const selected = useMemo(
-        () => groupRepOptions(options, { you }).flatMap((g) => g.options).find((o) => o.value === value),
+    const selected = useMemo<RepOption | undefined>(
+        () => groupRepOptions(options, { you }).flatMap((g) => g.options).find((o: RepOption) => o.value === value),
         [options, you, value]
     );
 
@@ -49,7 +65,7 @@ export default function RepPicker({
         setActive(0);
         if (refocus) triggerRef.current?.focus({ preventScroll: true });
     };
-    const choose = (v) => {
+    const choose = (v: string) => {
         onChange(v);
         close();
     };
@@ -63,7 +79,7 @@ export default function RepPicker({
     useEffect(() => {
         if (!open || isPhone) return undefined;
         searchRef.current?.focus({ preventScroll: true });
-        const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) close(false); };
+        const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as Node)) close(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
     }, [open, isPhone]);
@@ -74,7 +90,7 @@ export default function RepPicker({
         document.getElementById(`${id}-opt-${active}`)?.scrollIntoView({ block: 'nearest' });
     }, [open, active, id]);
 
-    const onSearchKeyDown = (e) => {
+    const onSearchKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
             if (flat.length) setActive((i) => (i + (e.key === 'ArrowDown' ? 1 : -1) + flat.length) % flat.length);
@@ -91,7 +107,7 @@ export default function RepPicker({
         }
     };
 
-    const row = (o) => {
+    const row = (o: RepOption) => {
         const i = flat.findIndex((f) => f.value === o.value);
         return (
             <button

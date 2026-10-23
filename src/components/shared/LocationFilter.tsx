@@ -44,6 +44,21 @@ const PANEL_WIDTH = 300;
 const WIDE_PANEL_WIDTH = 380;
 const EDGE = 16; // the page gutter the panel keeps clear of
 
+/** '' = All (single choice) or [] = All (multiple). */
+type FilterValue = string | string[];
+/** A node, or a function given `{ close }` so a pick can shut the panel. */
+type PanelContent = React.ReactNode | ((api: { close: () => void }) => React.ReactNode);
+
+export type LocationFieldProps = {
+  options?: unknown[];
+  value?: FilterValue;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- single or multiple, decided by `multiple`
+  onChange?: (value: any) => void;
+  user?: unknown;
+  multiple?: boolean;
+  allLabel?: string;
+};
+
 export const LocationField = ({
   options = [],
   value,
@@ -51,15 +66,15 @@ export const LocationField = ({
   user = null,
   multiple = false,
   allLabel = 'All locations'
-}) => {
+}: LocationFieldProps) => {
   const id = useId();
-  const home = homeLocationOf(user);
-  const names = orderLocations(options, home);
-  const labelOf = (n) => (n === home ? `${n} · Home` : n);
+  const home: string = homeLocationOf(user);
+  const names: string[] = orderLocations(options, home);
+  const labelOf = (n: string) => (n === home ? `${n} · Home` : n);
 
   if (multiple) {
     const picked = Array.isArray(value) ? value : [];
-    const toggle = (n) => onChange?.(picked.includes(n) ? picked.filter(v => v !== n) : [...picked, n]);
+    const toggle = (n: string) => onChange?.(picked.includes(n) ? picked.filter(v => v !== n) : [...picked, n]);
     return (
       <div className="lf-group" role="group" aria-labelledby={`${id}-label`}>
         <span className="lf-group-label" id={`${id}-label`}>Locations</span>
@@ -95,6 +110,16 @@ export const LocationField = ({
   );
 };
 
+export type LocationFilterProps = LocationFieldProps & {
+  className?: string;
+  children?: PanelContent;
+  after?: PanelContent;
+  active?: boolean;
+  onClear?: () => void;
+  wide?: boolean;
+  label?: string;
+};
+
 const LocationFilter = ({
   options = [],
   value,
@@ -109,20 +134,20 @@ const LocationFilter = ({
   onClear,
   wide = false,
   label = 'Filters'
-}) => {
+}: LocationFilterProps) => {
   const [open, setOpen] = useState(false);
   // Where the panel sits, in px from the button's left edge: lined up with
   // the button's right edge, then nudged to stay 16px inside the screen —
   // on a phone the button is often too near one side for either edge to fit.
   const [panelLeft, setPanelLeft] = useState(0);
-  const rootRef = useRef(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return undefined;
-    const onDown = (e) => { if (!rootRef.current?.contains(e.target)) setOpen(false); };
+    const onDown = (e: Event) => { if (!rootRef.current?.contains(e.target as Node)) setOpen(false); };
     // A field inside the panel that used Escape itself (closing its own
     // results list) marks it handled; only an unhandled Escape shuts the panel.
-    const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) setOpen(false); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('touchstart', onDown);
     document.addEventListener('keydown', onKey);
@@ -133,15 +158,15 @@ const LocationFilter = ({
     };
   }, [open]);
 
-  const names = locationNames(options);
+  const names: string[] = locationNames(options);
   const hasExtra = children != null;
   const hasAfter = after != null;
   const showLocation = names.length >= 2;
   if (!showLocation && !hasExtra && !hasAfter) return null;
 
-  const picked = multiple ? (Array.isArray(value) ? value : []) : (typeof value === 'string' ? value : ALL_LOCATIONS);
+  const picked: FilterValue = multiple ? (Array.isArray(value) ? value : []) : (typeof value === 'string' ? value : ALL_LOCATIONS);
   const isAll = multiple ? picked.length === 0 : !picked;
-  const summary = isAll ? allLabel : (multiple ? picked.join(', ') : picked);
+  const summary = isAll ? allLabel : (Array.isArray(picked) ? picked.join(', ') : picked);
   const lit = (showLocation && !isAll) || active;
   const buttonLabel = showLocation ? `${label}, location: ${summary}` : label;
   const close = () => setOpen(false);

@@ -12,4 +12,4 @@ import { createContext } from 'react';
  * the sheet's z-index wins — and it stays inside the <form>, so its inputs
  * still belong to it. null outside a FormModal (render in place).
  */
-export const FormLayerContext = createContext(null);
+export const FormLayerContext = createContext<HTMLElement | null>(null);

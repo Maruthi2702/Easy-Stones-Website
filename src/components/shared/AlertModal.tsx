@@ -17,7 +17,9 @@ import './AlertModal.css';
  * still out-stack that modal, and a portal is what makes that not depend on
  * where in the tree this gets mounted.
  */
-const AlertModal = ({ open, title = 'Notice', message, onClose }) => {
+type AlertModalProps = { open: boolean; title?: string; message?: React.ReactNode; onClose: () => void };
+
+const AlertModal = ({ open, title = 'Notice', message, onClose }: AlertModalProps) => {
     if (!open) return null;
 
     return createPortal(

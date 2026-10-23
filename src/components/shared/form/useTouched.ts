@@ -15,8 +15,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * touch(name, changed) — call from onBlur; `changed` is whether the value
  * differs from where the form started.
  */
-export default function useTouched() {
-    const [touched, setTouched] = useState({});
+export type Touched = Record<string, boolean>;
+
+export default function useTouched(): [Touched, (name: string, changed?: boolean) => void, (name: string) => void] {
+    const [touched, setTouched] = useState<Touched>({});
     const pointerDown = useRef(false);
 
     useEffect(() => {
@@ -32,9 +34,9 @@ export default function useTouched() {
         };
     }, []);
 
-    const markNow = useCallback((name) => setTouched((t) => (t[name] ? t : { ...t, [name]: true })), []);
+    const markNow = useCallback((name: string) => setTouched((t) => (t[name] ? t : { ...t, [name]: true })), []);
 
-    const touch = useCallback((name, changed = true) => {
+    const touch = useCallback((name: string, changed = true) => {
         if (!changed) return;
         if (!pointerDown.current) {
             markNow(name);

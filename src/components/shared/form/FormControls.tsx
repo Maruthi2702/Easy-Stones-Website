@@ -6,6 +6,11 @@ import { firstFocusableIn, describedBy, menuPlacement } from './formFocus';
 import { FormLayerContext } from './formLayer';
 import { matchesOption } from '../../../utils/customerOptions';
 
+type Node = React.ReactNode;
+type Placement = { placement: 'up' | 'down'; maxHeight: number };
+/** A choice in FormPicker / FormSearchPicker / SegmentedToggle. */
+export type FormOption<V = string> = { value: V; label: Node; description?: Node; disabled?: boolean; keywords?: string };
+
 /*
  * The form template's controls (FORM_TEMPLATE.md → Fields). Styles live in
  * FormModal.css. Everything is 42px tall (46px on phones) so fields line up
@@ -13,7 +18,7 @@ import { matchesOption } from '../../../utils/customerOptions';
  * — no helper text.
  */
 
-export function FormSection({ number, title, children }) {
+export function FormSection({ number, title, children }: { number?: number | null; title?: Node; children?: Node }) {
     return (
         <section className="fm-section">
             {title && (
@@ -28,7 +33,7 @@ export function FormSection({ number, title, children }) {
 }
 
 /** Two columns on desktop, one on phones. */
-export function FormRow({ children }) {
+export function FormRow({ children }: { children?: Node }) {
     return <div className="fm-row">{children}</div>;
 }
 
@@ -38,7 +43,9 @@ export function FormRow({ children }) {
  * id={fieldIds(id).input} and aria-describedby={fieldIds(id).message} when
  * there's an error or status.
  */
-export function FormField({ name, id, label, required = false, error = '', status = null, statusTone, children }) {
+export function FormField({ name, id, label, required = false, error = '', status = null, statusTone, children }: {
+    name?: string; id: string; label: Node; required?: boolean; error?: Node; status?: Node; statusTone?: string; children?: Node;
+}) {
     return (
         <div className="fm-field" data-field={name}>
             <label className="fm-label" htmlFor={id}>
@@ -57,7 +64,9 @@ export function FormField({ name, id, label, required = false, error = '', statu
     );
 }
 
-export function PasswordInput({ id, value, onChange, error, status, mono = true, ...rest }) {
+export function PasswordInput({ id, value, onChange, error, status, mono = true, ...rest }: {
+    id: string; value: string; onChange: React.ChangeEventHandler<HTMLInputElement>; error?: unknown; status?: unknown; mono?: boolean;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'id' | 'value' | 'onChange'>) {
     const [shown, setShown] = useState(false);
     return (
         <div className="fm-input-wrap">
@@ -90,9 +99,11 @@ export function PasswordInput({ id, value, onChange, error, status, mono = true,
 }
 
 /** Two (or a few) mutually exclusive choices, e.g. Temporary password / Email an invite. */
-export function SegmentedToggle({ label, value, onChange, options }) {
-    const refs = useRef([]);
-    const onKeyDown = (e, i) => {
+export function SegmentedToggle<V extends string | number | boolean>({ label, value, onChange, options }: {
+    label?: string; value: V; onChange: (value: V) => void; options: FormOption<V>[];
+}) {
+    const refs = useRef<(HTMLButtonElement | null)[]>([]);
+    const onKeyDown = (e: React.KeyboardEvent, i: number) => {
         if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
         e.preventDefault();
         const next = (i + (e.key === 'ArrowRight' ? 1 : -1) + options.length) % options.length;
@@ -103,7 +114,7 @@ export function SegmentedToggle({ label, value, onChange, options }) {
         <div className="fm-seg" role="radiogroup" aria-label={label} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
             {options.map((o, i) => (
                 <button
-                    key={o.value}
+                    key={String(o.value)}
                     ref={(el) => { refs.current[i] = el; }}
                     type="button"
                     role="radio"
@@ -125,8 +136,8 @@ export function SegmentedToggle({ label, value, onChange, options }) {
  * inside the form, so the form body stays the only thing that scrolls. Closes
  * on Done, the backdrop, or Esc — never by swiping (FORM_TEMPLATE.md).
  */
-export function FormSheet({ open, title, onClose, children, footer }) {
-    const sheetRef = useRef(null);
+export function FormSheet({ open, title, onClose, children, footer }: { open: boolean; title?: Node; onClose: () => void; children?: Node; footer?: Node }) {
+    const sheetRef = useRef<HTMLDivElement>(null);
     const titleId = useId();
     // Drawn at the form's top level, not inside the scrolling body, so it
     // covers the footer on iOS too (see formLayer.js).
@@ -175,14 +186,17 @@ export function FormSheet({ open, title, onClose, children, footer }) {
  * sheet. An option with `disabled: true` is shown greyed out and skipped by
  * the arrow keys (a driver whose truck is full).
  */
-export function FormPicker({ id, value, onChange, options, placeholder = 'Choose…', error, sheetTitle, disabled }) {
+export function FormPicker<V extends string | number = string>({ id, value, onChange, options, placeholder = 'Choose…', error, sheetTitle, disabled }: {
+    id: string; value: V | null | undefined; onChange: (value: V) => void; options: FormOption<V>[];
+    placeholder?: Node; error?: unknown; sheetTitle?: string; disabled?: boolean;
+}) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState(-1);
-    const [pos, setPos] = useState({ placement: 'down', maxHeight: 440 });
-    const wrapRef = useRef(null);
-    const triggerRef = useRef(null);
-    const optionRefs = useRef([]);
+    const [pos, setPos] = useState<Placement>({ placement: 'down', maxHeight: 440 });
+    const wrapRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
     const listId = `${id}-list`;
     const selected = options.find((o) => o.value === value);
 
@@ -191,12 +205,12 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
         setActive(-1);
         if (refocus) triggerRef.current?.focus({ preventScroll: true });
     };
-    const choose = (v) => {
+    const choose = (v: V) => {
         onChange(v);
         close();
     };
     // The next option the arrow keys can land on, skipping disabled ones.
-    const stepFrom = (from, step) => {
+    const stepFrom = (from: number, step: number) => {
         let i = from;
         for (let n = 0; n < options.length; n++) {
             i = (i + step + options.length) % options.length;
@@ -214,7 +228,7 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
     // Desktop: a click anywhere outside the field closes the inline list.
     useEffect(() => {
         if (!open || isPhone) return;
-        const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) close(false); };
+        const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as globalThis.Node)) close(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
     }, [open, isPhone]);
@@ -223,7 +237,7 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
         if (open && active >= 0) optionRefs.current[active]?.focus({ preventScroll: false });
     }, [open, active]);
 
-    const onListKeyDown = (e) => {
+    const onListKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
             const step = e.key === 'ArrowDown' ? 1 : -1;
@@ -251,7 +265,7 @@ export function FormPicker({ id, value, onChange, options, placeholder = 'Choose
         >
             {options.map((o, i) => (
                 <button
-                    key={o.value}
+                    key={String(o.value)}
                     ref={(el) => { optionRefs.current[i] = el; }}
                     type="button"
                     role="option"
@@ -329,15 +343,21 @@ export function FormSearchPicker({
     id, value, onChange, options, placeholder = 'Search…', searchPlaceholder = 'Type a name',
     error, sheetTitle, loading = false, onCreateNew, createNewLabel = 'New', selectedLabel = '',
     maxResults = 50, disabled
+}: {
+    id: string; value: string | null | undefined; onChange: (value: string) => void;
+    options: { value: string; label: string; description?: string; keywords?: string }[];
+    placeholder?: Node; searchPlaceholder?: string; error?: unknown; sheetTitle?: string; loading?: boolean;
+    onCreateNew?: (typed: string) => void; createNewLabel?: Node | ((typed: string) => Node | null);
+    selectedLabel?: Node; maxResults?: number; disabled?: boolean;
 }) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
-    const [pos, setPos] = useState({ placement: 'down', maxHeight: 440 });
-    const wrapRef = useRef(null);
-    const triggerRef = useRef(null);
-    const searchRef = useRef(null);
+    const [pos, setPos] = useState<Placement>({ placement: 'down', maxHeight: 440 });
+    const wrapRef = useRef<HTMLDivElement>(null);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
     const openList = () => {
         if (!isPhone) setPos(menuPlacement(triggerRef.current));
         setOpen(true);
@@ -357,7 +377,7 @@ export function FormSearchPicker({
         setActive(0);
         if (refocus) triggerRef.current?.focus({ preventScroll: true });
     };
-    const choose = (v) => {
+    const choose = (v: string) => {
         onChange(v);
         close();
     };
@@ -365,12 +385,12 @@ export function FormSearchPicker({
     useEffect(() => {
         if (!open || isPhone) return;
         searchRef.current?.focus({ preventScroll: true });
-        const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) close(false); };
+        const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as globalThis.Node)) close(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
     }, [open, isPhone]);
 
-    const onSearchKeyDown = (e) => {
+    const onSearchKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
             if (shown.length) setActive((i) => (i + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length);

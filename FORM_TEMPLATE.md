@@ -32,7 +32,7 @@ footer — Save selection is a full-width button at the end of the body, and
 Email / Print sit under a "…" button beside the ✕ (`FormModal`'s opt-in
 `hideFooterOnPhone` and `headerActions`).
 **Add / Edit customer** (`src/components/sales/CustomerForm.jsx`, size M; rules
-in `src/utils/customerForm.js`) is on it, built from model A on the
+in `src/utils/customerForm.ts`) is on it, built from model A on the
 [Add & Edit Customer canvas](https://claude.ai/artifact/G6YUNXvbtVqScRGB7dHtXD):
 no headings, every account setting a dropdown, no Cancel, and the business
 card (Scan card / Upload card photo) under a gold **+** beside the ✕
@@ -40,7 +40,7 @@ card (Scan card / Upload card photo) under a gold **+** beside the ✕
 `AddCustomerModal` from Sales CRM, the Customers list and the route planner;
 that modal's old read-only View is unchanged for now.
 **Add / Edit delivery** (`src/components/sales/delivery/DeliveryForm.jsx`, size
-L; rules in `src/utils/deliveryForm.js`) is on it, built from the
+L; rules in `src/utils/deliveryForm.ts`) is on it, built from the
 [Add & Edit Delivery canvas](https://claude.ai/artifact/MUFMQHSj2xPKo3o9JeXjXC)
 with the owner's field order (2026-10-05): Date | Delivery type, Customer |
 Sales rep, SO | No. of slabs, Driver | Status, Stop | Delivery address, then

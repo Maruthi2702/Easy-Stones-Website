@@ -2,7 +2,8 @@
 
 Plans for moving the app's stack, written 2026-10-23 when the owner asked to
 move the frontend to TypeScript, the backend to Django, and MongoDB to
-PostgreSQL or DynamoDB. **Nothing here is approved or started.** The original
+PostgreSQL or DynamoDB. **TypeScript step 1–3 started 2026-10-23** (owner's go-ahead,
+on `feat/typescript`); the rest is not approved or started. The original
 2026-10-11 review is [`TECH_STACK_REVIEW.md`](TECH_STACK_REVIEW.md).
 
 The rule for all of it: **no feature may break.** `main` is live and there is
@@ -13,7 +14,7 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 
 | Area | Today | Plan | Status |
 |---|---|---|---|
-| Frontend | React 19 + Vite 5, JavaScript | Stay on React; JS → TypeScript gradually | Proposed |
+| Frontend | React 19 + Vite 5, JavaScript | Stay on React; JS → TypeScript gradually | Started (browser-only files) |
 | Backend | Node + Express 5, `node server.js` on Render, Node 20.19 | Stay on Node; Node 24, split `server.js` | Proposed |
 | Django | — | **Not recommended** | Answered |
 | Database | MongoDB (Mongoose 9) | PostgreSQL (not DynamoDB), one area at a time | Proposed |

@@ -1,3 +1,4 @@
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { prefersReducedMotion } from './useIsPhone';
 
 const FOCUSABLE = 'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -7,23 +8,23 @@ const FOCUSABLE = 'input:not([disabled]):not([type="hidden"]), textarea:not([dis
  * it — the error banner's "Go to first", and a failed Create. Fields are
  * found by FormField's data-field attribute inside the open form.
  */
-export function goToField(name) {
+export function goToField(name: string | null | undefined): void {
     if (typeof document === 'undefined' || !name) return;
     const dialogs = document.querySelectorAll('.fm-dialog');
     const dialog = dialogs[dialogs.length - 1];
     const field = dialog?.querySelector(`[data-field="${CSS.escape(name)}"]`);
     if (!field) return;
     field.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
-    const target = field.querySelector(FOCUSABLE);
+    const target = field.querySelector<HTMLElement>(FOCUSABLE);
     target?.focus({ preventScroll: true });
 }
 
 /** Keeps Tab inside the topmost layer (discard check > bottom sheet > form). */
-export function trapTab(e, root) {
-    const layers = root?.querySelectorAll('[data-fm-layer]');
+export function trapTab(e: KeyboardEvent | ReactKeyboardEvent, root: HTMLElement | null | undefined): void {
+    const layers = root?.querySelectorAll<HTMLElement>('[data-fm-layer]');
     const layer = layers?.[layers.length - 1];
     if (!layer) return;
-    const items = [...layer.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement);
+    const items = [...layer.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement);
     if (items.length === 0) {
         e.preventDefault();
         layer.focus?.();
@@ -44,11 +45,11 @@ export function trapTab(e, root) {
     }
 }
 
-export const firstFocusableIn = (el) => el?.querySelector(FOCUSABLE) || null;
+export const firstFocusableIn = (el: Element | null | undefined): HTMLElement | null => el?.querySelector<HTMLElement>(FOCUSABLE) || null;
 
 /** aria props for a control inside FormField (its message has id `${id}-msg`). */
-export const describedBy = (id, error, status) => ({
-    'aria-invalid': error ? 'true' : undefined,
+export const describedBy = (id: string, error: unknown, status?: unknown) => ({
+    'aria-invalid': (error ? 'true' : undefined) as 'true' | undefined,
     'aria-describedby': error || status ? `${id}-msg` : undefined
 });
 
@@ -59,7 +60,11 @@ export const describedBy = (id, error, status) => ({
  * or `scroller`, for a dropdown used outside a form (LocationPicker passes
  * the nearest box that would clip it; null measures against the window).
  */
-export function menuPlacement(anchor, wanted = 440, scroller = anchor?.closest('.fm-body, .fm-sheet-body')) {
+export function menuPlacement(
+    anchor: Element | null | undefined,
+    wanted = 440,
+    scroller: Element | null | undefined = anchor?.closest('.fm-body, .fm-sheet-body')
+): { placement: 'up' | 'down'; maxHeight: number } {
     if (!anchor) return { placement: 'down', maxHeight: wanted };
     const a = anchor.getBoundingClientRect();
     const b = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };

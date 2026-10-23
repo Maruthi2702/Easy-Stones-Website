@@ -1,17 +1,20 @@
-import React, { Component } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 
-class ErrorBoundary extends Component {
-  constructor(props) {
+type ErrorBoundaryProps = { children?: ReactNode; fallback?: ReactNode; onReset?: () => void };
+type ErrorBoundaryState = { hasError: boolean; error: Error | null };
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error, errorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("⚠️ React ErrorBoundary caught an unhandled component render crash:", error, errorInfo);
   }
 

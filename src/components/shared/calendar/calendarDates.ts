@@ -21,18 +21,18 @@ export const MONTH_NAMES = [
 export const MONTH_SHORT = MONTH_NAMES.map((m) => m.slice(0, 3));
 const WEEKDAYS_SUN_FIRST = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-const pad = (n) => String(n).padStart(2, '0');
+const pad = (n: number): string => String(n).padStart(2, '0');
 
 // ── Reading and writing the strings ────────────────────────────────────────
 
 /** A local Date as "YYYY-MM-DD". */
-export const isoOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+export const isoOf = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 /** Today on the viewer's clock. */
-export const todayISO = () => isoOf(new Date());
+export const todayISO = (): string => isoOf(new Date());
 
 /** "YYYY-MM-DD" → { y, m (0–11), d }, or null when it isn't a real calendar day. */
-export const parseISO = (s) => {
+export const parseISO = (s: unknown): { y: number; m: number; d: number } | null => {
     const hit = /^(\d{4})-(\d{2})-(\d{2})/.exec(typeof s === 'string' ? s : '');
     if (!hit) return null;
     const y = Number(hit[1]);
@@ -44,24 +44,24 @@ export const parseISO = (s) => {
     return { y, m, d };
 };
 
-export const isValidISO = (s) => parseISO(s) !== null;
+export const isValidISO = (s: unknown): boolean => parseISO(s) !== null;
 
 /** "YYYY-MM" → { y, m (0–11) } or null. */
-export const parseMonth = (s) => {
+export const parseMonth = (s: unknown): { y: number; m: number } | null => {
     const hit = /^(\d{4})-(\d{2})$/.exec(typeof s === 'string' ? s : '');
     if (!hit || Number(hit[2]) < 1 || Number(hit[2]) > 12) return null;
     return { y: Number(hit[1]), m: Number(hit[2]) - 1 };
 };
 
 /** "YYYY" or 2026 → 2026, or null. */
-export const parseYear = (s) => {
+export const parseYear = (s: unknown): number | null => {
     const hit = /^(\d{4})$/.exec(String(s ?? ''));
     return hit ? Number(hit[1]) : null;
 };
 
-export const monthOf = (iso) => iso.slice(0, 7);
+export const monthOf = (iso: string): string => iso.slice(0, 7);
 
-const toDate = (iso) => {
+const toDate = (iso: string): Date | null => {
     const p = parseISO(iso);
     return p ? new Date(p.y, p.m, p.d) : null;
 };
@@ -69,7 +69,7 @@ const toDate = (iso) => {
 // ── Moving around ──────────────────────────────────────────────────────────
 
 /** A day moved by whole days (negative goes back). */
-export const shiftDay = (iso, days) => {
+export const shiftDay = (iso: string, days: number): string => {
     const d = toDate(iso);
     if (!d) return iso;
     d.setDate(d.getDate() + days);
@@ -82,7 +82,7 @@ export const addDays = shiftDay;
  * because 31 January a month on is the 28th, not the 3rd of March, which is
  * what Date's own rollover would give.
  */
-export const shiftMonth = (iso, months) => {
+export const shiftMonth = (iso: string, months: number): string => {
     const p = parseISO(iso);
     if (!p) return iso;
     const lastOfTarget = new Date(p.y, p.m + months + 1, 0).getDate();
@@ -90,7 +90,7 @@ export const shiftMonth = (iso, months) => {
 };
 
 /** The same day number in another month ("YYYY-MM"), clamped like shiftMonth. */
-export const withMonth = (iso, ym) => {
+export const withMonth = (iso: string, ym: string): string => {
     const target = parseMonth(ym);
     const p = parseISO(iso);
     if (!target || !p) return iso;
@@ -99,7 +99,7 @@ export const withMonth = (iso, ym) => {
 };
 
 /** A "YYYY-MM" moved by whole months. */
-export const shiftMonthKey = (ym, months) => {
+export const shiftMonthKey = (ym: string, months: number): string => {
     const p = parseMonth(ym);
     if (!p) return ym;
     const d = new Date(p.y, p.m + months, 1);
@@ -109,17 +109,17 @@ export const shiftMonthKey = (ym, months) => {
 // ── The month grid ─────────────────────────────────────────────────────────
 
 /** Weekday headings, in the order the week starts. */
-export const weekdayLabels = (weekStart = WEEK_STARTS_ON) =>
+export const weekdayLabels = (weekStart: number = WEEK_STARTS_ON): string[] =>
     WEEKDAYS_SUN_FIRST.slice(weekStart).concat(WEEKDAYS_SUN_FIRST.slice(0, weekStart));
 
 /** The 42 days (six rows) shown for a month, spilling into the months either side. */
-export const monthGrid = (year, month, weekStart = WEEK_STARTS_ON) => {
+export const monthGrid = (year: number, month: number, weekStart: number = WEEK_STARTS_ON): string[] => {
     const offset = (new Date(year, month, 1).getDay() - weekStart + 7) % 7;
     return Array.from({ length: 42 }, (_, i) => isoOf(new Date(year, month, 1 - offset + i)));
 };
 
 /** First and last day of the week a day falls in. */
-export const weekBounds = (iso, weekStart = WEEK_STARTS_ON) => {
+export const weekBounds = (iso: string, weekStart: number = WEEK_STARTS_ON): { start: string; end: string } | null => {
     const d = toDate(iso);
     if (!d) return null;
     const back = (d.getDay() - weekStart + 7) % 7;
@@ -127,22 +127,24 @@ export const weekBounds = (iso, weekStart = WEEK_STARTS_ON) => {
 };
 
 /** First year of the decade a year is in (2026 → 2020). */
-export const decadeStart = (year) => Math.floor(year / 10) * 10;
+export const decadeStart = (year: number): number => Math.floor(year / 10) * 10;
 
 /** The twelve cells of the year view: one year before the decade, its ten, one after. */
-export const yearCells = (decade) => Array.from({ length: 12 }, (_, i) => decade - 1 + i);
+export const yearCells = (decade: number): number[] => Array.from({ length: 12 }, (_, i) => decade - 1 + i);
 
 // ── Limits ─────────────────────────────────────────────────────────────────
 
 /** True when a day is before `min` or after `max` (either may be empty). */
-export const dayOutside = (iso, min, max) => Boolean((min && iso < min) || (max && iso > max));
+type Limit = string | null | undefined;
+
+export const dayOutside = (iso: string, min: Limit, max: Limit): boolean => Boolean((min && iso < min) || (max && iso > max));
 /** True when a whole month ("YYYY-MM") has no day inside the limits. */
-export const monthOutside = (ym, min, max) => Boolean((min && ym < min.slice(0, 7)) || (max && ym > max.slice(0, 7)));
+export const monthOutside = (ym: string, min: Limit, max: Limit): boolean => Boolean((min && ym < min.slice(0, 7)) || (max && ym > max.slice(0, 7)));
 /** True when a whole year has no day inside the limits. */
-export const yearOutside = (year, min, max) => Boolean((min && String(year) < min.slice(0, 4)) || (max && String(year) > max.slice(0, 4)));
+export const yearOutside = (year: number | string, min: Limit, max: Limit): boolean => Boolean((min && String(year) < min.slice(0, 4)) || (max && String(year) > max.slice(0, 4)));
 
 /** A day pulled back inside the limits. */
-export const clampDay = (iso, min, max) => {
+export const clampDay = (iso: string, min: Limit, max: Limit): string => {
     if (min && iso < min) return min;
     if (max && iso > max) return max;
     return iso;
@@ -151,25 +153,25 @@ export const clampDay = (iso, min, max) => {
 // ── Words ──────────────────────────────────────────────────────────────────
 
 /** "Tue, Oct 20, 2026" — what a date field shows. */
-export const formatDateText = (iso) => {
+export const formatDateText = (iso: string): string => {
     const d = toDate(iso);
     return d ? d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '';
 };
 
 /** "Tuesday, October 20, 2026" — what a screen reader hears for a day. */
-export const formatDateLong = (iso) => {
+export const formatDateLong = (iso: string): string => {
     const d = toDate(iso);
     return d ? d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : '';
 };
 
 /** "October 2026" for "2026-10". */
-export const formatMonthText = (ym) => {
+export const formatMonthText = (ym: string): string => {
     const p = parseMonth(ym);
     return p ? `${MONTH_NAMES[p.m]} ${p.y}` : '';
 };
 
 /** "Oct 19 – 25, 2026" / "Oct 27 – Nov 2, 2026" / "Dec 28, 2026 – Jan 3, 2027" for a run of days. */
-export const formatRangeText = (startISO, endISO) => {
+export const formatRangeText = (startISO: string, endISO: string): string => {
     const a = parseISO(startISO);
     const b = parseISO(endISO);
     if (!a || !b) return '';
@@ -185,7 +187,7 @@ export const formatRangeText = (startISO, endISO) => {
  * doesn't handle: arrows move a day / a week, PageUp / PageDown a month
  * (Shift: a year), Home / End the ends of the week.
  */
-export const dayAfterKey = (iso, key, shiftKey = false, weekStart = WEEK_STARTS_ON) => {
+export const dayAfterKey = (iso: string, key: string, shiftKey = false, weekStart: number = WEEK_STARTS_ON): string | null => {
     switch (key) {
         case 'ArrowLeft': return shiftDay(iso, -1);
         case 'ArrowRight': return shiftDay(iso, 1);
@@ -202,12 +204,12 @@ export const dayAfterKey = (iso, key, shiftKey = false, weekStart = WEEK_STARTS_
 // ── Shortcut buttons ───────────────────────────────────────────────────────
 
 /** A shortcut that lands `days` from today ("Tomorrow", "+1 week"). */
-export const inDays = (label, days, today = todayISO()) => ({ label, value: shiftDay(today, days) });
+export const inDays = (label: string, days: number, today: string = todayISO()): { label: string; value: string } => ({ label, value: shiftDay(today, days) });
 
 // ── A date with a time (the visit scheduler) ───────────────────────────────
 
 /** Local "YYYY-MM-DDTHH:mm:00.000" for a Date. */
-export const localDateTime = (d) =>
+export const localDateTime = (d: Date): string =>
     `${isoOf(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:00.000`;
 
 /**
@@ -215,14 +217,14 @@ export const localDateTime = (d) =>
  * what was typed — these times are local wall-clock times, not instants.
  * An empty or unreadable value is "now".
  */
-export const readDateTime = (value) => {
+export const readDateTime = (value: string | number | Date | null | undefined): Date => {
     if (!value) return new Date();
     const d = new Date(typeof value === 'string' && value.endsWith('Z') ? value.slice(0, -1) : value);
     return Number.isNaN(d.getTime()) ? new Date() : d;
 };
 
 /** Now, rounded to the nearest 5 minutes — what an empty scheduler starts at. */
-export const roundedNow = (now = new Date()) => {
+export const roundedNow = (now: Date = new Date()): Date => {
     const d = new Date(now);
     let minutes = Math.round(d.getMinutes() / 5) * 5;
     if (minutes >= 60) {
@@ -234,21 +236,21 @@ export const roundedNow = (now = new Date()) => {
 };
 
 /** The 12-hour clock's parts for a Date, minutes rounded to the 5 the picker offers. */
-export const clockParts = (d) => ({
+export const clockParts = (d: Date): { hour: number; minute: number; period: 'AM' | 'PM' } => ({
     hour: d.getHours() % 12 === 0 ? 12 : d.getHours() % 12,
     minute: (Math.round(d.getMinutes() / 5) * 5) % 60,
     period: d.getHours() >= 12 ? 'PM' : 'AM'
 });
 
 /** A date-time with its clock set to a 12-hour hour, a minute and AM / PM. */
-export const withClock = (value, hour, minute, period) => {
+export const withClock = (value: string | null | undefined, hour: number | string, minute: number | string, period: string): string => {
     const d = readDateTime(value);
     d.setHours((Number(hour) % 12) + (period === 'PM' ? 12 : 0), Number(minute), 0, 0);
     return localDateTime(d);
 };
 
 /** A date-time moved to another day, keeping the time of day. */
-export const withDay = (value, iso) => {
+export const withDay = (value: string | null | undefined, iso: string): string | null | undefined => {
     const p = parseISO(iso);
     if (!p) return value;
     const d = readDateTime(value);
@@ -257,4 +259,4 @@ export const withDay = (value, iso) => {
 };
 
 /** "10:30 AM". */
-export const formatTimeText = (d) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+export const formatTimeText = (d: Date): string => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });

@@ -7,7 +7,9 @@ import './Toast.css';
  * wrong. `toast` is { id, text, kind: 'ok' | 'error' } or null; a new id
  * restarts the timer. Errors stay longer and are announced at once.
  */
-const Toast = ({ toast, onDismiss }) => {
+export type ToastMessage = { id: number | string; text: string; kind?: 'ok' | 'error' };
+
+const Toast = ({ toast, onDismiss }: { toast: ToastMessage | null; onDismiss: () => void }) => {
   const id = toast?.id;
   const kind = toast?.kind;
   useEffect(() => {

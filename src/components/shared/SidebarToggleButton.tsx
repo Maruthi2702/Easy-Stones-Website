@@ -12,12 +12,14 @@ import './SidebarToggleButton.css';
  *   title     {string}   – Accessible tooltip title
  *   className {string}   – Additional custom classes
  */
+type SidebarToggleButtonProps = { isOpen?: boolean; onClick?: () => void; title?: string; className?: string };
+
 const SidebarToggleButton = ({
   isOpen = false,
   onClick,
   title = "Toggle navigation sidebar",
   className = ""
-}) => {
+}: SidebarToggleButtonProps) => {
   return (
     <button
       type="button"

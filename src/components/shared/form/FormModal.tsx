@@ -51,6 +51,30 @@ const unlockPage = () => {
     window.scrollTo(0, savedScrollY);
 };
 
+export type FormModalProps = {
+    title: React.ReactNode;
+    size?: 's' | 'm' | 'l';
+    onClose?: () => void;
+    onSubmit?: (e: React.FormEvent<HTMLFormElement>) => void;
+    submitLabel?: React.ReactNode;
+    savingLabel?: React.ReactNode;
+    saving?: boolean;
+    submitDisabled?: boolean;
+    dirtyCount?: number;
+    discardTitle?: React.ReactNode;
+    /** { field: message } — a truthy message counts toward the banner. */
+    errors?: Record<string, unknown>;
+    showErrors?: boolean;
+    fieldLabels?: Record<string, string>;
+    footerNote?: React.ReactNode;
+    footerStart?: React.ReactNode;
+    headerActions?: React.ReactNode;
+    hideFooterOnPhone?: boolean;
+    hideSubmit?: boolean;
+    submitTone?: 'primary' | 'danger';
+    children?: React.ReactNode;
+};
+
 export default function FormModal({
     title,
     size = 'm',
@@ -82,24 +106,24 @@ export default function FormModal({
     // removes something (the Customer List's bulk Delete). Same place and size.
     submitTone = 'primary',
     children
-}) {
+}: FormModalProps) {
     const isPhone = useIsPhone();
     const titleId = useId();
-    const overlayRef = useRef(null);
-    const dialogRef = useRef(null);
-    const bodyRef = useRef(null);
-    const topSentinel = useRef(null);
-    const bottomSentinel = useRef(null);
+    const overlayRef = useRef<HTMLDivElement>(null);
+    const dialogRef = useRef<HTMLFormElement>(null);
+    const bodyRef = useRef<HTMLDivElement>(null);
+    const topSentinel = useRef<HTMLDivElement>(null);
+    const bottomSentinel = useRef<HTMLDivElement>(null);
     const pressStartedOnOverlay = useRef(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
     // The form element, once mounted, for FormSheet to portal into.
-    const [layer, setLayer] = useState(null);
+    const [layer, setLayer] = useState<HTMLElement | null>(null);
     useLayoutEffect(() => { setLayer(dialogRef.current); }, []);
 
     const errorKeys = Object.keys(errors).filter((k) => errors[k]);
     const bannerVisible = showErrors && errorKeys.length > 0;
 
-    const focusBeforeConfirm = useRef(null);
+    const focusBeforeConfirm = useRef<Element | null>(null);
     const requestClose = () => {
         if (saving) return;
         if (dirtyCount > 0) {
@@ -114,7 +138,7 @@ export default function FormModal({
         setConfirmOpen(false);
         const el = focusBeforeConfirm.current;
         requestAnimationFrame(() => {
-            if (el && document.contains(el) && el.closest?.('.fm-dialog')) el.focus({ preventScroll: true });
+            if (el && document.contains(el) && el.closest?.('.fm-dialog')) (el as HTMLElement).focus({ preventScroll: true });
             else dialogRef.current?.focus({ preventScroll: true });
         });
     };
@@ -122,7 +146,7 @@ export default function FormModal({
     // Page lock + focus in/out. Layout effect so the page never visibly
     // scrolls under the form on the first frame.
     useLayoutEffect(() => {
-        const previouslyFocused = document.activeElement;
+        const previouslyFocused = document.activeElement as HTMLElement | null;
         lockPage();
         return () => {
             unlockPage();
@@ -139,7 +163,7 @@ export default function FormModal({
             dialog.focus({ preventScroll: true });
             return;
         }
-        const first = dialog.querySelector('.fm-fieldset input:not([disabled]):not([type="hidden"]), .fm-fieldset textarea, .fm-fieldset .fm-picker-trigger');
+        const first = dialog.querySelector<HTMLElement>('.fm-fieldset input:not([disabled]):not([type="hidden"]), .fm-fieldset textarea, .fm-fieldset .fm-picker-trigger');
         (first || dialog).focus({ preventScroll: true });
         // Only on open — not every time the screen size changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,7 +173,7 @@ export default function FormModal({
     // browser asks first.
     useEffect(() => {
         if (dirtyCount === 0) return;
-        const warn = (e) => { e.preventDefault(); e.returnValue = ''; };
+        const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
         window.addEventListener('beforeunload', warn);
         return () => window.removeEventListener('beforeunload', warn);
     }, [dirtyCount]);
@@ -217,8 +241,8 @@ export default function FormModal({
     useEffect(() => {
         const body = bodyRef.current;
         if (!isPhone || !body) return;
-        let timer = 0;
-        const onFocusIn = (e) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const onFocusIn = (e: FocusEvent) => {
             const el = e.target;
             if (!(el instanceof HTMLElement) || !el.matches('input, textarea, select')) return;
             clearTimeout(timer);
@@ -241,8 +265,8 @@ export default function FormModal({
     // element that had it was removed), keys still reach the form instead of
     // Tab wandering off into the page behind. A bottom sheet or picker that
     // handles Esc itself stops the event before it gets here.
-    const keyHandler = useRef(null);
-    keyHandler.current = (e) => {
+    const keyHandler = useRef<((e: KeyboardEvent) => void) | null>(null);
+    keyHandler.current = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
             e.preventDefault();
             if (confirmOpen) keepEditing();
@@ -252,12 +276,12 @@ export default function FormModal({
         }
     };
     useEffect(() => {
-        const onKey = (e) => keyHandler.current(e);
+        const onKey = (e: KeyboardEvent) => keyHandler.current!(e);
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
     }, []);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (saving || submitDisabled) return;
         onSubmit?.(e);
