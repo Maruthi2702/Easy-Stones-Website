@@ -17,6 +17,7 @@ const VisitModal = ({
     isSaving,
     handleSaveVisit,
     handleVisitImageUpload,
+    visitUploading = false,
     handleRemoveVisitImage,
     selectedCustomer,
     customers,
@@ -94,6 +95,7 @@ const VisitModal = ({
                 onSave={handleSaveVisit}
                 onClose={handleCloseVisitModal}
                 onUpload={handleVisitImageUpload}
+                uploading={visitUploading}
                 onRemoveImage={handleRemoveVisitImage}
                 onCreateCustomer={onCreateNew}
                 canDelete={canDelete}

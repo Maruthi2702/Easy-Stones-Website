@@ -537,6 +537,23 @@ and until 2026-10-18 they weren't, so the unique indexes that stop two holds on 
 slab were never created in production (a startup log line names any that fail, e.g.
 on duplicates already there).
 
+## Saving a visit: the server decides, the form doesn't wait (2026-10-23, on `feat/visit-save-server`)
+
+Add / edit visit is `src/routes/visits.js` (tested in `visits.test.js`, in-memory
+MongoDB; mounted in server.js where the old routes were). The rules are the
+server's, from `src/utils/visitForm.js`: the type must be one of `VISIT_TYPES`
+(a legacy type already on the visit may be kept on edit), a type with no
+follow-up stores none (`cleanVisitFields`), dates are real days. A new visit
+carries its own `_id` (`newVisitId()`); a repeat of the same POST answers 200
+`alreadySaved` with the visit it has, so the client's retry can't double it. PUT
+answers with the stored visit. Photos/PDFs go to `POST /api/customers/visit-attachments`
+the moment they're picked (SalesPage `uploadVisitAttachment`) and Save sends
+links; a photo whose early upload failed is still sent as data with Save. On Save
+the form closes and the visit shows on the customer at once (`handleSaveVisit`);
+the request goes behind it, a failure takes the visit back off and reopens the
+form with what was typed, and closing the tab mid-send asks first
+(`beforeunload`). A photo uploaded and then never saved stays in Cloudinary.
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,

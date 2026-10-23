@@ -36,6 +36,7 @@ import { canOpenUsersPage } from '../utils/teamAccess';
 import { canOpenArea, can, NAV_ORDER } from '../utils/usersAccess';
 import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
+import { newVisitId } from '../utils/visitForm';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
@@ -1323,6 +1324,13 @@ const SalesPage = () => {
     const [isViewingResource, setIsViewingResource] = useState(false);
     const [isViewingVisit, setIsViewingVisit] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    // Visit photos go up the moment they are picked, and Save is sent behind the
+    // closed form (handleSaveVisit), so the form never waits on either.
+    const [visitUploading, setVisitUploading] = useState(false);
+    const visitUploadsRef = useRef(new Set());   // uploads still going
+    const visitUploadedRef = useRef(new Map());  // picked photo data → stored link
+    const visitSavesInFlight = useRef(0);        // saves sent and not yet answered
+    const visitModalOpenRef = useRef(false);
     const [isChatFullScreen] = useState(false);
     const [quickNote, setQuickNote] = useState('');
     const [isSavingNote, setIsSavingNote] = useState(false);
@@ -1944,6 +1952,17 @@ const SalesPage = () => {
         });
     };
 
+    // The other way: take a visit that was shown ahead of its save back off.
+    const removeOpenCustomerVisit = (customerId, visitId) => {
+        if (!visitId || customerId !== selectedCustomerId) return;
+        setSelectedCustomerDetail(prev => {
+            if (!prev || prev._id !== customerId) return prev;
+            const next = { ...prev, visits: (prev.visits || []).filter(v => v._id !== visitId) };
+            customerCacheRef.current[customerId] = next;
+            return next;
+        });
+    };
+
     const handleSaveContact = async () => {
         try {
             setIsSaving(true);
@@ -2382,6 +2401,20 @@ const SalesPage = () => {
         }
     };
 
+    useEffect(() => { visitModalOpenRef.current = showVisitModal; }, [showVisitModal]);
+
+    // A visit that is still being sent is lost if the tab closes now.
+    useEffect(() => {
+        const onBeforeUnload = (e) => {
+            if (visitSavesInFlight.current > 0) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, []);
+
     const handleCloseVisitModal = () => {
         setVisitForm({
             date: '',
@@ -2399,6 +2432,12 @@ const SalesPage = () => {
 
     // VisitForm passes what to save (hidden follow-up fields already cleared —
     // visitValuesToSave); anything else, such as a click event, means the form state.
+    //
+    // The form closes and the visit shows on the customer at once; the request
+    // goes behind it. A new visit carries its own id, so the retry below (or a
+    // lost answer) can't add it twice — the server answers a repeat with the
+    // visit it already has. If the save fails, the visit is taken back off the
+    // screen and the form reopens with everything that was typed.
     const handleSaveVisit = async (values) => {
         const form = values && typeof values === 'object' && !values.nativeEvent ? values : visitForm;
         const targetCustomerId = form.customerId || selectedCustomerId;
@@ -2407,25 +2446,37 @@ const SalesPage = () => {
             return;
         }
 
+        const editing = editingVisit;
+        const visitId = editing ? editing._id : newVisitId();
+        const url = editing
+            ? `${API_URL}/api/customers/${targetCustomerId}/visits/${editing._id}`
+            : `${API_URL}/api/customers/${targetCustomerId}/visits`;
+        const payload = {
+            ...form,
+            date: form.date, // Send as-is, backend will handle with ensureDateString
+            followUpDate: form.followUpDate || ''
+        };
+        if (!editing) payload._id = visitId;
+
+        patchOpenCustomerVisits(
+            targetCustomerId,
+            editing
+                ? { ...editing, ...payload, _id: visitId }
+                : { ...payload, createdBy: currentUser?._id || currentUser?.id, createdByName: currentUser?.displayName || currentUser?.username }
+        );
+        setCurrentFollowUpPage(1);
+        handleCloseVisitModal();
+
+        visitSavesInFlight.current += 1;
         try {
-            setIsSaving(true);
-
-            if (!targetCustomerId) {
-                alert('No customer selected');
-                setIsSaving(false);
-                return;
-            }
-
-            const url = editingVisit
-                ? `${API_URL}/api/customers/${targetCustomerId}/visits/${editingVisit._id}`
-                : `${API_URL}/api/customers/${targetCustomerId}/visits`;
-
-            const method = editingVisit ? 'PUT' : 'POST';
-
-            const payload = {
-                ...form,
-                date: form.date, // Send as-is, backend will handle with ensureDateString
-                followUpDate: form.followUpDate || ''
+            // Photos still going up finish first; one that failed to upload is
+            // sent here as it was picked, and the server stores it.
+            await Promise.allSettled([...visitUploadsRef.current]);
+            const stored = visitUploadedRef.current;
+            const linkOf = (img) => (typeof img === 'string' && stored.get(img)) || img;
+            const body = {
+                ...payload,
+                image: Array.isArray(payload.image) ? payload.image.map(linkOf) : payload.image ? linkOf(payload.image) : payload.image
             };
 
             // Smart Retry Logic for cold-starts/stale connections
@@ -2436,8 +2487,8 @@ const SalesPage = () => {
             for (let i = 0; i <= maxRetries; i++) {
                 try {
                     response = await authFetch(url, {
-                        method,
-                        body: JSON.stringify(payload)
+                        method: editing ? 'PUT' : 'POST',
+                        body: JSON.stringify(body)
                     });
 
                     if (response.ok) break;
@@ -2461,29 +2512,32 @@ const SalesPage = () => {
                 throw lastError || new Error('Failed to save visit');
             }
 
-            // POST answers with the stored visit (image URLs and all); PUT
-            // doesn't, so an edit shows what was just sent until the refresh.
+            // Both answer with the stored visit (image links and all).
             const saved = await response.json().catch(() => null);
-            patchOpenCustomerVisits(
-                targetCustomerId,
-                editingVisit ? { ...editingVisit, ...payload, _id: editingVisit._id } : saved?.visit
-            );
+            if (saved?.visit) patchOpenCustomerVisits(targetCustomerId, saved.visit);
+            (Array.isArray(payload.image) ? payload.image : [payload.image]).forEach(img => stored.delete(img));
 
-            setCurrentFollowUpPage(1);
-            handleCloseVisitModal();
             // Logging a visit can add a drop-in to the calendar, hence schedules.
             refreshAfterSave(targetCustomerId, { schedules: true });
         } catch (error) {
             console.error('[Visit Save Exception] Details:', {
                 message: error.message,
-                url: editingVisit
-                    ? `${API_URL}/api/customers/${targetCustomerId}/visits/${editingVisit._id}`
-                    : `${API_URL}/api/customers/${targetCustomerId}/visits`,
+                url,
                 payload: form
             });
-            alert(error.fromServer ? error.message : 'Failed to save visit. Please check your connection and try again.');
+            // Take the visit back off the screen and give the form back.
+            if (editing) patchOpenCustomerVisits(targetCustomerId, editing);
+            else removeOpenCustomerVisit(targetCustomerId, visitId);
+            if (!visitModalOpenRef.current) {
+                setVisitForm(form);
+                setEditingVisit(editing);
+                setIsViewingVisit(false);
+                setShowVisitModal(true);
+            }
+            const why = error.fromServer ? error.message : 'Please check your connection and try again.';
+            alert(`The visit wasn’t saved. ${why}${visitModalOpenRef.current ? '' : ' What you entered is back in the form.'}`);
         } finally {
-            setIsSaving(false);
+            visitSavesInFlight.current -= 1;
         }
     };
 
@@ -3023,6 +3077,37 @@ const SalesPage = () => {
             ...prev,
             image: prev.image ? (Array.isArray(prev.image) ? [...prev.image, ...newFiles] : [prev.image, ...newFiles]) : newFiles
         }));
+        newFiles.forEach(uploadVisitAttachment);
+    };
+
+    // Sends one picked photo/PDF to the server right away; the form keeps the
+    // tile (with a spinner) and swaps in the stored link when it lands. If it
+    // fails nothing is lost — Save sends the photo itself, as it always did.
+    const uploadVisitAttachment = (dataUrl) => {
+        if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return;
+        const job = (async () => {
+            try {
+                const res = await authFetch(`${API_URL}/api/customers/visit-attachments`, {
+                    method: 'POST',
+                    body: JSON.stringify({ data: dataUrl })
+                });
+                if (!res.ok) return;
+                const { url } = await res.json();
+                if (!url) return;
+                visitUploadedRef.current.set(dataUrl, url);
+                setVisitForm(prev => {
+                    const list = Array.isArray(prev.image) ? prev.image : prev.image ? [prev.image] : [];
+                    return list.includes(dataUrl) ? { ...prev, image: list.map(i => (i === dataUrl ? url : i)) } : prev;
+                });
+            } catch (err) {
+                console.warn('[Visit photo] early upload failed; it will be sent with Save.', err);
+            }
+        })().finally(() => {
+            visitUploadsRef.current.delete(job);
+            setVisitUploading(visitUploadsRef.current.size > 0);
+        });
+        visitUploadsRef.current.add(job);
+        setVisitUploading(true);
     };
 
     const handleRemoveVisitImage = (index) => {
@@ -4762,6 +4847,7 @@ const SalesPage = () => {
                     isSaving={isSaving}
                     handleSaveVisit={handleSaveVisit}
                     handleVisitImageUpload={handleVisitImageUpload}
+                    visitUploading={visitUploading}
                     handleRemoveVisitImage={handleRemoveVisitImage}
                     selectedCustomer={selectedCustomer}
                     customers={customers}
