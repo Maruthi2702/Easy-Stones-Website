@@ -15,7 +15,7 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 | Area | Today | Plan | Status |
 |---|---|---|---|
 | Frontend | React 19 + Vite 5, JavaScript | Stay on React; JS → TypeScript gradually | Started (browser-only files) |
-| Backend | Node + Express 5, `node server.js` on Render, Node 20.19 | Stay on Node; Node 24, split `server.js` | Proposed |
+| Backend | Node + Express 5, `node server.js` on Render | Stay on Node; Node 24, split `server.js` | Node 24 approved 2026-10-23; split started |
 | Django | — | **Not recommended** | Answered |
 | Database | MongoDB (Mongoose 9) | PostgreSQL (not DynamoDB), one area at a time | Proposed |
 | Staging | None (deferred by the owner 2026-10-07) | Needed before any database move | Owner to decide |
@@ -37,7 +37,7 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 
 - Approve the TypeScript plan and its pace (foundations as dedicated work,
   screens converted as they're touched — my recommendation).
-- Move Render to Node 24.
+- ~~Move Render to Node 24.~~ Approved 2026-10-23.
 - PostgreSQL as the target, hosted on Render.
 - Bring staging back before any data moves.
 - Short early-morning write pauses, one per area as it moves to Postgres.
@@ -55,7 +55,13 @@ walking the import graph from `src/main.jsx` and from `server.js` + `scripts/`:
 | Shared | 69 (38 `src/utils`, 24 `src/permits/rules`, + accounting/holds/config) | ~9.6k | Vite **and** `node server.js` |
 | Server-only | 106 + `server.js` | ~20k + 6.5k | Node only |
 
-**The constraint:** Render runs `node server.js` on Node **20.19** with no
+**Update 2026-10-23:** the owner approved Node 24, so the constraint below is
+lifted on `feat/typescript` (pinned to 24.22.1; checked by booting `server.js`
+on Node 24 against an in-memory MongoDB, the full test suite, and sharp,
+pdf-lib, Tesseract, Playwright, xlsx and bcrypt loading). Server-loaded files
+may now be `.ts` with explicit `.ts` imports; `.tsx` stays browser-only.
+
+**The constraint (until then):** Render ran `node server.js` on Node **20.19** with no
 compile step. Node 20 can't load a `.ts` file (`ERR_UNKNOWN_FILE_EXTENSION`,
 checked); Node 24 strips the types itself (checked). So a shared file renamed
 to `.ts` on Node 20 crashes the live server at start. Node 20 also reached end

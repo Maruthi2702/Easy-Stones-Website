@@ -1,16 +1,20 @@
-// Fails if anything the server loads is a .ts/.tsx file (MIGRATION_NOTES.md §1).
+// Checks what the server loads can actually be loaded by Node on Render.
 //
-// Render runs `node server.js` on Node 20.19 with no build step, and Node 20
-// refuses a .ts file at start (ERR_UNKNOWN_FILE_EXTENSION) — the whole server
-// stays down. So until Render is on Node 24, only files that the browser alone
-// loads may be TypeScript. This walks every relative import from the server's
-// entry points (server.js, ensure-indexes.js, scripts/*) and also refuses an
-// import that doesn't resolve to a file exactly as written: Node has no
-// extension guessing, and './userForm' instead of './userForm.js' is what took
-// the server down on 2026-10-23.
+// Render runs `node server.js` with no build step, on Node 24 (since
+// 2026-10-23; MIGRATION_NOTES.md §1). Node 24 strips TypeScript types itself,
+// so a server file may be `.ts` — but only plain, erasable TypeScript (tsconfig's
+// erasableSyntaxOnly / verbatimModuleSyntax check that), never `.tsx` (Node
+// doesn't compile JSX), and every import must name the file exactly as it is
+// on disk, extension included: Node has no extension guessing, and
+// './userForm' instead of './userForm.js' is what took the server down on
+// 2026-10-23. This walks every relative import from the server's entry points
+// (server.js, ensure-indexes.js) and refuses either mistake. `npm run build`
+// runs it first, so on Render a bad import fails the deploy instead of the
+// live server.
 //
 //   node scripts/check-server-ts.mjs          (part of `npm run typecheck`)
 //   node scripts/check-server-ts.mjs --list   also prints the browser-only files
+//   node scripts/check-server-ts.mjs --server-list   …and the files the server loads
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -61,9 +65,13 @@ const scriptEntries = fs.readdirSync(path.join(root, 'scripts'))
 const scripts = walk(scriptEntries, { exact: true });
 const nodeFiles = new Set([...server.files, ...scripts.files]);
 
-const typed = [...nodeFiles].filter((f) => /\.tsx?$/.test(f)).map((f) => `${path.relative(root, f)} is TypeScript, and the server or a script loads it`);
+const typed = [...nodeFiles].filter((f) => /\.tsx$/.test(f)).map((f) => `${path.relative(root, f)} is .tsx (JSX), and the server or a script loads it — Node can't run JSX`);
 const problems = [...server.problems, ...typed];
 scripts.problems.filter((p) => !server.problems.includes(p)).forEach((p) => console.error(`  warning: ${p}`));
+
+if (process.argv.includes('--server-list')) {
+  console.log([...nodeFiles].map((f) => path.relative(root, f)).sort().join('\n'));
+}
 
 if (process.argv.includes('--list')) {
   const browser = walk(['src/main.jsx'], { exact: false });
@@ -73,8 +81,9 @@ if (process.argv.includes('--list')) {
 }
 
 if (problems.length) {
-  console.error('Server import check failed (MIGRATION_NOTES.md §1 — Node 20 can only load .js):');
+  console.error('Server import check failed (Node loads imports exactly as written, and never .tsx):');
   problems.forEach((p) => console.error(`  ${p}`));
   process.exit(1);
 }
-console.error(`Server import check: ${nodeFiles.size} files, all plain JavaScript and found as written.`);
+const tsCount = [...nodeFiles].filter((f) => /\.ts$/.test(f)).length;
+console.error(`Server import check: ${nodeFiles.size} files found as written (${tsCount} TypeScript).`);

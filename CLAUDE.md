@@ -569,22 +569,27 @@ test (`*.test.tsx`, React Testing Library). `server.js` is being split the same
 way into `src/routes/<area>.js` routers, checked against a route-table
 snapshot so no path, middleware or order changes.
 
-## TypeScript: browser files only until Node 24 (2026-10-23, on `feat/typescript`)
+## TypeScript and Node 24 (2026-10-23, on `feat/typescript`)
 
-The plan is `MIGRATION_NOTES.md` §1. A file **only the browser loads** may be
-`.ts`/`.tsx`; anything `server.js` (or a script) reaches stays `.js` until
-Render runs Node 24 — Node 20 can't load `.ts` and the server would crash at
-start. `scripts/check-server-ts.mjs` walks what the server loads and fails on a
-`.ts` file or an import Node can't find as written (the missing-`.js` crash of
-2026-10-23); `npm run build` runs it first, so on Render a bad import fails the
-deploy instead of the live server. `npm run typecheck` = `tsc` + that check.
-`.ts`/`.tsx` are strict; JavaScript is read for its exports but not checked.
-Shared shapes are in `src/types/` (`Loose` marks a record not typed yet — a
-spot to tighten). A shared `.js` file a typed one imports gets JSDoc types
-when TypeScript misreads a parameter (`= []` reads as an always-empty list).
-A conversion is types only: `git mv`, annotations, importers that named the
-file with `.js` lose the extension, no behaviour change; check with typecheck,
-`npm test`, `vite build`, and the screen by hand.
+The plan is `MIGRATION_NOTES.md` §1. Render runs `node server.js` on **Node
+24** (owner's go-ahead 2026-10-23; `render.yaml`, `engines`, `.node-version`
+pin 24.22.1), which strips TypeScript types itself, so any file may be `.ts`.
+What the server loads must be **plain, erasable TypeScript** (no `enum`,
+`namespace` or parameter properties — `erasableSyntaxOnly`), type-only imports
+written `import type` (`verbatimModuleSyntax`), never `.tsx`, and every import
+naming the file exactly, `.ts` included (`import x from './rules.ts'`) — Node
+has no extension guessing. `scripts/check-server-ts.mjs` walks what the server
+loads and fails on a `.tsx` or an import Node can't find as written (the
+missing-`.js` crash of 2026-10-23); `npm run build` runs it first, so on Render
+a bad import fails the deploy instead of the live server. `npm run typecheck`
+= `tsc` + that check. `.ts`/`.tsx` are strict; JavaScript is read for its
+exports but not checked. Shared shapes are in `src/types/` (`Loose` marks a
+record not typed yet — a spot to tighten). A shared `.js` file a typed one
+imports gets JSDoc types when TypeScript misreads a parameter (`= []` reads as
+an always-empty list). A conversion is types only: `git mv`, annotations,
+importers updated, no behaviour change; check with typecheck, `npm test`,
+`vite build`, and the screen by hand — for a server file also boot `server.js`
+(an in-memory MongoDB is enough).
 
 ## Forms: one template, everywhere
 
