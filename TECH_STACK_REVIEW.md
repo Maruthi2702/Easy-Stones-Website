@@ -1,7 +1,9 @@
 # Tech stack review — pending decision
 
-Discussed 2026-10-11. **Nothing decided yet** — to be reviewed again and decided
-later. Nothing below has been started.
+Discussed 2026-10-11. On 2026-10-23 the owner asked to move to TypeScript,
+Django and PostgreSQL/DynamoDB; those plans and answers are in
+[`MIGRATION_NOTES.md`](MIGRATION_NOTES.md) (**proposed, awaiting approval**).
+Nothing has been started.
 
 ## Current stack (2026-10-11)
 
