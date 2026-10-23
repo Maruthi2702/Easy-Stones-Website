@@ -119,11 +119,12 @@ import { checkSheet, spsCoverage } from './src/utils/spsSheet.js';
 import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.js';
 import createCustomerSpsImportRouter from './src/routes/customerSpsImport.js';
 import { resumeRunningImports } from './src/services/spsImportRunner.js';
+import createVisitsRouter from './src/routes/visits.js';
 import createCustomerBulkDeleteRouter, { backupAndDeleteCustomer } from './src/routes/customerBulkDelete.js';
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
 import { linkVisitToSchedule, unlinkVisitFromSchedule, moveVisitOnSchedule } from './src/services/visitSchedule.js';
-import { normalizeVisitDate, normalizeOptionalDate } from './src/utils/visitDates.js';
+import { normalizeVisitDate } from './src/utils/visitDates.js';
 import { canModifyVisit, canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from './src/utils/visitAccess.js';
 import { homeLocationOf, homeLocationProblem, fallbackHomeLocation } from './src/utils/locationFilter.js';
 import {
@@ -4478,219 +4479,13 @@ const getNowLocalISO = () => {
 
 
 
-// Add visit
-app.post('/api/customers/:customerId/visits', authenticate, requirePermission('add_visits'), async (req, res) => {
-  try {
-    const { customerId } = req.params;
-    const { date, purpose, notes, outcome, followUp, followUpDate, managerComment, headquartersComment, image } = req.body;
-
-
-
-    // Only a real YYYY-MM-DD date is stored — these feed date-range queries and
-    // the calendar link (src/utils/visitDates.js has why).
-    const processedDate = normalizeVisitDate(date);
-    const processedFollowUpDate = normalizeOptionalDate(followUpDate);
-    if (!processedDate || !purpose) {
-      return res.status(400).json({ message: 'A visit date (YYYY-MM-DD) and a purpose are required' });
-    }
-    if (processedFollowUpDate === null) {
-      return res.status(400).json({ message: 'Follow-up date must be a date (YYYY-MM-DD)' });
-    }
-
-    // Check if customer exists and get necessary info in one query
-    const customerInfo = await Customer.findById(customerId).select('contactName company').lean();
-    if (!customerInfo) {
-      console.error(`[Add Visit] Customer not found: ${customerId}`);
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-
-    // Get creator information based on auth type
-    const { id: createdBy, name: createdByName } = await getPerformerInfo(req);
-
-    // Get the customer's contact name (the customer being visited)
-    const customerContactName = customerInfo.company || customerInfo.contactName || '';
-
-    // Process images: Convert base64 to optimized disk files
-    let processedImage = image;
-    if (Array.isArray(image)) {
-      processedImage = await Promise.all(image.map(img => processBase64Image(img, 'visits')));
-    } else if (typeof image === 'string') {
-      processedImage = await processBase64Image(image, 'visits');
-    }
-
-    // Pre-generate visit ID for atomic update and logging
-    const visitId = new mongoose.Types.ObjectId();
-    const visitData = {
-      _id: visitId,
-      date: processedDate,
-      purpose,
-      notes,
-      outcome,
-      followUp,
-      followUpDate: processedFollowUpDate,
-      managerComment,
-      headquartersComment,
-      image: processedImage,
-      createdBy,
-      createdByName,
-      customerContactName,
-      createdAt: getNowLocalISO()
-    };
-
-    // Use atomic $push to add the visit
-    const updateStart = Date.now();
-    const result = await Customer.updateOne(
-      { _id: customerId },
-      { $push: { visits: visitData } }
-    );
-
-    if (result.matchedCount === 0) {
-      console.error(`[Add Visit] Atomic update matched zero docs for customer: ${customerId}`);
-      return res.status(404).json({ message: 'Customer not found during update' });
-    }
-
-    console.log(`[Add Visit] Success in ${Date.now() - updateStart}ms for customer ${customerId}`);
-    req.app.get('io').emit('visit_updated', { customerId });
-    res.status(201).json({ success: true, visit: visitData });
-
-    // Background: put the visit on the logger's calendar — completing their
-    // own Scheduled entry for this customer that day, or adding a drop-in if
-    // they had nothing planned (see src/services/visitSchedule.js). Matched on
-    // the date prefix, not a Date-object comparison — startTime is stored as
-    // a naive '<date>T...' local string (see the calendar-sync timezone fix).
-    // Only 'Scheduled' entries are completed, so this can't resurrect a
-    // Cancelled stop or relink an already-Completed one.
-    try {
-      await linkVisitToSchedule({
-        customerId, visitId, visitDate: processedDate,
-        userId: req.authType === 'admin' ? createdBy : null,
-        purpose, emit: emitScheduleUpdate
-      });
-    } catch (linkError) {
-      console.error('Failed to link visit to schedule:', linkError);
-    }
-
-    // Background: Log the activity
-    try {
-      await ActivityLog.create({
-        entityType: 'Visit',
-        entityId: visitId,
-        customerId: customerId,
-        action: 'CREATE',
-        performedBy: createdBy,
-        performedByName: createdByName,
-        performedByRole: req.authType,
-        timestamp: getNowLocalISO(),
-        details: { purpose: visitData.purpose, date: visitData.date }
-      });
-    } catch (logError) {
-      console.error('Failed to log visit creation:', logError);
-    }
-  } catch (error) {
-    console.error('Add visit error:', error);
-    res.status(500).json({ message: 'Failed to add visit: ' + error.message });
-  }
-});
-
-// Update visit
-// Update visit
-app.put('/api/customers/:customerId/visits/:visitId', authenticate, requireAnyPermission(...ANY_EDIT_VISIT_PERMISSIONS), async (req, res) => {
-  try {
-    const { customerId, visitId } = req.params;
-    const { date, purpose, notes, outcome, followUp, followUpDate, managerComment, headquartersComment, image } = req.body;
-
-    const updateData = {};
-    if (date) {
-      const processedDate = normalizeVisitDate(date);
-      if (!processedDate) return res.status(400).json({ message: 'Visit date must be a date (YYYY-MM-DD)' });
-      updateData['visits.$.date'] = processedDate;
-    }
-    if (followUpDate !== undefined) {
-      const processedFollowUpDate = normalizeOptionalDate(followUpDate);
-      if (processedFollowUpDate === null) return res.status(400).json({ message: 'Follow-up date must be a date (YYYY-MM-DD)' });
-      updateData['visits.$.followUpDate'] = processedFollowUpDate;
-    }
-
-    // Who may change this visit (src/utils/visitAccess.js) — checked before
-    // any image upload or write. The same read tells the calendar sync below
-    // whether the date moved and who logged the visit.
-    const existing = await Customer.findOne(
-      { _id: customerId, 'visits._id': visitId },
-      { 'visits.$': 1, location: 1 }
-    ).lean();
-    const before = existing?.visits?.[0];
-    if (!before) return res.status(404).json({ message: 'Customer or visit not found' });
-    if (!canModifyVisit({ id: req.userId, permissions: req.user?.permissions, assignedLocations: req.user?.assignedLocations }, before, existing.location)) {
-      return res.status(403).json({ message: "You don't have permission to edit this visit. You can edit visits you logged; anything else needs a Visits permission under Users & Roles." });
-    }
-
-    const { id: updatedBy, name: updatedByName } = await getPerformerInfo(req);
-
-    if (purpose !== undefined) updateData['visits.$.purpose'] = purpose;
-    if (notes !== undefined) updateData['visits.$.notes'] = notes;
-    if (outcome !== undefined) updateData['visits.$.outcome'] = outcome;
-    if (followUp !== undefined) updateData['visits.$.followUp'] = followUp;
-    if (managerComment !== undefined) updateData['visits.$.managerComment'] = managerComment;
-    if (headquartersComment !== undefined) updateData['visits.$.headquartersComment'] = headquartersComment;
-    if (image !== undefined) {
-      let processedImage = image;
-      if (Array.isArray(image)) {
-        processedImage = await Promise.all(image.map(img => processBase64Image(img, 'visits')));
-      } else if (typeof image === 'string') {
-        processedImage = await processBase64Image(image, 'visits');
-      }
-      updateData['visits.$.image'] = processedImage;
-    }
-
-    // Add tracking fields
-    updateData['visits.$.updatedBy'] = updatedBy;
-    updateData['visits.$.updatedByName'] = updatedByName;
-    updateData['visits.$.updatedAt'] = getNowLocalISO();
-
-    const result = await Customer.updateOne(
-      { _id: customerId, 'visits._id': visitId },
-      { $set: updateData }
-    );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).json({ message: 'Customer or visit not found' });
-    }
-
-    res.json({ success: true, message: 'Visit updated successfully' });
-
-    // Background: a visit moved to another day takes its calendar entry along.
-    if (updateData['visits.$.date'] && before.date !== updateData['visits.$.date']) {
-      try {
-        await moveVisitOnSchedule({
-          customerId, visitId, newDate: updateData['visits.$.date'],
-          userId: before.createdBy, purpose: purpose ?? before.purpose, emit: emitScheduleUpdate
-        });
-      } catch (moveError) {
-        console.error('Failed to move visit on schedule:', moveError);
-      }
-    }
-
-    // Background: Log the activity
-    try {
-      await ActivityLog.create({
-        entityType: 'Visit',
-        entityId: visitId,
-        customerId: customerId,
-        action: 'UPDATE',
-        performedBy: updatedBy,
-        performedByName: updatedByName,
-        performedByRole: req.authType,
-        timestamp: getNowLocalISO(),
-        details: { fields: Object.keys(req.body) }
-      });
-    } catch (logError) {
-      console.error('Failed to log visit update:', logError);
-    }
-  } catch (error) {
-    console.error('Update visit error:', error);
-    res.status(500).json({ message: 'Failed to update visit' });
-  }
-});
+// Add / edit visit and visit photos: src/routes/visits.js (tested). Mounted here,
+// before the other visit routes below, so its paths win.
+app.use('/api/customers', createVisitsRouter({
+  authenticate, requirePermission, requireAnyPermission,
+  processBase64Image, getPerformerInfo, getNowLocalISO,
+  emitScheduleUpdate: (...args) => emitScheduleUpdate(...args)
+}));
 
 // Delete visit
 // Delete visit

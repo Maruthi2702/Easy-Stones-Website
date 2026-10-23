@@ -106,3 +106,32 @@ describe('visitValuesToSave', () => {
         expect(followUpShown('Quick Note', true)).toBe(false);
     });
 });
+
+import { cleanVisitFields, isVisitType, newVisitId } from './visitForm';
+
+describe('server-side visit rules', () => {
+    it('a Quick note stores no follow-up, but only for the fields that were sent', () => {
+        expect(cleanVisitFields('Quick Note', { followUp: 'x', followUpDate: '2026-11-01' })).toEqual({ followUp: '', followUpDate: '' });
+        expect(cleanVisitFields('Quick Note', { followUp: undefined, followUpDate: undefined })).toEqual({ followUp: undefined, followUpDate: undefined });
+    });
+    it('other types keep it', () => {
+        const f = { followUp: 'x', followUpDate: '2026-11-01' };
+        expect(cleanVisitFields('Follow up Notes', f)).toEqual(f);
+        expect(cleanVisitFields('Formal Presentation', f)).toEqual(f);
+    });
+    it('knows the form’s visit types', () => {
+        expect(isVisitType('Resource Update')).toBe(true);
+        expect(isVisitType('Chat')).toBe(false);
+    });
+});
+
+describe('newVisitId', () => {
+    it('is 24 hex characters and differs each time', () => {
+        const a = newVisitId();
+        expect(a).toMatch(/^[0-9a-f]{24}$/);
+        expect(newVisitId()).not.toBe(a);
+    });
+    it('starts with the time in seconds', () => {
+        expect(newVisitId(1_700_000_000_000, () => new Uint8Array(8)).slice(0, 8)).toBe((1_700_000_000).toString(16));
+    });
+});

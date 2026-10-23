@@ -57,6 +57,22 @@ export const followUpShown = (purpose, followUpOn = false) => {
 export const visitValuesToSave = (values = {}, followUpOn = false) =>
     (followUpShown(values.purpose, followUpOn) ? values : { ...values, followUp: '', followUpDate: '' });
 
+/**
+ * The server's copy of the rule above: a type with no follow-up (Quick note)
+ * never stores one, whatever the request carried. Only the fields the request
+ * sent are touched, so an edit that doesn't mention follow-up leaves it alone.
+ */
+export const cleanVisitFields = (purpose, fields = {}) => {
+    if (visitFieldsFor(purpose).followUp) return fields;
+    const out = { ...fields };
+    if (out.followUp !== undefined) out.followUp = '';
+    if (out.followUpDate !== undefined) out.followUpDate = '';
+    return out;
+};
+
+/** Whether a purpose is one of the form's visit types (stored values). */
+export const isVisitType = (purpose) => VISIT_TYPES.some((t) => t.value === purpose);
+
 /** Whether a visit already has follow-up details (opens the toggle on "Set a follow-up"). */
 export const hasFollowUp = (values = {}) =>
     Boolean(String(values.followUp || '').trim() || String(values.followUpDate || '').trim());
@@ -96,4 +112,15 @@ export const visitLastChangedText = (visit = {}, now = new Date()) => {
     if (!visit.createdAt) return '';
     const added = lastChangedText({ createdAt: visit.createdAt }, now); // "Added Oct 2"
     return added && visit.createdByName ? added.replace(/^Added/, `Logged by ${visit.createdByName} ·`) : added;
+};
+
+/**
+ * A new visit's id, made on the form before Save is sent (24 hex, the shape of
+ * a MongoDB ObjectId: 4 bytes of time, 8 random). The server keeps the first
+ * visit saved under an id and answers a repeat with it, so a retry after a lost
+ * answer can't add the visit twice.
+ */
+export const newVisitId = (now = Date.now(), random = (n) => crypto.getRandomValues(new Uint8Array(n))) => {
+    const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    return Math.floor(now / 1000).toString(16).padStart(8, '0').slice(-8) + hex(random(8));
 };

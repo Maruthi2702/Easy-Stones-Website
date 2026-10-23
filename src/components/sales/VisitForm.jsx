@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Camera, FileText, Trash2, X } from 'lucide-react';
+import { Camera, FileText, Loader2, Trash2, X } from 'lucide-react';
 import FormModal from '../shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker, SegmentedToggle } from '../shared/form/FormControls';
 import { goToField } from '../shared/form/formFocus';
@@ -48,6 +48,7 @@ export default function VisitForm({
     onSave,
     onClose,
     onUpload,
+    uploading = false,
     onRemoveImage,
     onCreateCustomer,
     canDelete = false,
@@ -213,6 +214,9 @@ export default function VisitForm({
                                     <><FileText size={22} aria-hidden="true" />PDF</>
                                 ) : (
                                     <img src={resolveImageSrc(img)} alt={`Attachment ${idx + 1}`} loading="lazy" />
+                                )}
+                                {uploading && String(img).startsWith('data:') && (
+                                    <span className="vf-tile-busy" role="status" aria-label="Uploading"><Loader2 size={18} aria-hidden="true" /></span>
                                 )}
                                 <button type="button" className="vf-tile-rm" aria-label={`Remove attachment ${idx + 1}`} onClick={() => onRemoveImage(idx)}>
                                     <X size={12} strokeWidth={2.6} aria-hidden="true" />

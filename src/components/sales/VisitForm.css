@@ -23,6 +23,9 @@
     font-weight: 700;
 }
 .vf-tile img { width: 100%; height: 100%; object-fit: cover; }
+/* A photo still going to the server (it is sent as soon as it is picked). */
+.vf-tile-busy { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, .35); color: #fff; }
+.vf-tile-busy svg { animation: fm-spin .9s linear infinite; }
 
 .vf-tile-rm {
     position: absolute;
