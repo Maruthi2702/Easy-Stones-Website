@@ -1,0 +1,31 @@
+/* Above every form and modal (the app's max, like .modal-overlay) so a failure
+   is seen even over the form it reopens; above the phone tab bar too. */
+.app-toast {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 24px;
+    z-index: 2147483646;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(480px, calc(100vw - 32px));
+    padding: 12px 10px 12px 14px;
+    border-radius: 12px;
+    background: #1c1c1e;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .28);
+    animation: app-toast-in .18s ease-out;
+}
+.app-toast svg { flex: none; color: #5ed38a; }
+.app-toast.is-error svg { color: #ffb454; }
+.app-toast-text { min-width: 0; }
+.app-toast-x { flex: none; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: rgba(255, 255, 255, .7); cursor: pointer; }
+.app-toast-x:hover { background: rgba(255, 255, 255, .12); color: #fff; }
+.app-toast-x svg { color: inherit; }
+body.phone-bar-up .app-toast { bottom: calc(var(--pt-bar-h, 64px) + 14px); }
+@keyframes app-toast-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .app-toast { animation: none; } }

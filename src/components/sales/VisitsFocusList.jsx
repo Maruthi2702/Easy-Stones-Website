@@ -88,6 +88,7 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
                                     )}
                                     <span className="dfx-row-contact">{contact || ' '}{visit.location && <span className="dfx-phone-only"> · {visit.location}</span>}</span>
                                 </span>
+                                {visit._saving && <span className="dfx-saving" role="status"><Loader size={12} className="animate-spin" aria-hidden="true" />Saving…</span>}
                                 {visit.location && <span className="dfx-pill"><MapPin size={11} aria-hidden="true" />{visit.location}</span>}
                                 <button
                                     type="button" className="dfx-chev-btn" aria-expanded={open}
@@ -106,12 +107,12 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
                                     </div>
                                     <p>{visit.notes || 'No notes.'}</p>
                                     <div className="dfx-actions">
-                                        <button type="button" className="dfx-btn dfx-btn--dark" onClick={() => setViewing(visit)}><Eye size={15} aria-hidden="true" />View</button>
+                                        <button type="button" className="dfx-btn dfx-btn--dark" onClick={() => setViewing(visit)} disabled={visit._saving}><Eye size={15} aria-hidden="true" />View</button>
                                         {allowedEdit(visit) && (
-                                            <button type="button" className="dfx-btn" onClick={() => onEdit?.(visit)} disabled={busyVisitId === visit._id}>Edit</button>
+                                            <button type="button" className="dfx-btn" onClick={() => onEdit?.(visit)} disabled={visit._saving || busyVisitId === visit._id}>Edit</button>
                                         )}
                                         {allowedDelete(visit) && (
-                                            <button type="button" className="dfx-btn dfx-btn--danger" onClick={() => onDelete?.(visit)}>Delete</button>
+                                            <button type="button" className="dfx-btn dfx-btn--danger" onClick={() => onDelete?.(visit)} disabled={visit._saving}>Delete</button>
                                         )}
                                     </div>
                                 </div>
