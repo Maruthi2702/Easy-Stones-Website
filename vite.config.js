@@ -94,6 +94,6 @@ export default defineConfig({
   // the default 'node' environment is enough — see src/utils/routePlan.test.js
   // and src/components/sales/routePlannerV2/helpers.test.js.
   test: {
-    include: ['src/**/*.test.js']
+    include: ['src/**/*.test.{js,ts}']
   }
 })
