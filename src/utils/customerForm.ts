@@ -1,4 +1,26 @@
 import { lastChangedText } from './userForm';
+import type { Loose } from '../types/records';
+
+export type Option = { value: string; label: string };
+export type CustomerAddress = { street: string; city: string; state: string; zipCode: string };
+/** The Add / Edit customer form's values (the shape every save handler expects). */
+export type CustomerFormValues = {
+    customerName: string;
+    company: string;
+    address: CustomerAddress;
+    phone: string;
+    email: string;
+    marketingEmail: string;
+    receiveMarketing: boolean;
+    notes: string;
+    status: string;
+    level: string;
+    customerType: string;
+    modaDisplay: string;
+    modaBinder: string;
+    salesRep: string;
+    location: string;
+};
 
 /*
  * Add / Edit customer's rules (src/components/sales/CustomerForm.jsx).
@@ -44,7 +66,7 @@ export const MODA_DISPLAY_OPTIONS = Object.freeze([
 ]);
 
 /** A stored value that's since left a list still shows (as stored) instead of blanking the picker. */
-export const withCurrent = (options, value) =>
+export const withCurrent = (options: readonly Option[], value: string | null | undefined): readonly Option[] =>
     value && !options.some((o) => o.value === value) ? [{ value, label: value }, ...options] : options;
 
 // Banner/"Go to first" order = the order on screen.
@@ -59,9 +81,14 @@ export const FIELD_LABELS = Object.freeze({
  * useStartingRep — Users & Roles → Locations → Sales defaults), otherwise
  * Unassigned. Only someone this form offers; both stay editable.
  */
-export const emptyCustomerValues = ({ salesReps = [], locations = [], currentUser = null, repFor = null } = {}) => {
+export const emptyCustomerValues = ({ salesReps = [], locations = [], currentUser = null, repFor = null }: {
+    salesReps?: { _id: string; inactive?: boolean }[];
+    locations?: string[];
+    currentUser?: { id?: string; location?: string } | null;
+    repFor?: ((branch: string) => { _id?: string } | null) | null;
+} = {}): CustomerFormValues => {
     const location = locations.find((l) => l === currentUser?.location) || locations[0] || '';
-    const offered = (id) => Boolean(id) && salesReps.some((r) => String(r._id) === String(id) && !r.inactive);
+    const offered = (id: unknown) => Boolean(id) && salesReps.some((r) => String(r._id) === String(id) && !r.inactive);
     const start = repFor ? repFor(location)?._id : '';
     return {
         customerName: '',
@@ -77,13 +104,13 @@ export const emptyCustomerValues = ({ salesReps = [], locations = [], currentUse
         customerType: 'Fabricator',
         modaDisplay: 'No',
         modaBinder: '0',
-        salesRep: offered(start) ? String(start) : (salesReps.some((r) => r._id === currentUser?.id) ? currentUser.id : ''),
+        salesRep: offered(start) ? String(start) : (salesReps.some((r) => r._id === currentUser?.id) ? (currentUser?.id as string) : ''),
         location
     };
 };
 
 /** A stored customer → the form's values (the old modal's rules, unchanged). */
-export const customerToFormValues = (c = {}) => ({
+export const customerToFormValues = (c: Loose = {}): CustomerFormValues => ({
     customerName: c.contactName || c.customerName || c.name || '',
     company: c.company || '',
     address: {
@@ -109,8 +136,8 @@ export const customerToFormValues = (c = {}) => ({
 });
 
 /** Company and email are required (as before). Returns { field: message }. */
-export const validateCustomerValues = (values = {}) => {
-    const errors = {};
+export const validateCustomerValues = (values: Partial<CustomerFormValues> = {}): Partial<Record<'company' | 'email', string>> => {
+    const errors: Partial<Record<'company' | 'email', string>> = {};
     if (!String(values.company || '').trim()) errors.company = 'Enter the company name';
     if (!String(values.email || '').trim()) errors.email = 'Enter an email address';
     return errors;
@@ -121,18 +148,18 @@ export const validateCustomerValues = (values = {}) => {
  * same (or the marketing one is blank); once someone sets a different
  * marketing address it's left alone.
  */
-export const withEmail = (values, email) => {
+export const withEmail = (values: CustomerFormValues, email: string): CustomerFormValues => {
     const sync = !values.marketingEmail || values.marketingEmail === values.email;
     return { ...values, email, marketingEmail: sync ? email : values.marketingEmail };
 };
 
-const FLAT = ['customerName', 'company', 'phone', 'email', 'marketingEmail', 'receiveMarketing', 'notes',
+const FLAT: (keyof CustomerFormValues)[] = ['customerName', 'company', 'phone', 'email', 'marketingEmail', 'receiveMarketing', 'notes',
     'status', 'level', 'customerType', 'modaDisplay', 'modaBinder', 'salesRep', 'location'];
-const ADDRESS = ['street', 'city', 'state', 'zipCode'];
-const norm = (v) => (typeof v === 'string' ? v.trim() : v);
+const ADDRESS: (keyof CustomerAddress)[] = ['street', 'city', 'state', 'zipCode'];
+const norm = (v: unknown) => (typeof v === 'string' ? v.trim() : v);
 
 /** How many fields differ from where the form started (the discard check's N). */
-export const countCustomerChanges = (values = {}, initial = {}) =>
+export const countCustomerChanges = (values: Partial<CustomerFormValues> = {}, initial: Partial<CustomerFormValues> = {}): number =>
     FLAT.filter((k) => norm(values[k]) !== norm(initial[k])).length
     + ADDRESS.filter((k) => norm(values.address?.[k] || '') !== norm(initial.address?.[k] || '')).length;
 
@@ -141,11 +168,11 @@ export const countCustomerChanges = (values = {}, initial = {}) =>
  * parts the card actually had; the email also becomes the marketing email.
  * Returns { values, found } — found is false when nothing was recognised.
  */
-export const applyCardScan = (values, parsed) => {
+export const applyCardScan = (values: CustomerFormValues, parsed: Loose | null | undefined): { values: CustomerFormValues; found: boolean } => {
     if (!parsed) return { values, found: false };
-    const next = { ...values, address: { ...values.address } };
+    const next: CustomerFormValues = { ...values, address: { ...values.address } };
     let found = false;
-    for (const k of ['customerName', 'company', 'phone']) {
+    for (const k of ['customerName', 'company', 'phone'] as const) {
         if (parsed[k]) { next[k] = parsed[k]; found = true; }
     }
     if (parsed.email) {
@@ -160,5 +187,5 @@ export const applyCardScan = (values, parsed) => {
 };
 
 /** The edit footer's note: when the record last changed, else when it was added. */
-export const customerLastChangedText = (c = {}, now = new Date()) =>
+export const customerLastChangedText = (c: Loose = {}, now = new Date()): string =>
     lastChangedText({ editedAt: c.updatedAt, editedBy: c.updatedByName, createdAt: c.createdAt }, now);

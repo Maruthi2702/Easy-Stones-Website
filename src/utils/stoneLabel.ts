@@ -18,26 +18,34 @@
 
 // The rotations a scan tries, in order. 0° first because most tags are shot
 // upright; a confident, complete read there ends the scan early.
+import type { Loose } from '../types/records';
+
+/** A catalog product, as much as the scan reads of it (name, bundles, sizes). */
+type Product = Loose;
+
+/** What one OCR pass read off a tag. */
+export type LabelRead = { lot: string; slab: string; size: string; material: string; product: Product | null; bundleLot: string };
+
 export const ORIENTATIONS = [0, 90, 270, 180];
 
 // Letters Tesseract commonly reads where a tag has digits. Only applied to a
 // token that already contains a digit ("1384S", "7O") — never to a plain
 // word, or "lot" / "TO" / "IS" turn into 107 / 70 / 15.
-const DIGIT_LOOKALIKES = { O: '0', o: '0', I: '1', l: '1', i: '1', '|': '1', S: '5', s: '5', B: '8', G: '6', Z: '2', z: '2', T: '7' };
+const DIGIT_LOOKALIKES: Record<string, string> = { O: '0', o: '0', I: '1', l: '1', i: '1', '|': '1', S: '5', s: '5', B: '8', G: '6', Z: '2', z: '2', T: '7' };
 
 const LABEL_WORDS = new Set(['LOT', 'SLAB', 'SLABS', 'BUNDLE', 'BUNDLES', 'SIZE', 'BLK', 'BLOCK', 'NO', 'NUM', 'NUMBER', 'QTY']);
 
-const toDigits = (token) => {
+const toDigits = (token: string): string | null => {
   if (!/\d/.test(token)) return null;
   const mapped = token.replace(/[OoIliSsBGZzT|]/g, (c) => DIGIT_LOOKALIKES[c]);
   return /^\d+$/.test(mapped) ? mapped : null;
 };
 
-const normalizeName = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
-const normalizeLot = (s) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-const normalizeSize = (s) => String(s || '').toLowerCase().replace(/["”″“']|in\b|\s+/g, '').replace(/[×*%]/g, 'x');
+const normalizeName = (s: unknown): string => String(s || '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+const normalizeLot = (s: unknown): string => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const normalizeSize = (s: unknown): string => String(s || '').toLowerCase().replace(/["”″“']|in\b|\s+/g, '').replace(/[×*%]/g, 'x');
 
-export const levenshtein = (a, b) => {
+export const levenshtein = (a: string, b: string): number => {
   const prev = Array.from({ length: b.length + 1 }, (_, j) => j);
   for (let i = 1; i <= a.length; i++) {
     let diag = prev[0];
@@ -66,10 +74,10 @@ const LOT_SLAB_RE = /(^|[^\w/])([A-Z]{0,3}\d{3,}[A-Z]?)\s*[-–—]\s*(\d{1,3})(
  * that appears in it as whole words (so "ICE WHITE 3CM" is "Ice White", not
  * "Ice"). Never matches on an empty name.
  */
-export const matchProduct = (name, productList = []) => {
+export const matchProduct = (name: unknown, productList: Product[] = []): Product | null => {
   const text = normalizeName(name);
   if (!text) return null;
-  let best = null;
+  let best: Product | null = null;
   for (const p of productList) {
     const pn = normalizeName(p?.name);
     if (!pn) continue;
@@ -80,8 +88,8 @@ export const matchProduct = (name, productList = []) => {
 };
 
 // Catalog product whose name OCR read with a typo or two ("CALACATA G0LD").
-export const fuzzyMatchProduct = (lines, productList) => {
-  let best = null;
+export const fuzzyMatchProduct = (lines: string[], productList: Product[]): Product | null => {
+  let best: { p: Product; d: number } | null = null;
   for (const line of lines) {
     const words = normalizeName(line).split(' ').filter(Boolean);
     for (const p of productList) {
@@ -99,7 +107,7 @@ export const fuzzyMatchProduct = (lines, productList) => {
 
 // Free-text material when the catalog doesn't have it: the most letter-heavy
 // line that reads like words — at least one 4+ letter word, mostly letters.
-const freeTextMaterial = (lines) => {
+const freeTextMaterial = (lines: string[]): string => {
   let best = '';
   let bestLetters = 0;
   for (const line of lines) {
@@ -122,7 +130,7 @@ const freeTextMaterial = (lines) => {
  *
  * @returns {{ lot, slab, size, material, product, bundleLot } | null}
  */
-export const readStoneLabel = (text, productList = []) => {
+export const readStoneLabel = (text: string | null | undefined, productList: Product[] = []): LabelRead | null => {
   if (!text || !text.trim()) return null;
 
   // Fix digit look-alikes token by token ("1384S" → "13845"), leaving words alone.
@@ -201,7 +209,7 @@ export const readStoneLabel = (text, productList = []) => {
 };
 
 /** How good one rotation's read is — the scan keeps the highest-scoring one. */
-export const scoreLabelRead = (read, confidence = 0) => {
+export const scoreLabelRead = (read: LabelRead | null | undefined, confidence = 0): number => {
   if (!read) return -1;
   return confidence
     + (read.size ? 15 : 0)
@@ -218,15 +226,15 @@ export const MIN_CONFIDENCE = 55;
 // The tag prints the lot twice ("14180 - 3 (1/14180)"). Both copies read the
 // same, plus a size, is a real tag even when Tesseract's confidence is low
 // (a small or glary tag at an angle): garbage doesn't repeat a 4-digit number.
-const lotReadTwice = (read) => Boolean(read.size && read.bundleLot && normalizeLot(read.lot).length >= 4
+const lotReadTwice = (read: LabelRead): boolean => Boolean(read.size && read.bundleLot && normalizeLot(read.lot).length >= 4
   && normalizeLot(read.bundleLot) === normalizeLot(read.lot));
 
 /** Worth filling into the sheet at all. */
-export const isUsableRead = (read, confidence = 0) =>
+export const isUsableRead = (read: LabelRead | null | undefined, confidence = 0): boolean =>
   Boolean(read && (read.product || confidence >= MIN_CONFIDENCE || lotReadTwice(read)));
 
 /** Good enough to stop trying other rotations. */
-export const isConfidentRead = (read, confidence = 0) =>
+export const isConfidentRead = (read: LabelRead | null | undefined, confidence = 0): boolean =>
   Boolean(read && confidence >= 70 && read.lot && read.size && read.material);
 
 /**
@@ -234,9 +242,9 @@ export const isConfidentRead = (read, confidence = 0) =>
  * against its sizes. Returns the sheet row's fields plus `notes` — one line
  * per thing the person should double-check.
  */
-export const resolveLabelRead = (read, productList = []) => {
-  const notes = [];
-  const lotsOf = (p) => (p?.bundles || []).flatMap((b) => [b?.bundleNumber, b?.serial]).filter(Boolean).map(String);
+export const resolveLabelRead = (read: LabelRead, productList: Product[] = []): { material: string; lot: string; details: string; size: string; notes: string[] } => {
+  const notes: string[] = [];
+  const lotsOf = (p: Product | null | undefined): string[] => (p?.bundles || []).flatMap((b: Loose) => [b?.bundleNumber, b?.serial]).filter(Boolean).map(String);
   const readLots = [...new Set([read.lot, read.bundleLot].filter(Boolean))];
   let product = read.product || matchProduct(read.material, productList);
   let material = read.material;
@@ -273,7 +281,7 @@ export const resolveLabelRead = (read, productList = []) => {
         notes.push(`Lot read as ${read.lot || read.bundleLot}, matched to stock lot ${near[0]}.`);
         lot = near[0];
       } else {
-        notes.push(`Lot ${read.lot || read.bundleLot} isn't in stock for ${product.name}.`);
+        notes.push(`Lot ${read.lot || read.bundleLot} isn't in stock for ${product?.name}.`);
       }
     }
   } else if (read.bundleLot && read.lot && normalizeLot(read.bundleLot) !== normalizeLot(read.lot)) {
@@ -281,7 +289,7 @@ export const resolveLabelRead = (read, productList = []) => {
   }
 
   let size = read.size;
-  const stockSizes = (product?.sizes || []).filter(Boolean);
+  const stockSizes: string[] = (product?.sizes || []).filter(Boolean);
   if (size && stockSizes.length) {
     const target = normalizeSize(size);
     const exact = stockSizes.find((s) => normalizeSize(s) === target);

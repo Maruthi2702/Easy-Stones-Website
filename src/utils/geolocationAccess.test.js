@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   shouldAutoLocate, readLastPosition, rememberPosition, locationWasOk, forgetLocationOk, locationPermission
-} from './geolocationAccess.js';
+} from './geolocationAccess';
 
 const store = new Map();
 beforeEach(() => {

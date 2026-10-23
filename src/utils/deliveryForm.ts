@@ -17,7 +17,42 @@ import { formatForDateInput } from './dateUtils.js';
 import { defaultStatusFor, transferArrivalFor, columnIdFor } from './deliveryTypes.js';
 import { nextStopNumber } from './stopGrouping.js';
 import { isThirdPartyTruck } from './deliveryPickup.js';
-import { formatAmount, parseAmount } from './money.js';
+import { formatAmount, parseAmount } from './money';
+import type { CustomerOption } from './customerOptions';
+import type { DeliveryRecord, Loose, TruckColumn } from '../types/records';
+
+/** The Delivery form's values (the old DeliveryModal's names — see above). */
+export type DeliveryFormValues = {
+  deliveryType: string;
+  date: string;
+  time: string;
+  truckId: string;
+  customerDropOff: boolean;
+  routeNumber: string;
+  numberOfSlabs: string;
+  status: string;
+  customerName: string;
+  selectedCustomerId: string;
+  salesRepName: string;
+  soNumber: string;
+  address: string;
+  pickupInfo: string;
+  transferOrigin: string;
+  transferDestination: string;
+  expectedArrivalDate: string;
+  carrierName: string;
+  proNumber: string;
+  freightFee: string;
+  packingListUrl: string;
+  packingListFilename: string;
+  notes: string;
+};
+/** The fields the type checks read — form values or a saved ticket's (ticketReportValues). */
+type TypeFields = { deliveryType?: string; truckId?: string; customerDropOff?: boolean };
+type ErrorField = 'date' | 'customer' | 'transferOrigin' | 'transferDestination' | 'expectedArrivalDate';
+export type ReportDay = { location: string; date: string };
+export type PickerOption = { value: string; label: string; description?: string; disabled?: true };
+export type CurrentUserLike = { name?: string; location?: string } | null;
 
 export const DELIVERY_TYPE_OPTIONS = [
   { value: 'jobsite', label: 'Delivery' },
@@ -41,23 +76,23 @@ export const STATUS_OPTIONS = [
 // needs a stand-in value to tell which one is chosen.
 export const CUSTOMER_DROPOFF_VALUE = '__customer_dropoff__';
 
-const NOUN = { jobsite: 'delivery', transfer: 'transfer', will_call: 'will call', return: 'return' };
-export const nounFor = (type) => NOUN[type] || 'delivery';
+const NOUN: Record<string, string> = { jobsite: 'delivery', transfer: 'transfer', will_call: 'will call', return: 'return' };
+export const nounFor = (type: string): string => NOUN[type] || 'delivery';
 
-const isTransfer = (v) => v.deliveryType === 'transfer';
-const isWillCall = (v) => v.deliveryType === 'will_call';
-const isReturnType = (v) => v.deliveryType === 'return';
-const trim = (s) => String(s ?? '').trim();
+const isTransfer = (v: TypeFields): boolean => v.deliveryType === 'transfer';
+const isWillCall = (v: TypeFields): boolean => v.deliveryType === 'will_call';
+const isReturnType = (v: TypeFields): boolean => v.deliveryType === 'return';
+const trim = (s: unknown): string => String(s ?? '').trim();
 
 /**
  * No driver yet, so it waits in the Pending list and needs no date. A will
  * call never has a driver but has a pickup date, and so does a return the
  * customer is bringing back themselves.
  */
-export const isPendingOrder = (v) =>
+export const isPendingOrder = (v: TypeFields): boolean =>
   !v.truckId && !isWillCall(v) && !(isReturnType(v) && v.customerDropOff);
 
-export const dateLabelFor = (v) => {
+export const dateLabelFor = (v: TypeFields): string => {
   if (isTransfer(v)) return 'Ship date';
   if (isWillCall(v)) return 'Pickup date';
   if (isReturnType(v)) return v.customerDropOff && !v.truckId ? 'Drop-off date' : 'Pickup date';
@@ -65,16 +100,16 @@ export const dateLabelFor = (v) => {
 };
 
 /** The selected driver is contract freight (any of the 3rd-party columns). */
-export const isThirdPartyPick = (v, trucks = []) =>
+export const isThirdPartyPick = (v: TypeFields, trucks: TruckColumn[] = []): boolean =>
   !isWillCall(v) && isThirdPartyTruck(trucks.find((t) => t.id === v.truckId));
 
 /** A 3rd-party truck asks for its paperwork: carrier, BOL and the agreed price (optional). */
-export const needsFreightDetails = (v, trucks = []) => isThirdPartyPick(v, trucks);
+export const needsFreightDetails = (v: TypeFields, trucks: TruckColumn[] = []): boolean => isThirdPartyPick(v, trucks);
 
 // Order matches the form, top to bottom, so the error banner reads the same way.
-const ERROR_ORDER = ['date', 'customer', 'transferOrigin', 'transferDestination', 'expectedArrivalDate'];
+const ERROR_ORDER: ErrorField[] = ['date', 'customer', 'transferOrigin', 'transferDestination', 'expectedArrivalDate'];
 
-export const fieldLabelsFor = (v) => ({
+export const fieldLabelsFor = (v: TypeFields): Record<ErrorField, string> => ({
   date: dateLabelFor(v),
   customer: 'Customer',
   transferOrigin: 'From',
@@ -88,14 +123,19 @@ const today = () => formatForDateInput(new Date());
  * What the form opens with. `delivery` is the saved ticket, or for a new one
  * the board's prefill (the driver column and day the + was in) with no id.
  */
-export function deliveryToFormValues(delivery, { currentUser = null, customerOptions = [], todayStr = today(), startingRep = '', deliveries = [] } = {}) {
-  const d = delivery || {};
+export function deliveryToFormValues(
+  delivery: Loose | null | undefined,
+  { currentUser = null, customerOptions = [], todayStr = today(), startingRep = '', deliveries = [] }: {
+    currentUser?: CurrentUserLike; customerOptions?: Partial<CustomerOption>[]; todayStr?: string; startingRep?: string; deliveries?: DeliveryRecord[];
+  } = {}
+): DeliveryFormValues {
+  const d: Loose = delivery || {};
   const type = d.deliveryType || 'jobsite';
   const customerName = d.customerName || '';
   let customerId = d.customerId || '';
   if (!customerId && customerName) {
     const match = customerOptions.find((o) => o.label?.toLowerCase() === customerName.toLowerCase() || o.value === customerName);
-    if (match) customerId = match.value;
+    if (match) customerId = match.value as string;
   }
   // A transfer drawn on its arrival day (showOnArrivalDay — the receiving
   // branch's board, or the arrival week) carries the arrival date in `date`
@@ -147,8 +187,8 @@ export function deliveryToFormValues(delivery, { currentUser = null, customerOpt
 /** Errors keyed by field, in form order. Empty object = OK to save. */
 // Carrier name, BOL # and Agreed price are optional (owner's call,
 // 2026-10-05), so a 3rd-party truck adds no checks.
-export function validateDeliveryValues(v) {
-  const e = {};
+export function validateDeliveryValues(v: DeliveryFormValues): Partial<Record<ErrorField, string>> {
+  const e: Partial<Record<ErrorField, string>> = {};
   if (!isPendingOrder(v) && !v.date) {
     e.date = isWillCall(v) || (isReturnType(v) && v.customerDropOff)
       ? 'Pick the date the customer is collecting it'
@@ -168,12 +208,12 @@ export function validateDeliveryValues(v) {
 }
 
 /** How many fields differ from where the form started. */
-export function countDeliveryChanges(values, initial) {
+export function countDeliveryChanges(values: Loose, initial: Loose | null | undefined): number {
   return Object.keys(values).filter((k) => String(values[k] ?? '') !== String(initial?.[k] ?? '')).length;
 }
 
 /** Tickets already on this truck that day, not counting this one or will calls. */
-export function bookedOn(deliveries = [], truckId, date, exceptId) {
+export function bookedOn(deliveries: DeliveryRecord[] = [], truckId: string, date: string, exceptId?: string): number {
   return deliveries.filter((d) => d.truckId === truckId && d.date === date && d.id !== exceptId && d.deliveryType !== 'will_call').length;
 }
 
@@ -181,7 +221,7 @@ export function bookedOn(deliveries = [], truckId, date, exceptId) {
  * The stop a ticket takes joining a driver's run that day: after its last
  * stop, as the server places a dragged one. The picker only goes to `max`.
  */
-export function stopForRun(deliveries = [], truckId, date, exceptId, max = 12) {
+export function stopForRun(deliveries: DeliveryRecord[] = [], truckId: string, date: string, exceptId?: string, max = 12): number {
   const run = deliveries.filter((d) => d.truckId === truckId && d.date === date && d.id !== exceptId && columnIdFor(d) === truckId);
   return Math.min(nextStopNumber(run), max);
 }
@@ -190,7 +230,7 @@ export function stopForRun(deliveries = [], truckId, date, exceptId, max = 12) {
  * The Stop field after the driver or day changes: back to the saved stop on
  * the ticket's own run, else the end of the new one.
  */
-const withRunStop = (v, savedTicket, deliveries) => {
+const withRunStop = (v: DeliveryFormValues, savedTicket: Loose | null | undefined, deliveries: DeliveryRecord[] | null | undefined): DeliveryFormValues => {
   if (!v.truckId || !deliveries) return v;
   const ownRun = savedTicket?.id && savedTicket.truckId === v.truckId && formatForDateInput(savedTicket.date) === v.date;
   const stop = ownRun ? Number(savedTicket.routeNumber) || 1 : stopForRun(deliveries, v.truckId, v.date, savedTicket?.id);
@@ -204,11 +244,14 @@ const withRunStop = (v, savedTicket, deliveries) => {
  * ending in "nobody yet". A deactivated driver is only listed on a ticket
  * that's already theirs.
  */
-export function driverOptions(trucks = [], values, { deliveries = [], exceptId, max = 12 } = {}) {
+export function driverOptions(
+  trucks: TruckColumn[] = [], values: DeliveryFormValues,
+  { deliveries = [], exceptId, max = 12 }: { deliveries?: DeliveryRecord[]; exceptId?: string; max?: number } = {}
+): PickerOption[] {
   const ours = trucks
     .filter((t) => !t.inactive || t.id === values.truckId)
     .sort((a, b) => Number(isThirdPartyTruck(a)) - Number(isThirdPartyTruck(b)))
-    .map((t) => {
+    .map((t): PickerOption => {
       if (isThirdPartyTruck(t)) return { value: t.id, label: '3rd party · contract freight' };
       const booked = bookedOn(deliveries, t.id, values.date, exceptId);
       const full = booked >= max;
@@ -227,14 +270,14 @@ export function driverOptions(trucks = [], values, { deliveries = [], exceptId, 
 }
 
 /** What the Driver picker shows as chosen. */
-export const driverPickerValue = (v) => (isReturnType(v) && !v.truckId && v.customerDropOff ? CUSTOMER_DROPOFF_VALUE : v.truckId);
+export const driverPickerValue = (v: DeliveryFormValues): string => (isReturnType(v) && !v.truckId && v.customerDropOff ? CUSTOMER_DROPOFF_VALUE : v.truckId);
 
 /**
  * Picking a driver schedules the order; taking the driver off puts it back in
  * Pending. Unlike opening a ticket, this is a decision about it, and the new
  * status is on screen to be changed before anything is saved.
  */
-export function applyDriverPick(v, picked, savedTicket = null, deliveries = null) {
+export function applyDriverPick(v: DeliveryFormValues, picked: string, savedTicket: Loose | null = null, deliveries: DeliveryRecord[] | null = null): DeliveryFormValues {
   const dropOff = picked === CUSTOMER_DROPOFF_VALUE;
   const truckId = dropOff ? '' : picked;
   const status = defaultStatusFor({ ...(savedTicket || {}), deliveryType: v.deliveryType, date: v.date, truckId, status: v.status, customerDropOff: dropOff });
@@ -246,7 +289,7 @@ export function applyDriverPick(v, picked, savedTicket = null, deliveries = null
  * driver that came from the column the + was in (never an empty one: that's
  * how an order stays in Pending). Its arrival starts as the ship date.
  */
-export function applyTypeChange(v, nextType, { isNew = false, thirdPartyTruckId = '' } = {}) {
+export function applyTypeChange(v: DeliveryFormValues, nextType: string, { isNew = false, thirdPartyTruckId = '' }: { isNew?: boolean; thirdPartyTruckId?: string } = {}): DeliveryFormValues {
   const out = { ...v, deliveryType: nextType };
   if (nextType === 'transfer' && isNew && thirdPartyTruckId && v.truckId) out.truckId = thirdPartyTruckId;
   if (nextType === 'transfer') out.expectedArrivalDate = transferArrivalFor({ date: v.date, expectedArrivalDate: v.expectedArrivalDate });
@@ -258,7 +301,7 @@ export function applyTypeChange(v, nextType, { isNew = false, thirdPartyTruckId 
  * A transfer's arrival follows the ship date forward, as the server does.
  * The Stop moves to the end of that day's run (see withRunStop).
  */
-export function applyDateChange(v, date, { savedTicket = null, deliveries = null } = {}) {
+export function applyDateChange(v: DeliveryFormValues, date: string, { savedTicket = null, deliveries = null }: { savedTicket?: Loose | null; deliveries?: DeliveryRecord[] | null } = {}): DeliveryFormValues {
   return withRunStop({
     ...v,
     date,
@@ -269,7 +312,7 @@ export function applyDateChange(v, date, { savedTicket = null, deliveries = null
 // The customer's full address (street, city, state), the same line every other
 // card shows. It used to prefer the bare city, so a ticket's card read just
 // "Lacey" while the rest showed "6913 RD D NE, Moses Lake, WA 98837".
-const pickedAddress = (option) => {
+const pickedAddress = (option: Partial<CustomerOption> | null | undefined): string => {
   const addr = option ? (option.fullAddress || option.address || option.city || '') : '';
   return addr === '[object Object]' ? '' : addr;
 };
@@ -280,7 +323,7 @@ const pickedAddress = (option) => {
  * customer filled in. A jobsite address someone typed, or the packing list's
  * Ship To, is kept: it used to be replaced by the customer's city.
  */
-export function applyCustomerPick(v, option, previousOption = null) {
+export function applyCustomerPick(v: DeliveryFormValues, option: CustomerOption | null | undefined, previousOption: CustomerOption | null = null): DeliveryFormValues {
   if (!option) return v;
   const addr = pickedAddress(option);
   const current = trim(v.address);
@@ -297,7 +340,7 @@ export function applyCustomerPick(v, option, previousOption = null) {
 }
 
 /** A name typed in that isn't one of the customers. */
-export const applyCustomName = (v, name, titleCase = (s) => s) => ({ ...v, customerName: titleCase(name), selectedCustomerId: titleCase(name) });
+export const applyCustomName = (v: DeliveryFormValues, name: string, titleCase = (s: string) => s): DeliveryFormValues => ({ ...v, customerName: titleCase(name), selectedCustomerId: titleCase(name) });
 
 const newId = () => `del_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
@@ -306,13 +349,18 @@ const newId = () => `del_${Date.now()}_${Math.random().toString(36).slice(2, 7)}
  * they can't linger: a will call has no address, stop or truck; a transfer
  * has no customer (its card names both branches instead).
  */
-export function buildDeliveryPayload(v, { savedTicket = null, currentUser = null, customerOptions = [], trucks = [], makeId = newId, now = new Date() } = {}) {
+export function buildDeliveryPayload(
+  v: DeliveryFormValues,
+  { savedTicket = null, currentUser = null, customerOptions = [], trucks = [], makeId = newId, now = new Date() }: {
+    savedTicket?: Loose | null; currentUser?: CurrentUserLike; customerOptions?: Partial<CustomerOption>[]; trucks?: TruckColumn[]; makeId?: () => string; now?: Date;
+  } = {}
+) {
   const transfer = isTransfer(v);
   const willCall = isWillCall(v);
   let customerName = trim(v.customerName);
   if (!customerName && v.selectedCustomerId) {
     const found = customerOptions.find((o) => o.value === v.selectedCustomerId);
-    if (found) customerName = found.label;
+    if (found) customerName = found.label as string;
   }
   // Both branches see this ticket, so its card names both ends.
   if (transfer) customerName = `Transfer: ${v.transferOrigin} → ${v.transferDestination}`;
@@ -353,7 +401,7 @@ export function buildDeliveryPayload(v, { savedTicket = null, currentUser = null
 }
 
 /** Header title, main button and delete label for this kind of ticket. */
-export function formWording(values, { isEdit = false, saved = values } = {}) {
+export function formWording(values: DeliveryFormValues, { isEdit = false, saved = values }: { isEdit?: boolean; saved?: DeliveryFormValues } = {}) {
   const noun = nounFor(values.deliveryType);
   const sub = isTransfer(saved)
     ? [saved.transferOrigin, saved.transferDestination].filter(Boolean).join(' → ')
@@ -368,7 +416,7 @@ export function formWording(values, { isEdit = false, saved = values } = {}) {
 }
 
 /** Footer note on an edit. Deliveries record when they changed, not who changed them. */
-export function deliveryLastChangedText(delivery) {
+export function deliveryLastChangedText(delivery: { updatedAt?: string } | null | undefined): string | null {
   const at = delivery?.updatedAt ? new Date(delivery.updatedAt) : null;
   if (!at || Number.isNaN(at.getTime())) return null;
   return `Last changed ${at.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
@@ -379,14 +427,14 @@ export function deliveryLastChangedText(delivery) {
  * street the form fills in. The one rule every customer dropdown uses now
  * (src/utils/customerOptions.js); kept under this name for the form's imports.
  */
-export { customerOption as customerOptionFromRecord } from './customerOptions.js';
+export { customerOption as customerOptionFromRecord } from './customerOptions';
 
 /**
  * Whether a ticket counts on a Daily Report at all, the way deriveFromSystem
  * reads them: not cancelled, and on a truck — except a will call or a return,
  * which never ride one.
  */
-const countsOnReport = (v) =>
+const countsOnReport = (v: TypeFields & { status?: string }): boolean =>
   v.status !== 'cancelled' && (Boolean(v.truckId) || isWillCall(v) || isReturnType(v));
 
 /**
@@ -394,9 +442,11 @@ const countsOnReport = (v) =>
  * its date, and for a transfer the destination on its arrival date too.
  * `location` is the branch a non-transfer ticket is filed under.
  */
-export function reportDaysFor(v, location) {
+type ReportFields = TypeFields & { status?: string; date?: string; transferOrigin?: string; transferDestination?: string; expectedArrivalDate?: string };
+
+export function reportDaysFor(v: ReportFields | null | undefined, location: string): ReportDay[] {
   if (!v || !countsOnReport(v)) return [];
-  const days = [];
+  const days: ReportDay[] = [];
   const origin = isTransfer(v) ? v.transferOrigin : location;
   if (origin && v.date) days.push({ location: origin, date: v.date });
   if (isTransfer(v) && v.transferDestination && v.expectedArrivalDate) {
@@ -410,9 +460,9 @@ export function reportDaysFor(v, location) {
  * when it opened, and the ones it would be counted on now. One entry per
  * branch and date.
  */
-export function reportDaysTouched(values, { initial = null, location = '' } = {}) {
+export function reportDaysTouched(values: ReportFields, { initial = null, location = '' }: { initial?: ReportFields | null; location?: string } = {}): ReportDay[] {
   const all = [...(initial ? reportDaysFor(initial, location) : []), ...reportDaysFor(values, location)];
-  const seen = new Set();
+  const seen = new Set<string>();
   return all.filter((d) => {
     const key = `${d.location}|${d.date}`;
     if (seen.has(key)) return false;
@@ -422,7 +472,7 @@ export function reportDaysTouched(values, { initial = null, location = '' } = {}
 }
 
 /** "Seattle's Daily Report for Fri, Oct 2" — for the submitted-day warning. */
-export const submittedDayLabel = ({ location, date }) => {
+export const submittedDayLabel = ({ location, date }: ReportDay): string => {
   const at = new Date(`${date}T12:00:00Z`);
   const day = Number.isNaN(at.getTime()) ? date : at.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
   return `${location}'s Daily Report for ${day}`;
@@ -433,7 +483,7 @@ export const submittedDayLabel = ({ location, date }) => {
  * A transfer the board draws on its arrival day keeps its real ship date in
  * shipDate (showOnArrivalDay).
  */
-export const ticketReportValues = (d = {}) => ({
+export const ticketReportValues = (d: Loose = {}): ReportFields => ({
   deliveryType: d.deliveryType || 'jobsite',
   status: d.status,
   truckId: d.truckId || '',
@@ -445,5 +495,5 @@ export const ticketReportValues = (d = {}) => ({
 });
 
 /** The report days a board move touches: where the ticket was counted, and where it is now. */
-export const reportDaysForMove = (before, after) =>
-  reportDaysTouched(ticketReportValues(after), { initial: ticketReportValues(before), location: before?.location || after?.location || '' });
+export const reportDaysForMove = (before: Loose | null | undefined, after: Loose | null | undefined): ReportDay[] =>
+  reportDaysTouched(ticketReportValues(after as Loose), { initial: ticketReportValues(before as Loose), location: before?.location || after?.location || '' });

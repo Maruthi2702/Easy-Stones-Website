@@ -7,7 +7,7 @@
 const PREFIX = 'session_draft:';
 const DEFAULT_MAX_AGE_MS = 30 * 60 * 1000;
 
-export function saveDraft(key, data) {
+export function saveDraft(key: string, data: unknown): void {
   try {
     sessionStorage.setItem(PREFIX + key, JSON.stringify({ data, ts: Date.now() }));
   } catch {
@@ -15,7 +15,7 @@ export function saveDraft(key, data) {
   }
 }
 
-export function loadDraft(key, maxAgeMs = DEFAULT_MAX_AGE_MS) {
+export function loadDraft<T = unknown>(key: string, maxAgeMs = DEFAULT_MAX_AGE_MS): T | null {
   try {
     const raw = sessionStorage.getItem(PREFIX + key);
     if (!raw) return null;
@@ -24,13 +24,13 @@ export function loadDraft(key, maxAgeMs = DEFAULT_MAX_AGE_MS) {
       sessionStorage.removeItem(PREFIX + key);
       return null;
     }
-    return data;
+    return data as T;
   } catch {
     return null;
   }
 }
 
-export function clearDraft(key) {
+export function clearDraft(key: string): void {
   try {
     sessionStorage.removeItem(PREFIX + key);
   } catch {

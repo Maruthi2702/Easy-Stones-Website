@@ -9,18 +9,23 @@
  *   never    — has never signed in
  */
 
-export const DEVICE_LABELS = { phone: 'Phone', tablet: 'Tablet', desktop: 'Computer' };
+export const DEVICE_LABELS: Record<string, string> = { phone: 'Phone', tablet: 'Tablet', desktop: 'Computer' };
+
+/** One live entry from the server (src/services/presence.js). */
+export type PresenceRow = { userId: string; status: 'active' | 'idle'; device?: string; tabs: number; lastActiveAt?: string | number };
+export type OnlineStatus = { kind: 'active' | 'idle' | 'offline' | 'never'; label: string; detail: string; device: string | null | undefined };
+type SeenUser = { _id: unknown; lastSeenAt?: string; lastLoginAt?: string };
 
 /** { userId → live row } from the server's list. */
-export const presenceById = (list) => {
-  const map = new Map();
-  for (const row of Array.isArray(list) ? list : []) map.set(String(row.userId), row);
+export const presenceById = (list: unknown): Map<string, PresenceRow> => {
+  const map = new Map<string, PresenceRow>();
+  for (const row of (Array.isArray(list) ? list : []) as PresenceRow[]) map.set(String(row.userId), row);
   return map;
 };
 
 /** "just now", "5 min ago", "3 h ago", "yesterday", "4 days ago", else the date. */
-export const agoLabel = (when, now = Date.now()) => {
-  const t = new Date(when).getTime();
+export const agoLabel = (when: string | number | Date | undefined, now = Date.now()): string => {
+  const t = new Date(when as string).getTime();
   if (!Number.isFinite(t)) return '';
   const mins = Math.max(0, Math.floor((now - t) / 60000));
   if (mins < 1) return 'just now';
@@ -33,10 +38,10 @@ export const agoLabel = (when, now = Date.now()) => {
   return new Date(t).toLocaleDateString();
 };
 
-export const onlineStatusOf = (user, live, now = Date.now()) => {
+export const onlineStatusOf = (user: SeenUser, live: Map<string, PresenceRow> | null | undefined, now = Date.now()): OnlineStatus => {
   const row = live?.get(String(user._id));
   if (row) {
-    const device = DEVICE_LABELS[row.device] || '';
+    const device = DEVICE_LABELS[row.device || ''] || '';
     const tabs = row.tabs > 1 ? ` · ${row.tabs} tabs` : '';
     return row.status === 'active'
       ? { kind: 'active', label: 'Online', detail: `Active now${device ? ` · ${device}` : ''}${tabs}`, device: row.device }
@@ -49,4 +54,4 @@ export const onlineStatusOf = (user, live, now = Date.now()) => {
 };
 
 /** How many of these users have a tab open (active or idle). */
-export const countOnline = (users, live) => users.filter((u) => live?.has(String(u._id))).length;
+export const countOnline = (users: SeenUser[], live: Map<string, PresenceRow> | null | undefined): number => users.filter((u) => live?.has(String(u._id))).length;

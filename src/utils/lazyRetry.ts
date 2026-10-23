@@ -1,4 +1,4 @@
-import { lazy } from 'react';
+import { lazy, type ComponentType } from 'react';
 
 /**
  * React.lazy(), plus retries via a full page reload.
@@ -27,7 +27,7 @@ const KEY = 'lazy-chunk-reloads';
 const MAX_RELOADS = 3;
 const QUIET_MS = 2 * 60 * 1000;
 
-const readState = () => {
+const readState = (): { at: number; count: number } => {
   try {
     const s = JSON.parse(window.sessionStorage.getItem(KEY) || 'null');
     return s && Date.now() - s.at < QUIET_MS ? s : { at: 0, count: 0 };
@@ -36,7 +36,8 @@ const readState = () => {
   }
 };
 
-export const lazyRetry = (componentImport) => lazy(async () => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- React.lazy's own constraint
+export const lazyRetry = <T extends ComponentType<any>>(componentImport: () => Promise<{ default: T }>) => lazy(async () => {
   try {
     return await componentImport();
   } catch (error) {
@@ -47,7 +48,7 @@ export const lazyRetry = (componentImport) => lazy(async () => {
       setTimeout(() => window.location.reload(), count * 3000);
       // Keep Suspense on its loading state until the reload takes over,
       // instead of flashing the error screen first.
-      return new Promise(() => {});
+      return new Promise<{ default: T }>(() => {});
     }
     throw error;
   }

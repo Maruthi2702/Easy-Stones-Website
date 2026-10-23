@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   STATUS_OPTIONS, LEVEL_OPTIONS, TYPE_OPTIONS, withCurrent, emptyCustomerValues, customerToFormValues,
   validateCustomerValues, withEmail, countCustomerChanges, applyCardScan, customerLastChangedText
-} from './customerForm.js';
+} from './customerForm';
 
 describe('options', () => {
   it('keep the stored values', () => {

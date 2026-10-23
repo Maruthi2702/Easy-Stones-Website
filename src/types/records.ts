@@ -77,3 +77,11 @@ export type CurrentUser = {
   assignedLocations?: string[];
   [key: string]: unknown;
 };
+
+/**
+ * A record whose fields aren't typed yet — what the API sent, read field by
+ * field. The one place `any` is allowed for records: each use is a spot to
+ * tighten when its screen gets a real type.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Loose = Record<string, any>;

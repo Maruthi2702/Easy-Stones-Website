@@ -23,7 +23,7 @@ const DECORATION = /[$,\s]/g;
  * freight charge", which is not the same fact as "the freight charge is
  * $0.00", and only the caller knows which of the two its field should store.
  */
-export const parseAmount = (input) => {
+export const parseAmount = (input: unknown): number | null => {
   if (input === null || input === undefined) return null;
   if (typeof input === 'number') return Number.isFinite(input) ? input : null;
 
@@ -45,7 +45,7 @@ export const parseAmount = (input) => {
  * Returns '' for an unset amount so an empty box stays empty rather than
  * filling itself in with "0.00" the moment it is tabbed past.
  */
-export const formatAmount = (value) => {
+export const formatAmount = (value: unknown): string => {
   const n = parseAmount(value);
   if (n === null) return '';
   return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -54,7 +54,7 @@ export const formatAmount = (value) => {
 /**
  * The same figure with its currency symbol, for read-only display.
  */
-export const formatMoney = (value) => {
+export const formatMoney = (value: unknown): string => {
   const formatted = formatAmount(value);
   return formatted ? `$${formatted}` : '';
 };
@@ -67,7 +67,7 @@ export const formatMoney = (value) => {
  * the keystroke leaves the caret stuck. Only characters that could never
  * belong to an amount are dropped, plus any second decimal point.
  */
-export const sanitizeAmountInput = (raw) => {
+export const sanitizeAmountInput = (raw: unknown): string => {
   const kept = String(raw ?? '').replace(/[^\d.,]/g, '');
   const firstDot = kept.indexOf('.');
   if (firstDot === -1) return kept;

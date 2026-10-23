@@ -14,14 +14,16 @@
 const LAST_KEY = 'rp_last_position';
 const OK_KEY = 'rp_location_ok';
 
-const read = (key) => { try { return window.localStorage.getItem(key); } catch { return null; } };
-const write = (key, value) => { try { window.localStorage.setItem(key, value); } catch { /* private window: nothing remembered */ } };
-const remove = (key) => { try { window.localStorage.removeItem(key); } catch { /* as above */ } };
+const read = (key: string): string | null => { try { return window.localStorage.getItem(key); } catch { return null; } };
+const write = (key: string, value: string): void => { try { window.localStorage.setItem(key, value); } catch { /* private window: nothing remembered */ } };
+const remove = (key: string): void => { try { window.localStorage.removeItem(key); } catch { /* as above */ } };
 
-const isPoint = (p) => p && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180;
+export type LatLng = { lat: number; lng: number };
+
+const isPoint = (p: { lat?: unknown; lng?: unknown } | null | undefined): p is LatLng => Boolean(p) && Number.isFinite((p as LatLng).lat) && Number.isFinite((p as LatLng).lng) && Math.abs((p as LatLng).lat) <= 90 && Math.abs((p as LatLng).lng) <= 180;
 
 /** The last fix this device made, { lat, lng }, or null. */
-export const readLastPosition = () => {
+export const readLastPosition = (): LatLng | null => {
   try {
     const p = JSON.parse(read(LAST_KEY) || 'null');
     return isPoint(p) ? { lat: p.lat, lng: p.lng } : null;
@@ -29,7 +31,7 @@ export const readLastPosition = () => {
 };
 
 /** A fix succeeded: remember where, and that location works here. */
-export const rememberPosition = ({ lat, lng }) => {
+export const rememberPosition = ({ lat, lng }: LatLng): void => {
   if (!isPoint({ lat, lng })) return;
   write(LAST_KEY, JSON.stringify({ lat, lng }));
   write(OK_KEY, '1');
@@ -38,10 +40,12 @@ export const rememberPosition = ({ lat, lng }) => {
 /** The browser said no: stop assuming it works. */
 export const forgetLocationOk = () => remove(OK_KEY);
 
-export const locationWasOk = () => read(OK_KEY) === '1';
+export const locationWasOk = (): boolean => read(OK_KEY) === '1';
 
 /** 'granted' | 'prompt' | 'denied' | 'unknown' (a browser that can't say). */
-export const locationPermission = async () => {
+export type LocationPermission = PermissionState | 'unknown';
+
+export const locationPermission = async (): Promise<LocationPermission> => {
   try {
     const status = await navigator.permissions.query({ name: 'geolocation' });
     return status.state;
@@ -53,5 +57,5 @@ export const locationPermission = async () => {
  * says it's granted; when it can't say, only if a fix worked before; never
  * when it says to prompt or denied.
  */
-export const shouldAutoLocate = (permission, wasOk) =>
+export const shouldAutoLocate = (permission: LocationPermission, wasOk: unknown): boolean =>
   permission === 'granted' || (permission === 'unknown' && Boolean(wasOk));

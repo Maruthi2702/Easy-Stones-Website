@@ -9,7 +9,7 @@
  */
 import { locationNames, homeLocationOf } from './locationFilter.js';
 
-const norm = (s) => String(s || '').trim().toLowerCase();
+const norm = (s: unknown): string => String(s || '').trim().toLowerCase();
 
 /**
  * Split the locations found in inventory into Easy Stones' own (matched,
@@ -17,9 +17,9 @@ const norm = (s) => String(s || '').trim().toLowerCase();
  * consignment (everything else). Each keeps the inventory's own spelling and
  * is sorted A–Z.
  */
-export const splitInventoryLocations = (inventoryLocations = [], branches = []) => {
+export const splitInventoryLocations = (inventoryLocations: unknown[] = [], branches: unknown[] = []): { company: string[]; consignment: string[] } => {
   const ours = new Set(locationNames(branches).map(norm));
-  const names = locationNames(inventoryLocations).sort((a, b) => a.localeCompare(b));
+  const names: string[] = locationNames(inventoryLocations).sort((a: string, b: string) => a.localeCompare(b));
   return {
     company: names.filter(n => ours.has(norm(n))),
     consignment: names.filter(n => !ours.has(norm(n)))
@@ -33,7 +33,7 @@ export const splitInventoryLocations = (inventoryLocations = [], branches = []) 
  * stock rather than ours and all ~90 consignment sites added together. Only
  * when no Easy Stones location has stock at all does it open on everything ([]).
  */
-export const defaultInventoryLocations = (user, inventoryLocations = [], branches = []) => {
+export const defaultInventoryLocations = (user: unknown, inventoryLocations: unknown[] = [], branches: unknown[] = []): string[] => {
   const { company } = splitInventoryLocations(inventoryLocations, branches);
   const home = norm(homeLocationOf(user));
   const homeMatch = home && company.find(n => norm(n) === home);

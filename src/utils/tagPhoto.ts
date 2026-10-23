@@ -13,6 +13,9 @@
 
 // Edges weaker than this (Scharr magnitude on 0–255 grey, after the blur)
 // are noise or shading, not strokes; a black-on-white stroke is ~1000–3000.
+/** width*height grey values, 0–255, row by row. */
+export type Gray = ArrayLike<number>;
+
 const MIN_EDGE = 300;
 // A tilt only counts when its pile of edges stands this many times above
 // the average direction; otherwise there's no clear line to level.
@@ -21,14 +24,14 @@ const MIN_PEAK_RATIO = 1.6;
 export const LEVEL_WITHIN = 4;
 
 /** Scharr gradient at pixel i (Sobel leans toward some directions by several degrees). */
-function gradient(gray, i, width) {
+function gradient(gray: Gray, i: number, width: number): [number, number] {
   const gx = 3 * (gray[i - width + 1] + gray[i + width + 1] - gray[i - width - 1] - gray[i + width - 1]) + 10 * (gray[i + 1] - gray[i - 1]);
   const gy = 3 * (gray[i + width - 1] + gray[i + width + 1] - gray[i - width - 1] - gray[i - width + 1]) + 10 * (gray[i + width] - gray[i - width]);
   return [gx, gy];
 }
 
 /** 3×3 average (border pixels left as they are). */
-function boxBlur(src, width, height) {
+function boxBlur(src: Gray, width: number, height: number): Float32Array {
   const out = Float32Array.from(src);
   for (let y = 1; y < height - 1; y++) {
     for (let x = 1; x < width - 1; x++) {
@@ -51,7 +54,7 @@ function boxBlur(src, width, height) {
  *   clockwise on screen (y down); rotating the photo by -angle levels it.
  *   0 when there's no clear direction.
  */
-export function estimateSkew(rawGray, width, height) {
+export function estimateSkew(rawGray: Gray, width: number, height: number): { angle: number; strength: number } {
   // Blur first: a sharp edge at an angle is a pixel staircase, and the
   // stairs' own edges pull the directions toward 0°, 27° and 45°.
   const gray = boxBlur(boxBlur(rawGray, width, height), width, height);
@@ -92,10 +95,10 @@ export function estimateSkew(rawGray, width, height) {
 }
 
 /** The tilt to level by: the estimate, or 0 when it's close enough to level already. */
-export const levelBy = (skew) => (Math.abs(skew) < LEVEL_WITHIN ? 0 : skew);
+export const levelBy = (skew: number): number => (Math.abs(skew) < LEVEL_WITHIN ? 0 : skew);
 
 /** Size of a width×height photo once rotated by `degrees` (the corners need room). */
-export function rotatedSize(width, height, degrees) {
+export function rotatedSize(width: number, height: number, degrees: number) {
   const a = (degrees * Math.PI) / 180;
   const c = Math.abs(Math.cos(a));
   const s = Math.abs(Math.sin(a));
@@ -117,7 +120,7 @@ const BAR_DENSITY = 0.18;
  * @returns {{ x, y, width, height } | null}  percent of the photo, or null
  *   when there's no barcode (the box then starts on the whole photo)
  */
-export function findTagBox(gray, width, height, { cell = 8 } = {}) {
+export function findTagBox(gray: Gray, width: number, height: number, { cell = 8 }: { cell?: number } = {}): { x: number; y: number; width: number; height: number } | null {
   const cols = Math.floor(width / cell);
   const rows = Math.floor(height / cell);
   if (cols < 3 || rows < 3) return null;
@@ -134,8 +137,8 @@ export function findTagBox(gray, width, height, { cell = 8 } = {}) {
     }
   }
 
-  let best = null;
-  for (const [across, mine, other] of [['x', ex, ey], ['y', ey, ex]]) {
+  let best: { across: string; count: number; x: number; y: number; w: number; h: number } | null = null;
+  for (const [across, mine, other] of [['x', ex, ey], ['y', ey, ex]] as [string, Float32Array, Float32Array][]) {
     const isBar = new Uint8Array(n);
     for (let c = 0; c < n; c++) isBar[c] = mine[c] / (cell * cell) > BAR_DENSITY && mine[c] > 3 * other[c] ? 1 : 0;
     const seen = new Uint8Array(n);
@@ -145,7 +148,7 @@ export function findTagBox(gray, width, height, { cell = 8 } = {}) {
       seen[start] = 1;
       let count = 0; let x0 = cols; let y0 = rows; let x1 = -1; let y1 = -1;
       while (stack.length) {
-        const c = stack.pop();
+        const c = stack.pop() as number;
         const cx = c % cols;
         const cy = (c - cx) / cols;
         count++;
@@ -176,7 +179,7 @@ export function findTagBox(gray, width, height, { cell = 8 } = {}) {
   const box = best.across === 'x'
     ? { x0: x - 0.6 * w, x1: x + 1.6 * w, y0: y - 1.6 * h, y1: y + 2.6 * h }
     : { x0: x - 1.6 * w, x1: x + 2.6 * w, y0: y - 0.6 * h, y1: y + 1.6 * h };
-  const pct = (v, size) => Math.max(0, Math.min(100, Math.round((v / size) * 100)));
+  const pct = (v: number, size: number) => Math.max(0, Math.min(100, Math.round((v / size) * 100)));
   const left = pct(box.x0, width);
   const top = pct(box.y0, height);
   // At least 10% each way (the framing sliders' minimum), inside the photo.
@@ -196,7 +199,10 @@ export function findTagBox(gray, width, height, { cell = 8 } = {}) {
  * strip starts on the barcode, 'bottom' when it ends on it), padded by `pad`
  * of its height; null when there's none.
  */
-export function textBand(gray, width, height, { pad = 0.3, bars = null, from = 'top', minHeight = 6 } = {}) {
+export function textBand(
+  gray: Gray, width: number, height: number,
+  { pad = 0.3, bars = null, from = 'top', minHeight = 6 }: { pad?: number; bars?: [number, number] | null; from?: 'top' | 'bottom'; minHeight?: number } = {}
+): { top: number; bottom: number } | null {
   const sorted = Array.from(gray).sort((a, b) => a - b);
   const lo = sorted[Math.floor(sorted.length * 0.05)];
   const hi = sorted[Math.floor(sorted.length * 0.95)];
@@ -225,7 +231,7 @@ export function textBand(gray, width, height, { pad = 0.3, bars = null, from = '
   if (b1 > b0) {
     const start = from === 'bottom' ? height - 1 : 0;
     const step = from === 'bottom' ? -1 : 1;
-    const ends = [];
+    const ends: number[] = [];
     for (let x = b0; x < b1; x++) {
       if (gray[start * width + x] >= cut) continue; // a space between bars
       let y = start;
@@ -239,7 +245,7 @@ export function textBand(gray, width, height, { pad = 0.3, bars = null, from = '
     }
   }
   // Runs of text rows, allowing 2-row gaps (between the parts of letters).
-  const runs = [];
+  const runs: { top: number; bottom: number }[] = [];
   for (let y = first; y <= last;) {
     if (!text[y]) { y++; continue; }
     let end = y; let gap = 0;
@@ -260,7 +266,7 @@ export function textBand(gray, width, height, { pad = 0.3, bars = null, from = '
 }
 
 /** Stretch grey levels so the darkest 2% is black and the lightest 2% white (glare-dulled print reads better). */
-export function stretchContrast(gray) {
+export function stretchContrast(gray: Gray): Uint8ClampedArray {
   const sorted = Array.from(gray).sort((a, b) => a - b);
   const lo = sorted[Math.floor(sorted.length * 0.02)];
   const hi = sorted[Math.floor(sorted.length * 0.98)];
@@ -276,7 +282,7 @@ export function stretchContrast(gray) {
  * the same line tilted smears it over many (low) — so of a few slightly
  * different turns of a strip, the highest is the level one.
  */
-export function rowSharpness(gray, width, height) {
+export function rowSharpness(gray: Gray, width: number, height: number): number {
   const sorted = Array.from(gray).sort((a, b) => a - b);
   const cut = (sorted[Math.floor(sorted.length * 0.05)] + sorted[Math.floor(sorted.length * 0.95)]) / 2;
   let score = 0;

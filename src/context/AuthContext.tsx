@@ -1,10 +1,31 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { API_URL } from '../config/api';
 import { resetSessionExpiredGuard } from '../api/authFetch';
 import { getAuthToken, setAuthToken, clearAuthToken } from '../api/authToken';
 import { clearScheduleCache } from '../api/deliverySchedule';
 import { clearCustomers } from '../api/customerOptions';
 import { clearAllCache } from '../utils/dataCache';
+import type { CurrentUser } from '../types/records';
+
+/** The signed-in person: staff ('internal') or a website customer. */
+export type AuthUser = CurrentUser & {
+    type: 'internal' | 'customer';
+    contactName?: string;
+};
+
+/** A browser mid first password (a setup session — src/services/staffSession.js). */
+export type PasswordSetup = { username: string; name?: string };
+
+export type AuthContextValue = {
+    user: AuthUser | null;
+    loading: boolean;
+    passwordSetup: PasswordSetup | null;
+    startPasswordSetup: () => Promise<PasswordSetup | null>;
+    login: (userData: AuthUser) => void;
+    completeLogin: (fallbackUser: AuthUser) => Promise<AuthUser>;
+    logout: () => Promise<void>;
+    checkAuth: (opts?: { silent?: boolean }) => Promise<AuthUser | null>;
+};
 
 // What the screens remember between visits (the delivery board's weeks and
 // drivers, the check-in log and customer pages, the customer dropdown) belongs
@@ -16,9 +37,9 @@ const forgetSessionData = () => {
     }
 };
 
-const AuthContext = createContext(null);
+const AuthContext = createContext<AuthContextValue | null>(null);
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextValue => {
     const context = useContext(AuthContext);
     if (!context) {
         throw new Error('useAuth must be used within AuthProvider');
@@ -26,17 +47,17 @@ export const useAuth = () => {
     return context;
 };
 
-export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
+    const [user, setUser] = useState<AuthUser | null>(null);
     const [loading, setLoading] = useState(true);
     // { username, name } while this browser is signed in with a temporary
     // password and has to choose its own before anything else — a setup
     // session, not a real one (src/services/staffSession.js). Every
     // ProtectedRoute shows ChoosePasswordPage instead of its page meanwhile.
-    const [passwordSetup, setPasswordSetup] = useState(null);
+    const [passwordSetup, setPasswordSetup] = useState<PasswordSetup | null>(null);
 
     // Who the setup session is for — null when there isn't one (or it ran out).
-    const readPasswordSetup = async () => {
+    const readPasswordSetup = async (): Promise<PasswordSetup | null> => {
         try {
             const res = await fetch(`${API_URL}/api/auth/setup`, { credentials: 'include' });
             const data = res.ok ? await res.json() : null;
@@ -62,11 +83,11 @@ export const AuthProvider = ({ children }) => {
      * user. Only the very first check, when nobody knows who's signed in yet,
      * needs to hold the page back.
      */
-    const checkAuth = async ({ silent = false } = {}) => {
+    const checkAuth = async ({ silent = false }: { silent?: boolean } = {}): Promise<AuthUser | null> => {
         if (!silent) setLoading(true);
         try {
             const token = getAuthToken();
-            const headers = {};
+            const headers: Record<string, string> = {};
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
             }
@@ -121,7 +142,7 @@ export const AuthProvider = ({ children }) => {
             }
 
             // Then fetch full profile based on authType
-            let profileUrl = authData.authType === 'admin'
+            const profileUrl = authData.authType === 'admin'
                 ? `${API_URL}/api/user/me`
                 : `${API_URL}/api/customer/me`;
 
@@ -133,7 +154,7 @@ export const AuthProvider = ({ children }) => {
             if (profileRes.ok) {
                 const userData = await profileRes.json();
                 // Normalize user object for UI consistency
-                const nextUser = {
+                const nextUser: AuthUser = {
                     ...userData,
                     role: userData.role || authData.role,
                     type: authData.authType === 'admin' ? 'internal' : 'customer',
@@ -160,7 +181,7 @@ export const AuthProvider = ({ children }) => {
         if (!user) return; // Only run if user is logged in
 
         const INACTIVITY_TIMEOUT = 10 * 60 * 60 * 1000; // 10 hours in milliseconds
-        let inactivityTimer;
+        let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
 
         const resetTimer = () => {
             if (inactivityTimer) {
@@ -191,7 +212,7 @@ export const AuthProvider = ({ children }) => {
 
     // Cross-tab session synchronization
     useEffect(() => {
-        const handleStorageChange = (e) => {
+        const handleStorageChange = (e: StorageEvent) => {
             // 'token' dropped from these checks now that it's never written to
             // localStorage — auth_login_event/auth_logout_event are plain
             // timestamp markers set by login()/logout() below and were always
@@ -230,7 +251,7 @@ export const AuthProvider = ({ children }) => {
         };
     }, []);
 
-    const login = (userData) => {
+    const login = (userData: AuthUser): void => {
         resetSessionExpiredGuard();
         localStorage.setItem('auth_login_event', Date.now().toString());
         setUser(userData);
@@ -248,7 +269,7 @@ export const AuthProvider = ({ children }) => {
      * the profile arrived. Falls back to login(fallbackUser) if the profile
      * can't be read, which is what happened before.
      */
-    const completeLogin = async (fallbackUser) => {
+    const completeLogin = async (fallbackUser: AuthUser): Promise<AuthUser> => {
         resetSessionExpiredGuard();
         const fullUser = await checkAuth({ silent: true });
         if (!fullUser) {
@@ -259,7 +280,7 @@ export const AuthProvider = ({ children }) => {
         return fullUser;
     };
 
-    const logout = async () => {
+    const logout = async (): Promise<void> => {
         try {
             await Promise.all([
                 fetch(`${API_URL}/api/customer/logout`, { method: 'POST', credentials: 'include' }),
@@ -291,7 +312,7 @@ export const AuthProvider = ({ children }) => {
         return setup;
     };
 
-    const value = {
+    const value: AuthContextValue = {
         user,
         loading,
         passwordSetup,

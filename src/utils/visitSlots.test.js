@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { quickDates, firstFreeSlot, minutesOf, clockLabel, timeOptions, startEnd } from './visitSlots.js';
+import { quickDates, firstFreeSlot, minutesOf, clockLabel, timeOptions, startEnd } from './visitSlots';
 
 describe('quickDates', () => {
   it('offers tomorrow, next Monday and the Monday after', () => {

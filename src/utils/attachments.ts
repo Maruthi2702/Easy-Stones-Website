@@ -8,7 +8,7 @@
  * PDFs are uploaded as Cloudinary raw files named *.pdf for exactly this
  * (processBase64Image in server.js, scripts/migrate-inline-images.js).
  */
-export const isPdfSource = (src) => {
+export const isPdfSource = (src: unknown): boolean => {
   if (typeof src !== 'string' || !src) return false;
   if (src.startsWith('data:')) return src.startsWith('data:application/pdf');
   return /\.pdf$/i.test(src.split(/[?#]/)[0]);

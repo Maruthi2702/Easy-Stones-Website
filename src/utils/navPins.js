@@ -177,6 +177,9 @@ export const isCheckInOnly = (user) => !!user && canCheckIn(user) && !hasSalesPa
  * The rail's sections: visibleSections, except Home is always there — it's
  * where the pinned pages are listed, so it's needed even by someone without
  * the Dashboard (its `items` is then empty).
+ * @param {any} user
+ * @param {any} [order]
+ * @returns {{ id: string, label: string, items: any[] }[]}
  */
 export const railSections = (user, order = null) =>
   orderedSections(order)

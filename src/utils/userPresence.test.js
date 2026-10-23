@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { presenceById, agoLabel, onlineStatusOf, countOnline } from './userPresence.js';
+import { presenceById, agoLabel, onlineStatusOf, countOnline } from './userPresence';
 
 const NOW = Date.parse('2026-10-16T12:00:00Z');
 const ago = (ms) => new Date(NOW - ms).toISOString();

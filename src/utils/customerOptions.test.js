@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { customerLabel, customerAddressParts, customerOption, toCustomerOptions, matchesOption } from './customerOptions.js';
+import { customerLabel, customerAddressParts, customerOption, toCustomerOptions, matchesOption } from './customerOptions';
 
 describe('customerLabel', () => {
     it('company, then contact, then first + last', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseAmount, formatAmount, formatMoney, sanitizeAmountInput } from './money.js';
+import { parseAmount, formatAmount, formatMoney, sanitizeAmountInput } from './money';
 
 describe('parseAmount', () => {
   it('reads a plain number', () => {

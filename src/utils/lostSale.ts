@@ -14,7 +14,9 @@ export const REASON_OPTIONS = [
   { id: 'Other', label: 'Other Reason', filterLabel: 'Other', badgeClass: 'badge-other-reason' }
 ];
 
-export const getCustomerName = (c, fallback = 'Unknown Customer') => {
+type NamedCustomer = { firstName?: string; lastName?: string; company?: string; contactName?: string; name?: string; fabricatorCompany?: string };
+
+export const getCustomerName = (c: string | NamedCustomer | null | undefined, fallback = 'Unknown Customer'): string => {
   if (!c) return fallback;
   if (typeof c === 'string') return c;
   if (typeof c === 'object') {

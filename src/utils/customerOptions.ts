@@ -1,5 +1,22 @@
 import { isFillerName } from './customerMatch.js';
 
+/** The customer fields the dropdown reads (any record shape the API sends). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- address fields come in several stored shapes
+type AnyCustomer = Record<string, any>;
+
+/** A customer as a dropdown option. */
+export type CustomerOption = {
+    value: string;
+    label: string;
+    description?: string;
+    keywords: string;
+    city: string;
+    address: string;
+    fullAddress: string;
+    salesRepName: string;
+    customerType: string;
+};
+
 /**
  * How a customer appears in every customer dropdown — the one rule for the
  * Visit, Delivery, Lost sale, Resource, Sales planner, route planner and
@@ -11,20 +28,21 @@ import { isFillerName } from './customerMatch.js';
  * (loaded once, kept fresh) is src/api/customerOptions.js.
  */
 
-const textOf = (val) => {
+const textOf = (val: unknown): string => {
     if (!val) return '';
     if (typeof val === 'string') return val === '[object Object]' ? '' : val.trim();
     if (typeof val === 'object') {
-        const inner = val.street || val.address || val.line1 || val.city || val.name || '';
+        const v = val as AnyCustomer;
+        const inner = v.street || v.address || v.line1 || v.city || v.name || '';
         return typeof inner === 'string' ? (inner === '[object Object]' ? '' : inner.trim()) : String(inner || '').trim();
     }
     return String(val).trim();
 };
 
-const real = (value) => (isFillerName(value) ? '' : String(value).trim());
+const real = (value: unknown): string => (isFillerName(value) ? '' : String(value).trim());
 
 /** The name shown for a customer: company, else contact, else first + last. Filler like "N/A" is skipped. */
-export const customerLabel = (c) => {
+export const customerLabel = (c: string | AnyCustomer | null | undefined): string => {
     if (!c) return 'Unknown';
     if (typeof c === 'string') return c.trim() || 'Unknown';
     return real(c.company)
@@ -34,7 +52,7 @@ export const customerLabel = (c) => {
 };
 
 /** City / street / state out of the several address shapes customers are stored in. */
-export const customerAddressParts = (c = {}) => {
+export const customerAddressParts = (c: AnyCustomer = {}): { street: string; city: string; state: string } => {
     let city = textOf(c.city) || textOf(c.shippingCity) || textOf(c.billingCity);
     for (const nested of [c.address, c.shippingAddress, c.billingAddress]) {
         if (!city && nested && typeof nested === 'object') city = textOf(nested.city);
@@ -53,7 +71,7 @@ export const customerAddressParts = (c = {}) => {
  * so typing the contact's name or the city finds the account. The address
  * and rep ride along for forms that fill them in (Delivery).
  */
-export const customerOption = (c = {}) => {
+export const customerOption = (c: AnyCustomer = {}): CustomerOption => {
     const { street, city, state } = customerAddressParts(c);
     const label = customerLabel(c);
     const contact = real(c.contactName);
@@ -73,9 +91,9 @@ export const customerOption = (c = {}) => {
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
 
 /** Records → options: one per id, sorted A–Z by name (case-insensitive, 2 before 10). */
-export const toCustomerOptions = (records = []) => {
-    const seen = new Set();
-    const out = [];
+export const toCustomerOptions = (records: AnyCustomer[] | null = []): CustomerOption[] => {
+    const seen = new Set<string>();
+    const out: CustomerOption[] = [];
     for (const c of records || []) {
         if (!c || !c._id) continue;
         const id = String(c._id);
@@ -87,7 +105,7 @@ export const toCustomerOptions = (records = []) => {
 };
 
 /** Whether an option matches what was typed: name, then the city/contact keywords. */
-export const matchesOption = (option, query) => {
+export const matchesOption = (option: Partial<CustomerOption> | null | undefined, query: unknown): boolean => {
     const q = String(query || '').trim().toLowerCase();
     if (!q) return true;
     return `${option?.label || ''} ${option?.description || ''} ${option?.keywords || ''}`.toLowerCase().includes(q);

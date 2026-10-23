@@ -1,9 +1,19 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, type ReactNode } from 'react';
 import { API_URL } from '../config/api';
 
-const ProductContext = createContext();
+/** A product from /api/products (src/models/Product.js), loosely typed. */
+export type Product = { [key: string]: unknown };
 
-export const useProducts = () => {
+export type ProductContextValue = {
+    products: Product[];
+    loading: boolean;
+    error: string | null;
+    refreshProducts: () => void;
+};
+
+const ProductContext = createContext<ProductContextValue | undefined>(undefined);
+
+export const useProducts = (): ProductContextValue => {
     const context = useContext(ProductContext);
     if (!context) {
         throw new Error('useProducts must be used within a ProductProvider');
@@ -11,8 +21,8 @@ export const useProducts = () => {
     return context;
 };
 
-export const ProductProvider = ({ children }) => {
-    const [products, setProducts] = useState(() => {
+export const ProductProvider = ({ children }: { children: ReactNode }) => {
+    const [products, setProducts] = useState<Product[]>(() => {
         try {
             const cached = localStorage.getItem('cached_products');
             return cached ? JSON.parse(cached) : [];
@@ -21,7 +31,7 @@ export const ProductProvider = ({ children }) => {
         }
     });
     const [loading, setLoading] = useState(() => products.length === 0);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
 
     const fetchProducts = async () => {
         try {

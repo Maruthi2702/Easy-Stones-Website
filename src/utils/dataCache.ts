@@ -1,6 +1,7 @@
 // In-Memory Data Cache Module for Instant 0ms Tab Navigation & Silent WebSocket Sync
 
-const cacheStore = {
+// Keys are the fixed ones below plus per-page keys ("checkIns:<filters>"…).
+const cacheStore: Record<string, unknown> & { lastUpdated: Record<string, number> } = {
   customers: null,
   customerStats: null,
   customerTotalPages: 1,
@@ -17,8 +18,8 @@ const cacheStore = {
  * @param {string} key 
  * @returns {any}
  */
-export const getCachedData = (key) => {
-  return cacheStore[key] !== undefined ? cacheStore[key] : null;
+export const getCachedData = <T = unknown>(key: string): T | null => {
+  return cacheStore[key] !== undefined ? (cacheStore[key] as T) : null;
 };
 
 /**
@@ -26,7 +27,7 @@ export const getCachedData = (key) => {
  * @param {string} key 
  * @param {any} value 
  */
-export const setCachedData = (key, value) => {
+export const setCachedData = (key: string, value: unknown): void => {
   cacheStore[key] = value;
   cacheStore.lastUpdated[key] = Date.now();
 };
@@ -37,7 +38,7 @@ export const setCachedData = (key, value) => {
  * @param {number} maxAgeMs - Default 2 minutes (120,000ms)
  * @returns {boolean}
  */
-export const isCacheValid = (key, maxAgeMs = 120000) => {
+export const isCacheValid = (key: string, maxAgeMs = 120000): boolean => {
   if (cacheStore[key] === null || cacheStore[key] === undefined) return false;
   const last = cacheStore.lastUpdated[key] || 0;
   return (Date.now() - last) < maxAgeMs;
@@ -47,7 +48,7 @@ export const isCacheValid = (key, maxAgeMs = 120000) => {
  * Invalidate a specific cache key
  * @param {string} key 
  */
-export const clearCacheKey = (key) => {
+export const clearCacheKey = (key: string): void => {
   cacheStore[key] = null;
   delete cacheStore.lastUpdated[key];
 };
@@ -55,7 +56,7 @@ export const clearCacheKey = (key) => {
 /**
  * Invalidate all cache store entries
  */
-export const clearAllCache = () => {
+export const clearAllCache = (): void => {
   Object.keys(cacheStore).forEach(k => {
     if (k === 'lastUpdated') cacheStore[k] = {};
     else cacheStore[k] = null;
@@ -66,7 +67,7 @@ export const clearAllCache = () => {
 // paints instantly, but the next read refetches instead of trusting it for
 // two minutes. For live updates — a new check-in makes every cached page of
 // the log stale, not just the one on screen.
-export const expireCacheKeys = (prefix) => {
+export const expireCacheKeys = (prefix: string): void => {
   Object.keys(cacheStore.lastUpdated).forEach(k => {
     if (k.startsWith(prefix)) cacheStore.lastUpdated[k] = 0;
   });

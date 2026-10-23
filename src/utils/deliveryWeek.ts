@@ -29,13 +29,13 @@ export const DAYS_IN_WEEK = 7;
 export const WEEKDAY_COUNT = 5;
 
 /** Weekday index (0 = Sunday … 6 = Saturday) of a 'YYYY-MM-DD' calendar date. */
-export const weekdayIndex = (dateStr) => {
+export const weekdayIndex = (dateStr: string | null | undefined): number | null => {
   if (!dateStr) return null;
   const d = new Date(`${String(dateStr).slice(0, 10)}T00:00:00`);
   return Number.isNaN(d.getTime()) ? null : d.getDay();
 };
 
-export const isWeekendDate = (dateStr) => {
+export const isWeekendDate = (dateStr: string | null | undefined): boolean => {
   const i = weekdayIndex(dateStr);
   return i === 0 || i === 6;
 };
@@ -46,7 +46,7 @@ export const isWeekendDate = (dateStr) => {
  * hard-coded Mon–Fri array against the dates by position, which silently
  * mislabels every column the moment the two lengths stop matching.
  */
-export const dayLabel = (dateStr) => {
+export const dayLabel = (dateStr: string | null | undefined): { name: string; short: string } => {
   const i = weekdayIndex(dateStr);
   if (i === null) return { name: '', short: '' };
   return { name: DAY_NAMES[i], short: DAY_SHORT[i] };
@@ -66,7 +66,7 @@ export const dayLabel = (dateStr) => {
  * The cost is that Sunday now opens on the week just ending rather than the
  * one about to start; the forward arrow is one click away.
  */
-export const getWeekMonday = (date = new Date()) => {
+export const getWeekMonday = (date: Date | string | number = new Date()): Date => {
   const d = typeof date === 'string' ? new Date(`${date}T00:00:00`) : new Date(date);
   const day = d.getDay();
   const offset = day === 0 ? -6 : 1 - day;
@@ -77,7 +77,7 @@ export const getWeekMonday = (date = new Date()) => {
 };
 
 /** Seven calendar dates, Monday first. */
-export const getWeekDates = (mondayDate) => {
+export const getWeekDates = (mondayDate: Date | string | number): string[] => {
   const base = new Date(mondayDate);
   return Array.from({ length: DAYS_IN_WEEK }, (_, i) => {
     const d = new Date(base);
@@ -91,14 +91,14 @@ export const getWeekDates = (mondayDate) => {
  * weekend day only when something is scheduled on it. `usedDates` is any
  * iterable of 'YYYY-MM-DD' strings that have deliveries.
  */
-export const visibleWeekDates = (weekDates = [], usedDates = []) => {
+export const visibleWeekDates = (weekDates: string[] = [], usedDates: Iterable<string> = []): string[] => {
   const used = usedDates instanceof Set ? usedDates : new Set(usedDates);
   return weekDates.filter((date, i) => i < WEEKDAY_COUNT || used.has(date));
 };
 
 /** e.g. "Sep 7 — Sep 11", spanning whichever days are on screen. */
-export const formatWeekRangeText = (dates) => {
+export const formatWeekRangeText = (dates: string[] | null | undefined): string => {
   if (!dates || !dates.length) return '';
-  const fmt = (s) => new Date(`${s}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const fmt = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return `${fmt(dates[0])} — ${fmt(dates[dates.length - 1])}`;
 };

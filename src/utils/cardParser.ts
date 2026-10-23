@@ -1,7 +1,17 @@
 /**
  * Utility to parse information from OCR text from various documents (DL, SSN, Business Cards, and Contact Card Screenshots).
  */
-export const parseBusinessCard = (text) => {
+/** What a scan read: the Add customer form's fields (customerForm.js applyCardScan). */
+export type ParsedCard = {
+    company: string;
+    customerName: string;
+    phone: string;
+    email: string;
+    website: string;
+    address: { street: string; city: string; state: string; zipCode: string };
+};
+
+export const parseBusinessCard = (text: string | null | undefined): ParsedCard | null => {
     if (!text) return null;
 
     // Clean text: remove sequences of dots/dashes that are often noise
@@ -10,7 +20,7 @@ export const parseBusinessCard = (text) => {
         .map(line => line.trim())
         .filter(line => line.length > 0);
 
-    const result = {
+    const result: ParsedCard = {
         company: '',
         customerName: '',
         phone: '',
@@ -49,7 +59,7 @@ export const parseBusinessCard = (text) => {
             } else if (/^8\s/i.test(line)) {
                 result.address.street = line.replace(/^8\s/i, '').trim();
             } else if (zipRegex.test(line) && !result.address.zipCode) {
-                const match = line.match(zipRegex);
+                const match = line.match(zipRegex)!;
                 result.address.zipCode = match[1];
                 const parts = line.split(/[ ,]+/);
                 const zipIndex = parts.findIndex(p => p.includes(match[1]));
@@ -79,7 +89,7 @@ export const parseBusinessCard = (text) => {
 
     // 3. Structured Contact Card Parser (e.g., iPhone / Android Contact Screenshot,
     // or a plain printed business card that never has "mobile/home/work" labels)
-    const filteredHeaderLines = [];
+    const filteredHeaderLines: string[] = [];
     let isHeaderSection = true;
     const contactLabels = ['mobile', 'home', 'work', 'main', 'notes', 'pager', 'fax', 'other'];
 
@@ -96,7 +106,7 @@ export const parseBusinessCard = (text) => {
     // "900 5th Ave" or "42nd St", where a plain \d+\s+[a-zA-Z] miss the digit
     // that starts the street-name token itself.
     const streetLineRegex = /^\d+\s+(\d+(st|nd|rd|th)\.?\s+)?[a-zA-Z]/i;
-    const isContactInfoLine = (line) => (
+    const isContactInfoLine = (line: string) => (
         quickEmailRegex.test(line)
         || quickPhoneRegex.test(line)
         || quickUrlRegex.test(line)
@@ -150,8 +160,8 @@ export const parseBusinessCard = (text) => {
     // the name.
     const companySuffixRegex = /\b(inc|llc|llp|corp|co|company|group|industries|enterprises|ltd|stone|granite|marble|quartz|tile|countertops?|supply|supplies)\b\.?/i;
     const titleKeywordRegex = /\b(manager|owner|president|ceo|cfo|coo|director|sales|representative|rep|founder|partner|vice president|vp|estimator|designer|consultant|specialist)\b/i;
-    const isAllCapsLine = (l) => /^[A-Z0-9\s&.,'-]{4,}$/.test(l);
-    const isNameShaped = (l) => /^[A-Za-z.'-]+(\s+[A-Za-z.'-]+){1,3}$/.test(l) && !isAllCapsLine(l);
+    const isAllCapsLine = (l: string) => /^[A-Z0-9\s&.,'-]{4,}$/.test(l);
+    const isNameShaped = (l: string) => /^[A-Za-z.'-]+(\s+[A-Za-z.'-]+){1,3}$/.test(l) && !isAllCapsLine(l);
 
     if (filteredHeaderLines.length > 0) {
         const nonTitleLines = filteredHeaderLines.filter(l => !titleKeywordRegex.test(l));
@@ -166,7 +176,7 @@ export const parseBusinessCard = (text) => {
     }
 
     // Strip out generic "Contact Photo & Poster" iOS system labels and single letter profile icons
-    const cleanField = (val) => {
+    const cleanField = (val: string) => {
         if (!val) return '';
         return val
             .replace(/Contact Photo.*/i, '')
@@ -270,7 +280,7 @@ export const parseBusinessCard = (text) => {
                 const withoutZip = result.address.street.substring(0, zipMatch.index).trim();
                 const streetSuffixMatch = withoutZip.match(/\b(ave|avenue|st|street|rd|road|ln|lane|dr|drive|ct|court|way|blvd|boulevard)\s+([a-zA-Z\s]+)$/i);
                 if (streetSuffixMatch) {
-                    result.address.street = withoutZip.substring(0, streetSuffixMatch.index + streetSuffixMatch[1].length).trim();
+                    result.address.street = withoutZip.substring(0, (streetSuffixMatch.index as number) + streetSuffixMatch[1].length).trim();
                     result.address.city = streetSuffixMatch[2].trim();
                 } else {
                     result.address.street = withoutZip;

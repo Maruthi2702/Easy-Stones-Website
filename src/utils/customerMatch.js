@@ -84,6 +84,7 @@ export const OWN_DOMAIN_RE = OWN_DOMAIN;
 export const isPlaceholderEmail = (value = '') =>
   PLACEHOLDER_EMAIL.test(String(value)) || OWN_DOMAIN.test(String(value));
 
+/** @param {unknown} [value] */
 export const isFillerName = (value = '') => {
   const raw = String(value || '').trim();
   return !raw || FILLER_NAME.test(raw);
