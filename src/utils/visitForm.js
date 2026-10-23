@@ -1,4 +1,4 @@
-import { lastChangedText } from './userForm';
+import { lastChangedText } from './userForm.js';
 
 /*
  * Add / Edit visit's rules (src/components/sales/VisitForm.jsx). Approved
