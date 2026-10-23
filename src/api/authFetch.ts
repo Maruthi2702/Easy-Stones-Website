@@ -14,11 +14,11 @@ import { getAuthToken } from './authToken';
 let sessionExpiredNotified = false;
 
 /** Called after a successful login so the next expiry can be noticed again. */
-export function resetSessionExpiredGuard() {
+export function resetSessionExpiredGuard(): void {
   sessionExpiredNotified = false;
 }
 
-function notifySessionExpired() {
+function notifySessionExpired(): void {
   if (sessionExpiredNotified) return;
   sessionExpiredNotified = true;
   try {
@@ -29,12 +29,12 @@ function notifySessionExpired() {
   window.dispatchEvent(new CustomEvent('auth:session-expired'));
 }
 
-export async function authFetch(url, options = {}) {
+export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = getAuthToken();
-  const headers = {
+  const headers: HeadersInit = {
     ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options.headers
+    ...(options.headers as Record<string, string> | undefined)
   };
 
   const res = await fetch(url, { ...options, credentials: 'include', headers });

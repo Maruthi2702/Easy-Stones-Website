@@ -99,7 +99,9 @@ export const branchesOf = (user) => {
  * opening an old record never blanks or swaps its rep.
  *
  * Accepts the /api/salesreps envelope or a bare array.
- * @returns {{ value, label, email, id, location }[]} value = the rep's name
+ * @param {any} payload
+ * @param {{ branches?: string[], current?: { name?: string, email?: string } }} [opts]
+ * @returns {{ value: string, label: string, email: string, id: string, location: string }[]} value = the rep's name
  */
 export function salesRepNameOptions(payload, { branches = [], current = {} } = {}) {
     const raw = payload?.data || payload || [];
@@ -142,6 +144,8 @@ export const branchSalesRepOf = (loc) => String(loc?.defaultSalesRep ?? loc?.sal
  * `staff` is /api/salesreps (or the same shape: _id, name, role, isActive),
  * `branchReps` is { [branch]: sales person's name }, `creator` is the
  * signed-in user ({ id } or { _id }), or null for a self check-in.
+ * @param {{ staff?: any, branch?: string, branchReps?: Record<string, string>, creator?: { id?: string, _id?: string } | null }} [args]
+ * @returns {any}
  */
 export function startingRepFor({ staff = [], branch = '', branchReps = {}, creator = null } = {}) {
     const raw = staff?.data || staff || [];

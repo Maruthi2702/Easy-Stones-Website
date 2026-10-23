@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { API_URL } from '../config/api';
 import { authFetch } from './authFetch';
 import { toCustomerOptions } from '../utils/customerOptions';
+import type { CustomerRecord } from '../types/records';
+
+type CustomerOption = ReturnType<typeof toCustomerOptions>[number];
 
 /*
  * The one customer list behind every customer dropdown.
@@ -17,26 +20,26 @@ import { toCustomerOptions } from '../utils/customerOptions';
  * The naming, sorting and search rules are in src/utils/customerOptions.js.
  */
 
-let records = [];
-let options = [];
+let records: CustomerRecord[] = [];
+let options: CustomerOption[] = [];
 let loaded = false;
 let loading = false;
-let inflight = null;
-const listeners = new Set();
+let inflight: Promise<CustomerRecord[]> | null = null;
+const listeners = new Set<() => void>();
 
 const publish = () => {
     options = toCustomerOptions(records);
     for (const fn of listeners) fn();
 };
 
-const setRecords = (next) => {
-    records = Array.isArray(next) ? next : [];
+const setRecords = (next: unknown) => {
+    records = Array.isArray(next) ? (next as CustomerRecord[]) : [];
     loaded = true;
     publish();
 };
 
 /** Forget the list (a logout): the next login loads its own, never the last one's. */
-export function clearCustomers() {
+export function clearCustomers(): void {
     inflight = null;
     loading = false;
     loaded = false;
@@ -46,12 +49,13 @@ export function clearCustomers() {
 }
 
 /** Fetch the list (once, unless force). Resolves when it's in. */
-export function loadCustomers({ force = false } = {}) {
+export function loadCustomers({ force = false }: { force?: boolean } = {}): Promise<CustomerRecord[]> {
     if (inflight && !force) return inflight;
     if (loaded && !force) return Promise.resolve(records);
     loading = true;
     for (const fn of listeners) fn();
-    const run = (async () => {
+    // Named, then called: `run` is read inside, after it has been assigned.
+    const load = async (): Promise<CustomerRecord[]> => {
         try {
             const res = await authFetch(`${API_URL}/api/customers/dropdown`);
             if (res.ok) {
@@ -69,7 +73,8 @@ export function loadCustomers({ force = false } = {}) {
             }
         }
         return records;
-    })();
+    };
+    const run = load();
     inflight = run;
     return run;
 }
@@ -78,7 +83,7 @@ export function loadCustomers({ force = false } = {}) {
 export const refreshCustomers = () => loadCustomers({ force: true });
 
 /** Put a customer that was just created (or edited) into the list straight away. */
-export function addCustomerRecord(record) {
+export function addCustomerRecord(record: CustomerRecord | null | undefined): void {
     if (!record?._id) return;
     const id = String(record._id);
     setRecords([...records.filter((r) => String(r._id) !== id), record]);

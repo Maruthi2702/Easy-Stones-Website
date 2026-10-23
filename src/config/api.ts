@@ -1,7 +1,7 @@
 // API Configuration
 // This file centralizes API URL configuration for easy deployment
 
-const getApiUrl = () => {
+const getApiUrl = (): string => {
   // In production, use relative path (empty string) so requests go to the same origin
   if (import.meta.env.PROD) {
     return '';

@@ -16,9 +16,9 @@ import { onAuthTokenChange } from './authToken';
  */
 const INVENTORY_CACHE_TTL = 10 * 60 * 1000;
 const INVENTORY_CACHE_MAX = 200;
-const store = new Map(); // url → { data, at }
+const store = new Map<string, { data: unknown; at: number }>(); // url → { data, at }
 
-export function peekInventory(url) {
+export function peekInventory(url: string): unknown {
   const entry = store.get(url);
   if (!entry) return undefined;
   if (Date.now() - entry.at >= INVENTORY_CACHE_TTL) {
@@ -28,13 +28,13 @@ export function peekInventory(url) {
   return entry.data;
 }
 
-export function rememberInventory(url, data) {
+export function rememberInventory(url: string, data: unknown): void {
   store.delete(url); // re-insert, so the oldest entries are dropped first
   store.set(url, { data, at: Date.now() });
-  while (store.size > INVENTORY_CACHE_MAX) store.delete(store.keys().next().value);
+  while (store.size > INVENTORY_CACHE_MAX) store.delete(store.keys().next().value as string);
 }
 
-export function clearInventoryCache() {
+export function clearInventoryCache(): void {
   store.clear();
 }
 

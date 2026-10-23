@@ -13,40 +13,41 @@
 // by exchanging the still-valid httpOnly cookie for a token via
 // GET /api/auth/token — the cookie itself remains the source of truth for
 // every plain fetch (authenticate() on the server checks it first).
-let token = null;
+let token: string | null = null;
 
 // Things that hold on to the token after reading it — the delivery board's
 // Socket.IO room join, which proves who the socket belongs to once per
 // connection — are told when it changes, so a sign-out or a different person
 // signing in on the same tab updates them instead of leaving them on the old
 // session until the page is reloaded.
-const listeners = new Set();
+type TokenListener = (token: string | null) => void;
+const listeners = new Set<TokenListener>();
 
-const notify = (previous) => {
+const notify = (previous: string | null) => {
   if (previous === token) return;
   listeners.forEach(cb => {
     try { cb(token); } catch { /* one listener must not stop the rest */ }
   });
 };
 
-export function getAuthToken() {
+export function getAuthToken(): string | null {
   return token;
 }
 
-export function setAuthToken(value) {
+export function setAuthToken(value: string | null | undefined): void {
   const previous = token;
   token = value || null;
   notify(previous);
 }
 
-export function clearAuthToken() {
+export function clearAuthToken(): void {
   const previous = token;
   token = null;
   notify(previous);
 }
 
 /** Hear when the token is set, replaced or cleared. Returns an unsubscribe function. */
-export function onAuthTokenChange(callback) {
+export function onAuthTokenChange(callback: TokenListener): () => void {
   listeners.add(callback);
-  return () => listeners.delete(callback);
+  return () => { listeners.delete(callback); };
 }

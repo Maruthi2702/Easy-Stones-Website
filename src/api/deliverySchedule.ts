@@ -7,15 +7,23 @@
 // in particular, why a location-filtered view deliberately bypasses this
 // cache instead of adding a location dimension to it.
 import { API_URL } from '../config/api';
-import { io } from 'socket.io-client';
+import { io, type Socket } from 'socket.io-client';
 import { authFetch } from './authFetch';
 import { getAuthToken, setAuthToken, onAuthTokenChange } from './authToken';
 import { DAYS_IN_WEEK } from '../utils/deliveryWeek';
 import { isPendingDelivery, isCancelledDelivery, applyTransferPerspective } from '../utils/deliveryTypes';
+import type { CurrentUser, DeliveryRecord, TruckColumn } from '../types/records';
+
+export type ConnectionStatus = 'online' | 'reconnecting' | 'offline';
+export type ConnectionState = { status: ConnectionStatus; lastSyncedAt: number | null };
+/** What the board draws: the viewed week, Pending, Cancelled and the driver columns. */
+export type ScheduleSnapshot = { deliveries: DeliveryRecord[]; pending: DeliveryRecord[]; cancelled: DeliveryRecord[]; trucks: TruckColumn[] };
+export type ScheduleChange = { trucks?: boolean };
+type ScopedWeek = { deliveries: DeliveryRecord[]; pending: DeliveryRecord[]; cancelled: DeliveryRecord[]; trucks: TruckColumn[] | null };
 
 export const MAX_TRUCK_CAPACITY = 12;
 
-export const DEFAULT_TRUCKS = [
+export const DEFAULT_TRUCKS: TruckColumn[] = [
   { id: 'trk_1', name: 'Truck 1', driver: '', color: '#D4AF37' },
   { id: 'trk_2', name: 'Truck 2', driver: '', color: '#2F8F73' },
   { id: 'trk_3', name: 'Truck 3', driver: '', color: '#E1602A' },
@@ -25,7 +33,7 @@ export const DEFAULT_TRUCKS = [
   { id: 'trk_3rd_party', name: '3rd Party Freight', driver: '', color: '#a855f7', isContract: true }
 ];
 
-export const INITIAL_SAMPLE_DELIVERIES = [];
+export const INITIAL_SAMPLE_DELIVERIES: DeliveryRecord[] = [];
 
 // ── IN-MEMORY CACHE & REAL-TIME SOCKET LISTENER ──
 // The board only ever displays one week at a time, so deliveries are cached
@@ -33,7 +41,23 @@ export const INITIAL_SAMPLE_DELIVERIES = [];
 // ever-growing list. Opening/refreshing loads just the current week; navigating
 // to a week already visited this session serves straight from cache instead of
 // re-fetching.
-const scheduleCache = {
+const scheduleCache: {
+  weeks: Map<string, DeliveryRecord[]>;
+  pending: DeliveryRecord[];
+  pendingLoaded: boolean;
+  cancelled: DeliveryRecord[];
+  cancelledLoaded: boolean;
+  activeWeekStart: string | null;
+  activeWeekEnd: string | null;
+  trucks: TruckColumn[] | null;
+  viewerLocations: string[];
+  listeners: Set<(snapshot: ScheduleSnapshot) => void>;
+  changeListeners: Set<(detail: ScheduleChange) => void>;
+  socket: Socket | null;
+  connection: ConnectionStatus;
+  connectionListeners: Set<(state: ConnectionState) => void>;
+  lastSyncedAt: number | null;
+} = {
   weeks: new Map(),       // weekStart ('YYYY-MM-DD') -> deliveries[]
   pending: [],            // orders with no driver assigned — shown under every week
   pendingLoaded: false,
@@ -68,7 +92,7 @@ const scheduleCache = {
  * takes over the tab, so on a shared PC the next person never sees, even
  * briefly, the branches the last one could reach.
  */
-export function clearScheduleCache() {
+export function clearScheduleCache(): void {
   scheduleCache.weeks.clear();
   scheduleCache.pending = [];
   scheduleCache.pendingLoaded = false;
@@ -84,7 +108,7 @@ export function clearScheduleCache() {
   clearDriversCache();
 }
 
-function setConnectionStatus(status) {
+function setConnectionStatus(status: ConnectionStatus): void {
   if (scheduleCache.connection === status) return;
   scheduleCache.connection = status;
   scheduleCache.connectionListeners.forEach(cb => {
@@ -101,7 +125,7 @@ function setConnectionStatus(status) {
  * once immediately, so a component mounting mid-outage renders the truth rather
  * than waiting for the next transition.
  */
-export function subscribeScheduleConnection(callback) {
+export function subscribeScheduleConnection(callback: (state: ConnectionState) => void): () => void {
   scheduleCache.connectionListeners.add(callback);
   try {
     callback({ status: scheduleCache.connection, lastSyncedAt: scheduleCache.lastSyncedAt });
@@ -113,7 +137,7 @@ export function subscribeScheduleConnection(callback) {
   };
 }
 
-export function getScheduleConnection() {
+export function getScheduleConnection(): ConnectionState {
   return { status: scheduleCache.connection, lastSyncedAt: scheduleCache.lastSyncedAt };
 }
 
@@ -122,18 +146,18 @@ export function getScheduleConnection() {
  * this is the manual override for when someone doesn't trust what they're
  * looking at — the one thing a driver reliably reaches for on a bad signal.
  */
-export async function refreshScheduleNow() {
+export async function refreshScheduleNow(): Promise<DeliveryRecord[]> {
   await refreshActiveWeek();
   return getActiveWeekDeliveries();
 }
 
-function addDaysToDateStr(dateStr, days) {
+function addDaysToDateStr(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00');
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 }
 
-function getActiveWeekDeliveries() {
+function getActiveWeekDeliveries(): DeliveryRecord[] {
   if (!scheduleCache.activeWeekStart) return [];
   return scheduleCache.weeks.get(scheduleCache.activeWeekStart) || [];
 }
@@ -148,7 +172,7 @@ function getActiveWeekDeliveries() {
 // Merge a single created/updated delivery into whichever cached week(s) it
 // belongs to (and remove it from any cached week it no longer belongs to,
 // e.g. if its date was edited).
-function upsertDeliveryIntoCache(rawDelivery) {
+function upsertDeliveryIntoCache(rawDelivery: DeliveryRecord | null | undefined): void {
   if (!rawDelivery || !rawDelivery.id) return;
   // Raw record as the server stored it (ship date, real location) — reshaped
   // to the current viewer's perspective before it's bucketed, the same way
@@ -157,7 +181,7 @@ function upsertDeliveryIntoCache(rawDelivery) {
   // arrival date left the card under its old date on the destination's
   // board — both this session's own save and every other socket-connected
   // board's `delivery_update` handler go through this one function.
-  const delivery = applyTransferPerspective(rawDelivery, scheduleCache.viewerLocations);
+  const delivery = applyTransferPerspective(rawDelivery, scheduleCache.viewerLocations) as DeliveryRecord;
   for (const [weekStart, list] of scheduleCache.weeks.entries()) {
     if (list.some(d => d.id === delivery.id)) {
       scheduleCache.weeks.set(weekStart, list.filter(d => d.id !== delivery.id));
@@ -188,14 +212,14 @@ function upsertDeliveryIntoCache(rawDelivery) {
     // range. The fetch range agreeing about weekends isn't enough on its own
     // — this merge path has to agree too.
     const weekEnd = addDaysToDateStr(weekStart, DAYS_IN_WEEK - 1);
-    if (delivery.date >= weekStart && delivery.date <= weekEnd) {
-      scheduleCache.weeks.set(weekStart, [...scheduleCache.weeks.get(weekStart), delivery]);
+    if (delivery.date && delivery.date >= weekStart && delivery.date <= weekEnd) {
+      scheduleCache.weeks.set(weekStart, [...(scheduleCache.weeks.get(weekStart) || []), delivery]);
       break;
     }
   }
 }
 
-function removeDeliveryFromCache(id) {
+function removeDeliveryFromCache(id: string): void {
   for (const [weekStart, list] of scheduleCache.weeks.entries()) {
     if (list.some(d => d.id === id)) {
       scheduleCache.weeks.set(weekStart, list.filter(d => d.id !== id));
@@ -205,7 +229,7 @@ function removeDeliveryFromCache(id) {
   scheduleCache.cancelled = scheduleCache.cancelled.filter(d => d.id !== id);
 }
 
-async function refreshActiveWeek() {
+async function refreshActiveWeek(): Promise<void> {
   if (!scheduleCache.activeWeekStart || !scheduleCache.activeWeekEnd) return;
   const [list, pendingList, cancelledList] = await Promise.all([
     getDeliveriesForRange(scheduleCache.activeWeekStart, scheduleCache.activeWeekEnd),
@@ -226,7 +250,7 @@ async function refreshActiveWeek() {
 // not a constant background drip. Real-time updates come from the socket; this
 // just catches up once the connection is (re)established, or bridges the gap
 // while it's disconnected/reconnecting.
-let pollIntervalId = null;
+let pollIntervalId: ReturnType<typeof setInterval> | null = null;
 
 function startPolling() {
   if (pollIntervalId) return;
@@ -264,7 +288,7 @@ function joinDeliveryRooms() {
   const socket = scheduleCache.socket;
   if (!socket) return;
   const token = getAuthToken();
-  socket.emit('join_delivery_rooms', { token }, async (res) => {
+  socket.emit('join_delivery_rooms', { token }, async (res: { ok?: boolean } | undefined) => {
     if (res?.ok) {
       joinRetried = false;
       if (socket.connected) stopPolling();
@@ -356,7 +380,7 @@ function initScheduleSocket() {
       }
     }
 
-    scheduleCache.socket.on('delivery_update', (payload) => {
+    scheduleCache.socket.on('delivery_update', (payload: { type?: string; id?: string; delivery?: DeliveryRecord } | null) => {
       if (!payload) return;
       if (payload.type === 'delete' && payload.id) {
         removeDeliveryFromCache(payload.id);
@@ -397,7 +421,7 @@ function notifyScheduleListeners() {
   });
 }
 
-function notifyScheduleChange(detail = {}) {
+function notifyScheduleChange(detail: ScheduleChange = {}): void {
   // Every remembered branch-week may now be out of date — they're shown
   // straight away on return but refreshed quietly behind (see
   // peekLocationScopedWeek). The week on screen refetches anyway.
@@ -417,7 +441,7 @@ function notifyScheduleChange(detail = {}) {
  * refetches its own, like the board narrowed to one location. Starts the
  * socket if nothing else has. Returns an unsubscribe function.
  */
-export function subscribeScheduleChanges(callback) {
+export function subscribeScheduleChanges(callback: (detail: ScheduleChange) => void): () => void {
   initScheduleSocket();
   scheduleCache.changeListeners.add(callback);
   return () => {
@@ -425,7 +449,7 @@ export function subscribeScheduleChanges(callback) {
   };
 }
 
-export function subscribeScheduleCache(callback) {
+export function subscribeScheduleCache(callback: (snapshot: ScheduleSnapshot) => void): () => void {
   initScheduleSocket();
   scheduleCache.listeners.add(callback);
   return () => {
@@ -437,7 +461,7 @@ export function subscribeScheduleCache(callback) {
 // `{ Seattle: ['drv_angel', …], … }`; a branch missing or empty uses the
 // default order. A failed read is `{}` — the board still draws, just in the
 // default order.
-export async function getDeliveryColumnOrders() {
+export async function getDeliveryColumnOrders(): Promise<Record<string, string[]>> {
   try {
     const res = await authFetch(`${API_URL}/api/delivery-columns`);
     if (!res.ok) return {};
@@ -450,7 +474,7 @@ export async function getDeliveryColumnOrders() {
 }
 
 /** Save a branch's order (an empty list = back to the default). Throws with the server's message. */
-export async function saveDeliveryColumnOrder(location, columns) {
+export async function saveDeliveryColumnOrder(location: string, columns: string[]): Promise<string[]> {
   const res = await authFetch(`${API_URL}/api/delivery-columns/${encodeURIComponent(location)}`, {
     method: 'PUT',
     body: JSON.stringify({ columns })
@@ -461,12 +485,12 @@ export async function saveDeliveryColumnOrder(location, columns) {
 }
 
 /** Hear that an admin changed a branch's column order. Returns an unsubscribe function. */
-export function subscribeDeliveryColumns(callback) {
+export function subscribeDeliveryColumns(callback: (payload: unknown) => void): () => void {
   initScheduleSocket();
   const socket = scheduleCache.socket;
   if (!socket) return () => {};
   socket.on('delivery_columns_update', callback);
-  return () => socket.off('delivery_columns_update', callback);
+  return () => { socket.off('delivery_columns_update', callback); };
 }
 
 export function getScheduleCacheSync() {
@@ -481,15 +505,15 @@ export function getScheduleCacheSync() {
 
 // Sync helpers for a given week's initial React state, before it becomes "active"
 // (i.e. before getScheduleDataCached has been called for it).
-export function isWeekCached(weekStart) {
+export function isWeekCached(weekStart: string): boolean {
   return scheduleCache.weeks.has(weekStart);
 }
 
-export function getCachedWeekDeliveries(weekStart) {
+export function getCachedWeekDeliveries(weekStart: string): DeliveryRecord[] {
   return scheduleCache.weeks.get(weekStart) || [];
 }
 
-export async function getScheduleDataCached(currentUser = null, weekStart, weekEnd, forceRefresh = false) {
+export async function getScheduleDataCached(currentUser: CurrentUser | null = null, weekStart: string, weekEnd: string, forceRefresh = false) {
   initScheduleSocket();
 
   // Refreshed on every call (mount, week nav) — cheap, and it's what keeps
@@ -558,14 +582,14 @@ export async function getScheduleDataCached(currentUser = null, weekStart, weekE
 // branch sees is decided by the server's own location rules every time
 // rather than re-implemented here. `includeTrucks: false` skips the driver
 // list for those refetches — it only changes on truck_update.
-export async function getLocationScopedScheduleData(weekStart, weekEnd, location, { includeTrucks = true } = {}) {
+export async function getLocationScopedScheduleData(weekStart: string, weekEnd: string, location: string, { includeTrucks = true }: { includeTrucks?: boolean } = {}): Promise<ScopedWeek> {
   const [trucks, deliveries, pending, cancelled] = await Promise.all([
     includeTrucks ? getDriverUsers(location, [location], { force: true }) : null,
     getDeliveriesForRange(weekStart, weekEnd, location),
     getPendingDeliveries(location),
     getCancelledDeliveries(location)
   ]);
-  const data = { trucks: includeTrucks ? (trucks || []) : null, deliveries: deliveries || [], pending: pending || [], cancelled: cancelled || [] };
+  const data: ScopedWeek = { trucks: includeTrucks ? (trucks || []) : null, deliveries: deliveries || [], pending: pending || [], cancelled: cancelled || [] };
   rememberScopedWeek(weekStart, location, data);
   return data;
 }
@@ -580,20 +604,20 @@ export async function getLocationScopedScheduleData(weekStart, weekEnd, location
 // SCOPED_WEEK_TTL is the backstop for an update that never arrived.
 const SCOPED_WEEK_TTL = 10 * 60 * 1000;
 const SCOPED_WEEK_MAX = 40;
-const scopedWeeks = new Map(); // `${location}|${weekStart}` → { deliveries, pending, cancelled, at, stale }
-const scopedTrucks = new Map(); // location → driver columns
+const scopedWeeks = new Map<string, { deliveries: DeliveryRecord[]; pending: DeliveryRecord[]; cancelled: DeliveryRecord[]; at: number; stale: boolean }>(); // `${location}|${weekStart}`
+const scopedTrucks = new Map<string, TruckColumn[]>(); // location → driver columns
 
-const scopedKey = (weekStart, location) => `${location}|${weekStart}`;
+const scopedKey = (weekStart: string, location: string) => `${location}|${weekStart}`;
 
-function rememberScopedWeek(weekStart, location, data) {
+function rememberScopedWeek(weekStart: string, location: string, data: ScopedWeek): void {
   const key = scopedKey(weekStart, location);
   scopedWeeks.delete(key); // re-insert so the Map's order is least-recently-loaded first
   scopedWeeks.set(key, { deliveries: data.deliveries, pending: data.pending, cancelled: data.cancelled, at: Date.now(), stale: false });
   if (data.trucks) scopedTrucks.set(location, data.trucks);
-  while (scopedWeeks.size > SCOPED_WEEK_MAX) scopedWeeks.delete(scopedWeeks.keys().next().value);
+  while (scopedWeeks.size > SCOPED_WEEK_MAX) scopedWeeks.delete(scopedWeeks.keys().next().value as string);
 }
 
-function markScopedWeeksStale({ trucks = false } = {}) {
+function markScopedWeeksStale({ trucks = false }: ScheduleChange = {}): void {
   scopedWeeks.forEach(entry => { entry.stale = true; });
   if (trucks) scopedTrucks.clear();
 }
@@ -605,7 +629,7 @@ function markScopedWeeksStale({ trucks = false } = {}) {
  * SCOPED_WEEK_TTL) — show it, then refetch quietly. `trucks` is null when the
  * branch's driver columns need fetching again.
  */
-export function peekLocationScopedWeek(weekStart, location) {
+export function peekLocationScopedWeek(weekStart: string, location: string): (ScopedWeek & { fresh: boolean }) | null {
   const entry = scopedWeeks.get(scopedKey(weekStart, location));
   if (!entry) return null;
   const trucks = scopedTrucks.get(location) || null;
@@ -619,7 +643,7 @@ export function peekLocationScopedWeek(weekStart, location) {
 }
 
 // ── GET TRUCKS ──
-export async function getTrucks() {
+export async function getTrucks(): Promise<TruckColumn[]> {
   try {
     const res = await authFetch(`${API_URL}/api/trucks`);
     if (res.ok) {
@@ -656,7 +680,7 @@ const DRIVERS_CACHE_TTL = 10 * 60 * 1000;
  * edit — Users & Roles calls this on save, and the server emits `truck_update`
  * so other people's open boards refetch too.
  */
-export function clearDriversCache() {
+export function clearDriversCache(): void {
   try {
     Object.keys(localStorage)
       .filter(k => k.startsWith(DRIVERS_CACHE_PREFIX))
@@ -666,7 +690,7 @@ export function clearDriversCache() {
   }
 }
 
-const readDriversCache = (key) => {
+const readDriversCache = (key: string): TruckColumn[] | null => {
   try {
     const raw = localStorage.getItem(DRIVERS_CACHE_PREFIX + key);
     if (!raw) return null;
@@ -678,7 +702,7 @@ const readDriversCache = (key) => {
   }
 };
 
-const writeDriversCache = (key, data) => {
+const writeDriversCache = (key: string, data: TruckColumn[]): void => {
   try {
     localStorage.setItem(DRIVERS_CACHE_PREFIX + key, JSON.stringify({ data, ts: Date.now() }));
   } catch {
@@ -686,7 +710,7 @@ const writeDriversCache = (key, data) => {
   }
 };
 
-export async function getDriverUsers(userLocation = null, userAssignedLocations = [], { force = false } = {}) {
+export async function getDriverUsers(userLocation: string | null = null, userAssignedLocations: string[] = [], { force = false }: { force?: boolean } = {}): Promise<TruckColumn[] | null> {
   const cacheKey = [userLocation || '', ...(userAssignedLocations || [])].join('|');
   if (!force) {
     const cached = readDriversCache(cacheKey);
@@ -709,12 +733,14 @@ export async function getDriverUsers(userLocation = null, userAssignedLocations 
   return fetchDriverUsers(cacheKey, userLocation, userAssignedLocations);
 }
 
-async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocations = []) {
+type DriverUser = { username: string; name?: string; isActive?: boolean; isDeliveryDriver?: boolean; location?: string; assignedLocations?: string[] };
+
+async function fetchDriverUsers(cacheKey: string, userLocation: string | null = null, userAssignedLocations: string[] = []): Promise<TruckColumn[] | null> {
   try {
     const res = await authFetch(`${API_URL}/api/salesreps`);
     if (!res.ok) throw new Error('Failed to fetch users');
     const payload = await res.json();
-    const allUsers = payload.data || payload || [];
+    const allUsers: DriverUser[] = payload.data || payload || [];
 
     // The truck columns: users whose role has Users & Roles → Delivery
     // Schedule → Driver view — the same switch that gives them the driver
@@ -727,13 +753,13 @@ async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocat
 
     // Filter to users assigned to the current user's location
     if (userLocation || userAssignedLocations.length > 0) {
-      const filterLocs = userAssignedLocations.length > 0
+      const filterLocs: string[] = userAssignedLocations.length > 0
         ? userAssignedLocations
-        : [userLocation];
+        : [userLocation as string];
 
       if (!filterLocs.includes('*')) {
         drivers = drivers.filter(u => {
-          const driverLocs = u.assignedLocations || (u.location ? [u.location] : []);
+          const driverLocs: string[] = u.assignedLocations || (u.location ? [u.location] : []);
           if (driverLocs.includes('*')) return true;
           return driverLocs.some(loc => filterLocs.includes(loc));
         });
@@ -742,7 +768,7 @@ async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocat
 
     if (drivers.length === 0) return null;
 
-    const mapped = drivers.map((u, idx) => ({
+    const mapped: TruckColumn[] = drivers.map((u, idx) => ({
       // `drv_<username>`, always — never the user's _id. Every delivery ever
       // saved carries a truckId in this form, and BoardGrid matches stops to
       // columns on it exactly, so an id from any other scheme empties the whole
@@ -767,7 +793,7 @@ async function fetchDriverUsers(cacheKey, userLocation = null, userAssignedLocat
 }
 
 // ── SAVE TRUCKS ──
-export async function saveTrucks(trucks) {
+export async function saveTrucks(trucks: TruckColumn[]): Promise<TruckColumn[]> {
   try {
     await authFetch(`${API_URL}/api/trucks`, {
       method: 'POST',
@@ -782,7 +808,7 @@ export async function saveTrucks(trucks) {
 // ── GET DELIVERIES FOR A DATE RANGE (100% MONGODB DATABASE) ──
 // startDate/endDate are 'YYYY-MM-DD'. Used to fetch exactly one displayed week
 // instead of the entire delivery history.
-export async function getDeliveriesForRange(startDate, endDate, location = null) {
+export async function getDeliveriesForRange(startDate: string, endDate: string, location: string | null = null): Promise<DeliveryRecord[]> {
   try {
     localStorage.removeItem('manifest_deliveries');
     localStorage.removeItem('manifest_trucks');
@@ -810,7 +836,7 @@ export async function getDeliveriesForRange(startDate, endDate, location = null)
 }
 
 // ── GET PENDING DELIVERIES (no agreed date yet) ──
-export async function getPendingDeliveries(location = null) {
+export async function getPendingDeliveries(location: string | null = null): Promise<DeliveryRecord[]> {
   try {
     const params = new URLSearchParams({ pending: 'true' });
     if (location) params.set('location', location);
@@ -828,7 +854,7 @@ export async function getPendingDeliveries(location = null) {
 }
 
 // ── GET CANCELLED DELIVERIES ──
-export async function getCancelledDeliveries(location = null) {
+export async function getCancelledDeliveries(location: string | null = null): Promise<DeliveryRecord[]> {
   try {
     const params = new URLSearchParams({ cancelled: 'true' });
     if (location) params.set('location', location);
@@ -854,7 +880,7 @@ export async function getCancelledDeliveries(location = null) {
  * ticket is sent or written, so edits made to it while someone was signing
  * survive, and a stale or partly loaded copy can't overwrite them.
  */
-export async function saveDeliveryPod(id, pod) {
+export async function saveDeliveryPod(id: string, pod: unknown): Promise<DeliveryRecord[]> {
   const res = await authFetch(`${API_URL}/api/deliveries/${encodeURIComponent(id)}/pod`, {
     method: 'PATCH',
     body: JSON.stringify({ pod })
@@ -870,7 +896,7 @@ export async function saveDeliveryPod(id, pod) {
   return getActiveWeekDeliveries();
 }
 
-export async function saveDelivery(delivery) {
+export async function saveDelivery(delivery: Partial<DeliveryRecord>): Promise<DeliveryRecord[]> {
   const res = await authFetch(`${API_URL}/api/deliveries`, {
     method: 'POST',
     body: JSON.stringify(delivery)
@@ -890,7 +916,7 @@ export async function saveDelivery(delivery) {
 }
 
 // ── GET SINGLE DELIVERY WITH FULL POD DATA (signatures/photos excluded from list fetches) ──
-export async function getDeliveryById(id) {
+export async function getDeliveryById(id: string): Promise<DeliveryRecord | null> {
   try {
     const res = await authFetch(`${API_URL}/api/deliveries/${id}`);
     if (res.ok) {
@@ -908,7 +934,7 @@ export async function getDeliveryById(id) {
 // dates, not a view of the board. Throws on failure so the search box can say
 // so instead of showing "no matches". `signal` lets a newer keystroke cancel
 // an older request still in flight.
-export async function searchDeliveries(query, { signal } = {}) {
+export async function searchDeliveries(query: string, { signal }: { signal?: AbortSignal } = {}): Promise<DeliveryRecord[]> {
   const params = new URLSearchParams({ q: query });
   const res = await authFetch(`${API_URL}/api/deliveries/search?${params.toString()}`, { signal });
   if (!res.ok) throw new Error(`Search failed (${res.status})`);
@@ -919,8 +945,8 @@ export async function searchDeliveries(query, { signal } = {}) {
 // Throws when the ticket wasn't deleted, with `userMessage` to show. It used
 // to swallow every failure and return the list, so the Delivery form closed as
 // if the delete had worked while the ticket stayed on the board.
-export async function deleteDelivery(id) {
-  let failure;
+export async function deleteDelivery(id: string): Promise<DeliveryRecord[]> {
+  let failure: string;
   try {
     const res = await authFetch(`${API_URL}/api/deliveries/${id}`, { method: 'DELETE' });
     if (res.ok) {
@@ -940,7 +966,7 @@ export async function deleteDelivery(id) {
 
   // The board may be out of date; bring it back in line before reporting.
   await refreshActiveWeek().catch(() => {});
-  const error = new Error(failure);
+  const error: Error & { userMessage?: string } = new Error(failure);
   error.userMessage = failure;
   throw error;
 }
@@ -951,7 +977,7 @@ export async function deleteDelivery(id) {
 // other field as their browser last saw it — quietly reverting an address or a
 // time the office had changed in the meantime. It also can't be done offline in
 // any honest way, so a failure is raised rather than swallowed.
-export async function updateDeliveryStatus(id, newStatus) {
+export async function updateDeliveryStatus(id: string, newStatus: string): Promise<DeliveryRecord[]> {
   const res = await authFetch(`${API_URL}/api/deliveries/${id}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status: newStatus })
@@ -981,7 +1007,7 @@ export async function updateDeliveryStatus(id, newStatus) {
  * below it, and sending only the dragged ticket would leave two stops claiming
  * the same number.
  */
-export async function reorderDeliveries(updates) {
+export async function reorderDeliveries(updates: { id: string; routeNumber: number }[]): Promise<DeliveryRecord[]> {
   if (!Array.isArray(updates) || !updates.length) return getActiveWeekDeliveries();
 
   const res = await authFetch(`${API_URL}/api/deliveries/order`, {
@@ -996,13 +1022,13 @@ export async function reorderDeliveries(updates) {
 
   const updated = await res.json();
   if (Array.isArray(updated)) {
-    updated.forEach(d => d && d.id && upsertDeliveryIntoCache(d));
+    updated.forEach((d: DeliveryRecord) => d && d.id && upsertDeliveryIntoCache(d));
     notifyScheduleListeners();
   }
   return getActiveWeekDeliveries();
 }
 
-export async function updateDeliveryAssignment(id, { truckId, deliveryType, date, customerDropOff }) {
+export async function updateDeliveryAssignment(id: string, { truckId, deliveryType, date, customerDropOff }: { truckId?: string | null; deliveryType?: string; date?: string | null; customerDropOff?: boolean }): Promise<DeliveryRecord[]> {
   const res = await authFetch(`${API_URL}/api/deliveries/${id}/assignment`, {
     method: 'PATCH',
     body: JSON.stringify({ truckId, deliveryType, date, customerDropOff })

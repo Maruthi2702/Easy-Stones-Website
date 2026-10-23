@@ -1,4 +1,4 @@
-import { io } from 'socket.io-client';
+import { io, type Socket } from 'socket.io-client';
 import { API_URL } from '../config/api';
 import { getAuthToken, onAuthTokenChange } from './authToken';
 
@@ -19,11 +19,15 @@ import { getAuthToken, onAuthTokenChange } from './authToken';
 export const ACTIVE_REPORT_EVERY_MS = 60 * 1000;
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel', 'mousemove'];
 
-let socket = null;
-let stopAuthListener = null;
+let socket: Socket | null = null;
+let stopAuthListener: (() => void) | null = null;
 let lastReportedAt = 0;
-let latest = null; // the newest list pushed by the server, or null
-const subscribers = new Set();
+// The newest list pushed by the server, or null. Its rows are
+// src/services/presence.js's; src/utils/userPresence.js reads them.
+export type PresenceList = unknown;
+type PresenceSubscriber = (list: PresenceList) => void;
+let latest: PresenceList | null = null;
+const subscribers = new Set<PresenceSubscriber>();
 
 const hello = () => {
   if (!socket) return;
@@ -41,14 +45,14 @@ const reportActive = () => {
   socket.emit('presence_active');
 };
 
-export function startPresence() {
+export function startPresence(): void {
   if (socket) return;
   socket = io(API_URL || window.location.origin, {
     transports: ['websocket', 'polling'],
     withCredentials: true
   });
   socket.on('connect', hello);
-  socket.on('presence_update', (list) => {
+  socket.on('presence_update', (list: PresenceList) => {
     latest = list;
     subscribers.forEach((cb) => cb(list));
   });
@@ -57,7 +61,7 @@ export function startPresence() {
   document.addEventListener('visibilitychange', reportActive);
 }
 
-export function stopPresence() {
+export function stopPresence(): void {
   if (!socket) return;
   ACTIVITY_EVENTS.forEach((e) => window.removeEventListener(e, reportActive));
   document.removeEventListener('visibilitychange', reportActive);
@@ -69,8 +73,8 @@ export function stopPresence() {
 }
 
 /** Called with the live list each time the server pushes one. Returns an unsubscribe function. */
-export function subscribePresence(callback) {
+export function subscribePresence(callback: PresenceSubscriber): () => void {
   subscribers.add(callback);
   if (latest) callback(latest);
-  return () => subscribers.delete(callback);
+  return () => { subscribers.delete(callback); };
 }

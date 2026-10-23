@@ -1,5 +1,5 @@
 import { API_URL } from '../config/api';
-import { io } from 'socket.io-client';
+import { io, type Socket } from 'socket.io-client';
 import { authFetch } from './authFetch';
 
 /**
@@ -19,7 +19,21 @@ import { authFetch } from './authFetch';
  * it already has.
  */
 
-const cache = {
+/** A calendar entry from /api/schedule (src/routes/schedule.js). */
+export type PlannerItem = { _id: string; [key: string]: unknown };
+type PlannerListener = (key: string, items: PlannerItem[]) => void;
+
+const cache: {
+  ranges: Map<string, PlannerItem[]>;
+  inflight: Map<string, Promise<PlannerItem[]>>;
+  activeKey: string | null;
+  activeRange: { start: string; end: string } | null;
+  listeners: Set<PlannerListener>;
+  socket: Socket | null;
+  userId: string | null;
+  lastRevalidate: number;
+  revalidateTimer: ReturnType<typeof setTimeout> | null;
+} = {
   ranges: new Map(),   // 'start|end' -> schedule items, newest known copy
   inflight: new Map(), // 'start|end' -> in-flight fetch, so N callers make 1 request
   activeKey: null,     // the range on screen — the only one worth revalidating
@@ -31,10 +45,10 @@ const cache = {
   revalidateTimer: null
 };
 
-const rangeKey = (start, end) => `${start}|${end}`;
+const rangeKey = (start: string, end: string): string => `${start}|${end}`;
 
 /** Same contents means the same array, so React can skip the re-render. */
-const sameItems = (a, b) => a && b && JSON.stringify(a) === JSON.stringify(b);
+const sameItems = (a: PlannerItem[] | undefined, b: PlannerItem[]): boolean => Boolean(a) && Boolean(b) && JSON.stringify(a) === JSON.stringify(b);
 
 /**
  * A schedule belongs to one user, but the broadcast reaches everyone connected.
@@ -42,19 +56,19 @@ const sameItems = (a, b) => a && b && JSON.stringify(a) === JSON.stringify(b);
  * current user is still unknown, since a wasted refetch is cheaper than a stop
  * that never appears.
  */
-const isForCurrentUser = (payload) =>
+const isForCurrentUser = (payload: { userId?: unknown } | null | undefined): boolean =>
   !payload?.userId || !cache.userId || String(payload.userId) === cache.userId;
 
-export function setPlannerUser(userId) {
+export function setPlannerUser(userId: unknown): void {
   cache.userId = userId ? String(userId) : null;
 }
 
 /** What we can paint right now, before any network call. */
-export function getCachedPlannerRange(start, end) {
+export function getCachedPlannerRange(start: string, end: string): PlannerItem[] | null {
   return cache.ranges.get(rangeKey(start, end)) || null;
 }
 
-function notify(key) {
+function notify(key: string): void {
   const items = cache.ranges.get(key) || [];
   cache.listeners.forEach(cb => {
     try {
@@ -65,7 +79,7 @@ function notify(key) {
   });
 }
 
-async function fetchRange(start, end) {
+async function fetchRange(start: string, end: string): Promise<PlannerItem[]> {
   const res = await authFetch(
     `${API_URL}/api/schedule?start=${start}T00:00:00.000&end=${end}T23:59:59.999`
   );
@@ -79,7 +93,7 @@ async function fetchRange(start, end) {
  * request — the mount effect and a socket event landing together should not
  * make the same call twice.
  */
-function loadRange(start, end) {
+function loadRange(start: string, end: string): Promise<PlannerItem[]> {
   const key = rangeKey(start, end);
   const existing = cache.inflight.get(key);
   if (existing) return existing;
@@ -87,7 +101,7 @@ function loadRange(start, end) {
   const request = fetchRange(start, end)
     .then(items => {
       const previous = cache.ranges.get(key);
-      if (sameItems(previous, items)) return previous;
+      if (previous && sameItems(previous, items)) return previous;
       cache.ranges.set(key, items);
       notify(key);
       return items;
@@ -105,7 +119,7 @@ function loadRange(start, end) {
  * already painted from the cache can ignore the result and let the subscription
  * deliver the difference.
  */
-export function loadPlannerRange(start, end) {
+export function loadPlannerRange(start: string, end: string): Promise<PlannerItem[]> {
   cache.activeKey = rangeKey(start, end);
   cache.activeRange = { start, end };
   cache.lastRevalidate = Date.now();
@@ -125,9 +139,9 @@ export function loadPlannerRange(start, end) {
  *
  * Returns the undo, for when the write turns out to have failed.
  */
-export function patchPlannerItem(id, patch) {
+export function patchPlannerItem(id: string, patch: Record<string, unknown>): () => void {
   const fields = Object.keys(patch);
-  let restore = null;
+  let restore: Record<string, unknown> | null = null;
 
   for (const [key, items] of cache.ranges) {
     let changed = false;
@@ -147,7 +161,8 @@ export function patchPlannerItem(id, patch) {
   // Nothing was cached under this id, so nothing moved and there is nothing to
   // put back. The caller still gets an undo it can call unconditionally.
   if (!restore) return () => {};
-  return () => patchPlannerItem(id, restore);
+  const undo = restore;
+  return () => { patchPlannerItem(id, undo); };
 }
 
 /**
@@ -155,7 +170,7 @@ export function patchPlannerItem(id, patch) {
  * on screen rather than replacing it with an error, because this fires on
  * timers and window focus, where the user did not ask for anything.
  */
-function revalidateActive({ force = false } = {}) {
+function revalidateActive({ force = false }: { force?: boolean } = {}): void {
   if (!cache.activeRange) return;
   // Nobody is watching, or the tab is in the background — the next mount or the
   // next visibilitychange will catch up.
@@ -169,7 +184,7 @@ function revalidateActive({ force = false } = {}) {
  * Bursts are normal — a calendar sync can rewrite a dozen items in a second,
  * and each one arrives as its own broadcast. Coalesce them into one refetch.
  */
-function scheduleRevalidate(delay = 250) {
+function scheduleRevalidate(delay = 250): void {
   if (cache.revalidateTimer) return;
   cache.revalidateTimer = setTimeout(() => {
     cache.revalidateTimer = null;
@@ -188,7 +203,7 @@ function onRefocus() {
 
 // Polling only covers the window where the socket is down; the socket carries
 // updates the rest of the time. It is stopped as soon as one connects.
-let pollIntervalId = null;
+let pollIntervalId: ReturnType<typeof setInterval> | null = null;
 
 function startPolling() {
   if (pollIntervalId) return;
@@ -224,7 +239,7 @@ function initSocket() {
 
     cache.socket.on('disconnect', startPolling);
 
-    cache.socket.on('schedule_update', (payload) => {
+    cache.socket.on('schedule_update', (payload: { userId?: unknown } | null) => {
       if (!isForCurrentUser(payload)) return;
       scheduleRevalidate();
     });
@@ -241,7 +256,7 @@ function initSocket() {
  * Subscribe to updates for any cached range. The callback receives the range
  * key so a subscriber showing one week can ignore changes to another.
  */
-export function subscribePlannerSchedule(callback) {
+export function subscribePlannerSchedule(callback: PlannerListener): () => void {
   initSocket();
   cache.listeners.add(callback);
   return () => {
@@ -250,7 +265,7 @@ export function subscribePlannerSchedule(callback) {
 }
 
 /** After our own write — the response is already committed, so ask again now. */
-export function refreshPlannerSchedule() {
+export function refreshPlannerSchedule(): void {
   revalidateActive({ force: true });
 }
 
