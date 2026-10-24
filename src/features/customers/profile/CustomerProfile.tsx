@@ -1,7 +1,7 @@
 import ErrorBoundary from '../../../components/shared/ErrorBoundary';
-import CustomerProfileHeader from '../../../components/sales/customerList/CustomerProfileHeader';
-import CustomerDetailsTab from '../../../components/sales/customerList/CustomerDetailsTab';
-import CustomerContactsTab from '../../../components/sales/customerList/CustomerContactsTab';
+import CustomerProfileHeader from '../list/CustomerProfileHeader';
+import CustomerDetailsTab from '../list/CustomerDetailsTab';
+import CustomerContactsTab from '../list/CustomerContactsTab';
 import VisitsTab from './VisitsTab';
 import ResourcesTab from './ResourcesTab';
 import NetworkTab from './NetworkTab';
@@ -34,7 +34,7 @@ export type CustomerProfileProps = {
     onQuickNoteChange: (value: string) => void;
     onSaveQuickNote: () => void;
     savingNote: boolean;
-    accountStatus: unknown;
+    accountStatus: { type: string; message: string } | null;
     onToggleActive: () => void;
     resetPassword: string;
     onResetPasswordChange: (value: string) => void;

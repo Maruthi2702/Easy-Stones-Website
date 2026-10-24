@@ -3,6 +3,7 @@ import { Phone, Check, PencilLine } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { companyOf, contactOf } from '../../../utils/customerList';
+import type { Loose } from '../../../types/records';
 
 // The visit type a phone call is logged as — the app's own option for calls.
 const CALL_VISIT_PURPOSE = 'Important Remote Meeting/Call';
@@ -13,7 +14,14 @@ const OUTCOMES = ['Talked', 'Left voicemail', 'No answer', 'Wrong number'];
  * Call on a customer, so the call lands on the customer's Visits without them
  * having to remember to log it. Skip just dismisses.
  */
-const LogCallSheet = ({ customer, userName, onDone, onSkip }) => {
+export type LogCallSheetProps = {
+  customer: Loose | null;
+  userName?: string;
+  onDone: () => void;
+  onSkip: () => void;
+};
+
+const LogCallSheet = ({ customer, userName, onDone, onSkip }: LogCallSheetProps) => {
   const [outcome, setOutcome] = useState('Talked');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);

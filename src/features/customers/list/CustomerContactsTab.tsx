@@ -4,6 +4,7 @@ import { API_URL } from '../../../config/api';
 import { formatPhoneForDisplay } from '../../../utils/phoneUtils';
 import { companyOf, contactOf, realEmailsOf } from '../../../utils/customerList';
 import { CopyButton } from './parts';
+import type { Loose } from '../../../types/records';
 import './CustomerList.css';
 
 /**
@@ -17,16 +18,25 @@ import './CustomerList.css';
  * customer), so it has Save to phone but no edit or delete here.
  */
 
-const saveHref = (customerId, key) =>
+const saveHref = (customerId: unknown, key: string) =>
   `${API_URL}/api/customers/${customerId}/vcard?contact=${encodeURIComponent(key)}`;
 
-const telHref = (phone) => `tel:${String(phone || '').replace(/[^\d+]/g, '')}`;
+const telHref = (phone: unknown) => `tel:${String(phone || '').replace(/[^\d+]/g, '')}`;
 
-const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete }) => {
-  const c = customer || {};
+type ContactRow = { key: string; primary?: boolean; contact?: Loose; name: string; phone: string; emails: string[]; role: string; notes: string };
+
+export type CustomerContactsTabProps = {
+  customer: Loose | null;
+  onAdd: () => void;
+  onEdit: (contact: Loose) => void;
+  onDelete: (contactId: string) => void;
+};
+
+const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete }: CustomerContactsTabProps) => {
+  const c: Loose = customer || {};
 
   const rows = useMemo(() => {
-    const out = [];
+    const out: ContactRow[] = [];
     const name = contactOf(c);
     const emails = realEmailsOf(c);
     if (name || c.phone || emails.length) {
@@ -55,7 +65,7 @@ const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete }) => {
   }, [c]);
 
   // Plain render helpers, not components, so they don't remount on every render.
-  const saveToPhone = (row, label) => (
+  const saveToPhone = (row: ContactRow, label?: boolean) => (
     <a
       className={`cl-ib box cl-ct2-ic cl-ct2-save${label ? ' labelled' : ''}`}
       href={saveHref(c._id, row.key)}
@@ -66,18 +76,18 @@ const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete }) => {
     </a>
   );
 
-  const editDelete = (row) => (row.primary ? null : (
+  const editDelete = (row: ContactRow) => (row.primary ? null : (
     <>
-      <button type="button" className="cl-ib box cl-ct2-ic cl-ct2-edit" aria-label={`Edit ${row.name || 'contact'}`} onClick={() => onEdit(row.contact)}>
+      <button type="button" className="cl-ib box cl-ct2-ic cl-ct2-edit" aria-label={`Edit ${row.name || 'contact'}`} onClick={() => onEdit(row.contact as Loose)}>
         <Pencil size={15} aria-hidden="true" />
       </button>
-      <button type="button" className="cl-ib box cl-ct2-ic cl-ct2-del" aria-label={`Delete ${row.name || 'contact'}`} onClick={() => onDelete(row.contact._id)}>
+      <button type="button" className="cl-ib box cl-ct2-ic cl-ct2-del" aria-label={`Delete ${row.name || 'contact'}`} onClick={() => onDelete((row.contact as Loose)._id)}>
         <Trash2 size={15} aria-hidden="true" />
       </button>
     </>
   ));
 
-  const phoneText = (p) => formatPhoneForDisplay(p) || p;
+  const phoneText = (p: string) => formatPhoneForDisplay(p) || p;
 
   return (
     <div className="cl cl-ct2">

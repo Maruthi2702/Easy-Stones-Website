@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { ArrowUp, ArrowDown, MoreHorizontal, Eye, ExternalLink, Pencil, Trash2 } from 'lucide-react';
 import { formatPhoneForDisplay } from '../../../utils/phoneUtils';
 import {
@@ -6,8 +7,11 @@ import {
 } from '../../../utils/customerList';
 import { StatusDot, LocationTag, RepBadge, ModaBadges, IssueFlag, CopyButton } from './parts';
 import { useDismiss, anchoredMenuStyle } from './uiHelpers';
+import type { Loose } from '../../../types/records';
 
-const SortHeader = ({ label, field, sort, onSort, className }) => {
+export type ListSort = { by: string; order: string };
+
+const SortHeader = ({ label, field, sort, onSort, className }: { label: string; field: string; sort: ListSort; onSort: (field: string) => void; className?: string }) => {
   const active = sort.by === field;
   const ariaSort = active ? (sort.order === 'asc' ? 'ascending' : 'descending') : 'none';
   return (
@@ -20,12 +24,23 @@ const SortHeader = ({ label, field, sort, onSort, className }) => {
   );
 };
 
-const RowMenu = ({ row, onOpen, onOpenProfile, onEdit, onDelete, canEdit, canDelete, canProfile }) => {
+type RowMenuProps = {
+  row: Loose;
+  onOpen: () => void;
+  onOpenProfile: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canProfile: boolean;
+};
+
+const RowMenu = ({ row, onOpen, onOpenProfile, onEdit, onDelete, canEdit, canDelete, canProfile }: RowMenuProps) => {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState(undefined);
-  const ref = useRef(null);
+  const [pos, setPos] = useState<CSSProperties | undefined>(undefined);
+  const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, setOpen, ref, { closeOnScroll: true });
-  const act = (fn) => (e) => { e.stopPropagation(); setOpen(false); fn(); };
+  const act = (fn: () => void) => (e: MouseEvent) => { e.stopPropagation(); setOpen(false); fn(); };
   return (
     <div className="cl-rowmenu" ref={ref} onClick={(e) => e.stopPropagation()}>
       <button type="button" className="cl-ib" aria-label={`Actions for ${companyOf(row)}`} aria-haspopup="menu" aria-expanded={open} onClick={(e) => { setPos(anchoredMenuStyle(e.currentTarget, { align: 'right', estHeight: 210 })); setOpen(o => !o); }}>
@@ -62,12 +77,33 @@ const SkeletonRows = ({ count = 8 }) => Array.from({ length: count }, (_, i) => 
   </tr>
 ));
 
+export type CustomerTableProps = {
+  rows: Loose[];
+  loading: boolean;
+  sort: ListSort;
+  onSort: (field: string) => void;
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
+  onToggleAll: (on: boolean) => void;
+  openId?: string;
+  focusIndex?: number;
+  onOpen?: (row: Loose, index: number) => void;
+  onOpenProfile?: (row: Loose) => void;
+  onEdit?: (row: Loose) => void;
+  onDelete?: (id: string) => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  showType?: boolean;
+  children?: ReactNode;
+  canProfile?: boolean;
+};
+
 const CustomerTable = ({
   rows, loading, sort, onSort, selectedIds, onToggle, onToggleAll, openId, focusIndex,
   onOpen, onOpenProfile, onEdit, onDelete, canEdit, canDelete, showType, children,
   // Without Full profile the Level and Moda columns are hidden (the server sends neither).
   canProfile = true
-}) => {
+}: CustomerTableProps) => {
   const allChecked = rows.length > 0 && rows.every(r => selectedIds.has(r._id));
   const someChecked = !allChecked && rows.some(r => selectedIds.has(r._id));
 
@@ -121,13 +157,13 @@ const CustomerTable = ({
               statusMeta(row.status).closed ? 'is-low' : ''
             ].filter(Boolean).join(' ');
             return (
-              <tr key={row._id} className={cls} onClick={() => onOpen(row, i)}>
+              <tr key={row._id} className={cls} onClick={() => onOpen!(row, i)}>
                 <td onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" aria-label={`Select ${companyOf(row)}`} checked={selectedIds.has(row._id)} onChange={() => onToggle(row._id)} />
                 </td>
                 <td>
                   <div className="cl-co">
-                    <button type="button" className="cl-colink" title="Open profile" onClick={(e) => { e.stopPropagation(); onOpenProfile(row); }}>
+                    <button type="button" className="cl-colink" title="Open profile" onClick={(e) => { e.stopPropagation(); onOpenProfile!(row); }}>
                       {companyOf(row)}
                     </button>
                     <IssueFlag customer={row} />
@@ -166,10 +202,10 @@ const CustomerTable = ({
                     canEdit={canEdit}
                     canDelete={canDelete}
                     canProfile={canProfile}
-                    onOpen={() => onOpen(row, i)}
-                    onOpenProfile={() => onOpenProfile(row)}
-                    onEdit={() => onEdit(row)}
-                    onDelete={() => onDelete(row._id)}
+                    onOpen={() => onOpen!(row, i)}
+                    onOpenProfile={() => onOpenProfile!(row)}
+                    onEdit={() => onEdit!(row)}
+                    onDelete={() => onDelete!(row._id)}
                   />
                 </td>
               </tr>

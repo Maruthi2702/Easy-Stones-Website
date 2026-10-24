@@ -495,7 +495,7 @@ routes live in `src/routes/customerMap.js` (tested, in-memory MongoDB):
 (reps outside the scope return nothing), `/map/rep-counts` feeds the Filter's
 counts, and `/map/:id` returns one customer's contact details (404 outside the
 scope). A **pin is slim** — phone, email, address, notes arrive only when a
-customer is opened: the panel is the Customers tab's own `CustomerDrawer`
+customer is opened: the panel is the Customers tab's own `CustomerDrawer` (`src/features/customers/list/`)
 (**shared — a change to it changes both screens; check both**), which fetches
 the full record itself; `/map/:id` is only for a login without Full profile.
 What the map adds is `MapActions` in the drawer's `mapSection` slot (last-visit

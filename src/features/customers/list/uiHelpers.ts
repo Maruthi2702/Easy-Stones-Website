@@ -1,10 +1,15 @@
 import { useEffect } from 'react';
+import type { CSSProperties, Dispatch, RefObject, SetStateAction } from 'react';
 import { companyOf, contactOf, realEmailsOf, streetOf, cityLineOf } from '../../../utils/customerList';
+import type { Loose } from '../../../types/records';
 
-export const telHref = (phone) => `tel:${String(phone || '').replace(/[^\d+]/g, '')}`;
+/** One person on a customer you can call or email (peopleOf). */
+export type Person = { key: string; name: string; role: string; phone: string; email: string; moreEmails?: string[] };
+
+export const telHref = (phone: unknown) => `tel:${String(phone || '').replace(/[^\d+]/g, '')}`;
 
 /** Google Maps directions to the stored point, else to the address text. */
-export const directionsHref = (c = {}) => {
+export const directionsHref = (c: Loose = {}) => {
   const lat = c.coordinates?.lat;
   const lng = c.coordinates?.lng;
   const dest = Number.isFinite(lat) && Number.isFinite(lng)
@@ -14,9 +19,9 @@ export const directionsHref = (c = {}) => {
 };
 
 /** Everyone you can call or email at a customer: the record's own contact, extra addresses, then the contacts list. */
-export const peopleOf = (c = {}, detail) => {
+export const peopleOf = (c: Loose = {}, detail?: Loose | null): Person[] => {
   const emails = realEmailsOf(c);
-  const people = [{
+  const people: Person[] = [{
     key: 'primary',
     name: contactOf(c) || companyOf(c),
     role: 'Primary',
@@ -24,7 +29,7 @@ export const peopleOf = (c = {}, detail) => {
     email: emails[0] || ''
   }];
   emails.slice(1).forEach((email, i) => people.push({ key: `e${i}`, name: '', role: 'Other email', phone: '', email }));
-  (detail?.contacts || []).forEach((ct, i) => people.push({
+  (detail?.contacts || []).forEach((ct: Loose, i: number) => people.push({
     key: ct._id || `c${i}`,
     name: ct.name || '',
     role: ct.role || 'Contact',
@@ -36,14 +41,14 @@ export const peopleOf = (c = {}, detail) => {
 
 const DAY = 24 * 60 * 60 * 1000;
 const localDay = (d = new Date()) => d.toLocaleDateString('en-CA');
-const dateOnly = (v) => (typeof v === 'string' ? v.slice(0, 10) : (v ? localDay(new Date(v)) : ''));
-const shortDay = (d) => {
+const dateOnly = (v: unknown): string => (typeof v === 'string' ? v.slice(0, 10) : (v ? localDay(new Date(v as string | number)) : ''));
+const shortDay = (d: string) => {
   if (!d) return '';
   const date = new Date(`${d}T12:00:00`);
   return Number.isNaN(date.getTime()) ? d : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
-const daysBetween = (a, b) => Math.round((new Date(`${b}T12:00:00`) - new Date(`${a}T12:00:00`)) / DAY);
-const relDays = (n) => {
+const daysBetween = (a: string, b: string) => Math.round((new Date(`${b}T12:00:00`).getTime() - new Date(`${a}T12:00:00`).getTime()) / DAY);
+const relDays = (n: number) => {
   if (n === 0) return 'today';
   if (n === 1) return 'yesterday';
   if (n === -1) return 'tomorrow';
@@ -51,15 +56,15 @@ const relDays = (n) => {
 };
 
 /** The summary strip on a customer's profile, from what the record already holds. */
-export const profileStats = (c = {}, now = new Date()) => {
+export const profileStats = (c: Loose = {}, now = new Date()) => {
   const t = localDay(now);
-  const visits = (c.visits || []).map(v => ({ ...v, day: dateOnly(v.date) })).filter(v => v.day);
+  const visits: Loose[] = (c.visits || []).map((v: Loose) => ({ ...v, day: dateOnly(v.date) })).filter((v: Loose) => v.day);
   const past = visits.filter(v => v.day <= t).sort((a, b) => b.day.localeCompare(a.day));
   const last = dateOnly(c.lastVisitDate) || past[0]?.day || '';
   const yearAgo = localDay(new Date(now.getTime() - 365 * DAY));
   const thisMonth = t.slice(0, 7);
   const followUps = visits.map(v => dateOnly(v.followUpDate)).filter(d => d && d >= t).sort();
-  const resources = c.resources || [];
+  const resources: Loose[] = c.resources || [];
   const created = c.createdAt ? new Date(c.createdAt) : null;
   return {
     lastVisit: last ? { value: shortDay(last), sub: relDays(daysBetween(last, t)) } : { value: '—', sub: 'No visits yet' },
@@ -76,22 +81,27 @@ export const profileStats = (c = {}, now = new Date()) => {
 };
 
 /** Slug for the per-location tint classes PartnersSheet.css already defines (.location-badge.seattle …). */
-export const locationClass = (name) => String(name || 'Seattle').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+export const locationClass = (name: unknown) => String(name || 'Seattle').toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
 /**
  * Close a popover on an outside press or Escape. Not portalled anywhere — the
  * popover stays inside its trigger's container (see CLAUDE.md on CustomSelect:
  * portalling changes stacking against modals).
  */
-export const useDismiss = (open, setOpen, ref, { closeOnScroll = false } = {}) => {
+export const useDismiss = (
+  open: boolean,
+  setOpen: Dispatch<SetStateAction<boolean>> | ((open: boolean) => void),
+  ref: RefObject<HTMLElement | null>,
+  { closeOnScroll = false }: { closeOnScroll?: boolean } = {}
+) => {
   useEffect(() => {
     if (!open) return undefined;
-    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
+    const onDown = (e: Event) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
     // A screen-anchored (position: fixed) menu would drift away from its button
     // when the page scrolls, so those close instead — but not when the scroll
     // is inside the menu itself.
-    const onScroll = (e) => { if (!(ref.current && e.target instanceof Node && ref.current.contains(e.target))) setOpen(false); };
+    const onScroll = (e: Event) => { if (!(ref.current && e.target instanceof Node && ref.current.contains(e.target))) setOpen(false); };
     const onResize = () => setOpen(false);
     document.addEventListener('mousedown', onDown);
     document.addEventListener('touchstart', onDown);
@@ -119,13 +129,16 @@ export const useDismiss = (open, setOpen, ref, { closeOnScroll = false } = {}) =
  * under the site header (z-index 1100) and every modal.
  * Opens below the button, or above it when there isn't room.
  */
-export const anchoredMenuStyle = (button, { align = 'left', estHeight = 260 } = {}) => {
+export const anchoredMenuStyle = (
+  button: Element | null | undefined,
+  { align = 'left', estHeight = 260 }: { align?: 'left' | 'right'; estHeight?: number } = {}
+): CSSProperties | undefined => {
   if (!button) return undefined;
   const r = button.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const below = vh - r.bottom;
-  const style = { position: 'fixed', zIndex: 1000, top: 'auto', bottom: 'auto', left: 'auto', right: 'auto' };
+  const style: CSSProperties = { position: 'fixed', zIndex: 1000, top: 'auto', bottom: 'auto', left: 'auto', right: 'auto' };
   if (below < estHeight + 12 && r.top > below) {
     style.bottom = `${vh - r.top + 6}px`;
     style.maxHeight = `${Math.max(160, r.top - 90)}px`;
@@ -138,7 +151,7 @@ export const anchoredMenuStyle = (button, { align = 'left', estHeight = 260 } = 
   return style;
 };
 
-export const copyText = async (text) => {
+export const copyText = async (text: string): Promise<boolean> => {
   try {
     await navigator.clipboard.writeText(text);
     return true;

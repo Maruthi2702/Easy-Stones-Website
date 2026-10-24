@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Tag, Megaphone, NotebookPen, Lock, Globe } from 'lucide-react';
 import { realEmailsOf } from '../../../utils/customerList';
 import { profileStats } from './uiHelpers';
+import type { Loose } from '../../../types/records';
 import './CustomerList.css';
 
 /**
@@ -15,15 +16,32 @@ import './CustomerList.css';
  * Saving the note, resetting the password and activating/deactivating stay
  * SalesPage's (they were already there); this only lays them out.
  */
+export type CustomerDetailsTabProps = {
+  customer: Loose | null;
+  detail: Loose | null;
+  levelLabel: string;
+  quickNote: string;
+  onQuickNoteChange: (note: string) => void;
+  onSaveQuickNote: () => void;
+  savingNote: boolean;
+  noteSaved: boolean;
+  canManageAccount: boolean;
+  accountStatus: { type: string; message: string } | null;
+  onToggleActive: () => void;
+  resetPassword: string;
+  onResetPasswordChange: (password: string) => void;
+  onResetPassword: () => void;
+};
+
 const CustomerDetailsTab = ({
   customer, detail, levelLabel,
   quickNote, onQuickNoteChange, onSaveQuickNote, savingNote, noteSaved,
   canManageAccount, accountStatus, onToggleActive,
   resetPassword, onResetPasswordChange, onResetPassword
-}) => {
-  const c = useMemo(() => ({ ...(customer || {}), ...(detail || {}) }), [customer, detail]);
+}: CustomerDetailsTabProps) => {
+  const c: Loose = useMemo(() => ({ ...(customer || {}), ...(detail || {}) }), [customer, detail]);
   const stats = useMemo(() => profileStats(c), [c]);
-  const statCells = [
+  const statCells: [string, { value: string; sub: string }][] = [
     ['Last visit', stats.lastVisit], ['Visits · 12 mo', stats.visits12],
     ['Resources', stats.resources], ['Customer since', stats.since]
   ];

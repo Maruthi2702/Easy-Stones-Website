@@ -10,3 +10,9 @@ export { useCustomersPage } from './useCustomersPage';
 export { useCreateCustomer } from './useCreateCustomer';
 export type { CustomerActions } from './useCustomerActions';
 export type { OpenCustomer } from './useOpenCustomer';
+// The Customers list (step B): the page is lazy-loaded by its own file
+// (salesShell/CustomersList.tsx); the drawer is the panel the Route Planner and
+// the dashboard's visit card open too.
+export { default as CustomerDrawer } from './list/CustomerDrawer';
+export type { CustomerDrawerProps } from './list/CustomerDrawer';
+export type { PartnersSheetProps } from './list/PartnersSheet';

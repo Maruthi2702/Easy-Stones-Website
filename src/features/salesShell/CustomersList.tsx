@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
-import type { ComponentType } from 'react';
 import { lazyRetry } from '../../utils/lazyRetry';
 import type { Loose } from '../../types/records';
 import TabLoader from './TabLoader';
 
-// Loaded when the Customers list (or Dashboard → Leads) first shows. Still
-// JavaScript, so taken as taking any props until it's typed.
-const PartnersSheet = lazyRetry(() => import('../../components/sales/PartnersSheet')) as unknown as ComponentType<Loose>;
+// Loaded when the Customers list (or Dashboard → Leads) first shows. Imported
+// by its own file (not the customers module's index), so it stays its own
+// chunk with its CSS.
+const PartnersSheet = lazyRetry(() => import('../customers/list/PartnersSheet'));
 
 export type CustomersListProps = {
     onSelectCustomer: (customer: Loose) => void;

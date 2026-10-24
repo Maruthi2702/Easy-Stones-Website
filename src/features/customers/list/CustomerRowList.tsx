@@ -1,7 +1,9 @@
 import React, { useRef, useState } from 'react';
+import type { TouchEvent } from 'react';
 import { Phone, Mail, MoreHorizontal, User } from 'lucide-react';
 import { companyOf, contactOf, cityOf, initialsOf, primaryEmailOf } from '../../../utils/customerList';
 import { StatusDot, LocationTag, IssueFlag } from './parts';
+import type { Loose } from '../../../types/records';
 
 const SWIPE = 204; // three 68px actions
 
@@ -11,20 +13,31 @@ const SWIPE = 204; // three 68px actions
  * Swipe left for Call / Email / More; tap to open the details panel, or tap
  * the company name for the full profile (as in the table).
  */
-const Row = ({ row, swiped, onSwipe, onOpen, onOpenProfile, onMore, onCall, isOpen }) => {
-  const start = useRef(null);
-  const [drag, setDrag] = useState(null);
+type RowProps = {
+  row: Loose;
+  swiped: boolean;
+  onSwipe: (id: string | null) => void;
+  onOpen: (row: Loose) => void;
+  onOpenProfile?: (row: Loose) => void;
+  onMore: (row: Loose) => void;
+  onCall?: (row: Loose) => void;
+  isOpen: boolean;
+};
+
+const Row = ({ row, swiped, onSwipe, onOpen, onOpenProfile, onMore, onCall, isOpen }: RowProps) => {
+  const start = useRef<{ x: number; y: number; horizontal: boolean | null } | null>(null);
+  const [drag, setDrag] = useState<number | null>(null);
   const phone = String(row.phone || '').replace(/[^\d+]/g, '');
   const email = primaryEmailOf(row);
   const person = contactOf(row);
   const city = cityOf(row);
   const level = String(row.level || row.segment || '');
 
-  const onTouchStart = (e) => {
+  const onTouchStart = (e: TouchEvent) => {
     const t = e.touches[0];
     start.current = { x: t.clientX, y: t.clientY, horizontal: null };
   };
-  const onTouchMove = (e) => {
+  const onTouchMove = (e: TouchEvent) => {
     if (!start.current) return;
     const t = e.touches[0];
     const dx = t.clientX - start.current.x;
@@ -64,7 +77,7 @@ const Row = ({ row, swiped, onSwipe, onOpen, onOpenProfile, onMore, onCall, isOp
           if (swiped) { onSwipe(null); return; }
           // The name sits inside the card's one button (a button can't hold
           // another), so it's told apart by where the tap landed.
-          if (onOpenProfile && e.target.closest?.('.cl-li-name > span:first-child')) { onOpenProfile(row); return; }
+          if (onOpenProfile && (e.target as Element).closest?.('.cl-li-name > span:first-child')) { onOpenProfile(row); return; }
           onOpen(row);
         }}
       >
@@ -87,7 +100,7 @@ const Row = ({ row, swiped, onSwipe, onOpen, onOpenProfile, onMore, onCall, isOp
   );
 };
 
-const SkeletonRow = ({ i }) => (
+const SkeletonRow = ({ i }: { i: number }) => (
   <div className="cl-li" aria-hidden="true">
     <div className="cl-li-main" style={{ cursor: 'default' }}>
       <span className="cl-sk" style={{ width: 40, height: 40, borderRadius: '50%' }} />
@@ -100,8 +113,18 @@ const SkeletonRow = ({ i }) => (
   </div>
 );
 
-const CustomerRowList = ({ rows, loading, openId, onOpen, onOpenProfile, onMore, onCall }) => {
-  const [swipedId, setSwipedId] = useState(null);
+export type CustomerRowListProps = {
+  rows: Loose[];
+  loading: boolean;
+  openId?: string;
+  onOpen: (row: Loose) => void;
+  onOpenProfile?: (row: Loose) => void;
+  onMore: (row: Loose) => void;
+  onCall?: (row: Loose) => void;
+};
+
+const CustomerRowList = ({ rows, loading, openId, onOpen, onOpenProfile, onMore, onCall }: CustomerRowListProps) => {
+  const [swipedId, setSwipedId] = useState<string | null>(null);
   if (loading && rows.length === 0) {
     return <div className="cl-list" aria-busy="true">{Array.from({ length: 8 }, (_, i) => <SkeletonRow key={i} i={i} />)}</div>;
   }
