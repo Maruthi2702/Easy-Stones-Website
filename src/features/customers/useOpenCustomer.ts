@@ -107,7 +107,31 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
         });
     };
 
+    // A customer being opened shows at once: their cached copy, else the row
+    // they were picked from (a name, an address…). Only an id (from a link or
+    // a pin) has nothing to show, so it clears the last one and waits.
+    const showCustomerAtOnce = (customer: Loose) => {
+        const isShell = !customer.company && !customer.contactName && !customer.email && !customer.name;
+        const cached = customerCacheRef.current[customer._id];
+        if (isShell) {
+            if (selectedCustomerId !== customer._id) {
+                setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
+            }
+            setVisitsLoading(true);
+        } else {
+            // Populate selected customer details immediately to transition instantly
+            setSelectedCustomerDetail(cached || customer);
+            if (!cached || !cached.visits) {
+                setVisitsLoading(true);
+            }
+        }
+    };
+
+    const clearCustomer = () => setSelectedCustomerDetail(null);
+
     return {
+        showCustomerAtOnce,
+        clearCustomer,
         selectedCustomerDetail,
         setSelectedCustomerDetail,
         visitsLoading,

@@ -24,10 +24,8 @@ import PhoneTabBar from '../components/sales/PhoneTabBar';
 import useIsPhone from '../components/shared/form/useIsPhone';
 import usePinnedTabs from '../components/sales/usePinnedTabs';
 import useNavOrder from '../components/sales/useNavOrder';
-import { pinnedDefaultTab, navItem } from '../utils/navPins';
 import { canAddCustomer, canViewCustomerProfile } from '../utils/customerAccess';
-import { canOpenUsersPage } from '../utils/teamAccess';
-import { canOpenArea, NAV_ORDER } from '../utils/usersAccess';
+import { NAV_ORDER } from '../utils/usersAccess';
 import { CHECKIN_PERMISSIONS } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import { useVisitEditor } from '../features/visits';
@@ -42,6 +40,8 @@ import { useSalesDirectory } from '../features/salesShell/useSalesDirectory';
 import { useSalesLiveUpdates } from '../features/salesShell/useSalesLiveUpdates';
 import SalesTabViews from '../features/salesShell/SalesTabViews';
 import TabLoader from '../features/salesShell/TabLoader';
+import { useSidebarLayout } from '../features/salesShell/useSidebarLayout';
+import { useSalesNavigation } from '../features/salesShell/useSalesNavigation';
 import VisitCustomerCard from '../components/sales/VisitCustomerCard';
 import Toast from '../components/shared/Toast';
 import { CalendarSyncModal, useCalendarSync } from '../features/calendarSync';
@@ -86,19 +86,15 @@ const SalesPage = () => {
         // Runs only from a timer, after the dashboard data below exists.
         onSearchChanged: () => { setCurrentVisitsPage(1); setCurrentFollowUpPage(1); setCurrentResourcesPage(1); }
     });
+    // The side nav: docked on desktop, a drawer at 1024px and below (src/features/salesShell/useSidebarLayout.ts).
+    const { isSidebarOpen, setIsSidebarOpen, isMobile } = useSidebarLayout();
     // Locations and sales reps (src/features/salesShell/useSalesDirectory.ts).
     const { locations, salesReps, fetchLocations, fetchSalesReps } = useSalesDirectory();
     const [customerRefreshTrigger] = useState(0);
     const [resourceRefreshTrigger, setResourceRefreshTrigger] = useState(0);
     const [inventoryAnalysisRefreshTrigger, setInventoryAnalysisRefreshTrigger] = useState(0);
-    const [selectedCustomerId, setSelectedCustomerId] = useState(null);
-    const [customerOriginTab, setCustomerOriginTab] = useState(null);
     // The shared customer list behind every customer dropdown (src/api/customerOptions.js).
     const { records: allCustomersForSelection, options: sharedCustomerOptions, loading: isDropdownLoading } = useCustomerOptions();
-    // Latches on the first visit to the route planner and never clears, so the
-    // map it builds survives navigating away and back. See where it renders.
-    const [routePlannerOpened, setRoutePlannerOpened] = useState(false);
-    const [activeTab, setActiveTab] = useState('visits');
 
 
     
@@ -109,25 +105,17 @@ const SalesPage = () => {
     // the nav and that page always agree: a save shows in the nav at once.
     const { order: navOrder, saveOrder: saveNavOrder } = useNavOrder(!!currentUser);
 
-    const getDefaultTab = () => {
-        const searchParams = new URLSearchParams(window.location.search);
-        const tabParam = searchParams.get('tab');
-        if (tabParam) return tabParam;
-
-        const pinned = currentUser ? pinnedDefaultTab(currentUser, pinnedTabsRef.current) : null;
-        if (pinned) return pinned;
-
-        const perms = currentUser?.permissions || [];
-        if (perms.includes('view_dashboard')) return 'dashboard';
-        if (perms.includes(CHECKIN_PERMISSIONS.VIEW_LOG)) return 'checkin';
-        if (perms.includes('view_pricelist')) return 'pricelist';
-        if (perms.includes('view_customers')) return 'customers';
-        if (perms.includes('view_lost_sales')) return 'lost_sales';
-        if (perms.includes('view_crossover_sheet')) return 'crossover_sheet';
-        if (perms.includes('view_delivery_schedule')) return 'delivery_schedule';
-        return 'checkin'; // safe fallback
-    };
-    const [crmTab, setCrmTab] = useState(getDefaultTab); // 'dashboard', 'customers', 'checkin', 'pricelist', 'delivery_schedule'
+    // Where the page is: the page showing, the open customer, the URL (src/features/salesShell/useSalesNavigation.ts).
+    const {
+        crmTab, showDashboard, setShowDashboard, selectedCustomerId, activeTab, routePlannerOpened, setRoutePlannerOpened,
+        handleCrmTabChange, handleGoHome, handleActiveTabChange, handleSelectCustomer, handleBackToCustomersList
+    } = useSalesNavigation({
+        currentUser, pinnedTabsRef, isMobile, setIsSidebarOpen,
+        // useOpenCustomer and the dashboard come below; these run only from a click or an effect.
+        onShowCustomer: (customer) => showCustomerAtOnce(customer),
+        onClearCustomer: () => clearCustomer(),
+        onGoHomeTab: () => setActiveDashboardTab('visits')
+    });
     // The Check-In Log tab: src/features/checkin (its list, filters, counts, export, view/edit/delete).
     const checkInLog = useCheckInLog({ active: crmTab === 'checkin', currentUser, locations, onUnauthorized: logout });
 
@@ -152,7 +140,6 @@ const SalesPage = () => {
         onStart: () => { fetchLocations(); fetchSalesReps(); }
     });
     
-    const [showDashboard, setShowDashboard] = useState(true);
     const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
 
     // Sync currentUserId when currentUser loads
@@ -170,19 +157,6 @@ const SalesPage = () => {
         activeDashboardTab, setActiveDashboardTab, activeResourceSubTab, fetchDashboardStats, fetchDashboardData, fetchSchedules,
         canAddVisits, setCurrentVisitsPage, setCurrentFollowUpPage, setCurrentResourcesPage, patchDashboardVisit, removeDashboardVisit
     } = dashboardData;
-    // Sync active CRM tab from URL query params on page refresh
-    useEffect(() => {
-        const searchParams = new URLSearchParams(window.location.search);
-        const tabParam = searchParams.get('tab');
-        if (tabParam) {
-            setCrmTab(tabParam);
-            if (tabParam === 'dashboard') {
-                setShowDashboard(true);
-            } else {
-                setShowDashboard(false);
-            }
-        }
-    }, []);
 
 
     // "Plan route" from the customer list's selection bar: open Route Planner
@@ -197,35 +171,6 @@ const SalesPage = () => {
         handleCrmTabChange('route_planner');
     };
 
-    const handleCrmTabChange = (tabName) => {
-        // A nav entry that's a link elsewhere (Live Inventory) opens in a new
-        // tab and leaves this page where it is.
-        const href = navItem(tabName)?.href;
-        if (href) {
-            window.open(href, '_blank', 'noopener,noreferrer');
-            if (isMobile) setIsSidebarOpen(false);
-            return;
-        }
-        setCrmTab(tabName);
-        setCustomerOriginTab(null);
-        setSelectedCustomerId(null);
-        setSelectedCustomerDetail(null);
-        if (tabName === 'dashboard') {
-            setShowDashboard(true);
-        } else {
-            setShowDashboard(false);
-        }
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.set('tab', tabName);
-        newUrl.searchParams.delete('customer');
-        newUrl.searchParams.delete('view');
-        newUrl.searchParams.delete('hold');
-        window.history.pushState({ tab: tabName }, '', newUrl);
-
-        if (isMobile) {
-            setIsSidebarOpen(false);
-        }
-    };
 
     // The cart's "Hold #12 created · Open hold": that hold's page, for anyone
     // who may see holds (src/components/sales/holds/holdLink.js).
@@ -273,25 +218,8 @@ const SalesPage = () => {
     const [isChatFullScreen] = useState(false);
 
 
-    // Sidebar State. On desktop the side nav is always docked (it collapses to
-    // its section rail instead of hiding — CustomerSidebar.jsx); below 1024px
-    // it's a drawer opened by each tab's SidebarToggleButton.
-    const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
-    const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
     // Under 640px the bottom tab bar replaces the drawer (PhoneTabBar.jsx).
     const isPhone = useIsPhone();
-
-    useEffect(() => {
-        const handleResize = () => {
-            setIsMobile(window.innerWidth <= 1024);
-            if (window.innerWidth > 1024) {
-                setIsSidebarOpen(true);
-            }
-        };
-
-        window.addEventListener('resize', handleResize);
-        return () => window.removeEventListener('resize', handleResize);
-    }, []);
 
     // Form states
 
@@ -400,20 +328,12 @@ const SalesPage = () => {
         }
     };
 
-    const handleGoHome = () => {
-        setSelectedCustomerId(null);
-        setSelectedCustomerDetail(null);
-        handleCrmTabChange('dashboard');
-        setActiveDashboardTab('visits');
-        if (isMobile) {
-            setIsSidebarOpen(false);
-        }
-    };
 
 
 
     const {
-        selectedCustomerDetail, setSelectedCustomerDetail, visitsLoading, setVisitsLoading, customerCacheRef, fetchSingleCustomer,
+        showCustomerAtOnce, clearCustomer,
+        selectedCustomerDetail, setSelectedCustomerDetail, visitsLoading, customerCacheRef, fetchSingleCustomer,
         selectedCustomer, patchOpenCustomerVisits, removeOpenCustomerVisit
     } = useOpenCustomer({
         currentUser, customers, selectedCustomerId,
@@ -436,153 +356,11 @@ const SalesPage = () => {
 
     // Simplified resources (no search filtering)
 
-    const handleActiveTabChange = (tabName) => {
-        setActiveTab(tabName);
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.set('view', tabName);
-        window.history.replaceState({}, '', newUrl);
-    };
-
-    useEffect(() => {
-        const handlePopState = () => {
-            const params = new URLSearchParams(window.location.search);
-            const tabParam = params.get('tab');
-            const customerId = params.get('customer');
-            const viewParam = params.get('view');
-            
-            const perms = currentUser?.permissions || [];
-            const tabPermMap = {
-                dashboard: 'view_dashboard',
-                customers: 'view_customers',
-                checkin: CHECKIN_PERMISSIONS.VIEW_LOG,
-                pricelist: 'view_pricelist',
-                users: 'manage_users',
-                roles: 'manage_users',
-                locations: 'manage_users'
-            };
-
-            const state = window.history.state;
-            if (state && state.originTab) {
-                setCustomerOriginTab(state.originTab);
-            }
-
-            if (tabParam && ['dashboard', 'customers', 'checkin', 'pricelist', 'users', 'roles', 'locations', 'profile'].includes(tabParam)) {
-                // Only switch to the tab if the user has permission for it
-                if (!tabPermMap[tabParam] || (tabParam === 'users' ? canOpenUsersPage(currentUser) : ['roles', 'locations'].includes(tabParam) ? canOpenArea(currentUser, tabParam) : perms.includes(tabPermMap[tabParam]))) {
-                    setCrmTab(tabParam);
-                    if (tabParam === 'dashboard') {
-                        setShowDashboard(true);
-                    } else {
-                        setShowDashboard(false);
-                    }
-                } else {
-                    // Force fallback if user doesn't have permission for the requested tab
-                    setCrmTab(getDefaultTab());
-                }
-            } else if (!tabParam && currentUser) {
-                // Land on their default tab if no tab parameter is supplied in the URL
-                setCrmTab(getDefaultTab());
-            }
-
-            if (customerId) {
-                if (perms.includes('view_customers')) {
-                    setSelectedCustomerId(customerId);
-                    setCrmTab('customers');
-                } else {
-                    setSelectedCustomerId(null);
-                    setSelectedCustomerDetail(null);
-                    setCustomerOriginTab(null);
-                }
-            } else {
-                setSelectedCustomerId(null);
-                setSelectedCustomerDetail(null);
-                setCustomerOriginTab(null);
-            }
-            if (viewParam && ['visits', 'resources', 'contacts', 'network', 'details'].includes(viewParam)) {
-                setActiveTab(viewParam);
-            }
-        };
-
-        // Run once on mount / when currentUser loads
-        handlePopState();
-
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
-    }, [currentUser]);
 
 
-    useEffect(() => {
-        if (crmTab === 'route_planner') setRoutePlannerOpened(true);
-    }, [crmTab]);
 
-    const handleSelectCustomer = (customer, explicitOrigin) => {
-        if (customer) {
-            // Track origin tab from which customer was opened
-            const currentTab = crmTab;
-            const origin = customerOriginTab || explicitOrigin || (currentTab !== 'customers' ? currentTab : 'customers');
-            setCustomerOriginTab(origin);
 
-            const isShell = !customer.company && !customer.contactName && !customer.email && !customer.name;
-            const cached = customerCacheRef.current[customer._id];
-            if (isShell) {
-                if (selectedCustomerId !== customer._id) {
-                    setSelectedCustomerDetail(null); // Clear previous details to show loading/fallback
-                }
-                setVisitsLoading(true);
-            } else {
-                // Populate selected customer details immediately to transition instantly
-                setSelectedCustomerDetail(cached || customer);
-                if (!cached || !cached.visits) {
-                    setVisitsLoading(true);
-                }
-            }
-            setSelectedCustomerId(customer._id);
-            
-            const newUrl = new URL(window.location);
-            newUrl.searchParams.set('tab', 'customers');
-            newUrl.searchParams.set('customer', customer._id);
-            newUrl.searchParams.set('view', 'visits'); // Default to visits view on select
-            window.history.pushState({ originTab: origin, fromDashboard: origin === 'dashboard' }, '', newUrl);
-            
-            setCrmTab('customers');
 
-            // On mobile, close sidebar (list view) to show details
-            if (isMobile) {
-                setIsSidebarOpen(false);
-            }
-            // fetchSingleCustomer is triggered by useEffect
-            setActiveTab('visits');
-            window.scrollTo(0, 0);
-        }
-    };
-
-    const handleBackToCustomersList = () => {
-        const state = window.history.state;
-        const targetTab = customerOriginTab || (state && state.originTab) || (state && state.fromDashboard ? 'dashboard' : 'customers');
-
-        setSelectedCustomerId(null);
-        setSelectedCustomerDetail(null);
-        setCustomerOriginTab(null);
-
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.delete('customer');
-        newUrl.searchParams.delete('view');
-        newUrl.searchParams.set('tab', targetTab);
-
-        // Replace history entry to prevent back button loops between opened customer cards
-        window.history.replaceState({ tab: targetTab }, '', newUrl);
-
-        setCrmTab(targetTab);
-        if (targetTab === 'dashboard') {
-            setShowDashboard(true);
-        } else {
-            setShowDashboard(false);
-        }
-
-        if (isMobile) {
-            setIsSidebarOpen(false);
-        }
-    };
 
 
 
