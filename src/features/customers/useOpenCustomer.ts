@@ -143,3 +143,6 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
         removeOpenCustomerVisit,
     };
 }
+
+/** What the hook returns. */
+export type OpenCustomer = ReturnType<typeof useOpenCustomer>;

@@ -7,3 +7,6 @@ export { useOpenCustomer } from './useOpenCustomer';
 export type { OpenCustomerDeps } from './useOpenCustomer';
 export { getCustomerLevelLabel, getPriceLevelLabel } from './customerLevel';
 export { useCustomersPage } from './useCustomersPage';
+export { useCreateCustomer } from './useCreateCustomer';
+export type { CustomerActions } from './useCustomerActions';
+export type { OpenCustomer } from './useOpenCustomer';

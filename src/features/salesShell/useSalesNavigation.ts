@@ -250,3 +250,6 @@ export function useSalesNavigation({ currentUser, pinnedTabsRef, isMobile, setIs
         handleCrmTabChange, handleGoHome, handleActiveTabChange, handleSelectCustomer, handleBackToCustomersList
     };
 }
+
+/** What the hook returns. */
+export type SalesNavigation = ReturnType<typeof useSalesNavigation>;

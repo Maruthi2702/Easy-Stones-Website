@@ -478,3 +478,6 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
         handleRemoveVisitImage,
     };
 }
+
+/** What the hook returns. */
+export type VisitEditor = ReturnType<typeof useVisitEditor>;

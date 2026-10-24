@@ -388,3 +388,6 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
         handleRemoveResourceImage,
     };
 }
+
+/** What the hook returns. */
+export type ResourceEditor = ReturnType<typeof useResourceEditor>;

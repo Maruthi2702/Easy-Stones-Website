@@ -54,3 +54,6 @@ export function useImageGallery() {
         handleOpenGallery, handleNextImage, handlePrevImage, closeGallery
     };
 }
+
+/** What the hook returns. */
+export type ImageGalleryState = ReturnType<typeof useImageGallery>;

@@ -305,3 +305,6 @@ export function useCustomerActions({ selectedCustomer, selectedCustomerId, selec
         handleReaction,
     };
 }
+
+/** What the hook returns. */
+export type CustomerActions = ReturnType<typeof useCustomerActions>;
