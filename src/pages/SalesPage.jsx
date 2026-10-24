@@ -41,6 +41,7 @@ import Toast from '../components/shared/Toast';
 import { CalendarSyncModal, useCalendarSync } from '../features/calendarSync';
 import { CheckInLogTab, CheckInDetailModal, useCheckInLog } from '../features/checkin';
 import { useDashboardData } from '../features/dashboard/useDashboardData';
+import { useTeamFiles } from '../features/dashboard/teamFiles/useTeamFiles';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
@@ -428,8 +429,6 @@ const SalesPage = () => {
     const [editingVisit, setEditingVisit] = useState(null);
     const [editingResource, setEditingResource] = useState(null);
 
-    const [showAddFolderModal, setShowAddFolderModal] = useState(false);
-    const [folderName, setFolderName] = useState('');
 
     // Partner Network States
     const [showLinkPartnerModal, setShowLinkPartnerModal] = useState(false);
@@ -590,10 +589,8 @@ const SalesPage = () => {
     const [visitsLoading, setVisitsLoading] = useState(false);
 
     // Sales Dashboard State
-    const [salesResources, setSalesResources] = useState([]);
 
 
-    const [showDashboardUploadModal, setShowDashboardUploadModal] = useState(false);
     const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
     // Values a new customer opens with (Permits → a contractor's "Create customer"); null for a blank form.
     const [customerPrefill, setCustomerPrefill] = useState(null);
@@ -609,17 +606,6 @@ const SalesPage = () => {
         customerId: null,
         message: ''
     });
-    const [dashboardUploadForm, setDashboardUploadForm] = useState({
-        name: '',
-        type: 'file',
-        content: '',
-        file: null
-    });
-    const [editingDashboardResource, setEditingDashboardResource] = useState(null);
-    const [previewDashboardResource, setPreviewDashboardResource] = useState(null);
-    const [isExistingFileRemoved, setIsExistingFileRemoved] = useState(false);
-    const [currentFolderId, setCurrentFolderId] = useState(null);
-    const [folderPath, setFolderPath] = useState([]); // [{id, name}, ...]
 
 
 
@@ -641,35 +627,17 @@ const SalesPage = () => {
         "2025V3 Moda Tower Updated 24>25",
         "2025V3 Moda Tower"
     ];
+    const {
+        showAddFolderModal, setShowAddFolderModal, folderName, setFolderName, salesResources, showDashboardUploadModal,
+        setShowDashboardUploadModal, dashboardUploadForm, setDashboardUploadForm, setEditingDashboardResource, previewDashboardResource, setPreviewDashboardResource,
+        setCurrentFolderId, folderPath, setFolderPath, fetchDashboardResources, handleDashboardUpload, handleDashboardDownload,
+        handleCreateFolder, handleEditDashboardResource, handleDeleteDashboardResource, handleBreadcrumbClick, handleResourceClick
+    } = useTeamFiles({ showDashboard, activeResourceSubTab, resourceRefreshTrigger, setIsSaving, fetchDashboardData, fetchDashboardStats, setDeleteConfirmation });
 
     // Current user ID is managed directly via AuthContext (currentUser)
 
 
 
-    // Fetch Sales Dashboard Resources
-    const fetchDashboardResources = async () => {
-        try {
-            const query = currentFolderId ? `?parentId=${currentFolderId}` : '';
-            const url = `${API_URL}/api/sales-dashboard/resources${query}`;
-
-            const response = await authFetch(url);
-            if (response.ok) {
-                const data = await response.json();
-
-                setSalesResources(data);
-            } else {
-                console.error('❌ [FETCH] Failed to fetch resources:', response.status, response.statusText);
-            }
-        } catch (error) {
-            console.error('❌ [FETCH] Error fetching dashboard resources:', error);
-        }
-    };
-
-    useEffect(() => {
-        if (showDashboard && activeResourceSubTab === 'team') {
-            fetchDashboardResources();
-        }
-    }, [showDashboard, currentFolderId, activeResourceSubTab, resourceRefreshTrigger]);
 
 
 
@@ -1306,155 +1274,9 @@ const SalesPage = () => {
         }
     };
 
-    const handleDashboardUpload = async (e) => {
-        e.preventDefault();
-
-        // Validation: For NEW resources of type file, file is required.
-        // For EDITING, file is optional UNLESS the existing one was explicitly removed.
-        if (dashboardUploadForm.type === 'file') {
-            if (!dashboardUploadForm.file) {
-                if (!editingDashboardResource || isExistingFileRemoved) {
-                    alert('Please select a file to upload');
-                    return;
-                }
-            }
-        }
-
-        // Basic validation for name
-        if (!dashboardUploadForm.name.trim()) {
-            alert('Please provide a name for the resource.');
-            return;
-        }
-
-        // Validation for link type
-        if (dashboardUploadForm.type === 'link' && !dashboardUploadForm.content.trim()) {
-            alert('Please provide a URL for the link resource.');
-            return;
-        }
-
-        setIsSaving(true);
-        try {
-            const formData = new FormData();
-            formData.append('name', dashboardUploadForm.name);
-            formData.append('type', dashboardUploadForm.type);
-            if (currentFolderId) {
-                formData.append('parentId', currentFolderId);
-            }
-
-            if (dashboardUploadForm.type === 'link') {
-                formData.append('content', dashboardUploadForm.content);
-            } else if (dashboardUploadForm.file) { // Only append file if it exists (for new or updated files)
-                formData.append('file', dashboardUploadForm.file);
-
-                // Client-side thumbnail generation for images
-                if (dashboardUploadForm.file.type.startsWith('image/')) {
-                    try {
-                        const createThumbnail = (file) => {
-                            return new Promise((resolve) => {
-                                const reader = new FileReader();
-                                reader.onload = (e) => {
-                                    const img = new Image();
-                                    img.onload = () => {
-                                        const canvas = document.createElement('canvas');
-                                        const MAX_WIDTH = 200;
-                                        const scaleSize = MAX_WIDTH / img.width;
-                                        canvas.width = MAX_WIDTH;
-                                        canvas.height = img.height * scaleSize;
-                                        const ctx = canvas.getContext('2d');
-                                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                                        resolve(canvas.toDataURL(file.type));
-                                    };
-                                    img.src = e.target.result;
-                                };
-                                reader.readAsDataURL(file);
-                            });
-                        };
-
-                        const thumbDataUrl = await createThumbnail(dashboardUploadForm.file);
-                        formData.append('thumbnail', thumbDataUrl);
-                    } catch (error) {
-                        console.error('Thumbnail generation failed:', error);
-                    }
-                }
-            }
-
-            const url = editingDashboardResource
-                ? `/api/sales-dashboard/resources/${editingDashboardResource._id}`
-                : '/api/sales-dashboard/upload';
-
-            const method = editingDashboardResource ? 'PUT' : 'POST';
-
-            const response = await authFetch(url, {
-                method: method,
-                body: formData // Content-Type is set automatically
-            });
-            if (response.ok) {
-                await response.json();
-
-                setShowDashboardUploadModal(false);
-                setDashboardUploadForm({ name: '', type: 'file', content: '', file: null });
-                setEditingDashboardResource(null);
-
-                fetchDashboardResources();
-                // Refresh dashboard data and stats
-                fetchDashboardData();
-                fetchDashboardStats();
-            } else {
-                const errorData = await response.json();
-                alert(`Failed to ${editingDashboardResource ? 'update' : 'upload'} resource: ${errorData.message}`);
-            }
-        } catch (error) {
-            console.error('Upload/Update error:', error);
-            alert(`Error processing request: ${error.message}`);
-        } finally {
-            setIsSaving(false);
-        }
-    };
 
     
 
-    const ensureResourceContent = async (resource) => {
-        if (resource.isFolder || resource.type === 'link') return resource;
-        if (resource.content) return resource;
-
-        try {
-            const response = await authFetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`);
-            if (response.ok) {
-                const fullResource = await response.json();
-                // Update local list state so we don't have to fetch again
-                setSalesResources(prev => prev.map(r => r._id === fullResource._id ? fullResource : r));
-                return fullResource;
-            }
-        } catch (error) {
-            console.error('Error fetching full resource:', error);
-        }
-        return resource;
-    };
-
-    const handleDashboardDownload = async (resource) => {
-        const fullResource = await ensureResourceContent(resource);
-        if (fullResource.type === 'link') {
-            window.open(fullResource.content, '_blank');
-        } else {
-            const link = document.createElement('a');
-            link.href = fullResource.content.startsWith('data:')
-                ? fullResource.content
-                : (fullResource.content.startsWith('/') ? `${API_URL}${fullResource.content}` : fullResource.content);
-            link.download = fullResource.name || 'download';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-    };
-
-    const handleDashboardPreview = async (resource) => {
-        const fullResource = await ensureResourceContent(resource);
-        if (fullResource.type === 'link') {
-            window.open(fullResource.content, '_blank');
-        } else {
-            setPreviewDashboardResource(fullResource);
-        }
-    };
 
 
     const handleEditVisit = async (visit) => {
@@ -1870,104 +1692,6 @@ const SalesPage = () => {
         setShowResourceModal(true);
     };
 
-    const handleCreateFolder = async () => {
-        if (!folderName || !folderName.trim()) {
-            alert('Please enter a folder name');
-            return;
-        }
-
-        try {
-            const response = await authFetch(`${API_URL}/api/sales-dashboard/upload`, {
-                method: 'POST',
-                body: JSON.stringify({
-                    name: folderName.trim(),
-                    type: 'folder',
-                    isFolder: true,
-                    parentId: currentFolderId
-                })
-            });
-
-            if (response.ok) {
-                fetchDashboardResources();
-            } else {
-                alert('Failed to create folder');
-            }
-        } catch (error) {
-            console.error('Error creating folder:', error);
-            alert('Error creating folder');
-        }
-    };
-
-    const handleFolderClick = (folder) => {
-        setFolderPath([...folderPath, { id: folder._id, name: folder.name }]);
-        setCurrentFolderId(folder._id);
-    };
-
-    
-
-    const handleEditDashboardResource = (resource) => {
-        setEditingDashboardResource(resource);
-        setDashboardUploadForm({
-            name: resource.name,
-            type: resource.type,
-            content: resource.type === 'link' ? resource.content : '',
-            file: null
-        });
-        setIsExistingFileRemoved(false);
-        setShowDashboardUploadModal(true);
-    };
-
-    const handleDeleteDashboardResource = async (resourceId) => {
-        setDeleteConfirmation({
-            isOpen: true,
-            isDeleting: false,
-            type: 'dashboardResource',
-            id: resourceId,
-            message: 'Are you sure you want to delete this resource? If it is a folder, all its contents will be deleted.'
-        });
-    };
-
-
-
-    const handleBreadcrumbClick = (index) => {
-        if (index === -1) {
-            // Home
-            setFolderPath([]);
-            setCurrentFolderId(null);
-        } else {
-            // Go to specific folder
-            const newPath = folderPath.slice(0, index + 1);
-            setFolderPath(newPath);
-            setCurrentFolderId(newPath[newPath.length - 1].id);
-        }
-    };
-
-    const handleResourceClick = async (resource) => {
-        if (resource.isFolder) {
-            handleFolderClick(resource);
-        } else {
-            // Lazy load content if missing
-            let fullResource = resource;
-            if (!resource.content && resource.type !== 'link') {
-                try {
-                    const response = await authFetch(`${API_URL}/api/sales-dashboard/resources/${resource._id}`);
-                    if (response.ok) {
-                        fullResource = await response.json();
-                        // Update local state to avoid re-fetching immediately (optional optimization)
-                        setSalesResources(prev => prev.map(r => r._id === fullResource._id ? fullResource : r));
-                    } else {
-                        alert('Failed to load resource content');
-                        return;
-                    }
-                } catch (error) {
-                    console.error('Error fetching full resource:', error);
-                    alert('Error loading resource');
-                    return;
-                }
-            }
-            handleDashboardPreview(fullResource);
-        }
-    };
 
     const handleEditResource = async (resource) => {
         if (!resource?.customerId || !resource?._id) {
