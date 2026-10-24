@@ -666,7 +666,10 @@ the slab figures a person saved on an earlier visit, which the sheet seeds
 its touched sets from on load. Without it a correction looked untouched after
 a reload and the next save (the one before Submit included) blanked it. See
 `buildSaveBody`/`buildDraftPayload` in
-`src/features/dailyReport/savePayload.ts` and their tests, and
+`src/features/dailyReport/savePayload.ts` and their tests, the page's
+load/autosave/submit hook `useDaySheet.ts` (its tests pin the flush on a
+day/branch/view change and unmount, Submit stopping on a failed save, and a
+late answer ignored), and
 `applyDerived`'s tests in `src/routes/dailyReports.test.js` (including
 "at submit") for the merge contract those payloads have to be correct
 against.
