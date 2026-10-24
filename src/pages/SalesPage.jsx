@@ -27,8 +27,8 @@ import useNavOrder from '../components/sales/useNavOrder';
 import { pinnedDefaultTab, navItem } from '../utils/navPins';
 import { canAddCustomer, canViewCustomerProfile } from '../utils/customerAccess';
 import { canOpenUsersPage } from '../utils/teamAccess';
-import { canOpenArea, can, NAV_ORDER } from '../utils/usersAccess';
-import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
+import { canOpenArea, NAV_ORDER } from '../utils/usersAccess';
+import { CHECKIN_PERMISSIONS } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import { useVisitEditor } from '../features/visits';
 import { useResourceEditor } from '../features/resources';
@@ -40,6 +40,8 @@ import { useDeleteCheck, makeConfirmDelete } from '../features/salesShell/delete
 import { useSalesTheme } from '../features/salesShell/useSalesTheme';
 import { useSalesDirectory } from '../features/salesShell/useSalesDirectory';
 import { useSalesLiveUpdates } from '../features/salesShell/useSalesLiveUpdates';
+import SalesTabViews from '../features/salesShell/SalesTabViews';
+import TabLoader from '../features/salesShell/TabLoader';
 import VisitCustomerCard from '../components/sales/VisitCustomerCard';
 import Toast from '../components/shared/Toast';
 import { CalendarSyncModal, useCalendarSync } from '../features/calendarSync';
@@ -69,36 +71,9 @@ import { openHoldLink } from '../components/sales/holds/holdLink';
 import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions';
 import { PERMITS } from '../permits/permissions';
 
-// This page eagerly imported every tab it can show — Route Planner's Google
-// Maps code, Users & Roles, Price List, all of it — into one bundle loaded
-// the moment ANY user opens ANY tab, even Delivery Schedule alone. Only one
-// tab is ever on screen at a time (all gated behind crmTab === '…' below),
-// so each now loads only once its own tab is actually opened, the same
-// lazyRetry pattern src/App.jsx already uses per page route.
-const SalesPlannerTab = lazyRetry(() => import('../components/SalesPlannerTab'));
-const RoutePlannerV2 = lazyRetry(() => import('../components/sales/routePlannerV2/RoutePlannerV2'));
+// Loaded when the Customers list (or Dashboard → Leads) first shows; the other
+// pages load the same way in src/features/salesShell/SalesTabViews.tsx.
 const PartnersSheet = lazyRetry(() => import('../components/sales/PartnersSheet'));
-const PriceListPanel = lazyRetry(() => import('../components/sales/PriceListPanel'));
-const UsersRolesTab = lazyRetry(() => import('../components/sales/UsersRolesTab'));
-const NavOrderTab = lazyRetry(() => import('../components/sales/NavOrderTab'));
-const LostSalesTab = lazyRetry(() => import('../components/sales/LostSalesTab'));
-const CrossoverSheetTab = lazyRetry(() => import('../components/sales/CrossoverSheetTab'));
-const InventoryAnalysisTab = lazyRetry(() => import('../components/sales/InventoryAnalysisTab'));
-const DeliveryScheduleTab = lazyRetry(() => import('../components/sales/DeliveryScheduleTab'));
-const DailyReportTab = lazyRetry(() => import('../components/sales/dailyreport/DailyReportTab'));
-const FreightTab = lazyRetry(() => import('../components/sales/freight/FreightTab'));
-const HoldsTab = lazyRetry(() => import('../components/sales/holds/HoldsTab'));
-const PermitsTab = lazyRetry(() => import('../components/sales/permits/PermitsTab'));
-
-// One small, inline fallback rather than a full-page spinner — App.jsx's
-// <PageLoader/> is sized for a blank page, and using it here would flash the
-// whole dashboard chrome (sidebar, header) to nothing while a single tab's
-// chunk loads.
-const TabLoader = () => (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '50vh' }}>
-        <Loader size={28} className="animate-spin" style={{ color: '#d4af37' }} />
-    </div>
-);
 
 const SalesPage = () => {
     const { user: currentUser, loading: authLoading, logout } = useAuth();
@@ -679,58 +654,6 @@ const SalesPage = () => {
 
 
 
-    const renderCheckInLogView = () => (
-        <CheckInLogTab
-            log={checkInLog}
-            locations={locations}
-            sidebarToggle={(!isSidebarOpen || isMobile) ? <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} /> : null}
-            fallback={<TabLoader />}
-        />
-    );
-
-    const renderPriceListView = () => {
-        const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-            <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
-        ) : null;
-
-        return (
-            <Suspense fallback={<TabLoader />}>
-                <PriceListPanel sidebarToggle={sidebarToggle} />
-            </Suspense>
-        );
-    };
-
-    const renderUsersRolesView = (section) => {
-        const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-            <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
-        ) : null;
-
-        return (
-            <Suspense fallback={<TabLoader />}>
-            <UsersRolesTab
-                section={section}
-                sidebarToggle={sidebarToggle}
-                locations={locations}
-                fetchLocations={fetchLocations}
-            />
-            </Suspense>
-        );
-    };
-
-    const renderUserProfileView = () => {
-        const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-            <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
-        ) : null;
-
-        return (
-            <UserProfileTab 
-                sidebarToggle={sidebarToggle} 
-                handleGoHome={handleGoHome} 
-                theme={theme}
-            />
-        );
-    };
-
     return (
         <div className="sales-container">
             {/* Sidebar Overlay */}
@@ -788,215 +711,36 @@ const SalesPage = () => {
                     </div>
                 )}
 
-                {!authLoading && currentUser?.permissions && crmTab === 'checkin' && canViewCheckInLog(currentUser) && (
-                    <ErrorBoundary key="checkin-log-view">
-                        {renderCheckInLogView()}
-                    </ErrorBoundary>
-                )}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'pricelist' && currentUser.permissions.includes('view_pricelist') && (
-                    <ErrorBoundary key="price-list-view">
-                        {renderPriceListView()}
-                    </ErrorBoundary>
-                )}
-
-                {!authLoading && currentUser?.permissions && ['users', 'roles', 'locations'].includes(crmTab)
-                    && (crmTab === 'users' ? canOpenUsersPage(currentUser) : canOpenArea(currentUser, crmTab)) && (
-                    <ErrorBoundary key={`users-roles-view-${crmTab}`}>
-                        {renderUsersRolesView(crmTab)}
-                    </ErrorBoundary>
-                )}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'nav_order' && can(currentUser, NAV_ORDER) && (
-                    <ErrorBoundary key="nav-order-view">
-                        <Suspense fallback={<TabLoader />}>
-                            <NavOrderTab
-                                order={navOrder}
-                                onSave={saveNavOrder}
-                                sidebarToggle={(!isSidebarOpen || isMobile) ? (
-                                    <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
-                                ) : null}
-                            />
-                        </Suspense>
-                    </ErrorBoundary>
-                )}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'profile' && (
-                    <ErrorBoundary key="user-profile-view">
-                        {renderUserProfileView()}
-                    </ErrorBoundary>
-                )}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'lost_sales' && (() => {
-                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-                    ) : null;
-
-                    return (
-                        <ErrorBoundary key="lost-sales-view">
-                        <Suspense fallback={<TabLoader />}>
-                            <LostSalesTab
-                                currentUser={currentUser}
-                                customersList={allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || [])}
-                                customerOptions={customerOptions}
-                                locationsList={locations || ['Seattle', 'Spokane', 'Salt Lake City']}
-                                theme={theme}
-                                onCreateNew={openNewCustomer}
-                                isDropdownLoading={isDropdownLoading}
-                                sidebarToggle={sidebarToggle}
-                            />
-                        </Suspense>
-                        </ErrorBoundary>
-                    );
-                })()}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'crossover_sheet' && (() => {
-                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-                    ) : null;
-
-                    return (
-                        <ErrorBoundary key="crossover-sheet-view">
-                        <Suspense fallback={<TabLoader />}>
-                            <CrossoverSheetTab
-                                currentUser={currentUser}
-                                sidebarToggle={sidebarToggle}
-                            />
-                        </Suspense>
-                        </ErrorBoundary>
-                    );
-                })()}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'inventory_analysis' && (() => {
-                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-                    ) : null;
-
-                    return (
-                        <ErrorBoundary key="inventory-analysis-view">
-                        <Suspense fallback={<TabLoader />}>
-                            <InventoryAnalysisTab
-                                currentUser={currentUser}
-                                sidebarToggle={sidebarToggle}
-                                refreshSignal={inventoryAnalysisRefreshTrigger}
-                            />
-                        </Suspense>
-                        </ErrorBoundary>
-                    );
-                })()}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'daily_report' && (() => {
-                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-                    ) : null;
-
-                    return (
-                        <ErrorBoundary key="daily-report-view">
-                        <Suspense fallback={<TabLoader />}>
-                            <DailyReportTab
-                                currentUser={currentUser}
-                                sidebarToggle={sidebarToggle}
-                            />
-                        </Suspense>
-                        </ErrorBoundary>
-                    );
-                })()}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'freight' && currentUser.permissions.includes('view_freight_charges') && (() => {
-                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-                    ) : null;
-
-                    return (
-                        <ErrorBoundary key="freight-view">
-                        <Suspense fallback={<TabLoader />}>
-                            <FreightTab
-                                currentUser={currentUser}
-                                locationsList={locations || []}
-                                sidebarToggle={sidebarToggle}
-                            />
-                        </Suspense>
-                        </ErrorBoundary>
-                    );
-                })()}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'holds' && canSeeHolds && (() => {
-                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-                    ) : null;
-
-                    return (
-                        <ErrorBoundary key="holds-view">
-                        <Suspense fallback={<TabLoader />}>
-                            <HoldsTab currentUser={currentUser} sidebarToggle={sidebarToggle} />
-                        </Suspense>
-                        </ErrorBoundary>
-                    );
-                })()}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'permits' && currentUser.permissions.includes(PERMITS.VIEW) && (() => {
-                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-                    ) : null;
-
-                    return (
-                        <ErrorBoundary key="permits-view">
-                        <Suspense fallback={<TabLoader />}>
-                            <PermitsTab
-                                sidebarToggle={sidebarToggle}
-                                onOpenCustomer={(id) => handleSelectCustomer({ _id: id }, 'permits')}
-                                onCreateCustomer={openNewCustomer ? (values) => { setCustomerPrefill(values); setShowAddCustomerModal(true); } : null}
-                            />
-                        </Suspense>
-                        </ErrorBoundary>
-                    );
-                })()}
-
-                {!authLoading && currentUser?.permissions && crmTab === 'delivery_schedule' && (() => {
-                    const sidebarToggle = (!isSidebarOpen || isMobile) ? (
-                        <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-                    ) : null;
-
-                    return (
-                        <ErrorBoundary key="delivery-schedule-view">
-                        <Suspense fallback={<TabLoader />}>
-                            <DeliveryScheduleTab
-                                currentUser={currentUser}
-                                locationsList={locations || ['Seattle', 'Spokane', 'Salt Lake City']}
-                                customerOptions={customerOptions}
-                                theme={theme}
-                                sidebarToggle={sidebarToggle}
-                            />
-                        </Suspense>
-                        </ErrorBoundary>
-                    );
-                })()}
-
-                {/* Kept mounted once opened, and hidden rather than unmounted when
-                    you navigate away. Google bills a map load per map instance
-                    created, so unmounting would buy a fresh one every time you came
-                    back. Nothing runs while it is hidden — the fetch and the
-                    geolocation both happen on mount. */}
-                {!authLoading && currentUser?.permissions && routePlannerOpened && currentUser.permissions.includes('view_route_planner') && (
-                    <div style={{ position: 'relative', display: crmTab === 'route_planner' ? 'block' : 'none' }}>
-                        <ErrorBoundary key="route-planner-v2-view">
-                        <Suspense fallback={<TabLoader />}>
-                            <RoutePlannerV2
-                                currentUser={currentUser}
-                                theme={theme}
-                                isActive={crmTab === 'route_planner'}
-                                preselect={routePreselect}
-                                onOpenCustomer={(id) => handleSelectCustomer({ _id: id }, 'route_planner')}
-                                onAddVisit={canAddVisits ? handleAddVisitForPin : null}
-                                onAddResource={canAddVisits ? handleAddResourceForPin : null}
-                                sidebarToggle={(!isSidebarOpen || isMobile) ? (
-                                    <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-                                ) : null}
-                            />
-                        </Suspense>
-                        </ErrorBoundary>
-                    </div>
-                )}
+                {/* Every page but the Dashboard and Customers (src/features/salesShell/SalesTabViews.tsx). */}
+                <SalesTabViews
+                    ready={Boolean(!authLoading && currentUser?.permissions)}
+                    crmTab={crmTab}
+                    currentUser={currentUser}
+                    theme={theme}
+                    isSidebarOpen={isSidebarOpen}
+                    isMobile={isMobile}
+                    onOpenSidebar={() => setIsSidebarOpen(true)}
+                    onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+                    checkInLog={checkInLog}
+                    locations={locations}
+                    fetchLocations={fetchLocations}
+                    customersList={allCustomersForSelection.length > 0 ? allCustomersForSelection : (customers || [])}
+                    customerOptions={customerOptions}
+                    isDropdownLoading={isDropdownLoading}
+                    inventoryRefreshSignal={inventoryAnalysisRefreshTrigger}
+                    navOrder={navOrder}
+                    onSaveNavOrder={saveNavOrder}
+                    canSeeHolds={canSeeHolds}
+                    routePlannerOpened={routePlannerOpened}
+                    routePreselect={routePreselect}
+                    canAddVisits={canAddVisits}
+                    onGoHome={handleGoHome}
+                    onOpenCustomer={(id, origin) => handleSelectCustomer({ _id: id }, origin)}
+                    onCreateCustomer={openNewCustomer}
+                    onCreatePrefilledCustomer={openNewCustomer ? (values) => { setCustomerPrefill(values); setShowAddCustomerModal(true); } : null}
+                    onAddVisitForPin={handleAddVisitForPin}
+                    onAddResourceForPin={handleAddResourceForPin}
+                />
 
                 {!authLoading && currentUser?.permissions && crmTab === 'customers' && currentUser.permissions.includes('view_customers') && (
                     <>
