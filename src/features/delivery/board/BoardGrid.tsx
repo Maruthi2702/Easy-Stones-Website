@@ -4,62 +4,20 @@
 // separate, mobile-first component a driver sees instead. See
 // src/features/delivery/README.md for how this fits with the rest
 // of the feature (deliverySchedule.ts's cache, the backend router, the socket).
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import { Plus, ChevronLeft, ChevronRight, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText, ArrowUpToLine, ArrowDownToLine, Link2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import TicketChip from './TicketChip';
-import { MAX_TRUCK_CAPACITY } from '../../../api/deliverySchedule';
+import BoardCards from './BoardCards';
+import BoardTable from './BoardTable';
+import { useBoardScroll } from './useBoardScroll';
+import { compareStops, DROP_HINTS } from './boardRules';
+import { dropOnCell, dropOnStop, stopZoneFor } from './boardDrops';
+import type { DropMode, DropSlot } from './boardRules';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
 import { orderBoardColumns, WILL_CALL_COLUMN } from '../../../utils/deliveryColumns';
-import { columnIdFor, isReturn } from '../../../utils/deliveryTypes';
-import { groupStops, applyStopMove, flattenGroups, sameStopOrder } from '../../../utils/stopGrouping';
-// Day names come from the dates themselves — the board renders whichever days
-// the week actually shows, which is Mon-Fri plus any weekend day in use.
-import { dayLabel } from '../../../utils/deliveryWeek';
+import { columnIdFor } from '../../../utils/deliveryTypes';
+import { groupStops } from '../../../utils/stopGrouping';
 import type { Assignment, BoardColumn, StopOrder, Ticket } from '../types';
-
-// Widths the dispatch table is laid out from. A driver column needs roughly this
-// much to keep stop, reference number and status pill on one line; below it the
-// three start colliding, so the table scrolls sideways rather than going narrower.
-// The Day column is held at its width (a <col>, not a share of the spare room —
-// it used to take ~25% of a wide screen and push Will Call off the edge); the
-// driver columns split everything else.
-const DAY_COL_WIDTH = 132;
-const MIN_TRUCK_COL_WIDTH = 290;
-// The stylesheet's existing floor — never render narrower than the board does today.
-const MIN_TABLE_WIDTH = 1100;
-
-// The Will Call column (one driverless column for pickups) lives in
-// src/utils/deliveryColumns.js with the rest of the column order rules.
-
-// A column nobody drives. The daily truck load is meaningless for it, so it
-// shows a plain count rather than a count against MAX_TRUCK_CAPACITY.
-const isCounterColumn = (trk: BoardColumn | undefined) => Boolean(trk?.isWillCall);
-
-// What one ticket in this column is called, so the empty state and the add
-// button read naturally.
-const columnNoun = (trk: BoardColumn | undefined) => (trk?.isWillCall ? 'pickup' : 'stop');
-
-// The cell's count, saying what it counts: "3/12 stops" on a truck (its day's
-// load), "2 pickups" in Will Call (no cap).
-const countLabel = (trk: BoardColumn, count: number) => (isCounterColumn(trk)
-  ? `${count} ${columnNoun(trk)}${count === 1 ? '' : 's'}`
-  : `${count}/${MAX_TRUCK_CAPACITY} stops`);
-
-// The order a cell reads in: explicit stop number first, then time as the
-// tie-break for everything still sitting on the default of 1. Shared by the
-// render and by the drag handler, so the list a drop is calculated against is
-// the same list the dispatcher is looking at.
-const compareStops = (a: Ticket, b: Ticket) => {
-  const rA = Number(a.routeNumber) || 1;
-  const rB = Number(b.routeNumber) || 1;
-  if (rA !== rB) return rA - rB;
-  return (a.time || '').localeCompare(b.time || '');
-};
-
-/** Which third of a card a drag is over: insert before/after it, or join its stop. */
-type DropMode = 'before' | 'after' | 'merge';
-type DropSlot = { cellKey: string; targetId: string; mode: DropMode };
 
 export type BoardGridProps = {
   trucks?: BoardColumn[];
@@ -157,96 +115,7 @@ const BoardGrid = ({
   const [internalSearch] = useState('');
   const activeSearch = searchQuery || internalSearch;
 
-  // ── Open on today (2026-10-09) ──
-  // The week table scrolls inside its own box (header and Day column pinned),
-  // and puts today's row at the top: when the board appears, when the week
-  // changes, and when Today is pressed. Never on a live update or after a
-  // save — that would pull a dispatcher off the day they're working on. A
-  // week without today starts at its first day.
-  const tableScrollRef = useRef<HTMLDivElement>(null);
-  const showTodayRow = (behavior: ScrollBehavior = 'auto') => {
-    const box = tableScrollRef.current;
-    if (!box) return;
-    const row = box.querySelector('tr.today-row');
-    if (!row) { box.scrollTo({ top: 0, behavior }); return; }
-    const head = box.querySelector('thead')?.getBoundingClientRect().height || 0;
-    const top = row.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - head;
-    box.scrollTo({ top: Math.max(0, top), behavior });
-  };
-  // Cards finish laying out after the jump (and a week can paint before its
-  // tickets arrive), which moves today's row. So for a moment after a jump it
-  // is kept lined up as the table resizes — until the person scrolls, clicks
-  // or types, which always wins.
-  const alignUntilRef = useRef(0);
-  const jumpToToday = (behavior: ScrollBehavior) => {
-    alignUntilRef.current = Date.now() + 2000;
-    showTodayRow(behavior);
-  };
-  const weekKey = weekDates[0] || '';
-  useLayoutEffect(() => { jumpToToday('auto'); }, [weekKey, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    const box = tableScrollRef.current;
-    const table = box?.querySelector('table');
-    if (!box || !table || typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(() => { if (Date.now() < alignUntilRef.current) showTodayRow('auto'); });
-    ro.observe(table);
-    const stop = () => { alignUntilRef.current = 0; };
-    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
-    events.forEach((ev) => box.addEventListener(ev, stop, { passive: true }));
-    return () => {
-      ro.disconnect();
-      events.forEach((ev) => box.removeEventListener(ev, stop));
-    };
-  }, [viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
-  // ── More columns to the side (2026-10-15) ──
-  // Scrollbars are hidden on most machines, so a board wider than the screen
-  // gave no sign that Will Call (or a driver) was off to the right. Each side
-  // that has more gets a fade and an arrow that scrolls one column over.
-  const [moreSide, setMoreSide] = useState({ left: false, right: false });
-  useEffect(() => {
-    const box = tableScrollRef.current;
-    if (!box) return undefined;
-    const update = () => {
-      const left = box.scrollLeft > 2;
-      const right = box.scrollLeft + box.clientWidth < box.scrollWidth - 2;
-      setMoreSide(prev => (prev.left === left && prev.right === right ? prev : { left, right }));
-    };
-    update();
-    box.addEventListener('scroll', update, { passive: true });
-    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
-    ro?.observe(box);
-    const table = box.querySelector('table');
-    if (table) ro?.observe(table);
-    return () => {
-      box.removeEventListener('scroll', update);
-      ro?.disconnect();
-    };
-  }, [viewMode]);
-  const scrollColumns = (dir: number) => {
-    const box = tableScrollRef.current;
-    if (!box) return;
-    const col = box.querySelector('th.truck-col-header')?.getBoundingClientRect().width || MIN_TRUCK_COL_WIDTH;
-    const end = box.scrollWidth - box.clientWidth;
-    let left = box.scrollLeft + dir * col;
-    // Less than half a column left over: go all the way, rather than leave a
-    // sliver of Will Call needing a second click.
-    if (end - left < col / 2) left = end;
-    if (left < col / 2) left = 0;
-    box.scrollTo({ left, behavior: 'smooth' });
-  };
-
-  // Today on phones/iPads (day pills): select today's pill, during render.
-  const [seenTodayRequest, setSeenTodayRequest] = useState(todayRequest);
-  if (todayRequest !== seenTodayRequest) {
-    setSeenTodayRequest(todayRequest);
-    if (weekDates.includes(todayStr)) setSelectedDate(todayStr);
-  }
-  const todayRequestRef = useRef(todayRequest);
-  useEffect(() => {
-    if (todayRequest === todayRequestRef.current) return;
-    todayRequestRef.current = todayRequest;
-    jumpToToday('smooth');
-  }, [todayRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { tableScrollRef, moreSide, scrollColumns } = useBoardScroll({ weekDates, viewMode, todayRequest, todayStr, setSelectedDate });
 
   // Which cell (truck x day) a dragged ticket is currently hovering over, for
   // the drop-target highlight. Table view only — the cards view has no cells.
@@ -258,114 +127,8 @@ const BoardGrid = ({
   // cell for a plain move, this marks one zone on one card.
   const [dropSlot, setDropSlot] = useState<DropSlot | null>(null);
 
-  /**
-   * Which of a card's three drop zones the pointer is in. Top and bottom
-   * thirds insert a new stop before/after; the middle third means "same stop
-   * as this one" — see the note atop stopGrouping.js for why that distinction
-   * exists: several invoices for one customer are routinely delivered as a
-   * single stop, and a plain "insert here" gesture cannot express joining one.
-   */
-  const stopZoneFor = (e: React.DragEvent<HTMLElement>): DropMode => {
-    const box = e.currentTarget.getBoundingClientRect();
-    const y = e.clientY - box.top;
-    const third = box.height / 3;
-    if (y < third) return 'before';
-    if (y > third * 2) return 'after';
-    return 'merge';
-  };
-
-  /**
-   * Drop onto one card in a cell: reorder by stop (see stopGrouping.js),
-   * moving the ticket here first if it came from somewhere else.
-   *
-   * `cellStops` — [{ id, routeNumber }] for the cell, in on-screen order — is
-   * built at the render site and handed in rather than read from the
-   * `deliveries` prop or the cellMap memo here. Reading either inside this
-   * handler is enough on its own to stop React Compiler preserving that
-   * memo's optimization for the whole board; passing plain data in avoids it
-   * and is the more honest source besides — it is exactly the order the
-   * dispatcher is looking at.
-   */
-  const handleDropOnStop = (trk: BoardColumn, dateStr: string, targetId: string, mode: DropMode, cellStops: StopOrder[], e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (trk?.inactive) { setDropSlot(null); setDragOverCellKey(null); return; } // a former driver takes no new orders
-    setDropSlot(null);
-    setDragOverCellKey(null);
-
-    const deliveryId = e.dataTransfer.getData('text/plain');
-    if (!deliveryId || deliveryId === targetId) return;
-
-    const arrivedFromElsewhere = !cellStops.some(s => s.id === deliveryId);
-    const groups = groupStops(cellStops);
-    const nextGroups = applyStopMove(groups, deliveryId, targetId, mode);
-    const nextStops = flattenGroups(nextGroups);
-
-    const saveOrder = () => {
-      if (!arrivedFromElsewhere && sameStopOrder(cellStops, nextStops)) return;
-      return onReorderDeliveries && onReorderDeliveries(nextStops);
-    };
-
-    if (!arrivedFromElsewhere) {
-      saveOrder();
-      return;
-    }
-
-    // Came from another column, another day, or the Pending list: it has to be
-    // assigned here before its position here means anything. Chained rather
-    // than awaited — an async handler closing over these props is enough on
-    // its own to stop React Compiler optimizing the whole board.
-    if (!onMoveDelivery) return;
-    // Type comes off the drag itself (see TicketChip's onDragStart), so this
-    // handler never reads the deliveries/pending props.
-    const dragged = { id: deliveryId, deliveryType: e.dataTransfer.getData('application/x-delivery-type') || 'jobsite' };
-    Promise.resolve(onMoveDelivery(deliveryId, assignmentFor(trk, dragged, dateStr)))
-      .then(saveOrder)
-      // The move reports its own failure; without it landing there is no cell
-      // for this ticket to be ordered within.
-      .catch(() => {});
-  };
-
-  /**
-   * The truck/type/date a ticket needs to sit in this column, shared by the
-   * plain cell drop and the drop-at-a-position one so the two cannot disagree
-   * about what dropping somewhere means.
-   */
-  const assignmentFor = (trk: BoardColumn, delivery: Partial<Ticket>, dateStr: string): Assignment => {
-    let truckId = trk.id;
-    let deliveryType = delivery.deliveryType;
-    // Carried through unchanged by default; only the branches below that
-    // actually change who's collecting a return touch it.
-    let customerDropOff = delivery.customerDropOff;
-    if (trk.isWillCall) {
-      // Nobody of ours moves it any more. A return stays a return — the
-      // customer is bringing the slabs back themselves, which is still material
-      // coming in, and relabelling it a will call here would quietly reverse
-      // the direction of the ticket and drop it off the report's Returns line.
-      truckId = '';
-      if (!isReturn(delivery)) {
-        deliveryType = 'will_call';
-      } else {
-        // Dropping a return here, with no driver, is exactly what it means to
-        // mark it a customer drop-off rather than a still-undecided return —
-        // see isCounterReturn in src/utils/deliveryTypes.js.
-        customerDropOff = true;
-      }
-    } else if (delivery.deliveryType === 'will_call') {
-      // Leaving Will Call must become a real stop on the new column.
-      deliveryType = 'jobsite';
-    } else {
-      // A real driver is now doing the collecting, not the customer — clears
-      // a stale flag so it doesn't resurface as a drop-off if this driver is
-      // ever unassigned again later.
-      customerDropOff = false;
-    }
-    // else: normal column -> normal column, deliveryType unchanged. That
-    // preserves 'transfer', and preserves 'return' too — dragging a return
-    // onto a driver means that driver is going out to collect it, which is
-    // still a return, just one we now do the driving for.
-    return { truckId, deliveryType, customerDropOff, date: dateStr };
-  };
+  const handleDropOnStop = (trk: BoardColumn, dateStr: string, targetId: string, mode: DropMode, cellStops: StopOrder[], e: React.DragEvent) =>
+    dropOnStop({ trk, dateStr, targetId, mode, cellStops, e, clearHighlights: () => { setDropSlot(null); setDragOverCellKey(null); }, onMoveDelivery, onReorderDeliveries });
 
   /**
    * One cell's cards, each wrapped in a slot that accepts a drop on its top,
@@ -373,17 +136,6 @@ const BoardGrid = ({
    * TicketChip is used in the pending list and elsewhere, and ordering is
    * meaningless there.
    */
-  /** What each drop zone means, spelled out — the icon+colour language alone
-   * (a gold line vs a blue ring) reads fine once you know it, but nothing
-   * about a 2px box-shadow teaches a first-time user what dropping there will
-   * do. Shown as a label riding along with the cursor's exact position, not a
-   * legend somewhere else on screen the eye has to leave the drag for. */
-  const DROP_HINTS: Record<DropMode, { icon: typeof ArrowUpToLine; text: string }> = {
-    before: { icon: ArrowUpToLine, text: 'New stop before this one' },
-    after: { icon: ArrowDownToLine, text: 'New stop after this one' },
-    merge: { icon: Link2, text: 'Same stop as this delivery' }
-  };
-
   const renderCellTickets = (trk: BoardColumn, dateStr: string, cellDeliveries: Ticket[], listClassName: string) => {
     const cellKey = `${trk.id}_${dateStr}`;
     // Not in a former driver's column: nothing new can be dropped onto them.
@@ -453,48 +205,9 @@ const BoardGrid = ({
     );
   };
 
-  // Dropped on the cell itself rather than on one of its cards — the empty
-  // strip below the last stop, or an empty cell entirely. Ticket-level drops
-  // (handleDropOnStop above) cover everything else; this only has to decide
-  // what "just put it in this cell somewhere" means.
-  const handleDropOnCell = (trk: BoardColumn, dateStr: string, e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOverCellKey(null);
-    if (!onMoveDelivery || trk.inactive) return; // a former driver takes no new orders
-
-    const deliveryId = e.dataTransfer.getData('text/plain');
-    const delivery = deliveries.find(d => d.id === deliveryId)
-      || pending.find(d => d.id === deliveryId)
-      || cancelled.find(d => d.id === deliveryId);
-    if (!delivery) return;
-
-    const assignment = assignmentFor(trk, delivery, dateStr);
-    const existing = (fullCellMap.get(`${trk.id || ''}_${dateStr}`) || []).filter(d => d.id !== deliveryId);
-
-    // Dropped back on the cell it started in with nothing else to land on —
-    // nothing to change. (A drop onto a specific card is handled by
-    // handleDropOnStop before it ever reaches here.)
-    if (!existing.length && columnIdFor(delivery) === trk.id && delivery.date === dateStr) return;
-
-    if (!existing.length) {
-      onMoveDelivery(delivery.id, assignment);
-      return;
-    }
-
-    // The cell already holds stops — land after the last one rather than
-    // leaving the dropped ticket's routeNumber whatever it happened to arrive
-    // with, which could collide with an existing stop or default it to 1 and
-    // jump the whole queue.
-    const cellStops = existing.map(d => ({ id: d.id, routeNumber: Number(d.routeNumber) || 1 }));
-    const nextStops = flattenGroups([...groupStops(cellStops), [delivery.id]]);
-    const saveOrder = () => onReorderDeliveries && onReorderDeliveries(nextStops);
-
-    if (columnIdFor(delivery) === trk.id && delivery.date === dateStr) {
-      saveOrder();
-      return;
-    }
-    Promise.resolve(onMoveDelivery(delivery.id, assignment)).then(saveOrder).catch(() => {});
-  };
+  // Dropped on the cell itself rather than on one of its cards (boardDrops.ts).
+  const handleDropOnCell = (trk: BoardColumn, dateStr: string, e: React.DragEvent) =>
+    dropOnCell({ trk, dateStr, e, clearCellHighlight: () => setDragOverCellKey(null), deliveries, pending, cancelled, fullCellMap, onMoveDelivery, onReorderDeliveries });
 
   // Filter deliveries by search query. Location scoping now happens server-side
   // against the user's assignedLocations; filtering again here would re-hide
@@ -588,12 +301,6 @@ const BoardGrid = ({
   const getRawCapacity = (truckId: string, dateStr: string) =>
     (cellMap.get(`${truckId || ''}_${dateStr}`) || []).length;
 
-  const getCapacityColorClass = (count: number) => {
-    if (count >= MAX_TRUCK_CAPACITY) return 'capacity-alert-red';
-    if (count >= MAX_TRUCK_CAPACITY - 2) return 'capacity-warn-amber';
-    return 'capacity-ok-green';
-  };
-
   const formatDaySubtext = (dateStr: string) => {
     if (!dateStr) return '';
     const d = new Date(dateStr + 'T00:00:00');
@@ -635,219 +342,42 @@ const BoardGrid = ({
   return (
     <div className="manifest-board-wrapper">
       {viewMode === 'cards' ? (
-        /* ── UX REDESIGN MOBILE LAYOUT ── */
-        <div className="ux-mobile-schedule-container">
-
-          {/* Day Selector Pills Bar */}
-          <div className="ux-day-pills-bar" ref={pillsRef}>
-            {weekDates.map((dateStr) => {
-              const isSelected = selectedDate === dateStr;
-              const isToday = dateStr === todayStr;
-              const dayStopsCount = deliveries.filter(d => d.date === dateStr).length;
-
-              return (
-                <button
-                  key={dateStr}
-                  type="button"
-                  className={`ux-day-pill-card ${isSelected ? 'active' : ''} ${isToday ? 'is-today' : ''}`}
-                  onClick={() => setSelectedDate(dateStr)}
-                >
-                  <span className="ux-pill-day-name">{dayLabel(dateStr).short.toUpperCase()}</span>
-                  <span className="ux-pill-date-num">{dateStr ? dateStr.split('-')[2] : ''}</span>
-                  <span className="ux-pill-stops-count">
-                    {isSelected ? 'Active' : (dayStopsCount > 0 ? `${dayStopsCount} ${dayStopsCount === 1 ? 'stop' : 'stops'}` : '0 stops')}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Day Subtext Summary */}
-          <div className="ux-schedule-subtext">
-            {trucks.length} {trucks.length === 1 ? 'truck' : 'trucks'} · {totalStopsSelectedDay} {totalStopsSelectedDay === 1 ? 'stop' : 'stops'} scheduled
-          </div>
-
-          {/* Driver Sections */}
-          <div className="ux-driver-list">
-            {displayTrucks.map(trk => {
-              const trkDeliveries = getDeliveriesForCell(trk.id, selectedDate);
-              const capCount = getRawCapacity(trk.id, selectedDate);
-
-              return (
-                <div
-                  key={trk.id || 'unassigned'}
-                  className="ux-driver-card"
-                  style={{ borderLeftColor: trk.color || '#D4AF37' }}
-                >
-                  {/* Driver Header */}
-                  <div className="ux-driver-header">
-                    <div className="ux-driver-name-wrap">
-                      <span className="ux-driver-dot" style={{ background: trk.color || '#D4AF37' }} />
-                      <span className="ux-driver-name">{trk.driver || trk.name}</span>
-                      {trk.inactive && <span className="truck-former-tag" title="Deactivated in Users & Roles — shown for the orders they had">Former</span>}
-                    </div>
-
-                    <div className="ux-driver-actions">
-                      {/* Will calls and drop-offs are moved by the customer, so
-                          the daily truck load does not apply — count them,
-                          don't cap them. */}
-                      <span className={`ux-capacity-badge ${capCount > 0 ? 'has-stops' : 'empty'}`}>
-                        {countLabel(trk, capCount)}
-                      </span>
-                      {editable && !trk.inactive && (
-                        <button
-                          type="button"
-                          className="ux-btn-add-stop"
-                          onClick={() => onAddDelivery && onAddDelivery(trk.id, selectedDate)}
-                          title={isCounterColumn(trk)
-                            ? `Add a customer ${columnNoun(trk)}`
-                            : `Add stop for ${trk.driver}`}
-                        >
-                          <Plus size={14} /> Add {columnNoun(trk)}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Driver Delivery Ticket Cards */}
-                  {trkDeliveries.length === 0 ? (
-                    <div className="ux-no-stops-text">
-                      No {columnNoun(trk)}s scheduled
-                    </div>
-                  ) : (
-                    renderCellTickets(trk, selectedDate, trkDeliveries, 'ux-tickets-list')
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <BoardCards
+          weekDates={weekDates}
+          todayStr={todayStr}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          pillsRef={pillsRef}
+          deliveries={deliveries}
+          trucks={trucks}
+          displayTrucks={displayTrucks}
+          totalStopsSelectedDay={totalStopsSelectedDay}
+          editable={editable}
+          onAddDelivery={onAddDelivery}
+          getDeliveriesForCell={getDeliveriesForCell}
+          getRawCapacity={getRawCapacity}
+          renderCellTickets={renderCellTickets}
+        />
       ) : (
-        /* ── DISPATCH TABLE MATRIX ── */
-        <div
-          className={`board-scroll-frame${moreSide.left ? ' more-left' : ''}${moreSide.right ? ' more-right' : ''}`}
-          style={{ '--day-col-width': `${DAY_COL_WIDTH}px` } as React.CSSProperties}
-        >
-        <div className="board-grid-scroll-container" ref={tableScrollRef}>
-          {/* table-layout is fixed, so without a width that grows per driver the
-              columns just divide the same 1100px and every extra driver squeezes
-              the cards further. Give each driver a floor and let the container
-              scroll sideways instead. */}
-          <table
-            className="manifest-dispatch-table"
-            style={{ minWidth: `${Math.max(MIN_TABLE_WIDTH, DAY_COL_WIDTH + displayTrucks.length * MIN_TRUCK_COL_WIDTH)}px` }}
-          >
-            <colgroup>
-              <col style={{ width: `${DAY_COL_WIDTH}px` }} />
-              {displayTrucks.map(trk => <col key={trk.id || 'unassigned'} />)}
-            </colgroup>
-            <thead>
-              <tr>
-                <th className="day-col-header-row">
-                  <div className="th-day-inner"><span>Day</span></div>
-                </th>
-                {displayTrucks.map(trk => (
-                  <th
-                    key={trk.id || 'unassigned'}
-                    className="truck-col-header"
-                    style={{ '--truck-color': trk.color || '#D4AF37' } as React.CSSProperties}
-                  >
-                    <div className="truck-label-wrap">
-                      <div className="truck-color-dot" style={{ background: trk.color || '#D4AF37' }} />
-                      <div className="truck-text-details">
-                        <span className="truck-name">{trk.driver || trk.name}</span>
-                        {trk.inactive && <span className="truck-former-tag" title="Deactivated in Users & Roles — shown for the orders they had">Former</span>}
-                        {trk.name && trk.driver && trk.name !== trk.driver && (
-                          <span className="truck-driver">{trk.name}</span>
-                        )}
-                      </div>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {weekDates.map((dateStr) => {
-                const isToday = dateStr === todayStr;
-
-                return (
-                  <tr key={dateStr} className={`day-grid-row ${isToday ? 'today-row' : ''}`}>
-                    <td className={`day-info-cell ${isToday ? 'today-cell' : ''}`}>
-                      <div className="day-label-wrap">
-                        <span className="day-name">{dayLabel(dateStr).name}</span>
-                        <span className="day-date">{formatDaySubtext(dateStr)}</span>
-                      </div>
-                    </td>
-
-                    {displayTrucks.map(trk => {
-                      const cellDeliveries = getDeliveriesForCell(trk.id, dateStr);
-                      const rawCount = getRawCapacity(trk.id, dateStr);
-                      const capClass = getCapacityColorClass(rawCount);
-
-                      const cellKey = `${trk.id}_${dateStr}`;
-
-                      return (
-                        <td
-                          key={trk.id}
-                          className={`dispatch-cell ${dragOverCellKey === cellKey ? 'drop-target' : ''}`}
-                          onDragOver={(e) => {
-                            if (!onMoveDelivery || trk.inactive) return;
-                            e.preventDefault();
-                            e.dataTransfer.dropEffect = 'move';
-                          }}
-                          onDragEnter={() => onMoveDelivery && !trk.inactive && setDragOverCellKey(cellKey)}
-                          onDragLeave={() => {
-                            if (!onMoveDelivery) return;
-                            setDragOverCellKey(prev => (prev === cellKey ? null : prev));
-                            setDropSlot(prev => (prev && prev.cellKey === cellKey ? null : prev));
-                          }}
-                          onDrop={(e) => handleDropOnCell(trk, dateStr, e)}
-                        >
-                          <div className="cell-header-bar">
-                            <span
-                              className={`cell-capacity-pill ${isCounterColumn(trk) ? 'capacity-ok-green' : capClass}`}
-                              title={isCounterColumn(trk)
-                                ? `${rawCount} customer ${columnNoun(trk)}${rawCount === 1 ? '' : 's'} booked`
-                                : `${rawCount} of ${MAX_TRUCK_CAPACITY} stops booked on this truck`}
-                            >
-                              {countLabel(trk, rawCount)}
-                            </span>
-                            {editable && !trk.inactive && (
-                              <button
-                                type="button"
-                                className="cell-add-btn"
-                                onClick={() => onAddDelivery && onAddDelivery(trk.id, dateStr)}
-                                title={isCounterColumn(trk)
-                                  ? `Add customer ${columnNoun(trk)} — ${dayLabel(dateStr).name}`
-                                  : `Add delivery — ${trk.driver} on ${dayLabel(dateStr).name}`}
-                              >
-                                <Plus size={14} />
-                              </button>
-                            )}
-                          </div>
-
-                          {renderCellTickets(trk, dateStr, cellDeliveries, 'cell-tickets-list')}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-          {moreSide.left && (
-            <button type="button" className="board-more-btn is-left" onClick={() => scrollColumns(-1)} aria-label="Show the columns to the left" title="More columns to the left">
-              <ChevronLeft size={18} />
-            </button>
-          )}
-          {moreSide.right && (
-            <button type="button" className="board-more-btn is-right" onClick={() => scrollColumns(1)} aria-label="Show the columns to the right" title="More columns to the right">
-              <ChevronRight size={18} />
-            </button>
-          )}
-        </div>
+        <BoardTable
+          weekDates={weekDates}
+          todayStr={todayStr}
+          displayTrucks={displayTrucks}
+          tableScrollRef={tableScrollRef}
+          moreSide={moreSide}
+          scrollColumns={scrollColumns}
+          dragOverCellKey={dragOverCellKey}
+          setDragOverCellKey={setDragOverCellKey}
+          setDropSlot={setDropSlot}
+          editable={editable}
+          onAddDelivery={onAddDelivery}
+          onMoveDelivery={onMoveDelivery}
+          handleDropOnCell={handleDropOnCell}
+          getDeliveriesForCell={getDeliveriesForCell}
+          getRawCapacity={getRawCapacity}
+          formatDaySubtext={formatDaySubtext}
+          renderCellTickets={renderCellTickets}
+        />
       )}
     </div>
   );
