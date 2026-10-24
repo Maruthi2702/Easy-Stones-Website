@@ -3,3 +3,6 @@ export { useCustomerActions } from './useCustomerActions';
 export type { CustomerActionsDeps, ContactForm } from './useCustomerActions';
 export { CustomerProfile } from './profile';
 export type { CustomerProfileProps } from './profile';
+export { useOpenCustomer } from './useOpenCustomer';
+export type { OpenCustomerDeps } from './useOpenCustomer';
+export { getCustomerLevelLabel, getPriceLevelLabel } from './customerLevel';

@@ -35,7 +35,7 @@ import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import { useVisitEditor } from '../features/visits';
 import { useResourceEditor } from '../features/resources';
-import { CustomerProfile, useCustomerActions } from '../features/customers';
+import { CustomerProfile, useCustomerActions, useOpenCustomer, getCustomerLevelLabel } from '../features/customers';
 import VisitCustomerCard from '../components/sales/VisitCustomerCard';
 import Toast from '../components/shared/Toast';
 import { CalendarSyncModal, useCalendarSync } from '../features/calendarSync';
@@ -159,7 +159,6 @@ const SalesPage = () => {
     const [searchTerm] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
-    const [selectedCustomerDetail, setSelectedCustomerDetail] = useState(null);
     const [customerOriginTab, setCustomerOriginTab] = useState(null);
     // The shared customer list behind every customer dropdown (src/api/customerOptions.js).
     const { records: allCustomersForSelection, options: sharedCustomerOptions, loading: isDropdownLoading } = useCustomerOptions();
@@ -464,7 +463,6 @@ const SalesPage = () => {
     const [fullScreenGallery, setFullScreenGallery] = useState([]);
     const [fullScreenIndex, setFullScreenIndex] = useState(0);
     const [activeReactionMessageId, setActiveReactionMessageId] = useState(null);
-    const [visitsLoading, setVisitsLoading] = useState(false);
 
     // Sales Dashboard State
 
@@ -644,50 +642,16 @@ const SalesPage = () => {
         fetchCustomers();
     }, [fetchCustomers]);
 
-    // In-memory customer cache for instant rendering
-    const customerCacheRef = React.useRef({});
-
-    // Optimized function to fetch only the selected customer with instant cache hydration
-    const fetchSingleCustomer = async (customerId, skipCache = false) => {
-        if (!customerId) return;
-
-        // 1. Instant Cache Hydration: Serve cached data in 0ms if available
-        setResetPasswordValue('');
-        setAccountActionStatus(null);
-
-        if (!skipCache && customerCacheRef.current[customerId]) {
-            const cachedData = customerCacheRef.current[customerId];
-            setSelectedCustomerDetail(cachedData);
-            setQuickNote(cachedData.quickNote || '');
-            setVisitsLoading(false);
-        } else {
-            setVisitsLoading(true);
-        }
-
-        try {
-            const response = await authFetch(`${API_URL}/api/customers/${customerId}`);
-
-            if (response.ok) {
-                const data = await response.json();
-                customerCacheRef.current[customerId] = data; // Update memory cache
-                setSelectedCustomerDetail(data);
-                setQuickNote(data.quickNote || '');
-                return data;
-            }
-        } catch (error) {
-            console.error('Error fetching customer details:', error);
-        } finally {
-            setVisitsLoading(false);
-        }
-    };
-
-    // Use selectedCustomerDetail for the main view, fallback to list item (which might be partial)
-    // The full profile (visits, resources, contacts, network, details) is Full
-    // profile's; without it every way of opening one — the list, a link, the
-    // dashboard, the route planner — lands on the customer list instead.
-    const selectedCustomer = !canViewCustomerProfile(currentUser)
-        ? null
-        : (selectedCustomerDetail || customers.find(c => c._id === selectedCustomerId) || (selectedCustomerId ? { _id: selectedCustomerId } : null));
+    const {
+        selectedCustomerDetail, setSelectedCustomerDetail, visitsLoading, setVisitsLoading, customerCacheRef, fetchSingleCustomer,
+        selectedCustomer, patchOpenCustomerVisits, removeOpenCustomerVisit
+    } = useOpenCustomer({
+        currentUser, customers, selectedCustomerId,
+        // The quick note and account fields are useCustomerActions' (below);
+        // these run only once a customer loads, after this render.
+        onOpening: () => { setResetPasswordValue(''); setAccountActionStatus(null); },
+        onShown: (record) => setQuickNote(record.quickNote || '')
+    });
 
     // Link a partner: the same customer options, minus this account and the
     // ones already linked, with the type in the line under the name.
@@ -776,11 +740,6 @@ const SalesPage = () => {
         return () => window.removeEventListener('popstate', handlePopState);
     }, [currentUser]);
 
-    useEffect(() => {
-        if (selectedCustomerId) {
-            fetchSingleCustomer(selectedCustomerId);
-        }
-    }, [selectedCustomerId]);
 
     useEffect(() => {
         if (crmTab === 'route_planner') setRoutePlannerOpened(true);
@@ -855,34 +814,6 @@ const SalesPage = () => {
         }
     };
 
-    const getPriceLevelLabel = (level) => {
-        const labels = {
-            1: 'Level 1 (10% Margin)',
-            2: 'Level 2 (20% Margin)',
-            3: 'Level 3 (30% Margin)',
-            4: 'Level 4 (40% Margin)'
-        };
-        return labels[level] || 'Level 1 (10% Margin)';
-    };
-
-    const getCustomerLevelLabel = (customer) => {
-        if (!customer) return 'Level 1 (10% Margin)';
-        if (customer.level) {
-            const match = customer.level.match(/\d+/);
-            if (match) {
-                const val = parseInt(match[0], 10);
-                const labels = {
-                    1: 'Level 1 (10% Margin)',
-                    2: 'Level 2 (20% Margin)',
-                    3: 'Level 3 (30% Margin)',
-                    4: 'Level 4 (40% Margin)'
-                };
-                return labels[val] || customer.level;
-            }
-            return customer.level;
-        }
-        return getPriceLevelLabel(customer.priceLevel);
-    };
 
 
     /**
@@ -909,34 +840,6 @@ const SalesPage = () => {
         }));
     };
 
-    // Show a saved visit on the open customer straight away, rather than only
-    // once the background refresh lands. Kept in the detail cache too, so the
-    // cached copy shown while that refresh runs isn't the pre-save one.
-    const patchOpenCustomerVisits = (customerId, visit) => {
-        if (!visit?._id || customerId !== selectedCustomerId) return;
-        setSelectedCustomerDetail(prev => {
-            if (!prev || prev._id !== customerId) return prev;
-            const visits = prev.visits || [];
-            const exists = visits.some(v => v._id === visit._id);
-            const next = {
-                ...prev,
-                visits: exists ? visits.map(v => (v._id === visit._id ? { ...v, ...visit } : v)) : [...visits, visit]
-            };
-            customerCacheRef.current[customerId] = next;
-            return next;
-        });
-    };
-
-    // The other way: take a visit that was shown ahead of its save back off.
-    const removeOpenCustomerVisit = (customerId, visitId) => {
-        if (!visitId || customerId !== selectedCustomerId) return;
-        setSelectedCustomerDetail(prev => {
-            if (!prev || prev._id !== customerId) return prev;
-            const next = { ...prev, visits: (prev.visits || []).filter(v => v._id !== visitId) };
-            customerCacheRef.current[customerId] = next;
-            return next;
-        });
-    };
     const {
         showVisitModal, editingVisit, isViewingVisit, visitForm, setVisitForm, visitUploading,
         loadingVisitId, handleEditVisit, handleViewVisit, handleCloseVisitModal, handleSaveVisit, handleQuickAddVisit,
