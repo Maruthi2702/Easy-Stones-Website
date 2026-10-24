@@ -8,6 +8,9 @@ import { ALL, emptyReport } from './reportFigures';
 import { useFlushOnPageHide } from './useFlushOnPageHide';
 import type { Report, ShippedEarlierGroup, SlabRange } from './types';
 
+/** What a save refused because the day was locked under it (409) says. */
+const SUBMITTED_NOTICE = 'This day has been submitted. Reopen it to make more changes.';
+
 export type DaySheetOptions = {
   date: string;
   /** The branch on screen, or ALL (nothing to load: the every-branch reading). */
@@ -68,15 +71,18 @@ export function useDaySheet({ date, location, view, canEdit, setError }: DayShee
   // first day's answer arrive last and replace the second's — the header said
   // one day while the figures (and every save, and Submit) were another.
   // A response for a load that's no longer the latest is dropped.
+  // `notice`: the message to show while and after it loads, instead of
+  // clearing it — the reload after a save refused as submitted keeps saying
+  // why the sheet is now locked.
   const loadSeq = useRef(0);
-  const loadDay = useCallback(async () => {
+  const loadDay = useCallback(async (notice: string | null = null) => {
     // "All locations" is a reading of the day, not a sheet to fill in — it
     // fetches every branch itself rather than one report to edit.
     if (!location || location === ALL) return;
     const seq = ++loadSeq.current;
     const current = () => seq === loadSeq.current;
     setLoading(true);
-    setError(null);
+    setError(notice);
     try {
       const tzOffset = -new Date().getTimezoneOffset();
       const res = await authFetch(
@@ -152,9 +158,9 @@ export function useDaySheet({ date, location, view, canEdit, setError }: DayShee
           if (leaving) {
             setError(`Your last change to ${payload.date} wasn't saved — that day had been submitted. Reopen it to change it.`);
           } else {
-            setError('This day has been submitted. Reopen it to make more changes.');
+            setError(SUBMITTED_NOTICE);
             setDirty(false);
-            loadDayRef.current?.();
+            loadDayRef.current?.(SUBMITTED_NOTICE);
           }
           return false;
         }
@@ -230,7 +236,7 @@ export function useDaySheet({ date, location, view, canEdit, setError }: DayShee
     const saved = await save(report as Report);
     if (!saved) {
       // save() already said why; a 409 ("has been submitted") needs nothing added.
-      setError((e) => (e && e.startsWith('This day has been submitted')
+      setError((e) => (e === SUBMITTED_NOTICE
         ? e
         : `Couldn’t save your last changes, so the day wasn’t submitted${e ? ` (${e})` : ''}. Check your connection and try again.`));
       return;

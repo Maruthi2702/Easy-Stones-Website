@@ -159,8 +159,8 @@ describe('Daily Report saves', () => {
     };
     typeSinks('4');
     await waitFor(() => expect(screen.getByText('Submitted by Rita')).toBeTruthy(), { timeout: 2500 });
-    // As today: the reload's own setError(null) clears save()'s "This day has
-    // been submitted" note in the same render, so no alert is left showing.
-    expect(screen.queryByRole('alert')).toBeNull();
+    // The note saying why stays up after the reload (it used to be cleared by
+    // the reload in the same render, leaving a locked sheet with no reason).
+    expect(screen.getByRole('alert').textContent).toContain('This day has been submitted');
   });
 });

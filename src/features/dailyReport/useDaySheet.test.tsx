@@ -229,6 +229,24 @@ describe('useDaySheet', () => {
     await tick();
     expect(h.result.current.report?.status).toBe('submitted');
     expect(h.result.current.dirty).toBe(false);
+    // The reload keeps saying why the sheet is now locked.
+    expect(h.result.current.error).toBe('This day has been submitted. Reopen it to make more changes.');
+  });
+
+  it('Submit whose save is refused as submitted (409) says so, not "check your connection"', async () => {
+    const h = setup(start);
+    await tick();
+    route = (url, method) => {
+      if (method === 'PUT') return Promise.resolve(json({}, 409));
+      if (method === 'GET') return Promise.resolve(json(dayData(D1, 'locked', { status: 'submitted' })));
+      return undefined;
+    };
+    edit(h, '5');
+    await act(async () => { await h.result.current.submitDay(); });
+    await tick();
+    expect(calls.some(c => c.url.includes('/submit'))).toBe(false);
+    expect(h.result.current.report?.status).toBe('submitted');
+    expect(h.result.current.error).toBe('This day has been submitted. Reopen it to make more changes.');
   });
 
   it('saves nothing without edit permission, and loads nothing for All locations', async () => {

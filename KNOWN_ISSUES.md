@@ -62,17 +62,7 @@ Both scripts only preview until run with `--apply`.
 
 ## Daily Report — other
 
-Found while moving the module into `src/features/dailyReport` (2026-10-24); both
-were already on `main`, kept as they were.
-
-- [ ] An autosave refused because someone else submitted the day (409) reloads
-      the day, and the reload's `setError(null)` wipes "This day has been
-      submitted" at once — the sheet shows locked with no reason given.
-      (`save` → `loadDayRef` → `loadDay` in `useDaySheet.ts`.)
-- [ ] The same when the save just before Submit gets the 409: the message reads
-      "Couldn't save your last changes … check your connection" instead of "This
-      day has been submitted" (`submitDay` keeps a message that the reload has
-      already cleared).
+Nothing open.
 
 ## Delivery Schedule — other
 
@@ -182,6 +172,7 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-24 | Daily Report: a save refused because someone else had submitted the day (409) reloaded the sheet locked but wiped "This day has been submitted" at once, and Submit in that case said "check your connection". The reload now keeps the note (`loadDay(notice)` in `useDaySheet.ts`). | on `feat/typescript` |
 | 2026-10-24 | Cleanup: the old Add / Edit delivery form `DeliveryModal.jsx` (unused since `DeliveryForm` went live on 2026-10-05) deleted, on the owner's go-ahead. | on `feat/typescript` |
 | 2026-10-15 | Daily Report transfers: one line per transfer, each with its Transfer # (a ticket line per ticket, no longer one per route), so the same transfer added twice is flagged; the typed Count is gone (the month view, its PDF and the CSV count the lines); headings line up with their boxes; one row per line at any width — on phones Slabs used to run off the edge. | `a1fd574` |
 | 2026-10-15 | Transfers #6: a transfer line added by hand on the Daily Report always counted as Outgoing. Its route now decides (ending at the report's branch is Incoming), with a note when the route skips the branch or repeats a ticket line. | `a75e9b3` |
