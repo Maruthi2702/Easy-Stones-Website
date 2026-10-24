@@ -35,6 +35,7 @@ import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import { useVisitEditor } from '../features/visits';
 import { useResourceEditor } from '../features/resources';
+import { CustomerProfile } from '../features/customers/profile';
 import VisitCustomerCard from '../components/sales/VisitCustomerCard';
 import Toast from '../components/shared/Toast';
 import { CalendarSyncModal, useCalendarSync } from '../features/calendarSync';
@@ -49,14 +50,13 @@ import { DEFAULT_ROWS_PER_PAGE } from '../components/shared/paginationConfig';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput } from '../utils/phoneUtils';
 import { isPdfSource } from '../utils/attachments';
-import { openPdfInline } from '../utils/packingList';
 import LocationFilter from '../components/shared/LocationFilter';
 import RowMenu from '../components/shared/RowMenu';
 import LocationPicker from '../components/shared/form/LocationPicker';
 import CustomerProfileHeader from '../components/sales/customerList/CustomerProfileHeader';
 import CustomerDetailsTab from '../components/sales/customerList/CustomerDetailsTab';
 import CustomerContactsTab from '../components/sales/customerList/CustomerContactsTab';
-import { canModifyVisit, canDeleteVisit } from '../utils/visitAccess';
+import { canDeleteVisit } from '../utils/visitAccess';
 import { clearInventoryCache } from '../api/inventoryAnalysisCache';
 import { toSalesRepList } from '../utils/salesReps';
 import { lazyRetry } from '../utils/lazyRetry';
@@ -766,10 +766,8 @@ const SalesPage = () => {
     }, [customerOptions, selectedCustomer]);
 
     // Filter resources (scoped to selected customer only)
-    const customerResources = selectedCustomer ? (selectedCustomer.resources || []) : [];
 
     // Simplified resources (no search filtering)
-    const customerFilteredResources = customerResources;
 
     const handleActiveTabChange = (tabName) => {
         setActiveTab(tabName);
@@ -1311,113 +1309,6 @@ const SalesPage = () => {
         />
     );
 
-    const renderNetworkTab = () => {
-        if (!selectedCustomer) return null;
-
-        const partners = selectedCustomer.associatedCustomers || [];
-        
-        // Group partners
-        const fabricators = partners.filter(p => p.customerType === 'Fabricator');
-        const otherPartners = partners.filter(p => p.customerType !== 'Fabricator');
-
-        const renderPartnerGrid = (list, title) => {
-            if (list.length === 0) return null;
-            return (
-                <div className="network-category-section">
-                    <h4 className="network-category-title">{title} ({list.length})</h4>
-                    <div className="network-grid">
-                        {list.map(partner => (
-                            <div className="partner-card" key={partner._id}>
-                                <div className="partner-card-header">
-                                    <div className="partner-avatar">
-                                        {partner.company ? partner.company[0].toUpperCase() : partner.contactName[0].toUpperCase()}
-                                    </div>
-                                    <div className="partner-info-meta">
-                                        <h5 className="partner-company" onClick={() => handleSelectCustomer(partner)}>
-                                            {partner.company || 'Private Contractor'}
-                                        </h5>
-                                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '0.2rem' }}>
-                                            <span className={`partner-badge ${partner.status?.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}>
-                                                {partner.status || 'Active'}
-                                            </span>
-                                            <span className="partner-badge type-badge">
-                                                {partner.customerType || 'Fabricator'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="partner-card-body">
-                                    <div className="partner-field">
-                                        <span className="field-label">Contact</span>
-                                        <span className="field-value">{partner.contactName}</span>
-                                    </div>
-                                    {partner.phone && (
-                                        <div className="partner-field">
-                                            <span className="field-label">Phone</span>
-                                            <span className="field-value">{partner.phone}</span>
-                                        </div>
-                                    )}
-                                    <div className="partner-field">
-                                        <span className="field-label">Last Visited</span>
-                                        <span className="field-value highlight">
-                                            {partner.lastVisitDate ? formatDate(partner.lastVisitDate, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never'}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="partner-card-actions">
-                                    <button 
-                                        className="partner-action-btn view-btn"
-                                        onClick={() => handleSelectCustomer(partner)}
-                                    >
-                                        View Profile
-                                    </button>
-                                    <button 
-                                        className="partner-action-btn unlink-btn"
-                                        onClick={() => handleUnlinkPartner(partner._id, partner.company || partner.contactName)}
-                                    >
-                                        Unlink
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        };
-
-        return (
-            <div className="network-tab-container">
-                <div className="tab-header">
-                    <div className="tab-header-left">
-                        <h3>Partner Network</h3>
-                        <p className="network-subtitle">Track and link fabricators, designers, and builders associated with this customer.</p>
-                    </div>
-                    <button className="add-btn" onClick={() => setShowLinkPartnerModal(true)}>
-                        <Plus size={18} /> Link Partner
-                    </button>
-                </div>
-
-                {partners.length === 0 ? (
-                    <div className="network-empty-state">
-                        <div className="empty-icon-container">
-                            <Users size={32} className="empty-icon" />
-                        </div>
-                        <h4>No associated partners linked yet</h4>
-                        <p>Link this customer to fabricators, designers, or builders they work with to see mutual activity and share details.</p>
-                        <button className="link-action-btn" onClick={() => setShowLinkPartnerModal(true)}>
-                            <Plus size={16} /> Link Your First Partner
-                        </button>
-                    </div>
-                ) : (
-                    <div className="network-sections">
-                        {renderPartnerGrid(fabricators, "Associated Fabricators")}
-                        {renderPartnerGrid(otherPartners, "Associated Designers & Builders")}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
     const renderPriceListView = () => {
         const sidebarToggle = (!isSidebarOpen || isMobile) ? (
             <SidebarToggleButton isOpen={isSidebarOpen} onClick={() => setIsSidebarOpen(true)} />
@@ -1731,270 +1622,56 @@ const SalesPage = () => {
                 {!authLoading && currentUser?.permissions && crmTab === 'customers' && currentUser.permissions.includes('view_customers') && (
                     <>
                     {selectedCustomer && (
-                        <ErrorBoundary key={selectedCustomerId}>
-                        <>
-                            {/* Customer header: who they are, status, actions, summary, tabs. Hidden in full-screen chat. */}
-                            {!isChatFullScreen && (
-                                <div className="cl-ph-wrap">
-                                    <CustomerProfileHeader
-                                        customer={selectedCustomer}
-                                        loading={visitsLoading}
-                                        activeTab={activeTab}
-                                        onTab={handleActiveTabChange}
-                                        onBack={handleBackToCustomersList}
-                                        onGoHome={handleGoHome}
-                                        canEdit={!!currentUser?.permissions?.includes('manage_customers')}
-                                        onStatusChanged={(status) => {
-                                            setSelectedCustomerDetail(prev => (prev ? { ...prev, status } : prev));
-                                            const cached = customerCacheRef.current[selectedCustomerId];
-                                            if (cached) customerCacheRef.current[selectedCustomerId] = { ...cached, status };
-                                        }}
-                                    />
-                                </div>
-                            )}
-
-                            <div className="tab-content">
-                                {activeTab === 'details' && (
-                                    // tab-section: on a phone/iPad the tab area only scrolls
-                                    // inside one (SalesPage.css), so without it the bottom
-                                    // of the tab — the admin card — was cut off.
-                                    <div className="tab-section details-tab">
-                                    <CustomerDetailsTab
-                                        customer={selectedCustomer}
-                                        detail={selectedCustomerDetail}
-                                        levelLabel={getCustomerLevelLabel(selectedCustomer)}
-                                        quickNote={quickNote}
-                                        onQuickNoteChange={setQuickNote}
-                                        onSaveQuickNote={handleSaveQuickNote}
-                                        savingNote={isSavingNote}
-                                        noteSaved={Boolean(selectedCustomerDetail?.quickNote) && quickNote === selectedCustomerDetail.quickNote}
-                                        canManageAccount={!!currentUser?.permissions?.includes('manage_customer_accounts')}
-                                        accountStatus={accountActionStatus}
-                                        onToggleActive={() => handleToggleCustomerStatus(selectedCustomerDetail?._id, selectedCustomerDetail?.isActive ?? true)}
-                                        resetPassword={resetPasswordValue}
-                                        onResetPasswordChange={setResetPasswordValue}
-                                        onResetPassword={() => handleResetCustomerPassword(selectedCustomerDetail?._id)}
-                                    />
-                                    </div>
-                                )}
-
-                                {activeTab === 'contacts' && (
-                                    <div className="tab-section contacts-tab">
-                                        <CustomerContactsTab
-                                            customer={selectedCustomer}
-                                            onAdd={handleAddContact}
-                                            onEdit={handleEditContact}
-                                            onDelete={handleDeleteContact}
-                                        />
-                                    </div>
-                                )}
-
-                                {activeTab === 'visits' && (
-                                    <div className="tab-section visits-tab">
-                                        {/* Top "New Post" Input Area */}
-                                        {/* Add Visit Button Area */}
-                                        <div className="add-visit-container">
-                                            <button className="icon-action-btn secondary" onClick={handleAddContact} title="Add Contact">
-                                                <UserPlus size={18} />
-                                                <span className="btn-label">Add Contact</span>
-                                            </button>
-                                            {canAddVisits && (
-                                                <>
-                                                    <button className="icon-action-btn secondary" onClick={handleAddResource} title="Add Resource">
-                                                        <FolderPlus size={18} />
-                                                        <span className="btn-label">Add Resource</span>
-                                                    </button>
-                                                    <button className="add-visit-btn" onClick={handleQuickAddVisit}>
-                                                        <Plus size={18} />
-                                                        Add Visit
-                                                    </button>
-                                                </>
-                                            )}
-                                        </div>
-
-                                        <div className="chat-container channel-feed">
-                                            <div className="chat-messages feed-list">
-                                                {visitsLoading || (!selectedCustomerDetail?.visits && !customerCacheRef.current[selectedCustomerId]) ? (
-                                                    <div className="loading-spinner-container" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '220px', padding: '3rem 2rem', gap: '12px' }}>
-                                                        <Loader className="spin-animation" size={32} color="#D4AF37" />
-                                                        <span style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 500 }}>Loading customer history...</span>
-                                                    </div>
-                                                ) : (
-                                                    selectedCustomer.visits?.length > 0 ? (
-                                                        [...selectedCustomer.visits].reverse().map(visit => (
-                                                            <VisitPostCard
-                                                                key={visit._id}
-                                                                visit={visit}
-                                                                currentUser={currentUser}
-                                                                currentUserId={currentUserId}
-                                                                formatDate={formatDate}
-                                                                handleReaction={handleReaction}
-                                                                activeReactionMessageId={activeReactionMessageId}
-                                                                setActiveReactionMessageId={setActiveReactionMessageId}
-                                                                handleEditVisit={handleEditVisit}
-                                                                handleDeleteVisit={handleDeleteVisit}
-                                                                handleOpenGallery={handleOpenGallery}
-                                                                canModify={canModifyVisit({ ...currentUser, id: currentUserId }, visit, selectedCustomer?.location)}
-                                                                canDelete={canDeleteVisit({ ...currentUser, id: currentUserId }, visit, selectedCustomer?.location)}
-                                                            />
-                                                        ))
-                                                    ) : (
-                                                        <div className="empty-list-message">
-                                                            No posts yet. Be the first to post!
-                                                        </div>
-                                                    )
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {activeTab === 'resources' && (
-                                    <div className="tab-section resources-tab">
-                                        {/* Filters Section */}
-
-
-                                        {/* Header with Title and Add Button */}
-                                        <div className="tab-header">
-                                            <h3>Client Resource</h3>
-                                            {canAddVisits && (
-                                                <button className="add-resource-btn" onClick={handleAddResource}>
-                                                    <Plus size={18} /> Add Resource
-                                                </button>
-                                            )}
-                                        </div>
-
-
-
-                                        {/* Resources Table */}
-                                        <div className="resources-table-wrapper">
-                                            <table className="resources-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th style={{ width: '50px' }}>#</th>
-                                                        <th>Date</th>
-                                                        <th>Client</th>
-                                                        <th>Location</th>
-                                                        <th>Type</th>
-                                                        <th style={{ width: '120px' }}>Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {customerFilteredResources && customerFilteredResources.length > 0 ? (
-                                                        customerFilteredResources.map((resource, index) => (
-                                                            <React.Fragment key={resource._id || index}>
-                                                                <tr
-                                                                    className={expandedResourceId === resource._id ? 'expanded' : ''}
-                                                                    onClick={() => setExpandedResourceId(expandedResourceId === resource._id ? null : resource._id)}
-                                                                >
-                                                                    <td data-label="#">{index + 1}</td>
-                                                                    <td data-label="Date">{formatDate(resource.date, { month: '2-digit', day: '2-digit', year: 'numeric' })}</td>
-                                                                    <td data-label="Client">
-                                                                        {(() => {
-                                                                            const customerObj = customers.find(c => c._id === resource.customerId);
-                                                                            return customerObj ? (customerObj.company || customerObj.contactName) : (resource.customer || '-');
-                                                                        })()}
-                                                                    </td>
-                                                                    <td data-label="Location">{resource.location || '-'}</td>
-                                                                    <td data-label="Type">{resource.resourceType || '-'}</td>
-                                                                    <td data-label="Actions">
-                                                                        <div className="action-buttons" onClick={(e) => e.stopPropagation()}>
-                                                                            <button className="icon-btn view" onClick={(e) => { e.stopPropagation(); handleViewResource(resource); }} title="View" disabled={loadingResourceId === resource._id}>
-                                                                                {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
-                                                                            </button>
-                                                                            {canModifyVisit({ ...currentUser, id: currentUserId }, { createdBy: resource.uploadedBy || resource.createdBy }, selectedCustomer?.location) && (
-                                                                                <button className="icon-btn edit" onClick={(e) => { e.stopPropagation(); handleEditResource(resource); }} title="Edit">
-                                                                                    <Edit2 size={16} />
-                                                                                </button>
-                                                                            )}
-                                                                            {canDeleteVisit({ ...currentUser, id: currentUserId }, { createdBy: resource.uploadedBy || resource.createdBy }, selectedCustomer?.location) && (
-                                                                                <button className="icon-btn delete" onClick={(e) => { e.stopPropagation(); handleDeleteResource(resource._id, resource.customerId); }} title="Delete">
-                                                                                    <Trash2 size={16} />
-                                                                                </button>
-                                                                            )}
-                                                                            {resource.url && (
-                                                                                <a href={resource.url} target="_blank" rel="noopener noreferrer" className="icon-btn link" onClick={(e) => e.stopPropagation()} title="Open Link">
-                                                                                    🔗
-                                                                                </a>
-                                                                            )}
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                                {expandedResourceId === resource._id && (
-                                                                    <tr className="resource-details-row">
-                                                                        <td colSpan="6">
-                                                                            <div className="resource-details">
-                                                                                <div className="detail-item">
-                                                                                    <strong>Attachments</strong>
-                                                                                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                                                                        {(Array.isArray(resource.image) ? resource.image : (resource.image ? [resource.image] : [])).length > 0 ? (
-                                                                                            (Array.isArray(resource.image) ? resource.image : [resource.image]).map((img, idx) => (
-                                                                                                isPdfSource(img) ? (
-                                                                                                    <div key={idx} style={{ textAlign: 'center', cursor: 'pointer' }} onClick={() => openPdfInline(img)}>
-                                                                                                        <FileText size={40} color="#E5C04A" />
-                                                                                                        <div style={{ fontSize: '10px' }}>PDF</div>
-                                                                                                    </div>
-                                                                                                ) : (
-                                                                                                    <img
-                                                                                                        key={idx}
-                                                                                                        src={img}
-                                                                                                        alt="Resource"
-                                                                                                        style={{ maxWidth: '100px', maxHeight: '100px', objectFit: 'cover', cursor: 'pointer', borderRadius: '4px', border: '1px solid #ddd' }}
-                                                                                                        onClick={() => {
-                                                                                                            const attachments = Array.isArray(resource.image) ? resource.image : [resource.image];
-                                                                                                            handleOpenGallery(attachments, idx);
-                                                                                                        }}
-                                                                                                        loading="lazy"
-                                                                                                    />
-                                                                                                )
-                                                                                            ))
-                                                                                        ) : (
-                                                                                            <span className="placeholder-img">No attachments</span>
-                                                                                        )}
-                                                                                    </div>
-                                                                                </div>
-                                                                                <div className="detail-item">
-                                                                                    <strong>Description</strong>
-                                                                                    <p>{resource.description || '-'}</p>
-                                                                                </div>
-                                                                                <div className="detail-item">
-                                                                                    <strong>Notes</strong>
-                                                                                    <p>{resource.notes || '-'}</p>
-                                                                                </div>
-                                                                                <div className="detail-item">
-                                                                                    <strong>Status</strong>
-                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                                                                                        <span className={`status-badge ${resource.status?.toLowerCase()}`}>
-                                                                                            {resource.status || 'Active'}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        </td>
-                                                                    </tr>
-                                                                )}
-                                                            </React.Fragment>
-                                                        ))
-                                                    ) : (
-                                                        <tr>
-                                                            <td colSpan="6" className="empty-row">No resources found</td>
-                                                        </tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
-                                        </div>
-
-
-                                    </div>
-                                )}
-                                {activeTab === 'network' && (
-                                    <div className="tab-section network-tab">
-                                        {renderNetworkTab()}
-                                    </div>
-                                )}
-                            </div>
-                        </>
-                        </ErrorBoundary>
+                        <CustomerProfile
+                            customerId={selectedCustomerId}
+                            customer={selectedCustomer}
+                            detail={selectedCustomerDetail}
+                            activeTab={activeTab}
+                            onTab={handleActiveTabChange}
+                            onBack={handleBackToCustomersList}
+                            onGoHome={handleGoHome}
+                            onStatusChanged={(status) => {
+                                setSelectedCustomerDetail(prev => (prev ? { ...prev, status } : prev));
+                                const cached = customerCacheRef.current[selectedCustomerId];
+                                if (cached) customerCacheRef.current[selectedCustomerId] = { ...cached, status };
+                            }}
+                            currentUser={currentUser}
+                            currentUserId={currentUserId}
+                            visitsLoading={visitsLoading}
+                            historyLoading={visitsLoading || (!selectedCustomerDetail?.visits && !customerCacheRef.current[selectedCustomerId])}
+                            levelLabel={getCustomerLevelLabel(selectedCustomer)}
+                            canAddVisits={canAddVisits}
+                            customers={customers}
+                            loadingResourceId={loadingResourceId}
+                            quickNote={quickNote}
+                            onQuickNoteChange={setQuickNote}
+                            onSaveQuickNote={handleSaveQuickNote}
+                            savingNote={isSavingNote}
+                            accountStatus={accountActionStatus}
+                            onToggleActive={() => handleToggleCustomerStatus(selectedCustomerDetail?._id, selectedCustomerDetail?.isActive ?? true)}
+                            resetPassword={resetPasswordValue}
+                            onResetPasswordChange={setResetPasswordValue}
+                            onResetPassword={() => handleResetCustomerPassword(selectedCustomerDetail?._id)}
+                            onAddContact={handleAddContact}
+                            onEditContact={handleEditContact}
+                            onDeleteContact={handleDeleteContact}
+                            onAddVisit={handleQuickAddVisit}
+                            onAddResource={handleAddResource}
+                            onReaction={handleReaction}
+                            onEditVisit={handleEditVisit}
+                            onDeleteVisit={handleDeleteVisit}
+                            onViewResource={handleViewResource}
+                            onEditResource={handleEditResource}
+                            onDeleteResource={handleDeleteResource}
+                            onOpenGallery={handleOpenGallery}
+                            onOpenCustomer={handleSelectCustomer}
+                        expandedResourceId={expandedResourceId}
+                        setExpandedResourceId={setExpandedResourceId}
+                        activeReactionMessageId={activeReactionMessageId}
+                        setActiveReactionMessageId={setActiveReactionMessageId}
+                            onUnlinkPartner={handleUnlinkPartner}
+                            onLinkPartner={() => setShowLinkPartnerModal(true)}
+                        />
                     )}
                     {/* Kept mounted at all times (hidden via CSS, not
                         conditionally rendered) whenever a customer is open.
