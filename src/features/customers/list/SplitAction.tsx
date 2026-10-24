@@ -1,18 +1,29 @@
 import React, { useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { ChevronUp, ChevronDown, Users } from 'lucide-react';
 import { formatPhoneForDisplay } from '../../../utils/phoneUtils';
 import { useDismiss, anchoredMenuStyle } from './uiHelpers';
+import type { Person } from './uiHelpers';
 
 /**
  * Call / Email as a split button: the main part goes to the primary contact
  * (named, so it's clear who), the chevron lists every contact — and, for email,
  * "Email all contacts".
  */
-const SplitAction = ({ icon, verb, people, field, hrefOf }) => {
+export type SplitActionProps = {
+  icon: LucideIcon;
+  verb: string;
+  people: Person[];
+  field: 'phone' | 'email';
+  hrefOf: (value: string) => string;
+};
+
+const SplitAction = ({ icon, verb, people, field, hrefOf }: SplitActionProps) => {
   const Icon = icon;
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState(undefined);
-  const ref = useRef(null);
+  const [pos, setPos] = useState<CSSProperties | undefined>(undefined);
+  const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, setOpen, ref, { closeOnScroll: true });
   const reachable = people.filter(p => p[field]);
   if (!reachable.length) return null;

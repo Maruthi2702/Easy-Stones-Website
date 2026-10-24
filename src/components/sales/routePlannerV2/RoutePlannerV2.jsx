@@ -23,7 +23,7 @@ import MoreMenu from './MoreMenu';
 import AddCustomerModal from '../AddCustomerModal';
 import { toCustomerOptions } from '../../../utils/customerOptions';
 import { canEditCustomers, canDeleteCustomers, canViewCustomerProfile } from '../../../utils/customerAccess';
-import CustomerDrawer from '../customerList/CustomerDrawer';
+import CustomerDrawer from '../../../features/customers/list/CustomerDrawer';
 import MapActions from './MapActions';
 import ScheduleVisitSheet from './ScheduleVisitSheet';
 import './RoutePlannerV2.css';
@@ -189,7 +189,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
 
     // Edit/delete for an existing customer from the detail panel — reusing
     // AddCustomerModal and the /api/customers/:id routes exactly as
-    // PartnersSheet.jsx does, rather than building a second edit form. Edit
+    // features/customers/list/PartnersSheet.tsx does, rather than building a second edit form. Edit
     // (PUT) checks manage_customers; delete (DELETE) needs delete_customers —
     // the same canEditCustomers / canDeleteCustomers rules as the Customers
     // page, gating the two icons separately in MapCanvas.
@@ -396,7 +396,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     useEffect(() => { loadScheduleMonth(new Date()); }, [loadScheduleMonth]);
 
     // The rep/branch pickers AddCustomerModal needs for its edit form — same
-    // two endpoints and shapes PartnersSheet.jsx already fetches this from.
+    // two endpoints and shapes features/customers/list/PartnersSheet.tsx already fetches this from.
     useEffect(() => {
         (async () => {
             try {
@@ -1333,7 +1333,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         }
     };
 
-    /** AddCustomerModal's onSave(form, closeModal) — mirrors handleSavePartner in PartnersSheet.jsx exactly. */
+    /** AddCustomerModal's onSave(form, closeModal) — mirrors handleSavePartner in features/customers/list/PartnersSheet.tsx exactly. */
     const saveCustomerEdit = async (formData, closeModal) => {
         if (!editingCustomer) return;
         setSavingCustomerEdit(true);
@@ -1702,7 +1702,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 />
             )}
 
-            {/* Same modal PartnersSheet.jsx uses for editing a customer —
+            {/* Same modal features/customers/list/PartnersSheet.tsx uses for editing a customer —
                 editingCustomer puts it in edit mode; passing it here rather
                 than building a second edit form for the map's detail panel. */}
             <AddCustomerModal

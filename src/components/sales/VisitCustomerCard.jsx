@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { splitCustomer } from './visitsListHelpers';
-import CustomerDrawer from './customerList/CustomerDrawer';
-import './customerList/CustomerList.css';
+import CustomerDrawer from '../../features/customers/list/CustomerDrawer';
+import '../../features/customers/list/CustomerList.css';
 
 /**
  * A visit's customer, as the basic card (the Customers list's side drawer) —

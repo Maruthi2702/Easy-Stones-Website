@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import { AlertCircle } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
-import { FormSection, FormField } from '../../shared/form/FormControls';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormSection, FormField } from '../../../components/shared/form/FormControls';
 import {
     deleteTitle, namesToShow, needsTypedCount, typedCountMatches
 } from '../../../utils/customerBulkDelete';
+import type { Loose } from '../../../types/records';
+
+export type BulkDeleteDialogProps = {
+    rows?: Loose[];
+    saving?: boolean;
+    error?: string;
+    onConfirm: () => void;
+    onClose: () => void;
+};
 
 /**
  * The bulk bar's Delete confirmation, on the form template: how many and
@@ -13,7 +22,7 @@ import {
  * Every deleted customer is saved first and the bar offers Undo afterwards
  * (src/utils/customerBulkDelete.js, src/routes/customerBulkDelete.js).
  */
-export default function BulkDeleteDialog({ rows = [], saving = false, error = '', onConfirm, onClose }) {
+export default function BulkDeleteDialog({ rows = [], saving = false, error = '', onConfirm, onClose }: BulkDeleteDialogProps) {
     const count = rows.length;
     const [typed, setTyped] = useState('');
     const askCount = needsTypedCount(count);

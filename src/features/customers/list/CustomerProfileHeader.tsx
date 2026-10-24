@@ -6,13 +6,14 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { STATUSES, companyOf, cityLineOf, cityOf, streetOf } from '../../../utils/customerList';
 import { StatusDot, LocationTag, RepBadge, TypeTag, LevelTag } from './parts';
+import type { Loose } from '../../../types/records';
 import './CustomerList.css';
 
 const TABS = [
-  { key: 'visits', label: 'Visits', icon: Clock, count: (c) => (c.visits || []).length },
-  { key: 'resources', label: 'Resources', icon: Folder, count: (c) => (c.resources || []).length },
-  { key: 'contacts', label: 'Contacts', icon: Users, count: (c) => (c.contacts || []).length },
-  { key: 'network', label: 'Network', icon: Share2, count: (c) => (c.associatedCustomers || []).length },
+  { key: 'visits', label: 'Visits', icon: Clock, count: (c: Loose) => (c.visits || []).length },
+  { key: 'resources', label: 'Resources', icon: Folder, count: (c: Loose) => (c.resources || []).length },
+  { key: 'contacts', label: 'Contacts', icon: Users, count: (c: Loose) => (c.contacts || []).length },
+  { key: 'network', label: 'Network', icon: Share2, count: (c: Loose) => (c.associatedCustomers || []).length },
   // Stats, pricing & Moda, marketing, the quick note and admin account
   // (CustomerDetailsTab) — what used to crowd the header (2026-10-07).
   { key: 'details', label: 'Details', icon: Info, count: () => 0 }
@@ -25,16 +26,27 @@ const TABS = [
  * adding a visit, resource or contact is in the tab it belongs to. The tab
  * contents are SalesPage's own.
  */
+export type CustomerProfileHeaderProps = {
+  customer: Loose | null;
+  activeTab: string;
+  onTab: (tab: string) => void;
+  onBack: () => void;
+  onGoHome?: () => void;
+  canEdit: boolean;
+  onStatusChanged?: (status: string) => void;
+  loading?: boolean;
+};
+
 const CustomerProfileHeader = ({
   customer, activeTab, onTab, onBack, onGoHome, canEdit, onStatusChanged, loading
-}) => {
+}: CustomerProfileHeaderProps) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const c = useMemo(() => customer || {}, [customer]);
+  const c: Loose = useMemo(() => customer || {}, [customer]);
   const address = [streetOf(c), cityLineOf(c)].filter(Boolean).join(', ');
   const cityState = [cityOf(c), c.address?.state].filter(Boolean).join(', ');
 
-  const changeStatus = async (next) => {
+  const changeStatus = async (next: string) => {
     if (!next || next === c.status || !c._id) return;
     setSaving(true);
     setError('');

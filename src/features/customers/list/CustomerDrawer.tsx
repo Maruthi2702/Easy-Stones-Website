@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import {
   X, ChevronUp, ChevronDown, ExternalLink, Pencil, MoreHorizontal,
   Users, Wrench, Presentation, Clock, NotebookPen, Check, Trash2, Copy, BookUser
@@ -11,11 +12,13 @@ import {
 } from '../../../utils/customerList';
 import { StatusDot, LocationTag, RepBadge, TypeTag, LevelTag, CopyButton } from './parts';
 import { useDismiss, copyText, peopleOf, telHref, directionsHref, anchoredMenuStyle } from './uiHelpers';
-import '../../shared/form/FormModal.css';
+import type { Person } from './uiHelpers';
+import type { Loose } from '../../../types/records';
+import '../../../components/shared/form/FormModal.css';
 
-const fmtDate = (d) => {
+const fmtDate = (d: unknown) => {
   if (!d) return '';
-  const date = new Date(String(d).length === 10 ? `${d}T12:00:00` : d);
+  const date = new Date(String(d).length === 10 ? `${d}T12:00:00` : d as string);
   return Number.isNaN(date.getTime()) ? String(d) : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
@@ -27,7 +30,7 @@ const todayStr = () => new Date().toLocaleDateString('en-CA');
  * contact card with Create New Contact; Android and laptops download it.
  * A plain link, not a fetch — the phone has to open the file itself.
  */
-const SaveContact = ({ customerId, person }) => {
+const SaveContact = ({ customerId, person }: { customerId?: string; person: Person }) => {
   if (!customerId || !(person.name || person.phone || person.email)) return null;
   const who = person.name || person.email || 'this contact';
   return (
@@ -43,7 +46,7 @@ const SaveContact = ({ customerId, person }) => {
   );
 };
 
-const CopyCard = ({ person }) => {
+const CopyCard = ({ person }: { person: Person }) => {
   const [done, setDone] = useState(false);
   useEffect(() => {
     if (!done) return undefined;
@@ -65,6 +68,25 @@ const CopyCard = ({ person }) => {
   );
 };
 
+export type CustomerDrawerProps = {
+  customer: Loose | null;
+  /** Where this customer sits in the list ("n of N"); null for one opened on its own. */
+  position?: { index: number; total: number } | null;
+  onPrev?: (() => void) | null;
+  onNext?: (() => void) | null;
+  onClose: () => void;
+  onOpenProfile: (customer: Loose) => void;
+  onEdit: (customer: Loose) => void;
+  onDelete: (id: string) => unknown;
+  onStatusChange: (id: string, status: string) => Promise<boolean>;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  overlay?: boolean;
+  canProfile?: boolean;
+  mapSection?: ReactNode;
+  className?: string;
+};
+
 const CustomerDrawer = ({
   customer, position, onPrev, onNext, onClose, onOpenProfile, onEdit, onDelete,
   onStatusChange, canEdit, canDelete, overlay,
@@ -76,16 +98,16 @@ const CustomerDrawer = ({
   // screen's own sizing. Both optional — the Customers tab passes neither.
   mapSection = null,
   className = ''
-}) => {
-  const [detail, setDetail] = useState(null);
+}: CustomerDrawerProps) => {
+  const [detail, setDetail] = useState<Loose | null>(null);
   const [loadError, setLoadError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusError, setStatusError] = useState('');
-  const menuRef = useRef(null);
-  const closeRef = useRef(null);
-  const menuBtnRef = useRef(null);
-  const [menuPos, setMenuPos] = useState(undefined);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const menuBtnRef = useRef<HTMLButtonElement>(null);
+  const [menuPos, setMenuPos] = useState<CSSProperties | undefined>(undefined);
   useDismiss(menuOpen, setMenuOpen, menuRef, { closeOnScroll: true });
 
   // Keyboard: the menu opens with its first item focused, ↑/↓ (and Home/End)
@@ -93,19 +115,19 @@ const CustomerDrawer = ({
   // menu stop here: the customer list (PartnersSheet) listens on the document
   // for ↑/↓/Enter to move between customers, which would swap the panel.
   useEffect(() => {
-    if (menuOpen) menuRef.current?.querySelector('[role="menuitem"]')?.focus({ preventScroll: true });
+    if (menuOpen) menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus({ preventScroll: true });
   }, [menuOpen]);
-  const onMenuKey = (e) => {
+  const onMenuKey = (e: KeyboardEvent) => {
     e.stopPropagation();
-    const items = [...(menuRef.current?.querySelectorAll('[role="menuitem"]') || [])];
+    const items = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') || [])];
     if (!items.length) return;
-    const at = items.indexOf(document.activeElement);
-    const go = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: items.length - 1 }[e.key];
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const go = ({ ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: items.length - 1 } as Record<string, number>)[e.key];
     if (go === undefined) return;
     e.preventDefault();
     items[(go + items.length) % items.length].focus();
   };
-  const runMenu = (fn) => { setMenuOpen(false); fn(); };
+  const runMenu = (fn: () => void) => { setMenuOpen(false); fn(); };
 
   const id = customer?._id;
   useEffect(() => {
@@ -130,7 +152,7 @@ const CustomerDrawer = ({
   useEffect(() => { closeRef.current?.focus({ preventScroll: true }); }, [id]);
 
   // The list row is the fast first paint; the full record fills in behind it.
-  const c = useMemo(() => ({ ...customer, ...(detail || {}) }), [customer, detail]);
+  const c: Loose = useMemo(() => ({ ...customer, ...(detail || {}) }), [customer, detail]);
   const people = useMemo(() => peopleOf(c, detail), [c, detail]);
   // For the Contacts list, extra addresses packed into the email field belong
   // on the primary contact's card, not as nameless contacts of their own.
@@ -141,7 +163,7 @@ const CustomerDrawer = ({
       .map(p => (p.role === 'Primary' ? { ...p, moreEmails: extra } : p));
   }, [people]);
 
-  const visits = useMemo(() => [...(detail?.visits || [])]
+  const visits: Loose[] = useMemo(() => [...(detail?.visits || [])]
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))), [detail]);
   const nextFollowUp = useMemo(() => {
     const today = todayStr();
@@ -157,11 +179,11 @@ const CustomerDrawer = ({
   const cityLine = cityLineOf(c);
   const note = (c.quickNote || c.notes || '').trim();
 
-  const changeStatus = async (next) => {
+  const changeStatus = async (next: string) => {
     if (!next || next === c.status) return;
     setStatusSaving(true);
     setStatusError('');
-    const ok = await onStatusChange(customer._id, next);
+    const ok = await onStatusChange(customer!._id, next);
     setStatusSaving(false);
     if (ok) setDetail(d => (d ? { ...d, status: next } : d));
     else setStatusError('Could not change the status. Try again.');
@@ -210,13 +232,13 @@ const CustomerDrawer = ({
               list to move through (a customer opened on its own has none). */}
           {(position || onPrev || onNext) ? (
           <div className="cl-pager" role="group" aria-label="Move between customers">
-            <button type="button" className="cl-pager-btn" aria-label="Previous customer" title="Previous customer (↑)" disabled={!onPrev} onClick={onPrev}><ChevronUp size={18} /></button>
+            <button type="button" className="cl-pager-btn" aria-label="Previous customer" title="Previous customer (↑)" disabled={!onPrev} onClick={onPrev as (() => void) | undefined}><ChevronUp size={18} /></button>
             {position && (
               <span className="cl-pager-pos" aria-live="polite">
                 {(position.index + 1).toLocaleString()}{' '}<span className="of">of {position.total.toLocaleString()}</span>
               </span>
             )}
-            <button type="button" className="cl-pager-btn" aria-label="Next customer" title="Next customer (↓)" disabled={!onNext} onClick={onNext}><ChevronDown size={18} /></button>
+            <button type="button" className="cl-pager-btn" aria-label="Next customer" title="Next customer (↓)" disabled={!onNext} onClick={onNext as (() => void) | undefined}><ChevronDown size={18} /></button>
           </div>
           ) : <span />}
           {/* The form template's close button (shared/form/FormModal.css .fm-close). */}

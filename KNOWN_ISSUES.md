@@ -138,7 +138,7 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
       Need a decision. Branch is still "SPS wins" and a blank SPS rep keeps
       ours (the artifact's defaults 1 and 2, never answered by the owner).
 - [ ] **The old "Import from Excel" menu item is hidden** (owner, 2026-10-17;
-      `SHOW_EXCEL_IMPORT` in `PartnersSheet.jsx`). Its window also held the
+      `SHOW_EXCEL_IMPORT` in `src/features/customers/list/PartnersSheet.tsx`). Its window also held the
       **"Possible duplicates already in the database"** list (merge / delete /
       keep separate), which now has no way in. Move that list somewhere of its
       own before the old import is deleted (step 6).

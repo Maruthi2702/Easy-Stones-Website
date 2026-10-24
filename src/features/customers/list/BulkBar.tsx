@@ -1,14 +1,18 @@
 import React, { useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { Navigation, Mail, UserPlus, CircleDot, Download, Trash2, Undo2, X } from 'lucide-react';
 import { STATUSES, statusMeta, groupRepsByLocation } from '../../../utils/customerList';
 import { useDismiss, anchoredMenuStyle } from './uiHelpers';
+import type { FilterGroup } from './parts';
+import type { Loose } from '../../../types/records';
 
 /** A bulk-bar button that opens a pick-one list above the bar. */
-const PickOne = ({ icon, label, groups, onPick, disabled }) => {
+const PickOne = ({ icon, label, groups, onPick, disabled }: { icon: LucideIcon; label: string; groups: FilterGroup[]; onPick: (value: string) => void; disabled?: boolean }) => {
   const Icon = icon;
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState(undefined);
-  const ref = useRef(null);
+  const [pos, setPos] = useState<CSSProperties | undefined>(undefined);
+  const ref = useRef<HTMLDivElement>(null);
   useDismiss(open, setOpen, ref, { closeOnScroll: true });
   return (
     <div className="cl-rowmenu" ref={ref}>
@@ -40,7 +44,24 @@ const PickOne = ({ icon, label, groups, onPick, disabled }) => {
  * keeps the bar up with the result and an Undo button even though nothing
  * is selected any more.
  */
-const BulkBar = ({ count, canEdit, salesReps, onPlanRoute, onCopyEmails, onAssignRep, onSetStatus, onExport, onDelete, onClear, busy, message, undo = null }) => {
+export type BulkUndo = { message: string; busy: boolean; onUndo: (() => void) | null; onDismiss: () => void };
+export type BulkBarProps = {
+  count: number;
+  canEdit: boolean;
+  salesReps: Loose[];
+  onPlanRoute: (() => void) | null;
+  onCopyEmails: () => void;
+  onAssignRep: (repId: string) => void;
+  onSetStatus: (status: string) => void;
+  onExport: (() => void) | null;
+  onDelete: (() => void) | null;
+  onClear: () => void;
+  busy: boolean;
+  message: string;
+  undo?: BulkUndo | null;
+};
+
+const BulkBar = ({ count, canEdit, salesReps, onPlanRoute, onCopyEmails, onAssignRep, onSetStatus, onExport, onDelete, onClear, busy, message, undo = null }: BulkBarProps) => {
   if (!count && undo) {
     return (
       <div className="cl-bulk cl" role="region" aria-label="Deleted customers">
@@ -55,11 +76,11 @@ const BulkBar = ({ count, canEdit, salesReps, onPlanRoute, onCopyEmails, onAssig
     );
   }
   if (!count) return null;
-  const repGroups = [
+  const repGroups: FilterGroup[] = [
     { group: null, options: [{ value: '', label: 'Unassigned (hand back)' }] },
-    ...groupRepsByLocation(salesReps).map(g => ({ group: g.location, options: g.reps.map(r => ({ value: r._id, label: r.name })) }))
+    ...groupRepsByLocation(salesReps).map(g => ({ group: g.location, options: g.reps.map((r: Loose) => ({ value: r._id, label: r.name })) }))
   ];
-  const statusGroups = [{ group: null, options: STATUSES.map(s => ({ value: s, label: s, dot: statusMeta(s).tone })) }];
+  const statusGroups: FilterGroup[] = [{ group: null, options: STATUSES.map(s => ({ value: s, label: s, dot: statusMeta(s).tone })) }];
 
   return (
     <div className="cl-bulk cl" role="region" aria-label="Selected customers">

@@ -1,42 +1,44 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import type { ComponentType, Dispatch, SetStateAction } from 'react';
 import {
     Search, Plus, Download, Upload, Mail, X, Wrench, Users, MoreHorizontal, SlidersHorizontal,
     ChevronDown, AlertTriangle, LayoutList, Link2
 } from 'lucide-react';
-import SidebarToggleButton from '../shared/SidebarToggleButton';
-import Pagination from '../shared/Pagination';
-import { DEFAULT_ROWS_PER_PAGE } from '../shared/paginationConfig';
-import AddCustomerModal from './AddCustomerModal';
-import CustomerImportModal from '../admin/CustomerImportModal';
-import SpsConnectModal from './SpsConnectModal';
-import SpsImportModal from './SpsImportModal';
-import { canAddCustomer, canImportCustomers, canEditCustomers, canDeleteCustomers, canViewCustomerProfile, canExportCustomers } from '../../utils/customerAccess';
-import { useAuth } from '../../context/AuthContext';
-import { toSalesRepList } from '../../utils/salesReps';
-import { orderLocations, homeLocationOf } from '../../utils/locationFilter';
-import { API_URL } from '../../config/api';
-import { authFetch } from '../../api/authFetch';
+import SidebarToggleButton from '../../../components/shared/SidebarToggleButton';
+import Pagination from '../../../components/shared/Pagination';
+import { DEFAULT_ROWS_PER_PAGE } from '../../../components/shared/paginationConfig';
+import AddCustomerModalJs from '../../../components/sales/AddCustomerModal';
+import CustomerImportModalJs from '../../../components/admin/CustomerImportModal';
+import SpsConnectModalJs from '../../../components/sales/SpsConnectModal';
+import SpsImportModalJs from '../../../components/sales/SpsImportModal';
+import { canAddCustomer, canImportCustomers, canEditCustomers, canDeleteCustomers, canViewCustomerProfile, canExportCustomers } from '../../../utils/customerAccess';
+import { useAuth } from '../../../context/AuthContext';
+import { toSalesRepList } from '../../../utils/salesReps';
+import { orderLocations, homeLocationOf } from '../../../utils/locationFilter';
+import { API_URL } from '../../../config/api';
+import { authFetch } from '../../../api/authFetch';
 import * as XLSX from 'xlsx';
-import { formatPhoneForDisplay } from '../../utils/phoneUtils';
+import { formatPhoneForDisplay } from '../../../utils/phoneUtils';
 import {
-    STATUSES, statusMeta, SAVED_VIEWS, scopedFilterOptions, groupRepsByLocation, emailListFor,
+    STATUSES, statusMeta, SAVED_VIEWS, scopedFilterOptions as scopedFilterOptionsJs, groupRepsByLocation, emailListFor,
     primaryEmailOf, cityLineOf, streetOf, locationOf
-} from '../../utils/customerList';
-import CustomerTable from './customerList/CustomerTable';
-import CustomerRowList from './customerList/CustomerRowList';
-import CustomerDrawer from './customerList/CustomerDrawer';
-import BulkBar from './customerList/BulkBar';
-import BulkDeleteDialog from './customerList/BulkDeleteDialog';
-import LogCallSheet from './customerList/LogCallSheet';
-import { deletedMessage, restoredMessage } from '../../utils/customerBulkDelete';
-import { canAddVisit } from '../../utils/visitAccess';
-import { useLocationsFilter } from '../shared/useLocationFilter';
-import { FilterDropdown } from './customerList/parts';
-import { useDismiss, copyText } from './customerList/uiHelpers';
+} from '../../../utils/customerList';
+import CustomerTable from './CustomerTable';
+import CustomerRowList from './CustomerRowList';
+import CustomerDrawer from './CustomerDrawer';
+import BulkBar from './BulkBar';
+import BulkDeleteDialog from './BulkDeleteDialog';
+import LogCallSheet from './LogCallSheet';
+import { deletedMessage, restoredMessage } from '../../../utils/customerBulkDelete';
+import { canAddVisit } from '../../../utils/visitAccess';
+import { useLocationsFilter } from '../../../components/shared/useLocationFilter';
+import { FilterDropdown } from './parts';
+import { useDismiss, copyText } from './uiHelpers';
+import type { Loose } from '../../../types/records';
 // Kept for the add/edit modal and the classes other sales screens share with it
 // (.location-badge tints, status pills); the list itself is styled by CustomerList.css.
 import './PartnersSheet.css';
-import './customerList/CustomerList.css';
+import './CustomerList.css';
 
 // Filtering on a rep is only half the question — "who has nobody yet" is the
 // other half, and it is the list someone works through to clear the backlog.
@@ -46,6 +48,14 @@ const TABS = [
     { key: 'fabricators', label: 'Fabricators', icon: Wrench, hint: 'Fabricators are pricing-eligible and buy direct' },
     { key: 'partners', label: 'Partners', icon: Users, hint: 'Contractors, dealers, designers and more' },
 ];
+
+// Still JavaScript, so taken as taking any props until they're typed.
+const AddCustomerModal = AddCustomerModalJs as unknown as ComponentType<Loose>;
+const CustomerImportModal = CustomerImportModalJs as unknown as ComponentType<Loose>;
+const SpsConnectModal = SpsConnectModalJs as unknown as ComponentType<Loose>;
+const SpsImportModal = SpsImportModalJs as unknown as ComponentType<Loose>;
+// customerList.js is server-loaded JavaScript; its shape, as this screen reads it.
+const scopedFilterOptions = scopedFilterOptionsJs as unknown as (args: { user: unknown; salesReps: Loose[]; locations: string[] }) => { scope: string; reps: Loose[]; locations: string[] };
 
 const LEVELS = ['Level - 1', 'Level - 2', 'Level - 3', 'Level - 4'];
 const PARTNER_TYPES = ['Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder', 'Fabricator'];
@@ -67,7 +77,7 @@ const SORTS = [
 
 // Global in-memory cache to prevent re-fetching on tab switches & re-mounts.
 // Cleared on every write (see clearListCache) — it has no expiry of its own.
-const globalPartnersCache = {};
+const globalPartnersCache: Record<string, Loose> = {};
 const clearListCache = () => { Object.keys(globalPartnersCache).forEach(k => delete globalPartnersCache[k]); };
 
 const useWindowWidth = () => {
@@ -81,9 +91,9 @@ const useWindowWidth = () => {
 };
 
 /** Saved-view picker — first control in the filter row (and the narrow-screen bar). */
-const ViewPicker = ({ view, counts, onChange }) => {
+const ViewPicker = ({ view, counts, onChange }: { view: string; counts: Record<string, number>; onChange: (view: string) => void }) => {
     const [open, setOpen] = useState(false);
-    const ref = useRef(null);
+    const ref = useRef<HTMLDivElement>(null);
     useDismiss(open, setOpen, ref);
     const current = SAVED_VIEWS.find(v => v.key === view);
     return (
@@ -115,7 +125,16 @@ const ViewPicker = ({ view, counts, onChange }) => {
 // is also where the "Possible duplicates already in the database" list lives.
 const SHOW_EXCEL_IMPORT = false;
 
-const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, customerRefreshTrigger, onPlanRoute }) => {
+export type PartnersSheetProps = {
+    onSelectCustomer?: (customer: Loose) => void;
+    onToggleSidebar?: () => void;
+    isSidebarOpen: boolean;
+    customerRefreshTrigger?: number;
+    /** The selection bar's "Plan route"; undefined without the Route Planner. */
+    onPlanRoute?: (rows: Loose[]) => void;
+};
+
+const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, customerRefreshTrigger, onPlanRoute }: PartnersSheetProps) => {
     const { user } = useAuth();
     const width = useWindowWidth();
     const narrow = width < 900;   // list rows + slide-over instead of table + side drawer
@@ -135,7 +154,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const canDelete = canDeleteCustomers(user);
 
     const [activeTab, setActiveTab] = useState('fabricators');
-    const [partners, setPartners] = useState([]);
+    const [partners, setPartners] = useState<Loose[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
@@ -144,32 +163,32 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const [showImportModal, setShowImportModal] = useState(false);
     const [showSpsConnect, setShowSpsConnect] = useState(false);
     const [showSpsImport, setShowSpsImport] = useState(false);
-    const [editingPartner, setEditingPartner] = useState(null);
-    const [viewingPartner, setViewingPartner] = useState(null);
+    const [editingPartner, setEditingPartner] = useState<Loose | null>(null);
+    const [viewingPartner, setViewingPartner] = useState<Loose | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [showFilterSheet, setShowFilterSheet] = useState(false);
     const [moreOpen, setMoreOpen] = useState(false);
-    const moreRef = useRef(null);
+    const moreRef = useRef<HTMLDivElement>(null);
     useDismiss(moreOpen, setMoreOpen, moreRef);
 
     // Filters. Saved views and the A–Z letter are presets on top of these.
-    const [filterLevels, setFilterLevels] = useState([]);
-    const [filterTypes, setFilterTypes] = useState([]);
-    const [filterCities, setFilterCities] = useState([]);
-    const [filterStatuses, setFilterStatuses] = useState([]);
-    const [filterSalesReps, setFilterSalesReps] = useState([]);
+    const [filterLevels, setFilterLevels] = useState<string[]>([]);
+    const [filterTypes, setFilterTypes] = useState<string[]>([]);
+    const [filterCities, setFilterCities] = useState<string[]>([]);
+    const [filterStatuses, setFilterStatuses] = useState<string[]>([]);
+    const [filterSalesReps, setFilterSalesReps] = useState<string[]>([]);
     // filterLocations is further down, once `scoped` says which locations are offered.
-    const [filterModa, setFilterModa] = useState([]);
+    const [filterModa, setFilterModa] = useState<string[]>([]);
     const [view, setView] = useState('');
     const [letter, setLetter] = useState('');
-    const [viewCounts, setViewCounts] = useState({});
+    const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
     const [countsNonce, setCountsNonce] = useState(0);
 
-    const [uniqueCities, setUniqueCities] = useState([]);
-    const [salesReps, setSalesReps] = useState([]);
-    const [locations, setLocations] = useState([]);
+    const [uniqueCities, setUniqueCities] = useState<string[]>([]);
+    const [salesReps, setSalesReps] = useState<Loose[]>([]);
+    const [locations, setLocations] = useState<string[]>([]);
 
-    const [currentPage, setCurrentPage] = useState(() => parseInt(new URLSearchParams(window.location.search).get('p'), 10) || 1);
+    const [currentPage, setCurrentPage] = useState(() => parseInt(new URLSearchParams(window.location.search).get('p') as string, 10) || 1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const [limit, setLimit] = useState(DEFAULT_ROWS_PER_PAGE);
@@ -177,29 +196,29 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const [sortOrder, setSortOrder] = useState('asc');
 
     // Selection persists across pages, so keep the rows themselves for copy/export.
-    const [selected, setSelected] = useState(() => new Map());
+    const [selected, setSelected] = useState(() => new Map<string, Loose>());
     const selectedIds = useMemo(() => new Set(selected.keys()), [selected]);
     const [bulkBusy, setBulkBusy] = useState(false);
     const [bulkMessage, setBulkMessage] = useState('');
     // Bulk Delete: the confirmation (its rows while open), and the last delete's Undo.
-    const [bulkDelete, setBulkDelete] = useState(null);
+    const [bulkDelete, setBulkDelete] = useState<{ rows: Loose[] } | null>(null);
     const [bulkDeleteSaving, setBulkDeleteSaving] = useState(false);
     const [bulkDeleteError, setBulkDeleteError] = useState('');
-    const [lastDelete, setLastDelete] = useState(null);
+    const [lastDelete, setLastDelete] = useState<{ batchId: string | null; message: string; busy: boolean } | null>(null);
     const [notice, setNotice] = useState('');
 
-    const [openCustomer, setOpenCustomer] = useState(null);
+    const [openCustomer, setOpenCustomer] = useState<Loose | null>(null);
     const [focusIndex, setFocusIndex] = useState(-1);
 
-    const rootRef = useRef(null);
-    const searchRef = useRef(null);
+    const rootRef = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
 
     // "Log this call?": a Call tapped on a phone is remembered (sessionStorage,
     // so it survives the browser being backgrounded or reloaded for the call),
     // and when the person comes back to the app they're asked to log it.
     const canLogCalls = canAddVisit(user);
-    const [logCallFor, setLogCallFor] = useState(null);
-    const rememberCall = (row) => {
+    const [logCallFor, setLogCallFor] = useState<Loose | null>(null);
+    const rememberCall = (row: Loose) => {
         if (!canLogCalls || !row?._id) return;
         try {
             sessionStorage.setItem('cl.pendingCall', JSON.stringify({
@@ -230,13 +249,13 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     }, [canLogCalls]);
 
     useEffect(() => {
-        const newUrl = new URL(window.location);
-        newUrl.searchParams.set('p', currentPage);
+        const newUrl = new URL(window.location as unknown as URL);
+        newUrl.searchParams.set('p', currentPage as unknown as string);
         window.history.replaceState(window.history.state, '', newUrl);
     }, [currentPage]);
 
     useEffect(() => {
-        const handlePopState = () => setCurrentPage(parseInt(new URLSearchParams(window.location.search).get('p'), 10) || 1);
+        const handlePopState = () => setCurrentPage(parseInt(new URLSearchParams(window.location.search).get('p') as string, 10) || 1);
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
     }, []);
@@ -272,7 +291,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                 const res = await authFetch(`${API_URL}/api/admin/locations`);
                 if (!res.ok) return;
                 const data = await res.json();
-                setLocations((data || []).map(l => l.name).filter(Boolean));
+                setLocations((data || []).map((l: Loose) => l.name).filter(Boolean));
             } catch (err) { console.error('Error fetching locations:', err); }
         })();
     }, []);
@@ -287,7 +306,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         { group: null, options: [{ value: UNASSIGNED, label: 'Unassigned' }] },
         ...groupRepsByLocation(scoped.reps).map(g => ({
             group: g.location,
-            options: g.reps.map(r => ({ value: r._id, label: String(r._id) === String(user?.id) ? `${r.name} (you)` : r.name }))
+            options: g.reps.map((r: Loose) => ({ value: r._id, label: String(r._id) === String(user?.id) ? `${r.name} (you)` : r.name }))
         }))
     ], [scoped.reps, user?.id]);
     const repNote = scoped.scope === 'all' ? null : 'Only the reps your role can see are listed.';
@@ -295,7 +314,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
 
     // ── Query ────────────────────────────────────────────────────────────────
     const listParams = useCallback(() => {
-        const p = { sortBy, sortOrder };
+        const p: Record<string, string> = { sortBy, sortOrder };
         if (debouncedSearch) p.search = debouncedSearch;
         if (filterLevels.length) p.level = filterLevels.join(',');
         if (filterTypes.length) p.type = filterTypes.join(',');
@@ -315,9 +334,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         return p;
     }, [sortBy, sortOrder, debouncedSearch, filterLevels, filterTypes, filterCities, filterStatuses, filterSalesReps, filterLocations, filterModa, view, letter, activeTab]);
 
-    const urlFor = (params) => {
+    const urlFor = (params: Record<string, unknown>) => {
         const url = new URL(`${API_URL}/api/customers/list`, window.location.origin);
-        Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
+        Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v as string));
         return url;
     };
 
@@ -337,7 +356,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
             setLoading(true);
         }
         try {
-            const response = await authFetch(urlFor(params));
+            const response = await authFetch(urlFor(params) as unknown as string);
             if (seq !== requestSeq.current) return; // a newer request has started; ignore this one
             if (response.ok) {
                 const data = await response.json();
@@ -394,9 +413,9 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     useEffect(() => { setFocusIndex(-1); }, [partners]);
 
     const resetPage = () => setCurrentPage(1);
-    const withReset = (setter) => (v) => { setter(v); resetPage(); };
+    const withReset = (setter: Dispatch<SetStateAction<string[]>> | ((next: unknown) => void)) => (v: string[]) => { setter(v); resetPage(); };
 
-    const handleTabChange = (tabKey) => {
+    const handleTabChange = (tabKey: string) => {
         setActiveTab(tabKey);
         setSearchTerm(''); setDebouncedSearch('');
         // Location is kept: it's which branch you're working in, not a
@@ -418,14 +437,14 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const activeFilterCount = filterLevels.length + filterTypes.length + filterCities.length + filterStatuses.length
         + filterSalesReps.length + filterLocations.length + filterModa.length + (letter ? 1 : 0);
 
-    const handleSort = (field) => {
+    const handleSort = (field: string) => {
         if (sortBy === field) setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
         else { setSortBy(field); setSortOrder('asc'); }
         resetPage();
     };
 
     // ── Writes ───────────────────────────────────────────────────────────────
-    const handleSavePartner = async (formData, closeModal) => {
+    const handleSavePartner = async (formData: Loose, closeModal: () => void) => {
         setIsSaving(true);
         try {
             const method = editingPartner ? 'PUT' : 'POST';
@@ -459,7 +478,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     };
 
     // Resolves true once the customer is gone (the Edit form closes on that).
-    const handleDeletePartner = async (id) => {
+    const handleDeletePartner = async (id: string) => {
         if (!window.confirm('Are you sure you want to delete this customer?')) return false;
         try {
             const response = await authFetch(`${API_URL}/api/customers/${id}`, { method: 'DELETE' });
@@ -478,7 +497,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         return false;
     };
 
-    const handleStatusChange = async (id, status) => {
+    const handleStatusChange = async (id: string, status: string) => {
         try {
             const res = await authFetch(`${API_URL}/api/customers/${id}`, { method: 'PUT', body: JSON.stringify({ status }) });
             if (!res.ok) return false;
@@ -493,8 +512,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     };
 
     // ── Export / copy ────────────────────────────────────────────────────────
-    const exportRows = (rows, sheetName) => {
-        const worksheet = XLSX.utils.json_to_sheet(rows.map(l => ({
+    const exportRows = (rows: Loose[], sheetName: string) => {
+        const worksheet = XLSX.utils.json_to_sheet(rows.map((l: Loose) => ({
             Company: l.company || '-',
             Name: l.contactName || l.name || '-',
             Email: l.email || '-',
@@ -516,8 +535,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         XLSX.writeFile(workbook, `${sheetName}_List_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
-    const fetchAllMatching = async () => {
-        const res = await authFetch(urlFor({ ...listParams(), limit: -1 }));
+    const fetchAllMatching = async (): Promise<Loose[]> => {
+        const res = await authFetch(urlFor({ ...listParams(), limit: -1 }) as unknown as string);
         if (!res.ok) throw new Error('fetch failed');
         return (await res.json()).partners || [];
     };
@@ -550,20 +569,20 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     };
 
     // ── Selection + bulk ─────────────────────────────────────────────────────
-    const toggleRow = (id) => setSelected(prev => {
+    const toggleRow = (id: string) => setSelected(prev => {
         const next = new Map(prev);
         if (next.has(id)) next.delete(id);
         else { const row = partners.find(p => p._id === id); if (row) next.set(id, row); }
         return next;
     });
-    const toggleAll = (on) => setSelected(prev => {
+    const toggleAll = (on: boolean) => setSelected(prev => {
         const next = new Map(prev);
         partners.forEach(p => (on ? next.set(p._id, p) : next.delete(p._id)));
         return next;
     });
     const selectedRows = useMemo(() => [...selected.values()], [selected]);
 
-    const bulkPatch = async (body, describe) => {
+    const bulkPatch = async (body: Loose, describe: (n: number) => string) => {
         setBulkBusy(true);
         try {
             const res = await authFetch(`${API_URL}/api/customers/bulk`, {
@@ -592,7 +611,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     // selection, then the bar stays up with Undo (src/routes/customerBulkDelete.js
     // saves every customer whole before removing it).
     const confirmBulkDelete = async () => {
-        const ids = bulkDelete.rows.map(r => r._id);
+        const ids = bulkDelete!.rows.map(r => r._id);
         setBulkDeleteSaving(true);
         setBulkDeleteError('');
         try {
@@ -612,8 +631,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     };
 
     const undoBulkDelete = async () => {
-        const { batchId } = lastDelete;
-        setLastDelete(d => ({ ...d, busy: true }));
+        const { batchId } = lastDelete!;
+        setLastDelete(d => ({ ...d!, busy: true }));
         try {
             const res = await authFetch(`${API_URL}/api/customers/bulk-delete/undo`, { method: 'POST', body: JSON.stringify({ batchId }) });
             const data = await res.json().catch(() => ({}));
@@ -632,12 +651,12 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
 
     // ── Opening customers ────────────────────────────────────────────────────
     // Without Full profile there is no profile to open: the basic card (the drawer) is the most there is.
-    const openProfile = (row) => {
+    const openProfile = (row: Loose) => {
         if (!canProfile) { setOpenCustomer(row); return; }
         setOpenCustomer(null);
-        onSelectCustomer && onSelectCustomer(row);
+        if (onSelectCustomer) onSelectCustomer(row);
     };
-    const openRow = (row, index) => {
+    const openRow = (row: Loose, index?: number) => {
         setOpenCustomer(row);
         if (index !== undefined) setFocusIndex(index);
     };
@@ -646,14 +665,15 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     // Keyboard: / search, ↑↓ move, Enter open, Esc close. Only while this list
     // is the one on screen — SalesPage keeps it mounted (hidden) behind a profile.
     useEffect(() => {
-        const onKey = (e) => {
+        const onKey = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
             if (!rootRef.current || rootRef.current.offsetParent === null) return;
             if (showAddModal || showImportModal || showSpsConnect || showSpsImport || showFilterSheet || bulkDelete) return;
-            const tag = (e.target.tagName || '').toLowerCase();
-            const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+            const tag = (target.tagName || '').toLowerCase();
+            const typing = tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable;
             if (e.key === 'Escape') {
                 if (openCustomer) { setOpenCustomer(null); return; }
-                if (typing && e.target === searchRef.current) { searchRef.current.blur(); }
+                if (typing && target === searchRef.current) { searchRef.current!.blur(); }
                 return;
             }
             if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -718,7 +738,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         </>
     );
 
-    const viewPicker = !canProfile ? null : <ViewPicker view={view} counts={viewCounts} onChange={(v) => { setView(v); resetPage(); }} />;
+    const viewPicker = !canProfile ? null : <ViewPicker view={view} counts={viewCounts} onChange={(v: string) => { setView(v); resetPage(); }} />;
     const letterChip = letter && (
         <button type="button" className="cl-dd-btn set" onClick={() => { setLetter(''); resetPage(); }} aria-label={`Clear starts-with ${letter}`}>
             Starts with {letter} <X size={13} aria-hidden="true" />
@@ -950,8 +970,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                     message={bulkMessage}
                     onPlanRoute={onPlanRoute ? () => onPlanRoute(selectedRows) : null}
                     onCopyEmails={bulkCopyEmails}
-                    onAssignRep={(repId) => bulkPatch({ salesRep: repId }, (n) => `${n} reassigned`)}
-                    onSetStatus={(status) => bulkPatch({ status }, (n) => `${n} set to ${status}`)}
+                    onAssignRep={(repId) => bulkPatch({ salesRep: repId }, (n: number) => `${n} reassigned`)}
+                    onSetStatus={(status) => bulkPatch({ status }, (n: number) => `${n} set to ${status}`)}
                     onExport={canExport ? () => exportRows(selectedRows, 'Selected_Customers') : null}
                     onDelete={canDelete ? () => { setBulkDeleteError(''); setBulkDelete({ rows: selectedRows }); } : null}
                     onClear={() => setSelected(new Map())}
@@ -1039,8 +1059,8 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                 salesReps={salesReps}
                 locations={locations}
                 currentUser={user}
-                onOpenExisting={(c) => setOpenCustomer(c)}
-                onDelete={canDelete ? (c) => handleDeletePartner(c._id) : null}
+                onOpenExisting={(c: Loose) => setOpenCustomer(c)}
+                onDelete={canDelete ? (c: Loose) => handleDeletePartner(c._id) : null}
             />
 
             {showSpsImport && (

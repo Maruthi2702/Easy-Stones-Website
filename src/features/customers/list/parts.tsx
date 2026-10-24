@@ -1,9 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { locationClass, useDismiss, copyText } from './uiHelpers';
 import { Check, Copy, ChevronDown, X, AlertTriangle, Search, Info, Wrench, BookOpen, Presentation } from 'lucide-react';
 import { statusMeta, locationOf, dataIssues } from '../../../utils/customerList';
+import type { Loose } from '../../../types/records';
 
-export const StatusDot = ({ status }) => {
+/** A filter choice: { value, label, dot?, icon?, n? }. */
+export type FilterOption = { value: string; label: string; dot?: string; icon?: ReactNode; n?: number };
+/** A heading and its choices (`group: null` for none). */
+export type FilterGroup = { group: string | null; options: FilterOption[] };
+
+export const StatusDot = ({ status }: { status?: string }) => {
   const m = statusMeta(status);
   return (
     <span className={`cl-sd${m.closed ? ' closed' : ''}`} title={status || 'No status'}>
@@ -13,14 +20,14 @@ export const StatusDot = ({ status }) => {
   );
 };
 
-export const LocationTag = ({ customer, name }) => {
+export const LocationTag = ({ customer, name }: { customer?: Loose; name?: string }) => {
   const loc = name || locationOf(customer);
   return <span className={`location-badge ${locationClass(loc)}`}>{loc}</span>;
 };
 
 // The name is its own span so a phone-width header can show just the
 // initial (CustomerList.css, .cl-dh-meta) — the title keeps it readable.
-export const RepBadge = ({ name }) => (name ? (
+export const RepBadge = ({ name }: { name?: string }) => (name ? (
   <span className="cl-rep" title={`Sales rep: ${name}`}><span className="cl-av" aria-hidden="true">{name[0].toUpperCase()}</span><span className="cl-rep-name">{name}</span></span>
 ) : (
   <span className="cl-rep cl-muted" title="No sales rep"><span className="cl-un" aria-hidden="true" /><span className="cl-rep-name">Unassigned</span></span>
@@ -32,7 +39,7 @@ export const RepBadge = ({ name }) => (name ? (
  * where the header has to fit one phone-width row. A level that isn't 1–4
  * shows as stored.
  */
-export const LevelTag = ({ level }) => {
+export const LevelTag = ({ level }: { level?: unknown }) => {
   const raw = String(level || '').trim();
   if (!raw) return null;
   const n = Number((raw.match(/\d+/) || [])[0]);
@@ -47,7 +54,7 @@ export const LevelTag = ({ level }) => {
   );
 };
 
-export const TypeTag = ({ type }) => {
+export const TypeTag = ({ type }: { type?: string }) => {
   const t = type || 'Fabricator';
   const fab = t.toLowerCase() === 'fabricator';
   return (
@@ -57,7 +64,7 @@ export const TypeTag = ({ type }) => {
   );
 };
 
-export const ModaBadges = ({ customer }) => {
+export const ModaBadges = ({ customer }: { customer: Loose }) => {
   const display = customer.modaDisplay === 'Yes';
   const binders = parseInt(customer.modaBinder, 10) || 0;
   return (
@@ -73,7 +80,7 @@ export const ModaBadges = ({ customer }) => {
 };
 
 /** ⚠ when a record is missing something; hover (or a screen reader) says what. */
-export const IssueFlag = ({ customer }) => {
+export const IssueFlag = ({ customer }: { customer: Loose }) => {
   const issues = dataIssues(customer);
   if (!issues.length) return null;
   const label = `Incomplete: ${issues.join(', ')}`;
@@ -85,7 +92,7 @@ export const IssueFlag = ({ customer }) => {
 };
 
 /** Icon button that copies `value` and briefly confirms. */
-export const CopyButton = ({ value, what, always = false, size = 13 }) => {
+export const CopyButton = ({ value, what, always = false, size = 13 }: { value?: string; what: string; always?: boolean; size?: number }) => {
   const [done, setDone] = useState(false);
   useEffect(() => {
     if (!done) return undefined;
@@ -113,20 +120,30 @@ export const CopyButton = ({ value, what, always = false, size = 13 }) => {
  */
 export const FilterDropdown = ({
   label, options, selected = [], onChange, searchable = false, note, align = 'left', allLabel, renderValue
+}: {
+  label: string;
+  options: FilterOption[] | FilterGroup[];
+  selected?: string[];
+  onChange: (next: string[]) => void;
+  searchable?: boolean;
+  note?: string | null;
+  align?: 'left' | 'right';
+  allLabel?: string;
+  renderValue?: (selected: string[], labelOf: (v: string) => string) => ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const ref = useRef(null);
   useDismiss(open, setOpen, ref);
 
-  const groups = (options || []).some(o => o.group)
-    ? options
-    : [{ group: null, options: options || [] }];
+  const groups: FilterGroup[] = (options || []).some(o => (o as FilterGroup).group)
+    ? options as FilterGroup[]
+    : [{ group: null, options: (options || []) as FilterOption[] }];
   const flat = groups.flatMap(g => g.options);
-  const match = (o) => !q || String(o.label).toLowerCase().includes(q.toLowerCase());
-  const labelOf = (v) => flat.find(o => o.value === v)?.label ?? v;
+  const match = (o: FilterOption) => !q || String(o.label).toLowerCase().includes(q.toLowerCase());
+  const labelOf = (v: string) => flat.find(o => o.value === v)?.label ?? v;
 
-  const toggle = (v) => onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]);
+  const toggle = (v: string) => onChange(selected.includes(v) ? selected.filter(x => x !== v) : [...selected, v]);
   const isSet = selected.length > 0;
   const shown = renderValue
     ? renderValue(selected, labelOf)
