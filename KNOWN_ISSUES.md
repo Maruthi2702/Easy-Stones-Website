@@ -38,7 +38,7 @@ Both scripts only preview until run with `--apply`.
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
 | 3 | The receiving branch can drag the sender's Pending transfers onto its own driver. The transfer then vanishes from the sender's board (no column for that driver) but still counts as shipped, and the drop day is saved as the *ship* date. | `?pending=true` in `GET /api/deliveries`, `scopeDeliveryQueryToLocations`, `PATCH /deliveries/:id/assignment` | Blocked on question A | Open |
-| 4 | A transfer on a branch-only driver is invisible on the receiving branch's board (no column for that driver). 1 of 76 transfers today (Sergio); the rest use the all-branch "3rd party - delivery" driver, which shows on every board. | `BoardGrid.jsx` columns, `fetchDriverUsers` in `src/api/deliverySchedule.ts` | Blocked on question B | Open |
+| 4 | A transfer on a branch-only driver is invisible on the receiving branch's board (no column for that driver). 1 of 76 transfers today (Sergio); the rest use the all-branch "3rd party - delivery" driver, which shows on every board. | `BoardGrid.tsx` columns, `fetchDriverUsers` in `src/api/deliverySchedule.ts` | Blocked on question B | Open |
 | 5 | No "mark received" button. `PATCH /deliveries/:id/receive` and the report's received fields exist, but nothing calls them. | `src/routes/deliveries.js`, inbound `ticketIds` in `deriveFromSystem` | New feature: a Received button on incoming lines or cards | Open |
 | 6 | A transfer line added by hand always counts as Outgoing; there's no way to add an incoming line. | `addTransfer` in `src/features/dailyReport/sheetEditing.ts`, PUT `/api/daily-reports/:date` | New feature: an In/Out toggle on manual lines | Fixed `a75e9b3` |
 | 7 | Minor: a driver assigned after the arrival day's 11:59 PM auto-submit never reaches that report. (The other half of this row — month view and CSV counting only outgoing transfers — is fixed; see Fixed.) | `src/jobs/autoSubmitDailyReports.js` | Probably leave as-is | Open |
@@ -77,15 +77,15 @@ permission holes (O4, O19).
 
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
-| O1 | **(confirmed)** Editing a transfer from its arrival week overwrites its ship date: the board's copy has `date` = arrival (`showOnArrivalDay`), the form shows that as "Ship date", and any save writes it back — moving the shipment and the sender's Daily Report count. The old DeliveryModal did this too. | `applyTransferPerspective` / `showOnArrivalDay` in `deliveryTypes.js`, `handleOpenEditModal` in `DeliveryScheduleTab.jsx`, `deliveryToFormValues` | Open the form on `shipDate` when the card is the arrival view (or refetch the raw ticket) | Fixed `a974e37` |
-| O2 | Saving an ePOD sends the whole cached ticket through POST /deliveries, undoing office edits made while the driver was signing; if the full-record fetch failed it also saves the arrival date as the ship date. | `handleSavePod` in `DeliveryScheduleTab.jsx` | Save only `pod` + `status` (a narrow route, like PATCH /status) | Fixed `d81862f` |
-| O3 | ePOD signatures get wiped on slow signal: the modal's reset effect reruns when the full record replaces the list copy, clearing the pads and fields mid-signature. | `PodModal.jsx` reset effect, `handleOpenPod` | Reset only when the delivery *id* changes | Fixed `d81862f` |
+| O1 | **(confirmed)** Editing a transfer from its arrival week overwrites its ship date: the board's copy has `date` = arrival (`showOnArrivalDay`), the form shows that as "Ship date", and any save writes it back — moving the shipment and the sender's Daily Report count. The old DeliveryModal did this too. | `applyTransferPerspective` / `showOnArrivalDay` in `deliveryTypes.js`, `handleOpenEditModal` in `DeliveryScheduleTab.tsx`, `deliveryToFormValues` | Open the form on `shipDate` when the card is the arrival view (or refetch the raw ticket) | Fixed `a974e37` |
+| O2 | Saving an ePOD sends the whole cached ticket through POST /deliveries, undoing office edits made while the driver was signing; if the full-record fetch failed it also saves the arrival date as the ship date. | `handleSavePod` in `src/features/delivery/usePodDialogs.ts` | Save only `pod` + `status` (a narrow route, like PATCH /status) | Fixed `d81862f` |
+| O3 | ePOD signatures get wiped on slow signal: the modal's reset effect reruns when the full record replaces the list copy, clearing the pads and fields mid-signature. | `PodModal.tsx` reset effect, `handleOpenPod` | Reset only when the delivery *id* changes | Fixed `d81862f` |
 | O4 | **(confirmed)** Read-only users and drivers can create or rewrite any ticket in their branch through the API: POST /deliveries accepts `view_delivery_schedule` (kept for driver POD capture). | `canWriteDeliveries` in `src/routes/deliveries.js` | Require `edit_delivery_schedule` for POST; give POD capture its own route | Fixed `3009b52` |
 | O5 | Live updates for tickets with no branch (`''`/`'*'`, many older ones) only go to the all-branch room, so drivers' phones and single-branch boards stay stale until refreshed. | `deliveryRoomsFor` in `src/routes/deliveries.js` | Broadcast branchless tickets to every branch room | Fixed `3009b52` |
 | O6 | Some cells can never be reordered ("This run changed since you loaded it" every time): the conflict check counts tickets the board doesn't show (cancelled, dated Pending in the Will Call key, other branches on the shared 3rd-party column, search-filtered cells). | reorder route in `src/routes/deliveries.js` (~line 1034) | Count only the tickets the client sent / that the board shows | Fixed `3009b52` |
 | O7 | **(confirmed)** Server error reasons never reach the form: `saveDelivery` reads `body.message`, the routes answer `{ error }`. | `saveDelivery` in `src/api/deliverySchedule.ts` | Read `body.error \|\| body.message` | Fixed `a974e37` |
 | O8 | Packing-list upload keys the stored PDF on a client-sent `deliveryId` with overwrite and no access check — another branch's PDF can be replaced. | `upload-packing-list` in `src/routes/deliveries.js` | Check access to that delivery's branch before overwriting | Fixed `3009b52` |
-| O9 | Re-signing an ePOD whose earlier signatures were saved online can get stuck on "Saving…" (hosted image drawn without `crossOrigin` taints the canvas; `toDataURL` throws outside the try). | `initCanvas` / save in `PodModal.jsx` | Set `crossOrigin`, and catch around `toDataURL` | Fixed `d81862f` |
+| O9 | Re-signing an ePOD whose earlier signatures were saved online can get stuck on "Saving…" (hosted image drawn without `crossOrigin` taints the canvas; `toDataURL` throws outside the try). | `initCanvas` / save in `PodModal.tsx` | Set `crossOrigin`, and catch around `toDataURL` | Fixed `d81862f` |
 | O10 | Cached board and check-in data survives log-out, so on a shared PC the next person briefly sees the previous user's branches. | `scheduleCache` in `src/api/deliverySchedule.ts`, `dataCache.ts` | Clear both caches on logout | Fixed `3009b52` |
 
 Decided to leave as they are (owner, 2026-10-15): the status pill size on board cards (a bigger pill would squeeze the SO# on the narrow columns) and the sales rep's own footer line (moving it adds a row to cards). Revisit only if the owner asks.
@@ -149,8 +149,8 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
 ## Cleanup due
 
 - [ ] **On or after 2026-10-19:** delete
-      `src/components/sales/delivery/DeliveryModal.jsx` if the new Add / Edit
-      delivery form (`DeliveryForm.jsx`, live since 2026-10-05) has worked
+      `src/features/delivery/form/DeliveryModal.jsx` if the new Add / Edit
+      delivery form (`DeliveryForm.tsx`, live since 2026-10-05) has worked
       well. Nothing mounts it; it's kept only as a fallback. Before deleting,
       `grep -rn "DeliveryModal" src` should only find comments.
 - [ ] **On or after 2026-11-06:** drop the old customer API addresses kept

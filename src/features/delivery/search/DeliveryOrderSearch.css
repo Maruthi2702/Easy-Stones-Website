@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════
-   Delivery Schedule — "Search SO# or company…" (DeliveryOrderSearch.jsx)
+   Delivery Schedule — "Search SO# or company…" (DeliveryOrderSearch.tsx)
 
    The results panel is absolutely positioned inside .order-search, which
    sits in the board's own scroll container (.delivery-schedule-container).

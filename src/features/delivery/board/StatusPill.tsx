@@ -1,7 +1,9 @@
 import React from 'react';
 import { CheckCircle2, AlertTriangle, Clock, XCircle } from 'lucide-react';
 
-const StatusPill = ({ status = 'pending', size = 'normal' }) => {
+export type StatusPillProps = { status?: string; size?: 'normal' | 'small' };
+
+const StatusPill = ({ status = 'pending', size = 'normal' }: StatusPillProps) => {
   const getStatusDetails = () => {
     switch (status?.toLowerCase()) {
       case 'completed':

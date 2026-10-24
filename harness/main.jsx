@@ -11,7 +11,7 @@ import '../src/components/sales/UsersRolesTab.css';
 import '../src/components/sales/dailyreport/DailyReport.css';
 import '../src/components/sales/LostSalesTab.css';
 import '../src/components/sales/VisitsListDetail.css';
-import '../src/components/sales/DeliveryScheduleTab.css';
+import '../src/features/delivery/DeliveryScheduleTab.css';
 import '../src/components/sales/AddCustomerModal.css';
 import '../src/components/admin/CustomerImportModal.css';
 import '../src/components/sales/CheckInLogPanel.css';

@@ -1,5 +1,5 @@
-// The delivery card itself — rendered by both BoardGrid.jsx (office/sales
-// board) and PendingDeliveries.jsx (undated/unassigned orders). StatusPill
+// The delivery card itself — rendered by both BoardGrid.tsx (office/sales
+// board) and PendingDeliveries.tsx (undated/unassigned orders). StatusPill
 // and EpodChip are its two small sub-badges, kept as separate files since
 // each is reused/tested independently of the full card.
 import React, { useState } from 'react';
@@ -8,11 +8,12 @@ import StatusPill from './StatusPill';
 import EpodChip from './EpodChip';
 import { isCounterReturn, transferShipNote, pendingDeliveryDateLabel, ticketAccentFor } from '../../../utils/deliveryTypes';
 import { formatForDateInput } from '../../../utils/dateUtils';
+import type { Ticket } from '../types';
 
 /**
  * Highlight substring matches inside a text string with <mark> tags.
  */
-function Highlight({ text = '', query = '' }) {
+function Highlight({ text = '', query = '' }: { text?: string; query?: string }) {
   if (!query || !text) return <>{text}</>;
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
@@ -38,6 +39,16 @@ function Highlight({ text = '', query = '' }) {
 const SPS_SEARCH_URL = 'https://easystones.stoneprofits.com/vSalesHome.aspx';
 const SPS_TAB_NAME = 'easystones_sps';
 
+export type TicketChipProps = {
+  delivery: Ticket | null | undefined;
+  onClick?: ((delivery: Ticket) => void) | null;
+  editable?: boolean;
+  searchQuery?: string;
+  onViewPod?: (delivery: Ticket) => void;
+  onOpenPod?: (delivery: Ticket) => void;
+  showDeliveryDate?: boolean;
+};
+
 const TicketChip = ({
   delivery,
   onClick,
@@ -53,7 +64,7 @@ const TicketChip = ({
   // books the trucks when it has to go out. It also drops the status pill,
   // which can only ever say "Pending" in that list.
   showDeliveryDate = false
-}) => {
+}: TicketChipProps) => {
   const [copied, setCopied] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -114,7 +125,7 @@ const TicketChip = ({
   const showEpod = delivery.status === 'completed' && !canSign;
   const hasFooter = showRep || Boolean(delivery.notes) || showEpod || canSign;
 
-  const handleCopySO = (e, val) => {
+  const handleCopySO = (e: React.MouseEvent, val: string) => {
     e.stopPropagation();
     if (!val) return;
     try {
@@ -326,7 +337,7 @@ const TicketChip = ({
           <button
             type="button"
             className={`ticket-sign-btn${wasCleared ? ' is-cleared' : ''}`}
-            onClick={(e) => { e.stopPropagation(); onOpenPod(delivery); }}
+            onClick={(e) => { e.stopPropagation(); onOpenPod!(delivery); }}
             title={wasCleared
               ? 'The previous signature was cleared — capture a new one'
               : 'Capture the signature of whoever is collecting this order'}

@@ -1106,7 +1106,7 @@ body.light-theme-active .pod-danger-zone,
 }
 
 /* ePOD badge on completed ticket chips.
-   Three states, driven by pod.verified and pod.clearedAt — see EpodChip.jsx. */
+   Three states, driven by pod.verified and pod.clearedAt — see EpodChip.tsx. */
 .epod-chip {
   display: inline-flex;
   align-items: center;

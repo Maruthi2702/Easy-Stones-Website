@@ -39,7 +39,7 @@ card (Scan card / Upload card photo) under a gold **+** beside the ✕
 (`headerActions`; a bottom sheet on phones). It opens through
 `AddCustomerModal` from Sales CRM, the Customers list and the route planner;
 that modal's old read-only View is unchanged for now.
-**Add / Edit delivery** (`src/components/sales/delivery/DeliveryForm.jsx`, size
+**Add / Edit delivery** (`src/features/delivery/form/DeliveryForm.tsx`, size
 L; rules in `src/utils/deliveryForm.ts`) is on it, built from the
 [Add & Edit Delivery canvas](https://claude.ai/artifact/MUFMQHSj2xPKo3o9JeXjXC)
 with the owner's field order (2026-10-05): Date | Delivery type, Customer |

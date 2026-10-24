@@ -4,7 +4,7 @@ import { isPendingDelivery, isCancelledDelivery, isTransferOrigin } from './deli
  * "Find an order" on the Delivery Schedule — search by SO#/invoice # or
  * company name across every date, not just the week on screen. Shared by the
  * server route (GET /api/deliveries/search in src/routes/deliveries.js) and
- * the search box (src/components/sales/delivery/DeliveryOrderSearch.jsx), so
+ * the search box (src/features/delivery/search/DeliveryOrderSearch.tsx), so
  * the two can't disagree about who may search, what matches, or what a
  * result says.
  *
@@ -106,6 +106,9 @@ const DONE_WORD = { will_call: 'Picked up', return: 'Returned', transfer: 'Trans
  *               incoming transfer), or '' when it isn't on the board
  *
  * `today` is 'YYYY-MM-DD'; `viewerLocations` is the user's assignedLocations.
+ *
+ * @param {any} d
+ * @param {{ today?: string, viewerLocations?: string[] }} [options]
  */
 export const describeSearchResult = (d, { today = '', viewerLocations = [] } = {}) => {
   const isTransfer = d?.deliveryType === 'transfer';

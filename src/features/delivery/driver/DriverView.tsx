@@ -1,66 +1,38 @@
-// The mobile-first view a driver sees instead of BoardGrid.jsx — just their
+// The mobile-first view a driver sees instead of BoardGrid.tsx — just their
 // own stops, no truck-column layout. Its only two writes are updating a
 // stop's status and opening PodModal to capture a signature (which saves
 // through the same general upsert as everything else) — a driver's account
 // never holds edit_delivery_schedule, so those two routes are the only ones
 // in src/routes/deliveries.js that deliberately accept view_delivery_schedule
 // as well. See that file's permission-model comment before adding a new
-// driver-facing action, and src/components/sales/delivery/README.md for how
+// driver-facing action, and src/features/delivery/README.md for how
 // this fits with the rest of the feature.
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import {
-  MapPin, CheckCircle2, AlertTriangle, FileText, Package, Navigation, Copy, Check,
-  User, Repeat, Clock, RefreshCw, WifiOff, ShieldCheck, RotateCcw, Undo2, Phone
-} from 'lucide-react';
+import { AlertTriangle, Package, RefreshCw, WifiOff } from 'lucide-react';
 import { formatForDateInput } from '../../../utils/dateUtils';
-import { openPdfInline } from '../../../utils/packingList';
 // Day names derive from the dates themselves, so the strip follows whichever
 // days the week is showing rather than a fixed Mon-Fri list.
 import { dayLabel } from '../../../utils/deliveryWeek';
 import { isCounterReturn } from '../../../utils/deliveryTypes';
-import StatusPill from './StatusPill';
+import DriverStop from './DriverStop';
+import { cleanField, timeToMinutes, CONNECTION_LABELS } from './driverFormat';
+import type { CurrentUser } from '../../../types/records';
+import type { ConnectionStatus } from '../../../api/deliverySchedule';
+import type { BoardColumn, Ticket } from '../types';
 import './DriverView.css';
 
-/**
- * "09:00 AM" → 540. Used only for ordering, so anything unparseable sorts last
- * rather than throwing a stop off the run.
- */
-function timeToMinutes(value) {
-  const m = String(value || '').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
-  if (!m) return Number.MAX_SAFE_INTEGER;
-  let hours = parseInt(m[1], 10);
-  const minutes = parseInt(m[2], 10);
-  const meridiem = (m[3] || '').toUpperCase();
-  if (meridiem === 'PM' && hours !== 12) hours += 12;
-  if (meridiem === 'AM' && hours === 12) hours = 0;
-  return hours * 60 + minutes;
-}
-
-/**
- * A driver's phone is the one place these links have to open the native app
- * rather than a web map. Apple's universal link does that on iOS and falls back
- * to the browser everywhere else, which is exactly the behaviour wanted.
- */
-function mapsHrefFor(address) {
-  const query = encodeURIComponent(String(address || '').trim());
-  if (!query) return null;
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
-  const isApple = /iPhone|iPad|iPod|Macintosh/.test(ua);
-  return isApple
-    ? `https://maps.apple.com/?q=${query}`
-    : `https://www.google.com/maps/search/?api=1&query=${query}`;
-}
-
-/** Blank, whitespace and the string "undefined" all mean "not set" here. */
-function cleanField(value) {
-  const text = String(value ?? '').trim();
-  return !text || text === 'undefined' || text === 'null' ? '' : text;
-}
-
-const CONNECTION_LABELS = {
-  online: null,
-  reconnecting: 'Reconnecting — showing the last synced stops',
-  offline: 'Offline — showing the last synced stops'
+export type DriverViewProps = {
+  trucks?: BoardColumn[];
+  deliveries?: Ticket[];
+  weekDates?: string[];
+  currentUser?: CurrentUser | null;
+  /** Rethrows on failure, so the stop can say it didn't work. */
+  onUpdateStatus?: (id: string, status: string) => Promise<unknown>;
+  onOpenPod?: (delivery: Ticket) => void;
+  onViewPod?: (delivery: Ticket) => void;
+  connection?: ConnectionStatus;
+  onRefresh?: () => Promise<unknown>;
+  loadError?: string | null;
 };
 
 const DriverView = ({
@@ -74,13 +46,13 @@ const DriverView = ({
   connection = 'online',
   onRefresh,
   loadError = null
-}) => {
+}: DriverViewProps) => {
   const todayStr = formatForDateInput(new Date());
 
   // ── Which truck/driver column is this user? ──────────────────────────────
   // Matched exactly, never by substring. A "contains" match put Jose's stops on
   // Jose M's manifest, which is the one mistake a driver's day cannot absorb.
-  const currentTruck = useMemo(() => {
+  const currentTruck = useMemo((): Partial<BoardColumn> => {
     const candidates = [currentUser?.name, currentUser?.username]
       .map(v => cleanField(v).toLowerCase())
       .filter(Boolean);
@@ -113,9 +85,9 @@ const DriverView = ({
   }, [trucks, currentUser]);
 
   const [selectedDate, setSelectedDate] = useState(todayStr);
-  const [copiedId, setCopiedId] = useState(null);
-  const [busyId, setBusyId] = useState(null);
-  const [actionError, setActionError] = useState(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Landing on the week that contains today should open on today; any other
@@ -143,7 +115,7 @@ const DriverView = ({
       .map(v => cleanField(v).toLowerCase())
       .filter(Boolean);
 
-    const isMine = (del) => {
+    const isMine = (del: Ticket) => {
       // The customer collects a will call themselves, so it is on nobody's run —
       // including older ones still carrying the truckId they were created under.
       if (del.deliveryType === 'will_call') return false;
@@ -161,12 +133,12 @@ const DriverView = ({
       return named.some(n => truckDriver.includes(n));
     };
 
-    const grouped = new Map();
+    const grouped = new Map<string, Ticket[]>();
     for (const del of deliveries) {
       if (!del?.date || !isMine(del)) continue;
       const key = String(del.date).slice(0, 10);
       if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key).push(del);
+      grouped.get(key)!.push(del);
     }
 
     // Route number first, then appointment time — a board where the office left
@@ -189,7 +161,7 @@ const DriverView = ({
   const driverDisplayName = currentUser?.name || currentTruck?.driver || currentTruck?.name || 'Driver';
   const accent = currentTruck?.color || '#D4AF37';
 
-  const handleCopy = useCallback((id, value) => {
+  const handleCopy = useCallback((id: string, value: string) => {
     if (!value || !navigator.clipboard) return;
     navigator.clipboard.writeText(value)
       .then(() => {
@@ -201,14 +173,14 @@ const DriverView = ({
 
   // A status tap that fails has to say so. It used to resolve silently, leaving
   // the driver looking at a button that had done nothing.
-  const handleStatus = useCallback(async (del, nextStatus) => {
+  const handleStatus = useCallback(async (del: Ticket, nextStatus: string) => {
     if (!onUpdateStatus) return;
     setBusyId(del.id);
     setActionError(null);
     try {
       await onUpdateStatus(del.id, nextStatus);
     } catch (err) {
-      setActionError(err?.message || "Couldn't reach the office — check your signal and try again.");
+      setActionError((err as Error)?.message || "Couldn't reach the office — check your signal and try again.");
     } finally {
       setBusyId(prev => (prev === del.id ? null : prev));
     }
@@ -221,7 +193,7 @@ const DriverView = ({
     try {
       await onRefresh();
     } catch (err) {
-      setActionError(err?.message || "Couldn't refresh — check your signal.");
+      setActionError((err as Error)?.message || "Couldn't refresh — check your signal.");
     } finally {
       setIsRefreshing(false);
     }
@@ -230,7 +202,7 @@ const DriverView = ({
   const connectionNote = CONNECTION_LABELS[connection];
 
   return (
-    <div className="dv-root" style={{ '--dv-accent': accent }}>
+    <div className="dv-root" style={{ '--dv-accent': accent } as React.CSSProperties}>
 
       {/* ── Week strip ─────────────────────────────────────────────────── */}
       <div className="dv-daybar" role="tablist" aria-label="Days this week">
@@ -344,155 +316,18 @@ const DriverView = ({
           </div>
         ) : (
           <ol className="dv-stops">
-            {dayStops.map((del) => {
-              // The saved stop number, the same one the board and the office's
-              // form show: the server keeps each run numbered 1, 2, 3 (see
-              // renumberRuns in src/routes/deliveries.js), and two invoices
-              // sharing a number are one stop.
-              const stopNum = Number(del.routeNumber) || 1;
-              const soVal = cleanField(del.soNumber) || cleanField(del.invoiceNumber);
-              const isTransfer = del.deliveryType === 'transfer';
-              const address = cleanField(del.address) || cleanField(del.city);
-              const mapsHref = mapsHrefFor(address);
-              const phone = cleanField(del.phone) || cleanField(del.customerPhone) || cleanField(del.contactPhone);
-              const time = cleanField(del.time);
-              const notes = cleanField(del.notes);
-              const isDone = del.status === 'completed';
-              const isLate = del.status === 'delayed';
-              const isBusy = busyId === del.id;
-              const hasProof = Boolean(del.pod?.verified);
-              const awaitingResign = Boolean(del.pod?.clearedAt) && !hasProof;
-
-              return (
-                <li key={del.id} className={`dv-stop is-${del.status || 'scheduled'}`}>
-                  <div className="dv-stop-top">
-                    <span className="dv-stop-badge">
-                      {isTransfer
-                        ? <><Repeat size={12} aria-hidden="true" /> Transfer</>
-                        : <><Navigation size={12} aria-hidden="true" /> Stop {stopNum}</>}
-                    </span>
-                    <StatusPill status={del.status} size="small" />
-                  </div>
-
-                  <h3 className="dv-stop-customer">
-                    {isTransfer && cleanField(del.transferDestination)
-                      ? `Transfer → ${cleanField(del.transferDestination)}`
-                      : cleanField(del.customerName) || 'Unnamed stop'}
-                  </h3>
-
-                  <dl className="dv-stop-meta">
-                    {address && (
-                      <div className="dv-meta-row">
-                        <dt><MapPin size={14} aria-hidden="true" /><span className="dv-sr">Address</span></dt>
-                        <dd>{address}</dd>
-                      </div>
-                    )}
-                    {time && (
-                      <div className="dv-meta-row">
-                        <dt><Clock size={14} aria-hidden="true" /><span className="dv-sr">Time</span></dt>
-                        <dd>{time}</dd>
-                      </div>
-                    )}
-                    {soVal && (
-                      <div className="dv-meta-row">
-                        <dt><FileText size={14} aria-hidden="true" /><span className="dv-sr">Reference</span></dt>
-                        <dd>
-                          <button
-                            type="button"
-                            className={`dv-copy ${copiedId === del.id ? 'is-copied' : ''}`}
-                            onClick={() => handleCopy(del.id, soVal)}
-                            title={copiedId === del.id ? 'Copied' : `Copy ${isTransfer ? 'transfer number' : 'SO number'}`}
-                          >
-                            {isTransfer ? 'Transfer' : 'SO'} #{soVal}
-                            {copiedId === del.id ? <Check size={12} /> : <Copy size={12} />}
-                          </button>
-                        </dd>
-                      </div>
-                    )}
-                    {!isTransfer && cleanField(del.salesRepName) && (
-                      <div className="dv-meta-row">
-                        <dt><User size={14} aria-hidden="true" /><span className="dv-sr">Sales rep</span></dt>
-                        <dd>{cleanField(del.salesRepName)}</dd>
-                      </div>
-                    )}
-                  </dl>
-
-                  {/* The office writes these for the driver and nothing was
-                      showing them — gate codes, who to ask for, where to back in. */}
-                  {notes && (
-                    <p className="dv-stop-notes">
-                      <FileText size={13} aria-hidden="true" />
-                      <span>{notes}</span>
-                    </p>
-                  )}
-
-                  {(hasProof || awaitingResign) && (
-                    <p className={`dv-proof ${awaitingResign ? 'is-pending' : ''}`}>
-                      {awaitingResign
-                        ? <><RotateCcw size={12} aria-hidden="true" /> Signature was cleared — needs re-signing</>
-                        : <><ShieldCheck size={12} aria-hidden="true" /> Signed ePOD on file</>}
-                    </p>
-                  )}
-
-                  <div className="dv-stop-actions">
-                    {mapsHref && (
-                      <a
-                        className="dv-btn dv-btn-nav"
-                        href={mapsHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Navigation size={15} aria-hidden="true" /> Navigate
-                      </a>
-                    )}
-
-                    {phone && (
-                      <a className="dv-btn dv-btn-call" href={`tel:${phone.replace(/[^\d+]/g, '')}`}>
-                        <Phone size={15} aria-hidden="true" /> Call
-                      </a>
-                    )}
-
-                    {del.packingListUrl && (
-                      <button
-                        type="button"
-                        className="dv-btn dv-btn-doc"
-                        onClick={() => openPdfInline(del.packingListUrl)}
-                      >
-                        <FileText size={15} aria-hidden="true" /> Packing list
-                      </button>
-                    )}
-
-                    {/* Toggles. A stop wrongly marked late had no way back, so
-                        the board kept showing a delay that had been cleared. */}
-                    {!isDone && (
-                      <button
-                        type="button"
-                        className={`dv-btn dv-btn-late ${isLate ? 'is-on' : ''}`}
-                        onClick={() => handleStatus(del, isLate ? 'scheduled' : 'delayed')}
-                        disabled={isBusy}
-                      >
-                        {isLate
-                          ? <><Undo2 size={15} aria-hidden="true" /> Back on time</>
-                          : <><AlertTriangle size={15} aria-hidden="true" /> Running late</>}
-                      </button>
-                    )}
-
-                    <button
-                      type="button"
-                      className={`dv-btn dv-btn-deliver ${isDone ? 'is-done' : ''}`}
-                      onClick={() => {
-                        if (isDone && onViewPod) onViewPod(del);
-                        else if (onOpenPod) onOpenPod(del);
-                      }}
-                      disabled={isBusy}
-                    >
-                      <CheckCircle2 size={15} aria-hidden="true" />
-                      {isDone ? 'View ePOD' : 'Delivered / Sign ePOD'}
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
+            {dayStops.map((del) => (
+              <DriverStop
+                key={del.id}
+                del={del}
+                copiedId={copiedId}
+                busyId={busyId}
+                onCopy={handleCopy}
+                onStatus={handleStatus}
+                onOpenPod={onOpenPod}
+                onViewPod={onViewPod}
+              />
+            ))}
           </ol>
         )}
       </section>

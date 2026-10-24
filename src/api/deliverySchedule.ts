@@ -1,9 +1,9 @@
 // The ONLY place in the app that calls the delivery API — every component
-// under src/components/sales/delivery/ gets its data by calling the
+// under src/features/delivery/ gets its data by calling the
 // exported functions here, never by fetching /api/deliveries directly. Also
 // owns the one Socket.IO connection this feature uses and a module-level,
 // singleton cache (`scheduleCache` below) that every consumer reads from.
-// See src/components/sales/delivery/README.md for the full data-flow map —
+// See src/features/delivery/README.md for the full data-flow map —
 // in particular, why a location-filtered view deliberately bypasses this
 // cache instead of adding a location dimension to it.
 import { API_URL } from '../config/api';
@@ -578,7 +578,7 @@ export async function getScheduleDataCached(currentUser: CurrentUser | null = nu
 //
 // Each call is a fresh fetch rather than a merge of socket events: the board
 // stays live by refetching through this whenever subscribeScheduleChanges
-// says something changed (see DeliveryScheduleTab.jsx), so which tickets a
+// says something changed (see src/features/delivery/useScheduleData.ts), so which tickets a
 // branch sees is decided by the server's own location rules every time
 // rather than re-implemented here. `includeTrucks: false` skips the driver
 // list for those refetches — it only changes on truck_update.

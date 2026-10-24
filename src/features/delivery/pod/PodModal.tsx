@@ -3,7 +3,37 @@ import { X, Check, Camera, Upload, FileText, ShieldCheck, Eye, Layers } from 'lu
 import { formatTitleCase } from '../../../utils/textUtils';
 import { packingListFileName, openPdfInline } from '../../../utils/packingList';
 import { isPickupDelivery, wordingForTicket } from '../../../utils/deliveryPickup';
+import SignaturePad from './SignaturePad';
+import { drawOnPad, endStroke, initCanvas, wipePad } from './signatureCanvas';
+import type { CanvasRef, PadEvent } from './signatureCanvas';
+import type { CurrentUser } from '../../../types/records';
+import type { BoardColumn, Ticket } from '../types';
 import './PodModal.css';
+
+type Setter<T> = React.Dispatch<React.SetStateAction<T>>;
+
+export type PodModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  delivery: Ticket | null;
+  trucks?: BoardColumn[];
+  currentUser?: CurrentUser | null;
+  /** Saves the ePOD; throws with a message to show. */
+  onSavePod?: (pod: PodData) => Promise<unknown>;
+};
+
+/** What a signed ePOD sends (PATCH /api/deliveries/:id/pod). */
+export type PodData = {
+  signeeName: string;
+  driverName: string;
+  customerSignature: string;
+  driverSignature: string;
+  customerSignedAt: string;
+  driverSignedAt: string;
+  signedAt: Date;
+  photos: string[];
+  notes: string;
+};
 
 /**
  * Proof of Delivery (ePOD) Modal component
@@ -15,7 +45,7 @@ import './PodModal.css';
  * staff member handing the material over signs where the driver would. Only the
  * wording changes — every rule about what makes an ePOD valid is unchanged.
  */
-const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, onSavePod }) => {
+const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, onSavePod }: PodModalProps) => {
   const isPickup = isPickupDelivery(delivery, trucks);
   // wordingForTicket, not wordingFor: a return has to be recognised before the
   // pickup/delivery question, because it can arrive either way and its two
@@ -24,15 +54,15 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
 
   const [signeeName, setSigneeName] = useState(delivery?.pod?.signeeName || '');
   const [podNotes, setPodNotes] = useState(delivery?.pod?.notes || '');
-  const [photos, setPhotos] = useState(delivery?.pod?.photos || []);
+  const [photos, setPhotos] = useState<string[]>(delivery?.pod?.photos || []);
   const [, setUploadingPhoto] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isStampingPdf, setIsStampingPdf] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Canvas references for drawing signatures
-  const custCanvasRef = useRef(null);
-  const driverCanvasRef = useRef(null);
+  const custCanvasRef = useRef<HTMLCanvasElement>(null);
+  const driverCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const [isCustDrawing, setIsCustDrawing] = useState(false);
   const [isDriverDrawing, setIsDriverDrawing] = useState(false);
@@ -42,8 +72,8 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
 
   // Each pad records its own time when the pen lifts. Stamping both at submit
   // would make the two dates identical and meaningless.
-  const [custSignedAt, setCustSignedAt] = useState(delivery?.pod?.customerSignedAt || null);
-  const [driverSignedAt, setDriverSignedAt] = useState(delivery?.pod?.driverSignedAt || null);
+  const [custSignedAt, setCustSignedAt] = useState<string | null>(delivery?.pod?.customerSignedAt || null);
+  const [driverSignedAt, setDriverSignedAt] = useState<string | null>(delivery?.pod?.driverSignedAt || null);
 
   // Which ticket the form was last filled in for (null while closed), and
   // whether anyone has typed, drawn or added a photo since. The board opens
@@ -52,7 +82,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   // form — on a slow signal, wiping a signature already half drawn. Now it
   // only fills the form in while nothing has been entered; once someone has
   // started, the same ticket arriving again leaves their work alone.
-  const filledFor = useRef(null);
+  const filledFor = useRef<string | null>(null);
   const touched = useRef(false);
   const markTouched = () => { touched.current = true; };
 
@@ -101,116 +131,31 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     };
   }, [isOpen, hasCustSignature, hasDriverSignature]);
 
-  const formatStamp = (value) => {
-    if (!value) return null;
-    const d = new Date(value);
-    if (isNaN(d)) return null;
-    return `${d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })} · ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-  };
-
-  // `onUnreadable` runs when an earlier signature can't be loaded into the pad
-  // (its image didn't load, or the host wouldn't allow it to be read back): the
-  // pad is left blank and the caller marks it unsigned, so the person signs
-  // again instead of "saving" a signature that isn't there.
-  const initCanvas = (ref, sigDataUrl, onUnreadable) => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    if (!rect.width) return;
-
-    // The backing store has to match the box the browser actually gave us. It
-    // was fixed at 340x130 while CSS stretched the element to 100% width, so
-    // every stroke was written into a narrower coordinate space and then scaled
-    // out — signatures landed off-position and came out horizontally smeared.
-    // Multiplying by devicePixelRatio also stops them looking soft on a phone.
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.strokeStyle = '#d4af37';
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    if (sigDataUrl) {
-      const img = new Image();
-      // A signature saved online comes back as a hosted URL. Drawn without
-      // this, it taints the canvas and toDataURL() throws on Save — which left
-      // the button on "Saving…" for good. (Pads that start from a data: URL
-      // don't need it.)
-      if (!String(sigDataUrl).startsWith('data:')) img.crossOrigin = 'anonymous';
-      img.onerror = () => { if (onUnreadable) onUnreadable(); };
-      img.onload = () => {
-        ctx.clearRect(0, 0, rect.width, rect.height);
-        // Fit a stored signature to the pad rather than drawing it 1:1, since
-        // it may have been captured on a differently sized screen.
-        const scale = Math.min(rect.width / img.width, rect.height / img.height, 1);
-        ctx.drawImage(img, 0, 0, img.width * scale, img.height * scale);
-      };
-      img.src = sigDataUrl;
-    }
-  };
-
   // Generic Touch / Mouse Handlers for Canvas Drawing
-  const startDrawing = (e, ref, setDrawing) => {
+  const startDrawing = (e: PadEvent, ref: CanvasRef, setDrawing: Setter<boolean>) => {
     markTouched();
     setDrawing(true);
-    draw(e, ref);
+    drawOnPad(e, ref);
   };
 
-  const stopDrawing = (setDrawing, ref, setHasSig, setSignedAt) => {
+  const stopDrawing = (setDrawing: Setter<boolean>, ref: CanvasRef, setHasSig: Setter<boolean>, setSignedAt: Setter<string | null>) => {
     setDrawing(false);
-    const canvas = ref.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      ctx.beginPath();
+    if (endStroke(ref)) {
       setHasSig(true);
       setSignedAt(new Date().toISOString());
     }
   };
 
-  const draw = (e, ref) => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const rect = canvas.getBoundingClientRect();
-    let clientX = e.clientX;
-    let clientY = e.clientY;
-
-    if (e.touches && e.touches.length > 0) {
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    }
-
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-
-  const clearCanvas = (ref, setHasSig, setSignedAt) => {
+  const clearCanvas = (ref: CanvasRef, setHasSig: Setter<boolean>, setSignedAt: Setter<string | null>) => {
     markTouched();
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    // Clear in device pixels — the context carries a devicePixelRatio scale.
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.restore();
-    ctx.beginPath();
+    if (!wipePad(ref)) return;
     setHasSig(false);
     setSignedAt(null);
   };
 
   // Handle Photo Upload
-  const handlePhotoUpload = (e) => {
-    const files = Array.from(e.target.files);
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files as FileList);
     if (files.length === 0) return;
     markTouched();
 
@@ -219,14 +164,14 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     files.forEach(file => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPhotos(prev => [...prev, reader.result].slice(0, 6));
+        setPhotos(prev => [...prev, reader.result as string].slice(0, 6));
         setUploadingPhoto(false);
       };
       reader.readAsDataURL(file);
     });
   };
 
-  const removePhoto = (idx) => {
+  const removePhoto = (idx: number) => {
     markTouched();
     setPhotos(prev => prev.filter((_, i) => i !== idx));
   };
@@ -246,7 +191,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     }
 
     setIsSaving(true);
-    setIsStampingPdf(Boolean(delivery.packingListUrl));
+    setIsStampingPdf(Boolean(delivery!.packingListUrl));
     setError(null);
 
     const signedAt = new Date();
@@ -279,7 +224,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
       } catch {
         throw new Error('An earlier signature on this form couldn\'t be read. Press Clear on each signature and sign again.');
       }
-      const podData = {
+      const podData: PodData = {
         signeeName: signeeName.trim(),
         driverName: resolvedDriverName,
         customerSignature: custSigDataUrl,
@@ -298,7 +243,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
       // No local-blob fallback: a blob: URL is meaningless to every other user
       // and used to be written to the database as if it were a real document.
       setError(
-        err?.message ||
+        (err as Error)?.message ||
         'Could not save the proof of delivery. Check your signal and try again — nothing has been recorded yet.'
       );
     } finally {
@@ -387,50 +332,32 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
           {/* Signature Canvas Grid */}
           <div className="pod-signature-grid">
             {/* Customer Signature Pad */}
-            <div className="pod-sig-box">
-              <div className="sig-box-header">
-                <label className="pod-label">{words.customerSigLabel} <span className="req-star">*</span></label>
-                <button type="button" className="sig-clear-btn" onClick={() => clearCanvas(custCanvasRef, setHasCustSignature, setCustSignedAt)}>Clear</button>
-              </div>
-              <canvas
-                ref={custCanvasRef}
-                width={340}
-                height={130}
-                className={`sig-canvas ${hasCustSignature ? 'is-signed' : ''}`}
-                onMouseDown={(e) => startDrawing(e, custCanvasRef, setIsCustDrawing)}
-                onMouseMove={(e) => isCustDrawing && draw(e, custCanvasRef)}
-                onMouseUp={() => stopDrawing(setIsCustDrawing, custCanvasRef, setHasCustSignature, setCustSignedAt)}
-                onTouchStart={(e) => startDrawing(e, custCanvasRef, setIsCustDrawing)}
-                onTouchMove={(e) => isCustDrawing && draw(e, custCanvasRef)}
-                onTouchEnd={() => stopDrawing(setIsCustDrawing, custCanvasRef, setHasCustSignature, setCustSignedAt)}
-              />
-              {formatStamp(custSignedAt)
-                ? <span className="sig-stamp"><Check size={11} /> Signed {formatStamp(custSignedAt)}</span>
-                : <span className="sig-hint">{words.customerHint}</span>}
-            </div>
+            <SignaturePad
+              label={words.customerSigLabel}
+              hint={words.customerHint}
+              canvasRef={custCanvasRef}
+              signed={hasCustSignature}
+              drawing={isCustDrawing}
+              signedAt={custSignedAt}
+              onClear={() => clearCanvas(custCanvasRef, setHasCustSignature, setCustSignedAt)}
+              onStart={(e) => startDrawing(e, custCanvasRef, setIsCustDrawing)}
+              onMove={(e) => drawOnPad(e, custCanvasRef)}
+              onEnd={() => stopDrawing(setIsCustDrawing, custCanvasRef, setHasCustSignature, setCustSignedAt)}
+            />
 
             {/* Driver Signature Pad */}
-            <div className="pod-sig-box">
-              <div className="sig-box-header">
-                <label className="pod-label">{words.driverSigLabel} <span className="req-star">*</span></label>
-                <button type="button" className="sig-clear-btn" onClick={() => clearCanvas(driverCanvasRef, setHasDriverSignature, setDriverSignedAt)}>Clear</button>
-              </div>
-              <canvas
-                ref={driverCanvasRef}
-                width={340}
-                height={130}
-                className={`sig-canvas ${hasDriverSignature ? 'is-signed' : ''}`}
-                onMouseDown={(e) => startDrawing(e, driverCanvasRef, setIsDriverDrawing)}
-                onMouseMove={(e) => isDriverDrawing && draw(e, driverCanvasRef)}
-                onMouseUp={() => stopDrawing(setIsDriverDrawing, driverCanvasRef, setHasDriverSignature, setDriverSignedAt)}
-                onTouchStart={(e) => startDrawing(e, driverCanvasRef, setIsDriverDrawing)}
-                onTouchMove={(e) => isDriverDrawing && draw(e, driverCanvasRef)}
-                onTouchEnd={() => stopDrawing(setIsDriverDrawing, driverCanvasRef, setHasDriverSignature, setDriverSignedAt)}
-              />
-              {formatStamp(driverSignedAt)
-                ? <span className="sig-stamp"><Check size={11} /> Signed {formatStamp(driverSignedAt)}</span>
-                : <span className="sig-hint">{words.driverHint}</span>}
-            </div>
+            <SignaturePad
+              label={words.driverSigLabel}
+              hint={words.driverHint}
+              canvasRef={driverCanvasRef}
+              signed={hasDriverSignature}
+              drawing={isDriverDrawing}
+              signedAt={driverSignedAt}
+              onClear={() => clearCanvas(driverCanvasRef, setHasDriverSignature, setDriverSignedAt)}
+              onStart={(e) => startDrawing(e, driverCanvasRef, setIsDriverDrawing)}
+              onMove={(e) => drawOnPad(e, driverCanvasRef)}
+              onEnd={() => stopDrawing(setIsDriverDrawing, driverCanvasRef, setHasDriverSignature, setDriverSignedAt)}
+            />
           </div>
 
           {/* Photos Upload Section */}

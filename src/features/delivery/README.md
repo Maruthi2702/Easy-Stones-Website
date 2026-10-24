@@ -3,48 +3,56 @@
 This is the file most worth reading first if you're debugging or extending
 the Delivery Schedule feature and don't already know where things live. It's
 one feature spread across a backend router, a client-side cache/socket
-layer, and this directory of UI components — the map below is what actually
+layer, and this folder (`src/features/delivery/`, its public surface
+`index.ts`; shared shapes in `types.ts`) — the map below is what actually
 talks to what, not just a file listing.
 
 ## The shape of the feature
 
 ```
-Browser                                    Server
+Browser  (src/features/delivery/)          Server
 ────────────────────────────────────────   ──────────────────────────────────
-DeliveryScheduleTab.jsx  (page shell,       src/routes/deliveries.js
+DeliveryScheduleTab.tsx  (page shell,       src/routes/deliveries.js
   role switch, week nav, location filter)     (every /api/deliveries and
         │                                      /api/trucks route)
-        ├─ BoardGrid.jsx      (office/sales          │
+        ├─ board/BoardGrid.tsx  (office/sales        │
         │   board: truck columns × days)             │ location-scoped
-        ├─ DriverView.jsx     (driver's own           │ reads/writes,
+        ├─ driver/DriverView.tsx (driver's own        │ reads/writes,
         │   stops, mobile-first)                      │ Socket.IO room
-        ├─ PendingDeliveries.jsx (no driver/date       │ broadcasts
-        │   assigned yet)                             │
-        ├─ DeliveryForm.jsx   (the one add/edit        │
+        ├─ board/PendingDeliveries.tsx,               │ broadcasts
+        │   board/CancelledOrders.tsx                 │
+        ├─ form/DeliveryForm.tsx (the one add/edit    │
         │   form — jobsite, transfer, will call,       ▼
         │   return, drop-off; rules in          src/models/Delivery.js
-        │   utils/deliveryForm.js)
-        ├─ PodModal.jsx / PodViewer.jsx          src/models/Truck.js
+        │   src/utils/deliveryForm.ts)
+        ├─ pod/PodModal.tsx / pod/PodViewer.tsx   src/models/Truck.js
         │   (capture / view proof of delivery)
-        └─ TicketChip.jsx → StatusPill.jsx,
-            EpodChip.jsx  (the card itself)
+        ├─ search/DeliveryOrderSearch.tsx, board/ColumnOrderForm.tsx
+        └─ board/TicketChip.tsx → StatusPill.tsx,
+            EpodChip.tsx  (the card itself)
 
         all of the above read/write through
 
-src/api/deliverySchedule.js
+src/api/deliverySchedule.ts
   (the ONLY place that calls the delivery API — see "Data flow" below)
 ```
 
+The page itself is thin: `ScheduleHeader.tsx` (toolbar) and `ScheduleStage.tsx`
+(loader / board / lists / driver view) draw it; `useScheduleData` loads and
+keeps the week current, `useScheduleActions` holds every write (save, delete,
+status, drag, reorder, the submitted-day notice), `usePodDialogs` the two ePOD
+pop-ups, `useColumnOrders` each branch's column order.
+
 Pure logic with no DOM/network dependency lives in `src/utils/`:
 `deliveryTypes.js` (what counts as pending/a return/a drop-off — has
-`.test.js`), `deliveryWeek.js` (which dates a week shows — has `.test.js`),
+`.test.js`), `deliveryWeek.ts` (which dates a week shows — has `.test.js`),
 `deliveryPickup.js` (pickup vs. delivery wording, third-party-truck
 detection — no test file yet, low risk since it's pure string/config logic),
 `deliverySearch.js` (order search — has `.test.js`, see below).
 
 ## Order search (SO# / company, every date)
 
-`DeliveryOrderSearch.jsx` is the "Search SO# or company…" box in the header,
+`search/DeliveryOrderSearch.tsx` is the "Search SO# or company…" box in the header,
 for every role except drivers. It does two jobs with one piece of text: the
 board, Pending and Cancelled keep filtering what's already loaded (as the
 old sales-only box did), and a dropdown searches **every date** via
@@ -66,23 +74,23 @@ box. Two deliberate differences from the board:
 
 ## Data flow — read this before changing either side
 
-**`src/api/deliverySchedule.js` is the only file that calls the delivery API.**
+**`src/api/deliverySchedule.ts` is the only file that calls the delivery API.**
 Every component above gets its data by calling exported functions from it
 (`saveDelivery`, `deleteDelivery`, `getScheduleDataCached`, etc.) — none of
 them call `fetch`/`authFetch` against `/api/deliveries` directly. If you're
 adding a new field or a new action, the new API call belongs in
-`deliverySchedule.js`, not inline in a component.
+`deliverySchedule.ts`, not inline in a component.
 
-`deliverySchedule.js` also owns a **module-level, singleton, shared cache**
+`deliverySchedule.ts` also owns a **module-level, singleton, shared cache**
 (`scheduleCache` — deliveries by week, trucks, pending) and the one
 Socket.IO connection this feature uses. Every component that renders
 delivery data is really just a view over that one cache, kept in sync via
 `subscribeScheduleCache`. This matters for two things:
 
 1. **The default "All Locations" view is the cache. Anything else is not.**
-   `DeliveryScheduleTab.jsx`'s location filter deliberately does NOT touch
+   `DeliveryScheduleTab.tsx`'s location filter deliberately does NOT touch
    `scheduleCache` when a specific branch is selected — see
-   `getLocationScopedScheduleData` in `deliverySchedule.js` for why (so switching
+   `getLocationScopedScheduleData` in `deliverySchedule.ts` for why (so switching
    the filter on and off can never leave the shared cache — which every
    other consumer of this data relies on — in a filtered state). The All
    Locations view is the live-updating cache. A narrowed view — which is
@@ -92,11 +100,11 @@ delivery data is really just a view over that one cache, kept in sync via
    update, reconnect and fallback poll, with no data) and refetches its one
    branch through `getLocationScopedScheduleData`, so the server's location
    rules decide what it shows every time. Its saves/moves refetch too
-   (`applyUpdatedList` in `DeliveryScheduleTab.jsx`), because the mutation
+   (`applyUpdatedList` in `useScheduleData.ts`), because the mutation
    helpers return the shared cache's week, not the narrowed one.
 
 2. **The socket only pushes updates to rooms a client has actually joined.**
-   `deliverySchedule.js`'s `initScheduleSocket()` connects, then emits
+   `deliverySchedule.ts`'s `initScheduleSocket()` connects, then emits
    `join_delivery_rooms` with the current auth token on every `connect`
    event (including reconnects). The **server** (`server.js`'s
    `io.on('connection', ...)` handler) verifies that token and joins the
@@ -174,3 +182,9 @@ two-sided treatment.
   `strict: false` — an undeclared field still saves silently instead of
   erroring, so check the schema's field list itself before assuming the
   save path is broken.
+
+## The old form
+
+`form/DeliveryModal.jsx` is the add/edit form `DeliveryForm` replaced on
+2026-10-05. Nothing mounts it; it moved here unchanged (still JavaScript) and
+waits on the owner's call to delete it (KNOWN_ISSUES.md → Cleanup due).
