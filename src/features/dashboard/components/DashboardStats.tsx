@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { UserPlus, FolderPlus, Clock, Calendar, ChevronDown } from 'lucide-react';
-import { RANGES, rangeFooter } from './dashboardFocus';
+import { RANGES, rangeFooter } from '../dashboardFocus';
+import type { Loose } from '../../../types/records';
 import './DashboardFocus.css';
 
 /**
  * The Dashboard's time range (design "Option A"): a segmented control in the
  * header on wide screens, one button opening a bottom sheet under 640px.
  */
-export const DashboardRange = ({ value, onChange }) => {
+export type DashboardRangeProps = { value: string; onChange: (id: string) => void };
+
+export const DashboardRange = ({ value, onChange }: DashboardRangeProps) => {
     const [open, setOpen] = useState(false);
     const current = RANGES.find(r => r.id === value) || RANGES[0];
     return (
@@ -60,6 +63,15 @@ export const DashboardRange = ({ value, onChange }) => {
     );
 };
 
+export type DashboardStatsProps = {
+    stats: Loose;
+    statsLoading: boolean;
+    dashboardTimeRange: string;
+    activeDashboardTab: string;
+    setActiveDashboardTab: (tab: string) => void;
+    todayScheduleCount: number;
+};
+
 const DashboardStats = ({
     stats,
     statsLoading,
@@ -67,9 +79,9 @@ const DashboardStats = ({
     activeDashboardTab,
     setActiveDashboardTab,
     todayScheduleCount
-}) => {
+}: DashboardStatsProps) => {
     const footer = rangeFooter(dashboardTimeRange);
-    const cards = [
+    const cards: { id: string; title: string; short?: string; Icon: typeof UserPlus; value: unknown; footer: string }[] = [
         { id: 'visits', title: 'SALES VISITS', Icon: UserPlus, value: stats.visits, footer },
         { id: 'resources', title: 'RESOURCES', short: 'RESOURCES', Icon: FolderPlus, value: stats.resources, footer },
         { id: 'followups', title: 'FOLLOW-UP', Icon: Clock, value: stats.followUp, footer },
@@ -88,7 +100,7 @@ const DashboardStats = ({
                     <span className="dfx-card-icon" aria-hidden="true"><Icon size={19} /></span>
                     <span className="dfx-card-text">
                         <span className="dfx-card-title">{title === 'SALES VISITS' ? <><span className="dfx-long">SALES </span>VISITS</> : (short || title)}</span>
-                        <span className="dfx-card-value">{statsLoading ? '…' : value}</span>
+                        <span className="dfx-card-value">{statsLoading ? '…' : (value as React.ReactNode)}</span>
                     </span>
                     <span className="dfx-card-foot">{foot}</span>
                 </button>

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { todayStops, dueLabel, panelFollowUps } from './dashboardFocus.js';
+import { todayStops, dueLabel, panelFollowUps } from './dashboardFocus';
 
 const now = new Date(2026, 9, 18, 12, 0, 0);
-const at = (day, h) => new Date(2026, 9, day, h, 0, 0).toISOString();
+const at = (day: number, h: number) => new Date(2026, 9, day, h, 0, 0).toISOString();
 
 describe('todayStops', () => {
   it("keeps only today's, in time order, and drops cancelled ones", () => {

@@ -145,6 +145,10 @@ export const formatInstant = (value, options = { month: 'short', day: 'numeric',
 export const formatInstantTime = (value, options = { hour: '2-digit', minute: '2-digit' }) =>
   formatInstant(value, options);
 
+/**
+ * @param {any} dateString
+ * @param {Intl.DateTimeFormatOptions} [options]
+ */
 export const formatDate = (dateString, options = { month: 'short', day: 'numeric', year: 'numeric' }) => {
   if (!dateString) return '-';
   try {

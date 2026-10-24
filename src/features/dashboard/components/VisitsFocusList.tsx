@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronDown, MapPin, Eye, Loader } from 'lucide-react';
-import { API_URL } from '../../config/api';
-import { authFetch } from '../../api/authFetch';
-import { formatDate } from '../../utils/dateUtils';
-import { splitCustomer } from './visitsListHelpers';
+import { API_URL } from '../../../config/api';
+import { authFetch } from '../../../api/authFetch';
+import { formatDate } from '../../../utils/dateUtils';
+import { splitCustomer } from '../../../components/sales/visitsListHelpers';
 import VisitViewModal from './VisitViewModal';
+import type { VisitDetails } from './VisitViewModal';
+import type { Loose } from '../../../types/records';
 import './DashboardFocus.css';
 
 /**
@@ -17,12 +19,25 @@ import './DashboardFocus.css';
  * canModify / canDelete say whether to offer them per visit; canOpenCustomer
  * is view_customers.
  */
-const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, canModify, canDelete, canOpenCustomer = true, onOpenCustomer, onEdit, onDelete, onOpenGallery }) => {
-    const [openId, setOpenId] = useState(null);
-    const [viewing, setViewing] = useState(null);
+export type VisitsFocusListProps = {
+    visits?: Loose[];
+    loading?: boolean;
+    busyVisitId?: string | null;
+    canModify?: (visit: Loose) => boolean;
+    canDelete?: (visit: Loose) => boolean;
+    canOpenCustomer?: boolean;
+    onOpenCustomer?: (visit: Loose) => void;
+    onEdit?: (visit: Loose) => void;
+    onDelete?: (visit: Loose) => void;
+    onOpenGallery?: (images: string[], index: number) => void;
+};
+
+const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, canModify, canDelete, canOpenCustomer = true, onOpenCustomer, onEdit, onDelete, onOpenGallery }: VisitsFocusListProps) => {
+    const [openId, setOpenId] = useState<string | null>(null);
+    const [viewing, setViewing] = useState<Loose | null>(null);
     // The opened visit's photos and comments; cleared on every open so an edit
     // saved meanwhile is read again.
-    const [details, setDetails] = useState(null);
+    const [details, setDetails] = useState<VisitDetails | null>(null);
 
     // The first visit starts open, as in the design — until the list changes under it.
     useEffect(() => {
@@ -36,15 +51,15 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
         setDetails({ status: 'loading', images: [] });
         authFetch(`${API_URL}/api/customers/${viewing.customerId}/visits/${viewing._id}`)
             .then(r => (r.ok ? r.json() : null))
-            .then(data => {
+            .then((data: Loose | null) => {
                 if (cancelled) return;
-                const visit = data?.visit || {};
+                const visit: Loose = data?.visit || {};
                 const img = visit.image;
                 setDetails({
                     status: 'done',
-                    images: Array.isArray(img) ? img.filter(Boolean) : (img ? [img] : []),
-                    managerComment: (visit.managerComment || '').trim(),
-                    headquartersComment: (visit.headquartersComment || '').trim()
+                    images: Array.isArray(img) ? img.filter(Boolean) : (img ? [img as string] : []),
+                    managerComment: String(visit.managerComment || '').trim(),
+                    headquartersComment: String(visit.headquartersComment || '').trim()
                 });
             })
             .catch(() => { if (!cancelled) setDetails({ status: 'error', images: [] }); });
@@ -59,8 +74,8 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
         );
     }
 
-    const allowedEdit = (v) => (canModify ? canModify(v) : true);
-    const allowedDelete = (v) => (canDelete ? canDelete(v) : true);
+    const allowedEdit = (v: Loose) => (canModify ? canModify(v) : true);
+    const allowedDelete = (v: Loose) => (canDelete ? canDelete(v) : true);
 
     return (
         <>
@@ -68,11 +83,11 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
                 {visits.map(visit => {
                     const { company, contact } = splitCustomer(visit);
                     const open = openId === visit._id;
-                    const d = new Date(visit.date);
+                    const d = new Date(visit.date as string);
                     const valid = Number.isFinite(d.getTime());
                     return (
-                        <li key={visit._id} className={open ? 'is-open' : ''}>
-                            <div className="dfx-row" onClick={() => setOpenId(open ? null : visit._id)}>
+                        <li key={visit._id as string} className={open ? 'is-open' : ''}>
+                            <div className="dfx-row" onClick={() => setOpenId(open ? null : (visit._id as string))}>
                                 <span className="dfx-date" aria-hidden="true">
                                     <span>{valid ? d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase() : ''}</span>
                                     <strong>{valid ? d.getDate() : ''}</strong>
@@ -86,14 +101,14 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
                                     ) : (
                                         <span className="dfx-row-company">{company}</span>
                                     )}
-                                    <span className="dfx-row-contact">{contact || ' '}{visit.location && <span className="dfx-phone-only"> · {visit.location}</span>}</span>
+                                    <span className="dfx-row-contact">{contact || ' '}{Boolean(visit.location) && <span className="dfx-phone-only"> · {visit.location as string}</span>}</span>
                                 </span>
-                                {visit._saving && <span className="dfx-saving" role="status"><Loader size={12} className="animate-spin" aria-hidden="true" />Saving…</span>}
-                                {visit.location && <span className="dfx-pill"><MapPin size={11} aria-hidden="true" />{visit.location}</span>}
+                                {Boolean(visit._saving) && <span className="dfx-saving" role="status"><Loader size={12} className="animate-spin" aria-hidden="true" />Saving…</span>}
+                                {Boolean(visit.location) && <span className="dfx-pill"><MapPin size={11} aria-hidden="true" />{visit.location as string}</span>}
                                 <button
                                     type="button" className="dfx-chev-btn" aria-expanded={open}
                                     aria-label={open ? 'Hide visit details' : 'Show visit details'}
-                                    onClick={(e) => { e.stopPropagation(); setOpenId(open ? null : visit._id); }}
+                                    onClick={(e) => { e.stopPropagation(); setOpenId(open ? null : (visit._id as string)); }}
                                 >
                                     <ChevronDown size={18} className="dfx-chev" aria-hidden="true" />
                                 </button>
@@ -101,18 +116,18 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
                             {open && (
                                 <div className="dfx-open">
                                     <div className="dfx-chips">
-                                        <span><em>Type </em><strong>{visit.purpose || '—'}</strong></span>
-                                        <span><em>Logged by </em><strong>{visit.createdByName || '—'}</strong></span>
-                                        <span><em>Follow-up </em><strong>{visit.followUpDate ? formatDate(visit.followUpDate, { month: 'short', day: 'numeric' }) : 'None'}</strong></span>
+                                        <span><em>Type </em><strong>{(visit.purpose as string) || '—'}</strong></span>
+                                        <span><em>Logged by </em><strong>{(visit.createdByName as string) || '—'}</strong></span>
+                                        <span><em>Follow-up </em><strong>{visit.followUpDate ? formatDate(visit.followUpDate as string, { month: 'short', day: 'numeric' }) : 'None'}</strong></span>
                                     </div>
-                                    <p>{visit.notes || 'No notes.'}</p>
+                                    <p>{(visit.notes as string) || 'No notes.'}</p>
                                     <div className="dfx-actions">
-                                        <button type="button" className="dfx-btn dfx-btn--dark" onClick={() => setViewing(visit)} disabled={visit._saving}><Eye size={15} aria-hidden="true" />View</button>
+                                        <button type="button" className="dfx-btn dfx-btn--dark" onClick={() => setViewing(visit)} disabled={Boolean(visit._saving)}><Eye size={15} aria-hidden="true" />View</button>
                                         {allowedEdit(visit) && (
-                                            <button type="button" className="dfx-btn" onClick={() => onEdit?.(visit)} disabled={visit._saving || busyVisitId === visit._id}>Edit</button>
+                                            <button type="button" className="dfx-btn" onClick={() => onEdit?.(visit)} disabled={Boolean(visit._saving) || busyVisitId === visit._id}>Edit</button>
                                         )}
                                         {allowedDelete(visit) && (
-                                            <button type="button" className="dfx-btn dfx-btn--danger" onClick={() => onDelete?.(visit)} disabled={visit._saving}>Delete</button>
+                                            <button type="button" className="dfx-btn dfx-btn--danger" onClick={() => onDelete?.(visit)} disabled={Boolean(visit._saving)}>Delete</button>
                                         )}
                                     </div>
                                 </div>

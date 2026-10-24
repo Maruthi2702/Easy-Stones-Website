@@ -1,6 +1,7 @@
-import React from 'react';
 import { Calendar } from 'lucide-react';
-import { todayStops, panelFollowUps } from './dashboardFocus';
+import { todayStops, panelFollowUps } from '../dashboardFocus';
+import type { PanelFollowUp } from '../dashboardFocus';
+import type { Loose } from '../../../types/records';
 import './DashboardFocus.css';
 
 /**
@@ -10,7 +11,18 @@ import './DashboardFocus.css';
  * (GET /api/dashboard/followups/panel). Nothing is fetched here. Under 640px they sit below the
  * visit list.
  */
-const DashboardAside = ({ schedules, customerName, followUps, followUpCount, onOpenPlanner, onOpenFollowUps, onOpenCustomer }) => {
+export type DashboardAsideProps = {
+    schedules: Loose[];
+    customerName: (schedule: Loose) => string;
+    /** GET /api/dashboard/followups/panel's rows. */
+    followUps: Loose[];
+    followUpCount: number;
+    onOpenPlanner: () => void;
+    onOpenFollowUps: () => void;
+    onOpenCustomer?: (row: PanelFollowUp) => void;
+};
+
+const DashboardAside = ({ schedules, customerName, followUps, followUpCount, onOpenPlanner, onOpenFollowUps, onOpenCustomer }: DashboardAsideProps) => {
     const now = new Date();
     const stops = todayStops(schedules, customerName, now);
     const rows = panelFollowUps(followUps, now);

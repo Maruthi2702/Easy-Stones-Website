@@ -1,13 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Pencil, Trash2, Loader, FileText, Handshake, StickyNote, Calendar } from 'lucide-react';
-import { API_URL } from '../../config/api';
-import { formatDate } from '../../utils/dateUtils';
-import { isPdfSource } from '../../utils/attachments';
-import { splitCustomer } from './visitsListHelpers';
+import { API_URL } from '../../../config/api';
+import { formatDate } from '../../../utils/dateUtils';
+import { isPdfSource } from '../../../utils/attachments';
+import { splitCustomer } from '../../../components/sales/visitsListHelpers';
+import type { Loose } from '../../../types/records';
 import './DashboardFocus.css';
 
-const resolveImageSrc = (img) => {
+const resolveImageSrc = (img: string) => {
     if (!img) return '';
     if (img.startsWith('data:') || img.startsWith('http')) return img;
     if (img.startsWith('/uploads')) return `${API_URL}${img}`;
@@ -21,14 +22,28 @@ const resolveImageSrc = (img) => {
  * is given (view_customers); Edit / Delete only when allowed. A dialog on
  * wide screens, a bottom sheet under 640px (CSS).
  */
-const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDelete, onOpenGallery, busy = false }) => {
-    const ref = useRef(null);
+/** The single-visit route's photos and comments, as VisitsFocusList reads them. */
+export type VisitDetails = { status: 'loading' | 'done' | 'error'; images: string[]; managerComment?: string; headquartersComment?: string };
+
+export type VisitViewModalProps = {
+    visit: Loose;
+    details: VisitDetails | null;
+    onClose: () => void;
+    onOpenCustomer?: (visit: Loose) => void;
+    onEdit?: (visit: Loose) => void;
+    onDelete?: (visit: Loose) => void;
+    onOpenGallery?: (images: string[], index: number) => void;
+    busy?: boolean;
+};
+
+const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDelete, onOpenGallery, busy = false }: VisitViewModalProps) => {
+    const ref = useRef<HTMLElement>(null);
     const { company, contact } = splitCustomer(visit);
 
     useEffect(() => {
-        const previous = document.activeElement;
+        const previous = document.activeElement as HTMLElement | null;
         ref.current?.focus({ preventScroll: true });
-        const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
         document.addEventListener('keydown', onKey, true);
         const html = document.documentElement;
         const had = html.style.overflow;
@@ -42,21 +57,21 @@ const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDel
 
     const images = details?.images || [];
     // Same kinds and colours as the profile's visit card (VisitPostCard).
-    const purpose = (visit.purpose || '').toLowerCase();
+    const purpose = String(visit.purpose || '').toLowerCase();
     const isQuickNote = purpose.includes('quick note');
     const isResource = purpose.includes('resource');
     const isMeeting = purpose.includes('meeting') || purpose.includes('visit');
     const kind = isQuickNote ? 'quick-note' : (isResource ? 'resource' : 'meeting');
-    const plain = /quick note|resource placement|resource update/i.test(visit.purpose || '');
-    const rows = [
+    const plain = /quick note|resource placement|resource update/i.test(String(visit.purpose || ''));
+    const rows = ([
         !plain && visit.outcome && ['outcome', 'OUTCOME', visit.outcome],
         !plain && visit.followUp && ['follow-up', 'FOLLOW UP', visit.followUp],
-        visit.followUpDate && ['follow-up', 'FOLLOW-UP DATE', formatDate(visit.followUpDate, { month: 'short', day: 'numeric', year: 'numeric' })],
+        visit.followUpDate && ['follow-up', 'FOLLOW-UP DATE', formatDate(visit.followUpDate as string, { month: 'short', day: 'numeric', year: 'numeric' })],
         details?.managerComment && ['manager-comment', 'MANAGER COMMENT', details.managerComment],
         details?.headquartersComment && ['hq-comment', 'HQ COMMENT', details.headquartersComment],
         visit.nextAction && ['next-action', 'NEXT STEPS', visit.nextAction],
-    ].filter(Boolean);
-    const note = visit.createdByName ? `Logged by ${visit.createdByName} · ${formatDate(visit.date, { month: 'short', day: 'numeric' })}` : '';
+    ].filter(Boolean)) as [string, string, React.ReactNode][];
+    const note = visit.createdByName ? `Logged by ${visit.createdByName} · ${formatDate(visit.date as string, { month: 'short', day: 'numeric' })}` : '';
 
     return createPortal(
         <div className="dfx-modal-wrap">
@@ -69,22 +84,22 @@ const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDel
                                 ? <button type="button" className="dfx-link" title="Open customer" onClick={() => onOpenCustomer(visit)}>{company}</button>
                                 : <span>{company}</span>}
                         </h2>
-                        <span>{[contact, visit.location].filter(Boolean).join(' · ')}</span>
+                        <span>{[contact, visit.location as string].filter(Boolean).join(' · ')}</span>
                     </div>
                     <button type="button" className="dfx-close" aria-label="Close" title="Close" onClick={onClose}><X size={16} strokeWidth={2.6} /></button>
                 </header>
 
                 <div className="dfx-modal-body">
                     <div className="dfx-visit-top">
-                        {visit.purpose && (
+                        {Boolean(visit.purpose) && (
                             <div className={`post-purpose-badge ${kind}`}>
                                 {isMeeting ? <Handshake size={14} className="badge-icon" /> : (isQuickNote ? <StickyNote size={14} className="badge-icon" /> : <Calendar size={14} className="badge-icon" />)}
-                                <span>{visit.purpose}</span>
+                                <span>{visit.purpose as string}</span>
                             </div>
                         )}
-                        <span className="dfx-visit-date">{formatDate(visit.date, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        <span className="dfx-visit-date">{formatDate(visit.date as string, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                     </div>
-                    {visit.notes && <p className="post-text">{visit.notes}</p>}
+                    {Boolean(visit.notes) && <p className="post-text">{visit.notes as string}</p>}
                     {rows.length > 0 && (
                         <div className="post-details-ext">
                             {rows.map(([cls, label, value]) => (
