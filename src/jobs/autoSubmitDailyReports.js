@@ -26,7 +26,7 @@ import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail
  * left behind. A draft intentionally stores Deliveries/Pick-ups slabs (and any
  * auto transfer line nobody hand-corrected) as null after every autosave, so
  * they keep re-deriving from the schedule on the next page load — see
- * buildDraftPayload in src/components/sales/dailyreport/savePayload.js and the
+ * buildDraftPayload in src/features/dailyReport/savePayload.ts and the
  * 2026-08-28 incident note on applyDerived in ../routes/dailyReports.js. A day
  * nobody reopened after their last edit was freezing at whatever null the
  * previous autosave had deliberately left. The fix is to run the same derive

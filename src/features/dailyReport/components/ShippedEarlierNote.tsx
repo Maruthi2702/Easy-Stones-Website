@@ -1,16 +1,17 @@
 import React from 'react';
 import { Info, AlertTriangle } from 'lucide-react';
 import { shortDayLabel } from '../../../utils/deliveryTypes';
+import type { ShippedEarlierGroup } from '../types';
 
 const isoToday = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const listOf = (items) =>
+const listOf = (items: string[]) =>
   items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 
-const PENDING_LABEL = { missing: 'Not filed yet', draft: 'Not submitted yet' };
+const PENDING_LABEL: Record<string, string> = { missing: 'Not filed yet', draft: 'Not submitted yet' };
 
 /**
  * Why the delivery board shows more transfers on this day than the Transfers
@@ -18,7 +19,7 @@ const PENDING_LABEL = { missing: 'Not filed yet', draft: 'Not submitted yet' };
  * their arrival day. Each ship day links to its own report, flagged when that
  * report hasn't been filed or submitted, since that's the one counting them.
  */
-const ShippedEarlierNote = ({ groups, date, onOpenDay }) => {
+const ShippedEarlierNote = ({ groups, date, onOpenDay }: { groups: ShippedEarlierGroup[]; date: string; onOpenDay: (date: string) => void }) => {
   const count = groups.reduce((s, g) => s + g.count, 0);
   const slabs = groups.reduce((s, g) => s + g.slabs, 0);
   const isToday = date === isoToday();
@@ -41,9 +42,9 @@ const ShippedEarlierNote = ({ groups, date, onOpenDay }) => {
               <button type="button" className="dr-link-btn" onClick={() => onOpenDay(g.shipDate)}>
                 Open {shortDayLabel(g.shipDate)} report
               </button>
-              {PENDING_LABEL[g.reportStatus] && (
+              {PENDING_LABEL[g.reportStatus as string] && (
                 <span className="dr-shipped-earlier-status">
-                  <AlertTriangle size={11} aria-hidden="true" /> {PENDING_LABEL[g.reportStatus]}
+                  <AlertTriangle size={11} aria-hidden="true" /> {PENDING_LABEL[g.reportStatus as string]}
                 </span>
               )}
             </span>

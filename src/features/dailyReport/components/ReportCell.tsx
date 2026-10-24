@@ -1,4 +1,24 @@
 import React, { useState } from 'react';
+import type { FocusEvent, KeyboardEvent } from 'react';
+import type { Figure } from '../types';
+
+export type ReportCellProps = {
+  value: Figure | undefined;
+  onChange: (value: string | null) => void;
+  disabled?: boolean;
+  derived?: boolean;
+  readOnly?: boolean;
+  align?: 'left' | 'right';
+  width?: number;
+  placeholder?: string;
+  onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void;
+  className?: string;
+  type?: 'number' | 'text';
+  title?: string;
+  ariaLabel?: string;
+  onFocus?: (e: FocusEvent<HTMLInputElement>) => void;
+  onBlur?: (e: FocusEvent<HTMLInputElement>) => void;
+};
 
 /**
  * A single editable figure in the report.
@@ -23,7 +43,7 @@ export const ReportCell = ({
   ariaLabel,
   onFocus,
   onBlur
-}) => (
+}: ReportCellProps) => (
   <input
     type="text"
     inputMode={type === 'number' ? 'decimal' : 'text'}
@@ -56,13 +76,13 @@ export const ReportCell = ({
  *  the PDF already use (see `money` in summaryFigures.js). Only applied while
  *  the field isn't being typed into, so the raw digits are what a keystroke
  *  ever edits. */
-const formatMoney = (v) => {
+const formatMoney = (v: Figure | undefined) => {
   const n = Number(v);
   return Number.isFinite(n) ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v;
 };
 
 /** Money reads better with the symbol outside the box than inside the value. */
-export const MoneyCell = ({ value, onChange, disabled = false, ariaLabel, onKeyDown }) => {
+export const MoneyCell = ({ value, onChange, disabled = false, ariaLabel, onKeyDown }: Pick<ReportCellProps, 'value' | 'onChange' | 'disabled' | 'ariaLabel' | 'onKeyDown'>) => {
   const [focused, setFocused] = useState(false);
   const shown = !focused && value !== null && value !== undefined && value !== '' ? formatMoney(value) : value;
   return (

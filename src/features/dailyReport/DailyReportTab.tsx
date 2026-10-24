@@ -1,35 +1,39 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import {
   Users, Truck, ArrowLeftRight, ArrowDownToLine, ArrowUpFromLine, Package, Wallet, ClipboardList,
   ChevronLeft, ChevronRight, Plus, X, Check, Lock, Unlock,
   MapPin, AlertCircle, AlertTriangle, Loader2, FileText, Mail, FileSpreadsheet, Eye
 } from 'lucide-react';
-import { API_URL } from '../../../config/api';
-import NoBranchNote from './NoBranchNote';
-import { authFetch } from '../../../api/authFetch';
-import { branchCode } from '../../../config/branches.js';
-import { orderLocations } from '../../../utils/locationFilter';
-import { manualTransferDirection, manualTransferWarning, transferWarningText, transferCountOf, transferLineKey, cleanTransferNumber } from '../../../utils/transferDirection.js';
-import ReportSection from './ReportSection';
-import { ReportCell, MoneyCell } from './ReportCell';
+import { API_URL } from '../../config/api';
+import NoBranchNote from './components/NoBranchNote';
+import { authFetch } from '../../api/authFetch';
+import { branchCode } from '../../config/branches.js';
+import { orderLocations } from '../../utils/locationFilter';
+import { manualTransferDirection, manualTransferWarning, transferWarningText, transferCountOf, transferLineKey, cleanTransferNumber } from '../../utils/transferDirection.js';
+import ReportSection from './components/ReportSection';
+import { ReportCell, MoneyCell } from './components/ReportCell';
 import { money } from './summaryFigures';
-import { groupContainers, groupSlabs } from '../../../utils/dailyReportContainers';
+import { groupContainers, groupSlabs } from '../../utils/dailyReportContainers';
 import {
   PAYMENT_METHODS, withAllPaymentMethods, paymentCount, paymentAmount, paymentsSaid, noPayments
-} from '../../../utils/dailyReportPayments';
+} from '../../utils/dailyReportPayments';
 import { buildSaveBody } from './savePayload';
-import MonthView from './MonthView';
-import AllBranchesDay from './AllBranchesDay';
-import DaySummary from './DaySummary';
-import EmailReportDialog from './EmailReportDialog';
-import PdfPreviewDialog from './PdfPreviewDialog';
-import ExportMenu from './ExportMenu';
-import ShippedEarlierNote from './ShippedEarlierNote';
-import LocationFilter from '../../shared/LocationFilter';
-import { useLocationFilter } from '../../shared/useLocationFilter';
+import MonthView from './components/MonthView';
+import AllBranchesDay from './components/AllBranchesDay';
+import DaySummary from './components/DaySummary';
+import EmailReportDialog from './components/EmailReportDialog';
+import PdfPreviewDialog from './components/PdfPreviewDialog';
+import ExportMenu from './components/ExportMenu';
+import ShippedEarlierNote from './components/ShippedEarlierNote';
+import LocationFilter from '../../components/shared/LocationFilter';
+import { useLocationFilter } from '../../components/shared/useLocationFilter';
 import './DailyReport.css';
-import { DatePicker, MonthPicker } from '../../shared/calendar/Calendar';
-import { todayISO, monthOf, shiftDay, shiftMonth, withMonth } from '../../shared/calendar/calendarDates';
+import { DatePicker, MonthPicker } from '../../components/shared/calendar/Calendar';
+import { todayISO, monthOf, shiftDay, shiftMonth, withMonth } from '../../components/shared/calendar/calendarDates';
+import type { ExportItem } from './components/ExportMenu';
+import type { Loose } from '../../types/records';
+import type { DayTotals, Figure, Report, ShippedEarlierGroup, SlabRange, TransferLine } from './types';
 
 /**
  * Daily Work Report — the spreadsheet the branches filled in every evening.
@@ -54,22 +58,22 @@ const EMAIL_EXPORT_ENABLED = true;
 // (src/components/shared/calendar/calendarDates.js): one date carries both
 // views, so moving a month keeps the day number where it can (clamped).
 
-const longDate = (iso) => {
+const longDate = (iso: string) => {
   const d = new Date(`${iso}T00:00:00`);
   return d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 };
 
 /** null is "unsaid" — it contributes nothing to a total rather than a zero. */
-const n = (v) => {
+const n = (v: unknown) => {
   if (v === null || v === undefined || v === '') return 0;
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;
 };
 
-const said = (...values) => values.some(v => v !== null && v !== undefined && v !== '');
+const said = (...values: unknown[]) => values.some(v => v !== null && v !== undefined && v !== '');
 
 /** A total is only a dash when nothing underneath it has been said at all. */
-const total = (value, ...sources) => (said(...sources) ? value : '—');
+const total = (value: number, ...sources: unknown[]) => (said(...sources) ? value : '—');
 
 /**
  * A transfer's route is stored as one opaque string ('SEA — SLC') — the
@@ -81,14 +85,14 @@ const total = (value, ...sources) => (said(...sources) ? value : '—');
  * (a stray hyphen, no separator at all) just starts both dropdowns blank
  * until re-picked, rather than guessing at what was meant.
  */
-const splitFromTo = (fromTo) => {
+const splitFromTo = (fromTo: string) => {
   const [from, to] = String(fromTo || '').split('—').map(s => s.trim());
   return [from || '', to || ''];
 };
 
-const composeFromTo = (from, to) => (from || to) ? `${from} — ${to}` : '';
+const composeFromTo = (from: string, to: string) => (from || to) ? `${from} — ${to}` : '';
 
-const emptyReport = (date, location) => ({
+const emptyReport = (date: string, location: string): Report => ({
   date,
   location,
   status: 'draft',
@@ -104,38 +108,44 @@ const emptyReport = (date, location) => ({
   notes: ''
 });
 
-const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
+export type DailyReportTabProps = {
+  currentUser?: Loose | null;
+  /** The page's menu button, from the shell. */
+  sidebarToggle?: ReactNode;
+};
+
+const DailyReportTab = ({ currentUser = null, sidebarToggle = null }: DailyReportTabProps) => {
   // One row per transfer at any width: when the Transfers panel is too narrow
   // for full branch names (a phone, or the half-width panel on a laptop), the
   // From/To boxes show codes ('SEA') and the cells tighten (is-compact).
-  const transferTableRef = useRef(null);
+  const transferTableRef = useRef<HTMLTableElement>(null);
   const [compactRoutes, setCompactRoutes] = useState(false);
-  const perms = currentUser?.permissions || [];
+  const perms = (currentUser?.permissions as string[] | undefined) || [];
   const canEdit = perms.includes('edit_daily_report');
   const canSubmit = perms.includes('submit_daily_report');
   const canReopen = perms.includes('reopen_daily_report');
 
   const [view, setView] = useState('day');           // 'day' | 'month'
   const [date, setDate] = useState(todayISO);
-  const [locations, setLocations] = useState([]);
+  const [locations, setLocations] = useState<string[]>([]);
   // Every branch the company has, for the Transfer row's From/To pickers —
   // deliberately not scoped to `locations` above. Which branch's own report
   // this person may open is an access question; which branch a transfer can
   // go to isn't, so a Seattle-only user still needs Atlanta on this list.
-  const [allLocations, setAllLocations] = useState([]);
+  const [allLocations, setAllLocations] = useState<string[]>([]);
   // The branch on screen, or ALL for the read-only every-branch summary.
   // Opens on this person's home location (Users & Roles); the shared filter's
   // All ('') is this sheet's ALL. With a single branch there's no choice and
   // no All — it's always that branch's own sheet.
   const [locationPick, setLocationPick] = useLocationFilter('dailyReport', currentUser, locations);
   const location = locations.length > 1 ? (locationPick || ALL) : (locations[0] || '');
-  const setLocation = (loc) => setLocationPick(loc === ALL ? '' : loc);
+  const setLocation = (loc: string) => setLocationPick(loc === ALL ? '' : loc);
   // The Transfer row's From / To cells: this report's branch first (every
   // route starts or ends there), then the rest A–Z — the shared location order.
   const routeLocations = useMemo(() => orderLocations(allLocations, location), [allLocations, location]);
   const [canExportAll, setCanExportAll] = useState(false);
 
-  const [report, setReport] = useState(null);
+  const [report, setReport] = useState<Report | null>(null);
   // Full branch names need about 570px for the Transfers row; under that the
   // route boxes switch to codes. Measured on the panel, not the screen.
   const hasReport = Boolean(report);
@@ -147,9 +157,9 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     return () => ro.disconnect();
   }, [hasReport, view]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState(null);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [dirty, setDirty] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [reopenReason, setReopenReason] = useState('');
@@ -157,14 +167,14 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const [previewOpen, setPreviewOpen] = useState(false);
   // What a slab count usually looks like for this branch — the server works it
   // out so the rule isn't reinvented here.
-  const [slabRange, setSlabRange] = useState(null);
+  const [slabRange, setSlabRange] = useState<SlabRange | null>(null);
   // Transfers the delivery board draws on this day that shipped in an earlier
   // week — see transfersShippedEarlier in src/routes/dailyReports.js.
-  const [shippedEarlier, setShippedEarlier] = useState([]);
+  const [shippedEarlier, setShippedEarlier] = useState<ShippedEarlierGroup[]>([]);
   // The day's tickets with no branch — counted on no report (NoBranchNote).
   const [noBranchTickets, setNoBranchTickets] = useState(0);
 
-  const saveTimer = useRef(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const skipAutosave = useRef(true);
   // The promise of whatever save() call is currently in flight, so submitDay
   // can wait for it to actually land before its own save and the submit.
@@ -172,7 +182,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   // already on the wire could otherwise arrive after the submit and be
   // refused (409), or be the one the server re-derives on instead of the
   // last edit.
-  const pendingSave = useRef(null);
+  const pendingSave = useRef<Promise<boolean> | null>(null);
   // Which of the system-derived slab figures this person has actually typed
   // into this session, as opposed to ones just sitting on screen because
   // deriveFromSystem filled them in. Reset on every load. Without this,
@@ -180,8 +190,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   // whole report — capacity and transfer slabs included — and freeze them at
   // whatever they happened to be at that moment, so a delivery added later in
   // the day would never make it into the total. See buildSavePayload below.
-  const touchedCapacity = useRef(new Set());   // 'deliveries' | 'pickups'
-  const touchedTransferSlabs = useRef(new Set()); // transferLineKey(line): direction, route and which transfer
+  const touchedCapacity = useRef(new Set<string>());   // 'deliveries' | 'pickups'
+  const touchedTransferSlabs = useRef(new Set<string>()); // transferLineKey(line): direction, route and which transfer
 
   // ── which branches this person may report on ──────────────────────────────
   useEffect(() => {
@@ -225,8 +235,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       // Figures someone typed on an earlier visit count as touched, so this
       // visit's saves — and the one before Submit — keep them instead of
       // blanking them for the schedule to refill (handSetFigures on the server).
-      touchedCapacity.current = new Set(data.handSet?.capacity || []);
-      touchedTransferSlabs.current = new Set(data.handSet?.transferSlabs || []);
+      touchedCapacity.current = new Set<string>(data.handSet?.capacity || []);
+      touchedTransferSlabs.current = new Set<string>(data.handSet?.transferSlabs || []);
       // A report saved before ACH existed has no payments.ach — fill the
       // blank in so the row renders instead of throwing.
       setReport({
@@ -240,7 +250,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
       setDirty(false);
     } catch (err) {
       if (!current()) return;
-      setError(err.message);
+      setError((err as Error).message);
       setReport(null);
       setShippedEarlier([]);
       setNoBranchTickets(0);
@@ -268,7 +278,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   // closed, app switched); the browser finishes a keepalive request after the
   // page is gone, where an ordinary one is usually dropped.
   const savesInFlight = useRef(0);
-  const save = useCallback((payload, { leaving = false, keepalive = false } = {}) => {
+  const save = useCallback((payload: Report, { leaving = false, keepalive = false }: { leaving?: boolean; keepalive?: boolean } = {}): Promise<boolean> => {
     if (!canEdit || payload.status === 'submitted') return Promise.resolve(false);
     if (!leaving) setSaving(true);
     savesInFlight.current += 1;
@@ -305,8 +315,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
         return true;
       } catch (err) {
         setError(leaving
-          ? `Your last change to ${payload.date} wasn't saved (${err.message}). Open that day and check it.`
-          : err.message);
+          ? `Your last change to ${payload.date} wasn't saved (${(err as Error).message}). Open that day and check it.`
+          : (err as Error).message);
         return false;
       } finally {
         savesInFlight.current -= 1;
@@ -322,10 +332,10 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   // throw them away; now they're sent straight away instead. Kept in a ref so
   // the autosave effect's own cleanup — which runs on every keystroke — never
   // clears it.
-  const pendingPayload = useRef(null);
+  const pendingPayload = useRef<Report | null>(null);
   const saveRef = useRef(save);
   useEffect(() => { saveRef.current = save; }, [save]);
-  const flushPendingSave = useCallback(({ keepalive = false } = {}) => {
+  const flushPendingSave = useCallback(({ keepalive = false }: { keepalive?: boolean } = {}) => {
     const payload = pendingPayload.current;
     if (!payload) return;
     pendingPayload.current = null;
@@ -345,7 +355,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   useEffect(() => {
     const onHide = () => { if (document.visibilityState === 'hidden') flushPendingSave({ keepalive: true }); };
     const onPageHide = () => flushPendingSave({ keepalive: true });
-    const onBeforeUnload = (e) => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (!pendingPayload.current && savesInFlight.current === 0) return;
       flushPendingSave({ keepalive: true });
       e.preventDefault();
@@ -377,7 +387,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   // ── editing helpers ───────────────────────────────────────────────────────
   const locked = !canEdit || report?.status === 'submitted';
 
-  const patch = (fn) => setReport(prev => (prev ? fn(structuredClone(prev)) : prev));
+  const patch = (fn: (r: Report) => Report) => setReport(prev => (prev ? fn(structuredClone(prev)) : prev));
 
   /**
    * Enter on the last line of a repeating section adds another; backspace on an
@@ -417,7 +427,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const oddContainerGroups = containerGroups.filter(g => outOfBandValue(groupSlabs(g)));
   const oddContainerLines = new Set(oddContainerGroups.flatMap(g => g.lines));
 
-  function outOfBandValue(value) {
+  function outOfBandValue(value: Figure | undefined) {
     if (!slabRange || value === null || value === undefined || value === '') return false;
     const x = Number(value);
     return Number.isFinite(x) && x > 0 && (x < slabRange.low || x > slabRange.high);
@@ -425,35 +435,36 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
 
   const outOfBand = outOfBandValue;
 
-  const rowKeys = (listName, index, addRow, isEmpty) => (e) => {
+  const rowKeys = (listName: 'transfers' | 'containers', index: number, addRow: () => void, isEmpty: boolean) => (e: KeyboardEvent<HTMLInputElement>) => {
     if (locked) return;
 
     if (e.key === 'Enter') {
       e.preventDefault();
-      const cells = [...(e.target.closest('tbody')?.querySelectorAll('.dr-cell:not(:disabled):not([readonly])') || [])];
-      const here = cells.indexOf(e.target);
+      const target = e.target as HTMLInputElement;
+      const cells = [...(target.closest('tbody')?.querySelectorAll<HTMLElement>('.dr-cell:not(:disabled):not([readonly])') || [])];
+      const here = cells.indexOf(target);
       const onLastRow = here >= cells.length - 1;
       if (onLastRow) addRow();
       else cells[here + 1]?.focus();
       return;
     }
 
-    if (e.key === 'Backspace' && isEmpty && e.target.value === '') {
+    if (e.key === 'Backspace' && isEmpty && (e.target as HTMLInputElement).value === '') {
       e.preventDefault();
       patch(r => { r[listName].splice(index, 1); return r; });
     }
   };
 
-  const setPath = (path, value) => patch(r => {
+  const setPath = (path: string, value: Figure) => patch(r => {
     const keys = path.split('.');
-    let node = r;
-    for (let i = 0; i < keys.length - 1; i++) node = node[keys[i]];
+    let node = r as Loose;
+    for (let i = 0; i < keys.length - 1; i++) node = node[keys[i]] as Loose;
     node[keys[keys.length - 1]] = value;
     return r;
   });
 
   // ── totals, computed and never typed ──────────────────────────────────────
-  const totals = useMemo(() => {
+  const totals = useMemo((): DayTotals | null => {
     if (!report) return null;
     const v = report.visitors;
     return {
@@ -489,7 +500,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     // morning still signs off tonight's check-ins and tickets.
     // If that save didn't land, stop: locking now would sign off the older
     // figures the server has, and lose what's on screen for good.
-    const saved = await save(report);
+    const saved = await save(report as Report);
     if (!saved) {
       // save() already said why; a 409 ("has been submitted") needs nothing added.
       setError((e) => (e && e.startsWith('This day has been submitted')
@@ -499,9 +510,9 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     }
     // The day whose figures these are — the report's own date and branch,
     // not the header's, should the two ever disagree.
-    const res = await authFetch(`${API_URL}/api/daily-reports/${report.date}/submit`, {
+    const res = await authFetch(`${API_URL}/api/daily-reports/${(report as Report).date}/submit`, {
       method: 'POST',
-      body: JSON.stringify({ location: report.location })
+      body: JSON.stringify({ location: (report as Report).location })
     });
     if (res.ok) { loadDay(); return; }
     const message = (await res.json().catch(() => ({}))).message || 'Could not submit this day.';
@@ -525,7 +536,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     }
   };
 
-  const exportCsv = (scope) => {
+  const exportCsv = (scope: 'all' | 'branch') => {
     const qs = scope === 'all' ? 'all' : encodeURIComponent(location);
     window.open(`${API_URL}/api/daily-reports/export/${monthOf(date)}?location=${qs}`, '_blank', 'noopener');
   };
@@ -539,7 +550,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
   const downloadPdf = () => window.open(pdfUrl, '_blank', 'noopener');
   const viewPdf = () => setPreviewOpen(true);
 
-  const emailReport = async ({ to, message }) => {
+  const emailReport = async ({ to, message }: { to: string[]; message: string }) => {
     const url = view === 'month'
       ? `${API_URL}/api/daily-reports/export/${monthOf(date)}/email`
       : `${API_URL}/api/daily-reports/${date}/email`;
@@ -567,7 +578,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
     .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const scopeLabel = allBranches ? 'your branches' : location;
 
-  const exportItems = [
+  const exportItems: ExportItem[] = [
     ...((view === 'month' || !allBranches) ? [
       {
         key: 'pdf',
@@ -798,11 +809,11 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
             >
               <table className="dr-table">
                 <tbody>
-                  {[
+                  {([
                     ['Homeowners', 'visitors.homeowners', true],
                     ['Fabricators', 'visitors.fabricators', false],
                     ['Designers', 'visitors.designers', false]
-                  ].map(([label, path, derived]) => (
+                  ] as [string, string, boolean][]).map(([label, path, derived]) => (
                     <tr key={path}>
                       <td>{label}</td>
                       <td className="dr-num">
@@ -810,7 +821,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                             every load (applyDerived), so it can't be typed over —
                             a typed figure would just snap back. */}
                         <ReportCell
-                          value={report.visitors[path.split('.')[1]]}
+                          value={report.visitors[path.split('.')[1] as 'homeowners']}
                           derived={derived}
                           readOnly={derived}
                           title={derived ? 'From the check-in log' : undefined}
@@ -821,7 +832,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                       </td>
                     </tr>
                   ))}
-                  <tr className="dr-total"><td>Total</td><td className="dr-num">{total(totals.visitors, report.visitors.fabricators, report.visitors.designers) === '—' && !totals.visitors ? '—' : totals.visitors}</td></tr>
+                  <tr className="dr-total"><td>Total</td><td className="dr-num">{total(totals!.visitors, report.visitors.fabricators, report.visitors.designers) === '—' && !totals!.visitors ? '—' : totals!.visitors}</td></tr>
                 </tbody>
               </table>
             </ReportSection>
@@ -838,7 +849,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                   <tr><th /><th className="dr-num">Count</th><th className="dr-num">Slabs</th></tr>
                 </thead>
                 <tbody>
-                  {[['Deliveries', 'deliveries'], ['Pick-ups', 'pickups']].map(([label, key]) => (
+                  {([['Deliveries', 'deliveries'], ['Pick-ups', 'pickups']] as [string, 'deliveries' | 'pickups'][]).map(([label, key]) => (
                     <tr key={key}>
                       <td>{label}</td>
                       <td className="dr-num">
@@ -854,8 +865,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                   ))}
                   <tr className="dr-total">
                     <td>Total</td>
-                    <td className="dr-num">{totals.assigned}</td>
-                    <td className="dr-num">{totals.capacity}</td>
+                    <td className="dr-num">{totals!.assigned}</td>
+                    <td className="dr-num">{totals!.capacity}</td>
                   </tr>
                   {/* Returns sit below the Total on purpose: they came back in,
                       so adding them to a total of what went out would misstate
@@ -913,7 +924,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                     // A line added by hand takes its direction from its route
                     // (manualTransferDirection): ending at this branch is
                     // Incoming, anything else Outgoing. Ticket lines keep theirs.
-                    const setRoute = (from, to) => patch(r => {
+                    const setRoute = (from: string, to: string) => patch(r => {
                       const line = r.transfers[i];
                       line.fromTo = composeFromTo(from, to);
                       if (!line.auto) line.direction = manualTransferDirection(line.fromTo, location === ALL ? '' : branchCode(location));
@@ -994,13 +1005,13 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                   <tr className="dr-total">
                     <td>Outgoing</td>
                     <td />
-                    <td className="dr-num">{totals.transferSlabs}</td>
+                    <td className="dr-num">{totals!.transferSlabs}</td>
                     <td className="dr-x" />
                   </tr>
                   <tr className="dr-total">
                     <td>Incoming</td>
                     <td />
-                    <td className="dr-num">{totals.transferSlabsIn}</td>
+                    <td className="dr-num">{totals!.transferSlabsIn}</td>
                     <td className="dr-x" />
                   </tr>
                 </tbody>
@@ -1013,7 +1024,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
               icon={Package}
               source={{ kind: 'typed', label: 'entered here' }}
               footnote={oddContainerGroups.length
-                ? `${oddContainerGroups.map(groupSlabs).join(' and ')} ${oddContainerGroups.length === 1 ? 'is' : 'are'} well outside the usual ${slabRange.low}–${slabRange.high} slabs${slabRange.fromHistory ? ' for this branch' : ' for a container'}. Keep it if that's right.`
+                ? `${oddContainerGroups.map(groupSlabs).join(' and ')} ${oddContainerGroups.length === 1 ? 'is' : 'are'} well outside the usual ${slabRange!.low}–${slabRange!.high} slabs${slabRange!.fromHistory ? ' for this branch' : ' for a container'}. Keep it if that's right.`
                 : 'Leave the PO# blank to continue the one above.'}
               footnoteTone={oddContainerGroups.length ? 'warn' : undefined}
               action={!locked && (
@@ -1033,12 +1044,12 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                       <td>
                         <ReportCell value={c.poNumber} type="text" align="left" width={100} disabled={locked}
                           placeholder="PO number" ariaLabel="PO number"
-                          onChange={(v) => patch(r => { r.containers[i].poNumber = v; return r; })} />
+                          onChange={(v) => patch(r => { r.containers[i].poNumber = v as string; return r; })} />
                       </td>
                       <td>
                         <ReportCell value={c.material} type="text" align="left" disabled={locked}
                           placeholder="Material name" ariaLabel="Material"
-                          onChange={(v) => patch(r => { r.containers[i].material = v; return r; })} />
+                          onChange={(v) => patch(r => { r.containers[i].material = v as string; return r; })} />
                       </td>
                       <td className="dr-num">
                         <ReportCell value={c.slabs} disabled={locked} ariaLabel="Container slabs"
@@ -1056,7 +1067,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                   ))}
                   <tr className="dr-total">
                     <td>Total</td><td />
-                    <td className="dr-num">{totals.containerSlabs}</td>
+                    <td className="dr-num">{totals!.containerSlabs}</td>
                     <td className="dr-x" />
                   </tr>
                 </tbody>
@@ -1096,8 +1107,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }) => {
                   ))}
                   <tr className="dr-total">
                     <td>Total</td>
-                    <td className="dr-num">{paymentsUnsaid ? '—' : totals.payCount}</td>
-                    <td className="dr-num">{paymentsUnsaid ? '—' : money(totals.payAmount)}</td>
+                    <td className="dr-num">{paymentsUnsaid ? '—' : totals!.payCount}</td>
+                    <td className="dr-num">{paymentsUnsaid ? '—' : money(totals!.payAmount)}</td>
                   </tr>
                 </tbody>
               </table>

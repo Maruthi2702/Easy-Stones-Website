@@ -7,7 +7,7 @@ import { AlertTriangle } from 'lucide-react';
  * counted on none until someone sets their branch on the Delivery Schedule —
  * so the sheet says so rather than leaving them silently out.
  */
-const NoBranchNote = ({ count }) => {
+const NoBranchNote = ({ count }: { count: number }) => {
   if (!count) return null;
   const one = count === 1;
   return (

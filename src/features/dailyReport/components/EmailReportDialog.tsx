@@ -12,15 +12,25 @@ import { Mail, Send, Check, AlertCircle, Loader2 } from 'lucide-react';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const parse = (raw) =>
+const parse = (raw: string) =>
   [...new Set(String(raw || '').split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(Boolean))];
 
-const EmailReportDialog = ({ open, onClose, onSend, title, subtitle, filename }) => {
+export type EmailReportDialogProps = {
+  open: boolean;
+  onClose: () => void;
+  /** Resolves with the server's answer ({ sent }), throws with the reason. */
+  onSend: (mail: { to: string[]; message: string }) => Promise<{ sent?: string[] }>;
+  title: string;
+  subtitle: string;
+  filename: string;
+};
+
+const EmailReportDialog = ({ open, onClose, onSend, title, subtitle, filename }: EmailReportDialogProps) => {
   const [to, setTo] = useState('');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState(null);
-  const [sentTo, setSentTo] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [sentTo, setSentTo] = useState<string[] | null>(null);
 
   if (!open) return null;
 
@@ -35,7 +45,7 @@ const EmailReportDialog = ({ open, onClose, onSend, title, subtitle, filename })
       const result = await onSend({ to: valid, message: message.trim() });
       setSentTo(result.sent || valid);
     } catch (err) {
-      setError(err.message || 'Could not send the report.');
+      setError((err as Error).message || 'Could not send the report.');
     } finally {
       setSending(false);
     }

@@ -1,4 +1,5 @@
-import { transferLineKey } from '../../../utils/transferDirection.js';
+import { transferLineKey } from '../../utils/transferDirection.js';
+import type { Report } from './types';
 
 /**
  * What actually gets PUT to the server for a Daily Work Report save.
@@ -16,7 +17,7 @@ import { transferLineKey } from '../../../utils/transferDirection.js';
  * 2026-10-05 /submit re-derives itself (applyDerived, same as the 11:59
  * auto-submit), so every save — the one before Submit included — is a draft
  * save, and the blanks it leaves are filled with the figures as of the
- * submit. See savePayload.test.js and applyDerived's tests.
+ * submit. See savePayload.test.ts and applyDerived's tests.
  */
 
 /**
@@ -30,7 +31,7 @@ import { transferLineKey } from '../../../utils/transferDirection.js';
  * someone hand-corrects them, instead of freezing at whatever they were the
  * moment an unrelated field on the same report got edited.
  */
-export const buildDraftPayload = (report, touchedCapacity, touchedTransferSlabs) => {
+export const buildDraftPayload = (report: Report, touchedCapacity: Set<string>, touchedTransferSlabs: Set<string>): Report => {
   const body = structuredClone(report);
   if (!touchedCapacity.has('deliveries')) body.deliveries.capacity = null;
   if (!touchedCapacity.has('pickups')) body.pickups.capacity = null;
@@ -47,5 +48,5 @@ export const buildDraftPayload = (report, touchedCapacity, touchedTransferSlabs)
  * only because POST /submit re-derives before locking — if that ever stops
  * being true, the 2026-08-28 incident comes straight back.
  */
-export const buildSaveBody = (report, { touchedCapacity, touchedTransferSlabs }) =>
+export const buildSaveBody = (report: Report, { touchedCapacity, touchedTransferSlabs }: { touchedCapacity: Set<string>; touchedTransferSlabs: Set<string> }): Report =>
   buildDraftPayload(report, touchedCapacity, touchedTransferSlabs);

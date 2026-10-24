@@ -1,6 +1,11 @@
 import React from 'react';
 import { Users, Truck, Package, ArrowLeftRight, Wallet } from 'lucide-react';
-import { money, moneyShort, STATUS } from './summaryFigures';
+import type { ReactNode } from 'react';
+import { money, moneyShort, STATUS } from '../summaryFigures';
+import type { SummaryRow, SummaryTotals } from '../types';
+
+/** A column before the figures: the day, the branch. */
+export type LeadColumn = { header: string; render: (row: SummaryRow) => ReactNode; className?: string };
 
 /**
  * The six figures a day is summarised by, and the table that lists them.
@@ -11,7 +16,7 @@ import { money, moneyShort, STATUS } from './summaryFigures';
  * column differs, which is what `lead` is for.
  */
 
-export const StatusChip = ({ status, title }) => {
+export const StatusChip = ({ status, title }: { status: string; title?: string }) => {
   const s = STATUS[status] || STATUS.draft;
   return (
     <span className={`dr-status dr-status--${s.cls}`} title={title}>
@@ -24,7 +29,7 @@ export const StatusChip = ({ status, title }) => {
  * The same five tiles the day view opens with, over a wider span. Deliveries
  * and pick-ups add up to Orders there, so they do here too.
  */
-export const SummaryStats = ({ totals, visitorsNote, paymentsNote }) => {
+export const SummaryStats = ({ totals, visitorsNote, paymentsNote }: { totals: SummaryTotals; visitorsNote: string; paymentsNote: string }) => {
   const tiles = [
     { key: 'visitors', icon: Users, label: 'Visitors', value: totals.visitors, sub: visitorsNote },
     {
@@ -86,7 +91,15 @@ export const SummaryStats = ({ totals, visitorsNote, paymentsNote }) => {
  * totals    — the foot row's figures; the label sits under the first lead column
  * onRowClick, rowKey — a row is a way in to the day it describes
  */
-const SummaryTable = ({ lead, rows, totals, totalLabel, onRowClick, rowKey, rowTitle }) => (
+const SummaryTable = ({ lead, rows, totals, totalLabel, onRowClick, rowKey, rowTitle }: {
+  lead: LeadColumn[];
+  rows: SummaryRow[];
+  totals: SummaryTotals;
+  totalLabel: string;
+  onRowClick: (row: SummaryRow) => void;
+  rowKey: (row: SummaryRow) => string;
+  rowTitle?: (row: SummaryRow) => string;
+}) => (
   <div className="dr-card">
     <div className="dr-table-scroll">
       <table className="dr-table dr-table--month">

@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Download, ChevronDown } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+
+export type ExportItem = { key: string; icon: LucideIcon; label: string; hint?: string; onSelect: () => void };
 
 /**
  * The report's ways out, behind one button.
@@ -12,14 +15,14 @@ import { Download, ChevronDown } from 'lucide-react';
  *
  * items — [{ key, icon, label, hint, onSelect }]
  */
-const ExportMenu = ({ items, label = 'Export' }) => {
+const ExportMenu = ({ items, label = 'Export' }: { items: ExportItem[]; label?: string }) => {
   const [open, setOpen] = useState(false);
-  const wrap = useRef(null);
+  const wrap = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return undefined;
-    const onDown = (e) => { if (!wrap.current?.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const onDown = (e: MouseEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
