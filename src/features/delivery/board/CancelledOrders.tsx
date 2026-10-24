@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { XCircle } from 'lucide-react';
 import TicketChip from './TicketChip';
+import type { Ticket } from '../types';
 
 /**
  * Orders someone has cancelled. Sits below Pending Deliveries on every week —
@@ -15,6 +16,15 @@ import TicketChip from './TicketChip';
  * record of what to restore the ticket to, which is exactly what dragging it
  * back onto a truck cell relies on.
  */
+export type CancelledOrdersProps = {
+  cancelled?: Ticket[];
+  searchQuery?: string;
+  editable?: boolean;
+  onEditDelivery?: (delivery: Ticket) => void;
+  onViewPod?: (delivery: Ticket) => void;
+  onMoveToCancelled?: (id: string) => void;
+};
+
 const CancelledOrders = ({
   cancelled = [],
   searchQuery = '',
@@ -22,11 +32,11 @@ const CancelledOrders = ({
   onEditDelivery,
   onViewPod,
   onMoveToCancelled
-}) => {
+}: CancelledOrdersProps) => {
   const [isDropTarget, setIsDropTarget] = useState(false);
   const acceptsDrop = Boolean(editable && onMoveToCancelled);
 
-  const handleDrop = (e) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDropTarget(false);
     if (!acceptsDrop) return;
@@ -34,7 +44,7 @@ const CancelledOrders = ({
     if (!deliveryId) return;
     // Dropped back on the list it came from — nothing to change.
     if (cancelled.some(d => d.id === deliveryId)) return;
-    onMoveToCancelled(deliveryId);
+    onMoveToCancelled!(deliveryId);
   };
 
   const visible = cancelled.filter(d => {
@@ -65,7 +75,7 @@ const CancelledOrders = ({
         // section's own children, which would flicker the highlight off
         // mid-drag — ignore those and only clear when the pointer has
         // actually left the section.
-        if (e.currentTarget.contains(e.relatedTarget)) return;
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
         setIsDropTarget(false);
       }}
       onDrop={handleDrop}

@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Clock, FileText, Trash2, Upload, X } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '../../shared/form/FormControls';
-import { goToField, describedBy } from '../../shared/form/formFocus';
-import useTouched from '../../shared/form/useTouched';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '../../../components/shared/form/FormControls';
+import { goToField, describedBy } from '../../../components/shared/form/formFocus';
+import useTouched from '../../../components/shared/form/useTouched';
 import { MAX_TRUCK_CAPACITY } from '../../../api/deliverySchedule';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { useSalesRepOptions, useStartingRep } from '../../../api/salesRepOptions';
-import RepPicker from '../../shared/form/RepPicker';
-import LocationPicker from '../../shared/form/LocationPicker';
+import RepPicker from '../../../components/shared/form/RepPicker';
+import LocationPicker from '../../../components/shared/form/LocationPicker';
 import { branchesOf } from '../../../utils/salesReps';
 import { formatTitleCase } from '../../../utils/textUtils';
 import { formatAmount, sanitizeAmountInput } from '../../../utils/money';
@@ -26,7 +26,11 @@ import {
     formWording, deliveryLastChangedText,
     reportDaysTouched, submittedDayLabel
 } from '../../../utils/deliveryForm';
-import { DatePicker } from '../../shared/calendar/Calendar';
+import { DatePicker } from '../../../components/shared/calendar/Calendar';
+import type { DeliveryFormValues } from '../../../utils/deliveryForm';
+import type { CustomerOption } from '../../../utils/customerOptions';
+import type { CurrentUser, Loose } from '../../../types/records';
+import type { BoardColumn, Ticket } from '../types';
 import './DeliveryForm.css';
 
 /*
@@ -38,13 +42,39 @@ import './DeliveryForm.css';
  * name, BOL # and Agreed price (optional); then Packing list and Notes.
  *
  * Same props as the DeliveryModal it replaces, so the board only swaps the
- * import. The rules are src/utils/deliveryForm.js; saves still go through
+ * import. The rules are src/utils/deliveryForm.ts; saves still go through
  * onSave → saveDelivery → POST /api/deliveries.
  */
 
+type FieldName = keyof DeliveryFormValues;
+/** What the save sends (buildDeliveryPayload in src/utils/deliveryForm.ts). */
+export type DeliveryPayload = ReturnType<typeof buildDeliveryPayload>;
+type Autofill = { filled: string[]; kept: { field: string; current: string; pdf: string }[]; source: string };
+type TextOpts = {
+    required?: boolean; placeholder?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']; asTyped?: boolean;
+    error?: string; status?: React.ReactNode; value?: string; onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur?: () => void;
+};
+type DateOpts = { required?: boolean; error?: string; status?: React.ReactNode; onChange?: (iso: string) => void; onBlur?: () => void };
+type PickerOpts = { required?: boolean; placeholder?: string; onChange?: (value: string) => void; value?: string; error?: string; status?: React.ReactNode };
+
+export type DeliveryFormProps = {
+    isOpen: boolean;
+    onClose: () => void;
+    /** Saves the ticket; throws with the server's reason to show. */
+    onSave: (payload: DeliveryPayload) => Promise<unknown>;
+    onDelete?: (id: string) => Promise<unknown>;
+    /** The ticket being edited, or a new one's starting values (no id). */
+    initialData?: Loose | null;
+    trucks?: BoardColumn[];
+    deliveries?: Ticket[];
+    customerOptions?: CustomerOption[];
+    locationsList?: string[];
+    currentUser?: CurrentUser | null;
+};
+
 const STOP_OPTIONS = Array.from({ length: MAX_TRUCK_CAPACITY }, (_, i) => ({ value: String(i + 1), label: `Stop ${i + 1}` }));
 
-export default function DeliveryForm(props) {
+export default function DeliveryForm(props: DeliveryFormProps) {
     if (!props.isOpen) return null;
     // A fresh form every time it opens, so nothing carries over between tickets.
     return <DeliveryFormBody {...props} />;
@@ -53,7 +83,7 @@ export default function DeliveryForm(props) {
 function DeliveryFormBody({
     onClose, onSave, onDelete, initialData = null, trucks = [], deliveries = [],
     customerOptions = [], locationsList = [], currentUser = null
-}) {
+}: DeliveryFormProps) {
     const isEdit = Boolean(initialData?.id);
     const draftKey = `deliveryModal:${initialData?.id || 'new'}`;
 
@@ -72,8 +102,8 @@ function DeliveryFormBody({
     const startingRep = repsReady && !isEdit ? (repFor(branch)?.name || '') : '';
     const [initial, setInitial] = useState(() => deliveryToFormValues(initialData, { currentUser, customerOptions: customers, startingRep, deliveries }));
     // A session that expired mid-edit left this ticket's values behind.
-    const [restored] = useState(() => loadDraft(draftKey));
-    const [values, setValues] = useState(() => (restored ? { ...initial, ...pickKnown(restored, initial) } : initial));
+    const [restored] = useState(() => loadDraft(draftKey) as Loose | null);
+    const [values, setValues] = useState<DeliveryFormValues>(() => (restored ? { ...initial, ...pickKnown(restored, initial) } : initial));
     // The lists can land after the form opens: fill the starting rep in then —
     // only on a new ticket whose rep nobody has touched — and move the
     // starting point with it, so it doesn't count as a change.
@@ -94,7 +124,7 @@ function DeliveryFormBody({
         return () => window.removeEventListener('auth:session-expired', stash);
     }, [draftKey]);
 
-    const set = (patch) => setValues((v) => ({ ...v, ...patch }));
+    const set = (patch: Partial<DeliveryFormValues>) => setValues((v) => ({ ...v, ...patch }));
     const [touched, touchField] = useTouched();
     const [submitted, setSubmitted] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -110,7 +140,7 @@ function DeliveryFormBody({
     const filedUnder = initialData?.location || currentUser?.location || '';
     const touchedDays = reportDaysTouched(values, { initial: isEdit ? initial : null, location: filedUnder });
     const touchedKey = touchedDays.map((d) => `${d.location}|${d.date}`).join(',');
-    const [submittedDays, setSubmittedDays] = useState([]);
+    const [submittedDays, setSubmittedDays] = useState<{ location: string; date: string }[]>([]);
     useEffect(() => {
         if (!touchedKey) { setSubmittedDays([]); return undefined; }
         let live = true;
@@ -124,8 +154,8 @@ function DeliveryFormBody({
     }, [touchedKey]);
 
     const errors = validateDeliveryValues(values);
-    const shown = (f) => (errors[f] && (submitted || touched[f]) ? errors[f] : '');
-    const touch = (f) => touchField(f, String(values[f] ?? '') !== String(initial[f] ?? ''));
+    const shown = (f: string): string => ((errors as Record<string, string | undefined>)[f] && (submitted || touched[f]) ? (errors as Record<string, string>)[f] : '');
+    const touch = (f: FieldName) => touchField(f, String(values[f] ?? '') !== String(initial[f] ?? ''));
     const dirtyCount = countDeliveryChanges(values, initial);
     const wording = formWording(values, { isEdit, saved: initial });
 
@@ -140,28 +170,28 @@ function DeliveryFormBody({
     // ── Packing list ──
     const [pdfBusy, setPdfBusy] = useState(false);
     const [pasteOpen, setPasteOpen] = useState(false);
-    const [autofill, setAutofill] = useState(null);
-    const fileRef = useRef(null);
+    const [autofill, setAutofill] = useState<Autofill | null>(null);
+    const fileRef = useRef<HTMLInputElement>(null);
 
     // Fill the form's empty fields from an uploaded StoneProfits packing list
     // (packingListPdf.js). Reads the latest values, since the upload can
     // finish after someone has typed into the form.
-    const applyAutofill = (parsed) => {
+    const applyAutofill = (parsed: Loose) => {
         const { updates, filled, kept } = planPackingListAutofill(valuesRef.current, parsed, customers);
         if (Object.keys(updates).length) setValues((v) => ({ ...v, ...updates }));
         const source = parsed.documentType ? parsed.documentType.toLowerCase() : 'packing list';
         setAutofill(filled.length || kept.length ? { filled, kept, source } : null);
     };
 
-    const attachFile = async (file) => {
+    const attachFile = async (file: File) => {
         setPdfBusy(true);
         setPasteOpen(false);
         set({ packingListFilename: file.name });
-        const inline = () => new Promise((resolve) => {
+        const inline = () => new Promise<void>((resolve) => {
             // The upload route failed: send it inline instead, and the save
             // route stores it (after checking it really is a PDF).
             const reader = new FileReader();
-            reader.onloadend = () => { set({ packingListUrl: reader.result }); resolve(); };
+            reader.onloadend = () => { set({ packingListUrl: reader.result as string }); resolve(); };
             reader.readAsDataURL(file);
         });
         try {
@@ -182,7 +212,7 @@ function DeliveryFormBody({
         }
     };
 
-    const onPasteLink = (val) => {
+    const onPasteLink = (val: string) => {
         const isUrl = val.startsWith('http://') || val.startsWith('https://');
         const name = isUrl ? (val.split('/').pop() || 'PackingList.pdf') : val;
         set({ packingListUrl: val, packingListFilename: name });
@@ -211,7 +241,8 @@ function DeliveryFormBody({
             console.error('[DeliveryForm] save failed:', err);
             // The server's reason when it gave one (saveDelivery throws it);
             // a dropped connection gets the plain message.
-            const reason = err?.message && !/fetch|network|malformed/i.test(err.message) ? err.message : '';
+            const message = (err as Error)?.message;
+            const reason = message && !/fetch|network|malformed/i.test(message) ? message : '';
             setSaveError(reason || 'Couldn’t save. Check your connection and try again.');
             setSaving(false);
         }
@@ -222,13 +253,13 @@ function DeliveryFormBody({
         setConfirmDelete(false);
         setSaving(true);
         try {
-            await onDelete(initialData.id);
+            await onDelete!(initialData!.id);
             onClose();
         } catch (err) {
             // deleteDelivery throws when the ticket wasn't deleted, so the form
             // stays open and says so instead of closing as if it had worked.
             console.error('[DeliveryForm] delete failed:', err);
-            setSaveError(err?.userMessage || 'Couldn’t delete it. Try again.');
+            setSaveError((err as { userMessage?: string })?.userMessage || 'Couldn’t delete it. Try again.');
             setSaving(false);
         }
     };
@@ -253,12 +284,12 @@ function DeliveryFormBody({
     // Already shaped by the shared rules: city under the name, contact searchable.
     const customerPickerOptions = customers;
     const drivers = useMemo(
-        () => driverOptions(trucks, { truckId, date, deliveryType, customerDropOff }, { deliveries, exceptId: initialData?.id, max: MAX_TRUCK_CAPACITY }),
+        () => driverOptions(trucks, { truckId, date, deliveryType, customerDropOff } as DeliveryFormValues, { deliveries, exceptId: initialData?.id, max: MAX_TRUCK_CAPACITY }),
         [trucks, truckId, date, deliveryType, customerDropOff, deliveries, initialData?.id]
     );
 
     // ── Field helpers ──
-    const text = (name, label, { required = false, placeholder, inputMode, asTyped = false, error, status, value, onChange, onBlur } = {}) => {
+    const text = (name: FieldName, label: string, { required = false, placeholder, inputMode, asTyped = false, error, status, value, onChange, onBlur }: TextOpts = {}) => {
         const id = `df-${name}`;
         return (
             <FormField name={name} id={id} label={label} required={required} error={error} status={status}>
@@ -267,11 +298,11 @@ function DeliveryFormBody({
                     className={`fm-input${asTyped ? ' no-capitalize' : ''}`}
                     type="text"
                     inputMode={inputMode}
-                    value={value ?? values[name] ?? ''}
+                    value={value ?? (values[name] as string) ?? ''}
                     placeholder={placeholder}
                     autoComplete="off"
                     autoCapitalize={asTyped ? undefined : 'words'}
-                    onChange={onChange || ((e) => set({ [name]: e.target.value }))}
+                    onChange={onChange || ((e) => set({ [name]: e.target.value } as Partial<DeliveryFormValues>))}
                     onBlur={onBlur}
                     {...describedBy(id, error, status)}
                 />
@@ -280,14 +311,14 @@ function DeliveryFormBody({
     };
     // A day: the shared calendar (shared/calendar). Clearable when optional —
     // a Pending delivery has no date yet.
-    const dateInput = (name, label, { required = false, error, status, onChange, onBlur } = {}) => {
+    const dateInput = (name: FieldName, label: string, { required = false, error, status, onChange, onBlur }: DateOpts = {}) => {
         const id = `df-${name}`;
         return (
             <FormField name={name} id={id} label={label} required={required} error={error} status={status}>
                 <DatePicker
                     id={id}
-                    value={values[name] || ''}
-                    onChange={onChange || ((v) => set({ [name]: v }))}
+                    value={(values[name] as string) || ''}
+                    onChange={onChange || ((v: string) => set({ [name]: v } as Partial<DeliveryFormValues>))}
                     onBlur={onBlur}
                     error={error}
                     status={status}
@@ -297,12 +328,12 @@ function DeliveryFormBody({
             </FormField>
         );
     };
-    const picker = (name, label, options, { required = false, placeholder, onChange, value, error, status } = {}) => (
+    const picker = (name: FieldName, label: string, options: { value: string; label: string; description?: string; disabled?: boolean }[], { required = false, placeholder, onChange, value, error, status }: PickerOpts = {}) => (
         <FormField name={name} id={`df-${name}`} label={label} required={required} error={error} status={status}>
             <FormPicker
                 id={`df-${name}`}
-                value={value ?? values[name]}
-                onChange={onChange || ((v) => set({ [name]: v }))}
+                value={value ?? (values[name] as string)}
+                onChange={onChange || ((v: string) => set({ [name]: v } as Partial<DeliveryFormValues>))}
                 options={options}
                 placeholder={placeholder}
                 sheetTitle={label}
@@ -312,12 +343,12 @@ function DeliveryFormBody({
     );
     // A transfer's From / To: the shared location dropdown (home first, then
     // A–Z); a branch already saved on the ticket stays listed.
-    const branchPicker = (name, label) => (
+    const branchPicker = (name: FieldName, label: string) => (
         <FormField name={name} id={`df-${name}`} label={label} required error={shown(name)}>
             <LocationPicker
                 id={`df-${name}`}
-                value={values[name] || ''}
-                onChange={(v) => set({ [name]: v })}
+                value={(values[name] as string) || ''}
+                onChange={(v: string) => set({ [name]: v } as Partial<DeliveryFormValues>)}
                 options={locationsList || []}
                 user={currentUser}
                 placeholder="Pick a branch"
@@ -334,24 +365,24 @@ function DeliveryFormBody({
         status: isWeekendDate(values.date) ? (
             <><AlertTriangle size={12} aria-hidden="true" />{`${dayLabel(values.date).name} — weekend ${isTransfer ? 'transfer' : type === 'jobsite' ? 'delivery' : 'pickup'}`}</>
         ) : null,
-        onChange: (iso) => setValues((v) => applyDateChange(v, iso, { savedTicket: initialData, deliveries })),
+        onChange: (iso: string) => setValues((v) => applyDateChange(v, iso, { savedTicket: initialData, deliveries })),
         onBlur: () => touch('date')
     });
 
     const typeField = picker('deliveryType', 'Delivery type', DELIVERY_TYPE_OPTIONS, {
-        onChange: (next) => setValues((v) => applyTypeChange(v, next, { isNew: !isEdit, thirdPartyTruckId: trucks.find(isThirdPartyTruck)?.id }))
+        onChange: (next: string) => setValues((v) => applyTypeChange(v, next, { isNew: !isEdit, thirdPartyTruckId: trucks.find(isThirdPartyTruck)?.id }))
     });
 
     const slabsField = text('numberOfSlabs', 'No. of slabs', {
         inputMode: 'numeric',
         asTyped: true,
         placeholder: '0',
-        onChange: (e) => set({ numberOfSlabs: e.target.value.replace(/\D/g, '').slice(0, 4) })
+        onChange: (e: React.ChangeEvent<HTMLInputElement>) => set({ numberOfSlabs: e.target.value.replace(/\D/g, '').slice(0, 4) })
     });
 
     const driverField = picker('truckId', 'Driver', drivers, {
         value: driverPickerValue(values),
-        onChange: (picked) => setValues((v) => applyDriverPick(v, picked, initialData, deliveries)),
+        onChange: (picked: string) => setValues((v) => applyDriverPick(v, picked, initialData, deliveries)),
         status: pending
             ? <><Clock size={12} aria-hidden="true" />Waits in Pending Delivery until a driver is picked</>
             : dropOff ? <><Clock size={12} aria-hidden="true" />Shows in the Will Call column on that date</> : null
@@ -592,9 +623,9 @@ function DeliveryFormBody({
 
 // Only the fields this form has, from a draft saved by this form or by the old
 // DeliveryModal (same names).
-function pickKnown(draft, shape) {
+function pickKnown(draft: Loose, shape: DeliveryFormValues): Partial<DeliveryFormValues> {
     return Object.fromEntries(Object.keys(shape).filter((k) => draft[k] !== undefined).map((k) => {
         const v = draft[k];
-        return [k, typeof shape[k] === 'string' && typeof v !== 'string' ? String(v ?? '') : v];
+        return [k, typeof shape[k as FieldName] === 'string' && typeof v !== 'string' ? String(v ?? '') : v];
     }));
 }

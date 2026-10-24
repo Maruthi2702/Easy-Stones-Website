@@ -3,6 +3,7 @@ import { Search, X, Loader2, FileCheck2 } from 'lucide-react';
 import { searchDeliveries } from '../../../api/deliverySchedule';
 import { describeSearchResult, SEARCH_MIN_CHARS } from '../../../utils/deliverySearch';
 import { formatForDateInput } from '../../../utils/dateUtils';
+import type { BoardColumn, Ticket } from '../types';
 import './DeliveryOrderSearch.css';
 
 /**
@@ -24,31 +25,48 @@ import './DeliveryOrderSearch.css';
  */
 const DEBOUNCE_MS = 300;
 
-const driverLabel = (r, trucks) => {
+/** What GET /api/deliveries/search answers: up to a page of matches and the full count. */
+type SearchAnswer = { results?: Ticket[]; total?: number; more?: boolean };
+/** Where a result sits for the viewer (describeSearchResult in src/utils/deliverySearch.js). */
+export type SearchResultInfo = { status: string; label: string; when: string; place?: string; boardDate?: string | null; [key: string]: unknown };
+type Row = { r: Ticket; info: SearchResultInfo };
+
+const driverLabel = (r: Ticket, trucks: BoardColumn[]) => {
   if (r.deliveryType === 'will_call') return 'Will call';
   const trk = trucks.find(t => t.id === r.truckId);
   return (trk && (trk.driver || trk.name)) || r.driver || '';
 };
 
-const branchLabel = (r) => (
+const branchLabel = (r: Ticket) => (
   r.deliveryType === 'transfer' && r.transferDestination
     ? `${r.location || '?'} → ${r.transferDestination}`
     : (r.location || '')
 );
 
-const signedTime = (r) => {
+const signedTime = (r: Ticket) => {
   if (!r.pod?.verified || !r.pod?.signedAt) return '';
   const t = new Date(r.pod.signedAt);
   return Number.isNaN(t.getTime()) ? '' : t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
 
-const DeliveryOrderSearch = ({ value, onChange, onSelect, onViewPod, trucks = [], viewerLocations = [], inline = false, autoFocus = false }) => {
+export type DeliveryOrderSearchProps = {
+  value: string;
+  onChange: (value: string) => void;
+  onSelect?: (result: Ticket, info: SearchResultInfo) => void;
+  onViewPod?: (delivery: Ticket) => void;
+  trucks?: BoardColumn[];
+  viewerLocations?: string[];
+  inline?: boolean;
+  autoFocus?: boolean;
+};
+
+const DeliveryOrderSearch = ({ value, onChange, onSelect, onViewPod, trucks = [], viewerLocations = [], inline = false, autoFocus = false }: DeliveryOrderSearchProps) => {
   const [open, setOpen] = useState(false);
   // The last answer from the server, tagged with the text it answered.
-  const [answer, setAnswer] = useState({ query: '', error: false, results: [], total: 0, more: false });
+  const [answer, setAnswer] = useState<{ query: string; error: boolean; results: Ticket[]; total: number; more: boolean }>({ query: '', error: false, results: [], total: 0, more: false });
   const [active, setActive] = useState(-1);
-  const rootRef = useRef(null);
-  const inputRef = useRef(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const query = (value || '').trim();
   const searchable = query.length >= SEARCH_MIN_CHARS;
@@ -61,11 +79,12 @@ const DeliveryOrderSearch = ({ value, onChange, onSelect, onViewPod, trucks = []
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const data = await searchDeliveries(query, { signal: controller.signal });
+        // The route answers { results, total, more }, not the list its signature names.
+        const data = (await searchDeliveries(query, { signal: controller.signal })) as unknown as SearchAnswer;
         setAnswer({ query, error: false, results: data.results || [], total: data.total || 0, more: !!data.more });
         setActive(-1);
       } catch (err) {
-        if (err?.name === 'AbortError') return;
+        if ((err as Error)?.name === 'AbortError') return;
         setAnswer({ query, error: true, results: [], total: 0, more: false });
       }
     }, DEBOUNCE_MS);
@@ -83,7 +102,7 @@ const DeliveryOrderSearch = ({ value, onChange, onSelect, onViewPod, trucks = []
   // its filter).
   useEffect(() => {
     if (!open) return undefined;
-    const onDown = (e) => { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false); };
+    const onDown = (e: MouseEvent | TouchEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('touchstart', onDown);
     return () => {
@@ -93,16 +112,16 @@ const DeliveryOrderSearch = ({ value, onChange, onSelect, onViewPod, trucks = []
   }, [open]);
 
   const today = formatForDateInput(new Date());
-  const rows = state.results.map(r => ({ r, info: describeSearchResult(r, { today, viewerLocations }) }));
+  const rows: Row[] = state.results.map(r => ({ r, info: describeSearchResult(r, { today, viewerLocations }) as SearchResultInfo }));
 
-  const choose = (row) => {
+  const choose = (row: Row | undefined) => {
     if (!row) return;
     setOpen(false);
     inputRef.current?.blur();
     onSelect?.(row.r, row.info);
   };
 
-  const onKeyDown = (e) => {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       if (open) { setOpen(false); e.preventDefault(); }
       else if (value) onChange('');

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, FileText, Calendar, User, Download, Camera, Eye, RotateCcw, AlertTriangle } from 'lucide-react';
 import { packingListFileName, signedPackingListFileName, downloadPdf, openPdfInline } from '../../../utils/packingList';
 import { wordingForTicket } from '../../../utils/deliveryPickup';
+import type { CurrentUser, Loose } from '../../../types/records';
+import type { BoardColumn, Ticket } from '../types';
 
 /**
  * Read-only ePOD viewer — shows the signed Proof of Delivery record.
@@ -11,6 +13,17 @@ import { wordingForTicket } from '../../../utils/deliveryPickup';
  * so no two users ever saw the same document, and a record whose driver name
  * was generic got a second certificate stamped over the first.
  */
+export type PodViewerProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  delivery: Ticket | null;
+  trucks?: BoardColumn[];
+  currentUser?: CurrentUser | null;
+  canClearPod?: boolean;
+  /** Voids the signatures; resolves with the updated ticket, throws with a message to show. */
+  onClearPod: (delivery: Ticket, reason: string) => Promise<unknown>;
+};
+
 const PodViewer = ({
   isOpen,
   onClose,
@@ -19,18 +32,18 @@ const PodViewer = ({
   currentUser = null,
   canClearPod = false,
   onClearPod
-}) => {
+}: PodViewerProps) => {
   // A signed pickup has to read back as one. Reopening it under "Driver
   // Signature" would misname the two people who actually signed.
   const words = wordingForTicket(delivery, trucks);
-  const pod = delivery?.pod || {};
+  const pod: Loose = delivery?.pod || {};
   const hasCustomerSig = Boolean(pod.customerSignature);
   const hasDriverSig = Boolean(pod.driverSignature);
 
   const [isClearing, setIsClearing] = useState(false);
   const [showClearForm, setShowClearForm] = useState(false);
   const [clearReason, setClearReason] = useState('');
-  const [clearError, setClearError] = useState(null);
+  const [clearError, setClearError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -51,10 +64,10 @@ const PodViewer = ({
     'Driver'
   );
 
-  const formatStamp = (value) => {
+  const formatStamp = (value: string | number | Date | null | undefined) => {
     if (!value) return '—';
     const d = new Date(value);
-    if (isNaN(d)) return '—';
+    if (isNaN(d.getTime())) return '—';
     return `${d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} · ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`;
   };
 
@@ -79,7 +92,7 @@ const PodViewer = ({
       setShowClearForm(false);
       setClearReason('');
     } catch (err) {
-      setClearError(err?.message || 'Could not clear the ePOD. Please try again.');
+      setClearError((err as Error)?.message || 'Could not clear the ePOD. Please try again.');
     } finally {
       setIsClearing(false);
     }
@@ -237,7 +250,7 @@ const PodViewer = ({
                 <Camera size={14} /> {words.viewerPhotosLabel} ({pod.photos.length})
               </label>
               <div className="pod-photos-preview-grid">
-                {pod.photos.map((src, idx) => (
+                {pod.photos.map((src: string, idx: number) => (
                   <div key={idx} className="pod-photo-thumb">
                     <img src={src} alt={`Delivery photo ${idx + 1}`} />
                   </div>

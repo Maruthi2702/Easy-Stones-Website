@@ -3,7 +3,37 @@ import { X, Check, Camera, Upload, FileText, ShieldCheck, Eye, Layers } from 'lu
 import { formatTitleCase } from '../../../utils/textUtils';
 import { packingListFileName, openPdfInline } from '../../../utils/packingList';
 import { isPickupDelivery, wordingForTicket } from '../../../utils/deliveryPickup';
+import type { CurrentUser } from '../../../types/records';
+import type { BoardColumn, Ticket } from '../types';
 import './PodModal.css';
+
+type CanvasRef = React.RefObject<HTMLCanvasElement | null>;
+type Setter<T> = React.Dispatch<React.SetStateAction<T>>;
+/** A pad event: mouse or touch, read for its client position. */
+type PadEvent = { clientX?: number; clientY?: number; touches?: React.TouchList };
+
+export type PodModalProps = {
+  isOpen: boolean;
+  onClose: () => void;
+  delivery: Ticket | null;
+  trucks?: BoardColumn[];
+  currentUser?: CurrentUser | null;
+  /** Saves the ePOD; throws with a message to show. */
+  onSavePod?: (pod: PodData) => Promise<unknown>;
+};
+
+/** What a signed ePOD sends (PATCH /api/deliveries/:id/pod). */
+export type PodData = {
+  signeeName: string;
+  driverName: string;
+  customerSignature: string;
+  driverSignature: string;
+  customerSignedAt: string;
+  driverSignedAt: string;
+  signedAt: Date;
+  photos: string[];
+  notes: string;
+};
 
 /**
  * Proof of Delivery (ePOD) Modal component
@@ -15,7 +45,7 @@ import './PodModal.css';
  * staff member handing the material over signs where the driver would. Only the
  * wording changes — every rule about what makes an ePOD valid is unchanged.
  */
-const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, onSavePod }) => {
+const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, onSavePod }: PodModalProps) => {
   const isPickup = isPickupDelivery(delivery, trucks);
   // wordingForTicket, not wordingFor: a return has to be recognised before the
   // pickup/delivery question, because it can arrive either way and its two
@@ -24,15 +54,15 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
 
   const [signeeName, setSigneeName] = useState(delivery?.pod?.signeeName || '');
   const [podNotes, setPodNotes] = useState(delivery?.pod?.notes || '');
-  const [photos, setPhotos] = useState(delivery?.pod?.photos || []);
+  const [photos, setPhotos] = useState<string[]>(delivery?.pod?.photos || []);
   const [, setUploadingPhoto] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isStampingPdf, setIsStampingPdf] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Canvas references for drawing signatures
-  const custCanvasRef = useRef(null);
-  const driverCanvasRef = useRef(null);
+  const custCanvasRef = useRef<HTMLCanvasElement>(null);
+  const driverCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const [isCustDrawing, setIsCustDrawing] = useState(false);
   const [isDriverDrawing, setIsDriverDrawing] = useState(false);
@@ -42,8 +72,8 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
 
   // Each pad records its own time when the pen lifts. Stamping both at submit
   // would make the two dates identical and meaningless.
-  const [custSignedAt, setCustSignedAt] = useState(delivery?.pod?.customerSignedAt || null);
-  const [driverSignedAt, setDriverSignedAt] = useState(delivery?.pod?.driverSignedAt || null);
+  const [custSignedAt, setCustSignedAt] = useState<string | null>(delivery?.pod?.customerSignedAt || null);
+  const [driverSignedAt, setDriverSignedAt] = useState<string | null>(delivery?.pod?.driverSignedAt || null);
 
   // Which ticket the form was last filled in for (null while closed), and
   // whether anyone has typed, drawn or added a photo since. The board opens
@@ -52,7 +82,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   // form — on a slow signal, wiping a signature already half drawn. Now it
   // only fills the form in while nothing has been entered; once someone has
   // started, the same ticket arriving again leaves their work alone.
-  const filledFor = useRef(null);
+  const filledFor = useRef<string | null>(null);
   const touched = useRef(false);
   const markTouched = () => { touched.current = true; };
 
@@ -101,10 +131,10 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     };
   }, [isOpen, hasCustSignature, hasDriverSignature]);
 
-  const formatStamp = (value) => {
+  const formatStamp = (value: string | null) => {
     if (!value) return null;
     const d = new Date(value);
-    if (isNaN(d)) return null;
+    if (isNaN(d.getTime())) return null;
     return `${d.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })} · ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
   };
 
@@ -112,7 +142,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   // (its image didn't load, or the host wouldn't allow it to be read back): the
   // pad is left blank and the caller marks it unsigned, so the person signs
   // again instead of "saving" a signature that isn't there.
-  const initCanvas = (ref, sigDataUrl, onUnreadable) => {
+  const initCanvas = (ref: CanvasRef, sigDataUrl: string | null | undefined, onUnreadable?: () => void) => {
     const canvas = ref.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -127,7 +157,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     canvas.width = Math.round(rect.width * dpr);
     canvas.height = Math.round(rect.height * dpr);
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.strokeStyle = '#d4af37';
     ctx.lineWidth = 2.5;
@@ -154,30 +184,30 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   };
 
   // Generic Touch / Mouse Handlers for Canvas Drawing
-  const startDrawing = (e, ref, setDrawing) => {
+  const startDrawing = (e: PadEvent, ref: CanvasRef, setDrawing: Setter<boolean>) => {
     markTouched();
     setDrawing(true);
     draw(e, ref);
   };
 
-  const stopDrawing = (setDrawing, ref, setHasSig, setSignedAt) => {
+  const stopDrawing = (setDrawing: Setter<boolean>, ref: CanvasRef, setHasSig: Setter<boolean>, setSignedAt: Setter<string | null>) => {
     setDrawing(false);
     const canvas = ref.current;
     if (canvas) {
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
       ctx.beginPath();
       setHasSig(true);
       setSignedAt(new Date().toISOString());
     }
   };
 
-  const draw = (e, ref) => {
+  const draw = (e: PadEvent, ref: CanvasRef) => {
     const canvas = ref.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
     const rect = canvas.getBoundingClientRect();
-    let clientX = e.clientX;
-    let clientY = e.clientY;
+    let clientX = e.clientX as number;
+    let clientY = e.clientY as number;
 
     if (e.touches && e.touches.length > 0) {
       clientX = e.touches[0].clientX;
@@ -193,11 +223,11 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     ctx.moveTo(x, y);
   };
 
-  const clearCanvas = (ref, setHasSig, setSignedAt) => {
+  const clearCanvas = (ref: CanvasRef, setHasSig: Setter<boolean>, setSignedAt: Setter<string | null>) => {
     markTouched();
     const canvas = ref.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
     // Clear in device pixels — the context carries a devicePixelRatio scale.
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -209,8 +239,8 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
   };
 
   // Handle Photo Upload
-  const handlePhotoUpload = (e) => {
-    const files = Array.from(e.target.files);
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files as FileList);
     if (files.length === 0) return;
     markTouched();
 
@@ -219,14 +249,14 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     files.forEach(file => {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPhotos(prev => [...prev, reader.result].slice(0, 6));
+        setPhotos(prev => [...prev, reader.result as string].slice(0, 6));
         setUploadingPhoto(false);
       };
       reader.readAsDataURL(file);
     });
   };
 
-  const removePhoto = (idx) => {
+  const removePhoto = (idx: number) => {
     markTouched();
     setPhotos(prev => prev.filter((_, i) => i !== idx));
   };
@@ -246,7 +276,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
     }
 
     setIsSaving(true);
-    setIsStampingPdf(Boolean(delivery.packingListUrl));
+    setIsStampingPdf(Boolean(delivery!.packingListUrl));
     setError(null);
 
     const signedAt = new Date();
@@ -279,7 +309,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
       } catch {
         throw new Error('An earlier signature on this form couldn\'t be read. Press Clear on each signature and sign again.');
       }
-      const podData = {
+      const podData: PodData = {
         signeeName: signeeName.trim(),
         driverName: resolvedDriverName,
         customerSignature: custSigDataUrl,
@@ -298,7 +328,7 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
       // No local-blob fallback: a blob: URL is meaningless to every other user
       // and used to be written to the database as if it were a real document.
       setError(
-        err?.message ||
+        (err as Error)?.message ||
         'Could not save the proof of delivery. Check your signal and try again — nothing has been recorded yet.'
       );
     } finally {

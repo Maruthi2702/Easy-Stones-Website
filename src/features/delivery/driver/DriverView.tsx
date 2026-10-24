@@ -1,11 +1,11 @@
-// The mobile-first view a driver sees instead of BoardGrid.jsx — just their
+// The mobile-first view a driver sees instead of BoardGrid.tsx — just their
 // own stops, no truck-column layout. Its only two writes are updating a
 // stop's status and opening PodModal to capture a signature (which saves
 // through the same general upsert as everything else) — a driver's account
 // never holds edit_delivery_schedule, so those two routes are the only ones
 // in src/routes/deliveries.js that deliberately accept view_delivery_schedule
 // as well. See that file's permission-model comment before adding a new
-// driver-facing action, and src/components/sales/delivery/README.md for how
+// driver-facing action, and src/features/delivery/README.md for how
 // this fits with the rest of the feature.
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
@@ -18,14 +18,17 @@ import { openPdfInline } from '../../../utils/packingList';
 // days the week is showing rather than a fixed Mon-Fri list.
 import { dayLabel } from '../../../utils/deliveryWeek';
 import { isCounterReturn } from '../../../utils/deliveryTypes';
-import StatusPill from './StatusPill';
+import StatusPill from '../board/StatusPill';
+import type { CurrentUser } from '../../../types/records';
+import type { ConnectionStatus } from '../../../api/deliverySchedule';
+import type { BoardColumn, Ticket } from '../types';
 import './DriverView.css';
 
 /**
  * "09:00 AM" → 540. Used only for ordering, so anything unparseable sorts last
  * rather than throwing a stop off the run.
  */
-function timeToMinutes(value) {
+function timeToMinutes(value: unknown) {
   const m = String(value || '').trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
   if (!m) return Number.MAX_SAFE_INTEGER;
   let hours = parseInt(m[1], 10);
@@ -41,7 +44,7 @@ function timeToMinutes(value) {
  * rather than a web map. Apple's universal link does that on iOS and falls back
  * to the browser everywhere else, which is exactly the behaviour wanted.
  */
-function mapsHrefFor(address) {
+function mapsHrefFor(address: string) {
   const query = encodeURIComponent(String(address || '').trim());
   if (!query) return null;
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -52,15 +55,29 @@ function mapsHrefFor(address) {
 }
 
 /** Blank, whitespace and the string "undefined" all mean "not set" here. */
-function cleanField(value) {
+function cleanField(value: unknown) {
   const text = String(value ?? '').trim();
   return !text || text === 'undefined' || text === 'null' ? '' : text;
 }
 
-const CONNECTION_LABELS = {
+const CONNECTION_LABELS: Record<string, string | null> = {
   online: null,
   reconnecting: 'Reconnecting — showing the last synced stops',
   offline: 'Offline — showing the last synced stops'
+};
+
+export type DriverViewProps = {
+  trucks?: BoardColumn[];
+  deliveries?: Ticket[];
+  weekDates?: string[];
+  currentUser?: CurrentUser | null;
+  /** Rethrows on failure, so the stop can say it didn't work. */
+  onUpdateStatus?: (id: string, status: string) => Promise<unknown>;
+  onOpenPod?: (delivery: Ticket) => void;
+  onViewPod?: (delivery: Ticket) => void;
+  connection?: ConnectionStatus;
+  onRefresh?: () => Promise<unknown>;
+  loadError?: string | null;
 };
 
 const DriverView = ({
@@ -74,13 +91,13 @@ const DriverView = ({
   connection = 'online',
   onRefresh,
   loadError = null
-}) => {
+}: DriverViewProps) => {
   const todayStr = formatForDateInput(new Date());
 
   // ── Which truck/driver column is this user? ──────────────────────────────
   // Matched exactly, never by substring. A "contains" match put Jose's stops on
   // Jose M's manifest, which is the one mistake a driver's day cannot absorb.
-  const currentTruck = useMemo(() => {
+  const currentTruck = useMemo((): Partial<BoardColumn> => {
     const candidates = [currentUser?.name, currentUser?.username]
       .map(v => cleanField(v).toLowerCase())
       .filter(Boolean);
@@ -113,9 +130,9 @@ const DriverView = ({
   }, [trucks, currentUser]);
 
   const [selectedDate, setSelectedDate] = useState(todayStr);
-  const [copiedId, setCopiedId] = useState(null);
-  const [busyId, setBusyId] = useState(null);
-  const [actionError, setActionError] = useState(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Landing on the week that contains today should open on today; any other
@@ -143,7 +160,7 @@ const DriverView = ({
       .map(v => cleanField(v).toLowerCase())
       .filter(Boolean);
 
-    const isMine = (del) => {
+    const isMine = (del: Ticket) => {
       // The customer collects a will call themselves, so it is on nobody's run —
       // including older ones still carrying the truckId they were created under.
       if (del.deliveryType === 'will_call') return false;
@@ -161,12 +178,12 @@ const DriverView = ({
       return named.some(n => truckDriver.includes(n));
     };
 
-    const grouped = new Map();
+    const grouped = new Map<string, Ticket[]>();
     for (const del of deliveries) {
       if (!del?.date || !isMine(del)) continue;
       const key = String(del.date).slice(0, 10);
       if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key).push(del);
+      grouped.get(key)!.push(del);
     }
 
     // Route number first, then appointment time — a board where the office left
@@ -189,7 +206,7 @@ const DriverView = ({
   const driverDisplayName = currentUser?.name || currentTruck?.driver || currentTruck?.name || 'Driver';
   const accent = currentTruck?.color || '#D4AF37';
 
-  const handleCopy = useCallback((id, value) => {
+  const handleCopy = useCallback((id: string, value: string) => {
     if (!value || !navigator.clipboard) return;
     navigator.clipboard.writeText(value)
       .then(() => {
@@ -201,14 +218,14 @@ const DriverView = ({
 
   // A status tap that fails has to say so. It used to resolve silently, leaving
   // the driver looking at a button that had done nothing.
-  const handleStatus = useCallback(async (del, nextStatus) => {
+  const handleStatus = useCallback(async (del: Ticket, nextStatus: string) => {
     if (!onUpdateStatus) return;
     setBusyId(del.id);
     setActionError(null);
     try {
       await onUpdateStatus(del.id, nextStatus);
     } catch (err) {
-      setActionError(err?.message || "Couldn't reach the office — check your signal and try again.");
+      setActionError((err as Error)?.message || "Couldn't reach the office — check your signal and try again.");
     } finally {
       setBusyId(prev => (prev === del.id ? null : prev));
     }
@@ -221,7 +238,7 @@ const DriverView = ({
     try {
       await onRefresh();
     } catch (err) {
-      setActionError(err?.message || "Couldn't refresh — check your signal.");
+      setActionError((err as Error)?.message || "Couldn't refresh — check your signal.");
     } finally {
       setIsRefreshing(false);
     }
@@ -230,7 +247,7 @@ const DriverView = ({
   const connectionNote = CONNECTION_LABELS[connection];
 
   return (
-    <div className="dv-root" style={{ '--dv-accent': accent }}>
+    <div className="dv-root" style={{ '--dv-accent': accent } as React.CSSProperties}>
 
       {/* ── Week strip ─────────────────────────────────────────────────── */}
       <div className="dv-daybar" role="tablist" aria-label="Days this week">

@@ -52,7 +52,7 @@ import { deliveriesChanged } from '../accounting/hooks.js';
  *
  * For everything else touching this feature — the board UI, the schedule
  * cache, pure scheduling math — see the map in
- * src/components/sales/delivery/README.md.
+ * src/features/delivery/README.md.
  */
 
 // ── Cloudinary / POD asset helpers ──────────────────────────────────────────
@@ -600,7 +600,7 @@ export default function createDeliveriesRouter({
       // ?location= lets a user who can already reach more than one branch (an
       // admin, or someone with several assignedLocations) narrow the board to
       // just one at a time instead of every branch they can see mashed
-      // together — see the location selector in DeliveryScheduleTab.jsx.
+      // together — see the location selector in src/features/delivery/DeliveryScheduleTab.tsx.
       const { startDate, endDate, pending, cancelled, location: requestedLocation } = req.query;
       if (requestedLocation && !userCanRequestLocation(req, requestedLocation)) {
         return res.status(403).json({ error: 'You do not have access to that location' });

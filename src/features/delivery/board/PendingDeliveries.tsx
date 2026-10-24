@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Clock, Plus } from 'lucide-react';
 import TicketChip from './TicketChip';
+import type { Ticket } from '../types';
 import { sortPendingByDate } from '../../../utils/deliveryTypes';
 
 /**
@@ -14,6 +15,16 @@ import { sortPendingByDate } from '../../../utils/deliveryTypes';
  * a delivery scheduled to the wrong driver can only be put back by opening
  * the edit modal and blanking the driver by hand.
  */
+export type PendingDeliveriesProps = {
+  pending?: Ticket[];
+  searchQuery?: string;
+  editable?: boolean;
+  onAddPending?: () => void;
+  onEditDelivery?: (delivery: Ticket) => void;
+  onViewPod?: (delivery: Ticket) => void;
+  onMoveToPending?: (id: string) => void;
+};
+
 const PendingDeliveries = ({
   pending = [],
   searchQuery = '',
@@ -22,11 +33,11 @@ const PendingDeliveries = ({
   onEditDelivery,
   onViewPod,
   onMoveToPending
-}) => {
+}: PendingDeliveriesProps) => {
   const [isDropTarget, setIsDropTarget] = useState(false);
   const acceptsDrop = Boolean(editable && onMoveToPending);
 
-  const handleDrop = (e) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDropTarget(false);
     if (!acceptsDrop) return;
@@ -34,7 +45,7 @@ const PendingDeliveries = ({
     if (!deliveryId) return;
     // Dropped back on the list it came from — nothing to change.
     if (pending.some(d => d.id === deliveryId)) return;
-    onMoveToPending(deliveryId);
+    onMoveToPending!(deliveryId);
   };
 
   // Soonest delivery date first, so what needs a truck next is at the top.
@@ -66,7 +77,7 @@ const PendingDeliveries = ({
         // section's own children, which would flicker the highlight off
         // mid-drag — ignore those and only clear when the pointer has
         // actually left the section.
-        if (e.currentTarget.contains(e.relatedTarget)) return;
+        if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
         setIsDropTarget(false);
       }}
       onDrop={handleDrop}

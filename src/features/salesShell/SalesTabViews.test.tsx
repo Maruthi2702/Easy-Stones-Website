@@ -11,7 +11,7 @@ vi.mock('../../components/sales/HoldsTab', () => stub('Holds'));
 vi.mock('../../components/sales/holds/HoldsTab', () => stub('Holds'));
 vi.mock('../../components/sales/freight/FreightTab', () => stub('Freight'));
 vi.mock('../../components/sales/permits/PermitsTab', () => stub('Permits'));
-vi.mock('../../components/sales/DeliveryScheduleTab', () => stub('Delivery'));
+vi.mock('../delivery/DeliveryScheduleTab', () => stub('Delivery'));
 vi.mock('../../components/sales/routePlannerV2/RoutePlannerV2', () => stub('RoutePlanner'));
 vi.mock('../../components/sales/UserProfileTab', () => stub('Profile'));
 

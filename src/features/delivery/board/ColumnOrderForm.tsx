@@ -1,9 +1,10 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowDown, ArrowUp, GripVertical } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
-import { FormSection } from '../../shared/form/FormControls';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormSection } from '../../../components/shared/form/FormControls';
 import { saveDeliveryColumnOrder } from '../../../api/deliverySchedule';
 import { columnLabel, defaultColumnOrder, isDefaultOrder, moveItem, orderBoardColumns } from '../../../utils/deliveryColumns';
+import type { BoardColumn } from '../types';
 import './ColumnOrderForm.css';
 
 /*
@@ -14,19 +15,28 @@ import './ColumnOrderForm.css';
  * default order stores nothing, so drivers added later keep following the
  * default rule; any other order is stored on the branch for everyone.
  */
-export default function ColumnOrderForm({ location, columns, savedOrder, onClose, onSaved }) {
-    const byId = useMemo(() => new Map(columns.map((c) => [c.id, c])), [columns]);
-    const initial = useMemo(() => orderBoardColumns(columns, savedOrder).map((c) => c.id), [columns, savedOrder]);
-    const [order, setOrder] = useState(initial);
+export type ColumnOrderFormProps = {
+    location: string;
+    /** The branch's current drivers and Will Call. */
+    columns: BoardColumn[];
+    savedOrder: string[] | null;
+    onClose: () => void;
+    onSaved?: (saved: string[]) => void;
+};
+
+export default function ColumnOrderForm({ location, columns, savedOrder, onClose, onSaved }: ColumnOrderFormProps) {
+    const byId = useMemo(() => new Map(columns.map((c) => [c.id, c] as const)), [columns]);
+    const initial = useMemo(() => orderBoardColumns(columns, savedOrder).map((c: BoardColumn) => c.id), [columns, savedOrder]);
+    const [order, setOrder] = useState<string[]>(initial);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
-    const [dragIndex, setDragIndex] = useState(null);
-    const [overIndex, setOverIndex] = useState(null);
+    const [dragIndex, setDragIndex] = useState<number | null>(null);
+    const [overIndex, setOverIndex] = useState<number | null>(null);
 
     const changed = order.some((id, i) => id !== initial[i]);
     const atDefault = isDefaultOrder(columns, order);
 
-    const move = (from, to) => {
+    const move = (from: number, to: number) => {
         setOrder((list) => moveItem(list, from, to));
         setError('');
     };
@@ -34,12 +44,12 @@ export default function ColumnOrderForm({ location, columns, savedOrder, onClose
     // An arrow press keeps focus on the row it moved, so pressing again keeps
     // moving it — and when that arrow has just run out (top or bottom), on
     // the row's other arrow rather than dropping focus off the form.
-    const listRef = useRef(null);
-    const nudge = (i, step, id) => {
+    const listRef = useRef<HTMLOListElement>(null);
+    const nudge = (i: number, step: number, id: string) => {
         move(i, i + step);
         requestAnimationFrame(() => {
             const row = listRef.current?.querySelector(`[data-col="${CSS.escape(id)}"]`);
-            const [up, down] = row ? row.querySelectorAll('.dco-arrow') : [];
+            const [up, down] = row ? [...row.querySelectorAll<HTMLButtonElement>('.dco-arrow')] : [];
             const same = step < 0 ? up : down;
             (same && !same.disabled ? same : (step < 0 ? down : up))?.focus();
         });
@@ -53,7 +63,7 @@ export default function ColumnOrderForm({ location, columns, savedOrder, onClose
             onSaved?.(saved);
             onClose();
         } catch (err) {
-            setError(err.message || 'Couldn’t save the column order. Try again.');
+            setError((err as Error).message || 'Couldn’t save the column order. Try again.');
             setSaving(false);
         }
     };
@@ -66,7 +76,7 @@ export default function ColumnOrderForm({ location, columns, savedOrder, onClose
             className="fm-btn fm-btn-small"
             disabled={saving || atDefault}
             title={atDefault ? 'Already in the default order' : 'Our drivers A–Z, then 3rd-party trucks, then Will Call'}
-            onClick={() => { setOrder(defaultColumnOrder(columns).map((c) => c.id)); setError(''); }}
+            onClick={() => { setOrder(defaultColumnOrder(columns).map((c: BoardColumn) => c.id)); setError(''); }}
         >
             Reset to default
         </button>

@@ -56,6 +56,9 @@ export const defaultColumnOrder = (columns = []) =>
  * ahead of the first saved column of a later group, so a new driver lands
  * before the contract trucks and Will Call rather than after them. Saved ids
  * with no column (a driver who left) are skipped.
+ *
+ * @param {any[]} [columns]
+ * @param {string[] | null} [savedOrder]
  */
 export const orderBoardColumns = (columns = [], savedOrder = null) => {
   const byDefault = defaultColumnOrder(columns);

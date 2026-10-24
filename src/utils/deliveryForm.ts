@@ -1,5 +1,5 @@
 /**
- * The Delivery form's rules (src/components/sales/delivery/DeliveryForm.jsx),
+ * The Delivery form's rules (src/features/delivery/form/DeliveryForm.tsx),
  * kept here, free of React and the network, so they can be tested.
  *
  * The form's values use the same names the old DeliveryModal kept in state

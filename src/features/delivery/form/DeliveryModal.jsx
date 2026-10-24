@@ -14,8 +14,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { openPdfInline } from '../../../utils/packingList';
 import { X, Save, Trash2, Calendar, MapPin, User, Truck, FileText, Hash, AlertCircle, AlertTriangle, Navigation, Activity, Layers } from 'lucide-react';
-import SearchableSelect from '../../SearchableSelect';
-import CustomSelect from '../../shared/CustomSelect';
+import SearchableSelect from '../../../components/SearchableSelect';
+import CustomSelect from '../../../components/shared/CustomSelect';
 import { MAX_TRUCK_CAPACITY } from '../../../api/deliverySchedule';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import { formatTitleCase } from '../../../utils/textUtils';
@@ -31,7 +31,7 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
 import { planPackingListAutofill } from '../../../utils/packingListPdf';
-import { DatePicker } from '../../shared/calendar/Calendar';
+import { DatePicker } from '../../../components/shared/calendar/Calendar';
 
 // One option per stop a truck can actually hold. This stopped at 8 while a
 // truck takes MAX_TRUCK_CAPACITY, which was survivable while stop numbers were

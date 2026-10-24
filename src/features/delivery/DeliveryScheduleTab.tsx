@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Plus, RefreshCw, AlertTriangle, ArrowUpToLine, ArrowLeftRight, Link2, Search, X } from 'lucide-react';
-import BoardGrid from './delivery/BoardGrid';
+import BoardGrid from './board/BoardGrid';
 import { WILL_CALL_COLUMN_ID, defaultStatusFor } from '../../utils/deliveryTypes';
 import { WILL_CALL_COLUMN } from '../../utils/deliveryColumns';
-import DriverView from './delivery/DriverView';
+import DriverView from './driver/DriverView';
 // The Add / Edit delivery form (shared form template). The old DeliveryModal.jsx
 // is no longer mounted anywhere.
-import DeliveryForm from './delivery/DeliveryForm';
-import ColumnOrderForm from './delivery/ColumnOrderForm';
-import PodModal from './delivery/PodModal';
-import PodViewer from './delivery/PodViewer';
-import PendingDeliveries from './delivery/PendingDeliveries';
-import CancelledOrders from './delivery/CancelledOrders';
-import DeliveryOrderSearch from './delivery/DeliveryOrderSearch';
-import LocationFilter from '../shared/LocationFilter';
-import { useLocationFilter } from '../shared/useLocationFilter';
+import DeliveryForm from './form/DeliveryForm';
+import ColumnOrderForm from './board/ColumnOrderForm';
+import PodModal from './pod/PodModal';
+import PodViewer from './pod/PodViewer';
+import PendingDeliveries from './board/PendingDeliveries';
+import CancelledOrders from './board/CancelledOrders';
+import DeliveryOrderSearch from './search/DeliveryOrderSearch';
+import LocationFilter from '../../components/shared/LocationFilter';
+import { useLocationFilter } from '../../components/shared/useLocationFilter';
 import { accessibleLocations } from '../../utils/locationFilter';
 import {
   saveDelivery,
@@ -48,16 +48,31 @@ import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { deliveryViewMode, canArrangeDeliveryColumns } from '../../utils/deliveryAccess';
 import { reportDaysForMove, submittedDayLabel } from '../../utils/deliveryForm';
-import { DatePicker } from '../shared/calendar/Calendar';
-import { isoOf, todayISO, shiftDay } from '../shared/calendar/calendarDates';
+import { DatePicker } from '../../components/shared/calendar/Calendar';
+import { isoOf, todayISO, shiftDay } from '../../components/shared/calendar/calendarDates';
+import type { CurrentUser, Loose } from '../../types/records';
+import type { CustomerOption } from '../../utils/customerOptions';
+import type { ConnectionStatus } from '../../api/deliverySchedule';
+import type { PodData } from './pod/PodModal';
+import type { DeliveryPayload } from './form/DeliveryForm';
+import type { SearchResultInfo } from './search/DeliveryOrderSearch';
+import type { Assignment, BoardColumn, ScheduleRole, StopOrder, Ticket } from './types';
 import './DeliveryScheduleTab.css';
 
 // getWeekMonday / getWeekDates / formatWeekRangeText now live in
-// utils/deliveryWeek.js, alongside the rules about which days a week shows.
+// utils/deliveryWeek.ts, alongside the rules about which days a week shows.
 
 // Which screen this person gets — driver, office board or read-only board —
 // comes from their role's Delivery Schedule permissions in Users & Roles
 // (deliveryViewMode in src/utils/deliveryAccess.js), not the role's name.
+
+export type DeliveryScheduleTabProps = {
+  currentUser?: CurrentUser | null;
+  theme?: string;
+  customerOptions?: CustomerOption[];
+  locationsList?: string[];
+  sidebarToggle?: React.ReactNode;
+};
 
 const DeliveryScheduleTab = ({
   currentUser = null,
@@ -65,8 +80,8 @@ const DeliveryScheduleTab = ({
   customerOptions = [],
   locationsList = ['Seattle', 'Spokane', 'Salt Lake City'],
   sidebarToggle = null
-}) => {
-  const role = deliveryViewMode(currentUser);
+}: DeliveryScheduleTabProps) => {
+  const role = deliveryViewMode(currentUser) as ScheduleRole;
 
   // '' means "All Locations" — the shared, cached board. Only offered as a
   // real choice to someone who can already reach more than one branch, and
@@ -88,29 +103,29 @@ const DeliveryScheduleTab = ({
   const weekStart = weekDates[0];
   const weekEnd = weekDates[weekDates.length - 1];
 
-  const [trucks, setTrucks] = useState(() => getScheduleCacheSync().trucks || []);
-  const [deliveries, setDeliveries] = useState(() => getCachedWeekDeliveries(weekStart));
-  const [pending, setPending] = useState(() => getScheduleCacheSync().pending || []);
-  const [cancelled, setCancelled] = useState(() => getScheduleCacheSync().cancelled || []);
+  const [trucks, setTrucks] = useState<BoardColumn[]>(() => getScheduleCacheSync().trucks || []);
+  const [deliveries, setDeliveries] = useState<Ticket[]>(() => getCachedWeekDeliveries(weekStart));
+  const [pending, setPending] = useState<Ticket[]>(() => getScheduleCacheSync().pending || []);
+  const [cancelled, setCancelled] = useState<Ticket[]>(() => getScheduleCacheSync().cancelled || []);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(() => !isWeekCached(weekStart));
   // A week that failed to load used to render as an empty board, which reads
   // exactly like a week with nothing scheduled on it.
-  const [loadError, setLoadError] = useState(null);
-  const [connection, setConnection] = useState(() => getScheduleConnection().status);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [connection, setConnection] = useState<ConnectionStatus>(() => getScheduleConnection().status);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingDelivery, setEditingDelivery] = useState(null);
+  const [editingDelivery, setEditingDelivery] = useState<Loose | null>(null);
 
   // Proof of Delivery (ePOD) Modal state — capture new ePOD
   const [isPodOpen, setIsPodOpen] = useState(false);
-  const [selectedPodDelivery, setSelectedPodDelivery] = useState(null);
+  const [selectedPodDelivery, setSelectedPodDelivery] = useState<Ticket | null>(null);
 
   // ePOD Viewer state — read-only view of signed ePOD
   const [isPodViewerOpen, setIsPodViewerOpen] = useState(false);
-  const [viewerDelivery, setViewerDelivery] = useState(null);
+  const [viewerDelivery, setViewerDelivery] = useState<Ticket | null>(null);
 
-  const handleOpenPod = async (delivery) => {
+  const handleOpenPod = async (delivery: Ticket) => {
     setSelectedPodDelivery(delivery);
     setIsPodOpen(true);
     // List fetches omit the raw signature/photo data for speed — pull the full
@@ -121,7 +136,7 @@ const DeliveryScheduleTab = ({
     }
   };
 
-  const handleOpenPodViewer = async (delivery) => {
+  const handleOpenPodViewer = async (delivery: Ticket) => {
     setViewerDelivery(delivery);
     setIsPodViewerOpen(true);
     if (delivery?.id) {
@@ -130,7 +145,7 @@ const DeliveryScheduleTab = ({
     }
   };
 
-  const handleSavePod = async (podData) => {
+  const handleSavePod = async (podData: PodData) => {
     if (!selectedPodDelivery) return;
     // Only the ePOD travels (PATCH /deliveries/:id/pod), never the board's copy
     // of the ticket: sending that back undid whatever the office had edited
@@ -147,7 +162,7 @@ const DeliveryScheduleTab = ({
 
   // Voiding a proof keeps the delivery completed — the material arrived; only
   // the signature is withdrawn. The board updates from the socket broadcast.
-  const handleClearPod = async (delivery, reason) => {
+  const handleClearPod = async (delivery: Ticket, reason: string) => {
     const res = await authFetch(`${API_URL}/api/deliveries/${delivery.id}/pod`, {
       method: 'DELETE',
       body: JSON.stringify({ reason })
@@ -171,7 +186,7 @@ const DeliveryScheduleTab = ({
   // that load is still waiting on the users list), the load's drivers are
   // discarded with it, and the board said "No drivers assigned" until reload.
   // So a refresh fetches drivers too until this view's have actually landed.
-  const trucksViewRef = useRef(null);
+  const trucksViewRef = useRef<string | null>(null);
 
   const loadData = useCallback(async (forceRefresh = false) => {
     const reqId = ++dataReqRef.current;
@@ -262,7 +277,7 @@ const DeliveryScheduleTab = ({
     // its branch — batched, since one drag can fire several updates.
     // Connection status is unrelated to which data is on screen, so that
     // subscription stays active either way.
-    let refreshTimer = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
     let trucksChanged = false;
     const unsubscribe = locationFilter
       ? subscribeScheduleChanges(({ trucks: truckChange } = {}) => {
@@ -299,7 +314,7 @@ const DeliveryScheduleTab = ({
   // Drivers View (Users & Roles → Delivery Schedule) sets the branch on screen
   // from Search & filters, below Location; the All Locations board always uses
   // the default order.
-  const [columnOrders, setColumnOrders] = useState({});
+  const [columnOrders, setColumnOrders] = useState<Record<string, string[]>>({});
   const [arrangeOpen, setArrangeOpen] = useState(false);
   const canArrangeColumns = role !== 'driver' && canArrangeDeliveryColumns(currentUser);
   useEffect(() => {
@@ -312,11 +327,11 @@ const DeliveryScheduleTab = ({
   }, [role]);
   const columnOrder = locationFilter ? (columnOrders[locationFilter] || null) : null;
 
-  // Every save/move helper in deliverySchedule.js hands back the shared
+  // Every save/move helper in deliverySchedule.ts hands back the shared
   // cache's week — every branch's tickets, or nothing if that cache was never
   // loaded. Right for the All Locations board; a board narrowed to one branch
   // refetches that branch instead.
-  const applyUpdatedList = useCallback(async (updatedList) => {
+  const applyUpdatedList = useCallback(async (updatedList: Ticket[] | undefined) => {
     if (locationFilter) {
       await refreshScoped();
     } else if (Array.isArray(updatedList)) {
@@ -344,7 +359,7 @@ const DeliveryScheduleTab = ({
   };
 
   // A day picked in the calendar shows the week it falls in.
-  const handlePickWeek = (iso) => {
+  const handlePickWeek = (iso: string) => {
     if (iso) setCurrentMonday(getWeekMonday(iso));
   };
 
@@ -367,7 +382,7 @@ const DeliveryScheduleTab = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenAddModal = (truckId = null, dateStr = null) => {
+  const handleOpenAddModal = (truckId: string | null = null, dateStr: string | null = null) => {
     // Will Call is not a truck — adding from it opens a ticket with no driver,
     // which is what a customer collecting material actually is. A slab the
     // customer is bringing back shares that column, but it is created by
@@ -390,7 +405,7 @@ const DeliveryScheduleTab = ({
     setIsModalOpen(true);
   };
 
-  const handleOpenEditModal = (delivery) => {
+  const handleOpenEditModal = (delivery: Ticket) => {
     setEditingDelivery(delivery);
     setIsModalOpen(true);
   };
@@ -400,7 +415,7 @@ const DeliveryScheduleTab = ({
   // order is another of the user's branches — then opens the ticket for the
   // office, or brings the Pending/Cancelled list into view for read-only
   // sales users, whose board has no ticket editor.
-  const handleOrderSearchSelect = async (result, info) => {
+  const handleOrderSearchSelect = async (result: Ticket, info: SearchResultInfo) => {
     if (locationFilter && ![result.location, result.transferDestination].includes(locationFilter)) {
       setLocationFilter('');
     }
@@ -416,14 +431,14 @@ const DeliveryScheduleTab = ({
     if (section) document.querySelector(section)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const handleSaveDelivery = async (payload) => {
+  const handleSaveDelivery = async (payload: DeliveryPayload) => {
     const updatedList = await saveDelivery(payload);
     await applyUpdatedList(updatedList);
     // Don't null editingDelivery here — modal awaits this and calls onClose itself
     return updatedList;
   };
 
-  const handleDeleteDelivery = async (id) => {
+  const handleDeleteDelivery = async (id: string) => {
     const updatedList = await deleteDelivery(id);
     await applyUpdatedList(updatedList);
     setEditingDelivery(null);
@@ -431,7 +446,7 @@ const DeliveryScheduleTab = ({
 
   // Deliberately rethrows. The driver view puts the failure on screen — a tap
   // that silently does nothing is worse than one that says it didn't work.
-  const handleUpdateStatus = async (id, newStatus) => {
+  const handleUpdateStatus = async (id: string, newStatus: string) => {
     const updatedList = await updateDeliveryStatus(id, newStatus);
     await applyUpdatedList(updatedList);
     return updatedList;
@@ -442,9 +457,9 @@ const DeliveryScheduleTab = ({
   // unhandled rejection and the card simply snapped back with no explanation.
   // That is indistinguishable from "drag and drop is broken" — which is how
   // it was reported. Put the reason on screen instead.
-  const reportMoveFailure = (err) => {
+  const reportMoveFailure = (err: unknown) => {
     console.error('[schedule] move failed:', err);
-    setLoadError(err?.message || "Couldn't move that delivery.");
+    setLoadError((err as Error)?.message || "Couldn't move that delivery.");
   };
 
   // After a drag lands: if the day the ticket left, or the day it landed on,
@@ -454,8 +469,8 @@ const DeliveryScheduleTab = ({
   // the delivery form makes (reportDaysForMove / submitted-days). Never blocks
   // the move; a failed check just shows nothing.
   const [submittedDayNotice, setSubmittedDayNotice] = useState('');
-  const findTicket = (id) => [...deliveries, ...pending, ...cancelled].find(d => d.id === id);
-  const warnIfSubmittedDays = async (before, after) => {
+  const findTicket = (id: string) => [...deliveries, ...pending, ...cancelled].find(d => d.id === id);
+  const warnIfSubmittedDays = async (before: Ticket | undefined, after: Loose) => {
     if (!before) return;
     const days = reportDaysForMove(before, after);
     if (!days.length) return;
@@ -474,7 +489,7 @@ const DeliveryScheduleTab = ({
 
   // Drag-and-drop move on the dispatch board: which driver/column/day a
   // ticket belongs to, nothing else (stop numbers are left as-is).
-  const handleMoveDelivery = async (id, assignment) => {
+  const handleMoveDelivery = async (id: string, assignment: Assignment) => {
     const before = findTicket(id);
     try {
       const updatedList = await updateDeliveryAssignment(id, assignment);
@@ -489,7 +504,7 @@ const DeliveryScheduleTab = ({
   // Drag-to-reorder inside a cell. Takes the whole cell's new order, not just
   // the card that moved, because a stop number only means anything as part of a
   // complete running order.
-  const handleReorderDeliveries = async (updates) => {
+  const handleReorderDeliveries = async (updates: StopOrder[]) => {
     try {
       const updatedList = await reorderDeliveries(updates);
       await applyUpdatedList(updatedList);
@@ -510,7 +525,7 @@ const DeliveryScheduleTab = ({
   // whatever that flag was previously set to — otherwise a return someone had
   // marked a customer drop-off would just bounce straight back to the Will
   // Call column instead of actually landing in Pending.
-  const handleMoveToPending = async (id) => {
+  const handleMoveToPending = async (id: string) => {
     // Also checks `cancelled` — a cancelled ticket can be dragged straight
     // onto Pending, not just onto a truck cell, so it isn't in `deliveries`.
     const delivery = [...deliveries, ...cancelled].find(d => d.id === id);
@@ -543,7 +558,7 @@ const DeliveryScheduleTab = ({
   // touch truckId/date, it's the one thing that's kept as a record of what to
   // restore the ticket to (see handleMoveDelivery/handleMoveToPending above,
   // and PATCH /deliveries/:id/assignment server-side for the restore itself).
-  const handleMoveToCancelled = async (id) => {
+  const handleMoveToCancelled = async (id: string) => {
     const before = findTicket(id);
     try {
       const updatedList = await updateDeliveryStatus(id, 'cancelled');
@@ -555,7 +570,7 @@ const DeliveryScheduleTab = ({
     }
   };
 
-  const handleUpdateTruck = (id, newName, newDriver) => {
+  const handleUpdateTruck = (id: string, newName: string, newDriver: string) => {
     // Only update local state — drivers are sourced from the Users tab.
     // Permanent driver edits should be done via Users & Roles → edit user.
     setTrucks(prev => prev.map(t =>
@@ -567,7 +582,7 @@ const DeliveryScheduleTab = ({
   // it, so a normal week looks exactly as it always has. Pending orders are
   // excluded on purpose — they have no agreed date yet and live in their own
   // list, so one shouldn't conjure a weekend column onto the board.
-  const datesWithDeliveries = new Set(deliveries.map(d => d.date).filter(Boolean));
+  const datesWithDeliveries = new Set(deliveries.map(d => d.date).filter(Boolean) as string[]);
   const visibleDates = visibleWeekDates(weekDates, datesWithDeliveries);
   const weekRangeText = formatWeekRangeText(visibleDates);
 

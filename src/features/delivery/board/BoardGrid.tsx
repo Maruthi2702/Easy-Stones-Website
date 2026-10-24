@@ -1,9 +1,9 @@
 // The office/sales dispatch board: truck columns × week days, drag-and-drop
-// to move/reorder stops. Rendered by DeliveryScheduleTab.jsx for both the
-// 'office' (editable) and 'sales' (read-only) roles — DriverView.jsx is the
+// to move/reorder stops. Rendered by DeliveryScheduleTab.tsx for both the
+// 'office' (editable) and 'sales' (read-only) roles — DriverView.tsx is the
 // separate, mobile-first component a driver sees instead. See
-// src/components/sales/delivery/README.md for how this fits with the rest
-// of the feature (deliverySchedule.js's cache, the backend router, the socket).
+// src/features/delivery/README.md for how this fits with the rest
+// of the feature (deliverySchedule.ts's cache, the backend router, the socket).
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Plus, ChevronLeft, ChevronRight, LayoutGrid, Calendar, Clock, MapPin, CheckCircle2, AlertTriangle, User, FileText, ArrowUpToLine, ArrowDownToLine, Link2 } from 'lucide-react';
 import TicketChip from './TicketChip';
@@ -16,6 +16,7 @@ import { groupStops, applyStopMove, flattenGroups, sameStopOrder } from '../../.
 // Day names come from the dates themselves — the board renders whichever days
 // the week actually shows, which is Mon-Fri plus any weekend day in use.
 import { dayLabel } from '../../../utils/deliveryWeek';
+import type { Assignment, BoardColumn, StopOrder, Ticket } from '../types';
 
 // Widths the dispatch table is laid out from. A driver column needs roughly this
 // much to keep stop, reference number and status pill on one line; below it the
@@ -33,15 +34,15 @@ const MIN_TABLE_WIDTH = 1100;
 
 // A column nobody drives. The daily truck load is meaningless for it, so it
 // shows a plain count rather than a count against MAX_TRUCK_CAPACITY.
-const isCounterColumn = (trk) => Boolean(trk?.isWillCall);
+const isCounterColumn = (trk: BoardColumn | undefined) => Boolean(trk?.isWillCall);
 
 // What one ticket in this column is called, so the empty state and the add
 // button read naturally.
-const columnNoun = (trk) => (trk?.isWillCall ? 'pickup' : 'stop');
+const columnNoun = (trk: BoardColumn | undefined) => (trk?.isWillCall ? 'pickup' : 'stop');
 
 // The cell's count, saying what it counts: "3/12 stops" on a truck (its day's
 // load), "2 pickups" in Will Call (no cap).
-const countLabel = (trk, count) => (isCounterColumn(trk)
+const countLabel = (trk: BoardColumn, count: number) => (isCounterColumn(trk)
   ? `${count} ${columnNoun(trk)}${count === 1 ? '' : 's'}`
   : `${count}/${MAX_TRUCK_CAPACITY} stops`);
 
@@ -49,11 +50,36 @@ const countLabel = (trk, count) => (isCounterColumn(trk)
 // tie-break for everything still sitting on the default of 1. Shared by the
 // render and by the drag handler, so the list a drop is calculated against is
 // the same list the dispatcher is looking at.
-const compareStops = (a, b) => {
+const compareStops = (a: Ticket, b: Ticket) => {
   const rA = Number(a.routeNumber) || 1;
   const rB = Number(b.routeNumber) || 1;
   if (rA !== rB) return rA - rB;
   return (a.time || '').localeCompare(b.time || '');
+};
+
+/** Which third of a card a drag is over: insert before/after it, or join its stop. */
+type DropMode = 'before' | 'after' | 'merge';
+type DropSlot = { cellKey: string; targetId: string; mode: DropMode };
+
+export type BoardGridProps = {
+  trucks?: BoardColumn[];
+  deliveries?: Ticket[];
+  pending?: Ticket[];
+  cancelled?: Ticket[];
+  weekDates?: string[];
+  todayRequest?: number;
+  searchQuery?: string;
+  columnOrder?: string[] | null;
+  editable?: boolean;
+  onAddDelivery?: (truckId?: string | null, dateStr?: string | null) => void;
+  onEditDelivery?: ((delivery: Ticket) => void) | null;
+  /** Resolves once the move is saved; reports its own failure. */
+  onMoveDelivery?: (id: string, assignment: Assignment) => unknown;
+  onReorderDeliveries?: (updates: StopOrder[]) => unknown;
+  onViewPod?: (delivery: Ticket) => void;
+  onOpenPod?: (delivery: Ticket) => void;
+  /** Passed by the page (its local rename of a column); the board doesn't use it. */
+  onUpdateTruck?: (id: string, newName: string, newDriver: string) => void;
 };
 
 const BoardGrid = ({
@@ -81,7 +107,7 @@ const BoardGrid = ({
   onReorderDeliveries,
   onViewPod,
   onOpenPod
-}) => {
+}: BoardGridProps) => {
   const todayStr = formatForDateInput(new Date());
   const initialDate = weekDates.includes(todayStr) ? todayStr : (weekDates[0] || todayStr);
 
@@ -137,8 +163,8 @@ const BoardGrid = ({
   // changes, and when Today is pressed. Never on a live update or after a
   // save — that would pull a dispatcher off the day they're working on. A
   // week without today starts at its first day.
-  const tableScrollRef = useRef(null);
-  const showTodayRow = (behavior = 'auto') => {
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const showTodayRow = (behavior: ScrollBehavior = 'auto') => {
     const box = tableScrollRef.current;
     if (!box) return;
     const row = box.querySelector('tr.today-row');
@@ -152,7 +178,7 @@ const BoardGrid = ({
   // is kept lined up as the table resizes — until the person scrolls, clicks
   // or types, which always wins.
   const alignUntilRef = useRef(0);
-  const jumpToToday = (behavior) => {
+  const jumpToToday = (behavior: ScrollBehavior) => {
     alignUntilRef.current = Date.now() + 2000;
     showTodayRow(behavior);
   };
@@ -196,7 +222,7 @@ const BoardGrid = ({
       ro?.disconnect();
     };
   }, [viewMode]);
-  const scrollColumns = (dir) => {
+  const scrollColumns = (dir: number) => {
     const box = tableScrollRef.current;
     if (!box) return;
     const col = box.querySelector('th.truck-col-header')?.getBoundingClientRect().width || MIN_TRUCK_COL_WIDTH;
@@ -224,13 +250,13 @@ const BoardGrid = ({
 
   // Which cell (truck x day) a dragged ticket is currently hovering over, for
   // the drop-target highlight. Table view only — the cards view has no cells.
-  const [dragOverCellKey, setDragOverCellKey] = useState(null);
+  const [dragOverCellKey, setDragOverCellKey] = useState<string | null>(null);
 
   // Which ticket the pointer is over mid-drag, and which third of it —
   // 'before'/'after' to insert as a new stop there, 'merge' to join that
   // ticket's stop. Separate from dragOverCellKey: that highlights the whole
   // cell for a plain move, this marks one zone on one card.
-  const [dropSlot, setDropSlot] = useState(null);
+  const [dropSlot, setDropSlot] = useState<DropSlot | null>(null);
 
   /**
    * Which of a card's three drop zones the pointer is in. Top and bottom
@@ -239,7 +265,7 @@ const BoardGrid = ({
    * exists: several invoices for one customer are routinely delivered as a
    * single stop, and a plain "insert here" gesture cannot express joining one.
    */
-  const stopZoneFor = (e) => {
+  const stopZoneFor = (e: React.DragEvent<HTMLElement>): DropMode => {
     const box = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - box.top;
     const third = box.height / 3;
@@ -260,7 +286,7 @@ const BoardGrid = ({
    * and is the more honest source besides — it is exactly the order the
    * dispatcher is looking at.
    */
-  const handleDropOnStop = (trk, dateStr, targetId, mode, cellStops, e) => {
+  const handleDropOnStop = (trk: BoardColumn, dateStr: string, targetId: string, mode: DropMode, cellStops: StopOrder[], e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (trk?.inactive) { setDropSlot(null); setDragOverCellKey(null); return; } // a former driver takes no new orders
@@ -305,7 +331,7 @@ const BoardGrid = ({
    * plain cell drop and the drop-at-a-position one so the two cannot disagree
    * about what dropping somewhere means.
    */
-  const assignmentFor = (trk, delivery, dateStr) => {
+  const assignmentFor = (trk: BoardColumn, delivery: Partial<Ticket>, dateStr: string): Assignment => {
     let truckId = trk.id;
     let deliveryType = delivery.deliveryType;
     // Carried through unchanged by default; only the branches below that
@@ -352,13 +378,13 @@ const BoardGrid = ({
    * about a 2px box-shadow teaches a first-time user what dropping there will
    * do. Shown as a label riding along with the cursor's exact position, not a
    * legend somewhere else on screen the eye has to leave the drag for. */
-  const DROP_HINTS = {
+  const DROP_HINTS: Record<DropMode, { icon: typeof ArrowUpToLine; text: string }> = {
     before: { icon: ArrowUpToLine, text: 'New stop before this one' },
     after: { icon: ArrowDownToLine, text: 'New stop after this one' },
     merge: { icon: Link2, text: 'Same stop as this delivery' }
   };
 
-  const renderCellTickets = (trk, dateStr, cellDeliveries, listClassName) => {
+  const renderCellTickets = (trk: BoardColumn, dateStr: string, cellDeliveries: Ticket[], listClassName: string) => {
     const cellKey = `${trk.id}_${dateStr}`;
     // Not in a former driver's column: nothing new can be dropped onto them.
     const cellCanReorder = Boolean(editable && onReorderDeliveries && !trk?.inactive);
@@ -366,8 +392,8 @@ const BoardGrid = ({
     // handleDropOnStop above for why the handler needs data rather than a
     // reference into `deliveries`/`cellDeliveries`.
     const cellStops = (fullCellMap.get(cellKey) || cellDeliveries).map(d => ({ id: d.id, routeNumber: Number(d.routeNumber) || 1 }));
-    const groupOf = new Map();
-    groupStops(cellStops).forEach((ids, gi) => ids.forEach(id => groupOf.set(id, { gi, size: ids.length })));
+    const groupOf = new Map<string, { gi: number; size: number }>();
+    groupStops(cellStops).forEach((ids: string[], gi: number) => ids.forEach(id => groupOf.set(id, { gi, size: ids.length })));
 
     return (
       <div className={listClassName}>
@@ -431,7 +457,7 @@ const BoardGrid = ({
   // strip below the last stop, or an empty cell entirely. Ticket-level drops
   // (handleDropOnStop above) cover everything else; this only has to decide
   // what "just put it in this cell somewhere" means.
-  const handleDropOnCell = (trk, dateStr, e) => {
+  const handleDropOnCell = (trk: BoardColumn, dateStr: string, e: React.DragEvent) => {
     e.preventDefault();
     setDragOverCellKey(null);
     if (!onMoveDelivery || trk.inactive) return; // a former driver takes no new orders
@@ -491,13 +517,13 @@ const BoardGrid = ({
 
   // Pre-index deliveries by `${truckId}_${date}` in O(N) for optimal rendering performance
   const cellMap = React.useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, Ticket[]>();
     for (const d of filteredDeliveries) {
       // Keyed by column, not by truck: that pulls a will call out of the driver
       // column its truckId still points at on older tickets, with no migration.
       const key = `${columnIdFor(d)}_${d.date}`;
       if (!map.has(key)) map.set(key, []);
-      map.get(key).push(d);
+      map.get(key)!.push(d);
     }
     // Sort each cell's list by routeNumber ascending (Stop #1, Stop #2...), then by time
     for (const list of map.values()) list.sort(compareStops);
@@ -510,11 +536,11 @@ const BoardGrid = ({
   // claimed, and the server refused it ("This run changed since you loaded
   // it") on every try while a search was active.
   const fullCellMap = React.useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, Ticket[]>();
     for (const d of deliveries) {
       const key = `${columnIdFor(d)}_${d.date}`;
       if (!map.has(key)) map.set(key, []);
-      map.get(key).push(d);
+      map.get(key)!.push(d);
     }
     for (const list of map.values()) list.sort(compareStops);
     return map;
@@ -522,7 +548,7 @@ const BoardGrid = ({
 
   // Recomputed each render — a few drivers, cheaper than a memo the compiler
   // can't keep (see the cellMap note above).
-  const displayTrucks = (() => {
+  const displayTrucks: BoardColumn[] = (() => {
     // No "Unassigned" column: an order without a driver belongs to the Pending
     // list beneath the board, not to a column of its own. Will Call is the only
     // driverless column — it holds customer pickups and the occasional slab a
@@ -553,22 +579,22 @@ const BoardGrid = ({
     displayTrucks.filter(t => t.isWillCall || isThirdPartyTruck(t)).map(t => t.id)
   );
 
-  const podHandlerFor = (truckId) =>
+  const podHandlerFor = (truckId: string) =>
     (pickupColumnIds.has(truckId) ? onOpenPod : undefined);
 
-  const getDeliveriesForCell = (truckId, dateStr) =>
+  const getDeliveriesForCell = (truckId: string, dateStr: string) =>
     cellMap.get(`${truckId || ''}_${dateStr}`) || [];
 
-  const getRawCapacity = (truckId, dateStr) =>
+  const getRawCapacity = (truckId: string, dateStr: string) =>
     (cellMap.get(`${truckId || ''}_${dateStr}`) || []).length;
 
-  const getCapacityColorClass = (count) => {
+  const getCapacityColorClass = (count: number) => {
     if (count >= MAX_TRUCK_CAPACITY) return 'capacity-alert-red';
     if (count >= MAX_TRUCK_CAPACITY - 2) return 'capacity-warn-amber';
     return 'capacity-ok-green';
   };
 
-  const formatDaySubtext = (dateStr) => {
+  const formatDaySubtext = (dateStr: string) => {
     if (!dateStr) return '';
     const d = new Date(dateStr + 'T00:00:00');
     const formatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -583,7 +609,7 @@ const BoardGrid = ({
   // branch with no drivers rendered zero hooks and the same board rendered two
   // the moment a driver was assigned — React counts hooks per render and throws
   // when the count changes, blanking the delivery board on the way in.
-  const pillsRef = React.useRef(null);
+  const pillsRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (pillsRef.current) {
@@ -700,7 +726,7 @@ const BoardGrid = ({
         /* ── DISPATCH TABLE MATRIX ── */
         <div
           className={`board-scroll-frame${moreSide.left ? ' more-left' : ''}${moreSide.right ? ' more-right' : ''}`}
-          style={{ '--day-col-width': `${DAY_COL_WIDTH}px` }}
+          style={{ '--day-col-width': `${DAY_COL_WIDTH}px` } as React.CSSProperties}
         >
         <div className="board-grid-scroll-container" ref={tableScrollRef}>
           {/* table-layout is fixed, so without a width that grows per driver the
@@ -724,7 +750,7 @@ const BoardGrid = ({
                   <th
                     key={trk.id || 'unassigned'}
                     className="truck-col-header"
-                    style={{ '--truck-color': trk.color || '#D4AF37' }}
+                    style={{ '--truck-color': trk.color || '#D4AF37' } as React.CSSProperties}
                   >
                     <div className="truck-label-wrap">
                       <div className="truck-color-dot" style={{ background: trk.color || '#D4AF37' }} />

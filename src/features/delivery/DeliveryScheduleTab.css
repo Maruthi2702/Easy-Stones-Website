@@ -620,7 +620,7 @@ body.light-theme-active .manifest-dispatch-table td,
 }
 
 .day-col-header-row {
-  /* Width comes from the table's <col> (DAY_COL_WIDTH in BoardGrid.jsx). */
+  /* Width comes from the table's <col> (DAY_COL_WIDTH in BoardGrid.tsx). */
   padding: 1rem 0.9rem;
   background: #1c1c1e;
   text-align: left;

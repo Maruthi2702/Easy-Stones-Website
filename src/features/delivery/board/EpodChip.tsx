@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShieldCheck, RotateCcw, AlertTriangle } from 'lucide-react';
+import type { Ticket } from '../types';
 
 /**
  * Proof-of-delivery badge for a delivery card.
@@ -21,7 +22,9 @@ const NoEpod = () => (
   </span>
 );
 
-const EpodChip = ({ delivery, onViewPod }) => {
+export type EpodChipProps = { delivery: Ticket; onViewPod?: (delivery: Ticket) => void };
+
+const EpodChip = ({ delivery, onViewPod }: EpodChipProps) => {
   const pod = delivery?.pod;
   if (!pod) return <NoEpod />;
 

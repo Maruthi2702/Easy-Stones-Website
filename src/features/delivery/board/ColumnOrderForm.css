@@ -1,4 +1,4 @@
-/* Arrange columns (ColumnOrderForm.jsx). Colors are the form template's
+/* Arrange columns (ColumnOrderForm.tsx). Colors are the form template's
    tokens (FormModal.css), so light and dark follow the rest of the form. */
 
 .dco-list {
