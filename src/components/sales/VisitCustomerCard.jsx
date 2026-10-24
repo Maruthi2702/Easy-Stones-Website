@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { splitCustomer } from './visitsListHelpers';
-import CustomerDrawer from '../../features/customers/list/CustomerDrawer';
+import { CustomerDrawer } from '../../features/customers';
 import '../../features/customers/list/CustomerList.css';
 
 /**

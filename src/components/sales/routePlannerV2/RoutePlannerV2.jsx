@@ -23,7 +23,7 @@ import MoreMenu from './MoreMenu';
 import AddCustomerModal from '../AddCustomerModal';
 import { toCustomerOptions } from '../../../utils/customerOptions';
 import { canEditCustomers, canDeleteCustomers, canViewCustomerProfile } from '../../../utils/customerAccess';
-import CustomerDrawer from '../../../features/customers/list/CustomerDrawer';
+import { CustomerDrawer } from '../../../features/customers';
 import MapActions from './MapActions';
 import ScheduleVisitSheet from './ScheduleVisitSheet';
 import './RoutePlannerV2.css';
