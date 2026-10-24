@@ -1,0 +1,5 @@
+// The Customers module (MIGRATION_NOTES.md §4, step A5): the profile and what can be done to an open customer.
+export { useCustomerActions } from './useCustomerActions';
+export type { CustomerActionsDeps, ContactForm } from './useCustomerActions';
+export { CustomerProfile } from './profile';
+export type { CustomerProfileProps } from './profile';

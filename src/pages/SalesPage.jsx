@@ -35,7 +35,7 @@ import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import { useVisitEditor } from '../features/visits';
 import { useResourceEditor } from '../features/resources';
-import { CustomerProfile } from '../features/customers/profile';
+import { CustomerProfile, useCustomerActions } from '../features/customers';
 import VisitCustomerCard from '../components/sales/VisitCustomerCard';
 import Toast from '../components/shared/Toast';
 import { CalendarSyncModal, useCalendarSync } from '../features/calendarSync';
@@ -402,68 +402,12 @@ const SalesPage = () => {
     refreshCheckInsRef.current = () => checkInLog.refresh(true);
 
     // Modal states
-    const [showContactModal, setShowContactModal] = useState(false);
     const [showCalendarSyncModal, setShowCalendarSyncModal] = useState(false);
     // Google / iCloud sync and the .ics feed: src/features/calendarSync.
     const calendarSync = useCalendarSync({ open: showCalendarSyncModal, onSynced: fetchSchedules });
-    const [editingContact, setEditingContact] = useState(null);
 
 
-    // Partner Network States
-    const [showLinkPartnerModal, setShowLinkPartnerModal] = useState(false);
-    const [linkingPartnerId, setLinkingPartnerId] = useState('');
-    const [isLinkingInProgress, setIsLinkingInProgress] = useState(false);
 
-    const handleLinkPartner = async (e) => {
-        if (e) e.preventDefault();
-        if (!linkingPartnerId) return;
-
-        setIsLinkingInProgress(true);
-        try {
-            const res = await authFetch(`${API_URL}/api/customers/${selectedCustomer._id}/associations`, {
-                method: 'POST',
-                body: JSON.stringify({ partnerId: linkingPartnerId })
-            });
-
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data.message || data.error || `Failed to establish link (Status ${res.status})`);
-            }
-
-            // Re-fetch customer details to update state
-            await fetchSingleCustomer(selectedCustomer._id);
-            setShowLinkPartnerModal(false);
-            setLinkingPartnerId('');
-        } catch (err) {
-            console.error('Error linking partner:', err);
-            alert(err.message || 'Failed to link partner');
-        } finally {
-            setIsLinkingInProgress(false);
-        }
-    };
-
-    const handleUnlinkPartner = async (partnerId, partnerName) => {
-        if (!window.confirm(`Are you sure you want to remove the connection with "${partnerName}"?`)) {
-            return;
-        }
-
-        try {
-            const res = await authFetch(`${API_URL}/api/customers/${selectedCustomer._id}/associations/${partnerId}`, {
-                method: 'DELETE'
-            });
-
-            if (!res.ok) {
-                const data = await res.json().catch(() => ({}));
-                throw new Error(data.message || data.error || `Failed to remove link (Status ${res.status})`);
-            }
-
-            // Re-fetch customer details to update state
-            await fetchSingleCustomer(selectedCustomer._id);
-        } catch (err) {
-            console.error('Error unlinking partner:', err);
-            alert(err.message || 'Failed to remove partner connection');
-        }
-    };
 
     // "New customer" in a dropdown — only for people the server lets create one
     // (POST /api/customers needs add_customers); undefined hides the option.
@@ -490,10 +434,6 @@ const SalesPage = () => {
     const showSaveToast = (text, kind = 'ok') => setSaveToast({ id: Date.now(), text, kind });
     const dismissSaveToast = useCallback(() => setSaveToast(null), []);
     const [isChatFullScreen] = useState(false);
-    const [quickNote, setQuickNote] = useState('');
-    const [isSavingNote, setIsSavingNote] = useState(false);
-    const [resetPasswordValue, setResetPasswordValue] = useState('');
-    const [accountActionStatus, setAccountActionStatus] = useState(null);
 
 
     // Sidebar State. On desktop the side nav is always docked (it collapses to
@@ -517,13 +457,6 @@ const SalesPage = () => {
     }, []);
 
     // Form states
-    const [contactForm, setContactForm] = useState({
-        name: '',
-        phone: '',
-        email: '',
-        role: '',
-        notes: ''
-    });
 
 
     const [expandedResourceId, setExpandedResourceId] = useState(null);
@@ -951,30 +884,6 @@ const SalesPage = () => {
         return getPriceLevelLabel(customer.priceLevel);
     };
 
-    // Contact CRUD operations
-    const handleAddContact = () => {
-        setEditingContact(null);
-        setContactForm({
-            name: '',
-            phone: '',
-            email: '',
-            role: '',
-            notes: ''
-        });
-        setShowContactModal(true);
-    };
-
-    const handleEditContact = (contact) => {
-        setEditingContact(contact);
-        setContactForm({
-            name: contact.name || '',
-            phone: contact.phone || '',
-            email: contact.email || '',
-            role: contact.role || '',
-            notes: contact.notes || ''
-        });
-        setShowContactModal(true);
-    };
 
     /**
      * What a save refreshes, run in the background and all at once.
@@ -1038,45 +947,15 @@ const SalesPage = () => {
         loadingResourceId, handleQuickAddResource, handleAddResourceForPin, handleAddResource, handleEditResource, handleViewResource,
         handleSaveResource, handleDeleteResource, handleResourceImageUpload, handleRemoveResourceImage
     } = useResourceEditor({ selectedCustomerId, selectedCustomer, setIsSaving, refreshAfterSave, setDeleteConfirmation });
+    const {
+        showContactModal, setShowContactModal, editingContact, showLinkPartnerModal, setShowLinkPartnerModal, linkingPartnerId,
+        setLinkingPartnerId, isLinkingInProgress, handleLinkPartner, handleUnlinkPartner, quickNote, setQuickNote,
+        isSavingNote, resetPasswordValue, setResetPasswordValue, accountActionStatus, setAccountActionStatus, contactForm,
+        setContactForm, handleAddContact, handleEditContact, handleSaveContact, handleDeleteContact, handleSaveQuickNote,
+        handleToggleCustomerStatus, handleResetCustomerPassword, handleReaction
+    } = useCustomerActions({ selectedCustomer, selectedCustomerId, selectedCustomerDetail, setSelectedCustomerDetail, fetchSingleCustomer, setIsSaving, refreshAfterSave, setDeleteConfirmation });
 
 
-    const handleSaveContact = async () => {
-        try {
-            setIsSaving(true);
-            const url = editingContact
-                ? `${API_URL}/api/customers/${selectedCustomerId}/contacts/${editingContact._id}`
-                : `${API_URL}/api/customers/${selectedCustomerId}/contacts`;
-
-            const method = editingContact ? 'PUT' : 'POST';
-
-            const response = await authFetch(url, {
-                method,
-                body: JSON.stringify(contactForm)
-            });
-
-            if (response.ok) {
-                setShowContactModal(false);
-                refreshAfterSave(selectedCustomerId, { dashboard: false });
-            } else {
-                const data = await response.json();
-                alert(data.message || 'Failed to save contact');
-            }
-        } catch (error) {
-            console.error('Error saving contact:', error);
-            alert('Failed to save contact');
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const handleDeleteContact = async (contactId) => {
-        setDeleteConfirmation({
-            isOpen: true,
-            type: 'contact',
-            id: contactId,
-            message: 'Are you sure you want to delete this contact?'
-        });
-    };
 
     const confirmDelete = async () => {
         const { type, id, customerId } = deleteConfirmation;
@@ -1142,86 +1021,6 @@ const SalesPage = () => {
         setDeleteConfirmation({ isOpen: false, type: '', id: null, customerId: null, message: '' });
     };
 
-    const handleSaveQuickNote = async () => {
-        if (!selectedCustomerId) return;
-
-        setIsSavingNote(true);
-        try {
-            const response = await authFetch(`${API_URL}/api/customers/${selectedCustomerId}/quick-note`, {
-                method: 'PATCH',
-                body: JSON.stringify({ quickNote })
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                // Update local state so UI reflects the saved note immediately
-                if (selectedCustomerDetail) {
-                    setSelectedCustomerDetail({ ...selectedCustomerDetail, quickNote: data.quickNote });
-                }
-
-            } else {
-                console.error('Failed to save quick note');
-            }
-        } catch (error) {
-            console.error('Error saving quick note:', error);
-        } finally {
-            setIsSavingNote(false);
-        }
-    };
-
-    const handleToggleCustomerStatus = async (id, currentStatus) => {
-        const newStatus = !currentStatus;
-        const action = newStatus ? 'activate' : 'deactivate';
-        if (!window.confirm(`Are you sure you want to ${action} this customer?`)) return;
-
-        try {
-            const response = await authFetch(`${API_URL}/api/customers/${id}/active`, {
-                method: 'PATCH',
-                body: JSON.stringify({ isActive: newStatus })
-            });
-
-            if (response.ok) {
-                if (selectedCustomerDetail?._id === id) {
-                    setSelectedCustomerDetail({ ...selectedCustomerDetail, isActive: newStatus });
-                }
-                setAccountActionStatus({ type: 'success', message: `Customer ${action}d successfully` });
-            } else {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.message || `Failed to ${action} customer`);
-            }
-        } catch (error) {
-            console.error(`Error ${action}ing customer:`, error);
-            setAccountActionStatus({ type: 'error', message: `Failed to ${action} customer: ${error.message}` });
-        }
-    };
-
-    /**
-     * Admin-only capability, gated behind manage_customer_accounts. Goes through
-     * its own route, /api/customers/:id/password, which updates via
-     * customer.save() so the schema's pre('save') bcrypt hook runs. The
-     * ordinary edit route (PUT /api/customers/:id) refuses a password
-     * outright: it uses findByIdAndUpdate, which skips that hook.
-     */
-    const handleResetCustomerPassword = async (id) => {
-        if (!resetPasswordValue.trim()) return;
-        if (!window.confirm("Reset this customer's password?")) return;
-        try {
-            const response = await authFetch(`${API_URL}/api/customers/${id}/password`, {
-                method: 'PUT',
-                body: JSON.stringify({ password: resetPasswordValue })
-            });
-            if (response.ok) {
-                setResetPasswordValue('');
-                setAccountActionStatus({ type: 'success', message: 'Password reset successfully' });
-            } else {
-                const data = await response.json().catch(() => ({}));
-                throw new Error(data.message || 'Failed to reset password');
-            }
-        } catch (error) {
-            console.error('Error resetting password:', error);
-            setAccountActionStatus({ type: 'error', message: error.message });
-        }
-    };
 
 
     
@@ -1230,34 +1029,6 @@ const SalesPage = () => {
 
 
 
-    // Reaction handler
-    const handleReaction = async (visitId, type) => {
-
-        if (!selectedCustomerId || !visitId) {
-            console.error('Missing required IDs for reaction:', { selectedCustomerId, visitId });
-            return;
-        }
-
-        try {
-            const response = await authFetch(`${API_URL}/api/customers/${selectedCustomerId}/visits/${visitId}/react`, {
-                method: 'POST',
-                body: JSON.stringify({ type })
-            });
-
-            if (response.ok) {
-                // Refresh data to show new reaction
-                // Using fetchSingleCustomer for now, could be optimized to local state update
-                await response.json();
-
-                // Optimistic update or just simpler refetch
-                await fetchSingleCustomer(selectedCustomerId);
-            } else {
-                console.error('Failed to update reaction');
-            }
-        } catch (error) {
-            console.error('Error updating reaction:', error);
-        }
-    };
 
 
     useEffect(() => {
