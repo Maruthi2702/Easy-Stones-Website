@@ -1,23 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Clock, FileText, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, Clock, Trash2 } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '../../../components/shared/form/FormControls';
-import { goToField, describedBy } from '../../../components/shared/form/formFocus';
+import { FormSection, FormRow, FormField, FormSearchPicker } from '../../../components/shared/form/FormControls';
+import { goToField } from '../../../components/shared/form/formFocus';
 import useTouched from '../../../components/shared/form/useTouched';
 import { MAX_TRUCK_CAPACITY } from '../../../api/deliverySchedule';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { useSalesRepOptions, useStartingRep } from '../../../api/salesRepOptions';
 import RepPicker from '../../../components/shared/form/RepPicker';
-import LocationPicker from '../../../components/shared/form/LocationPicker';
+// Field builders (the shared LocationPicker and DatePicker inside), here where
+// LocationPicker was imported, so the stylesheets load in the same order.
+import { fieldHelpers } from './formFields';
+import type { FieldName } from './formFields';
 import { branchesOf } from '../../../utils/salesReps';
 import { formatTitleCase } from '../../../utils/textUtils';
 import { formatAmount, sanitizeAmountInput } from '../../../utils/money';
 import { isThirdPartyTruck } from '../../../utils/deliveryPickup';
 import { isWeekendDate, dayLabel } from '../../../utils/deliveryWeek';
 import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
-import { planPackingListAutofill } from '../../../utils/packingListPdf';
-import { openPdfInline } from '../../../utils/packingList';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import {
     DELIVERY_TYPE_OPTIONS, STATUS_OPTIONS, isPendingOrder, dateLabelFor, needsFreightDetails, fieldLabelsFor,
@@ -26,7 +27,9 @@ import {
     formWording, deliveryLastChangedText,
     reportDaysTouched, submittedDayLabel
 } from '../../../utils/deliveryForm';
-import { DatePicker } from '../../../components/shared/calendar/Calendar';
+import { usePackingList } from './usePackingList';
+import PackingListField from './PackingListField';
+import DeleteConfirm from './DeleteConfirm';
 import type { DeliveryFormValues } from '../../../utils/deliveryForm';
 import type { CustomerOption } from '../../../utils/customerOptions';
 import type { CurrentUser, Loose } from '../../../types/records';
@@ -46,16 +49,8 @@ import './DeliveryForm.css';
  * onSave → saveDelivery → POST /api/deliveries.
  */
 
-type FieldName = keyof DeliveryFormValues;
 /** What the save sends (buildDeliveryPayload in src/utils/deliveryForm.ts). */
 export type DeliveryPayload = ReturnType<typeof buildDeliveryPayload>;
-type Autofill = { filled: string[]; kept: { field: string; current: string; pdf: string }[]; source: string };
-type TextOpts = {
-    required?: boolean; placeholder?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']; asTyped?: boolean;
-    error?: string; status?: React.ReactNode; value?: string; onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void; onBlur?: () => void;
-};
-type DateOpts = { required?: boolean; error?: string; status?: React.ReactNode; onChange?: (iso: string) => void; onBlur?: () => void };
-type PickerOpts = { required?: boolean; placeholder?: string; onChange?: (value: string) => void; value?: string; error?: string; status?: React.ReactNode };
 
 export type DeliveryFormProps = {
     isOpen: boolean;
@@ -168,61 +163,8 @@ function DeliveryFormBody({
     const dropOff = type === 'return' && !values.truckId && values.customerDropOff;
 
     // ── Packing list ──
-    const [pdfBusy, setPdfBusy] = useState(false);
-    const [pasteOpen, setPasteOpen] = useState(false);
-    const [autofill, setAutofill] = useState<Autofill | null>(null);
-    const fileRef = useRef<HTMLInputElement>(null);
-
-    // Fill the form's empty fields from an uploaded StoneProfits packing list
-    // (packingListPdf.js). Reads the latest values, since the upload can
-    // finish after someone has typed into the form.
-    const applyAutofill = (parsed: Loose) => {
-        const { updates, filled, kept } = planPackingListAutofill(valuesRef.current, parsed, customers);
-        if (Object.keys(updates).length) setValues((v) => ({ ...v, ...updates }));
-        const source = parsed.documentType ? parsed.documentType.toLowerCase() : 'packing list';
-        setAutofill(filled.length || kept.length ? { filled, kept, source } : null);
-    };
-
-    const attachFile = async (file: File) => {
-        setPdfBusy(true);
-        setPasteOpen(false);
-        set({ packingListFilename: file.name });
-        const inline = () => new Promise<void>((resolve) => {
-            // The upload route failed: send it inline instead, and the save
-            // route stores it (after checking it really is a PDF).
-            const reader = new FileReader();
-            reader.onloadend = () => { set({ packingListUrl: reader.result as string }); resolve(); };
-            reader.readAsDataURL(file);
-        });
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-            const res = await authFetch(`${API_URL}/api/deliveries/upload-packing-list`, { method: 'POST', body: formData });
-            if (res.ok) {
-                const data = await res.json();
-                set({ packingListUrl: data.url, packingListFilename: data.filename || file.name });
-                if (data.packingList) applyAutofill(data.packingList);
-            } else {
-                await inline();
-            }
-        } catch {
-            await inline();
-        } finally {
-            setPdfBusy(false);
-        }
-    };
-
-    const onPasteLink = (val: string) => {
-        const isUrl = val.startsWith('http://') || val.startsWith('https://');
-        const name = isUrl ? (val.split('/').pop() || 'PackingList.pdf') : val;
-        set({ packingListUrl: val, packingListFilename: name });
-    };
-    const removePdf = () => {
-        set({ packingListUrl: '', packingListFilename: '' });
-        setAutofill(null);
-    };
-    const isDataUrl = values.packingListUrl.toLowerCase().startsWith('data:application/');
-    const pdfAttached = Boolean(values.packingListUrl) && (isDataUrl || !pasteOpen);
+    const packing = usePackingList({ values, latestValues: () => valuesRef.current, set, setValues, customers });
+    const { pdfBusy } = packing;
 
     // ── Save / delete ──
     const submit = async () => {
@@ -289,74 +231,7 @@ function DeliveryFormBody({
     );
 
     // ── Field helpers ──
-    const text = (name: FieldName, label: string, { required = false, placeholder, inputMode, asTyped = false, error, status, value, onChange, onBlur }: TextOpts = {}) => {
-        const id = `df-${name}`;
-        return (
-            <FormField name={name} id={id} label={label} required={required} error={error} status={status}>
-                <input
-                    id={id}
-                    className={`fm-input${asTyped ? ' no-capitalize' : ''}`}
-                    type="text"
-                    inputMode={inputMode}
-                    value={value ?? (values[name] as string) ?? ''}
-                    placeholder={placeholder}
-                    autoComplete="off"
-                    autoCapitalize={asTyped ? undefined : 'words'}
-                    onChange={onChange || ((e) => set({ [name]: e.target.value } as Partial<DeliveryFormValues>))}
-                    onBlur={onBlur}
-                    {...describedBy(id, error, status)}
-                />
-            </FormField>
-        );
-    };
-    // A day: the shared calendar (shared/calendar). Clearable when optional —
-    // a Pending delivery has no date yet.
-    const dateInput = (name: FieldName, label: string, { required = false, error, status, onChange, onBlur }: DateOpts = {}) => {
-        const id = `df-${name}`;
-        return (
-            <FormField name={name} id={id} label={label} required={required} error={error} status={status}>
-                <DatePicker
-                    id={id}
-                    value={(values[name] as string) || ''}
-                    onChange={onChange || ((v: string) => set({ [name]: v } as Partial<DeliveryFormValues>))}
-                    onBlur={onBlur}
-                    error={error}
-                    status={status}
-                    clearable={!required}
-                    sheetTitle={label}
-                />
-            </FormField>
-        );
-    };
-    const picker = (name: FieldName, label: string, options: { value: string; label: string; description?: string; disabled?: boolean }[], { required = false, placeholder, onChange, value, error, status }: PickerOpts = {}) => (
-        <FormField name={name} id={`df-${name}`} label={label} required={required} error={error} status={status}>
-            <FormPicker
-                id={`df-${name}`}
-                value={value ?? (values[name] as string)}
-                onChange={onChange || ((v: string) => set({ [name]: v } as Partial<DeliveryFormValues>))}
-                options={options}
-                placeholder={placeholder}
-                sheetTitle={label}
-                error={error}
-            />
-        </FormField>
-    );
-    // A transfer's From / To: the shared location dropdown (home first, then
-    // A–Z); a branch already saved on the ticket stays listed.
-    const branchPicker = (name: FieldName, label: string) => (
-        <FormField name={name} id={`df-${name}`} label={label} required error={shown(name)}>
-            <LocationPicker
-                id={`df-${name}`}
-                value={(values[name] as string) || ''}
-                onChange={(v: string) => set({ [name]: v } as Partial<DeliveryFormValues>)}
-                options={locationsList || []}
-                user={currentUser}
-                placeholder="Pick a branch"
-                sheetTitle={label}
-                error={shown(name)}
-            />
-        </FormField>
-    );
+    const { text, dateInput, picker, branchPicker } = fieldHelpers({ values, set, shown, locationsList, currentUser });
 
     const dateField = dateInput('date', dateLabelFor(values), {
         required: !pending,
@@ -525,68 +400,7 @@ function DeliveryFormBody({
             )}
 
             <FormSection>
-                <FormField name="packingList" id="df-packingList" label="Packing list">
-                    <input ref={fileRef} type="file" accept=".pdf,application/pdf" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) attachFile(f); }} />
-                    {pdfBusy ? (
-                        <div className="df-drop" role="status"><span className="fm-spinner" aria-hidden="true" /><span className="df-drop-text">Attaching PDF…</span></div>
-                    ) : pdfAttached ? (
-                        <div className="df-file">
-                            <FileText size={20} aria-hidden="true" />
-                            <span className="df-file-text">
-                                <b>{values.packingListFilename || 'Packing list.pdf'}</b>
-                                <span className="df-file-ok">Attached</span>
-                            </span>
-                            {/* The signed copy only while this is still the packing list it was
-                                signed on; a newly attached file opens itself. */}
-                            <button
-                                type="button"
-                                className="fm-btn fm-btn-small"
-                                onClick={() => openPdfInline(initialData?.pod?.signedPdfUrl && values.packingListUrl === initialData?.packingListUrl
-                                    ? initialData.pod.signedPdfUrl
-                                    : values.packingListUrl)}
-                            >
-                                View
-                            </button>
-                            <button type="button" className="df-icon-btn" aria-label="Remove packing list" title="Remove" onClick={removePdf}>
-                                <X size={16} aria-hidden="true" />
-                            </button>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="df-drop">
-                                <FileText size={20} aria-hidden="true" />
-                                <span className="df-drop-text">No PDF attached</span>
-                                <button type="button" id="df-packingList" className="fm-btn fm-btn-small" onClick={() => fileRef.current?.click()}>
-                                    <Upload size={15} aria-hidden="true" />Choose PDF
-                                </button>
-                                <button type="button" className="df-link" aria-expanded={pasteOpen} onClick={() => setPasteOpen((o) => !o)}>Paste a link</button>
-                            </div>
-                            {pasteOpen && (
-                                <input
-                                    className="fm-input no-capitalize"
-                                    type="url"
-                                    aria-label="Link to the packing list PDF"
-                                    placeholder="https://"
-                                    value={isDataUrl ? '' : values.packingListUrl}
-                                    onChange={(e) => onPasteLink(e.target.value)}
-                                />
-                            )}
-                        </>
-                    )}
-                    {autofill && values.packingListUrl && (
-                        <div className="df-autofill" role="status">
-                            {autofill.filled.length > 0 && (
-                                <span className="df-autofill-ok">Filled in from the {autofill.source}: {autofill.filled.join(', ')}. Check them before saving.</span>
-                            )}
-                            {autofill.kept.map((k) => (
-                                <span key={k.field} className="df-autofill-kept">
-                                    <AlertTriangle size={12} aria-hidden="true" />
-                                    {k.field} left as “{k.current}” — the {autofill.source} says “{k.pdf}”.
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                </FormField>
+                <PackingListField values={values} initialData={initialData} packing={packing} />
                 <FormField name="notes" id="df-notes" label="Notes">
                     <textarea
                         id="df-notes"
@@ -600,22 +414,12 @@ function DeliveryFormBody({
             </FormSection>
 
             {confirmDelete && (
-                <div
-                    className="fm-confirm-backdrop"
-                    onClick={(e) => { if (e.target === e.currentTarget) setConfirmDelete(false); }}
-                    onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setConfirmDelete(false); } }}
-                >
-                    <div className="fm-confirm" role="alertdialog" aria-modal="true" aria-labelledby="df-delete-title" data-fm-layer="" tabIndex={-1}>
-                        <h3 className="fm-confirm-title" id="df-delete-title">{`${wording.deleteLabel}?`}</h3>
-                        <p className="fm-confirm-text">
-                            {isTransfer ? `The ${wording.titleSub} transfer` : (initial.customerName || 'This ticket')} will be removed from the schedule. This can’t be undone.
-                        </p>
-                        <div className="fm-confirm-actions">
-                            <button type="button" className="fm-btn" autoFocus onClick={() => setConfirmDelete(false)}>Cancel</button>
-                            <button type="button" className="fm-btn fm-btn-danger" onClick={deleteNow}>Delete</button>
-                        </div>
-                    </div>
-                </div>
+                <DeleteConfirm
+                    title={`${wording.deleteLabel}?`}
+                    subject={isTransfer ? `The ${wording.titleSub} transfer` : (initial.customerName || 'This ticket')}
+                    onCancel={() => setConfirmDelete(false)}
+                    onDelete={deleteNow}
+                />
             )}
         </FormModal>
     );
