@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2, AlertCircle, MapPin } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import SummaryTable, { SummaryStats } from './SummaryTable';
-import { sumRows } from './summaryFigures';
+import { sumRows } from '../summaryFigures';
+import type { LeadColumn } from './SummaryTable';
+import type { AuthFetch, SummaryRow } from '../types';
 
 /**
  * The month, one row per day — the part a folder of spreadsheets can't give
@@ -20,7 +22,7 @@ import { sumRows } from './summaryFigures';
  * decision and no way to tell which had won.
  */
 
-const dayLabel = (iso) => {
+const dayLabel = (iso: string) => {
   const d = new Date(`${iso}T00:00:00`);
   return d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
 };
@@ -34,7 +36,7 @@ const todayISO = () => {
  * Every day of the month that has already happened, newest first. A month still
  * running stops at today — tomorrow isn't missing, it just hasn't arrived.
  */
-const elapsedDays = (month) => {
+const elapsedDays = (month: string): string[] => {
   const today = todayISO();
   const thisMonth = today.slice(0, 7);
   if (month > thisMonth) return [];
@@ -46,7 +48,7 @@ const elapsedDays = (month) => {
   return Array.from({ length: last }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`).reverse();
 };
 
-const blankDay = (date, location) => ({
+const blankDay = (date: string, location: string): SummaryRow => ({
   date,
   location,
   status: 'none',
@@ -62,10 +64,18 @@ const blankDay = (date, location) => ({
   payments: 0
 });
 
-const MonthView = ({ month, location, locations = [], authFetch, onOpenDay }) => {
-  const [filed, setFiled] = useState([]);
+export type MonthViewProps = {
+  month: string;
+  location: string;
+  locations?: string[];
+  authFetch: AuthFetch;
+  onOpenDay: (date: string, location: string) => void;
+};
+
+const MonthView = ({ month, location, locations = [], authFetch, onOpenDay }: MonthViewProps) => {
+  const [filed, setFiled] = useState<SummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const allBranches = location === 'all';
 
@@ -113,7 +123,7 @@ const MonthView = ({ month, location, locations = [], authFetch, onOpenDay }) =>
     : filed.length;
   const submitted = filed.filter(r => r.status === 'submitted').length;
 
-  const lead = allBranches
+  const lead: LeadColumn[] = allBranches
     ? [
         { header: 'Day', render: r => dayLabel(r.date), className: 'dr-day' },
         { header: 'Branch', render: r => r.location, className: 'dr-branch' }

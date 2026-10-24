@@ -13,14 +13,14 @@ import { authFetch } from '../../../api/authFetch';
  * An <iframe> embedded in the page isn't a top-level navigation, so it isn't
  * subject to that setting and always renders with the browser's PDF viewer.
  */
-const PdfPreviewDialog = ({ open, onClose, url, title, filename }) => {
-  const [blobUrl, setBlobUrl] = useState(null);
-  const [error, setError] = useState(null);
+const PdfPreviewDialog = ({ open, onClose, url, title, filename }: { open: boolean; onClose: () => void; url: string; title: string; filename: string }) => {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !url) return undefined;
     let cancelled = false;
-    let objectUrl = null;
+    let objectUrl: string | null = null;
     setBlobUrl(null);
     setError(null);
 

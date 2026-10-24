@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { buildDraftPayload, buildSaveBody } from './savePayload';
+import type { Report } from './types';
 
-const baseReport = () => ({
+const baseReport = (): Report => ({
   date: '2026-08-28',
   location: 'Seattle',
   status: 'draft',
@@ -12,7 +13,7 @@ const baseReport = () => ({
     { fromTo: 'SEA — SPO', count: 1, slabs: 45, auto: true, direction: 'out' },
     { fromTo: 'DAL — HOU', count: 1, slabs: 12, auto: false, direction: 'out' }
   ]
-});
+}) as unknown as Report;
 
 describe('buildDraftPayload', () => {
   it('nulls capacity figures nobody has typed into', () => {

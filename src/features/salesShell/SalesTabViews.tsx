@@ -31,7 +31,7 @@ const LostSalesTab = page(() => import('../../components/sales/LostSalesTab'));
 const CrossoverSheetTab = page(() => import('../../components/sales/CrossoverSheetTab'));
 const InventoryAnalysisTab = page(() => import('../../components/sales/InventoryAnalysisTab'));
 const DeliveryScheduleTab = page(() => import('../../components/sales/DeliveryScheduleTab'));
-const DailyReportTab = page(() => import('../../components/sales/dailyreport/DailyReportTab'));
+const DailyReportTab = page(() => import('../dailyReport/DailyReportTab'));
 const FreightTab = page(() => import('../../components/sales/freight/FreightTab'));
 const HoldsTab = page(() => import('../../components/sales/holds/HoldsTab'));
 const PermitsTab = page(() => import('../../components/sales/permits/PermitsTab'));

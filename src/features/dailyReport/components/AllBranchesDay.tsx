@@ -3,7 +3,8 @@ import { Loader2, AlertCircle, CalendarDays } from 'lucide-react';
 import NoBranchNote from './NoBranchNote';
 import { API_URL } from '../../../config/api';
 import SummaryTable, { SummaryStats } from './SummaryTable';
-import { sumRows } from './summaryFigures';
+import { sumRows } from '../summaryFigures';
+import type { AuthFetch, SummaryRow } from '../types';
 
 /**
  * One day across every branch the viewer is assigned to.
@@ -15,20 +16,20 @@ import { sumRows } from './summaryFigures';
  * point of looking at the day this way.
  */
 
-const longDate = (iso) => {
+const longDate = (iso: string) => {
   const d = new Date(`${iso}T00:00:00`);
   return d.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 };
 
-const isToday = (iso) => {
+const isToday = (iso: string) => {
   const d = new Date();
   return iso === `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const AllBranchesDay = ({ date, authFetch, onOpenBranch }) => {
-  const [rows, setRows] = useState([]);
+const AllBranchesDay = ({ date, authFetch, onOpenBranch }: { date: string; authFetch: AuthFetch; onOpenBranch: (location: string) => void }) => {
+  const [rows, setRows] = useState<SummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   const [noBranchTickets, setNoBranchTickets] = useState(0);
 
   useEffect(() => {

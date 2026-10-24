@@ -1,8 +1,10 @@
 import React from 'react';
 import { Users, Truck, Package, ArrowLeftRight, Wallet, Check } from 'lucide-react';
-import { moneyShort } from './summaryFigures';
+import { moneyShort } from '../summaryFigures';
 import { groupContainers } from '../../../utils/dailyReportContainers';
 import { paymentsSaid } from '../../../utils/dailyReportPayments';
+import type { LucideIcon } from 'lucide-react';
+import type { ContainerLine, DayTotals, Report, TransferLine } from '../types';
 
 /**
  * The day at a glance — the five figures anyone asks about, above the form
@@ -14,25 +16,33 @@ import { paymentsSaid } from '../../../utils/dailyReportPayments';
  * signed off over it.
  */
 
-const plural = (count, one, many) => `${count} ${count === 1 ? one : many || one + 's'}`;
+const plural = (count: number, one: string, many?: string) => `${count} ${count === 1 ? one : many || one + 's'}`;
 
 /** An unsaid cell is a blank string, not a number — it contributes nothing. */
-const n = (v) => {
+const n = (v: unknown) => {
   const x = Number(v);
   return Number.isFinite(x) ? x : 0;
 };
 
-const spoken = (...values) => values.some(v => v !== null && v !== undefined && v !== '');
+const spoken = (...values: unknown[]) => values.some(v => v !== null && v !== undefined && v !== '');
 
 /**
  * A line the user has started saying something on. A row added but not yet
  * typed into is not a container — counting it would have the tiles claim a
  * delivery the branch never received, and it is dropped on save anyway.
  */
-const hasContent = (line) =>
+const hasContent = (line: Partial<ContainerLine & TransferLine>) =>
   Boolean(line.poNumber || line.material || line.fromTo) || spoken(line.count, line.slabs);
 
-const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false }) => {
+export type DaySummaryProps = {
+  report: Report | null;
+  totals: DayTotals | null;
+  canSubmit: boolean;
+  onSubmit: () => void;
+  submitting?: boolean;
+};
+
+const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false }: DaySummaryProps) => {
   if (!report || !totals) return null;
 
   const v = report.visitors;
@@ -47,7 +57,7 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false })
   const transferLines = report.transfers.filter(hasContent).length;
   const outboundTransferLines = report.transfers.filter(t => t.direction !== 'in' && hasContent(t)).length;
 
-  const tiles = [
+  const tiles: { key: string; icon: LucideIcon; label: string; value: string | number; sub: string; accent?: boolean; suffix?: string }[] = [
     {
       key: 'visitors',
       icon: Users,
