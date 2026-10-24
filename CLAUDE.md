@@ -99,8 +99,7 @@ Unassigned first, then reps under a heading for their branch (branches and
 names A–Z, "Other" last) with you marked "(you)" — `groupRepOptions`. On a
 form that's `src/components/shared/form/RepPicker.tsx` (not FormPicker);
 the Customer List filter and the Route Planner's rep filter render the same
-groups. A new rep dropdown or filter uses these. (The old `DeliveryModal` still has its own
-until it's deleted.)
+groups. A new rep dropdown or filter uses these.
 
 Something **new** at a branch starts with a rep by one rule too,
 `startingRepFor`: the person creating it if they're a sales rep, else that

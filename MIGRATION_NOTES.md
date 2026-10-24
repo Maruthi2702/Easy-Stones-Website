@@ -319,7 +319,7 @@ What it composes:
 | `features/customers` | `CustomerProfile` + its tabs, `useOpenCustomer` (record, cache, patches), `useCustomerActions` (contacts, partners, quick note, account, reactions), `useCustomersPage`, `useCreateCustomer`, level labels (A5) |
 | `features/dashboard` | `DashboardPage`; tabs `visits/`, `followUps/`, `resources/`, `calendar/`; `teamFiles/`; `useDashboardData` (A6) |
 | `features/salesShell` | navigation (page, open customer, URL, back button), side nav layout, theme, locations/reps, the socket, the delete check, `SalesTabViews` (every other page), `CustomersView`, `SalesModals` (A7) |
-| `features/delivery` | the Delivery Schedule: page + `useScheduleData` / `useScheduleActions` / `usePodDialogs` / `useColumnOrders`; `board/`, `form/` (incl. the old `DeliveryModal.jsx`, unconverted, awaiting the owner's go to delete), `pod/`, `driver/`, `search/` (B, 2026-10-24) |
+| `features/delivery` | the Delivery Schedule: page + `useScheduleData` / `useScheduleActions` / `usePodDialogs` / `useColumnOrders`; `board/`, `form/` (the old `DeliveryModal.jsx` deleted 2026-10-24), `pod/`, `driver/`, `search/` (B, 2026-10-24) |
 | `features/dailyReport` | the Daily Report: page + `useDaySheet` (load, autosave, flush, submit), `components/` and `components/sheet/` (B, 2026-10-24) |
 | `features/customers/list` | the Customers list (was `PartnersSheet` + `customerList/`): page + `useCustomerListData` / `useListFilters` / `useListActions` / `useListUi` / `useListKeyboard`, `CustomerDrawer` (shared with the Route Planner and the visit card), the profile's header/details/contacts parts (B, 2026-10-24) |
 

@@ -171,11 +171,6 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
 
 ## Cleanup due
 
-- [ ] **On or after 2026-10-19:** delete
-      `src/features/delivery/form/DeliveryModal.jsx` if the new Add / Edit
-      delivery form (`DeliveryForm.tsx`, live since 2026-10-05) has worked
-      well. Nothing mounts it; it's kept only as a fallback. Before deleting,
-      `grep -rn "DeliveryModal" src` should only find comments.
 - [ ] **On or after 2026-11-06:** drop the old customer API addresses kept
       as aliases when everything moved under `/api/customers` (2026-10-06):
       `/api/sales/customers`, `/api/partners…`, `/api/admin/customers…` in
@@ -187,6 +182,7 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-24 | Cleanup: the old Add / Edit delivery form `DeliveryModal.jsx` (unused since `DeliveryForm` went live on 2026-10-05) deleted, on the owner's go-ahead. | on `feat/typescript` |
 | 2026-10-15 | Daily Report transfers: one line per transfer, each with its Transfer # (a ticket line per ticket, no longer one per route), so the same transfer added twice is flagged; the typed Count is gone (the month view, its PDF and the CSV count the lines); headings line up with their boxes; one row per line at any width — on phones Slabs used to run off the edge. | `a1fd574` |
 | 2026-10-15 | Transfers #6: a transfer line added by hand on the Daily Report always counted as Outgoing. Its route now decides (ending at the report's branch is Incoming), with a note when the route skips the branch or repeats a ticket line. | `a75e9b3` |
 | 2026-10-15 | Delivery board: stop numbers skipped (Stop #1, #3) after a delete, cancel or move, and the board, the Edit delivery form and the driver's phone could disagree. Each driver's day is now kept 1, 2, 3, and old gaps closed at startup. | `3691007` |

@@ -4,8 +4,8 @@ import React, { useState, useMemo } from 'react';
 import ScheduleStage from './ScheduleStage';
 import { WILL_CALL_COLUMN_ID, defaultStatusFor } from '../../utils/deliveryTypes';
 import { WILL_CALL_COLUMN } from '../../utils/deliveryColumns';
-// The Add / Edit delivery form (shared form template). The old DeliveryModal.jsx
-// is no longer mounted anywhere.
+// The Add / Edit delivery form (shared form template). It replaced the old
+// DeliveryModal.jsx, deleted 2026-10-24.
 import DeliveryForm from './form/DeliveryForm';
 import ColumnOrderForm from './board/ColumnOrderForm';
 import PodModal from './pod/PodModal';

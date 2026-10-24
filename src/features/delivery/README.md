@@ -185,6 +185,6 @@ two-sided treatment.
 
 ## The old form
 
-`form/DeliveryModal.jsx` is the add/edit form `DeliveryForm` replaced on
-2026-10-05. Nothing mounts it; it moved here unchanged (still JavaScript) and
-waits on the owner's call to delete it (KNOWN_ISSUES.md → Cleanup due).
+`DeliveryModal.jsx`, the add/edit form `DeliveryForm` replaced on 2026-10-05,
+was deleted on 2026-10-24 (owner's go-ahead). `DeliveryForm` keeps its value
+names, which is why some comments still mention it.
