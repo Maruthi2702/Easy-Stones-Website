@@ -319,15 +319,26 @@ What it composes:
 | `features/customers` | `CustomerProfile` + its tabs, `useOpenCustomer` (record, cache, patches), `useCustomerActions` (contacts, partners, quick note, account, reactions), `useCustomersPage`, `useCreateCustomer`, level labels (A5) |
 | `features/dashboard` | `DashboardPage`; tabs `visits/`, `followUps/`, `resources/`, `calendar/`; `teamFiles/`; `useDashboardData` (A6) |
 | `features/salesShell` | navigation (page, open customer, URL, back button), side nav layout, theme, locations/reps, the socket, the delete check, `SalesTabViews` (every other page), `CustomersView`, `SalesModals` (A7) |
+| `features/delivery` | the Delivery Schedule: page + `useScheduleData` / `useScheduleActions` / `usePodDialogs` / `useColumnOrders`; `board/`, `form/` (incl. the old `DeliveryModal.jsx`, unconverted, awaiting the owner's go to delete), `pod/`, `driver/`, `search/` (B, 2026-10-24) |
+| `features/dailyReport` | the Daily Report: page + `useDaySheet` (load, autosave, flush, submit), `components/` and `components/sheet/` (B, 2026-10-24) |
+| `features/customers/list` | the Customers list (was `PartnersSheet` + `customerList/`): page + `useCustomerListData` / `useListFilters` / `useListActions` / `useListUi` / `useListKeyboard`, `CustomerDrawer` (shared with the Route Planner and the visit card), the profile's header/details/contacts parts (B, 2026-10-24) |
 
 How each step was checked: typecheck, `npm test` (each module has hook or
 render tests), the import check, and two checks kept outside git in
 `.migration-tools/`:
-- **Parity**: the old page and the new page rendered side by side in 35 states,
-  with the same HTML required.
+- **Parity**: the old page and the new page rendered side by side in 35 states
+  (97 since the three operations modules: + 23 Delivery, 11 Daily Report, 28
+  Customers list), with the same HTML required.
 - **CSS check**: an order-aware comparison of the built CSS. It confirms which
   value wins for every selector, and that no rules of equal weight changed
   order. An earlier sorted comparison couldn't see order changes.
+
+**The three operations modules (B, 2026-10-24)** were done in parallel, each
+on its own branch (`feat/ts-delivery`, `feat/ts-dailyreport`,
+`feat/ts-customerlist`) merged here. Every .ts/.tsx file is under 500 lines;
+the CSS files moved whole. Each has a render smoke test, and the Daily Report
+has hook tests pinning the draft/submit save rules (O12–O14, the 2026-08-28
+incident). Bugs found on the way are in KNOWN_ISSUES.md, not fixed.
 
 **Not done:** `useDashboardData` is 562 lines (over the 500 stop) and
 `useVisitEditor` 480. Selecting a Sales page with a permission it lacks via the

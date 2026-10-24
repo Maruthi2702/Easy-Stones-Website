@@ -62,7 +62,30 @@ Both scripts only preview until run with `--apply`.
 
 ## Daily Report — other
 
-Nothing open.
+Found while moving the module into `src/features/dailyReport` (2026-10-24); both
+were already on `main`, kept as they were.
+
+- [ ] An autosave refused because someone else submitted the day (409) reloads
+      the day, and the reload's `setError(null)` wipes "This day has been
+      submitted" at once — the sheet shows locked with no reason given.
+      (`save` → `loadDayRef` → `loadDay` in `useDaySheet.ts`.)
+- [ ] The same when the save just before Submit gets the 409: the message reads
+      "Couldn't save your last changes … check your connection" instead of "This
+      day has been submitted" (`submitDay` keeps a message that the reload has
+      already cleared).
+
+## Delivery Schedule — other
+
+Found while moving the module into `src/features/delivery` (2026-10-24); all
+already on `main`, kept as they were.
+
+- [ ] `searchDeliveries()` in `src/api/deliverySchedule.ts` is typed as a list,
+      but the route answers `{ results, total, more }`; `DeliveryOrderSearch.tsx`
+      casts around it. Fix the type.
+- [ ] The phone board never scrolls the selected day pill into view: the effect
+      looks for `.screenshot-pill-btn.active`, a class that no longer exists (the
+      pills are `.ux-day-pill-card`) — `board/useBoardScroll.ts`.
+- [ ] The page passes `onUpdateTruck` to `BoardGrid`, which never uses it.
 
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
 
