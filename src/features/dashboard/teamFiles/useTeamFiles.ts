@@ -346,3 +346,6 @@ export function useTeamFiles({ showDashboard, activeResourceSubTab, resourceRefr
         handleResourceClick,
     };
 }
+
+/** What the hook returns, for the dashboard's page to take as one prop. */
+export type TeamFiles = ReturnType<typeof useTeamFiles>;

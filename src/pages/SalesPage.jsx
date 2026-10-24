@@ -22,8 +22,6 @@ import './SalesPageChatImage.css';
 import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
 import { formatForDateInput, formatDate } from '../utils/dateUtils';
-import DashboardStats, { DashboardRange } from '../features/dashboard/components/DashboardStats';
-import DashboardAside from '../features/dashboard/components/DashboardAside';
 import CustomerSidebar from '../components/sales/CustomerSidebar';
 import PhoneTabBar from '../components/sales/PhoneTabBar';
 import useIsPhone from '../components/shared/form/useIsPhone';
@@ -40,8 +38,7 @@ import VisitCustomerCard from '../components/sales/VisitCustomerCard';
 import Toast from '../components/shared/Toast';
 import { CalendarSyncModal, useCalendarSync } from '../features/calendarSync';
 import { CheckInLogTab, CheckInDetailModal, useCheckInLog } from '../features/checkin';
-import { useDashboardData } from '../features/dashboard/useDashboardData';
-import { useTeamFiles } from '../features/dashboard/teamFiles/useTeamFiles';
+import { DashboardPage, useDashboardData, useTeamFiles, TeamFilePreview, TeamFileUploadModal, AddFolderModal } from '../features/dashboard';
 import VisitModal from '../components/sales/VisitModal';
 import ResourceModal from '../components/sales/ResourceModal';
 import AddCustomerModal from '../components/sales/AddCustomerModal';
@@ -52,7 +49,6 @@ import SidebarToggleButton from '../components/shared/SidebarToggleButton';
 import { formatPhoneInput } from '../utils/phoneUtils';
 import { isPdfSource } from '../utils/attachments';
 import { openPdfInline } from '../utils/packingList';
-import VisitsFocusList from '../features/dashboard/components/VisitsFocusList';
 import LocationFilter from '../components/shared/LocationFilter';
 import RowMenu from '../components/shared/RowMenu';
 import LocationPicker from '../components/shared/form/LocationPicker';
@@ -331,25 +327,11 @@ const SalesPage = () => {
     useEffect(() => {
         currentUserIdRef.current = currentUserId;
     }, [currentUserId]);
+    const dashboardData = useDashboardData({ currentUser, locations, customers, currentUserId, customerRefreshTrigger, resourceRefreshTrigger });
     const {
-        dashboardTimeRange, setDashboardTimeRange, dashboardLocationOptions, dashboardLocation, dashboardSearchTerm, setDashboardSearchTerm,
-        activeDashboardTab, setActiveDashboardTab, followupFilter, setFollowupFilter, todayScheduleCount, stats,
-        statsLoading, followUpPanel, allSchedules, activeResourceSubTab, setActiveResourceSubTab, fetchDashboardStats,
-        fetchDashboardData, dashboardTableLoading, fetchSchedules, canAddVisits, memoizedFilteredVisits, memoizedFilteredResources,
-        memoizedFollowups, currentVisitsPage, setCurrentVisitsPage, currentFollowUpPage, setCurrentFollowUpPage, currentResourcesPage,
-        setCurrentResourcesPage, visitsPerPage, pagedDashboardVisits, handleVisitsPerPageChange, handleDashboardLocationChange, patchDashboardVisit,
-        removeDashboardVisit, handleExportVisits, handleExportResources
-    } = useDashboardData({ currentUser, locations, customers, currentUserId, customerRefreshTrigger, resourceRefreshTrigger });
-    // A dashboard table with no rows yet while its data is still on the way says so.
-    const renderDashboardLoadingRow = (colSpan) => (
-        <tr>
-            <td colSpan={colSpan} style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8' }}>
-                <Loader size={16} className="animate-spin" style={{ verticalAlign: 'middle', marginRight: 8, color: '#d4af37' }} />
-                Loading…
-            </td>
-        </tr>
-    );
-
+        activeDashboardTab, setActiveDashboardTab, activeResourceSubTab, fetchDashboardStats, fetchDashboardData, fetchSchedules,
+        canAddVisits, setCurrentVisitsPage, setCurrentFollowUpPage, setCurrentResourcesPage, patchDashboardVisit, removeDashboardVisit
+    } = dashboardData;
     // Sync active CRM tab from URL query params on page refresh
     useEffect(() => {
         const searchParams = new URLSearchParams(window.location.search);
@@ -627,12 +609,10 @@ const SalesPage = () => {
         "2025V3 Moda Tower Updated 24>25",
         "2025V3 Moda Tower"
     ];
+    const teamFiles = useTeamFiles({ showDashboard, activeResourceSubTab, resourceRefreshTrigger, setIsSaving, fetchDashboardData, fetchDashboardStats, setDeleteConfirmation });
     const {
-        showAddFolderModal, setShowAddFolderModal, folderName, setFolderName, salesResources, showDashboardUploadModal,
-        setShowDashboardUploadModal, dashboardUploadForm, setDashboardUploadForm, setEditingDashboardResource, previewDashboardResource, setPreviewDashboardResource,
-        setCurrentFolderId, folderPath, setFolderPath, fetchDashboardResources, handleDashboardUpload, handleDashboardDownload,
-        handleCreateFolder, handleEditDashboardResource, handleDeleteDashboardResource, handleBreadcrumbClick, handleResourceClick
-    } = useTeamFiles({ showDashboard, activeResourceSubTab, resourceRefreshTrigger, setIsSaving, fetchDashboardData, fetchDashboardStats, setDeleteConfirmation });
+        fetchDashboardResources, handleDashboardDownload
+    } = teamFiles;
 
     // Current user ID is managed directly via AuthContext (currentUser)
 
@@ -2835,759 +2815,62 @@ const SalesPage = () => {
             )}
 
             {!authLoading && currentUser?.permissions && crmTab === 'dashboard' && currentUser.permissions.includes('view_dashboard') && (
-                <ErrorBoundary key="dashboard-view">
-                    <div className="sales-dashboard-v2">
-                            {/* No skeleton gated on `loading` here: that flag is the Customers
-                                list, which the dashboard doesn't render from (it has its own
-                                /api/dashboard/* data, and its tables show "Loading…" until that
-                                lands — see dashboardTableLoading). Waiting on it left the main
-                                area blank for ~2s after login, after the dashboard data had arrived. */}
-                                <>
-                                    {/* Header */}
-                                    <div className="dashboard-header-v2">
-                                        <div className="dashboard-header-content">
-                                            <div className="dashboard-left-section">
-                                                {(!isSidebarOpen || isMobile) && (
-                                                    <button
-                                                        onClick={() => setIsSidebarOpen(true)}
-                                                        className="dashboard-sidebar-toggle"
-                                                        title="Open Sidebar"
-                                                    >
-                                                        <Menu size={20} />
-                                                    </button>
-                                                )}
-                                                <div className="dashboard-title-group">
-                                                    <h1>Dashboard</h1>
-                                                    <div className="dashboard-breadcrumbs">
-                                                        {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="dashboard-actions">
-                                                <DashboardRange value={dashboardTimeRange} onChange={setDashboardTimeRange} />
-                                                {activeDashboardTab === 'visits' && (
-                                                    <>
-                                                        <LocationFilter
-                                                            options={dashboardLocationOptions}
-                                                            value={dashboardLocation}
-                                                            onChange={handleDashboardLocationChange}
-                                                            user={currentUser}
-                                                        />
-                                                        <RowMenu
-                                                            label="More"
-                                                            items={[{ key: 'export', label: 'Export to Excel', icon: Download, onClick: () => handleExportVisits() }]}
-                                                        />
-                                                    </>
-                                                )}
-                                                {activeDashboardTab === 'planner' && (
-                                                    <button 
-                                                        className="btn-secondary" 
-                                                        onClick={() => setShowCalendarSyncModal(true)} 
-                                                        title="Sync to Apple / Google Calendar"
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                                                    >
-                                                        📅 Sync Calendar
-                                                    </button>
-                                                )}
-                                                {canAddVisits && (
-                                                    <>
-                                                        <button className="btn-secondary" onClick={handleQuickAddResource} title="Add Resource for any Client">
-                                                            + Add Resource
-                                                        </button>
-                                                        <button className="btn-primary" onClick={handleQuickAddVisit} title="Add Visit for any Client">
-                                                            + Add Visit
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <DashboardStats
-                                        stats={stats}
-                                        statsLoading={statsLoading}
-                                        dashboardTimeRange={dashboardTimeRange}
-                                        activeDashboardTab={activeDashboardTab}
-                                        setActiveDashboardTab={setActiveDashboardTab}
-                                        todayScheduleCount={todayScheduleCount}
-
-                                    />
-
-
-                                    {/* Visits Table */}
-                                    {/* Sales Visits Table */}
-                                    {activeDashboardTab === 'planner' && (
-                                        <div className="planner-dashboard-container">
+            <DashboardPage
+                data={dashboardData}
+                files={teamFiles}
+                currentUser={currentUser}
+                currentUserId={currentUserId}
+                customers={customers}
+                customerSelection={allCustomersForSelection}
+                customerOptions={customerOptions}
+                isDropdownLoading={isDropdownLoading}
+                fallback={<TabLoader />}
+                showMenuButton={!isSidebarOpen || isMobile}
+                onOpenSidebar={() => setIsSidebarOpen(true)}
+                loadingVisitId={loadingVisitId}
+                loadingResourceId={loadingResourceId}
+                onOpenCalendarSync={() => setShowCalendarSyncModal(true)}
+                onAddVisit={handleQuickAddVisit}
+                onAddResource={handleQuickAddResource}
+                onViewVisit={handleViewVisit}
+                onEditVisit={handleEditVisit}
+                onDeleteVisit={handleDeleteVisit}
+                onOpenVisitCard={setVisitCardFor}
+                onViewResource={handleViewResource}
+                onEditResource={handleEditResource}
+                onDeleteResource={handleDeleteResource}
+                onOpenGallery={handleOpenGallery}
+                onOpenCustomer={(customerId) => {
+                    handleSelectCustomer({ _id: customerId });
+                    setShowDashboard(false);
+                }}
+                onOpenCustomerResources={(customerId) => {
+                    handleSelectCustomer({ _id: customerId });
+                    handleActiveTabChange('resources');
+                    setShowDashboard(false);
+                }}
+                onSelectCustomer={handleSelectCustomer}
+                renderLeads={() => (
                                             <Suspense fallback={<TabLoader />}>
-                                            <SalesPlannerTab
-                                                customerSelection={allCustomersForSelection}
-                                                customerOptions={customerOptions}
-                                                isDropdownLoading={isDropdownLoading}
-                                                currentUserId={currentUserId}
+                                            <PartnersSheet
                                                 onSelectCustomer={handleSelectCustomer}
-                                                onScheduleChange={fetchSchedules}
-                                            />
+                                                onToggleSidebar={() => setIsSidebarOpen(true)}
+                                                isSidebarOpen={isSidebarOpen}
+                                                customerRefreshTrigger={customerRefreshTrigger}
+                                                onPlanRoute={canPlanRoutes ? handlePlanRoute : undefined}
+                                             />
                                             </Suspense>
-                                        </div>
-                                    )}
-
-                                    {activeDashboardTab === 'visits' && (
-                                        <div className="dfx-board">
-                                        <div className="visits-table-section">
-                                            <div className="section-header">
-                                                <h2>Sales Visits</h2>
-                                                <div className="table-controls">
-                                                    <div className="table-search">
-                                                         <Search className="search-icon" size={18} />
-                                                         <input
-                                                             type="text"
-                                                             placeholder="Search visits..."
-                                                            value={dashboardSearchTerm}
-                                                            onChange={(e) => setDashboardSearchTerm(e.target.value)}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <VisitsFocusList
-                                                visits={pagedDashboardVisits}
-                                                canModify={(visit) => canModifyVisit({ ...currentUser, id: currentUserId }, visit, visit.location)}
-                                                canDelete={(visit) => canDeleteVisit({ ...currentUser, id: currentUserId }, visit, visit.location)}
-                                                canOpenCustomer={currentUser?.permissions?.includes('view_customers')}
-                                                loading={dashboardTableLoading}
-                                                busyVisitId={loadingVisitId}
-                                                onOpenCustomer={(visit) => setVisitCardFor(visit)}
-                                                onEdit={handleEditVisit}
-                                                onDelete={(visit) => handleDeleteVisit(visit._id, visit.customerId)}
-                                                onOpenGallery={handleOpenGallery}
-                                            />
-
-                                            {/* Pagination Controls */}
-                                            <Pagination
-                                                 currentPage={currentVisitsPage}
-                                                 totalPages={Math.ceil(memoizedFilteredVisits.length / visitsPerPage)}
-                                                 onPageChange={(p) => { setCurrentVisitsPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                                                 rowsPerPage={visitsPerPage}
-                                                 onRowsPerPageChange={handleVisitsPerPageChange}
-                                                 totalCount={memoizedFilteredVisits.length}
-                                             />
-                                        </div>
-                                        <DashboardAside
-                                            schedules={allSchedules}
-                                            customerName={(sch) => {
-                                                const id = sch.customerId?._id || sch.customerId;
-                                                const c = customers.find(x => String(x._id) === String(id));
-                                                const src = c || sch.customerId || {};
-                                                return src.company || src.contactName || '';
-                                            }}
-                                            followUps={followUpPanel}
-                                            followUpCount={stats.followUp}
-                                            onOpenPlanner={() => setActiveDashboardTab('planner')}
-                                            onOpenFollowUps={() => setActiveDashboardTab('followups')}
-                                            onOpenCustomer={(f) => {
-                                                if (!f.customerId) return;
-                                                handleSelectCustomer({ _id: f.customerId });
-                                                setShowDashboard(false);
-                                            }}
-                                        />
-                                        </div>
-                                    )}
-
-                                    {/* Follow-up Actions Table */}
-                                    {activeDashboardTab === 'followups' && (
-                                        <div className="visits-table-section">
-                                            <div className="section-header">
-                                                <h2>Follow-up Actions</h2>
-                                                <div className="table-controls">
-                                                    <div className="dashboard-sub-tabs" style={{ marginBottom: 0, border: 'none' }}>
-                                                        <button
-                                                            className={`sub-tab-btn ${followupFilter === 'all' ? 'active' : ''}`}
-                                                            onClick={() => {
-                                                                setFollowupFilter('all');
-                                                                setCurrentFollowUpPage(1);
-                                                            }}
-                                                            style={{ padding: '0.5rem 1rem' }}
-                                                        >
-                                                            All Notes
-                                                        </button>
-                                                        <button
-                                                            className={`sub-tab-btn ${followupFilter === 'nextWeek' ? 'active' : ''}`}
-                                                            onClick={() => {
-                                                                setFollowupFilter('nextWeek');
-                                                                setCurrentFollowUpPage(1);
-                                                            }}
-                                                            style={{ padding: '0.5rem 1rem' }}
-                                                        >
-                                                            Next Week
-                                                        </button>
-                                                    </div>
-                                                    <LocationFilter
-                                                        options={dashboardLocationOptions}
-                                                        value={dashboardLocation}
-                                                        onChange={handleDashboardLocationChange}
-                                                        user={currentUser}
-                                                    />
-                                                    <button className="export-btn" onClick={() => {
-                                                        const followups = memoizedFilteredVisits.filter(v => v && (v.nextAction || v.followUp));
-                                                        handleExportVisits(followups);
-                                                    }}>
-                                                        <Download size={18} /> Excel
-                                                    </button>
-                                                    <div className="table-search">
-                                                         <Search className="search-icon" size={18} />
-                                                         <input
-                                                             type="text"
-                                                             placeholder="Search follow-ups..."
-                                                            value={dashboardSearchTerm}
-                                                            onChange={(e) => setDashboardSearchTerm(e.target.value)}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="dashboard-table-wrapper">
-                                                <table className="dashboard-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th className="mobile-hide">Date</th>
-                                                            <th>Customer</th>
-                                                            <th>Action Item / Note</th>
-                                                            <th className="mobile-hide">Source</th>
-                                                            <th>Action</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {(() => {
-                                                            const followups = memoizedFollowups;
-
-                                                            if (followups.length === 0 && dashboardTableLoading) {
-                                                                return renderDashboardLoadingRow(5);
-                                                            }
-                                                            if (followups.length === 0) {
-                                                                return (
-                                                                    <tr>
-                                                                        <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>
-                                                                            {followupFilter === 'nextWeek' ? 'No follow-ups scheduled for next week' : 'No follow-up notes found'}
-                                                                        </td>
-                                                                    </tr>
-                                                                );
-                                                            }
-                                                            const indexOfLastItem = currentFollowUpPage * visitsPerPage;
-                                                            const indexOfFirstItem = indexOfLastItem - visitsPerPage;
-                                                            const currentItems = followups.slice(indexOfFirstItem, indexOfLastItem);
-
-                                                            return currentItems.map((item, index) => (
-                                                                <tr key={item._id || index}>
-                                                                    <td className="mobile-hide">{formatDate(item.displayDate, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
-                                                                    <td>
-                                                                        <span
-                                                                            className="link"
-                                                                            onClick={() => {
-                                                                                handleSelectCustomer({ _id: item.customerId });
-                                                                                setShowDashboard(false);
-                                                                            }}
-                                                                        >
-                                                                            {item.customerName}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td>
-                                                                        <div title={item.displayNote} style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                            {item.displayNote}
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="mobile-hide">
-                                                                        <span className={`status-badge ${item.source === 'Planner' ? 'completed' : 'pending'}`}>
-                                                                            {item.source}
-                                                                        </span>
-                                                                    </td>
-                                                                    <td>
-                                                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                                                            {item.isSchedule ? (
-                                                                                <button
-                                                                                    className="icon-btn-ghost"
-                                                                                    onClick={() => setActiveDashboardTab('planner')}
-                                                                                    title="View in Planner"
-                                                                                >
-                                                                                    <Calendar size={16} />
-                                                                                </button>
-                                                                            ) : (
-                                                                                <>
-                                                                                    <button
-                                                                                        className="icon-btn-ghost"
-                                                                                        onClick={() => handleViewVisit(item)}
-                                                                                        title="View Details"
-                                                                                    >
-                                                                                        <Eye size={16} />
-                                                                                    </button>
-                                                                                    <button
-                                                                                        className="icon-btn-ghost"
-                                                                                        onClick={() => handleEditVisit(item)}
-                                                                                        title="Edit Visit"
-                                                                                    >
-                                                                                        <Pencil size={16} />
-                                                                                    </button>
-                                                                                </>
-                                                                            )}
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            ));
-                                                        })()}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-
-                                            {/* Follow-up Pagination Controls */}
-                                            <Pagination
-                                                 currentPage={currentFollowUpPage}
-                                                 totalPages={Math.ceil(memoizedFollowups.length / visitsPerPage)}
-                                                 onPageChange={(p) => {
-                                                     setCurrentFollowUpPage(p);
-                                                     const el = document.querySelector('.dashboard-content-area') || document.querySelector('.sales-dashboard-main');
-                                                     if (el) el.scrollTo({ top: 0, behavior: 'smooth' });
-                                                     else window.scrollTo({ top: 0, behavior: 'smooth' });
-                                                 }}
-                                                 rowsPerPage={visitsPerPage}
-                                                 onRowsPerPageChange={handleVisitsPerPageChange}
-                                                 totalCount={memoizedFollowups.length}
-                                             />
-                                        </div>
-                                    )}
-                                    {activeDashboardTab === 'leads' && (
-                                        <Suspense fallback={<TabLoader />}>
-                                        <PartnersSheet
-                                            onSelectCustomer={handleSelectCustomer}
-                                            onToggleSidebar={() => setIsSidebarOpen(true)}
-                                            isSidebarOpen={isSidebarOpen}
-                                            customerRefreshTrigger={customerRefreshTrigger}
-                                            onPlanRoute={canPlanRoutes ? handlePlanRoute : undefined}
-                                         />
-                                        </Suspense>
-                                    )}
-
-                                    {/* Resources Table */}
-                                    {activeDashboardTab === 'resources' && (
-                                        <div className="visits-table-section">
-                                            <div className="section-header">
-                                                <h2>Resources</h2>
-                                                {activeResourceSubTab === 'client' && (
-                                                    <div className="table-controls">
-                                                        <LocationFilter
-                                                            options={dashboardLocationOptions}
-                                                            value={dashboardLocation}
-                                                            onChange={handleDashboardLocationChange}
-                                                            user={currentUser}
-                                                        />
-                                                        <button className="export-btn" onClick={handleExportResources}>
-                                                            <Download size={18} /> Excel
-                                                        </button>
-                                                        <div className="table-search">
-                                                            <Search className="search-icon" size={18} />
-                                                            <input
-                                                                type="text"
-                                                                placeholder="Search resources..."
-                                                                value={dashboardSearchTerm}
-                                                                onChange={(e) => setDashboardSearchTerm(e.target.value)}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {activeResourceSubTab === 'team' && (
-                                                    <div className="team-resources-controls">
-                                                        <div className="resource-breadcrumbs">
-                                                            <span
-                                                                className="breadcrumb-item"
-                                                                onClick={() => {
-                                                                    if (folderPath.length > 0) {
-                                                                        // Navigate to root
-                                                                        setCurrentFolderId(null);
-                                                                        setFolderPath([]);
-                                                                        setDashboardSearchTerm('');
-                                                                    }
-                                                                }}
-                                                            >
-                                                                Home
-                                                            </span>
-                                                            {folderPath.map((folder, index) => (
-                                                                <React.Fragment key={folder.id}>
-                                                                    <span className="separator">/</span>
-                                                                    <span
-                                                                        className={`breadcrumb-item ${index === folderPath.length - 1 ? 'current' : ''}`}
-                                                                        onClick={() => handleBreadcrumbClick(index)}
-                                                                    >
-                                                                        {folder.name}
-                                                                    </span>
-                                                                </React.Fragment>
-                                                            ))}
-                                                        </div>
-                                                        <div className="team-resources-actions">
-                                                            <button
-                                                                className="icon-action-btn secondary"
-                                                                title="Refresh Files"
-                                                                onClick={fetchDashboardResources}
-                                                            >
-                                                                <RefreshCw size={16} />
-                                                            </button>
-                                                            <button className="icon-action-btn secondary" onClick={() => { setFolderName(''); setShowAddFolderModal(true); }}>
-                                                                <FolderPlus size={16} /> <span className="mobile-hide-text">Add Folder</span>
-                                                            </button>
-                                                            <button className="icon-action-btn primary" onClick={() => { setDashboardUploadForm({ name: '', type: 'file', content: '', file: null }); setEditingDashboardResource(null); setShowDashboardUploadModal(true); }}>
-                                                                <Upload size={16} /> <span className="mobile-hide-text">Upload</span>
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="dashboard-sub-tabs">
-                                                <button
-                                                    className={`sub-tab-btn ${activeResourceSubTab === 'client' ? 'active' : ''}`}
-                                                    onClick={() => setActiveResourceSubTab('client')}
-                                                >
-                                                    Client Updates
-                                                </button>
-                                                <button
-                                                    className={`sub-tab-btn ${activeResourceSubTab === 'team' ? 'active' : ''}`}
-                                                    onClick={() => setActiveResourceSubTab('team')}
-                                                >
-                                                    Team Files
-                                                </button>
-                                            </div>
-
-                                            {activeResourceSubTab === 'client' && (
-                                                <>
-
-
-                                                    <div className="dashboard-table-wrapper">
-                                                        <table className="dashboard-table">
-                                                            <thead>
-                                                                <tr>
-                                                                    <th className="mobile-hide">Date</th>
-                                                                    <th>Customer</th>
-                                                                    <th>Type</th>
-                                                                    <th className="mobile-hide">Description</th>
-                                                                    <th>Action</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody>
-                                                                {(() => {
-                                                                    const resources = memoizedFilteredResources;
-                                                                    if (resources.length === 0 && dashboardTableLoading) {
-                                                                        return renderDashboardLoadingRow(5);
-                                                                    }
-                                                                    if (resources.length === 0) {
-                                                                        return (
-                                                                            <tr>
-                                                                                <td colSpan="5" style={{ textAlign: 'center', padding: '2rem' }}>
-                                                                                    No resources found
-                                                                                </td>
-                                                                            </tr>
-                                                                        );
-                                                                    }
-                                                                    const indexOfLastResource = currentResourcesPage * visitsPerPage;
-                                                                    const indexOfFirstResource = indexOfLastResource - visitsPerPage;
-                                                                    const currentResources = resources.slice(indexOfFirstResource, indexOfLastResource);
-
-                                                                    return currentResources.map((resource, index) => (
-                                                                        <tr key={resource._id || index}>
-                                                                            <td className="mobile-hide">{formatDate(resource.date || resource.createdAt, { month: 'numeric', day: 'numeric', year: 'numeric' })}</td>
-                                                                            <td
-                                                                                style={{ cursor: 'pointer', color: '#E5C04A', fontWeight: '500' }}
-                                                                                onClick={() => {
-                                                                                    if (resource.customerId) {
-                                                                                        handleSelectCustomer({ _id: resource.customerId });
-                                                                                        handleActiveTabChange('resources');
-                                                                                        setShowDashboard(false);
-                                                                                    }
-                                                                                }}
-                                                                            >
-                                                                                {resource.customerName}
-                                                                            </td>
-                                                                            <td>{resource.resourceType || '-'}</td>
-                                                                            <td className="mobile-hide">{resource.description || resource.notes || '-'}</td>
-                                                                            <td>
-                                                                                <div style={{ display: 'flex', gap: '8px' }}>
-                                                                                    <button
-                                                                                        className="icon-btn-ghost"
-                                                                                        title="View Details"
-                                                                                        onClick={() => handleViewResource(resource)}
-                                                                                        disabled={loadingResourceId === resource._id}
-                                                                                    >
-                                                                                        {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Eye size={16} />}
-                                                                                    </button>
-                                                                                    <button
-                                                                                        className="icon-btn-ghost"
-                                                                                        title="Edit Resource"
-                                                                                        onClick={() => handleEditResource(resource)}
-                                                                                        disabled={loadingResourceId === resource._id}
-                                                                                    >
-                                                                                        {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Pencil size={16} />}
-                                                                                    </button>
-                                                                                    <button
-                                                                                        className="icon-btn-ghost delete-btn"
-                                                                                        title="Delete Resource"
-                                                                                        onClick={() => handleDeleteResource(resource._id, resource.customerId)}
-                                                                                        style={{ color: '#ff4d4f' }}
-                                                                                    >
-                                                                                        <Trash2 size={16} />
-                                                                                    </button>
-                                                                                    {(Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : ((resource.image || resource.content) ? [resource.image || resource.content] : [])).length > 0 && ( /* Check if attachments exist */
-                                                                                        <button
-                                                                                            className="icon-btn-ghost"
-                                                                                            title="View Attachments"
-                                                                                            onClick={() => {
-                                                                                                const attachments = Array.isArray(resource.image || resource.content) ? (resource.image || resource.content) : [resource.image || resource.content];
-                                                                                                handleOpenGallery(attachments, 0);
-                                                                                            }}
-                                                                                            disabled={loadingResourceId === resource._id}
-                                                                                        >
-                                                                                            {loadingResourceId === resource._id ? <Loader size={16} className="animate-spin" /> : <Paperclip size={16} />}
-                                                                                        </button>
-                                                                                    )}
-                                                                                    {resource.url ? (
-                                                                                        <a href={resource.url} target="_blank" rel="noopener noreferrer" className="icon-btn-ghost" title="Open Link">
-                                                                                            <Link size={16} />
-                                                                                        </a>
-                                                                                    ) : (resource.image) ? (
-                                                                                        <button
-                                                                                            className="icon-btn-ghost"
-                                                                                            title="Download"
-                                                                                            onClick={() => {
-                                                                                                const img = (Array.isArray(resource.image) ? resource.image : [resource.image])[0];
-                                                                                                if (img) handleDashboardDownload({ content: img, name: `Resource-${resource.date}.jpg`, type: 'file' });
-                                                                                            }}
-                                                                                        >
-                                                                                            <Download size={16} />
-                                                                                        </button>
-                                                                                    ) : null}
-                                                                                </div>
-                                                                            </td>
-                                                                        </tr>
-                                                                    ));
-                                                                })()}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
-
-                                                    {/* Resources Pagination Controls */}
-                                                    <Pagination
-                                                         currentPage={currentResourcesPage}
-                                                         totalPages={Math.ceil(memoizedFilteredResources.length / visitsPerPage)}
-                                                         onPageChange={(p) => { setCurrentResourcesPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                                                         rowsPerPage={visitsPerPage}
-                                                         onRowsPerPageChange={handleVisitsPerPageChange}
-                                                         totalCount={memoizedFilteredResources.length}
-                                                     />
-                                                </>
-                                            )}
-
-                                            {activeResourceSubTab === 'team' && (
-                                                <div className="team-resources-content">
-                                                    <div className="resources-list-container">
-                                                        {folderPath.length > 0 && (
-                                                            <div className="list-back-button" onClick={() => handleBreadcrumbClick(folderPath.length - 2)}>
-                                                                <ArrowLeft size={16} />
-                                                                <span>Back</span>
-                                                            </div>
-                                                        )}
-
-                                                        {salesResources.length === 0 ? (
-                                                            <div className="empty-resources-state">
-                                                                <div className="empty-icon">
-                                                                    <FileSearch size={48} />
-                                                                </div>
-                                                                <p>No files or folders found in this location</p>
-                                                                <button className="btn-secondary small" onClick={() => setShowDashboardUploadModal(true)}>
-                                                                    Upload your first file
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <table className="resources-table">
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th style={{ width: '40%' }}>Name</th>
-                                                                        <th>Modified</th>
-                                                                        <th>Modified By</th>
-                                                                        <th style={{ width: '100px' }}></th>
-                                                                    </tr>
-                                                                </thead>
-                                                                <tbody>
-                                                                    {salesResources.filter(r => !dashboardSearchTerm || r.name.toLowerCase().includes(dashboardSearchTerm.toLowerCase())).map(resource => {
-                                                                        const isFolder = resource.type === 'folder';
-                                                                        const isLink = resource.type === 'link';
-                                                                        const isImage = resource.contentType?.startsWith('image/') || resource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-                                                                        const isPdf = resource.contentType === 'application/pdf' || resource.name.toLowerCase().endsWith('.pdf');
-
-                                                                        return (
-                                                                            <tr
-                                                                                key={resource._id}
-                                                                                className="resource-row"
-                                                                                onClick={() => handleResourceClick(resource)}
-                                                                            >
-                                                                                <td className="col-name">
-                                                                                    <div className="resource-name-wrapper">
-                                                                                        <span className={`resource-icon-small ${resource.type}`}>
-                                                                                            {isFolder ? <Folder size={18} fill="currentColor" /> :
-                                                                                                isLink ? <Link size={18} /> :
-                                                                                                    isImage ? <FileImage size={18} /> :
-                                                                                                        isPdf ? <FileText size={18} /> :
-                                                                                                            <File size={18} />}
-                                                                                        </span>
-                                                                                        <span className="name-text">{resource.name}</span>
-                                                                                    </div>
-                                                                                </td>
-                                                                                <td className="col-date">
-                                                                                    {formatDate(resource.createdAt, { month: 'long', day: 'numeric', year: 'numeric' })}
-                                                                                </td>
-                                                                                <td className="col-user">
-                                                                                    <span className="user-pill">
-                                                                                        {resource.uploadedBy?.username ?
-                                                                                            resource.uploadedBy.username.charAt(0).toUpperCase() + resource.uploadedBy.username.slice(1)
-                                                                                            : 'Admin'}
-                                                                                    </span>
-                                                                                </td>
-                                                                                <td className="col-actions">
-                                                                                    <div className="row-actions">
-                                                                                        <button
-                                                                                            className="action-icon-btn edit"
-                                                                                            onClick={(e) => { e.stopPropagation(); handleEditDashboardResource(resource); }}
-                                                                                            title="Edit"
-                                                                                        >
-                                                                                            <Pencil size={14} />
-                                                                                        </button>
-                                                                                        <button
-                                                                                            className="action-icon-btn delete"
-                                                                                            onClick={(e) => { e.stopPropagation(); handleDeleteDashboardResource(resource._id); }}
-                                                                                            title="Delete"
-                                                                                        >
-                                                                                            <Trash2 size={14} />
-                                                                                        </button>
-                                                                                    </div>
-                                                                                </td>
-                                                                            </tr>
-                                                                        );
-                                                                    })}
-                                                                </tbody>
-                                                            </table>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {/* Follow-ups Table */}
-                                </>
-                        </div>
-                </ErrorBoundary>
+                )}
+            />
             )}
 
                 {/* Dashboard Resource Preview Modal */}
-                {previewDashboardResource && (
-                    <div className="modal-overlay preview-overlay" onClick={() => setPreviewDashboardResource(null)}>
-                        <div className="modal-content preview-modal-content dark-theme" onClick={(e) => e.stopPropagation()}>
-                            <div className="modal-header preview-header premium-header">
-                                <div className="preview-file-info">
-                                    <div className="preview-icon-badge">
-                                        {previewDashboardResource.type === 'folder' ? <Folder size={20} className="text-gold" /> :
-                                            previewDashboardResource.type === 'link' ? <Link size={20} className="text-blue" /> :
-                                                (previewDashboardResource.contentType?.startsWith('image/') || previewDashboardResource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)) ? <FileImage size={20} className="text-purple" /> :
-                                                    (previewDashboardResource.contentType === 'application/pdf' || previewDashboardResource.name.toLowerCase().endsWith('.pdf')) ? <FileText size={20} className="text-red" /> :
-                                                        <File size={20} className="text-gray" />}
-                                    </div>
-                                    <div className="preview-details">
-                                        <h2 className="preview-title" title={previewDashboardResource.name}>{previewDashboardResource.name}</h2>
-                                        <div className="preview-meta-row">
-                                            <span className="preview-type-tag">{previewDashboardResource.type.toUpperCase()}</span>
-                                            <span className="preview-separator">•</span>
-                                            <span className="preview-date">{formatDate(previewDashboardResource.createdAt)}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="preview-actions">
-                                    <a
-                                        href={previewDashboardResource.content.startsWith('http') || previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="icon-btn-ghost preview-action-btn"
-                                        title="Open in New Tab"
-                                        onClick={(e) => {
-                                            const c = previewDashboardResource.content || '';
-                                            const isPdf = c.startsWith('data:application/pdf') || previewDashboardResource.contentType === 'application/pdf' || /\.pdf$/i.test(previewDashboardResource.name || '');
-                                            if (!isPdf) return;
-                                            e.preventDefault();
-                                            openPdfInline(c.startsWith('http') || c.startsWith('data:') ? c : `${API_URL}${c}`);
-                                        }}
-                                    >
-                                        <ExternalLink size={20} />
-                                    </a>
-                                    <button
-                                        className="icon-btn-ghost preview-action-btn"
-                                        title="Download"
-                                        onClick={() => handleDashboardDownload(previewDashboardResource)}
-                                    >
-                                        <Download size={20} />
-                                    </button>
-                                    <button className="close-preview-btn premium-close" onClick={() => setPreviewDashboardResource(null)}>
-                                        <X size={24} />
-                                    </button>
-                                </div>
-                            </div>
-                            <div className="modal-body preview-body">
-                                {previewDashboardResource.type === 'file' ? (
-                                    (previewDashboardResource.content?.startsWith('data:image') ||
-                                        (!previewDashboardResource.content?.startsWith('data:') &&
-                                            (previewDashboardResource.contentType?.startsWith('image/') ||
-                                                previewDashboardResource.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)))) ? (
-                                        <div className="image-preview-container">
-                                            <img
-                                                src={previewDashboardResource.content.startsWith('http') || previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}
-                                                alt={previewDashboardResource.name}
-                                                className="preview-image"
-                                                loading="lazy"
-                                            />
-                                        </div>
-                                    ) : (previewDashboardResource.content?.startsWith('data:application/pdf') ||
-                                        (!previewDashboardResource.content?.startsWith('data:') &&
-                                            (previewDashboardResource.contentType === 'application/pdf' ||
-                                                previewDashboardResource.name.toLowerCase().endsWith('.pdf')))) ? (
-                                        <div className="pdf-preview-container">
-                                            <object
-                                                data={`${previewDashboardResource.content.startsWith('http') || previewDashboardResource.content.startsWith('data:') ? previewDashboardResource.content : `${API_URL}${previewDashboardResource.content}`}#toolbar=0`}
-                                                type="application/pdf"
-                                                className="preview-iframe"
-                                                width="100%"
-                                                height="100%"
-                                            >
-                                                <div className="no-preview-container" style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                                                    <p>Unable to display PDF preview.</p>
-                                                    <button className="btn-primary small" onClick={() => handleDashboardDownload(previewDashboardResource)}>
-                                                        Download PDF
-                                                    </button>
-                                                </div>
-                                            </object>
-                                        </div>
-                                    ) : (
-                                        <div className="no-preview-container">
-                                            <File size={64} className="no-preview-icon" />
-                                            <p>No preview available for this file type</p>
-                                            <button className="btn-primary small" onClick={() => handleDashboardDownload(previewDashboardResource)}>
-                                                Download to View
-                                            </button>
-                                        </div>
-                                    )
-                                ) : (
-                                    <div className="link-preview-container">
-                                        <Link size={48} />
-                                        <p>This is a web link</p>
-                                        <a href={previewDashboardResource.content} target="_blank" rel="noopener noreferrer" className="btn-primary">
-                                            Open in New Tab
-                                        </a>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                {teamFiles.previewDashboardResource && (
+                    <TeamFilePreview
+                        resource={teamFiles.previewDashboardResource}
+                        onClose={() => teamFiles.setPreviewDashboardResource(null)}
+                        onDownload={teamFiles.handleDashboardDownload}
+                    />
                 )}
 
                 {/* Contact Modal */}
@@ -3837,97 +3120,24 @@ const SalesPage = () => {
                 />
 
                 {/* Dashboard Upload Modal */}
-                {
-                    showDashboardUploadModal && (
-                        <div className="modal-overlay" onClick={() => setShowDashboardUploadModal(false)}>
-                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                                <div className="modal-header">
-                                    <h2>Upload Dashboard Resource</h2>
-                                    <button className="close-btn" onClick={() => setShowDashboardUploadModal(false)}>
-                                        <X size={20} />
-                                    </button>
-                                </div>
-                                <div className="modal-body">
-                                    <div className="form-group">
-                                        <label>Resource Name</label>
-                                        <input
-                                            type="text"
-                                            value={dashboardUploadForm.name}
-                                            onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, name: e.target.value })}
-                                            placeholder="Enter resource name"
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Type</label>
-                                        <select
-                                            value={dashboardUploadForm.type}
-                                            onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, type: e.target.value })}
-                                            className="form-select"
-                                        >
-                                            <option value="file">File</option>
-                                            <option value="link">Link</option>
-                                        </select>
-                                    </div>
-                                    {dashboardUploadForm.type === 'link' ? (
-                                        <div className="form-group">
-                                            <label>URL</label>
-                                            <input
-                                                type="url"
-                                                value={dashboardUploadForm.content || ''}
-                                                onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, content: e.target.value })}
-                                                placeholder="https://example.com"
-                                            />
-                                        </div>
-                                    ) : (
-                                        <div className="form-group">
-                                            <label>File</label>
-                                            <input
-                                                type="file"
-                                                onChange={(e) => setDashboardUploadForm({ ...dashboardUploadForm, file: e.target.files[0] })}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="modal-footer">
-                                    <button className="btn-secondary" onClick={() => setShowDashboardUploadModal(false)}>Cancel</button>
-                                    <button className="btn-primary" onClick={handleDashboardUpload}>Upload</button>
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
+                {teamFiles.showDashboardUploadModal && (
+                    <TeamFileUploadModal
+                        form={teamFiles.dashboardUploadForm}
+                        onChange={teamFiles.setDashboardUploadForm}
+                        onUpload={teamFiles.handleDashboardUpload}
+                        onClose={() => teamFiles.setShowDashboardUploadModal(false)}
+                    />
+                )}
 
                 {/* Add Folder Modal */}
-                {
-                    showAddFolderModal && (
-                        <div className="modal-overlay" onClick={() => setShowAddFolderModal(false)}>
-                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                                <div className="modal-header">
-                                    <h2>Create New Folder</h2>
-                                    <button className="close-btn" onClick={() => setShowAddFolderModal(false)}>
-                                        <X size={20} />
-                                    </button>
-                                </div>
-                                <div className="modal-body">
-                                    <div className="form-group">
-                                        <label>Folder Name</label>
-                                        <input
-                                            type="text"
-                                            value={folderName}
-                                            onChange={(e) => setFolderName(e.target.value)}
-                                            placeholder="Enter folder name"
-                                            autoFocus
-                                        />
-                                    </div>
-                                </div>
-                                <div className="modal-footer">
-                                    <button className="btn-secondary" onClick={() => setShowAddFolderModal(false)}>Cancel</button>
-                                    <button className="btn-primary" onClick={() => { handleCreateFolder(); setShowAddFolderModal(false); }}>Create</button>
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
+                {teamFiles.showAddFolderModal && (
+                    <AddFolderModal
+                        name={teamFiles.folderName}
+                        onNameChange={teamFiles.setFolderName}
+                        onCreate={teamFiles.handleCreateFolder}
+                        onClose={() => teamFiles.setShowAddFolderModal(false)}
+                    />
+                )}
 
                 {/* Custom Delete Confirmation Modal */}
                 {

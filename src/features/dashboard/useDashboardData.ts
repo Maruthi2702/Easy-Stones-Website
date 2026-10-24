@@ -49,7 +49,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
 
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
-    const [followupFilter, setFollowupFilter] = useState('all'); // 'all' or 'nextWeek'
+    const [followupFilter, setFollowupFilter] = useState<'all' | 'nextWeek'>('all');
     const [todayScheduleCount, setTodayScheduleCount] = useState(0);
     const [stats, setStats] = useState<Loose>({ visits: 0, keyVisits: 0, bids: 0, followUp: 0, resources: 0 });
     const [statsLoading, setStatsLoading] = useState(true);
@@ -557,3 +557,6 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         handleExportResources,
     };
 }
+
+/** What the hook returns, for the dashboard's page to take as one prop. */
+export type DashboardData = ReturnType<typeof useDashboardData>;
