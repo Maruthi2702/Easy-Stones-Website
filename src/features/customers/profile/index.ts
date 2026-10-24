@@ -7,3 +7,5 @@ export { default as NetworkTab } from './NetworkTab';
 export type { NetworkTabProps } from './NetworkTab';
 export { default as CustomerProfile } from './CustomerProfile';
 export type { CustomerProfileProps } from './CustomerProfile';
+export { default as ContactModal } from './ContactModal';
+export { default as LinkPartnerModal } from './LinkPartnerModal';

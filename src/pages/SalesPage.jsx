@@ -35,7 +35,11 @@ import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import { useVisitEditor } from '../features/visits';
 import { useResourceEditor } from '../features/resources';
-import { CustomerProfile, useCustomerActions, useOpenCustomer, getCustomerLevelLabel } from '../features/customers';
+import { CustomerProfile, ContactModal, LinkPartnerModal, useCustomerActions, useOpenCustomer, getCustomerLevelLabel } from '../features/customers';
+import ImageGallery from '../components/shared/ImageGallery';
+import { useImageGallery } from '../components/shared/useImageGallery';
+import DeleteConfirmModal from '../components/shared/DeleteConfirmModal';
+import { useDeleteCheck, makeConfirmDelete } from '../features/salesShell/deleteCheck';
 import VisitCustomerCard from '../components/sales/VisitCustomerCard';
 import Toast from '../components/shared/Toast';
 import { CalendarSyncModal, useCalendarSync } from '../features/calendarSync';
@@ -48,8 +52,6 @@ import UserProfileTab from '../components/sales/UserProfileTab';
 import Pagination from '../components/shared/Pagination';
 import { DEFAULT_ROWS_PER_PAGE } from '../components/shared/paginationConfig';
 import SidebarToggleButton from '../components/shared/SidebarToggleButton';
-import { formatPhoneInput } from '../utils/phoneUtils';
-import { isPdfSource } from '../utils/attachments';
 import LocationFilter from '../components/shared/LocationFilter';
 import RowMenu from '../components/shared/RowMenu';
 import LocationPicker from '../components/shared/form/LocationPicker';
@@ -459,9 +461,8 @@ const SalesPage = () => {
 
 
     const [expandedResourceId, setExpandedResourceId] = useState(null);
-    const [fullScreenImage, setFullScreenImage] = useState(null);
-    const [fullScreenGallery, setFullScreenGallery] = useState([]);
-    const [fullScreenIndex, setFullScreenIndex] = useState(0);
+    // The full-screen photo / PDF viewer (ImageGallery).
+    const { fullScreenImage, setFullScreenImage, fullScreenIndex, galleryCount, handleOpenGallery, handleNextImage, handlePrevImage, closeGallery } = useImageGallery();
     const [activeReactionMessageId, setActiveReactionMessageId] = useState(null);
 
     // Sales Dashboard State
@@ -471,15 +472,8 @@ const SalesPage = () => {
     // Values a new customer opens with (Permits → a contractor's "Create customer"); null for a blank form.
     const [customerPrefill, setCustomerPrefill] = useState(null);
 
-    // Custom Delete Confirmation Modal
-    const [deleteConfirmation, setDeleteConfirmation] = useState({
-        isOpen: false,
-        isDeleting: false,
-        type: '', // 'contact', 'visit', 'resource'
-        id: null,
-        customerId: null,
-        message: ''
-    });
+    // The one "Confirm Deletion" check (src/features/salesShell/deleteCheck.ts).
+    const { deleteConfirmation, setDeleteConfirmation, cancelDelete } = useDeleteCheck();
 
 
 
@@ -860,69 +854,10 @@ const SalesPage = () => {
 
 
 
-    const confirmDelete = async () => {
-        const { type, id, customerId } = deleteConfirmation;
-        // Use the customerId from state, or fallback to selectedCustomerId for legacy calls
-        const targetCustomerId = customerId || selectedCustomerId;
-
-        setDeleteConfirmation(prev => ({ ...prev, isDeleting: true }));
-
-        if (!targetCustomerId && type !== 'dashboardResource') {
-            console.error('No customer ID provided for deletion');
-            alert(`Failed to delete ${type}: Missing customer information`);
-            return;
-        }
-
-        try {
-            let response;
-
-            if (type === 'contact') {
-                response = await authFetch(`${API_URL}/api/customers/${targetCustomerId}/contacts/${id}`, {
-                    method: 'DELETE'
-                });
-            } else if (type === 'visit') {
-                response = await authFetch(`${API_URL}/api/customers/${targetCustomerId}/visits/${id}`, {
-                    method: 'DELETE'
-                });
-            } else if (type === 'resource') {
-                response = await authFetch(`${API_URL}/api/customers/${targetCustomerId}/resources/${id}`, {
-                    method: 'DELETE'
-                });
-            } else if (type === 'dashboardResource') {
-                response = await authFetch(`${API_URL}/api/sales-dashboard/resources/${id}`, {
-                    method: 'DELETE'
-                });
-            }
-
-            if (response && response.ok) {
-                // If we're on the Dashboard view (dashboard tabs), refresh dashboard data
-                const isDashboardView = activeDashboardTab === 'visits' || activeDashboardTab === 'resources' || activeDashboardTab === 'followups' || activeDashboardTab === 'leads';
-
-                // Close first, refresh behind it — same reasoning as refreshAfterSave.
-                setDeleteConfirmation({ isOpen: false, isDeleting: false, type: '', id: null, customerId: null, message: '' });
-                if (type === 'dashboardResource') {
-                    fetchDashboardResources();
-                } else if (!selectedCustomerId && isDashboardView) {
-                    Promise.allSettled([fetchDashboardData(), fetchDashboardStats()]);
-                } else {
-                    // Otherwise, refresh the selected customer's data
-                    fetchSingleCustomer(targetCustomerId);
-                }
-            } else {
-                setDeleteConfirmation(prev => ({ ...prev, isDeleting: false }));
-                const reason = response ? (await response.json().catch(() => ({}))).message : '';
-                alert(reason || `Failed to delete ${type}`);
-            }
-        } catch (error) {
-            console.error(`Error deleting ${type}:`, error);
-            setDeleteConfirmation(prev => ({ ...prev, isDeleting: false }));
-            alert(`Failed to delete ${type}`);
-        }
-    };
-
-    const cancelDelete = () => {
-        setDeleteConfirmation({ isOpen: false, type: '', id: null, customerId: null, message: '' });
-    };
+    const confirmDelete = makeConfirmDelete({
+        deleteConfirmation, setDeleteConfirmation, selectedCustomerId, activeDashboardTab,
+        fetchDashboardResources, fetchDashboardData, fetchDashboardStats, fetchSingleCustomer
+    });
 
 
 
@@ -934,37 +869,6 @@ const SalesPage = () => {
 
 
 
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (!fullScreenImage) return;
-            if (e.key === 'ArrowRight') handleNextImage();
-            if (e.key === 'ArrowLeft') handlePrevImage();
-            if (e.key === 'Escape') setFullScreenImage(null);
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [fullScreenImage, fullScreenIndex, fullScreenGallery]);
-
-    const handleOpenGallery = (images, index) => {
-        const imageList = Array.isArray(images) ? images : [images];
-        setFullScreenGallery(imageList);
-        setFullScreenIndex(index);
-        setFullScreenImage(imageList[index]);
-    };
-
-    const handleNextImage = () => {
-        if (fullScreenGallery.length <= 1) return;
-        const nextIndex = (fullScreenIndex + 1) % fullScreenGallery.length;
-        setFullScreenIndex(nextIndex);
-        setFullScreenImage(fullScreenGallery[nextIndex]);
-    };
-
-    const handlePrevImage = () => {
-        if (fullScreenGallery.length <= 1) return;
-        const prevIndex = (fullScreenIndex - 1 + fullScreenGallery.length) % fullScreenGallery.length;
-        setFullScreenIndex(prevIndex);
-        setFullScreenImage(fullScreenGallery[prevIndex]);
-    };
 
 
     
@@ -1434,77 +1338,16 @@ const SalesPage = () => {
                 )}
 
                 {/* Contact Modal */}
-                {
-                    showContactModal && (
-                        <div className="modal-overlay" onClick={() => setShowContactModal(false)}>
-                            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                                <div className="modal-header">
-                                    <h2>{editingContact ? 'Edit Contact' : 'Add Contact'}</h2>
-                                    <button className="close-btn" onClick={() => setShowContactModal(false)}>
-                                        <X size={20} />
-                                    </button>
-                                </div>
-                                <div className="modal-body">
-                                    <div className="form-group">
-                                        <label>Name *</label>
-                                        <input
-                                            type="text"
-                                            value={contactForm.name}
-                                            onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
-                                            placeholder="Contact name"
-                                        />
-                                    </div>
-                                    <div className="form-row">
-                                        <div className="form-group">
-                                            <label>Phone</label>
-                                            <input
-                                                type="tel"
-                                                value={contactForm.phone}
-                                                onChange={(e) => setContactForm({ ...contactForm, phone: formatPhoneInput(e.target.value) })}
-                                                placeholder="(555) 000-0000"
-                                            />
-                                        </div>
-                                        <div className="form-group">
-                                            <label>Email</label>
-                                            <input
-                                                type="email"
-                                                value={contactForm.email}
-                                                onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
-                                                placeholder="Email address"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Role</label>
-                                        <input
-                                            type="text"
-                                            value={contactForm.role}
-                                            onChange={(e) => setContactForm({ ...contactForm, role: e.target.value })}
-                                            placeholder="Job title or role"
-                                        />
-                                    </div>
-                                    <div className="form-group">
-                                        <label>Notes</label>
-                                        <textarea
-                                            value={contactForm.notes}
-                                            onChange={(e) => setContactForm({ ...contactForm, notes: e.target.value })}
-                                            placeholder="Additional notes"
-                                            rows="3"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="modal-footer">
-                                    <button className="btn-secondary" onClick={() => setShowContactModal(false)} disabled={isSaving}>
-                                        Cancel
-                                    </button>
-                                    <button className="btn-primary" onClick={handleSaveContact} disabled={isSaving}>
-                                        {isSaving ? 'Saving...' : 'Save Contact'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
+                {showContactModal && (
+                    <ContactModal
+                        form={contactForm}
+                        onChange={setContactForm}
+                        isEditing={Boolean(editingContact)}
+                        isSaving={isSaving}
+                        onSave={handleSaveContact}
+                        onClose={() => setShowContactModal(false)}
+                    />
+                )}
 
                 <Toast toast={saveToast} onDismiss={dismissSaveToast} />
                 {/* Visit Modal, and the basic card from a dashboard visit's customer name */}
@@ -1563,50 +1406,15 @@ const SalesPage = () => {
 
                 {/* Link Partner Modal */}
                 {showLinkPartnerModal && (
-                    <div className="modal-overlay">
-                        <div className="modal-content" style={{ maxWidth: '500px', minHeight: '300px', overflow: 'visible' }}>
-                            <div className="modal-header" style={{ borderRadius: '12px 12px 0 0' }}>
-                                <h2>LINK PARTNER</h2>
-                                <button
-                                    type="button"
-                                    className="close-btn"
-                                    onClick={() => { setShowLinkPartnerModal(false); setLinkingPartnerId(''); }}
-                                >
-                                    <X size={20} />
-                                </button>
-                            </div>
-                            <form onSubmit={handleLinkPartner} style={{ display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
-                                <div className="modal-body" style={{ overflow: 'visible' }}>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label>Select Partner to Link</label>
-                                        <SearchableSelect
-                                            options={linkableCustomerOptions}
-                                            value={linkingPartnerId}
-                                            onChange={(val) => setLinkingPartnerId(val)}
-                                            placeholder="Search by company or contact name..."
-                                            isLoading={isDropdownLoading}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="modal-footer" style={{ borderRadius: '0 0 12px 12px' }}>
-                                    <button
-                                        type="button"
-                                        className="btn-secondary"
-                                        onClick={() => { setShowLinkPartnerModal(false); setLinkingPartnerId(''); }}
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="btn-primary"
-                                        disabled={!linkingPartnerId || isLinkingInProgress}
-                                    >
-                                        {isLinkingInProgress ? 'Linking...' : 'Link Partner'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
+                    <LinkPartnerModal
+                        options={linkableCustomerOptions}
+                        value={linkingPartnerId}
+                        onChange={setLinkingPartnerId}
+                        loading={isDropdownLoading}
+                        linking={isLinkingInProgress}
+                        onSubmit={handleLinkPartner}
+                        onClose={() => { setShowLinkPartnerModal(false); setLinkingPartnerId(''); }}
+                    />
                 )}
 
                 <ResourceModal
@@ -1632,40 +1440,9 @@ const SalesPage = () => {
                     onCreateNew={openNewCustomer}
                 />
 
-                {
-                    fullScreenImage && (
-                        <div className="fullscreen-image-overlay" onClick={() => { setFullScreenImage(null); setFullScreenGallery([]); }}>
-                            <div className="fullscreen-image-container" onClick={(e) => e.stopPropagation()} style={{ width: isPdfSource(fullScreenImage) ? '80%' : 'auto', height: isPdfSource(fullScreenImage) ? '90%' : 'auto', maxWidth: '90%', maxHeight: '90%' }}>
-                                <button className="fullscreen-close-btn" onClick={() => { setFullScreenImage(null); setFullScreenGallery([]); }}>
-                                    <X size={32} />
-                                </button>
-
-                                {fullScreenGallery.length > 1 && (
-                                    <>
-                                        <button className="gallery-nav-btn prev" onClick={(e) => { e.stopPropagation(); handlePrevImage(); }}>
-                                            <ChevronLeft size={48} />
-                                        </button>
-                                        <button className="gallery-nav-btn next" onClick={(e) => { e.stopPropagation(); handleNextImage(); }}>
-                                            <ChevronRight size={48} />
-                                        </button>
-                                        <div className="gallery-index-indicator">
-                                            {fullScreenIndex + 1} / {fullScreenGallery.length}
-                                        </div>
-                                    </>
-                                )}
-
-                                {isPdfSource(fullScreenImage) ? (
-                                    <iframe src={fullScreenImage} style={{ width: '100%', height: '100%', border: 'none', background: 'white' }} title="PDF Preview"></iframe>
-                                ) : (
-                                    <img
-                                        src={fullScreenImage.startsWith('data:') || fullScreenImage.startsWith('http') ? fullScreenImage : (fullScreenImage.startsWith('/uploads') ? `${API_URL}${fullScreenImage}` : `${API_URL}/uploads/resources/${fullScreenImage}`)}
-                                        alt="Full Screen"
-                                    />
-                                )}
-                            </div>
-                        </div>
-                    )
-                }
+                {fullScreenImage && (
+                    <ImageGallery image={fullScreenImage} index={fullScreenIndex} count={galleryCount} onPrev={handlePrevImage} onNext={handleNextImage} onClose={closeGallery} />
+                )}
 
 
                 <AddCustomerModal
@@ -1700,43 +1477,9 @@ const SalesPage = () => {
                 )}
 
                 {/* Custom Delete Confirmation Modal */}
-                {
-                    deleteConfirmation.isOpen && (
-                        <div className="delete-confirmation-overlay" onClick={cancelDelete}>
-                            <div className="delete-confirmation-modal" onClick={(e) => e.stopPropagation()}>
-                                <div className="delete-modal-icon">
-                                    <Trash2 size={48} color="#ef4444" />
-                                </div>
-                                <h3>Confirm Deletion</h3>
-                                <p>{deleteConfirmation.message}</p>
-                                <div className="delete-modal-actions">
-                                    <button
-                                        className="btn-cancel"
-                                        onClick={cancelDelete}
-                                        disabled={deleteConfirmation.isDeleting}
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        className="btn-delete"
-                                        onClick={confirmDelete}
-                                        disabled={deleteConfirmation.isDeleting}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}
-                                    >
-                                        {deleteConfirmation.isDeleting ? (
-                                            <>
-                                                <Loader size={16} className="animate-spin" />
-                                                Deleting...
-                                            </>
-                                        ) : (
-                                            'Delete'
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
+                {deleteConfirmation.isOpen && (
+                    <DeleteConfirmModal request={deleteConfirmation} onConfirm={confirmDelete} onCancel={cancelDelete} />
+                )}
 
                 {/* Check-In Detail/Edit Modal (src/features/checkin) */}
                 <CheckInDetailModal log={checkInLog} locations={locations} currentUser={currentUser} />

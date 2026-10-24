@@ -2,6 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Check, Plus, Loader } from 'lucide-react';
 import { matchesOption } from '../utils/customerOptions';
 
+/**
+ * @param {{
+ *   options: Array<{ value: any, label: string, [key: string]: any }>, value: any, onChange: (value: any) => void,
+ *   placeholder?: string, className?: string, style?: object, onCreateNew?: (text?: string) => void,
+ *   createNewLabel?: string, isLoading?: boolean
+ * }} props
+ */
 const SearchableSelect = ({ options, value, onChange, placeholder, className, style, onCreateNew, createNewLabel, isLoading }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
