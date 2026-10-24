@@ -14,7 +14,7 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 
 | Area | Today | Plan | Status |
 |---|---|---|---|
-| Frontend | React 19 + Vite 5, JavaScript | Stay on React; JS → TypeScript gradually | Started (browser-only files) |
+| Frontend | React 19 + Vite 5, JavaScript | Stay on React; JS → TypeScript gradually | Started; SalesPage split done (A1–A7, 2026-10-24) |
 | Backend | Node + Express 5, `node server.js` on Render | Stay on Node; Node 24, split `server.js` | Node 24 approved 2026-10-23; split started |
 | Django | — | **Not recommended** | Answered |
 | Database | MongoDB (Mongoose 9) | PostgreSQL (not DynamoDB), one area at a time | Proposed |
@@ -303,6 +303,37 @@ enforces it). The order routes are mounted in matters (`customerIdOnly`, the
 route-table snapshot test**: every method, path and middleware chain listed in
 order. Each later move must leave that snapshot identical, plus the area's
 own tests (in-memory MongoDB, as `src/routes/*.test.js` already do).
+
+### Progress (2026-10-24, on `feat/typescript`, not merged)
+
+**A1–A7 done.** `src/pages/SalesPage.tsx` is the shell, 492 lines (from
+5,583): it calls the modules' hooks and wires their callbacks to each other.
+What it composes:
+
+| Folder | What's there |
+|---|---|
+| `features/calendarSync` | sync modal + hook (A1) |
+| `features/checkin` | the Check-In Log tab, page and Selection Sheet (A2) |
+| `features/visits` | `useVisitEditor`: the visit form's state, early photo uploads, save, delete check (A3) |
+| `features/resources` | `useResourceEditor`, `RESOURCE_TYPES` (A4) |
+| `features/customers` | `CustomerProfile` + its tabs, `useOpenCustomer` (record, cache, patches), `useCustomerActions` (contacts, partners, quick note, account, reactions), `useCustomersPage`, `useCreateCustomer`, level labels (A5) |
+| `features/dashboard` | `DashboardPage`; tabs `visits/`, `followUps/`, `resources/`, `calendar/`; `teamFiles/`; `useDashboardData` (A6) |
+| `features/salesShell` | navigation (page, open customer, URL, back button), side nav layout, theme, locations/reps, the socket, the delete check, `SalesTabViews` (every other page), `CustomersView`, `SalesModals` (A7) |
+
+How each step was checked: typecheck, `npm test` (each module has hook or
+render tests), the import check, and two checks kept outside git in
+`.migration-tools/`:
+- **Parity**: the old page and the new page rendered side by side in 35 states,
+  with the same HTML required.
+- **CSS check**: an order-aware comparison of the built CSS. It confirms which
+  value wins for every selector, and that no rules of equal weight changed
+  order. An earlier sorted comparison couldn't see order changes.
+
+**Not done:** `useDashboardData` is 562 lines (over the 500 stop) and
+`useVisitEditor` 480. Selecting a Sales page with a permission it lacks via the
+back button lands on an empty page (unchanged behaviour,
+`useSalesNavigation.test.tsx`). Nothing here has been clicked through in a
+browser yet.
 
 ### Order
 

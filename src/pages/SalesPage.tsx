@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Filter, Loader, Link } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import type { Loose } from '../types/records';
 import './SalesPage.css';
 import './SalesPageChat.css';
 import './SalesPageChatImage.css';
@@ -84,7 +85,7 @@ const SalesPage = () => {
     // user out of state — on that first render it is still null, and the
     // handler would keep believing that for the rest of the session. Kept in
     // step by the effect next to the currentUserId state below.
-    const currentUserIdRef = useRef(null);
+    const currentUserIdRef = useRef<string | null>(null);
     // Set after fetchCheckIns below; read by the checkin_update handler.
     const refreshCheckInsRef = useRef(() => {});
 
@@ -100,12 +101,13 @@ const SalesPage = () => {
         onStart: () => { fetchLocations(); fetchSalesReps(); }
     });
     
-    const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
+    // A signed-in record always has id or _id; the type says so (the value is kept exactly as it was).
+    const [currentUserId, setCurrentUserId] = useState<string | null>((currentUser?.id || currentUser?._id || null) as string | null);
 
     // Sync currentUserId when currentUser loads
     useEffect(() => {
         if (currentUser) {
-            setCurrentUserId(currentUser.id || currentUser._id);
+            setCurrentUserId((currentUser.id || currentUser._id) as string);
         }
     }, [currentUser]);
 
@@ -120,9 +122,9 @@ const SalesPage = () => {
 
     // "Plan route" from the customer list's selection bar: open Route Planner
     // with those customers already selected (RoutePlannerV2's preselect prop).
-    const [routePreselect, setRoutePreselect] = useState(null);
+    const [routePreselect, setRoutePreselect] = useState<{ ids: string[]; nonce: number } | null>(null);
     const canPlanRoutes = !!currentUser?.permissions?.includes('view_route_planner');
-    const handlePlanRoute = (rows) => {
+    const handlePlanRoute = (rows: Loose[]) => {
         const ids = (rows || []).map(r => r?._id).filter(Boolean);
         if (!ids.length) return;
         setRoutePreselect({ ids, nonce: Date.now() });
@@ -133,7 +135,7 @@ const SalesPage = () => {
     // The cart's "Hold #12 created · Open hold": that hold's page, for anyone
     // who may see holds (src/components/sales/holds/holdLink.js).
     const canSeeHolds = HOLD_VIEW_PERMISSIONS.some((p) => currentUser?.permissions?.includes(p));
-    const openHoldFromCart = canSeeHolds ? (holdId) => {
+    const openHoldFromCart = canSeeHolds ? (holdId: string | number) => {
         handleCrmTabChange('holds');
         openHoldLink(String(holdId));
     } : undefined;
@@ -165,10 +167,10 @@ const SalesPage = () => {
     // Visit photos go up the moment they are picked, and Save is sent behind the
     // closed form (handleSaveVisit), so the form never waits on either.
     // The visit whose customer's basic card is open (dashboard Sales Visits).
-    const [visitCardFor, setVisitCardFor] = useState(null);
+    const [visitCardFor, setVisitCardFor] = useState<Loose | null>(null);
     // A short message at the bottom: "Visit saved", or why a save failed.
-    const [saveToast, setSaveToast] = useState(null);
-    const showSaveToast = (text, kind = 'ok') => setSaveToast({ id: Date.now(), text, kind });
+    const [saveToast, setSaveToast] = useState<{ id: number; text: string; kind: string } | null>(null);
+    const showSaveToast = (text: string, kind = 'ok') => setSaveToast({ id: Date.now(), text, kind });
     const dismissSaveToast = useCallback(() => setSaveToast(null), []);
     const [isChatFullScreen] = useState(false);
 
@@ -177,17 +179,17 @@ const SalesPage = () => {
 
     // Form states
 
-    const [expandedResourceId, setExpandedResourceId] = useState(null);
+    const [expandedResourceId, setExpandedResourceId] = useState<string | null>(null);
     // The full-screen photo / PDF viewer (ImageGallery).
     const gallery = useImageGallery();
     const { handleOpenGallery } = gallery;
-    const [activeReactionMessageId, setActiveReactionMessageId] = useState(null);
+    const [activeReactionMessageId, setActiveReactionMessageId] = useState<string | null>(null);
 
     // Sales Dashboard State
 
     const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
     // Values a new customer opens with (Permits → a contractor's "Create customer"); null for a blank form.
-    const [customerPrefill, setCustomerPrefill] = useState(null);
+    const [customerPrefill, setCustomerPrefill] = useState<Loose | null>(null);
 
     // The one "Confirm Deletion" check (src/features/salesShell/deleteCheck.ts).
     const { deleteConfirmation, setDeleteConfirmation, cancelDelete } = useDeleteCheck();
@@ -226,7 +228,7 @@ const SalesPage = () => {
     // Link a partner: the same customer options, minus this account and the
     // ones already linked, with the type in the line under the name.
     const linkableCustomerOptions = React.useMemo(() => {
-        const linkedIds = new Set((selectedCustomer?.associatedCustomers || []).map(p => String(p._id)));
+        const linkedIds = new Set((selectedCustomer?.associatedCustomers || []).map((p: Loose) => String(p._id)));
         return customerOptions
             .filter(o => String(o.value) !== String(selectedCustomer?._id) && !linkedIds.has(String(o.value)))
             .map(o => ({ ...o, description: [o.customerType || 'Fabricator', o.city].filter(Boolean).join(' · ') }));
@@ -245,7 +247,7 @@ const SalesPage = () => {
      * its spinner going for several. The form now closes as soon as the server
      * confirms; these catch the screens up behind it.
      */
-    const refreshAfterSave = (targetCustomerId, { dashboard = true, schedules = false } = {}) => {
+    const refreshAfterSave = (targetCustomerId: string, { dashboard = true, schedules = false } = {}) => {
         const jobs = [
             // Cached copy first (already showing, and patched for a visit),
             // then the server's — no loading state over the open customer.
