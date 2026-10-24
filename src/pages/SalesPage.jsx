@@ -10,11 +10,8 @@ import {
     Monitor, BookOpen, Lock, Globe, BookUser
 } from 'lucide-react';
 
-import { io } from 'socket.io-client';
-import { getCachedData, setCachedData, isCacheValid, expireCacheKeys } from '../utils/dataCache';
 import { API_URL } from '../config/api';
 import { authFetch } from '../api/authFetch';
-import { getAuthToken } from '../api/authToken';
 import { useAuth } from '../context/AuthContext';
 import './SalesPage.css';
 import './SalesPageChat.css';
@@ -35,11 +32,14 @@ import { CHECKIN_PERMISSIONS, canViewCheckInLog } from '../utils/checkInAccess';
 import VisitPostCard from '../components/sales/VisitPostCard';
 import { useVisitEditor } from '../features/visits';
 import { useResourceEditor } from '../features/resources';
-import { CustomerProfile, ContactModal, LinkPartnerModal, useCustomerActions, useOpenCustomer, getCustomerLevelLabel } from '../features/customers';
+import { CustomerProfile, ContactModal, LinkPartnerModal, useCustomerActions, useOpenCustomer, useCustomersPage, getCustomerLevelLabel } from '../features/customers';
 import ImageGallery from '../components/shared/ImageGallery';
 import { useImageGallery } from '../components/shared/useImageGallery';
 import DeleteConfirmModal from '../components/shared/DeleteConfirmModal';
 import { useDeleteCheck, makeConfirmDelete } from '../features/salesShell/deleteCheck';
+import { useSalesTheme } from '../features/salesShell/useSalesTheme';
+import { useSalesDirectory } from '../features/salesShell/useSalesDirectory';
+import { useSalesLiveUpdates } from '../features/salesShell/useSalesLiveUpdates';
 import VisitCustomerCard from '../components/sales/VisitCustomerCard';
 import Toast from '../components/shared/Toast';
 import { CalendarSyncModal, useCalendarSync } from '../features/calendarSync';
@@ -59,15 +59,12 @@ import CustomerProfileHeader from '../components/sales/customerList/CustomerProf
 import CustomerDetailsTab from '../components/sales/customerList/CustomerDetailsTab';
 import CustomerContactsTab from '../components/sales/customerList/CustomerContactsTab';
 import { canDeleteVisit } from '../utils/visitAccess';
-import { clearInventoryCache } from '../api/inventoryAnalysisCache';
-import { toSalesRepList } from '../utils/salesReps';
 import { lazyRetry } from '../utils/lazyRetry';
 import { useCustomerOptions, refreshCustomers, addCustomerRecord } from '../api/customerOptions';
 import { toCustomerOptions } from '../utils/customerOptions';
 
 import ErrorBoundary from '../components/shared/ErrorBoundary';
 import CartDrawer, { CartToast } from '../components/sales/holds/CartDrawer';
-import { cartActions } from '../components/sales/holds/cartStore';
 import { openHoldLink } from '../components/sales/holds/holdLink';
 import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions';
 import { PERMITS } from '../permits/permissions';
@@ -106,60 +103,19 @@ const TabLoader = () => (
 const SalesPage = () => {
     const { user: currentUser, loading: authLoading, logout } = useAuth();
     
-    const [theme, setTheme] = useState(() => {
-        try {
-            const saved = localStorage.getItem('checkin_theme');
-            return saved === 'dark' ? 'dark' : 'light';
-        } catch {
-            return 'light';
-        }
+    // Light / dark (src/features/salesShell/useSalesTheme.ts).
+    const { theme, toggleTheme } = useSalesTheme();
+
+    // The page's first page of customers (src/features/customers/useCustomersPage.ts).
+    const { customers, fetchCustomers } = useCustomersPage({
+        // Runs only from a timer, after the dashboard data below exists.
+        onSearchChanged: () => { setCurrentVisitsPage(1); setCurrentFollowUpPage(1); setCurrentResourcesPage(1); }
     });
-
-    useEffect(() => {
-        const handleThemeChange = () => {
-            try {
-                const saved = localStorage.getItem('checkin_theme');
-                setTheme(saved === 'dark' ? 'dark' : 'light');
-            } catch { /* not fatal — carry on */ }
-        };
-        window.addEventListener('storage', handleThemeChange);
-        window.addEventListener('checkin_theme_changed', handleThemeChange);
-        return () => {
-            window.removeEventListener('storage', handleThemeChange);
-            window.removeEventListener('checkin_theme_changed', handleThemeChange);
-        };
-    }, []);
-
-    const toggleTheme = () => {
-        const newTheme = theme === 'dark' ? 'light' : 'dark';
-        try {
-            localStorage.setItem('checkin_theme', newTheme);
-            setTheme(newTheme);
-            window.dispatchEvent(new Event('checkin_theme_changed'));
-        } catch (e) {
-            console.error('Failed to save theme setting', e);
-        }
-    };
-
-    useEffect(() => {
-        if (theme === 'light') {
-            document.body.classList.add('light-theme-active');
-        } else {
-            document.body.classList.remove('light-theme-active');
-        }
-        return () => {
-            document.body.classList.remove('light-theme-active');
-        };
-    }, [theme]);
-
-    const [customers, setCustomers] = useState([]);
+    // Locations and sales reps (src/features/salesShell/useSalesDirectory.ts).
+    const { locations, salesReps, fetchLocations, fetchSalesReps } = useSalesDirectory();
     const [customerRefreshTrigger] = useState(0);
     const [resourceRefreshTrigger, setResourceRefreshTrigger] = useState(0);
     const [inventoryAnalysisRefreshTrigger, setInventoryAnalysisRefreshTrigger] = useState(0);
-    const [locations, setLocations] = useState([]);
-    const [salesReps, setSalesReps] = useState([]);
-    const [searchTerm] = useState('');
-    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
     const [customerOriginTab, setCustomerOriginTab] = useState(null);
     // The shared customer list behind every customer dropdown (src/api/customerOptions.js).
@@ -167,15 +123,8 @@ const SalesPage = () => {
     // Latches on the first visit to the route planner and never clears, so the
     // map it builds survives navigating away and back. See where it renders.
     const [routePlannerOpened, setRoutePlannerOpened] = useState(false);
-    const [, setLoading] = useState(true);
-    const [, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('visits');
 
-    // Pagination State
-    const [currentPage, setCurrentPage] = useState(1);
-    const [, setTotalPages] = useState(1);
-    const [, setTotalCustomers] = useState(0);
-    const customersPerPage = 50;
 
     
     // Side nav pins (src/utils/navPins.js). The first one they can open is
@@ -207,30 +156,6 @@ const SalesPage = () => {
     // The Check-In Log tab: src/features/checkin (its list, filters, counts, export, view/edit/delete).
     const checkInLog = useCheckInLog({ active: crmTab === 'checkin', currentUser, locations, onUnauthorized: logout });
 
-    // Staff who can own a customer account, for the Add Customer form's Sales Rep
-    // picker. Who qualifies is decided in utils/salesReps.js, so this and the
-    // customer list cannot drift apart on it.
-    async function fetchSalesReps() {
-        try {
-            const response = await authFetch(`${API_URL}/api/salesreps`);
-            if (!response.ok) return;
-            setSalesReps(toSalesRepList(await response.json()));
-        } catch (error) {
-            console.error('❌ [FETCH] Error fetching sales reps:', error);
-        }
-    }
-
-    async function fetchLocations() {
-        try {
-            const response = await authFetch(`${API_URL}/api/admin/locations`);
-            if (response.ok) {
-                const data = await response.json();
-                setLocations(data);
-            }
-        } catch (error) {
-            console.error('❌ [FETCH] Error fetching locations:', error);
-        }
-    }
 
     // The socket handlers are registered once, so they cannot read the current
     // user out of state — on that first render it is still null, and the
@@ -240,81 +165,17 @@ const SalesPage = () => {
     // Set after fetchCheckIns below; read by the checkin_update handler.
     const refreshCheckInsRef = useRef(() => {});
 
-    useEffect(() => {
-        const socket = io(API_URL || window.location.origin, {
-            transports: ['websocket', 'polling'],
-            withCredentials: true
-        });
-
-        // checkin_update is scoped to the viewer's own assigned location(s)
-        // (mirrors join_delivery_rooms for delivery_update) rather than
-        // broadcast to every connected socket — this proves who the socket
-        // is so the server knows which room(s) to put it in. Re-sent on
-        // every reconnect, since a fresh connection joins no rooms until
-        // this fires again.
-        socket.on('connect', () => {
-            const token = getAuthToken();
-            if (token) socket.emit('join_checkin_rooms', { token });
-        });
-
-        // Through a ref: this handler is registered once, and calling
-        // fetchCheckIns directly ran the first render's copy — its page,
-        // search, month and branch — so a live update swapped the filtered
-        // list for an unfiltered one while the filters still showed. Same
-        // fix as the /checkin-log page.
-        socket.on('checkin_update', () => {
-            expireCacheKeys('checkins_');
-            refreshCheckInsRef.current();
-        });
-
-        socket.on('customer_update', () => {
-            fetchCustomers(true);
-            // Every customer dropdown, for a change made by anyone, anywhere.
-            refreshCustomers();
-        });
-
-        socket.on('resource_update', () => {
-            setResourceRefreshTrigger(prev => prev + 1);
-        });
-
-        socket.on('location_update', () => {
-            fetchLocations();
-        });
-
-        // Fired by src/routes/inventoryAnalysis.js after a stock/sales import.
-        // Without this, only the importer's own browser (via the modal's
-        // onComplete callback) ever saw the new data — everyone else's open
-        // Inventory Analysis tab stayed on the pre-import snapshot.
-        // Slabs held, released or carted by anyone (src/holds/router.js):
-        // the cart and any screen showing slab locks refresh.
-        socket.on('slab_reservations_changed', (payload) => {
-            cartActions.reservationsChanged(payload?.slabKeys || []);
-        });
-
-        socket.on('inventory_analysis_update', () => {
-            // Forget remembered Inventory Analysis answers even while that tab
-            // isn't open, so the next visit shows the new import, not the old.
-            clearInventoryCache();
-            setInventoryAnalysisRefreshTrigger(prev => prev + 1);
-        });
-
-        // Keeps the Calendar tile honest when a stop is added from another
-        // device or pulled in by the Google sync. The planner grid updates
-        // itself through the schedule cache; this is only the count above it.
-        socket.on('schedule_update', (payload) => {
-            const mine = !payload?.userId
-                || !currentUserIdRef.current
-                || String(payload.userId) === String(currentUserIdRef.current);
-            if (mine) fetchSchedules();
-        });
-
-        fetchLocations();
-        fetchSalesReps();
-
-        return () => {
-            socket.disconnect();
-        };
-    }, []);
+    // Live updates from the server (src/features/salesShell/useSalesLiveUpdates.ts).
+    useSalesLiveUpdates({
+        refreshCheckInsRef,
+        currentUserIdRef,
+        onCustomersChanged: () => fetchCustomers(true),
+        onResourcesChanged: () => setResourceRefreshTrigger(prev => prev + 1),
+        onLocationsChanged: () => fetchLocations(),
+        onInventoryChanged: () => setInventoryAnalysisRefreshTrigger(prev => prev + 1),
+        onMySchedulesChanged: () => fetchSchedules(),
+        onStart: () => { fetchLocations(); fetchSalesReps(); }
+    });
     
     const [showDashboard, setShowDashboard] = useState(true);
     const [currentUserId, setCurrentUserId] = useState(currentUser?.id || currentUser?._id || null);
@@ -575,66 +436,6 @@ const SalesPage = () => {
     };
 
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (searchTerm !== debouncedSearch) {
-                setDebouncedSearch(searchTerm); // Fixed: was called twice (bug)
-                setCurrentPage(1);
-                setCurrentVisitsPage(1);
-                setCurrentFollowUpPage(1);
-                setCurrentResourcesPage(1);
-            }
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [searchTerm, debouncedSearch]);
-
-    const fetchCustomers = useCallback(async (silent = false) => {
-        const cacheKey = `customers_${currentPage}_${customersPerPage}_${debouncedSearch}`;
-        const cached = getCachedData(cacheKey);
-
-        if (cached && !silent) {
-            setCustomers(cached.customers);
-            setTotalPages(cached.totalPages);
-            setTotalCustomers(cached.totalCustomers);
-            setLoading(false);
-            if (isCacheValid(cacheKey, 120000)) return;
-        } else if (!cached && !silent) {
-            setLoading(true);
-        }
-
-        try {
-            const response = await authFetch(`${API_URL}/api/customers?page=${currentPage}&limit=${customersPerPage}&search=${encodeURIComponent(debouncedSearch)}`);
-
-            if (response.ok) {
-                const data = await response.json();
-                const custList = data.customers || [];
-                const pages = data.pages || 1;
-                const total = data.total || 0;
-
-                setCustomers(custList);
-                setTotalPages(pages);
-                setTotalCustomers(total);
-
-                setCachedData(cacheKey, { customers: custList, totalPages: pages, totalCustomers: total });
-            } else {
-                if (response.status === 401) {
-                    window.location.href = '/login';
-                    return;
-                }
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch customers');
-            }
-        } catch (error) {
-            console.error('Error fetching customers:', error);
-            setError(error.message);
-        } finally {
-            setLoading(false);
-        }
-    }, [currentPage, customersPerPage, debouncedSearch]);
-
-    useEffect(() => {
-        fetchCustomers();
-    }, [fetchCustomers]);
 
     const {
         selectedCustomerDetail, setSelectedCustomerDetail, visitsLoading, setVisitsLoading, customerCacheRef, fetchSingleCustomer,

@@ -6,3 +6,4 @@ export type { CustomerProfileProps } from './profile';
 export { useOpenCustomer } from './useOpenCustomer';
 export type { OpenCustomerDeps } from './useOpenCustomer';
 export { getCustomerLevelLabel, getPriceLevelLabel } from './customerLevel';
+export { useCustomersPage } from './useCustomersPage';
