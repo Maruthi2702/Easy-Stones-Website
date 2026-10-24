@@ -37,6 +37,12 @@ src/api/deliverySchedule.ts
   (the ONLY place that calls the delivery API — see "Data flow" below)
 ```
 
+The page itself is thin: `ScheduleHeader.tsx` (toolbar) and `ScheduleStage.tsx`
+(loader / board / lists / driver view) draw it; `useScheduleData` loads and
+keeps the week current, `useScheduleActions` holds every write (save, delete,
+status, drag, reorder, the submitted-day notice), `usePodDialogs` the two ePOD
+pop-ups, `useColumnOrders` each branch's column order.
+
 Pure logic with no DOM/network dependency lives in `src/utils/`:
 `deliveryTypes.js` (what counts as pending/a return/a drop-off — has
 `.test.js`), `deliveryWeek.ts` (which dates a week shows — has `.test.js`),
@@ -94,7 +100,7 @@ delivery data is really just a view over that one cache, kept in sync via
    update, reconnect and fallback poll, with no data) and refetches its one
    branch through `getLocationScopedScheduleData`, so the server's location
    rules decide what it shows every time. Its saves/moves refetch too
-   (`applyUpdatedList` in `DeliveryScheduleTab.tsx`), because the mutation
+   (`applyUpdatedList` in `useScheduleData.ts`), because the mutation
    helpers return the shared cache's week, not the narrowed one.
 
 2. **The socket only pushes updates to rooms a client has actually joined.**

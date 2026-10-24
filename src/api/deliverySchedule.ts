@@ -578,7 +578,7 @@ export async function getScheduleDataCached(currentUser: CurrentUser | null = nu
 //
 // Each call is a fresh fetch rather than a merge of socket events: the board
 // stays live by refetching through this whenever subscribeScheduleChanges
-// says something changed (see src/features/delivery/DeliveryScheduleTab.tsx), so which tickets a
+// says something changed (see src/features/delivery/useScheduleData.ts), so which tickets a
 // branch sees is decided by the server's own location rules every time
 // rather than re-implemented here. `includeTrucks: false` skips the driver
 // list for those refetches — it only changes on truck_update.
