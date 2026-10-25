@@ -9,8 +9,9 @@
  *
  * Leads follow Skagit's rule (owner's call 2026-10-21): garages, decks and
  * sheds, farm buildings, pools, retaining walls, cell towers, utility and
- * other structures, and demolitions are not leads. "Replacement Permit" is
- * not sorted yet, so it's reported on the page.
+ * other structures, and demolitions are not leads. A blank work type or
+ * "Replacement Permit" is Other building: the type does not establish new
+ * construction or a remodel, and the description is never used to guess one.
  *
  * The county's cities (Tacoma, Lakewood, Puyallup, Bonney Lake…) run their own
  * permit offices and are not in this layer (not yet checked city by city).
@@ -60,6 +61,8 @@ function categoryFor(type, subtype = '') {
   const [work = '', building = ''] = split(subtype);
   const t = cleanText(type);
   if (SKIPPED_BUILDINGS.has(key(building)) || SKIPPED_WORK.has(key(work))) return null;
+  if (PIERCE_APPLICATION_TYPES.includes(t) && building
+      && (!cleanText(work) || key(work) === key('Replacement Permit'))) return 'building_other';
   const exact = TYPES.get(key(t, work, building));
   if (exact) return exact;
   if (t === COMMERCIAL) {

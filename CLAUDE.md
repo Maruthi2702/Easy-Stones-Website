@@ -300,6 +300,11 @@ The county filter lists all 39 WA counties (`places.js`); a county is
 - **Whatcom**: the county (Tyler EnerGov, contacts with phone/email) and
   Bellingham (ArcGIS layer, names only). The EnerGov search **ignores its
   date/type filters**, so the reader walks newest-issued-first.
+  Bellingham's month check also looks up a saved permit by number if it drops
+  out of the issued-date query (2026-10-24): the city can move or clear its
+  issue date. Only a source-confirmed correction updates it. A cleared date is
+  saved as null, retaining the record while excluding it from issued leads,
+  exports and contractor counts; an unexplained disappearance stays a warning.
 - **King**: the county outside cities and Auburn, Bellevue, Burien, Issaquah,
   Kenmore, Kirkland, Mercer Island, Sammamish, Snoqualmie through
   **MyBuildingPermit**'s public search (no published API — the calls its page
@@ -391,8 +396,9 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   registry phones. No city or ZIP (the layer is the county's own permits; its
   cities — Tacoma, Lakewood, Puyallup… — aren't in it and aren't checked yet).
   Same skips as Skagit (garages, decks/sheds, farm buildings, pools, walls, cell
-  towers, demolitions); a blank work type or "Replacement Permit" is reported as
-  unsorted. About 25 new homes a week. **The county's GIS data terms of use were
+  towers, demolitions); a blank work type or "Replacement Permit" is **Other
+  building** (2026-10-24), following the broad-type rule, never inferred from its
+  description. About 25 new homes a week. **The county's GIS data terms of use were
   not read** (the PDF wouldn't open) — read them before merging. The
   month-so-far check is a second read of the same layer.
   **Tacoma** (same branch): the city's open-data Accela layer

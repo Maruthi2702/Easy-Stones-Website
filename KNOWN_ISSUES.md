@@ -25,6 +25,21 @@ Regression coverage: `src/routes/publicProducts.test.js`,
 `src/routes/schedule.test.js` (replica set, including rollback), and
 `src/services/socketAccess.test.js` (real socket connections).
 
+## Permit source warning fixes (2026-10-24)
+
+2026-10-24: Pierce County's replacement permits and blank work types are
+**Other building** (owner confirmed), without guessing from descriptions.
+Skagit County's **Commercial Gate Installation** joins the skipped gate types.
+Bellingham's month check now looks up disappearing permits by number and
+applies only source-confirmed issue-date corrections. The city cleared
+`BLD2025-0500`'s date (status **RTI HOLD**); the old daily date-filtered pull
+could not refresh it. Records with cleared dates are retained, excluded from
+issued leads, and can return through the ordinary pull if re-issued.
+
+Validated on an isolated copy of October's saved Bellingham permits against
+the live city layer: all 15 currently issued leads match. No production data
+was changed. Deployment and a permit refresh are needed to update the warnings.
+
 ## Transfers & Daily Report
 
 Found in a read-only review on 2026-09-29. Nothing below has been changed yet.

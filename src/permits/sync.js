@@ -344,9 +344,27 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
             if (inMonth(r.issuedOn) && categoryFor(source, r.type, r.subtype)) found.add(String(r.number || '').trim());
           }
         }
-        const app = await Permit.distinct('permitNumber', { source, issuedOn: { $gte: from, $lte: today } });
+        const monthQuery = { source, issuedOn: { $gte: from, $lte: today } };
+        let app = await Permit.distinct('permitNumber', monthQuery);
+        const notIssuedYet = [];
+        const datesMoved = [];
+        if (reader.findByNumber) {
+          for (const number of app.filter(number => !found.has(number))) {
+            const row = await reader.findByNumber(number);
+            if (!row) continue; // Not found is still a genuine discrepancy.
+            if (rule.numberOf(row) !== number) throw new Error(`${rule.label} returned the wrong permit for ${number}`);
+            const current = rule.toPermit(row);
+            // Only an explicit date correction on a known lead explains it.
+            // An in-month record missing from the list must remain a warning.
+            if (!current.category || inMonth(current.issuedOn)) continue;
+            await save(source, [current]);
+            if (current.issuedOn) datesMoved.push(number);
+            else notIssuedYet.push(number);
+          }
+          app = await Permit.distinct('permitNumber', monthQuery);
+        }
         const c = compareMonthToDate({ found: [...found], app });
-        fields = { ...base, inSearch: c.inSearch, matched: c.matched, missingFromApp: c.missingFromApp, notFoundAgain: c.notFoundAgain, ok: c.ok, error: '' };
+        fields = { ...base, inSearch: c.inSearch, matched: c.matched, missingFromApp: c.missingFromApp, notFoundAgain: c.notFoundAgain, notIssuedYet, datesMoved, ok: c.ok, error: '' };
       } catch (err) {
         fields = { ...base, ok: false, error: String(err?.message || err).slice(0, 500) };
       }

@@ -39,7 +39,7 @@ const SKIPPED = typeSet([
   'Commercial Accessory Buildings', 'Residential Manufactured Home', 'Manufactured Home Title Elimination',
   'Demolition Permit', 'Residential Mechanical', 'Commercial Mechanical Permit', 'Residential Water Heater Replacement',
   'Residential Fire Sprinklers', 'Commercial Fire Protection System', 'Commercial Fire Alarm Systems',
-  'Residential Fuel Tank', 'Residential Gate Installation', 'Commercial Sign', 'Special Event or Temporary Tent',
+  'Residential Fuel Tank', 'Residential Gate Installation', 'Commercial Gate Installation', 'Commercial Sign', 'Special Event or Temporary Tent',
   'Wireless Facility Eligibility Determination'
 ]);
 // Building-looking types: a new one nobody has sorted is reported. Septic, wells,
