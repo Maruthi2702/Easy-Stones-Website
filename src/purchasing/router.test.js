@@ -12,6 +12,7 @@ import {
   PurchasingPoLink,
 } from './models.js';
 import InventoryItem from '../models/InventoryItem.js';
+import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
 import InventorySalesRecord from '../models/InventorySalesRecord.js';
 import Location from '../models/Location.js';
 import { SlabReservation } from '../holds/models.js';
@@ -98,6 +99,7 @@ beforeAll(async () => {
     PurchasingLock.init(),
     PurchasingPoLink.init(),
     InventoryItem.init(),
+    InventoryTransitShipment.init(),
     InventorySalesRecord.init(),
     Location.init(),
     SlabReservation.init(),
@@ -128,6 +130,7 @@ beforeEach(async () => {
     PurchasingLock.deleteMany({}),
     PurchasingPoLink.deleteMany({}),
     InventoryItem.deleteMany({}),
+    InventoryTransitShipment.deleteMany({}),
     InventorySalesRecord.deleteMany({}),
     Location.deleteMany({}),
     SlabReservation.deleteMany({}),
@@ -187,6 +190,20 @@ describe('purchasing access and input validation', () => {
     expect(p.blockers).toEqual([]);
     expect(p.rows[0].protective.proposedSlabs).toBe(150);
     expect(p.rows[0].baseline.proposedSlabs).toBe(96);
+  });
+  it('reads uploaded in-transit containers in the purchasing plan and scopes them by branch', async () => {
+    const { id } = await setup();
+    await InventoryTransitShipment.create({ poNumber: 'P2', containerNumber: 'CONT2', location: 'Seattle', importedAt: clock,
+      lines: [{ product: 'Quartz 3CM', poNumber: 'P2', containerNumber: 'CONT2', location: 'Seattle', units: 'SF',
+        slabs: 24, quantity: 24, etaDate: new Date('2026-12-08'), status: 'INTRANSIT', supplier: 'ABC' }] });
+    await InventoryTransitShipment.create({ poNumber: 'P3', containerNumber: 'CONT3', location: 'Spokane', importedAt: clock,
+      lines: [{ product: 'Quartz 3CM', poNumber: 'P3', containerNumber: 'CONT3', location: 'Spokane', units: 'SF',
+        slabs: 500, quantity: 500, etaDate: new Date('2026-12-08'), status: 'INTRANSIT', supplier: 'ABC' }] });
+    const p = await plan(id);
+    expect(p.transitLineCount).toBe(1);
+    expect(p.rows[0].transit[0]).toMatchObject({ poNumber: 'P2', containerNumber: 'CONT2', slabs: 24 });
+    expect(p.rows[0].protective.inbound).toBe(48);
+    expect(p.rows[0].protective.proposedSlabs).toBe(126);
   });
   it('keeps unvalidated combined-scope coverage blocked and never splits labels', async () => {
     await InventorySalesRecord.updateMany({}, { $set: { location: 'Seattle Spokane' } });

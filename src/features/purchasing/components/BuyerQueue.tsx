@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import Pagination from '../../../components/shared/Pagination';
 import { usePagination, pageCount } from '../../../components/shared/paginationConfig';
+import IncomingSupply from './IncomingSupply';
 import type { Plan, PlanRow } from '../../../purchasing/types';
 export const num = (value: number | null | undefined) =>
   value == null ? '—' : value.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -92,6 +93,7 @@ export default function BuyerQueue({
               <th>Color & variant{performance ? ' · reported SF sales rank' : ''}</th>
               <th>Reported sold / UOM</th>
               <th>Ready slabs</th>
+              <th>In-transit containers</th>
               <th>60-day need</th>
               <th>90-day need</th>
               <th>Required receipt</th>
@@ -112,9 +114,10 @@ export default function BuyerQueue({
                       r.policy?.active === false
                     }
                     checked={selected.includes(r.key)}
-                    onChange={(e) =>
-                      setSelected((s) => (e.target.checked ? [...s, r.key] : s.filter((x) => x !== r.key)))
-                    }
+                    onChange={(e) => {
+                      const checked = e.currentTarget.checked;
+                      setSelected((s) => (checked ? [...s, r.key] : s.filter((x) => x !== r.key)));
+                    }}
                   />
                 </td>
                 <td>
@@ -131,6 +134,7 @@ export default function BuyerQueue({
                   {num(r.sold)} {r.uom}
                 </td>
                 <td>{num(r.readySlabs)}</td>
+                <td><IncomingSupply lines={r.transit} /></td>
                 <td>{num(r.baseline?.proposedSlabs)}</td>
                 <td>{num(r.protective?.proposedSlabs)}</td>
                 <td>{r.protective?.bufferBreachOn || '—'}</td>

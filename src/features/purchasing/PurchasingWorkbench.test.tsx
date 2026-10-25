@@ -156,6 +156,18 @@ describe('purchasing workbench rendering', () => {
     );
   });
 
+  it('shows imported PO/container quantities while a planning validation blocks recommendations', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, transitLineCount: 1, transitImportedAt: '2026-10-25T20:00:00Z',
+      rows: [{ ...plan.rows[0], transit: [{ key: 'sps-1', poNumber: '15364', containerNumber: 'TEMU1379996',
+        siplNumber: '15364', product: 'Quartz 3CM', branch: 'Seattle', supplier: 'ABC', slabs: 24, quantity: 1800,
+        units: 'SF', eta: '2026-11-24', importedAt: '2026-10-25T20:00:00Z' }] }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    await screen.findByRole('columnheader', { name: 'In-transit containers' });
+    expect(screen.getByText('24 slabs')).toBeTruthy();
+    expect(screen.getByText(/Reading 1 imported in-transit product lines/)).toBeTruthy();
+    expect(screen.getByText('PO #15364 · TEMU1379996')).toBeTruthy();
+    expect(screen.getAllByText('Resolve inputs').length).toBeGreaterThan(0);
+  });
   it('shows actual blockers and unknown availability without offering a buy quantity', async () => {
     render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
     await screen.findByRole('button', { name: 'Quartz 3CM' });

@@ -40,10 +40,11 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
       throw new HttpError(400, 'A single-branch sales report must use that same branch');
     if (
       value.observedThrough > todayPacific(now()) ||
+      value.observedThrough > todayPacific(new Date(cohort.importedAt)) ||
       value.observedThrough < cohort.start ||
       value.observedThrough > cohort.end
     )
-      throw new HttpError(400, 'Observed cutoff must be inside the report range and no later than today');
+      throw new HttpError(400, `Observed cutoff must be inside the report range, no later than today or the report import day (${todayPacific(new Date(cohort.importedAt))})`);
     if (value.stockCoverageConfirmed && value.stockSnapshotId !== data.stockSnapshotId)
       throw new HttpError(409, 'Stock changed while editing; refresh before confirming coverage');
     value.stockSnapshotId = stockId(data.stock.filter((s) => value.branches.includes(s.location)));

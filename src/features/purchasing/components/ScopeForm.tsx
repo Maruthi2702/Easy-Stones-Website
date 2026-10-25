@@ -4,6 +4,7 @@ import { DatePicker } from '../../../components/shared/calendar/Calendar';
 import type { Metadata, Scope, Policy } from '../../../purchasing/types';
 import { purchasingApi, download, csv } from '../purchasingApi';
 import { parsePolicyCsv, policyHeaders } from '../policyCsv';
+import { todayPacific } from '../../../purchasing/planning';
 const emptyPolicy = (): Policy => ({
   product: '',
   supplier: '',
@@ -60,10 +61,12 @@ export default function ScopeForm({
       value.policies.map((p, n) => (n === i ? { ...p, [key]: next } : p)),
     );
   const cohort = metadata.cohorts.find((c) => c.id === value.cohortId);
+  const cutoffMax = [todayPacific(new Date()), cohort?.end, cohort?.importedAt ? todayPacific(new Date(cohort.importedAt)) : null].filter((day): day is string => !!day).sort()[0];
   async function submit() {
     setSaving(true);
     setError('');
     try {
+      if (value.observedThrough > cutoffMax) throw new Error(`Observed sales cutoff must be on or before ${cutoffMax}, when this report was available.`);
       const saved = await purchasingApi.saveScope(
         { ...value, stockSnapshotId: snapshotAtOpen, ...(scope ? { version: scope.__v } : {}) },
         scope?._id,
@@ -148,6 +151,8 @@ export default function ScopeForm({
             value={value.observedThrough}
             onChange={(v) => change('observedThrough', v)}
             ariaLabel="Observed sales cutoff"
+            min={cohort?.start}
+            max={cutoffMax}
           />
         </div>
         {(

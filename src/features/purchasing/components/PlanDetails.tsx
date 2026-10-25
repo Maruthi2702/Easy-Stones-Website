@@ -1,6 +1,7 @@
 import FormModal from '../../../components/shared/form/FormModal';
 import type { Plan, PlanRow } from '../../../purchasing/types';
 import { num } from './BuyerQueue';
+import IncomingSupply from './IncomingSupply';
 export default function PlanDetails({
   row,
   plan,
@@ -71,6 +72,7 @@ export default function PlanDetails({
                 : 'Unresolved; not assumed zero'}
           </dd>
         </dl>
+        <div><h3>Imported in-transit containers</h3><IncomingSupply lines={row.transit} /></div>
         {p && (
           <>
             <h3>90-day protective case</h3>

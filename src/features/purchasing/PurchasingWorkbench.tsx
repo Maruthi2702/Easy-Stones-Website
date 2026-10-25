@@ -120,6 +120,10 @@ export default function PurchasingWorkbench({
               <strong>{d.plan.draftIds.length}</strong>
             </div>
           </div>
+          {d.plan.transitImportedAt && <p role="status" className="purchase-muted">
+            Reading {d.plan.transitLineCount} imported in-transit product lines for {d.plan.scope.branches.join(' / ')}.
+            Last container import: {new Date(d.plan.transitImportedAt).toLocaleString()}.
+          </p>}
           {!!d.plan.blockers.length && (
             <div className="purchase-warning">
               <h3>Resolve these inputs before approving buy quantities</h3>
@@ -128,6 +132,7 @@ export default function PurchasingWorkbench({
                   <li key={b}>{b}</li>
                 ))}
               </ul>
+              {canEdit && scope && <button onClick={() => setScopeForm({ scope })}>Review planning inputs</button>}
             </div>
           )}
           <nav className="purchase-tabs" aria-label="Purchasing views">

@@ -1,6 +1,7 @@
 import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.js';
 import { project, inclusiveDays, todayPacific, variantKey } from './planning.ts';
 import { digest } from './data.js';
+import { transitSupply, parentSupplyKey } from './transitSupply.ts';
 export const stockId = (rows) =>
   digest(rows.map((s) => [String(s._id), s.importedAt, s.availableSlabs, s.availableQuantity, s.slabStatus]));
 const unit = (s) =>
@@ -28,7 +29,7 @@ export function buildPlan(inputs, now = new Date()) {
   if (!days || scope.observedThrough > today || (cohort && scope.observedThrough > cohort.end))
     blockers.push('Confirm an observed sales cutoff inside the report range and no later than today');
   if (cohort && scope.observedThrough > todayPacific(new Date(cohort.importedAt)))
-    blockers.push('Observed sales cutoff cannot be after the report import date');
+    blockers.push(`Observed sales cutoff ${scope.observedThrough} is after the report was imported on ${todayPacific(new Date(cohort.importedAt))}; edit the scope cutoff or import a newer sales report`);
   if (cohort && cohort.records.some((r) => r.importedAt?.toISOString() !== cohort.importedAt))
     blockers.push('Sales cohort contains mixed imports; re-import the complete report');
   if (scope.observedThrough && inclusiveDays(scope.observedThrough, today) > scope.salesMaxDays + 1)
@@ -61,6 +62,19 @@ export function buildPlan(inputs, now = new Date()) {
     reservations.filter((r) => scope.branches.includes(r.branch)).map((r) => variantKey(r.slabKey)),
   );
   const aliasName = (name) => aliases.get(variantKey(name)) || name;
+  const transit = transitSupply(inputs.transitShipments || [], scope.branches);
+  const transitImportedAt = transit.map(line => line.importedAt).filter(Boolean).sort().at(-1) || null;
+  const coveredParentTotals = new Map();
+  const parentLines = new Set();
+  for (const row of inbound?.rows || []) {
+    const lineKey = JSON.stringify([row.po, row.line]);
+    if (parentLines.has(lineKey)) continue;
+    parentLines.add(lineKey);
+    const parentKey = parentSupplyKey(row.po, aliasName(row.product), row.branch);
+    coveredParentTotals.set(parentKey, (coveredParentTotals.get(parentKey) || 0) + row.ordered - row.received - row.cancelled);
+  }
+  const coveredParents = new Set(coveredParentTotals.keys());
+
   for (const s of stock) {
     const product = aliasName(s.product),
       k = key(product, s.units),
@@ -96,12 +110,13 @@ export function buildPlan(inputs, now = new Date()) {
     if (sales.has(k)) blockers.push('Duplicate product/unit rows in the selected cohort require correction');
     sales.set(k, sale);
   }
-  const keys = [...new Set([...stocks.keys(), ...sales.keys()])];
+  const transitProducts = new Map(transit.map(line => [key(aliasName(line.product), line.units), line]));
+  const keys = [...new Set([...stocks.keys(), ...sales.keys(), ...transitProducts.keys()])];
   const rows = keys.map((k) => {
     const s = stocks.get(k),
       sale = sales.get(k),
-      product = sale?.product || s.product,
-      uom = unit(sale?.uom || s.uom),
+      product = sale?.product || s?.product || aliasName(transitProducts.get(k).product),
+      uom = unit(sale?.uom || s?.uom || transitProducts.get(k).units),
       policy = policies.get(variantKey(product)) || null;
     const rowBlockers = [...blockers, ...(s?.problems || [])];
     if (uom !== 'SF')
@@ -113,9 +128,27 @@ export function buildPlan(inputs, now = new Date()) {
       rowBlockers.push('Sales are missing or negative; verify returns and report coverage');
     if (!s && stock.some((r) => variantKey(aliasName(r.product)) === variantKey(product)))
       rowBlockers.push('Stock and sales UOM do not match for this variant');
-    const receipts = (inbound?.receipts || []).filter(
+    const variantTransit = transit.filter(line =>
+      variantKey(aliasName(line.product)) === variantKey(product) && line.units === uom);
+    const reportedParentTotals = new Map();
+    for (const line of variantTransit) {
+      const parentKey = parentSupplyKey(line.poNumber, product, line.branch);
+      if (line.slabs !== null) reportedParentTotals.set(parentKey, (reportedParentTotals.get(parentKey) || 0) + line.slabs);
+    }
+    if ([...reportedParentTotals].some(([parentKey, slabs]) => coveredParentTotals.has(parentKey) && slabs > coveredParentTotals.get(parentKey)))
+      rowBlockers.push('Imported containers exceed the remaining quantity in the PO snapshot; reconcile incoming supply');
+    const additionalTransit = variantTransit.filter(line => !line.poNumber ||
+      !coveredParents.has(parentSupplyKey(line.poNumber, aliasName(line.product), line.branch)));
+    const transitReceipts = additionalTransit.filter(line => Number.isSafeInteger(line.slabs) && line.slabs >= 0)
+      .map(line => ({ key: `sps-transit:${line.key}`, product, branch: line.branch, supplier: line.supplier,
+        slabs: line.slabs, eta: line.eta || '', confirmed: !!line.eta }));
+    if (additionalTransit.some(line => !Number.isSafeInteger(line.slabs) || line.slabs < 0))
+      rowBlockers.push('Imported in-transit supply has an unknown slab count; reconcile it before buying');
+    if (variantTransit.some(line => ageHours(line.importedAt, now) > scope.stockMaxHours || ageHours(line.importedAt, now) < 0))
+      rowBlockers.push('Imported in-transit report is stale or future-dated; refresh the container report');
+    const receipts = [...(inbound?.receipts || []).filter(
       (r) => scope.branches.includes(r.branch) && variantKey(aliasName(r.product)) === variantKey(product),
-    );
+    ), ...transitReceipts];
     if (receipts.some((r) => !r.confirmed || !r.eta || r.eta < today))
       rowBlockers.push('Incoming supply has an unconfirmed, missing or overdue usable-receipt ETA');
     if (
@@ -154,6 +187,8 @@ export function buildPlan(inputs, now = new Date()) {
       readyQuantity: s?.readyQuantity ?? null,
       excludedSlabs: s?.excludedSlabs || 0,
       hasStock: !!s,
+      transit: variantTransit,
+      receipts,
       blockers: [...new Set(rowBlockers)],
       policy,
       baseline,
@@ -184,6 +219,7 @@ export function buildPlan(inputs, now = new Date()) {
     cohort?.id,
     snapshot,
     inbound ? String(inbound._id) : null,
+    transit,
     reservations.filter((r) => scope.branches.includes(r.branch)).map((r) => [r.slabKey, String(r.holdId)]),
     stock.map((s) => [s.serialNumber, s.remnant]),
   ]);
@@ -195,7 +231,9 @@ export function buildPlan(inputs, now = new Date()) {
     generatedAt: now.toISOString(),
     stockSnapshotId: snapshot,
     stockImportedAt: imported,
-    inboundImportedAt: inbound?.createdAt || null,
+    inboundImportedAt: inbound?.createdAt || transitImportedAt || null,
+    transitImportedAt,
+    transitLineCount: transit.length,
     blockers: [...new Set(blockers)],
     rows,
     draftIds: [...new Set(rows.map((r) => r.draftId).filter(Boolean))],

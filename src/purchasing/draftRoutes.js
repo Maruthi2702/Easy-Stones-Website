@@ -93,7 +93,7 @@ export function registerDraftRoutes(router, { now }) {
                 stockImportedAt: plan.stockImportedAt,
                 stockSnapshotId: plan.stockSnapshotId,
                 inboundImportedAt: plan.inboundImportedAt,
-                receipts: inputs.inbound?.receipts || [],
+                receipts: plan.rows.flatMap(row => row.receipts || []),
                 rows: plan.rows
                   .filter((r) => body.lines.some((l) => l.key === r.key))
                   .map((r) => ({

@@ -98,6 +98,20 @@ export type Projection = {
   warnings: string[];
   points: { day: string; available: number }[];
 };
+export type ImportedTransitLine = {
+  key: string;
+  poNumber: string;
+  containerNumber: string;
+  siplNumber: string;
+  product: string;
+  branch: string;
+  supplier: string;
+  slabs: number | null;
+  quantity: number;
+  units: string;
+  eta: string | null;
+  importedAt: string | null;
+};
 export type PlanRow = {
   key: string;
   product: string;
@@ -108,6 +122,8 @@ export type PlanRow = {
   readyQuantity: number | null;
   excludedSlabs: number;
   hasStock: boolean;
+  transit?: ImportedTransitLine[];
+  receipts?: Receipt[];
   blockers: string[];
   policy: Policy | null;
   baseline: Projection | null;
@@ -124,6 +140,8 @@ export type Plan = {
   stockSnapshotId: string;
   stockImportedAt: string | null;
   inboundImportedAt: string | null;
+  transitImportedAt?: string | null;
+  transitLineCount?: number;
   blockers: string[];
   rows: PlanRow[];
   draftIds: string[];
