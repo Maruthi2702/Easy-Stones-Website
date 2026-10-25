@@ -1,0 +1,156 @@
+.rpv2-drawer {
+    position: absolute;
+    /* Flush to the left edge and rounded only on the right — a dock, not a
+       floating card. Height is intrinsic (sized to however many icons are
+       actually in it) rather than stretched to the viewport — a stretched
+       rail left a tall stripe of empty rounded background below the last
+       icon whenever the column didn't have enough controls to fill it.
+       Centred vertically (top: 50% + translateY) instead of anchored under
+       the header, so it sits mid-side regardless of icon count. max-height/
+       overflow-y stay as a safety net for a short viewport or a column that
+       grows past what fits, not the normal case. */
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    max-height: calc(100% - 2rem);
+    width: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.85rem 0;
+    overflow-y: auto;
+    background: rgba(20, 20, 20, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-left: none;
+    border-radius: 0 16px 16px 0;
+    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.25);
+    color: #ffffff;
+    font-family: var(--font-main, 'Inter', system-ui, sans-serif);
+    z-index: 10;
+}
+
+/* SidebarToggleButton's own CSS sets margin-right for sitting beside a title
+   in a row (see every other place it's used) — this is the one place it
+   sits alone in a centred column instead, so only the margin is overridden
+   here, scoped to this container rather than touching the shared file. */
+.rpv2-drawer .sidebar-toggle-btn {
+    margin-right: 0;
+}
+
+/* Same 34px glass-circle treatment as .rpv2-locate-btn and the other
+   areaControls icons beside it, so the icon-only controls in this column
+   read as a set. */
+.rpv2-drawer-list-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(28, 28, 30, 0.82);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #b0b0b0;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.rpv2-drawer-list-btn:hover { border-color: rgba(255, 255, 255, 0.32); color: #ffffff; }
+
+.rpv2-drawer-list-btn.is-on {
+    color: #d4af37;
+    border-color: #d4af37;
+    background: rgba(212, 175, 55, 0.14);
+}
+
+/* ── light theme ─────────────────────────────────────────────────────────── */
+
+body.light-theme-active .rpv2-drawer {
+    background: rgba(255, 255, 255, 0.95);
+    border-color: #e1e0d9;
+    color: #161514;
+    box-shadow: 6px 0 24px rgba(0, 0, 0, 0.1);
+}
+
+body.light-theme-active .rpv2-drawer-list-btn {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.12);
+    color: #161514;
+}
+
+body.light-theme-active .rpv2-drawer-list-btn:hover { border-color: rgba(0, 0, 0, 0.3); }
+
+body.light-theme-active .rpv2-drawer-list-btn.is-on {
+    color: #8a6b1f;
+    border-color: #b08d57;
+}
+
+/* ── screen sizes ────────────────────────────────────────────────────────── */
+
+/* Below 720px the column becomes a bottom tab bar — the layout a mobile app
+   actually uses — instead of a shrunk copy of the side rail. Flush to the
+   bottom and both side edges with only the top corners rounded, same "dock,
+   not a floating card" idea as the desktop rail just rotated onto the
+   opposite edge; icons run in a row and space out across the full width
+   instead of stacking. */
+@media (max-width: 720px) {
+    .rpv2-drawer {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        transform: none;
+        flex-direction: row;
+        justify-content: space-evenly;
+        width: auto;
+        max-height: none;
+        overflow-y: visible;
+        overflow-x: auto;
+        gap: 0.5rem;
+        padding: 0.6rem 0.5rem;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-bottom: none;
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.25);
+    }
+    /* Touch-sized, and the same size across the bar (the filter funnel and the
+       list buttons used to differ). */
+    .rpv2-drawer-list-btn,
+    .rpv2-drawer .rpv2-filter-btn { width: 40px; height: 40px; }
+
+    /* Redeclared rather than reused: the light-theme rule above still casts
+       its shadow rightward (6px 0 …) for the desktop side rail, so this
+       screen size needs its own upward-pointing (0 -6px …) version. */
+    body.light-theme-active .rpv2-drawer { box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.1); }
+
+    /* Search, traffic, and locate drop out of the bottom bar on mobile —
+       locate is now covered by the map's own floating button (MapCanvas.css's
+       .rpv2-map-fabs), and search/traffic stay reachable on desktop's side
+       rail rather than crowding this row. Hidden here rather than not
+       rendered at all, so RoutePlannerV2.tsx doesn't need to know the
+       viewport size itself.
+       Selectors are scoped under .rpv2-drawer (not bare .rpv2-traffic-btn/
+       .rpv2-locate-btn) on purpose — those two also get a plain, non-media
+       `display: flex` rule from RoutePlannerV2.css, which loads AFTER this
+       file (it's RoutePlannerV2.tsx's own last import, after the RunDrawer
+       import that pulls this file in). Same specificity + later source
+       order would let that rule win and silently cancel this one; the extra
+       ancestor is what keeps this rule on top regardless of import order. */
+    .rpv2-drawer .rpv2-lead-pill,
+    .rpv2-drawer .rpv2-traffic-btn,
+    .rpv2-drawer .rpv2-locate-btn {
+        display: none;
+    }
+}
+
+/* On phones the app's bottom tab bar replaces the side menu, so the drawer's own
+   menu button goes (only the narrower tablet range, where there is no tab bar,
+   keeps it). */
+@media (max-width: 639px) {
+    .rpv2-drawer .sidebar-toggle-btn { display: none; }
+}

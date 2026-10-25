@@ -508,7 +508,7 @@ entry (`PUT /api/schedule/:id`). On a phone the panel leaves a strip of map at
 the top (`.cl-drawer.rpv2-host`). Only **checked reps' customers are loaded** (ticking
 one fetches just theirs). The Filter reads Sales reps → Customer type → Days since
 last visit; pins are map pins coloured by type (set A, `TYPE_COLORS` in
-`routePlannerV2/helpers.js`) or by last-visit age (the "Type colours | Visit
+`features/routePlanner/helpers.ts`) or by last-visit age (the "Type colours | Visit
 colours" switch, saved as `routePlannerFilters.pinColors`). Saved filters load
 once and save only on a real change (`saveFilter`) — saving the empty starting
 value before the real one loaded is what used to reset the rep ticks on every
@@ -516,10 +516,14 @@ open. **Location** (`src/utils/geolocationAccess.ts`): nothing prompts on its ow
 the map opens on the last known spot, only a tap on Locate asks, and once the
 browser has it allowed the position is followed quietly (only while the screen
 and tab are showing). The permission itself is the browser's, not ours to keep.
-The phone bar is icons plus a three-line More menu (`MoreMenu.jsx`: Find new
+The phone bar is icons plus a three-line More menu (`rail/MoreMenu.tsx`: Find new
 leads, Live traffic — a new map option is another row there). The design lives in
 the claude.ai artifact **Route Planner pin colours**
-(https://claude.ai/artifact/BQ5XYqB2SjbnbgjLYSbnyh).
+(https://claude.ai/artifact/BQ5XYqB2SjbnbgjLYSbnyh). The screen is
+`src/features/routePlanner/` (2026-10-24): the page `RoutePlannerV2.tsx`, one
+hook per job (`useSavedFilters`, `useMapPins`, `usePanels`, `useDayPlan`,
+`useScheduleData` / `useScheduleActions`…), and `map/`, `rail/`, `panels/`,
+`customer/` for its parts.
 
 ## Cart ticks are instant (2026-10-18)
 
@@ -679,7 +683,7 @@ against.
 
 `npm test` runs Vitest (`vite.config.js`'s `test` block, `src/**/*.test.{js,ts}`).
 As of 2026-08-28 that covers the pure, no-DOM business logic in
-`src/utils/routePlan.js` and `src/components/sales/routePlannerV2/helpers.js`
+`src/utils/routePlan.js` and `src/features/routePlanner/helpers.ts`
 (great-circle distance, point-in-polygon, stop ordering/scheduling math,
 recency bucketing, small formatting/localStorage helpers), plus the Daily
 Work Report's derive/save-payload rules (`src/routes/dailyReports.js`'s
