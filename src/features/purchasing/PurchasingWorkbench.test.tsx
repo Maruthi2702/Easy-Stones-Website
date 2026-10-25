@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { clearInventoryCache } from '../../api/inventoryAnalysisCache';
+import { setAuthToken, clearAuthToken } from '../../api/authToken';
 import { project } from '../../purchasing/planning';
 import type { Plan, Metadata } from '../../purchasing/types';
 vi.mock('./purchasingApi', () => ({
@@ -86,6 +88,7 @@ const metadata: Metadata = {
   stockImportedAt: plan.stockImportedAt,
 };
 beforeEach(() => {
+  clearInventoryCache();
   vi.mocked(purchasingApi.metadata).mockResolvedValue(metadata);
   vi.mocked(purchasingApi.plan).mockResolvedValue(plan);
   vi.mocked(purchasingApi.drafts).mockResolvedValue([]);
@@ -201,5 +204,78 @@ describe('purchasing workbench rendering', () => {
     await screen.findByRole('button', { name: 'Quartz 3CM' });
     fireEvent.click(screen.getByRole('button', { name: 'Color performance' }));
     expect(screen.getByText(/30\/90\/180-day trend and statistical XYZ are unavailable/)).toBeTruthy();
+  });
+});
+
+
+describe('purchasing tab return', () => {
+  const user = { permissions: ['view_purchasing'] };
+  it('renders recent results on return without repeating four requests or flashing a loader', async () => {
+    const first = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    first.unmount();
+    render(<PurchasingWorkbench currentUser={user} />);
+    expect(screen.getByRole('button', { name: 'Quartz 3CM' })).toBeTruthy();
+    expect(screen.queryByText('Loading purchasing inputs…')).toBeNull();
+    await waitFor(() => expect(purchasingApi.metadata).toHaveBeenCalledTimes(1));
+    expect(purchasingApi.plan).toHaveBeenCalledTimes(1);
+    expect(purchasingApi.drafts).toHaveBeenCalledTimes(1);
+    expect(purchasingApi.inbound).toHaveBeenCalledTimes(1);
+  });
+  it('retains the selected scope across tab unmounts', async () => {
+    const secondScope = { ...scope, _id: 'second', name: 'Second scope' };
+    vi.mocked(purchasingApi.metadata).mockResolvedValue({ ...metadata, scopes: [scope, secondScope] });
+    vi.mocked(purchasingApi.plan).mockImplementation(async id => ({ ...plan, scope: id === 'second' ? secondScope : scope }));
+    const first = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    fireEvent.change(screen.getByLabelText('Planning scope'), { target: { value: 'second' } });
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText('Loading purchasing inputs…')).toBeNull());
+    first.unmount();
+    render(<PurchasingWorkbench currentUser={user} />);
+    expect((screen.getByLabelText('Planning scope') as HTMLSelectElement).value).toBe('second');
+    expect(screen.getByRole('button', { name: 'Quartz 3CM' })).toBeTruthy();
+    expect(purchasingApi.plan).toHaveBeenCalledTimes(2);
+  });
+  it('bypasses remembered results on explicit Refresh and inventory announcements', async () => {
+    const view = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
+    view.rerender(<PurchasingWorkbench currentUser={user} refreshSignal={1} />);
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(3));
+    expect(purchasingApi.metadata).toHaveBeenCalledTimes(3);
+  });
+  it('reloads after an import clears inventory caches while the tab is closed', async () => {
+    const first = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    first.unmount();
+    clearInventoryCache();
+    render(<PurchasingWorkbench currentUser={user} />);
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
+    expect(purchasingApi.metadata).toHaveBeenCalledTimes(2);
+  });
+  it('expires remembered answers after 30 seconds', async () => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    const first = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    first.unmount();
+    clock.mockReturnValue(now + 30001);
+    render(<PurchasingWorkbench currentUser={user} />);
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
+    expect(purchasingApi.metadata).toHaveBeenCalledTimes(2);
+  });
+  it("does not reuse another signed-in session's data", async () => {
+    setAuthToken('first-session');
+    const first = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    first.unmount();
+    clearAuthToken();
+    setAuthToken('second-session');
+    render(<PurchasingWorkbench currentUser={user} />);
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
+    expect(purchasingApi.metadata).toHaveBeenCalledTimes(2);
+    clearAuthToken();
   });
 });

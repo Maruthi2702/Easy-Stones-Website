@@ -27,7 +27,7 @@ existing UX. React components use `.tsx`; server, models, rules and tests use
 | 5 | One demand/coverage calculation for velocity and purchasing; include sold-out variants and keep UOM separate | Shared demand types/rules; migrate legacy planning glue | Same tables; corrected quantities, dates and empty states | Queued |
 | 6 | Explicit reported ETA versus confirmed usable receipt confidence | Typed supply policy/reconciliation | Small confidence indicator in existing shipment details | Queued |
 | 7 | Reach all slab records beyond the first 200 | Typed slab data hook and `.tsx` list | Reuse shared pagination/load flow inside slab detail | Queued |
-| 8 | Reliable retry, freshness, reconnect and obsolete-request handling; lock imports during apply | Typed inventory data hooks/API; remaining inventory helpers | Reuse existing banners/spinners; no new navigation | Queued |
+| 8 | Reliable retry, freshness, reconnect and obsolete-request handling; lock imports during apply | Typed inventory data hooks/API; remaining inventory helpers | Reuse existing banners/spinners; no new navigation | Partial: tab-return caching complete |
 | 9 | Finish module boundaries, typed contracts, unit labels and approved visual tokens | Remaining inventory/purchasing `.js/.jsx` to `.ts/.tsx` | Palette/control consistency; preserve layout | Queued |
 
 ## Step 1 design
@@ -71,3 +71,16 @@ was needed for this backend-only correction.
 The new stock model, publication service and supporting models/tests are
 TypeScript. Remaining `.js/.jsx` files are explicitly queued above; this is
 not a completed migration of the entire module.
+
+## Purchasing tab-return correction
+
+Prioritized at the user's request: Purchasing was unmounted on tab changes
+and restarted metadata, plan, drafts and inbound requests each time. Its hook
+now restores recent typed results and the selected scope from session memory.
+Answers expire after 30 seconds; returning does not extend their freshness.
+Explicit Refresh and purchasing saves invalidate them. Inventory import and
+auth changes use the existing inventory-cache invalidation boundary. No new
+storage, layout or controls are introduced. The rest of step 8 remains queued.
+
+Validation: 16 purchasing UI/CSV tests, including remount request counts,
+selected scope, expiry, refresh, import invalidation and auth isolation.
