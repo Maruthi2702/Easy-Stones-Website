@@ -1,13 +1,15 @@
-import { API_URL } from '../config/api';
-import { authFetch } from './authFetch';
-import { queryEntries, type ErrorBody, type Id, type Query, type Versioned } from '../types/api';
+import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
+import { queryEntries, type ErrorBody, type Id, type Query } from '../../types/api';
+import type { Loose } from '../../types/records';
 
 /**
  * The 3rd-Party Freight screen's calls to /api/accounting (src/accounting/
  * router.js). Each resolves the JSON body or throws an Error whose message
- * can be shown as is; `status` and `problems` ride along on it.
+ * can be shown as is; `status` and `problems` ride along on it. The bodies
+ * are records not typed yet (Loose).
  */
-async function call<T = unknown>(path: string, { method = 'GET', body, query }: { method?: string; body?: unknown; query?: Query } = {}): Promise<T> {
+async function call<T = Loose>(path: string, { method = 'GET', body, query }: { method?: string; body?: unknown; query?: Query } = {}): Promise<T> {
   const qs = query ? `?${new URLSearchParams(queryEntries(query))}` : '';
   let res: Response;
   try {
@@ -27,7 +29,10 @@ async function call<T = unknown>(path: string, { method = 'GET', body, query }: 
   return data as T;
 }
 
-const item = (c: Versioned & { __v?: number }) => ({ id: String(c._id), version: c.version ?? c.__v });
+/** A charge, carrier or invoice as the screen holds it: `_id` and `version` (the optimistic lock) are what a write sends. */
+type Versioned = Loose;
+
+const item = (c: Versioned) => ({ id: String(c._id), version: c.version ?? c.__v });
 
 export const listCharges = (query: Query) => call('/freight-charges', { query });
 export const exportCharges = (query: Query) => call('/freight-charges/export', { query });
@@ -42,7 +47,7 @@ export const markReviewed = (charge: Versioned) => call(`/freight-charges/${char
 
 export const getPayment = (paymentId: string) => call(`/payments/${encodeURIComponent(paymentId)}`);
 
-export const listCarriers = () => call('/carriers');
+export const listCarriers = () => call<Loose[]>('/carriers');
 export const addCarrier = (body: object) => call('/carriers', { method: 'POST', body });
 export const editCarrier = (carrier: Versioned, changes: object) => call(`/carriers/${carrier._id}`, { method: 'PATCH', body: { version: carrier.version, ...changes } });
 export const setCarrierActive = (carrier: Versioned, active: boolean) => call(`/carriers/${carrier._id}/${active ? 'reactivate' : 'deactivate'}`, { method: 'POST', body: { version: carrier.version } });

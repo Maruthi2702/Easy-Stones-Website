@@ -1,26 +1,30 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Search, X, Plus, MoreHorizontal, Truck, Download, CheckCircle2, AlertTriangle, Receipt } from 'lucide-react';
-import LocationFilter, { LocationField } from '../../shared/LocationFilter';
-import { useLocationFilter } from '../../shared/useLocationFilter';
-import Pagination from '../../shared/Pagination';
-import { usePagination } from '../../shared/paginationConfig';
-import { accessibleLocations, homeLocationOf, locationNames } from '../../../utils/locationFilter';
-import { FREIGHT, CARRIERS } from '../../../accounting/permissions';
-import { formatCents } from '../../../accounting/money';
+import LocationFilter, { LocationField } from '../../components/shared/LocationFilter';
+import { useLocationFilter } from '../../components/shared/useLocationFilter';
+import Pagination from '../../components/shared/Pagination';
+import { usePagination } from '../../components/shared/paginationConfig';
+import { accessibleLocations, homeLocationOf, locationNames } from '../../utils/locationFilter';
+import { FREIGHT, CARRIERS } from '../../accounting/permissions';
+import { formatCents } from '../../accounting/money';
 import {
   FREIGHT_TABS, tabCount, groupByCarrier, selectionActions, shortDate, todayIso, freightExportRows, openFlagsOf
-} from '../../../utils/freightView';
-import * as api from '../../../api/freight';
+} from './freightView';
+import * as api from './freightApi';
 import { StatusCell, Loading } from './parts';
 import { ChargePanel, InvoicePanel, PaymentPanel, CarriersPanel } from './FreightPanels';
 import { PayForm, VoidForm, ChargeForm, CarrierForm } from './FreightForms';
 import InvoiceForm from './InvoiceForm';
+import type { Loose } from '../../types/records';
+import type { CarrierGroup } from './freightView';
+import type { Carrier, FreightActions, FreightCharge, FreightForm, FreightPanel, FreightToast, FreightUser } from './types';
 import './Freight.css';
 
-const has = (user, perm) => Array.isArray(user?.permissions) && user.permissions.includes(perm);
-const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const has = (user: FreightUser, perm: string) => Array.isArray(user?.permissions) && user.permissions.includes(perm);
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-const EMPTY = {
+const EMPTY: Record<string, [string, string]> = {
   to_approve: ['Nothing waiting', 'Every charge is approved or paid. New ones appear here when a 3rd-party delivery is completed.'],
   approved: ['Nothing approved and unpaid', 'Approved charges wait here until they’re marked paid.'],
   paid: ['No payments yet', 'Paid charges show here, each with its payment ID.'],
@@ -30,10 +34,12 @@ const EMPTY = {
 /**
  * Accounting · 3rd-Party Freight: what we owe contract carriers for completed
  * 3rd-party deliveries, approved and paid here. Built from the "Accounting ·
- * 3rd-Party Freight" canvas; rules in src/utils/freightView.js and
+ * 3rd-Party Freight" canvas; rules in freightView.ts and
  * src/accounting/. The server checks every permission and branch again.
  */
-export default function FreightTab({ currentUser, locationsList = [], sidebarToggle = null }) {
+export type FreightTabProps = { currentUser: FreightUser; locationsList?: Loose[]; sidebarToggle?: ReactNode };
+
+export default function FreightTab({ currentUser, locationsList = [], sidebarToggle = null }: FreightTabProps) {
   const user = currentUser;
   const [tab, setTab] = useState('to_approve');
   const [search, setSearch] = useState('');
@@ -43,19 +49,19 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
   const [carrierId, setCarrierId] = useState('');
   const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
 
-  const [data, setData] = useState(null);
+  const [data, setData] = useState<Loose | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [carriers, setCarriers] = useState([]);
-  const [selected, setSelected] = useState(() => new Map());
-  const [panel, setPanel] = useState(null); // { type: 'charge'|'invoice'|'payment'|'carriers', id }
-  const [form, setForm] = useState(null);
-  const [toast, setToast] = useState(null); // { text, paymentId }
+  const [carriers, setCarriers] = useState<Carrier[]>([]);
+  const [selected, setSelected] = useState(() => new Map<string, FreightCharge>());
+  const [panel, setPanel] = useState<FreightPanel | null>(null); // { type: 'charge'|'invoice'|'payment'|'carriers', id }
+  const [form, setForm] = useState<FreightForm | null>(null);
+  const [toast, setToast] = useState<FreightToast | null>(null); // { text, paymentId }
   const [reloadKey, setReloadKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const menuRef = useRef(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const seq = useRef(0);
 
   const refresh = useCallback(() => setReloadKey((k) => k + 1), []);
@@ -80,7 +86,7 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
     setLoading(true);
     api.listCharges({ status: tab, search: debounced, location, carrierId, page: currentPage, limit: rowsPerPage })
       .then((r) => { if (n === seq.current) { setData(r); setError(''); } })
-      .catch((err) => { if (n === seq.current) setError(err.message); })
+      .catch((err: Error) => { if (n === seq.current) setError(err.message); })
       .finally(() => { if (n === seq.current) setLoading(false); });
   }, [tab, debounced, location, carrierId, currentPage, rowsPerPage, reloadKey]);
 
@@ -96,21 +102,21 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
 
   useEffect(() => {
     if (!menuOpen) return undefined;
-    const onDown = (e) => { if (!menuRef.current?.contains(e.target)) setMenuOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setMenuOpen(false); };
+    const onDown = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
   }, [menuOpen]);
 
-  const items = useMemo(() => data?.items || [], [data]);
-  const summary = data?.summary || {};
+  const items = useMemo((): FreightCharge[] => data?.items || [], [data]);
+  const summary: Loose = data?.summary || {};
   const groups = useMemo(() => groupByCarrier(items), [items]);
   const selectedList = [...selected.values()];
   const bar = selectionActions(selectedList, user);
 
   // ── Actions (the server checks each one again) ──
-  const run = async (fn, message) => {
+  const run = async (fn: () => Promise<Loose>, message?: FreightToast | ((r: Loose) => FreightToast)) => {
     setBusy(true);
     setError('');
     try {
@@ -123,19 +129,19 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
       }
       return r;
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
       return null;
     } finally {
       setBusy(false);
     }
   };
 
-  const paidToast = (r, what) => ({
+  const paidToast = (r: Loose, what: string): FreightToast => ({
     text: `${r.replayed ? 'Already paid — ' : 'Paid '}${what} · ${formatCents(r.payment?.totalCents ?? r.totalCents)}`,
     paymentId: r.payment?.paymentId
   });
 
-  const act = {
+  const act: FreightActions = {
     approve: (cs) => run(() => api.approveCharges(cs), { text: `Approved ${plural(cs.length, 'charge')}` }),
     sendBack: (cs) => run(() => api.sendBackCharges(cs), { text: `Sent ${plural(cs.length, 'charge')} back to approval` }),
     review: (c) => run(() => api.markReviewed(c), { text: 'Marked reviewed' }),
@@ -154,22 +160,22 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
   };
 
   const closeForm = () => setForm(null);
-  const done = (message) => { setForm(null); setSelected(new Map()); refresh(); if (message) setToast(message); };
+  const done = (message?: FreightToast) => { setForm(null); setSelected(new Map()); refresh(); if (message) setToast(message); };
 
-  const toggle = (c) => setSelected((m) => {
+  const toggle = (c: FreightCharge) => setSelected((m) => {
     const next = new Map(m);
     if (next.has(c._id)) next.delete(c._id); else next.set(c._id, c);
     return next;
   });
-  const selectable = (c) => c.status === 'draft' || c.status === 'approved';
-  const toggleGroup = (g) => setSelected((m) => {
+  const selectable = (c: FreightCharge) => c.status === 'draft' || c.status === 'approved';
+  const toggleGroup = (g: CarrierGroup) => setSelected((m) => {
     const next = new Map(m);
     const rows = g.items.filter(selectable);
     const allOn = rows.length > 0 && rows.every((c) => next.has(c._id));
     for (const c of rows) { if (allOn) next.delete(c._id); else next.set(c._id, c); }
     return next;
   });
-  const groupState = (g) => {
+  const groupState = (g: CarrierGroup) => {
     const rows = g.items.filter(selectable);
     const on = rows.filter((c) => selected.has(c._id)).length;
     return { all: rows.length > 0 && on === rows.length, some: on > 0 && on < rows.length, none: rows.length === 0 };
@@ -187,7 +193,7 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
       XLSX.writeFile(wb, `freight-${tab.replace('_', '-')}${location ? `-${location.replace(/\s+/g, '_')}` : ''}-${todayIso()}.xlsx`);
       if (r.truncated) setToast({ text: `Exported the first ${r.items.length.toLocaleString()} of ${r.total.toLocaleString()} — pick a branch or carrier for the rest.` });
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
     } finally {
       setExporting(false);
     }
@@ -195,25 +201,25 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
 
   const filterActive = Boolean(location) || Boolean(carrierId);
   const canAdd = has(user, FREIGHT.ADD);
-  const carrierName = (id) => carriers.find((c) => String(c._id) === String(id))?.name || 'Carrier';
+  const carrierName = (id: unknown) => carriers.find((c) => String(c._id) === String(id))?.name || 'Carrier';
   const showBranch = !location;
 
-  const rowCheckbox = (c, extra = {}) => (
+  const rowCheckbox = (c: FreightCharge, extra = {}) => (
     <input type="checkbox" className="fr-chk" checked={selected.has(c._id)} disabled={!selectable(c) || busy}
       aria-label={`Select SO# ${c.soNumber || '—'}`} onClick={(e) => e.stopPropagation()} onChange={() => toggle(c)} {...extra} />
   );
-  const groupCheckbox = (g) => {
+  const groupCheckbox = (g: CarrierGroup) => {
     const s = groupState(g);
     return (
       <input type="checkbox" className="fr-chk" checked={s.all} disabled={s.none || busy} aria-label={`Select ${g.name}`}
         ref={(el) => { if (el) el.indeterminate = s.some; }} onChange={() => toggleGroup(g)} />
     );
   };
-  const amountCell = (c) => (c.amountCents > 0 ? formatCents(c.amountCents) : <span className="fr-miss">No price</span>);
-  const terms = (g) => (g.unmatched
+  const amountCell = (c: FreightCharge) => (c.amountCents > 0 ? formatCents(c.amountCents) : <span className="fr-miss">No price</span>);
+  const terms = (g: CarrierGroup) => (g.unmatched
     ? <span className="fr-terms unmatched">Carrier not recognised</span>
     : <span className={`fr-terms${g.perInvoice ? ' invoice' : ''}`}>{g.perInvoice ? 'Paid per invoice' : 'Paid per delivery'}</span>);
-  const enterInvoice = (g) => (g.perInvoice && canAdd && g.items.some((c) => c.status === 'draft' && !c.invoiceId) ? (
+  const enterInvoice = (g: CarrierGroup) => (g.perInvoice && canAdd && g.items.some((c) => c.status === 'draft' && !c.invoiceId) ? (
     <button type="button" className="fr-btn sm" onClick={(e) => { e.stopPropagation(); act.newInvoice(g.carrier); }}>
       <Receipt size={14} aria-hidden="true" />Enter invoice
     </button>
@@ -424,7 +430,7 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
         <div className="fr-toast" role="status">
           <CheckCircle2 size={18} className="ok" aria-hidden="true" />
           <span>{toast.text}{toast.paymentId ? <> · <span className="fr-mono">{toast.paymentId}</span></> : null}</span>
-          {toast.paymentId ? <button type="button" className="fr-btn sm" onClick={() => { setPanel({ type: 'payment', id: toast.paymentId }); setToast(null); }}>View payment</button> : null}
+          {toast.paymentId ? <button type="button" className="fr-btn sm" onClick={() => { setPanel({ type: 'payment', id: toast.paymentId! }); setToast(null); }}>View payment</button> : null}
           <button type="button" className="fr-search-clear" aria-label="Dismiss" onClick={() => setToast(null)}><X size={14} /></button>
         </div>
       ) : null}
@@ -438,12 +444,12 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
         const cs = form.charges;
         const oneStep = cs.some((c) => c.status === 'draft');
         const n = plural(cs.length, 'charge');
-        const sos = cs.map((c) => c.soNumber).filter(Boolean);
+        const sos = cs.map((c: FreightCharge) => c.soNumber).filter(Boolean);
         return (
           <PayForm
             title={oneStep ? 'Approve & pay' : 'Mark paid'}
             kicker={`${cs[0].carrier?.name || carrierName(cs[0].carrierId)} · ${n}`}
-            cents={cs.reduce((s, c) => s + (c.amountCents || 0), 0)}
+            cents={cs.reduce((s: number, c: FreightCharge) => s + (c.amountCents || 0), 0)}
             sub={sos.length ? `SO# ${sos.slice(0, 8).join(', ')}${sos.length > 8 ? ` and ${sos.length - 8} more` : ''}` : ''}
             oneStep={oneStep}
             submitLabel={oneStep ? `Approve & pay ${n}` : `Mark ${n} paid`}
@@ -483,7 +489,7 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
           charge={form.charge}
           carriers={carriers}
           user={user}
-          branches={locationNames(branchOptions).length ? locationNames(branchOptions) : (user?.assignedLocations || []).filter((l) => l !== '*')}
+          branches={locationNames(branchOptions).length ? locationNames(branchOptions) : (user?.assignedLocations || []).filter((l: string) => l !== '*')}
           defaultBranch={location || homeLocationOf(user)}
           onClose={closeForm}
           onSave={async (body) => {
@@ -519,7 +525,7 @@ export default function FreightTab({ currentUser, locationsList = [], sidebarTog
             else { await api.addCarrier(body); done({ text: `${body.name} added — waiting charges with that name are matched to it` }); }
           }}
           onSetActive={async (active) => {
-            await api.setCarrierActive(form.carrier, active);
+            await api.setCarrierActive(form.carrier!, active);
             done({ text: active ? 'Carrier reactivated' : 'Carrier deactivated' });
           }}
         />

@@ -3,12 +3,12 @@ import {
   FREIGHT_TABS, tabCount, groupByCarrier, selectionActions, referenceLabel, paymentMethodText,
   historyLabel, todayIso, shortDate, newRequestId, freightExportRows
 } from './freightView';
-import { FREIGHT } from '../accounting/permissions.js';
+import { FREIGHT } from '../../accounting/permissions.js';
 
 const ABC = { _id: 'c1', name: 'ABC Freight Inc', paymentTerms: 'per_delivery' };
 const WX = { _id: 'c2', name: 'Western Express', paymentTerms: 'per_invoice' };
 const charge = (over = {}) => ({ _id: Math.random().toString(36), status: 'draft', amountCents: 45000, carrier: ABC, carrierId: 'c1', flags: [], ...over });
-const user = (...perms) => ({ permissions: [FREIGHT.VIEW, ...perms] });
+const user = (...perms: string[]) => ({ permissions: [FREIGHT.VIEW, ...perms] });
 
 describe('tabs', () => {
   it('are To approve, Approved, Paid, All — counted from the summary', () => {

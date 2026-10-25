@@ -1,23 +1,26 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { X, Flag, Copy, Check, Loader2 } from 'lucide-react';
-import { STATUS_PILL, openFlagsOf, historyLabel } from '../../../utils/freightView';
-import { FIELD_LABELS } from '../../../accounting/freightRules';
-import { formatCents } from '../../../accounting/money';
+import { STATUS_PILL, openFlagsOf, historyLabel } from './freightView';
+import { FIELD_LABELS } from '../../accounting/freightRules';
+import { formatCents } from '../../accounting/money';
+import type { Loose } from '../../types/records';
+import type { FreightCharge } from './types';
 
-const changeText = (c) => {
-  const show = (v) => (c.field === 'amountCents' ? formatCents(v, { blank: 'no price' }) : (v === null || v === undefined || v === '' ? '—' : String(v)));
-  return `${FIELD_LABELS[c.field] || c.field}: ${show(c.from)} → ${show(c.to)}`;
+const changeText = (c: Loose) => {
+  const show = (v: unknown) => (c.field === 'amountCents' ? formatCents(v, { blank: 'no price' }) : (v === null || v === undefined || v === '' ? '—' : String(v)));
+  return `${(FIELD_LABELS as Record<string, string>)[c.field] || c.field}: ${show(c.from)} → ${show(c.to)}`;
 };
 
 /** The status pill, a flag chip when it needs review, and "On invoice". */
-export function StatusCell({ charge, showPaymentId = false }) {
+export function StatusCell({ charge, showPaymentId = false }: { charge: FreightCharge; showPaymentId?: boolean }) {
   const pill = STATUS_PILL[charge.status] || { label: charge.status, tone: 'void' };
   const flags = openFlagsOf(charge);
   return (
     <div>
       <div className="fr-status">
         {flags.length > 0 ? (
-          <span className="fr-flag" title={flags.map((f) => f.detail).join('; ')}>
+          <span className="fr-flag" title={flags.map((f: Loose) => f.detail).join('; ')}>
             <Flag size={12} aria-hidden="true" />Needs review
           </span>
         ) : null}
@@ -34,10 +37,12 @@ export function StatusCell({ charge, showPaymentId = false }) {
  * scrim. Esc and the scrim close it — unless a form (FormModal) is open on
  * top, which handles Esc itself.
  */
-export function Drawer({ label, kicker, onClose, children, footer, wide = false }) {
-  const panelRef = useRef(null);
+export function Drawer({ label, kicker, onClose, children, footer, wide = false }: {
+  label: string; kicker: ReactNode; onClose: () => void; children?: ReactNode; footer?: ReactNode; wide?: boolean;
+}) {
+  const panelRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    const onKey = (e) => {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return;
       if (document.querySelector('.fm-overlay, .fm-confirm')) return;
       onClose();
@@ -67,7 +72,7 @@ export function Loading() {
   return <div className="fr-loading"><Loader2 size={28} className="fr-spin" aria-label="Loading" /></div>;
 }
 
-export function CopyButton({ value, label }) {
+export function CopyButton({ value, label }: { value: string; label: string }) {
   const [done, setDone] = useState(false);
   useEffect(() => {
     if (!done) return undefined;
@@ -90,13 +95,13 @@ export function CopyButton({ value, label }) {
   );
 }
 
-const when = (at) => {
+const when = (at: string | number | Date) => {
   const d = new Date(at);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 };
 
 /** The history lines, newest first, each with its own TX- id. */
-export function HistoryList({ entries = [] }) {
+export function HistoryList({ entries = [] }: { entries?: Loose[] }) {
   if (!entries.length) return <p style={{ margin: 0, color: 'var(--fr-muted)' }}>Nothing yet.</p>;
   return (
     <div>
@@ -107,9 +112,9 @@ export function HistoryList({ entries = [] }) {
             <b>{historyLabel(e.action)}</b>
             <span className="fr-ev-meta"> · {e.by?.name || 'Delivery Schedule'} · {when(e.at)}</span>
             {e.note ? <div className="fr-ev-meta">{e.note}</div> : null}
-            {e.action !== 'created' && (e.changes || []).filter((c) => c.field !== 'status').length > 0 ? (
+            {e.action !== 'created' && (e.changes || []).filter((c: Loose) => c.field !== 'status').length > 0 ? (
               <div className="fr-ev-meta">
-                {e.changes.filter((c) => c.field !== 'status').map(changeText).join('; ')}
+                {e.changes.filter((c: Loose) => c.field !== 'status').map(changeText).join('; ')}
               </div>
             ) : null}
             {e.txnId ? <span className="fr-tx fr-mono">{e.txnId}</span> : null}

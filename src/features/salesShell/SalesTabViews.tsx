@@ -32,7 +32,7 @@ const CrossoverSheetTab = page(() => import('../../components/sales/CrossoverShe
 const InventoryAnalysisTab = page(() => import('../../components/sales/InventoryAnalysisTab'));
 const DeliveryScheduleTab = page(() => import('../delivery/DeliveryScheduleTab'));
 const DailyReportTab = page(() => import('../dailyReport/DailyReportTab'));
-const FreightTab = page(() => import('../../components/sales/freight/FreightTab'));
+const FreightTab = page(() => import('../freight/FreightTab'));
 const HoldsTab = page(() => import('../holds/HoldsTab'));
 const PermitsTab = page(() => import('../../components/sales/permits/PermitsTab'));
 

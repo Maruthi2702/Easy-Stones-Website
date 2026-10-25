@@ -1,30 +1,33 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { DependencyList, ReactElement } from 'react';
 import { Flag, AlertTriangle, Receipt, Plus, Pencil, Check } from 'lucide-react';
 import { Drawer, StatusCell, Loading, CopyButton, HistoryList } from './parts';
-import { FREIGHT, CARRIERS } from '../../../accounting/permissions';
-import { PAYMENT_TERMS } from '../../../accounting/freightRules';
-import { formatCents, sumCents } from '../../../accounting/money';
-import { openFlagsOf, selectionActions, shortDate, paymentMethodText, STATUS_PILL } from '../../../utils/freightView';
-import { getCharge, getInvoice, getPayment, listCarriers, listCharges } from '../../../api/freight';
+import { FREIGHT, CARRIERS } from '../../accounting/permissions';
+import { PAYMENT_TERMS } from '../../accounting/freightRules';
+import { formatCents, sumCents } from '../../accounting/money';
+import { openFlagsOf, selectionActions, shortDate, paymentMethodText, STATUS_PILL } from './freightView';
+import { getCharge, getInvoice, getPayment, listCarriers, listCharges } from './freightApi';
+import type { Loose } from '../../types/records';
+import type { Carrier, FreightActions, FreightUser } from './types';
 
-const has = (user, perm) => Array.isArray(user?.permissions) && user.permissions.includes(perm);
-const termsText = (carrier) => (carrier?.paymentTerms === PAYMENT_TERMS.PER_INVOICE ? 'paid per invoice' : 'paid per delivery');
-const dateTime = (at) => (at ? new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
+const has = (user: FreightUser, perm: string) => Array.isArray(user?.permissions) && user.permissions.includes(perm);
+const termsText = (carrier: Carrier | null | undefined) => (carrier?.paymentTerms === PAYMENT_TERMS.PER_INVOICE ? 'paid per invoice' : 'paid per delivery');
+const dateTime = (at: string | number | Date | null | undefined) => (at ? new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
 /** Load something for a panel, again whenever `reloadKey` moves on. */
-function useLoad(loader, deps) {
-  const [state, setState] = useState({ data: null, error: '' });
+function useLoad<T>(loader: () => Promise<T>, deps: DependencyList) {
+  const [state, setState] = useState<{ data: T | null; error: string }>({ data: null, error: '' });
   useEffect(() => {
     let live = true;
     setState((s) => ({ data: s.data, error: '' }));
-    loader().then((data) => live && setState({ data, error: '' })).catch((err) => live && setState({ data: null, error: err.message }));
+    loader().then((data) => live && setState({ data, error: '' })).catch((err: Error) => live && setState({ data: null, error: err.message }));
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return state;
 }
 
-function FlagNotes({ record, canReview, onReview }) {
+function FlagNotes({ record, canReview, onReview }: { record: Loose; canReview: boolean; onReview: () => void }) {
   const flags = openFlagsOf(record);
   if (!flags.length) return null;
   return (
@@ -32,7 +35,7 @@ function FlagNotes({ record, canReview, onReview }) {
       <Flag size={18} aria-hidden="true" />
       <div className="fr-grow">
         <b>{record.status === 'draft' ? 'Needs review' : `Delivery changed after it was ${STATUS_PILL[record.status]?.label.toLowerCase()}`}</b>
-        {flags.map((f) => <div key={f._id}>{f.detail}</div>)}
+        {flags.map((f: Loose) => <div key={f._id}>{f.detail}</div>)}
         <div style={{ marginTop: 4, fontSize: 13 }}>It can’t be approved or paid until someone marks it reviewed (or voids it).</div>
       </div>
       {canReview ? <button type="button" className="fr-btn sm" onClick={onReview}>Mark reviewed</button> : null}
@@ -40,7 +43,7 @@ function FlagNotes({ record, canReview, onReview }) {
   );
 }
 
-function PaymentBox({ payment, onOpen }) {
+function PaymentBox({ payment, onOpen }: { payment: Loose | null | undefined; onOpen: (paymentId: string) => void }) {
   if (!payment?.paymentId) return null;
   return (
     <section className="fr-sec" aria-label="Payment">
@@ -59,12 +62,14 @@ function PaymentBox({ payment, onOpen }) {
 }
 
 /** One charge: what it is, its review flags, payment, history and actions. */
-export function ChargePanel({ id, user, reloadKey, onClose, act }) {
+type PanelProps = { id: string; user: FreightUser; reloadKey: number; onClose: () => void; act: FreightActions };
+
+export function ChargePanel({ id, user, reloadKey, onClose, act }: PanelProps) {
   const { data: c, error } = useLoad(() => getCharge(id), [id, reloadKey]);
-  let footer = null;
+  let footer: ReactElement[] | null = null;
   if (c) {
     const sel = selectionActions([c], user);
-    const btns = [];
+    const btns: ReactElement[] = [];
     if (c.invoiceId) btns.push(<button key="inv" type="button" className="fr-btn" onClick={() => act.openInvoice(String(c.invoiceId))}><Receipt size={16} aria-hidden="true" />Open invoice{c.invoice?.invoiceNumber ? ` #${c.invoice.invoiceNumber}` : ''}</button>);
     if (c.status === 'draft' && has(user, FREIGHT.EDIT)) btns.push(<button key="edit" type="button" className="fr-btn" onClick={() => act.edit(c)}><Pencil size={16} aria-hidden="true" />Edit</button>);
     if (sel.sendBack) btns.push(<button key="back" type="button" className="fr-btn" onClick={() => act.sendBack([c])}>Send back</button>);
@@ -117,13 +122,13 @@ export function ChargePanel({ id, user, reloadKey, onClose, act }) {
 }
 
 /** A carrier invoice and every charge on it. */
-export function InvoicePanel({ id, user, reloadKey, onClose, act }) {
+export function InvoicePanel({ id, user, reloadKey, onClose, act }: PanelProps) {
   const { data: inv, error } = useLoad(() => getInvoice(id), [id, reloadKey]);
-  let footer = null;
+  let footer: ReactElement[] | null = null;
   if (inv) {
     const canApprove = has(user, FREIGHT.APPROVE);
     const canPay = has(user, FREIGHT.PAY);
-    const btns = [];
+    const btns: ReactElement[] = [];
     if (inv.status === 'draft' && has(user, FREIGHT.EDIT)) btns.push(<button key="edit" type="button" className="fr-btn" onClick={() => act.editInvoice(inv)}><Pencil size={16} aria-hidden="true" />Edit</button>);
     if (inv.status === 'approved' && canApprove) btns.push(<button key="back" type="button" className="fr-btn" onClick={() => act.invoiceStep(inv, 'unapprove')}>Send back</button>);
     if (inv.status === 'draft' && canApprove) btns.push(<button key="ok" type="button" className="fr-btn" onClick={() => act.invoiceStep(inv, 'approve')}><Check size={16} aria-hidden="true" />Approve</button>);
@@ -133,7 +138,7 @@ export function InvoicePanel({ id, user, reloadKey, onClose, act }) {
     if ((inv.status === 'draft' || inv.status === 'approved') && has(user, FREIGHT.VOID)) btns.push(<button key="void" type="button" className="fr-btn danger" onClick={() => act.voidInvoice(inv)}>Void</button>);
     footer = btns.length ? btns : null;
   }
-  const charges = inv?.charges || [];
+  const charges: Loose[] = inv?.charges || [];
   const sum = sumCents(charges.map((c) => c.amountCents));
   return (
     <Drawer label={inv ? `Invoice ${inv.invoiceNumber}` : 'Invoice'} kicker="Carrier invoice" onClose={onClose} footer={footer}>
@@ -173,7 +178,7 @@ export function InvoicePanel({ id, user, reloadKey, onClose, act }) {
 }
 
 /** A payment: the PAY- id, how it was paid, and every charge it covered. */
-export function PaymentPanel({ paymentId, onClose, act }) {
+export function PaymentPanel({ paymentId, onClose, act }: { paymentId: string; onClose: () => void; act: FreightActions }) {
   const { data: p, error } = useLoad(() => getPayment(paymentId), [paymentId]);
   return (
     <Drawer label={`Payment ${paymentId}`} kicker="Payment" onClose={onClose}>
@@ -203,7 +208,7 @@ export function PaymentPanel({ paymentId, onClose, act }) {
           </section>
           <section className="fr-sec" aria-label="Charges this paid">
             <h3>Charges this paid</h3>
-            {p.charges.map((c) => (
+            {p.charges.map((c: Loose) => (
               <div className="fr-crow" key={c._id}>
                 <button type="button" onClick={() => act.openCharge(String(c._id))}><b>SO# {c.soNumber || '—'}</b> · {c.customerName || 'No customer'}</button>
                 <b>{formatCents(c.amountCents)}</b>
@@ -219,10 +224,10 @@ export function PaymentPanel({ paymentId, onClose, act }) {
 }
 
 /** The carrier list (More › Carriers), with any typed carrier nobody recognises. */
-export function CarriersPanel({ user, reloadKey, onClose, act }) {
+export function CarriersPanel({ user, reloadKey, onClose, act }: Omit<PanelProps, 'id'>) {
   const { data, error } = useLoad(async () => {
     const [carriers, waiting] = await Promise.all([listCarriers(), listCharges({ status: 'to_approve', limit: 100 }).catch(() => ({ items: [] }))]);
-    const unmatched = [...new Set(waiting.items.filter((c) => !c.carrier && c.carrierNameRaw).map((c) => c.carrierNameRaw.trim()))];
+    const unmatched: string[] = [...new Set<string>(waiting.items.filter((c: Loose) => !c.carrier && c.carrierNameRaw).map((c: Loose) => c.carrierNameRaw.trim()))];
     return { carriers, unmatched };
   }, [reloadKey]);
   const canAdd = has(user, CARRIERS.ADD);
@@ -260,7 +265,7 @@ export function CarriersPanel({ user, reloadKey, onClose, act }) {
                     <span className={`fr-terms${c.paymentTerms === PAYMENT_TERMS.PER_INVOICE ? ' invoice' : ''}`}>{c.paymentTerms === PAYMENT_TERMS.PER_INVOICE ? 'Per invoice' : 'Per delivery'}</span>
                     {c.active === false ? <span className="fr-sub">Deactivated</span> : null}
                   </span>
-                  {c.aliases?.length ? <div>{c.aliases.map((a) => <span key={a} className="fr-alias">{a}</span>)}</div> : null}
+                  {c.aliases?.length ? <div>{c.aliases.map((a: string) => <span key={a} className="fr-alias">{a}</span>)}</div> : null}
                 </div>
                 {canEdit ? (
                   <button type="button" className="fr-icon-btn" aria-label={`Edit ${c.name}`} title="Edit" onClick={() => act.carrierForm(c)}>

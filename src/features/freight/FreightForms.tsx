@@ -1,40 +1,49 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import type { InputHTMLAttributes, ReactNode } from 'react';
 import { Info, AlertCircle, PauseCircle, PlayCircle } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker, SegmentedToggle } from '../../shared/form/FormControls';
-import { goToField } from '../../shared/form/formFocus';
-import LocationPicker from '../../shared/form/LocationPicker';
-import { DatePicker } from '../../shared/calendar/Calendar';
-import useTouched from '../../shared/form/useTouched';
-import { PAYMENT_METHODS, PAYMENT_TERMS } from '../../../accounting/freightRules';
-import { toCents, centsToPlain, formatCents } from '../../../accounting/money';
-import { PAYMENT_METHOD_LABELS, referenceLabel, todayIso, newRequestId } from '../../../utils/freightView';
+import FormModal from '../../components/shared/form/FormModal';
+import { FormSection, FormRow, FormField, FormPicker, SegmentedToggle } from '../../components/shared/form/FormControls';
+import { goToField } from '../../components/shared/form/formFocus';
+import LocationPicker from '../../components/shared/form/LocationPicker';
+import { DatePicker } from '../../components/shared/calendar/Calendar';
+import useTouched from '../../components/shared/form/useTouched';
+import { PAYMENT_METHODS, PAYMENT_TERMS } from '../../accounting/freightRules';
+import { toCents, centsToPlain, formatCents } from '../../accounting/money';
+import { PAYMENT_METHOD_LABELS, referenceLabel, todayIso, newRequestId } from './freightView';
+import type { Loose } from '../../types/records';
+import type { Carrier, FreightCharge, FreightUser } from './types';
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 /** A server error, shown at the top of a form's body. */
-const ServerError = ({ message }) => (message ? (
+const ServerError = ({ message }: { message: string }) => (message ? (
   <div className="fr-form-note err" role="alert"><AlertCircle size={16} aria-hidden="true" /><span>{message}</span></div>
 ) : null);
 
-const firstError = (errors, order) => order.find((k) => errors[k]);
+const firstError = (errors: Record<string, string>, order: string[]) => order.find((k) => errors[k]);
 
 /**
  * Mark paid / Approve & pay — for charges or a carrier invoice. One request
  * id for the life of the dialog: a retry after a dropped connection returns
  * the payment already recorded instead of paying twice.
  */
-export function PayForm({ title, kicker, cents, sub, oneStep, submitLabel, onPay, onClose }) {
-  const initial = useMemo(() => ({ paidOn: todayIso(), method: 'check', reference: '' }), []);
+/** What PayForm sends: the payment's date, method, reference and its one request id. */
+export type PaymentEntry = { paidOn: string; method: string; reference: string; requestId: string };
+
+export function PayForm({ title, kicker, cents, sub, oneStep, submitLabel, onPay, onClose }: {
+  title: ReactNode; kicker: ReactNode; cents: number; sub: ReactNode; oneStep: boolean; submitLabel: ReactNode;
+  onPay: (payment: PaymentEntry) => Promise<unknown>; onClose: () => void;
+}) {
+  const initial = useMemo((): Record<string, string> => ({ paidOn: todayIso(), method: 'check', reference: '' }), []);
   const [values, setValues] = useState(initial);
   const [requestId] = useState(newRequestId);
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState('');
-  const set = (patch) => setValues((v) => ({ ...v, ...patch }));
+  const set = (patch: Record<string, string>) => setValues((v) => ({ ...v, ...patch }));
 
-  const errors = { paidOn: ISO.test(values.paidOn) ? '' : 'Pick the date it was paid.' };
-  const shown = (k) => (submitted ? errors[k] : '');
+  const errors: Record<string, string> = { paidOn: ISO.test(values.paidOn) ? '' : 'Pick the date it was paid.' };
+  const shown = (k: string) => (submitted ? errors[k] : '');
   const dirty = ['paidOn', 'method', 'reference'].filter((k) => values[k] !== initial[k]).length;
 
   const submit = async () => {
@@ -46,7 +55,7 @@ export function PayForm({ title, kicker, cents, sub, oneStep, submitLabel, onPay
     try {
       await onPay({ paidOn: values.paidOn, method: values.method, reference: values.reference.trim(), requestId });
     } catch (err) {
-      setServerError(err.message);
+      setServerError((err as Error).message);
       setSaving(false);
     }
   };
@@ -100,7 +109,9 @@ export function PayForm({ title, kicker, cents, sub, oneStep, submitLabel, onPay
 }
 
 /** Void a charge or invoice: a reason is required, and the record stays. */
-export function VoidForm({ title, submitLabel, onVoid, onClose }) {
+export function VoidForm({ title, submitLabel, onVoid, onClose }: {
+  title: ReactNode; submitLabel: ReactNode; onVoid: (reason: string) => Promise<unknown>; onClose: () => void;
+}) {
   const [reason, setReason] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -112,7 +123,7 @@ export function VoidForm({ title, submitLabel, onVoid, onClose }) {
     if (error) { goToField('reason'); return; }
     setSaving(true);
     setServerError('');
-    try { await onVoid(reason.trim()); } catch (err) { setServerError(err.message); setSaving(false); }
+    try { await onVoid(reason.trim()); } catch (err) { setServerError((err as Error).message); setSaving(false); }
   };
 
   return (
@@ -141,13 +152,13 @@ export function VoidForm({ title, submitLabel, onVoid, onClose }) {
   );
 }
 
-const CHARGE_LABELS = {
+const CHARGE_LABELS: Record<string, string> = {
   location: 'Branch', deliveryDate: 'Date', carrierId: 'Carrier', amount: 'Amount', description: 'What it’s for',
   soNumber: 'SO#', customerName: 'Customer', bolNumber: 'BOL #', notes: 'Notes'
 };
 const CHARGE_ORDER = Object.keys(CHARGE_LABELS);
 
-const chargeValues = (c = {}, defaults = {}) => ({
+const chargeValues = (c: Loose = {}, defaults: { location?: string } = {}): Record<string, string> => ({
   location: c.location || defaults.location || '',
   deliveryDate: c.deliveryDate || todayIso(),
   carrierId: c.carrierId ? String(c.carrierId) : (c.carrier?._id ? String(c.carrier._id) : ''),
@@ -165,7 +176,10 @@ const chargeValues = (c = {}, defaults = {}) => ({
  * changed; on a schedule-made charge, a field corrected here stops following
  * the delivery.
  */
-export function ChargeForm({ charge = null, carriers = [], branches = [], defaultBranch = '', user = null, onSave, onClose }) {
+export function ChargeForm({ charge = null, carriers = [], branches = [], defaultBranch = '', user = null, onSave, onClose }: {
+  charge?: FreightCharge | null; carriers?: Carrier[]; branches?: string[]; defaultBranch?: string; user?: FreightUser;
+  onSave: (body: Loose) => Promise<unknown>; onClose: () => void;
+}) {
   const isEdit = Boolean(charge);
   const initial = useMemo(() => chargeValues(charge || {}, { location: defaultBranch }), [charge, defaultBranch]);
   const [values, setValues] = useState(initial);
@@ -173,20 +187,20 @@ export function ChargeForm({ charge = null, carriers = [], branches = [], defaul
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState('');
-  const set = (patch) => setValues((v) => ({ ...v, ...patch }));
-  const touch = (k) => touchField(k, values[k] !== initial[k]);
+  const set = (patch: Record<string, string>) => setValues((v) => ({ ...v, ...patch }));
+  const touch = (k: string) => touchField(k, values[k] !== initial[k]);
 
   const cents = toCents(values.amount);
-  const errors = {
+  const errors: Record<string, string> = {
     location: !isEdit && !values.location ? 'Pick the branch.' : '',
     deliveryDate: ISO.test(values.deliveryDate) ? '' : 'Pick the date.',
     carrierId: !isEdit && !values.carrierId ? 'Pick the carrier.' : '',
     amount: cents === undefined ? 'Enter the amount like 1250.00.'
-      : (!isEdit && !(cents > 0)) ? 'Enter the amount.'
+      : (!isEdit && !((cents as number) > 0)) ? 'Enter the amount.'
         : (cents !== null && cents <= 0) ? 'The amount has to be more than $0.' : '',
     description: !isEdit && !values.description.trim() ? 'Say what it’s for.' : ''
   };
-  const shown = (k) => (errors[k] && (submitted || touched[k]) ? errors[k] : '');
+  const shown = (k: string) => (errors[k] && (submitted || touched[k]) ? errors[k] : '');
   const changed = CHARGE_ORDER.filter((k) => values[k] !== initial[k]);
 
   const carrierOptions = carriers
@@ -201,7 +215,7 @@ export function ChargeForm({ charge = null, carriers = [], branches = [], defaul
     setServerError('');
     try {
       if (isEdit) {
-        const body = {};
+        const body: Loose = {};
         for (const k of changed) {
           if (k === 'amount') body.amount = values.amount.trim() === '' ? null : values.amount;
           else if (k === 'carrierId') body.carrierId = values.carrierId || null;
@@ -216,22 +230,22 @@ export function ChargeForm({ charge = null, carriers = [], branches = [], defaul
         });
       }
     } catch (err) {
-      setServerError(err.message);
+      setServerError((err as Error).message);
       setSaving(false);
     }
   };
 
-  const text = (k, { required = false, ...rest } = {}) => (
+  const text = (k: string, { required = false, ...rest }: { required?: boolean } & InputHTMLAttributes<HTMLInputElement> = {}) => (
     <FormField name={k} id={`fr-${k}`} label={CHARGE_LABELS[k]} required={required} error={shown(k)}>
       <input id={`fr-${k}`} className="fm-input" value={values[k]} disabled={saving}
         onChange={(e) => set({ [k]: e.target.value })} onBlur={() => touch(k)} {...rest} />
     </FormField>
   );
-  const showDescription = !isEdit || charge.source === 'manual' || charge.description;
+  const showDescription = !isEdit || charge!.source === 'manual' || charge!.description;
 
   return (
     <FormModal
-      title={isEdit ? <>Edit charge <span className="fm-title-sub">· SO# {charge.soNumber || '—'}</span></> : 'Add a charge'}
+      title={isEdit ? <>Edit charge <span className="fm-title-sub">· SO# {charge!.soNumber || '—'}</span></> : 'Add a charge'}
       size="m"
       onClose={onClose}
       onSubmit={submit}
@@ -297,9 +311,12 @@ const TERMS_OPTIONS = [
 ];
 
 /** Add / edit a carrier: its name, other spellings, and how it's paid. */
-export function CarrierForm({ carrier = null, initialName = '', canDeactivate = false, onSave, onSetActive, onClose }) {
+export function CarrierForm({ carrier = null, initialName = '', canDeactivate = false, onSave, onSetActive, onClose }: {
+  carrier?: Carrier | null; initialName?: string; canDeactivate?: boolean;
+  onSave: (body: Loose) => Promise<unknown>; onSetActive: (active: boolean) => Promise<unknown>; onClose: () => void;
+}) {
   const isEdit = Boolean(carrier);
-  const initial = useMemo(() => ({
+  const initial = useMemo((): Record<string, string> => ({
     name: carrier?.name || initialName,
     aliases: (carrier?.aliases || []).join(', '),
     paymentTerms: carrier?.paymentTerms || PAYMENT_TERMS.PER_DELIVERY,
@@ -309,10 +326,10 @@ export function CarrierForm({ carrier = null, initialName = '', canDeactivate = 
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState('');
-  const set = (patch) => setValues((v) => ({ ...v, ...patch }));
-  const errors = { name: values.name.trim() ? '' : 'Enter the carrier name.' };
+  const set = (patch: Record<string, string>) => setValues((v) => ({ ...v, ...patch }));
+  const errors: Record<string, string> = { name: values.name.trim() ? '' : 'Enter the carrier name.' };
   const changed = Object.keys(initial).filter((k) => values[k] !== initial[k]);
-  const aliasList = (s) => s.split(',').map((a) => a.trim()).filter(Boolean);
+  const aliasList = (s: string) => s.split(',').map((a) => a.trim()).filter(Boolean);
 
   const submit = async () => {
     setSubmitted(true);
@@ -323,7 +340,7 @@ export function CarrierForm({ carrier = null, initialName = '', canDeactivate = 
       const body = { name: values.name.trim(), aliases: aliasList(values.aliases), paymentTerms: values.paymentTerms, notes: values.notes.trim() };
       await onSave(isEdit ? Object.fromEntries(Object.entries(body).filter(([k]) => changed.includes(k))) : body);
     } catch (err) {
-      setServerError(err.message);
+      setServerError((err as Error).message);
       setSaving(false);
     }
   };
@@ -333,16 +350,16 @@ export function CarrierForm({ carrier = null, initialName = '', canDeactivate = 
       title={changed.length ? 'Save or discard your changes first' : undefined}
       onClick={async () => {
         setSaving(true);
-        try { await onSetActive(carrier.active === false); } catch (err) { setServerError(err.message); setSaving(false); }
+        try { await onSetActive(carrier!.active === false); } catch (err) { setServerError((err as Error).message); setSaving(false); }
       }}>
-      {carrier.active === false ? <PlayCircle size={16} aria-hidden="true" /> : <PauseCircle size={16} aria-hidden="true" />}
-      {carrier.active === false ? 'Reactivate' : 'Deactivate'}
+      {carrier!.active === false ? <PlayCircle size={16} aria-hidden="true" /> : <PauseCircle size={16} aria-hidden="true" />}
+      {carrier!.active === false ? 'Reactivate' : 'Deactivate'}
     </button>
   ) : null;
 
   return (
     <FormModal
-      title={isEdit ? <>Edit carrier <span className="fm-title-sub">· {carrier.name}</span></> : 'Add a carrier'}
+      title={isEdit ? <>Edit carrier <span className="fm-title-sub">· {carrier!.name}</span></> : 'Add a carrier'}
       size="s"
       onClose={onClose}
       onSubmit={submit}

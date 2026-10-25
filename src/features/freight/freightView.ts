@@ -1,16 +1,16 @@
 /**
- * The 3rd-Party Freight screen's rules (src/components/sales/freight/): its
+ * The 3rd-Party Freight screen's rules (src/features/freight/): its
  * tabs and their counts, charges grouped by carrier, what a selection of
  * charges allows, and the labels it shows. The money and status rules
  * themselves live in src/accounting/ (freightRules.js) and the server checks
  * every action again — this only decides what to offer.
  *
- * Pure, tested in freightView.test.js.
+ * Pure, tested in freightView.test.ts.
  */
-import { FREIGHT } from '../accounting/permissions.js';
-import { PAYMENT_TERMS } from '../accounting/freightRules.js';
-import { sumCents } from '../accounting/money.js';
-import type { Loose } from '../types/records';
+import { FREIGHT } from '../../accounting/permissions.js';
+import { PAYMENT_TERMS } from '../../accounting/freightRules.js';
+import { sumCents } from '../../accounting/money.js';
+import type { Loose } from '../../types/records';
 
 /** A freight charge / carrier / payment as /api/accounting sends them (src/accounting/models.js). */
 export type FreightCharge = Loose;
