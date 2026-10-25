@@ -74,6 +74,24 @@ already on `main`, kept as they were.
       casts around it. Fix the type.
 - [ ] The page passes `onUpdateTruck` to `BoardGrid`, which never uses it.
 
+## Route Planner — other
+
+Found while moving the module into `src/features/routePlanner` (2026-10-24);
+all already on `main`, kept as they were.
+
+- [ ] With no rep ticked in the Filter (or every ticked rep owning no customers
+      with a map point), the map says "No customer has coordinates yet — run
+      `node scripts/geocode-customers.js --apply`" — a developer instruction shown
+      to sales staff, and the wrong reason. `MapCanvas.tsx` (the `pinsCount === 0`
+      badge).
+- [ ] The Schedule panel's month grid starts on Sunday (`buildMonthGrid` in
+      `helpers.ts`, `WEEKDAY_LABELS` in `panels/SchedulePanel.tsx`) while the
+      app's calendar rule is Monday-first (`WEEK_STARTS_ON`, CLAUDE.md "Dates").
+      It's a hand-built calendar view, not the shared one.
+- [ ] Dead code: `panels/AreaScheduleTrigger.tsx` and `rail/ScheduleSummaryButton.tsx`
+      (and their CSS) are imported by nothing; `statusTone` / `STATUS_TONE` in
+      `helpers.ts` are unused. Moved as they were, waiting on the owner's call to delete.
+
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
 
 Found in a code review of Delivery Schedule, Daily Report and Check-In Log on
