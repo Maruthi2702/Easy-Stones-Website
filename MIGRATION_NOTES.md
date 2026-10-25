@@ -236,11 +236,11 @@ small reversible step at a time.
 src/
   pages/SalesPage.tsx        the shell only: auth gate, side nav / phone bar,
                              which module is on screen (a registry), live
-                             updates wiring — target under 500 lines
+                             updates wiring
   features/<module>/         one folder per module, everything it owns:
     index.ts                 its public surface — other code imports only this
     <Module>Page.tsx         the screen
-    components/              its parts (each under ~300 lines)
+    components/              its parts (one job each)
     use<Module>Data.ts       loading, caching, refresh, optimistic patches
     <module>Api.ts           its calls (typed, via authFetch)
     <module>.ts (+ .test.ts) its pure rules
@@ -271,8 +271,11 @@ move per module, never a second.
    presentational where they can be (props in, JSX out).
 4. **One public surface** per module (`index.ts`); deep imports into another
    module's folder are refused in review (an ESLint rule later).
-5. **Size limits:** a component ~300 lines, a hook ~300, hard stop 500 —
-   ESLint `max-lines` warns at 500 on `.ts`/`.tsx`.
+5. **Split by job, not by size** (owner, 2026-10-24: "500 is no limit"):
+   divide a file where it does more than one thing — data loading, saving,
+   a dialog, a layout — so no file is overwhelming to read. A long file
+   with one clear job can stay whole; a short one mixing three gets split.
+   (The ESLint `max-lines` warning at 500 was removed.)
 6. **No visual change while moving:** same DOM, class names, CSS files and
    inline styles. A move is a move; redesigns are separate commits.
 7. **Tests:** pure rules get `*.test.ts`; each extracted module gets a render
@@ -357,7 +360,7 @@ browser yet.
 | A5 | Customer profile page → `features/customers` | medium |
 | A6 | Dashboard → `features/dashboard` | medium |
 | A7 | Shell: module registry, live-updates wiring; SalesPage < 500 lines | medium |
-| B | Each module: move to `features/`, TypeScript, split files over 500 lines (RoutePlannerV2, SalesPlannerTab, AdminPage, DailyReportTab, PartnersSheet, UsersRolesTab, CheckInLogPanel…) | per module |
+| B | Each module: move to `features/`, TypeScript, split files that do several jobs (RoutePlannerV2, SalesPlannerTab, AdminPage, DailyReportTab, PartnersSheet, UsersRolesTab, CheckInLogPanel…) | per module |
 | C1 | `createApp()` + route-table snapshot | low |
 | C2+ | `server.js` areas into routers, least used first: colors, crossover, lost sales, uploads/resources, products, sales-dashboard, dashboard, admin, auth, customers | per area |
 

@@ -562,7 +562,9 @@ tests, and an `index.ts` that is the only thing other code imports). Data goes
 down as props and changes come back as `on…` callbacks; when one module's save
 must show in another, `SalesPage` wires the callbacks — modules never import
 each other's internals or reach into the shell's state. Context only for
-auth, theme and the toast. Files stay under ~300 lines (hard stop 500). A move
+auth, theme and the toast. Files are split by what they do, not by a line count
+(owner, 2026-10-24: no 500-line limit) — one clear job per file, so none is
+overwhelming to read; a long file that does one thing can stay whole. A move
 changes no DOM, class names or CSS. Each extracted module gets a render smoke
 test (`*.test.tsx`, React Testing Library). `server.js` is being split the same
 way into `src/routes/<area>.js` routers, checked against a route-table
