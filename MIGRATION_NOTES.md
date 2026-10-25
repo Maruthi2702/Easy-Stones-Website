@@ -328,6 +328,7 @@ What it composes:
 | `features/routePlanner` | the Route Planner (was `components/sales/routePlannerV2`): page + `useSavedFilters` / `useFilterView` / `useMapPins` / `useRoster` / `useMyLocation` / `usePanels` / `useDayPlan` / `useScheduleData` / `useScheduleActions` / `useLeadSearch` / `useCustomerEdit`; `map/` (MapCanvas, PinLayer, marker icons, draw gestures, directions, view), `rail/`, `panels/`, `customer/` (MapActions, ScheduleVisitSheet, the open-customer panel). The unused `AreaScheduleTrigger`, `ScheduleSummaryButton` and `statusTone` were deleted on the owner's go-ahead (B, 2026-10-24, `feat/ts-routeplanner`) |
 | `features/users` | Users & Roles (Users, Roles & Permissions, Locations) and Side Nav Order: page + `useUsersData`; `userList/` (presence, filter, actions, the list), `roles/` (`useRoleEditor`, cards, page dialog, Create role, `pagePermissions`), `locations/` (actions, list, `LocationForm`), `userForm/` (Add / Edit user and parts, `userAccess`), `navOrder/` (B, 2026-10-24) |
 | `features/holds` | Cart & Holds (was `components/sales/holds/`): the cart store, `useSlabLocks`, `holdLink`; `HoldsTab` + `useHoldsList` + `list/`; `hold/` (`HoldPage`, `useHoldRecord`, `holdPageActions`, header/summary/slabs/notes/history/selection bar/dialogs); `cart/` (rail button, `CartDrawer`, `CartView`, `CheckoutView` + `useCheckout`, `CartToast`, `cartLines`); `forms/` (one file per hold form); `print/` (preview, `letterPdf`, `letterOutput`). The shell imports `cart/CartDrawer.tsx` and lazy `HoldsTab.tsx` by path to keep the CSS order (B, 2026-10-24) |
+| `features/customers/form`, `features/customers/import`, `features/salesShell/sideNav` | Customer forms & imports and the side nav (batch 2, 2026-10-25, `feat/ts-customerforms`): `form/` — `AddCustomerModal` (Add / Edit, and the unused read-only View in `LegacyCustomerModal`), `CustomerForm` with `useDuplicateCheck` / `useZipLookup` / `useCardScan`, `CardScan`, `DuplicateNotice`, `customerFormView`; `import/` — Import from SPS (`SpsImportModal` + `useSpsImport`, `spsImportApi`, `spsImport` rules, `RunResults`, `SpsImportHistory`, one file per step in `sps/`), Connect customers to SPS (`SpsConnectModal`, `SpsSide`), the old Import from Excel (`CustomerImportModal` + `excel/`: `useExcelImport`, `useDbDuplicates`, the plan, rows, result and duplicates), `importFields` (the field list both share); `salesShell/sideNav/` — the side nav (was `components/sales/CustomerSidebar`: rail, `SideNavPanel`, `SideNavRow`, `AccountMenu`, `sideNav` rules). The form and the dialogs are imported by path (SalesModals, the Route Planner, the Customers list), not through `features/customers/index.ts`, which would load their CSS earlier |
 
 How each step was checked: typecheck, `npm test` (each module has hook or
 render tests), the import check, and two checks kept outside git in
@@ -335,8 +336,9 @@ render tests), the import check, and two checks kept outside git in
 - **Parity**: the old page and the new page rendered side by side in 35 states
   (97 since the three operations modules: + 23 Delivery, 11 Daily Report, 28
   Customers list; 222 with the Route Planner's 45 (Google Maps faked), 40
-  for Users & Roles and Side Nav Order, and 40 for Cart & Holds), with the
-  same HTML required.
+  for Users & Roles and Side Nav Order, and 40 for Cart & Holds; 282 with
+  60 for customer forms & imports and the side nav — 8 of them render the hidden
+  Excel import, the unused View and a pre-filled form on their own), with the same HTML required.
 - **CSS check**: an order-aware comparison of the built CSS. It confirms which
   value wins for every selector, and that no rules of equal weight changed
   order. An earlier sorted comparison couldn't see order changes.
