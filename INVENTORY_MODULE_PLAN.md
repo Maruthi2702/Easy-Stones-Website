@@ -91,3 +91,13 @@ See [the proposed Purchasing architecture](docs/purchasing-architecture.md)
 for ownership boundaries, supply reconciliation, planning stages, cache and
 command consistency, TypeScript layout and the migration sequence. This design
 does not mark queued corrective steps implemented or authorize a UI redesign.
+
+## Live Purchasing stock overview
+
+The requested stock overview is connected to the existing Purchasing component
+and API, beyond the earlier standalone design. New typed helpers count physical
+SPS slabs, SPS/app allocations once, other unavailable slabs and current free
+stock, then calculate coverage independently of supplier packing policy. The
+custom forecast accepts 1–365 days with short-period presets. Invalid observed
+sales cutoffs still show unknown coverage, with physical counts retained. The
+remaining broader module corrections stay in their recorded order.

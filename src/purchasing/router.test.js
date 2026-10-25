@@ -402,3 +402,23 @@ describe('container draft workflow', () => {
     expect((await plan(id)).rows[0].protective.proposedSlabs).toBe(0);
   });
 });
+
+describe('live stock overview API', () => {
+  it('returns total/allocated/available physical slabs and independent day coverage', async () => {
+    await InventoryItem.deleteMany({});
+    const physical = (serialNumber, slabStatus = '') => ({ product: 'Quartz 3CM', type: 'SLAB', serialNumber,
+      instockQty: 75, availableSlabs: slabStatus ? 0 : 1, availableQuantity: slabStatus ? 0 : 75,
+      slabStatus, remnant: '', units: 'SF', location: 'Seattle', importedAt: clock });
+    await InventoryItem.collection.insertMany([
+      physical('free'), physical('so', 'ONSO'), physical('held', 'ONHOLD'), physical('transfer', 'ONTRANSFER'),
+      { ...physical('outside'), location: 'Spokane' },
+    ]);
+    await SlabReservation.collection.insertOne({ slabKey: 'HELD', branch: 'Seattle', holdId: new mongoose.Types.ObjectId() });
+    await InventorySalesRecord.updateMany({}, { $set: { quantitySold: 150 } });
+    const { id } = await setup({ policies: [], policyConfirmed: false });
+    const result = await plan(id);
+    expect(result.rows[0].stockBreakdown).toEqual({ total: 4, allocated: 2, otherUnavailable: 1, available: 1, availableQuantity: 75, problems: [] });
+    expect(result.rows[0].coverage).toMatchObject({ state: 'known', days: 15, dailyQuantity: 5 });
+    expect(result.rows[0].protective).toBeNull(); // Packing policy blocks buying, not valid stock coverage.
+  });
+});

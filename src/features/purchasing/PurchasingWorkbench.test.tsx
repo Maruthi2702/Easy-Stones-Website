@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { clearInventoryCache } from '../../api/inventoryAnalysisCache';
 import { setAuthToken, clearAuthToken } from '../../api/authToken';
 import { project } from '../../purchasing/planning';
@@ -277,5 +277,41 @@ describe('purchasing tab return', () => {
     await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
     expect(purchasingApi.metadata).toHaveBeenCalledTimes(2);
     clearAuthToken();
+  });
+});
+
+
+describe('live purchasing stock columns', () => {
+  it('renders the requested counts and exact cover, and changes the forecast for arbitrary days', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan,
+      rows: [{ ...plan.rows[0], stockBreakdown: { total: 40, allocated: 28, otherUnavailable: 2, available: 10, availableQuantity: 750, problems: [] },
+        coverage: { state: 'known', days: 5, dailyQuantity: 150, availableQuantity: 750, stockoutDate: '2026-10-30', reasons: [] } }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    const color = await screen.findByRole('button', { name: 'Quartz 3CM' });
+    const row = within(color.closest('tr')!);
+    for (const label of ['Total SPS slabs', 'Allocated', 'Available to sell', 'Stock lasts', 'After 10 days'])
+      expect(screen.getByRole('columnheader', { name: label })).toBeTruthy();
+    expect(screen.queryByRole('columnheader', { name: '60-day need' })).toBeNull();
+    for (const value of ['40', '28', '10', '5 days']) expect(row.getByText(value, { exact: true })).toBeTruthy();
+    expect(row.getByText('750 short')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^2d$/ }));
+    expect(row.getByText('450 left')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Planning days'), { target: { value: '7' } });
+    expect(screen.getByRole('columnheader', { name: 'After 7 days' })).toBeTruthy();
+    expect(row.getByText('300 short')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Planning days'), { target: { value: '0' } });
+    expect(screen.getByText('Enter a whole number from 1 to 365 days.')).toBeTruthy();
+  });
+  it('keeps counts visible with unknown coverage and avoids repeating scope warnings in each row', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, rows: [{ ...plan.rows[0],
+      stockBreakdown: { total: 4, allocated: 2, otherUnavailable: 1, available: 1, availableQuantity: 75, problems: [] },
+      coverage: { state: 'unknown', days: null, dailyQuantity: null, availableQuantity: 75, stockoutDate: null, reasons: ['Invalid cutoff'] } }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    const color = await screen.findByRole('button', { name: 'Quartz 3CM' });
+    const row = within(color.closest('tr')!);
+    expect(row.getByText('4', { exact: true })).toBeTruthy();
+    expect(row.getByText('Coverage unknown')).toBeTruthy();
+    expect(row.queryByText('Confirm source coverage')).toBeNull();
+    expect(screen.getAllByText('Confirm source coverage')).toHaveLength(1);
   });
 });

@@ -112,7 +112,25 @@ export type ImportedTransitLine = {
   eta: string | null;
   importedAt: string | null;
 };
+export type StockBreakdown = {
+  total: number | null;
+  allocated: number | null;
+  otherUnavailable: number | null;
+  available: number | null;
+  availableQuantity: number | null;
+  problems: string[];
+};
+export type StockCoverage = {
+  state: 'known' | 'unknown' | 'no-sales';
+  days: number | null;
+  dailyQuantity: number | null;
+  availableQuantity: number | null;
+  stockoutDate: string | null;
+  reasons: string[];
+};
 export type PlanRow = {
+  stockBreakdown?: StockBreakdown | null;
+  coverage?: StockCoverage;
   key: string;
   product: string;
   uom: string;

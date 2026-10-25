@@ -2,8 +2,9 @@
 
 Design proposal based on the owner's requested columns and follow-up: show exact
 days of cover (1, 2, 4, 5, 10 or any longer period), not only 30/60/90 buckets.
-The live workbench is unchanged. The standalone `.tsx` preview uses explicitly
-labelled illustrative data, never the screenshot's invalid planning inputs.
+The main stock columns and custom-day control are now connected to the live
+Purchasing component and API. The standalone `.tsx` preview remains illustrative;
+it is not the production data source. Invalid sales cutoffs remain blocked.
 
 Preview: run Vite and open `/docs/previews/purchasing.html`.
 Source: `src/features/purchasing/design/PurchasingOverviewPreview.tsx`.
@@ -85,10 +86,12 @@ separately. Its arrival date determines whether it bridges the gap.
 - Aggregate sales reports do not supply genuine recent trends. Show the observed
   sales period and method; do not invent daily time series or a 30-day sales pace.
 
-## Required backend changes before connecting this design
+## Backend implementation and remaining boundaries
 
-The current plan API exposes ready stock but not complete total/allocated stock
-counts. Add a typed stock breakdown from the shared availability rules. Count
+The plan API now exposes a typed stock breakdown and independent coverage facts.
+It loads type/on-hand quantity as well as the prior availability projection.
+The typed stock-overview helper classifies SPS and app commitments once.
+The broader shared availability migration remains in the inventory plan. Count
 verified full-slab physical identities, not the SF `instockQty` field and not
 only `availableSlabs` (which omits allocated stock). Reconcile duplicate/missing
 serials before treating the count as exact. Consignment/non-slab/remnant handling
@@ -99,7 +102,7 @@ Show unknown classification explicitly when reconciliation is incomplete. Count
 a slab once if SPS commitment and an app hold overlap; purchasing draft locks
 prevent duplicate buying and are not physical stock allocations.
 
-Add typed demand/coverage facts independently of the purchase recommendation.
+Typed demand/coverage facts are computed independently of the purchase recommendation.
 Missing supplier packing/weight policy may prevent a draft without hiding a
 valid SF-based stock cover. Separate forecast blockers from buying blockers.
 Preserve `null` and specific reason codes when a coverage input is invalid.
@@ -143,3 +146,21 @@ search, light/dark themes and phone page containment. The phone table scrolls
 inside its container. No page errors occurred. Strict TypeScript checks and
 the standalone preview build passed. The preview does not call a live API or
 change production purchasing behavior.
+
+## Live integration validation
+
+The actual BuyerQueue renders total, allocated, available, incoming, exact days
+of cover and a 1–365-day balance control. Buying scenarios moved into expandable
+details; the PlanDetails modal also exposes the stock breakdown. Scope-wide
+errors are kept in the existing banner rather than repeated on every row.
+Purchasing surfaces now inherit the canonical theme tokens.
+
+Real API regression coverage checks physical counts and coverage independent of
+packing-policy blockers. Chromium checks use the actual workbench and an
+engine-generated API fixture: 40 total, 28 allocated, 2 other unavailable,
+10 available, 5-day cover, custom-day balances, and retained counts with unknown
+cover after an invalid cutoff. Both themes and phone containment are checked.
+These are disposable fixtures; production report dates are not altered.
+
+Validation result: 65 purchasing rule/API/render tests passed across five files;
+the production build passed. Tests use disposable data.

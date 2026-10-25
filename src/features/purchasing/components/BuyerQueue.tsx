@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import Pagination from '../../../components/shared/Pagination';
 import { usePagination, pageCount } from '../../../components/shared/paginationConfig';
 import IncomingSupply from './IncomingSupply';
+import { StockCover, StockForecast } from './StockCoverageCells';
 import type { Plan, PlanRow } from '../../../purchasing/types';
 export const num = (value: number | null | undefined) =>
   value == null ? '—' : value.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -21,6 +22,8 @@ export default function BuyerQueue({
   const [search, setSearch] = useState(''),
     [state, setState] = useState('all'),
     [selected, setSelected] = useState<string[]>([]);
+  const [forecastDays, setForecastDays] = useState('10');
+  const horizon = /^\d+$/.test(forecastDays) && Number(forecastDays) >= 1 && Number(forecastDays) <= 365 ? Number(forecastDays) : null;
   const pagination = usePagination();
   const rows = useMemo(
     () =>
@@ -76,6 +79,14 @@ export default function BuyerQueue({
           <option value="blocked">Resolve inputs</option>
           <option value="zero">Verified zero sales</option>
         </select>
+        <label className="purchase-horizon">Plan for{' '}
+          <input aria-label="Planning days" type="number" min="1" max="365" step="1" value={forecastDays}
+            aria-invalid={horizon === null} onChange={e => setForecastDays(e.target.value)} /> days
+        </label>
+        <div className="purchase-day-presets" aria-label="Planning day presets">
+          {[1, 2, 4, 5, 10, 30, 60, 90].map(days => <button type="button" key={days}
+            aria-pressed={horizon === days} onClick={() => setForecastDays(String(days))}>{days}d</button>)}
+        </div>
         {canEdit && (
           <button
             disabled={!selected.length}
@@ -85,6 +96,8 @@ export default function BuyerQueue({
           </button>
         )}
       </div>
+      {horizon === null && <p role="alert">Enter a whole number from 1 to 365 days.</p>}
+      <p className="purchase-muted">Total SPS slabs include allocated stock. Days of cover and the selected-day balance use available stock only; in-transit containers are shown separately.</p>
       <div className="purchase-scroll">
         <table>
           <thead>
@@ -92,12 +105,13 @@ export default function BuyerQueue({
               <th>Pick</th>
               <th>Color & variant{performance ? ' · reported SF sales rank' : ''}</th>
               <th>Reported sold / UOM</th>
-              <th>Ready slabs</th>
+              <th>Total SPS slabs</th>
+              <th>Allocated</th>
+              <th>Available to sell</th>
               <th>In-transit containers</th>
-              <th>60-day need</th>
-              <th>90-day need</th>
-              <th>Required receipt</th>
-              <th>Buyer action</th>
+              <th>Stock lasts</th>
+              <th>{horizon ? `After ${horizon} days` : 'Projected stock'}</th>
+              <th>Next action</th>
             </tr>
           </thead>
           <tbody>
@@ -134,11 +148,16 @@ export default function BuyerQueue({
                   {num(r.sold)} {r.uom}
                   <small>{num(r.soldSlabs)} slabs sold</small>
                 </td>
-                <td>{num(r.readySlabs)}</td>
+                <td><strong>{num(r.stockBreakdown?.total)}</strong></td>
+                <td><strong>{num(r.stockBreakdown?.allocated)}</strong>
+                  {r.stockBreakdown?.otherUnavailable != null && <small>{num(r.stockBreakdown.otherUnavailable)} other unavailable</small>}
+                </td>
+                <td><strong>{num(r.stockBreakdown?.available)}</strong>
+                  {r.stockBreakdown?.problems.length ? <small title={r.stockBreakdown.problems.join('\n')}>Stock reconciliation needed</small> : null}
+                </td>
                 <td><IncomingSupply lines={r.transit} /></td>
-                <td>{num(r.baseline?.proposedSlabs)}</td>
-                <td>{num(r.protective?.proposedSlabs)}</td>
-                <td>{r.protective?.bufferBreachOn || '—'}</td>
+                <td><StockCover row={r} /></td>
+                <td><StockForecast row={r} days={horizon} /></td>
                 <td>
                   <span
                     className={
@@ -151,7 +170,13 @@ export default function BuyerQueue({
                   >
                     {r.action}
                   </span>
-                  {r.blockers.length > 0 && <small>{r.blockers[0]}</small>}
+                  {r.blockers.some(b => !plan.blockers.includes(b)) && <small>{r.blockers.find(b => !plan.blockers.includes(b))}</small>}
+                  <details><summary>Buying calculation</summary>
+                    <p>Suggested buy · 60-day delivery: {num(r.baseline?.proposedSlabs)} slabs</p>
+                    <p>Suggested buy · 90-day delivery: {num(r.protective?.proposedSlabs)} slabs</p>
+                    <p>Replenishment needed by: {r.protective?.bufferBreachOn || '—'} (safety-buffer threshold)</p>
+                    <small>Includes review/buffer policies and eligible incoming supply. Custom planning days do not change draft quantities.</small>
+                  </details>
                 </td>
               </tr>
             ))}

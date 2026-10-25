@@ -1,3 +1,4 @@
+import { stockBreakdown, stockCoverage } from './stockOverview.ts';
 import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.js';
 import { project, inclusiveDays, todayPacific, variantKey } from './planning.ts';
 import { digest } from './data.js';
@@ -46,6 +47,7 @@ export function buildPlan(inputs, now = new Date()) {
     blockers.push(
       'Confirm SPS availability excludes existing obligations and app reservations are reconciled',
     );
+  const coverageBlockers = [...blockers];
   if (!scope.policyConfirmed) blockers.push('Confirm receiving lead-time, review and buffer policies');
   if (!inbound?.complete)
     blockers.push('Import complete SPS PO/transit supply or explicitly confirm no incoming supply');
@@ -75,6 +77,7 @@ export function buildPlan(inputs, now = new Date()) {
   }
   const coveredParents = new Set(coveredParentTotals.keys());
 
+  const physicalRows = new Map();
   for (const s of stock) {
     const product = aliasName(s.product),
       k = key(product, s.units),
@@ -86,6 +89,7 @@ export function buildPlan(inputs, now = new Date()) {
         excludedSlabs: 0,
         problems: [],
       };
+    physicalRows.set(k, [...(physicalRows.get(k) || []), s]);
     if (SLAB_STATUS_BUCKET(s.slabStatus) === 'other')
       a.problems.push('Unknown SPS slab status: reconcile it before purchasing');
     const usable =
@@ -105,9 +109,10 @@ export function buildPlan(inputs, now = new Date()) {
     } else a.excludedSlabs += s.availableSlabs || 0;
     stocks.set(k, a);
   }
+  const duplicateSales = new Set();
   for (const sale of cohort?.records || []) {
     const k = key(sale.product, sale.uom);
-    if (sales.has(k)) blockers.push('Duplicate product/unit rows in the selected cohort require correction');
+    if (sales.has(k)) { duplicateSales.add(k); blockers.push('Duplicate product/unit rows in the selected cohort require correction'); }
     sales.set(k, sale);
   }
   const transitProducts = new Map(transit.map(line => [key(aliasName(line.product), line.units), line]));
@@ -175,6 +180,11 @@ export function buildPlan(inputs, now = new Date()) {
         reviewDays: scope.reviewDays,
         bufferDays: scope.bufferDays,
       });
+    const breakdown = s ? stockBreakdown(physicalRows.get(k) || [], reserved) :
+      (policy && scope.stockCoverageConfirmed && scope.stockSnapshotId === snapshot
+        ? stockBreakdown([], reserved) : null);
+    const coverage = stockCoverage({ stock: breakdown, sold, days, today, uom,
+      blockers: [...coverageBlockers, ...(duplicateSales.has(k) ? ['Duplicate sales rows require correction'] : [])] });
     const baseline = rowBlockers.length ? null : calc(60),
       protective = rowBlockers.length ? null : calc(90);
     return {
@@ -183,6 +193,8 @@ export function buildPlan(inputs, now = new Date()) {
       uom,
       sold,
       soldSlabs: sale?.slabsSold ?? null,
+      stockBreakdown: breakdown,
+      coverage,
       readySlabs: s?.readySlabs ?? (policy && scope.stockCoverageConfirmed ? 0 : null),
       readyQuantity: s?.readyQuantity ?? null,
       excludedSlabs: s?.excludedSlabs || 0,
@@ -221,7 +233,7 @@ export function buildPlan(inputs, now = new Date()) {
     inbound ? String(inbound._id) : null,
     transit,
     reservations.filter((r) => scope.branches.includes(r.branch)).map((r) => [r.slabKey, String(r.holdId)]),
-    stock.map((s) => [s.serialNumber, s.remnant]),
+    stock.map((s) => [s.serialNumber, s.remnant, s.type, s.instockQty]),
   ]);
   return {
     scope,

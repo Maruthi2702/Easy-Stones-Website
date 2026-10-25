@@ -1,9 +1,9 @@
 .purchase-workbench {
-  --pw-bg: #14241f;
-  --pw-card: #1d3028;
-  --pw-ink: #ecf4e9;
-  --pw-line: #3b5142;
-  --pw-muted: #b1c2b2;
+  --pw-bg: var(--bg-primary);
+  --pw-card: var(--bg-card);
+  --pw-ink: var(--text-primary);
+  --pw-line: var(--border-color);
+  --pw-muted: var(--text-secondary);
   color: var(--pw-ink);
   padding: 20px 0;
   font-size: 14px;
@@ -11,11 +11,11 @@
 }
 .light-theme-active .purchase-workbench,
 body.light-theme-active .purchase-workbench {
-  --pw-bg: #f4f6ef;
-  --pw-card: #fff;
-  --pw-ink: #19352d;
-  --pw-line: #d9e2d6;
-  --pw-muted: #647467;
+  --pw-bg: var(--bg-primary);
+  --pw-card: var(--bg-card);
+  --pw-ink: var(--text-primary);
+  --pw-line: var(--border-color);
+  --pw-muted: var(--text-secondary);
 }
 .purchase-workbench h2 {
   font-size: 26px;
@@ -56,9 +56,9 @@ body.light-theme-active .purchase-workbench {
 }
 .purchase-workbench button,
 .purchase-form button {
-  border: 1px solid var(--pw-line, #6c8b77);
-  background: var(--pw-card, #233b2c);
-  color: var(--pw-ink, #eef5ec);
+  border: 1px solid var(--pw-line, var(--border-color));
+  background: var(--pw-card, var(--bg-card));
+  color: var(--pw-ink, var(--text-primary));
   padding: 8px 12px;
   border-radius: 6px;
   font: inherit;
@@ -69,7 +69,7 @@ body.light-theme-active .purchase-workbench {
   cursor: not-allowed;
 }
 .purchase-workbench button:focus-visible {
-  outline: 2px solid #c4a25b;
+  outline: 2px solid var(--accent-primary);
   outline-offset: 3px;
 }
 .purchase-workbench input,
@@ -77,9 +77,9 @@ body.light-theme-active .purchase-workbench {
 .purchase-form input:not([type='checkbox']),
 .purchase-form select,
 .purchase-form textarea {
-  border: 1px solid var(--pw-line, #637968);
-  background: var(--pw-card, #1e3227);
-  color: var(--pw-ink, #f4f6ee);
+  border: 1px solid var(--pw-line, var(--border-color));
+  background: var(--pw-card, var(--bg-card));
+  color: var(--pw-ink, var(--text-primary));
   padding: 9px 11px;
   border-radius: 5px;
   font: inherit;
@@ -95,8 +95,8 @@ body.light-theme-active .purchase-workbench {
   padding: 12px 0;
 }
 .purchase-tabs .active {
-  background: #326047;
-  color: #fff;
+  background: var(--accent-primary);
+  color: #000000;
 }
 .purchase-panel {
   border: 1px solid var(--pw-line);
@@ -295,7 +295,7 @@ body.light-theme-active .purchase-workbench {
 }
 .purchase-workbench input[type='checkbox'],
 .purchase-form input[type='checkbox'] {
-  accent-color: #43805a;
+  accent-color: var(--accent-primary);
 }
 @media (max-width: 750px) {
   .purchase-heading {
@@ -334,8 +334,17 @@ body.light-theme-active .purchase-workbench {
 }
 body.light-theme-active .purchase-form,
 .light-theme-active .purchase-form {
-  --pw-card: #fff;
-  --pw-ink: #19352d;
-  --pw-line: #d9e2d6;
-  --pw-muted: #647467;
+  --pw-card: var(--bg-card);
+  --pw-ink: var(--text-primary);
+  --pw-line: var(--border-color);
+  --pw-muted: var(--text-secondary);
 }
+
+/* Stock overview additions use the app's canonical theme tokens. */
+.purchase-horizon { display: flex; align-items: center; gap: 7px; }
+.purchase-horizon input { width: 78px; }
+.purchase-day-presets { display: flex; flex-wrap: wrap; gap: 5px; }
+.purchase-day-presets button[aria-pressed='true'] { background: var(--accent-primary); color: #000000; border-color: var(--accent-primary); }
+.purchase-workbench summary { cursor: pointer; margin-top: 8px; }
+
+.purchase-workbench td details p { white-space: normal; max-width: 240px; }

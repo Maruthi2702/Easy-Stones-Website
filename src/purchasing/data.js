@@ -26,7 +26,7 @@ export async function sourceData(user) {
   const [stock, sales, scopes, reservations] = await Promise.all([
     InventoryItem.find(
       { location: { $in: branches } },
-      'product location units availableSlabs availableQuantity slabStatus remnant serialNumber importedAt',
+      'product location units type instockQty availableSlabs availableQuantity slabStatus remnant serialNumber importedAt',
     )
       .sort({ _id: 1 })
       .lean(),
