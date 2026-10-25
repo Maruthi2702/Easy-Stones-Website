@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import Pagination from '../../../components/shared/Pagination';
 import { usePagination, pageCount } from '../../../components/shared/paginationConfig';
 import IncomingSupply from './IncomingSupply';
-import { StockCover, StockForecast } from './StockCoverageCells';
+import { StockCover, StockForecast, StockReview } from './StockCoverageCells';
 import type { Plan, PlanRow } from '../../../purchasing/types';
 export const num = (value: number | null | undefined) =>
   value == null ? '—' : value.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -15,7 +15,7 @@ export default function BuyerQueue({
   onReviewCoverage,
 }: {
   plan: Plan;
-  onInspect: (row: PlanRow) => void;
+  onInspect: (row: PlanRow, days?: number) => void;
   onDraft: (rows: PlanRow[]) => void;
   canEdit: boolean;
   performance?: boolean;
@@ -137,7 +137,7 @@ export default function BuyerQueue({
                   />
                 </td>
                 <td>
-                  <button className="purchase-link" onClick={() => onInspect(r)}>
+                  <button className="purchase-link" onClick={() => onInspect(r, horizon || 10)}>
                     {r.product}
                   </button>
                   {!r.hasStock && (
@@ -161,19 +161,11 @@ export default function BuyerQueue({
                 <td><StockCover row={r} onReview={onReviewCoverage} /></td>
                 <td><StockForecast row={r} days={horizon} /></td>
                 <td>
-                  <span
-                    className={
-                      r.blockers.length
-                        ? 'purchase-badge warn'
-                        : r.protective?.bridgeShortfall
-                          ? 'purchase-badge urgent'
-                          : 'purchase-badge'
-                    }
-                  >
-                    {r.action}
-                  </span>
-                  {r.blockers.some(b => !plan.blockers.includes(b)) && <small>Buying setup: {r.blockers.find(b => !plan.blockers.includes(b))}</small>}
-                  <details><summary>Buying calculation</summary>
+                  <StockReview row={r} days={horizon} />
+                  <details><summary>Purchase planning</summary>
+                    <p>Purchase status: {r.action}</p>
+                    {r.blockers.length > 0 && <><p>Requirements for purchase recommendations:</p>
+                      <ul>{r.blockers.filter(b => !plan.blockers.includes(b)).map(b => <li key={b}>{b}</li>)}</ul></>}
                     <p>Suggested buy · 60-day delivery: {num(r.baseline?.proposedSlabs)} slabs</p>
                     <p>Suggested buy · 90-day delivery: {num(r.protective?.proposedSlabs)} slabs</p>
                     <p>Replenishment needed by: {r.protective?.bufferBreachOn || '—'} (safety-buffer threshold)</p>

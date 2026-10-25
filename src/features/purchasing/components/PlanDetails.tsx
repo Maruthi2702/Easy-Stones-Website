@@ -2,16 +2,19 @@ import FormModal from '../../../components/shared/form/FormModal';
 import type { Plan, PlanRow } from '../../../purchasing/types';
 import { num } from './BuyerQueue';
 import IncomingSupply from './IncomingSupply';
+import { StockCover, StockForecast } from './StockCoverageCells';
 export default function PlanDetails({
   row,
   plan,
   onClose,
   onConfigure,
+  forecastDays = 10,
 }: {
   row: PlanRow;
   plan: Plan;
   onClose: () => void;
   onConfigure?: () => void;
+  forecastDays?: number;
 }) {
   const p = row.protective,
     points = p?.points || [],
@@ -25,25 +28,9 @@ export default function PlanDetails({
       size="m"
       onClose={onClose}
       hideSubmit
-      footerStart={
-        onConfigure ? (
-          <button type="button" onClick={onConfigure}>
-            Configure variant policy
-          </button>
-        ) : null
-      }
     >
       <div className="purchase-form">
-        {row.blockers.length > 0 && (
-          <div className="purchase-warning">
-            <strong>Quantity is blocked</strong>
-            <ul>
-              {row.blockers.map((b) => (
-                <li key={b}>{b}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <h3>Stock evaluation</h3>
         <dl className="purchase-facts">
           <dt>Scope</dt>
           <dd>{plan.scope.branches.join(' / ')}</dd>
@@ -61,14 +48,13 @@ export default function PlanDetails({
           </dd>
           <dt>Reported slabs sold</dt>
           <dd>{num(row.soldSlabs)}</dd>
-          <dt>Total SPS / allocated / available slabs</dt>
-          <dd>{num(row.stockBreakdown?.total)} / {num(row.stockBreakdown?.allocated)} / {num(row.stockBreakdown?.available)}</dd>
-          <dt>Current stock cover</dt>
-          <dd>{row.coverage && ['known', 'estimated'].includes(row.coverage.state) ? `${num(row.coverage.days)} days${row.coverage.state === 'estimated' ? ' (estimate)' : ''}` : row.coverage?.state === 'no-sales' ? 'No sales in observed period' : 'Coverage unknown'}</dd>
-          <dt>Usable / excluded reported slabs</dt>
-          <dd>
-            {num(row.readySlabs)} / {num(row.excludedSlabs)}
-          </dd>
+          <dt>Total SPS slabs</dt><dd>{num(row.stockBreakdown?.total)}</dd>
+          <dt>Allocated slabs</dt><dd>{num(row.stockBreakdown?.allocated)}</dd>
+          <dt>Other unavailable slabs</dt><dd>{num(row.stockBreakdown?.otherUnavailable)}</dd>
+          <dt>Available to sell</dt><dd>{num(row.stockBreakdown?.available)} {row.stockBreakdown?.available === 1 ? 'slab' : 'slabs'}</dd>
+          <dt>Available quantity</dt><dd>{num(row.stockBreakdown?.availableQuantity)} {row.uom}</dd>
+          <dt>Current stock cover</dt><dd><StockCover row={row} /></dd>
+          <dt>After {forecastDays} days</dt><dd><StockForecast row={row} days={forecastDays} /></dd>
           <dt>Missing stock</dt>
           <dd>
             {row.hasStock
@@ -79,6 +65,14 @@ export default function PlanDetails({
           </dd>
         </dl>
         <div><h3>Imported in-transit containers</h3><IncomingSupply lines={row.transit} /></div>
+        <details className="purchase-planning-requirements" open={!!p}>
+          <summary>Purchase planning</summary>
+          {row.blockers.length > 0 && <>
+            <p>Requirements for purchase recommendations:</p>
+            <ul>{row.blockers.map(b => <li key={b}>{b}</li>)}</ul>
+            <p>Stock quantities and days of cover above are evaluated from the uploaded reports.</p>
+          </>}
+          {onConfigure && <button type="button" onClick={onConfigure}>Set up purchase planning</button>}
         {p && (
           <>
             <h3>90-day protective case</h3>
@@ -120,13 +114,13 @@ export default function PlanDetails({
                 x2="610"
                 y1={y(p.safety)}
                 y2={y(p.safety)}
-                stroke="#c4a25b"
+                stroke="var(--accent-primary)"
                 strokeDasharray="5 4"
               />
               <polyline
                 points={points.map((t, i) => `${x(i)},${y(t.available)}`).join(' ')}
                 fill="none"
-                stroke="#60b594"
+                stroke="var(--text-primary)"
                 strokeWidth="3"
               />
               <text x="30" y="190" fill="currentColor" fontSize="10">
@@ -148,6 +142,7 @@ export default function PlanDetails({
             </p>
           </>
         )}
+        </details>
       </div>
     </FormModal>
   );

@@ -169,7 +169,7 @@ describe('purchasing workbench rendering', () => {
     expect(screen.getByText('24 slabs')).toBeTruthy();
     expect(screen.getByText(/Reading 1 imported in-transit product lines/)).toBeTruthy();
     expect(screen.getByText('PO #15364 · TEMU1379996')).toBeTruthy();
-    expect(screen.getAllByText('Resolve inputs').length).toBeGreaterThan(0);
+    expect(screen.getByText('Check report data')).toBeTruthy();
   });
   it('shows actual blockers and unknown availability without offering a buy quantity', async () => {
     render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
@@ -178,7 +178,8 @@ describe('purchasing workbench rendering', () => {
     expect(screen.getAllByText('Confirm source coverage').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'New planning scope' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Quartz 3CM' }));
-    expect(await screen.findByText('Quantity is blocked')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Stock evaluation' })).toBeTruthy();
+    expect(screen.queryByText('Quantity is blocked')).toBeNull();
     expect(screen.getByText('Unresolved; not assumed zero')).toBeTruthy();
   });
   it('offers scope and SPS supply configuration only to a purchasing editor', async () => {
@@ -379,5 +380,45 @@ describe('using report dates automatically', () => {
     await waitFor(() => expect(purchasingApi.saveScope).toHaveBeenCalledWith(expect.objectContaining({
       observedThrough: '2026-09-30',
     }), 'scope'));
+  });
+});
+
+
+describe('stock evaluation separated from purchase planning', () => {
+  const evaluated = (): Plan => ({ ...plan, rows: [{ ...plan.rows[0], hasStock: true,
+    stockBreakdown: { total: 40, allocated: 28, otherUnavailable: 2, available: 10, availableQuantity: 750, problems: [] },
+    coverage: { state: 'estimated', days: 5, dailyQuantity: 150, availableQuantity: 750, stockoutDate: '2026-10-30',
+      reasons: [], warnings: ['Historical sales period'], salesPeriod: { start: '2026-01-01', through: '2026-09-30' } } }] });
+  it('shows source evaluation counts and a stock action even when supplier policies are absent', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue(evaluated());
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
+    const color = await screen.findByRole('button', { name: 'Quartz 3CM' });
+    const row = within(color.closest('tr')!);
+    expect(row.getByText('Review stock shortage')).toBeTruthy();
+    expect((screen.getByText('Purchase planning requirements (1)').closest('details') as HTMLDetailsElement).open).toBe(false);
+    expect(screen.queryByText('Quantity is blocked')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^2d$/ }));
+    expect(row.getByText('Estimated cover sufficient')).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: 'Select Quartz 3CM' }) as HTMLInputElement).disabled).toBe(true);
+  });
+  it('opens stock results first and carries the selected horizon into product details', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue(evaluated());
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    fireEvent.click(screen.getByRole('button', { name: /^2d$/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Quartz 3CM' }));
+    const modal = within(screen.getByRole('dialog'));
+    expect(modal.getByRole('heading', { name: 'Stock evaluation' })).toBeTruthy();
+    expect(modal.getByText('≈ 5 days')).toBeTruthy();
+    expect(modal.getByText('After 2 days')).toBeTruthy();
+    expect(modal.getByText('450 left')).toBeTruthy();
+    expect(modal.getByText('10 slabs')).toBeTruthy();
+    const requirements = modal.getByText('Purchase planning', { exact: true }).closest('details') as HTMLDetailsElement;
+    expect(requirements.open).toBe(false);
+    expect(modal.queryByText('Quantity is blocked')).toBeNull();
+    fireEvent.click(modal.getByText('Purchase planning', { exact: true }));
+    expect(modal.getByText('Requirements for purchase recommendations:')).toBeTruthy();
+    fireEvent.click(modal.getByRole('button', { name: 'Set up purchase planning' }));
+    expect(await screen.findByRole('heading', { name: 'Edit purchasing scope' })).toBeTruthy();
   });
 });

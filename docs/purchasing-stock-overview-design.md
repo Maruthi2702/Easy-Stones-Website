@@ -184,8 +184,9 @@ explicitly rather than as infinite cover.
 
 Stock estimates do not enable purchase drafts or approvals. Keep stock/supply
 freshness, completeness, supplier, bundle, weight, container capacity, branch
-access, record versions and reservation checks for buying decisions. Scope-wide
-issues stay in the existing banner; row-specific issues are separate. Unknown
+access, record versions and reservation checks for buying decisions. Purchase planning requirements are separate expandable sections. Stock evaluation
+remains visible; the main status and action reflect stock cover for the selected
+period rather than missing supplier settings. Unknown
 coverage includes its actual reasons and an editor-only repair link.
 
 The former upload-date confirmation workflow has been removed. Existing dated
@@ -204,3 +205,23 @@ Read-only evaluation of Seattle's imported data produced numeric estimates
 using the file's January–September period with the manual cutoff blanked and
 historical confirmation excluded in memory. No production data was changed by
 this evaluation.
+
+## Stock evaluation and optional purchase planning
+
+Product details open with stock evaluation, physical counts, cover and the
+selected-day balance. The former **Quantity is blocked** banner is removed.
+Purchase-only requirements and configuration are inside a separate native
+expandable **Purchase planning** section, which starts closed when no verified
+purchase recommendation exists. The scope-wide requirement list is expandable
+too. Source-data errors remain visible in stock evaluation when necessary.
+
+Main table actions use stock cover (shortage review, sufficient cover, no sales
+or source-data review). Summary cards count evaluated stock and missing source
+data. Checkbox selection, draft creation, approvals and permissions retain
+their existing buying validation. Global requirements are not repeated in each
+row. The selected forecast horizon is carried into product details.
+
+Verification: 20 UI tests, typecheck, production build and Chromium checks passed.
+The actual component was exercised with the six unresolved buying requirements,
+numeric stock results, independent stock actions, selected-day modal balance,
+purchase setup navigation, disabled draft selection, themes and phone layout.

@@ -34,3 +34,15 @@ export function StockForecast({ row, days }: { row: PlanRow; days: number | null
   return <><strong>{num(Math.abs(balance))} {balance < -1e-8 ? 'short' : 'left'}</strong>
     <small>{c.state === 'estimated' ? 'Estimate · ' : ''}{equivalent ? 'Slab equivalents' : row.uom} · current stock</small></>;
 }
+
+
+export function StockReview({ row, days }: { row: PlanRow; days: number | null }) {
+  const c = row.coverage;
+  if (!c || c.state === 'unknown') return <span className="purchase-badge warn">Check report data</span>;
+  if (c.state === 'no-sales') return <><span className="purchase-badge">Review slow-moving stock</span><small>No sales in the uploaded period.</small></>;
+  if (!days) return <span className="purchase-badge warn">Choose a valid planning period</span>;
+  const shortage = c.days !== null && c.days < days;
+  return <><span className={shortage ? 'purchase-badge urgent' : 'purchase-badge'}>
+    {shortage ? 'Review stock shortage' : c.state === 'estimated' ? 'Estimated cover sufficient' : 'Stock cover sufficient'}
+  </span><small>{shortage ? `Available stock does not cover ${days} days at the reported sales pace.` : `Available stock covers the selected ${days} days at the reported sales pace.`}</small></>;
+}
