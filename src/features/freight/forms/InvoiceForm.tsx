@@ -1,15 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Check, AlertTriangle } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker } from '../../shared/form/FormControls';
-import { goToField } from '../../shared/form/formFocus';
-import { DatePicker } from '../../shared/calendar/Calendar';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormSection, FormRow, FormField, FormPicker } from '../../../components/shared/form/FormControls';
+import { goToField } from '../../../components/shared/form/formFocus';
+import { DatePicker } from '../../../components/shared/calendar/Calendar';
 import { PAYMENT_TERMS } from '../../../accounting/freightRules';
 import { toCents, centsToPlain, formatCents, sumCents } from '../../../accounting/money';
-import { todayIso, shortDate } from '../../../utils/freightView';
-import { listCharges } from '../../../api/freight';
+import { todayIso, shortDate } from '../freightView';
+import { listCharges } from '../freightApi';
+import type { Loose } from '../../../types/records';
+import type { Carrier, CarrierInvoice, FreightCharge } from '../types';
 
-const LABELS = { carrierId: 'Carrier', invoiceNumber: 'Invoice #', invoiceDate: 'Invoice date', total: 'Invoice total', chargeIds: 'Charges' };
+const LABELS: Record<string, string> = { carrierId: 'Carrier', invoiceNumber: 'Invoice #', invoiceDate: 'Invoice date', total: 'Invoice total', chargeIds: 'Charges' };
 const ORDER = Object.keys(LABELS);
 
 /**
@@ -18,25 +20,33 @@ const ORDER = Object.keys(LABELS);
  * covers. It can be saved when the total doesn't match yet; approving it
  * needs the two to agree to the cent (the server checks).
  */
-export default function InvoiceForm({ invoice = null, carriers = [], carrierId: presetCarrier = '', onSave, onClose }) {
+export type InvoiceFormProps = {
+  invoice?: CarrierInvoice | null;
+  carriers?: Carrier[];
+  carrierId?: string;
+  onSave: (body: Loose) => Promise<unknown>;
+  onClose: () => void;
+};
+
+export default function InvoiceForm({ invoice = null, carriers = [], carrierId: presetCarrier = '', onSave, onClose }: InvoiceFormProps) {
   const isEdit = Boolean(invoice);
-  const initial = useMemo(() => ({
+  const initial = useMemo((): Record<string, string> => ({
     carrierId: invoice ? String(invoice.carrierId) : presetCarrier,
     invoiceNumber: invoice?.invoiceNumber || '',
     invoiceDate: invoice?.invoiceDate || todayIso(),
     total: invoice ? centsToPlain(invoice.totalCents) : '',
-    chargeIds: (invoice?.charges || []).map((c) => String(c._id)).sort().join(','),
+    chargeIds: (invoice?.charges || []).map((c: FreightCharge) => String(c._id)).sort().join(','),
     notes: invoice?.notes || ''
   }), [invoice, presetCarrier]);
   const [values, setValues] = useState(initial);
-  const [picked, setPicked] = useState(() => new Set((invoice?.charges || []).map((c) => String(c._id))));
+  const [picked, setPicked] = useState(() => new Set<string>((invoice?.charges || []).map((c: FreightCharge) => String(c._id))));
   // The carrier's charges still waiting for approval, not on another
   // invoice — loaded per carrier; set only from the request's answer.
-  const [loaded, setLoaded] = useState({ carrierId: '', items: [], error: '' });
+  const [loaded, setLoaded] = useState<{ carrierId: string; items: FreightCharge[]; error: string }>({ carrierId: '', items: [], error: '' });
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState('');
-  const set = (patch) => setValues((v) => ({ ...v, ...patch }));
+  const set = (patch: Record<string, string>) => setValues((v) => ({ ...v, ...patch }));
 
   useEffect(() => {
     if (!values.carrierId) return undefined;
@@ -45,19 +55,19 @@ export default function InvoiceForm({ invoice = null, carriers = [], carrierId: 
     listCharges({ status: 'draft', carrierId: forCarrier, limit: 100 })
       .then((r) => {
         if (!live) return;
-        const mine = (invoice?.charges || []);
-        const free = r.items.filter((c) => !c.invoiceId || String(c.invoiceId) === String(invoice?._id || ''));
+        const mine: FreightCharge[] = (invoice?.charges || []);
+        const free: FreightCharge[] = r.items.filter((c: FreightCharge) => !c.invoiceId || String(c.invoiceId) === String(invoice?._id || ''));
         const byId = new Map([...mine, ...free].map((c) => [String(c._id), c]));
         setLoaded({ carrierId: forCarrier, items: [...byId.values()].sort((a, b) => String(b.deliveryDate).localeCompare(String(a.deliveryDate))), error: '' });
         // A new invoice starts with all of them ticked: usually the bill covers them all.
         if (!isEdit) setPicked(new Set(free.map((c) => String(c._id))));
       })
-      .catch((err) => live && setLoaded({ carrierId: forCarrier, items: [], error: err.message }));
+      .catch((err: Error) => live && setLoaded({ carrierId: forCarrier, items: [], error: err.message }));
     return () => { live = false; };
   }, [values.carrierId, invoice, isEdit]);
 
   const current = loaded.carrierId === values.carrierId;
-  const available = values.carrierId ? (current ? loaded.items : (invoice?.charges || [])) : [];
+  const available: FreightCharge[] = values.carrierId ? (current ? loaded.items : (invoice?.charges || [])) : [];
   const loadError = values.carrierId && current ? loaded.error : '';
 
   const chargeIds = [...picked].sort().join(',');
@@ -66,14 +76,14 @@ export default function InvoiceForm({ invoice = null, carriers = [], carrierId: 
   const pickedCents = sumCents(pickedCharges.map((c) => c.amountCents));
   const noPrice = pickedCharges.filter((c) => !(c.amountCents > 0));
 
-  const errors = {
+  const errors: Record<string, string> = {
     carrierId: values.carrierId ? '' : 'Pick the carrier.',
     invoiceNumber: values.invoiceNumber.trim() ? '' : 'Enter the invoice number.',
     invoiceDate: /^\d{4}-\d{2}-\d{2}$/.test(values.invoiceDate) ? '' : 'Pick the invoice date.',
     total: totalCents === undefined || totalCents === null || totalCents <= 0 ? 'Enter the total like 1340.00.' : '',
     chargeIds: picked.size ? '' : 'Tick at least one charge.'
   };
-  const shown = (k) => (submitted ? errors[k] : '');
+  const shown = (k: string) => (submitted ? errors[k] : '');
   const changed = ['carrierId', 'invoiceNumber', 'invoiceDate', 'total', 'notes'].filter((k) => values[k] !== initial[k])
     .concat(chargeIds !== initial.chargeIds ? ['chargeIds'] : []);
 
@@ -81,7 +91,7 @@ export default function InvoiceForm({ invoice = null, carriers = [], carrierId: 
     .filter((c) => c.paymentTerms === PAYMENT_TERMS.PER_INVOICE && (c.active !== false || String(c._id) === initial.carrierId))
     .map((c) => ({ value: String(c._id), label: c.name }));
 
-  const toggle = (id) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggle = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const allOn = available.length > 0 && available.every((c) => picked.has(String(c._id)));
 
   const submit = async () => {
@@ -92,7 +102,7 @@ export default function InvoiceForm({ invoice = null, carriers = [], carrierId: 
     setServerError('');
     try {
       if (isEdit) {
-        const body = {};
+        const body: Loose = {};
         if (changed.includes('invoiceNumber')) body.invoiceNumber = values.invoiceNumber.trim();
         if (changed.includes('invoiceDate')) body.invoiceDate = values.invoiceDate;
         if (changed.includes('total')) body.total = values.total;
@@ -104,16 +114,16 @@ export default function InvoiceForm({ invoice = null, carriers = [], carrierId: 
           total: values.total, chargeIds: [...picked], notes: values.notes.trim() });
       }
     } catch (err) {
-      setServerError(err.message);
+      setServerError((err as Error).message);
       setSaving(false);
     }
   };
 
-  const gap = totalCents > 0 ? totalCents - pickedCents : null;
+  const gap = (totalCents as number) > 0 ? (totalCents as number) - pickedCents : null;
 
   return (
     <FormModal
-      title={isEdit ? <>Edit invoice <span className="fm-title-sub">· #{invoice.invoiceNumber}</span></> : 'Enter carrier invoice'}
+      title={isEdit ? <>Edit invoice <span className="fm-title-sub">· #{invoice!.invoiceNumber}</span></> : 'Enter carrier invoice'}
       size="m"
       onClose={onClose}
       onSubmit={submit}
@@ -173,13 +183,13 @@ export default function InvoiceForm({ invoice = null, carriers = [], carrierId: 
             ))}
           </div>
         </FormField>
-        {picked.size > 0 && totalCents > 0 ? (
+        {picked.size > 0 && (totalCents as number) > 0 ? (
           gap === 0 && !noPrice.length ? (
             <div className="fr-form-note ok" role="status"><Check size={16} aria-hidden="true" /><span><b>Matches.</b> Charges {formatCents(pickedCents)} · invoice total {formatCents(totalCents)}</span></div>
           ) : (
             <div className="fr-form-note warn" role="status"><AlertTriangle size={16} aria-hidden="true" /><span>
               {noPrice.length ? <><b>{noPrice.length} ticked charge{noPrice.length > 1 ? 's have' : ' has'} no price.</b> </> : null}
-              {gap !== 0 ? <><b>Charges {formatCents(pickedCents)} · invoice {formatCents(totalCents)} — {formatCents(Math.abs(gap))} apart.</b> </> : null}
+              {gap !== 0 ? <><b>Charges {formatCents(pickedCents)} · invoice {formatCents(totalCents)} — {formatCents(Math.abs(gap as number))} apart.</b> </> : null}
               It can be saved, but not approved until they match.</span></div>
           )
         ) : null}

@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   FREIGHT_TABS, tabCount, groupByCarrier, selectionActions, referenceLabel, paymentMethodText,
-  historyLabel, todayIso, shortDate, newRequestId, freightExportRows
+  historyLabel, todayIso, shortDate, newRequestId, freightExportRows, has, plural, isSelectable
 } from './freightView';
-import { FREIGHT } from '../accounting/permissions.js';
+import { FREIGHT } from '../../accounting/permissions.js';
 
 const ABC = { _id: 'c1', name: 'ABC Freight Inc', paymentTerms: 'per_delivery' };
 const WX = { _id: 'c2', name: 'Western Express', paymentTerms: 'per_invoice' };
 const charge = (over = {}) => ({ _id: Math.random().toString(36), status: 'draft', amountCents: 45000, carrier: ABC, carrierId: 'c1', flags: [], ...over });
-const user = (...perms) => ({ permissions: [FREIGHT.VIEW, ...perms] });
+const user = (...perms: string[]) => ({ permissions: [FREIGHT.VIEW, ...perms] });
 
 describe('tabs', () => {
   it('are To approve, Approved, Paid, All — counted from the summary', () => {
@@ -94,5 +94,22 @@ describe('labels', () => {
   it('export rows carry the payment id and the review note', () => {
     const [row] = freightExportRows([charge({ status: 'paid', soNumber: '150352', payment: { paymentId: 'PAY-20261009-K2M8D4RT', paidOn: '2026-10-09', method: 'check', reference: '1042' }, openFlags: [{ detail: 'The delivery was deleted' }] })]);
     expect(row).toMatchObject({ 'SO#': '150352', Amount: 450, Status: 'Paid', Method: 'Check', Reference: '1042', 'Payment ID': 'PAY-20261009-K2M8D4RT', 'Needs review': 'The delivery was deleted' });
+  });
+});
+
+describe('small rules the page shares', () => {
+  it('has: by permission only, never the role', () => {
+    expect(has(user(FREIGHT.PAY), FREIGHT.PAY)).toBe(true);
+    expect(has({ permissions: [] }, FREIGHT.PAY)).toBe(false);
+    expect(has(null, FREIGHT.VIEW)).toBe(false);
+    expect(has({ role: 'admin' } as { permissions?: unknown }, FREIGHT.VIEW)).toBe(false);
+  });
+  it('plural', () => {
+    expect(plural(1, 'charge')).toBe('1 charge');
+    expect(plural(0, 'charge')).toBe('0 charges');
+    expect(plural(3, 'charge')).toBe('3 charges');
+  });
+  it('only waiting and approved charges can be ticked', () => {
+    expect(['draft', 'approved', 'paid', 'void'].map((status) => isSelectable(charge({ status })))).toEqual([true, true, false, false]);
   });
 });
