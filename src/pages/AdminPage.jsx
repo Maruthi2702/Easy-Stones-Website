@@ -37,7 +37,7 @@ const AdminPage = () => {
   const [users, setUsers] = useState([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   // Add / Edit user use the same forms as Sales CRM → Users & Roles
-  // (components/sales/users/), which need the roles and branches.
+  // (features/users/userForm/), which need the roles and branches.
   const [userModal, setUserModal] = useState(null); // null | { mode: 'add' } | { mode: 'edit', user }
   const [userFormRefs, setUserFormRefs] = useState({ roles: [], locations: [], loaded: false });
 

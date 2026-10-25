@@ -4,7 +4,7 @@
  * hands each one to other roles under Users & Roles.
  *
  * Shared by the server (src/permits/router.js), Users & Roles
- * (src/components/sales/users/pagePermissions.js) and the screen.
+ * (src/features/users/roles/pagePermissions.ts) and the screen.
  */
 
 export const PERMITS = Object.freeze({

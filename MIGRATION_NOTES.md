@@ -325,13 +325,15 @@ What it composes:
 | `features/delivery` | the Delivery Schedule: page + `useScheduleData` / `useScheduleActions` / `usePodDialogs` / `useColumnOrders`; `board/`, `form/` (the old `DeliveryModal.jsx` deleted 2026-10-24), `pod/`, `driver/`, `search/` (B, 2026-10-24) |
 | `features/dailyReport` | the Daily Report: page + `useDaySheet` (load, autosave, flush, submit), `components/` and `components/sheet/` (B, 2026-10-24) |
 | `features/customers/list` | the Customers list (was `PartnersSheet` + `customerList/`): page + `useCustomerListData` / `useListFilters` / `useListActions` / `useListUi` / `useListKeyboard`, `CustomerDrawer` (shared with the Route Planner and the visit card), the profile's header/details/contacts parts (B, 2026-10-24) |
+| `features/users` | Users & Roles (Users, Roles & Permissions, Locations) and Side Nav Order: page + `useUsersData`; `userList/` (presence, filter, actions, the list), `roles/` (`useRoleEditor`, cards, page dialog, Create role, `pagePermissions`), `locations/` (actions, list, `LocationForm`), `userForm/` (Add / Edit user and parts, `userAccess`), `navOrder/` (B, 2026-10-24) |
 
 How each step was checked: typecheck, `npm test` (each module has hook or
 render tests), the import check, and two checks kept outside git in
 `.migration-tools/`:
 - **Parity**: the old page and the new page rendered side by side in 35 states
   (97 since the three operations modules: + 23 Delivery, 11 Daily Report, 28
-  Customers list), with the same HTML required.
+  Customers list; 137 with + 40 for Users & Roles and Side Nav Order), with
+  the same HTML required.
 - **CSS check**: an order-aware comparison of the built CSS. It confirms which
   value wins for every selector, and that no rules of equal weight changed
   order. An earlier sorted comparison couldn't see order changes.

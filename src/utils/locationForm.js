@@ -1,6 +1,6 @@
 /**
  * Add / Edit location (Users & Roles → Locations): the rules shared by the
- * form (src/components/sales/locations/LocationForm.jsx) and the server
+ * form (src/features/users/locations/LocationForm.tsx) and the server
  * (POST/PATCH /api/admin/locations in server.js), so a location can't pass
  * one and fail the other. Pure functions only — no React, no database.
  *

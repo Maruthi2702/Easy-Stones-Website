@@ -74,6 +74,23 @@ already on `main`, kept as they were.
       casts around it. Fix the type.
 - [ ] The page passes `onUpdateTruck` to `BoardGrid`, which never uses it.
 
+## Users & Roles — other
+
+Found while moving the module into `src/features/users` (2026-10-24); all
+already on `main`, kept as they were.
+
+- [ ] Roles & Permissions: **Create Custom Role** doesn't clear the "People …
+      can manage" ticks, so the new role starts with the previously selected
+      role's; turning Team on and saving gives it those roles. `createRole` in
+      `roles/useRoleEditor.ts` should `setEditedManageable([])`.
+- [ ] Deleting the selected custom role switches to `roles[0]` of the list as
+      it was *before* the delete, and keeps the deleted role's "People … can
+      manage" ticks (only the switches are reset), so a Save straight after can
+      write them onto the role now shown. `deleteRole` in the same file.
+- [ ] Minor: a user whose role no longer exists shows its key in capitals with
+      only the first `_` turned into a space ("OFFICE LEAD_CSR") —
+      `roleDisplayName` in `userList/usersList.ts`.
+
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
 
 Found in a code review of Delivery Schedule, Daily Report and Check-In Log on
