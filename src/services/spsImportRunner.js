@@ -5,6 +5,7 @@ import SpsImportRun from '../models/SpsImportRun.js';
 import SpsImportItem from '../models/SpsImportItem.js';
 import { backupAndDeleteCustomer } from '../routes/customerBulkDelete.js';
 import { ANSWER } from '../utils/spsImportPlan.js';
+import { geocodeCustomersInBackground } from './customerGeocoding.js';
 
 /**
  * Carries out a frozen SPS import plan (step 5 of the "SPS Import Redesign"
@@ -145,8 +146,12 @@ export async function runItems(runId) {
   }
 }
 
-const finishRun = (runId, verify) =>
-  SpsImportRun.updateOne({ _id: runId }, { $set: { verify, status: 'done', finishedAt: new Date() } });
+const finishRun = async (runId, verify) => {
+  await SpsImportRun.updateOne({ _id: runId }, { $set: { verify, status: 'done', finishedAt: new Date() } });
+  // Added, restored and updated customers are saved 'pending' (no pin); give them one now.
+  const written = await SpsImportItem.find({ runId, state: 'done', result: { $in: ['added', 'updated', 'restored'] } }).select('createdId customerId').lean();
+  geocodeCustomersInBackground(written.map((i) => i.createdId || i.customerId).filter(Boolean));
+};
 
 /**
  * The after-import check, separate from the writer: look every SPS name of the

@@ -23,7 +23,7 @@ export type CustomerFormValues = {
 };
 
 /*
- * Add / Edit customer's rules (src/components/sales/CustomerForm.jsx).
+ * Add / Edit customer's rules (src/features/customers/form/CustomerForm.tsx).
  * Approved design: model A on the "Add & Edit Customer" canvas
  * (claude.ai/artifact/G6YUNXvbtVqScRGB7dHtXD).
  *

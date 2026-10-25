@@ -1,0 +1,157 @@
+// @vitest-environment jsdom
+// Sales Planner render: the week (weekday columns and the weekend rail), the
+// Day and Month views, "+N more", the add / edit form and its check, the
+// delete check, a save and a delete reaching the API, a keyboard pick-up, and a
+// refused load. The API is a fake keyed on the URL; the socket is a stand-in.
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
+
+const iso = (offset: number, hm: string) => {
+    const d = new Date(); d.setDate(d.getDate() + offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${hm}:00.000`;
+};
+const today = [
+    { _id: 's1', customerId: { _id: 'c1', company: 'Pacific Granite' }, startTime: iso(0, '09:00'), activityType: 'Visit', status: 'Scheduled', notes: 'Bring the Moda binder' },
+    { _id: 's2', customerId: { _id: 'c2', company: 'Stone River' }, startTime: iso(0, '11:00'), activityType: 'Call', status: 'Completed' },
+    { _id: 's3', customerId: { _id: 'c3', company: 'Kent Marble' }, startTime: iso(0, '13:00'), activityType: 'Drop-off', status: 'Scheduled' },
+    { _id: 's4', customerId: 'c4', startTime: iso(0, '15:00'), activityType: 'Other', status: 'Scheduled' }
+];
+let schedule: unknown[] = today;
+let refuse = false;
+const calls: { url: string; method: string; body?: string }[] = [];
+const answer = (url: string, init: RequestInit = {}) => {
+    calls.push({ url, method: init.method || 'GET', body: init.body as string | undefined });
+    if (refuse) return Promise.resolve(new Response('{}', { status: 500 }));
+    const body = (init.method || 'GET') === 'GET' ? schedule : { ok: true };
+    return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+};
+vi.mock('../../api/authFetch', () => ({ authFetch: (u: string, init?: RequestInit) => answer(u, init), resetSessionExpiredGuard() {} }));
+vi.mock('socket.io-client', () => ({ io: () => ({ on() { return this; }, off() { return this; }, emit() { return this; }, disconnect() {}, connected: false }) }));
+
+const { SalesPlannerTab } = await import('./index');
+
+const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => { await new Promise((r) => setTimeout(r, 10)); }); };
+const button = (text: string) => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === text) as HTMLElement;
+const view = async (label: string) => { fireEvent.click(button(label)); await settle(); };
+const next = async () => { fireEvent.click(screen.getByLabelText('Next')); await settle(); };
+const options = [{ value: 'c1', label: 'Pacific Granite' }, { value: 'c2', label: 'Stone River' }];
+
+async function open(props: Record<string, unknown> = {}) {
+    render(<SalesPlannerTab customerOptions={options} currentUserId="u1" {...props} />);
+    await settle();
+    await view('Today');
+}
+
+beforeEach(() => { schedule = today; refuse = false; calls.length = 0; });
+afterEach(async () => { await view('Week'); cleanup(); });
+
+describe('Sales Planner', () => {
+    it('shows the week: five columns, the weekend rail, today\'s stops and the legend', async () => {
+        await open();
+        await view('Week');
+        expect(document.querySelectorAll('.pl-col')).toHaveLength(5);
+        expect(document.querySelector('.pl-rail')).not.toBeNull();
+        expect(screen.getByText('Pacific Granite')).toBeTruthy();
+        expect(screen.getByText('Bring the Moda binder')).toBeTruthy();
+        expect(screen.getByText('4 stops today')).toBeTruthy();
+        expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
+        expect(document.querySelector('.pl-legend')?.textContent).toBe('VisitCallDrop-offOther');
+        expect(calls[0].url).toMatch(/\/api\/schedule\?start=\d{4}-\d{2}-\d{2}T00:00:00\.000&end=\d{4}-\d{2}-\d{2}T23:59:59\.999$/);
+    });
+
+    it('switches to Day and Month; "+1 more" opens the day', async () => {
+        await open();
+        await view('Day');
+        expect(document.querySelector('.pl-grid--day')).not.toBeNull();
+        await view('Month');
+        expect(document.querySelector('.pl-month')).not.toBeNull();
+        expect(document.querySelectorAll('.pl-mrow').length).toBeGreaterThanOrEqual(4);
+        fireEvent.click(button('+1 more'));
+        await settle();
+        expect(document.querySelector('.pl-grid--day')).not.toBeNull();
+        expect(document.querySelectorAll('.pl-col .pl-item')).toHaveLength(4);
+    });
+
+    it('an empty week offers "Add a stop" on every weekday', async () => {
+        schedule = [];
+        await open();
+        await next();
+        expect(screen.getAllByText('Add a stop')).toHaveLength(5);
+    });
+
+    it('adds a stop: the form opens on the day, asks for a customer, then saves', async () => {
+        const onScheduleChange = vi.fn();
+        await open({ onScheduleChange });
+        fireEvent.click(document.querySelectorAll('.pl-addday')[0]);
+        await settle();
+        expect(screen.getByText('Schedule New Activity')).toBeTruthy();
+        expect(document.querySelector('.pl-modal-sub')).not.toBeNull();
+        fireEvent.click(button('Save Plan'));
+        await settle();
+        expect(screen.getByText('Pick a customer and a start time.')).toBeTruthy();
+
+        fireEvent.click(document.querySelector('.modal-content .searchable-select-trigger') as Element);
+        await settle();
+        fireEvent.click([...document.querySelectorAll('.searchable-select-option')].find((o) => o.textContent?.includes('Stone River')) as Element);
+        fireEvent.click(button('Save Plan'));
+        await settle();
+        const post = calls.find((c) => c.method === 'POST');
+        expect(post?.url).toMatch(/\/api\/schedule$/);
+        expect(JSON.parse(post!.body!)).toMatchObject({ customerId: 'c2', activityType: 'Visit', notes: '' });
+        expect(onScheduleChange).toHaveBeenCalled();
+        expect(screen.queryByText('Schedule New Activity')).toBeNull();
+    });
+
+    it('edits a stop and saves it with PUT', async () => {
+        await open();
+        fireEvent.click(screen.getAllByLabelText('Edit activity')[0]);
+        await settle();
+        expect(screen.getByText('Edit Activity')).toBeTruthy();
+        expect((document.querySelector('.modal-content textarea') as HTMLTextAreaElement).value).toBe('Bring the Moda binder');
+        fireEvent.click(button('Save Plan'));
+        await settle();
+        expect(calls.find((c) => c.method === 'PUT')?.url).toMatch(/\/api\/schedule\/s1$/);
+    });
+
+    it('asks before deleting, and Escape closes the check', async () => {
+        await open();
+        fireEvent.click(screen.getAllByLabelText('Delete activity')[0]);
+        await settle();
+        expect(screen.getByText('Delete this scheduled activity?')).toBeTruthy();
+        fireEvent.keyDown(document, { key: 'Escape' });
+        await settle();
+        expect(screen.queryByText('Delete this scheduled activity?')).toBeNull();
+
+        fireEvent.click(screen.getAllByLabelText('Delete activity')[0]);
+        await settle();
+        fireEvent.click(document.querySelector('.pl-danger-btn') as Element);
+        await settle();
+        expect(calls.find((c) => c.method === 'DELETE')?.url).toMatch(/\/api\/schedule\/s1$/);
+        expect(screen.queryByText('Delete this scheduled activity?')).toBeNull();
+    });
+
+    it('picks a stop up with Space and puts it down with Escape', async () => {
+        await open();
+        const card = document.querySelector('[data-planner-card="s1"]') as HTMLElement;
+        fireEvent.keyDown(card, { key: ' ' });
+        await settle();
+        expect(document.querySelector('[data-planner-card="s1"]')?.className).toContain('is-grabbed');
+        expect(document.querySelector('.pl-live')?.textContent).toContain('Pacific Granite picked up.');
+        fireEvent.keyDown(document, { key: 'Escape' });
+        await settle();
+        expect(document.querySelector('.pl-live')?.textContent).toBe('Pacific Granite left where it was.');
+        expect(document.querySelector('.is-grabbed')).toBeNull();
+    });
+
+    it('a refused load with nothing cached says so, with Try again', async () => {
+        refuse = true;
+        await open();
+        // A span no earlier case has loaded, so nothing is cached for it.
+        await view('Month');
+        for (let i = 0; i < 6; i++) await next();
+        expect(screen.getByRole('alert').textContent).toContain('Could not load the schedule.');
+        expect(button('Try again')).toBeTruthy();
+        refuse = false;
+        await view('Today');
+    });
+});

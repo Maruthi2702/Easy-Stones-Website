@@ -461,7 +461,8 @@ twice; never write it from a request body (`PROTECTED_CUSTOMER_FIELDS`).
 **Connect existing customers** (Customers ⋯ → Connect customers to SPS,
 `src/utils/spsConnect.js`, `src/routes/customerSpsConnect.js`) gives today's
 customers their key: exact names unasked, the rest by a person. The **new
-import** (Customers ⋯ → Import from SPS, `SpsImportModal.jsx`) is five steps
+import** (Customers ⋯ → Import from SPS, `src/features/customers/import/SpsImportModal.tsx`,
+its state `useSpsImport.ts`, each step in `import/sps/`) is five steps
 over saved runs (`SpsImportRun` / `SpsImportItem`): the planner
 `src/utils/spsImportPlan.js` gives every SPS name exactly one outcome (held
 key → update; exact name → connect; deleted before → asked, never silent;
@@ -763,9 +764,10 @@ list's month filter and counts use, and the date/time/"Today" shown and
 exported), and the Check-In Log's exports (`src/utils/checkInExport.js`: the
 Excel rows, the PDF's filter line, link and row cap; `src/utils/checkInLogPdf.js`:
 that the PDF builds, pages, and survives characters its font lacks), and the
-3rd-Party Freight screen's rules (`src/utils/freightView.ts`: its tabs and
+3rd-Party Freight screen's rules (`src/features/freight/freightView.ts`: its tabs and
 counts, charges grouped by carrier, what a selection offers — Approve,
-Approve & pay, Mark paid — and why not, payment wording and the Excel rows),
+Approve & pay, Mark paid — and why not, payment wording and the Excel rows;
+the page itself has a render smoke test, `freight.test.tsx`),
 and the Delivery Schedule's column order per branch
 (`src/utils/deliveryColumns.js`: the default — our drivers A–Z, 3rd-party
 trucks, Will Call — a branch's saved order, where a new driver lands; its

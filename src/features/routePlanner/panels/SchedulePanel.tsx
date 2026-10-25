@@ -14,7 +14,7 @@ const timeLabel = (startTime: string) => {
 };
 
 // Same activity → colour mapping as the Dashboard's own week/month planner
-// (ACTIVITY_COLORS in SalesPlannerTab.jsx, styled via .pl-item--* in
+// (ACTIVITY_COLORS in features/salesPlanner/salesPlanner.ts, styled via .pl-item--* in
 // SalesPage.css) — kept as its own small copy here rather than importing
 // across that boundary, since it's four fixed brand colours, not shared
 // logic, and the two screens don't otherwise share a module.

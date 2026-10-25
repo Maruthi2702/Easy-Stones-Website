@@ -31,7 +31,7 @@ on it too, with one deliberate phone exception (owner's call, 2026-10-04): no
 footer — Save selection is a full-width button at the end of the body, and
 Email / Print sit under a "…" button beside the ✕ (`FormModal`'s opt-in
 `hideFooterOnPhone` and `headerActions`).
-**Add / Edit customer** (`src/components/sales/CustomerForm.jsx`, size M; rules
+**Add / Edit customer** (`src/features/customers/form/CustomerForm.tsx`, size M; rules
 in `src/utils/customerForm.ts`) is on it, built from model A on the
 [Add & Edit Customer canvas](https://claude.ai/artifact/G6YUNXvbtVqScRGB7dHtXD):
 no headings, every account setting a dropdown, no Cancel, and the business
@@ -48,7 +48,7 @@ Packing list and Notes. Picking the 3rd-party truck as Driver adds Carrier
 name, BOL # and Agreed price (optional, owner's call 2026-10-05), on transfers
 too. It keeps
 Cancel. It replaced `DeliveryModal.jsx` on the Delivery Schedule board.
-Accounting · 3rd-Party Freight (`src/components/sales/freight/`, 2026-10-09)
+Accounting · 3rd-Party Freight (`src/features/freight/forms/`, 2026-10-09)
 is built on it from the start: Approve & pay / Mark paid and Void (size S),
 Add / Edit charge and Enter carrier invoice (size M), and Add / Edit carrier
 (size S, Deactivate on the left of the footer).

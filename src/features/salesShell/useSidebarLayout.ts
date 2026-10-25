@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 /**
  * The side nav's layout. On desktop it is always docked (it collapses to its
- * section rail instead of hiding — CustomerSidebar.jsx); at 1024px and below
+ * section rail instead of hiding — sideNav/CustomerSidebar.tsx); at 1024px and below
  * it's a drawer opened by each tab's SidebarToggleButton (`isMobile`). Moved
  * out of SalesPage unchanged (2026-10-24).
  */

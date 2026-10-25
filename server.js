@@ -123,6 +123,7 @@ import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.js';
 import createCustomerSpsImportRouter from './src/routes/customerSpsImport.js';
 import { resumeRunningImports } from './src/services/spsImportRunner.js';
 import createVisitsRouter from './src/routes/visits.js';
+import { geocodeCustomersInBackground, onCustomersGeocoded } from './src/services/customerGeocoding.js';
 import createCustomerBulkDeleteRouter, { backupAndDeleteCustomer } from './src/routes/customerBulkDelete.js';
 import createGeocodeRouter from './src/routes/geocode.js';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.js';
@@ -263,6 +264,12 @@ const bustCustomerCaches = () => {
   memoryCache.customerMap.data = null;
   memoryCache.customerMap.lastFetched = 0;
 };
+
+// Pins written in the background after a bulk import: the map's cached copy is stale.
+onCustomersGeocoded(() => {
+  bustCustomerCaches();
+  app.get('io')?.emit('customer_update');
+});
 
 const bustUserCaches = () => {
   memoryCache.salesreps.data = null;
@@ -5406,6 +5413,10 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
         else results.updated++;
       });
     }
+
+    // Imports save customers without a map point (a row each would be a Google
+    // call); give the created and changed ones theirs now, in the background.
+    geocodeCustomersInBackground([...createdByRow.values(), ...updates.map(r => String(r.targetId))]);
 
     // The customers above are already written, so failing to remember the
     // answers must not report the import itself as failed — it only means

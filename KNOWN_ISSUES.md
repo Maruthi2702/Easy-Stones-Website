@@ -167,6 +167,81 @@ already on `main`, kept as they were.
 - [ ] Extend hold (`forms/ExtendForm.tsx`) opens with +7 days already picked
       and counts that as a change, so closing it untouched asks "Discard?".
 
+## Sales Planner — other
+
+Found while moving the module into `src/features/salesPlanner` (2026-10-25);
+all already on `main`, kept as they were.
+
+- [ ] The planner does its own date arithmetic in local `Date` objects
+      instead of `calendarDates.js` (CLAUDE.md "Dates"): `dayKey`, `localISO`,
+      `startOfDay`, `addDays`, `mondayOf`, `dayOffset`, `atMinutes`,
+      `rangeFor`, `weekdaysOf` / `weekendOf` / `weeksBetween`, `titleFor` in
+      `salesPlanner.ts`, and the period step in `useSalesPlannerData.ts`.
+      Moved as they were; folding them into `calendarDates.js` is a separate
+      change.
+- [ ] Month view → Next / Previous on the 29th–31st skips a month: the step is
+      `setMonth(month ± 1)` with no clamp (`stepPeriod` in
+      `useSalesPlannerData.ts`), so Oct 31 → "Nov 31" = Dec 1. The edge-of-screen
+      flip during a drag goes the same way. `calendarDates.js`'s `shiftMonth`
+      clamps the 31st.
+- [ ] A refused delete does nothing: `confirmDelete` (`useActivityEditor.ts`)
+      only acts on `response.ok`, so the check stays open with no message.
+- [ ] "Today" is worked out once when the planner opens (`today` in
+      `useSalesPlannerData.ts`): left open past midnight, the Today tag, the
+      "N stops today" chip and the column highlight stay on yesterday until the
+      tab is reopened.
+- [ ] The Customer field passed `required` to `SearchableSelect`, which never
+      read it (the `*` and the "Pick a customer" check are the planner's own).
+      Dropped in the move; nothing changes.
+- [ ] Its styles are the "Sales Planner" section of `src/pages/SalesPage.css`
+      (`.pl-*`), not a file of its own: moving them out would change the built
+      CSS order, so they stay until that sheet is split.
+
+## 3rd-Party Freight — other
+
+Found while moving the module into `src/features/freight` (2026-10-25); all
+already on `main`, kept as they were.
+
+- [ ] The tabs' own empty messages ("Nothing waiting", "No payments yet"…)
+      almost never show: the page opens on the person's home branch, which
+      counts as a filter, so an empty tab says "No charges match — Try another
+      search, branch or carrier." until All locations is picked
+      (`list/ChargeList.tsx`, `filtered` in `FreightTab.tsx`).
+- [ ] Ticked charges stay ticked when moving to another page of the list (only
+      a new tab, search, branch or carrier clears them), so the selection bar's
+      count and total can include charges that aren't on screen
+      (`useFreightData.ts`'s view key leaves the page out).
+- [ ] More › Carriers lists the "carrier names nobody recognises" from the
+      first 100 waiting charges only, and Enter carrier invoice offers only a
+      carrier's first 100 waiting charges (`limit: 100` in
+      `panels/CarriersPanel.tsx`, `forms/InvoiceForm.tsx`); past that, names
+      and charges are missing without a word.
+- [ ] Dead code: the side panel's `wide` option (`parts/Drawer.tsx`, and
+      `.fr-drawer.wide` in `Freight.css`) is never used, and nothing on the
+      screen calls the server's `GET /api/accounting/freight-charges/:id/history`
+      (a charge's history comes with the charge).
+
+## Customer forms & imports — other
+
+Found while moving the module into `src/features/customers/form`,
+`src/features/customers/import` and `src/features/salesShell/sideNav`
+(2026-10-25); all already on `main`, kept as they were.
+
+- [ ] Dead code: the old read-only **View customer** modal
+      (`form/LegacyCustomerModal.tsx`, most of `form/AddCustomerModal.css`) can't
+      be opened — the Customers list passes `viewingCustomer={viewingPartner}`,
+      and `viewingPartner` is only ever set to `null` (`list/useListUi.ts`); the
+      "eye button" its comment names is gone. It stays mounted, hidden, beside
+      every Add / Edit customer form (three places) with a document `mousedown`
+      listener. Delete it with its CSS once the owner agrees.
+- [ ] Import from Excel (hidden, `SHOW_EXCEL_IMPORT`): **Choose a different
+      file** after answering review rows sends the old file's row decisions with
+      the new file's first preview — `onPickFile` resets the state, then calls
+      `runPreview` without `decisions`, so it falls back to the render's old
+      ones (`import/excel/useExcelImport.ts`). The screen then shows those rows
+      undecided while the plan applied them, and Import (which sends the reset,
+      empty decisions) can differ from the preview.
+
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
 
 Found in a code review of Delivery Schedule, Daily Report and Check-In Log on
