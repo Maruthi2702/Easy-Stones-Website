@@ -16,7 +16,11 @@ import type { Loose } from '../../types/records';
 export type FreightCharge = Loose;
 export type CarrierGroup = { key: string; carrier: Loose | null; name: string; perInvoice: boolean; unmatched: boolean; items: FreightCharge[]; cents: number };
 
-const has = (user: { permissions?: unknown } | null | undefined, perm: string): boolean => Array.isArray(user?.permissions) && user.permissions.includes(perm);
+/** Does this person hold `perm`? (Permissions only — never the role's name.) */
+export const has = (user: { permissions?: unknown } | null | undefined, perm: string): boolean => Array.isArray(user?.permissions) && user.permissions.includes(perm);
+
+/** "1 charge", "3 charges". */
+export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 /** The tabs (owner, 2026-10-09): flagged charges live under To approve. */
 export const FREIGHT_TABS = Object.freeze([
@@ -44,6 +48,9 @@ export const STATUS_PILL: Readonly<Record<string, { label: string; tone: string 
 });
 
 export const openFlagsOf = (charge: FreightCharge | null | undefined): Loose[] => (charge?.openFlags || (charge?.flags || []).filter((f: Loose) => !f.resolvedAt));
+
+/** Only a charge waiting for approval or approved can be ticked (paid and void ones can't). */
+export const isSelectable = (charge: FreightCharge): boolean => charge.status === 'draft' || charge.status === 'approved';
 
 export const isPerInvoice = (carrier: Loose | null | undefined): boolean => carrier?.paymentTerms === PAYMENT_TERMS.PER_INVOICE;
 

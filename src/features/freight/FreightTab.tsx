@@ -12,10 +12,17 @@ import {
   FREIGHT_TABS, tabCount, groupByCarrier, selectionActions, shortDate, todayIso, freightExportRows, openFlagsOf
 } from './freightView';
 import * as api from './freightApi';
-import { StatusCell, Loading } from './parts';
-import { ChargePanel, InvoicePanel, PaymentPanel, CarriersPanel } from './FreightPanels';
-import { PayForm, VoidForm, ChargeForm, CarrierForm } from './FreightForms';
-import InvoiceForm from './InvoiceForm';
+import { StatusCell } from './parts/StatusCell';
+import { Loading } from './parts/Loading';
+import { ChargePanel } from './panels/ChargePanel';
+import { InvoicePanel } from './panels/InvoicePanel';
+import { PaymentPanel } from './panels/PaymentPanel';
+import { CarriersPanel } from './panels/CarriersPanel';
+import PayForm from './forms/PayForm';
+import VoidForm from './forms/VoidForm';
+import ChargeForm from './forms/ChargeForm';
+import CarrierForm from './forms/CarrierForm';
+import InvoiceForm from './forms/InvoiceForm';
 import type { Loose } from '../../types/records';
 import type { CarrierGroup } from './freightView';
 import type { Carrier, FreightActions, FreightCharge, FreightForm, FreightPanel, FreightToast, FreightUser } from './types';

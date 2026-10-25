@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Check, AlertTriangle } from 'lucide-react';
-import FormModal from '../../components/shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker } from '../../components/shared/form/FormControls';
-import { goToField } from '../../components/shared/form/formFocus';
-import { DatePicker } from '../../components/shared/calendar/Calendar';
-import { PAYMENT_TERMS } from '../../accounting/freightRules';
-import { toCents, centsToPlain, formatCents, sumCents } from '../../accounting/money';
-import { todayIso, shortDate } from './freightView';
-import { listCharges } from './freightApi';
-import type { Loose } from '../../types/records';
-import type { Carrier, CarrierInvoice, FreightCharge } from './types';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormSection, FormRow, FormField, FormPicker } from '../../../components/shared/form/FormControls';
+import { goToField } from '../../../components/shared/form/formFocus';
+import { DatePicker } from '../../../components/shared/calendar/Calendar';
+import { PAYMENT_TERMS } from '../../../accounting/freightRules';
+import { toCents, centsToPlain, formatCents, sumCents } from '../../../accounting/money';
+import { todayIso, shortDate } from '../freightView';
+import { listCharges } from '../freightApi';
+import type { Loose } from '../../../types/records';
+import type { Carrier, CarrierInvoice, FreightCharge } from '../types';
 
 const LABELS: Record<string, string> = { carrierId: 'Carrier', invoiceNumber: 'Invoice #', invoiceDate: 'Invoice date', total: 'Invoice total', chargeIds: 'Charges' };
 const ORDER = Object.keys(LABELS);
