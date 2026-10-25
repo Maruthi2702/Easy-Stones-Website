@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { lazyRetry } from '../../../utils/lazyRetry';
 import type { Loose } from '../../../types/records';
 
-const SalesPlannerTab = lazyRetry(() => import('../../../components/SalesPlannerTab'));
+const SalesPlannerTab = lazyRetry(() => import('../../salesPlanner/SalesPlannerTab'));
 
 export type CalendarPanelProps = {
     customerSelection: Loose[];

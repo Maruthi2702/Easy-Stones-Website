@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     ChevronLeft, ChevronRight, Calendar as CalendarIcon,
     Plus, Trash2, Edit2, AlertCircle, X, Check, AlertTriangle
 } from 'lucide-react';
-import { API_URL } from '../config/api';
-import { authFetch } from '../api/authFetch';
-import SearchableSelect from './SearchableSelect';
-import { toCustomerOptions } from '../utils/customerOptions';
+import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
+import SearchableSelect from '../../components/SearchableSelect';
+import { toCustomerOptions, type CustomerOption } from '../../utils/customerOptions';
+import type { Loose } from '../../types/records';
 import {
     getCachedPlannerRange,
     loadPlannerRange,
@@ -15,10 +16,11 @@ import {
     patchPlannerItem,
     setPlannerUser,
     plannerRangeKey
-} from '../api/plannerSchedule';
+} from './plannerSchedule';
+import type { PlannerItem } from './plannerSchedule';
 
-import { DateTimePicker, DatePicker, MonthPicker } from './shared/calendar/Calendar';
-import { withMonth } from './shared/calendar/calendarDates';
+import { DateTimePicker, DatePicker, MonthPicker } from '../../components/shared/calendar/Calendar';
+import { withMonth } from '../../components/shared/calendar/calendarDates';
 
 /**
  * The sales planner.
@@ -36,58 +38,58 @@ import { withMonth } from './shared/calendar/calendarDates';
  * moving one: a stop can be dragged onto another day, which is the same edit
  * with the calendar as the input rather than a date field inside a modal.
  *
- * The schedule itself is not held here — it lives in ../api/plannerSchedule,
+ * The schedule itself is not held here — it lives in ./plannerSchedule,
  * because the dashboard unmounts this component every time another tab is
  * shown. See that module for what survives the unmount and how a change made
  * elsewhere finds its way onto this screen.
  */
 
-const pad = (n) => String(n).padStart(2, '0');
+const pad = (n: number) => String(n).padStart(2, '0');
 
 /** 'YYYY-MM-DD' in local time — the key a day is stored and looked up under. */
-const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
 /**
  * Schedules are stored as a local ISO string with no zone suffix, and are read
  * back the same way. Anything that builds a startTime has to match that or the
  * item lands on the wrong day for anyone east of UTC.
  */
-const localISO = (d) =>
+const localISO = (d: Date) =>
     `${dayKey(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.000`;
 
-const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const startOfDay = (d: Date | number) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
+const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
 /** Monday of whatever week `d` falls in. Sunday belongs to the week just ending. */
-const mondayOf = (d) => {
+const mondayOf = (d: Date) => {
     const x = startOfDay(d);
     const g = x.getDay();
     return addDays(x, g === 0 ? -6 : 1 - g);
 };
 
 /** 'YYYY-MM-DD' as local midnight. */
-const parseISOLocal = (iso) => new Date(`${iso}T00:00:00`);
+const parseISOLocal = (iso: string) => new Date(`${iso}T00:00:00`);
 
-const isSameDay = (a, b) => dayKey(a) === dayKey(b);
+const isSameDay = (a: Date, b: Date) => dayKey(a) === dayKey(b);
 
 /**
  * Whole days between two dates. Rounded rather than truncated because the days
  * a clock goes forward and back are 23 and 25 hours long, and a drag across
  * either of those edges must still count as one day.
  */
-const dayOffset = (from, to) => Math.round((startOfDay(to) - startOfDay(from)) / 86400000);
+const dayOffset = (from: Date, to: Date) => Math.round((startOfDay(to).getTime() - startOfDay(from).getTime()) / 86400000);
 
 const MINUTES_IN_DAY = 24 * 60;
 
 /** Minutes past midnight — all the ordering inside a day depends on. */
-const minutesOf = (value) => {
-    const d = new Date(value);
+const minutesOf = (value: string | Date | undefined): number | null => {
+    const d = new Date(value as string);
     if (Number.isNaN(d.getTime())) return null;
     return d.getHours() * 60 + d.getMinutes();
 };
 
 /** `day` at `minutes` past midnight. setMinutes rolls the hour over itself. */
-const atMinutes = (day, minutes) => {
+const atMinutes = (day: Date, minutes: number) => {
     const d = startOfDay(day);
     d.setMinutes(minutes);
     return d;
@@ -108,14 +110,14 @@ const atMinutes = (day, minutes) => {
  * hour after the last. A null index — an empty day, the open end of a column,
  * a month cell with no order to read — means the stop keeps the time it has.
  */
-const slotMinutes = (neighbours, index) => {
+const slotMinutes = (neighbours: PlannerItem[], index: number | null): number | null => {
     if (index === null || neighbours.length === 0) return null;
 
     const before = index > 0 ? minutesOf(neighbours[index - 1].startTime) : null;
     const after = index < neighbours.length ? minutesOf(neighbours[index].startTime) : null;
 
     if (before === null && after === null) return null;
-    if (before === null) return Math.max(0, after - 30);
+    if (before === null) return Math.max(0, (after as number) - 30);
     if (after === null) return Math.min(MINUTES_IN_DAY - 1, before + 30);
 
     const middle = (before + after) / 2;
@@ -128,7 +130,7 @@ const slotMinutes = (neighbours, index) => {
  * particular". Read off the rendered boxes rather than computed, because the
  * cards are different heights — a stop with a note is taller than one without.
  */
-const slotAtPoint = (dayEl, y) => {
+const slotAtPoint = (dayEl: Element, y: number): number | null => {
     const cards = dayEl.querySelectorAll('[data-planner-card]');
     if (cards.length === 0) return null;
 
@@ -145,19 +147,19 @@ const slotAtPoint = (dayEl, y) => {
 };
 
 /** The day a 'YYYY-MM-DD' key names, back as a local Date. */
-const dayFromKey = (key) => {
+const dayFromKey = (key: string) => {
     const [y, m, d] = key.split('-').map(Number);
     return new Date(y, m - 1, d);
 };
 
-const ACTIVITY_COLORS = {
+const ACTIVITY_COLORS: Record<string, string> = {
     'Visit': '#4ade80',
     'Call': '#3b82f6',
     'Drop-off': '#facc15',
     'Other': '#94a3b8'
 };
 
-const activityModifier = (type) => {
+const activityModifier = (type: unknown) => {
     switch (type) {
         case 'Call': return 'call';
         case 'Drop-off': return 'dropoff';
@@ -166,23 +168,26 @@ const activityModifier = (type) => {
     }
 };
 
-const activityColor = (type) => ACTIVITY_COLORS[type] || ACTIVITY_COLORS.Other;
+const activityColor = (type: unknown) => ACTIVITY_COLORS[type as string] || ACTIVITY_COLORS.Other;
 
-const timeLabel = (value) => {
+const timeLabel = (value: string | Date) => {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return '';
     return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
 
-const customerName = (item) =>
-    item.customerId?.company || item.customerId?.contactName || 'Unknown';
+/** The populated customer on an item, or null when it is only an id. */
+const customerOf = (item: PlannerItem) => (item.customerId && typeof item.customerId === 'object' ? item.customerId : null);
+
+const customerName = (item: PlannerItem) =>
+    customerOf(item)?.company || customerOf(item)?.contactName || 'Unknown';
 
 /**
  * A new activity opens on the day you clicked. On today that means the next
  * five-minute mark, so the picker doesn't hand you a time that has already been
  * and gone; on any other day, 9am — early enough to be worth dragging later.
  */
-const defaultStartFor = (day) => {
+const defaultStartFor = (day: Date | null) => {
     const now = new Date();
     const d = day ? new Date(day) : new Date();
     if (isSameDay(d, now)) {
@@ -194,14 +199,18 @@ const defaultStartFor = (day) => {
     return localISO(d);
 };
 
-const EMPTY_FORM = { customerId: '', startTime: '', activityType: 'Visit', notes: '' };
+type ActivityForm = { customerId: string; startTime: string; activityType: string; notes: string };
+
+const EMPTY_FORM: ActivityForm = { customerId: '', startTime: '', activityType: 'Visit', notes: '' };
 
 /**
  * The span to fetch, which is not the same as the span to draw: week view
  * renders five columns but pulls all seven days, because the weekend rail can
  * only show what was asked for.
  */
-const rangeFor = (date, mode) => {
+type ViewMode = 'day' | 'week' | 'month';
+
+const rangeFor = (date: Date, mode: ViewMode) => {
     if (mode === 'day') {
         const s = startOfDay(date);
         return { start: s, end: s };
@@ -225,7 +234,7 @@ const rangeFor = (date, mode) => {
  * it defaults to, throwing away a deliberate navigation; this remembers it for
  * as long as the page is loaded.
  */
-const lastView = { date: null, mode: 'week' };
+const lastView: { date: number | null; mode: ViewMode } = { date: null, mode: 'week' };
 
 const cachedItemsForLastView = () => {
     const date = lastView.date ? new Date(lastView.date) : new Date();
@@ -233,37 +242,46 @@ const cachedItemsForLastView = () => {
     return getCachedPlannerRange(dayKey(r.start), dayKey(r.end));
 };
 
-/**
- * @param {{
- *   customerSelection?: Record<string, any>[], customerOptions?: Record<string, any>[],
- *   onSelectCustomer?: (customer: Record<string, any>) => void, onScheduleChange?: () => void,
- *   isDropdownLoading?: boolean, currentUserId?: string | null
- * }} props
- */
-const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onScheduleChange, isDropdownLoading, currentUserId = null }) => {
+/** One move in the air, whichever input started it. */
+type Drag = { item: PlannerItem; source: 'mouse' | 'touch' | 'keyboard'; dayKey: string | null; index: number | null };
+
+/** A long press in progress (see handlePointerDown). */
+type TouchPress = {
+    pointerId: number; item: PlannerItem; x: number; y: number; active: boolean;
+    onMove: (ev: PointerEvent) => void; onEnd: (ev: PointerEvent) => void; onCancel: () => void;
+    timer: ReturnType<typeof setTimeout>;
+};
+
+export type SalesPlannerTabProps = {
+    customerSelection?: Loose[]; customerOptions?: Loose[];
+    onSelectCustomer?: (customer: Loose) => void; onScheduleChange?: () => void;
+    isDropdownLoading?: boolean; currentUserId?: string | null;
+};
+
+const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onScheduleChange, isDropdownLoading, currentUserId = null }: SalesPlannerTabProps) => {
     const [currentDate, setCurrentDate] = useState(() => (lastView.date ? new Date(lastView.date) : new Date()));
-    const [viewMode, setViewMode] = useState(lastView.mode);
+    const [viewMode, setViewMode] = useState<ViewMode>(lastView.mode);
     // Anything already fetched this session paints in the first frame — a tab
     // switch should not cost a round trip before the week reappears.
-    const [scheduleItems, setScheduleItems] = useState(() => cachedItemsForLastView() || []);
+    const [scheduleItems, setScheduleItems] = useState<PlannerItem[]>(() => cachedItemsForLastView() || []);
     const [loading, setLoading] = useState(() => cachedItemsForLastView() === null);
-    const [loadError, setLoadError] = useState(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
-    const [saveError, setSaveError] = useState(null);
+    const [saveError, setSaveError] = useState<string | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [editingItem, setEditingItem] = useState(null);
-    const [addingForDay, setAddingForDay] = useState(null);
+    const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
+    const [addingForDay, setAddingForDay] = useState<Date | null>(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [itemToDelete, setItemToDelete] = useState(null);
+    const [itemToDelete, setItemToDelete] = useState<string | null>(null);
     // One drag, whichever input started it: a mouse, a finger, or the keyboard.
     // { item, source: 'mouse'|'touch'|'keyboard', dayKey, index }
-    const [drag, setDrag] = useState(null);
+    const [drag, setDrag] = useState<Drag | null>(null);
     const [edgeDir, setEdgeDir] = useState(0);
-    const [moveError, setMoveError] = useState(null);
+    const [moveError, setMoveError] = useState<string | null>(null);
     const [announcement, setAnnouncement] = useState('');
 
-    const [form, setForm] = useState(EMPTY_FORM);
+    const [form, setForm] = useState<ActivityForm>(EMPTY_FORM);
 
     const today = useMemo(() => startOfDay(new Date()), []);
 
@@ -342,21 +360,21 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
     /** One pass over the response instead of a filter per day per render. */
     const itemsByDay = useMemo(() => {
-        const map = new Map();
+        const map = new Map<string, PlannerItem[]>();
         for (const item of scheduleItems || []) {
             const d = new Date(item.startTime);
             if (Number.isNaN(d.getTime())) continue;
             const key = dayKey(d);
             if (!map.has(key)) map.set(key, []);
-            map.get(key).push(item);
+            map.get(key)!.push(item);
         }
         for (const list of map.values()) {
-            list.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+            list.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
         }
         return map;
     }, [scheduleItems]);
 
-    const itemsFor = useCallback((day) => itemsByDay.get(dayKey(day)) || [], [itemsByDay]);
+    const itemsFor = useCallback((day: Date) => itemsByDay.get(dayKey(day)) || [], [itemsByDay]);
 
     const weekdays = useMemo(() => {
         const s = mondayOf(currentDate);
@@ -370,7 +388,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
     const monthWeeks = useMemo(() => {
         if (viewMode !== 'month') return [];
-        const weeks = [];
+        const weeks: Date[][] = [];
         let cursor = new Date(range.start);
         while (cursor <= range.end) {
             weeks.push([0, 1, 2, 3, 4, 5, 6].map(i => addDays(cursor, i)));
@@ -393,7 +411,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
      * the one in scope because the edge-of-screen flip calls this from inside a
      * timer, where the date this render closed over is already history.
      */
-    const stepPeriod = useCallback((dir) => {
+    const stepPeriod = useCallback((dir: number) => {
         setCurrentDate(prev => {
             const d = new Date(prev);
             if (viewMode === 'day') d.setDate(d.getDate() + dir);
@@ -408,7 +426,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
     const handleToday = () => setCurrentDate(new Date());
 
-    const openAdd = (day) => {
+    const openAdd = (day: Date | null) => {
         setEditingItem(null);
         setAddingForDay(day ? new Date(day) : new Date());
         setSaveError(null);
@@ -416,12 +434,12 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         setShowAddModal(true);
     };
 
-    const openEdit = (item) => {
+    const openEdit = (item: PlannerItem) => {
         setEditingItem(item);
         setAddingForDay(null);
         setSaveError(null);
         setForm({
-            customerId: item.customerId?._id || item.customerId || '',
+            customerId: customerOf(item)?._id || (item.customerId as string) || '',
             startTime: item.startTime,
             activityType: item.activityType || 'Visit',
             notes: item.notes || ''
@@ -438,7 +456,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
     useEffect(() => {
         if (!showAddModal && !showDeleteModal) return undefined;
-        const onKey = (e) => {
+        const onKey = (e: KeyboardEvent) => {
             if (e.key !== 'Escape') return;
             if (showDeleteModal) setShowDeleteModal(false);
             else closeModal();
@@ -447,7 +465,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         return () => document.removeEventListener('keydown', onKey);
     }, [showAddModal, showDeleteModal]);
 
-    const handleSave = async (e) => {
+    const handleSave = async (e?: React.SyntheticEvent) => {
         if (e) e.preventDefault();
 
         if (!form.customerId || !form.startTime) {
@@ -482,13 +500,13 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
             }
         } catch (error) {
             console.error('[Planner] Save error:', error);
-            setSaveError(`Network error: ${error.message}`);
+            setSaveError(`Network error: ${(error as Error).message}`);
         } finally {
             setSaving(false);
         }
     };
 
-    const handleDelete = (id) => {
+    const handleDelete = (id: string) => {
         setItemToDelete(id);
         setShowDeleteModal(true);
     };
@@ -530,22 +548,22 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     const EDGE_TICK_MS = 60;
     const EDGE_FLIP_MS = 780;
 
-    const scrollRef = useRef(null);
-    const ghostRef = useRef(null);
-    const touch = useRef(null);
-    const edge = useRef({ dir: 0, timer: null, held: 0 });
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const ghostRef = useRef<HTMLDivElement>(null);
+    const touch = useRef<TouchPress | null>(null);
+    const edge = useRef<{ dir: number; timer: ReturnType<typeof setInterval> | null; held: number }>({ dir: 0, timer: null, held: 0 });
     const suppressClick = useRef(false);
-    const refocus = useRef(null);
+    const refocus = useRef<string | null>(null);
 
     /**
      * What the timers and the window-level pointer handlers read instead of the
      * render they were created in. They outlive it: a week can flip in the
      * middle of a drag, which unmounts the card the drag started on.
      */
-    const latest = useRef({});
+    const latest = useRef({} as { drag: Drag | null; itemsFor: (day: Date) => PlannerItem[]; stepPeriod: (dir: number) => void });
     latest.current = { drag, itemsFor, stepPeriod };
 
-    const announce = useCallback((message) => setAnnouncement(message), []);
+    const announce = useCallback((message: string) => setAnnouncement(message), []);
 
     /* ── the edge of the screen ── */
 
@@ -567,7 +585,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         setEdgeDir(0);
     }, []);
 
-    const startEdge = useCallback((dir, { scroll = true } = {}) => {
+    const startEdge = useCallback((dir: number, { scroll = true }: { scroll?: boolean } = {}) => {
         if (edge.current.dir === dir) return;
         stopEdge();
         edge.current.dir = dir;
@@ -592,7 +610,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     }, [stopEdge]);
 
     /** Called with every pointer position a running drag reports. */
-    const edgeAssist = useCallback((x) => {
+    const edgeAssist = useCallback((x: number) => {
         const el = scrollRef.current;
         if (!el) return;
         const box = el.getBoundingClientRect();
@@ -609,7 +627,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
      * Move a stop to `day`, optionally into gap `gap` — counted against the day
      * as it is drawn, so it includes the card being moved.
      */
-    const moveTo = useCallback(async (item, day, gap = null) => {
+    const moveTo = useCallback(async (item: PlannerItem | null, day: Date, gap: number | null = null) => {
         if (!item) return;
 
         const from = new Date(item.startTime);
@@ -635,12 +653,12 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         if (days === 0 && (minutes === null || minutes === minutesOf(item.startTime))) return;
 
         const nextStart = minutes === null ? addDays(from, days) : atMinutes(day, minutes);
-        const patch = { startTime: localISO(nextStart) };
+        const patch: { startTime: string; endTime?: string } = { startTime: localISO(nextStart) };
 
         // The planner never sets an end time, but the calendar sync does. Carry
         // the length across rather than the clock time it used to end at.
         if (item.endTime) {
-            const length = new Date(item.endTime) - from;
+            const length = new Date(item.endTime).getTime() - from.getTime();
             if (Number.isFinite(length) && length >= 0) {
                 patch.endTime = localISO(new Date(nextStart.getTime() + length));
             }
@@ -671,14 +689,14 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
             // too leaves the restored card standing, which is the right answer.
             undo();
             refreshPlannerSchedule();
-            const stayed = `${customerName(item)} stayed on ${from.toLocaleDateString('en-US', { weekday: 'long' })} — ${error.message}`;
+            const stayed = `${customerName(item)} stayed on ${from.toLocaleDateString('en-US', { weekday: 'long' })} — ${(error as Error).message}`;
             setMoveError(stayed);
             announce(stayed);
         }
     }, [announce, onScheduleChange]);
 
     /** Where the drag points, as far as anything drawing is concerned. */
-    const setTarget = useCallback((key, gap) => {
+    const setTarget = useCallback((key: string | null, gap: number | null) => {
         setDrag(d => (!d || (d.dayKey === key && d.index === gap) ? d : { ...d, dayKey: key, index: gap }));
     }, []);
 
@@ -689,7 +707,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
     /* ── mouse: the browser's own drag ── */
 
-    const handleDragStart = (item) => (e) => {
+    const handleDragStart = (item: PlannerItem) => (e: React.DragEvent) => {
         e.dataTransfer.effectAllowed = 'move';
         // Firefox will not start a drag with an empty transfer.
         try {
@@ -712,29 +730,29 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
      * calendar cannot take — a file dragged onto the window is not something a
      * column should be swallowing.
      */
-    const dayDropProps = (day, { ordered = true } = {}) => {
+    const dayDropProps = (day: Date, { ordered = true }: { ordered?: boolean } = {}) => {
         const key = dayKey(day);
         const mine = () => drag && drag.source === 'mouse';
 
         return {
             'data-planner-day': key,
             'data-planner-ordered': String(ordered),
-            onDragOver: (e) => {
+            onDragOver: (e: React.DragEvent<HTMLElement>) => {
                 if (!mine()) return;
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
                 setTarget(key, ordered ? slotAtPoint(e.currentTarget, e.clientY) : null);
             },
-            onDragLeave: (e) => {
+            onDragLeave: (e: React.DragEvent<HTMLElement>) => {
                 // Crossing onto a card inside the day is still being over the day.
-                if (!mine() || e.currentTarget.contains(e.relatedTarget)) return;
+                if (!mine() || e.currentTarget.contains(e.relatedTarget as Node | null)) return;
                 setDrag(d => (d && d.dayKey === key ? { ...d, dayKey: null, index: null } : d));
             },
-            onDrop: (e) => {
+            onDrop: (e: React.DragEvent<HTMLElement>) => {
                 if (!mine()) return;
                 e.preventDefault();
                 const gap = ordered ? slotAtPoint(e.currentTarget, e.clientY) : null;
-                const item = drag.item;
+                const item = drag!.item;
                 endDrag();
                 moveTo(item, day, gap);
             }
@@ -743,7 +761,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
     /* ── touch: a long press, because native drag never fires from a finger ── */
 
-    const positionGhost = (x, y) => {
+    const positionGhost = (x: number, y: number) => {
         const el = ghostRef.current;
         if (el) el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     };
@@ -758,13 +776,13 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         touch.current = null;
     }, []);
 
-    const handlePointerDown = (item) => (e) => {
+    const handlePointerDown = (item: PlannerItem) => (e: React.PointerEvent) => {
         // A mouse already has a drag of its own, and a second one fighting it
         // would only take the drag image away.
         if (e.pointerType === 'mouse' || touch.current) return;
         suppressClick.current = false;
 
-        const onMove = (ev) => {
+        const onMove = (ev: PointerEvent) => {
             const t = touch.current;
             if (!t || t.pointerId !== ev.pointerId) return;
 
@@ -785,18 +803,18 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
             // There is no dragover to say what is underneath, so ask the
             // document. The ghost takes no pointer events, or it would be the
             // only thing this ever found.
-            const dayEl = document.elementFromPoint(ev.clientX, ev.clientY)?.closest('[data-planner-day]');
+            const dayEl = document.elementFromPoint(ev.clientX, ev.clientY)?.closest<HTMLElement>('[data-planner-day]');
             if (!dayEl) {
                 setTarget(null, null);
                 return;
             }
             setTarget(
-                dayEl.dataset.plannerDay,
+                dayEl.dataset.plannerDay as string,
                 dayEl.dataset.plannerOrdered === 'true' ? slotAtPoint(dayEl, ev.clientY) : null
             );
         };
 
-        const onEnd = (ev) => {
+        const onEnd = (ev: PointerEvent) => {
             const t = touch.current;
             if (!t || t.pointerId !== ev.pointerId) return;
             const wasDragging = t.active;
@@ -847,7 +865,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
      */
     useEffect(() => {
         if (drag?.source !== 'touch') return undefined;
-        const block = (ev) => ev.preventDefault();
+        const block = (ev: Event) => ev.preventDefault();
         window.addEventListener('touchmove', block, { passive: false });
         return () => window.removeEventListener('touchmove', block);
     }, [drag?.source]);
@@ -865,13 +883,13 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
      * "leave the time alone", which is what moving to another day usually
      * means — then one per gap between that day's stops.
      */
-    const gapsFor = (day) => {
+    const gapsFor = (day: Date): (number | null)[] => {
         const n = itemsFor(day).length;
         return [null, ...Array.from({ length: n + 1 }, (_, i) => i)];
     };
 
     /** What an aim will actually do, in a sentence, for the live region. */
-    const describeAim = (item, day, gap) => {
+    const describeAim = (item: PlannerItem, day: Date, gap: number | null) => {
         const where = day.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
         const items = itemsFor(day);
         const self = items.findIndex(i => i._id === item._id);
@@ -888,14 +906,14 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
             : `${where}, ${timeLabel(atMinutes(day, minutes))}.`;
     };
 
-    const aimAt = useCallback((item, day, gap) => {
+    const aimAt = useCallback((item: PlannerItem, day: Date, gap: number | null) => {
         // Aiming past the edge of the week brings that week into view rather
         // than refusing the key — the same thing a drag does at the edge.
         if (day < range.start || day > range.end) setCurrentDate(new Date(day));
         setDrag({ item, source: 'keyboard', dayKey: dayKey(day), index: gap });
     }, [range.start, range.end]);
 
-    const grabWithKeyboard = (item) => (e) => {
+    const grabWithKeyboard = (item: PlannerItem) => (e: React.KeyboardEvent) => {
         // The buttons inside the card keep their own keys, and a card that is
         // already in hand is steered from the document instead — a week flip
         // unmounts this element, and with it anything listening here.
@@ -921,10 +939,10 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     useEffect(() => {
         if (drag?.source !== 'keyboard') return undefined;
 
-        const onKey = (e) => {
+        const onKey = (e: KeyboardEvent) => {
             const aim = latest.current.drag;
             if (!aim) return;
-            const day = dayFromKey(aim.dayKey);
+            const day = dayFromKey(aim.dayKey as string);
 
             if (e.key === 'Escape') {
                 e.preventDefault();
@@ -942,7 +960,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 return;
             }
 
-            const dayStep = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+            const dayStep = ({ ArrowLeft: -1, ArrowRight: 1 } as Record<string, number>)[e.key];
             if (dayStep) {
                 e.preventDefault();
                 // A new day is a new set of gaps and none of them has been asked
@@ -954,7 +972,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 return;
             }
 
-            const gapStep = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+            const gapStep = ({ ArrowUp: -1, ArrowDown: 1 } as Record<string, number>)[e.key];
             if (!gapStep) return;
             e.preventDefault();
             const gaps = gapsFor(day);
@@ -976,7 +994,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     useEffect(() => {
         const id = refocus.current;
         if (!id || drag) return;
-        const el = document.querySelector(`[data-planner-card="${id}"]`);
+        const el = document.querySelector<HTMLElement>(`[data-planner-card="${id}"]`);
         if (!el) return;
         refocus.current = null;
         el.focus();
@@ -984,7 +1002,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
     /* ── what the calendar draws while a move is in the air ── */
 
-    const dropClass = (day) => (drag && drag.dayKey === dayKey(day) ? ' is-drop' : '');
+    const dropClass = (day: Date) => (drag && drag.dayKey === dayKey(day) ? ' is-drop' : '');
 
     /**
      * Whether to draw the insertion line in gap `gap` of `day`. Never in either
@@ -992,19 +1010,19 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
      * put", and a line promising a move that will not happen is worse than no
      * line at all.
      */
-    const showSlot = (day, gap) => {
+    const showSlot = (day: Date, gap: number) => {
         if (!drag || drag.index !== gap || drag.dayKey !== dayKey(day)) return false;
         const self = itemsFor(day).findIndex(i => i._id === drag.item._id);
         return self === -1 || (gap !== self && gap !== self + 1);
     };
 
-    const dragProps = (item) => ({
+    const dragProps = (item: PlannerItem) => ({
         draggable: true,
         onDragStart: handleDragStart(item),
         onDragEnd: endDrag,
         onPointerDown: handlePointerDown(item),
         onKeyDown: grabWithKeyboard(item),
-        onClickCapture: (e) => {
+        onClickCapture: (e: React.MouseEvent) => {
             if (!suppressClick.current) return;
             suppressClick.current = false;
             e.preventDefault();
@@ -1015,8 +1033,8 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     });
 
     /** Hovering the week arrows with a card in hand turns the page. */
-    const navHoverProps = (dir) => ({
-        onDragOver: (e) => {
+    const navHoverProps = (dir: number) => ({
+        onDragOver: (e: React.DragEvent) => {
             if (!drag || drag.source !== 'mouse') return;
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
@@ -1026,7 +1044,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     });
 
     const effectiveCustomerOptions = useMemo(() => {
-        if (customerOptions && customerOptions.length > 0) return customerOptions;
+        if (customerOptions && customerOptions.length > 0) return customerOptions as CustomerOption[];
         // Same options as every other customer dropdown (customerOptions.js).
         return toCustomerOptions(customerSelection || []);
     }, [customerSelection, customerOptions]);
@@ -1057,7 +1075,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         return currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     }, [viewMode, currentDate, weekdays, weekendDays]);
 
-    const addLabel = (day) =>
+    const addLabel = (day: Date) =>
         `Schedule an activity on ${day.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}`;
 
     const renderSkeleton = (count = 2) => (
@@ -1069,7 +1087,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         ))
     );
 
-    const itemState = (item) => {
+    const itemState = (item: PlannerItem) => {
         if (!drag || drag.item._id !== item._id) return '';
         return drag.source === 'keyboard' ? ' is-grabbed' : ' is-dragging';
     };
@@ -1079,13 +1097,13 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     // else just sits at the 'Scheduled' default whether or not it happened.
     // A 'Scheduled' stop whose day has already passed reads as missed rather
     // than silently staying indistinguishable from one still coming up.
-    const visitFlag = (item) => {
+    const visitFlag = (item: PlannerItem): 'done' | 'missed' | null => {
         if (item.status === 'Completed') return 'done';
         if (item.status === 'Scheduled' && dayKey(new Date(item.startTime)) < dayKey(new Date())) return 'missed';
         return null;
     };
 
-    const renderItem = (item) => {
+    const renderItem = (item: PlannerItem) => {
         const flag = visitFlag(item);
         return (
             <div
@@ -1103,7 +1121,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                     <button
                         type="button"
                         className="pl-name"
-                        onClick={() => onSelectCustomer && onSelectCustomer(item.customerId)}
+                        onClick={() => onSelectCustomer && onSelectCustomer(item.customerId as Loose)}
                         title={`Open ${customerName(item)}`}
                     >
                         {customerName(item)}
@@ -1141,8 +1159,8 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
      * A day's cards with the insertion line threaded between them, so the gap a
      * drop is aimed at is the gap that opens up.
      */
-    const renderDayItems = (day, items) => {
-        const nodes = [];
+    const renderDayItems = (day: Date, items: PlannerItem[]) => {
+        const nodes: React.ReactNode[] = [];
         for (let i = 0; i <= items.length; i++) {
             if (showSlot(day, i)) nodes.push(<div key={`gap-${i}`} className="pl-slot" aria-hidden="true" />);
             if (i < items.length) nodes.push(renderItem(items[i]));
@@ -1150,7 +1168,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         return nodes;
     };
 
-    const renderDayColumn = (day, { compact = false } = {}) => {
+    const renderDayColumn = (day: Date, { compact = false }: { compact?: boolean } = {}) => {
         const items = itemsFor(day);
         const isToday = isSameDay(day, today);
         return (
@@ -1319,7 +1337,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                             <ChevronLeft size={18} />
                         </button>
                         <div className="pl-views" role="group" aria-label="Calendar view">
-                            {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([mode, label]) => (
+                            {([['day', 'Day'], ['week', 'Week'], ['month', 'Month']] as [ViewMode, string][]).map(([mode, label]) => (
                                 <button
                                     key={mode}
                                     type="button"
@@ -1472,7 +1490,6 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                                         value={form.customerId}
                                         onChange={value => setForm({ ...form, customerId: value })}
                                         placeholder="Select a Customer..."
-                                        required
                                         isLoading={isDropdownLoading}
                                     />
                                 </div>
