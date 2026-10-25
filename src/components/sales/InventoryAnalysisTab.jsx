@@ -18,6 +18,7 @@ import { fmtMoney, fmtNum, ageDays, STATUS_ORDER, STATUS_LABEL, dominantStatus }
 import InventorySlabList from './InventorySlabList';
 import { CART, can } from '../../holds/permissions';
 import './InventoryAnalysisTab.css';
+import { PurchasingWorkbench } from '../../features/purchasing';
 
 // Matches the $bucket boundaries in GET /api/inventory-analysis/summary.
 // $bucket omits empty buckets from its output entirely, so buckets are
@@ -49,7 +50,7 @@ const fetchInventoryJson = async (url) => {
 };
 
 const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refreshSignal = 0 }) => {
-  const [view, setView] = useState('stock'); // 'stock' | 'reorder'
+  const [view, setView] = useState('stock'); // 'stock' | 'reorder' | 'purchasing'
   const [summary, setSummary] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
   // Tracked separately from `summary` (which reflects the active filters) so
@@ -374,7 +375,14 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
         )}
       </p>
 
-      {initialLoading ? (
+      <div className="invan-view-toggle">
+        <button type="button" className={view === 'stock' ? 'active' : ''} onClick={() => setView('stock')}>Stock Detail</button>
+        <button type="button" className={view === 'reorder' ? 'active' : ''} onClick={() => setView('reorder')}>Reorder & Velocity</button>
+        {userPermissions.includes('view_purchasing') && (
+          <button type="button" className={view === 'purchasing' ? 'active' : ''} onClick={() => setView('purchasing')}>Purchasing</button>
+        )}
+      </div>
+      {view === 'purchasing' ? <PurchasingWorkbench key={currentUser?.id || 'purchasing'} currentUser={currentUser} refreshSignal={refreshSignal} /> : initialLoading ? (
         <div className="invan-loading"><RefreshCw size={24} className="invan-spin-icon" /><span>Loading inventory analysis...</span></div>
       ) : hasNoData ? (
         <div className="invan-empty-state">
@@ -444,11 +452,6 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
               </div>
             </div>
           )}
-
-          <div className="invan-view-toggle">
-            <button type="button" className={view === 'stock' ? 'active' : ''} onClick={() => setView('stock')}>Stock Detail</button>
-            <button type="button" className={view === 'reorder' ? 'active' : ''} onClick={() => setView('reorder')}>Reorder & Velocity</button>
-          </div>
 
           {view === 'stock' && (
             <>

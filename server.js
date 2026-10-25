@@ -137,6 +137,7 @@ import {
 import { pickPanelFollowUps } from './src/utils/followUpPanel.js';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.js';
+import createPurchasingRouter from './src/purchasing/router.js';
 import createUserOnboardingRouter, { newInvite, inviteLinkFor, sendInviteEmail } from './src/routes/userOnboarding.js';
 import {
   sessionIsCurrent, sessionVersionOf, temporaryPasswordFields, temporaryPasswordAnswer,
@@ -802,6 +803,7 @@ async function startServer() {
         // them a full admin/director. Defaults preserve today's behavior.
         { roles: ['admin', 'director'], permissions: ['manage_easy_stones_colors'] },
         { roles: ['admin', 'director', 'manager'], permissions: ['view_inventory_analysis', 'import_inventory_analysis'] },
+        { roles: ['admin', 'director'], permissions: ['view_purchasing', 'manage_purchasing', 'approve_purchasing'] },
         { roles: ['sales_rep', 'csr'], permissions: ['view_inventory_analysis'] },
         // Slab/lot cost and asset-value figures are a separate, narrower grant
         // from seeing the Inventory Analysis page itself — default to admin
@@ -5458,6 +5460,8 @@ app.post('/api/admin/erp-import/:type', authenticate, requirePermission('manage_
 // Lives in src/routes/inventoryAnalysis.js: the summary, stock list, reorder
 // and velocity reads, and the SPS stock/sales imports. Mounted here, where the
 // routes used to be, so their order among the other routes is unchanged.
+app.use('/api/purchasing', createPurchasingRouter({ authenticate }));
+
 app.use('/api/inventory-analysis', createInventoryAnalysisRouter({
   authenticate,
   requirePermission,

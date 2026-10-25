@@ -197,6 +197,9 @@ export const PAGE_PERMISSIONS = [
         color: '#0891b2',
         actions: [
             { key: 'view_inventory_analysis', label: 'View', icon: Eye, desc: 'View stock levels, aging, and reorder analysis' },
+            { key: 'view_purchasing', label: 'Purchasing', icon: ShoppingCart, desc: 'Open purchasing workbench (also needs Inventory View)' },
+            { key: 'manage_purchasing', label: 'Manage purchasing', icon: Pencil, desc: 'Configure planning scopes, import SPS inbound and create container drafts' },
+            { key: 'approve_purchasing', label: 'Approve purchasing', icon: CheckCheck, desc: 'Approve, cancel and link container drafts to imported SPS purchase orders' },
             { key: 'import_inventory_analysis', label: 'Import', icon: Upload, desc: 'Import new SPS inventory/sales exports (replaces current stock data)' },
             // Separate from View on purpose: seeing stock levels and seeing what
             // that stock cost/is worth are different levels of trust.
