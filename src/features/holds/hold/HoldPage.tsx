@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   ArrowLeft, Printer, Pencil, MoreHorizontal, Timer, AlertTriangle, Check, CheckCircle2, X, Loader2, Repeat,
   Plus, Unlock, Phone, Mail
@@ -13,18 +14,28 @@ import {
   expiryLine, elapsedShare, holdActions, longDate, dayMonth, dateOf, dateTimeOf, releaseDayOf, stateLabel, priceDraftOf,
   sharedPrice, priceChanges, lineAmount, cartSlabsFor, historyLabel, changeText, visibleChanges, chanceText, slabCount
 } from '../../../utils/holdView';
-import { useCart, cartActions } from './cartStore';
-import { DetailsForm, ExtendForm, ReleaseForm, SwapForm, AddSlabsForm } from './HoldForms';
-import HoldPrintPreview from './HoldPrintPreview';
+import type { Hold, HoldLine, LotGroup } from '../types';
+import type { OfferedSlab } from '../forms/HoldForms';
+import type { CurrentUser } from '../../../types/records';
+import { useCart, cartActions } from '../cartStore';
+import { DetailsForm, ExtendForm, ReleaseForm, SwapForm, AddSlabsForm } from '../forms/HoldForms';
+import HoldPrintPreview from '../print/HoldPrintPreview';
+
+/** lotGroups' answer for a hold's lines (src/holds/holdRules.js). */
+type LineGroup = LotGroup<HoldLine>;
+/** A history entry (HoldHistory in src/holds/models.js). */
+type HistoryEntry = { _id: string; action: string; by?: { name?: string } | null; at: string; note?: string; [key: string]: unknown };
+/** Which form is open over the page. */
+type OpenForm = { type: 'details' | 'extend' | 'release' | 'add' } | { type: 'swap'; line: HoldLine };
 
 /** A small menu under a button; closes on a click outside or Esc. */
 function useMenu() {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return undefined;
-    const onDown = (e) => { if (!ref.current?.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
@@ -32,7 +43,7 @@ function useMenu() {
   return { open, setOpen, ref };
 }
 
-function LotNote({ group }) {
+function LotNote({ group }: { group: LineGroup }) {
   if (group.slabs < 2) return null;
   return group.mixedLots ? (
     <span className="hl-lot warn"><AlertTriangle size={13} aria-hidden="true" />{group.bundles.length} bundles · colour may vary</span>
@@ -41,7 +52,7 @@ function LotNote({ group }) {
   );
 }
 
-function History({ entries }) {
+function History({ entries }: { entries: HistoryEntry[] }) {
   if (!entries.length) return <p className="hl-muted">Nothing yet.</p>;
   return (
     <ol className="hl-history">
@@ -66,17 +77,19 @@ function History({ entries }) {
  * permission (holdActions). Every save sends the version it was based on, so
  * a change made elsewhere in the meantime is refused, not overwritten.
  */
-export default function HoldPage({ id, user, sidebarToggle, onBack }) {
-  const [hold, setHold] = useState(null);
+export type HoldPageProps = { id: string; user: CurrentUser | null; sidebarToggle?: ReactNode; onBack: () => void };
+
+export default function HoldPage({ id, user, sidebarToggle, onBack }: HoldPageProps) {
+  const [hold, setHold] = useState<Hold | null>(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [pageTab, setPageTab] = useState('slabs');
-  const [draft, setDraft] = useState(null); // prices being edited: { [slabKey]: "22.00" }
-  const [priceErrors, setPriceErrors] = useState({});
-  const [selected, setSelected] = useState(() => new Set());
+  const [draft, setDraft] = useState<Record<string, string> | null>(null); // prices being edited: { [slabKey]: "22.00" }
+  const [priceErrors, setPriceErrors] = useState<Record<string, string>>({});
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [form, setForm] = useState(null); // { type: 'details'|'extend'|'release'|'swap'|'add', line? }
-  const [toast, setToast] = useState(null);
+  const [form, setForm] = useState<OpenForm | null>(null); // { type: 'details'|'extend'|'release'|'swap'|'add', line? }
+  const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const [printing, setPrinting] = useState(false);
   const moreMenu = useMenu();
@@ -85,7 +98,7 @@ export default function HoldPage({ id, user, sidebarToggle, onBack }) {
   useEffect(() => {
     let live = true;
     getHold(id)
-      .then((h) => { if (live) { setHold(h); setError(''); } })
+      .then((h) => { if (live) { setHold(h as Hold); setError(''); } })
       .catch((err) => { if (live) setError(err.message); });
     return () => { live = false; };
   }, [id, reloadKey]);
@@ -126,41 +139,41 @@ export default function HoldPage({ id, user, sidebarToggle, onBack }) {
   const state = holdState(hold, now);
   const act = holdActions(user, hold);
   const exp = expiryLine(hold, now);
-  const groups = lotGroups(hold.lines);
-  const pricedLines = draft ? hold.lines.map((l) => ({ ...l, priceCentsPerSf: priceCentsOf(draft[l.slabKey] ?? '') ?? null })) : hold.lines;
+  const groups = lotGroups(hold.lines) as LineGroup[];
+  const pricedLines: HoldLine[] = draft ? hold.lines.map((l: HoldLine) => ({ ...l, priceCentsPerSf: priceCentsOf(draft[l.slabKey] ?? '') ?? null })) : hold.lines;
   const totals = holdTotals(pricedLines);
-  const offered = act.slabs && canCart ? cartSlabsFor(hold, cart.lines) : [];
-  const history = hold.history || null;
+  const offered = (act.slabs && canCart ? cartSlabsFor(hold, cart.lines) : []) as OfferedSlab[];
+  const history: HistoryEntry[] | null = hold.history || null;
   const selectable = act.slabs && !draft;
   const allSelected = selected.size > 0 && selected.size === hold.lines.length;
 
   /** Run a change; the page shows the saved hold and reloads its history. */
   // A form shows its own error (it rethrows); elsewhere the toast does.
-  const run = async (fn, message, { inForm = false } = {}) => {
+  const run = async (fn: () => Promise<unknown>, message: string | ((saved: Hold) => string) | null, { inForm = false }: { inForm?: boolean } = {}): Promise<Hold> => {
     setBusy(true);
     try {
-      const saved = await fn();
+      const saved = await fn() as Hold;
       setHold((prev) => ({ ...saved, history: prev?.history }));
       setReloadKey((k) => k + 1);
       if (message) setToast({ text: typeof message === 'function' ? message(saved) : message });
       return saved;
     } catch (err) {
-      if (!inForm) setToast({ text: err.message, error: true });
-      if (err.status === 409) setReloadKey((k) => k + 1);
+      if (!inForm) setToast({ text: (err as Error).message, error: true });
+      if ((err as { status?: number }).status === 409) setReloadKey((k) => k + 1);
       throw err;
     } finally {
       setBusy(false);
     }
   };
   const closeForm = () => setForm(null);
-  const formSave = (fn, message) => async (...args) => { await run(() => fn(...args), message, { inForm: true }); setForm(null); };
+  const formSave = <A extends unknown[]>(fn: (...args: A) => Promise<unknown>, message: string | ((saved: Hold) => string)) => async (...args: A) => { await run(() => fn(...args), message, { inForm: true }); setForm(null); };
 
-  const toggle = (key) => setSelected((s) => {
+  const toggle = (key: string) => setSelected((s) => {
     const next = new Set(s);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
-  const toggleGroup = (g) => setSelected((s) => {
+  const toggleGroup = (g: LineGroup) => setSelected((s) => {
     const next = new Set(s);
     const all = g.lines.every((l) => next.has(l.slabKey));
     g.lines.forEach((l) => (all ? next.delete(l.slabKey) : next.add(l.slabKey)));
@@ -177,9 +190,9 @@ export default function HoldPage({ id, user, sidebarToggle, onBack }) {
   };
 
   const startPrices = () => { setDraft(priceDraftOf(hold.lines)); setPriceErrors({}); setSelected(new Set()); };
-  const setGroupPrice = (g, value) => setDraft((d) => ({ ...d, ...Object.fromEntries(g.lines.map((l) => [l.slabKey, value])) }));
+  const setGroupPrice = (g: LineGroup, value: string) => setDraft((d) => ({ ...d, ...Object.fromEntries(g.lines.map((l) => [l.slabKey, value])) }));
   const savePrices = async () => {
-    const { changed, errors } = priceChanges(hold.lines, draft);
+    const { changed, errors } = priceChanges(hold.lines, draft as Record<string, string>);
     setPriceErrors(errors);
     if (Object.keys(errors).length) return;
     if (!changed.length) { setDraft(null); return; }
@@ -389,9 +402,9 @@ export default function HoldPage({ id, user, sidebarToggle, onBack }) {
           </section>
           <section className="hl-sec">
             <h3>Slab notes</h3>
-            {hold.lines.some((l) => l.note) ? (
+            {hold.lines.some((l: HoldLine) => l.note) ? (
               <dl className="hl-kv">
-                {hold.lines.filter((l) => l.note).map((l) => <React.Fragment key={l.slabKey}><dt>{l.serial || l.slabKey}</dt><dd>{l.note}</dd></React.Fragment>)}
+                {hold.lines.filter((l: HoldLine) => l.note).map((l: HoldLine) => <React.Fragment key={l.slabKey}><dt>{l.serial || l.slabKey}</dt><dd>{l.note}</dd></React.Fragment>)}
               </dl>
             ) : <p className="hl-muted">None</p>}
           </section>
@@ -432,21 +445,21 @@ export default function HoldPage({ id, user, sidebarToggle, onBack }) {
 
       {printing ? <HoldPrintPreview hold={hold} onClose={() => setPrinting(false)} /> : null}
       {form?.type === 'details' ? (
-        <DetailsForm hold={hold} onClose={closeForm} onSave={formSave((patch) => editHoldDetails(hold, patch), 'Hold saved')} />
+        <DetailsForm hold={hold} onClose={closeForm} onSave={formSave((patch: object) => editHoldDetails(hold, patch), 'Hold saved')} />
       ) : null}
       {form?.type === 'extend' ? (
-        <ExtendForm hold={hold} onClose={closeForm} onSave={formSave((expiresOn) => extendHold(hold, expiresOn), (h) => `Held until ${longDate(h.expiresOn)}`)} />
+        <ExtendForm hold={hold} onClose={closeForm} onSave={formSave((expiresOn: string) => extendHold(hold, expiresOn), (h) => `Held until ${longDate(h.expiresOn)}`)} />
       ) : null}
       {form?.type === 'release' ? (
-        <ReleaseForm hold={hold} onClose={closeForm} onRelease={formSave((reason) => releaseHold(hold, reason), `Hold #${hold.number} released — its slabs are free`)} />
+        <ReleaseForm hold={hold} onClose={closeForm} onRelease={formSave((reason: string) => releaseHold(hold, reason), `Hold #${hold.number} released — its slabs are free`)} />
       ) : null}
       {form?.type === 'swap' ? (
         <SwapForm hold={hold} line={form.line} cartLines={cart.lines} onClose={closeForm}
-          onSwap={formSave((to) => swapHoldSlab(hold, form.line.slabKey, to), (h) => `Swapped ${form.line.serial || form.line.slabKey} for ${h.lines.find((x) => !hold.slabKeys.includes(x.slabKey))?.serial || 'the new slab'}`)} />
+          onSwap={formSave((to: string) => swapHoldSlab(hold, form.line.slabKey, to), (h) => `Swapped ${form.line.serial || form.line.slabKey} for ${h.lines.find((x: HoldLine) => !hold.slabKeys.includes(x.slabKey))?.serial || 'the new slab'}`)} />
       ) : null}
       {form?.type === 'add' ? (
         <AddSlabsForm hold={hold} offered={offered} onClose={closeForm}
-          onAdd={formSave(async (add) => { const h = await changeHoldSlabs(hold, { add }); cartActions.load(); return h; }, (h) => `Added ${slabCount(h.lines.length - hold.lines.length)} to Hold #${hold.number}`)} />
+          onAdd={formSave(async (add: { slabKey: string; price: string | null; note: string }[]) => { const h = await changeHoldSlabs(hold, { add }); cartActions.load(); return h; }, (h) => `Added ${slabCount(h.lines.length - hold.lines.length)} to Hold #${hold.number}`)} />
       ) : null}
     </div>
   );

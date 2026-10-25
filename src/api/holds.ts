@@ -43,7 +43,7 @@ export const listHolds = (query: Query) => call('', { query });
 export const getHold = (id: Id) => call(`/${id}`);
 export const createHold = (body: object) => call('', { method: 'POST', body });
 export const editHoldDetails = (hold: Versioned, changes: object) => call(`/${hold._id}/details`, { method: 'PATCH', body: { version: hold.version, ...changes } });
-export const changeHoldSlabs = (hold: Versioned, { add = [], remove = [] }: { add?: string[]; remove?: string[] }) => call(`/${hold._id}/slabs`, { method: 'POST', body: { version: hold.version, add, remove } });
+export const changeHoldSlabs = (hold: Versioned, { add = [], remove = [] }: { add?: { slabKey: string; price: string | null; note: string }[]; remove?: string[] }) => call(`/${hold._id}/slabs`, { method: 'POST', body: { version: hold.version, add, remove } });
 export const swapHoldSlab = (hold: Versioned, from: string, to: string) => call(`/${hold._id}/swap`, { method: 'POST', body: { version: hold.version, from, to } });
 export const setHoldPrices = (hold: Versioned, lines: object[]) => call(`/${hold._id}/prices`, { method: 'PATCH', body: { version: hold.version, lines } });
 export const extendHold = (hold: Versioned, expiresOn: string) => call(`/${hold._id}/extend`, { method: 'POST', body: { version: hold.version, expiresOn } });

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Printer, Download, X, AlertTriangle, Loader2 } from 'lucide-react';
 import { fetchHoldPdf } from '../../../api/holds';
 import { LETTER_HIDE } from '../../../holds/holdLetter';
+import type { Hold } from '../types';
 import './HoldPrintPreview.css';
 
 /**
@@ -13,10 +14,12 @@ import './HoldPrintPreview.css';
  */
 
 const HIDE_KEY = 'holdLetterHide';
-const readHide = () => {
-  try { return JSON.parse(localStorage.getItem(HIDE_KEY)) || {}; } catch { return {}; }
+/** The letter's "Hide …" boxes that are ticked ({ unitPrice: true, … }). */
+type Hide = Record<string, boolean>;
+const readHide = (): Hide => {
+  try { return JSON.parse(localStorage.getItem(HIDE_KEY) as string) || {}; } catch { return {}; }
 };
-const saveHide = (hide) => {
+const saveHide = (hide: Hide) => {
   try { localStorage.setItem(HIDE_KEY, JSON.stringify(hide)); } catch { /* remembered for this visit only */ }
 };
 
@@ -29,9 +32,10 @@ const printsInTab = () => {
   return iOS || safari;
 };
 
-let pdfjsPromise = null;
+type Pdfjs = typeof import('pdfjs-dist/legacy/build/pdf.min.mjs');
+let pdfjsPromise: Promise<Pdfjs> | null = null;
 /** pdf.js, loaded the first time a preview opens (legacy build: older iPhones too). */
-function loadPdfjs() {
+function loadPdfjs(): Promise<Pdfjs> {
   if (!pdfjsPromise) {
     pdfjsPromise = Promise.all([
       import('pdfjs-dist/legacy/build/pdf.min.mjs'),
@@ -45,7 +49,7 @@ function loadPdfjs() {
 }
 
 /** Draw every page of `blob` as canvases inside `host`. */
-async function renderPages(blob, host, isCurrent) {
+async function renderPages(blob: Blob, host: HTMLElement | null, isCurrent: () => boolean) {
   const pdfjs = await loadPdfjs();
   const doc = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false }).promise;
   try {
@@ -59,23 +63,23 @@ async function renderPages(blob, host, isCurrent) {
       canvas.className = 'hp-page';
       canvas.setAttribute('role', 'img');
       canvas.setAttribute('aria-label', `Page ${n} of ${doc.numPages}`);
-      await page.render({ canvasContext: canvas.getContext('2d'), viewport, canvas }).promise;
+      await page.render({ canvasContext: canvas.getContext('2d') as CanvasRenderingContext2D, viewport, canvas }).promise;
       if (!isCurrent()) return;
       canvases.push(canvas);
     }
-    if (isCurrent()) host.replaceChildren(...canvases);
+    if (isCurrent()) (host as HTMLElement).replaceChildren(...canvases);
   } finally {
     doc.destroy();
   }
 }
 
-export default function HoldPrintPreview({ hold, onClose }) {
+export default function HoldPrintPreview({ hold, onClose }: { hold: Hold; onClose: () => void }) {
   const [hide, setHide] = useState(readHide);
-  const [blob, setBlob] = useState(null);
+  const [blob, setBlob] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState('');
-  const pagesRef = useRef(null);
-  const frameRef = useRef(null);
+  const pagesRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
   const seq = useRef(0);
 
   const holdKey = `${hold._id}:${hold.version}`;
@@ -91,7 +95,7 @@ export default function HoldPrintPreview({ hold, onClose }) {
         await renderPages(pdf, pagesRef.current, isCurrent);
         if (isCurrent()) setError('');
       } catch (err) {
-        if (isCurrent()) setError(err.message || 'Couldn’t show the letter.');
+        if (isCurrent()) setError((err as Error).message || 'Couldn’t show the letter.');
       } finally {
         if (isCurrent()) setBusy(false);
       }
@@ -102,7 +106,7 @@ export default function HoldPrintPreview({ hold, onClose }) {
   }, [holdKey, hide]);
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
     const html = document.documentElement.style;
     const before = html.overflow;
@@ -112,7 +116,7 @@ export default function HoldPrintPreview({ hold, onClose }) {
 
   useEffect(() => () => frameRef.current?.remove(), []);
 
-  const toggle = (key) => setHide((h) => {
+  const toggle = (key: string) => setHide((h) => {
     const next = { ...h, [key]: !h[key] };
     saveHide(next);
     return next;
@@ -132,7 +136,7 @@ export default function HoldPrintPreview({ hold, onClose }) {
     frame.title = 'Print';
     frame.src = url;
     frame.onload = () => {
-      try { frame.contentWindow.focus(); frame.contentWindow.print(); } catch { window.open(url, '_blank'); }
+      try { frame.contentWindow!.focus(); frame.contentWindow!.print(); } catch { window.open(url, '_blank'); }
     };
     document.body.appendChild(frame);
     frameRef.current = frame;

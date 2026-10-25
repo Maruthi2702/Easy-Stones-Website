@@ -33,7 +33,7 @@ const InventoryAnalysisTab = page(() => import('../../components/sales/Inventory
 const DeliveryScheduleTab = page(() => import('../delivery/DeliveryScheduleTab'));
 const DailyReportTab = page(() => import('../dailyReport/DailyReportTab'));
 const FreightTab = page(() => import('../../components/sales/freight/FreightTab'));
-const HoldsTab = page(() => import('../../components/sales/holds/HoldsTab'));
+const HoldsTab = page(() => import('../holds/HoldsTab'));
 const PermitsTab = page(() => import('../../components/sales/permits/PermitsTab'));
 
 export type SalesTabViewsProps = {

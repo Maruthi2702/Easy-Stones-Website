@@ -1,15 +1,19 @@
 import React, { useMemo, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
-import { FormSection, FormField, FormPicker, FormSearchPicker } from '../../shared/form/FormControls';
-import { goToField } from '../../shared/form/formFocus';
-import { DatePicker } from '../../shared/calendar/Calendar';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormSection, FormField, FormPicker, FormSearchPicker } from '../../../components/shared/form/FormControls';
+import { goToField } from '../../../components/shared/form/formFocus';
+import { DatePicker } from '../../../components/shared/calendar/Calendar';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { lotGroups, formatSf, priceCentsOf, todayIn, addDays, MAX_HOLD_DAYS } from '../../../holds/holdRules';
 import { branchZone } from '../../../config/branches';
 import {
   CHANCE_OPTIONS, detailsOf, detailsPatch, extendChoices, longDate, dayMonth, slabCount
 } from '../../../utils/holdView';
+import type { CartLine, Hold, HoldLine, LotGroup } from '../types';
+
+/** A slab added from the cart: its key, the typed price (null = none yet) and its note. */
+export type AddedSlab = { slabKey: string; price: string | null; note: string };
 
 /*
  * The Hold page's forms, on the shared template (FORM_TEMPLATE.md). Each one
@@ -17,7 +21,7 @@ import {
  * closes the form; a refusal comes back here and shows at the top.
  */
 
-const ServerError = ({ message }) => (message ? (
+const ServerError = ({ message }: { message: string }) => (message ? (
   <div className="hl-form-note err" role="alert"><AlertCircle size={16} aria-hidden="true" /><span>{message}</span></div>
 ) : null);
 
@@ -25,24 +29,24 @@ const ServerError = ({ message }) => (message ? (
 function useSubmit() {
   const [saving, setSaving] = useState(false);
   const [serverError, setServerError] = useState('');
-  const submit = async (fn) => {
+  const submit = async (fn: () => Promise<unknown>) => {
     setSaving(true);
     setServerError('');
-    try { await fn(); } catch (err) { setServerError(err.message); setSaving(false); }
+    try { await fn(); } catch (err) { setServerError((err as Error).message); setSaving(false); }
   };
   return { saving, serverError, submit };
 }
 
 /** Customer, job, chance to close, notes and slab notes. */
-export function DetailsForm({ hold, onSave, onClose }) {
-  const initial = useMemo(() => ({ ...detailsOf(hold), lineNotes: Object.fromEntries(hold.lines.map((l) => [l.slabKey, l.note || ''])) }), [hold]);
+export function DetailsForm({ hold, onSave, onClose }: { hold: Hold; onSave: (patch: object) => Promise<unknown>; onClose: () => void }) {
+  const initial = useMemo(() => ({ ...detailsOf(hold), lineNotes: Object.fromEntries(hold.lines.map((l: HoldLine) => [l.slabKey, l.note || ''])) as Record<string, string> }), [hold]);
   const [values, setValues] = useState(initial);
   const { options: customers, loading } = useCustomerOptions();
   const { saving, serverError, submit } = useSubmit();
-  const set = (patch) => setValues((v) => ({ ...v, ...patch }));
+  const set = (patch: Partial<typeof initial>) => setValues((v) => ({ ...v, ...patch }));
 
   const patch = detailsPatch(hold, values);
-  const lineNotes = hold.lines
+  const lineNotes = (hold.lines as HoldLine[])
     .filter((l) => (values.lineNotes[l.slabKey] || '').trim() !== (l.note || ''))
     .map((l) => ({ slabKey: l.slabKey, note: (values.lineNotes[l.slabKey] || '').trim() }));
   const dirty = Object.keys(patch).length + lineNotes.length;
@@ -61,7 +65,7 @@ export function DetailsForm({ hold, onSave, onClose }) {
       <ServerError message={serverError} />
       <FormSection>
         <FormField name="customerId" id="hd-customer" label="Customer" required>
-          <FormSearchPicker id="hd-customer" value={values.customerId} onChange={(customerId) => set({ customerId })} options={customers}
+          <FormSearchPicker id="hd-customer" value={values.customerId} onChange={(customerId: string) => set({ customerId })} options={customers}
             loading={loading && !customers.length} selectedLabel={hold.customer?.name || ''} placeholder="Search customers" sheetTitle="Customer" disabled={saving} />
         </FormField>
         <FormField name="job" id="hd-job" label="Job / reference">
@@ -80,7 +84,7 @@ export function DetailsForm({ hold, onSave, onClose }) {
         </FormField>
       </FormSection>
       <FormSection title="Slab notes">
-        {hold.lines.map((l) => (
+        {hold.lines.map((l: HoldLine) => (
           <FormField key={l.slabKey} name={`note-${l.slabKey}`} id={`hd-note-${l.slabKey}`} label={`${l.serial || l.slabKey} · ${l.product}`}>
             <input id={`hd-note-${l.slabKey}`} className="fm-input" value={values.lineNotes[l.slabKey] || ''} maxLength={300} disabled={saving}
               onChange={(e) => set({ lineNotes: { ...values.lineNotes, [l.slabKey]: e.target.value } })} />
@@ -92,7 +96,7 @@ export function DetailsForm({ hold, onSave, onClose }) {
 }
 
 /** Move the hold date — 7, 14 or 30 days on, or any date. Needs the Extend permission. */
-export function ExtendForm({ hold, onSave, onClose }) {
+export function ExtendForm({ hold, onSave, onClose }: { hold: Hold; onSave: (expiresOn: string) => Promise<unknown>; onClose: () => void }) {
   const choices = useMemo(() => extendChoices(hold), [hold]);
   const today = todayIn(branchZone(hold.branch));
   const [expiresOn, setExpiresOn] = useState(choices[0].expiresOn);
@@ -140,7 +144,7 @@ export function ExtendForm({ hold, onSave, onClose }) {
 const RELEASE_REASONS = ['Customer passed', 'Chose other slabs', 'Bought elsewhere', 'Duplicate hold'];
 
 /** Release: a reason is required; the slabs are free the moment it's saved. */
-export function ReleaseForm({ hold, onRelease, onClose }) {
+export function ReleaseForm({ hold, onRelease, onClose }: { hold: Hold; onRelease: (reason: string) => Promise<unknown>; onClose: () => void }) {
   const [reason, setReason] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const { saving, serverError, submit } = useSubmit();
@@ -182,7 +186,9 @@ export function ReleaseForm({ hold, onRelease, onClose }) {
 }
 
 /** Swap one slab for another: scan or type it, or pick one of the same product from the cart. */
-export function SwapForm({ hold, line, cartLines = [], onSwap, onClose }) {
+export function SwapForm({ hold, line, cartLines = [], onSwap, onClose }: {
+  hold: Hold; line: HoldLine; cartLines?: CartLine[]; onSwap: (to: string) => Promise<unknown>; onClose: () => void;
+}) {
   const [to, setTo] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const { saving, serverError, submit } = useSubmit();
@@ -232,18 +238,24 @@ export function SwapForm({ hold, line, cartLines = [], onSwap, onClose }) {
 }
 
 /** Add cart slabs to the hold, priced per product (prefilled from the hold's own price). */
-export function AddSlabsForm({ hold, offered, onAdd, onClose }) {
-  const lines = useMemo(() => offered.map((l) => ({ ...l.slab, slabKey: l.slabKey, product: l.slab?.product || '', suggestedPrice: l.suggestedPrice, note: l.note || '' })), [offered]);
-  const groups = lotGroups(lines);
+/** A cart slab offered to a hold, with the price its product already has there (cartSlabsFor). */
+export type OfferedSlab = CartLine & { suggestedPrice?: string };
+
+/** An offered slab as the form lists it. */
+type OfferedLine = { slabKey: string; product: string; suggestedPrice?: string; note: string; serial?: string; bundle?: string; sfHundredths?: number; [key: string]: unknown };
+
+export function AddSlabsForm({ hold, offered, onAdd, onClose }: { hold: Hold; offered: OfferedSlab[]; onAdd: (add: AddedSlab[]) => Promise<unknown>; onClose: () => void }) {
+  const lines = useMemo((): OfferedLine[] => offered.map((l) => ({ ...l.slab, slabKey: l.slabKey, product: l.slab?.product || '', suggestedPrice: l.suggestedPrice, note: l.note || '' })), [offered]);
+  const groups = lotGroups(lines) as LotGroup<OfferedLine>[];
   const [picked, setPicked] = useState(() => new Set(lines.map((l) => l.slabKey)));
-  const [prices, setPrices] = useState(() => Object.fromEntries(groups.map((g) => [g.product, g.lines[0].suggestedPrice || ''])));
+  const [prices, setPrices] = useState<Record<string, string>>(() => Object.fromEntries(groups.map((g) => [g.product, g.lines[0].suggestedPrice || ''])));
   const [submitted, setSubmitted] = useState(false);
   const { saving, serverError, submit } = useSubmit();
   const priceErrors = Object.fromEntries(Object.entries(prices).filter(([, v]) => { const c = priceCentsOf(v); return c === undefined || (c !== null && c <= 0); }).map(([k]) => [k, 'Enter the price like 12.50']));
-  const errors = { ...(picked.size ? {} : { slabs: 'Pick at least one slab.' }), ...Object.fromEntries(Object.keys(priceErrors).map((p) => [`price-${p}`, priceErrors[p]])) };
+  const errors: Record<string, string> = { ...(picked.size ? {} : { slabs: 'Pick at least one slab.' }), ...Object.fromEntries(Object.keys(priceErrors).map((p) => [`price-${p}`, priceErrors[p]])) };
   const firstError = Object.keys(errors)[0];
 
-  const toggle = (key) => setPicked((s) => {
+  const toggle = (key: string) => setPicked((s) => {
     const next = new Set(s);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;

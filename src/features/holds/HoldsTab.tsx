@@ -1,19 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Search, X, AlertTriangle, Loader2 } from 'lucide-react';
-import LocationFilter, { LocationField } from '../../shared/LocationFilter';
-import Pagination from '../../shared/Pagination';
-import { usePagination } from '../../shared/paginationConfig';
-import { accessibleLocations } from '../../../utils/locationFilter';
-import { BRANCH_NAMES } from '../../../config/branches';
-import { listHolds } from '../../../api/holds';
-import { formatMoney, formatSf } from '../../../holds/holdRules';
-import { HOLD_TABS, SCOPE_LABELS, productSummary, expiryLine, longDate, dayMonth, dateOf, slabCount } from '../../../utils/holdView';
+import LocationFilter, { LocationField } from '../../components/shared/LocationFilter';
+import Pagination from '../../components/shared/Pagination';
+import { usePagination } from '../../components/shared/paginationConfig';
+import { accessibleLocations } from '../../utils/locationFilter';
+import { BRANCH_NAMES } from '../../config/branches';
+import { listHolds } from '../../api/holds';
+import { formatMoney, formatSf } from '../../holds/holdRules';
+import { HOLD_TABS, SCOPE_LABELS, productSummary, expiryLine, longDate, dayMonth, dateOf, slabCount } from '../../utils/holdView';
+import type { Hold } from './types';
+import type { CurrentUser } from '../../types/records';
 import { useCart } from './cartStore';
 import { useHoldLink } from './holdLink';
-import HoldPage from './HoldPage';
+import HoldPage from './hold/HoldPage';
 import './Holds.css';
 
-const EMPTY = {
+const EMPTY: Record<string, [string, string]> = {
   active: ['No active holds', 'Tick slabs on the Inventory screen, then hold them from the cart.'],
   expiring: ['Nothing expiring soon', 'Holds that end in the next 3 days show here.'],
   expired: ['No expired holds', 'An expired hold keeps its slabs for 7 more days, then lets them go.'],
@@ -22,7 +25,13 @@ const EMPTY = {
 };
 
 /** A hold's total, or what's priced so far when some slabs have no price. */
-function TotalCell({ totals }) {
+/** A hold's totals (holdTotals in src/holds/holdRules.js). */
+export type HoldTotals = { slabs: number; sfHundredths: number; pricedCents: number; missingPrices: number; totalCents: number | null };
+
+/** GET /api/holds: one page of a status tab, with every tab's count. */
+type HoldList = { items: Hold[]; total: number; page: number; limit: number; scope: string; scopes: string[]; counts: Record<string, number> };
+
+function TotalCell({ totals }: { totals: HoldTotals }) {
   if (totals.totalCents !== null) return <b>{formatMoney(totals.totalCents)}</b>;
   if (totals.missingPrices === totals.slabs) return <span className="hl-miss">No prices yet</span>;
   return (
@@ -37,9 +46,11 @@ function TotalCell({ totals }) {
  * Sales · Holds: every hold the person may see (mine / my branches / all, set
  * per role under Users & Roles), by status, and — with ?hold= in the URL — one
  * hold's page. Built from the "Sales · Holds" canvas; rules in
- * src/utils/holdView.js and src/holds/. The server checks everything again.
+ * src/utils/holdView.ts and src/holds/. The server checks everything again.
  */
-export default function HoldsTab({ currentUser, sidebarToggle = null }) {
+export type HoldsTabProps = { currentUser: CurrentUser | null; sidebarToggle?: ReactNode };
+
+export default function HoldsTab({ currentUser, sidebarToggle = null }: HoldsTabProps) {
   const user = currentUser;
   const [openId, openHold, closeHold] = useHoldLink();
   const [tab, setTab] = useState('active');
@@ -48,7 +59,7 @@ export default function HoldsTab({ currentUser, sidebarToggle = null }) {
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
   const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
-  const [data, setData] = useState(null);
+  const [data, setData] = useState<HoldList | null>(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const { reservationsTick } = useCart();
@@ -79,11 +90,11 @@ export default function HoldsTab({ currentUser, sidebarToggle = null }) {
     if (openId) return;
     const n = ++seq.current;
     listHolds({ status: tab, scope: scope || undefined, branch, search: debounced, page: currentPage, limit: rowsPerPage })
-      .then((r) => { if (n === seq.current) { setData(r); setError(''); } })
+      .then((r) => { if (n === seq.current) { setData(r as HoldList); setError(''); } })
       .catch((err) => { if (n === seq.current) setError(err.message); });
   }, [openId, tab, scope, branch, debounced, currentPage, rowsPerPage, reloadKey, reservationsTick]);
 
-  const pickScope = (s) => { setScope(s); setBranch(''); };
+  const pickScope = (s: string) => { setScope(s); setBranch(''); };
 
   if (openId) {
     return (
@@ -94,7 +105,7 @@ export default function HoldsTab({ currentUser, sidebarToggle = null }) {
   }
 
   const items = data?.items || [];
-  const counts = data?.counts || {};
+  const counts: Record<string, number> = data?.counts || {};
   const filtered = Boolean(debounced || branch);
   const now = new Date();
 

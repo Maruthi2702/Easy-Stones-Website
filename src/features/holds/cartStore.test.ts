@@ -8,18 +8,22 @@ const api = {
   getCart: vi.fn(), addToCart: vi.fn(), removeFromCart: vi.fn(), removeManyFromCart: vi.fn(),
   setCartCustomer: vi.fn(), clearCart: vi.fn(), scanIntoCart: vi.fn(), setCartNote: vi.fn()
 };
-vi.mock('../../../api/holds', () => api);
+vi.mock('../../api/holds', () => api);
 
-let store;
-const line = (slabKey) => ({ slabKey, note: '', slab: null, inStock: true, lock: null, othersInCart: [] });
-const cartOf = (...keys) => ({ customer: null, lines: keys.map(line) });
-const deferred = () => { let resolve; let reject; const promise = new Promise((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
+let store: typeof import('./cartStore');
+const line = (slabKey: string) => ({ slabKey, note: '', slab: null, inStock: true, lock: null, othersInCart: [] });
+const cartOf = (...keys: string[]) => ({ customer: null, lines: keys.map(line) });
+const deferred = () => {
+  let resolve!: (value: unknown) => void; let reject!: (reason?: unknown) => void;
+  const promise = new Promise((a, b) => { resolve = a; reject = b; });
+  return { promise, resolve, reject };
+};
 
 beforeEach(async () => {
   vi.resetModules();
   Object.values(api).forEach((fn) => fn.mockReset());
   vi.useFakeTimers();
-  store = await import('./cartStore.js');
+  store = await import('./cartStore');
 });
 afterEach(() => vi.useRealTimers());
 
@@ -36,7 +40,7 @@ describe('ticking', () => {
     await done;
     expect([...keys()]).toEqual(['A-1']);
     expect(store.cartSnapshot().pendingAdd.size).toBe(0);
-    expect(store.cartSnapshot().toast.text).toMatch(/A-1 added · cart has 1 slab/);
+    expect(store.cartSnapshot().toast?.text).toMatch(/A-1 added · cart has 1 slab/);
   });
 
   it('takes it back, with the reason, when the server refuses', async () => {
@@ -51,7 +55,7 @@ describe('ticking', () => {
     await store.cartActions.add(['A-1']);
     expect([...keys()]).toEqual([]);
     expect(store.cartSnapshot().pendingAdd.size).toBe(0);
-    expect(store.cartSnapshot().toast.kind).toBe('error');
+    expect(store.cartSnapshot().toast?.kind).toBe('error');
   });
 
   it('shows a removal at once too, and a bundle comes off in one request', async () => {
@@ -144,7 +148,7 @@ describe('the cart’s customer', () => {
     api.setCartCustomer.mockRejectedValueOnce(new Error('That customer no longer exists.'));
     await store.cartActions.setCustomer('c1', 'Second');
     expect(store.cartSnapshot().cart.customer).toEqual({ id: 'c0', name: 'First' });
-    expect(store.cartSnapshot().toast.text).toBe('That customer no longer exists.');
+    expect(store.cartSnapshot().toast?.text).toBe('That customer no longer exists.');
   });
 
   it('clears at once', async () => {

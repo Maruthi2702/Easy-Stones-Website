@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X, Maximize2, Minimize2, MoreHorizontal, ScanBarcode, Check, AlertTriangle, Lock, ArrowLeft, Trash2
 } from 'lucide-react';
-import { FormField, FormSearchPicker } from '../../shared/form/FormControls';
-import useIsPhone from '../../shared/form/useIsPhone';
-import LocationPicker from '../../shared/form/LocationPicker';
-import { DatePicker } from '../../shared/calendar/Calendar';
-import { FormLayerContext } from '../../shared/form/formLayer';
+import { FormField, FormSearchPicker } from '../../../components/shared/form/FormControls';
+import useIsPhone from '../../../components/shared/form/useIsPhone';
+import LocationPicker from '../../../components/shared/form/LocationPicker';
+import { DatePicker } from '../../../components/shared/calendar/Calendar';
+import { FormLayerContext } from '../../../components/shared/form/formLayer';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { holdsMeta, createHold } from '../../../api/holds';
 import {
@@ -15,8 +16,11 @@ import {
 } from '../../../holds/holdRules';
 import { HOLDS, can } from '../../../holds/permissions';
 import { branchZone } from '../../../config/branches';
-import { useCart, cartActions } from './cartStore';
-import '../../shared/form/FormModal.css';
+import { useCart, cartActions } from '../cartStore';
+import type { Cart, CartLine, Hold, LotGroup as Groups, SlabLock } from '../types';
+import type { Id } from '../../../types/api';
+import type { CurrentUser } from '../../../types/records';
+import '../../../components/shared/form/FormModal.css';
 import './CartDrawer.css';
 
 /**
@@ -26,10 +30,34 @@ import './CartDrawer.css';
  * checkout for now.
  */
 
-const newRequestId = () => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `req-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+const newRequestId = (): string => (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `req-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+
+/** A cart line as the drawer shows it: the slab's fields, flattened. */
+type ShownLine = {
+  slabKey: string;
+  product: string;
+  note?: string;
+  othersInCart: string[];
+  lock: SlabLock | null;
+  inStock: boolean;
+  sfHundredths: number;
+  serial?: string;
+  barcode?: string;
+  bundle?: string;
+  slabNumber?: string;
+  block?: string;
+  bin?: string;
+  dimensions?: string;
+  [key: string]: unknown;
+};
+
+type LotGroup = Groups<ShownLine>;
+const groupsOf = (lines: ShownLine[]): LotGroup[] => lotGroups(lines) as LotGroup[];
+
+type CustomerChoice = { value: string; label: string; description?: string; keywords?: string };
 
 /** Cart lines → the shape lotGroups and holdTotals read. */
-const asLines = (cartLines) => cartLines.map((l) => ({
+const asLines = (cartLines: CartLine[]): ShownLine[] => cartLines.map((l) => ({
   ...(l.slab || {}),
   slabKey: l.slabKey,
   product: l.slab?.product || 'No longer in stock',
@@ -40,9 +68,9 @@ const asLines = (cartLines) => cartLines.map((l) => ({
   sfHundredths: l.slab?.sfHundredths || 0
 }));
 
-const usable = (line) => line.inStock && !line.lock;
+const usable = (line: ShownLine): boolean => line.inStock && !line.lock;
 
-function LotBadge({ group }) {
+function LotBadge({ group }: { group: LotGroup }) {
   if (group.slabs < 2) return null;
   if (group.mixedLots) {
     return (
@@ -60,19 +88,29 @@ function LotBadge({ group }) {
   );
 }
 
-function CartView({ cart, lines, selected, setSelected, expanded, customers, customersLoading }) {
-  const [code, setCode] = useState('');
-  const [scanMsg, setScanMsg] = useState(null);
-  const [scanning, setScanning] = useState(false);
-  const scanRef = useRef(null);
-  const groups = lotGroups(lines);
+type CartViewProps = {
+  cart: Cart;
+  lines: ShownLine[];
+  selected: Set<string>;
+  setSelected: Dispatch<SetStateAction<Set<string>>>;
+  expanded: boolean;
+  customers: CustomerChoice[];
+  customersLoading: boolean;
+};
 
-  const toggle = (key) => setSelected((s) => {
+function CartView({ cart, lines, selected, setSelected, expanded, customers, customersLoading }: CartViewProps) {
+  const [code, setCode] = useState('');
+  const [scanMsg, setScanMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const scanRef = useRef<HTMLInputElement>(null);
+  const groups = groupsOf(lines);
+
+  const toggle = (key: string) => setSelected((s) => {
     const next = new Set(s);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
-  const toggleGroup = (group) => setSelected((s) => {
+  const toggleGroup = (group: LotGroup) => setSelected((s) => {
     const keys = group.lines.filter(usable).map((l) => l.slabKey);
     const allOn = keys.every((k) => s.has(k));
     const next = new Set(s);
@@ -80,7 +118,7 @@ function CartView({ cart, lines, selected, setSelected, expanded, customers, cus
     return next;
   });
 
-  const scan = async (e) => {
+  const scan = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const value = code.trim();
     if (!value || scanning) return;
@@ -91,7 +129,7 @@ function CartView({ cart, lines, selected, setSelected, expanded, customers, cus
       else setScanMsg({ ok: false, text: `${res.skipped[0]?.slabKey}: ${res.skipped[0]?.reason}` });
       setCode('');
     } catch (err) {
-      setScanMsg({ ok: false, text: err.message });
+      setScanMsg({ ok: false, text: (err as Error).message });
     } finally {
       setScanning(false);
       scanRef.current?.focus();
@@ -106,7 +144,7 @@ function CartView({ cart, lines, selected, setSelected, expanded, customers, cus
           <FormSearchPicker
             id="cart-customer"
             value={cart.customer?.id || ''}
-            onChange={(v) => cartActions.setCustomer(v, customers.find((o) => o.value === v)?.label || '')}
+            onChange={(v: string) => cartActions.setCustomer(v, customers.find((o) => o.value === v)?.label || '')}
             options={customers}
             loading={customersLoading && customers.length === 0}
             selectedLabel={cart.customer?.name || ''}
@@ -184,7 +222,7 @@ function CartView({ cart, lines, selected, setSelected, expanded, customers, cus
                     <b className="cd-serial">{line.serial || line.slabKey}</b>
                     {line.lock && <span className="cd-tag cd-tag-lock"><Lock size={11} aria-hidden="true" />On Hold #{line.lock.holdNumber}{line.lock.by ? ` · ${line.lock.by}` : ''}</span>}
                     {!line.inStock && <span className="cd-tag cd-tag-lock">No longer in stock</span>}
-                    {!dead && line.othersInCart?.length > 0 && <span className="cd-tag cd-tag-others">{line.othersInCart.join(', ')} {line.othersInCart.length === 1 ? 'has' : 'have'} it in a cart</span>}
+                    {!dead && (line.othersInCart?.length ?? 0) > 0 && <span className="cd-tag cd-tag-others">{line.othersInCart.join(', ')} {line.othersInCart.length === 1 ? 'has' : 'have'} it in a cart</span>}
                     {!expanded && line.inStock && (
                       <span className="cd-sub">{[line.dimensions, formatSf(line.sfHundredths), line.bin && `bin ${line.bin}`].filter(Boolean).join(' · ')}{line.note ? ` · “${line.note}”` : ''}</span>
                     )}
@@ -212,7 +250,7 @@ function CartView({ cart, lines, selected, setSelected, expanded, customers, cus
   );
 }
 
-function NoteInput({ line }) {
+function NoteInput({ line }: { line: ShownLine }) {
   const [value, setValue] = useState(line.note || '');
   // A note saved elsewhere (another tab, the server) replaces what's shown.
   const [shownNote, setShownNote] = useState(line.note || '');
@@ -237,20 +275,33 @@ function NoteInput({ line }) {
 
 const HOLD_LENGTHS = [7, 14, 30];
 
-function CheckoutView({ user, cart, chosen, customers, customersLoading, onBack, onDone }) {
+/** GET /api/holds/meta. */
+type HoldsMeta = { scopes: string[]; branches: string[]; defaultBranch: string; defaultExpiresOn: string | null };
+
+type CheckoutViewProps = {
+  user: CurrentUser | null;
+  cart: Cart;
+  chosen: ShownLine[];
+  customers: CustomerChoice[];
+  customersLoading: boolean;
+  onBack: () => void;
+  onDone: (hold: Hold) => void;
+};
+
+function CheckoutView({ user, cart, chosen, customers, customersLoading, onBack, onDone }: CheckoutViewProps) {
   const canExtend = can(user, HOLDS.EXTEND);
-  const [meta, setMeta] = useState(null);
+  const [meta, setMeta] = useState<HoldsMeta | null>(null);
   // The cart's customer unless one is picked here. Not copied at open: the cart's
   // customer is saved on the server first and can arrive after this window opens,
   // which used to open it empty and say "Pick the customer" for one already picked.
-  const [pickedHere, setPickedHere] = useState(null);
+  const [pickedHere, setPickedHere] = useState<Id | null>(null);
   const customerId = pickedHere ?? (cart.customer?.id || '');
   const [branch, setBranch] = useState('');
-  const [days, setDays] = useState(DEFAULT_HOLD_DAYS);
+  const [days, setDays] = useState<number | 'date'>(DEFAULT_HOLD_DAYS);
   const [customDate, setCustomDate] = useState('');
   const [job, setJob] = useState('');
   const [notes, setNotes] = useState('');
-  const [prices, setPrices] = useState({});
+  const [prices, setPrices] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [tried, setTried] = useState(false);
@@ -258,18 +309,18 @@ function CheckoutView({ user, cart, chosen, customers, customersLoading, onBack,
 
   useEffect(() => {
     let live = true;
-    holdsMeta().then((m) => { if (live) { setMeta(m); setBranch((b) => b || m.defaultBranch); } }).catch((err) => live && setError(err.message));
+    holdsMeta().then((answer) => { const m = answer as HoldsMeta; if (live) { setMeta(m); setBranch((b) => b || m.defaultBranch); } }).catch((err) => live && setError(err.message));
     return () => { live = false; };
   }, []);
 
-  const groups = lotGroups(chosen);
+  const groups = groupsOf(chosen);
   const today = branch ? todayIn(branchZone(branch)) : null;
   const expiresOn = days === 'date' ? customDate : (today ? addDays(today, days) : '');
   const tooLong = expiresOn && today && daysBetween(today, expiresOn) > DEFAULT_HOLD_DAYS && !canExtend;
   const priceErrors = Object.fromEntries(Object.entries(prices).filter(([, v]) => priceCentsOf(v) === undefined).map(([k]) => [k, 'Enter the price like 12.50']));
   const priced = chosen.map((l) => ({ ...l, priceCentsPerSf: priceCentsOf(prices[l.product] ?? '') ?? null }));
   const totals = holdTotals(priced);
-  const problems = {
+  const problems: Record<string, string> = {
     customer: !customerId ? 'Pick the customer.' : '',
     branch: !branch ? 'Pick the branch.' : '',
     expiry: !expiresOn ? 'Pick the date.' : (tooLong ? `Longer than ${DEFAULT_HOLD_DAYS} days needs the Extend permission.` : '')
@@ -291,14 +342,14 @@ function CheckoutView({ user, cart, chosen, customers, customersLoading, onBack,
         notes: notes.trim(),
         lines: chosen.map((l) => ({ slabKey: l.slabKey, price: prices[l.product]?.trim() ? prices[l.product] : null, note: l.note || '' }))
       });
-      onDone(hold);
+      onDone(hold as Hold);
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
       setSaving(false);
     }
   };
 
-  const shown = (key) => (tried ? problems[key] : '');
+  const shown = (key: string) => (tried ? problems[key] : '');
 
   return (
     <>
@@ -408,7 +459,7 @@ function CheckoutView({ user, cart, chosen, customers, customersLoading, onBack,
  * One on the page (placement "page", shown while the drawer is closed) and
  * one in the drawer's footer (placement "drawer", shown while it's open).
  */
-export function CartToast({ onOpenHold, placement = 'page' }) {
+export function CartToast({ onOpenHold, placement = 'page' }: { onOpenHold?: (holdId: Id) => void; placement?: 'page' | 'drawer' }) {
   const { toast, open } = useCart();
   if (!toast || (placement === 'page') === open) return null;
   return (
@@ -416,24 +467,26 @@ export function CartToast({ onOpenHold, placement = 'page' }) {
       {toast.kind === 'added' && <Check size={17} aria-hidden="true" className="cd-toast-ok" />}
       {toast.kind === 'error' && <AlertTriangle size={17} aria-hidden="true" />}
       <span className="cd-toast-text">{toast.text}</span>
-      {toast.undo && <button type="button" className="cd-toast-btn gold" onClick={() => cartActions.undo(toast.undo)}>Undo</button>}
+      {toast.undo && <button type="button" className="cd-toast-btn gold" onClick={() => cartActions.undo(toast.undo as string[])}>Undo</button>}
       {toast.kind === 'added' && !open && <button type="button" className="cd-toast-btn gold" onClick={() => { cartActions.dismissToast(); cartActions.open(); }}>Open cart</button>}
-      {toast.kind === 'held' && onOpenHold && <button type="button" className="cd-toast-btn gold" onClick={() => { cartActions.dismissToast(); cartActions.close(); onOpenHold(toast.holdId); }}>Open hold</button>}
+      {toast.kind === 'held' && onOpenHold && <button type="button" className="cd-toast-btn gold" onClick={() => { cartActions.dismissToast(); cartActions.close(); onOpenHold(toast.holdId as Id); }}>Open hold</button>}
       <button type="button" className="cd-toast-x" onClick={() => cartActions.dismissToast()} aria-label="Dismiss"><X size={15} aria-hidden="true" /></button>
     </div>
   );
 }
 
-export default function CartDrawer({ user, onOpenHold }) {
+export type CartDrawerProps = { user: CurrentUser | null; onOpenHold?: (holdId: Id) => void };
+
+export default function CartDrawer({ user, onOpenHold }: CartDrawerProps) {
   const { cart, open, expanded, view, loading, error } = useCart();
   const isPhone = useIsPhone();
   const { options: customers, loading: customersLoading } = useCustomerOptions();
   const [menuOpen, setMenuOpen] = useState(false);
   // Template pickers open their phone sheets here, above the drawer's footer (formLayer.js).
-  const [layerEl, setLayerEl] = useState(null);
+  const [layerEl, setLayerEl] = useState<HTMLElement | null>(null);
   const lines = useMemo(() => asLines(cart.lines), [cart.lines]);
-  const [selected, setSelected] = useState(() => new Set());
-  const seen = useRef(new Set());
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const seen = useRef<Set<string>>(new Set());
 
   // New usable lines start ticked; lines that left the cart drop out.
   useEffect(() => {
@@ -449,7 +502,7 @@ export default function CartDrawer({ user, onOpenHold }) {
 
   useEffect(() => {
     if (!open) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) cartActions.close(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) cartActions.close(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);

@@ -14,7 +14,7 @@ vi.mock('../../api/authToken', () => ({ getAuthToken: () => 'tok' }));
 const refreshCustomers = vi.fn();
 vi.mock('../../api/customerOptions', () => ({ refreshCustomers: () => refreshCustomers() }));
 const reservationsChanged = vi.fn();
-vi.mock('../../components/sales/holds/cartStore', () => ({ cartActions: { reservationsChanged: (k: string[]) => reservationsChanged(k) } }));
+vi.mock('../holds', () => ({ cartActions: { reservationsChanged: (k: string[]) => reservationsChanged(k) } }));
 const clearInventoryCache = vi.fn();
 vi.mock('../../api/inventoryAnalysisCache', () => ({ clearInventoryCache: () => clearInventoryCache() }));
 

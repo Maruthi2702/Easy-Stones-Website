@@ -8,7 +8,7 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 const stub = (name: string) => ({ default: (p: { sidebarToggle?: React.ReactNode }) => <div data-testid="page">{name}{p.sidebarToggle}</div> });
 vi.mock('../../components/sales/PriceListPanel', () => stub('PriceList'));
 vi.mock('../../components/sales/HoldsTab', () => stub('Holds'));
-vi.mock('../../components/sales/holds/HoldsTab', () => stub('Holds'));
+vi.mock('../holds/HoldsTab', () => stub('Holds'));
 vi.mock('../../components/sales/freight/FreightTab', () => stub('Freight'));
 vi.mock('../../components/sales/permits/PermitsTab', () => stub('Permits'));
 vi.mock('../delivery/DeliveryScheduleTab', () => stub('Delivery'));

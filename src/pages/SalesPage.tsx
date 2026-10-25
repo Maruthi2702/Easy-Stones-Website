@@ -34,8 +34,8 @@ import { useCheckInLog } from '../features/checkin';
 import { DashboardPage, useDashboardData, useTeamFiles } from '../features/dashboard';
 import { useCustomerOptions } from '../api/customerOptions';
 import { toCustomerOptions } from '../utils/customerOptions';
-import CartDrawer, { CartToast } from '../components/sales/holds/CartDrawer';
-import { openHoldLink } from '../components/sales/holds/holdLink';
+import CartDrawer, { CartToast } from '../features/holds/cart/CartDrawer';
+import { openHoldLink } from '../features/holds';
 import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions';
 
 
@@ -133,7 +133,7 @@ const SalesPage = () => {
     };
 
     // The cart's "Hold #12 created · Open hold": that hold's page, for anyone
-    // who may see holds (src/components/sales/holds/holdLink.js).
+    // who may see holds (src/features/holds/holdLink.ts).
     const canSeeHolds = HOLD_VIEW_PERMISSIONS.some((p) => currentUser?.permissions?.includes(p));
     const openHoldFromCart = canSeeHolds ? (holdId: string | number) => {
         handleCrmTabChange('holds');

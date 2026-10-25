@@ -1,14 +1,15 @@
 import { useEffect } from 'react';
 import { ShoppingCart } from 'lucide-react';
-import { useCart, cartActions } from './cartStore';
+import { useCart, cartActions } from '../cartStore';
 import { CART, can } from '../../../holds/permissions';
+import type { CurrentUser } from '../../../types/records';
 import './CartDrawer.css';
 
 /**
  * The cart on the side rail (above the account button), for everyone with the
  * Use cart permission: its count, and a tap opens the cart drawer.
  */
-export default function CartRailButton({ user }) {
+export default function CartRailButton({ user }: { user: CurrentUser | null }) {
   const { cart, loaded, open } = useCart();
   const allowed = can(user, CART.USE);
 

@@ -3,8 +3,7 @@ import { Lock } from 'lucide-react';
 import { SLAB_STATUS_BUCKET as statusBucket } from '../../utils/inventoryStatus';
 import { fmtMoney, fmtNum, fmtRate, ageDays, STATUS_LABEL } from './inventoryFormat';
 import { slabKeyOf, isHoldableSlab } from '../../holds/holdRules';
-import { useCart, cartActions, cartKeysOf } from './holds/cartStore';
-import useSlabLocks from './holds/useSlabLocks';
+import { useCart, cartActions, cartKeysOf, useSlabLocks } from '../../features/holds';
 
 /**
  * One product's slabs on the Inventory screen (moved out of

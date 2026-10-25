@@ -6,7 +6,7 @@ import { navItem } from '../../utils/navPins';
 import {
     phoneNavModel, opensDirectly, litTab, moreGroups, searchPages, highlightParts, MORE
 } from '../../utils/phoneNav';
-import { useCart, cartActions } from './holds/cartStore';
+import { useCart, cartActions } from '../../features/holds';
 import { CART, can } from '../../holds/permissions';
 import { ITEM_ICONS, SECTION_ICONS } from './navIcons';
 import '../shared/form/FormModal.css';
