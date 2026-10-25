@@ -7,10 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import './AdminPage.css';
 import { authFetch } from '../api/authFetch';
 import { setAuthToken } from '../api/authToken';
-import AddUserForm from '../features/users/userForm/AddUserForm';
-import EditUserForm from '../features/users/userForm/EditUserForm';
-import { describeRole, isDriverRole } from '../features/users/roles/pagePermissions';
-import { changeUserAccess } from '../features/users/userForm/userAccess';
+import { AddUserForm, EditUserForm, describeRole, isDriverRole, changeUserAccess } from '../features/users';
 import { lockedUntilTime } from '../utils/userForm';
 
 const AdminPage = () => {
