@@ -15,18 +15,22 @@ const SEARCH_FROM = 8;
  * `value` is the picked locations, [] meaning every location. Uses the shared
  * filter's lf-* styles so it looks like every other location filter.
  */
-const InventoryLocationField = ({ company = [], consignment = [], value = [], onChange, user = null }) => {
+interface InventoryLocationFieldProps {
+  company?: string[]; consignment?: string[]; value?: string[];
+  onChange?: (value: string[]) => void; user?: unknown;
+}
+const InventoryLocationField = ({ company = [], consignment = [], value = [], onChange, user = null }: InventoryLocationFieldProps) => {
   const id = useId();
   const [query, setQuery] = useState('');
   const picked = Array.isArray(value) ? value : [];
   const home = homeLocationOf(user);
-  const toggle = (name) => onChange?.(picked.includes(name) ? picked.filter(v => v !== name) : [...picked, name]);
+  const toggle = (name: string) => onChange?.(picked.includes(name) ? picked.filter(v => v !== name) : [...picked, name]);
 
   const q = query.trim().toLowerCase();
   const shownConsignment = q ? consignment.filter(n => n.toLowerCase().includes(q)) : consignment;
   const pickedConsignment = consignment.filter(n => picked.includes(n)).length;
 
-  const box = (name, label = name) => (
+  const box = (name: string, label = name) => (
     <label key={name} className="lf-check">
       <input type="checkbox" checked={picked.includes(name)} onChange={() => toggle(name)} />
       <span>{label}</span>

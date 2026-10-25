@@ -12,7 +12,7 @@ import { createHoldExpiry } from './expiry.js';
 import { Cart, Hold, SlabReservation, Counter, HoldHistory } from './models.js';
 import { ALL_HOLD_PERMISSIONS, CART, HOLDS } from './permissions.js';
 import { defaultExpiresOn, addDays, MAX_CART_SLABS } from './holdRules.js';
-import { INDEXED_MODELS } from '../config/indexedModels.js';
+import { INDEXED_MODELS } from '../config/indexedModels.ts';
 import InventoryItem from '../models/InventoryItem.js';
 import Customer from '../models/Customer.js';
 import { extractPdfTextItems } from '../utils/pdfTextItems.js';

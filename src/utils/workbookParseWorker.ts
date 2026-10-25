@@ -17,16 +17,18 @@
  * A worker thread is the actual fix: it has its own JS heap and its own
  * timeline, so the main thread — everyone else's requests, the socket.io
  * board updates, the auto-submit job's clock — keeps running while this one
- * parse does whatever it does, and runWorkbookParse.js can forcibly
+ * parse does whatever it does, and runWorkbookParse.ts can forcibly
  * worker.terminate() this whole thread if it runs too long, which no amount
  * of Promise.race() on the main thread could ever do to code that never
  * yields.
  */
 import { parentPort, workerData } from 'node:worker_threads';
-import { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './inventoryImport.js';
+import { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './inventoryImport.ts';
 import { readCustomerSheet } from './customerImport.js';
+import { parseInventoryTransitWorkbook } from './inventoryTransitImport.ts';
 
 const PARSERS = {
+  'inventory-transit': parseInventoryTransitWorkbook,
   'inventory-stock': parseInventoryStockWorkbook,
   'inventory-sales': parseInventorySalesWorkbook,
   customer: readCustomerSheet
@@ -34,7 +36,7 @@ const PARSERS = {
 
 try {
   const { kind, buffer } = workerData;
-  const parse = PARSERS[kind];
+  const parse = PARSERS[kind as keyof typeof PARSERS];
   if (!parse) throw new Error(`workbookParseWorker: unknown parse kind "${kind}"`);
 
   // workerData's structured clone degrades a real Buffer into a plain
@@ -49,11 +51,11 @@ try {
   // Buffer.from() re-wraps the same bytes as a real Buffer before any parser
   // sees them.
   const result = parse(Buffer.from(buffer));
-  parentPort.postMessage({ ok: true, result });
+  parentPort!.postMessage({ ok: true, result });
 } catch (error) {
   // Serialized deliberately as a plain string, not the Error object — a
   // thrown Error doesn't survive postMessage's structured clone with its
   // message intact in every Node version, and the caller only ever surfaces
   // error.message to the client anyway.
-  parentPort.postMessage({ ok: false, error: error?.message || String(error) });
+  parentPort!.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });
 }

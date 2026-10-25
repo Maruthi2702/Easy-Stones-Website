@@ -3,17 +3,19 @@ import {
   Boxes, Upload, RefreshCw, Search, Filter, Package, DollarSign,
   Layers, Clock, AlertTriangle, TrendingDown, ChevronRight
 } from 'lucide-react';
+import type { InventoryImportKind, InventoryImportResult } from '../../types/inventory';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
-import { peekInventory, rememberInventory, clearInventoryCache } from '../../api/inventoryAnalysisCache';
+import { peekInventory as peekInventoryCache, rememberInventory, clearInventoryCache } from '../../api/inventoryAnalysisCache';
 import CustomSelect from '../shared/CustomSelect';
 import LocationFilter from '../shared/LocationFilter';
+import Pagination from '../shared/Pagination';
 import { useLocationsFilter } from '../shared/useLocationFilter';
 import InventoryLocationField from './InventoryLocationField';
 import { splitInventoryLocations, defaultInventoryLocations } from '../../utils/inventoryLocations';
-import Pagination from '../shared/Pagination';
 import { usePagination } from '../shared/paginationConfig';
 import InventoryImportModal from './InventoryImportModal';
+import InventoryTransitPanel from './InventoryTransitPanel';
 import { fmtMoney, fmtNum, ageDays, STATUS_ORDER, STATUS_LABEL, dominantStatus } from './inventoryFormat';
 import InventorySlabList from './InventorySlabList';
 import { CART, can } from '../../holds/permissions';
@@ -41,7 +43,7 @@ const FILTERS_URL = `${API_URL}/api/inventory-analysis/filters`;
 const BRANCHES_URL = `${API_URL}/api/admin/locations`;
 
 /** A fresh answer for `url`, remembered for next time. Throws on a failed request. */
-const fetchInventoryJson = async (url) => {
+const fetchInventoryJson = async (url: string) => {
   const res = await authFetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
@@ -49,9 +51,19 @@ const fetchInventoryJson = async (url) => {
   return data;
 };
 
-const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refreshSignal = 0 }) => {
-  const [view, setView] = useState('stock'); // 'stock' | 'reorder' | 'purchasing'
-  const [summary, setSummary] = useState(null);
+// Stock/sales responses predate the typed in-transit API. Keep their payload
+// boundary explicit while shared cache entries remain unknown.
+type InventoryRecord = Record<string, any>;
+const peekInventory = (url: string): any => peekInventoryCache(url);
+interface InventoryAnalysisTabProps {
+  currentUser?: { id?: string; _id?: string; permissions?: string[] } | null;
+  sidebarToggle?: React.ReactNode;
+  refreshSignal?: number;
+}
+
+const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refreshSignal = 0 }: InventoryAnalysisTabProps) => {
+  const [view, setView] = useState<'stock' | 'reorder' | 'transit' | 'purchasing'>('stock');
+  const [summary, setSummary] = useState<InventoryRecord | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
   // Tracked separately from `summary` (which reflects the active filters) so
   // that filtering down to zero matches shows "no matching items," not the
@@ -64,11 +76,11 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // Stock Detail, grouped by product — one row per product with rolled-up
   // totals; slabsByProduct lazily holds each expanded product's individual
   // slabs, fetched only once a group is opened.
-  const [groups, setGroups] = useState([]);
+  const [groups, setGroups] = useState<InventoryRecord[]>([]);
   const [groupsTotal, setGroupsTotal] = useState(0);
   const [loadingGroups, setLoadingGroups] = useState(false);
-  const [expandedProducts, setExpandedProducts] = useState(() => new Set());
-  const [slabsByProduct, setSlabsByProduct] = useState({});
+  const [expandedProducts, setExpandedProducts] = useState(() => new Set<string>());
+  const [slabsByProduct, setSlabsByProduct] = useState<Record<string, InventoryRecord>>({});
   const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
 
   const [filterOptions, setFilterOptions] = useState(() => peekInventory(FILTERS_URL) || { categories: [], locations: [], statuses: [] });
@@ -102,10 +114,12 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   const locationParam = locationFilter.join(',');
   const [statusFilter, setStatusFilter] = useState('All');
 
-  const [velocityRows, setVelocityRows] = useState([]);
+  const [velocityRows, setVelocityRows] = useState<InventoryRecord[]>([]);
   const [loadingVelocity, setLoadingVelocity] = useState(false);
 
-  const [importModal, setImportModal] = useState(null); // 'stock' | 'sales' | null
+  const [transitRefresh, setTransitRefresh] = useState(0);
+  const [importResult, setImportResult] = useState('');
+  const [importModal, setImportModal] = useState<InventoryImportKind | null>(null); // 'stock' | 'sales' | 'transit' | null
 
   const userPermissions = currentUser?.permissions || [];
   // Permission-only, no role shortcut: admin/director hold both grants by
@@ -227,7 +241,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // Lazily loads one product's individual slabs (up to 200) the first time
   // its group is expanded, scoped to the same filters as the group row so a
   // filtered-down group never expands into slabs that wouldn't match.
-  const fetchSlabsForProduct = useCallback(async (product) => {
+  const fetchSlabsForProduct = useCallback(async (product: string) => {
     setSlabsByProduct(prev => ({ ...prev, [product]: { ...(prev[product] || {}), loading: true, error: false } }));
     try {
       const params = buildFilterParams();
@@ -285,7 +299,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     setSlabsByProduct({});
   }, [buildFilterParams]);
 
-  const toggleProduct = (product) => {
+  const toggleProduct = (product: string) => {
     setExpandedProducts(prev => {
       const next = new Set(prev);
       if (next.has(product)) {
@@ -299,7 +313,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   };
 
   // Shared by the modal's onComplete and by the socket-driven refresh below,
-  // so an import applied from another tab/user (see src/routes/inventoryAnalysis.js's
+  // so an import applied from another tab/user (see src/routes/inventoryAnalysis.ts's
   // 'inventory_analysis_update' emit) refreshes this screen the same way
   // finishing an import locally does.
   const refreshAll = useCallback(() => {
@@ -314,7 +328,12 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     fetchVelocity();
   }, [fetchSummary, fetchFilterOptions, checkHasAnyInventory, fetchGroups, fetchVelocity]);
 
-  const handleImportComplete = () => {
+  const handleImportComplete = (data: InventoryImportResult) => {
+    if (importModal === 'transit') {
+      setView('transit');
+      setTransitRefresh(value => value + 1);
+      setImportResult(`Imported ${data.count} product lines across ${data.shipmentCount} shipments.`);
+    }
     setImportModal(null);
     refreshAll();
   };
@@ -344,9 +363,9 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // rendered as one of AGING_BOUNDARIES' rows below, so it must also be
   // excluded here or its count would inflate the bar chart's scale and make
   // every rendered bar look shorter than its true share.
-  const numericAgingBuckets = (summary?.agingBuckets || []).filter(b => typeof b._id === 'number');
+  const numericAgingBuckets = (summary?.agingBuckets || []).filter((b: InventoryRecord) => typeof b._id === 'number');
   const maxAgingCount = numericAgingBuckets.length
-    ? Math.max(...numericAgingBuckets.map(b => b.count))
+    ? Math.max(...numericAgingBuckets.map((b: InventoryRecord) => b.count))
     : 0;
 
   return (
@@ -356,8 +375,11 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
           {sidebarToggle}
           <h2 className="invan-title-text">Inventory Analysis</h2>
         </div>
-        {canImport && !hasNoData && (
+        {canImport && (
           <div className="invan-header-actions">
+            <button type="button" className="invan-btn-import secondary" onClick={() => setImportModal('transit')}>
+              <Upload size={15} /> <span>Import In-Transit</span>
+            </button>
             <button type="button" className="invan-btn-import secondary" onClick={() => setImportModal('sales')}>
               <Upload size={15} /> <span className="invan-btn-text-full">Import Sales History</span><span className="invan-btn-text-short">Sales</span>
             </button>
@@ -378,11 +400,12 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
       <div className="invan-view-toggle">
         <button type="button" className={view === 'stock' ? 'active' : ''} onClick={() => setView('stock')}>Stock Detail</button>
         <button type="button" className={view === 'reorder' ? 'active' : ''} onClick={() => setView('reorder')}>Reorder & Velocity</button>
-        {userPermissions.includes('view_purchasing') && (
-          <button type="button" className={view === 'purchasing' ? 'active' : ''} onClick={() => setView('purchasing')}>Purchasing</button>
-        )}
+        {userPermissions.includes('view_purchasing') && <button type="button" className={view === 'purchasing' ? 'active' : ''} onClick={() => setView('purchasing')}>Purchasing</button>}
+        <button type="button" className={view === 'transit' ? 'active' : ''} onClick={() => setView('transit')}>In-Transit</button>
       </div>
-      {view === 'purchasing' ? <PurchasingWorkbench key={currentUser?.id || 'purchasing'} currentUser={currentUser} refreshSignal={refreshSignal} /> : initialLoading ? (
+      {importResult && <p role="status">{importResult}</p>}
+      {view === 'purchasing' ? <PurchasingWorkbench key={currentUser?.id || 'purchasing'} currentUser={currentUser} refreshSignal={refreshSignal} /> : view === 'transit' ? <InventoryTransitPanel refreshSignal={`${refreshSignal}-${transitRefresh}`} canImport={canImport}
+        onImport={() => setImportModal('transit')} /> : initialLoading ? (
         <div className="invan-loading"><RefreshCw size={24} className="invan-spin-icon" /><span>Loading inventory analysis...</span></div>
       ) : hasNoData ? (
         <div className="invan-empty-state">
@@ -435,7 +458,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
               <h4><Clock size={15} /> Inventory Age (by Received Date)</h4>
               <div className="invan-aging-bars">
                 {AGING_BOUNDARIES.map(boundary => {
-                  const bucket = summary.agingBuckets.find(b => b._id === boundary.min);
+                  const bucket = summary?.agingBuckets.find((b: InventoryRecord) => b._id === boundary.min);
                   const count = bucket?.count || 0;
                   const assetValue = bucket?.assetValue || 0;
                   const pct = maxAgingCount ? (count / maxAgingCount) * 100 : 0;
@@ -470,18 +493,18 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                   <Filter size={14} className="invan-filter-icon" />
                   <CustomSelect
                     value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                    options={[{ value: 'All', label: 'All Categories' }, ...filterOptions.categories.map(c => ({ value: c, label: c }))]}
+                    onChange={(e) => setCategoryFilter(String(e.target.value))}
+                    options={[{ value: 'All', label: 'All Categories' }, ...filterOptions.categories.map((c: string) => ({ value: c, label: c }))]}
                   />
                 </div>
                 <div className="invan-select-filter-wrap">
                   <CustomSelect
                     value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
+                    onChange={(e) => setStatusFilter(String(e.target.value))}
                     options={[
                       { value: 'All', label: 'All Statuses' },
                       { value: 'available', label: 'Available (no hold/SO/transfer)' },
-                      ...filterOptions.statuses.map(s => ({ value: s, label: s }))
+                      ...filterOptions.statuses.map((s: string) => ({ value: s, label: s }))
                     ]}
                   />
                 </div>
@@ -556,12 +579,12 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                             {canViewPrices && <div className="invan-gnum ga-value">{fmtMoney(g.totalAssetValue)}</div>}
                             <div className="invan-status-cell ga-status">
                               {dominant && (
-                                <span className={`invan-status-headline ${dominant}`}>{g.statusCounts[dominant]} {STATUS_LABEL[dominant]}</span>
+                                <span className={`invan-status-headline ${dominant}`}>{g.statusCounts[dominant]} {(STATUS_LABEL as Record<string, string>)[dominant]}</span>
                               )}
                               {presentStatuses.length > 1 && (
                                 <div
                                   className="invan-status-bar"
-                                  title={presentStatuses.map(k => `${g.statusCounts[k]} ${STATUS_LABEL[k]}`).join(' · ')}
+                                  title={presentStatuses.map(k => `${g.statusCounts[k]} ${(STATUS_LABEL as Record<string, string>)[k]}`).join(' · ')}
                                 >
                                   {presentStatuses.map(k => (
                                     <span key={k} className={`seg ${k}`} style={{ width: `${(g.statusCounts[k] / g.slabCount) * 100}%` }} />

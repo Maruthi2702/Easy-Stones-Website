@@ -38,6 +38,7 @@ import CrossoverSheet from '../models/CrossoverSheet.js';
 import EasyStonesColor from '../models/EasyStonesColor.js';
 import InventoryItem from '../models/InventoryItem.js';
 import InventorySalesRecord from '../models/InventorySalesRecord.js';
+import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
 import ContactSubmission from '../models/ContactSubmission.js';
 import SalesResource from '../models/SalesResource.js';
 import SalesDashboardResource from '../models/SalesDashboardResource.js';
@@ -67,6 +68,7 @@ export const INDEXED_MODELS = [
   ['EasyStonesColor', EasyStonesColor],
   ['InventoryItem', InventoryItem],
   ['InventorySalesRecord', InventorySalesRecord],
+  ['InventoryTransitShipment', InventoryTransitShipment],
   ['ContactSubmission', ContactSubmission],
   ['SalesResource', SalesResource],
   ['SalesDashboardResource', SalesDashboardResource],

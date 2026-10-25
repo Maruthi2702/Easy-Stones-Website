@@ -1677,3 +1677,14 @@ body.light-theme-active .invan-bundle-none, .light-theme-active .invan-bundle-no
   .invan-bundle-name { min-width: 0; flex-basis: 100%; }
   .invan-bundle-row .invan-cart-chk { margin-right: 0; }
 }
+
+.invan-transit-panel { margin-top: 24px; }
+.invan-transit-grid { overflow-x: auto; }
+.invan-transit-grid table { min-width: 1000px; }
+.invan-transit-panel .invan-search-box { max-width: 550px; }
+.invan-transit-panel details { margin-top: 6px; font-size: 12px; }
+.invan-transit-panel summary { cursor: pointer; }
+.invan-transit-panel dt { font-weight: 600; margin-top: 5px; }
+.invan-transit-panel dd { margin-left: 0; }
+.invan-transit-grid .invan-table { table-layout: auto; }
+.invan-transit-grid td:nth-child(3) { min-width: 260px; white-space: normal; }
