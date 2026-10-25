@@ -1,9 +1,16 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import type { ComponentType, FormEvent } from 'react';
 import { Trash2 } from 'lucide-react';
-import SearchableSelect from '../../SearchableSelect';
-import { DateTimePicker } from '../../shared/calendar/Calendar';
-import CustomSelect from '../../shared/CustomSelect';
+import SearchableSelectJs from '../../../components/SearchableSelect';
+import { DateTimePicker } from '../../../components/shared/calendar/Calendar';
+import CustomSelect from '../../../components/shared/CustomSelect';
+import type { CustomerOption } from '../../../utils/customerOptions';
+import type { Loose } from '../../../types/records';
+import type { ScheduleVisitInput } from '../types';
 import './ScheduleVisitForm.css';
+
+// Still JavaScript; taken as taking any props until it's typed.
+const SearchableSelect = SearchableSelectJs as unknown as ComponentType<Loose>;
 
 const ACTIVITY_TYPE_OPTIONS = [
     { value: 'Visit', label: 'Visit' },
@@ -24,11 +31,24 @@ const ACTIVITY_TYPE_OPTIONS = [
  * CLAUDE.md's CustomSelect incident describes. Swapping the view instead
  * of nesting sidesteps that entirely.
  */
+export type ScheduleVisitFormProps = {
+    customerOptions?: CustomerOption[];
+    isEdit: boolean;
+    initialCustomerId: string;
+    initialStartTime: string;
+    initialActivityType: string;
+    initialNotes: string;
+    saving: boolean;
+    onCancel: () => void;
+    onSubmit: (form: ScheduleVisitInput) => void;
+    onDelete: (() => void) | null;
+};
+
 const ScheduleVisitForm = ({
     customerOptions, isEdit,
     initialCustomerId, initialStartTime, initialActivityType, initialNotes,
     saving, onCancel, onSubmit, onDelete
-}) => {
+}: ScheduleVisitFormProps) => {
     const [customerId, setCustomerId] = useState(initialCustomerId);
     const [startTime, setStartTime] = useState(initialStartTime);
     const [activityType, setActivityType] = useState(initialActivityType);
@@ -36,7 +56,7 @@ const ScheduleVisitForm = ({
 
     const canSave = Boolean(customerId) && Boolean(startTime) && !saving;
 
-    const handleSubmit = (e) => {
+    const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
         if (!canSave) return;
         onSubmit({ customerId, startTime, activityType, notes });
@@ -65,7 +85,7 @@ const ScheduleVisitForm = ({
                     <CustomSelect
                         options={ACTIVITY_TYPE_OPTIONS}
                         value={activityType}
-                        onChange={(e) => setActivityType(e.target.value)}
+                        onChange={(e) => setActivityType(e.target.value as string)}
                     />
                 </label>
 

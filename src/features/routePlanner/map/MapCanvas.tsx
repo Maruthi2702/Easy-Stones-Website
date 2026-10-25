@@ -1,12 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
 import { GoogleMap, Marker, DirectionsRenderer, TrafficLayer } from '@react-google-maps/api';
 import { MapPin, Phone, X, Sparkles, Lasso, LocateFixed } from 'lucide-react';
-import { FALLBACK_CENTER, RECENCY_DARK_TEXT, LEAD_PIN_COLOR, OPEN_PIN_COLOR, nameOf, typeColors, isNotInterested } from './helpers';
+import { FALLBACK_CENTER, RECENCY_DARK_TEXT, LEAD_PIN_COLOR, OPEN_PIN_COLOR, nameOf, typeColors, isNotInterested } from '../helpers';
+import type { PinColors } from '../helpers';
 import { milesBetween, pointInPolygon } from '../../../utils/routePlan';
-import FilterPanel from './FilterPanel';
-import ToolsPanel from './ToolsPanel';
-import CustomersPanel from './CustomersPanel';
-import SchedulePanel from './SchedulePanel';
+import FilterPanel from '../panels/FilterPanel';
+import type { FilterPanelProps } from '../panels/FilterPanel';
+import ToolsPanel from '../panels/ToolsPanel';
+import type { DayScheduleProps } from '../panels/AreaScheduleSection';
+import CustomersPanel from '../panels/CustomersPanel';
+import SchedulePanel from '../panels/SchedulePanel';
+import type { CustomerOption } from '../../../utils/customerOptions';
+import type {
+    ColorMode, DrawMode, LatLng, Lead, MapPin as Customer, Pin, RecencyBucket, RecencyColors, RepOption, ReturnPanel,
+    ScheduleRow, ScheduleVisitInput, SelectionShape, Toggles
+} from '../types';
 import './MapCanvas.css';
 
 // Chaikin's corner-cutting: each pass replaces every edge with two points a
@@ -18,10 +27,10 @@ import './MapCanvas.css';
 // a closed loop (wraps via `% path.length`) since a lasso selection is
 // always a closed shape. 3 passes is enough to round it off without
 // exploding the point count (roughly ×8 — a 6-point trace becomes ~48).
-const smoothClosedPath = (points, iterations = 3) => {
+const smoothClosedPath = (points: LatLng[], iterations = 3): LatLng[] => {
     let path = points;
     for (let i = 0; i < iterations && path.length >= 3; i++) {
-        const next = [];
+        const next: LatLng[] = [];
         for (let j = 0; j < path.length; j++) {
             const p0 = path[j];
             const p1 = path[(j + 1) % path.length];
@@ -49,7 +58,7 @@ const PIN_PATH = 'M12,2C8.13,2,5,5.13,5,9c0,5.25,7,13,7,13s7,-7.75,7,-13C19,5.13
 // one engine, so they scale and align exactly like the pin shape does.
 // Sized in the 24-unit viewBox, not CSS pixels — the head is ~14 units wide
 // (x:[5,19]), so this keeps two- and three-digit stops from overflowing it.
-const stopNumberFontSize = (order) => {
+const stopNumberFontSize = (order: number) => {
     const digits = String(order).length;
     if (digits >= 3) return 5.5;
     if (digits === 2) return 8;
@@ -72,7 +81,7 @@ const stopNumberFontSize = (order) => {
 // Same fixed dark ring as every other pin now uses (see markerIcon's `ring`
 // below) rather than a white one, so it doesn't stand out as a leftover
 // from before that convention changed.
-const leadMarkerIcon = () => {
+const leadMarkerIcon = (): google.maps.Icon | undefined => {
     if (!window.google) return undefined;
     const size = 30;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
@@ -87,7 +96,7 @@ const leadMarkerIcon = () => {
 
 // The fill and number colour a pin wears: its customer type, or how long since
 // the last visit, per the Filter's "colour pins by" switch.
-const pinLook = (colors, colorMode, pin) => {
+const pinLook = (colors: RecencyColors, colorMode: ColorMode, pin: Customer): PinColors => {
     if (colorMode === 'type') return typeColors(pin.customerType);
     return { color: colors[pin.recency.key], ink: RECENCY_DARK_TEXT.has(pin.recency.key) ? '#141414' : '#ffffff' };
 };
@@ -96,7 +105,7 @@ const PIN_SIZE = 24;       // every customer
 const OPEN_SIZE = 38;      // the one whose panel is open
 const STOP_SIZE = 44;      // a numbered route stop — large enough to read the number
 
-const svgIcon = (svg, size) => ({
+const svgIcon = (svg: string, size: number): google.maps.Icon => ({
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
     scaledSize: new window.google.maps.Size(size, size),
     // The tip (12,22 in the 24-unit viewBox) is the coordinate being marked,
@@ -107,7 +116,7 @@ const svgIcon = (svg, size) => ({
 // Builds one pin's icon (cached by markerIcon in MapCanvas). Every customer is
 // a map pin in the type or visit colour; a route stop is the same pin, larger,
 // with a white outline and its number; the open customer is coral with a ring.
-const buildMarkerIcon = ({ color, ink }, order, isOpen) => {
+const buildMarkerIcon = ({ color, ink }: PinColors, order: number | undefined, isOpen: boolean) => {
     const ring = '#20201f';
 
     // The one pin whose detail panel is open — a fixed coral fill and a hollow
@@ -156,7 +165,7 @@ const buildMarkerIcon = ({ color, ink }, order, isOpen) => {
 // has always been. Tilt and rotate are switched off — a route planner stays
 // north-up, and a stray two-finger twist shouldn't turn the map.
 const MAP_ID = import.meta.env.VITE_GOOGLE_MAP_ID || '';
-const MAP_OPTIONS = {
+const MAP_OPTIONS: google.maps.MapOptions = {
     streetViewControl: false, mapTypeControl: false, fullscreenControl: false,
     gestureHandling: 'greedy', clickableIcons: false,
     ...(MAP_ID ? { mapId: MAP_ID, tiltInteractionEnabled: false, headingInteractionEnabled: false } : {})
@@ -165,7 +174,8 @@ const MAP_OPTIONS = {
 // How far past the screen a pin is still drawn, so a small pan finds its pins
 // already there instead of drawing them mid-drag.
 const VIEW_PAD = 0.35;
-const paddedBounds = (map) => {
+type Bounds = { north: number; south: number; east: number; west: number };
+const paddedBounds = (map: google.maps.Map): Bounds | null => {
     const b = map.getBounds();
     if (!b) return null;
     const ne = b.getNorthEast();
@@ -174,7 +184,7 @@ const paddedBounds = (map) => {
     const dLng = (ne.lng() - sw.lng()) * VIEW_PAD;
     return { north: ne.lat() + dLat, south: sw.lat() - dLat, east: ne.lng() + dLng, west: sw.lng() - dLng };
 };
-const insideBounds = (b, c) => c.lat <= b.north && c.lat >= b.south && c.lng <= b.east && c.lng >= b.west;
+const insideBounds = (b: Bounds, c: LatLng) => c.lat <= b.north && c.lat >= b.south && c.lng <= b.east && c.lng >= b.west;
 
 /**
  * Every customer pin. Its own memoised component so the map's other state (the
@@ -182,7 +192,16 @@ const insideBounds = (b, c) => c.lat <= b.north && c.lat >= b.south && c.lng <= 
  * MapCanvas without handing 1,000-5,000 markers new props and redrawing them.
  * Route stops always draw; the rest only while inside the padded viewport.
  */
-const PinLayer = React.memo(({ selectedPins, unselectedPins, orderById, openId, bounds, iconFor, onSelect }) => {
+type PinLayerProps = {
+    selectedPins: Customer[];
+    unselectedPins: Customer[];
+    orderById: Map<string, number>;
+    openId: string | undefined;
+    bounds: Bounds | null;
+    iconFor: (pin: Customer, order: number | undefined, isOpen?: boolean) => google.maps.Icon | undefined;
+    onSelect: (pin: Customer) => void;
+};
+const PinLayer = React.memo(({ selectedPins, unselectedPins, orderById, openId, bounds, iconFor, onSelect }: PinLayerProps) => {
     // No bounds yet = the map hasn't settled on its first view: draw none rather than all of them.
     const shown = bounds ? unselectedPins.filter((p) => insideBounds(bounds, p.coordinates)) : [];
     return (
@@ -214,6 +233,85 @@ const PinLayer = React.memo(({ selectedPins, unselectedPins, orderById, openId, 
     );
 });
 
+/** The map gets the loaded Maps API's state, everything it draws, and each panel's props. */
+export type MapCanvasProps = DayScheduleProps & {
+    mapRef: MutableRefObject<google.maps.Map | null>;
+    theme?: string;
+    colors: RecencyColors;
+    colorMode?: ColorMode;
+    onColorModeChange: (mode: ColorMode) => void;
+    scopeNote: string;
+    lastKnownPosition?: LatLng | null;
+    isLoaded: boolean;
+    loadError: Error | undefined;
+    showTraffic: boolean;
+    origin: LatLng | null;
+    myPosition: LatLng | null;
+    unselectedPins: Customer[];
+    orderById: Map<string, number>;
+    info: Customer | null;
+    onSelectPin: (pin: Customer, origin?: ReturnPanel) => void;
+    leadResults: Lead[];
+    leadInfo: Lead | null;
+    onSelectLead: (place: Lead) => void;
+    onCloseLeadInfo: () => void;
+    onSaveLead: (place: Lead) => void;
+    savingLead: boolean;
+    canSaveLead: boolean;
+    leadError: string;
+    showFilterPanel: boolean;
+    onCloseFilterPanel: () => void;
+    types: string[];
+    activeTypes: Toggles;
+    typeCounts: Record<string, number>;
+    onToggleType: (type: string) => void;
+    onToggleAllTypes: (showAll: boolean) => void;
+    recencyBuckets: RecencyBucket[];
+    activeBuckets: Toggles;
+    recencyCounts: Record<string, number>;
+    onToggleBucket: (key: string) => void;
+    salesRepOptions: RepOption[];
+    activeSalesReps: Toggles;
+    repCounts: Record<string, number>;
+    onToggleSalesRep: (key: string) => void;
+    onToggleAllSalesReps: FilterPanelProps['onToggleAllSalesReps'];
+    loading: boolean;
+    pinsCount: number;
+    error: string;
+    onMapClick: () => void;
+    showToolsPanel: boolean;
+    onCloseToolsPanel: () => void;
+    drawMode: DrawMode;
+    onArmRadius: () => void;
+    onArmLasso: () => void;
+    onLocateMe: () => void;
+    onRadiusSelect: (center: LatLng, radiusMeters: number) => void;
+    onLassoSelect: (path: LatLng[]) => void;
+    selectionShape: SelectionShape | null;
+    selectedPins: Customer[];
+    onRemoveSelectedPoint: (pin: Customer) => void;
+    onReorderStop: (draggedId: string, targetId: string) => void;
+    showCustomersPanel: boolean;
+    onCloseCustomersPanel: () => void;
+    allCustomers: Pin[];
+    onSelectCustomer: (pin: Pin) => void;
+    showSchedulePanel: boolean;
+    onCloseSchedulePanel: () => void;
+    visitsByDate: Map<string, ScheduleRow[]>;
+    onSelectScheduledVisit: (visit: ScheduleRow) => void;
+    onScheduleMonthChange: (month: Date) => void;
+    onDeleteScheduledVisit: (visit: ScheduleRow) => void;
+    scheduleMonthLoading: boolean;
+    customerOptions: CustomerOption[];
+    onSaveScheduledVisit: (form: ScheduleVisitInput, visitId?: string) => Promise<ScheduleRow | null>;
+    savingVisit: boolean;
+};
+
+/** The map's own flag: its first 'idle' has fired, so a zoom from now on is the person's. */
+type ReadyMap = google.maps.Map & { __ready?: boolean };
+/** A finished or in-progress draw: the circle's centre, or the lasso's path so far. */
+type DrawState = { center?: google.maps.LatLng; path?: google.maps.LatLng[] };
+
 const MapCanvas = ({
     mapRef, colors, colorMode = 'type', onColorModeChange, scopeNote, lastKnownPosition = null,
     isLoaded, loadError,
@@ -239,24 +337,24 @@ const MapCanvas = ({
     showCustomersPanel, onCloseCustomersPanel, allCustomers, onSelectCustomer,
     showSchedulePanel, onCloseSchedulePanel, visitsByDate, onSelectScheduledVisit, onScheduleMonthChange, onDeleteScheduledVisit, scheduleMonthLoading,
     customerOptions, onSaveScheduledVisit, savingVisit
-}) => {
+}: MapCanvasProps) => {
     // The Tools panel's draw-gesture overlays — independent Circle/Polygon
     // instances, live only while drawMode is 'radius'/'lasso' and a drag is
     // in progress (see the two effects below).
-    const selectionCircleRef = useRef(null);
-    const selectionPolygonRef = useRef(null);
-    const drawStateRef = useRef(null);
+    const selectionCircleRef = useRef<google.maps.Circle | null>(null);
+    const selectionPolygonRef = useRef<google.maps.Polygon | null>(null);
+    const drawStateRef = useRef<DrawState | null>(null);
     const [mapReady, setMapReady] = useState(false);
     // How many customers currently fall inside the in-progress lasso —
     // null while not dragging (no badge), a number from the first
     // three-vertex mousemove onward. Real-time feedback for "is this the
     // area I mean" instead of only finding out after releasing the mouse.
-    const [lassoPreviewCount, setLassoPreviewCount] = useState(null);
+    const [lassoPreviewCount, setLassoPreviewCount] = useState<number | null>(null);
     // The road-following route line — a real DirectionsService result,
     // rendered by <DirectionsRenderer> below. Distinct from the numbered
     // pins above, which only mark each stop's location; this is what draws
     // the actual driving path between them (see the effect below it).
-    const [directions, setDirections] = useState(null);
+    const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
     // Whether the Tools panel's inline scheduling section is open — lives
     // here rather than inside ToolsPanel since MapCanvas is what actually
     // renders the AreaScheduleSection block that toggling this shows.
@@ -264,16 +362,16 @@ const MapCanvas = ({
     // The padded area pins are drawn in; null until the map first reports its
     // bounds. Updated on 'idle' (the pan or zoom has settled — never mid-drag),
     // and only when the screen has actually left the area already drawn.
-    const [drawBounds, setDrawBounds] = useState(null);
-    const drawBoundsRef = useRef(null);
+    const [drawBounds, setDrawBounds] = useState<Bounds | null>(null);
+    const drawBoundsRef = useRef<Bounds | null>(null);
     // The map opens centred here and is never re-centred by a prop afterwards:
     // `center` used to follow `origin`, so the phone's location answer (up to
     // 8 s late) yanked the map out from under a rep who had already started
     // panning. See the effect below for the one allowed move.
-    const [initialCenter] = useState(() => origin || lastKnownPosition || FALLBACK_CENTER);
+    const [initialCenter] = useState<LatLng>(() => origin || lastKnownPosition || FALLBACK_CENTER);
     const userMovedRef = useRef(false);
 
-    const handleLoad = (map) => {
+    const handleLoad = (map: ReadyMap) => {
         mapRef.current = map;
         map.addListener('dragstart', () => { userMovedRef.current = true; });
         map.addListener('zoom_changed', () => { if (map.__ready) userMovedRef.current = true; });
@@ -306,7 +404,7 @@ const MapCanvas = ({
     // isn't invalidated by it.
     const onSelectPinRef = useRef(onSelectPin);
     useEffect(() => { onSelectPinRef.current = onSelectPin; }, [onSelectPin]);
-    const selectPin = useCallback((pin) => onSelectPinRef.current(pin), []);
+    const selectPin = useCallback((pin: Customer) => onSelectPinRef.current(pin), []);
 
     // onRadiusSelect/onLassoSelect are recreated whenever `visible` changes
     // upstream in RoutePlannerV2 (new pins load, a filter toggles, etc.) —
@@ -341,7 +439,7 @@ const MapCanvas = ({
     // map out from under it; distance is figured with the same great-circle
     // milesBetween() used elsewhere in this screen, converted to meters for
     // Circle.setRadius, rather than pulling in the Geometry library just for
-    // this — see RoutePlannerV2.jsx's searchLeads() for why this screen
+    // this — see RoutePlannerV2.tsx's searchLeads() for why this screen
     // avoids requesting extra Maps libraries up front.
     useEffect(() => {
         if (!mapReady || !window.google || !mapRef.current) return;
@@ -357,8 +455,8 @@ const MapCanvas = ({
             drawStateRef.current = null;
         };
 
-        const mouseDownListener = map.addListener('mousedown', (e) => {
-            drawStateRef.current = { center: e.latLng };
+        const mouseDownListener = map.addListener('mousedown', (e: google.maps.MapMouseEvent) => {
+            drawStateRef.current = { center: e.latLng as google.maps.LatLng };
             selectionCircleRef.current = new window.google.maps.Circle({
                 map,
                 center: e.latLng,
@@ -372,12 +470,12 @@ const MapCanvas = ({
             });
         });
 
-        const mouseMoveListener = map.addListener('mousemove', (e) => {
+        const mouseMoveListener = map.addListener('mousemove', (e: google.maps.MapMouseEvent) => {
             if (!drawStateRef.current || !selectionCircleRef.current) return;
-            const center = drawStateRef.current.center;
+            const center = drawStateRef.current.center!;
             const meters = milesBetween(
                 { lat: center.lat(), lng: center.lng() },
-                { lat: e.latLng.lat(), lng: e.latLng.lng() }
+                { lat: e.latLng!.lat(), lng: e.latLng!.lng() }
             ) * 1609.34;
             selectionCircleRef.current.setRadius(Math.max(meters, 1));
         });
@@ -387,7 +485,7 @@ const MapCanvas = ({
         // accidental tap doesn't silently end the draw with no feedback.
         const mouseUpListener = map.addListener('mouseup', () => {
             if (!drawStateRef.current) return;
-            const center = drawStateRef.current.center;
+            const center = drawStateRef.current.center!;
             const radiusMeters = selectionCircleRef.current?.getRadius() || 0;
             clearPreview();
             if (radiusMeters > 50) {
@@ -431,11 +529,11 @@ const MapCanvas = ({
         };
 
         let countFrame = 0;
-        const mouseDownListener = map.addListener('mousedown', (e) => {
-            drawStateRef.current = { path: [e.latLng] };
+        const mouseDownListener = map.addListener('mousedown', (e: google.maps.MapMouseEvent) => {
+            drawStateRef.current = { path: [e.latLng as google.maps.LatLng] };
             selectionPolygonRef.current = new window.google.maps.Polygon({
                 map,
-                paths: [e.latLng],
+                paths: [e.latLng as google.maps.LatLng],
                 strokeColor: '#2a78d6',
                 strokeOpacity: 0.9,
                 strokeWeight: 2,
@@ -446,18 +544,18 @@ const MapCanvas = ({
             setLassoPreviewCount(0);
         });
 
-        const mouseMoveListener = map.addListener('mousemove', (e) => {
+        const mouseMoveListener = map.addListener('mousemove', (e: google.maps.MapMouseEvent) => {
             if (!drawStateRef.current || !selectionPolygonRef.current) return;
-            drawStateRef.current.path.push(e.latLng);
-            selectionPolygonRef.current.setPath(drawStateRef.current.path);
+            drawStateRef.current.path!.push(e.latLng as google.maps.LatLng);
+            selectionPolygonRef.current.setPath(drawStateRef.current.path!);
 
             // Counting is a point-in-polygon sweep over every pin; at most once
             // per frame, however fast the mouse reports.
-            if (drawStateRef.current.path.length >= 3 && !countFrame) {
+            if (drawStateRef.current.path!.length >= 3 && !countFrame) {
                 countFrame = requestAnimationFrame(() => {
                     countFrame = 0;
                     if (!drawStateRef.current) return;
-                    const livePath = drawStateRef.current.path.map(latLng => ({ lat: latLng.lat(), lng: latLng.lng() }));
+                    const livePath = drawStateRef.current.path!.map(latLng => ({ lat: latLng.lat(), lng: latLng.lng() }));
                     const count = [...selectedPinsRef.current, ...unselectedPinsRef.current]
                         .filter(p => pointInPolygon(p.coordinates, livePath)).length;
                     setLassoPreviewCount(count);
@@ -470,7 +568,7 @@ const MapCanvas = ({
         // radius click above.
         const mouseUpListener = map.addListener('mouseup', () => {
             if (!drawStateRef.current) return;
-            const path = drawStateRef.current.path;
+            const path = drawStateRef.current.path!;
             clearPreview();
             if (path.length >= 3) {
                 const rawPath = path.map(latLng => ({ lat: latLng.lat(), lng: latLng.lng() }));
@@ -493,8 +591,8 @@ const MapCanvas = ({
     // torn down the instant onRadiusSelect/onLassoSelect fires), this one
     // persists so "Selected Points" always has a visible answer for where
     // those customers came from. Replaced wholesale on a new draw, cleared
-    // when selectionShape goes null (RoutePlannerV2.jsx's clearSelection).
-    const selectionShapeRef = useRef(null);
+    // when selectionShape goes null (RoutePlannerV2.tsx's clearSelection).
+    const selectionShapeRef = useRef<google.maps.Circle | google.maps.Polygon | null>(null);
 
     useEffect(() => {
         if (!mapReady || !window.google || !mapRef.current) return;
@@ -504,7 +602,7 @@ const MapCanvas = ({
 
         if (!selectionShape) return;
 
-        const shapeOptions = {
+        const shapeOptions: google.maps.CircleOptions & google.maps.PolygonOptions = {
             strokeColor: '#2a78d6',
             strokeOpacity: 0.8,
             strokeWeight: 2,
@@ -547,7 +645,7 @@ const MapCanvas = ({
     // same orderStops() call upstream); optimizeWaypoints is off on purpose
     // — that order is already ours, and letting Google re-sequence the
     // waypoints would desync the line from the numbers sitting on top of it.
-    const directionsRequest = useMemo(() => {
+    const directionsRequest = useMemo((): Pick<google.maps.DirectionsRequest, 'origin' | 'destination' | 'waypoints'> | null => {
         if (day.length === 0 || (!origin && day.length < 2)) return null;
 
         const routeOrigin = origin || day[0].coordinates;
@@ -602,8 +700,8 @@ const MapCanvas = ({
     // same object every render, so Google isn't told "new icon" for every pin
     // each time anything changes. Keyed by the look itself, so a theme or
     // colour-mode change needs no invalidation.
-    const iconCache = useRef(new Map());
-    const markerIcon = useCallback((pin, order, isOpen = false) => {
+    const iconCache = useRef(new Map<string, google.maps.Icon>());
+    const markerIcon = useCallback((pin: Customer, order: number | undefined, isOpen = false) => {
         if (!window.google) return undefined;
         const look = pinLook(colors, colorMode, pin);
         const key = `${look.color}|${look.ink}|${order || ''}|${isOpen ? 1 : 0}`;
@@ -681,7 +779,7 @@ const MapCanvas = ({
                 >
                     {(myPosition || origin) && (
                         <Marker
-                            position={myPosition || origin}
+                            position={(myPosition || origin)!}
                             title="You"
                             icon={{
                                 path: window.google.maps.SymbolPath.CIRCLE,

@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Search, Users, X } from 'lucide-react';
-import { nameOf, real, searchCustomerPins } from './helpers';
+import { nameOf, real, searchCustomerPins } from '../helpers';
+import type { Pin } from '../types';
 import './CustomersPanel.css';
 
 /**
@@ -12,11 +13,13 @@ import './CustomersPanel.css';
  * whatever Filter/Tools currently has active, since this is meant to find
  * *any* customer, including ones hidden by the map's own filters.
  *
- * Sorting/matching is searchCustomerPins (helpers.js) — kept pure and
+ * Sorting/matching is searchCustomerPins (helpers.ts) — kept pure and
  * tested there rather than inlined, same reasoning as every other
  * pure/testable bit in this tree (see CLAUDE.md).
  */
-const CustomersPanel = ({ onClose, pins, onSelectCustomer }) => {
+export type CustomersPanelProps = { onClose: () => void; pins: Pin[]; onSelectCustomer: (pin: Pin) => void };
+
+const CustomersPanel = ({ onClose, pins, onSelectCustomer }: CustomersPanelProps) => {
     const [query, setQuery] = useState('');
     const results = useMemo(() => searchCustomerPins(pins, query), [pins, query]);
 

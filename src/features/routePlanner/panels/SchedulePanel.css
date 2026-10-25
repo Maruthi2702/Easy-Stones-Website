@@ -13,7 +13,7 @@
    .rpv2-schedule-card-acts stays visible all the time instead. */
 
 /* Scoped to this one panel via the [data-dialog="schedule"] attribute
-   MapCanvas.jsx already sets, rather than editing the shared rule in
+   MapCanvas.tsx already sets, rather than editing the shared rule in
    MapCanvas.css — .rpv2-panel-head-title's flex:1 is what lets
    .rpv2-panel-close sit flush right in every OTHER panel (Tools, Filter,
    the customer/lead detail panels), so changing it there would shift their
@@ -69,7 +69,7 @@
 }
 
 /* Add/edit as a sheet over the calendar+list rather than replacing them —
-   see SchedulePanel.jsx's own header comment for why (they stay mounted
+   see SchedulePanel.tsx's own header comment for why (they stay mounted
    underneath the whole time, so closing this just reveals them again).
    A solid surface fill, not a translucent one: this is a real form to fill
    out, not a confirmation glancing past something behind it. */
@@ -216,7 +216,7 @@
 .rpv2-schedule-cal-cell.is-selected .rpv2-schedule-cal-dot { background: #1a1a19; }
 
 /* Covers a real gap: paging to a month loadScheduleMonth hasn't fetched
-   yet (RoutePlannerV2.jsx) otherwise renders as an ordinary-looking empty
+   yet (RoutePlannerV2.tsx) otherwise renders as an ordinary-looking empty
    grid for however long the request takes — no dots, nothing visually
    "wrong" about it — which reads as "there's really nothing this month"
    rather than "still loading". Semi-opaque rather than a full opaque

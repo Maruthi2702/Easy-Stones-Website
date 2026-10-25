@@ -1,5 +1,5 @@
 // Pure helpers pulled out of CrossoverSheetTab.jsx so the matrix's grouping/
-// sorting logic can be unit-tested the same way routePlannerV2/helpers.js is —
+// sorting logic can be unit-tested the same way features/routePlanner/helpers.ts is —
 // see crossoverSheetHelpers.test.js.
 
 // Flattens the API's one-document-per-color shape (each holding an embedded

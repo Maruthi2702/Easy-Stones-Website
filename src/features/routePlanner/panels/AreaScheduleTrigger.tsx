@@ -1,4 +1,3 @@
-import React from 'react';
 import { CalendarPlus } from 'lucide-react';
 import './AreaScheduleTrigger.css';
 
@@ -9,8 +8,12 @@ import './AreaScheduleTrigger.css';
  * (open/closed, the stop-count badge), not the section's content, so the
  * two can live in separate parts of the DOM without one having to reach
  * into the other.
+ *
+ * Not used anywhere at the moment (nothing imports it); kept as it was.
  */
-const AreaScheduleTrigger = ({ isOpen, onToggle, count }) => (
+export type AreaScheduleTriggerProps = { isOpen: boolean; onToggle: () => void; count: number };
+
+const AreaScheduleTrigger = ({ isOpen, onToggle, count }: AreaScheduleTriggerProps) => (
     <button
         type="button"
         className={`rpv2-area-schedule-trigger ${isOpen ? 'is-open' : ''}`}

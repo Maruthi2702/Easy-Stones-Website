@@ -1,19 +1,22 @@
 import React, { useState } from 'react';
+import type { ReactNode } from 'react';
 import { ChevronDown, ChevronUp, Filter, Search, X } from 'lucide-react';
-import { typeColors } from './helpers';
+import { typeColors } from '../helpers';
+import type { ColorMode, RecencyBucket, RecencyColors, RepOption, Toggles } from '../types';
 import './FilterPanel.css';
 
 const PIN_PATH = 'M12,2C8.13,2,5,5.13,5,9c0,5.25,7,13,7,13s7,-7.75,7,-13C19,5.13,15.87,2,12,2z';
 
 // The map's pin in miniature — the row's own colour key, drawn the way the
-// pin itself is (MapCanvas.jsx), so the legend and the map can't look different.
-const PinSwatch = ({ color, dim }) => (
+// pin itself is (MapCanvas.tsx), so the legend and the map can't look different.
+const PinSwatch = ({ color, dim }: { color: string; dim: boolean }) => (
     <svg className="rpv2-filter-pin" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" style={{ opacity: dim ? 0.3 : 1 }}>
         <path d={PIN_PATH} fill={color} stroke="#20201f" strokeWidth="1.6" />
     </svg>
 );
 
-const Section = ({ title, summary, open, onToggle, children, actions }) => (
+type SectionProps = { title: string; summary?: string; open: boolean; onToggle: () => void; children?: ReactNode; actions?: ReactNode };
+const Section = ({ title, summary, open, onToggle, children, actions }: SectionProps) => (
     <div className="rpv2-filter-section">
         <div className="rpv2-filter-section-bar">
             <button type="button" className="rpv2-filter-section-head" onClick={onToggle} aria-expanded={open}>
@@ -28,7 +31,8 @@ const Section = ({ title, summary, open, onToggle, children, actions }) => (
 // `color`: the row wears this colour (its tint, checkbox and a pin swatch) —
 // only for the dimension the map is currently coloured by; the others stay
 // plain with a gold checkbox, so the panel itself says what the colours mean.
-const CheckRow = ({ label, count, on, color, onClick }) => (
+type CheckRowProps = { label: string; count?: number; on: boolean; color?: string; onClick: () => void };
+const CheckRow = ({ label, count, on, color, onClick }: CheckRowProps) => (
     <button
         type="button"
         className="rpv2-filter-row"
@@ -58,6 +62,28 @@ const CheckRow = ({ label, count, on, color, onClick }) => (
  * the header decides what the pins' colour means; whichever of the two
  * sections it colours shows its colours here, as the map's key.
  */
+export type FilterPanelProps = {
+    onClose: () => void;
+    colorMode: ColorMode;
+    onColorModeChange: (mode: ColorMode) => void;
+    types: string[];
+    activeTypes: Toggles;
+    typeCounts: Record<string, number>;
+    onToggleType: (type: string) => void;
+    onToggleAllTypes: (showAll: boolean) => void;
+    recencyBuckets: RecencyBucket[];
+    colors: RecencyColors;
+    activeBuckets: Toggles;
+    recencyCounts: Record<string, number>;
+    onToggleBucket: (key: string) => void;
+    salesRepOptions: RepOption[];
+    activeSalesReps: Toggles;
+    repCounts: Record<string, number>;
+    onToggleSalesRep: (key: string) => void;
+    onToggleAllSalesReps: (showAll: boolean) => void;
+    scopeNote: string;
+};
+
 const FilterPanel = ({
     onClose,
     colorMode, onColorModeChange,
@@ -65,7 +91,7 @@ const FilterPanel = ({
     recencyBuckets, colors, activeBuckets, recencyCounts, onToggleBucket,
     salesRepOptions, activeSalesReps, repCounts, onToggleSalesRep, onToggleAllSalesReps,
     scopeNote
-}) => {
+}: FilterPanelProps) => {
     const [repOpen, setRepOpen] = useState(true);
     const [typeOpen, setTypeOpen] = useState(true);
     const [recencyOpen, setRecencyOpen] = useState(true);

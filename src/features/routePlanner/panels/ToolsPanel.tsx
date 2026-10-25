@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Target, Circle, Lasso, X, CalendarPlus, ChevronUp, GripVertical } from 'lucide-react';
-import { nameOf } from './helpers';
+import { nameOf } from '../helpers';
 import AreaScheduleSection from './AreaScheduleSection';
+import type { DayScheduleProps } from './AreaScheduleSection';
+import type { DrawMode, MapPin, RecencyColors, ReturnPanel } from '../types';
 import './ToolsPanel.css';
 
 /**
@@ -29,6 +31,21 @@ import './ToolsPanel.css';
  * undersized, floating afterthought instead of this panel's one
  * committing action.
  */
+export type ToolsPanelProps = DayScheduleProps & {
+    onClose: () => void;
+    mode: DrawMode;
+    onArmRadius: () => void;
+    onArmLasso: () => void;
+    selectedPins: MapPin[];
+    orderById: Map<string, number>;
+    colors: RecencyColors;
+    onRemovePoint: (pin: MapPin) => void;
+    onReorderStop: (draggedId: string, targetId: string) => void;
+    onSelectPin: (pin: MapPin, origin?: ReturnPanel) => void;
+    scheduleOpen: boolean;
+    onToggleSchedule: () => void;
+};
+
 const ToolsPanel = ({
     onClose,
     mode, onArmRadius, onArmLasso,
@@ -37,12 +54,12 @@ const ToolsPanel = ({
     date, onDateChange, startAt, onStartAtChange, stopMinutes, onStopMinutesChange,
     day, summary, onScheduleDay, replaceExisting, onReplaceExistingChange, onClearPlannedDay, saved,
     scheduleOpen, onToggleSchedule
-}) => {
+}: ToolsPanelProps) => {
     // Which stop is mid-drag, and which row it's currently hovering over —
     // both null outside a drag. Local to this panel: the drop only needs to
     // report the two ids involved (see onReorderStop), not the whole gesture.
-    const [dragId, setDragId] = useState(null);
-    const [overId, setOverId] = useState(null);
+    const [dragId, setDragId] = useState<string | null>(null);
+    const [overId, setOverId] = useState<string | null>(null);
 
     return (
     <div className="rpv2-panel" data-dialog="tools">

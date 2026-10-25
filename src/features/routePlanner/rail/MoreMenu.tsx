@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu, Search, Gauge, X, Loader2 } from 'lucide-react';
 import './MoreMenu.css';
@@ -10,29 +10,40 @@ import './MoreMenu.css';
  * traffic"; a new map feature is another row in the list below.
  *
  * Portaled to document.body and positioned from the trigger's screen
- * coordinates, for the reason LeadSearchControl.jsx spells out: the bar scrolls
+ * coordinates, for the reason LeadSearchControl.tsx spells out: the bar scrolls
  * (overflow), which would clip a plain absolute child.
  */
+export type MoreMenuProps = {
+    leadQuery: string;
+    onLeadQueryChange: (value: string) => void;
+    onLeadSearch: (query: string) => void;
+    leadSearching: boolean;
+    recentLeads: string[];
+    onRemoveRecent: (term: string) => void;
+    showTraffic: boolean;
+    onToggleTraffic: () => void;
+};
+
 const MoreMenu = ({
     leadQuery, onLeadQueryChange, onLeadSearch, leadSearching, recentLeads, onRemoveRecent,
     showTraffic, onToggleTraffic
-}) => {
+}: MoreMenuProps) => {
     const [open, setOpen] = useState(false);
     const [leadsOpen, setLeadsOpen] = useState(false);
     const [bottom, setBottom] = useState(0);
-    const triggerRef = useRef(null);
-    const menuRef = useRef(null);
-    const inputRef = useRef(null);
+    const triggerRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const close = useCallback(() => { setOpen(false); setLeadsOpen(false); }, []);
 
     useEffect(() => {
         if (!open) return undefined;
-        const onDown = (e) => {
-            if (triggerRef.current?.contains(e.target) || menuRef.current?.contains(e.target)) return;
+        const onDown = (e: MouseEvent | TouchEvent) => {
+            if (triggerRef.current?.contains(e.target as Node) || menuRef.current?.contains(e.target as Node)) return;
             close();
         };
-        const onKey = (e) => { if (e.key === 'Escape') close(); };
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
         document.addEventListener('mousedown', onDown);
         document.addEventListener('touchstart', onDown);
         document.addEventListener('keydown', onKey);
@@ -52,7 +63,7 @@ const MoreMenu = ({
         if (open) close(); else setOpen(true);
     };
 
-    const runSearch = (term) => {
+    const runSearch = (term?: string) => {
         const q = (term ?? leadQuery).trim();
         if (!q) return;
         onLeadSearch(q);

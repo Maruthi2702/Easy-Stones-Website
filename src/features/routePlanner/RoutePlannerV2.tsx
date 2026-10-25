@@ -1,32 +1,41 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { useJsApiLoader } from '@react-google-maps/api';
 import { MapPin, LocateFixed, Gauge } from 'lucide-react';
-import { API_URL } from '../../../config/api';
-import { authFetch } from '../../../api/authFetch';
-import { saveDraft, loadDraft, clearDraft } from '../../../utils/sessionDraft';
-import { toSalesRepList, groupRepOptions } from '../../../utils/salesReps';
-import { UNASSIGNED, repsInScope, scopeLocationsOf } from '../../../utils/routePlannerScope';
-import { readLastPosition, rememberPosition, forgetLocationOk, locationWasOk, locationPermission, shouldAutoLocate } from '../../../utils/geolocationAccess';
+import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
+import { saveDraft, loadDraft, clearDraft } from '../../utils/sessionDraft';
+import { toSalesRepList, groupRepOptions } from '../../utils/salesReps';
+import { UNASSIGNED, repsInScope, scopeLocationsOf } from '../../utils/routePlannerScope';
+import { readLastPosition, rememberPosition, forgetLocationOk, locationWasOk, locationPermission, shouldAutoLocate } from '../../utils/geolocationAccess';
 import {
-    orderStops, planDay, daySummary, visitRecency,
+    orderStops, planDay, daySummary,
     hasPoint, milesBetween, pointInPolygon, RECENCY_BUCKETS, DEFAULT_DAY
-} from '../../../utils/routePlan';
+} from '../../utils/routePlan';
 import {
-    RECENCY_COLORS, KNOWN_TYPES, PIN_COLOR_MODES, todayKey, pad, nameOf, whenLabel,
+    RECENCY_COLORS, KNOWN_TYPES, PIN_COLOR_MODES, todayKey, pad, nameOf, whenLabel, visitRecency,
     parseAddressComponents, loadRecentLeadSearches, saveRecentLeadSearch, removeRecentLeadSearch
 } from './helpers';
-import MapCanvas from './MapCanvas';
-import FilterButton from './FilterButton';
-import LeadSearchControl from './LeadSearchControl';
-import RunDrawer from './RunDrawer';
-import MoreMenu from './MoreMenu';
-import AddCustomerModal from '../AddCustomerModal';
-import { toCustomerOptions } from '../../../utils/customerOptions';
-import { canEditCustomers, canDeleteCustomers, canViewCustomerProfile } from '../../../utils/customerAccess';
-import { CustomerDrawer } from '../../../features/customers';
-import MapActions from './MapActions';
-import ScheduleVisitSheet from './ScheduleVisitSheet';
+import MapCanvas from './map/MapCanvas';
+import FilterButton from './rail/FilterButton';
+import LeadSearchControl from './rail/LeadSearchControl';
+import RunDrawer from './rail/RunDrawer';
+import MoreMenu from './rail/MoreMenu';
+import AddCustomerModalJs from '../../components/sales/AddCustomerModal';
+import { toCustomerOptions } from '../../utils/customerOptions';
+import { canEditCustomers, canDeleteCustomers, canViewCustomerProfile } from '../../utils/customerAccess';
+import { CustomerDrawer } from '../customers';
+import MapActions from './customer/MapActions';
+import ScheduleVisitSheet from './customer/ScheduleVisitSheet';
+import type { CurrentUser, Loose, StaffMember } from '../../types/records';
+import type {
+    Booking, ColorMode, DayStop, DaySummary, DrawMode, LatLng, Lead, MapPin as Customer, Pin, PlannerPermissions,
+    Preselect, RecencyBucket, RecencyKey, ReturnPanel, SavedDay, ScheduleRow, ScheduleVisitInput, SelectionShape, Toggles, VisitSlotInput
+} from './types';
 import './RoutePlannerV2.css';
+
+// Still JavaScript; taken as taking any props until it's typed.
+const AddCustomerModal = AddCustomerModalJs as unknown as ComponentType<Loose>;
 
 /**
  * Route Planner, map-first: the full-bleed map with every control floating
@@ -43,15 +52,39 @@ const PANEL_WIDTH = 460;
 // Pure — doesn't close over anything component-specific — so it's hoisted
 // here rather than redefined every render inside the component body, which
 // would otherwise need explaining away in every useMemo that calls it.
-const repKey = (salesRep) => String(salesRep || '') || 'unassigned';
+/** The Route Planner's saved filters on the user record (PUT /api/user/me/route-planner-filters). */
+type SavedFilters = { activeSalesReps?: Toggles | null; activeTypes?: Toggles | null; activeBuckets?: Toggles | null; pinColors?: { mode?: string } };
+const savedFiltersOf = (user: CurrentUser | null) => user?.routePlannerFilters as SavedFilters | undefined;
 
-const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = null, onAddVisit = null, onAddResource = null, sidebarToggle = null, isActive = true, preselect = null }) => {
+const repKey = (salesRep: unknown) => String(salesRep || '') || 'unassigned';
+
+/** The Tools panel's day, saved for the session when a sign-in expires mid-edit. */
+type DayDraft = { date: string; startAt: string; stopMinutes: string | number; origin: LatLng | null; replaceExisting: boolean };
+
+/** The customer an entry is for: populated to a name, or only an id. */
+const customerOf = (row: ScheduleRow) => (typeof row.customerId === 'object' && row.customerId ? row.customerId : null);
+
+export type RoutePlannerV2Props = {
+    currentUser?: CurrentUser | null;
+    theme?: string;
+    /** Opens the customer's full profile (by id). */
+    onOpenCustomer?: ((id: string) => void) | null;
+    onAddVisit?: ((pin: Customer) => void) | null;
+    onAddResource?: ((pin: Customer) => void) | null;
+    /** The app's side-nav button, drawn first in the map's rail. */
+    sidebarToggle?: ReactNode;
+    /** This page is the one on screen (it stays mounted, hidden, once opened). */
+    isActive?: boolean;
+    preselect?: Preselect;
+};
+
+const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = null, onAddVisit = null, onAddResource = null, sidebarToggle = null, isActive = true, preselect = null }: RoutePlannerV2Props) => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     const { isLoaded, loadError } = useJsApiLoader({ id: 'google-map-script', googleMapsApiKey: apiKey || '' });
 
     const colors = RECENCY_COLORS[theme === 'light' ? 'light' : 'dark'];
 
-    const [pins, setPins] = useState([]);
+    const [pins, setPins] = useState<Pin[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -61,18 +94,18 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // say, two reps covering the same territory. Seeded to "just me" the
     // first time myId/salesReps are known (see the sync effect below), so
     // the default behaviour is unchanged even though the model isn't.
-    const [activeSalesReps, setActiveSalesReps] = useState({});
+    const [activeSalesReps, setActiveSalesReps] = useState<Toggles>({});
     // Which of the three saved filters have been loaded (seeded) yet. State,
     // not a ref, so a save effect sees "ready" only in the render where the
     // loaded value is already in place: with a ref, the save ran in the same
     // pass as the seed, wrote the empty starting value, and raced the real one
     // to the server, so a reopen often came back reset.
     const [filtersReady, setFiltersReady] = useState({ reps: false, types: false, buckets: false, colors: false });
-    const markReady = useCallback((key) => setFiltersReady(prev => (prev[key] ? prev : { ...prev, [key]: true })), []);
+    const markReady = useCallback((key: keyof typeof filtersReady) => setFiltersReady(prev => (prev[key] ? prev : { ...prev, [key]: true })), []);
     // The last value each filter saved (JSON), so loading one doesn't save it
     // straight back and only a real change goes to the server.
-    const savedFilterJson = useRef({});
-    const saveFilter = useCallback((key, value) => {
+    const savedFilterJson = useRef<Record<string, string>>({});
+    const saveFilter = useCallback((key: string, value: unknown) => {
         const json = JSON.stringify(value);
         if (savedFilterJson.current[key] === json) return;
         savedFilterJson.current[key] = json;
@@ -85,17 +118,17 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             // surfacing an error over; the in-session toggle still works.
         });
     }, []);
-    const [activeBuckets, setActiveBuckets] = useState({ never: true, overdue: true, due: true, recent: true });
+    const [activeBuckets, setActiveBuckets] = useState<Toggles>({ never: true, overdue: true, due: true, recent: true });
     // Multi-select, not the single dropdown value this replaced — every type
     // (plus the synthetic '(blank)' bucket for pins with none set) defaults
     // to shown, same on/off-per-key shape as activeBuckets above. Synced from
     // `types` below as new ones appear, since that list is data-driven and
     // can't be known up front.
-    const [activeTypes, setActiveTypes] = useState({});
+    const [activeTypes, setActiveTypes] = useState<Toggles>({});
     // What the pins' colour means — the customer's type or how long since the
     // last visit (the Filter's "Type colours | Visit colours" switch). Saved
     // with the other filters; type until someone chooses otherwise.
-    const [colorMode, setColorMode] = useState('type');
+    const [colorMode, setColorMode] = useState<ColorMode>('type');
     const [showFilterPanel, setShowFilterPanel] = useState(false);
     // Google's own live-conditions overlay (TrafficLayer) — purely a map
     // display toggle with nothing else in the app depending on it, so it
@@ -116,31 +149,31 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // (unfiltered by Filter/Tools), mutually exclusive with the other
     // panels below the same way they already are with each other.
     const [showCustomersPanel, setShowCustomersPanel] = useState(false);
-    const [drawMode, setDrawMode] = useState(null);
-    const [selectedIds, setSelectedIds] = useState(new Set());
+    const [drawMode, setDrawMode] = useState<DrawMode>(null);
+    const [selectedIds, setSelectedIds] = useState(new Set<string>());
     // The circle/lasso boundary that produced the current selectedIds — kept
     // around after the draw gesture ends (unlike drawMode, which clears
     // immediately) purely so it can stay drawn on the map as a visual answer
     // to "why these customers". Replaced by the next draw, cleared alongside
     // selectedIds by clearSelection.
-    const [selectionShape, setSelectionShape] = useState(null);
+    const [selectionShape, setSelectionShape] = useState<SelectionShape | null>(null);
     // A rep's manual drag-to-reorder of the Tools panel's stop list,
     // overriding the orderStops geography-based order below until the
     // selection itself changes — same ids, same set, just a different
     // sequence through them. Reset to null (falls back to the computed
     // order) whenever selectedIds changes, since a new draw/add/remove
     // invalidates whatever arrangement was tuned for the old set.
-    const [manualOrderIds, setManualOrderIds] = useState(null);
+    const [manualOrderIds, setManualOrderIds] = useState<string[] | null>(null);
     useEffect(() => { setManualOrderIds(null); }, [selectedIds]);
 
-    const [info, setInfo] = useState(null);
+    const [info, setInfo] = useState<Customer | null>(null);
     // Which panel (if any) showDetails hid to make room for `info` in the
     // shared right column — 'tools' | null. Lets closeInfo bring Tools back
     // instead of leaving the column empty when a customer's detail popup
     // was opened by clicking a row inside it, rather than by clicking its
     // pin on the map.
-    const [returnPanel, setReturnPanel] = useState(null);
-    const [scheduled, setScheduled] = useState(new Map());
+    const [returnPanel, setReturnPanel] = useState<ReturnPanel>(null);
+    const [scheduled, setScheduled] = useState(new Map<string, Booking>());
     const [showSchedulePanel, setShowSchedulePanel] = useState(false);
     // Every schedule row SchedulePanel's calendar has ever fetched, keyed by
     // its own _id (not deduped by customer like `scheduled` above — a day
@@ -149,12 +182,12 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // loadScheduleMonth's per-month fetches below, since either can cover
     // overlapping ranges; keying by _id makes re-fetching a range that
     // overlaps an earlier one a harmless no-op merge instead of a dupe.
-    const [scheduleById, setScheduleById] = useState(new Map());
+    const [scheduleById, setScheduleById] = useState(new Map<string, ScheduleRow>());
     // Which 'YYYY-MM' months loadScheduleMonth has already fetched, so
     // paging SchedulePanel's calendar back and forth doesn't re-request the
     // same range every time. A ref rather than state — it's read/written
     // inside loadScheduleMonth itself and never drives a render on its own.
-    const fetchedMonthsRef = useRef(new Set());
+    const fetchedMonthsRef = useRef(new Set<string>());
     // A count, not a boolean — paging quickly through several uncached
     // months can leave more than one loadScheduleMonth request in flight
     // at once, and the spinner SchedulePanel shows off this should only
@@ -167,11 +200,11 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
 
     const [date, setDate] = useState(todayKey());
     const [startAt, setStartAt] = useState('09:00');
-    const [stopMinutes, setStopMinutes] = useState(DEFAULT_DAY.stopMinutes);
-    const [origin, setOrigin] = useState(null);
-    const [myPosition, setMyPosition] = useState(null);
+    const [stopMinutes, setStopMinutes] = useState<string | number>(DEFAULT_DAY.stopMinutes);
+    const [origin, setOrigin] = useState<LatLng | null>(null);
+    const [myPosition, setMyPosition] = useState<LatLng | null>(null);
     const [saving, setSaving] = useState(false);
-    const [saved, setSaved] = useState(null);
+    const [saved, setSaved] = useState<SavedDay | null>(null);
     const [replaceExisting, setReplaceExisting] = useState(false);
 
     // Lead generation — searching the visible map area for businesses not
@@ -180,8 +213,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // transient search results, not customer data, until saveLead() below
     // turns one into a real Customer.
     const [leadQuery, setLeadQuery] = useState('');
-    const [leadResults, setLeadResults] = useState([]);
-    const [leadInfo, setLeadInfo] = useState(null);
+    const [leadResults, setLeadResults] = useState<Lead[]>([]);
+    const [leadInfo, setLeadInfo] = useState<Lead | null>(null);
     const [leadSearching, setLeadSearching] = useState(false);
     const [leadError, setLeadError] = useState('');
     const [savingLead, setSavingLead] = useState(false);
@@ -193,15 +226,15 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // (PUT) checks manage_customers; delete (DELETE) needs delete_customers —
     // the same canEditCustomers / canDeleteCustomers rules as the Customers
     // page, gating the two icons separately in MapCanvas.
-    const [editingCustomer, setEditingCustomer] = useState(null);
+    const [editingCustomer, setEditingCustomer] = useState<Loose | null>(null);
     const [savingCustomerEdit, setSavingCustomerEdit] = useState(false);
     const [, setLoadingEditCustomer] = useState(false);
-    const [salesReps, setSalesReps] = useState([]);
-    const [locationOptions, setLocationOptions] = useState([]);
+    const [salesReps, setSalesReps] = useState<StaffMember[]>([]);
+    const [locationOptions, setLocationOptions] = useState<string[]>([]);
 
     // Kept current every render so the session-expired listener can grab a
     // fresh snapshot without needing every one of these in its own deps.
-    const dayBuilderRef = useRef(null);
+    const dayBuilderRef = useRef<DayDraft | null>(null);
     useEffect(() => {
         dayBuilderRef.current = { date, startAt, stopMinutes, origin, replaceExisting };
     });
@@ -217,7 +250,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     }, []);
 
     useEffect(() => {
-        const draft = loadDraft('routePlannerDay');
+        const draft = loadDraft<Partial<DayDraft>>('routePlannerDay');
         if (!draft) return;
         if (draft.date) setDate(draft.date);
         if (draft.startAt) setStartAt(draft.startAt);
@@ -227,7 +260,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         clearDraft('routePlannerDay');
     }, []);
 
-    const can = useMemo(() => {
+    const can = useMemo((): PlannerPermissions => {
         const held = currentUser?.permissions || [];
         return {
             plan: held.includes('create_route_plan'),
@@ -238,7 +271,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         };
     }, [currentUser]);
 
-    const mapRef = useRef(null);
+    const mapRef = useRef<google.maps.Map | null>(null);
 
     const loadScheduled = useCallback(async () => {
         try {
@@ -250,10 +283,10 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             );
             if (!res.ok) return;
             const rows = await res.json();
-            const list = Array.isArray(rows) ? rows : [];
-            const byCustomer = new Map();
+            const list: ScheduleRow[] = Array.isArray(rows) ? rows : [];
+            const byCustomer = new Map<string, Booking>();
             list.forEach(row => {
-                const id = String(row.customerId?._id || row.customerId || '');
+                const id = String(customerOf(row)?._id || row.customerId || '');
                 if (id && !byCustomer.has(id)) byCustomer.set(id, { id: row._id, startTime: row.startTime });
             });
             setScheduled(byCustomer);
@@ -279,7 +312,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // right there in the database. This fetches and merges in whichever
     // month the calendar is actually showing, on demand, tracked per-month
     // (fetchedMonthsRef) so revisiting the same month doesn't re-request it.
-    const loadScheduleMonth = useCallback(async (monthDate) => {
+    const loadScheduleMonth = useCallback(async (monthDate: Date) => {
         const key = `${monthDate.getFullYear()}-${pad(monthDate.getMonth() + 1)}`;
         if (fetchedMonthsRef.current.has(key)) return;
         fetchedMonthsRef.current.add(key);
@@ -292,7 +325,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             );
             if (!res.ok) { fetchedMonthsRef.current.delete(key); return; }
             const rows = await res.json();
-            const list = Array.isArray(rows) ? rows : [];
+            const list: ScheduleRow[] = Array.isArray(rows) ? rows : [];
             setScheduleById(prev => {
                 const next = new Map(prev);
                 list.forEach(row => next.set(String(row._id), row));
@@ -313,7 +346,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // customers, once; unticking only hides them. `replace` throws away what is
     // held and starts over; an answer that arrives after a newer replace is dropped.
     const loadEpoch = useRef(0);
-    const loadedRepsRef = useRef(new Set());
+    const loadedRepsRef = useRef(new Set<string>());
     const wantedRepKeys = useMemo(
         () => Object.keys(activeSalesReps).filter(k => activeSalesReps[k] === true).sort(),
         [activeSalesReps]
@@ -321,9 +354,9 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     const wantedRepKeysRef = useRef(wantedRepKeys);
     useEffect(() => { wantedRepKeysRef.current = wantedRepKeys; }, [wantedRepKeys]);
 
-    const [repCountsAll, setRepCountsAll] = useState({});
+    const [repCountsAll, setRepCountsAll] = useState<Record<string, number>>({});
 
-    const fetchPins = useCallback(async (keys, replace) => {
+    const fetchPins = useCallback(async (keys: string[], replace: boolean) => {
         const epoch = replace ? ++loadEpoch.current : loadEpoch.current;
         if (replace) loadedRepsRef.current = new Set(keys);
         else keys.forEach(k => loadedRepsRef.current.add(k));
@@ -338,7 +371,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             if (!res.ok) throw new Error(`Map data unavailable (${res.status})`);
             const data = await res.json();
             if (epoch !== loadEpoch.current) return;
-            const got = Array.isArray(data) ? data : [];
+            const got: Pin[] = Array.isArray(data) ? data : [];
             setPins(prev => {
                 if (replace) return got;
                 const have = new Set(prev.map(p => p._id));
@@ -347,7 +380,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         } catch (err) {
             if (epoch !== loadEpoch.current) return;
             keys.forEach(k => loadedRepsRef.current.delete(k));
-            setError(err.message || 'Could not load customer locations');
+            setError((err as Error).message || 'Could not load customer locations');
         } finally {
             if (epoch === loadEpoch.current) setLoading(false);
         }
@@ -370,7 +403,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
 
     // Keyed on isActive, not just mount: this view stays mounted-but-hidden
     // while another tab is open (see the comment on its usage in
-    // SalesPage.jsx — avoids re-billing a Google Maps load), so a plain
+    // SalesTabViews.tsx — avoids re-billing a Google Maps load), so a plain
     // mount-only fetch would leave every pin frozen at whatever `pins` was
     // the last time this tab was visible — an edit made elsewhere (Customers
     // tab, a visit/resource save) would never show up here short of a full
@@ -411,7 +444,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 const res = await authFetch(`${API_URL}/api/admin/locations`);
                 if (!res.ok) return;
                 const data = await res.json();
-                setLocationOptions((data || []).map(l => l.name).filter(Boolean));
+                setLocationOptions((data || []).map((l: { name?: string }) => l.name).filter(Boolean));
             } catch {
                 /* as above — the branch dropdown is just empty */
             }
@@ -426,7 +459,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     const [autoLocate, setAutoLocate] = useState(false);
     useEffect(() => {
         let gone = false;
-        let status = null;
+        let status: PermissionStatus | null = null;
         (async () => {
             const state = await locationPermission();
             if (gone) return;
@@ -434,7 +467,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             try {
                 // Allowed or switched off in the browser's settings while this is open.
                 status = await navigator.permissions.query({ name: 'geolocation' });
-                status.onchange = () => setAutoLocate(status.state === 'granted');
+                status.onchange = () => setAutoLocate(status!.state === 'granted');
             } catch { /* a browser that can't say: the first branch above decided */ }
         })();
         return () => { gone = true; if (status) status.onchange = null; };
@@ -467,7 +500,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 // A fresh object every 15s re-rendered the whole map even when
                 // the rep hadn't moved; only a move of ~20 m or more updates it.
                 (pos) => {
-                    const next = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    const next: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                     rememberPosition(next);
                     setOrigin(prev => prev || next);
                     setMyPosition((prev) => (prev && milesBetween(prev, next) < 0.0125 ? prev : next));
@@ -489,7 +522,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     }, [autoLocate, isActive]);
 
     // This component stays mounted behind display:none when you navigate
-    // away (see SalesPage.jsx), so the map instance survives.
+    // away (see SalesTabViews.tsx), so the map instance survives.
     useEffect(() => {
         if (!isActive || !mapRef.current || !window.google) return;
         const map = mapRef.current;
@@ -500,7 +533,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
 
     const myId = String(currentUser?.id || currentUser?._id || '');
 
-    const visible = useMemo(() => {
+    const visible = useMemo((): Customer[] => {
         return pins
             .filter(p => hasPoint(p))
             // Absent-from-activeSalesReps reads as "hidden", the opposite
@@ -523,7 +556,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // silently lose a point just because a filter toggled afterward and hid
     // it from the map.
     const selectedPins = useMemo(
-        () => pins.filter(p => selectedIds.has(p._id)).map(p => ({ ...p, recency: visitRecency(p.lastVisitAt) })),
+        (): Customer[] => pins.filter(p => selectedIds.has(p._id)).map(p => ({ ...p, recency: visitRecency(p.lastVisitAt) })),
         [pins, selectedIds]
     );
 
@@ -533,7 +566,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         [visible, selectedIds]
     );
 
-    const day = useMemo(() => {
+    const day = useMemo((): DayStop[] => {
         if (!selectedPins.length) return [];
         const [hour, minute] = startAt.split(':').map(Number);
         const routeOrigin = origin || selectedPins[0].coordinates;
@@ -558,30 +591,30 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         });
     }, [selectedPins, startAt, date, stopMinutes, origin, manualOrderIds]);
 
-    const summary = useMemo(() => daySummary(day), [day]);
+    const summary = useMemo((): DaySummary => daySummary(day), [day]);
 
     // The six types customers can be given are always offered, with or without
     // customers loaded (they're also the colour key); any other type found in
     // the data follows, A–Z.
-    const types = useMemo(() => {
+    const types = useMemo((): string[] => {
         const known = new Set(KNOWN_TYPES.map(t => t.toLowerCase()));
-        const others = [...new Set(pins.map(p => p.customerType).filter(Boolean))]
+        const others = [...new Set(pins.map(p => p.customerType).filter(Boolean) as string[])]
             .filter(t => !known.has(String(t).toLowerCase()))
             .sort();
         return [...KNOWN_TYPES, ...others];
     }, [pins]);
 
     const counts = useMemo(() => {
-        const tally = { never: 0, overdue: 0, due: 0, recent: 0 };
+        const tally: Record<RecencyKey, number> = { never: 0, overdue: 0, due: 0, recent: 0 };
         pins
             .filter(p => hasPoint(p))
             .filter(p => activeSalesReps[repKey(p.salesRep)] === true)
-            .forEach(p => { tally[visitRecency(p.lastVisitAt).key] += 1; });
+            .forEach(p => { tally[visitRecency(p.lastVisitAt).key as RecencyKey] += 1; });
         return tally;
     }, [pins, activeSalesReps]);
 
     const typeCounts = useMemo(() => {
-        const tally = {};
+        const tally: Record<string, number> = {};
         pins
             .filter(p => hasPoint(p))
             .filter(p => activeSalesReps[repKey(p.salesRep)] === true)
@@ -610,7 +643,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // same rule), with how many customers each holds.
     const scopedReps = useMemo(() => repsInScope(currentUser, salesReps), [currentUser, salesReps]);
     const salesRepOptions = useMemo(() => {
-        const reps = scopedReps.map(r => ({
+        const reps = scopedReps.map((r: StaffMember) => ({
             value: String(r._id), id: String(r._id), label: r.name || 'Unnamed', location: r.location || ''
         }));
         return [
@@ -642,7 +675,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         // routePlannerFilters is just {}) — distinct from a saved, empty {}
         // meaning "I want nobody checked", which must not fall through to
         // the role default below.
-        const saved = currentUser?.routePlannerFilters?.activeSalesReps;
+        const saved = savedFiltersOf(currentUser)?.activeSalesReps;
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
             savedFilterJson.current.activeSalesReps = JSON.stringify(saved);
             setActiveSalesReps(saved);
@@ -657,7 +690,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             // 'unassigned' isn't a real staff member so it never appears in
             // salesReps — included explicitly, since "all reps" for an admin
             // should mean every pin, not every pin with an owner.
-            const next = { unassigned: true };
+            const next: Toggles = { unassigned: true };
             salesReps.forEach(r => { next[String(r._id)] = true; });
             setActiveSalesReps(next);
             filtersSeededRef.current = true;
@@ -665,8 +698,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         } else if (role === 'manager' || role === 'director') {
             if (salesReps.length === 0) return; // wait for the roster
             // Every rep at their locations — scopedReps is exactly that list.
-            const next = { [myId]: true }; // never hide the manager's own accounts
-            scopedReps.forEach(r => { next[String(r._id)] = true; });
+            const next: Toggles = { [myId]: true }; // never hide the manager's own accounts
+            scopedReps.forEach((r: StaffMember) => { next[String(r._id)] = true; });
             setActiveSalesReps(next);
             filtersSeededRef.current = true;
             markReady('reps');
@@ -690,10 +723,10 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     const colorsSeededRef = useRef(false);
     useEffect(() => {
         if (colorsSeededRef.current || !myId) return;
-        const saved = currentUser?.routePlannerFilters?.pinColors?.mode;
-        if (PIN_COLOR_MODES.includes(saved)) {
+        const saved = savedFiltersOf(currentUser)?.pinColors?.mode;
+        if (PIN_COLOR_MODES.includes(saved as string)) {
             savedFilterJson.current.pinColors = JSON.stringify({ mode: saved });
-            setColorMode(saved);
+            setColorMode(saved as ColorMode);
         }
         colorsSeededRef.current = true;
         markReady('colors');
@@ -710,7 +743,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     const typesSeededRef = useRef(false);
     useEffect(() => {
         if (typesSeededRef.current || !myId) return;
-        const saved = currentUser?.routePlannerFilters?.activeTypes;
+        const saved = savedFiltersOf(currentUser)?.activeTypes;
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
             savedFilterJson.current.activeTypes = JSON.stringify(saved);
             setActiveTypes(saved);
@@ -753,7 +786,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     const bucketsSeededRef = useRef(false);
     useEffect(() => {
         if (bucketsSeededRef.current || !myId) return;
-        const saved = currentUser?.routePlannerFilters?.activeBuckets;
+        const saved = savedFiltersOf(currentUser)?.activeBuckets;
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
             savedFilterJson.current.activeBuckets = JSON.stringify(saved);
             setActiveBuckets(saved);
@@ -768,7 +801,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     }, [activeBuckets, myId, filtersReady.buckets, saveFilter]);
 
     const orderById = useMemo(() => {
-        const map = new Map();
+        const map = new Map<string, number>();
         day.forEach(stop => map.set(stop._id, stop.order));
         return map;
     }, [day]);
@@ -782,14 +815,14 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // scheduleById merges several overlapping fetches together, so that
     // per-request ordering doesn't carry over to the merged result.
     const visitsByDate = useMemo(() => {
-        const map = new Map();
+        const map = new Map<string, ScheduleRow[]>();
         scheduleById.forEach(row => {
             if (!row.startTime) return;
             const key = todayKey(new Date(row.startTime));
             if (!map.has(key)) map.set(key, []);
-            map.get(key).push(row);
+            map.get(key)!.push(row);
         });
-        map.forEach(list => list.sort((a, b) => new Date(a.startTime) - new Date(b.startTime)));
+        map.forEach(list => list.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()));
         return map;
     }, [scheduleById]);
 
@@ -804,8 +837,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // "Schedule a visit" (ScheduleVisitSheet): the customer being put on a day, or
     // rescheduled. Books the chosen day and time — a new entry, or the customer's
     // existing one moved — instead of the day set in the Tools panel.
-    const [scheduleSheet, setScheduleSheet] = useState(null);
-    const saveVisitSlot = async ({ customer, booking, startTime, endTime }) => {
+    const [scheduleSheet, setScheduleSheet] = useState<Customer | null>(null);
+    const saveVisitSlot = async ({ customer, booking, startTime, endTime }: VisitSlotInput) => {
         if (saving) return false;
         setSaving(true);
         setError('');
@@ -824,14 +857,14 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             await loadScheduled();
             return true;
         } catch (err) {
-            setError(err.message || 'Could not save this visit');
+            setError((err as Error).message || 'Could not save this visit');
             return false;
         } finally {
             setSaving(false);
         }
     };
 
-    const removeFromCalendar = async (customer) => {
+    const removeFromCalendar = async (customer: Customer) => {
         const booking = scheduled.get(String(customer._id));
         if (!booking || saving) return;
         setSaving(true);
@@ -844,7 +877,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             }
             await loadScheduled();
         } catch (err) {
-            setError(err.message || 'Could not remove it from the calendar');
+            setError((err as Error).message || 'Could not remove it from the calendar');
         } finally {
             setSaving(false);
         }
@@ -861,7 +894,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         }
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                const here = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                const here: LatLng = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                 rememberPosition(here);
                 setAutoLocate(true); // allowed now: follow quietly from here on
                 setOrigin(here);
@@ -888,9 +921,9 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // A pin is slim (src/routes/customerMap.js): phone, email, address, notes… are
     // fetched when a customer is opened, and kept for the next time (cleared by
     // load(), since an edit elsewhere changes them).
-    const detailsCache = useRef(new Map());
+    const detailsCache = useRef(new Map<string, Loose>());
     const detailsRequest = useRef(0);
-    const showDetails = useCallback((customer, origin = null) => {
+    const showDetails = useCallback((customer: Customer, origin: ReturnPanel = null) => {
         const cachedDetails = customer?._id ? detailsCache.current.get(String(customer._id)) : null;
         // The shared panel fetches the full record itself; this is only for a login
         // without Full profile, whose basic card needs the contact details.
@@ -898,7 +931,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             const request = ++detailsRequest.current;
             authFetch(`${API_URL}/api/customers/map/${customer._id}`)
                 .then(res => (res.ok ? res.json() : null))
-                .then(details => {
+                .then((details: Loose | null) => {
                     if (details) detailsCache.current.set(String(customer._id), details);
                     if (request !== detailsRequest.current) return;
                     if (details) setInfo(prev => (prev && String(prev._id) === String(customer._id) ? { ...prev, ...details } : prev));
@@ -937,7 +970,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // of redrawing a selection, re-searching, or re-finding the same day on
     // the calendar.
     // The Status pill in the shared panel — the same request the Customers tab sends.
-    const changeStatus = async (id, status) => {
+    const changeStatus = async (id: string, status: string) => {
         try {
             const res = await authFetch(`${API_URL}/api/customers/${id}`, { method: 'PUT', body: JSON.stringify({ status }) });
             if (!res.ok) return false;
@@ -960,7 +993,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // Esc closes the open customer's panel, as it does on the Customers tab.
     useEffect(() => {
         if (!info) return undefined;
-        const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) closeInfo(); };
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) closeInfo(); };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
     }, [info, closeInfo]);
@@ -968,7 +1001,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // Same fixed-column treatment as showDetails, for a lead-search result
     // instead of a Customer — the two panels are mutually exclusive (opening
     // one closes the other) since both occupy the same right-hand column.
-    const showLeadDetails = useCallback((place) => {
+    const showLeadDetails = useCallback((place: Lead) => {
         setInfo(null);
         setReturnPanel(null);
         setShowFilterPanel(false);
@@ -1030,8 +1063,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // the real record up in `pins` by id first. Silently no-ops if the
     // customer isn't on the map (no coordinates, or removed since the visit
     // was booked) rather than opening a detail panel with nothing to show.
-    const showScheduledVisit = useCallback((visit) => {
-        const id = String(visit.customerId?._id || visit.customerId || '');
+    const showScheduledVisit = useCallback((visit: ScheduleRow) => {
+        const id = String(customerOf(visit)?._id || visit.customerId || '');
         const pin = pinById.get(id);
         if (!pin) return;
         showDetails({ ...pin, recency: visitRecency(pin.lastVisitAt) }, 'schedule');
@@ -1044,7 +1077,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // showDetails, the same enrichment `visible`/`selectedPins` apply
     // elsewhere in this file.
     const showCustomerFromList = useCallback(
-        (pin) => showDetails({ ...pin, recency: visitRecency(pin.lastVisitAt) }, 'customers'),
+        (pin: Pin) => showDetails({ ...pin, recency: visitRecency(pin.lastVisitAt) }, 'customers'),
         [showDetails]
     );
 
@@ -1058,8 +1091,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // which a re-fetch there wouldn't touch) — loadScheduled still gets
     // called after so `scheduled` (and anything else keyed off it, like the
     // customer detail panel's "booked" badge) stays in sync too.
-    const deleteScheduledVisit = async (visit) => {
-        const label = nameOf({ company: visit.customerId?.company, contactName: visit.customerId?.contactName });
+    const deleteScheduledVisit = async (visit: ScheduleRow) => {
+        const label = nameOf({ company: customerOf(visit)?.company, contactName: customerOf(visit)?.contactName });
         if (!window.confirm(`Remove ${label}'s ${whenLabel(visit.startTime)} visit from the schedule?`)) return;
         try {
             const res = await authFetch(`${API_URL}/api/schedule/${visit._id}`, { method: 'DELETE' });
@@ -1074,7 +1107,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             });
             await loadScheduled();
         } catch (err) {
-            setError(err.message || 'Could not remove this visit');
+            setError((err as Error).message || 'Could not remove this visit');
         }
     };
 
@@ -1086,7 +1119,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // can navigate to whichever day it landed on, or null on failure —
     // the error is already surfaced via `error` above either way, so the
     // caller doesn't need to handle a thrown exception too.
-    const saveScheduleVisit = async (form, visitId) => {
+    const saveScheduleVisit = async (form: ScheduleVisitInput, visitId?: string): Promise<ScheduleRow | null> => {
         setSavingVisit(true);
         setError('');
         try {
@@ -1103,7 +1136,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             await loadScheduled();
             return body;
         } catch (err) {
-            setError(err.message || 'Could not save this visit');
+            setError((err as Error).message || 'Could not save this visit');
             return null;
         } finally {
             setSavingVisit(false);
@@ -1119,9 +1152,9 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // exactly what's inside the circle you just drew. Swept from `visible`,
     // not raw `pins`: a draw should only pick up what the rep can actually
     // see on the map right now.
-    const handleRadiusSelect = useCallback((circleCenter, radiusMeters) => {
+    const handleRadiusSelect = useCallback((circleCenter: LatLng, radiusMeters: number) => {
         const radiusMi = radiusMeters / 1609.34;
-        const next = new Set();
+        const next = new Set<string>();
         visible.forEach(p => {
             if (milesBetween(p.coordinates, circleCenter) <= radiusMi) next.add(p._id);
         });
@@ -1133,8 +1166,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // Same replace-not-add sweep as handleRadiusSelect, for a lasso's
     // freehand path instead of a circle — path is the ordered vertices
     // MapCanvas's lasso-draw effect traced under the cursor.
-    const handleLassoSelect = useCallback((path) => {
-        const next = new Set();
+    const handleLassoSelect = useCallback((path: LatLng[]) => {
+        const next = new Set<string>();
         visible.forEach(p => {
             if (pointInPolygon(p.coordinates, path)) next.add(p._id);
         });
@@ -1143,7 +1176,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         setDrawMode(null);
     }, [visible]);
 
-    const removeSelectedPoint = (pin) => {
+    const removeSelectedPoint = (pin: Customer) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
             next.delete(pin._id);
@@ -1156,7 +1189,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // recomputing from scratch, so dragging one stop just slots it in next
     // to wherever it was dropped instead of resetting every other stop back
     // to its geography-optimal position too.
-    const reorderStop = useCallback((draggedId, targetId) => {
+    const reorderStop = useCallback((draggedId: string, targetId: string) => {
         if (draggedId === targetId) return;
         const base = day.map(stop => stop._id);
         const from = base.indexOf(draggedId);
@@ -1183,11 +1216,11 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [preselect?.nonce]);
 
-    const toggleType = (type) => {
+    const toggleType = (type: string) => {
         setActiveTypes(prev => ({ ...prev, [type]: prev[type] === false }));
     };
 
-    const toggleAllTypes = (showAll) => {
+    const toggleAllTypes = (showAll: boolean) => {
         setActiveTypes(prev => {
             const next = { ...prev };
             [...types, '(blank)'].forEach(t => { next[t] = showAll; });
@@ -1206,13 +1239,13 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         [types, activeTypes, salesRepOptions, activeSalesReps]
     );
 
-    const toggleBucket = (key) => setActiveBuckets(prev => ({ ...prev, [key]: !prev[key] }));
+    const toggleBucket = (key: string) => setActiveBuckets(prev => ({ ...prev, [key]: !prev[key] }));
 
-    const toggleSalesRep = (key) => {
+    const toggleSalesRep = (key: string) => {
         setActiveSalesReps(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    const toggleAllSalesReps = (showAll) => {
+    const toggleAllSalesReps = (showAll: boolean) => {
         setActiveSalesReps(prev => {
             const next = { ...prev };
             salesRepOptions.forEach(r => { next[r.key] = showAll; });
@@ -1237,7 +1270,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // options would throw ("Loader must not be called again with different
     // options") instead of loading. importLibrary sidesteps that entirely
     // since it never touches the shared loader's own options.
-    const searchLeads = useCallback(async (queryText) => {
+    const searchLeads = useCallback(async (queryText: string) => {
         if (!mapRef.current || !window.google?.maps) return;
         const bounds = mapRef.current.getBounds();
         if (!bounds) {
@@ -1248,7 +1281,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         setLeadSearching(true);
         setLeadError('');
         try {
-            const { Place } = await window.google.maps.importLibrary('places');
+            const { Place } = await window.google.maps.importLibrary('places') as google.maps.PlacesLibrary;
             const { places } = await Place.searchByText({
                 textQuery: queryText,
                 fields: ['id', 'displayName', 'formattedAddress', 'location', 'internationalPhoneNumber', 'types', 'addressComponents'],
@@ -1261,24 +1294,24 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 address: p.formattedAddress || '',
                 phone: p.internationalPhoneNumber || '',
                 types: p.types || [],
-                coordinates: { lat: p.location.lat(), lng: p.location.lng() },
-                addressParts: parseAddressComponents(p.addressComponents)
+                coordinates: { lat: p.location!.lat(), lng: p.location!.lng() },
+                addressParts: parseAddressComponents(p.addressComponents as Parameters<typeof parseAddressComponents>[0])
             })));
             setLeadInfo(null);
             setRecentLeadSearches(saveRecentLeadSearch(queryText));
         } catch (err) {
-            setLeadError(err.message || 'Could not search this area');
+            setLeadError((err as Error).message || 'Could not search this area');
         } finally {
             setLeadSearching(false);
         }
     }, []);
 
-    const saveLead = async (place) => {
+    const saveLead = async (place: Lead) => {
         if (savingLead) return;
         setSavingLead(true);
         setLeadError('');
         try {
-            const parts = place.addressParts || {};
+            const parts: Partial<Lead['addressParts']> = place.addressParts || {};
             const res = await authFetch(`${API_URL}/api/customers`, {
                 method: 'POST',
                 body: JSON.stringify({
@@ -1303,7 +1336,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             setLeadInfo(null);
             await load();
         } catch (err) {
-            setLeadError(err.message || 'Could not save this lead');
+            setLeadError((err as Error).message || 'Could not save this lead');
         } finally {
             setSavingLead(false);
         }
@@ -1319,7 +1352,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
      * string. Fetching the full record first avoids that instead of just
      * papering over the gap with a reshaped partial object.
      */
-    const openEditCustomer = async (customer) => {
+    const openEditCustomer = async (customer: Loose) => {
         setLoadingEditCustomer(true);
         setError('');
         try {
@@ -1327,14 +1360,14 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             if (!res.ok) throw new Error('Could not load this customer’s full details for editing');
             setEditingCustomer(await res.json());
         } catch (err) {
-            setError(err.message || 'Could not load this customer’s full details for editing');
+            setError((err as Error).message || 'Could not load this customer’s full details for editing');
         } finally {
             setLoadingEditCustomer(false);
         }
     };
 
     /** AddCustomerModal's onSave(form, closeModal) — mirrors handleSavePartner in features/customers/list/PartnersSheet.tsx exactly. */
-    const saveCustomerEdit = async (formData, closeModal) => {
+    const saveCustomerEdit = async (formData: Loose, closeModal: () => void) => {
         if (!editingCustomer) return;
         setSavingCustomerEdit(true);
         setError('');
@@ -1362,13 +1395,13 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             setReturnPanel(null);
             await load();
         } catch (err) {
-            setError(err.message || 'Could not save this customer');
+            setError((err as Error).message || 'Could not save this customer');
         } finally {
             setSavingCustomerEdit(false);
         }
     };
 
-    const deleteCustomer = async (customer) => {
+    const deleteCustomer = async (customer: Customer) => {
         if (!window.confirm(`Delete ${nameOf(customer)}? This can't be undone.`)) return;
         setError('');
         try {
@@ -1381,7 +1414,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             setInfo(null);
             setReturnPanel(null);
         } catch (err) {
-            setError(err.message || 'Could not delete this customer');
+            setError((err as Error).message || 'Could not delete this customer');
         }
     };
 
@@ -1390,7 +1423,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     // regardless of whether it was triggered from the area-list panel's
     // "Schedule day" button or the Tools panel's "Create Route" button,
     // since both read the same selection-derived `day`.
-    const scheduleStops = async (stops, onSaved) => {
+    const scheduleStops = async (stops: DayStop[], onSaved?: () => void) => {
         if (!stops.length || saving) return;
         setSaving(true);
         setError('');
@@ -1415,7 +1448,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             onSaved?.();
             await loadScheduled();
         } catch (err) {
-            setError(err.message || 'Could not schedule the route');
+            setError((err as Error).message || 'Could not schedule the route');
         } finally {
             setSaving(false);
         }
@@ -1442,7 +1475,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             setSaved({ count: 0, cleared: body.deleted, date });
             await loadScheduled();
         } catch (err) {
-            setError(err.message || 'Could not clear the day');
+            setError((err as Error).message || 'Could not clear the day');
         } finally {
             setSaving(false);
         }
@@ -1565,7 +1598,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 typeCounts={typeCounts}
                 onToggleType={toggleType}
                 onToggleAllTypes={toggleAllTypes}
-                recencyBuckets={RECENCY_BUCKETS}
+                recencyBuckets={RECENCY_BUCKETS as RecencyBucket[]}
                 activeBuckets={activeBuckets}
                 recencyCounts={counts}
                 onToggleBucket={toggleBucket}
@@ -1649,7 +1682,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
             {info && (() => {
                 const stopIndex = day.findIndex(stop => String(stop._id) === String(info._id));
                 const onRoute = stopIndex >= 0 && day.length > 1;
-                const goStop = (i) => {
+                const goStop = (i: number) => {
                     const pin = pinById.get(String(day[i]?._id));
                     if (pin) showDetails({ ...pin, recency: visitRecency(pin.lastVisitAt) }, returnPanel);
                 };

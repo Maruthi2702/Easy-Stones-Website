@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X, Loader2 } from 'lucide-react';
 import './LeadSearchControl.css';
@@ -8,7 +8,7 @@ import './LeadSearchControl.css';
  * expands into a text query + "Search this area" action, scoped to whatever
  * the map currently shows — there's no separate area picker, panning/zooming
  * the map IS the area. Recent queries persist per-browser
- * (loadRecentLeadSearches/saveRecentLeadSearch in helpers.js) so a rep can
+ * (loadRecentLeadSearches/saveRecentLeadSearch in helpers.ts) so a rep can
  * re-run "hardware store" in a new town without retyping it, mirroring the
  * recent-searches list in Badger Maps' lead generation panel.
  *
@@ -23,12 +23,23 @@ import './LeadSearchControl.css';
  * same failure mode as the CustomSelect incident in CLAUDE.md — the input
  * was rendering, just outside the drawer's paintable box.
  */
-const LeadSearchControl = ({ query, onQueryChange, onSearch, searching, recent, onRemoveRecent }) => {
+export type LeadSearchControlProps = {
+    query: string;
+    onQueryChange: (value: string) => void;
+    onSearch: (query: string) => void;
+    searching: boolean;
+    recent: string[];
+    onRemoveRecent: (term: string) => void;
+};
+
+type FlyoutCoords = { left: number; width: number; top?: number; bottom?: number };
+
+const LeadSearchControl = ({ query, onQueryChange, onSearch, searching, recent, onRemoveRecent }: LeadSearchControlProps) => {
     const [open, setOpen] = useState(false);
-    const [coords, setCoords] = useState(null);
-    const rootRef = useRef(null);
-    const flyoutRef = useRef(null);
-    const inputRef = useRef(null);
+    const [coords, setCoords] = useState<FlyoutCoords | null>(null);
+    const rootRef = useRef<HTMLDivElement>(null);
+    const flyoutRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
 
     const updateCoords = useCallback(() => {
         const el = rootRef.current;
@@ -51,9 +62,9 @@ const LeadSearchControl = ({ query, onQueryChange, onSearch, searching, recent, 
 
     useEffect(() => {
         if (!open) return;
-        const onDocClick = (e) => {
-            const inTrigger = rootRef.current?.contains(e.target);
-            const inFlyout = flyoutRef.current?.contains(e.target);
+        const onDocClick = (e: MouseEvent) => {
+            const inTrigger = rootRef.current?.contains(e.target as Node);
+            const inFlyout = flyoutRef.current?.contains(e.target as Node);
             if (!inTrigger && !inFlyout) setOpen(false);
         };
         document.addEventListener('mousedown', onDocClick);
@@ -80,7 +91,7 @@ const LeadSearchControl = ({ query, onQueryChange, onSearch, searching, recent, 
         setOpen(v => !v);
     };
 
-    const runSearch = (term) => {
+    const runSearch = (term?: string) => {
         const q = (term ?? query).trim();
         if (!q) return;
         onSearch(q);

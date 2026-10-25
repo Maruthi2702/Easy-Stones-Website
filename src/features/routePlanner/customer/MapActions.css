@@ -1,4 +1,4 @@
-/* The Route Planner's section of the shared customer panel (MapActions.jsx).
+/* The Route Planner's section of the shared customer panel (MapActions.tsx).
    Sits inside .cl, so it uses the Customers tab's --cl-* colours. */
 .rpv2-mapsec {
     background: var(--cl-surface);

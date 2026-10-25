@@ -1,6 +1,7 @@
-import React from 'react';
-import { CalendarPlus, CalendarX, CalendarClock, FolderPlus, FilePlus2 } from 'lucide-react';
-import { whenLabel } from './helpers';
+import type { CSSProperties } from 'react';
+import { CalendarPlus, CalendarX, CalendarClock, FolderPlus } from 'lucide-react';
+import { whenLabel } from '../helpers';
+import type { Booking, DayStop, MapPin, RecencyColors } from '../types';
 import './MapActions.css';
 
 /**
@@ -10,17 +11,30 @@ import './MapActions.css';
  * actions — put it on a day, add a visit, add a resource. Everything else in the
  * panel is the Customers tab's own, so it changes with that.
  */
+export type MapActionsProps = {
+    pin: MapPin | null;
+    colors: RecencyColors;
+    stop?: DayStop | null;
+    booking?: Booking | null;
+    canPlan: boolean;
+    saving: boolean;
+    onSchedule: () => void;
+    onRemove: () => void;
+    onAddVisit: (() => void) | null;
+    onAddResource: (() => void) | null;
+};
+
 const MapActions = ({
     pin, colors, stop = null, booking = null,
     canPlan, saving, onSchedule, onRemove, onAddVisit, onAddResource
-}) => {
+}: MapActionsProps) => {
     const recency = pin?.recency;
     const never = recency?.key === 'never';
     return (
         <section className="rpv2-mapsec" aria-label="On the map">
             <div className="rpv2-mapsec-chips">
                 {recency && (
-                    <span className="rpv2-mapsec-chip" style={{ '--chip': colors[recency.key] }}>
+                    <span className="rpv2-mapsec-chip" style={{ '--chip': colors[recency.key] } as CSSProperties}>
                         <span className="rpv2-mapsec-dot" aria-hidden="true" />
                         {never ? 'Never visited' : `Last visit ${recency.label}`}
                     </span>

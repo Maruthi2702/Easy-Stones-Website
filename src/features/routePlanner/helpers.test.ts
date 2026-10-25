@@ -192,12 +192,12 @@ describe('recent lead searches (localStorage-backed)', () => {
   // these three functions (getItem/setItem), scoped fresh per test so one
   // test's saved searches can't leak into the next.
   beforeEach(() => {
-    const store = new Map();
+    const store = new Map<string, string>();
     globalThis.localStorage = {
-      getItem: (key) => (store.has(key) ? store.get(key) : null),
-      setItem: (key, value) => store.set(key, String(value)),
-      removeItem: (key) => store.delete(key)
-    };
+      getItem: (key: string) => (store.has(key) ? store.get(key) : null),
+      setItem: (key: string, value: string) => store.set(key, String(value)),
+      removeItem: (key: string) => store.delete(key)
+    } as unknown as Storage;
   });
 
   it('starts empty', () => {
@@ -240,7 +240,7 @@ describe('recent lead searches (localStorage-backed)', () => {
 
 describe('constants', () => {
   it('RECENCY_COLORS has both themes with all four buckets', () => {
-    for (const theme of ['dark', 'light']) {
+    for (const theme of ['dark', 'light'] as const) {
       expect(Object.keys(RECENCY_COLORS[theme]).sort()).toEqual(['due', 'never', 'overdue', 'recent']);
     }
   });

@@ -7,7 +7,7 @@
 
 /* Tools panel's Radius mode — a crosshair over the whole map while armed,
    since the next drag draws a selection circle rather than panning (see
-   the mousedown/mousemove/mouseup effect in MapCanvas.jsx). */
+   the mousedown/mousemove/mouseup effect in MapCanvas.tsx). */
 .rpv2-map-canvas.is-drawing,
 .rpv2-map-canvas.is-drawing * { cursor: crosshair !important; }
 
@@ -38,7 +38,7 @@
 }
 
 /* Mobile-only floating shortcuts (Lasso / locate) that sit directly on the
-   map — see MapCanvas.jsx for why. Hidden above 720px: RunDrawer's side
+   map — see MapCanvas.tsx for why. Hidden above 720px: RunDrawer's side
    rail already puts both one click away there, so a second copy would just
    be visual clutter on the wider layout. White glass regardless of theme —
    these read as map-native controls (Google Maps' own locate button is
@@ -100,7 +100,7 @@
    Fixed to the right edge rather than anchored to the pin (the old
    <InfoWindow> popup) — always the same place on screen regardless of where
    the pin is, matching Badger Maps' "lead details" panel. Its width (360px)
-   is echoed in the panBy offset RoutePlannerV2.jsx applies when opening it —
+   is echoed in the panBy offset RoutePlannerV2.tsx applies when opening it —
    there's no shared constant across JS/CSS, so if this changes, that needs
    to change with it. */
 
@@ -146,7 +146,7 @@ body.light-theme-active .rpv2-map {
 }
 
 /* Column, not a single row — the org name/subtitle live inside the wash
-   too (see the inline gradient set per-recency in MapCanvas.jsx), not in
+   too (see the inline gradient set per-recency in MapCanvas.tsx), not in
    the plain-background body below it, so the badge row is just the first
    line of it rather than the whole header. */
 .rpv2-panel-head {
@@ -354,7 +354,7 @@ body.light-theme-active .rpv2-map {
 }
 
 /* The pipeline-stage line under the company name — dot + label, tone set by
-   statusTone() (helpers.js) via the rpv2-status-* modifier class. Reuses
+   statusTone() (helpers.ts) via the rpv2-status-* modifier class. Reuses
    this same panel's existing accent/success/danger hex values (the stop
    pill, .rpv2-panel-booked, and the name-actions delete button below,
    respectively) rather than introducing new colors just for this line. */
@@ -393,7 +393,7 @@ body.light-theme-active .rpv2-map {
 .rpv2-status-muted .rpv2-panel-status-dot { background: var(--cd2-muted); }
 
 /* Also the lead-result panel's place-types line and its "not in your CRM
-   yet" footnote (MapCanvas.jsx) — kept as a plain muted sub-line for those,
+   yet" footnote (MapCanvas.tsx) — kept as a plain muted sub-line for those,
    which is why the customer panel's contact name (below) is its own class
    rather than a size/weight bump here. */
 .rpv2-panel-sub {
@@ -481,7 +481,7 @@ body.light-theme-active .rpv2-map {
 
 /* Brief positive confirmation the value actually made it to the clipboard
    — reverts to the muted default automatically (see handleCopy's setTimeout
-   in MapCanvas.jsx), not a persistent state to track. */
+   in MapCanvas.tsx), not a persistent state to track. */
 .rpv2-copy-btn.is-copied { color: #3fae5a; }
 
 .rpv2-panel-facts {
@@ -640,7 +640,7 @@ body.light-theme-active .rpv2-panel-avatar {
 /* ── scrollable row lists ─────────────────────────────────────────────────
    Same .rpv2-panel shell as the detail panels above, with a scrollable row
    list instead of the one-customer body/facts layout — used by the Tools
-   panel's own Selected customers list (ToolsPanel.jsx). */
+   panel's own Selected customers list (ToolsPanel.tsx). */
 
 .rpv2-panel-list {
     flex: 1;

@@ -1,5 +1,6 @@
-import React from 'react';
 import './FilterButton.css';
+
+export type FilterButtonProps = { open: boolean; active: boolean; onClick: () => void };
 
 /**
  * The funnel icon in the top bar — opens FilterPanel in the fixed right
@@ -8,7 +9,7 @@ import './FilterButton.css';
  * reflects whether any type/recency/rep filter has actually narrowed the
  * pin set, independent of whether the panel itself is currently open.
  */
-const FilterButton = ({ open, active, onClick }) => (
+const FilterButton = ({ open, active, onClick }: FilterButtonProps) => (
     <button
         type="button"
         className={`rpv2-filter-btn ${active ? 'is-filtered' : ''}`}

@@ -1,4 +1,4 @@
-/* SchedulePanel swaps its whole body to this form (see ScheduleVisitForm.jsx
+/* SchedulePanel swaps its whole body to this form (see ScheduleVisitForm.tsx
    for why) — it fills the same flex space the calendar+visit-list normally
    occupy, so it needs to be a flex column itself with its own scroll,
    rather than relying on .rpv2-panel's outer scroll. */

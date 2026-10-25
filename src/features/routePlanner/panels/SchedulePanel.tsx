@@ -1,12 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Calendar, Check, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { buildMonthGrid, todayKey, nameOf, real } from './helpers';
+import { buildMonthGrid, todayKey, nameOf, real } from '../helpers';
 import ScheduleVisitForm from './ScheduleVisitForm';
+import type { CustomerOption } from '../../../utils/customerOptions';
+import type { ScheduleRow, ScheduleVisitInput } from '../types';
 import './SchedulePanel.css';
 
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
-const timeLabel = (startTime) => {
+const timeLabel = (startTime: string) => {
     const d = new Date(startTime);
     return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
 };
@@ -16,14 +18,14 @@ const timeLabel = (startTime) => {
 // SalesPage.css) — kept as its own small copy here rather than importing
 // across that boundary, since it's four fixed brand colours, not shared
 // logic, and the two screens don't otherwise share a module.
-const ACTIVITY_MODIFIER = { Visit: 'visit', Call: 'call', 'Drop-off': 'dropoff' };
-const activityModifier = (type) => ACTIVITY_MODIFIER[type] || 'other';
+const ACTIVITY_MODIFIER: Record<string, string> = { Visit: 'visit', Call: 'call', 'Drop-off': 'dropoff' };
+const activityModifier = (type: string | undefined) => ACTIVITY_MODIFIER[type as string] || 'other';
 
 // 'Completed'/linkedVisitId only get set once an Add Visit actually lands
 // against this stop (see server.js's POST /api/customers/:id/visits) —
 // otherwise a 'Scheduled' entry whose day has already passed reads as missed
 // rather than staying visually identical to one still coming up.
-const visitFlag = (visit) => {
+const visitFlag = (visit: ScheduleRow) => {
     if (visit.status === 'Completed') return 'done';
     if (visit.status === 'Scheduled' && todayKey(new Date(visit.startTime)) < todayKey()) return 'missed';
     return null;
@@ -35,7 +37,7 @@ const visitFlag = (visit) => {
  * map's mobile-only Lasso/locate shortcuts, this is a full nav item, not a
  * shortcut for something reachable elsewhere). Read-only: it's a second
  * lens onto the same `/api/schedule` data Tools/AreaScheduleSection already
- * write to (visitsByDate, grouped in RoutePlannerV2.jsx from whatever's
+ * write to (visitsByDate, grouped in RoutePlannerV2.tsx from whatever's
  * been fetched so far), the way ToolsPanel's own list is a lens onto the
  * current selection rather than a separate source of truth.
  *
@@ -54,10 +56,25 @@ const visitFlag = (visit) => {
  * removes the overlay and reveals them exactly as they were, instead of
  * re-rendering a "browse" view from scratch.
  */
+/** The customer an entry is for: populated to a name, or only an id. */
+const customerOf = (visit: ScheduleRow) => (typeof visit.customerId === 'object' && visit.customerId ? visit.customerId : null);
+
+export type SchedulePanelProps = {
+    onClose: () => void;
+    visitsByDate: Map<string, ScheduleRow[]>;
+    onSelectVisit: (visit: ScheduleRow) => void;
+    onMonthChange?: (month: Date) => void;
+    onDeleteVisit?: (visit: ScheduleRow) => void;
+    monthLoading: boolean;
+    customerOptions?: CustomerOption[];
+    onSaveVisit: (form: ScheduleVisitInput, visitId?: string) => Promise<ScheduleRow | null>;
+    savingVisit: boolean;
+};
+
 const SchedulePanel = ({
     onClose, visitsByDate, onSelectVisit, onMonthChange, onDeleteVisit, monthLoading,
     customerOptions, onSaveVisit, savingVisit
-}) => {
+}: SchedulePanelProps) => {
     const [viewMonth, setViewMonth] = useState(() => {
         const d = new Date();
         d.setDate(1);
@@ -71,7 +88,7 @@ const SchedulePanel = ({
     // (not lifted to RoutePlannerV2) since it's pure "which view is this
     // panel showing right now" state, same as viewMonth/selectedDate above.
     const [formOpen, setFormOpen] = useState(false);
-    const [editingVisit, setEditingVisit] = useState(null);
+    const [editingVisit, setEditingVisit] = useState<ScheduleRow | null>(null);
     // Collapses the month grid down to just its header (month label + prev/
     // next) so the day's visit list below gets more room — the grid itself
     // adds little once you already know which day you're looking at, and on
@@ -90,7 +107,7 @@ const SchedulePanel = ({
     const selectedLabel = new Date(`${selectedDate}T00:00:00`)
         .toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
 
-    const shiftMonth = (delta) => {
+    const shiftMonth = (delta: number) => {
         setViewMonth(prev => {
             const next = new Date(prev);
             next.setMonth(next.getMonth() + delta);
@@ -111,14 +128,14 @@ const SchedulePanel = ({
     };
 
     const openAdd = () => { setEditingVisit(null); setFormOpen(true); };
-    const openEdit = (visit) => { setEditingVisit(visit); setFormOpen(true); };
+    const openEdit = (visit: ScheduleRow) => { setEditingVisit(visit); setFormOpen(true); };
     const closeForm = () => { setFormOpen(false); setEditingVisit(null); };
 
     // Follows the saved visit to whatever day it actually landed on —
     // editing one can move it to a different day/month than the one you
     // started from, and a rep should see it land there, not have the form
     // just close back onto the day they happened to be looking at before.
-    const handleSubmitForm = async (form) => {
+    const handleSubmitForm = async (form: ScheduleVisitInput) => {
         const saved = await onSaveVisit(form, editingVisit?._id);
         if (!saved) return; // onSaveVisit already surfaced the error via RoutePlannerV2's `error` state
         const savedDate = new Date(saved.startTime);
@@ -237,7 +254,7 @@ const SchedulePanel = ({
                     <p className="rpv2-panel-list-empty">Nothing scheduled this day.</p>
                 )}
                 {dayVisits.map(visit => {
-                    const label = nameOf({ company: visit.customerId?.company, contactName: visit.customerId?.contactName });
+                    const label = nameOf({ company: customerOf(visit)?.company, contactName: customerOf(visit)?.contactName });
                     const note = real(visit.notes);
                     const flag = visitFlag(visit);
                     return (
@@ -298,7 +315,7 @@ const SchedulePanel = ({
                     <ScheduleVisitForm
                         customerOptions={customerOptions}
                         isEdit={Boolean(editingVisit)}
-                        initialCustomerId={editingVisit ? String(editingVisit.customerId?._id || editingVisit.customerId || '') : ''}
+                        initialCustomerId={editingVisit ? String(customerOf(editingVisit)?._id || editingVisit.customerId || '') : ''}
                         initialStartTime={editingVisit ? editingVisit.startTime : `${selectedDate}T09:00:00.000`}
                         initialActivityType={editingVisit?.activityType || 'Visit'}
                         initialNotes={editingVisit?.notes || ''}

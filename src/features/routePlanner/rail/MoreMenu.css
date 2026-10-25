@@ -1,4 +1,4 @@
-/* The phone bar's three-line "More" menu (MoreMenu.jsx). Only exists under
+/* The phone bar's three-line "More" menu (MoreMenu.tsx). Only exists under
    720px, where the bottom bar replaces the desktop rail. */
 .rpv2-more { display: none; flex-shrink: 0; }
 @media (max-width: 720px) { .rpv2-more { display: block; } }

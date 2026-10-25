@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Calendar } from 'lucide-react';
-import { friendlyDate } from './helpers';
+import { friendlyDate } from '../helpers';
+import type { DaySummary } from '../types';
 import './ScheduleSummaryButton.css';
 
 /**
@@ -9,15 +10,19 @@ import './ScheduleSummaryButton.css';
  * always-visible row, the actual text behind a click, rather than every
  * piece of information claiming its own permanent space in a strip that's
  * meant to stay thin.
+ *
+ * Not used anywhere at the moment (nothing imports it); kept as it was.
  */
-const ScheduleSummaryButton = ({ date, hasDay, summary }) => {
+export type ScheduleSummaryButtonProps = { date: string; hasDay: boolean; summary: DaySummary };
+
+const ScheduleSummaryButton = ({ date, hasDay, summary }: ScheduleSummaryButtonProps) => {
     const [isOpen, setIsOpen] = useState(false);
-    const rootRef = useRef(null);
+    const rootRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (!isOpen) return;
-        const onOutside = (e) => {
-            if (!rootRef.current?.contains(e.target)) setIsOpen(false);
+        const onOutside = (e: MouseEvent) => {
+            if (!rootRef.current?.contains(e.target as Node)) setIsOpen(false);
         };
         document.addEventListener('mousedown', onOutside);
         return () => document.removeEventListener('mousedown', onOutside);

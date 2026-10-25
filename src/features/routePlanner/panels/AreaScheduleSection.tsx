@@ -1,7 +1,7 @@
-import React from 'react';
 import { Route, Trash2, Check } from 'lucide-react';
-import { friendlyDate } from './helpers';
-import { DatePicker } from '../../shared/calendar/Calendar';
+import { friendlyDate } from '../helpers';
+import { DatePicker } from '../../../components/shared/calendar/Calendar';
+import type { DayStop, DaySummary, PlannerPermissions, SavedDay } from '../types';
 import './AreaScheduleSection.css';
 
 /**
@@ -14,11 +14,30 @@ import './AreaScheduleSection.css';
  * absolutely-positioned popover — the popover version floated on top of the
  * list and hid part of it; a block in normal flow just pushes it down.
  */
+/** The day being planned and its schedule controls (the Tools panel passes them through). */
+export type DayScheduleProps = {
+    date: string;
+    onDateChange: (date: string) => void;
+    startAt: string;
+    onStartAtChange: (time: string) => void;
+    stopMinutes: string | number;
+    onStopMinutesChange: (minutes: string) => void;
+    day: DayStop[];
+    summary: DaySummary;
+    can: PlannerPermissions;
+    saving: boolean;
+    onScheduleDay: () => void;
+    replaceExisting: boolean;
+    onReplaceExistingChange: (on: boolean) => void;
+    onClearPlannedDay: () => void;
+    saved: SavedDay | null;
+};
+
 const AreaScheduleSection = ({
     date, onDateChange, startAt, onStartAtChange, stopMinutes, onStopMinutesChange,
     day, summary, can, saving, onScheduleDay, replaceExisting, onReplaceExistingChange,
     onClearPlannedDay, saved
-}) => {
+}: DayScheduleProps) => {
     const hasDay = day.length > 0;
 
     return (

@@ -1,4 +1,4 @@
-import React from 'react';
+import type { ReactNode } from 'react';
 import { Target, Calendar, Users } from 'lucide-react';
 import './RunDrawer.css';
 
@@ -20,6 +20,19 @@ import './RunDrawer.css';
  * onToggleBucket toggle, so this was a duplicate route to it, not a second
  * capability.
  */
+export type RunDrawerProps = {
+    sidebarToggle: ReactNode;
+    filterControl: ReactNode;
+    showToolsPanel: boolean;
+    onToggleToolsPanel: () => void;
+    showCustomersPanel: boolean;
+    onToggleCustomersPanel: () => void;
+    showSchedulePanel: boolean;
+    onToggleSchedulePanel: () => void;
+    areaControls: ReactNode;
+    moreControl: ReactNode;
+};
+
 const RunDrawer = ({
     sidebarToggle,
     filterControl,
@@ -28,7 +41,7 @@ const RunDrawer = ({
     showSchedulePanel, onToggleSchedulePanel,
     areaControls,
     moreControl
-}) => (
+}: RunDrawerProps) => (
     <nav className="rpv2-drawer" aria-label="Map controls">
         {/* The app-wide nav toggle — moved in here from its own spot in
             .rpv2-topbar so every floating control lives in the one column,
@@ -93,7 +106,7 @@ const RunDrawer = ({
 
         {areaControls}
 
-        {/* The phone bar's three-line menu (MoreMenu.jsx): hidden on desktop,
+        {/* The phone bar's three-line menu (MoreMenu.tsx): hidden on desktop,
             where lead search and traffic are icons in areaControls. */}
         {moreControl}
     </nav>

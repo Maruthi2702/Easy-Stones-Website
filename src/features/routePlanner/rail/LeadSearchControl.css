@@ -28,11 +28,11 @@
     background: rgba(212, 175, 55, 0.14);
 }
 
-/* Portaled to document.body (LeadSearchControl.jsx) — position/left/top/width
+/* Portaled to document.body (LeadSearchControl.tsx) — position/left/top/width
    are set inline from the trigger's measured screen coordinates, since
    .rpv2-drawer's own overflow-y:auto would otherwise clip this the moment
    it tried to render past the drawer's 56px width (see the comment in the
-   .jsx file). z-index matches CustomSelect's portaled popover (the app's
+   .tsx file). z-index matches CustomSelect's portaled popover (the app's
    max, .custom-select-popover in CustomSelect.css) for the same reason:
    once portaled, this is a DOM sibling of every modal overlay, not a
    descendant, so stacking above one is no longer automatic — do not lower

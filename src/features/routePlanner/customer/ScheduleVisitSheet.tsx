@@ -1,17 +1,21 @@
-import React, { useMemo, useState } from 'react';
-import FormModal from '../../shared/form/FormModal';
-import { FormField, FormPicker } from '../../shared/form/FormControls';
-import { DatePicker } from '../../shared/calendar/Calendar';
-import { todayISO } from '../../shared/calendar/calendarDates';
+import { useMemo, useState } from 'react';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormField, FormPicker } from '../../../components/shared/form/FormControls';
+import { DatePicker } from '../../../components/shared/calendar/Calendar';
+import { todayISO } from '../../../components/shared/calendar/calendarDates';
 import {
     quickDates, firstFreeSlot, timeOptions, clockLabel, minutesOf, startEnd, DAY_START, timeText
 } from '../../../utils/visitSlots';
+import type { Booking, MapPin, ScheduleRow, VisitSlotInput } from '../types';
 import './ScheduleVisitSheet.css';
+
+/** The customer an entry is for: populated to a name, or only an id. */
+const customerOf = (visit: ScheduleRow) => (typeof visit.customerId === 'object' && visit.customerId ? visit.customerId : null);
 
 const LENGTHS = [15, 30, 45, 60, 90, 120].map(m => ({ value: String(m), label: m < 60 ? `${m} min` : m === 60 ? '1 hour' : `${m / 60} hours` }));
 const TIMES = timeOptions();
 
-const dayLabel = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+const dayLabel = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 
 /**
  * "Schedule a visit" — what Add to calendar (and Reschedule) opens on the Route
@@ -25,15 +29,25 @@ const dayLabel = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString(undefin
  * screen already holds; `booking` is the customer's existing entry when
  * rescheduling, which is left out of "already booked".
  */
+export type ScheduleVisitSheetProps = {
+    customer: MapPin;
+    booking?: Booking | null;
+    visitsByDate: Map<string, ScheduleRow[]>;
+    minutes?: number;
+    onClose: () => void;
+    onSave: (slot: VisitSlotInput) => Promise<boolean>;
+    saving?: boolean;
+};
+
 const ScheduleVisitSheet = ({
     customer, booking = null, visitsByDate, minutes: startMinutes = 45,
     onClose, onSave, saving = false
-}) => {
+}: ScheduleVisitSheetProps) => {
     const today = todayISO();
     const shortcuts = useMemo(() => quickDates(today), [today]);
     const existingDate = booking?.startTime ? String(booking.startTime).slice(0, 10) : '';
 
-    const bookedOn = (iso) => (visitsByDate?.get(iso) || []).filter(v => !booking || String(v._id) !== String(booking.id));
+    const bookedOn = (iso: string) => (visitsByDate?.get(iso) || []).filter(v => !booking || String(v._id) !== String(booking.id));
 
     const [date, setDate] = useState(existingDate >= today ? existingDate : shortcuts[1].value);
     const [minutes, setMinutes] = useState(String(startMinutes));
@@ -49,7 +63,7 @@ const ScheduleVisitSheet = ({
 
     const booked = bookedOn(date);
     const full = firstFreeSlot(booked, { minutes: Number(minutes) }) === null;
-    const submitLabel = `${booking ? 'Move to' : 'Schedule'} ${dayLabel(date)} · ${clockLabel(minutesOf(time))}`;
+    const submitLabel = `${booking ? 'Move to' : 'Schedule'} ${dayLabel(date)} · ${clockLabel(minutesOf(time) as number)}`;
 
     const submit = async () => {
         const ok = await onSave({ customer, booking, date, ...startEnd(date, time, Number(minutes)) });
@@ -86,8 +100,8 @@ const ScheduleVisitSheet = ({
                 {booked.length === 0 && <span className="rpv2-sched-none">Nothing booked yet.</span>}
                 {booked.map(v => (
                     <div key={v._id} className="rpv2-sched-visit">
-                        <span className="rpv2-sched-time">{clockLabel(minutesOf(v.startTime))}</span>
-                        <span>{v.customerId?.company || v.customerId?.contactName || v.activityType || 'Visit'}</span>
+                        <span className="rpv2-sched-time">{clockLabel(minutesOf(v.startTime) as number)}</span>
+                        <span>{customerOf(v)?.company || customerOf(v)?.contactName || v.activityType || 'Visit'}</span>
                     </div>
                 ))}
                 {full && booked.length > 0 && <span className="rpv2-sched-none">No free slot this long that day — pick another start time or day.</span>}
