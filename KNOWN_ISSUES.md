@@ -40,6 +40,15 @@ Validated on an isolated copy of October's saved Bellingham permits against
 the live city layer: all 15 currently issued leads match. No production data
 was changed. Deployment and a permit refresh are needed to update the warnings.
 
+## Inventory correction work (2026-10-25)
+
+The approved order and UX impact are tracked in
+[`INVENTORY_MODULE_PLAN.md`](INVENTORY_MODULE_PLAN.md). Atomic stock
+publication is implemented with seven-day recovery snapshots. Remaining work:
+SPS availability rules, strict import validation, complete/partial transit
+reconciliation, shared demand/UOM calculations, receipt confidence, slab
+pagination, request freshness and the remaining TypeScript migration.
+
 ## Transfers & Daily Report
 
 Found in a read-only review on 2026-09-29. Nothing below has been changed yet.

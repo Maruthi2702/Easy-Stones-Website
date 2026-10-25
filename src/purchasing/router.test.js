@@ -11,7 +11,7 @@ import {
   PurchasingLock,
   PurchasingPoLink,
 } from './models.js';
-import InventoryItem from '../models/InventoryItem.js';
+import InventoryItem from '../models/InventoryItem.ts';
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
 import InventorySalesRecord from '../models/InventorySalesRecord.js';
 import Location from '../models/Location.js';

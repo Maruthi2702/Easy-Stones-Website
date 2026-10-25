@@ -36,7 +36,8 @@ import Role from '../models/Role.js';
 import DailyReport from '../models/DailyReport.js';
 import CrossoverSheet from '../models/CrossoverSheet.js';
 import EasyStonesColor from '../models/EasyStonesColor.js';
-import InventoryItem from '../models/InventoryItem.js';
+import InventoryItem from '../models/InventoryItem.ts';
+import { InventoryStockImport, InventoryStockBackup, InventoryStockState } from '../models/InventoryStockImport.ts';
 import InventorySalesRecord from '../models/InventorySalesRecord.js';
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
 import ContactSubmission from '../models/ContactSubmission.js';
@@ -67,6 +68,9 @@ export const INDEXED_MODELS = [
   ['CrossoverSheet', CrossoverSheet],
   ['EasyStonesColor', EasyStonesColor],
   ['InventoryItem', InventoryItem],
+  ['InventoryStockImport', InventoryStockImport],
+  ['InventoryStockBackup', InventoryStockBackup],
+  ['InventoryStockState', InventoryStockState],
   ['InventorySalesRecord', InventorySalesRecord],
   ['InventoryTransitShipment', InventoryTransitShipment],
   ['ContactSubmission', ContactSubmission],

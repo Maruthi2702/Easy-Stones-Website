@@ -21,9 +21,9 @@ declare module 'express-serve-static-core' {
   }
 }
 import mongoose from 'mongoose';
-import { randomUUID } from 'crypto';
-import InventoryItemModel from '../models/InventoryItem.js';
-const InventoryItem = InventoryItemModel as Model<Record<string, any>>;
+import { randomUUID, createHash } from 'crypto';
+import { importInventoryStock } from '../services/inventoryStockImport.ts';
+import InventoryItem from '../models/InventoryItem.ts';
 import InventorySalesRecordModel from '../models/InventorySalesRecord.js';
 const InventorySalesRecord = InventorySalesRecordModel as Model<Record<string, any>>;
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
@@ -421,7 +421,8 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
       // Parsed in a worker thread, not on this request's own thread — see
       // runWorkbookParse.ts for why an uploaded file needs that isolation.
-      const parsed = await runWorkbookParse('inventory-stock', req.file.buffer);
+      const parsed = { ...await runWorkbookParse('inventory-stock', req.file.buffer),
+        sourceFilename: req.file.originalname, sourceHash: createHash('sha256').update(req.file.buffer).digest('hex') };
       const { headers, mapping, missingRequired, rows } = parsed;
       const uploadId = missingRequired.length ? null : rememberParsedUpload('inventory-stock', String(req.user?.id || ''), parsed);
       res.json({ success: true, headers, mapping, missingRequired, totalRows: rows.length, sample: rows.slice(0, 10), uploadId });
@@ -445,46 +446,16 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
         return res.status(400).json({ message: 'No data rows found in file' });
       }
 
-      const importedAt = new Date();
-      const importedByName = req.user?.displayName || req.user?.contactName || req.user?.username || '';
-      const importedById = req.user?.id ? String(req.user.id) : null;
-      // Written lean — straight to the collection, without building a Mongoose
-      // document per row. The parser already gives every field its final type
-      // (strings trimmed, numbers and dates converted, rows without a product
-      // dropped), so the per-row casting and validation only cost time on the
-      // ~11k-row file. Lean also skips the automatic timestamps and version key,
-      // set here so the rows match what a normal insert writes.
-      // Each row gets its _id here, before it's sent, so a batch resent after
-      // a dropped connection can't write any row twice (src/utils/dbRetry.js).
-      const docs = rows.map((r: Record<string, any>) => ({ _id: new mongoose.Types.ObjectId(), ...r, importedAt, importedByName, importedById, createdAt: importedAt, updatedAt: importedAt, __v: 0 }));
-
-      // Insert the new snapshot BEFORE removing the old one. This used to
-      // delete everything first — if insertMany then threw partway through
-      // (a bad row, a dropped connection), the whole InventoryItems collection
-      // was left empty with no way back, the same class of data-loss incident
-      // as the Daily Work Report bug documented in CLAUDE.md. `importedAt` is
-      // identical for every row in this batch, so it doubles as a batch tag:
-      // on failure, only this batch's (possibly partial) rows are removed and
-      // the previous snapshot is untouched.
-      try {
-        // 1,000 rows per send, each send repeated if the connection drops
-        // ("SSL alert bad record mac" and the like) — one ~12 MB write over
-        // the long link to the database used to fail the whole import on a
-        // single bad packet. A snapshot is all or nothing: any row refused
-        // outright fails it, and the partial batch is cleared below.
-        const refused = await insertInBatches(InventoryItem, docs, { insertOptions: { lean: true } });
-        if (refused.size) {
-          const [index, message] = refused.entries().next().value!;
-          throw new Error(`Row ${index + 1} could not be saved: ${message}`);
-        }
-      } catch (insertErr) {
-        await withDbRetry(() => InventoryItem.deleteMany({ importedAt })).catch(() => {});
-        throw insertErr;
-      }
-      await withDbRetry(() => InventoryItem.deleteMany({ importedAt: { $ne: importedAt } }));
+      const result = await importInventoryStock({
+        rows,
+        sourceFilename: req.file?.originalname || parsed.sourceFilename || '',
+        sourceHash: req.file ? createHash('sha256').update(req.file.buffer).digest('hex') : parsed.sourceHash || '',
+        importedByName: req.user?.displayName || req.user?.contactName || req.user?.username || '',
+        importedById: req.user?.id ? String(req.user.id) : null,
+      });
 
       req.app.get('io')?.emit('inventory_analysis_update');
-      res.json({ success: true, count: docs.length, importedAt });
+      res.json({ success: true, ...result });
     } catch (error) {
       console.error('Inventory stock import apply error:', error);
       res.status(400).json({ message: `Import failed: ${(error instanceof Error ? error.message : String(error))}` });
