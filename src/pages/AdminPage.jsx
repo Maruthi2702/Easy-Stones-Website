@@ -7,10 +7,10 @@ import { useAuth } from '../context/AuthContext';
 import './AdminPage.css';
 import { authFetch } from '../api/authFetch';
 import { setAuthToken } from '../api/authToken';
-import AddUserForm from '../components/sales/users/AddUserForm';
-import EditUserForm from '../components/sales/users/EditUserForm';
-import { describeRole, isDriverRole } from '../components/sales/users/pagePermissions';
-import { changeUserAccess } from '../components/sales/users/userAccess';
+import AddUserForm from '../features/users/userForm/AddUserForm';
+import EditUserForm from '../features/users/userForm/EditUserForm';
+import { describeRole, isDriverRole } from '../features/users/roles/pagePermissions';
+import { changeUserAccess } from '../features/users/userForm/userAccess';
 import { lockedUntilTime } from '../utils/userForm';
 
 const AdminPage = () => {

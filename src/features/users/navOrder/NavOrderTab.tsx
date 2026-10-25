@@ -1,7 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, ArrowUpDown, Check, ChevronUp, ChevronDown } from 'lucide-react';
-import { orderedSections, navOrderOf, isDefaultNavOrder, moveInList } from '../../utils/navPins';
+import { orderedSections, navOrderOf, isDefaultNavOrder, moveInList } from '../../../utils/navPins';
 import './NavOrderTab.css';
+
+// What orderedSections gives (src/utils/navPins.js): sections in order, each with its pages.
+type NavPage = { id: string; label: string };
+type NavSection = { id: string; label: string; items: NavPage[] };
+/** The saved order (null = the default), as useNavOrder holds it. */
+export type NavOrder = unknown;
+
+export type NavOrderTabProps = {
+    order: NavOrder;
+    /** Saves for everyone; throws with the reason to show. */
+    onSave: (order: NavOrder | null) => Promise<unknown>;
+    sidebarToggle?: React.ReactNode;
+};
 
 /**
  * Admin → Side Nav Order (manage_users): the order of the rail's sections and
@@ -12,8 +25,8 @@ import './NavOrderTab.css';
  * `order` / `onSave` come from SalesPage's useNavOrder, the same state the
  * side nav draws from, so a save shows up in the nav straight away.
  */
-export default function NavOrderTab({ order, onSave, sidebarToggle }) {
-    const saved = useMemo(() => orderedSections(order), [order]);
+export default function NavOrderTab({ order, onSave, sidebarToggle }: NavOrderTabProps) {
+    const saved = useMemo(() => orderedSections(order) as NavSection[], [order]);
     const [sections, setSections] = useState(saved);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -29,7 +42,7 @@ export default function NavOrderTab({ order, onSave, sidebarToggle }) {
     // Leaving the site with unsaved changes asks first.
     useEffect(() => {
         if (!dirty) return undefined;
-        const onBeforeUnload = (e) => { e.preventDefault(); e.returnValue = ''; };
+        const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
         window.addEventListener('beforeunload', onBeforeUnload);
         return () => window.removeEventListener('beforeunload', onBeforeUnload);
     }, [dirty]);
@@ -40,13 +53,13 @@ export default function NavOrderTab({ order, onSave, sidebarToggle }) {
         return () => clearTimeout(t);
     }, [justSaved]);
 
-    const edit = (updater) => {
+    const edit = (updater: (s: NavSection[]) => NavSection[]) => {
         setJustSaved(false);
         setError('');
         setSections(updater);
     };
-    const moveSection = (index, delta) => edit((s) => moveInList(s, index, delta));
-    const moveItem = (sectionIndex, index, delta) => edit((s) => s.map((section, i) => (
+    const moveSection = (index: number, delta: number) => edit((s) => moveInList(s, index, delta));
+    const moveItem = (sectionIndex: number, index: number, delta: number) => edit((s) => s.map((section, i) => (
         i === sectionIndex ? { ...section, items: moveInList(section.items, index, delta) } : section
     )));
 
@@ -57,13 +70,13 @@ export default function NavOrderTab({ order, onSave, sidebarToggle }) {
             await onSave(atDefault ? null : current);
             setJustSaved(true);
         } catch (err) {
-            setError(err.message || 'Could not save the order');
+            setError((err as Error).message || 'Could not save the order');
         } finally {
             setSaving(false);
         }
     };
 
-    const arrows = (label, index, length, onMove) => (
+    const arrows = (label: string, index: number, length: number, onMove: (index: number, delta: number) => void) => (
         <span className="nvo-arrows">
             <button
                 type="button"
@@ -108,7 +121,7 @@ export default function NavOrderTab({ order, onSave, sidebarToggle }) {
                     <button
                         type="button"
                         className="nvo-btn nvo-btn-text"
-                        onClick={() => edit(() => orderedSections(null))}
+                        onClick={() => edit(() => orderedSections(null) as NavSection[])}
                         disabled={saving || atDefault}
                     >
                         Reset to default

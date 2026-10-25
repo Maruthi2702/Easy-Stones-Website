@@ -20,30 +20,44 @@ import { TEAM_PERMISSION, hasTeamUserAccess } from '../../utils/teamAccess';
 import { USERS, ROLES, LOCATIONS, can, canOpenArea, canReadRoles } from '../../utils/usersAccess';
 import { presenceById, onlineStatusOf, countOnline } from '../../utils/userPresence';
 import { withCustomerViewRule } from '../../utils/customerAccess';
-import RowMenu from '../shared/RowMenu';
-import FormModal from '../shared/form/FormModal';
-import { FormSection } from '../shared/form/FormControls';
+import RowMenu from '../../components/shared/RowMenu';
+import FormModal from '../../components/shared/form/FormModal';
+import { FormSection } from '../../components/shared/form/FormControls';
 import LocationForm from './locations/LocationForm';
-import AddUserForm from './users/AddUserForm';
-import EditUserForm from './users/EditUserForm';
-import { PAGE_PERMISSIONS, describeRole, isDriverRole } from './users/pagePermissions';
-import { changeUserAccess as changeAccountAccess } from './users/userAccess';
+import AddUserForm from './userForm/AddUserForm';
+import EditUserForm from './userForm/EditUserForm';
+import { PAGE_PERMISSIONS, describeRole, isDriverRole } from './roles/pagePermissions';
+import { changeUserAccess as changeAccountAccess } from './userForm/userAccess';
+import type { LucideIcon } from 'lucide-react';
+import type { RowMenuItem } from '../../components/shared/RowMenu';
+import type { AccessAction, AdminLocation, PageDef, RoleRecord, UserRecord } from './types';
 import './UsersRolesTab.css';
 
 // Flat lookup for all permission keys (used for labels elsewhere)
 const ALL_PERMISSION_KEYS = PAGE_PERMISSIONS.flatMap(p => p.actions.map(a => a.key));
 
-const DEVICE_ICONS = { phone: Smartphone, tablet: Tablet, desktop: Monitor };
+const DEVICE_ICONS: Record<string, LucideIcon> = { phone: Smartphone, tablet: Tablet, desktop: Monitor };
 
 // One of three admin-rail pages: section is 'users', 'roles' or 'locations'
 // (SalesPage picks it from the side nav).
-const SECTION_TITLES = {
+const SECTION_TITLES: Record<string, { title: string; icon: LucideIcon }> = {
     users: { title: 'Users', icon: Users },
     roles: { title: 'Roles & Permissions', icon: ShieldAlert },
     locations: { title: 'Locations', icon: MapPin }
 };
 
-const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetchLocations }) => {
+export type UsersRolesSection = 'users' | 'roles' | 'locations';
+
+export type UsersRolesTabProps = {
+    section?: UsersRolesSection | string;
+    sidebarToggle?: React.ReactNode;
+    /** The shell's locations list (GET /api/admin/locations). */
+    locations?: AdminLocation[];
+    /** Reloads that list after an add, edit or delete. */
+    fetchLocations?: () => void;
+};
+
+const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetchLocations }: UsersRolesTabProps) => {
     const subTab = section;
     const { user: me } = useAuth();
     // A manager with team access: sees their own people and can only
@@ -57,7 +71,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
         addLocation: can(me, LOCATIONS.ADD), editLocation: can(me, LOCATIONS.EDIT), deleteLocation: can(me, LOCATIONS.DELETE)
     };
     // Add / Edit location form: null (closed), 'new', or the location being edited.
-    const [locationForm, setLocationForm] = useState(null);
+    const [locationForm, setLocationForm] = useState<AdminLocation | 'new' | null>(null);
     const [locationError, setLocationError] = useState('');
     const [locationSuccess, setLocationSuccess] = useState('');
 
@@ -71,7 +85,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
         }
     }, [locationSuccess, locationError]);
 
-    const handleLocationSaved = (saved, wasNew) => {
+    const handleLocationSaved = (saved: AdminLocation, wasNew: boolean) => {
         setLocationError('');
         setLocationSuccess(wasNew ? `${saved.fullName || saved.name} added.` : `${saved.fullName || saved.name} saved.`);
         if (fetchLocations) fetchLocations();
@@ -79,7 +93,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
 
     // From the row's trash button and the edit form's "Delete location".
     // Resolves true when it was deleted, so the form knows to close.
-    const handleDeleteLocation = async (loc) => {
+    const handleDeleteLocation = async (loc: AdminLocation): Promise<boolean> => {
         if (!window.confirm(`Delete ${loc.fullName || loc.name}? Users assigned to this location might lose access.`)) return false;
 
         try {
@@ -138,10 +152,10 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
         }
     };
 
-    const [users, setUsers] = useState([]);
-    const [roles, setRoles] = useState([]);
+    const [users, setUsers] = useState<UserRecord[]>([]);
+    const [roles, setRoles] = useState<RoleRecord[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
 
     // Filter states
     const [userSearch, setUserSearch] = useState('');
@@ -165,18 +179,18 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
     }, []);
 
     // Selected role for permissions editing
-    const [selectedRole, setSelectedRole] = useState(null);
-    const [editedPermissions, setEditedPermissions] = useState([]);
+    const [selectedRole, setSelectedRole] = useState<RoleRecord | null>(null);
+    const [editedPermissions, setEditedPermissions] = useState<string[]>([]);
     // Team access: the roles whose people this role may manage.
-    const [editedManageable, setEditedManageable] = useState([]);
+    const [editedManageable, setEditedManageable] = useState<string[]>([]);
     const [savingPermissions, setSavingPermissions] = useState(false);
 
     // Page permission popup state
-    const [pagePopup, setPagePopup] = useState(null); // the PAGE_PERMISSIONS entry being edited
+    const [pagePopup, setPagePopup] = useState<PageDef | null>(null); // the PAGE_PERMISSIONS entry being edited
 
     // Add / Edit user: the form-template versions in ./users/.
     const [showAddUser, setShowAddUser] = useState(false);
-    const [editingUser, setEditingUser] = useState(null);
+    const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
     const addedUserRef = React.useRef(false);
 
     const [showRoleModal, setShowRoleModal] = useState(false);
@@ -228,13 +242,13 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
 
             // Set default selected role
             if (rolesData.length > 0) {
-                const defaultRole = rolesData.find(r => r.name === 'sales_rep') || rolesData[0];
+                const defaultRole = rolesData.find((r: RoleRecord) => r.name === 'sales_rep') || rolesData[0];
                 setSelectedRole(defaultRole);
                 setEditedPermissions(defaultRole.permissions || []);
                 setEditedManageable(defaultRole.manageableRoles || []);
             }
         } catch (err) {
-            setError(err.message);
+            setError((err as Error).message);
         } finally {
             setLoading(false);
         }
@@ -245,7 +259,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
     }, []);
 
     // Handle role selection change
-    const handleRoleSelect = (role) => {
+    const handleRoleSelect = (role: RoleRecord) => {
         setSelectedRole(role);
         setEditedPermissions(role.permissions || []);
         setEditedManageable(role.manageableRoles || []);
@@ -254,9 +268,9 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
     // Toggle permission checkbox
     // Every change on the card goes through the Customers View rule: the other
     // customer switches need View (src/utils/customerAccess.js).
-    const changePermissions = (change) => setEditedPermissions(prev => withCustomerViewRule(prev, change(prev)));
+    const changePermissions = (change: (prev: string[]) => string[]) => setEditedPermissions(prev => withCustomerViewRule(prev, change(prev)));
 
-    const handlePermissionToggle = (permissionKey) => {
+    const handlePermissionToggle = (permissionKey: string) => {
         changePermissions(prev => (prev.includes(permissionKey)
             ? prev.filter(p => p !== permissionKey)
             : [...prev, permissionKey]));
@@ -285,18 +299,18 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
             setRoles(prev => prev.map(r => r._id === selectedRole._id ? { ...r, permissions: editedPermissions, manageableRoles } : r));
             // Driver view decides who's a truck column on the delivery board.
             clearDriversCache();
-            setSelectedRole(prev => ({ ...prev, permissions: editedPermissions, manageableRoles }));
+            setSelectedRole(prev => ({ ...prev!, permissions: editedPermissions, manageableRoles }));
             setEditedManageable(manageableRoles);
             alert('Permissions updated successfully!');
         } catch (err) {
-            alert(err.message);
+            alert((err as Error).message);
         } finally {
             setSavingPermissions(false);
         }
     };
 
     // Create a new custom role
-    const handleCreateRole = async (e) => {
+    const handleCreateRole = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!roleForm.displayName) {
             alert('Display Name is required');
@@ -327,12 +341,12 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
             setRoleForm({ name: '', displayName: '' });
             alert('Custom role created successfully!');
         } catch (err) {
-            alert(err.message);
+            alert((err as Error).message);
         }
     };
 
     // Delete custom role
-    const handleDeleteRole = async (role) => {
+    const handleDeleteRole = async (role: RoleRecord) => {
         if (role.isSystem) {
             alert('Cannot delete system roles');
             return;
@@ -357,7 +371,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
             }
             alert('Role deleted successfully!');
         } catch (err) {
-            alert(err.message);
+            alert((err as Error).message);
         }
     };
 
@@ -376,11 +390,11 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
     };
 
 
-    const openEditUserModal = (user) => setEditingUser(user);
+    const openEditUserModal = (user: UserRecord) => setEditingUser(user);
 
     // Saved from Edit user: patch the row in place (a reload would also take a
     // just-set temporary password off screen before it's copied).
-    const handleUserSaved = (saved) => {
+    const handleUserSaved = (saved: UserRecord) => {
         if (!saved) return;
         setUsers(prev => prev.map(u => (u._id === saved._id ? { ...u, ...saved } : u)));
         // The delivery board caches the driver list in localStorage, so a
@@ -389,9 +403,9 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
         clearDriversCache();
     };
 
-    // Deactivate, reactivate or delete (./users/userAccess.js asks first, and
+    // Deactivate, reactivate or delete (./userForm/userAccess.ts asks first, and
     // about moving a driver's upcoming orders to Pending); then the row.
-    const changeUserAccess = async (user, action) => {
+    const changeUserAccess = async (user: UserRecord, action: AccessAction): Promise<boolean> => {
         const done = await changeAccountAccess(user, action);
         if (!done) return false;
         if (action === 'delete') {
@@ -403,7 +417,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
         return true;
     };
 
-    const handleDeleteUser = (user) => changeUserAccess(user, 'delete');
+    const handleDeleteUser = (user: UserRecord) => changeUserAccess(user, 'delete');
 
     // Filtered users
     const filteredUsers = useMemo(() => {
@@ -422,7 +436,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
     }, [users, userSearch, onlineOnly, live]);
 
     // Unlock now, from the list (the same call as Edit user → Sign-in).
-    const unlockUser = async (user) => {
+    const unlockUser = async (user: UserRecord) => {
         try {
             const res = await fetchWithAuth(`${API_URL}/api/admin/users/${user._id}/unlock`, { method: 'POST' });
             if (!res.ok) {
@@ -431,14 +445,14 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
             }
             setUsers(prev => prev.map(x => (x._id === user._id ? { ...x, loginAttempts: 0, lockUntil: null } : x)));
         } catch (err) {
-            alert(err.message);
+            alert((err as Error).message);
         }
     };
 
     // What a row's ⋯ menu offers: one entry per action this person holds.
     // Team access (managers) gets Unlock, Deactivate / Reactivate only.
-    const rowMenuItems = (u) => {
-        const items = [];
+    const rowMenuItems = (u: UserRecord): RowMenuItem[] => {
+        const items: RowMenuItem[] = [];
         if (!teamMode) {
             items.push({ key: 'view', label: allow.editUser ? 'Edit' : 'View details', icon: allow.editUser ? Edit2 : Eye, title: allow.editUser ? 'Edit user profile' : 'View user details', onClick: () => openEditUserModal(u) });
         }
@@ -456,7 +470,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
         return items;
     };
 
-    const getRoleDisplayName = (roleName) => {
+    const getRoleDisplayName = (roleName: string) => {
         const role = roles.find(r => r.name === roleName);
         return role ? role.displayName : roleName.toUpperCase().replace('_', ' ');
     };
@@ -529,7 +543,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                     <tbody>
                                         {filteredUsers.length === 0 ? (
                                             <tr>
-                                                <td colSpan="6" className="empty-table-row">{onlineOnly ? 'Nobody is online right now.' : 'No users found.'}</td>
+                                                <td colSpan={6} className="empty-table-row">{onlineOnly ? 'Nobody is online right now.' : 'No users found.'}</td>
                                             </tr>
                                         ) : (
                                             filteredUsers.map(u => (
@@ -559,7 +573,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                     <td data-label="Online">
                                                         {(() => {
                                                             const st = onlineStatusOf(u, live);
-                                                            const DeviceIcon = DEVICE_ICONS[st.device];
+                                                            const DeviceIcon = DEVICE_ICONS[st.device as string];
                                                             return (
                                                                 <span className={`online-status ${st.kind}`} title={st.detail}>
                                                                     <span className={`online-dot ${st.kind}`} />
@@ -652,7 +666,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                             key={pageDef.id}
                                                             className={`page-perm-card ${hasAny ? 'has-access' : ''}`}
                                                             onClick={() => setPagePopup(pageDef)}
-                                                            style={{ '--page-color': pageDef.color }}
+                                                            style={{ '--page-color': pageDef.color } as React.CSSProperties}
                                                         >
                                                             <div className="page-perm-card-header">
                                                                 <div className="page-icon-wrap" style={{ background: hasAny ? pageDef.color + '22' : undefined }}>
@@ -715,7 +729,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                             {(() => {
                                                 // Group the card's switches by section. A switch implied by another
                                                 // that is on (Full access) isn't listed: one note instead.
-                                                const groups = [];
+                                                const groups: { section: string | undefined; actions: PageDef['actions'] }[] = [];
                                                 for (const action of pagePopup.actions) {
                                                     const last = groups[groups.length - 1];
                                                     if (last && last.section === action.section) last.actions.push(action);
@@ -726,7 +740,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                     const listed = group.actions.filter(x => !(x.impliedBy && fullOn));
                                                     if (listed.length === 0) return null;
                                                     const onCount = listed.filter(x => editedPermissions.includes(x.key)).length;
-                                                    const setAll = (on) => changePermissions(prev => {
+                                                    const setAll = (on: boolean) => changePermissions(prev => {
                                                         const keys = listed.map(x => x.key);
                                                         return on ? [...new Set([...prev, ...keys])] : prev.filter(k => !keys.includes(k));
                                                     });
@@ -830,7 +844,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                     <tbody>
                                         {locations.length === 0 ? (
                                             <tr>
-                                                <td colSpan="5" className="empty-table-row">
+                                                <td colSpan={5} className="empty-table-row">
                                                     No locations found. Add one above!
                                                 </td>
                                             </tr>
@@ -839,7 +853,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
                                                 const pc = loc.primaryContact || {};
                                                 const lines = addressLines(pc.address || {});
                                                 const rdc = locations.find((l) => l.name === loc.rdc);
-                                                const types = [loc.profitCenter && 'Profit center', loc.warehouse && 'Warehouse'].filter(Boolean);
+                                                const types = [loc.profitCenter && 'Profit center', loc.warehouse && 'Warehouse'].filter(Boolean) as string[];
                                                 return (
                                                     <tr key={loc._id}>
                                                         <td>

@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Mail, AlertCircle } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker, PasswordInput, SegmentedToggle } from '../../shared/form/FormControls';
-import { goToField, describedBy } from '../../shared/form/formFocus';
-import useTouched from '../../shared/form/useTouched';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormSection, FormRow, FormField, FormPicker, PasswordInput, SegmentedToggle } from '../../../components/shared/form/FormControls';
+import { goToField, describedBy } from '../../../components/shared/form/formFocus';
+import useTouched from '../../../components/shared/form/useTouched';
 import LocationsPicker from './LocationsPicker';
 import CopyButton from './CopyButton';
 import SignInHandover from './SignInHandover';
@@ -15,7 +15,10 @@ import {
     countChangedFields, FIELD_LABELS
 } from '../../../utils/userForm';
 import './AddUserForm.css';
-import { DatePicker } from '../../shared/calendar/Calendar';
+import { DatePicker } from '../../../components/shared/calendar/Calendar';
+import type { SignInResult } from './SignInHandover';
+import type { LocationRecord } from '../../../types/records';
+import type { RoleRecord } from '../types';
 
 /*
  * Users & Roles → Add user. Design A from the Add New User canvas, built on
@@ -26,9 +29,34 @@ import { DatePicker } from '../../shared/calendar/Calendar';
  * src/routes/userOnboarding.js.
  */
 
-export default function AddUserForm({ roles, locations, describeRole, isDriverRole, onClose, onCreated }) {
+export type AddUserFormProps = {
+    roles: RoleRecord[];
+    locations: LocationRecord[];
+    /** The role picker's one-line summary (./roles/pagePermissions.ts). */
+    describeRole: (role: RoleRecord) => string;
+    isDriverRole: (role: RoleRecord) => boolean;
+    onClose: () => void;
+    /** The user was created (the "User created" screen is showing). */
+    onCreated?: (user: unknown) => void;
+};
+
+type AddUserValues = {
+    displayName: string;
+    email: string;
+    username: string;
+    joiningDate: string;
+    role: string;
+    assignedLocations: string[];
+    location: string;
+    signInMethod: string;
+    password: string;
+};
+
+type Availability = { state: 'idle' | 'checking' | 'available' | 'taken' | 'error'; reason?: string };
+
+export default function AddUserForm({ roles, locations, describeRole, isDriverRole, onClose, onCreated }: AddUserFormProps) {
     const branchNames = useMemo(() => locationNames(locations), [locations]);
-    const initial = useMemo(() => {
+    const initial = useMemo((): AddUserValues => {
         const firstBranch = branchNames[0] || 'Seattle';
         const defaultRole = roles.find((r) => r.name === 'sales_rep') || roles[0];
         return {
@@ -51,12 +79,12 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
     const [touched, touchField, markTouched] = useTouched();
     const [submitted, setSubmitted] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [serverErrors, setServerErrors] = useState({});
+    const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
     const [formError, setFormError] = useState('');
-    const [availability, setAvailability] = useState({ state: 'idle' }); // idle | checking | available | taken | error
-    const [created, setCreated] = useState(null);
+    const [availability, setAvailability] = useState<Availability>({ state: 'idle' }); // idle | checking | available | taken | error
+    const [created, setCreated] = useState<(SignInResult & { password: string }) | null>(null);
 
-    const set = (patch) => {
+    const set = (patch: Partial<AddUserValues>) => {
         setValues((v) => ({ ...v, ...patch }));
         setServerErrors((e) => {
             const next = { ...e };
@@ -65,7 +93,7 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
         });
     };
     // On leaving a field: only if they typed in it (see useTouched).
-    const touch = (name) => touchField(name, String(values[name] ?? '') !== String(initial[name] ?? ''));
+    const touch = (name: keyof AddUserValues) => touchField(name, String(values[name] ?? '') !== String(initial[name] ?? ''));
 
     // Live "✓ Available": debounced, and only the latest answer counts.
     const checkSeq = useRef(0);
@@ -98,7 +126,7 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
 
     // Shown after they leave a field, or for everything once Create is pressed.
     // A taken username shows straight away — it's news, not a nag.
-    const shown = (name) => {
+    const shown = (name: string) => {
         if (!allErrors[name]) return '';
         if (submitted || touched[name] || serverErrors[name]) return allErrors[name];
         if (name === 'username' && availability.state === 'taken') return allErrors[name];
@@ -118,7 +146,7 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
         : null;
 
     // The home branch moves with Locations — one field to the person filling it in.
-    const withoutHome = ({ location: _home, ...rest }) => rest;
+    const withoutHome = ({ location: _home, ...rest }: AddUserValues) => rest;
     const dirtyCount = created ? 0 : countChangedFields(withoutHome(values), withoutHome(initial));
 
     const submit = async () => {

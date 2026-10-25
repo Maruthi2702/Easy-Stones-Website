@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Mail, AlertCircle, UserX, UserCheck, Lock, LockOpen } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker, PasswordInput, SegmentedToggle } from '../../shared/form/FormControls';
-import { goToField, describedBy } from '../../shared/form/formFocus';
-import useTouched from '../../shared/form/useTouched';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormSection, FormRow, FormField, FormPicker, PasswordInput, SegmentedToggle } from '../../../components/shared/form/FormControls';
+import { goToField, describedBy } from '../../../components/shared/form/formFocus';
+import useTouched from '../../../components/shared/form/useTouched';
 import LocationsPicker from './LocationsPicker';
 import CopyButton from './CopyButton';
 import SignInHandover from './SignInHandover';
@@ -17,7 +17,10 @@ import {
     countChangedFields, FIELD_LABELS, lockedUntilTime
 } from '../../../utils/userForm';
 import './AddUserForm.css';
-import { DatePicker } from '../../shared/calendar/Calendar';
+import { DatePicker } from '../../../components/shared/calendar/Calendar';
+import type { SignInResult } from './SignInHandover';
+import type { LocationRecord } from '../../../types/records';
+import type { AccessAction, RoleRecord, UserRecord } from '../types';
 
 /*
  * Users & Roles (and /admin) → Edit user. The same form as Add user in the
@@ -46,25 +49,41 @@ const SIGN_IN_OPTIONS = [
 // src/utils/usersAccess.js): edit = change details, role and locations;
 // resetSignIn = temporary password / invite link; unlock; deactivate. Without
 // edit the form is read-only. The server checks each again.
-const FULL_ACCESS_TO_USER = { edit: true, resetSignIn: true, unlock: true, deactivate: true };
+export type UserAccessFlags = { edit: boolean; resetSignIn: boolean; unlock: boolean; deactivate: boolean };
+const FULL_ACCESS_TO_USER: UserAccessFlags = { edit: true, resetSignIn: true, unlock: true, deactivate: true };
 
-export default function EditUserForm({ user, roles, locations, describeRole, onClose, onSaved, onChangeAccess, access = FULL_ACCESS_TO_USER }) {
+export type EditUserFormProps = {
+    user: UserRecord;
+    roles: RoleRecord[];
+    locations: LocationRecord[];
+    describeRole: (role: RoleRecord) => string;
+    onClose: () => void;
+    /** The saved account (also after Unlock now), to patch the list's row. */
+    onSaved?: (user: UserRecord) => void;
+    /** Deactivate / reactivate from the footer; resolves true when it happened. */
+    onChangeAccess?: (user: UserRecord, action: AccessAction) => Promise<boolean>;
+    access?: UserAccessFlags;
+};
+
+type EditUserValues = ReturnType<typeof userToFormValues>;
+
+export default function EditUserForm({ user, roles, locations, describeRole, onClose, onSaved, onChangeAccess, access = FULL_ACCESS_TO_USER }: EditUserFormProps) {
     const branchNames = useMemo(() => locationNames(locations), [locations]);
     const initial = useMemo(() => userToFormValues(user), [user]);
     const [values, setValues] = useState(initial);
     const [touched, touchField, markTouched] = useTouched();
     const [submitted, setSubmitted] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [serverErrors, setServerErrors] = useState({});
+    const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
     const [formError, setFormError] = useState('');
-    const [handover, setHandover] = useState(null);
+    const [handover, setHandover] = useState<{ method: string; result: SignInResult; password: string } | null>(null);
     // 'idle' | 'busy' | 'done' — Unlock now, which saves on its own.
-    const [unlockState, setUnlockState] = useState('idle');
+    const [unlockState, setUnlockState] = useState<'idle' | 'busy' | 'done'>('idle');
     const lockTime = useMemo(() => lockedUntilTime(user), [user]);
 
     const name = String(user.displayName || '').trim() || prettifyUsername(user.username);
 
-    const set = (patch) => {
+    const set = (patch: Partial<EditUserValues>) => {
         setValues((v) => ({ ...v, ...patch }));
         setServerErrors((e) => {
             const next = { ...e };
@@ -72,10 +91,10 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
             return next;
         });
     };
-    const touch = (field) => touchField(field, String(values[field] ?? '') !== String(initial[field] ?? ''));
+    const touch = (field: keyof EditUserValues) => touchField(field, String(values[field] ?? '') !== String(initial[field] ?? ''));
 
     const allErrors = useMemo(() => ({ ...validateUserEdit(values, initial), ...serverErrors }), [values, initial, serverErrors]);
-    const shown = (field) => (allErrors[field] && (submitted || touched[field] || serverErrors[field]) ? allErrors[field] : '');
+    const shown = (field: string) => (allErrors[field] && (submitted || touched[field] || serverErrors[field]) ? allErrors[field] : '');
     const visibleErrors = Object.fromEntries(Object.keys(FIELD_LABELS).filter((k) => allErrors[k]).map((k) => [k, allErrors[k]]));
 
     const roleOptions = useMemo(() => {
@@ -90,12 +109,12 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
     // What counts as a change. The temporary password is pre-generated when
     // that option is picked, so it's the choice of reset that counts, not the
     // text in the box; the home branch moves with Locations.
-    const comparable = (v) => ({ ...v, location: undefined, password: undefined });
+    const comparable = (v: EditUserValues) => ({ ...v, location: undefined, password: undefined });
     const dirtyCount = handover ? 0 : countChangedFields(comparable(values), comparable(initial));
     const homeChanged = values.location !== initial.location;
     const changed = dirtyCount > 0 || homeChanged;
 
-    const chooseSignIn = (signInMethod) => {
+    const chooseSignIn = (signInMethod: string) => {
         set({ signInMethod, password: signInMethod === 'password' && !values.password ? generateTempPassword() : values.password });
     };
 
@@ -110,7 +129,7 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
         }
         setSaving(true);
         try {
-            const send = (moveUpcomingToPending) => authFetch(`${API_URL}/api/admin/users/${user._id}`, {
+            const send = (moveUpcomingToPending: boolean) => authFetch(`${API_URL}/api/admin/users/${user._id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
