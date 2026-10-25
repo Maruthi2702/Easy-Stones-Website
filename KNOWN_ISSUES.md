@@ -91,6 +91,7 @@ all already on `main`, kept as they were.
 - [ ] Dead code: `panels/AreaScheduleTrigger.tsx` and `rail/ScheduleSummaryButton.tsx`
       (and their CSS) are imported by nothing; `statusTone` / `STATUS_TONE` in
       `helpers.ts` are unused. Moved as they were, waiting on the owner's call to delete.
+
 ## Users & Roles — other
 
 Found while moving the module into `src/features/users` (2026-10-24); all
@@ -107,6 +108,19 @@ already on `main`, kept as they were.
 - [ ] Minor: a user whose role no longer exists shows its key in capitals with
       only the first `_` turned into a space ("OFFICE LEAD_CSR") —
       `roleDisplayName` in `userList/usersList.ts`.
+
+## Cart & Holds — other
+
+Found while moving the module into `src/features/holds` (2026-10-24); all
+already on `main`, kept as they were.
+
+- [ ] The cart's checkout (`cart/useCheckout.ts`) accepts a price of $0.00/SF
+      — it only refuses a price it can't read — while the hold page's price
+      editor and Add from cart refuse 0. The server refuses it too ("A price
+      has to be more than $0."), so it shows as a banner after Create Hold
+      instead of on the field.
+- [ ] Extend hold (`forms/ExtendForm.tsx`) opens with +7 days already picked
+      and counts that as a change, so closing it untouched asks "Discard?".
 
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
 

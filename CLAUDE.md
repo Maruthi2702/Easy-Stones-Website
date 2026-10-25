@@ -529,7 +529,7 @@ hook per job (`useSavedFilters`, `useMapPins`, `usePanels`, `useDayPlan`,
 ## Cart ticks are instant (2026-10-18)
 
 An inventory checkbox shows the slab in the cart the moment it is clicked
-(`pendingAdd`/`pendingRemove` in `holds/cartStore.js`; `cartKeysOf` is what the
+(`pendingAdd`/`pendingRemove` in `src/features/holds/cartStore.ts`; `cartKeysOf` is what the
 checkboxes read) and the server's answer replaces it — a refusal takes it back with
 the reason. Your own change's socket echo is ignored and other people's events are
 joined into one refresh of just the slabs that changed (`useSlabLocks`). The cart's

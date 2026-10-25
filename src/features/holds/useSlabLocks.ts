@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { slabStatuses } from '../../../api/holds';
+import { slabStatuses } from '../../api/holds';
 import { useCart } from './cartStore';
+import type { SlabLock } from './types';
+
+/** POST /api/holds/slabs/status, per slab key. */
+type SlabStatuses = Record<string, { lock: SlabLock | null }>;
 
 /**
  * Which of these slabs are on a hold right now ({ [slabKey]: lock }), for the
@@ -10,9 +14,9 @@ import { useCart } from './cartStore';
  * list — unless the event didn't say which, then all of them.
  * An empty list asks for nothing.
  */
-export default function useSlabLocks(slabKeys) {
+export default function useSlabLocks(slabKeys: string[]): Record<string, SlabLock> {
   const { reservationsTick, changedKeys } = useCart();
-  const [locks, setLocks] = useState({});
+  const [locks, setLocks] = useState<Record<string, SlabLock>>({});
   const wanted = [...new Set(slabKeys)].sort().join('|');
   const handledTick = useRef(reservationsTick);
 
@@ -21,9 +25,10 @@ export default function useSlabLocks(slabKeys) {
     if (!wanted) return undefined;
     let live = true;
     slabStatuses(wanted.split('|'))
-      .then((res) => {
+      .then((answer) => {
+        const res = answer as SlabStatuses;
         if (!live) return;
-        setLocks(Object.fromEntries(Object.entries(res).filter(([, v]) => v.lock).map(([k, v]) => [k, v.lock])));
+        setLocks(Object.fromEntries(Object.entries(res).filter(([, v]) => v.lock).map(([k, v]) => [k, v.lock as SlabLock])));
       })
       .catch(() => { /* the column just shows no locks; the server still refuses a held slab */ });
     return () => { live = false; };
@@ -38,7 +43,8 @@ export default function useSlabLocks(slabKeys) {
     if (!asked.length) return undefined; // none of the slabs on this list changed
     let live = true;
     slabStatuses(asked)
-      .then((res) => {
+      .then((answer) => {
+        const res = answer as SlabStatuses;
         if (!live) return;
         setLocks((prev) => {
           const next = changedKeys.length ? { ...prev } : {};

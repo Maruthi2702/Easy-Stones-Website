@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS, isOnePageSection } from '../../utils/navPins';
-import CartRailButton from './holds/CartRailButton';
+import { CartRailButton } from '../../features/holds';
 import { ITEM_ICONS, SECTION_ICONS } from './navIcons';
 import './CustomerSidebar.css';
 

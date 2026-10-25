@@ -13,20 +13,20 @@ const readHoldParam = () => {
   try { return new URLSearchParams(window.location.search).get(PARAM) || ''; } catch { return ''; }
 };
 
-function writeHoldParam(id, { replace = false } = {}) {
+function writeHoldParam(id: string, { replace = false }: { replace?: boolean } = {}) {
   const url = new URL(window.location.href);
   if (id) url.searchParams.set(PARAM, id); else url.searchParams.delete(PARAM);
   window.history[replace ? 'replaceState' : 'pushState']({ ...(window.history.state || {}), hold: id || null }, '', url);
 }
 
 /** Open a hold from anywhere — call after switching to the Holds tab. */
-export function openHoldLink(id) {
+export function openHoldLink(id: string) {
   writeHoldParam(id, { replace: true });
   window.dispatchEvent(new CustomEvent(EVENT, { detail: id }));
 }
 
 /** [open hold id ('' for the list), open(id), close()] */
-export function useHoldLink() {
+export function useHoldLink(): [string, (id: string) => void, () => void] {
   const [id, setId] = useState(readHoldParam);
   useEffect(() => {
     const sync = () => setId(readHoldParam());
@@ -37,7 +37,7 @@ export function useHoldLink() {
       window.removeEventListener(EVENT, sync);
     };
   }, []);
-  const open = (next) => { writeHoldParam(next); setId(next); };
+  const open = (next: string) => { writeHoldParam(next); setId(next); };
   const close = () => { writeHoldParam(''); setId(''); };
   return [id, open, close];
 }

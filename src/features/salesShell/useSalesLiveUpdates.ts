@@ -4,7 +4,7 @@ import { API_URL } from '../../config/api';
 import { getAuthToken } from '../../api/authToken';
 import { expireCacheKeys } from '../../utils/dataCache';
 import { refreshCustomers } from '../../api/customerOptions';
-import { cartActions } from '../../components/sales/holds/cartStore';
+import { cartActions } from '../holds';
 import { clearInventoryCache } from '../../api/inventoryAnalysisCache';
 
 /**
