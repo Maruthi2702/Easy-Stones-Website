@@ -332,7 +332,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     if (importModal === 'transit') {
       setView('transit');
       setTransitRefresh(value => value + 1);
-      setImportResult(`Imported ${data.count} product lines across ${data.shipmentCount} shipments.`);
+      setImportResult(`Imported ${data.count} product lines across ${data.shipmentCount} PO/container groups.`);
     }
     setImportModal(null);
     refreshAll();

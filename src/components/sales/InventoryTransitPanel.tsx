@@ -65,12 +65,12 @@ export default function InventoryTransitPanel({ refreshSignal, canImport, onImpo
         <p>Upload the SPS in-transit export to see PO numbers, products, quantities and arrival dates.</p>
         {canImport && <button type="button" className="invan-btn-import" onClick={onImport}>Import In-Transit</button>}
       </div> : <>
-        <p>{rows.length} product lines · {new Set(rows.map(row => JSON.stringify([row.poNumber, row.containerNumber, row.location]))).size} shipments</p>
+        <p>{rows.length} product lines · {new Set(rows.map(row => JSON.stringify([row.poNumber, row.containerNumber, row.location]))).size} PO/container groups</p>
         <div className="invan-grid-wrapper invan-transit-grid">
           <table className="invan-table">
             <thead><tr><th>PO#</th><th>Container#</th><th>Product / Shipment details</th><th>Slabs</th><th>Quantity</th><th>Branch</th><th>ETA</th><th>Status</th></tr></thead>
             <tbody>{rows.slice((page - 1) * rowsPerPage, page * rowsPerPage).map(row => <tr key={row.id}>
-              <td><strong>{row.poNumber}</strong></td><td>{row.containerNumber}</td>
+              <td><strong>{row.poNumber || 'Unknown'}</strong></td><td>{row.containerNumber || 'Unknown'}</td>
               <td>{row.product}<details><summary>Shipment details</summary>
                 <dl><dt>Supplier</dt><dd>{row.supplier || '—'}</dd>
                   <dt>PO date</dt><dd>{date(row.poDate)}</dd><dt>PO ETA</dt><dd>{date(row.poEtaDate)}</dd>
@@ -80,7 +80,7 @@ export default function InventoryTransitPanel({ refreshSignal, canImport, onImpo
                   <dt>Supplier / purchase note</dt><dd>{row.supplierPurchaseNote || '—'}</dd>
                   <dt>SKU / Reference</dt><dd>{row.sku || '—'} / {row.customerReference || '—'}</dd>
                 </dl></details></td>
-              <td>{fmtNum(row.slabs)}</td><td>{fmtNum(row.quantity)} {row.units}</td><td>{row.location}</td>
+              <td>{row.slabs === null || row.slabs === undefined ? 'Unknown' : fmtNum(row.slabs)}</td><td>{fmtNum(row.quantity)} {row.units}</td><td>{row.location}</td>
               <td>{date(row.etaDate)}{row.etaDate && new Date(row.etaDate).toISOString().slice(0, 10) < new Date().toLocaleDateString('en-CA') && <small> · Past ETA</small>}</td>
               <td>{row.status}</td>
             </tr>)}</tbody>

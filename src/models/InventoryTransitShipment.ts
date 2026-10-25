@@ -12,8 +12,8 @@ const lineSchema = new mongoose.Schema({
   vessel: String, customerReference: String, supplierPurchaseNote: String, status: String
 }, { _id: false });
 const schema = new mongoose.Schema({
-  poNumber: { type: String, required: true },
-  containerNumber: { type: String, required: true },
+  poNumber: { type: String, default: '' },
+  containerNumber: { type: String, default: '' },
   location: { type: String, required: true },
   lines: [lineSchema],
   importedAt: Date, importedByName: String

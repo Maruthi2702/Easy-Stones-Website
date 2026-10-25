@@ -14,6 +14,7 @@ const toInputDate = (d: string | null | undefined) => {
 interface ImportPreview {
   uploadId?: string;
   totalRows: number;
+  warnings?: string[];
   shipmentCount?: number;
   sample: TransitLine<string>[];
   detected?: { location?: string; periodStart?: string; periodEnd?: string };
@@ -77,7 +78,11 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
         return;
       }
       if (!data.totalRows) {
-        setError('No matching product rows found. Check the report type and status.');
+        const diagnostic = data.diagnostics;
+        const statuses = Object.entries(diagnostic?.skippedStatusCounts || {}).map(([status, count]) => `${status}: ${count}`).join('; ');
+        setError(isTransit && diagnostic
+          ? `Read ${diagnostic.productRows} product/PO rows, but none had a recognized INTRANSIT status.${statuses ? ` Status values read: ${statuses}.` : ' No product rows were found below the headings.'}`
+          : 'No matching product rows found. Check the report type and status.');
         return;
       }
       setPreview(data);
@@ -180,15 +185,17 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
             <>
               <div className="invan-preview-summary">
                 <CheckCircle2 size={16} />
-                <span>{preview.totalRows} row{preview.totalRows === 1 ? '' : 's'} found{isTransit ? ` across ${preview.shipmentCount} shipments` : ''} and ready to import.</span>
+                <span>{preview.totalRows} row{preview.totalRows === 1 ? '' : 's'} found{isTransit ? ` across ${preview.shipmentCount} PO/container groups` : ''} and ready to import.</span>
               </div>
+
+              {isTransit && !!preview.warnings?.length && <div className="invan-modal-warning-banner" role="status"><ul>{preview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
 
               {isTransit && (
                 <div className="invan-grid-wrapper">
                   <table className="invan-table">
                     <thead><tr><th>PO#</th><th>Container#</th><th>Product</th><th>Slabs</th><th>Quantity</th><th>Branch</th><th>ETA</th></tr></thead>
                     <tbody>{preview.sample.map((row, i) => <tr key={i}>
-                      <td>{row.poNumber}</td><td>{row.containerNumber}</td><td>{row.product}</td><td>{row.slabs}</td>
+                      <td>{row.poNumber || 'Unknown'}</td><td>{row.containerNumber || 'Unknown'}</td><td>{row.product}</td><td>{row.slabs ?? 'Unknown'}</td>
                       <td>{row.quantity} {row.units}</td><td>{row.location}</td><td>{toInputDate(row.etaDate) || 'Unknown'}</td>
                     </tr>)}</tbody>
                   </table>

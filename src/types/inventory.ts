@@ -10,7 +10,7 @@ export interface TransitLine<DateValue = Date> {
   poEtaDate: DateValue | null;
   supplierSoNumber: string;
   siplNumber: string;
-  slabs: number;
+  slabs: number | null;
   quantity: number;
   units: string;
   location: string;
@@ -45,6 +45,8 @@ export interface TransitParseResult {
   missingRequired: string[];
   rows: TransitLine[];
   errors: string[];
+  warnings: string[];
+  diagnostics: { productRows: number; skippedStatusCounts: Record<string, number> };
 }
 
 export interface InventoryImportResult {

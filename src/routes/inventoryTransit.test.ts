@@ -53,7 +53,7 @@ describe('in-transit preview, persistence and display API', () => {
     expect([...stored.values()][0].lines.map((row: { slabs: number }) => row.slabs)).toEqual([30, 21]);
   });
   it('refuses invalid data without writing a shipment', async () => {
-    const response = await post('apply', Buffer.from(file().toString().replaceAll('15364', '')));
+    const response = await post('apply', Buffer.from(file().toString().replaceAll('2,237.89', 'invalid')));
     expect(response.status).toBe(400);
     expect(stored.size).toBe(0);
   });

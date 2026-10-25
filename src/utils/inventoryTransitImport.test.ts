@@ -83,6 +83,19 @@ describe('SPS in-transit import', () => {
     expect(result.missingRequired).toEqual([]);
     expect(result.rows[0]).toMatchObject({ poNumber: '15364', quantity: 2237.89 });
   });
+  it('reads product rows whose image and status cells contain nested SPS tables', () => {
+    const headings = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr>`;
+    const values = cells(line()).map((value, index) => index === 0
+      ? '<td><table><tr><td>No Image</td></tr><tr><td>Initiated On 10/26/2026</td></tr></table></td>'
+      : index === 20 ? `<td><table><tr><td>${value}</td></tr><tr><td>ETA Nov 24, 2026</td></tr></table></td>`
+        : `<td>${value}</td>`).join('');
+    const html = `<table><tr><td><table>${headings}<tr>${values}</tr></table></td></tr></table>`;
+    const result = parseInventoryTransitWorkbook(Buffer.from(html));
+    expect(result.missingRequired).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({ poNumber: '15364', containerNumber: 'TEMU1379996', slabs: 31, quantity: 2237.89 });
+  });
   it('keeps separate lots of the same product in a container', () => {
     const result = parseInventoryTransitWorkbook(tsv([line(), line({ Slabs: '21 Slabs', Quantity: '1515.99' })]));
     const shipments = groupTransitShipments(result.rows);
@@ -93,10 +106,32 @@ describe('SPS in-transit import', () => {
     const result = parseInventoryTransitWorkbook(excel([line(), line({ 'Container#': 'OTHER' }), line({ Location: 'Seattle' })]));
     expect(groupTransitShipments(result.rows)).toHaveLength(3);
   });
-  it('flags missing identity and invalid quantities instead of dropping them', () => {
+  it('flags invalid quantities without dropping unknown PO references', () => {
     const result = parseInventoryTransitWorkbook(excel([line({ 'PO#': '', Quantity: 'bad' })]));
-    expect(result.errors.join(' ')).toMatch(/missing poNumber/);
+    expect(result.rows[0].poNumber).toBe('');
+    expect(result.warnings.join(' ')).toMatch(/no PO#/);
     expect(result.errors.join(' ')).toMatch(/invalid quantity/);
+  });
+  it('reads the actual SPS status annotations and blank legacy fields', () => {
+    const rawHeaders = [...headers, 'Supp./Pur. Note', ''];
+    const data = [line(), line({ Product: 'Legacy slab', 'PO#': '', 'Container#': '', Slabs: '' }),
+      line({ Product: 'Display rack', Units: 'EA', Slabs: '', Quantity: '20' })];
+    const html = `<html><body><table><tr><td><table><tr><td><table><tr>${rawHeaders.map(h => `<th>${h}</th>`).join('')}</tr>${data.map(row => `<tr>${headers.map(h => h === 'Status'
+      ? '<td><span>INTRANSIT</span><br>Initiated On 10/26/2026</td>'
+      : `<td>${(row as Record<string, string>)[h] || ''}</td>`).join('')}<td></td></tr>`).join('')}</table></td></tr></table></td></tr></table></body></html>`;
+    const result = parseInventoryTransitWorkbook(Buffer.from(html));
+    expect(result.missingRequired).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.rows).toHaveLength(3);
+    expect(result.rows[0]).toMatchObject({ poNumber: '15364', containerNumber: 'TEMU1379996', quantity: 2237.89, status: 'INTRANSIT' });
+    expect(result.rows[1]).toMatchObject({ poNumber: '', containerNumber: '', slabs: null, quantity: 2237.89 });
+    expect(result.rows[2]).toMatchObject({ slabs: null, quantity: 20, units: 'EA' });
+    expect(result.warnings).toHaveLength(3);
+  });
+  it('reports statuses that cannot be imported instead of silently returning no rows', () => {
+    const result = parseInventoryTransitWorkbook(excel([line({ Status: 'RECEIVED' }), line({ Status: 'CANCELLED' })]));
+    expect(result.rows).toEqual([]);
+    expect(result.diagnostics).toEqual({ productRows: 2, skippedStatusCounts: { RECEIVED: 1, CANCELLED: 1 } });
   });
   it('rejects a stock report with no transit columns', () => {
     const result = parseInventoryTransitWorkbook(Buffer.from('Product\tQuantity\nCarrara\t12'));

@@ -381,10 +381,10 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
     try {
       if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
       const parsed = await runWorkbookParse('inventory-transit', req.file.buffer);
-      const { headers, mapping, missingRequired, rows, errors } = parsed;
+      const { headers, mapping, missingRequired, rows, errors, diagnostics, warnings } = parsed;
       const uploadId = missingRequired.length || errors.length || !rows.length ? null
         : rememberParsedUpload('inventory-transit', String(req.user?.id || ''), parsed);
-      res.json({ headers, mapping, missingRequired, errors, totalRows: rows.length,
+      res.json({ headers, mapping, missingRequired, errors, diagnostics, warnings, totalRows: rows.length,
         shipmentCount: groupTransitShipments(rows).length, sample: rows.slice(0, 10), uploadId });
     } catch (error) {
       res.status(400).json({ message: `Preview failed: ${(error instanceof Error ? error.message : String(error))}` });
