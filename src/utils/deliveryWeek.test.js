@@ -7,7 +7,7 @@ import {
   getWeekDates,
   visibleWeekDates,
   formatWeekRangeText
-} from './deliveryWeek.js';
+} from './deliveryWeek';
 
 // 2026-09-07 is a Monday; the week it starts runs through Sunday 2026-09-13.
 const MON = '2026-09-07';

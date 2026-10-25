@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isPdfSource } from './attachments.js';
+import { isPdfSource } from './attachments';
 
 describe('isPdfSource', () => {
   it('recognises an inline PDF', () => {

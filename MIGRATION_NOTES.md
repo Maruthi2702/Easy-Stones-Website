@@ -2,7 +2,8 @@
 
 Plans for moving the app's stack, written 2026-10-23 when the owner asked to
 move the frontend to TypeScript, the backend to Django, and MongoDB to
-PostgreSQL or DynamoDB. **Nothing here is approved or started.** The original
+PostgreSQL or DynamoDB. **TypeScript step 1–3 started 2026-10-23** (owner's go-ahead,
+on `feat/typescript`); the rest is not approved or started. The original
 2026-10-11 review is [`TECH_STACK_REVIEW.md`](TECH_STACK_REVIEW.md).
 
 The rule for all of it: **no feature may break.** `main` is live and there is
@@ -13,8 +14,8 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 
 | Area | Today | Plan | Status |
 |---|---|---|---|
-| Frontend | React 19 + Vite 5, JavaScript | Stay on React; JS → TypeScript gradually | Proposed |
-| Backend | Node + Express 5, `node server.js` on Render, Node 20.19 | Stay on Node; Node 24, split `server.js` | Proposed |
+| Frontend | React 19 + Vite 5, JavaScript | Stay on React; JS → TypeScript gradually | Started; SalesPage split done (A1–A7, 2026-10-24) |
+| Backend | Node + Express 5, `node server.js` on Render | Stay on Node; Node 24, split `server.js` | Node 24 approved 2026-10-23; split started |
 | Django | — | **Not recommended** | Answered |
 | Database | MongoDB (Mongoose 9) | PostgreSQL (not DynamoDB), one area at a time | Proposed |
 | Staging | None (deferred by the owner 2026-10-07) | Needed before any database move | Owner to decide |
@@ -36,7 +37,7 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 
 - Approve the TypeScript plan and its pace (foundations as dedicated work,
   screens converted as they're touched — my recommendation).
-- Move Render to Node 24.
+- ~~Move Render to Node 24.~~ Approved 2026-10-23.
 - PostgreSQL as the target, hosted on Render.
 - Bring staging back before any data moves.
 - Short early-morning write pauses, one per area as it moves to Postgres.
@@ -54,7 +55,13 @@ walking the import graph from `src/main.jsx` and from `server.js` + `scripts/`:
 | Shared | 69 (38 `src/utils`, 24 `src/permits/rules`, + accounting/holds/config) | ~9.6k | Vite **and** `node server.js` |
 | Server-only | 106 + `server.js` | ~20k + 6.5k | Node only |
 
-**The constraint:** Render runs `node server.js` on Node **20.19** with no
+**Update 2026-10-23:** the owner approved Node 24, so the constraint below is
+lifted on `feat/typescript` (pinned to 24.22.1; checked by booting `server.js`
+on Node 24 against an in-memory MongoDB, the full test suite, and sharp,
+pdf-lib, Tesseract, Playwright, xlsx and bcrypt loading). Server-loaded files
+may now be `.ts` with explicit `.ts` imports; `.tsx` stays browser-only.
+
+**The constraint (until then):** Render ran `node server.js` on Node **20.19** with no
 compile step. Node 20 can't load a `.ts` file (`ERR_UNKNOWN_FILE_EXTENSION`,
 checked); Node 24 strips the types itself (checked). So a shared file renamed
 to `.ts` on Node 20 crashes the live server at start. Node 20 also reached end
@@ -202,3 +209,158 @@ screen opened), flip the area's setting to Postgres. Mongo keeps a read-only
 copy for two weeks with a reverse-copy script, so going back is one setting
 plus one script. Foreign keys are added after a clean-up pass, not at the
 copy, so the move itself changes no behaviour.
+
+---
+
+## 4. Splitting the big files into modules (owner, 2026-10-23)
+
+Asked alongside the TypeScript work: no more 5,000–6,000-line files — each
+module's code in its own files, information passed with props, the system
+designed for the long run. Same rule as everything here: **no breakage**, one
+small reversible step at a time.
+
+### Where the size is today
+
+| File | Lines | What's inside |
+|---|---|---|
+| `server.js` | 6,537 | bootstrap, sockets, presence, auth middleware, ~90 routes (products, auth, admin users/roles/locations, customers, dashboard, sales-dashboard, lost sales, crossover, colors, uploads, resources…), jobs |
+| `src/pages/SalesPage.jsx` | 5,583 | the shell (side nav, phone bar, tab switch), **plus** the Dashboard, the customer profile page, the visit/resource/contact forms' state, the Check-In Log's state, calendar sync, image gallery, delete confirm — 117 `useState`, 68 handlers |
+| `RoutePlannerV2.jsx` | 1,722 | map, panels, filters, scheduling |
+| `SalesPlannerTab.jsx` | 1,536 | the planner calendar |
+| `AdminPage.jsx` | 1,435 | product admin |
+| `DailyReportTab.jsx`, `PartnersSheet.jsx`, `UsersRolesTab.jsx`, `CheckInLogPanel.jsx` | ~1,000–1,170 each | |
+
+### Frontend layout (target)
+
+```
+src/
+  pages/SalesPage.tsx        the shell only: auth gate, side nav / phone bar,
+                             which module is on screen (a registry), live
+                             updates wiring — target under 500 lines
+  features/<module>/         one folder per module, everything it owns:
+    index.ts                 its public surface — other code imports only this
+    <Module>Page.tsx         the screen
+    components/              its parts (each under ~300 lines)
+    use<Module>Data.ts       loading, caching, refresh, optimistic patches
+    <module>Api.ts           its calls (typed, via authFetch)
+    <module>.ts (+ .test.ts) its pure rules
+  components/shared/         reused across modules (unchanged role)
+  api/  types/  utils/       cross-module calls, shared types, shared rules
+```
+
+Modules: dashboard, customers (list + profile), visits, resources, checkin,
+calendarSync, delivery, holds, freight, permits, routePlanner, salesPlanner,
+dailyReport, users, inventory, lostSales, crossover, priceList, profile,
+navOrder, admin (products). Existing `src/components/sales/<module>/` folders
+move into `features/` in the same commit as their TypeScript conversion — one
+move per module, never a second.
+
+### Rules
+
+1. **Props down, callbacks up.** A module gets what it needs as props
+   (`currentUser`, permission flags, ids, data it doesn't own) and reports
+   changes through `on…` callbacks (`onSaved`, `onOpenCustomer`). It never
+   reaches into the shell's state. Context only for what is truly app-wide
+   (auth, theme, the toast).
+2. **Cross-module updates go through the shell.** When a visit saved in the
+   form must show on the dashboard and on the customer, the shell wires it:
+   `VisitForm onSaved → dashboard.patchVisit, customer.patchVisit`. Modules
+   don't know about each other.
+3. **Each module owns its data** in a `use<Module>Data` hook: `{ data,
+   loading, error, refresh, patch }`. Components below the page are
+   presentational where they can be (props in, JSX out).
+4. **One public surface** per module (`index.ts`); deep imports into another
+   module's folder are refused in review (an ESLint rule later).
+5. **Size limits:** a component ~300 lines, a hook ~300, hard stop 500 —
+   ESLint `max-lines` warns at 500 on `.ts`/`.tsx`.
+6. **No visual change while moving:** same DOM, class names, CSS files and
+   inline styles. A move is a move; redesigns are separate commits.
+7. **Tests:** pure rules get `*.test.ts`; each extracted module gets a render
+   smoke test (React Testing Library + jsdom, API mocked) that opens its
+   screen and its main states — the first rendered-component tests the app
+   has. Shared components get one when they're next touched.
+8. TypeScript rules from §1 apply (browser-only files; server-loaded files wait
+   for Node 24).
+
+### Server layout (target)
+
+```
+server.js                    bootstrap only: env, database, app, middleware
+                             order, mount routers, sockets, jobs, listen
+src/app/createApp.js         builds the Express app (no listen) — so tests and
+                             a route-table check can load it
+src/middleware/auth.js       authenticate, requirePermission, requireSalesPage…
+src/routes/<area>.js         one router per area, `create<Area>Router(deps)`,
+                             mounted at the same path in the same order
+src/services/<area>.js       logic shared by routes and jobs (images, caches,
+                             presence, imports)
+src/sockets/                 presence and room joins
+```
+
+Stays JavaScript with explicit `.js` imports until Node 24 (the import check
+enforces it). The order routes are mounted in matters (`customerIdOnly`, the
+`/api/customers` aliases), so the first step is **`createApp()` plus a
+route-table snapshot test**: every method, path and middleware chain listed in
+order. Each later move must leave that snapshot identical, plus the area's
+own tests (in-memory MongoDB, as `src/routes/*.test.js` already do).
+
+### Progress (2026-10-24, on `feat/typescript`, not merged)
+
+**A1–A7 done.** `src/pages/SalesPage.tsx` is the shell, 492 lines (from
+5,583): it calls the modules' hooks and wires their callbacks to each other.
+What it composes:
+
+| Folder | What's there |
+|---|---|
+| `features/calendarSync` | sync modal + hook (A1) |
+| `features/checkin` | the Check-In Log tab, page and Selection Sheet (A2) |
+| `features/visits` | `useVisitEditor`: the visit form's state, early photo uploads, save, delete check (A3) |
+| `features/resources` | `useResourceEditor`, `RESOURCE_TYPES` (A4) |
+| `features/customers` | `CustomerProfile` + its tabs, `useOpenCustomer` (record, cache, patches), `useCustomerActions` (contacts, partners, quick note, account, reactions), `useCustomersPage`, `useCreateCustomer`, level labels (A5) |
+| `features/dashboard` | `DashboardPage`; tabs `visits/`, `followUps/`, `resources/`, `calendar/`; `teamFiles/`; `useDashboardData` (A6) |
+| `features/salesShell` | navigation (page, open customer, URL, back button), side nav layout, theme, locations/reps, the socket, the delete check, `SalesTabViews` (every other page), `CustomersView`, `SalesModals` (A7) |
+| `features/delivery` | the Delivery Schedule: page + `useScheduleData` / `useScheduleActions` / `usePodDialogs` / `useColumnOrders`; `board/`, `form/` (the old `DeliveryModal.jsx` deleted 2026-10-24), `pod/`, `driver/`, `search/` (B, 2026-10-24) |
+| `features/dailyReport` | the Daily Report: page + `useDaySheet` (load, autosave, flush, submit), `components/` and `components/sheet/` (B, 2026-10-24) |
+| `features/customers/list` | the Customers list (was `PartnersSheet` + `customerList/`): page + `useCustomerListData` / `useListFilters` / `useListActions` / `useListUi` / `useListKeyboard`, `CustomerDrawer` (shared with the Route Planner and the visit card), the profile's header/details/contacts parts (B, 2026-10-24) |
+
+How each step was checked: typecheck, `npm test` (each module has hook or
+render tests), the import check, and two checks kept outside git in
+`.migration-tools/`:
+- **Parity**: the old page and the new page rendered side by side in 35 states
+  (97 since the three operations modules: + 23 Delivery, 11 Daily Report, 28
+  Customers list), with the same HTML required.
+- **CSS check**: an order-aware comparison of the built CSS. It confirms which
+  value wins for every selector, and that no rules of equal weight changed
+  order. An earlier sorted comparison couldn't see order changes.
+
+**The three operations modules (B, 2026-10-24)** were done in parallel, each
+on its own branch (`feat/ts-delivery`, `feat/ts-dailyreport`,
+`feat/ts-customerlist`) merged here. Every .ts/.tsx file is under 500 lines;
+the CSS files moved whole. Each has a render smoke test, and the Daily Report
+has hook tests pinning the draft/submit save rules (O12–O14, the 2026-08-28
+incident). Bugs found on the way are in KNOWN_ISSUES.md, not fixed.
+
+**Not done:** `useDashboardData` is 562 lines (over the 500 stop) and
+`useVisitEditor` 480. Selecting a Sales page with a permission it lacks via the
+back button lands on an empty page (unchanged behaviour,
+`useSalesNavigation.test.tsx`). Nothing here has been clicked through in a
+browser yet.
+
+### Order
+
+| Step | What | Risk |
+|---|---|---|
+| A1 | Calendar sync out of SalesPage → `features/calendarSync`; component-test setup | low (self-contained) |
+| A2 | Check-In Log state → `features/checkin` | low |
+| A3 | Visits: form state, save, photos, toast → `features/visits` | medium (dashboard + customer wiring) |
+| A4 | Resources and dashboard folders → `features/resources` | medium |
+| A5 | Customer profile page → `features/customers` | medium |
+| A6 | Dashboard → `features/dashboard` | medium |
+| A7 | Shell: module registry, live-updates wiring; SalesPage < 500 lines | medium |
+| B | Each module: move to `features/`, TypeScript, split files over 500 lines (RoutePlannerV2, SalesPlannerTab, AdminPage, DailyReportTab, PartnersSheet, UsersRolesTab, CheckInLogPanel…) | per module |
+| C1 | `createApp()` + route-table snapshot | low |
+| C2+ | `server.js` areas into routers, least used first: colors, crossover, lost sales, uploads/resources, products, sales-dashboard, dashboard, admin, auth, customers | per area |
+
+Each step is its own commit with typecheck, `npm test`, `vite build`, the
+import check, and a short hand-check list for the screens it touched. Steps
+reach `main` in small batches after the owner clicks through them.

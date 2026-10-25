@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { estimateSkew, levelBy, rotatedSize, findTagBox, textBand, stretchContrast, rowSharpness, LEVEL_WITHIN } from './tagPhoto.js';
+import { estimateSkew, levelBy, rotatedSize, findTagBox, textBand, stretchContrast, rowSharpness, LEVEL_WITHIN } from './tagPhoto';
 
 /**
  * Black bars on white running at `deg` (clockwise, y down), like a barcode or

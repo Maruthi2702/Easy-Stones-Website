@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { splitInventoryLocations, defaultInventoryLocations } from './inventoryLocations.js';
+import { splitInventoryLocations, defaultInventoryLocations } from './inventoryLocations';
 
 const branches = [{ name: 'Seattle' }, { name: 'Spokane' }, { name: 'Salt Lake City' }];
 const inventory = ['E & A Granite and Marble', 'Seattle', 'Carolina Granite Tops', 'Fulfillex', ''];

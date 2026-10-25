@@ -1,0 +1,75 @@
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { prefersReducedMotion } from './useIsPhone';
+
+const FOCUSABLE = 'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Scroll a form field into the middle of the form body and put the cursor in
+ * it — the error banner's "Go to first", and a failed Create. Fields are
+ * found by FormField's data-field attribute inside the open form.
+ */
+export function goToField(name: string | null | undefined): void {
+    if (typeof document === 'undefined' || !name) return;
+    const dialogs = document.querySelectorAll('.fm-dialog');
+    const dialog = dialogs[dialogs.length - 1];
+    const field = dialog?.querySelector(`[data-field="${CSS.escape(name)}"]`);
+    if (!field) return;
+    field.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    const target = field.querySelector<HTMLElement>(FOCUSABLE);
+    target?.focus({ preventScroll: true });
+}
+
+/** Keeps Tab inside the topmost layer (discard check > bottom sheet > form). */
+export function trapTab(e: KeyboardEvent | ReactKeyboardEvent, root: HTMLElement | null | undefined): void {
+    const layers = root?.querySelectorAll<HTMLElement>('[data-fm-layer]');
+    const layer = layers?.[layers.length - 1];
+    if (!layer) return;
+    const items = [...layer.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement);
+    if (items.length === 0) {
+        e.preventDefault();
+        layer.focus?.();
+        return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    if (!layer.contains(active)) {
+        e.preventDefault();
+        first.focus();
+    } else if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+    }
+}
+
+export const firstFocusableIn = (el: Element | null | undefined): HTMLElement | null => el?.querySelector<HTMLElement>(FOCUSABLE) || null;
+
+/** aria props for a control inside FormField (its message has id `${id}-msg`). */
+export const describedBy = (id: string, error: unknown, status?: unknown) => ({
+    'aria-invalid': (error ? 'true' : undefined) as 'true' | undefined,
+    'aria-describedby': error || status ? `${id}-msg` : undefined
+});
+
+/**
+ * Where a desktop dropdown (.fm-menu) opens: below its field, or above it
+ * when the form body has more room there, with its height capped to that
+ * room. Measured when the list opens, against the form body it scrolls in —
+ * or `scroller`, for a dropdown used outside a form (LocationPicker passes
+ * the nearest box that would clip it; null measures against the window).
+ */
+export function menuPlacement(
+    anchor: Element | null | undefined,
+    wanted = 440,
+    scroller: Element | null | undefined = anchor?.closest('.fm-body, .fm-sheet-body')
+): { placement: 'up' | 'down'; maxHeight: number } {
+    if (!anchor) return { placement: 'down', maxHeight: wanted };
+    const a = anchor.getBoundingClientRect();
+    const b = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+    const below = b.bottom - a.bottom - 12;
+    const above = a.top - b.top - 12;
+    const up = below < Math.min(wanted, 240) && above > below;
+    return { placement: up ? 'up' : 'down', maxHeight: Math.round(Math.max(160, Math.min(wanted, up ? above : below))) };
+}

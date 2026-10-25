@@ -1,0 +1,21 @@
+// API Configuration
+// This file centralizes API URL configuration for easy deployment
+
+const getApiUrl = (): string => {
+  // In production, use relative path (empty string) so requests go to the same origin
+  if (import.meta.env.PROD) {
+    return '';
+  }
+  // In development, use relative path to utilize Vite proxy
+  // This ensures cookies are handled as same-origin
+  return '';
+};
+
+export const API_URL = getApiUrl();
+
+// API Endpoints
+export const API_ENDPOINTS = {
+  UPLOAD: `${API_URL}/api/upload`,
+  SAVE_PRODUCTS: `${API_URL}/api/products/save`,
+  HEALTH: `${API_URL}/api/health`,
+};

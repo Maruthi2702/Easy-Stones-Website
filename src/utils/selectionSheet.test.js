@@ -3,7 +3,7 @@ import {
   sheetValuesFromCheckIn, countSheetChanges, sheetPayload, buildSelectionSheetHtml,
   rowHasData, MIN_VISIBLE_ROWS, SHEET_ROWS, priceCentsOf, tidyPrice, formatSheetPrice, sheetPriceErrors,
   sheetPriceSummary, cleanSelections, repEmailSnapshot, PRICE_ERROR, formatSlabSize
-} from './selectionSheet.js';
+} from './selectionSheet.ts';
 
 const checkIn = {
   _id: 'c1',

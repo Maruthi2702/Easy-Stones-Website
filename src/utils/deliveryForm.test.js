@@ -5,7 +5,7 @@ import {
   stopForRun, driverOptions, driverPickerValue, applyDriverPick, applyTypeChange, applyDateChange, applyCustomerPick,
   applyCustomName, buildDeliveryPayload, formWording, deliveryLastChangedText,
   customerOptionFromRecord, fieldLabelsFor, reportDaysFor, reportDaysTouched, submittedDayLabel, ticketReportValues, reportDaysForMove
-} from './deliveryForm.js';
+} from './deliveryForm';
 
 const TRUCKS = [
   { id: 'trk_3rd_party', name: '3rd Party' },

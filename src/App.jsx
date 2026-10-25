@@ -23,8 +23,8 @@ const AdminPage = lazyRetry(() => import('./pages/AdminPage'));
 const LoginPage = lazyRetry(() => import('./pages/LoginPage'));
 const ChoosePasswordPage = lazyRetry(() => import('./pages/ChoosePasswordPage'));
 const SetPasswordPage = lazyRetry(() => import('./pages/SetPasswordPage'));
-const CheckInPage = lazyRetry(() => import('./pages/CheckInPage'));
-const CheckInLogPage = lazyRetry(() => import('./pages/CheckInLogPage'));
+const CheckInPage = lazyRetry(() => import('./features/checkin/staff/CheckInPage'));
+const CheckInLogPage = lazyRetry(() => import('./features/checkin/CheckInLogPage'));
 
 import ErrorBoundary from './components/ErrorBoundary';
 

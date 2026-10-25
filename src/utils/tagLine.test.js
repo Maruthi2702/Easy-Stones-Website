@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseTagLine, combineTagReads, placeTagRows, closestProduct } from './tagLine.js';
+import { parseTagLine, combineTagReads, placeTagRows, closestProduct } from './tagLine';
 
 // Real OCR of tag lines cut out beside their barcodes (Mystique and Enigma tags).
 const READ_51 = '.  13583-51/(8/13583)/ 1265 / 137x79 / Mystique SJ MQ 3CM r';

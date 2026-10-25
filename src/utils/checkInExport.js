@@ -79,6 +79,9 @@ export const checkInExportScope = ({ location, month, year, search } = {}) => {
  * cookie signs it in), so "View" can open it in a new tab straight from the
  * tap — an iPad blocks a tab opened after waiting on a fetch. `download`
  * asks for a file instead of showing it; `tz` puts times on the reader's clock.
+ * @param {string} apiUrl
+ * @param {{ search?: any, month?: any, year?: any, location?: any }} [filters]
+ * @param {{ download?: boolean, tz?: string }} [opts]
  */
 export const checkInPdfUrl = (apiUrl, { search, month, year, location } = {}, { download = false, tz } = {}) => {
   const params = new URLSearchParams();

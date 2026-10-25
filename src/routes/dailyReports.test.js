@@ -3,7 +3,7 @@ import { applyDerived, incomingTransferQuery, summarise, handSetFigures, claimSu
 import Delivery from '../models/Delivery.js';
 import OfficeCheckIn from '../models/OfficeCheckIn.js';
 import DailyReport from '../models/DailyReport.js';
-import { buildDraftPayload } from '../components/sales/dailyreport/savePayload.js';
+import { buildDraftPayload } from '../features/dailyReport/savePayload.ts';
 
 const baseReport = (overrides = {}) => ({
   status: 'draft',

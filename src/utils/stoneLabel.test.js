@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   readStoneLabel, resolveLabelRead, matchProduct, scoreLabelRead, isUsableRead, isConfidentRead,
-} from './stoneLabel.js';
+} from './stoneLabel';
 
 const products = [
   { name: 'Absolute Black', bundles: [{ bundleNumber: '13846' }, { bundleNumber: '22001' }], sizes: ['126x63'] },

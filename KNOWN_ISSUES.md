@@ -38,9 +38,9 @@ Both scripts only preview until run with `--apply`.
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
 | 3 | The receiving branch can drag the sender's Pending transfers onto its own driver. The transfer then vanishes from the sender's board (no column for that driver) but still counts as shipped, and the drop day is saved as the *ship* date. | `?pending=true` in `GET /api/deliveries`, `scopeDeliveryQueryToLocations`, `PATCH /deliveries/:id/assignment` | Blocked on question A | Open |
-| 4 | A transfer on a branch-only driver is invisible on the receiving branch's board (no column for that driver). 1 of 76 transfers today (Sergio); the rest use the all-branch "3rd party - delivery" driver, which shows on every board. | `BoardGrid.jsx` columns, `fetchDriverUsers` in `src/api/deliverySchedule.js` | Blocked on question B | Open |
+| 4 | A transfer on a branch-only driver is invisible on the receiving branch's board (no column for that driver). 1 of 76 transfers today (Sergio); the rest use the all-branch "3rd party - delivery" driver, which shows on every board. | `BoardGrid.tsx` columns, `fetchDriverUsers` in `src/api/deliverySchedule.ts` | Blocked on question B | Open |
 | 5 | No "mark received" button. `PATCH /deliveries/:id/receive` and the report's received fields exist, but nothing calls them. | `src/routes/deliveries.js`, inbound `ticketIds` in `deriveFromSystem` | New feature: a Received button on incoming lines or cards | Open |
-| 6 | A transfer line added by hand always counts as Outgoing; there's no way to add an incoming line. | `addTransfer` in `DailyReportTab.jsx`, PUT `/api/daily-reports/:date` | New feature: an In/Out toggle on manual lines | Fixed `a75e9b3` |
+| 6 | A transfer line added by hand always counts as Outgoing; there's no way to add an incoming line. | `addTransfer` in `src/features/dailyReport/sheetEditing.ts`, PUT `/api/daily-reports/:date` | New feature: an In/Out toggle on manual lines | Fixed `a75e9b3` |
 | 7 | Minor: a driver assigned after the arrival day's 11:59 PM auto-submit never reaches that report. (The other half of this row — month view and CSV counting only outgoing transfers — is fixed; see Fixed.) | `src/jobs/autoSubmitDailyReports.js` | Probably leave as-is | Open |
 
 ### Open questions
@@ -64,6 +64,16 @@ Both scripts only preview until run with `--apply`.
 
 Nothing open.
 
+## Delivery Schedule — other
+
+Found while moving the module into `src/features/delivery` (2026-10-24); all
+already on `main`, kept as they were.
+
+- [ ] `searchDeliveries()` in `src/api/deliverySchedule.ts` is typed as a list,
+      but the route answers `{ results, total, more }`; `DeliveryOrderSearch.tsx`
+      casts around it. Fix the type.
+- [ ] The page passes `onUpdateTruck` to `BoardGrid`, which never uses it.
+
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
 
 Found in a code review of Delivery Schedule, Daily Report and Check-In Log on
@@ -77,16 +87,16 @@ permission holes (O4, O19).
 
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
-| O1 | **(confirmed)** Editing a transfer from its arrival week overwrites its ship date: the board's copy has `date` = arrival (`showOnArrivalDay`), the form shows that as "Ship date", and any save writes it back — moving the shipment and the sender's Daily Report count. The old DeliveryModal did this too. | `applyTransferPerspective` / `showOnArrivalDay` in `deliveryTypes.js`, `handleOpenEditModal` in `DeliveryScheduleTab.jsx`, `deliveryToFormValues` | Open the form on `shipDate` when the card is the arrival view (or refetch the raw ticket) | Fixed `a974e37` |
-| O2 | Saving an ePOD sends the whole cached ticket through POST /deliveries, undoing office edits made while the driver was signing; if the full-record fetch failed it also saves the arrival date as the ship date. | `handleSavePod` in `DeliveryScheduleTab.jsx` | Save only `pod` + `status` (a narrow route, like PATCH /status) | Fixed `d81862f` |
-| O3 | ePOD signatures get wiped on slow signal: the modal's reset effect reruns when the full record replaces the list copy, clearing the pads and fields mid-signature. | `PodModal.jsx` reset effect, `handleOpenPod` | Reset only when the delivery *id* changes | Fixed `d81862f` |
+| O1 | **(confirmed)** Editing a transfer from its arrival week overwrites its ship date: the board's copy has `date` = arrival (`showOnArrivalDay`), the form shows that as "Ship date", and any save writes it back — moving the shipment and the sender's Daily Report count. The old DeliveryModal did this too. | `applyTransferPerspective` / `showOnArrivalDay` in `deliveryTypes.js`, `handleOpenEditModal` in `DeliveryScheduleTab.tsx`, `deliveryToFormValues` | Open the form on `shipDate` when the card is the arrival view (or refetch the raw ticket) | Fixed `a974e37` |
+| O2 | Saving an ePOD sends the whole cached ticket through POST /deliveries, undoing office edits made while the driver was signing; if the full-record fetch failed it also saves the arrival date as the ship date. | `handleSavePod` in `src/features/delivery/usePodDialogs.ts` | Save only `pod` + `status` (a narrow route, like PATCH /status) | Fixed `d81862f` |
+| O3 | ePOD signatures get wiped on slow signal: the modal's reset effect reruns when the full record replaces the list copy, clearing the pads and fields mid-signature. | `PodModal.tsx` reset effect, `handleOpenPod` | Reset only when the delivery *id* changes | Fixed `d81862f` |
 | O4 | **(confirmed)** Read-only users and drivers can create or rewrite any ticket in their branch through the API: POST /deliveries accepts `view_delivery_schedule` (kept for driver POD capture). | `canWriteDeliveries` in `src/routes/deliveries.js` | Require `edit_delivery_schedule` for POST; give POD capture its own route | Fixed `3009b52` |
 | O5 | Live updates for tickets with no branch (`''`/`'*'`, many older ones) only go to the all-branch room, so drivers' phones and single-branch boards stay stale until refreshed. | `deliveryRoomsFor` in `src/routes/deliveries.js` | Broadcast branchless tickets to every branch room | Fixed `3009b52` |
 | O6 | Some cells can never be reordered ("This run changed since you loaded it" every time): the conflict check counts tickets the board doesn't show (cancelled, dated Pending in the Will Call key, other branches on the shared 3rd-party column, search-filtered cells). | reorder route in `src/routes/deliveries.js` (~line 1034) | Count only the tickets the client sent / that the board shows | Fixed `3009b52` |
-| O7 | **(confirmed)** Server error reasons never reach the form: `saveDelivery` reads `body.message`, the routes answer `{ error }`. | `saveDelivery` in `src/api/deliverySchedule.js` | Read `body.error \|\| body.message` | Fixed `a974e37` |
+| O7 | **(confirmed)** Server error reasons never reach the form: `saveDelivery` reads `body.message`, the routes answer `{ error }`. | `saveDelivery` in `src/api/deliverySchedule.ts` | Read `body.error \|\| body.message` | Fixed `a974e37` |
 | O8 | Packing-list upload keys the stored PDF on a client-sent `deliveryId` with overwrite and no access check — another branch's PDF can be replaced. | `upload-packing-list` in `src/routes/deliveries.js` | Check access to that delivery's branch before overwriting | Fixed `3009b52` |
-| O9 | Re-signing an ePOD whose earlier signatures were saved online can get stuck on "Saving…" (hosted image drawn without `crossOrigin` taints the canvas; `toDataURL` throws outside the try). | `initCanvas` / save in `PodModal.jsx` | Set `crossOrigin`, and catch around `toDataURL` | Fixed `d81862f` |
-| O10 | Cached board and check-in data survives log-out, so on a shared PC the next person briefly sees the previous user's branches. | `scheduleCache` in `src/api/deliverySchedule.js`, `dataCache.js` | Clear both caches on logout | Fixed `3009b52` |
+| O9 | Re-signing an ePOD whose earlier signatures were saved online can get stuck on "Saving…" (hosted image drawn without `crossOrigin` taints the canvas; `toDataURL` throws outside the try). | `initCanvas` / save in `PodModal.tsx` | Set `crossOrigin`, and catch around `toDataURL` | Fixed `d81862f` |
+| O10 | Cached board and check-in data survives log-out, so on a shared PC the next person briefly sees the previous user's branches. | `scheduleCache` in `src/api/deliverySchedule.ts`, `dataCache.ts` | Clear both caches on logout | Fixed `3009b52` |
 
 Decided to leave as they are (owner, 2026-10-15): the status pill size on board cards (a bigger pill would squeeze the SO# on the narrow columns) and the sales rep's own footer line (moving it adds a row to cards). Revisit only if the owner asks.
 
@@ -95,9 +105,9 @@ Decided to leave as they are (owner, 2026-10-15): the status pill size on board 
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
 | O11 | **(confirmed)** Reopening a recent day doesn't work: auto-submit picks up every draft in its 3-day lookback and locks a reopened day again within about a minute. | `LOOKBACK_DAYS` / draft query in `src/jobs/autoSubmitDailyReports.js` | Skip reports reopened since their date (e.g. a `reopenedAt` flag) | Fixed `c115d4c` |
-| O12 | Edits typed in the ~1.2s before switching day, branch, view or tab aren't saved: the debounced autosave is cancelled, never flushed. | autosave effect in `DailyReportTab.jsx` (~line 283) | Flush the pending save on day/branch change and unmount | Fixed `8fab81e` |
-| O13 | Submit goes ahead even if its own save failed (`save()` swallows errors), so the last edits are lost from a locked report. | `submitDay` / `save` in `DailyReportTab.jsx` | Stop and show the error when the pre-submit save fails | Fixed `8fab81e` |
-| O14 | Tapping Next day twice on slow data can mix days up: an older response overwrites the newer one, edits save to the wrong day and Submit locks the day in the header. | `loadDay` in `DailyReportTab.jsx` | Ignore responses for a day that's no longer selected | Fixed `8fab81e` |
+| O12 | Edits typed in the ~1.2s before switching day, branch, view or tab aren't saved: the debounced autosave is cancelled, never flushed. | autosave effect in `src/features/dailyReport/useDaySheet.ts` | Flush the pending save on day/branch change and unmount | Fixed `8fab81e` |
+| O13 | Submit goes ahead even if its own save failed (`save()` swallows errors), so the last edits are lost from a locked report. | `submitDay` / `save` in `src/features/dailyReport/useDaySheet.ts` | Stop and show the error when the pre-submit save fails | Fixed `8fab81e` |
+| O14 | Tapping Next day twice on slow data can mix days up: an older response overwrites the newer one, edits save to the wrong day and Submit locks the day in the header. | `loadDay` in `src/features/dailyReport/useDaySheet.ts` | Ignore responses for a day that's no longer selected | Fixed `8fab81e` |
 | O15 | An autosave racing a submit can un-submit the day: PUT checks for 'submitted', then upserts with an unconditional `status: 'draft'`. | PUT in `src/routes/dailyReports.js` (~line 610) | Make the update conditional on `status != 'submitted'` | Fixed `6d132f2` |
 | O16 | Draft PDFs and emails, the month view and the CSV under-report (missing auto slabs and transfers, stale Homeowners): they read stored drafts without re-deriving. | PDF / month / export routes in `src/routes/dailyReports.js` | `applyDerived` drafts before summarising | Fixed `6d132f2` |
 | O17 | Homeowners can count different check-ins on screen than at submit: the day window uses the viewer's browser offset on GET/overview, the branch's current offset at submit (wrong after a DST change). | `src/routes/dailyReports.js` (~line 650) | One rule: the branch's offset on the report's date | Fixed `6d132f2` |
@@ -109,8 +119,8 @@ Decided to leave as they are (owner, 2026-10-15): the status pill size on board 
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
 | O19 | Changing the rep's email on a check-in emails the Selection Sheet to that address, even for users without the send-email permission. | PUT `/checkin/:id` in `src/routes/checkIn.js` | Require `send_checkin_email` (and a staff address) for the email | Fixed `c0a0205` |
-| O20 | Fast filter or page changes can show another filter's rows (no request sequencing). | `fetchCheckIns` in `src/pages/CheckInLogPage.jsx` | Ignore stale responses | Fixed `c0a0205` |
-| O21 | The export is silently cut short if a page fails or past 50 pages, and has no Location column for all-branch exports. | export loop in `src/pages/CheckInLogPage.jsx` (~line 247) | Fail loudly / warn on truncation; add Location | Fixed `c0a0205` |
+| O20 | Fast filter or page changes can show another filter's rows (no request sequencing). | `fetchCheckIns` in `src/features/checkin/CheckInLogPage.tsx` | Ignore stale responses | Fixed `c0a0205` |
+| O21 | The export is silently cut short if a page fails or past 50 pages, and has no Location column for all-branch exports. | export loop in `src/features/checkin/CheckInLogPage.tsx` (~line 247) | Fail loudly / warn on truncation; add Location | Fixed `c0a0205` |
 
 ## Customer import (SPS redesign)
 
@@ -138,7 +148,7 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
       Need a decision. Branch is still "SPS wins" and a blank SPS rep keeps
       ours (the artifact's defaults 1 and 2, never answered by the owner).
 - [ ] **The old "Import from Excel" menu item is hidden** (owner, 2026-10-17;
-      `SHOW_EXCEL_IMPORT` in `PartnersSheet.jsx`). Its window also held the
+      `SHOW_EXCEL_IMPORT` in `src/features/customers/list/listOptions.ts`). Its window also held the
       **"Possible duplicates already in the database"** list (merge / delete /
       keep separate), which now has no way in. Move that list somewhere of its
       own before the old import is deleted (step 6).
@@ -148,11 +158,6 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
 
 ## Cleanup due
 
-- [ ] **On or after 2026-10-19:** delete
-      `src/components/sales/delivery/DeliveryModal.jsx` if the new Add / Edit
-      delivery form (`DeliveryForm.jsx`, live since 2026-10-05) has worked
-      well. Nothing mounts it; it's kept only as a fallback. Before deleting,
-      `grep -rn "DeliveryModal" src` should only find comments.
 - [ ] **On or after 2026-11-06:** drop the old customer API addresses kept
       as aliases when everything moved under `/api/customers` (2026-10-06):
       `/api/sales/customers`, `/api/partners…`, `/api/admin/customers…` in
@@ -164,6 +169,9 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-24 | Delivery board: a dead effect meant to scroll the phone's selected day pill into view (its selector matched no element). Not a visible bug — the five pills are a grid that always fits — so it was removed rather than revived (`scrollIntoView` also scrolls the page, see Locations in CLAUDE.md). | on `feat/typescript` |
+| 2026-10-24 | Daily Report: a save refused because someone else had submitted the day (409) reloaded the sheet locked but wiped "This day has been submitted" at once, and Submit in that case said "check your connection". The reload now keeps the note (`loadDay(notice)` in `useDaySheet.ts`). | on `feat/typescript` |
+| 2026-10-24 | Cleanup: the old Add / Edit delivery form `DeliveryModal.jsx` (unused since `DeliveryForm` went live on 2026-10-05) deleted, on the owner's go-ahead. | on `feat/typescript` |
 | 2026-10-15 | Daily Report transfers: one line per transfer, each with its Transfer # (a ticket line per ticket, no longer one per route), so the same transfer added twice is flagged; the typed Count is gone (the month view, its PDF and the CSV count the lines); headings line up with their boxes; one row per line at any width — on phones Slabs used to run off the edge. | `a1fd574` |
 | 2026-10-15 | Transfers #6: a transfer line added by hand on the Daily Report always counted as Outgoing. Its route now decides (ending at the report's branch is Incoming), with a note when the route skips the branch or repeats a ticket line. | `a75e9b3` |
 | 2026-10-15 | Delivery board: stop numbers skipped (Stop #1, #3) after a delete, cancel or move, and the board, the Edit delivery form and the driver's phone could disagree. Each driver's day is now kept 1, 2, 3, and old gaps closed at startup. | `3691007` |

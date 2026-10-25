@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
 import { DEFAULT_LETTERHEAD } from '../utils/locationForm.js';
-import { formatSheetPrice, formatSlabSize } from '../utils/selectionSheet.js';
+import { formatSheetPrice, formatSlabSize } from '../utils/selectionSheet.ts';
 
 // The check-in emails below interpolate visitor-supplied fields (name, notes,
 // selections...) straight into HTML. The self check-in endpoint that produces

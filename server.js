@@ -873,7 +873,7 @@ async function startServer() {
         { roles: ['admin', 'director'], permissions: ['view_inventory_prices'] },
         // Delivery Schedule permissions were seeded backwards on existing
         // installs — admin/director/manager/sales_rep/csr had none of them
-        // while driver held them — see src/components/sales/delivery/README.md's
+        // while driver held them — see src/features/delivery/README.md's
         // "Permission model" section for the intended split this corrects.
         { roles: ['admin', 'director', 'manager', 'sales_rep', 'csr'], permissions: ['view_delivery_schedule', 'edit_delivery_schedule'] },
         { roles: ['admin', 'director', 'manager'], permissions: ['delete_delivery_schedule', 'clear_pod_signatures'] },

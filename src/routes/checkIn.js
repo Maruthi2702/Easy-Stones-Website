@@ -6,7 +6,7 @@ import User from '../models/User.js';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail } from '../services/emailService.js';
 import { stripPhone, formatPhoneForDisplay, maskPhone } from '../utils/phoneUtils.js';
 import { letterheadFor } from '../utils/locationForm.js';
-import { cleanSelections, repEmailSnapshot } from '../utils/selectionSheet.js';
+import { cleanSelections, repEmailSnapshot } from '../utils/selectionSheet.ts';
 import { CHECKIN_PERMISSIONS as P, missingEditPermission, canEmailSelectionSheet } from '../utils/checkInAccess.js';
 import { startingRepFor, branchSalesRepOf, displayNameOf } from '../utils/salesReps.js';
 import { homeLocationOf } from '../utils/locationFilter.js';

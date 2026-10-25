@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   FREIGHT_TABS, tabCount, groupByCarrier, selectionActions, referenceLabel, paymentMethodText,
   historyLabel, todayIso, shortDate, newRequestId, freightExportRows
-} from './freightView.js';
+} from './freightView';
 import { FREIGHT } from '../accounting/permissions.js';
 
 const ABC = { _id: 'c1', name: 'ABC Freight Inc', paymentTerms: 'per_delivery' };

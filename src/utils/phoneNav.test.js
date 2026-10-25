@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { phoneNavModel, litTab, moreGroups, highlightParts, searchPages, opensDirectly, MORE } from './phoneNav.js';
+import { phoneNavModel, litTab, moreGroups, highlightParts, searchPages, opensDirectly, MORE } from './phoneNav';
 import { navItem } from './navPins.js';
 
 const user = (...permissions) => ({ role: 'sales_rep', permissions });

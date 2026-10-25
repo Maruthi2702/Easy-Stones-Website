@@ -3,7 +3,7 @@ import {
   HOLD_TABS, productSummary, longDate, dayMonth, releaseDayOf, expiryLine, elapsedShare, holdActions,
   priceDraftOf, sharedPrice, priceChanges, lineAmount, extendChoices, cartSlabsFor, historyLabel,
   changeText, visibleChanges, detailsOf, detailsPatch
-} from './holdView.js';
+} from './holdView';
 import { HOLDS } from '../holds/permissions.js';
 import { expiryMoments } from '../holds/holdRules.js';
 

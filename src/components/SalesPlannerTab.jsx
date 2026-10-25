@@ -233,6 +233,13 @@ const cachedItemsForLastView = () => {
     return getCachedPlannerRange(dayKey(r.start), dayKey(r.end));
 };
 
+/**
+ * @param {{
+ *   customerSelection?: Record<string, any>[], customerOptions?: Record<string, any>[],
+ *   onSelectCustomer?: (customer: Record<string, any>) => void, onScheduleChange?: () => void,
+ *   isDropdownLoading?: boolean, currentUserId?: string | null
+ * }} props
+ */
 const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onScheduleChange, isDropdownLoading, currentUserId = null }) => {
     const [currentDate, setCurrentDate] = useState(() => (lastView.date ? new Date(lastView.date) : new Date()));
     const [viewMode, setViewMode] = useState(lastView.mode);
