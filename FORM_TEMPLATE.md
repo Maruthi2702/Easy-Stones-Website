@@ -48,7 +48,7 @@ Packing list and Notes. Picking the 3rd-party truck as Driver adds Carrier
 name, BOL # and Agreed price (optional, owner's call 2026-10-05), on transfers
 too. It keeps
 Cancel. It replaced `DeliveryModal.jsx` on the Delivery Schedule board.
-Accounting · 3rd-Party Freight (`src/components/sales/freight/`, 2026-10-09)
+Accounting · 3rd-Party Freight (`src/features/freight/forms/`, 2026-10-09)
 is built on it from the start: Approve & pay / Mark paid and Void (size S),
 Add / Edit charge and Enter carrier invoice (size M), and Add / Edit carrier
 (size S, Deactivate on the left of the footer).

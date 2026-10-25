@@ -158,6 +158,30 @@ already on `main`, kept as they were.
 - [ ] Extend hold (`forms/ExtendForm.tsx`) opens with +7 days already picked
       and counts that as a change, so closing it untouched asks "Discard?".
 
+## 3rd-Party Freight — other
+
+Found while moving the module into `src/features/freight` (2026-10-25); all
+already on `main`, kept as they were.
+
+- [ ] The tabs' own empty messages ("Nothing waiting", "No payments yet"…)
+      almost never show: the page opens on the person's home branch, which
+      counts as a filter, so an empty tab says "No charges match — Try another
+      search, branch or carrier." until All locations is picked
+      (`list/ChargeList.tsx`, `filtered` in `FreightTab.tsx`).
+- [ ] Ticked charges stay ticked when moving to another page of the list (only
+      a new tab, search, branch or carrier clears them), so the selection bar's
+      count and total can include charges that aren't on screen
+      (`useFreightData.ts`'s view key leaves the page out).
+- [ ] More › Carriers lists the "carrier names nobody recognises" from the
+      first 100 waiting charges only, and Enter carrier invoice offers only a
+      carrier's first 100 waiting charges (`limit: 100` in
+      `panels/CarriersPanel.tsx`, `forms/InvoiceForm.tsx`); past that, names
+      and charges are missing without a word.
+- [ ] Dead code: the side panel's `wide` option (`parts/Drawer.tsx`, and
+      `.fr-drawer.wide` in `Freight.css`) is never used, and nothing on the
+      screen calls the server's `GET /api/accounting/freight-charges/:id/history`
+      (a charge's history comes with the charge).
+
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
 
 Found in a code review of Delivery Schedule, Daily Report and Check-In Log on
