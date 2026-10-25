@@ -38,7 +38,7 @@ const pad = (n) => String(n).padStart(2, '0');
 
 /**
  * When a drop-in starts, as the naive local string schedules are stored in
- * ('YYYY-MM-DDTHH:MM:SS.000', no zone — see localISO in SalesPlannerTab.jsx).
+ * ('YYYY-MM-DDTHH:MM:SS.000', no zone — see localISO in src/features/salesPlanner/salesPlanner.ts).
  * Logged the same day it happened → the time it was logged, on the logger's
  * own branch clock. Logged afterwards → DROP_IN_DEFAULT_TIME, since a visit
  * stores only a date.

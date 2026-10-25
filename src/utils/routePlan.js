@@ -193,7 +193,7 @@ const pad = (n) => String(n).padStart(2, '0');
  * 'YYYY-MM-DDTHH:mm:ss.000', local, no zone suffix.
  *
  * This is the planner's storage contract, not a choice — see localISO in
- * SalesPlannerTab.jsx. A value with a 'Z' on it lands on the wrong day for
+ * src/features/salesPlanner/salesPlanner.ts. A value with a 'Z' on it lands on the wrong day for
  * anyone east of UTC.
  */
 export const localISO = (d) =>
