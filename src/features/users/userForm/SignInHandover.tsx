@@ -1,7 +1,8 @@
 import React from 'react';
 import { AlertCircle } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
+import FormModal from '../../../components/shared/form/FormModal';
 import CopyButton from './CopyButton';
+import type { Loose } from '../../../types/records';
 
 /**
  * What the admin passes on after Add user (or an Edit user sign-in reset):
@@ -24,7 +25,16 @@ const signInAddress = () => {
     }
 };
 
-export default function SignInHandover({ method, result, password, reset = false, onClose }) {
+/** The server's answer to a create or a sign-in reset. */
+export type SignInResult = { user?: Loose; inviteSent?: boolean; inviteLink?: string; [key: string]: unknown };
+
+export default function SignInHandover({ method, result, password, reset = false, onClose }: {
+    method: 'password' | 'invite' | string;
+    result: SignInResult;
+    password?: string;
+    reset?: boolean;
+    onClose: () => void;
+}) {
     const name = result.user?.name || result.user?.username;
     const invited = method === 'invite';
     const signInAt = signInAddress();

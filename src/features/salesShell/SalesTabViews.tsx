@@ -25,8 +25,8 @@ const page = (load: () => Promise<{ default: ComponentType<any> }>) => lazyRetry
 // code, Users & Roles, Price List — was in one bundle loaded for any tab.
 const RoutePlannerV2 = page(() => import('../routePlanner/RoutePlannerV2'));
 const PriceListPanel = page(() => import('../../components/sales/PriceListPanel'));
-const UsersRolesTab = page(() => import('../../components/sales/UsersRolesTab'));
-const NavOrderTab = page(() => import('../../components/sales/NavOrderTab'));
+const UsersRolesTab = page(() => import('../users/UsersRolesTab'));
+const NavOrderTab = page(() => import('../users/navOrder/NavOrderTab'));
 const LostSalesTab = page(() => import('../../components/sales/LostSalesTab'));
 const CrossoverSheetTab = page(() => import('../../components/sales/CrossoverSheetTab'));
 const InventoryAnalysisTab = page(() => import('../../components/sales/InventoryAnalysisTab'));

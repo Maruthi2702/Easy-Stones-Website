@@ -5,7 +5,7 @@
  * role (server.js NEW_PERMISSION_GRANTS), and can hand each one to any role.
  *
  * Shared by the server (src/accounting/router.js), the Users & Roles screen
- * (src/components/sales/users/pagePermissions.js) and the screens' buttons.
+ * (src/features/users/roles/pagePermissions.ts) and the screens' buttons.
  */
 
 export const FREIGHT = Object.freeze({

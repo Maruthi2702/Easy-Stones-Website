@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Star, X } from 'lucide-react';
-import useIsPhone from '../../shared/form/useIsPhone';
-import { FormSheet } from '../../shared/form/FormControls';
-import { describedBy, menuPlacement } from '../../shared/form/formFocus';
+import useIsPhone from '../../../components/shared/form/useIsPhone';
+import { FormSheet } from '../../../components/shared/form/FormControls';
+import { describedBy, menuPlacement } from '../../../components/shared/form/formFocus';
 import { toggleLocation, homeAfterChange } from '../../../utils/userForm';
 import { orderLocations } from '../../../utils/locationFilter';
 
@@ -11,25 +11,37 @@ import { orderLocations } from '../../../utils/locationFilter';
  * screens open). Tags in the field; a checkbox list opens under it on desktop
  * and as a bottom sheet on phones.
  */
-export default function LocationsPicker({ id, locations, value, home, onChange, error }) {
+/** What a pick changes: the list, and the home branch that moves with it. */
+export type LocationsPatch = { assignedLocations: string[]; location: string };
+
+export default function LocationsPicker({ id, locations, value, home, onChange, error }: {
+    id: string;
+    /** Every branch name. */
+    locations: string[];
+    /** The branches picked ('*' = every location). */
+    value: string[];
+    home: string;
+    onChange: (patch: LocationsPatch) => void;
+    error?: string;
+}) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
     const [pos, setPos] = useState({ placement: 'down', maxHeight: 440 });
-    const wrapRef = useRef(null);
-    const fieldRef = useRef(null);
+    const wrapRef = useRef<HTMLDivElement>(null);
+    const fieldRef = useRef<HTMLDivElement>(null);
     const allOn = value.includes('*');
     const toggleOpen = () => {
         if (!open && !isPhone) setPos(menuPlacement(fieldRef.current));
         setOpen(!open);
     };
 
-    const set = (list, nextHome = home) => onChange({ assignedLocations: list, location: homeAfterChange(nextHome, list) });
-    const toggle = (key) => set(toggleLocation(value, key));
-    const makeHome = (name) => onChange({ assignedLocations: value, location: name });
+    const set = (list: string[], nextHome = home) => onChange({ assignedLocations: list, location: homeAfterChange(nextHome, list) });
+    const toggle = (key: string) => set(toggleLocation(value, key));
+    const makeHome = (name: string) => onChange({ assignedLocations: value, location: name });
 
     useEffect(() => {
         if (!open || isPhone) return;
-        const onDown = (e) => { if (!wrapRef.current?.contains(e.target)) setOpen(false); };
+        const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as Node)) setOpen(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
     }, [open, isPhone]);

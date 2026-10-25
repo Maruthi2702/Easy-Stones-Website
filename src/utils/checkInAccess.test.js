@@ -6,7 +6,7 @@ import {
   canEditSelectionSheet, canEmailSelectionSheet
 } from './checkInAccess.js';
 import { sheetPayload, sheetValuesFromCheckIn } from './selectionSheet.ts';
-import { PAGE_PERMISSIONS } from '../components/sales/users/pagePermissions.js';
+import { PAGE_PERMISSIONS } from '../features/users/index.ts';
 
 const as = (...permissions) => ({ role: 'custom', permissions });
 

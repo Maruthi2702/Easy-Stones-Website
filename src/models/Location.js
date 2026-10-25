@@ -11,7 +11,7 @@ const addressSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Everything beyond name/shortCode is filled in by Add / Edit location
-// (src/components/sales/locations/LocationForm.jsx); the rules live in
+// (src/features/users/locations/LocationForm.tsx); the rules live in
 // src/utils/locationForm.js. Locations created before those fields existed
 // simply have them empty — the selection sheet then prints the Kent address
 // (DEFAULT_LETTERHEAD) until someone adds theirs.

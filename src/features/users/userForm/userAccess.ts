@@ -2,6 +2,7 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { prettifyUsername } from '../../../utils/textUtils';
 import { clearDriversCache } from '../../../api/deliverySchedule';
+import type { AccessAction, UserRecord } from '../types';
 
 /*
  * Taking a person off the road safely, shared by Users & Roles and the /admin
@@ -16,7 +17,7 @@ import { clearDriversCache } from '../../../api/deliverySchedule';
  * and resends with true. Resolves to the final Response, or null when the
  * person said no.
  */
-export async function withDriverHandover(send, verb) {
+export async function withDriverHandover(send: (moveUpcomingToPending: boolean) => Promise<Response>, verb: string): Promise<Response | null> {
     let res = await send(false);
     if (res.status !== 409) return res;
     const info = await res.clone().json().catch(() => ({}));
@@ -31,16 +32,16 @@ export async function withDriverHandover(send, verb) {
  * Deactivate, reactivate or delete an account, with the confirm prompts.
  * Resolves to true when it happened.
  */
-export async function changeUserAccess(user, action) {
+export async function changeUserAccess(user: Pick<UserRecord, '_id' | 'username' | 'displayName'>, action: AccessAction): Promise<boolean> {
     const name = user.displayName || prettifyUsername(user.username);
-    const prompts = {
+    const prompts: Record<AccessAction, string> = {
         deactivate: `Deactivate ${name}? They won't be able to sign in, and won't be offered for new work. Their history stays, and you can reactivate them later.`,
         reactivate: `Reactivate ${name}? They'll be able to sign in again.`,
         delete: `Delete ${name} permanently? Their name will no longer show on the work they did — Deactivate keeps it.`
     };
     if (!window.confirm(prompts[action])) return false;
 
-    const send = (moveUpcomingToPending) => authFetch(
+    const send = (moveUpcomingToPending: boolean) => authFetch(
         action === 'delete' ? `${API_URL}/api/admin/users/${user._id}` : `${API_URL}/api/admin/users/${user._id}/active`,
         {
             method: action === 'delete' ? 'DELETE' : 'PATCH',
@@ -59,7 +60,7 @@ export async function changeUserAccess(user, action) {
         alert(action === 'delete' ? 'User deleted.' : `${name} ${action === 'reactivate' ? 'reactivated' : 'deactivated'}.`);
         return true;
     } catch (err) {
-        alert(err.message);
+        alert((err as Error).message);
         return false;
     }
 }

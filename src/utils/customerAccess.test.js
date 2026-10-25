@@ -5,7 +5,7 @@ import {
   canEditCustomers, canDeleteCustomers, BASIC_CUSTOMER_FIELDS, BASIC_CUSTOMER_PROJECTION, basicCustomer,
   CUSTOMER_NEEDS_VIEW, withCustomerViewRule
 } from './customerAccess.js';
-import { PAGE_PERMISSIONS } from '../components/sales/users/pagePermissions.js';
+import { PAGE_PERMISSIONS } from '../features/users/index.ts';
 
 const as = (...permissions) => ({ role: 'custom', permissions });
 

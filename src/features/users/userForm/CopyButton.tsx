@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 
-const copyText = async (text) => {
+const copyText = async (text: string): Promise<boolean> => {
     try {
         await navigator.clipboard.writeText(text);
         return true;
@@ -11,7 +11,7 @@ const copyText = async (text) => {
 };
 
 /** Copy to clipboard, with a moment of "✓ Copied". */
-export default function CopyButton({ text, label = 'Copy' }) {
+export default function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
     const [done, setDone] = useState(false);
     useEffect(() => {
         if (!done) return;

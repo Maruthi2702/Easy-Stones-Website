@@ -242,7 +242,8 @@ reset or chosen password also lifts it (`clearSignInLock`).
 ## Users, Roles & Permissions, Locations; team access (2026-10-16)
 
 Users & Roles is three Admin-rail pages (`users`, `roles`, `locations` in
-`navPins.js`; one screen, `UsersRolesTab`, with a `section`). Users also opens
+`navPins.js`; one screen, `UsersRolesTab`, with a `section` — the module is
+`src/features/users/`, Side Nav Order included). Users also opens
 for **team access**: the `manage_team_users` permission (Users & Roles card →
 Team) lets a manager/director see the people at their own locations, who is
 online, and **deactivate / reactivate / unlock** them — nothing else (no add,

@@ -7,10 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import './AdminPage.css';
 import { authFetch } from '../api/authFetch';
 import { setAuthToken } from '../api/authToken';
-import AddUserForm from '../components/sales/users/AddUserForm';
-import EditUserForm from '../components/sales/users/EditUserForm';
-import { describeRole, isDriverRole } from '../components/sales/users/pagePermissions';
-import { changeUserAccess } from '../components/sales/users/userAccess';
+import { AddUserForm, EditUserForm, describeRole, isDriverRole, changeUserAccess } from '../features/users';
 import { lockedUntilTime } from '../utils/userForm';
 
 const AdminPage = () => {
@@ -40,7 +37,7 @@ const AdminPage = () => {
   const [users, setUsers] = useState([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   // Add / Edit user use the same forms as Sales CRM → Users & Roles
-  // (components/sales/users/), which need the roles and branches.
+  // (features/users/userForm/), which need the roles and branches.
   const [userModal, setUserModal] = useState(null); // null | { mode: 'add' } | { mode: 'edit', user }
   const [userFormRefs, setUserFormRefs] = useState({ roles: [], locations: [], loaded: false });
 

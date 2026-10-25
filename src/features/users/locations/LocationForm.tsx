@@ -1,14 +1,14 @@
 import React, { useMemo, useState } from 'react';
 import { AlertCircle, Trash2, X } from 'lucide-react';
-import FormModal from '../../shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '../../shared/form/FormControls';
-import { goToField, describedBy } from '../../shared/form/formFocus';
-import useTouched from '../../shared/form/useTouched';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '../../../components/shared/form/FormControls';
+import { goToField, describedBy } from '../../../components/shared/form/formFocus';
+import useTouched from '../../../components/shared/form/useTouched';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { useSalesRepOptions } from '../../../api/salesRepOptions';
-import RepPicker from '../../shared/form/RepPicker';
-import LocationPicker from '../../shared/form/LocationPicker';
+import RepPicker from '../../../components/shared/form/RepPicker';
+import LocationPicker from '../../../components/shared/form/LocationPicker';
 import { useAuth } from '../../../context/AuthContext';
 import { formatPhoneInput } from '../../../utils/phoneUtils';
 import { lastChangedText } from '../../../utils/userForm';
@@ -18,7 +18,24 @@ import {
     validateLocationValues, countLocationChanges
 } from '../../../utils/locationForm';
 import { isEmail, userRecipientProblem } from '../../../utils/dailyReportRecipients';
+import type { AdminLocation, UserRecord } from '../types';
 import './LocationForm.css';
+
+type LocationValues = ReturnType<typeof locationToFormValues>;
+type LocationField = keyof LocationValues;
+type TextOptions = {
+    label?: string;
+    required?: boolean;
+    type?: string;
+    placeholder?: string;
+    inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+    prefix?: string;
+    suffix?: string;
+    readOnly?: boolean;
+    title?: string;
+    autoCapitalize?: string;
+    asTyped?: boolean;
+};
 
 /*
  * Users & Roles → Locations → Add location / Edit (pencil). One form for
@@ -33,38 +50,51 @@ import './LocationForm.css';
 
 // Input clean-up as you type: the stored formats, so what's on screen is
 // what gets saved.
-const CLEAN = {
-    shortCode: (v) => v.toUpperCase().replace(/\s/g, '').slice(0, 5),
-    state: (v) => v.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2),
+const CLEAN: Partial<Record<LocationField, (v: string) => string>> = {
+    shortCode: (v: string) => v.toUpperCase().replace(/\s/g, '').slice(0, 5),
+    state: (v: string) => v.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2),
     acctState: (v) => v.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 2),
-    zip: (v) => v.replace(/[^\d-]/g, '').slice(0, 10),
-    acctZip: (v) => v.replace(/[^\d-]/g, '').slice(0, 10),
+    zip: (v: string) => v.replace(/[^\d-]/g, '').slice(0, 10),
+    acctZip: (v: string) => v.replace(/[^\d-]/g, '').slice(0, 10),
     phone: formatPhoneInput,
     fax: formatPhoneInput,
     acctPhone: formatPhoneInput,
-    salesTaxRate: (v) => v.replace(/[^\d.]/g, ''),
-    avgUnitFreight: (v) => v.replace(/[^\d.]/g, ''),
-    unitOverheadPct: (v) => v.replace(/[^\d.]/g, '')
+    salesTaxRate: (v: string) => v.replace(/[^\d.]/g, ''),
+    avgUnitFreight: (v: string) => v.replace(/[^\d.]/g, ''),
+    unitOverheadPct: (v: string) => v.replace(/[^\d.]/g, '')
 };
 
 // readOnly: someone who may view locations but not edit them (Users & Roles → Locations).
-export default function LocationForm({ location = null, locations = [], users = [], onClose, onSaved, onDelete, readOnly = false }) {
+export type LocationFormProps = {
+    /** The location being edited, or null to add one. */
+    location?: AdminLocation | null;
+    locations?: AdminLocation[];
+    /** Users & Roles' list: the Daily Report's people to pick from. */
+    users?: UserRecord[];
+    onClose: () => void;
+    onSaved?: (saved: AdminLocation) => void;
+    /** Delete from the footer; resolves true when it was deleted. */
+    onDelete?: (location: AdminLocation) => Promise<boolean>;
+    readOnly?: boolean;
+};
+
+export default function LocationForm({ location = null, locations = [], users = [], onClose, onSaved, onDelete, readOnly = false }: LocationFormProps) {
     const isEdit = Boolean(location);
-    const initial = useMemo(() => (isEdit ? locationToFormValues(location) : emptyLocationValues()), [isEdit, location]);
+    const initial = useMemo((): LocationValues => (isEdit ? locationToFormValues(location!) : emptyLocationValues()), [isEdit, location]);
     const [values, setValues] = useState(initial);
     const [touched, touchField, markTouched] = useTouched();
     const [submitted, setSubmitted] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [serverErrors, setServerErrors] = useState({});
+    const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
     const [formError, setFormError] = useState('');
 
     const others = useMemo(
-        () => (Array.isArray(locations) ? locations : []).filter((l) => l && typeof l === 'object' && (!isEdit || String(l._id) !== String(location._id))),
+        () => (Array.isArray(locations) ? locations : []).filter((l) => l && typeof l === 'object' && (!isEdit || String(l._id) !== String(location!._id))),
         [locations, isEdit, location]
     );
     const ruleOptions = { isEdit, selfId: location?._id, others };
 
-    const set = (patch) => {
+    const set = (patch: Partial<LocationValues>) => {
         setValues((v) => ({ ...v, ...patch }));
         setServerErrors((e) => {
             const next = { ...e };
@@ -72,14 +102,14 @@ export default function LocationForm({ location = null, locations = [], users = 
             return next;
         });
     };
-    const touch = (field) => touchField(field, String(values[field] ?? '') !== String(initial[field] ?? ''));
+    const touch = (field: LocationField) => touchField(field, String(values[field] ?? '') !== String(initial[field] ?? ''));
 
     const allErrors = { ...validateLocationValues(values, ruleOptions), ...serverErrors };
-    const shown = (field) => (allErrors[field] && (submitted || touched[field] || serverErrors[field]) ? allErrors[field] : '');
+    const shown = (field: string) => (allErrors[field] && (submitted || touched[field] || serverErrors[field]) ? allErrors[field] : '');
     const visibleErrors = Object.fromEntries(Object.keys(FIELD_LABELS).filter((k) => allErrors[k]).map((k) => [k, allErrors[k]]));
 
     const dirtyCount = countLocationChanges(values, initial);
-    const addressChanged = ADDRESS_FIELDS.some((k) => String(values[k]).trim() !== String(initial[k]).trim());
+    const addressChanged = ADDRESS_FIELDS.some((k) => String(values[k as LocationField]).trim() !== String(initial[k as LocationField]).trim());
 
     // Any other location can be this one's RDC; the shared location dropdown
     // lists them A–Z after None.
@@ -92,13 +122,13 @@ export default function LocationForm({ location = null, locations = [], users = 
     const repList = useSalesRepOptions({ current: { name: values.salesRep } });
     const { user } = useAuth();
     // Daily Report email: anyone active with an email who isn't listed yet.
-    const userById = useMemo(() => new Map((Array.isArray(users) ? users : []).map((u) => [String(u._id), u])), [users]);
+    const userById = useMemo(() => new Map<string, UserRecord>((Array.isArray(users) ? users : []).map((u) => [String(u._id), u])), [users]);
     const personOptions = useMemo(() => [...userById.values()]
         .filter((u) => u.isActive !== false && isEmail(u.email) && !values.reportUserIds.includes(String(u._id)))
         .map((u) => ({ value: String(u._id), label: u.displayName || u.username, description: u.email, keywords: u.username }))
         .sort((a, b) => a.label.localeCompare(b.label)), [userById, values.reportUserIds]);
-    const addPerson = (id) => { if (id) set({ reportUserIds: [...values.reportUserIds, id] }); };
-    const removePerson = (id) => set({ reportUserIds: values.reportUserIds.filter((x) => x !== id) });
+    const addPerson = (id: string) => { if (id) set({ reportUserIds: [...values.reportUserIds, id] }); };
+    const removePerson = (id: string) => set({ reportUserIds: values.reportUserIds.filter((x) => x !== id) });
     const priceOptions = [{ value: '', label: 'None' }, ...PRICE_LEVELS.map((l) => ({ value: String(l), label: priceLevelLabel(l) }))];
     const termsOptions = [{ value: '', label: 'None' }, ...PAYMENT_TERMS.map((t) => ({ value: t, label: t }))];
 
@@ -113,7 +143,7 @@ export default function LocationForm({ location = null, locations = [], users = 
         }
         setSaving(true);
         try {
-            const res = await authFetch(isEdit ? `${API_URL}/api/admin/locations/${location._id}` : `${API_URL}/api/admin/locations`, {
+            const res = await authFetch(isEdit ? `${API_URL}/api/admin/locations/${location!._id}` : `${API_URL}/api/admin/locations`, {
                 method: isEdit ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(locationRecordFromValues(values))
@@ -140,7 +170,7 @@ export default function LocationForm({ location = null, locations = [], users = 
     // One text field: label, input, error. `name` is the FIELD_LABELS key.
     // index.css title-cases every text input; codes, addresses' state/ZIP,
     // websites and numbers must read exactly as typed.
-    const text = (name, { label = FIELD_LABELS[name], required = false, type = 'text', placeholder, inputMode, prefix, suffix, readOnly = false, title, autoCapitalize, asTyped = false } = {}) => {
+    const text = (name: LocationField, { label = FIELD_LABELS[name], required = false, type = 'text', placeholder, inputMode, prefix, suffix, readOnly = false, title, autoCapitalize, asTyped = false }: TextOptions = {}) => {
         const id = `loc-${name}`;
         const error = shown(name);
         const input = (
@@ -149,14 +179,14 @@ export default function LocationForm({ location = null, locations = [], users = 
                 className={`fm-input${asTyped ? ' no-capitalize' : ''}${prefix ? ' loc-has-prefix' : ''}${suffix ? ' loc-has-suffix' : ''}`}
                 type={type}
                 inputMode={inputMode}
-                value={values[name]}
+                value={values[name] as string}
                 placeholder={placeholder}
                 readOnly={readOnly}
                 title={title}
                 autoComplete="off"
                 autoCapitalize={autoCapitalize ?? (asTyped ? undefined : 'words')}
                 spellCheck={type === 'email' || type === 'url' ? false : undefined}
-                onChange={(e) => set({ [name]: CLEAN[name] ? CLEAN[name](e.target.value) : e.target.value })}
+                onChange={(e) => set({ [name]: CLEAN[name] ? CLEAN[name]!(e.target.value) : e.target.value })}
                 onBlur={() => touch(name)}
                 {...describedBy(id, error)}
             />
@@ -173,13 +203,13 @@ export default function LocationForm({ location = null, locations = [], users = 
             </FormField>
         );
     };
-    const picker = (name, options, placeholder) => {
+    const picker = (name: LocationField, options: { value: string; label: string }[], placeholder: string) => {
         const id = `loc-${name}`;
         return (
             <FormField name={name} id={id} label={FIELD_LABELS[name]} error={shown(name)}>
                 <FormPicker
                     id={id}
-                    value={values[name]}
+                    value={values[name] as string}
                     onChange={(v) => { set({ [name]: v }); markTouched(name); }}
                     options={options}
                     placeholder={placeholder}
@@ -189,7 +219,7 @@ export default function LocationForm({ location = null, locations = [], users = 
             </FormField>
         );
     };
-    const checkbox = (name, label) => (
+    const checkbox = (name: LocationField, label: string) => (
         <label className="loc-check">
             <input type="checkbox" checked={Boolean(values[name])} onChange={(e) => set({ [name]: e.target.checked })} />
             <span>{label}</span>
@@ -197,7 +227,7 @@ export default function LocationForm({ location = null, locations = [], users = 
     );
     // City / State / ZIP for either address block.
     const cityStateZip = (prefix = '') => {
-        const k = (f) => (prefix ? `${prefix}${f[0].toUpperCase()}${f.slice(1)}` : f);
+        const k = (f: string) => (prefix ? `${prefix}${f[0].toUpperCase()}${f.slice(1)}` : f) as LocationField;
         const required = !prefix;
         return (
             <div className="loc-csz">
@@ -218,7 +248,7 @@ export default function LocationForm({ location = null, locations = [], users = 
             className="fm-btn fm-btn-text-danger"
             disabled={saving || dirtyCount > 0}
             title={dirtyCount > 0 ? 'Save or discard your changes first' : 'Delete this location'}
-            onClick={async () => { if (await onDelete(location)) onClose(); }}
+            onClick={async () => { if (await onDelete(location!)) onClose(); }}
         >
             <Trash2 size={16} aria-hidden="true" />
             Delete location
@@ -227,7 +257,7 @@ export default function LocationForm({ location = null, locations = [], users = 
 
     return (
         <FormModal
-            title={isEdit ? <>Edit location <span className="fm-title-sub">· {location.name}</span></> : 'Add a location'}
+            title={isEdit ? <>Edit location <span className="fm-title-sub">· {location!.name}</span></> : 'Add a location'}
             size="l"
             onClose={onClose}
             onSubmit={submit}
@@ -243,7 +273,7 @@ export default function LocationForm({ location = null, locations = [], users = 
             footerStart={footerStart}
             footerNote={formError
                 ? <span className="fm-error" role="alert"><AlertCircle size={13} aria-hidden="true" />{formError}</span>
-                : (readOnly ? 'View only — you can’t change this location.' : (isEdit ? lastChangedText(location) : null))}
+                : (readOnly ? 'View only — you can’t change this location.' : (isEdit ? lastChangedText(location!) : null))}
         >
           <fieldset disabled={readOnly} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
             <FormSection number={1} title="Which location is it?">

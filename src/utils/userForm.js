@@ -78,6 +78,7 @@ export const generateTempPassword = (random) => {
  * be submitted.
  *   usernameTaken — the availability check said someone already has it.
  */
+/** @returns {Record<string, string>} */
 export const validateNewUser = (values, { usernameTaken = false, checkUsername = true } = {}) => {
     const errors = {};
     if (!String(values.displayName || '').trim()) errors.displayName = 'Enter their full name';
@@ -113,6 +114,10 @@ const KEPT_AS_IS = ['displayName', 'email', 'joiningDate', 'assignedLocations'];
  * was isn't held against the edit: an older account with no email or joining
  * date can still have its role or password changed without someone making
  * those up (owner's call, 2026-10-05). Changing or clearing one is checked.
+ *
+ * @param {Record<string, any>} values
+ * @param {Record<string, any> | null} [initial]
+ * @returns {Record<string, string>}
  */
 export const validateUserEdit = (values, initial = null) => {
     const errors = validateNewUser(values, { checkUsername: false });
@@ -198,7 +203,10 @@ export const lockedUntilTime = (user, now = Date.now()) => {
     return until ? until.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
 };
 
-/** Field labels for the error banner ("2 fields need attention — Full name, Joining date"). */
+/**
+ * Field labels for the error banner ("2 fields need attention — Full name, Joining date").
+ * @type {Record<string, string>}
+ */
 export const FIELD_LABELS = {
     displayName: 'Full name',
     email: 'Work email',

@@ -15,9 +15,9 @@ agreed template, built from design **A · One clear form** on the
 - `useTouched`: when to show errors
 - `formFocus`: Go to first and the Tab trap
 
-**Add User** and **Edit User** (`src/components/sales/users/`) are on it, on
+**Add User** and **Edit User** (`src/features/users/userForm/`) are on it, on
 both Sales CRM → Users & Roles and the /admin page. **Add / Edit location**
-(`src/components/sales/locations/LocationForm.jsx`, size L) is on it too.
+(`src/features/users/locations/LocationForm.tsx`, size L) is on it too.
 **Add / Edit visit** (`src/components/sales/VisitForm.jsx`, size M; rules in
 `src/utils/visitForm.js`) is on it, built from model C on the
 [Add & Edit Visit canvas](https://claude.ai/artifact/UPcjj89doxCRsubhTrDZfN):

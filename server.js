@@ -1720,7 +1720,7 @@ app.get('/api/admin/users', authenticate, usersAccess('view'), async (req, res) 
 });
 
 // Create new user (manage_users permission needed) — Add User in Users &
-// Roles (src/components/sales/users/AddUserForm.jsx). The form checks all of
+// Roles (src/features/users/userForm/AddUserForm.tsx). The form checks all of
 // this first; it's repeated here because the server is what actually guards
 // the data. Sign-in is either a temporary password (mustChangePassword: they
 // pick their own at first sign-in) or an emailed invite link
@@ -1826,7 +1826,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (
     const { username, displayName, email, role, password, location, assignedLocations, joiningDate, signInReset } = req.body;
     const userId = req.params.id;
     // Fields are checked only when sent, so the older /admin screen's partial
-    // saves still work; Edit user (users/EditUserForm.jsx) sends them all.
+    // saves still work; Edit user (features/users/userForm/EditUserForm.tsx) sends them all.
     const fail = (field, message) => res.status(400).json({ field, message });
 
     const user = await User.findById(userId);
@@ -2205,7 +2205,7 @@ const applyLocationGeocode = async (location) => {
   location.geocode = patch.geocode;
 };
 
-// Add / Edit location (src/components/sales/locations/LocationForm.jsx). The
+// Add / Edit location (src/features/users/locations/LocationForm.tsx). The
 // body is the whole record; src/utils/locationForm.js runs the same checks
 // the form does, and answers { field, message } for the first problem so the
 // form can put it under the right field.

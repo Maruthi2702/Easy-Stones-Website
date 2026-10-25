@@ -1,6 +1,6 @@
 /**
  * Add / Edit location (Users & Roles → Locations): the rules shared by the
- * form (src/components/sales/locations/LocationForm.jsx) and the server
+ * form (src/features/users/locations/LocationForm.tsx) and the server
  * (POST/PATCH /api/admin/locations in server.js), so a location can't pass
  * one and fail the other. Pure functions only — no React, no database.
  *
@@ -30,6 +30,7 @@ export const DEFAULT_PAYMENT_TERMS = 'C.O.D';
 
 // Every field the form can flag, in on-screen order — the error banner lists
 // them in this order and "Go to first" goes to the first.
+/** @type {Record<string, string>} */
 export const FIELD_LABELS = {
   fullName: 'Full name',
   name: 'Short name',
@@ -198,6 +199,10 @@ const tenDigits = (v) => stripPhone(trim(v)).length === 10;
  * unique short name / short code checks and the RDC list. On edit, pass
  * `isEdit` and `selfId`; the short name can't change then, so it isn't
  * checked for clashes.
+ *
+ * @param {Record<string, any>} v
+ * @param {{ isEdit?: boolean, selfId?: unknown, others?: Record<string, any>[] }} [options]
+ * @returns {Record<string, string>}
  */
 export const validateLocationValues = (v, { isEdit = false, selfId = null, others = [] } = {}) => {
   const e = {};

@@ -11,6 +11,7 @@ import {
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
 import { FULL_ACCESS, USERS, ROLES, LOCATIONS, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
+import type { PageDef, RoleRecord } from '../types';
 
 // The Check In card's switches, by key. Which section each sits in, and the
 // order, is CHECKIN_SECTIONS'.
@@ -48,7 +49,7 @@ const USERS_ROLES_ICONS = {
     [NAV_ORDER]: ArrowUpDown
 };
 
-export const PAGE_PERMISSIONS = [
+export const PAGE_PERMISSIONS: PageDef[] = [
     {
         id: 'dashboard',
         page: 'Dashboard',
@@ -307,7 +308,7 @@ export const PAGE_PERMISSIONS = [
  * One line describing what a role can open — the Add/Edit user role picker's
  * description, e.g. "Driver screen · Delivery Schedule".
  */
-export const describeRole = (role) => summarizeRole(role?.permissions || [], PAGE_PERMISSIONS);
+export const describeRole = (role: Pick<RoleRecord, 'permissions'> | null | undefined): string => summarizeRole(role?.permissions || [], PAGE_PERMISSIONS);
 
 /** Whether a role puts its people on the delivery board as a truck column. */
-export const isDriverRole = (role) => (role?.permissions || []).includes('delivery_driver_view');
+export const isDriverRole = (role: Pick<RoleRecord, 'permissions'> | null | undefined): boolean => (role?.permissions || []).includes('delivery_driver_view');
