@@ -1,3 +1,5 @@
+import Pagination from '../../../components/shared/Pagination';
+import { usePagination, pageCount } from '../../../components/shared/paginationConfig';
 import { useState } from 'react';
 import type { Draft, InboundRow } from '../../../purchasing/types';
 import FormModal from '../../../components/shared/form/FormModal';
@@ -7,18 +9,21 @@ export default function DraftList({
   drafts,
   inbound,
   canApprove,
-  onChanged,
+  onChanged, nextCursor, onLoadMore, loadingMore,
 }: {
   drafts: Draft[];
   inbound: InboundRow[];
   canApprove: boolean;
   onChanged: () => void;
+  nextCursor?: string | null; onLoadMore?: () => void; loadingMore?: boolean;
 }) {
   const [action, setAction] = useState<{ draft: Draft; action: 'approve' | 'cancel' | 'link' } | null>(null),
     [note, setNote] = useState(''),
     [selected, setSelected] = useState<string[]>([]),
     [error, setError] = useState(''),
     [saving, setSaving] = useState(false);
+  const pagination = usePagination();
+  const visible = drafts.slice((pagination.currentPage - 1) * pagination.rowsPerPage, pagination.currentPage * pagination.rowsPerPage);
   const parents = [...new Map(inbound.map((r) => [JSON.stringify([r.po, r.line]), r])).entries()];
   async function submit() {
     if (!action) return;
@@ -85,7 +90,7 @@ export default function DraftList({
         draft before approval or export.
       </p>
       {!drafts.length && <p>No purchasing drafts yet.</p>}
-      {drafts.map((d) => (
+      {visible.map((d) => (
         <article className="purchase-draft" key={d._id}>
           <header>
             <strong>
@@ -190,6 +195,8 @@ export default function DraftList({
           </details>
         </article>
       ))}
+      <Pagination {...pagination} totalCount={drafts.length} totalPages={pageCount(drafts.length, pagination.rowsPerPage)} onPageChange={pagination.setCurrentPage} onRowsPerPageChange={pagination.setRowsPerPage} />
+      {nextCursor && <button disabled={loadingMore} onClick={onLoadMore}>{loadingMore ? 'Loading more drafts…' : 'Load more drafts'}</button>}
       {action && (
         <FormModal
           title={`${action.action === 'link' ? 'Link SPS PO' : action.action} purchasing draft`}

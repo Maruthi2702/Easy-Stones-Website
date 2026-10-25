@@ -56,11 +56,10 @@ export const scopeSchema = z
   })
   .strict()
   .superRefine((scope, ctx) => {
-    for (const field of ['policies', 'aliases']) {
-      const keys = scope[field].map((row) => variantKey(row.product || row.salesProduct));
-      if (new Set(keys).size !== keys.length)
-        ctx.addIssue({ code: 'custom', message: `Duplicate ${field} product` });
-    }
+    const policies = scope.policies.map(row => variantKey(row.product));
+    const salesAliases = scope.aliases.map(row => variantKey(row.salesProduct));
+    if (new Set(policies).size !== policies.length) ctx.addIssue({ code: 'custom', message: 'Duplicate policies product' });
+    if (new Set(salesAliases).size !== salesAliases.length) ctx.addIssue({ code: 'custom', message: 'Duplicate aliases product' });
     const aliases = scope.aliases.map((a) => variantKey(a.stockProduct));
     if (new Set(aliases).size !== aliases.length)
       ctx.addIssue({ code: 'custom', message: 'Two sales variants cannot share a stock alias' });

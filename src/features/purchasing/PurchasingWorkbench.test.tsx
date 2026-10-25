@@ -3,11 +3,13 @@ import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { clearInventoryCache } from '../../api/inventoryAnalysisCache';
 import { setAuthToken, clearAuthToken } from '../../api/authToken';
-import { project } from '../../purchasing/planning';
+import { todayPacific, project } from '../../purchasing/planning';
 import type { Plan, Metadata } from '../../purchasing/types';
 vi.mock('./purchasingApi', () => ({
   purchasingApi: {
     metadata: vi.fn(),
+    revision: vi.fn(),
+    confirmReceipt: vi.fn(),
     plan: vi.fn(),
     drafts: vi.fn(),
     inbound: vi.fn(),
@@ -46,7 +48,7 @@ const scope = {
 const plan: Plan = {
   scope,
   fingerprint: 'snapshot',
-  today: '2026-10-24',
+  today: todayPacific(new Date()),
   generatedAt: '2026-10-24T20:00:00Z',
   cohort: {
     id: 'cohort',
@@ -90,8 +92,9 @@ const metadata: Metadata = {
 beforeEach(() => {
   clearInventoryCache();
   vi.mocked(purchasingApi.metadata).mockResolvedValue(metadata);
+  vi.mocked(purchasingApi.revision).mockResolvedValue({ revision: 0 });
   vi.mocked(purchasingApi.plan).mockResolvedValue(plan);
-  vi.mocked(purchasingApi.drafts).mockResolvedValue([]);
+  vi.mocked(purchasingApi.drafts).mockResolvedValue({ items: [], nextCursor: null });
   vi.mocked(purchasingApi.inbound).mockResolvedValue(null);
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
 });
@@ -117,7 +120,7 @@ describe('purchasing workbench rendering', () => {
       ready: 0,
       receipts: [],
       policy,
-      today: '2026-10-24',
+      today: todayPacific(new Date()),
       leadDays: 90,
       reviewDays: 7,
       bufferDays: 21,
@@ -184,8 +187,9 @@ describe('purchasing workbench rendering', () => {
   });
   it('offers scope and SPS supply configuration only to a purchasing editor', async () => {
     render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
-    await screen.findByRole('button', { name: 'Import SPS PO / transit' });
-    fireEvent.click(screen.getByRole('button', { name: 'Import SPS PO / transit' }));
+    await screen.findByRole('button', { name: 'Settings & sources' });
+    fireEvent.click(screen.getByRole('button', { name: 'Settings & sources' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import open PO snapshot' }));
     expect(await screen.findByRole('heading', { name: 'Import SPS open POs & transit' })).toBeTruthy();
     expect(
       screen.getByRole('button', { name: 'Save complete supply snapshot' }).hasAttribute('disabled'),
@@ -195,16 +199,16 @@ describe('purchasing workbench rendering', () => {
   it('shows a setup state when reports exist but no scope has been validated', async () => {
     vi.mocked(purchasingApi.metadata).mockResolvedValue({ ...metadata, scopes: [] });
     render(<PurchasingWorkbench currentUser={{ permissions: ['manage_purchasing'] }} />);
-    await screen.findByText('Start with a verified planning scope');
+    await screen.findByText('Set up your warehouse view');
     fireEvent.click(screen.getByRole('button', { name: 'New planning scope' }));
     await waitFor(() => expect(screen.getByRole('heading', { name: 'New purchasing scope' })).toBeTruthy());
     expect(screen.getByText(/not only top sellers/)).toBeTruthy();
   });
-  it('does not invent 30/90/180-day trends from one aggregate cohort', async () => {
+  it('provides stock, incoming, draft and source views', async () => {
     render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
     await screen.findByRole('button', { name: 'Quartz 3CM' });
-    fireEvent.click(screen.getByRole('button', { name: 'Color performance' }));
-    expect(screen.getByText(/30\/90\/180-day trend and statistical XYZ are unavailable/)).toBeTruthy();
+    for (const name of ['Stock overview', 'Incoming containers', 'Purchase drafts', 'Settings & sources']) expect(screen.getByRole('button', { name })).toBeTruthy();
+
   });
 });
 
@@ -256,13 +260,13 @@ describe('purchasing tab return', () => {
     await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
     expect(purchasingApi.metadata).toHaveBeenCalledTimes(2);
   });
-  it('expires remembered answers after 30 seconds', async () => {
+  it('expires remembered answers after five minutes', async () => {
     const now = Date.now();
     const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
     const first = render(<PurchasingWorkbench currentUser={user} />);
     await screen.findByRole('button', { name: 'Quartz 3CM' });
     first.unmount();
-    clock.mockReturnValue(now + 30001);
+    clock.mockReturnValue(now + 300001);
     render(<PurchasingWorkbench currentUser={user} />);
     await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
     expect(purchasingApi.metadata).toHaveBeenCalledTimes(2);
@@ -372,6 +376,7 @@ describe('using report dates automatically', () => {
     vi.mocked(purchasingApi.saveScope).mockResolvedValue(legacyScope);
     render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
     await screen.findByRole('button', { name: 'Quartz 3CM' });
+    fireEvent.click(screen.getByRole('button', { name: 'Settings & sources' }));
     fireEvent.click(screen.getByRole('button', { name: 'Edit scope & variant policies' }));
     expect(screen.queryByRole('checkbox', { name: /I verified the report contains actual sales through/ })).toBeNull();
     expect(screen.getByText(/Calculations use 273 calendar days/)).toBeTruthy();
@@ -420,5 +425,48 @@ describe('stock evaluation separated from purchase planning', () => {
     expect(modal.getByText('Requirements for purchase recommendations:')).toBeTruthy();
     fireEvent.click(modal.getByRole('button', { name: 'Set up purchase planning' }));
     expect(await screen.findByRole('heading', { name: 'Edit purchasing scope' })).toBeTruthy();
+  });
+});
+
+describe('independent purchasing resources', () => {
+  it('keeps stock results usable when only draft history fails', async () => {
+    vi.mocked(purchasingApi.drafts).mockRejectedValueOnce(new Error('Draft service temporarily unavailable'));
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    expect(await screen.findByRole('button', { name: 'Quartz 3CM' })).toBeTruthy();
+    expect(screen.queryByText('Drafts could not be loaded:')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Purchase drafts' }));
+    expect(await screen.findByText(/Draft service temporarily unavailable/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Stock overview' }));
+    expect(screen.getByRole('button', { name: 'Quartz 3CM' })).toBeTruthy();
+    expect(purchasingApi.plan).toHaveBeenCalledTimes(1);
+  });
+  it('retains successful stock in the return cache after an auxiliary failure', async () => {
+    vi.mocked(purchasingApi.inbound).mockRejectedValueOnce(new Error('Supply unavailable'));
+    const first = render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    await waitFor(() => expect(purchasingApi.inbound).toHaveBeenCalledTimes(1));
+    first.unmount();
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    expect(screen.getByRole('button', { name: 'Quartz 3CM' })).toBeTruthy();
+    await waitFor(() => expect(purchasingApi.inbound).toHaveBeenCalledTimes(2));
+    expect(purchasingApi.plan).toHaveBeenCalledTimes(1);
+  });
+  it('exports the selected forecast horizon and current stock facts', async () => {
+    const { exportPlan } = await import('./purchasingApi');
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    fireEvent.click(screen.getByRole('button', { name: '4d' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Export stock review' }));
+    expect(exportPlan).toHaveBeenCalledWith(plan, 4);
+  });
+  it('shows missing container identity without claiming zero containers', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, rows: [{ ...plan.rows[0], transit: [{ key: 'missing', poNumber: 'P1', containerNumber: '', siplNumber: '', product: 'Quartz 3CM', branch: 'Seattle', supplier: 'ABC', slabs: null, quantity: 75, units: 'SF', eta: null, importedAt: null }] }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    expect(screen.getByText(/Container IDs unknown/)).toBeTruthy();
+    expect(screen.queryByText('0 containers')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Incoming containers' }));
+    expect(await screen.findByText('Container ID missing')).toBeTruthy();
+    expect(screen.getByText('Unknown slabs')).toBeTruthy();
   });
 });

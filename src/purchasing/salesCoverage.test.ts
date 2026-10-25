@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { confirmSalesThrough, hasConfirmedSalesThrough } from './salesCoverage';
-import { buildPlan, stockId } from './buildPlan.js';
+import { buildPlan, stockId } from './buildPlan.ts';
 
 describe('source-bound sales coverage confirmation', () => {
   const confirmation = () => confirmSalesThrough('report-1', '2026-09-30', { id: null, name: 'Workspace owner' }, 'owner-confirmation', new Date('2026-10-25T20:00:00Z'));

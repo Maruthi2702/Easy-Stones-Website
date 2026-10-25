@@ -119,6 +119,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
 
   const [transitRefresh, setTransitRefresh] = useState(0);
   const [importResult, setImportResult] = useState('');
+  const [importRefresh, setImportRefresh] = useState(0);
   const [importModal, setImportModal] = useState<InventoryImportKind | null>(null); // 'stock' | 'sales' | 'transit' | null
 
   const userPermissions = currentUser?.permissions || [];
@@ -330,11 +331,12 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
 
   const handleImportComplete = (data: InventoryImportResult) => {
     if (importModal === 'transit') {
-      setView('transit');
+      if (view !== 'purchasing') setView('transit');
       setTransitRefresh(value => value + 1);
-      setImportResult(`Imported ${data.count} product lines across ${data.shipmentCount} PO/container groups.`);
+      setImportResult(`Imported ${data.count} product lines across ${data.shipmentCount} PO/container groups.${data.withdrawnCount ? ` Archived ${data.withdrawnCount} groups no longer in the complete report.` : ''}`);
     }
     setImportModal(null);
+    setImportRefresh(value => value + 1);
     refreshAll();
   };
 
@@ -404,7 +406,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
         <button type="button" className={view === 'transit' ? 'active' : ''} onClick={() => setView('transit')}>In-Transit</button>
       </div>
       {importResult && <p role="status">{importResult}</p>}
-      {view === 'purchasing' ? <PurchasingWorkbench key={currentUser?.id || 'purchasing'} currentUser={currentUser} refreshSignal={refreshSignal} /> : view === 'transit' ? <InventoryTransitPanel refreshSignal={`${refreshSignal}-${transitRefresh}`} canImport={canImport}
+      {view === 'purchasing' ? <PurchasingWorkbench key={currentUser?.id || 'purchasing'} currentUser={currentUser} refreshSignal={refreshSignal + importRefresh} onImportTransit={canImport ? () => setImportModal('transit') : undefined} /> : view === 'transit' ? <InventoryTransitPanel refreshSignal={`${refreshSignal}-${transitRefresh}`} canImport={canImport}
         onImport={() => setImportModal('transit')} /> : initialLoading ? (
         <div className="invan-loading"><RefreshCw size={24} className="invan-spin-icon" /><span>Loading inventory analysis...</span></div>
       ) : hasNoData ? (

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import type { Model, Schema as SchemaType } from 'mongoose';
 const { Schema } = mongoose;
 const options = { timestamps: true, optimisticConcurrency: true };
 const scope = new Schema(
@@ -6,6 +7,7 @@ const scope = new Schema(
     name: String,
     branches: [String],
     cohortId: String,
+    cohortRevision: String,
     observedThrough: String,
     salesCoverageConfirmation: {
       type: new Schema({
@@ -53,6 +55,7 @@ const inbound = new Schema(
   {
     scopeId: { type: Schema.Types.ObjectId, required: true, index: true },
     complete: Boolean,
+    branches: { type: [String], default: undefined },
     importedBy: String,
     rows: [Schema.Types.Mixed],
     receipts: [Schema.Types.Mixed],
@@ -71,6 +74,7 @@ const draft = new Schema(
     note: String,
     createdBy: { id: String, name: String },
     existingPoLines: [String],
+    existingTransitParents: [String],
     linkedPoLines: [String],
     history: [{ _id: false, action: String, at: Date, name: String, note: String }],
   },
@@ -84,7 +88,7 @@ const lock = new Schema(
   { collection: 'purchasing_locks' },
 );
 lock.index({ draftId: 1 });
-const model = (name, schema) => mongoose.models[name] || mongoose.model(name, schema);
+const model = <T>(name: string, schema: SchemaType<T>): Model<T> => (mongoose.models[name] as Model<T> | undefined) || mongoose.model<T>(name, schema);
 export const PurchasingScope = model('PurchasingScope', scope);
 export const PurchasingInbound = model('PurchasingInbound', inbound);
 export const PurchasingDraft = model('PurchasingDraft', draft);

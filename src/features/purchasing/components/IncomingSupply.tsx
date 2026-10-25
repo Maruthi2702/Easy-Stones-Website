@@ -10,7 +10,7 @@ export default function IncomingSupply({ lines = [] }: { lines?: ImportedTransit
   return <>
     <strong>{known.length ? `${slabs.toLocaleString()} slabs` : 'Slabs unknown'}</strong>
     {unknown > 0 && <small>{unknown} line{unknown === 1 ? '' : 's'} with unknown slab count</small>}
-    <small>{containers.size} container{containers.size === 1 ? '' : 's'}{etas[0] ? ` · Next ETA ${etas[0]}` : ' · ETA unknown'}</small>
+    <small>{containers.size ? `${containers.size} container${containers.size === 1 ? '' : 's'}` : 'Container IDs unknown'}{lines.some(line => !line.containerNumber) ? ` · ${lines.filter(line => !line.containerNumber).length} missing ID line(s)` : ''}{etas[0] ? ` · Next ETA ${etas[0]}` : ' · ETA unknown'}</small>
     <details>
       <summary>PO &amp; container details</summary>
       {lines.map(line => <p key={line.key}>

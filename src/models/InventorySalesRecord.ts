@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import type { InferSchemaType, Model } from 'mongoose';
 
 // One row per product from an SPS "Fast Moving Inventory" (sold/velocity)
 // export, scoped to the location and date range the report was run for.
@@ -6,9 +7,9 @@ import mongoose from 'mongoose';
 // imports — each (product, location, periodStart, periodEnd) is its own
 // snapshot, so multiple periods/locations can coexist for trend comparisons.
 // Re-importing the same period+location replaces just that combination (see
-// /api/inventory-analysis/import/sales/apply in src/routes/inventoryAnalysis.js).
+// /api/inventory-analysis/import/sales/apply in src/routes/inventoryAnalysis.ts).
 const inventorySalesRecordSchema = new mongoose.Schema({
-  // Not indexed individually — src/routes/inventoryAnalysis.js only ever queries this collection
+  // Not indexed individually — src/routes/inventoryAnalysis.ts only ever queries this collection
   // by { location }, or by { location, periodStart, periodEnd } (see the
   // velocity/apply routes). Nothing filters by product, category, or a
   // period boundary alone, so the compound index below (led by location)
@@ -52,4 +53,5 @@ const inventorySalesRecordSchema = new mongoose.Schema({
 // about order, so reordering away from insertion order costs nothing.
 inventorySalesRecordSchema.index({ location: 1, periodStart: 1, periodEnd: 1, product: 1 }, { unique: true });
 
-export default mongoose.models.InventorySalesRecord || mongoose.model('InventorySalesRecord', inventorySalesRecordSchema);
+export type InventorySale = InferSchemaType<typeof inventorySalesRecordSchema>;
+export default (mongoose.models.InventorySalesRecord as Model<InventorySale> | undefined) || mongoose.model<InventorySale>('InventorySalesRecord', inventorySalesRecordSchema);

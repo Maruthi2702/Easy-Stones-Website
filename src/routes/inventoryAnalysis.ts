@@ -17,15 +17,19 @@ import type { Model, QueryFilter } from 'mongoose';
 // Authentication is supplied by server.js before any handler runs.
 declare module 'express-serve-static-core' {
   interface Request {
-    user: { id?: string; username?: string; displayName?: string; contactName?: string; permissions: string[] };
+    user: { id?: string; username?: string; displayName?: string; contactName?: string; assignedLocations?: string[]; permissions: string[] };
   }
 }
 import mongoose from 'mongoose';
 import { randomUUID, createHash } from 'crypto';
+import { inInventoryTransaction } from '../services/inventoryTransaction.ts';
+import { publishTransitReport } from '../services/inventoryTransitImport.ts';
+import { validDay } from '../purchasing/planning.ts';
+import { reportIdentity } from '../purchasing/reportIdentity.ts';
+import { PurchasingScope } from '../purchasing/models.ts';
 import { importInventoryStock } from '../services/inventoryStockImport.ts';
 import InventoryItem from '../models/InventoryItem.ts';
-import InventorySalesRecordModel from '../models/InventorySalesRecord.js';
-const InventorySalesRecord = InventorySalesRecordModel as Model<Record<string, any>>;
+import InventorySalesRecord from '../models/InventorySalesRecord.ts';
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
 import { groupTransitShipments } from '../utils/inventoryTransitImport.ts';
 import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.js';
@@ -33,7 +37,6 @@ import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.js';
 // file needs that isolation.
 import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
 // Big writes go in batches that survive a dropped database connection.
-import { insertInBatches, withDbRetry } from '../utils/dbRetry.js';
 
 /**
  * @param {object} deps
@@ -369,7 +372,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
 
   router.get('/in-transit', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
     try {
-      const shipments = await InventoryTransitShipment.find().sort({ poNumber: 1, containerNumber: 1 }).lean();
+      const shipments = await InventoryTransitShipment.find({ active: { $ne: false } }).sort({ poNumber: 1, containerNumber: 1 }).lean();
       res.json({ shipments });
     } catch (error) {
       console.error('In-transit inventory error:', error);
@@ -380,12 +383,12 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   router.post('/import/transit/preview', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
-      const parsed = await runWorkbookParse('inventory-transit', req.file.buffer);
+      const parsed = { ...await runWorkbookParse('inventory-transit', req.file.buffer), sourceFilename: req.file.originalname, sourceHash: createHash('sha256').update(req.file.buffer).digest('hex') };
       const { headers, mapping, missingRequired, rows, errors, diagnostics, warnings } = parsed;
-      const uploadId = missingRequired.length || errors.length || !rows.length ? null
+      const uploadId = missingRequired.length || errors.length ? null
         : rememberParsedUpload('inventory-transit', String(req.user?.id || ''), parsed);
       res.json({ headers, mapping, missingRequired, errors, diagnostics, warnings, totalRows: rows.length,
-        shipmentCount: groupTransitShipments(rows).length, sample: rows.slice(0, 10), uploadId });
+        branches: [...new Set(rows.map((r: { location: string }) => r.location))], shipmentCount: groupTransitShipments(rows).length, sample: rows.slice(0, 10), uploadId });
     } catch (error) {
       res.status(400).json({ message: `Preview failed: ${(error instanceof Error ? error.message : String(error))}` });
     }
@@ -395,21 +398,19 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
     try {
       const parsed = await parsedImportFor(req, 'inventory-transit');
       if (!parsed) return res.status(req.body?.uploadId ? 410 : 400).json({ message: 'Select the in-transit file again' });
-      if (parsed.missingRequired.length || parsed.errors.length || !parsed.rows.length) {
-        return res.status(400).json({ message: parsed.errors[0] ||
-          (parsed.missingRequired.length ? `Missing columns: ${parsed.missingRequired.join(', ')}` : 'No INTRANSIT product rows found') });
-      }
+      if (parsed.missingRequired.length || parsed.errors.length) return res.status(400).json({ message: parsed.errors[0] || `Missing columns: ${parsed.missingRequired.join(', ')}` });
       const shipments = groupTransitShipments(parsed.rows);
-      const importedAt = new Date();
-      const importedByName = req.user?.displayName || req.user?.contactName || req.user?.username || '';
-      await withDbRetry(() => InventoryTransitShipment.bulkWrite(shipments.map(shipment => ({
-        updateOne: {
-          filter: { poNumber: shipment.poNumber, containerNumber: shipment.containerNumber, location: shipment.location },
-          update: { $set: { ...shipment, importedAt, importedByName } }, upsert: true
-        }
-      }))));
+      const complete = req.body.complete !== 'false' && req.body.complete !== false;
+      let branches: string[];
+      try { branches = req.body.branches ? (typeof req.body.branches === 'string' ? JSON.parse(req.body.branches) : req.body.branches) : [...new Set(parsed.rows.map((r: { location: string }) => r.location))]; }
+      catch { return res.status(400).json({ message: 'Invalid report branch coverage' }); }
+      if (!Array.isArray(branches) || branches.some(b => typeof b !== 'string')) return res.status(400).json({ message: 'Select report branches' });
+      if (!parsed.rows.length && (!complete || !branches.length || ![true, 'true'].includes(req.body.confirmEmpty))) return res.status(400).json({ message: 'For an empty complete report, select its branches and confirm there are no in-transit containers' });
+      const result = await publishTransitReport({ shipments, branches, complete,
+        sourceFilename: req.file?.originalname || parsed.sourceFilename || '', sourceHash: req.file ? createHash('sha256').update(req.file.buffer).digest('hex') : parsed.sourceHash || '',
+        importedByName: req.user?.displayName || req.user?.contactName || req.user?.username || '' });
       req.app.get('io')?.emit('inventory_analysis_update');
-      res.json({ success: true, count: parsed.rows.length, shipmentCount: shipments.length, importedAt });
+      res.json({ success: true, count: parsed.rows.length, ...result });
     } catch (error) {
       console.error('In-transit import error:', error);
       res.status(400).json({ message: `Import failed: ${(error instanceof Error ? error.message : String(error))}` });
@@ -493,14 +494,14 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       const periodStart = req.body.periodStart ? new Date(req.body.periodStart) : null;
       const periodEnd = req.body.periodEnd ? new Date(req.body.periodEnd) : null;
       if (!location) return res.status(400).json({ message: 'Location is required' });
-      if (!periodStart || !periodEnd || Number.isNaN(periodStart.getTime()) || Number.isNaN(periodEnd.getTime())) {
+      if (!periodStart || !periodEnd || !validDay(String(req.body.periodStart)) || !validDay(String(req.body.periodEnd))) {
         return res.status(400).json({ message: 'A valid period start and end date are required' });
       }
       // A reversed range doesn't fail loudly downstream — the velocity endpoint
       // floors (periodEnd - periodStart) at 1 day, so a swapped start/end would
       // silently read the whole period's total as "sold in one day" and make
       // every product's days-of-supply look ~N times too low.
-      if (periodStart >= periodEnd) {
+      if (periodStart > periodEnd) {
         return res.status(400).json({ message: 'Period start must be before period end' });
       }
 
@@ -508,35 +509,21 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       const importedByName = req.user?.displayName || req.user?.contactName || req.user?.username || '';
       const importedById = req.user?.id || null;
 
-      // Re-importing the same period+location is a correction, not a
-      // duplicate — replace just that slice rather than every period on file.
-      // The unique (product, location, periodStart, periodEnd) index means the
-      // new rows can't be inserted ahead of the old ones the way the stock
-      // import does it, so this keeps an in-memory backup of the slice being
-      // replaced and restores it if insertMany throws partway — a failed
-      // re-import falls back to the last-known-good data instead of leaving
-      // that period+location empty.
-      // Each step resent on a dropped connection (src/utils/dbRetry.js); rows
-      // carry their _id from here so a resent batch can't write one twice.
-      const previousDocs = await withDbRetry(() => InventorySalesRecord.find({ location, periodStart, periodEnd }).lean());
-      await withDbRetry(() => InventorySalesRecord.deleteMany({ location, periodStart, periodEnd }));
-      try {
-        const refused = await insertInBatches(
-          InventorySalesRecord,
-          rows.map((r: Record<string, any>) => ({ _id: new mongoose.Types.ObjectId(), ...r, location, periodStart, periodEnd, importedAt, importedByName, importedById }))
-        );
-        if (refused.size) {
-          const [index, message] = refused.entries().next().value!;
-          throw new Error(`Row ${index + 1} could not be saved: ${message}`);
+      await Promise.all([InventorySalesRecord.createCollection(), PurchasingScope.createCollection()]);
+      await inInventoryTransaction(async session => {
+        const previous = await InventorySalesRecord.find({ location, periodStart, periodEnd }).session(session).sort({ _id: 1 }).lean();
+        if (previous.length) {
+          const oldAt = previous.map(r => r.importedAt?.toISOString()).filter(Boolean).sort().at(-1) || '';
+          const identity = reportIdentity(location, periodStart.toISOString().slice(0, 10), periodEnd.toISOString().slice(0, 10), oldAt, previous as any);
+          // Backfill legacy references before replacing their source row IDs.
+          await PurchasingScope.updateMany({ cohortId: identity.legacyId }, { $set: { cohortId: identity.id }, $inc: { __v: 1 } }, { session });
         }
-      } catch (insertErr) {
-        await withDbRetry(() => InventorySalesRecord.deleteMany({ location, periodStart, periodEnd })).catch(() => {});
-        if (previousDocs.length) {
-          const restoreDocs = previousDocs.map(({ _id, __v, ...rest }: Record<string, any>) => rest);
-          await withDbRetry(() => InventorySalesRecord.insertMany(restoreDocs, { ordered: false })).catch(() => {});
+        await InventorySalesRecord.deleteMany({ location, periodStart, periodEnd }, { session });
+        for (let start = 0; start < rows.length; start += 1000) {
+          await InventorySalesRecord.insertMany(rows.slice(start, start + 1000).map((r: Record<string, any>) => ({ ...r,
+            location, periodStart, periodEnd, importedAt, importedByName, importedById })), { session, ordered: true });
         }
-        throw insertErr;
-      }
+      });
 
       req.app.get('io')?.emit('inventory_analysis_update');
       res.json({ success: true, count: rows.length, location, periodStart, periodEnd });

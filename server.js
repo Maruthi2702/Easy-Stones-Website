@@ -137,7 +137,7 @@ import {
 import { pickPanelFollowUps } from './src/utils/followUpPanel.js';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.ts';
-import createPurchasingRouter from './src/purchasing/router.js';
+import createPurchasingRouter from './src/purchasing/router.ts';
 import createUserOnboardingRouter, { newInvite, inviteLinkFor, sendInviteEmail } from './src/routes/userOnboarding.js';
 import {
   sessionIsCurrent, sessionVersionOf, temporaryPasswordFields, temporaryPasswordAnswer,

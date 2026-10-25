@@ -1,8 +1,11 @@
 import type { TransitLine } from '../types/inventory.ts';
 import type { ImportedTransitLine } from './types.ts';
+import { transitSignature } from './transitSignature.ts';
 import { variantKey } from './planning.ts';
 
 type Shipment = {
+  _id?: unknown; active?: boolean; sourceSignature?: string; confirmedSignature?: string;
+  usableReceiptDate?: Date | string | null;
   poNumber: string;
   containerNumber: string;
   location: string;
@@ -17,8 +20,12 @@ const iso = (value: Date | string | null | undefined): string | null => {
 
 /** Read the same imported shipments shown in Inventory Analysis, scoped by branch. */
 export function transitSupply(shipments: Shipment[], branches: string[]): ImportedTransitLine[] {
-  return shipments.filter(shipment => branches.includes(shipment.location)).flatMap(shipment =>
+  return shipments.filter(shipment => shipment.active !== false && branches.includes(shipment.location)).flatMap(shipment =>
     shipment.lines.filter(line => branches.includes(line.location) && line.status === 'INTRANSIT').map((line, index) => ({
+      shipmentId: shipment._id ? String(shipment._id) : undefined,
+      sourceSignature: shipment.sourceSignature || transitSignature(shipment),
+      usableReceiptDate: shipment.confirmedSignature === (shipment.sourceSignature || transitSignature(shipment)) ? iso(shipment.usableReceiptDate)?.slice(0, 10) || null : null,
+      receiptConfirmed: !!shipment.usableReceiptDate && shipment.confirmedSignature === (shipment.sourceSignature || transitSignature(shipment)),
       key: JSON.stringify([shipment.poNumber, shipment.containerNumber, shipment.location, index]),
       poNumber: line.poNumber,
       containerNumber: line.containerNumber,

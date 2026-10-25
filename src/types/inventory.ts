@@ -53,5 +53,6 @@ export interface InventoryImportResult {
   success: boolean;
   count: number;
   shipmentCount?: number;
+  withdrawnCount?: number;
   importedAt: string;
 }

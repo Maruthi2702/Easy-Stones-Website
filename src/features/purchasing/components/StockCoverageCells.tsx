@@ -26,7 +26,7 @@ export function StockCover({ row, onReview }: { row: PlanRow; onReview?: () => v
 }
 export function StockForecast({ row, days }: { row: PlanRow; days: number | null }) {
   const c = row.coverage;
-  if (!days || !c || !['known', 'estimated'].includes(c.state)) return <span>—</span>;
+  if (!days || !c || !['known', 'estimated', 'no-sales'].includes(c.state)) return <span>—</span>;
   const sf = c.availableQuantity! - c.dailyQuantity! * days;
   const perSlab = row.policy?.sfPerSlab;
   const equivalent = Number.isFinite(perSlab) && perSlab! > 0;

@@ -22,6 +22,7 @@ export type Scope = {
   name: string;
   branches: string[];
   cohortId: string;
+  cohortRevision?: string | null;
   observedThrough: string;
   fullSalesCoverage: boolean;
   stockSnapshotId: string;
@@ -44,6 +45,7 @@ export type Scope = {
 };
 export type Cohort = {
   products?: string[];
+  revision?: string;
   id: string;
   location: string;
   start: string;
@@ -107,6 +109,10 @@ export type Projection = {
   points: { day: string; available: number }[];
 };
 export type ImportedTransitLine = {
+  shipmentId?: string;
+  sourceSignature?: string;
+  usableReceiptDate?: string | null;
+  receiptConfirmed?: boolean;
   key: string;
   poNumber: string;
   containerNumber: string;
@@ -160,6 +166,8 @@ export type PlanRow = {
   action: string;
 };
 export type Plan = {
+  revision?: number;
+  validUntil?: string;
   scope: Scope;
   fingerprint: string;
   today: string;
@@ -215,6 +223,7 @@ export type Draft = {
   history: { action: string; at: string; name: string; note: string }[];
 };
 export type Metadata = {
+  revision?: number;
   branches: string[];
   cohorts: Cohort[];
   scopes: Scope[];

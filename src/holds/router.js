@@ -1,3 +1,4 @@
+import { inInventoryTransaction as inTransaction } from '../services/inventoryTransaction.ts';
 /**
  * Cart & Holds API (2026-10-10) — mounted at /api/holds.
  *
@@ -27,7 +28,7 @@ import { companyOf, contactOf, realEmailsOf } from '../utils/customerList.js';
 import { homeLocationOf } from '../utils/locationFilter.js';
 import { BRANCH_NAMES } from '../config/branches.js';
 import {
-  HttpError, handle, requireAll, requireAny, parse, inTransaction, checkVersion, actorOf, escapeRegex
+  HttpError, handle, requireAll, requireAny, parse, checkVersion, actorOf, escapeRegex
 } from '../server/http.js';
 import { CART, HOLDS, HOLD_VIEW_PERMISSIONS, can } from './permissions.js';
 import { Cart, Hold, SlabReservation, HoldHistory, nextNumber } from './models.js';

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import mongoose from 'mongoose';
 import InventoryItem from '../models/InventoryItem.ts';
 import { InventoryStockImport, InventoryStockBackup, InventoryStockState } from '../models/InventoryStockImport.ts';
+import { prepareInventoryRevision, touchInventoryRevision } from './inventoryTransaction.ts';
 import { withDbRetry } from '../utils/dbRetry.js';
 
 export const STOCK_BACKUP_DAYS = 7;
@@ -41,9 +42,11 @@ export async function importInventoryStock({ rows, sourceFilename = '', sourceHa
   await withDbRetry(() => InventoryStockState.updateOne(
     { _id: 'stock' }, { $setOnInsert: { version: 0 } }, { upsert: true },
   ));
+  await prepareInventoryRevision();
   const session = await mongoose.startSession();
   try {
     const result = await session.withTransaction(async () => {
+      await touchInventoryRevision(session);
       const state = await InventoryStockState.findOneAndUpdate(
         { _id: 'stock' }, { $inc: { version: 1 }, $set: { importId } },
         { session, returnDocument: 'after' },

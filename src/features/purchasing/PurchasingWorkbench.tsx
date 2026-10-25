@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Scope, PlanRow } from '../../purchasing/types';
 import { usePurchasingData } from './usePurchasingData';
-import { exportPlan } from './purchasingApi';
+import IncomingContainers from './components/IncomingContainers';
 import BuyerQueue from './components/BuyerQueue';
 import PlanDetails from './components/PlanDetails';
 import ScopeForm from './components/ScopeForm';
@@ -12,9 +12,11 @@ import './PurchasingWorkbench.css';
 export default function PurchasingWorkbench({
   currentUser,
   refreshSignal = 0,
+  onImportTransit,
 }: {
   currentUser?: { permissions?: string[] } | null;
   refreshSignal?: number;
+  onImportTransit?: () => void;
 }) {
   const d = usePurchasingData(refreshSignal),
     [tab, setTab] = useState('queue'),
@@ -35,9 +37,8 @@ export default function PurchasingWorkbench({
     <section className="purchase-workbench" aria-label="Purchasing workbench">
       <header className="purchase-heading">
         <div>
-          <span className="purchase-eyebrow">Purchasing · container replenishment</span>
-          <h2>Buy with a reason. Order with a date.</h2>
-          <p>60–90-day usable-receipt lead time · weekly review · exact variant planning</p>
+          <h2>Purchasing</h2>
+          <p>See available stock, days of supply and incoming containers. Plan purchases from the same reports.</p>
         </div>
         <div className="purchase-actions">
           <button onClick={d.refresh}>Refresh</button>
@@ -56,7 +57,7 @@ export default function PurchasingWorkbench({
       {d.metadata && (
         <div className="purchase-toolbar">
           <label>
-            Planning scope{' '}
+            Warehouse view{' '}
             <select
               aria-label="Planning scope"
               value={d.scopeId}
@@ -73,18 +74,13 @@ export default function PurchasingWorkbench({
               ))}
             </select>
           </label>
-          {scope && canEdit && (
-            <>
-              <button onClick={() => setScopeForm({ scope })}>Edit scope & variant policies</button>
-              <button onClick={() => setInboundForm(true)}>Import SPS PO / transit</button>
-            </>
-          )}
-          {d.plan && <button onClick={() => exportPlan(d.plan!)}>Export review CSV</button>}
+          {d.plan?.cohort && <span className="purchase-muted">Sales period: {d.plan.cohort.start} – {d.plan.scope.observedThrough}</span>}
+
         </div>
       )}
       {!d.loading && !d.scopeId && (
         <div className="purchase-panel purchase-empty">
-          <h3>Start with a verified planning scope</h3>
+          <h3>Set up your warehouse view</h3>
           <p>
             Import stock and Fast Moving sales through Inventory Analysis, then choose the report's actual
             branches. The completed report supplies its own sales period. Unknown coverage is not treated as zero demand or zero
@@ -102,8 +98,8 @@ export default function PurchasingWorkbench({
               <strong>{d.plan.rows.length}</strong>
             </div>
             <div>
-              <span>Stock cover available</span>
-              <strong>{d.plan.rows.filter(r => r.coverage && r.coverage.state !== 'unknown').length}</strong>
+              <span>Short within 30 days</span>
+              <strong>{d.plan.rows.filter(r => r.coverage?.days != null && r.coverage.days < 30).length}</strong>
             </div>
             <div>
               <span>Need source data</span>
@@ -132,42 +128,41 @@ export default function PurchasingWorkbench({
           )}
           <nav className="purchase-tabs" aria-label="Purchasing views">
             {[
-              ['queue', 'Buyer queue'],
-              ['performance', 'Color performance'],
-              ['drafts', 'Container drafts'],
-              ['rules', 'Data & planning rules'],
+              ['queue', 'Stock overview'],
+              ['incoming', 'Incoming containers'],
+              ['drafts', 'Purchase drafts'],
+              ['rules', 'Settings & sources'],
             ].map(([id, label]) => (
               <button key={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}>
                 {label}
               </button>
             ))}
           </nav>
-          {(tab === 'queue' || tab === 'performance') && (
+          {tab === 'queue' && (
             <>
-              {tab === 'performance' && (
-                <p className="purchase-muted">
-                  Reported totals are not a recent trend. 30/90/180-day trend and statistical XYZ are
-                  unavailable until comparable history exists. Buy quantities use one verified cohort, without
-                  adding overlapping reports. This view ranks SF variants by reported volume; EA items remain
-                  separate in the buyer queue.
-                </p>
-              )}
               <BuyerQueue
                 plan={d.plan}
-                performance={tab === 'performance'}
                 onInspect={(row, days) => { setDetails(row); setDetailForecastDays(days || 10); }}
                 onDraft={setDraftRows}
-                canEdit={tab === 'queue' && canEdit}
+                canEdit={canEdit}
                 onReviewCoverage={canEdit && scope ? () => setScopeForm({ scope }) : undefined}
               />
             </>
           )}
+          {tab === 'incoming' && <IncomingContainers plan={d.plan} canEdit={canEdit} onImport={onImportTransit} onChanged={d.refresh} />}
+          {tab === 'drafts' && d.errors.drafts && <p role="alert" className="purchase-error">Drafts could not be loaded: {d.errors.drafts} <button onClick={d.refresh}>Retry</button></p>}
+          {tab === 'drafts' && d.errors.inbound && <p role="alert">SPS order lines could not be loaded. Stock results remain available. <button onClick={d.refresh}>Retry</button></p>}
           {tab === 'drafts' && (
-            <DraftList drafts={d.drafts} inbound={d.inbound} canApprove={canApprove} onChanged={d.refresh} />
+            <DraftList drafts={d.drafts} inbound={d.inbound} canApprove={canApprove} onChanged={d.refresh} nextCursor={d.nextCursor} onLoadMore={d.loadMore} loadingMore={d.loadingMore} />
           )}
           {tab === 'rules' && (
             <div className="purchase-panel purchase-form">
               <h3>Source coverage</h3>
+              <div className="purchase-actions">{canEdit && scope && <>
+                <button onClick={() => setScopeForm({ scope })}>Edit scope & variant policies</button>
+                <button onClick={() => setInboundForm(true)}>Import open PO snapshot</button>
+              </>}</div>
+
               <dl className="purchase-facts">
                 <dt>Branches</dt>
                 <dd>{d.plan.scope.branches.join(' / ')}</dd>
@@ -200,7 +195,7 @@ export default function PurchasingWorkbench({
                 variant policy. No fuzzy color matching.
               </p>
               <p>
-                Open POs and transit share one PO-line identity. Past-due/unconfirmed ETAs block the affected
+                Open POs and transit share one PO-line identity. Past-due/unconfirmed receiving dates block the affected
                 variant. Incoming supply outside the horizon does not cover today's replenishment need. Source
                 changes invalidate approval/export.
               </p>
@@ -216,8 +211,7 @@ export default function PurchasingWorkbench({
             </div>
           )}
           <p className="purchase-muted">
-            Calculated {new Date(d.plan.generatedAt).toLocaleString()}. Source data revalidates every 30
-            seconds; the server rechecks before drafting and approval.
+            Calculated {new Date(d.plan.generatedAt).toLocaleString()}. Changes are checked every 30 seconds. Drafting and approval recheck current source data.
           </p>
         </>
       )}

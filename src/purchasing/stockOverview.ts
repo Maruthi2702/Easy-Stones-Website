@@ -30,7 +30,7 @@ export function stockBreakdown(rows: OverviewStockRow[], reserved: ReadonlySet<s
     } else if (status !== 'available' || isRemnant(row.remnant)) {
       otherUnavailable++;
       if (status === 'other') problems.add('Unknown SPS status must be reconciled');
-    } else if (row.availableSlabs === 1 && Number.isFinite(row.availableQuantity) && row.availableQuantity! > 0) {
+    } else if (row.availableSlabs === 1 && Number.isFinite(row.availableQuantity) && row.availableQuantity! > 0 && row.availableQuantity! <= row.instockQty! + 0.01) {
       available++; availableQuantity += row.availableQuantity!;
     } else {
       otherUnavailable++;

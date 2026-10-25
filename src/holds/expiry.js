@@ -10,7 +10,7 @@
  * servers at once: each hold is re-read inside its own transaction and only
  * changed if it is still due.
  */
-import { inTransaction } from '../server/http.js';
+import { inInventoryTransaction as inTransaction } from '../services/inventoryTransaction.ts';
 import { Hold, SlabReservation, HoldHistory } from './models.js';
 import { GRACE_DAYS } from './holdRules.js';
 

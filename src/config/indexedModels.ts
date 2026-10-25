@@ -36,9 +36,11 @@ import Role from '../models/Role.js';
 import DailyReport from '../models/DailyReport.js';
 import CrossoverSheet from '../models/CrossoverSheet.js';
 import EasyStonesColor from '../models/EasyStonesColor.js';
+import InventoryTransitReport, { InventoryTransitEvent } from '../models/InventoryTransitReport.ts';
+import InventoryRevision from '../models/InventoryRevision.ts';
 import InventoryItem from '../models/InventoryItem.ts';
 import { InventoryStockImport, InventoryStockBackup, InventoryStockState } from '../models/InventoryStockImport.ts';
-import InventorySalesRecord from '../models/InventorySalesRecord.js';
+import InventorySalesRecord from '../models/InventorySalesRecord.ts';
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
 import ContactSubmission from '../models/ContactSubmission.js';
 import SalesResource from '../models/SalesResource.js';
@@ -48,7 +50,7 @@ import CustomerMergeBackup from '../models/CustomerMergeBackup.js';
 import CustomerDeleteBackup from '../models/CustomerDeleteBackup.js';
 import { Cart, Hold, SlabReservation, Counter, HoldHistory } from '../holds/models.js';
 
-import { PurchasingScope, PurchasingInbound, PurchasingDraft, PurchasingLock, PurchasingPoLink } from '../purchasing/models.js';
+import { PurchasingScope, PurchasingInbound, PurchasingDraft, PurchasingLock, PurchasingPoLink } from '../purchasing/models.ts';
 
 export const INDEXED_MODELS = [
   ['PurchasingScope', PurchasingScope], ['PurchasingInbound', PurchasingInbound],
@@ -68,6 +70,9 @@ export const INDEXED_MODELS = [
   ['CrossoverSheet', CrossoverSheet],
   ['EasyStonesColor', EasyStonesColor],
   ['InventoryItem', InventoryItem],
+  ['InventoryRevision', InventoryRevision],
+  ['InventoryTransitReport', InventoryTransitReport],
+  ['InventoryTransitEvent', InventoryTransitEvent],
   ['InventoryStockImport', InventoryStockImport],
   ['InventoryStockBackup', InventoryStockBackup],
   ['InventoryStockState', InventoryStockState],

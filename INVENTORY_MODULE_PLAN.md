@@ -117,3 +117,24 @@ without manual cutoff/date confirmations or upload-time comparisons. The server
 and scope form share `reportSalesPeriod()`. Earlier confirmation records remain
 audit history. An unfinished future range still needs an actual reported-through
 date. Stock estimates and verified purchase validation remain separate.
+
+
+## Purchasing redesign delivered October 25
+
+The owner subsequently authorized the Purchasing UX redesign and prioritized its
+review findings. See [the implementation](PURCHASING_IMPLEMENTATION.md) for the
+shipped boundaries, source lifecycle, transaction protocol and verification.
+Purchasing now has Stock overview, Incoming containers, Purchase drafts and
+Settings & sources. Supplier setup does not block descriptive stock coverage.
+
+Purchasing's production backend, models, planner and validation are TypeScript;
+its UI is TSX. Availability is unified within Purchasing. Complete/partial/empty
+transit publication, reported-versus-usable receipt confidence, stable sales
+identity, atomic sales replacement, independent query errors and import locking
+are implemented. The later cache design supersedes the 30-second full-answer
+expiry above: session reuse is five minutes, with lightweight revision checks
+every 30 seconds and server validation at command time.
+
+This does not mark every broader Inventory row above complete: shared cart/slab
+list availability, all parser validation, cross-screen demand consolidation,
+slab pagination and remaining Inventory extraction retain their recorded scope.

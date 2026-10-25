@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { buildPlan, stockId } from './buildPlan.js';
+import { buildPlan, stockId } from './buildPlan.ts';
 import { transitSupply } from './transitSupply';
+import { transitSignature } from './transitSignature';
 import { normalizeInbound } from './planning';
 import type { TransitLine } from '../types/inventory';
 
@@ -11,10 +12,10 @@ const line = (extra: Partial<TransitLine> = {}): TransitLine => ({
   units: 'SF', supplier: 'ABC', freightForwarder: '', shipDate: null, portEtaDate: null,
   etaDate: new Date('2026-12-08'), vessel: '', customerReference: '', supplierPurchaseNote: '', status: 'INTRANSIT', ...extra,
 });
-const shipment = (lines = [line()]) => ({ poNumber: 'P1', containerNumber: 'CONT1', location: 'Seattle', importedAt: now, lines });
+const shipment = (lines = [line()]) => { const source = { poNumber: 'P1', containerNumber: 'CONT1', location: 'Seattle', importedAt: now, lines }; return { ...source, usableReceiptDate: new Date('2026-12-08'), confirmedSignature: transitSignature(source) }; };
 const inputs = () => {
-  const stock = [{ _id: 'stock', product: 'Quartz 3CM', units: 'SF', location: 'Seattle', availableSlabs: 42,
-    availableQuantity: 42, slabStatus: '', remnant: '', serialNumber: 'SER1', importedAt: now }];
+  const stock = Array.from({ length: 42 }, (_, i) => ({ _id: `stock${i}`, product: 'Quartz 3CM', type: 'SLAB', instockQty: 1, units: 'SF', location: 'Seattle', availableSlabs: 1,
+    availableQuantity: 1, slabStatus: '', remnant: '', serialNumber: `SER${i}`, importedAt: now }));
   return {
     scope: { branches: ['Seattle'], observedThrough: '2026-10-25', fullSalesCoverage: true,
       stockSnapshotId: stockId(stock), stockCoverageConfirmed: true, freeStockValidated: true,
@@ -39,6 +40,14 @@ describe('uploaded transit in purchasing', () => {
     expect(plan.rows[0].transit[0]).toMatchObject({ poNumber: 'P1', containerNumber: 'CONT1', slabs: 24, eta: '2026-12-08' });
     expect(plan.rows[0].protective).toBeNull();
     expect(plan.rows[0].blockers.join(' ')).toMatch(/receiving lead-time/);
+  });
+  it('does not treat a reported ETA as a confirmed usable receipt', () => {
+    const input = inputs(); input.transitShipments[0].confirmedSignature = '';
+    const row = buildPlan(input, now).rows[0];
+    expect(row.transit[0].eta).toBe('2026-12-08');
+    expect(row.transit[0].receiptConfirmed).toBe(false);
+    expect(row.coverage.days).toBeGreaterThan(0);
+    expect(row.protective).toBeNull();
   });
   it('subtracts eligible imported containers from the proposed buy', () => {
     const plan = buildPlan(inputs(), now);

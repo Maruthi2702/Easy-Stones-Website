@@ -22,7 +22,7 @@ const initial = (meta: Metadata, scope?: Scope) => ({
   cohortId: scope?.cohortId || meta.cohorts[0]?.id || '',
   observedThrough: reportSalesPeriod(meta.cohorts.find(c => c.id === (scope?.cohortId || meta.cohorts[0]?.id)), todayPacific(new Date()), scope?.observedThrough).through,
   fullSalesCoverage: scope?.fullSalesCoverage || false,
-  stockCoverageConfirmed: false,
+  stockCoverageConfirmed: scope?.stockCoverageConfirmed || false,
   freeStockValidated: scope?.freeStockValidated || false,
   policyConfirmed: scope?.policyConfirmed || false,
   reviewDays: scope?.reviewDays ?? 7,
@@ -51,7 +51,8 @@ export default function ScopeForm({
   onSaved: (scope: Scope) => void;
 }) {
   const [snapshotAtOpen] = useState(metadata.stockSnapshotId);
-  const [value, setValue] = useState(() => initial(metadata, scope)),
+  const [original] = useState(() => initial(metadata, scope));
+  const [value, setValue] = useState(original),
     [error, setError] = useState(''),
     [saving, setSaving] = useState(false);
   const change = <K extends keyof typeof value>(key: K, next: (typeof value)[K]) =>
@@ -93,7 +94,7 @@ export default function ScopeForm({
       }}
       saving={saving}
       submitLabel="Save planning scope"
-      dirtyCount={1}
+      dirtyCount={JSON.stringify(value) === JSON.stringify(original) ? 0 : 1}
     >
       <div className="purchase-form">
         {error && (

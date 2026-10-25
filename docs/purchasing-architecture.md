@@ -1,16 +1,16 @@
 # Purchasing module architecture
 
-Status: proposed design, based on the current implementation. Runtime changes
-are delivered separately in the order recorded in `INVENTORY_MODULE_PLAN.md`.
-The owner requested this design after the stock publication and tab-return
-corrections. This document does not mark the migration or outstanding fixes done.
+Status: architectural direction with core corrections and an authorized UX
+redesign implemented October 25, 2026. See [the delivery record](../PURCHASING_IMPLEMENTATION.md)
+for implemented behavior and remaining boundaries. The longer-term target
+structure below is not a claim that every proposed enhancement is delivered.
 
 ## Purpose and boundaries
 
 Give a buyer a defensible answer to four questions: what needs replenishment,
 how much, when it must be usable at the destination, and which supplier/container
 can deliver it. Preserve the current Inventory Analysis → Purchasing entry,
-Buyer queue, Color performance, Container drafts and Data & planning rules.
+Stock overview, Incoming containers, Purchase drafts and Settings & sources.
 
 Use the existing React/Vite frontend, Node 24/Express backend, Mongoose/MongoDB,
 Zod validation and Socket.IO. Keep one deployed application and database;
@@ -30,8 +30,8 @@ order source of truth. Approval/export never sends an order to a supplier.
 | Area | Existing implementation | Target change |
 |---|---|---|
 | UI | Typed workbench and component files | Retain; split orchestration and data concerns as needed |
-| Planning | `planning.ts`, `buildPlan.js`, `transitSupply.ts` | Pure typed stages with explicit inputs and reason codes |
-| Source reads | `data.js` loads stock, sales, scopes and reservations; metadata and plan overlap | Lightweight metadata; one authorized input loader per plan/workbench request |
+| Planning | `planning.ts`, `buildPlan.ts`, `transitSupply.ts` | Pure typed stages with explicit inputs and reason codes |
+| Source reads | `data.ts` loads stock, sales, scopes and reservations; metadata and plan overlap | Lightweight metadata; one authorized input loader per plan/workbench request |
 | Configuration | `PurchasingScope` embeds policies and report-specific confirmations | Separate reusable settings from snapshot-specific coverage attestations |
 | Incoming supply | Inventory transit plus a purchasing-specific inbound CSV snapshot | One reconciliation adapter joining PO parents and shipment allocations |
 | Workflow | Transactional drafts, locks, version checks, PO links and evidence | Preserve these controls; coordinate source revision checks inside command transactions |
@@ -259,8 +259,8 @@ src/features/purchasing/
   index.ts             # frontend public entry
 ```
 
-Migrate the existing `types.ts`, `planning.ts`, `transitSupply.ts`, `buildPlan.js`,
-`data.js`, `schemas.js`, `models.js`, `router.js` and `draftRoutes.js` incrementally.
+Migrate the existing `types.ts`, `planning.ts`, `transitSupply.ts`, `buildPlan.ts`,
+`data.ts`, `schemas.js`, `models.js`, `router.ts` and `draftRoutes.ts` incrementally.
 Keep compatibility exports while callers move. Replace `Mixed` with typed,
 validated subdocuments and version stored evidence; readers must still accept
 legacy drafts without rewriting their historical meaning. Database access sits

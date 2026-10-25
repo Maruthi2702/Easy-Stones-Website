@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { X, Upload, AlertCircle, CheckCircle2, FileSpreadsheet } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import FormModal from '../shared/form/FormModal';
 import type { InventoryImportKind, InventoryImportResult, TransitLine } from '../../types/inventory';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
@@ -16,6 +17,7 @@ interface ImportPreview {
   totalRows: number;
   warnings?: string[];
   shipmentCount?: number;
+  branches?: string[];
   sample: TransitLine<string>[];
   detected?: { location?: string; periodStart?: string; periodEnd?: string };
 }
@@ -37,10 +39,18 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
   const [location, setLocation] = useState('');
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
+  const [complete, setComplete] = useState(true), [emptyBranches, setEmptyBranches] = useState(''), [confirmEmpty, setConfirmEmpty] = useState(false);
+  const previewRequest = useRef<AbortController | null>(null);
+  useEffect(() => () => previewRequest.current?.abort(), []);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
+    previewRequest.current?.abort();
+    const controller = new AbortController();
+    previewRequest.current = controller;
+    setConfirmEmpty(false);
+    setEmptyBranches('');
     setFile(selected);
     setPreview(null);
     setError('');
@@ -56,8 +66,9 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
     try {
       const body = new FormData();
       body.append('file', selected);
-      const res = await authFetch(`${API_URL}/api/inventory-analysis/import/${endpoint}/preview`, { method: 'POST', body });
+      const res = await authFetch(`${API_URL}/api/inventory-analysis/import/${endpoint}/preview`, { method: 'POST', body, signal: controller.signal });
       const data = await res.json();
+      if (controller.signal.aborted) return;
       if (!res.ok) {
         setError(data.message || 'Failed to read file');
         return;
@@ -77,7 +88,7 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
         setError(data.errors.slice(0, 5).join('; '));
         return;
       }
-      if (!data.totalRows) {
+      if (!data.totalRows && !isTransit) {
         const diagnostic = data.diagnostics;
         const statuses = Object.entries(diagnostic?.skippedStatusCounts || {}).map(([status, count]) => `${status}: ${count}`).join('; ');
         setError(isTransit && diagnostic
@@ -92,10 +103,11 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
         if (data.detected.periodEnd) setPeriodEnd(toInputDate(data.detected.periodEnd));
       }
     } catch (err) {
+      if (controller.signal.aborted) return;
       console.error('Error previewing inventory import:', err);
       setError('Network error while reading file');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 
@@ -122,6 +134,11 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
           body.append('periodStart', periodStart);
           body.append('periodEnd', periodEnd);
         }
+        if (isTransit) {
+          body.append('complete', String(complete));
+          body.append('branches', JSON.stringify(preview.branches?.length ? preview.branches : emptyBranches.split(',').map(b => b.trim()).filter(Boolean)));
+          body.append('confirmEmpty', String(confirmEmpty));
+        }
         return authFetch(`${API_URL}/api/inventory-analysis/import/${endpoint}/apply`, { method: 'POST', body });
       };
       let res = await send(false);
@@ -141,28 +158,12 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
   };
 
   return (
-    <div className="invan-modal-overlay anim-fade-in" onClick={onClose}>
-      <div className="invan-modal-content anim-scale-in" onClick={(e) => e.stopPropagation()}>
-        <div className="invan-modal-header">
-          <div className="invan-modal-title-wrap">
-            <div className="invan-modal-icon-badge">
-              <FileSpreadsheet size={20} />
-            </div>
-            <div>
-              <h3>{isTransit ? 'Import In-Transit Containers' : isSales ? 'Import Sales History' : 'Import Inventory Stock'}</h3>
-              <p className="invan-modal-sub-text">
-                {isTransit ? 'Upload the SPS in-transit report with PO# and Container# columns' : isSales
-                  ? 'Upload SPS\'s "Fast Moving Inventory" export for a location and date range'
-                  : 'Upload SPS\'s "Inventory In Stock - Detail" export'}
-              </p>
-            </div>
-          </div>
-          <button type="button" className="invan-modal-close-btn" onClick={onClose} title="Close">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="invan-modal-form">
+    <FormModal title={isTransit ? 'Import In-Transit Containers' : isSales ? 'Import Sales History' : 'Import Inventory Stock'} size="l"
+      onClose={onClose} onSubmit={e => { e.preventDefault(); void handleApply(); }} saving={applying}
+      submitLabel={isTransit ? 'Import Containers' : isSales ? 'Import Sales History' : 'Replace Inventory Data'}
+      submitDisabled={!preview || loading || (isTransit && !preview.totalRows && (!complete || !confirmEmpty || !emptyBranches.trim()))} dirtyCount={file ? 1 : 0}>
+      <div className="invan-modal-form">
+        <p>{isTransit ? 'Upload the SPS In-Transit export directly. PO, container and product details are read from the file.' : 'Upload your SPS Excel export.'}</p>
           {!isSales && !isTransit && (
             <div className="invan-modal-warning-banner">
               <AlertCircle size={16} />
@@ -170,13 +171,17 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
             </div>
           )}
 
-          {isTransit && <p>Updates the shipments in this file by PO, container and branch. Shipments absent from this file are kept.</p>}
+          {isTransit && <fieldset><legend>Report coverage</legend>
+            <label><input type="radio" name="transit-coverage" checked={complete} onChange={() => setComplete(true)} /> Complete report for its branches</label>
+            <label><input type="radio" name="transit-coverage" checked={!complete} onChange={() => setComplete(false)} /> Partial / filtered report</label>
+            <p>{complete ? 'Replaces the active incoming list for the branches shown in this report. Containers no longer listed are archived as “not reported”; they are not marked received.' : 'Updates the shipments shown. Other containers remain in the incoming list.'}</p>
+          </fieldset>}
 
           {error && <div className="invan-modal-error-banner"><AlertCircle size={18} /> {error}</div>}
 
           <div className="invan-form-group">
             <label>Export File ({isTransit ? '.xlsx, .xls, .csv or .txt' : '.xlsx or .xls'}) <span className="invan-req-star">*</span></label>
-            <input type="file" accept={isTransit ? ".xlsx,.xls,.csv,.txt" : ".xlsx,.xls"} onChange={handleFileSelect} className="invan-file-input" />
+            <input type="file" accept={isTransit ? ".xlsx,.xls,.csv,.txt" : ".xlsx,.xls"} onChange={handleFileSelect} disabled={applying} className="invan-file-input" />
           </div>
 
           {loading && <div className="invan-modal-loading">Reading file...</div>}
@@ -188,6 +193,11 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
                 <span>{preview.totalRows} row{preview.totalRows === 1 ? '' : 's'} found{isTransit ? ` across ${preview.shipmentCount} PO/container groups` : ''} and ready to import.</span>
               </div>
 
+              {isTransit && <p>Covered branches: {preview.branches?.join(' / ') || 'No branches found in this empty report'}</p>}
+              {isTransit && !preview.totalRows && <fieldset><legend>Empty complete report</legend>
+                <label>Branches covered (comma separated)<input aria-label="Empty report branches" value={emptyBranches} onChange={e => setEmptyBranches(e.target.value)} placeholder="Seattle, Richmond" /></label>
+                <label><input type="checkbox" checked={confirmEmpty} onChange={e => setConfirmEmpty(e.target.checked)} /> This complete report confirms no in-transit containers for these branches.</label>
+              </fieldset>}
               {isTransit && !!preview.warnings?.length && <div className="invan-modal-warning-banner" role="status"><ul>{preview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
 
               {isTransit && (
@@ -235,17 +245,8 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
             </div>
           )}
 
-          <div className="invan-modal-footer">
-            <button type="button" className="invan-btn-cancel" onClick={onClose} disabled={applying}>Cancel</button>
-            <button type="button" className="invan-btn-save" onClick={handleApply} disabled={!preview || applying}>
-              <Upload size={18} />
-              <span>{applying ? 'Importing...' : isTransit ? 'Import Containers' : isSales ? 'Import Sales History' : 'Replace Inventory Data'}</span>
-            </button>
-          </div>
-        </div>
       </div>
-    </div>
+    </FormModal>
   );
 };
-
 export default InventoryImportModal;

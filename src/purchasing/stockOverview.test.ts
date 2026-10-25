@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { stockBreakdown, stockCoverage } from './stockOverview';
-import { buildPlan, stockId } from './buildPlan.js';
+import { buildPlan, stockId } from './buildPlan.ts';
 const slab = (serialNumber: string, slabStatus = '') => ({ type: 'SLAB', serialNumber,
   instockQty: 75, availableSlabs: slabStatus ? 0 : 1, availableQuantity: slabStatus ? 0 : 75, slabStatus, remnant: '' });
 describe('physical stock overview', () => {

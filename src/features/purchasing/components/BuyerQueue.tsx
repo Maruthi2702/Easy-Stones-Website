@@ -1,8 +1,9 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Pagination from '../../../components/shared/Pagination';
 import { usePagination, pageCount } from '../../../components/shared/paginationConfig';
 import IncomingSupply from './IncomingSupply';
 import { StockCover, StockForecast, StockReview } from './StockCoverageCells';
+import { exportPlan } from '../purchasingApi';
 import type { Plan, PlanRow } from '../../../purchasing/types';
 export const num = (value: number | null | undefined) =>
   value == null ? '—' : value.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -11,18 +12,17 @@ export default function BuyerQueue({
   onInspect,
   onDraft,
   canEdit,
-  performance = false,
   onReviewCoverage,
 }: {
   plan: Plan;
   onInspect: (row: PlanRow, days?: number) => void;
   onDraft: (rows: PlanRow[]) => void;
   canEdit: boolean;
-  performance?: boolean;
   onReviewCoverage?: () => void;
 }) {
   const [search, setSearch] = useState(''),
     [state, setState] = useState('all'),
+    [sort, setSort] = useState('cover'),
     [selected, setSelected] = useState<string[]>([]);
   const [forecastDays, setForecastDays] = useState('10');
   const horizon = /^\d+$/.test(forecastDays) && Number(forecastDays) >= 1 && Number(forecastDays) <= 365 ? Number(forecastDays) : null;
@@ -32,21 +32,30 @@ export default function BuyerQueue({
       [...plan.rows]
         .filter(
           (r) =>
-            (!performance || r.uom === 'SF') &&
             r.product.toLowerCase().includes(search.toLowerCase()) &&
             (state === 'all' ||
               (state === 'blocked' && r.blockers.length > 0) ||
+              (state === 'short' && r.coverage?.days != null && horizon != null && r.coverage.days < horizon) ||
+              (state === 'unknown' && r.coverage?.state === 'unknown') ||
               (state === 'buy' && !!r.protective?.proposedSlabs) ||
               (state === 'urgent' && !!r.protective?.bridgeShortfall) ||
               (state === 'zero' && r.sold === 0)),
         )
-        .sort((a, b) => (performance ? (b.sold || 0) - (a.sold || 0) : 0)),
-    [plan, search, state, performance],
+        .sort((a, b) => {
+          if (sort === 'sales') return (b.sold || 0) - (a.sold || 0);
+          if (sort === 'name') return a.product.localeCompare(b.product);
+          return (a.coverage?.days ?? Number.MAX_VALUE) - (b.coverage?.days ?? Number.MAX_VALUE) || a.product.localeCompare(b.product);
+        }),
+    [plan, search, state, sort, horizon],
   );
+  const selectionContext = JSON.stringify([plan.fingerprint, search, state, sort]);
+  const previousContext = useRef(selectionContext);
   useEffect(() => {
+    if (previousContext.current === selectionContext) return;
+    previousContext.current = selectionContext;
     pagination.resetPage();
     setSelected([]);
-  }, [plan.fingerprint, search, state, pagination.resetPage]);
+  }, [selectionContext, pagination.resetPage]);
   useEffect(() => {
     setSelected((old) => {
       const next = old.filter((key) =>
@@ -76,10 +85,14 @@ export default function BuyerQueue({
           onChange={(e) => setState(e.target.value)}
         >
           <option value="all">All variants</option>
+          <option value="short">Short within selected days</option><option value="unknown">Coverage unavailable</option>
           <option value="buy">Replenishment needed</option>
           <option value="urgent">Early receipt gaps</option>
           <option value="blocked">Resolve inputs</option>
           <option value="zero">Verified zero sales</option>
+        </select>
+        <select aria-label="Sort purchasing colors" value={sort} onChange={e => setSort(e.target.value)}>
+          <option value="cover">Lowest stock cover first</option><option value="sales">Highest reported sales first</option><option value="name">Color A–Z</option>
         </select>
         <label className="purchase-horizon">Plan for{' '}
           <input aria-label="Planning days" type="number" min="1" max="365" step="1" value={forecastDays}
@@ -89,6 +102,7 @@ export default function BuyerQueue({
           {[1, 2, 4, 5, 10, 30, 60, 90].map(days => <button type="button" key={days}
             aria-pressed={horizon === days} onClick={() => setForecastDays(String(days))}>{days}d</button>)}
         </div>
+        <button onClick={() => exportPlan(plan, horizon || 10)} disabled={!horizon}>Export stock review</button>
         {canEdit && (
           <button
             disabled={!selected.length}
@@ -100,13 +114,12 @@ export default function BuyerQueue({
       </div>
       {horizon === null && <p role="alert">Enter a whole number from 1 to 365 days.</p>}
       <p className="purchase-muted">Total SPS slabs include allocated stock. Days of cover and the selected-day balance use available stock only; in-transit containers are shown separately.</p>
-      <div className="purchase-scroll">
+      <div className="purchase-scroll purchase-responsive-table">
         <table>
           <thead>
             <tr>
               <th>Pick</th>
-              <th>Color & variant{performance ? ' · reported SF sales rank' : ''}</th>
-              <th>Reported sold / UOM</th>
+              <th>Color & variant</th>
               <th>Total SPS slabs</th>
               <th>Allocated</th>
               <th>Available to sell</th>
@@ -119,7 +132,7 @@ export default function BuyerQueue({
           <tbody>
             {visible.map((r) => (
               <tr key={r.key}>
-                <td>
+                <td data-label="Select">
                   <input
                     type="checkbox"
                     aria-label={`Select ${r.product}`}
@@ -136,31 +149,28 @@ export default function BuyerQueue({
                     }}
                   />
                 </td>
-                <td>
+                <td data-label="Color">
                   <button className="purchase-link" onClick={() => onInspect(r, horizon || 10)}>
                     {r.product}
                   </button>
+                  <small>{num(r.sold)} {r.uom} sold · {num(r.soldSlabs)} slabs</small>
                   {!r.hasStock && (
                     <small>
                       No matching stock row{r.readySlabs === 0 ? ' · policy + coverage confirm zero' : ''}
                     </small>
                   )}
                 </td>
-                <td>
-                  {num(r.sold)} {r.uom}
-                  <small>{num(r.soldSlabs)} slabs sold</small>
-                </td>
-                <td><strong>{num(r.stockBreakdown?.total)}</strong></td>
-                <td><strong>{num(r.stockBreakdown?.allocated)}</strong>
+                <td data-label="Total SPS slabs"><strong>{num(r.stockBreakdown?.total)}</strong></td>
+                <td data-label="Allocated"><strong>{num(r.stockBreakdown?.allocated)}</strong>
                   {r.stockBreakdown?.otherUnavailable != null && <small>{num(r.stockBreakdown.otherUnavailable)} other unavailable</small>}
                 </td>
-                <td><strong>{num(r.stockBreakdown?.available)}</strong>
+                <td data-label="Available to sell"><strong>{num(r.stockBreakdown?.available)}</strong>
                   {r.stockBreakdown?.problems.length ? <small title={r.stockBreakdown.problems.join('\n')}>Stock reconciliation needed</small> : null}
                 </td>
-                <td><IncomingSupply lines={r.transit} /></td>
-                <td><StockCover row={r} onReview={onReviewCoverage} /></td>
-                <td><StockForecast row={r} days={horizon} /></td>
-                <td>
+                <td data-label="In-transit containers"><IncomingSupply lines={r.transit} /></td>
+                <td data-label="Stock lasts"><StockCover row={r} onReview={onReviewCoverage} /></td>
+                <td data-label={horizon ? `After ${horizon} days` : "Projected stock"}><StockForecast row={r} days={horizon} /></td>
+                <td data-label="Next action">
                   <StockReview row={r} days={horizon} />
                   <details><summary>Purchase planning</summary>
                     <p>Purchase status: {r.action}</p>
