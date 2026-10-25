@@ -6,16 +6,19 @@
  * writes in the background and checks the result; this window only asks and
  * shows. Every answer is saved as you go, so closing it loses nothing.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type React from 'react';
 import { Upload, Check, AlertTriangle, Download } from 'lucide-react';
-import FormModal from '../shared/form/FormModal';
-import RepPicker from '../shared/form/RepPicker';
-import LocationPicker from '../shared/form/LocationPicker';
-import Pagination from '../shared/Pagination';
+import FormModal from '../../../components/shared/form/FormModal';
+import RepPicker from '../../../components/shared/form/RepPicker';
+import type { RepOption } from '../../../components/shared/form/RepPicker';
+import LocationPicker from '../../../components/shared/form/LocationPicker';
+import Pagination from '../../../components/shared/Pagination';
 import SpsSide from './SpsSide';
-import { usePagination, pageCount } from '../shared/paginationConfig';
-import { API_URL } from '../../config/api';
-import { authFetch } from '../../api/authFetch';
+import { usePagination, pageCount } from '../../../components/shared/paginationConfig';
+import { API_URL } from '../../../config/api';
+import { authFetch } from '../../../api/authFetch';
+import type { Loose } from '../../../types/records';
 import './SpsConnectModal.css';
 import './SpsImportModal.css';
 
@@ -23,35 +26,37 @@ const API = `${API_URL}/api/customers/sps-import/runs`;
 const NONE_REP = '__none__';          // IMPORT_UNASSIGNED on the server
 const DEFAULT_BRANCH = '__default__'; // IMPORT_DEFAULT_BRANCH
 const STEPS = ['Upload', 'Columns & names', 'Review', 'Import', 'Results'];
-const FIELD_LABELS = {
+const FIELD_LABELS: Record<string, string> = {
     salesRep: 'Sales rep', location: 'Easy Stones branch', marketingEmail: 'Marketing email', email: 'Email',
     contactName: 'Contact name', company: 'Company', phone: 'Phone', street: 'Street', street2: 'Suite / unit',
     city: 'City', state: 'State', zipCode: 'Zip', level: 'Level', customerType: 'Customer type', status: 'Status',
     modaDisplay: 'MODA display', modaBinder: 'MODA binder', receiveMarketing: 'Receive marketing',
     quickNote: 'Quick note', deliveryInstructions: 'Delivery instructions', accountAlert: 'Account alert'
 };
-const fieldName = (f) => FIELD_LABELS[f] || f.replace(/([A-Z])/g, ' $1').toLowerCase();
-const SIGNAL_WORDS = { phone: 'same phone', email: 'same email', 'company name': 'similar name', 'email domain': 'same email domain', 'exact name': 'same name' };
-const n = (v) => Number(v || 0).toLocaleString();
-const when = (d) => (d ? new Date(d).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
+const fieldName = (f: string) => FIELD_LABELS[f] || f.replace(/([A-Z])/g, ' $1').toLowerCase();
+const SIGNAL_WORDS: Record<string, string> = { phone: 'same phone', email: 'same email', 'company name': 'similar name', 'email domain': 'same email domain', 'exact name': 'same name' };
+const n = (v: unknown) => Number(v || 0).toLocaleString();
+const when = (d: string | number | Date | null | undefined) => (d ? new Date(d).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '');
 
-const failure = async (res) => {
+/** An Error with the server's JSON answer on it (`body`), when there was one. */
+type CallError = Error & { body?: Loose };
+const failure = async (res: Response): Promise<CallError> => {
     const text = await res.text();
     let said = '';
     try { const j = JSON.parse(text); said = j.message || j.error || ''; } catch { /* not JSON */ }
-    const err = new Error(`${said || text.slice(0, 200) || res.statusText} (HTTP ${res.status})`);
+    const err: CallError = new Error(`${said || text.slice(0, 200) || res.statusText} (HTTP ${res.status})`);
     try { err.body = JSON.parse(text); } catch { /* not JSON */ }
     return err;
 };
-const call = async (url, options) => {
+const call = async (url: string, options?: RequestInit) => {
     const res = await authFetch(url, options);
     if (!res.ok) throw await failure(res);
     return res;
 };
-const jsonCall = async (url, body, method = 'POST') =>
+const jsonCall = async (url: string, body?: unknown, method = 'POST') =>
     (await call(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })).json();
 
-const saveBlob = async (url, filename) => {
+const saveBlob = async (url: string, filename: string) => {
     const blob = await (await call(url)).blob();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -63,7 +68,7 @@ const saveBlob = async (url, filename) => {
 const RESULT_TILES = [['added', 'added'], ['updated', 'updated'], ['restored', 'brought back'], ['keptDeleted', 'kept deleted'], ['unchanged', 'no changes'], ['failed', 'failed']];
 
 // The result numbers, each one a button that shows the customers behind it.
-function ResultTiles({ counts = {}, selected, onSelect }) {
+function ResultTiles({ counts = {}, selected, onSelect }: { counts?: Loose; selected: string; onSelect: (result: string) => void }) {
     return (
         <div className="spsi-counts">
             {RESULT_TILES.map(([k, label]) => {
@@ -80,10 +85,10 @@ function ResultTiles({ counts = {}, selected, onSelect }) {
 }
 
 // The customers of one run, a page at a time (the server pages them).
-function RunItems({ runId, result }) {
+function RunItems({ runId, result }: { runId: string; result: string }) {
     const pager = usePagination();
     const { currentPage, rowsPerPage, resetPage } = pager;
-    const [data, setData] = useState({ items: [], total: 0 });
+    const [data, setData] = useState<{ items: Loose[]; total: number }>({ items: [], total: 0 });
     const [state, setState] = useState('loading');
     useEffect(() => { resetPage(); }, [runId, result, resetPage]);
     useEffect(() => {
@@ -103,14 +108,14 @@ function RunItems({ runId, result }) {
             {data.items.map((i) => (
                 <div key={`${i.rowNumber}-${i.name}`} className="spsi-row">
                     <span className={`spsi-pill ${i.result === 'added' ? 'new' : i.result === 'updated' || i.result === 'restored' ? 'upd' : i.result === 'failed' ? 'bad' : ''}`}>
-                        {({ added: 'Added', updated: i.connect ? 'Connected' : 'Updated', restored: 'Brought back', keptDeleted: 'Kept deleted', unchanged: 'No changes', failed: 'Failed' })[i.result] || i.result}
+                        {({ added: 'Added', updated: i.connect ? 'Connected' : 'Updated', restored: 'Brought back', keptDeleted: 'Kept deleted', unchanged: 'No changes', failed: 'Failed' } as Record<string, string>)[i.result] || i.result}
                     </span>
                     <span className="spsi-row-main">
                         <b>{i.name}</b>
                         {i.added && <span className="spsc-muted">{[i.added.city, i.added.branch, i.added.rep].filter(Boolean).join(' · ') || 'New customer'}</span>}
-                        {i.changes.filter((c) => c.field !== 'sps').map((c, k) => <span key={k} className="spsi-chg">{fieldName(c.field)}: <s>{c.from || '—'}</s> → {c.to}</span>)}
+                        {i.changes.filter((c: Loose) => c.field !== 'sps').map((c: Loose, k: number) => <span key={k} className="spsi-chg">{fieldName(c.field)}: <s>{c.from || '—'}</s> → {c.to}</span>)}
                         {i.reason && <span className="spsi-warn">⚠ {i.reason}</span>}
-                        {i.warnings.map((w, k) => <span key={k} className="spsi-warn">⚠ {w}</span>)}
+                        {i.warnings.map((w: string, k: number) => <span key={k} className="spsi-warn">⚠ {w}</span>)}
                     </span>
                 </div>
             ))}
@@ -131,7 +136,7 @@ function RunItems({ runId, result }) {
  * pointer and the click never lands — and before the picker measures its space.
  * Scrolls the body only, never the page (scrollIntoView would — see LocationPicker).
  */
-const liftRow = (e) => {
+const liftRow = (e: React.MouseEvent<HTMLElement>) => {
     const row = e.currentTarget;
     const body = row.closest('.fm-body');
     if (!body) return;
@@ -139,24 +144,39 @@ const liftRow = (e) => {
     if (Math.abs(delta) > 4) body.scrollTop += delta;
 };
 
-export default function SpsImportModal({ onClose, onChanged, salesReps = [], locations = [], user = null, canEdit = false, canAdd = false, canDelete = false }) {
-    const fileInput = useRef(null);
+/** A draft's answers so far, each a map from the name in the file to the answer. */
+type Draft = { mapping: Record<string, string>; repAliases: Record<string, string>; branchAliases: Record<string, string>; answers: Record<string, string> };
+type DraftKey = 'repAliases' | 'branchAliases' | 'answers';
+
+export type SpsImportModalProps = {
+    onClose?: () => void;
+    onChanged?: () => void;
+    salesReps?: Loose[];
+    locations?: (string | { name?: string })[];
+    user?: { id?: string; _id?: string } | null;
+    canEdit?: boolean;
+    canAdd?: boolean;
+    canDelete?: boolean;
+};
+
+export default function SpsImportModal({ onClose, onChanged, salesReps = [], locations = [], user = null, canEdit = false, canAdd = false, canDelete = false }: SpsImportModalProps) {
+    const fileInput = useRef<HTMLInputElement | null>(null);
     const [view, setView] = useState('loading');   // loading | wizard | history
     const [step, setStep] = useState(1);
-    const [resume, setResume] = useState(null);    // { draft, running } from /current
-    const [run, setRun] = useState(null);
-    const [fileCheck, setFileCheck] = useState(null);
-    const [draft, setDraft] = useState({ mapping: {}, repAliases: {}, branchAliases: {}, answers: {} });
-    const [data, setData] = useState(null);        // the plan response
+    const [resume, setResume] = useState<Loose | null>(null);    // { draft, running } from /current
+    const [run, setRun] = useState<Loose | null>(null);
+    const [fileCheck, setFileCheck] = useState<Loose | null>(null);
+    const [draft, setDraft] = useState<Draft>({ mapping: {}, repAliases: {}, branchAliases: {}, answers: {} });
+    const [data, setData] = useState<Loose | null>(null);        // the plan response
     const [tab, setTab] = useState('decision');
     const [busy, setBusy] = useState(false);
     const [planning, setPlanning] = useState(false);
     const [error, setError] = useState('');
-    const [progress, setProgress] = useState(null);
-    const [history, setHistory] = useState([]);
+    const [progress, setProgress] = useState<Loose | null>(null);
+    const [history, setHistory] = useState<Loose[]>([]);
     const [showMapping, setShowMapping] = useState(false);
     const [viewResult, setViewResult] = useState('');   // step 5: which tile's customers are open
-    const [openRun, setOpenRun] = useState(null);       // history: { id, result }
+    const [openRun, setOpenRun] = useState<{ id: string; result: string } | null>(null);       // history: { id, result }
     const planSeq = useRef(0);
     const pager = usePagination();
 
@@ -169,14 +189,14 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                 if (!alive) return;
                 setResume(cur);
                 if (cur.running) { setRun(cur.running); setProgress(cur.running); setStep(4); }
-            } catch (err) { if (alive) setError(err.message); }
+            } catch (err) { if (alive) setError((err as Error).message); }
             if (alive) setView('wizard');
         })();
         return () => { alive = false; };
     }, []);
 
     // ── the plan: save what changed, get the whole picture back ─────────────
-    const replan = useCallback(async (runId, patch = {}) => {
+    const replan = useCallback(async (runId: string, patch: Partial<Draft> = {}): Promise<Loose | null> => {
         const seq = ++planSeq.current;
         setPlanning(true); setError('');
         try {
@@ -191,7 +211,7 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
             });
             return out;
         } catch (err) {
-            if (seq === planSeq.current) setError(err.message);
+            if (seq === planSeq.current) setError((err as Error).message);
             return null;
         } finally {
             if (seq === planSeq.current) setPlanning(false);
@@ -200,21 +220,21 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
     const draftRef = useRef(draft);
     useEffect(() => { draftRef.current = draft; }, [draft]);
 
-    const answer = (patchKey, key, value) => {
+    const answer = (patchKey: DraftKey, key: string, value: string) => {
         const next = { ...draftRef.current[patchKey], [key]: value };
         setDraft((d) => ({ ...d, [patchKey]: next }));
         draftRef.current = { ...draftRef.current, [patchKey]: next };
-        replan(run.id, { [patchKey]: next });
+        replan(run!.id, { [patchKey]: next });
     };
-    const answerMany = (entries) => {
+    const answerMany = (entries: Record<string, string>) => {
         const next = { ...draftRef.current.answers, ...entries };
         setDraft((d) => ({ ...d, answers: next }));
         draftRef.current = { ...draftRef.current, answers: next };
-        replan(run.id, { answers: next });
+        replan(run!.id, { answers: next });
     };
 
     // ── step 1 ───────────────────────────────────────────────────────────────
-    const upload = async (file) => {
+    const upload = async (file: File | undefined) => {
         if (!file) return;
         setBusy(true); setError(''); setFileCheck(null); setData(null);
         try {
@@ -226,15 +246,15 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
             draftRef.current = { mapping: {}, repAliases: {}, branchAliases: {}, answers: {} };
             await replan(out.run.id, {});
         } catch (err) {
-            setError(err.message);
-            if (err.body?.fileCheck) setFileCheck(err.body.fileCheck);
+            setError((err as CallError).message);
+            if ((err as CallError).body?.fileCheck) setFileCheck((err as CallError).body!.fileCheck);
             setRun(null);
         } finally { setBusy(false); }
     };
     const continueDraft = async () => {
         setBusy(true); setError('');
         try {
-            const d = resume.draft;
+            const d = resume!.draft;
             setRun(d);
             const out = await replan(d.id, {});
             if (out) {
@@ -245,7 +265,7 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
         } finally { setBusy(false); }
     };
     const startOver = async () => {
-        try { await call(`${API}/${resume.draft.id}`, { method: 'DELETE' }); } catch { /* already gone */ }
+        try { await call(`${API}/${resume!.draft.id}`, { method: 'DELETE' }); } catch { /* already gone */ }
         setResume((r) => ({ ...r, draft: null }));
     };
 
@@ -253,9 +273,9 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
     const startImport = async () => {
         setBusy(true); setError('');
         try {
-            const out = await jsonCall(`${API}/${run.id}/start`);
+            const out = await jsonCall(`${API}/${run!.id}/start`);
             setProgress(out.run); setStep(4);
-        } catch (err) { setError(err.message); } finally { setBusy(false); }
+        } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
     };
     useEffect(() => {
         if (step !== 4 || !run) return undefined;
@@ -280,9 +300,9 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
     // ── step 5 ───────────────────────────────────────────────────────────────
     const retry = async () => {
         setBusy(true); setError('');
-        try { await jsonCall(`${API}/${run.id}/retry`); setStep(4); } catch (err) { setError(err.message); } finally { setBusy(false); }
+        try { await jsonCall(`${API}/${run!.id}/retry`); setStep(4); } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
     };
-    const undo = async (r) => {
+    const undo = async (r: Loose) => {
         const warning = `Undo this import?\n\nCustomers it added are removed (each saved first), customers it updated go back to what they were, and customers it brought back are deleted again.`;
         if (!window.confirm(warning)) return;
         setBusy(true); setError('');
@@ -292,33 +312,33 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
             setError('');
             await openHistory();
             window.alert(`Undone: ${n(out.removed)} removed, ${n(out.reverted)} put back${out.failed?.length ? `, ${out.failed.length} couldn’t be undone` : ''}.`);
-        } catch (err) { setError(err.message); } finally { setBusy(false); }
+        } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
     };
-    const report = (r) => saveBlob(`${API}/${r.id}/report.csv`, `sps-import-${r.id.slice(-6)}.csv`).catch((err) => setError(err.message));
+    const report = (r: Loose) => saveBlob(`${API}/${r.id}/report.csv`, `sps-import-${r.id.slice(-6)}.csv`).catch((err) => setError(err.message));
     const openHistory = async () => {
         setError('');
         try {
             const out = await (await call(API)).json();
             setHistory(out.runs); setView('history');
-        } catch (err) { setError(err.message); }
+        } catch (err) { setError((err as Error).message); }
     };
 
     // ── derived ──────────────────────────────────────────────────────────────
     const counts = data?.counts || {};
     const repOptions = useMemo(() => {
-        const allowed = new Set((data?.reps || []).map((r) => String(r._id)));
-        const list = salesReps.filter((r) => !r.inactive && allowed.has(String(r._id)))
+        const allowed = new Set((data?.reps || []).map((r: Loose) => String(r._id)));
+        const list: RepOption[] = salesReps.filter((r) => !r.inactive && allowed.has(String(r._id)))
             .map((r) => ({ value: String(r._id), label: r.name, location: r.location || '', id: String(r._id) }));
         for (const r of data?.reps || []) if (!list.some((o) => o.value === String(r._id))) list.push({ value: String(r._id), label: r.name, location: '' });
         return [...list, { value: NONE_REP, label: 'No sales rep', location: '' }];
     }, [data, salesReps]);
-    const branchNames = useMemo(() => [...(data?.branches || locations.map((l) => l.name || l)), DEFAULT_BRANCH], [data, locations]);
+    const branchNames = useMemo(() => [...(data?.branches || locations.map((l) => (l as { name?: string }).name || l)), DEFAULT_BRANCH], [data, locations]);
     const unanswered = (data?.unresolvedReps?.length || 0) + (data?.unresolvedBranches?.length || 0);
     const needsBlocked = (data?.needs?.edit && !canEdit ? 'Some customers here connect to existing ones, which needs the Edit customer switch.' : '')
         || (data?.needs?.add && !canAdd ? 'Bringing back a deleted customer needs the Add customer switch.' : '');
 
     // ── the footer button for each step ──────────────────────────────────────
-    let submit = { label: 'Continue', run: () => setStep(2), disabled: true, hide: false };
+    let submit: { label?: string; run?: () => void; disabled?: boolean; hide?: boolean } = { label: 'Continue', run: () => setStep(2), disabled: true, hide: false };
     if (view === 'wizard') {
         if (step === 1) submit = { label: 'Continue', run: () => setStep(2), disabled: !data || !fileCheck?.ok || busy };
         else if (step === 2) submit = { label: 'Continue', run: () => { setTab(counts.decision ? 'decision' : counts.deleted ? 'deleted' : 'new'); pager.resetPage(); setStep(3); }, disabled: !data || unanswered > 0 || planning };
@@ -342,21 +362,21 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
     );
 
     // ── lists on step 3 ──────────────────────────────────────────────────────
-    const listRows = data?.rows?.[tab] || [];
+    const listRows: Loose[] = data?.rows?.[tab] || [];
     const pageRows = listRows.slice((pager.currentPage - 1) * pager.rowsPerPage, pager.currentPage * pager.rowsPerPage);
     const tabs = [
         ['decision', 'Need a decision', counts.decision], ['deleted', 'Deleted before', counts.deleted],
         ['new', 'New', counts.new], ['update', 'Will be updated', (counts.update || 0) + (counts.restore || 0)],
         ['keptDeleted', 'Kept deleted', counts.keptDeleted], ['unchanged', 'No changes', counts.unchanged]
-    ].filter(([k, , c]) => c > 0 || k === 'decision' || k === 'new');
+    ].filter(([k, , c]) => c > 0 || k === 'decision' || k === 'new') as [string, string, number][];
     const total = data?.distinct || 0;
-    const seg = (c) => `${total ? (c / total) * 100 : 0}%`;
+    const seg = (c: number) => `${total ? (c / total) * 100 : 0}%`;
 
     const planCsv = () => {
-        const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const q = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
         const lines = [['Row', 'SPS customer', 'Plan'].map(q).join(',')];
         for (const [k, label] of [['new', 'New'], ['update', 'Update'], ['decision', 'Need a decision'], ['deleted', 'Deleted before'], ['keptDeleted', 'Kept deleted'], ['unchanged', 'No changes']]) {
-            for (const r of data.rows[k] || []) lines.push([r.rowNumber, r.name, label].map(q).join(','));
+            for (const r of data!.rows[k] || []) lines.push([r.rowNumber, r.name, label].map(q).join(','));
         }
         const blob = new Blob([`﻿${lines.join('\r\n')}`], { type: 'text/csv' });
         const a = document.createElement('a');
@@ -396,8 +416,8 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                             </div>
                             {openRun?.id === r.id && (
                                 <>
-                                    <ResultTiles counts={r.results} selected={openRun.result} onSelect={(v) => setOpenRun({ id: r.id, result: v })} />
-                                    <RunItems runId={r.id} result={openRun.result} />
+                                    <ResultTiles counts={r.results} selected={openRun!.result} onSelect={(v) => setOpenRun({ id: r.id, result: v })} />
+                                    <RunItems runId={r.id} result={openRun!.result} />
                                 </>
                             )}
                         </div>
@@ -449,14 +469,14 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                             <div className="spsi-checks">
                                 <div className="sect-title">File check</div>
                                 <div className="spsi-check"><span className={`spsi-dot ${fileCheck.ok ? 'ok' : 'bad'}`}>{fileCheck.ok ? '✓' : '!'}</span><span><b>{n(fileCheck.rowsRead)}</b> customers read{fileCheck.ok ? ', every row accounted for' : ''}</span></div>
-                                {fileCheck.blocking.map((b) => <div key={b.code} className="spsc-banner bad"><span><b>{b.message}</b>{b.rows?.length ? <> Rows: {b.rows.join(', ')}.</> : null} Nothing has been imported.</span></div>)}
+                                {fileCheck.blocking.map((b: Loose) => <div key={b.code} className="spsc-banner bad"><span><b>{b.message}</b>{b.rows?.length ? <> Rows: {b.rows.join(', ')}.</> : null} Nothing has been imported.</span></div>)}
                                 {fileCheck.ok && fileCheck.warnings.length === 0 && (
                                     <>
                                         <div className="spsi-check"><span className="spsi-dot ok">✓</span><span>Every row has a customer name</span></div>
                                         <div className="spsi-check"><span className="spsi-dot ok">✓</span><span>No customer name appears twice</span></div>
                                     </>
                                 )}
-                                {fileCheck.warnings.map((w) => <div key={w.code} className="spsi-check"><span className="spsi-dot warn">!</span><span>{w.message}{w.rows?.length ? ` Rows: ${w.rows.slice(0, 12).join(', ')}${w.rows.length > 12 ? '…' : ''}.` : ''}</span></div>)}
+                                {fileCheck.warnings.map((w: Loose) => <div key={w.code} className="spsi-check"><span className="spsi-dot warn">!</span><span>{w.message}{w.rows?.length ? ` Rows: ${w.rows.slice(0, 12).join(', ')}${w.rows.length > 12 ? '…' : ''}.` : ''}</span></div>)}
                             </div>
                         )}
                         <button type="button" className="spsi-link" onClick={openHistory}>Import history</button>
@@ -479,10 +499,10 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                                         <select value={data.mapping?.[f] ?? ''} disabled={planning} onChange={(e) => {
                                             const m = { ...(data.mapping || {}) };
                                             if (e.target.value) m[f] = e.target.value; else delete m[f];
-                                            replan(run.id, { mapping: m });
+                                            replan(run!.id, { mapping: m });
                                         }}>
                                             <option value="">— not imported —</option>
-                                            {data.headers.map((h) => <option key={h} value={h}>{h}</option>)}
+                                            {data.headers.map((h: string) => <option key={h} value={h}>{h}</option>)}
                                         </select>
                                     </label>
                                 ))}
@@ -491,8 +511,8 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                         {data.unresolvedReps.length > 0 && (
                             <div className="spsi-asks">
                                 <div className="sect-title">{data.unresolvedReps.length} sales {data.unresolvedReps.length === 1 ? 'person' : 'people'} we don’t recognise</div>
-                                {data.unresolvedReps.map((u) => {
-                                    const suggestion = (data.reps || []).find((r) => r.name === u.suggestion);
+                                {data.unresolvedReps.map((u: Loose) => {
+                                    const suggestion = (data.reps || []).find((r: Loose) => r.name === u.suggestion);
                                     return (
                                         <div key={u.given} className="spsi-ask" onClickCapture={liftRow}>
                                             <div><b>{u.given}</b><div className="spsc-muted">{n(u.rowCount)} customer{u.rowCount === 1 ? '' : 's'}{suggestion ? ` · suggested: ${suggestion.name}` : ''}</div></div>
@@ -506,7 +526,7 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                         {data.unresolvedBranches.length > 0 && (
                             <div className="spsi-asks">
                                 <div className="sect-title">{data.unresolvedBranches.length} branch{data.unresolvedBranches.length === 1 ? '' : 'es'} we don’t recognise</div>
-                                {data.unresolvedBranches.map((u) => (
+                                {data.unresolvedBranches.map((u: Loose) => (
                                     <div key={u.given} className="spsi-ask" onClickCapture={liftRow}>
                                         <div><b>{u.given}</b><div className="spsc-muted">{n(u.rowCount)} customer{u.rowCount === 1 ? '' : 's'}</div></div>
                                         <LocationPicker id={`br-${u.given}`} value={draft.branchAliases[u.given] || ''} onChange={(v) => answer('branchAliases', u.given, v)} options={branchNames}
@@ -552,15 +572,15 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                                             <legend><b>{r.name}</b> <span className="spsc-muted">row {r.rowNumber}</span></legend>
                                             <div className="spsi-compare">
                                                 <SpsSide k="In SPS" company={r.sheet.company} contact={r.sheet.contactName} phone={r.sheet.phone} email={r.sheet.email} place={r.sheet.city} branch={r.sheet.branch} rep={r.sheet.rep} />
-                                                {r.matches.slice(0, 1).map((m) => (
+                                                {r.matches.slice(0, 1).map((m: Loose) => (
                                                     <SpsSide key={m.id} k="In Easy Stones" company={m.company} contact={m.contactName} phone={m.phone} email={m.email} place={m.city} branch={m.location} rep={m.salesRepName} />
                                                 ))}
                                             </div>
                                             <label className={`spsc-opt${chosen === 'new' ? ' on' : ''}`}><input type="radio" name={`d-${r.key}`} checked={chosen === 'new'} onChange={() => answer('answers', r.key, 'new')} />
                                                 <span><b>Add as a new customer</b><span className="spsc-muted"> pre-selected; merge later if it turns out to be the same</span></span></label>
-                                            {r.matches.map((m) => (
+                                            {r.matches.map((m: Loose) => (
                                                 <label key={m.id} className={`spsc-opt${chosen === m.id ? ' on' : ''}`}><input type="radio" name={`d-${r.key}`} checked={chosen === m.id} onChange={() => answer('answers', r.key, m.id)} />
-                                                    <span><b>Same customer: {m.company}</b><span className="spsc-muted"> {m.signals.map((s) => SIGNAL_WORDS[s] || s).join(' · ')} — connect and update</span></span></label>
+                                                    <span><b>Same customer: {m.company}</b><span className="spsc-muted"> {m.signals.map((s: string) => SIGNAL_WORDS[s] || s).join(' · ')} — connect and update</span></span></label>
                                             ))}
                                         </fieldset>
                                     );
@@ -605,8 +625,8 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                                         <span className={`spsi-pill ${tab === 'new' ? 'new' : tab === 'update' ? 'upd' : ''}`}>{tab === 'new' ? 'New' : tab === 'update' ? (r.restore ? 'Bring back' : r.connect ? 'Connect' : 'Update') : 'Same'}</span>
                                         <span className="spsi-row-main"><b>{r.name}</b>
                                             <span className="spsc-muted">{[r.city, r.branch, r.rep, r.customerLabel && r.customerLabel !== r.name ? `= ${r.customerLabel}` : ''].filter(Boolean).join(' · ')}</span>
-                                            {r.changes?.map((c, i) => <span key={i} className="spsi-chg">{fieldName(c.field)}: <s>{c.from || '—'}</s> → {String(c.to)}</span>)}
-                                            {r.warnings?.map((w, i) => <span key={i} className="spsi-warn">⚠ {w}</span>)}
+                                            {r.changes?.map((c: Loose, i: number) => <span key={i} className="spsi-chg">{fieldName(c.field)}: <s>{c.from || '—'}</s> → {String(c.to)}</span>)}
+                                            {r.warnings?.map((w: string, i: number) => <span key={i} className="spsi-warn">⚠ {w}</span>)}
                                         </span>
                                     </div>
                                 ))}
@@ -644,7 +664,7 @@ export default function SpsImportModal({ onClose, onChanged, salesReps = [], loc
                                 <span className="spsc-muted"><b>{n(progress.verify.present)}</b> of {n(progress.verify.expected)} are in Easy Stones{progress.verify.keptDeleted > 0 && <> and <b>{n(progress.verify.keptDeleted)}</b> stayed deleted as you chose</>}. Each name in the file was looked up after the import. {when(progress.finishedAt)} · by {progress.createdBy}</span>
                                 {!progress.verify.ok && (
                                     <>
-                                        <ul className="spsi-missing">{progress.verify.missing.slice(0, 20).map((m) => <li key={m.key}><b>{m.name}</b> (row {m.rowNumber}): {m.reason}</li>)}</ul>
+                                        <ul className="spsi-missing">{progress.verify.missing.slice(0, 20).map((m: Loose) => <li key={m.key}><b>{m.name}</b> (row {m.rowNumber}): {m.reason}</li>)}</ul>
                                         <button type="button" className="spsi-btn" onClick={retry} disabled={busy}>Try these again</button>
                                     </>
                                 )}

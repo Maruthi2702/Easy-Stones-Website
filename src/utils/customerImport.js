@@ -85,7 +85,7 @@ export const importNormalize = (value) =>
  * Alias values meaning "decided: nobody" rather than "not decided yet". A rep
  * alias of '' in the request just means the admin hasn't answered, and the
  * name keeps being asked about; these are the answers that get remembered.
- * CustomerImportModal.jsx sends the same two strings.
+ * features/customers/import/CustomerImportModal.tsx sends the same two strings.
  */
 export const IMPORT_UNASSIGNED = '__none__';
 export const IMPORT_DEFAULT_BRANCH = '__default__';

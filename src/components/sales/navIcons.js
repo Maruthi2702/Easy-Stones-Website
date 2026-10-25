@@ -3,7 +3,7 @@ import {
     Users, Briefcase, Warehouse, ExternalLink, Layers, Shield, Calculator, Lock, HardHat, ShieldCheck, MapPin, ArrowUpDown, Receipt
 } from 'lucide-react';
 
-// The side nav's icons, shared by the desktop rail (CustomerSidebar.jsx) and
+// The side nav's icons, shared by the desktop rail (features/salesShell/sideNav/CustomerSidebar.tsx) and
 // the phone tab bar (PhoneTabBar.jsx). Pages, sections and who sees what live
 // in src/utils/navPins.js; only the icons are here. A page added there needs
 // an icon added here.

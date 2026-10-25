@@ -9,7 +9,7 @@ import FilterButton from './rail/FilterButton';
 import LeadSearchControl from './rail/LeadSearchControl';
 import RunDrawer from './rail/RunDrawer';
 import MoreMenu from './rail/MoreMenu';
-import AddCustomerModalJs from '../../components/sales/AddCustomerModal';
+import AddCustomerModalJs from '../customers/form/AddCustomerModal';
 import { toCustomerOptions } from '../../utils/customerOptions';
 import { canEditCustomers, canDeleteCustomers } from '../../utils/customerAccess';
 import OpenCustomerPanel from './customer/OpenCustomerPanel';

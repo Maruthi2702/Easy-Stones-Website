@@ -7,7 +7,7 @@ import './SalesPageChat.css';
 import './SalesPageChatImage.css';
 import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
-import CustomerSidebar from '../components/sales/CustomerSidebar';
+import CustomerSidebar from '../features/salesShell/sideNav/CustomerSidebar';
 import PhoneTabBar from '../components/sales/PhoneTabBar';
 import useIsPhone from '../components/shared/form/useIsPhone';
 import usePinnedTabs from '../components/sales/usePinnedTabs';

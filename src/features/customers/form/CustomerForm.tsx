@@ -1,23 +1,28 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type React from 'react';
 import { Camera, Info, Plus, Trash2, Upload } from 'lucide-react';
 import Tesseract from 'tesseract.js';
-import FormModal from '../shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker, FormSheet } from '../shared/form/FormControls';
-import { goToField, describedBy } from '../shared/form/formFocus';
-import useTouched from '../shared/form/useTouched';
-import useIsPhone from '../shared/form/useIsPhone';
-import { formatPhoneInput } from '../../utils/phoneUtils';
-import { parseBusinessCard } from '../../utils/cardParser';
-import { API_URL } from '../../config/api';
-import { authFetch } from '../../api/authFetch';
-import { useStartingRep } from '../../api/salesRepOptions';
-import RepPicker from '../shared/form/RepPicker';
-import LocationPicker from '../shared/form/LocationPicker';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormSection, FormRow, FormField, FormPicker, FormSheet } from '../../../components/shared/form/FormControls';
+import type { FormOption } from '../../../components/shared/form/FormControls';
+import { goToField, describedBy } from '../../../components/shared/form/formFocus';
+import useTouched from '../../../components/shared/form/useTouched';
+import useIsPhone from '../../../components/shared/form/useIsPhone';
+import { formatPhoneInput } from '../../../utils/phoneUtils';
+import { parseBusinessCard } from '../../../utils/cardParser';
+import { API_URL } from '../../../config/api';
+import { authFetch } from '../../../api/authFetch';
+import { useStartingRep } from '../../../api/salesRepOptions';
+import RepPicker from '../../../components/shared/form/RepPicker';
+import type { RepOption } from '../../../components/shared/form/RepPicker';
+import LocationPicker from '../../../components/shared/form/LocationPicker';
 import {
     STATUS_OPTIONS, LEVEL_OPTIONS, TYPE_OPTIONS, MODA_DISPLAY_OPTIONS, FIELD_LABELS, withCurrent,
     emptyCustomerValues, customerToFormValues, validateCustomerValues, withEmail, countCustomerChanges,
     applyCardScan, customerLastChangedText
-} from '../../utils/customerForm';
+} from '../../../utils/customerForm';
+import type { CustomerFormValues, CustomerAddress, Option } from '../../../utils/customerForm';
+import type { Loose } from '../../../types/records';
 import './CustomerForm.css';
 
 /*
@@ -30,28 +35,50 @@ import './CustomerForm.css';
  * Mounted by AddCustomerModal (which keeps its old read-only view), so every
  * caller — Sales CRM, the Customers list, the route planner — gets it with
  * the same onSave(form, close) it already had. The rules are
- * src/utils/customerForm.js.
+ * src/utils/customerForm.ts.
  */
 
-const ocr = (image, onProgress) =>
+const ocr = (image: string, onProgress: (percent: number) => void): Promise<string> =>
     Tesseract.recognize(image, 'eng', {
         logger: (m) => { if (m.status === 'recognizing text') onProgress(Math.floor(m.progress * 100)); }
     }).then((r) => r.data.text);
 
+export type CustomerFormProps = {
+    onClose: () => void;
+    /** Called with the form's values and the close function, as every caller's save already was. */
+    onSave: (values: CustomerFormValues, close: () => void) => void;
+    isSaving?: boolean;
+    editingCustomer?: Loose | null;
+    salesReps?: Loose[];
+    locations?: string[];
+    currentUser?: Loose | null;
+    onOpenExisting?: ((customer: Loose) => void) | null;
+    /** Resolves true when the customer was deleted (the form then closes). */
+    onDelete?: ((customer: Loose) => Promise<boolean> | boolean) | null;
+    prefill?: (Partial<Omit<CustomerFormValues, 'address'>> & { address?: Partial<CustomerAddress> }) | null;
+};
+
+/** One text field's options (see `text` below). */
+type TextOptions = {
+    required?: boolean; type?: string; placeholder?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+    autoComplete?: string; asTyped?: boolean; onBlur?: () => void; status?: string | null; error?: string; value?: string;
+    onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+};
+
 export default function CustomerForm({
     onClose, onSave, isSaving = false, editingCustomer = null,
     salesReps = [], locations = [], currentUser = null, onOpenExisting = null, onDelete = null, prefill = null
-}) {
+}: CustomerFormProps) {
     const isEdit = Boolean(editingCustomer);
     const isPhone = useIsPhone();
     // Who a new customer starts with: you if you're a sales rep, else the
     // branch's sales person (src/api/salesRepOptions.js → useStartingRep).
     const { repFor, ready: repsReady } = useStartingRep(currentUser);
-    const defaults = emptyCustomerValues({ salesReps, locations, currentUser, repFor: repsReady ? repFor : null });
-    const [initial, setInitial] = useState(() => (isEdit ? customerToFormValues(editingCustomer) : defaults));
+    const defaults = emptyCustomerValues({ salesReps: salesReps as { _id: string; inactive?: boolean }[], locations, currentUser, repFor: repsReady ? repFor : null });
+    const [initial, setInitial] = useState<CustomerFormValues>(() => (isEdit ? customerToFormValues(editingCustomer!) : defaults));
     // A new customer may open filled in (Permits → a contractor's "Create customer"):
     // those values count as changes, so closing asks before throwing them away.
-    const [values, setValues] = useState(() => (!isEdit && prefill
+    const [values, setValues] = useState<CustomerFormValues>(() => (!isEdit && prefill
         ? { ...initial, ...prefill, address: { ...initial.address, ...(prefill.address || {}) } }
         : initial));
     const [touched, touchField] = useTouched();
@@ -67,11 +94,11 @@ export default function CustomerForm({
         setValues((v) => ({ ...v, salesRep: v.salesRep || patch.salesRep, location: v.location || patch.location }));
     }
 
-    const set = (patch) => setValues((v) => ({ ...v, ...patch }));
+    const set = (patch: Partial<CustomerFormValues>) => setValues((v) => ({ ...v, ...patch }));
     // A new customer moved to another branch takes that branch's starting rep
     // — unless someone already picked a different rep by hand.
-    const offeredRep = (id) => Boolean(id) && salesReps.some((r) => String(r._id) === String(id) && !r.inactive);
-    const setLocation = (location) => setValues((v) => {
+    const offeredRep = (id: string) => Boolean(id) && salesReps.some((r) => String(r._id) === String(id) && !r.inactive);
+    const setLocation = (location: string) => setValues((v) => {
         if (isEdit || !repsReady) return { ...v, location };
         const before = String(repFor(v.location)?._id || '');
         const after = String(repFor(location)?._id || '');
@@ -79,17 +106,17 @@ export default function CustomerForm({
         // Still the old branch's starting rep → the new branch's (Unassigned if it has none).
         return { ...v, location, ...(followsBranch ? { salesRep: offeredRep(after) ? after : '' } : {}) };
     });
-    const setAddress = (patch) => setValues((v) => ({ ...v, address: { ...v.address, ...patch } }));
+    const setAddress = (patch: Partial<CustomerAddress>) => setValues((v) => ({ ...v, address: { ...v.address, ...patch } }));
 
-    const errors = validateCustomerValues(values);
-    const shown = (f) => (errors[f] && (submitted || touched[f]) ? errors[f] : '');
+    const errors: Record<string, string | undefined> = validateCustomerValues(values);
+    const shown = (f: string) => (errors[f] && (submitted || touched[f]) ? errors[f] : '');
     const visibleErrors = Object.fromEntries(Object.keys(FIELD_LABELS).filter((k) => errors[k]).map((k) => [k, errors[k]]));
     const dirtyCount = countCustomerChanges(values, initial);
 
     // ── Possible duplicates (new customers only; advice, never blocks saving) ──
     // Same rules as the import and the duplicate audit (customerMatch.js, via
     // POST /api/customers/possible-duplicates).
-    const [dupMatches, setDupMatches] = useState([]);
+    const [dupMatches, setDupMatches] = useState<{ customer: Loose; signals: string[] }[]>([]);
     const [dupDismissed, setDupDismissed] = useState(false);
     const dupSeq = useRef(0);
     useEffect(() => {
@@ -151,14 +178,14 @@ export default function CustomerForm({
     // ── Business card: the + next to the ✕ ──
     const [menuOpen, setMenuOpen] = useState(false);
     const [scan, setScan] = useState({ status: 'idle', progress: 0, result: '' }); // idle | camera | reading
-    const plusRef = useRef(null);
-    const fileRef = useRef(null);
-    const videoRef = useRef(null);
-    const streamRef = useRef(null);
+    const plusRef = useRef<HTMLDivElement | null>(null);
+    const fileRef = useRef<HTMLInputElement | null>(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const streamRef = useRef<MediaStream | null>(null);
 
     useEffect(() => {
         if (!menuOpen || isPhone) return undefined;
-        const onDown = (e) => { if (!plusRef.current?.contains(e.target)) setMenuOpen(false); };
+        const onDown = (e: MouseEvent) => { if (!plusRef.current?.contains(e.target as Node)) setMenuOpen(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
     }, [menuOpen, isPhone]);
@@ -174,15 +201,15 @@ export default function CustomerForm({
     };
     useEffect(() => stopCamera, []);
 
-    const readCard = async (image) => {
+    const readCard = async (image: string) => {
         setScan({ status: 'reading', progress: 0, result: '' });
         try {
             const text = await ocr(image, (p) => setScan((s) => ({ ...s, progress: p })));
             const parsed = parseBusinessCard(text);
             // Whether anything was found depends only on the card; the values
             // are merged in the updater so typing during the read isn't lost.
-            const { found } = applyCardScan(initial, parsed);
-            if (found) setValues((v) => applyCardScan(v, parsed).values);
+            const { found } = applyCardScan(initial, parsed as Loose | null);
+            if (found) setValues((v) => applyCardScan(v, parsed as Loose | null).values);
             setScan({ status: 'idle', progress: 0, result: found ? 'filled' : 'nothing' });
         } catch (err) {
             console.error('Card scan failed:', err);
@@ -216,27 +243,27 @@ export default function CustomerForm({
         const canvas = document.createElement('canvas');
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height);
         const image = canvas.toDataURL('image/jpeg');
         stopCamera();
         readCard(image);
     };
-    const onPhoto = (e) => {
+    const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         e.target.value = '';
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (ev) => readCard(ev.target.result);
+        reader.onload = (ev) => readCard(ev.target!.result as string);
         reader.readAsDataURL(file);
     };
     const pickPhoto = () => { setMenuOpen(false); fileRef.current?.click(); };
 
-    const scanNote = {
+    const scanNote = ({
         filled: { tone: 'ok', text: 'Filled in from the card — check the details' },
         nothing: { tone: 'err', text: 'Couldn’t find contact details on that card. Try again with the card filling the frame.' },
         failed: { tone: 'err', text: 'Couldn’t read the card. Try again.' },
         nocamera: { tone: 'err', text: 'Couldn’t open the camera. Allow camera access, or upload a photo instead.' }
-    }[scan.result];
+    } as Record<string, { tone: string; text: string }>)[scan.result];
 
     const cardItems = (
         <>
@@ -288,7 +315,7 @@ export default function CustomerForm({
     // picks one for an account, though — only the rep already on this
     // customer still shows, and one no longer on the list shows under "Other".
     const repOptions = (() => {
-        const list = salesReps
+        const list: RepOption[] = salesReps
             .filter((r) => !r.inactive || String(r._id) === String(values.salesRep))
             .map((r) => ({ value: String(r._id), label: r.name, location: r.location || '', id: String(r._id) }));
         if (values.salesRep && !list.some((o) => o.value === String(values.salesRep))) {
@@ -297,7 +324,7 @@ export default function CustomerForm({
         return list;
     })();
 
-    const text = (name, label, { required = false, type = 'text', placeholder, inputMode, autoComplete = 'off', asTyped = false, onBlur, status, error, value, onChange } = {}) => {
+    const text = (name: string, label: string, { required = false, type = 'text', placeholder, inputMode, autoComplete = 'off', asTyped = false, onBlur, status, error, value, onChange }: TextOptions = {}) => {
         const id = `cf-${name}`;
         return (
             <FormField name={name} id={id} label={label} required={required} error={error} status={status}>
@@ -306,7 +333,7 @@ export default function CustomerForm({
                     className={`fm-input${asTyped ? ' no-capitalize' : ''}`}
                     type={type}
                     inputMode={inputMode}
-                    value={value ?? values[name] ?? ''}
+                    value={value ?? (values as Loose)[name] ?? ''}
                     placeholder={placeholder}
                     autoComplete={autoComplete}
                     // Names and addresses: the keyboard capitalizes each word
@@ -319,9 +346,9 @@ export default function CustomerForm({
             </FormField>
         );
     };
-    const picker = (name, label, options, onChange = (v) => set({ [name]: v })) => (
+    const picker = (name: keyof CustomerFormValues, label: string, options: readonly Option[], onChange = (v: string) => set({ [name]: v })) => (
         <FormField name={name} id={`cf-${name}`} label={label}>
-            <FormPicker id={`cf-${name}`} value={values[name]} onChange={onChange} options={options} sheetTitle={label} />
+            <FormPicker id={`cf-${name}`} value={values[name] as string} onChange={onChange} options={options as FormOption[]} sheetTitle={label} />
         </FormField>
     );
 
@@ -331,19 +358,19 @@ export default function CustomerForm({
             className="fm-btn fm-btn-text-danger"
             disabled={isSaving || dirtyCount > 0}
             title={dirtyCount > 0 ? 'Save or discard your changes first' : 'Delete this customer'}
-            onClick={async () => { if (await onDelete(editingCustomer)) onClose(); }}
+            onClick={async () => { if (await onDelete(editingCustomer!)) onClose(); }}
         >
             <Trash2 size={16} aria-hidden="true" />
             Delete customer
         </button>
     ) : null;
 
-    const dupName = (m) => m.company || m.contactName || m.name;
-    const dupMeta = (m) => [m.address?.city || m.city, m.phone, m.salesRepName || 'Unassigned', m.location || 'Seattle', m.status].filter(Boolean).join(' · ');
+    const dupName = (m: Loose) => m.company || m.contactName || m.name;
+    const dupMeta = (m: Loose) => [m.address?.city || m.city, m.phone, m.salesRepName || 'Unassigned', m.location || 'Seattle', m.status].filter(Boolean).join(' · ');
 
     return (
         <FormModal
-            title={isEdit ? <>Edit customer <span className="fm-title-sub">· {editingCustomer.company || editingCustomer.contactName || 'Customer'}</span></> : 'Add a customer'}
+            title={isEdit ? <>Edit customer <span className="fm-title-sub">· {editingCustomer!.company || editingCustomer!.contactName || 'Customer'}</span></> : 'Add a customer'}
             size="m"
             onClose={() => { stopCamera(); onClose(); }}
             onSubmit={submit}
@@ -357,7 +384,7 @@ export default function CustomerForm({
             showErrors={submitted}
             fieldLabels={FIELD_LABELS}
             footerStart={footerStart}
-            footerNote={isEdit ? customerLastChangedText(editingCustomer) : null}
+            footerNote={isEdit ? customerLastChangedText(editingCustomer!) : null}
             headerActions={headerActions}
         >
             <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPhoto} />

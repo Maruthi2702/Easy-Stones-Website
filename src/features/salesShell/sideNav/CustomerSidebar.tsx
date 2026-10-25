@@ -1,12 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     LayoutDashboard, Home, Pin, PinOff, PanelLeftClose, X, Sun, Moon, LogOut, UserCheck
 } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
-import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS, isOnePageSection } from '../../utils/navPins';
-import { CartRailButton } from '../../features/holds';
-import { ITEM_ICONS, SECTION_ICONS } from './navIcons';
+import { useAuth } from '../../../context/AuthContext';
+import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS, isOnePageSection } from '../../../utils/navPins';
+import { CartRailButton } from '../../holds';
+import { ITEM_ICONS, SECTION_ICONS } from '../../../components/sales/navIcons';
+import type { Loose } from '../../../types/records';
 import './CustomerSidebar.css';
 
 // New staff: until someone pins a page or taps "Got it", the pin buttons
@@ -20,7 +22,7 @@ const readPinTipDismissed = () => {
     }
 };
 
-const getInitials = (name) => {
+const getInitials = (name: string | undefined) => {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 };
@@ -31,6 +33,25 @@ const getInitials = (name) => {
  * The first pin is their default page — where /sales opens (SalesPage's
  * getDefaultTab). On phones/tablets (isMobile) the whole thing is a drawer.
  */
+/** A side nav section (navPins.js railSections) and one of its pages. */
+type NavPage = { id: string; label: string; href?: string };
+type NavSection = { id: string; label: string; items: NavPage[] };
+type IconMap = Record<string, React.ComponentType<{ size?: number }>>;
+
+export type CustomerSidebarProps = {
+    crmTab: string;
+    handleCrmTabChange: (tab: string) => void;
+    isSidebarOpen: boolean;
+    isMobile: boolean;
+    setIsSidebarOpen: (open: boolean) => void;
+    theme: string;
+    toggleTheme: () => void;
+    pinnedTabs: string[] | null | undefined;
+    onTogglePin: (id: string) => void;
+    onMakeDefault: (id: string) => void;
+    navOrder: unknown;
+};
+
 const CustomerSidebar = ({
     crmTab,
     handleCrmTabChange,
@@ -43,9 +64,9 @@ const CustomerSidebar = ({
     onTogglePin,
     onMakeDefault,
     navOrder
-}) => {
+}: CustomerSidebarProps) => {
     const navigate = useNavigate();
-    const { user, logout } = useAuth();
+    const { user, logout } = useAuth() as { user: Loose | null; logout: () => Promise<void> };
 
     const [pinTipDismissed, setPinTipDismissed] = useState(readPinTipDismissed);
     const showPinHints = !pinTipDismissed && (pinnedTabs || []).length === 0;
@@ -57,8 +78,8 @@ const CustomerSidebar = ({
             // storage unavailable — the tip just comes back next visit
         }
     };
-    const sections = railSections(user, navOrder);
-    const pins = visiblePinnedTabs(user, pinnedTabs);
+    const sections: NavSection[] = railSections(user, navOrder);
+    const pins: string[] = visiblePinnedTabs(user, pinnedTabs);
     const pinsFull = (pinnedTabs || []).length >= MAX_PINNED_TABS;
     const currentSection = sectionOf(crmTab);
 
@@ -68,10 +89,10 @@ const CustomerSidebar = ({
     // used to stay docked until "Hide panel", squeezing wide tables like the
     // Check-In Log). Phones and tablets keep their drawer (isMobile).
     const [flyoutOpen, setFlyoutOpen] = useState(false);
-    const navRef = useRef(null);
+    const navRef = useRef<HTMLElement | null>(null);
     const [viewSection, setViewSection] = useState(currentSection);
     const [menuOpen, setMenuOpen] = useState(false);
-    const menuRef = useRef(null);
+    const menuRef = useRef<HTMLDivElement | null>(null);
 
     // The panel follows the page you're on; clicking a section only previews it.
     const [lastSection, setLastSection] = useState(currentSection);
@@ -82,10 +103,10 @@ const CustomerSidebar = ({
 
     useEffect(() => {
         if (isMobile || !flyoutOpen) return undefined;
-        const onDown = (e) => {
-            if (navRef.current && !navRef.current.contains(e.target)) setFlyoutOpen(false);
+        const onDown = (e: MouseEvent) => {
+            if (navRef.current && !navRef.current.contains(e.target as Node)) setFlyoutOpen(false);
         };
-        const onKey = (e) => {
+        const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setFlyoutOpen(false);
         };
         document.addEventListener('mousedown', onDown);
@@ -98,10 +119,10 @@ const CustomerSidebar = ({
 
     useEffect(() => {
         if (!menuOpen) return undefined;
-        const onDown = (e) => {
-            if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+        const onDown = (e: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
         };
-        const onKey = (e) => {
+        const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') setMenuOpen(false);
         };
         document.addEventListener('mousedown', onDown);
@@ -121,13 +142,13 @@ const CustomerSidebar = ({
     const onePageSection = isOnePageSection(shownSection);
     const showPanel = isMobile || (flyoutOpen && !onePageSection);
 
-    const go = (tab) => {
+    const go = (tab: string) => {
         setMenuOpen(false);
         setFlyoutOpen(false);
         handleCrmTabChange(tab); // also closes the drawer on mobile
     };
 
-    const openSection = (section) => {
+    const openSection = (section: NavSection) => {
         setViewSection(section.id);
         // A one-page section (Admin today) goes straight to it. Not Home —
         // that's where the pins are — nor Accounting (isOnePageSection).
@@ -146,8 +167,8 @@ const CustomerSidebar = ({
         navigate('/login');
     };
 
-    const renderRow = (item, { inPinned = false, index = 0 } = {}) => {
-        const Icon = ITEM_ICONS[item.id] || LayoutDashboard;
+    const renderRow = (item: NavPage, { inPinned = false, index = 0 } = {}) => {
+        const Icon = (ITEM_ICONS as IconMap)[item.id] || LayoutDashboard;
         const active = crmTab === item.id;
         const pinned = (pinnedTabs || []).includes(item.id);
         const isDefault = inPinned && index === 0;
@@ -214,7 +235,7 @@ const CustomerSidebar = ({
                 <div className="side-nav-logo" aria-hidden="true">ES</div>
                 <div className="side-nav-sections">
                     {sections.map(section => {
-                        const Icon = SECTION_ICONS[section.id] || LayoutDashboard;
+                        const Icon = (SECTION_ICONS as IconMap)[section.id] || LayoutDashboard;
                         const isCurrent = section.id === currentSection;
                         const isViewing = showPanel && section.id === shownSection?.id;
                         return (
@@ -330,7 +351,7 @@ const CustomerSidebar = ({
                                     )}
                                 </div>
                                 {pins.length > 0 ? (
-                                    pins.map((id, index) => renderRow(navItem(id), { inPinned: true, index }))
+                                    pins.map((id, index) => renderRow(navItem(id) as NavPage, { inPinned: true, index }))
                                 ) : (
                                     <p className="side-nav-empty">
                                         Pin the pages you use most from any section. Your first pin is the page that opens when you sign in.

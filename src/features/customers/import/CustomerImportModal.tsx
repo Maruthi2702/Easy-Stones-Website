@@ -12,14 +12,16 @@
  * server re-plans against the database as it stands at that moment, so nothing
  * edited in the browser can choose which record gets written.
  */
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
+import type React from 'react';
 import { X, Upload, AlertTriangle, Check, Loader, Download, Users } from 'lucide-react';
-import { API_URL } from '../../config/api';
-import { authFetch } from '../../api/authFetch';
-import { orderLocations } from '../../utils/locationFilter';
+import { API_URL } from '../../../config/api';
+import { authFetch } from '../../../api/authFetch';
+import { orderLocations } from '../../../utils/locationFilter';
+import type { Loose } from '../../../types/records';
 import './CustomerImportModal.css';
 
-const FIELD_LABELS = {
+const FIELD_LABELS: Record<string, string> = {
     salesRep: 'Sales rep',
     location: 'Easy Stones branch',
     marketingEmail: 'Marketing email',
@@ -43,19 +45,19 @@ const FIELD_LABELS = {
     accountAlert: 'Account alert'
 };
 
-const ACTION_LABELS = {
+const ACTION_LABELS: Record<string, string> = {
     create: 'New customers',
     update: 'Will be updated',
     review: 'Needs your review',
     error: 'Could not be read'
 };
 
-const csvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
 
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** A copy of `map` with `key` set to `value`, or dropped when `value` is blank. */
-const withEntry = (map, key, value) => {
+const withEntry = (map: Record<string, string>, key: string | number, value: string) => {
     const next = { ...map };
     if (value) next[key] = value; else delete next[key];
     return next;
@@ -66,7 +68,7 @@ const withEntry = (map, key, value) => {
  * the person has given (only the ones they have, so an untouched import posts
  * nothing but the file). The server re-plans from exactly this.
  */
-const importForm = (file, answers) => {
+const importForm = (file: File, answers: Record<string, Record<string, unknown>>) => {
     const body = new FormData();
     body.append('file', file);
     for (const [name, value] of Object.entries(answers)) {
@@ -76,7 +78,9 @@ const importForm = (file, answers) => {
 };
 
 /** One "who is this name?" row: the name from the sheet, how many rows use it, and the picker. */
-const AliasRow = ({ given, rowCount, value, disabled, onChange, children }) => (
+const AliasRow = ({ given, rowCount, value, disabled, onChange, children }: {
+    given: string; rowCount: number; value?: string; disabled: boolean; onChange: (value: string) => void; children?: React.ReactNode;
+}) => (
     <div className="import-alias-row">
         <span className="import-alias-given">
             {given} <em>({plural(rowCount, 'row')})</em>
@@ -105,37 +109,50 @@ const DEFAULT_BRANCH = '__default__';
  * failed", which sent us looking in the wrong place for an afternoon. Read every
  * field the server actually uses, and always show the status code.
  */
-const describeFailure = async (res) => {
+const describeFailure = async (res: Response): Promise<string> => {
     const body = await res.text();
-    let parsed = null;
+    let parsed: Loose | null = null;
     try { parsed = JSON.parse(body); } catch { /* not JSON — fall through */ }
 
     const said = parsed && (parsed.message || parsed.error);
-    if (said) return `${said}${parsed.hint ? ` — ${parsed.hint}` : ''} (HTTP ${res.status})`;
+    if (said) return `${said}${parsed!.hint ? ` — ${parsed!.hint}` : ''} (HTTP ${res.status})`;
 
     return `HTTP ${res.status} — ${(body || '').trim().slice(0, 200) || res.statusText || 'no response body'}`;
 };
 
 // canResolveDuplicates: the "already in the database" duplicates section
 // merges and deletes records, so it needs Edit (manage_customers), not just Import.
-const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates = false }) => {
-    const [file, setFile] = useState(null);
-    const [plan, setPlan] = useState(null);
-    const [mapping, setMapping] = useState({});
-    const [repAliases, setRepAliases] = useState({});
-    const [branchAliases, setBranchAliases] = useState({});
-    const [decisions, setDecisions] = useState({});
+/** One "possible duplicates already in the database" group from the preview. */
+type DupGroup = { members: Loose[]; signals: string[] };
+/** A group's choices: the record kept, and what happens to each of the others. */
+type DupChoice = { keepId: string; actions: Record<string, string> };
+type Answers = Record<string, string>;
+
+export type CustomerImportModalProps = {
+    show?: boolean;
+    onClose: () => void;
+    onImported?: () => void;
+    canResolveDuplicates?: boolean;
+};
+
+const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates = false }: CustomerImportModalProps) => {
+    const [file, setFile] = useState<File | null>(null);
+    const [plan, setPlan] = useState<Loose | null>(null);
+    const [mapping, setMapping] = useState<Answers>({});
+    const [repAliases, setRepAliases] = useState<Answers>({});
+    const [branchAliases, setBranchAliases] = useState<Answers>({});
+    const [decisions, setDecisions] = useState<Answers>({});
     const [busy, setBusy] = useState('');
     const [error, setError] = useState('');
-    const [result, setResult] = useState(null);
+    const [result, setResult] = useState<Loose | null>(null);
     const [tab, setTab] = useState('update');
     // Per duplicate group (keyed by its member ids): which record stays, and
     // what happens to each of the others.
-    const [dupChoices, setDupChoices] = useState({});
+    const [dupChoices, setDupChoices] = useState<Record<string, DupChoice>>({});
     const [dupBusy, setDupBusy] = useState('');
     // The last merge/delete, for its Undo button.
-    const [dupResult, setDupResult] = useState(null);
-    const fileRef = useRef(null);
+    const [dupResult, setDupResult] = useState<{ message: string; undoIds: string[] } | null>(null);
+    const fileRef = useRef<HTMLInputElement | null>(null);
     const previewSeq = useRef(0);
 
     const reset = () => {
@@ -144,15 +161,15 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
         setDupChoices({}); setDupResult(null);
     };
 
-    const groupKey = (g) => g.members.map(m => m.id).join('|');
+    const groupKey = (g: DupGroup) => g.members.map(m => m.id).join('|');
 
     /** The group's choices, defaulting "keep" to its oldest record (listed first). */
-    const choicesIn = (all, g) => all[groupKey(g)] || { keepId: g.members[0].id, actions: {} };
-    const choicesFor = (g) => choicesIn(dupChoices, g);
+    const choicesIn = (all: Record<string, DupChoice>, g: DupGroup): DupChoice => all[groupKey(g)] || { keepId: g.members[0].id, actions: {} };
+    const choicesFor = (g: DupGroup) => choicesIn(dupChoices, g);
 
     // Both read the latest state inside the updater rather than this render's
     // copy, so two changes in quick succession can't overwrite each other.
-    const setKeep = (g, keepId) => {
+    const setKeep = (g: DupGroup, keepId: string) => {
         setDupChoices(all => {
             const rest = { ...choicesIn(all, g).actions };
             delete rest[keepId];
@@ -160,7 +177,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
         });
     };
 
-    const setDupAction = (g, id, action) => {
+    const setDupAction = (g: DupGroup, id: string, action: string) => {
         setDupChoices(all => {
             const current = choicesIn(all, g);
             return { ...all, [groupKey(g)]: { ...current, actions: { ...current.actions, [id]: action } } };
@@ -171,10 +188,10 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
      * Carry out one group's choices, then re-run the preview so the list (and
      * the import's own matching) reflects the customers as they now stand.
      */
-    const resolveGroup = async (g) => {
+    const resolveGroup = async (g: DupGroup) => {
         const { keepId, actions } = choicesFor(g);
-        const kept = g.members.find(m => m.id === keepId);
-        const count = (a) => Object.values(actions).filter(x => x === a).length;
+        const kept = g.members.find(m => m.id === keepId)!;
+        const count = (a: string) => Object.values(actions).filter(x => x === a).length;
         const merge = count('merge');
         const del = count('delete');
         if ((merge || del) && !window.confirm(
@@ -202,7 +219,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
             onImported?.();
             if (file) await runPreview(file);
         } catch (err) {
-            setError(err.message);
+            setError((err as Error).message);
         } finally {
             setDupBusy('');
         }
@@ -214,14 +231,14 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
         try {
             const res = await authFetch(`${API_URL}/api/customers/duplicates/undo`, {
                 method: 'POST',
-                body: JSON.stringify({ undoIds: dupResult.undoIds })
+                body: JSON.stringify({ undoIds: dupResult!.undoIds })
             });
             if (!res.ok) throw new Error(await describeFailure(res));
             setDupResult({ message: 'Undone — the removed records are back.', undoIds: [] });
             onImported?.();
             if (file) await runPreview(file);
         } catch (err) {
-            setError(err.message);
+            setError((err as Error).message);
         } finally {
             setDupBusy('');
         }
@@ -233,7 +250,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
      * Ask the server what this file would do. Called again whenever the mapping
      * or an alias changes, because every one of those changes what it would do.
      */
-    const runPreview = async (theFile, overrides = {}) => {
+    const runPreview = async (theFile: File, overrides: Partial<Record<'mapping' | 'repAliases' | 'branchAliases' | 'decisions', Answers>> = {}) => {
         // Only the newest request may show its answer: two quick changes (a
         // mapping, then an alias) used to let the slower, older response land
         // last and show a plan that no longer matched the choices on screen.
@@ -262,15 +279,15 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
             if (!Object.keys(nextMapping).length) setMapping(data.mapping);
         } catch (err) {
             if (mine !== previewSeq.current) return;
-            setError(err.message);
+            setError((err as Error).message);
             setPlan(null);
         } finally {
             if (mine === previewSeq.current) setBusy('');
         }
     };
 
-    const onPickFile = (e) => {
-        const picked = e.target.files[0];
+    const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const picked = e.target.files![0];
         e.target.value = '';
         if (!picked) return;
         reset();
@@ -278,22 +295,22 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
         runPreview(picked, { mapping: {}, repAliases: {}, branchAliases: {} });
     };
 
-    const changeMapping = (field, header) => {
+    const changeMapping = (field: string, header: string) => {
         const next = { ...mapping, [field]: header };
         setMapping(next);
-        runPreview(file, { mapping: next });
+        runPreview(file!, { mapping: next });
     };
 
-    const changeRepAlias = (given, userId) => {
+    const changeRepAlias = (given: string, userId: string) => {
         const next = withEntry(repAliases, given, userId);
         setRepAliases(next);
-        runPreview(file, { repAliases: next });
+        runPreview(file!, { repAliases: next });
     };
 
-    const changeBranchAlias = (given, branch) => {
+    const changeBranchAlias = (given: string, branch: string) => {
         const next = withEntry(branchAliases, given, branch);
         setBranchAliases(next);
-        runPreview(file, { branchAliases: next });
+        runPreview(file!, { branchAliases: next });
     };
 
     /**
@@ -301,10 +318,10 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
      * existing record it was confused with. Re-plans, so the row moves out of
      * the review list and into the create or update list with its changes shown.
      */
-    const decide = (rowNumber, choice) => {
+    const decide = (rowNumber: number, choice: string) => {
         const next = withEntry(decisions, rowNumber, choice);
         setDecisions(next);
-        runPreview(file, { decisions: next });
+        runPreview(file!, { decisions: next });
     };
 
     /**
@@ -321,7 +338,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
             if (r.action === 'review' && !(r.rowNumber in next)) next[r.rowNumber] = 'create';
         }
         setDecisions(next);
-        runPreview(file, { decisions: next });
+        runPreview(file!, { decisions: next });
     };
 
     /**
@@ -339,25 +356,25 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
             const res = await authFetch(`${API_URL}/api/customers/import/memory`, { method: 'DELETE' });
             if (!res.ok) throw new Error(await describeFailure(res));
         } catch (err) {
-            setError(err.message);
+            setError((err as Error).message);
             setBusy('');
             return;
         }
-        runPreview(file);
+        runPreview(file!);
     };
 
     const apply = async () => {
-        const { create, update } = plan.counts;
+        const { create, update } = plan!.counts;
         if (!window.confirm(
             `Create ${plural(create, 'customer')} and update ${update}?\n\n` +
-            `${plural(plan.counts.review, 'row')} flagged for review will not be touched.\n\n` +
+            `${plural(plan!.counts.review, 'row')} flagged for review will not be touched.\n\n` +
             'The sales-rep mappings and review decisions you made here will be remembered for the next upload.'
         )) return;
 
         setBusy('apply');
         setError('');
         try {
-            const body = importForm(file, { mapping, repAliases, branchAliases, decisions });
+            const body = importForm(file!, { mapping, repAliases, branchAliases, decisions });
 
             const res = await authFetch(`${API_URL}/api/customers/import/apply`, {
                 method: 'POST', body
@@ -369,7 +386,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
             setPlan(p => ({ ...p, ...data, counts: data.counts }));
             onImported?.();
         } catch (err) {
-            setError(err.message);
+            setError((err as Error).message);
         } finally {
             setBusy('');
         }
@@ -377,7 +394,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
 
     /** The duplicate list, as a file you can work through away from the screen. */
     const downloadReview = () => {
-        const rows = (plan.rows || []).filter(r => r.action === 'review');
+        const rows: Loose[] = (plan!.rows || []).filter((r: Loose) => r.action === 'review');
         const lines = [
             ['Sheet row', 'Company', 'Contact', 'Email', 'Phone', 'City', 'Why', 'Existing match', 'Matched on', 'Confidence'].join(',')
         ];
@@ -401,9 +418,9 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
 
     const counts = plan?.counts;
     // The preview's rows, grouped once for the four tabs.
-    const rowsByAction = {};
+    const rowsByAction: Record<string, Loose[]> = {};
     for (const r of plan?.rows || []) (rowsByAction[r.action] ||= []).push(r);
-    const rowsFor = (action) => rowsByAction[action] || [];
+    const rowsFor = (action: string) => rowsByAction[action] || [];
     const working = busy === 'preview';
 
     return (
@@ -455,7 +472,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                                                 onChange={e => changeMapping(field, e.target.value)}
                                             >
                                                 <option value="">— not imported —</option>
-                                                {plan.headers.map(h => <option key={h} value={h}>{h}</option>)}
+                                                {plan.headers.map((h: string) => <option key={h} value={h}>{h}</option>)}
                                             </select>
                                         </label>
                                     ))}
@@ -483,20 +500,20 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                                         Until you say who these are, those rows import unassigned. Whatever
                                         you pick is remembered, so the next upload won&apos;t ask again.
                                     </p>
-                                    {plan.unresolvedReps?.map(u => (
+                                    {plan.unresolvedReps?.map((u: Loose) => (
                                         <AliasRow
                                             key={u.given} given={u.given} rowCount={u.rowCount} disabled={working}
                                             value={repAliases[u.given]} onChange={id => changeRepAlias(u.given, id)}
                                         >
                                             <option value={UNASSIGNED}>Leave unassigned</option>
-                                            {plan.reps?.map(r => (
+                                            {plan.reps?.map((r: Loose) => (
                                                 <option key={r._id} value={r._id}>
                                                     {r.name}{r.name === u.suggestion ? ' (likely)' : ''}
                                                 </option>
                                             ))}
                                         </AliasRow>
                                     ))}
-                                    {plan.unresolvedBranches?.map(u => (
+                                    {plan.unresolvedBranches?.map((u: Loose) => (
                                         <AliasRow
                                             key={u.given} given={u.given} rowCount={u.rowCount} disabled={working}
                                             value={branchAliases[u.given]} onChange={branch => changeBranchAlias(u.given, branch)}
@@ -517,13 +534,13 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                                         already in Easy Stones{plan.coverage.absent > 0 && <>, <strong>{plan.coverage.absent.toLocaleString()}</strong> are not</>}</>
                                     )}
                                 </p>
-                                {plan.fileCheck.blocking.map(b => (
+                                {plan.fileCheck.blocking.map((b: Loose) => (
                                     <div key={b.code} className="import-error">
                                         <AlertTriangle size={16} /> {b.message}
                                         {b.rows.length > 0 && <> Rows: {b.rows.join(', ')}{b.rows.length >= 50 ? '…' : ''}.</>}
                                     </div>
                                 ))}
-                                {plan.fileCheck.warnings.map(w => (
+                                {plan.fileCheck.warnings.map((w: Loose) => (
                                     <p key={w.code} className="import-row-warning">
                                         <AlertTriangle size={12} /> {w.message}
                                         {w.rows.length > 0 && <> Rows: {w.rows.slice(0, 12).join(', ')}{w.rows.length > 12 ? '…' : ''}.</>}
@@ -606,7 +623,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                                             {r.action === 'update' && (
                                                 <div className="import-row-detail">
                                                     <div className="import-row-target">matches: {r.targetLabel}</div>
-                                                    {r.changes.map(c => (
+                                                    {r.changes.map((c: Loose) => (
                                                         <div key={c.field} className="import-change">
                                                             {FIELD_LABELS[c.field] || c.field}:
                                                             <span className="import-from">{c.from || '(blank)'}</span>
@@ -626,7 +643,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                                             {r.action === 'review' && (
                                                 <div className="import-row-detail">
                                                     <div className="import-row-reason">{r.reason}</div>
-                                                    {r.matches.map(m => (
+                                                    {r.matches.map((m: Loose) => (
                                                         <div key={m.id} className="import-match">
                                                             <span className="import-match-score">{m.signals.join(' + ')}</span>
                                                             {m.label}
@@ -643,7 +660,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                                                         >
                                                             <option value="">— leave it, decide later —</option>
                                                             <option value="create">a different business — create it</option>
-                                                            {r.matches.filter(m => !m.fromSheet).map(m => (
+                                                            {r.matches.filter((m: Loose) => !m.fromSheet).map((m: Loose) => (
                                                                 <option key={m.id} value={m.id}>
                                                                     the same as: {m.label.slice(0, 70)}
                                                                 </option>
@@ -655,7 +672,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
 
                                             {r.action === 'error' && <div className="import-row-detail">{r.reason}</div>}
 
-                                            {r.warnings?.map((w, i) => (
+                                            {r.warnings?.map((w: string, i: number) => (
                                                 <div key={i} className="import-row-warning">
                                                     <AlertTriangle size={12} /> {w}
                                                 </div>
@@ -683,7 +700,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                             </div>
                             {result.results.errors.length > 0 && (
                                 <div className="import-error-list">
-                                    {result.results.errors.map((e, i) => <div key={i}>{e}</div>)}
+                                    {result.results.errors.map((e: string, i: number) => <div key={i}>{e}</div>)}
                                 </div>
                             )}
                             {result.counts.review > 0 && (
@@ -717,7 +734,7 @@ const CustomerImportModal = ({ show, onClose, onImported, canResolveDuplicates =
                                 booked against a merged or deleted record moves to the one you keep.
                             </p>
                             <div className="import-rows">
-                                {plan.dbDuplicates.map(g => {
+                                {plan!.dbDuplicates.map((g: DupGroup) => {
                                     const key = groupKey(g);
                                     const { keepId, actions } = choicesFor(g);
                                     const others = g.members.filter(m => m.id !== keepId);
