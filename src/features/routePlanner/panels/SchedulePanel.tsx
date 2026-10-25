@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Calendar, Check, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
-import { buildMonthGrid, todayKey, nameOf, real } from '../helpers';
+import { buildMonthGrid, todayKey, nameOf, real, customerOf } from '../helpers';
 import ScheduleVisitForm from './ScheduleVisitForm';
 import type { CustomerOption } from '../../../utils/customerOptions';
 import type { ScheduleRow, ScheduleVisitInput } from '../types';
@@ -56,9 +56,6 @@ const visitFlag = (visit: ScheduleRow) => {
  * removes the overlay and reveals them exactly as they were, instead of
  * re-rendering a "browse" view from scratch.
  */
-/** The customer an entry is for: populated to a name, or only an id. */
-const customerOf = (visit: ScheduleRow) => (typeof visit.customerId === 'object' && visit.customerId ? visit.customerId : null);
-
 export type SchedulePanelProps = {
     onClose: () => void;
     visitsByDate: Map<string, ScheduleRow[]>;

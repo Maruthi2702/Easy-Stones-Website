@@ -1,7 +1,7 @@
 // Small pure helpers shared across the Route Planner module.
 import { isFillerName, isPlaceholderEmail } from '../../utils/customerMatch';
 import { visitRecency as recencyOfVisit } from '../../utils/routePlan';
-import type { LatLng, Lead, Recency, RecencyColors, RecencyKey } from './types';
+import type { LatLng, Lead, Recency, RecencyColors, RecencyKey, ScheduleRow } from './types';
 
 /** How long since the last visit — visitRecency (src/utils/routePlan.js) with its answer typed. */
 export const visitRecency = recencyOfVisit as (lastVisitAt: unknown, today?: Date) => Recency;
@@ -120,6 +120,9 @@ export const buildMonthGrid = (monthDate: Date): (Date | null)[] => {
 export const real = (value: unknown) => (isFillerName(value) ? '' : String(value).trim());
 
 export const nameOf = (pin: { company?: unknown; contactName?: unknown }) => real(pin.company) || real(pin.contactName) || 'Unknown';
+
+/** The customer a schedule entry is for: populated to a name (GET /api/schedule), or only an id. */
+export const customerOf = (row: ScheduleRow) => (typeof row.customerId === 'object' && row.customerId ? row.customerId : null);
 
 export { isPlaceholderEmail };
 

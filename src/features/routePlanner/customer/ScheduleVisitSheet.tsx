@@ -6,11 +6,9 @@ import { todayISO } from '../../../components/shared/calendar/calendarDates';
 import {
     quickDates, firstFreeSlot, timeOptions, clockLabel, minutesOf, startEnd, DAY_START, timeText
 } from '../../../utils/visitSlots';
+import { customerOf } from '../helpers';
 import type { Booking, MapPin, ScheduleRow, VisitSlotInput } from '../types';
 import './ScheduleVisitSheet.css';
-
-/** The customer an entry is for: populated to a name, or only an id. */
-const customerOf = (visit: ScheduleRow) => (typeof visit.customerId === 'object' && visit.customerId ? visit.customerId : null);
 
 const LENGTHS = [15, 30, 45, 60, 90, 120].map(m => ({ value: String(m), label: m < 60 ? `${m} min` : m === 60 ? '1 hour' : `${m / 60} hours` }));
 const TIMES = timeOptions();
