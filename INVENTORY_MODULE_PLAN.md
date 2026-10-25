@@ -84,3 +84,10 @@ storage, layout or controls are introduced. The rest of step 8 remains queued.
 
 Validation: 16 purchasing UI/CSV tests, including remount request counts,
 selected scope, expiry, refresh, import invalidation and auth isolation.
+
+## Purchasing architecture
+
+See [the proposed Purchasing architecture](docs/purchasing-architecture.md)
+for ownership boundaries, supply reconciliation, planning stages, cache and
+command consistency, TypeScript layout and the migration sequence. This design
+does not mark queued corrective steps implemented or authorize a UI redesign.

@@ -2,6 +2,10 @@
 
 Implemented on `feat/purchasing-workbench`, under Inventory Analysis → Purchasing. This is an internal buyer workflow; it does not place or send purchase orders.
 
+The proposed architecture and incremental migration are documented in
+[`purchasing-architecture.md`](purchasing-architecture.md). That design separates
+current behavior from target changes and preserves this workbench's UX.
+
 ## Enable and configure
 
 1. Users & Roles → Inventory Analysis: grant **View**, **Purchasing**, and, as appropriate, **Manage purchasing** and **Approve purchasing**. Admin/director receive the purchasing permissions once through the existing seeded-permission migration; revocations remain respected. Branch assignments restrict all purchasing scopes.
@@ -52,7 +56,7 @@ The urgent quantity is a subset of the proposed new buy. The separate early rece
 
 - `src/purchasing/`: schemas, dedicated collections, typed pure planning/reconciliation/container engine, source loading, buyer API and transaction-protected draft workflow.
 - `src/features/purchasing/`: typed API/hook, queue, performance view, source/policy setup, CSV adapters, explanation and receipt timeline, container approval/history views. Imported only through `index.ts`.
-- `server.js`: `/api/purchasing` mount and one-time permission grants. New model indexes join `src/config/indexedModels.js`.
+- `server.js`: `/api/purchasing` mount and one-time permission grants. New model indexes join `src/config/indexedModels.ts`.
 - Current stock detail and the existing descriptive velocity view remain available. The validated Purchasing view is separate and works even before stock has been imported, so missing inputs are explainable.
 
 ## Known boundaries and next data-backed work
