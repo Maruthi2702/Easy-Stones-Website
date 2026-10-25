@@ -88,9 +88,11 @@ all already on `main`, kept as they were.
       `helpers.ts`, `WEEKDAY_LABELS` in `panels/SchedulePanel.tsx`) while the
       app's calendar rule is Monday-first (`WEEK_STARTS_ON`, CLAUDE.md "Dates").
       It's a hand-built calendar view, not the shared one.
-- [ ] Dead code: `panels/AreaScheduleTrigger.tsx` and `rail/ScheduleSummaryButton.tsx`
-      (and their CSS) are imported by nothing; `statusTone` / `STATUS_TONE` in
-      `helpers.ts` are unused. Moved as they were, waiting on the owner's call to delete.
+- [ ] Unused CSS: the customer panel's status line (`.rpv2-panel-status`,
+      `.rpv2-panel-status-dot`, `.rpv2-panel-level`, `.rpv2-status-*` in
+      `map/MapCanvas.css`) is used by no component since `statusTone` went (it
+      was already unused). Left in place: removing it changes the built CSS, and it
+      wasn't part of the approved delete.
 
 ## Users & Roles — other
 
@@ -217,6 +219,7 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-24 | Route Planner dead code, on the owner's go-ahead: `panels/AreaScheduleTrigger.tsx` and `rail/ScheduleSummaryButton.tsx` with their CSS (imported by nothing) and the unused `statusTone` / `STATUS_TONE` in `helpers.ts` deleted. | on `feat/typescript` |
 | 2026-10-24 | Delivery board: a dead effect meant to scroll the phone's selected day pill into view (its selector matched no element). Not a visible bug — the five pills are a grid that always fits — so it was removed rather than revived (`scrollIntoView` also scrolls the page, see Locations in CLAUDE.md). | on `feat/typescript` |
 | 2026-10-24 | Daily Report: a save refused because someone else had submitted the day (409) reloaded the sheet locked but wiped "This day has been submitted" at once, and Submit in that case said "check your connection". The reload now keeps the note (`loadDay(notice)` in `useDaySheet.ts`). | on `feat/typescript` |
 | 2026-10-24 | Cleanup: the old Add / Edit delivery form `DeliveryModal.jsx` (unused since `DeliveryForm` went live on 2026-10-05) deleted, on the owner's go-ahead. | on `feat/typescript` |

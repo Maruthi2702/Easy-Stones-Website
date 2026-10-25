@@ -25,8 +25,8 @@ import './ToolsPanel.css';
  * this identical day) — a plain "Create Route" button used to sit here
  * instead, calling the same scheduleDay underneath but with none of that
  * context visible before committing. The trigger itself is its own
- * full-width button here rather than AreaScheduleTrigger, which was built
- * as a small icon for a header row beside a title — alone in this footer
+ * full-width button here rather than a small icon for a header row
+ * beside a title — alone in this footer
  * (which used to hold a full-width primary button) it read as an
  * undersized, floating afterthought instead of this panel's one
  * committing action.

@@ -98,9 +98,9 @@
     gap: 0.4rem;
 }
 
-/* Stop count on the schedule button — inline, not AreaScheduleTrigger's
-   floating corner dot, since that only reads well pinned to a small square
-   icon, not this row-height text button. */
+/* Stop count on the schedule button — inline, not a floating corner dot,
+   which only reads well pinned to a small square icon, not this row-height
+   text button. */
 .rpv2-tools-schedule-count {
     display: inline-flex;
     align-items: center;

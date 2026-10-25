@@ -9,8 +9,7 @@ import './AreaScheduleSection.css';
  * Mins-per-stop, the live run summary, and the Schedule/Clear/Replace-
  * existing actions that used to live in the run drawer's expanded view
  * (removed — this panel covers the same ground). Rendered as a normal block
- * between the panel head and the scrollable customer list (MapCanvas
- * conditions this on AreaScheduleTrigger's open state) rather than an
+ * between the panel head and the scrollable customer list rather than an
  * absolutely-positioned popover — the popover version floated on top of the
  * list and hid part of it; a block in normal flow just pushes it down.
  */

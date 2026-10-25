@@ -28,22 +28,6 @@ export const RECENCY_COLORS: Record<'dark' | 'light', RecencyColors> = {
 // much contrast — these need dark ink instead.
 export const RECENCY_DARK_TEXT = new Set<RecencyKey>(['overdue', 'due']);
 
-// Maps Customer.js's fixed status enum to a tone for the detail panel's
-// status line (MapCanvas.tsx) — only the two ends of the funnel get a
-// strong color (Onboarded = won, Not Interested = lost); the live pipeline
-// stages share one "in progress" accent, and the two administrative states
-// (rep reassigned, gone quiet) fall through to the muted default rather than
-// being marked as either a win or a loss.
-export const STATUS_TONE: Record<string, string> = {
-    'Onboarded': 'success',
-    'Not Interested': 'danger',
-    'New Lead': 'accent',
-    'Trying to Onboard': 'accent',
-    'Contacted / In Discussion': 'accent'
-};
-
-export const statusTone = (status: string) => STATUS_TONE[status] || 'muted';
-
 // Pin colours by customer type — set "A" of the Route Planner pin-colours
 // design (2026-10-18): a colour-blind-safe set, each also a different
 // lightness, kept clear of the "You" dot and route line (blue), the open pin

@@ -354,7 +354,7 @@ body.light-theme-active .rpv2-map {
 }
 
 /* The pipeline-stage line under the company name — dot + label, tone set by
-   statusTone() (helpers.ts) via the rpv2-status-* modifier class. Reuses
+   the rpv2-status-* modifier class. Reuses
    this same panel's existing accent/success/danger hex values (the stop
    pill, .rpv2-panel-booked, and the name-actions delete button below,
    respectively) rather than introducing new colors just for this line. */
