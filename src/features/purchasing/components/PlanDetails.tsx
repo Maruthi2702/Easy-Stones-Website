@@ -59,6 +59,8 @@ export default function PlanDetails({
           <dd>
             {num(row.sold)} {row.uom}
           </dd>
+          <dt>Reported slabs sold</dt>
+          <dd>{num(row.soldSlabs)}</dd>
           <dt>Usable / excluded reported slabs</dt>
           <dd>
             {num(row.readySlabs)} / {num(row.excludedSlabs)}

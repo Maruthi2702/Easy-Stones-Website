@@ -132,6 +132,7 @@ export default function BuyerQueue({
                 </td>
                 <td>
                   {num(r.sold)} {r.uom}
+                  <small>{num(r.soldSlabs)} slabs sold</small>
                 </td>
                 <td>{num(r.readySlabs)}</td>
                 <td><IncomingSupply lines={r.transit} /></td>
