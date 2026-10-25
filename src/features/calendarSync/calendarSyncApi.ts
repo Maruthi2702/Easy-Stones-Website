@@ -56,11 +56,3 @@ export async function readBody(res: Response): Promise<{ message?: string; calen
     return { message: txt || `Server returned status ${res.status}` };
   }
 }
-
-/** The one-way .ics feed for a user, and its webcal:// twin for Apple Calendar. */
-export function calendarFeedUrls(userId: string | null | undefined, hostname = window.location.hostname) {
-  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
-  const baseDomain = isLocal ? 'http://localhost:3001' : (API_URL || window.location.origin);
-  const feed = `${baseDomain}/api/calendar/feed/${userId}.ics`;
-  return { feed, webcal: feed.replace(/^https?:\/\//, 'webcal://').replace(/^http?:\/\//, 'webcal://') };
-}

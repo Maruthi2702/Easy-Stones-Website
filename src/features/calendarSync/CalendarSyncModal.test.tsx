@@ -16,7 +16,7 @@ const fetchMock = vi.mocked(authFetch);
 function setup(routes: Record<string, unknown>) {
   fetchMock.mockImplementation((url: string) => {
     const hit = Object.keys(routes).find((k) => url.includes(k));
-    return json(hit ? routes[hit] : {});
+    return json(hit ? routes[hit] : url.endsWith('/calendar/subscription') ? { path: '/api/calendar/feed/u1.ics?token=private-test-token' } : {});
   });
   const { result } = renderHook(() => useCalendarSync({ open: true }));
   return result;
@@ -35,7 +35,8 @@ describe('CalendarSyncModal', () => {
     render(<CalendarSyncModal sync={sync.current} userId="u1" onClose={() => {}} />);
     expect(screen.getByText('🔗 Link Google Calendar')).toBeTruthy();
     expect(screen.getByText('🍏 Link iCloud Calendar')).toBeTruthy();
-    expect((screen.getByDisplayValue(/\/api\/calendar\/feed\/u1\.ics$/) as HTMLInputElement).value).toContain('/api/calendar/feed/u1.ics');
+    const link = await screen.findByRole('textbox', { name: 'Private calendar subscription link' });
+    expect((link as HTMLInputElement).value).toContain('/api/calendar/feed/u1.ics?token=private-test-token');
   });
 
   it('shows who is connected with Sync Now and Disconnect', async () => {

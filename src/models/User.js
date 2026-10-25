@@ -130,6 +130,13 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  // Random seed for a separate, revocable calendar subscription credential.
+  // Ordinary user reads must never expose it.
+  calendarFeedKey: {
+    type: String,
+    default: null,
+    select: false
+  },
   googleRefreshToken: {
     type: String,
     default: null

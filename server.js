@@ -7,6 +7,9 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { createPresence, deviceFromUserAgent } from './src/services/presence.js';
+import { resolveStaffToken } from './src/services/staffIdentity.js';
+import { registerBranchRoomJoins } from './src/services/socketAccess.js';
+import createPublicProductsRouter from './src/routes/publicProducts.js';
 import { createTeamAccess, requireAction, requireArea } from './src/services/teamAccess.js';
 import { USERS, ROLES, LOCATIONS, canOpenArea, can } from './src/utils/usersAccess.js';
 import { TEAM_PERMISSION, cleanManageableRoles } from './src/utils/teamAccess.js';
@@ -87,8 +90,8 @@ import {
 // of on this process's own thread. See runWorkbookParse.js for why.
 import { runWorkbookParse } from './src/utils/runWorkbookParse.js';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
-import createDeliveriesRouter, { deliveryRoomFor, deliveryRoomsFor, DELIVERY_ROOM_ALL, renumberAllRuns } from './src/routes/deliveries.js';
-import createCheckInRouter, { checkinRoomFor, CHECKIN_ROOM_ALL } from './src/routes/checkIn.js';
+import createDeliveriesRouter, { deliveryRoomsFor, renumberAllRuns } from './src/routes/deliveries.js';
+import createCheckInRouter from './src/routes/checkIn.js';
 import createAccountingRouter from './src/accounting/router.js';
 import { createFreightSync } from './src/accounting/sync.js';
 import { setDeliveriesChangedHandler } from './src/accounting/hooks.js';
@@ -356,30 +359,11 @@ const io = new Server(httpServer, {
 });
 app.set('io', io);
 
-// Shared by every join_*_rooms handler below: proves who a socket belongs to
-// so the server can join it to the room(s) for its actual assigned
-// location(s), for channels (delivery_update, checkin_update) that carry
-// per-branch data and so aren't broadcast to every connected socket the way
-// other channels on the same connection are. Kept in one place so the two
-// handlers can't drift on validation rules (e.g. rejecting customer-type
-// tokens) the way two independent copies eventually would. Returns null on
-// any failure — invalid/expired token, unknown user — rather than throwing,
-// so the caller just leaves that socket out of every room for that feature.
-async function resolveSocketAssignedLocations(token) {
-  if (!token) return null;
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  const userId = decoded.userId || decoded.id || decoded.sub;
-  if (!userId || decoded.type === 'customer' || !mongoose.isValidObjectId(userId)) return null;
-  const user = await User.findById(userId, 'assignedLocations isActive mustChangePassword sessionVersion').lean();
-  if (!user || user.isActive === false || user.mustChangePassword || !sessionIsCurrent(decoded, user)) return null;
-  return user.assignedLocations || [];
-}
-
 // ── Who is online ────────────────────────────────────────────────────────────
 const presence = createPresence();
 const PRESENCE_VIEWERS_ROOM = 'presence-viewers';
 
-// Like resolveSocketAssignedLocations: a customer token, a deactivated account,
+// Like the branch socket joins: a customer token, a deactivated account,
 // a temporary password or an ended session is "nobody". Also says whether this
 // person may see the list (Users & Roles' own permission, manage_users).
 async function resolveSocketStaff(token) {
@@ -437,56 +421,8 @@ io.on('connection', (socket) => {
     console.log(`🔌 WebSockets: Client connected (${socket.id})`);
   }
 
-  // The connection itself stays open with no auth requirement — other
-  // channels on this same socket (crossover_sheet_update, inventory_analysis
-  // _update, etc.) aren't location-scoped and don't need it. Delivery and
-  // check-in data are different: they carry customer names, addresses/phone
-  // numbers and (for deliveries) pricing per branch, so a socket only joins
-  // a branch's room once it proves who it is. A socket that never calls
-  // these (or whose token fails) simply never joins that feature's rooms and
-  // never receives its update event — it isn't disconnected, since it may
-  // still legitimately use other channels.
-  // Re-sent whenever the browser's session changes (sign-in, sign-out, a
-  // different person on the same tab — src/api/deliverySchedule.js), so it
-  // first leaves whatever delivery rooms the socket was in: a new user must
-  // never keep the last one's branches. A missing or failed token leaves the
-  // socket in none. `ack` (optional) tells the browser whether it worked, so a
-  // refused join can fetch a fresh token or fall back to polling instead of
-  // sitting "connected" and receiving nothing.
-  socket.on('join_delivery_rooms', async (payload, ack) => {
-    const reply = typeof ack === 'function' ? ack : () => {};
-    for (const room of socket.rooms) {
-      if (room.startsWith('delivery-location:')) socket.leave(room);
-    }
-    try {
-      const assignedLocations = await resolveSocketAssignedLocations(payload?.token);
-      if (!assignedLocations) return reply({ ok: false });
-      if (assignedLocations.includes('*')) {
-        socket.join(DELIVERY_ROOM_ALL);
-      } else {
-        for (const location of assignedLocations) socket.join(deliveryRoomFor(location));
-      }
-      reply({ ok: true });
-    } catch {
-      // Invalid/expired token — leave the socket out of every delivery room
-      // rather than erroring the whole connection.
-      reply({ ok: false });
-    }
-  });
-
-  socket.on('join_checkin_rooms', async (payload) => {
-    try {
-      const assignedLocations = await resolveSocketAssignedLocations(payload?.token);
-      if (!assignedLocations) return;
-      if (assignedLocations.includes('*')) {
-        socket.join(CHECKIN_ROOM_ALL);
-      } else {
-        for (const location of assignedLocations) socket.join(checkinRoomFor(location));
-      }
-    } catch {
-      // Invalid/expired token — leave the socket out of every check-in room
-      // rather than erroring the whole connection.
-    }
+  registerBranchRoomJoins(socket, {
+    resolveStaff: (token) => resolveStaffToken(token, process.env.JWT_SECRET)
   });
 
   // Who is online (Users & Roles). A tab says who it is once per connection
@@ -1177,71 +1113,12 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// API endpoint to fetch all products
-app.get('/api/products', async (req, res) => {
-  try {
-    const now = Date.now();
-    let products;
-
-    // Check Cache
-    if (memoryCache.products.data && (now - memoryCache.products.lastFetched < memoryCache.TTL)) {
-      products = memoryCache.products.data;
-    } else {
-      // Fetch fresh and update cache
-      products = await Product.find().sort({ id: -1 }).lean();
-      console.log('📦 GET /api/products fetched from DB. Count:', products.length);
-      const withBundles = products.filter(p => p.bundles && p.bundles.length > 0);
-      console.log('📦 Products with bundles:', withBundles.length);
-      if (withBundles.length > 0) {
-        console.log('📦 Sample products with bundles:', withBundles.slice(0, 3).map(p => ({ name: p.name, bundlesCount: p.bundles.length })));
-      }
-      memoryCache.products.data = products;
-      memoryCache.products.lastFetched = now;
-      console.log('✅ Products Cache Refreshed');
-    }
-
-    // Check if customer is logged in
-    const token = req.cookies.customerToken;
-    let priceLevel = 1; // Default to level 1
-
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        if (decoded.type === 'customer') {
-          // Optimized: Only fetch priceLevel
-          const customer = await Customer.findById(decoded.id).select('priceLevel').lean();
-          if (customer && customer.priceLevel) {
-            priceLevel = customer.priceLevel;
-          }
-        }
-      } catch {
-        // Token invalid or expired, use default level 1
-      }
-    }
-
-    // Transform products to show price based on customer's level
-    const productsWithPrices = products.map(product => {
-      // Product is already a lean object from cache/db
-      const productObj = { ...product };
-
-      if (productObj.priceLevels) {
-        const levelKey = `level${priceLevel}`;
-        const levelPrice = productObj.priceLevels[levelKey];
-
-        if (levelPrice) {
-          productObj.price = `$${levelPrice.toFixed(2)}/sqft`;
-        }
-      }
-
-      return productObj;
-    });
-
-    res.json(productsWithPrices);
-  } catch (error) {
-    console.error('❌ Error fetching products:', error);
-    res.status(500).json({ error: 'Failed to fetch products' });
-  }
-});
+// Only public catalog fields and the viewer's permitted selling price leave this route.
+app.use('/api/products', createPublicProductsRouter({
+  jwtSecret: JWT_SECRET,
+  getProducts: async () => cacheHit('products')
+    || cachePut('products', await Product.find().sort({ id: -1 }).lean())
+}));
 
 /**
  * Usernames are login identifiers and are stored lower-case so signing in is
@@ -5606,7 +5483,7 @@ app.get('/api/admin/products/list', verifyToken, requireSalesPage, async (req, r
 });
 
 // Admin: Get full product details by ID
-app.get('/api/admin/products/:id', verifyToken, requireSalesPage, async (req, res) => {
+app.get('/api/admin/products/:id', verifyToken, authorize('admin'), async (req, res) => {
   try {
     const product = await Product.findOne({ id: parseInt(req.params.id) });
     if (!product) {

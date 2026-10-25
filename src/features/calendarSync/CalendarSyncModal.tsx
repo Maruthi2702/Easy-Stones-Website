@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { calendarFeedUrls } from './calendarSyncApi';
+import CalendarSubscription from './CalendarSubscription';
 import type { CalendarSync } from './useCalendarSync';
 
 /**
@@ -17,7 +17,6 @@ export type CalendarSyncModalProps = {
 };
 
 export default function CalendarSyncModal({ sync, userId, onClose }: CalendarSyncModalProps) {
-    const { feed: calendarFeedUrl, webcal: webcalFeedUrl } = calendarFeedUrls(userId);
 
     return (
         <div className="modal-overlay">
@@ -212,75 +211,7 @@ export default function CalendarSyncModal({ sync, userId, onClose }: CalendarSyn
 
                     <hr style={{ border: 'none', borderBottom: '1px solid rgba(255,255,255,0.1)', margin: '0' }} />
 
-                    {/* One-Way Apple Calendar Section */}
-                    <div>
-                        <h3 style={{ margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
-                            📲 Apple Calendar (One-Way Feed)
-                        </h3>
-                        <p style={{ fontSize: '0.85rem', margin: '0 0 1rem 0', opacity: 0.8, lineHeight: '1.4' }}>
-                            Add read-only subscriptions directly to your iPhone/Mac calendar.
-                        </p>
-                        
-                        <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                            <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--gold-color, #d4af37)', fontSize: '0.85rem' }}>Your Secure Subscription Link:</h4>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                <input 
-                                    type="text" 
-                                    readOnly 
-                                    value={calendarFeedUrl} 
-                                    style={{
-                                        flex: 1,
-                                        background: 'rgba(0,0,0,0.3)',
-                                        border: '1px solid rgba(255,255,255,0.2)',
-                                        borderRadius: '4px',
-                                        padding: '8px 12px',
-                                        color: '#fff',
-                                        fontSize: '0.8rem',
-                                        fontFamily: 'monospace'
-                                    }}
-                                />
-                                <button 
-                                    type="button" 
-                                    className="btn-secondary" 
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(calendarFeedUrl);
-                                        alert('Calendar link copied to clipboard!');
-                                    }}
-                                    style={{ padding: '8px 16px', fontSize: '0.8rem' }}
-                                >
-                                    Copy
-                                </button>
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <a 
-                                href={webcalFeedUrl}
-                                className="btn-primary" 
-                                style={{ 
-                                    textAlign: 'center', 
-                                    textDecoration: 'none', 
-                                    padding: '10px', 
-                                    fontWeight: 'bold',
-                                    display: 'flex',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    gap: '8px'
-                                }}
-                            >
-                                📲 Subscribe in Apple Calendar (Mac/iPhone)
-                            </a>
-                            
-                            <div style={{ fontSize: '0.8rem', opacity: 0.8, lineHeight: '1.4' }}>
-                                <strong>Google Calendar Instructions:</strong>
-                                <ol style={{ margin: '4px 0 0 16px', paddingLeft: 0 }}>
-                                    <li>Open <a href="https://calendar.google.com" target="_blank" rel="noreferrer" style={{ color: 'var(--gold-color, #d4af37)' }}>Google Calendar</a> on a desktop browser.</li>
-                                    <li>On the left side next to "Other calendars", click <strong>+</strong> &rarr; <strong>From URL</strong>.</li>
-                                    <li>Paste the copied link and click <strong>Add calendar</strong>.</li>
-                                </ol>
-                            </div>
-                        </div>
-                    </div>
+                    <CalendarSubscription key={userId} />
 
                 </div>
             </div>
