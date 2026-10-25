@@ -23,31 +23,38 @@ export function buildPlan(inputs, now = new Date()) {
         .map((s) => s.importedAt?.toISOString?.() || s.importedAt)
         .filter(Boolean)
         .sort()[0] || null;
-  const blockers = [];
+  const blockers = [], coverageBlockers = [], coverageWarnings = [];
+  // Keep purchase approval strict. Descriptive stock cover can still be shown
+  // as an estimate when its numeric inputs and branch identity are usable.
+  const coverageIssue = (message, advisory = false) => {
+    blockers.push(message);
+    (advisory ? coverageWarnings : coverageBlockers).push(message);
+  };
   if (!cohort)
-    blockers.push('Select a current sales cohort; its imported records changed or are unavailable');
+    coverageIssue('Select a current sales cohort; its imported records changed or are unavailable');
   const days = cohort ? inclusiveDays(cohort.start, scope.observedThrough) : 0;
   if (!days || scope.observedThrough > today || (cohort && scope.observedThrough > cohort.end))
-    blockers.push('Confirm an observed sales cutoff inside the report range and no later than today');
+    coverageIssue('Confirm an observed sales cutoff inside the report range and no later than today');
   if (cohort && scope.observedThrough > todayPacific(new Date(cohort.importedAt)))
-    blockers.push(`Observed sales cutoff ${scope.observedThrough} is after the report was imported on ${todayPacific(new Date(cohort.importedAt))}; edit the scope cutoff or import a newer sales report`);
+    coverageIssue(`Observed sales cutoff ${scope.observedThrough} is after the report was imported on ${todayPacific(new Date(cohort.importedAt))}; edit the scope cutoff or import a newer sales report`);
   if (cohort && cohort.records.some((r) => r.importedAt?.toISOString() !== cohort.importedAt))
-    blockers.push('Sales cohort contains mixed imports; re-import the complete report');
+    coverageIssue('Sales cohort contains mixed imports; re-import the complete report');
   if (scope.observedThrough && inclusiveDays(scope.observedThrough, today) > scope.salesMaxDays + 1)
-    blockers.push('Sales coverage is stale; import an updated report');
-  if (!scope.fullSalesCoverage)
-    blockers.push('Confirm the report branch scope and full product coverage, including zero sellers');
+    coverageIssue('Sales coverage is stale; import an updated report', true);
+  if (!scope.fullSalesCoverage) {
+    const sameBranch = cohort && scope.branches.length === 1 && variantKey(cohort.location || '') === variantKey(scope.branches[0]);
+    coverageIssue('Confirm the report branch scope and full product coverage, including zero sellers', !!sameBranch);
+  }
   if (!scope.stockCoverageConfirmed || scope.stockSnapshotId !== snapshot)
-    blockers.push('Confirm complete warehouse coverage for this exact stock snapshot');
-  if (ageHours(imported, now) > scope.stockMaxHours || ageHours(imported, now) < 0)
-    blockers.push('Warehouse stock is stale or future-dated; refresh the stock snapshot');
+    coverageIssue('Confirm complete warehouse coverage for this exact stock snapshot', true);
+  if (ageHours(imported, now) > scope.stockMaxHours)
+    coverageIssue('Warehouse stock is stale; refresh the stock snapshot', true);
+  if (ageHours(imported, now) < 0)
+    coverageIssue('Warehouse stock is future-dated; refresh the stock snapshot');
   if (new Set(stock.map((s) => String(s.importedAt))).size > 1)
-    blockers.push('Stock contains mixed import snapshots; wait for a complete import');
+    coverageIssue('Stock contains mixed import snapshots; wait for a complete import');
   if (!scope.freeStockValidated)
-    blockers.push(
-      'Confirm SPS availability excludes existing obligations and app reservations are reconciled',
-    );
-  const coverageBlockers = [...blockers];
+    coverageIssue('Confirm SPS availability excludes existing obligations and app reservations are reconciled', true);
   if (!scope.policyConfirmed) blockers.push('Confirm receiving lead-time, review and buffer policies');
   if (!inbound?.complete)
     blockers.push('Import complete SPS PO/transit supply or explicitly confirm no incoming supply');
@@ -183,7 +190,8 @@ export function buildPlan(inputs, now = new Date()) {
     const breakdown = s ? stockBreakdown(physicalRows.get(k) || [], reserved) :
       (policy && scope.stockCoverageConfirmed && scope.stockSnapshotId === snapshot
         ? stockBreakdown([], reserved) : null);
-    const coverage = stockCoverage({ stock: breakdown, sold, days, today, uom,
+    const coverage = stockCoverage({ stock: breakdown, sold, days, today, uom, warnings: coverageWarnings,
+      salesPeriod: cohort ? { start: cohort.start, through: scope.observedThrough } : undefined,
       blockers: [...coverageBlockers, ...(duplicateSales.has(k) ? ['Duplicate sales rows require correction'] : [])] });
     const baseline = rowBlockers.length ? null : calc(60),
       protective = rowBlockers.length ? null : calc(90);

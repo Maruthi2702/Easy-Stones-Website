@@ -64,7 +64,7 @@ export default function PlanDetails({
           <dt>Total SPS / allocated / available slabs</dt>
           <dd>{num(row.stockBreakdown?.total)} / {num(row.stockBreakdown?.allocated)} / {num(row.stockBreakdown?.available)}</dd>
           <dt>Current stock cover</dt>
-          <dd>{row.coverage?.state === 'known' ? `${num(row.coverage.days)} days` : row.coverage?.state === 'no-sales' ? 'No sales in observed period' : 'Coverage unknown'}</dd>
+          <dd>{row.coverage && ['known', 'estimated'].includes(row.coverage.state) ? `${num(row.coverage.days)} days${row.coverage.state === 'estimated' ? ' (estimate)' : ''}` : row.coverage?.state === 'no-sales' ? 'No sales in observed period' : 'Coverage unknown'}</dd>
           <dt>Usable / excluded reported slabs</dt>
           <dd>
             {num(row.readySlabs)} / {num(row.excludedSlabs)}

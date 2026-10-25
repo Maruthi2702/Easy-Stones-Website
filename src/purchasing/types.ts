@@ -121,7 +121,9 @@ export type StockBreakdown = {
   problems: string[];
 };
 export type StockCoverage = {
-  state: 'known' | 'unknown' | 'no-sales';
+  state: 'known' | 'estimated' | 'unknown' | 'no-sales';
+  warnings?: string[];
+  salesPeriod?: { start: string; through: string };
   days: number | null;
   dailyQuantity: number | null;
   availableQuantity: number | null;

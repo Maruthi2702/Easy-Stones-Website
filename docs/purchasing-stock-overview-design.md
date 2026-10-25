@@ -76,8 +76,9 @@ separately. Its arrival date determines whether it bridges the gap.
 - Valid demand, zero available stock: 0 days of cover; action review required.
 - Verified zero demand: “No sales in observed period,” not an invented infinity
   or a claim of permanent excess stock.
-- Missing/invalid dates, coverage or sales: “Coverage unknown,” with a repair
-  action. Display reliable physical counts even when the forecast is blocked.
+- Invalid dates/quantities, missing sales or unresolved branch identity: “Coverage
+  unknown,” with a repair action. Stale inputs or unconfirmed coverage can yield
+  a labelled estimate for a matching reported variant and single branch. Display reliable physical counts even when the forecast is blocked.
 - Unknown allocation/eligibility: show the known counts and unresolved amount;
   do not infer allocation as total minus available if some stock is damaged,
   in transfer, a remnant or has unknown status.
@@ -171,8 +172,30 @@ Unknown coverage now includes an expandable list of its actual API reasons
 and an editor-only **Review coverage inputs** action opening the existing scope
 form. The next-action message explicitly labels buying setup separately. A
 missing supplier/packing policy does not explain or gate a valid SF coverage
-calculation. Inconsistent/stale sales dates and unverified source coverage
-remain blockers; source dates and confirmations are not guessed.
+calculation. Inconsistent dates remain structural blockers. Stale inputs and unverified
+source coverage remain purchase-approval blockers and are displayed as warnings
+for an otherwise calculable stock estimate; source dates and confirmations are
+not guessed.
 
 Validation: 16 UI tests, strict typecheck, production build and actual-workbench
 Chromium checks of diagnostics and scope-form navigation passed.
+
+## Estimated coverage versus verified purchase decisions
+
+Numeric coverage is available as **estimated** when a reported variant has
+valid available SF and sales quantities, a coherent observed period, and a
+matching branch identity, even if sales/stock are stale or coverage/availability
+attestations are unchecked. Show the period, an approximate marker and the
+assumption warnings next to both days of cover and the selected-day balance.
+An unverified combined report or mismatched branch remains unknown; missing
+variant rows do not become zero without verified full coverage.
+
+All purchase blockers are retained. Estimated coverage never enables a draft
+or approval. Impossible/future dates, mixed imports, ambiguous physical counts,
+invalid quantities and duplicate sales remain hard coverage errors.
+
+Validation: 73 purchasing tests passed, including real API rejection of draft
+creation from estimated inputs; TypeScript and build passed. Chromium verified
+the actual component's estimate, warnings, custom-day balance, disabled purchase
+selection, themes and phone containment. Database inspection was read-only;
+no report dates, import metadata or attestations were changed.

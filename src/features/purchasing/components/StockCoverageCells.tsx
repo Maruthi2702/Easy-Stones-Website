@@ -8,22 +8,29 @@ export function StockCover({ row, onReview }: { row: PlanRow; onReview?: () => v
       <strong>Coverage unknown</strong>
       <details><summary>Why is coverage unavailable?</summary>
         <ul>{reasons.map(reason => <li key={reason}>{reason}</li>)}</ul>
-        <p>Coverage uses available stock and a verified sales period. Supplier, bundle and weight settings are only needed for buying recommendations.</p>
+        <p>Stock cover needs valid quantities, dates and matching branches. Supplier, bundle and weight settings are only needed for buying recommendations.</p>
       </details>
       {onReview && <button type="button" className="purchase-link" onClick={onReview}>Review coverage inputs</button>}
     </div>;
   }
-  if (c.state === 'no-sales') return <span>No sales in observed period</span>;
-  return <><strong>{c.days! > 0 && c.days! < 0.1 ? '<0.1' : num(c.days)} days</strong>
-    <small>Current available stock only</small>{c.stockoutDate && <small>Stockout around {c.stockoutDate}</small>}</>;
+  const warnings = !!c.warnings?.length && <details className="purchase-coverage-issue">
+    <summary>Estimate assumptions</summary>
+    <ul>{c.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>
+    <p>Uses reported available stock and the selected historical sales pace. Review these inputs before making a purchase.</p>
+    {onReview && <button type="button" className="purchase-link" onClick={onReview}>Review coverage inputs</button>}
+  </details>;
+  if (c.state === 'no-sales') return <><span>No sales in observed period</span>{warnings}</>;
+  return <><strong>{c.state === 'estimated' ? '≈ ' : ''}{c.days! > 0 && c.days! < 0.1 ? '<0.1' : num(c.days)} days</strong>
+    <small>{c.state === 'estimated' ? 'Estimate · reported stock and historical sales' : 'Current available stock only'}</small>
+    {c.salesPeriod && <small>Sales: {c.salesPeriod.start} – {c.salesPeriod.through}</small>}{warnings}{c.stockoutDate && <small>Stockout around {c.stockoutDate}</small>}</>;
 }
 export function StockForecast({ row, days }: { row: PlanRow; days: number | null }) {
   const c = row.coverage;
-  if (!days || !c || c.state !== 'known') return <span>—</span>;
+  if (!days || !c || !['known', 'estimated'].includes(c.state)) return <span>—</span>;
   const sf = c.availableQuantity! - c.dailyQuantity! * days;
   const perSlab = row.policy?.sfPerSlab;
   const equivalent = Number.isFinite(perSlab) && perSlab! > 0;
   const balance = equivalent ? sf / perSlab! : sf;
   return <><strong>{num(Math.abs(balance))} {balance < -1e-8 ? 'short' : 'left'}</strong>
-    <small>{equivalent ? 'Slab equivalents' : row.uom} · current stock</small></>;
+    <small>{c.state === 'estimated' ? 'Estimate · ' : ''}{equivalent ? 'Slab equivalents' : row.uom} · current stock</small></>;
 }

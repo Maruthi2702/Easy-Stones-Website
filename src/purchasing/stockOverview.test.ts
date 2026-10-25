@@ -44,3 +44,46 @@ describe('physical stock overview', () => {
     expect(plan.rows[0].coverage.reasons.join(' ')).toContain('after the report was imported');
   });
 });
+
+describe('estimated coverage versus purchase validation', () => {
+  const inputs = () => {
+    const now = new Date('2026-10-25T20:00:00Z');
+    const stock = [{ ...slab('one'), _id: '1', product: 'Quartz', units: 'SF', location: 'Seattle', importedAt: now }];
+    return { now, stock, reservations: [], locks: [], transitShipments: [], inbound: null,
+      scope: { branches: ['Seattle'], observedThrough: '2026-09-30', fullSalesCoverage: false,
+        stockSnapshotId: stockId(stock), stockCoverageConfirmed: false, freeStockValidated: false,
+        policyConfirmed: false, stockMaxHours: 24, salesMaxDays: 14, aliases: [], policies: [], reviewDays: 7, bufferDays: 21 },
+      cohort: { id: 'c', location: 'Seattle', start: '2026-09-25', end: '2026-09-30', importedAt: '2026-10-01T20:00:00.000Z',
+        records: [{ product: 'Quartz', uom: 'SF', quantitySold: 150, importedAt: new Date('2026-10-01T20:00:00Z') }] },
+    };
+  };
+  it('shows a useful estimate with all four advisory checks while buying remains blocked', () => {
+    const input = inputs();
+    const row = buildPlan(input, input.now).rows[0];
+    expect(row.coverage).toMatchObject({ state: 'estimated', days: 3, dailyQuantity: 25, reasons: [],
+      salesPeriod: { start: '2026-09-25', through: '2026-09-30' } });
+    expect(row.coverage.warnings).toHaveLength(4);
+    expect(row.baseline).toBeNull();
+    expect(row.protective).toBeNull();
+    expect(row.action).toBe('Resolve inputs');
+  });
+  it('does not estimate across an unverified branch mismatch or combined report', () => {
+    for (const location of ['Spokane', 'Seattle Spokane']) {
+      const input = inputs(); input.cohort.location = location;
+      expect(buildPlan(input, input.now).rows[0].coverage.state).toBe('unknown');
+    }
+  });
+  it('does not invent zero stock or zero demand when report coverage is unconfirmed', () => {
+    const input = inputs(); input.stock = [];
+    expect(buildPlan(input, input.now).rows[0].coverage.state).toBe('unknown');
+    const noSales = inputs(); noSales.cohort.records = [];
+    expect(buildPlan(noSales, noSales.now).rows[0].coverage.state).toBe('unknown');
+  });
+  it('does not estimate an impossible cutoff even if every other issue is only advisory', () => {
+    const input = inputs(); input.cohort.importedAt = '2026-09-26T20:00:00Z';
+    input.cohort.records[0].importedAt = new Date(input.cohort.importedAt);
+    const coverage = buildPlan(input, input.now).rows[0].coverage;
+    expect(coverage.state).toBe('unknown');
+    expect(coverage.reasons.join(' ')).toContain('after the report was imported');
+  });
+});

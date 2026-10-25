@@ -101,3 +101,11 @@ stock, then calculate coverage independently of supplier packing policy. The
 custom forecast accepts 1–365 days with short-period presets. Invalid observed
 sales cutoffs still show unknown coverage, with physical counts retained. The
 remaining broader module corrections stay in their recorded order.
+
+## Coverage estimates
+
+Separate descriptive stock estimates from verified buying decisions. Staleness
+and unconfirmed coverage are warnings for otherwise coherent, branch-matched
+reported facts, while all purchase blockers remain. Invalid date ranges, branch
+ambiguity and missing numeric inputs still leave coverage unknown. This does
+not silently approve scope attestations or repair production report dates.

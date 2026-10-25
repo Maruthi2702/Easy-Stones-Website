@@ -42,17 +42,19 @@ export function stockBreakdown(rows: OverviewStockRow[], reserved: ReadonlySet<s
   return { total, allocated, otherUnavailable, available, availableQuantity, problems: [] };
 }
 
-export function stockCoverage({ stock, sold, days, blockers, today, uom }: {
+export function stockCoverage({ stock, sold, days, blockers, today, uom, warnings = [], salesPeriod }: {
   stock: StockBreakdown | null; sold: number | null; days: number; blockers: string[]; today: string; uom: string;
+  warnings?: string[]; salesPeriod?: { start: string; through: string };
 }): StockCoverage {
+  const evidence = { warnings: [...new Set(warnings)], salesPeriod };
   const reasons = [...blockers, ...(stock?.problems || [])];
   if (!stock || stock.availableQuantity === null) reasons.push('Available stock is not verified');
   if (uom !== 'SF') reasons.push('Stock coverage requires matching full-slab SF quantities');
   if (!Number.isFinite(sold) || sold === null || sold < 0 || days <= 0) reasons.push('A valid observed sales period is required');
-  if (reasons.length) return { state: 'unknown', days: null, dailyQuantity: null, availableQuantity: stock?.availableQuantity ?? null, stockoutDate: null, reasons: [...new Set(reasons)] };
+  if (reasons.length) return { ...evidence, state: 'unknown', days: null, dailyQuantity: null, availableQuantity: stock?.availableQuantity ?? null, stockoutDate: null, reasons: [...new Set(reasons)] };
   const dailyQuantity = sold! / days;
-  if (dailyQuantity === 0) return { state: 'no-sales', days: null, dailyQuantity: 0, availableQuantity: stock!.availableQuantity, stockoutDate: null, reasons: [] };
+  if (dailyQuantity === 0) return { ...evidence, state: 'no-sales', days: null, dailyQuantity: 0, availableQuantity: stock!.availableQuantity, stockoutDate: null, reasons: [] };
   const cover = stock!.availableQuantity! / dailyQuantity;
-  return { state: 'known', days: cover, dailyQuantity, availableQuantity: stock!.availableQuantity,
+  return { ...evidence, state: warnings.length ? 'estimated' : 'known', days: cover, dailyQuantity, availableQuantity: stock!.availableQuantity,
     stockoutDate: cover <= 36500 ? shiftDay(today, Math.ceil(cover)) : null, reasons: [] };
 }

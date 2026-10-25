@@ -340,3 +340,22 @@ describe('coverage repair diagnostics', () => {
     expect(screen.queryByRole('button', { name: 'Review coverage inputs' })).toBeNull();
   });
 });
+
+describe('estimated days of stock', () => {
+  it('renders numeric estimated cover and custom balances while keeping draft selection disabled', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, rows: [{ ...plan.rows[0],
+      coverage: { state: 'estimated', days: 3, dailyQuantity: 25, availableQuantity: 75, stockoutDate: '2026-10-28',
+        reasons: [], warnings: ['Sales coverage is stale; import an updated report'],
+        salesPeriod: { start: '2026-09-25', through: '2026-09-30' } } }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
+    await screen.findByText('≈ 3 days');
+    expect(screen.getByText('Sales: 2026-09-25 – 2026-09-30')).toBeTruthy();
+    expect(screen.queryByText('Coverage unknown')).toBeNull();
+    expect(screen.getByText('175 short')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^2d$/ }));
+    expect(screen.getByText('25 left')).toBeTruthy();
+    fireEvent.click(screen.getByText('Estimate assumptions'));
+    expect(screen.getByText('Sales coverage is stale; import an updated report')).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: 'Select Quartz 3CM' }) as HTMLInputElement).disabled).toBe(true);
+  });
+});

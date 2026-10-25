@@ -422,3 +422,22 @@ describe('live stock overview API', () => {
     expect(result.rows[0].protective).toBeNull(); // Packing policy blocks buying, not valid stock coverage.
   });
 });
+
+describe('advisory stock coverage API', () => {
+  it('returns estimated coverage for stale/unconfirmed inputs without allowing a buying draft', async () => {
+    await InventoryItem.deleteMany({});
+    await InventoryItem.collection.insertOne({ product: 'Quartz 3CM', location: 'Seattle', type: 'SLAB',
+      serialNumber: 'only-slab', instockQty: 75, availableSlabs: 1, availableQuantity: 75,
+      slabStatus: '', remnant: '', units: 'SF', importedAt: clock });
+    await InventorySalesRecord.updateMany({}, { $set: { quantitySold: 150 } });
+    const { id } = await setup({ observedThrough: '2026-09-30', fullSalesCoverage: false,
+      stockCoverageConfirmed: false, freeStockValidated: false, policyConfirmed: false, policies: [] });
+    const p = await plan(id);
+    expect(p.rows[0].coverage).toMatchObject({ state: 'estimated', days: 3, dailyQuantity: 25 });
+    expect(p.rows[0].coverage.warnings).toHaveLength(4);
+    expect(p.rows[0].protective).toBeNull();
+    const attempted = await api('post', `/scopes/${id}/drafts`).send({ fingerprint: p.fingerprint,
+      lines: [{ key: p.rows[0].key, branch: 'Seattle', quantity: 6 }], note: 'Estimated cover is not approval evidence' }).expect(409);
+    expect(attempted.body.error).toMatch(/resolve planning inputs/i);
+  });
+});
