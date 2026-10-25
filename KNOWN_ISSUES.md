@@ -72,9 +72,6 @@ already on `main`, kept as they were.
 - [ ] `searchDeliveries()` in `src/api/deliverySchedule.ts` is typed as a list,
       but the route answers `{ results, total, more }`; `DeliveryOrderSearch.tsx`
       casts around it. Fix the type.
-- [ ] The phone board never scrolls the selected day pill into view: the effect
-      looks for `.screenshot-pill-btn.active`, a class that no longer exists (the
-      pills are `.ux-day-pill-card`) — `board/useBoardScroll.ts`.
 - [ ] The page passes `onUpdateTruck` to `BoardGrid`, which never uses it.
 
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
@@ -172,6 +169,7 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-24 | Delivery board: a dead effect meant to scroll the phone's selected day pill into view (its selector matched no element). Not a visible bug — the five pills are a grid that always fits — so it was removed rather than revived (`scrollIntoView` also scrolls the page, see Locations in CLAUDE.md). | on `feat/typescript` |
 | 2026-10-24 | Daily Report: a save refused because someone else had submitted the day (409) reloaded the sheet locked but wiped "This day has been submitted" at once, and Submit in that case said "check your connection". The reload now keeps the note (`loadDay(notice)` in `useDaySheet.ts`). | on `feat/typescript` |
 | 2026-10-24 | Cleanup: the old Add / Edit delivery form `DeliveryModal.jsx` (unused since `DeliveryForm` went live on 2026-10-05) deleted, on the owner's go-ahead. | on `feat/typescript` |
 | 2026-10-15 | Daily Report transfers: one line per transfer, each with its Transfer # (a ticket line per ticket, no longer one per route), so the same transfer added twice is flagged; the typed Count is gone (the month view, its PDF and the CSV count the lines); headings line up with their boxes; one row per line at any width — on phones Slabs used to run off the edge. | `a1fd574` |

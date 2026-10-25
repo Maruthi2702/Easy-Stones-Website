@@ -312,20 +312,10 @@ const BoardGrid = ({
 
   const totalStopsSelectedDay = deliveries.filter(d => d.date === selectedDate).length;
 
-  // Above the empty state on purpose. These two used to sit below it, so a
-  // branch with no drivers rendered zero hooks and the same board rendered two
-  // the moment a driver was assigned — React counts hooks per render and throws
-  // when the count changes, blanking the delivery board on the way in.
-  const pillsRef = React.useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (pillsRef.current) {
-      const activePill = pillsRef.current.querySelector('.screenshot-pill-btn.active');
-      if (activePill) {
-        activePill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
-    }
-  }, [selectedDate]);
+  // Every hook above the empty state: a branch with no drivers once rendered
+  // fewer hooks than the same board with one, and React throws when the count
+  // changes. (A day-pill scroll effect lived here; its selector matched nothing
+  // and the five pills always fit, so it was removed 2026-10-24.)
 
   if (trucks.length === 0) {
     return (
@@ -347,7 +337,6 @@ const BoardGrid = ({
           todayStr={todayStr}
           selectedDate={selectedDate}
           setSelectedDate={setSelectedDate}
-          pillsRef={pillsRef}
           deliveries={deliveries}
           trucks={trucks}
           displayTrucks={displayTrucks}

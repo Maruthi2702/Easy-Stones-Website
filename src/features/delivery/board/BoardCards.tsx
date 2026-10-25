@@ -10,7 +10,6 @@ export type BoardCardsProps = {
   todayStr: string;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
-  pillsRef: React.RefObject<HTMLDivElement | null>;
   deliveries: Ticket[];
   trucks: BoardColumn[];
   displayTrucks: BoardColumn[];
@@ -24,7 +23,7 @@ export type BoardCardsProps = {
 
 /** The board on phones and iPads (under 900px): day pills, then one card per driver for the picked day. */
 export default function BoardCards({
-  weekDates, todayStr, selectedDate, setSelectedDate, pillsRef, deliveries, trucks, displayTrucks,
+  weekDates, todayStr, selectedDate, setSelectedDate, deliveries, trucks, displayTrucks,
   totalStopsSelectedDay, editable, onAddDelivery, getDeliveriesForCell, getRawCapacity, renderCellTickets
 }: BoardCardsProps) {
   return (
@@ -32,7 +31,7 @@ export default function BoardCards({
     <div className="ux-mobile-schedule-container">
 
       {/* Day Selector Pills Bar */}
-      <div className="ux-day-pills-bar" ref={pillsRef}>
+      <div className="ux-day-pills-bar">
         {weekDates.map((dateStr) => {
           const isSelected = selectedDate === dateStr;
           const isToday = dateStr === todayStr;
