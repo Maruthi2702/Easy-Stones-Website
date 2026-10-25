@@ -6,7 +6,7 @@ import type { ImageGalleryState } from '../../components/shared/useImageGallery'
 import VisitCustomerCardJs from '../../components/sales/VisitCustomerCard';
 import VisitModalJs from '../../components/sales/VisitModal';
 import ResourceModalJs from '../../components/sales/ResourceModal';
-import AddCustomerModalJs from '../../components/sales/AddCustomerModal';
+import AddCustomerModalJs from '../customers/form/AddCustomerModal';
 import { API_URL } from '../../config/api';
 import { formatDate } from '../../utils/dateUtils';
 import { canViewCustomerProfile } from '../../utils/customerAccess';

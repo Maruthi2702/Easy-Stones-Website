@@ -212,6 +212,27 @@ already on `main`, kept as they were.
       screen calls the server's `GET /api/accounting/freight-charges/:id/history`
       (a charge's history comes with the charge).
 
+## Customer forms & imports — other
+
+Found while moving the module into `src/features/customers/form`,
+`src/features/customers/import` and `src/features/salesShell/sideNav`
+(2026-10-25); all already on `main`, kept as they were.
+
+- [ ] Dead code: the old read-only **View customer** modal
+      (`form/LegacyCustomerModal.tsx`, most of `form/AddCustomerModal.css`) can't
+      be opened — the Customers list passes `viewingCustomer={viewingPartner}`,
+      and `viewingPartner` is only ever set to `null` (`list/useListUi.ts`); the
+      "eye button" its comment names is gone. It stays mounted, hidden, beside
+      every Add / Edit customer form (three places) with a document `mousedown`
+      listener. Delete it with its CSS once the owner agrees.
+- [ ] Import from Excel (hidden, `SHOW_EXCEL_IMPORT`): **Choose a different
+      file** after answering review rows sends the old file's row decisions with
+      the new file's first preview — `onPickFile` resets the state, then calls
+      `runPreview` without `decisions`, so it falls back to the render's old
+      ones (`import/excel/useExcelImport.ts`). The screen then shows those rows
+      undecided while the plan applied them, and Import (which sends the reset,
+      empty decisions) can differ from the preview.
+
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
 
 Found in a code review of Delivery Schedule, Daily Report and Check-In Log on

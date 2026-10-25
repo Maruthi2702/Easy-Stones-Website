@@ -1,24 +1,27 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Loader, Scan, Upload, Plus, Camera, AlertTriangle } from 'lucide-react';
-import Tesseract from 'tesseract.js';
-import { formatPhoneInput } from '../../utils/phoneUtils';
-import { parseBusinessCard } from '../../utils/cardParser';
-import { API_URL } from '../../config/api';
-import { authFetch } from '../../api/authFetch';
-import CustomSelect from '../shared/CustomSelect';
-import AlertModal from '../shared/AlertModal';
-import CustomerForm from './CustomerForm';
-import './AddCustomerModal.css';
-
-/*
- * Add and Edit now open CustomerForm (the shared form template, design A).
- * This older modal is only reached for the read-only View — the Customers
- * list's eye button — until that view is redesigned too.
+/**
+ * The old Add / Edit / View customer modal. Add and Edit open CustomerForm now;
+ * this is reached only for the read-only View, which nothing opens today
+ * (PartnersSheet passes `viewingPartner`, never set — see KNOWN_ISSUES.md).
+ * Moved out of AddCustomerModal.tsx unchanged; its styles are AddCustomerModal.css.
  */
-const LegacyCustomerModal = ({
+import { useState, useRef, useEffect } from 'react';
+import type React from 'react';
+import { X, Loader, Upload, Plus, Camera, AlertTriangle } from 'lucide-react';
+import Tesseract from 'tesseract.js';
+import { formatPhoneInput } from '../../../utils/phoneUtils';
+import { parseBusinessCard } from '../../../utils/cardParser';
+import { API_URL } from '../../../config/api';
+import { authFetch } from '../../../api/authFetch';
+import CustomSelect from '../../../components/shared/CustomSelect';
+import AlertModal from '../../../components/shared/AlertModal';
+import type { AddCustomerModalProps } from './AddCustomerModal';
+import type { CustomerFormValues } from '../../../utils/customerForm';
+import type { Loose } from '../../../types/records';
+
+export default function LegacyCustomerModal({
     show, onClose, onSave, isSaving, editingCustomer, viewingCustomer,
     salesReps = [], locations = [], currentUser = null, onOpenExisting = null
-}) => {
+}: AddCustomerModalProps) {
     // A new account is assumed to belong to whoever is entering it, at their own
     // branch — the two answers that are right most of the time. Both stay
     // editable, and someone who cannot own accounts (an admin, say) simply
@@ -31,9 +34,9 @@ const LegacyCustomerModal = ({
         locations.find(l => l === currentUser?.location) || locations[0] || '';
 
     const defaultSalesRep =
-        salesReps.some(r => r._id === currentUser?.id) ? currentUser.id : '';
+        salesReps.some(r => r._id === currentUser?.id) ? currentUser!.id : '';
 
-    const emptyForm = () => ({
+    const emptyForm = (): CustomerFormValues => ({
         customerName: '',
         company: '',
         address: {
@@ -61,9 +64,9 @@ const LegacyCustomerModal = ({
     const [scanProgress, setScanProgress] = useState(0);
     const [scanStatus, setScanStatus] = useState('idle'); // 'idle', 'camera', 'processing'
     const [showScanDropdown, setShowScanDropdown] = useState(false);
-    const videoRef = useRef(null);
-    const canvasRef = useRef(null);
-    const dropdownRef = useRef(null);
+    const videoRef = useRef<HTMLVideoElement | null>(null);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const dropdownRef = useRef<HTMLDivElement | null>(null);
 
     // ZIP → City/State autofill. Only offers a value into a blank field —
     // never overwrites something the rep already typed — and only ever the
@@ -111,8 +114,8 @@ const LegacyCustomerModal = ({
     };
 
     useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
                 setShowScanDropdown(false);
             }
         };
@@ -126,7 +129,7 @@ const LegacyCustomerModal = ({
     // on file by the same rules the import and the duplicate audit use
     // (src/utils/customerMatch.js, via POST /api/customers/possible-duplicates).
     // Only for a new customer, and only advice — saving is never blocked.
-    const [dupMatches, setDupMatches] = useState([]);
+    const [dupMatches, setDupMatches] = useState<{ customer: Loose; signals: string[] }[]>([]);
     const [dupDismissed, setDupDismissed] = useState(false);
     const dupSeqRef = useRef(0);
     const isNew = show && !activeCustomer;
@@ -227,7 +230,7 @@ const LegacyCustomerModal = ({
 
     const stopScanner = () => {
         if (videoRef.current && videoRef.current.srcObject) {
-            const tracks = videoRef.current.srcObject.getTracks();
+            const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
             tracks.forEach(track => track.stop());
             videoRef.current.srcObject = null;
         }
@@ -241,7 +244,7 @@ const LegacyCustomerModal = ({
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
 
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d')!;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
         const imageData = canvas.toDataURL('image/jpeg');
@@ -263,7 +266,7 @@ const LegacyCustomerModal = ({
             );
 
             console.log('OCR Raw Text:', text);
-            const parsedData = parseBusinessCard(text);
+            const parsedData = parseBusinessCard(text) as Loose;
             console.log('Parsed Data:', parsedData);
 
             let foundSomething = false;
@@ -301,13 +304,13 @@ const LegacyCustomerModal = ({
         }
     };
 
-    const handleImageUpload = (e) => {
-        const file = e.target.files[0];
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files![0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = async (event) => {
-            const imageData = event.target.result;
+            const imageData = event.target!.result as string;
             setScanStatus('processing');
             setScanProgress(0);
 
@@ -325,7 +328,7 @@ const LegacyCustomerModal = ({
                 );
 
                 console.log('OCR Raw Text:', text);
-                const parsedData = parseBusinessCard(text);
+                const parsedData = parseBusinessCard(text) as Loose;
                 console.log('Parsed Data:', parsedData);
 
                 let foundSomething = false;
@@ -613,7 +616,7 @@ const LegacyCustomerModal = ({
                             <label>Status</label>
                             <CustomSelect
                                 value={form.status}
-                                onChange={(e) => setForm({ ...form, status: e.target.value })}
+                                onChange={(e) => setForm({ ...form, status: e.target.value as string })}
                                 disabled={isViewMode}
                                 options={[
                                     { value: 'New Lead', label: 'New Lead' },
@@ -630,7 +633,7 @@ const LegacyCustomerModal = ({
                             <label>Level</label>
                             <CustomSelect
                                 value={form.level}
-                                onChange={(e) => setForm({ ...form, level: e.target.value })}
+                                onChange={(e) => setForm({ ...form, level: e.target.value as string })}
                                 disabled={isViewMode}
                                 options={[
                                     { value: 'Level - 1', label: 'Level 1' },
@@ -647,7 +650,7 @@ const LegacyCustomerModal = ({
                             <label>Sales Rep</label>
                             <CustomSelect
                                 value={form.salesRep}
-                                onChange={(e) => setForm({ ...form, salesRep: e.target.value })}
+                                onChange={(e) => setForm({ ...form, salesRep: e.target.value as string })}
                                 disabled={isViewMode}
                                 placeholder="Unassigned"
                                 options={[
@@ -666,7 +669,7 @@ const LegacyCustomerModal = ({
                             <label>Location</label>
                             <CustomSelect
                                 value={form.location}
-                                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                                onChange={(e) => setForm({ ...form, location: e.target.value as string })}
                                 disabled={isViewMode}
                                 placeholder="Select location…"
                                 options={locations.map(loc => ({ value: loc, label: loc }))}
@@ -679,7 +682,7 @@ const LegacyCustomerModal = ({
                             <label>Customer Type</label>
                             <CustomSelect
                                 value={form.customerType}
-                                onChange={(e) => setForm({ ...form, customerType: e.target.value })}
+                                onChange={(e) => setForm({ ...form, customerType: e.target.value as string })}
                                 disabled={isViewMode}
                                 options={[
                                     { value: 'Fabricator', label: 'Fabricator' },
@@ -695,7 +698,7 @@ const LegacyCustomerModal = ({
                             <label>Moda Display</label>
                             <CustomSelect
                                 value={form.modaDisplay}
-                                onChange={(e) => setForm({ ...form, modaDisplay: e.target.value })}
+                                onChange={(e) => setForm({ ...form, modaDisplay: e.target.value as string })}
                                 disabled={isViewMode}
                                 options={[
                                     { value: 'No', label: 'No' },
@@ -766,7 +769,7 @@ const LegacyCustomerModal = ({
                             onChange={(e) => setForm({ ...form, notes: e.target.value })}
                             placeholder="Any additional notes..."
                             disabled={isViewMode}
-                            rows="3"
+                            rows={3}
                             autoCapitalize="sentences"
                         />
                     </div>
@@ -800,16 +803,4 @@ const LegacyCustomerModal = ({
             />
         </div>
     );
-};
-
-const AddCustomerModal = (props) => {
-    // Add and Edit: the template form. Keyed by customer so opening another
-    // one starts fresh instead of keeping the last one's typing.
-    if (props.show && !props.viewingCustomer) {
-        // A pre-filled new customer (Permits → a contractor's "Create customer") is its own form.
-        return <CustomerForm key={props.editingCustomer?._id || (props.prefill ? `prefill-${props.prefill.company}-${props.prefill.notes}` : 'new')} {...props} />;
-    }
-    return <LegacyCustomerModal {...props} show={Boolean(props.show && props.viewingCustomer)} />;
-};
-
-export default AddCustomerModal;
+}

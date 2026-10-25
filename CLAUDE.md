@@ -461,7 +461,8 @@ twice; never write it from a request body (`PROTECTED_CUSTOMER_FIELDS`).
 **Connect existing customers** (Customers ⋯ → Connect customers to SPS,
 `src/utils/spsConnect.js`, `src/routes/customerSpsConnect.js`) gives today's
 customers their key: exact names unasked, the rest by a person. The **new
-import** (Customers ⋯ → Import from SPS, `SpsImportModal.jsx`) is five steps
+import** (Customers ⋯ → Import from SPS, `src/features/customers/import/SpsImportModal.tsx`,
+its state `useSpsImport.ts`, each step in `import/sps/`) is five steps
 over saved runs (`SpsImportRun` / `SpsImportItem`): the planner
 `src/utils/spsImportPlan.js` gives every SPS name exactly one outcome (held
 key → update; exact name → connect; deleted before → asked, never silent;

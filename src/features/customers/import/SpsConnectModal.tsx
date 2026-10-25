@@ -7,45 +7,54 @@
  * review of the rest, saved as you go. Every call re-posts the file; the server
  * re-plans against the database each time (src/routes/customerSpsConnect.js).
  */
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Upload, Check } from 'lucide-react';
-import FormModal from '../shared/form/FormModal';
-import SpsSide, { placeOf } from './SpsSide';
-import { API_URL } from '../../config/api';
-import { authFetch } from '../../api/authFetch';
+import FormModal from '../../../components/shared/form/FormModal';
+import SpsSide from './SpsSide';
+import { placeOf } from './spsImport';
+import { API_URL } from '../../../config/api';
+import { authFetch } from '../../../api/authFetch';
+import type { Loose } from '../../../types/records';
 import './SpsConnectModal.css';
 import './SpsImportModal.css';
 
-const fail = async (res) => {
+const fail = async (res: Response): Promise<string> => {
     const text = await res.text();
     let said = '';
     try { const j = JSON.parse(text); said = j.message || j.error || ''; } catch { /* not JSON */ }
     return `${said || text.slice(0, 200) || res.statusText} (HTTP ${res.status})`;
 };
-const n = (v) => Number(v).toLocaleString();
-const SIGNAL_WORDS = { phone: 'same phone', email: 'same email', 'company name': 'similar name', 'email domain': 'same email domain' };
+const n = (v: unknown) => Number(v).toLocaleString();
+const SIGNAL_WORDS: Record<string, string> = { phone: 'same phone', email: 'same email', 'company name': 'similar name', 'email domain': 'same email domain' };
 
-export default function SpsConnectModal({ onClose, onChanged }) {
-    const fileInput = useRef(null);
-    const [file, setFile] = useState(null);
-    const [report, setReport] = useState(null);   // the preview
+/** The dry-run report from POST /api/customers/sps-connect/preview. */
+type ConnectReport = Loose & {
+    total: number; connected: number; notInSps: number; autoCount: number; spsRows: number; spsUnclaimed: number;
+    autoSample: Loose[]; toCheck: Loose[];
+};
+export type SpsConnectModalProps = { onClose?: () => void; onChanged?: () => void };
+
+export default function SpsConnectModal({ onClose, onChanged }: SpsConnectModalProps) {
+    const fileInput = useRef<HTMLInputElement | null>(null);
+    const [file, setFile] = useState<File | null>(null);
+    const [report, setReport] = useState<ConnectReport | null>(null);   // the preview
     const [stage, setStage] = useState('upload'); // upload | report | review | done
-    const [answers, setAnswers] = useState({});   // customerId → spsKey | 'none' | 'later'
+    const [answers, setAnswers] = useState<Record<string, string>>({});   // customerId → spsKey | 'none' | 'later'
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
 
-    const post = async (path, fields = {}) => {
+    const post = async (path: string, fields: Record<string, unknown> = {}) => {
         const body = new FormData();
-        body.append('file', file);
+        body.append('file', file as File);
         for (const [k, v] of Object.entries(fields)) body.append(k, typeof v === 'string' ? v : JSON.stringify(v));
         const res = await authFetch(`${API_URL}/api/customers/sps-connect/${path}`, { method: 'POST', body });
         if (!res.ok) throw new Error(await fail(res));
         return res.json();
     };
-    const run = async (fn) => {
+    const run = async (fn: () => Promise<void>) => {
         setBusy(true); setError('');
-        try { await fn(); } catch (err) { setError(err.message); } finally { setBusy(false); }
+        try { await fn(); } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
     };
 
     const check = () => run(async () => {
@@ -75,14 +84,14 @@ export default function SpsConnectModal({ onClose, onChanged }) {
         setStage(data.toCheck.length ? 'review' : 'done');
     });
 
-    let submit = {};
+    let submit: { label?: string; onSubmit?: () => void; disabled?: boolean } = {};
     if (stage === 'upload') submit = { label: 'Check the file', onSubmit: check, disabled: !file };
-    else if (stage === 'report') submit = { label: `Connect ${n(report.autoCount)} customers`, onSubmit: connectExact, disabled: false };
+    else if (stage === 'report') submit = { label: `Connect ${n(report!.autoCount)} customers`, onSubmit: connectExact, disabled: false };
     else if (stage === 'review') submit = { label: answered.length ? `Save ${n(answered.length)} answer${answered.length === 1 ? '' : 's'}` : 'Save answers', onSubmit: saveAnswers, disabled: answered.length === 0 };
     else submit = { label: 'Done', onSubmit: () => onClose?.(), disabled: false };
 
     const left = report ? report.toCheck.length : 0;
-    const bar = report && report.total > 0 ? [
+    const bar: [string, number][] = report && report.total > 0 ? [
         ['connected', report.connected], ['notin', report.notInSps],
         ['auto', stage === 'report' ? report.autoCount : 0],
         ['check', report.toCheck.length]
@@ -137,17 +146,17 @@ export default function SpsConnectModal({ onClose, onChanged }) {
                     <>
                         <div className="spsc-banner info">This is a dry run — nothing has been saved. These customers’ company name is exactly an SPS name, so they connect without being asked. A few examples:</div>
                         <ul className="spsc-list">
-                            {report.autoSample.map((a) => <li key={a.customerId}><b>{a.company}</b>{a.company !== a.spsName && <span className="spsc-muted"> = {a.spsName}</span>}</li>)}
+                            {report!.autoSample.map((a) => <li key={a.customerId}><b>{a.company}</b>{a.company !== a.spsName && <span className="spsc-muted"> = {a.spsName}</span>}</li>)}
                         </ul>
-                        {report.autoCount > report.autoSample.length && <div className="spsc-muted">and {n(report.autoCount - report.autoSample.length)} more.</div>}
+                        {report!.autoCount > report!.autoSample.length && <div className="spsc-muted">and {n(report!.autoCount - report!.autoSample.length)} more.</div>}
                     </>
                 )}
 
                 {stage === 'review' && (
                     <div className="spsc-review">
-                        {report.toCheck.map((c) => {
+                        {report!.toCheck.map((c) => {
                             const value = answers[c.customerId] || 'later';
-                            const set = (v) => setAnswers((a) => ({ ...a, [c.customerId]: v }));
+                            const set = (v: string) => setAnswers((a) => ({ ...a, [c.customerId]: v }));
                             return (
                                 <fieldset key={c.customerId} className="spsc-card">
                                     <legend><b>{c.company}</b>{c.location && <span className="spsc-muted"> · {c.location}</span>}</legend>
@@ -155,16 +164,16 @@ export default function SpsConnectModal({ onClose, onChanged }) {
                                     <div className="spsi-compare">
                                         <SpsSide k="In Easy Stones" company={c.company} contact={c.contactName} phone={c.phone} email={c.email}
                                             street={c.street} place={placeOf(c.city, c.state, c.zipCode)} branch={c.location} rep={c.salesRepName} />
-                                        {c.candidates.map((s) => (
+                                        {c.candidates.map((s: Loose) => (
                                             <SpsSide key={s.key} k="In SPS" company={s.name} contact={s.contactName} phone={s.phone} email={s.email}
                                                 street={s.street} place={placeOf(s.city, s.state, s.zipCode)} branch={s.branch} rep={s.rep} />
                                         ))}
                                     </div>
-                                    {c.candidates.map((s) => (
+                                    {c.candidates.map((s: Loose) => (
                                         <label key={s.key} className={`spsc-opt${value === s.key ? ' on' : ''}`}>
                                             <input type="radio" name={`c-${c.customerId}`} checked={value === s.key} onChange={() => set(s.key)} />
                                             <span><b>Same customer — connect to “{s.name}”</b>
-                                                <span className="spsc-muted"> {s.signals.map((x) => SIGNAL_WORDS[x] || x).join(' · ')}</span>
+                                                <span className="spsc-muted"> {s.signals.map((x: string) => SIGNAL_WORDS[x] || x).join(' · ')}</span>
                                             </span>
                                         </label>
                                     ))}

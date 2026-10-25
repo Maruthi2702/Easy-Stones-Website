@@ -31,7 +31,7 @@ on it too, with one deliberate phone exception (owner's call, 2026-10-04): no
 footer — Save selection is a full-width button at the end of the body, and
 Email / Print sit under a "…" button beside the ✕ (`FormModal`'s opt-in
 `hideFooterOnPhone` and `headerActions`).
-**Add / Edit customer** (`src/components/sales/CustomerForm.jsx`, size M; rules
+**Add / Edit customer** (`src/features/customers/form/CustomerForm.tsx`, size M; rules
 in `src/utils/customerForm.ts`) is on it, built from model A on the
 [Add & Edit Customer canvas](https://claude.ai/artifact/G6YUNXvbtVqScRGB7dHtXD):
 no headings, every account setting a dropdown, no Cancel, and the business

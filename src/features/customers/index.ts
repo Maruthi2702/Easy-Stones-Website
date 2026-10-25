@@ -16,3 +16,6 @@ export type { OpenCustomer } from './useOpenCustomer';
 export { default as CustomerDrawer } from './list/CustomerDrawer';
 export type { CustomerDrawerProps } from './list/CustomerDrawer';
 export type { PartnersSheetProps } from './list/PartnersSheet';
+// Add / Edit customer (form/AddCustomerModal.tsx) and the imports (import/) are
+// imported by path, not from here: through this file the form's styles would
+// load with the profile, earlier than before (the built CSS must not reorder).
