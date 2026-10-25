@@ -109,3 +109,11 @@ and unconfirmed coverage are warnings for otherwise coherent, branch-matched
 reported facts, while all purchase blockers remain. Invalid date ranges, branch
 ambiguity and missing numeric inputs still leave coverage unknown. This does
 not silently approve scope attestations or repair production report dates.
+
+## Uploaded report dates are authoritative
+
+Completed sales reports now supply their inclusive start/end period directly,
+without manual cutoff/date confirmations or upload-time comparisons. The server
+and scope form share `reportSalesPeriod()`. Earlier confirmation records remain
+audit history. An unfinished future range still needs an actual reported-through
+date. Stock estimates and verified purchase validation remain separate.

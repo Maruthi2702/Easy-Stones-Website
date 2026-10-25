@@ -442,19 +442,26 @@ describe('advisory stock coverage API', () => {
   });
 });
 
-describe('confirming actual sales coverage', () => {
-  it('records server-stamped confirmation for a conflicting import date and retains the original timestamps', async () => {
+describe('using the uploaded sales period', () => {
+  it('derives a completed period without a date or confirmation and retains original import timestamps', async () => {
     const legacyImport = new Date('2026-09-28T20:00:00Z');
-    await InventorySalesRecord.updateMany({}, { $set: { importedAt: legacyImport } });
+    await InventoryItem.deleteMany({});
+    await InventoryItem.collection.insertOne({ product: 'Quartz 3CM', location: 'Seattle', type: 'SLAB', serialNumber: 'file-slab',
+      instockQty: 75, availableSlabs: 1, availableQuantity: 75, units: 'SF', slabStatus: '', remnant: '', importedAt: clock });
+    await InventorySalesRecord.updateMany({}, { $set: { importedAt: legacyImport, periodEnd: new Date('2026-09-30') } });
     const meta = (await api('get', '/metadata')).body;
     const { body } = await setup({ observedThrough: '2026-09-27' });
-    const request = { ...body, cohortId: meta.cohorts[0].id, observedThrough: '2026-09-30' };
-    await api('post', '/scopes').send(request).expect(400);
-    const saved = await api('post', '/scopes').send({ ...request, salesCoverageDateConfirmed: true }).expect(201);
-    expect(saved.body.salesCoverageConfirmation).toMatchObject({ cohortId: meta.cohorts[0].id, through: '2026-09-30',
-      source: 'scope-form', confirmedBy: { id: ADMIN.id, name: ADMIN.displayName } });
+    const { observedThrough, ...request } = { ...body, cohortId: meta.cohorts[0].id };
+    const saved = await api('post', '/scopes').send(request).expect(201);
+    expect(saved.body.observedThrough).toBe('2026-09-30');
+    expect(saved.body.salesCoverageConfirmation).toBeNull();
+    const result = await plan(saved.body._id);
+    expect(result.scope.observedThrough).toBe('2026-09-30');
+    expect(result.rows[0].coverage).toMatchObject({ state: 'estimated', dailyQuantity: 9 });
+    expect(result.rows[0].coverage.days).toBeCloseTo(75 / 9);
+    expect(result.blockers.join(' ')).not.toMatch(/after the report was imported|confirm the actual report cutoff/);
     expect((await InventorySalesRecord.findOne().lean()).importedAt.toISOString()).toBe(legacyImport.toISOString());
-    await api('post', '/scopes').send({ ...request, salesCoverageDateConfirmed: true, observedThrough: '2026-11-01' }).expect(400);
-    await api('post', '/scopes').send({ ...request, salesCoverageConfirmation: saved.body.salesCoverageConfirmation }).expect(400);
+    await api('post', '/scopes').send({ ...request, observedThrough: '2026-11-01' }).expect(400);
+    await api('post', '/scopes').send({ ...request, salesCoverageConfirmation: { through: '2026-09-30' } }).expect(400);
   });
 });

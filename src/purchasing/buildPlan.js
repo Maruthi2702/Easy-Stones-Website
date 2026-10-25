@@ -1,4 +1,4 @@
-import { hasConfirmedSalesThrough } from './salesCoverage.ts';
+import { reportSalesPeriod } from './salesPeriod.ts';
 import { stockBreakdown, stockCoverage } from './stockOverview.ts';
 import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.js';
 import { project, inclusiveDays, todayPacific, variantKey } from './planning.ts';
@@ -15,8 +15,10 @@ const remnant = (value) =>
   !!String(value || '').trim() && !['NO', 'N', 'FALSE', '0'].includes(String(value).trim().toUpperCase());
 const ageHours = (at, now) => (at ? (now.getTime() - new Date(at).getTime()) / 3600000 : Infinity);
 export function buildPlan(inputs, now = new Date()) {
-  const { scope, cohort, inbound, reservations, locks } = inputs,
+  const { scope: storedScope, cohort, inbound, reservations, locks } = inputs,
     today = todayPacific(now);
+  const period = reportSalesPeriod(cohort, today, storedScope.observedThrough);
+  const scope = { ...storedScope, observedThrough: period.through };
   const stock = inputs.stock.filter((s) => scope.branches.includes(s.location));
   const snapshot = stockId(stock),
     imported =
@@ -33,16 +35,8 @@ export function buildPlan(inputs, now = new Date()) {
   };
   if (!cohort)
     coverageIssue('Select a current sales cohort; its imported records changed or are unavailable');
-  const days = cohort ? inclusiveDays(cohort.start, scope.observedThrough) : 0;
-  if (!days || scope.observedThrough > today || (cohort && scope.observedThrough > cohort.end))
-    coverageIssue('Confirm an observed sales cutoff inside the report range and no later than today');
-  if (cohort && scope.observedThrough > todayPacific(new Date(cohort.importedAt))) {
-    const confirmed = hasConfirmedSalesThrough(scope, cohort.id);
-    const importedDay = todayPacific(new Date(cohort.importedAt));
-    coverageIssue(confirmed
-      ? `Sales coverage through ${scope.observedThrough} was explicitly confirmed; the saved import date ${importedDay} predates that coverage`
-      : `Observed sales cutoff ${scope.observedThrough} is after the report was imported on ${importedDay}; confirm the actual report cutoff or import a newer sales report`, confirmed);
-  }
+  const days = period.days;
+  if (cohort) period.errors.forEach(message => coverageIssue(message));
   if (cohort && cohort.records.some((r) => r.importedAt?.toISOString() !== cohort.importedAt))
     coverageIssue('Sales cohort contains mixed imports; re-import the complete report');
   if (scope.observedThrough && inclusiveDays(scope.observedThrough, today) > scope.salesMaxDays + 1)

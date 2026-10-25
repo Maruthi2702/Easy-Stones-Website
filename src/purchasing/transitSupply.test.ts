@@ -29,15 +29,16 @@ const inputs = () => {
   };
 };
 describe('uploaded transit in purchasing', () => {
-  it('shows imported PO/container data even when a sales validation blocks buying', () => {
+  it('shows imported PO/container data even when a receiving-policy validation blocks buying', () => {
     const input = inputs();
+    input.scope.policyConfirmed = false;
     input.cohort.importedAt = '2026-10-25T06:45:00Z'; // Oct 24 in Pacific time.
     input.cohort.records[0].importedAt = new Date(input.cohort.importedAt);
     const plan = buildPlan(input, now);
     expect(plan.rows[0].transit).toHaveLength(1);
     expect(plan.rows[0].transit[0]).toMatchObject({ poNumber: 'P1', containerNumber: 'CONT1', slabs: 24, eta: '2026-12-08' });
     expect(plan.rows[0].protective).toBeNull();
-    expect(plan.rows[0].blockers.join(' ')).toMatch(/imported on 2026-10-24/);
+    expect(plan.rows[0].blockers.join(' ')).toMatch(/receiving lead-time/);
   });
   it('subtracts eligible imported containers from the proposed buy', () => {
     const plan = buildPlan(inputs(), now);

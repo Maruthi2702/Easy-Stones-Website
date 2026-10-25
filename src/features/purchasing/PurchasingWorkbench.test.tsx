@@ -360,8 +360,8 @@ describe('estimated days of stock', () => {
   });
 });
 
-describe('confirming a report date separately from upload time', () => {
-  it('opens with an existing confirmation checked and preserves it when saving', async () => {
+describe('using report dates automatically', () => {
+  it('shows the uploaded period and saves without asking for date confirmation', async () => {
     const legacyScope = { ...scope, observedThrough: '2026-09-30', salesCoverageConfirmation: {
       cohortId: 'cohort', through: '2026-09-30', confirmedAt: '2026-10-25T20:00:00Z',
       confirmedBy: { id: null, name: 'Workspace owner' }, source: 'owner-confirmation' as const } };
@@ -372,11 +372,12 @@ describe('confirming a report date separately from upload time', () => {
     render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
     await screen.findByRole('button', { name: 'Quartz 3CM' });
     fireEvent.click(screen.getByRole('button', { name: 'Edit scope & variant policies' }));
-    const confirmed = screen.getByRole('checkbox', { name: /I verified the report contains actual sales through 2026-09-30/ });
-    expect((confirmed as HTMLInputElement).checked).toBe(true);
+    expect(screen.queryByRole('checkbox', { name: /I verified the report contains actual sales through/ })).toBeNull();
+    expect(screen.getByText(/Calculations use 273 calendar days/)).toBeTruthy();
+    expect(screen.queryByLabelText(/^Observed sales cutoff/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Save planning scope' }));
     await waitFor(() => expect(purchasingApi.saveScope).toHaveBeenCalledWith(expect.objectContaining({
-      observedThrough: '2026-09-30', salesCoverageDateConfirmed: true,
+      observedThrough: '2026-09-30',
     }), 'scope'));
   });
 });

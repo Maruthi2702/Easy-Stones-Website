@@ -1,6 +1,6 @@
-# Purchasing stock overview: proposed UX
+# Purchasing stock overview
 
-Design proposal based on the owner's requested columns and follow-up: show exact
+Design and implementation based on the owner's requested columns and follow-up: show exact
 days of cover (1, 2, 4, 5, 10 or any longer period), not only 30/60/90 buckets.
 The main stock columns and custom-day control are now connected to the live
 Purchasing component and API. The standalone `.tsx` preview remains illustrative;
@@ -114,9 +114,9 @@ reported ETA alone is not confirmed usable receipt. A PO and its containers do
 not add together. A shared container can appear under several colors; table-wide
 container totals count distinct containers rather than summing row counts.
 
-The screenshot's observed cutoff is after its report import date. That remains
-invalid. Show a single scope-level repair banner instead of repeating the same
-paragraph on every row; do not bypass the check to populate day counts.
+Report upload timestamps are audit metadata and do not limit the sales period.
+A completed report supplies its own start/end dates automatically. Validate the
+file's actual dates and numeric inputs; show scope-level issues in one banner.
 
 ## Useful enhancements, in priority order
 
@@ -137,7 +137,7 @@ paragraph on every row; do not bypass the check to populate day counts.
 
 This proposal changes the main table columns and adds a custom-day control.
 It keeps the existing module entry, planning scope and draft/approval flow.
-The standalone preview is for reviewing that change before wiring live data.
+The standalone preview remains illustrative; the live workbench is connected to the imported data.
 
 ## Preview verification
 
@@ -148,72 +148,59 @@ inside its container. No page errors occurred. Strict TypeScript checks and
 the standalone preview build passed. The preview does not call a live API or
 change production purchasing behavior.
 
-## Live integration validation
+## Current calculation and data flow
 
-The actual BuyerQueue renders total, allocated, available, incoming, exact days
-of cover and a 1–365-day balance control. Buying scenarios moved into expandable
-details; the PlanDetails modal also exposes the stock breakdown. Scope-wide
-errors are kept in the existing banner rather than repeated on every row.
-Purchasing surfaces now inherit the canonical theme tokens.
+The live BuyerQueue renders total SPS slabs, allocated, available, incoming,
+actual days of cover and a 1–365-day balance control. Buying scenarios stay in
+expandable details. The PlanDetails modal exposes the same stock breakdown.
+Purchasing surfaces inherit the canonical theme tokens.
 
-Real API regression coverage checks physical counts and coverage independent of
-packing-policy blockers. Chromium checks use the actual workbench and an
-engine-generated API fixture: 40 total, 28 allocated, 2 other unavailable,
-10 available, 5-day cover, custom-day balances, and retained counts with unknown
-cover after an invalid cutoff. Both themes and phone containment are checked.
-These are disposable fixtures; production report dates are not altered.
+`reportSalesPeriod()` is shared by the server and scope form. For a completed
+report it uses the file's inclusive start/end dates automatically. January 1
+through September 30, 2026 is 273 days. A leftover manual cutoff, upload date
+or historical confirmation record does not change that denominator. The API
+accepts a completed report without a supplied observed-through date. The form
+shows the report period and removes the manual date/confirmation controls.
 
-Validation result: 65 purchasing rule/API/render tests passed across five files;
-the production build passed. Tests use disposable data.
+If a requested report range ends in the future, only its actual reported-through
+date may establish the denominator. An absent actual date remains an input error;
+the app does not assume future days have occurred. Missing/invalid file dates,
+mixed imports, ambiguous physical counts, invalid quantities, duplicate sales
+and unverified cross-branch matches remain coverage errors.
 
-## Coverage troubleshooting
+Average daily demand = reported SF sold / inclusive report days. Current stock
+cover = eligible available SF / daily SF demand. The custom-day balance uses
+the same rate and excludes future inbound. Supplier conversion policy is used
+only to express a balance in slab equivalents; valid SF-based cover needs no
+supplier/bundle/weight setup.
 
-Unknown coverage now includes an expandable list of its actual API reasons
-and an editor-only **Review coverage inputs** action opening the existing scope
-form. The next-action message explicitly labels buying setup separately. A
-missing supplier/packing policy does not explain or gate a valid SF coverage
-calculation. Inconsistent dates remain structural blockers. Stale inputs and unverified
-source coverage remain purchase-approval blockers and are displayed as warnings
-for an otherwise calculable stock estimate; source dates and confirmations are
-not guessed.
+Stale reports and unchecked stock/coverage attestations produce a labelled
+historical estimate for otherwise valid, branch-matched reported rows. Show the
+period, approximate marker and assumption warnings. A missing variant does not
+become zero without verified full coverage. Reported zero sales is displayed
+explicitly rather than as infinite cover.
 
-Validation: 16 UI tests, strict typecheck, production build and actual-workbench
-Chromium checks of diagnostics and scope-form navigation passed.
+## Buying workflow and diagnostics
 
-## Estimated coverage versus verified purchase decisions
+Stock estimates do not enable purchase drafts or approvals. Keep stock/supply
+freshness, completeness, supplier, bundle, weight, container capacity, branch
+access, record versions and reservation checks for buying decisions. Scope-wide
+issues stay in the existing banner; row-specific issues are separate. Unknown
+coverage includes its actual reasons and an editor-only repair link.
 
-Numeric coverage is available as **estimated** when a reported variant has
-valid available SF and sales quantities, a coherent observed period, and a
-matching branch identity, even if sales/stock are stale or coverage/availability
-attestations are unchecked. Show the period, an approximate marker and the
-assumption warnings next to both days of cover and the selected-day balance.
-An unverified combined report or mismatched branch remains unknown; missing
-variant rows do not become zero without verified full coverage.
+The former upload-date confirmation workflow has been removed. Existing dated
+confirmations remain audit history; this change does not rewrite source import
+timestamps or automatically check any buying/warehouse attestations.
 
-All purchase blockers are retained. Estimated coverage never enables a draft
-or approval. Impossible/future dates, mixed imports, ambiguous physical counts,
-invalid quantities and duplicate sales remain hard coverage errors.
+## Verification
 
-Validation: 73 purchasing tests passed, including real API rejection of draft
-creation from estimated inputs; TypeScript and build passed. Chromium verified
-the actual component's estimate, warnings, custom-day balance, disabled purchase
-selection, themes and phone containment. Database inspection was read-only;
-no report dates, import metadata or attestations were changed.
+81 rule/API/render tests passed, including completed periods without manual
+dates, earlier upload timestamps, future/open-ended ranges and existing draft
+validation. Strict TypeScript and production build passed. Chromium verified
+actual estimates, custom-day balances, a completed-report form with no cutoff
+or confirmation control, saving, themes and phone containment.
 
-## Confirmed sales period versus import metadata
-
-A manager can explicitly confirm the report's actual observed-through date when
-it conflicts with saved import metadata. The server stamps the actor/time and
-binds the evidence to the exact cohort revision and date. Changing the report
-or cutoff invalidates that evidence. The source import timestamp is preserved.
-
-The scope form accepts dates within the report range and no later than today;
-a conflict requires the explicit date confirmation. This supports a historical
-coverage estimate while retaining the metadata-conflict warning and all purchase
-validation. The owner's September 30, 2026 confirmation was recorded narrowly
-for the existing Seattle report, with a prior-state backup and optimistic
-version check. No sales records or warehouse coverage flags were changed.
-
-Verification: 77 rule/API/render tests, strict typecheck and build passed.
-Chromium verified the real form restores confirmation, rejects an unconfirmed
-conflicting date and submits the confirmed date without changing import time.
+Read-only evaluation of Seattle's imported data produced numeric estimates
+using the file's January–September period with the manual cutoff blanked and
+historical confirmation excluded in memory. No production data was changed by
+this evaluation.

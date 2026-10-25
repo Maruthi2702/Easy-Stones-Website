@@ -29,19 +29,19 @@ describe('physical stock overview', () => {
     expect(stockCoverage({ ...input, sold: 0 })).toMatchObject({ state: 'no-sales', days: null });
     expect(stockCoverage({ ...input, blockers: ['Invalid cutoff'] })).toMatchObject({ state: 'unknown', days: null });
   });
-  it('keeps physical counts visible when the actual planning cutoff is invalid', () => {
+  it('keeps physical counts visible when an unfinished report has an invalid actual cutoff', () => {
     const now = new Date('2026-10-25T20:00:00Z');
     const stock = [{ ...slab('one'), _id: '1', product: 'Quartz', units: 'SF', location: 'Seattle', importedAt: now }];
     const plan = buildPlan({ stock, reservations: [], locks: [], transitShipments: [], inbound: null,
-      scope: { branches: ['Seattle'], observedThrough: '2026-10-25', fullSalesCoverage: true,
+      scope: { branches: ['Seattle'], observedThrough: '2026-10-30', fullSalesCoverage: true,
         stockSnapshotId: stockId(stock), stockCoverageConfirmed: true, freeStockValidated: true,
         policyConfirmed: false, stockMaxHours: 24, salesMaxDays: 14, aliases: [], policies: [], reviewDays: 7, bufferDays: 21 },
-      cohort: { id: 'c', start: '2026-10-01', end: '2026-10-31', importedAt: '2026-10-24T20:00:00Z',
+      cohort: { id: 'c', start: '2026-10-01', end: '2026-10-31', importedAt: '2026-10-24T20:00:00.000Z',
         records: [{ product: 'Quartz', uom: 'SF', quantitySold: 100, importedAt: new Date('2026-10-24T20:00:00Z') }] },
     }, now);
     expect(plan.rows[0].stockBreakdown).toMatchObject({ total: 1, available: 1 });
     expect(plan.rows[0].coverage.state).toBe('unknown');
-    expect(plan.rows[0].coverage.reasons.join(' ')).toContain('after the report was imported');
+    expect(plan.rows[0].coverage.reasons.join(' ')).toContain('future dates');
   });
 });
 
@@ -79,11 +79,10 @@ describe('estimated coverage versus purchase validation', () => {
     const noSales = inputs(); noSales.cohort.records = [];
     expect(buildPlan(noSales, noSales.now).rows[0].coverage.state).toBe('unknown');
   });
-  it('does not estimate an impossible cutoff even if every other issue is only advisory', () => {
-    const input = inputs(); input.cohort.importedAt = '2026-09-26T20:00:00Z';
+  it('uses a completed file period even when its upload timestamp is earlier', () => {
+    const input = inputs(); input.cohort.importedAt = '2026-09-26T20:00:00.000Z';
     input.cohort.records[0].importedAt = new Date(input.cohort.importedAt);
     const coverage = buildPlan(input, input.now).rows[0].coverage;
-    expect(coverage.state).toBe('unknown');
-    expect(coverage.reasons.join(' ')).toContain('after the report was imported');
+    expect(coverage).toMatchObject({ state: 'estimated', days: 3, reasons: [] });
   });
 });
