@@ -7,7 +7,7 @@
  *
  * Server-only. `fetchImpl` and `sleep` are injectable for tests.
  */
-import { isDay } from '../common.js';
+import { isDay, dayOf } from '../common.js';
 import { BELLINGHAM_LAYER, BELLINGHAM_FIELDS, BELLINGHAM_PERMIT_TYPES } from '../rules/bellingham.js';
 import { createArcgisReader, sqlString } from './arcgis.js';
 
@@ -17,5 +17,15 @@ export const bellinghamWhere = (since) => {
 };
 
 export function createBellinghamSource({ layer = BELLINGHAM_LAYER, ...opts } = {}) {
-  return createArcgisReader({ layer, name: 'Bellingham', fields: BELLINGHAM_FIELDS, where: bellinghamWhere, ...opts });
+  const reader = createArcgisReader({ layer, name: 'Bellingham', fields: BELLINGHAM_FIELDS, where: bellinghamWhere, numberField: 'PERMIT_NO', ...opts });
+  return {
+    ...reader,
+    async findByNumber(number) {
+      const row = await reader.findByNumber(number);
+      if (row && row.ISSUED !== null && !dayOf(row.ISSUED)) {
+        throw new Error(`Bellingham returned an invalid issue date for ${number}`);
+      }
+      return row;
+    }
+  };
 }

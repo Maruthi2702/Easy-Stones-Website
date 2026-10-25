@@ -6,6 +6,40 @@ commit) when it's done, rather than deleting it.
 
 Last reviewed: 2026-10-05
 
+## Security and schedule fixes
+
+Implemented on 2026-10-24:
+
+- Public products return an allowlist of catalog fields and only the signed-in
+  viewer's permitted selling price. Costs and tier tables stay out of public
+  responses and the browser cache; full product details require Admin.
+- Calendar subscriptions require a separate private credential. Sync Calendar
+  supplies the link and **Replace link** revokes the previous one. Existing
+  ID-only subscriptions must be added again using the new link after deployment.
+- Delivery and check-in socket rooms require their respective View permissions
+  as well as a current staff session and assigned branches.
+- Bulk route creation/replacement validates stops before writing and uses a
+  MongoDB transaction; failed writes preserve the previous route.
+
+Regression coverage: `src/routes/publicProducts.test.js`,
+`src/routes/schedule.test.js` (replica set, including rollback), and
+`src/services/socketAccess.test.js` (real socket connections).
+
+## Permit source warning fixes (2026-10-24)
+
+2026-10-24: Pierce County's replacement permits and blank work types are
+**Other building** (owner confirmed), without guessing from descriptions.
+Skagit County's **Commercial Gate Installation** joins the skipped gate types.
+Bellingham's month check now looks up disappearing permits by number and
+applies only source-confirmed issue-date corrections. The city cleared
+`BLD2025-0500`'s date (status **RTI HOLD**); the old daily date-filtered pull
+could not refresh it. Records with cleared dates are retained, excluded from
+issued leads, and can return through the ordinary pull if re-issued.
+
+Validated on an isolated copy of October's saved Bellingham permits against
+the live city layer: all 15 currently issued leads match. No production data
+was changed. Deployment and a permit refresh are needed to update the warnings.
+
 ## Transfers & Daily Report
 
 Found in a read-only review on 2026-09-29. Nothing below has been changed yet.

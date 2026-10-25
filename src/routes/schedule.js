@@ -11,9 +11,11 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
+import { randomBytes } from 'node:crypto';
 import Schedule from '../models/Schedule.js';
 import Customer from '../models/Customer.js';
 import User from '../models/User.js';
+import { calendarFeedToken, validCalendarFeedToken } from '../services/calendarFeed.js';
 import { zonedTimeToUtc } from '../utils/dateUtils.js';
 import { discoverICloudCalendars, syncICloudCalendar } from '../services/icloudSyncService.js';
 
@@ -145,7 +147,8 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
    *
    * Planning a route is a single decision — these twelve customers, Tuesday, in
    * this order — and one request per stop turns it into twelve chances to half-fail.
-   * Written with insertMany so the day either lands or it does not.
+   * Validated before any write, then committed in one transaction so a failed
+   * insert cannot erase the previous plan or leave a partial new day.
    *
    * The order and the times come from the client because that is where the route
    * was laid out; what the server will not accept is a stop for a customer that
@@ -191,32 +194,40 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       // typed in by hand — re-planning a day is not permission to erase the rest
       // of it. The date is matched on the stored 'YYYY-MM-DDTHH:mm:ss.000' prefix.
       // `date` goes into a startTime prefix $regex: only ever a real date.
-      if (replace && date && !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
+      if (replace && !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
         return res.status(400).json({ message: 'A date (YYYY-MM-DD) is required to replace a day' });
       }
 
-      let replaced = 0;
-      if (replace && date) {
-        const { deletedCount } = await Schedule.deleteMany({
-          userId,
-          source: 'route_planner',
-          startTime: { $regex: `^${date}` }
-        });
-        replaced = deletedCount;
+      const documents = items.map(item => new Schedule({
+        userId,
+        customerId: item.customerId,
+        startTime: item.startTime,
+        endTime: item.endTime,
+        activityType: item.activityType || 'Visit',
+        notes: item.notes || '',
+        source: 'route_planner'
+      }));
+      // insertMany's validation occurs after the old plan would be deleted.
+      // Do it now as well, returning bad input without starting a transaction.
+      await Promise.all(documents.map(document => document.validate()));
+      if (replace && documents.some(document => !document.startTime.startsWith(`${date}T`))) {
+        return res.status(400).json({ message: 'Every replacement stop must be on the selected date' });
       }
 
-      const created = await Schedule.insertMany(
-        items.map(item => ({
-          userId,
-          customerId: item.customerId,
-          startTime: item.startTime,
-          endTime: item.endTime,
-          activityType: item.activityType || 'Visit',
-          notes: item.notes || '',
-          source: 'route_planner'
-        })),
-        { ordered: true }
-      );
+      let replaced = 0;
+      let created;
+      await mongoose.connection.transaction(async session => {
+        replaced = 0; // A transient transaction failure may retry this callback.
+        if (replace) {
+          const result = await Schedule.deleteMany({
+            userId,
+            source: 'route_planner',
+            startTime: { $regex: `^${date}` }
+          }, { session });
+          replaced = result.deletedCount;
+        }
+        created = await Schedule.insertMany(documents, { ordered: true, session });
+      });
 
       // One signal for the day rather than one per stop: every open planner
       // reloads the range once instead of redrawing twelve times.
@@ -230,6 +241,9 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       res.status(201).json({ stops: populated, replaced });
     } catch (error) {
       console.error('Bulk schedule error:', error);
+      if (error.name === 'ValidationError' || error.name === 'CastError') {
+        return res.status(400).json({ message: 'Invalid route stops', error: error.message });
+      }
       res.status(500).json({ message: 'Failed to schedule the route', error: error.message });
     }
   });
@@ -312,7 +326,29 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
     }
   });
 
-  // Private, read-only calendar feed in iCalendar (.ics) format
+  // The authenticated owner can retrieve or rotate their subscription link.
+  // Creating the seed conditionally keeps concurrent first reads on one link.
+  const subscription = (rotate) => async (req, res) => {
+    if (!req.userId || req.user?.type === 'customer') return res.status(403).json({ message: 'Staff access required' });
+    try {
+      let owner = await User.findOneAndUpdate(
+        { _id: req.userId, ...(rotate ? {} : { calendarFeedKey: null }) },
+        { $set: { calendarFeedKey: randomBytes(32).toString('hex') } },
+        { returnDocument: 'after' }
+      ).select('+calendarFeedKey').lean();
+      if (!owner) owner = await User.findById(req.userId).select('+calendarFeedKey').lean();
+      if (!owner || owner.isActive === false || owner.mustChangePassword) return res.sendStatus(403);
+      const token = calendarFeedToken(String(owner._id), owner.calendarFeedKey, JWT_SECRET);
+      res.json({ path: `/api/calendar/feed/${owner._id}.ics?token=${token}` });
+    } catch (error) {
+      console.error('Calendar subscription error:', error);
+      res.status(500).json({ message: 'Could not load the calendar subscription link' });
+    }
+  };
+  router.get('/calendar/subscription', authenticate, subscription(false));
+  router.post('/calendar/subscription/rotate', authenticate, subscription(true));
+
+  // Read-only feed for calendar clients, using its own revocable credential.
   router.get('/calendar/feed/:userId.ics', async (req, res) => {
     try {
       const { userId } = req.params;
@@ -324,8 +360,9 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
 
       // A deactivated user's calendar subscription stops with their account
       // (Users & Roles); so does one for an account that no longer exists.
-      const owner = await User.findById(userId).select('isActive').lean();
-      if (!owner || owner.isActive === false) {
+      const owner = await User.findById(userId).select('isActive mustChangePassword +calendarFeedKey').lean();
+      if (!owner || owner.isActive === false || owner.mustChangePassword
+          || !validCalendarFeedToken(req.query.token, userId, owner.calendarFeedKey, JWT_SECRET)) {
         return res.status(404).send('Calendar not found');
       }
 

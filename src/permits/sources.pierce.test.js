@@ -56,9 +56,24 @@ describe('Pierce County rules', () => {
   });
 
   it('reports a building type nobody has sorted, and ignores non-building permits', () => {
-    expect(isUnsortedBuildingType('pierce_county', 'Construction Residential', 'Replacement Permit · House/plex')).toBe(true);
+    expect(isUnsortedBuildingType('pierce_county', 'Construction Residential', 'Unknown Work · House/plex')).toBe(true);
     expect(isUnsortedBuildingType('pierce_county', 'Mechanical', '')).toBe(false);
     expect(isUnsortedBuildingType('pierce_county', 'Construction Residential', 'Remodel · House/plex')).toBe(false);
+  });
+
+  it('keeps replacement permits and blank work types as Other building without guessing from descriptions', () => {
+    for (const [type, work, building, description] of [
+      ['Construction Residential', 'Replacement Permit', 'House/plex', 'Replace permit #911779 for inspection to construct a single family residence'],
+      ['Construction Commercial', '', 'Apartment', 'NEW PHOTOVOLTAIC SYSTEM Solar Rooftop Installation'],
+      ['Construction Residential', '', 'House/plex', 'Reroof of existing single family residence']
+    ]) {
+      expect(cat(type, work, building)).toBe('building_other');
+      expect(isUnsortedBuildingType('pierce_county', type, `${work} · ${building}`)).toBe(false);
+      expect(piercePermit({ ...NEW_HOME, applicationType: type, workType: work, buildingType: building, workDescription: description }).category).toBe('building_other');
+    }
+    expect(cat('Construction Residential', 'Replacement Permit', 'Garage')).toBeNull();
+    expect(cat('Construction Commercial', '', 'Public Utility Structure')).toBeNull();
+    expect(cat('Mechanical', '', 'House/plex')).toBeNull();
   });
 
   it('reads a late-evening issue on the county’s Pacific day', () => {

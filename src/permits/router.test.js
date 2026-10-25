@@ -270,6 +270,60 @@ describe('the county report check', () => {
 });
 
 describe('the month-so-far check', () => {
+  it('refreshes a source-cleared issue date without deleting the permit or hiding a true missing lead', async () => {
+    await sync.runSource('bellingham', { kind: 'manual' });
+    const saved = await Permit.findOne({ source: 'bellingham' }).lean();
+    const row = { ...bellinghamRows[0], ISSUED: null, STATUS: 'RTI HOLD' };
+    const corrected = createPermitSync({ readers: { bellingham: {
+      issuedSince: async () => ({ rows: [], pages: 1, total: 0 }),
+      findByNumber: async () => row
+    } }, log: quiet, now: () => clock });
+    const [check] = await corrected.checkMonthToDate();
+    expect(check).toMatchObject({ ok: true, notFoundAgain: [], notIssuedYet: [row.PERMIT_NO], matched: 0 });
+    const retained = await Permit.findById(saved._id).lean();
+    expect(retained).toMatchObject({ issuedOn: null, status: 'RTI HOLD', firstSeenAt: saved.firstSeenAt });
+    // The source's withdrawn record stays in storage but out of leads/exports.
+    expect((await api('get', '?source=bellingham')).body.total).toBe(0);
+    expect((await api('get', '/export?source=bellingham')).body.items).toHaveLength(0);
+    // Re-issue: the ordinary pull brings the same record back on its new day.
+    bellinghamRows = [{ ...row, ISSUED: Date.parse('2026-10-10T00:00:00Z'), STATUS: 'ISSUED' }];
+    await sync.runSource('bellingham', { kind: 'manual' });
+    expect((await Permit.findById(saved._id)).issuedOn).toBe('2026-10-10');
+    expect((await api('get', '?source=bellingham')).body.total).toBe(1);
+  });
+
+  it('saves an explicit move to another month and explains it', async () => {
+    await sync.runSource('bellingham', { kind: 'manual' });
+    const row = { ...bellinghamRows[0], ISSUED: Date.parse('2026-09-30T00:00:00Z') };
+    const corrected = createPermitSync({ readers: { bellingham: {
+      issuedSince: async () => ({ rows: [], pages: 1, total: 0 }), findByNumber: async () => row
+    } }, log: quiet, now: () => clock });
+    expect((await corrected.checkMonthToDate())[0]).toMatchObject({ ok: true, datesMoved: [row.PERMIT_NO], notFoundAgain: [] });
+    expect((await Permit.findOne({ source: 'bellingham' })).issuedOn).toBe('2026-09-30');
+  });
+
+  it('keeps the discrepancy when the exact lookup is missing or still says issued this month', async () => {
+    await sync.runSource('bellingham', { kind: 'manual' });
+    for (const row of [null, bellinghamRows[0]]) {
+      const corrected = createPermitSync({ readers: { bellingham: {
+        issuedSince: async () => ({ rows: [], pages: 1, total: 0 }), findByNumber: async () => row
+      } }, log: quiet, now: () => clock });
+      expect((await corrected.checkMonthToDate())[0]).toMatchObject({ ok: false, notFoundAgain: ['BLD2026-0001'], notIssuedYet: [] });
+      expect((await Permit.findOne({ source: 'bellingham' })).issuedOn).toBe('2026-10-01');
+    }
+  });
+
+  it('fails on a mismatched lookup number instead of correcting another permit', async () => {
+    await sync.runSource('bellingham', { kind: 'manual' });
+    const corrected = createPermitSync({ readers: { bellingham: {
+      issuedSince: async () => ({ rows: [], pages: 1, total: 0 }),
+      findByNumber: async () => ({ ...bellinghamRows[0], PERMIT_NO: 'WRONG', ISSUED: null })
+    } }, log: quiet, now: () => clock });
+    expect((await corrected.checkMonthToDate())[0]).toMatchObject({ ok: false, error: expect.stringContaining('wrong permit') });
+    expect((await Permit.findOne({ source: 'bellingham' })).issuedOn).toBe('2026-10-01');
+    expect(await Permit.countDocuments()).toBe(1);
+  });
+
   it('finds every lead permit again a second way, for each source', async () => {
     const out = await sync.run();
     expect(out.monthToDate).toHaveLength(2);

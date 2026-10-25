@@ -21,6 +21,7 @@ describe('Skagit County', () => {
   it('skips outbuildings, manufactured homes, trades and non-building permits without reporting them', () => {
     for (const t of ['Residential Accessory Building', 'Residential Accessory Structures', 'Commercial Accessory Buildings', 'Residential Manufactured Home',
       'Demolition Permit', 'Residential Mechanical', 'Residential Water Heater Replacement', 'Commercial Fire Alarm Systems', 'Commercial Sign',
+      'Residential Gate Installation', 'Commercial Gate Installation',
       'Septic System (New or Redesign)', 'Residential Burn Permit', 'Floodplain Permit', 'Public Works - Utility Permit', 'Residential Access Permit',
       'Land Disturbance Activity Permit', '(Water Systems Evaluation) Individual Well', 'Firework Stands']) {
       expect(cat(t), t).toBeNull();

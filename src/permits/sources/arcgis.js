@@ -18,7 +18,7 @@ export const sqlString = (s) => `'${String(s).replace(/'/g, "''")}'`;
  * `where(since)` builds the layer's filter; `idField` is its object id
  * ('OBJECTID', or 'ObjectId' on ArcGIS Online); `name` goes in errors.
  */
-export function createArcgisReader({ layer, name, fields, where, idField = 'OBJECTID', fetchImpl = globalThis.fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), pauseMs = 250 }) {
+export function createArcgisReader({ layer, name, fields, where, idField = 'OBJECTID', numberField = null, fetchImpl = globalThis.fetch, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), pauseMs = 250 }) {
   const query = (params) => fetchJson(`${layer}/query?${new URLSearchParams({ f: 'json', ...params })}`, {
     fetchImpl, sleep, pauseMs, name, errorOf: (data) => data?.error?.message || (data?.error ? 'error' : null)
   });
@@ -53,5 +53,18 @@ export function createArcgisReader({ layer, name, fields, where, idField = 'OBJE
     return { rows, pages, total };
   }
 
-  return { issuedSince };
+  // A saved permit can disappear from a date-filtered query when the source
+  // moves or clears its issue date. Look it up by number before calling that
+  // disappearance a missing permit; a missing/ambiguous answer proves nothing.
+  async function findByNumber(number) {
+    const data = await query({
+      where: `${numberField} = ${sqlString(number)}`,
+      outFields: fields.join(','), returnGeometry: 'false', resultRecordCount: '2'
+    });
+    if (!Array.isArray(data.features)) throw new Error(`${name} answered without a feature list`);
+    if (data.features.length > 1 || data.exceededTransferLimit) throw new Error(`${name} returned more than one permit for ${number}`);
+    return data.features[0]?.attributes || null;
+  }
+
+  return { issuedSince, ...(numberField && { findByNumber }) };
 }

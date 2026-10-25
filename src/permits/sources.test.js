@@ -97,6 +97,33 @@ function fakeLayer(features, { claimCount = null } = {}) {
 }
 
 describe('Bellingham reader', () => {
+  it('looks up a disappeared permit without restricting the issue date', async () => {
+    const calls = [];
+    const attributes = { PERMIT_NO: 'BLD2025-0500', ISSUED: null, STATUS: 'RTI HOLD' };
+    const source = createBellinghamSource({ sleep: noSleep, fetchImpl: async url => {
+      calls.push(Object.fromEntries(new URL(url).searchParams));
+      return json({ features: [{ attributes }] });
+    } });
+    expect(await source.findByNumber('BLD2025-0500')).toEqual(attributes);
+    expect(calls[0]).toMatchObject({ where: "PERMIT_NO = 'BLD2025-0500'", returnGeometry: 'false', resultRecordCount: '2' });
+    expect(calls[0].outFields).toContain('ISSUED');
+    await source.findByNumber("BLD' OR 1=1");
+    expect(calls[1].where).toBe("PERMIT_NO = 'BLD'' OR 1=1'");
+  });
+
+  it('refuses ambiguous, malformed and invalid-date lookup answers', async () => {
+    for (const data of [
+      {}, { features: [{ attributes: {} }, { attributes: {} }] },
+      { features: [], exceededTransferLimit: true },
+      { features: [{ attributes: { PERMIT_NO: 'BLD2025-0500', ISSUED: 'invalid' } }] }
+    ]) {
+      const source = createBellinghamSource({ sleep: noSleep, fetchImpl: async () => json(data) });
+      await expect(source.findByNumber('BLD2025-0500')).rejects.toThrow();
+    }
+    const missing = createBellinghamSource({ sleep: noSleep, fetchImpl: async () => json({ features: [] }) });
+    expect(await missing.findByNumber('BLD2025-0500')).toBeNull();
+  });
+
   it('asks for building permits issued since the start, in pages', async () => {
     const features = Array.from({ length: 2500 }, (_, i) => ({ OBJECTID: i + 1, PERMIT_NO: `BLD-${i}` }));
     const layer = fakeLayer(features);

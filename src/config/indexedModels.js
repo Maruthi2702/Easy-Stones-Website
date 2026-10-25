@@ -46,7 +46,11 @@ import CustomerMergeBackup from '../models/CustomerMergeBackup.js';
 import CustomerDeleteBackup from '../models/CustomerDeleteBackup.js';
 import { Cart, Hold, SlabReservation, Counter, HoldHistory } from '../holds/models.js';
 
+import { PurchasingScope, PurchasingInbound, PurchasingDraft, PurchasingLock, PurchasingPoLink } from '../purchasing/models.js';
+
 export const INDEXED_MODELS = [
+  ['PurchasingScope', PurchasingScope], ['PurchasingInbound', PurchasingInbound],
+  ['PurchasingDraft', PurchasingDraft], ['PurchasingLock', PurchasingLock], ['PurchasingPoLink', PurchasingPoLink],
   ['Customer', Customer],
   ['Product', Product],
   ['User', User],

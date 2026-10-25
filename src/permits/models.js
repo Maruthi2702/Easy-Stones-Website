@@ -43,7 +43,9 @@ const permitSchema = new Schema({
   subtype: { type: String, default: '' },
   status: { type: String, default: '' },
   appliedOn: { type: String, default: null },
-  issuedOn: { type: String, required: true },
+  // Preserve a previously issued record if the source later clears its date.
+  // It stays in the audit history, but is no longer an issued lead.
+  issuedOn: { type: String, default: null },
   finaledOn: { type: String, default: null },
   expiresOn: { type: String, default: null },
   address: { type: String, default: '' },

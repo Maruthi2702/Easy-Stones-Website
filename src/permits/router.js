@@ -56,7 +56,8 @@ export function countiesOf(value) {
 
 /** The Mongo filter for the list's filters; `except` leaves one out (for the per-category counts). */
 export function permitFilter(query = {}, { except = null } = {}) {
-  const f = {};
+  // Keep source-withdrawn records in storage without offering them as leads.
+  const f = { issuedOn: { $ne: null } };
   const { source, category, from, to, city, minValue, q } = query;
   const counties = countiesOf(query.counties);
   if (source) {
@@ -343,7 +344,7 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
       throw new HttpError(502, 'Couldn’t reach the state’s contractor registry. Try again in a minute.');
     }
     // Their permits here, whatever the registry said (a license it no longer lists can still be on permits).
-    const clause = await licenseClause(lic);
+    const clause = await fullFilter({ license: lic });
     const [total, byCategory, recent, index, emailRows] = await Promise.all([
       Permit.countDocuments(clause),
       Permit.aggregate([{ $match: clause }, { $group: { _id: '$category', n: { $sum: 1 } } }]),

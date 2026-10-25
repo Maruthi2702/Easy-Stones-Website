@@ -303,6 +303,18 @@ describe('a contractor’s pop-up and their permits', () => {
     expect((await get('/?q=abchohl123ab')).body.total).toBe(3);   // the search box matches the license printed on permits
   });
 
+  it('excludes source-withdrawn issue dates from the contractor’s lead counts and recent list', async () => {
+    await setup();
+    const before = (await get('/contractor/ABCHOHL123AB')).body.permits;
+    const withdrawn = before.recent[0];
+    await Permit.updateOne({ _id: withdrawn._id }, { $set: { issuedOn: null, status: 'RTI HOLD' } });
+    const after = (await get('/contractor/ABCHOHL123AB')).body.permits;
+    expect(after.total).toBe(before.total - 1);
+    expect(after.byCategory.reduce((n, row) => n + row.count, 0)).toBe(after.total);
+    expect(after.recent.some(row => row._id === withdrawn._id)).toBe(false);
+    expect(await Permit.findById(withdrawn._id)).not.toBeNull();
+  });
+
   it('says when the state has no such license, and finds an existing customer', async () => {
     await setup();
     expect((await get('/contractor/NOBODYX999ZZ')).body).toMatchObject({ found: false, permits: { total: 0 } });

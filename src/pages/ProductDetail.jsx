@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Download, ZoomIn, Maximize2, X, ChevronLeft, Che
 import { getLocalImagePath } from '../utils/imagePath';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
+import { publicProduct } from '../utils/productView';
 import './ProductDetail.css';
 
 const defaultDescription = (name) =>
@@ -13,7 +14,7 @@ const ProductDetail = () => {
   const navigate = useNavigate();
   const { productId } = useParams(); // This now contains the slug
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [viewMode, setViewMode] = useState('slab'); // 'slab' | 'closeup'
 
   // Lightbox State
@@ -30,11 +31,14 @@ const ProductDetail = () => {
   // Initialize with passed product state if available for instant render
   const initialProduct = location.state?.product;
 
-  const [product, setProduct] = useState(initialProduct || null);
+  const [product, setProduct] = useState(initialProduct ? publicProduct(initialProduct) : null);
   const [loading, setLoading] = useState(!initialProduct);
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    setProduct(current => current ? publicProduct(current) : current);
+    if (authLoading) return;
     // If we have an initial product, we can still fetch to ensure we have the latest data
     // but we don't need to show a loader
     const fetchProduct = async () => {
@@ -42,11 +46,12 @@ const ProductDetail = () => {
         if (!initialProduct) setLoading(true);
 
         const response = await fetch(`${API_URL}/api/products`, {
-          credentials: 'include' // Send cookies with request
+          credentials: 'include', signal: controller.signal
         });
 
         if (response.ok) {
           const data = await response.json();
+          if (controller.signal.aborted) return;
           // Find by slug first, fallback to ID for backwards compatibility
           const found = data.find((item) =>
             createSlug(item.name) === productId || item.id.toString() === productId
@@ -64,14 +69,15 @@ const ProductDetail = () => {
           console.error('Failed to fetch products API');
         }
       } catch (error) {
-        console.error('Error fetching product:', error);
+        if (!controller.signal.aborted) console.error('Error fetching product:', error);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
 
     fetchProduct();
-  }, [productId, initialProduct]);
+    return () => controller.abort();
+  }, [productId, initialProduct, authLoading, user?.id, user?.type, user?.role, user?.permissions?.includes('view_product_prices')]);
 
   // Get category from location state or fallback to product category or default
   const backCategory = location.state?.fromCategory;

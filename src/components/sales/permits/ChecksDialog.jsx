@@ -21,8 +21,8 @@ function CheckItem({ check }) {
         {check.notFoundAgain?.length ? <span>Here but not found by the separate search: {check.notFoundAgain.join(', ')}</span> : null}
         {check.notInReport?.length ? <span>Here but not in the county’s report: {check.notInReport.join(', ')}</span> : null}
         {check.notInCountySearch?.length ? <span className="pm-muted">In the report, but the county hides them from its public search, so the app can’t read them: {check.notInCountySearch.join(', ')}</span> : null}
-        {check.notIssuedYet?.length ? <span className="pm-muted">Here, but the county’s search says they aren’t issued yet (e.g. Fees Due), so its report leaves them out: {check.notIssuedYet.join(', ')}</span> : null}
-        {check.datesMoved?.length ? <span className="pm-muted">Re-issued by the county after the report (shown here under the new date): {check.datesMoved.join(', ')}</span> : null}
+        {check.notIssuedYet?.length ? <span className="pm-muted">The source currently reports these as not issued (for example, Fees Due or a cleared issue date): {check.notIssuedYet.join(', ')}</span> : null}
+        {check.datesMoved?.length ? <span className="pm-muted">The source changed the issue date (saved under the current date): {check.datesMoved.join(', ')}</span> : null}
         {check.notPublic?.length ? <span className="pm-muted">Not lead types, and hidden from the county’s public search: {check.notPublic.join(', ')}</span> : null}
         {check.reportUrl ? <a href={check.reportUrl} target="_blank" rel="noreferrer">{check.reportTitle || 'The county’s report'}</a> : null}
       </div>
