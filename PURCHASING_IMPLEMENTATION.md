@@ -133,7 +133,18 @@ lines, including 91 Seattle lines in 66 PO/container groups and six Enigma SJ MQ
 both themes and 390px / desktop layouts without page overflow or runtime errors.
 Production data is not changed by these checks.
 
-Final test/build results are recorded with the delivery commit. Broader Inventory
+Integrated validation: 2,199 tests passed across 164 files (four existing
+skips); strict typecheck, native server imports and production build passed.
+All 25 Purchasing render tests also pass after the final product-removal fix.
+Direct evaluation of the provided stock, Seattle sales and transit files reads
+11,235 stock rows, 244 sales rows and 607 incoming lines. It derives the
+273-day report period and numeric cover for all five requested example colors,
+without supplier policies or manual date confirmation.
+The complete Inventory Analysis parent was also exercised in the browser;
+imports stayed in Purchasing and refreshed without relying on Socket.IO.
+Existing draft status/history/locks are retained. Approval and export require
+current fingerprints under the updated engine; an obsolete draft must be
+recreated. No production records are repaired or deleted during deployment. Broader Inventory
 corrections, a unified PO ledger replacing the legacy adapter, receipt-to-stock
 identity reconciliation, source-history/recovery UI and comparable historical
 trend analytics remain separate work; this implementation does not invent

@@ -470,3 +470,20 @@ describe('independent purchasing resources', () => {
     expect(screen.getByText('Unknown slabs')).toBeTruthy();
   });
 });
+
+
+describe('product removal while inspecting stock', () => {
+  it('clears the previous numeric facts if the product disappears during refresh', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValueOnce({ ...plan, rows: [{ ...plan.rows[0], hasStock: true,
+      stockBreakdown: { total: 4, allocated: 2, otherUnavailable: 1, available: 1, availableQuantity: 75, problems: [] },
+      coverage: { state: 'known', days: 3, dailyQuantity: 25, availableQuantity: 75, stockoutDate: null, reasons: [] } }] })
+      .mockResolvedValue({ ...plan, fingerprint: 'removed', rows: [] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Quartz 3CM' }));
+    expect(within(screen.getByRole('dialog')).getByText('3 days')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Refresh$/ }));
+    await waitFor(() => expect(within(screen.getByRole('dialog')).queryByText('3 days')).toBeNull());
+    expect(within(screen.getByRole('dialog')).getByText('Coverage unknown')).toBeTruthy();
+    expect(within(screen.getByRole('dialog')).getAllByText('This variant is no longer present in the current planning inputs').length).toBeGreaterThan(0);
+  });
+});

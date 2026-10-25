@@ -237,6 +237,10 @@ export default function PurchasingWorkbench({
               ...details,
               baseline: null,
               protective: null,
+              stockBreakdown: null, readySlabs: null, readyQuantity: null, sold: null, soldSlabs: null,
+              hasStock: false, transit: [], receipts: [],
+              coverage: { state: 'unknown', days: null, dailyQuantity: null, availableQuantity: null, stockoutDate: null,
+                reasons: ['This variant is no longer present in the current planning inputs'] },
               blockers: ['This variant is no longer present in the current planning inputs'],
             }
           }
