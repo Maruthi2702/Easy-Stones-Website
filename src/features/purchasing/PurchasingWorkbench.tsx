@@ -163,6 +163,7 @@ export default function PurchasingWorkbench({
                 onInspect={setDetails}
                 onDraft={setDraftRows}
                 canEdit={tab === 'queue' && canEdit}
+                onReviewCoverage={canEdit && scope ? () => setScopeForm({ scope }) : undefined}
               />
             </>
           )}

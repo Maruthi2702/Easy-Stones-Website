@@ -164,3 +164,15 @@ These are disposable fixtures; production report dates are not altered.
 
 Validation result: 65 purchasing rule/API/render tests passed across five files;
 the production build passed. Tests use disposable data.
+
+## Coverage troubleshooting
+
+Unknown coverage now includes an expandable list of its actual API reasons
+and an editor-only **Review coverage inputs** action opening the existing scope
+form. The next-action message explicitly labels buying setup separately. A
+missing supplier/packing policy does not explain or gate a valid SF coverage
+calculation. Inconsistent/stale sales dates and unverified source coverage
+remain blockers; source dates and confirmations are not guessed.
+
+Validation: 16 UI tests, strict typecheck, production build and actual-workbench
+Chromium checks of diagnostics and scope-form navigation passed.

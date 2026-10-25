@@ -348,3 +348,8 @@ body.light-theme-active .purchase-form,
 .purchase-workbench summary { cursor: pointer; margin-top: 8px; }
 
 .purchase-workbench td details p { white-space: normal; max-width: 240px; }
+
+.purchase-coverage-issue { max-width: 260px; white-space: normal; }
+.purchase-coverage-issue ul { padding-left: 18px; margin: 8px 0; font-size: 11px; }
+.purchase-coverage-issue li { margin-bottom: 7px; }
+.purchase-coverage-issue .purchase-link { margin-top: 10px; }

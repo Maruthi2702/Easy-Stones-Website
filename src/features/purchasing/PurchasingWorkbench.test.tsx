@@ -315,3 +315,28 @@ describe('live purchasing stock columns', () => {
     expect(screen.getAllByText('Confirm source coverage')).toHaveLength(1);
   });
 });
+
+
+describe('coverage repair diagnostics', () => {
+  it('shows the actual coverage reasons and opens the existing scope form for an editor', async () => {
+    const cutoff = 'Observed sales cutoff 2026-09-30 is after the report was imported on 2026-09-08';
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, rows: [{ ...plan.rows[0],
+      coverage: { state: 'unknown', days: null, dailyQuantity: null, availableQuantity: 75,
+        stockoutDate: null, reasons: [cutoff, 'Confirm complete warehouse coverage'] } }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
+    await screen.findByText('Coverage unknown');
+    fireEvent.click(screen.getByText('Why is coverage unavailable?'));
+    expect(screen.getByText(cutoff)).toBeTruthy();
+    expect(screen.getByText('Confirm complete warehouse coverage')).toBeTruthy();
+    expect(screen.getByText(/Supplier, bundle and weight settings are only needed for buying recommendations/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Review coverage inputs' }));
+    expect(await screen.findByRole('heading', { name: 'Edit purchasing scope' })).toBeTruthy();
+    expect(screen.getByLabelText(/^Observed sales cutoff/)).toBeTruthy();
+  });
+  it('shows coverage reasons without an edit action for a viewer', async () => {
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    await screen.findByText('Coverage unknown');
+    expect(screen.getByText('Why is coverage unavailable?')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Review coverage inputs' })).toBeNull();
+  });
+});

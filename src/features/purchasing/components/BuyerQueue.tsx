@@ -12,12 +12,14 @@ export default function BuyerQueue({
   onDraft,
   canEdit,
   performance = false,
+  onReviewCoverage,
 }: {
   plan: Plan;
   onInspect: (row: PlanRow) => void;
   onDraft: (rows: PlanRow[]) => void;
   canEdit: boolean;
   performance?: boolean;
+  onReviewCoverage?: () => void;
 }) {
   const [search, setSearch] = useState(''),
     [state, setState] = useState('all'),
@@ -156,7 +158,7 @@ export default function BuyerQueue({
                   {r.stockBreakdown?.problems.length ? <small title={r.stockBreakdown.problems.join('\n')}>Stock reconciliation needed</small> : null}
                 </td>
                 <td><IncomingSupply lines={r.transit} /></td>
-                <td><StockCover row={r} /></td>
+                <td><StockCover row={r} onReview={onReviewCoverage} /></td>
                 <td><StockForecast row={r} days={horizon} /></td>
                 <td>
                   <span
@@ -170,7 +172,7 @@ export default function BuyerQueue({
                   >
                     {r.action}
                   </span>
-                  {r.blockers.some(b => !plan.blockers.includes(b)) && <small>{r.blockers.find(b => !plan.blockers.includes(b))}</small>}
+                  {r.blockers.some(b => !plan.blockers.includes(b)) && <small>Buying setup: {r.blockers.find(b => !plan.blockers.includes(b))}</small>}
                   <details><summary>Buying calculation</summary>
                     <p>Suggested buy · 60-day delivery: {num(r.baseline?.proposedSlabs)} slabs</p>
                     <p>Suggested buy · 90-day delivery: {num(r.protective?.proposedSlabs)} slabs</p>
