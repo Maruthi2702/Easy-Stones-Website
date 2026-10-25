@@ -77,6 +77,7 @@ export default function InventoryTransitPanel({ refreshSignal, canImport, onImpo
                   <dt>Supplier SO# / SIPL#</dt><dd>{row.supplierSoNumber || '—'} / {row.siplNumber || '—'}</dd>
                   <dt>Ship date</dt><dd>{date(row.shipDate)}</dd><dt>Port ETA</dt><dd>{date(row.portEtaDate)}</dd>
                   <dt>Forwarder / Vessel</dt><dd>{row.freightForwarder || '—'} / {row.vessel || '—'}</dd>
+                  <dt>Supplier / purchase note</dt><dd>{row.supplierPurchaseNote || '—'}</dd>
                   <dt>SKU / Reference</dt><dd>{row.sku || '—'} / {row.customerReference || '—'}</dd>
                 </dl></details></td>
               <td>{fmtNum(row.slabs)}</td><td>{fmtNum(row.quantity)} {row.units}</td><td>{row.location}</td>

@@ -36,6 +36,53 @@ describe('SPS in-transit import', () => {
     const html = `<script>document.write('');</script><table><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr><tr>${cells(line()).map(c => `<td>${c}</td>`).join('')}</tr></table>`;
     expect(parseInventoryTransitWorkbook(Buffer.from(html)).rows[0].poNumber).toBe('15364');
   });
+  it('selects the complete mixed-cell header instead of a partial all-th heading', () => {
+    const partial = `<tr>${headers.slice(0, 8).map(h => `<th>${h}</th>`).join('')}</tr>`;
+    const full = `<tr>${headers.map((h, i) => i < 8 ? `<th>${h}</th>` : `<td>${h}</td>`).join('')}</tr>`;
+    const values = `<tr>${cells(line()).map(c => `<td>${c}</td>`).join('')}</tr>`;
+    const result = parseInventoryTransitWorkbook(Buffer.from(`<table>${partial}${full}${values}</table>`));
+    expect(result.missingRequired).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.rows[0]).toMatchObject({ poNumber: '15364', containerNumber: 'TEMU1379996', slabs: 31, quantity: 2237.89, location: 'Richmond' });
+  });
+  it('handles merged report titles and multi-row headings', () => {
+    const first = '<tr><th colspan="3">SPS In Transit</th></tr><tr><th rowspan="2">Product</th><th rowspan="2">PO&#35;</th><th colspan="5">Shipment</th></tr>';
+    const second = '<tr><td>Container&#x23;</td><td>Location</td><td>Slabs</td><td>Quantity</td><td>Status</td></tr>';
+    const values = '<tr><td>Carrara 3CM</td><td>15364</td><td>TEMU1379996</td><td>Richmond</td><td>31 Slabs</td><td>2,237.89</td><td>INTRANSIT</td></tr>';
+    const result = parseInventoryTransitWorkbook(Buffer.from(`<table>${first}${second}${values}</table>`));
+    expect(result.missingRequired).toEqual([]);
+    expect(result.rows[0]).toMatchObject({ poNumber: '15364', containerNumber: 'TEMU1379996', slabs: 31, quantity: 2237.89 });
+  });
+  it('finds the full report on a later sheet and accepts equivalent headings', () => {
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, utils.aoa_to_sheet([['Product', 'PO#'], ['Summary', '15364']]), 'Summary');
+    const aliases: Record<string, string> = { 'Container#': 'Container No.', Location: 'Destination Location', Slabs: 'No. of Slabs', Quantity: 'Qty', Status: 'Shipment Status' };
+    utils.book_append_sheet(wb, utils.aoa_to_sheet([headers.map(h => aliases[h] || h), cells(line())]), 'In Transit');
+    const result = parseInventoryTransitWorkbook(write(wb, { type: 'buffer', bookType: 'xlsx' }));
+    expect(result.missingRequired).toEqual([]);
+    expect(result.rows[0]).toMatchObject({ poNumber: '15364', containerNumber: 'TEMU1379996', slabs: 31, quantity: 2237.89 });
+  });
+  it.each([',', ';', '\t'])('reads the SPS CSV preamble, 22 columns and quoted quantities with delimiter %j', delimiter => {
+    const csvHeaders = [...headers, 'Supp./Pur. Note'];
+    const encode = (row: Record<string, string>) => csvHeaders.map(header => `"${String(row[header] || '').replace(/"/g, '""')}"`).join(delimiter);
+    const note = 'Supplier says "on water", shipment confirmed\nKeep both product lines';
+    const csv = [encode({ Image: "document.write('');" }), csvHeaders.map(h => `"${h}"`).join(delimiter),
+      encode(line({ 'Supp./Pur. Note': note })), encode({ Image: 'Initiated On 10/26/2026' }),
+      encode(line({ Product: 'Calacatta Savoy Select 3CM', Slabs: '21 Slabs', Quantity: '1,515.99' })),
+      encode({ Image: 'ETA Nov 24, 2026' })].join('\r\n');
+    const result = parseInventoryTransitWorkbook(Buffer.from(csv));
+    expect(result.missingRequired).toEqual([]);
+    expect(result.errors).toEqual([]);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0]).toMatchObject({ poNumber: '15364', containerNumber: 'TEMU1379996', slabs: 31, quantity: 2237.89, supplierPurchaseNote: note });
+    expect(groupTransitShipments(result.rows)).toHaveLength(1);
+  });
+  it('reads Excel UTF-16 CSV exports', () => {
+    const csv = `document.write('');,,,,\r\n${headers.join(',')}\r\n${cells(line()).map(c => `"${c}"`).join(',')}`;
+    const result = parseInventoryTransitWorkbook(Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(csv, 'utf16le')]));
+    expect(result.missingRequired).toEqual([]);
+    expect(result.rows[0]).toMatchObject({ poNumber: '15364', quantity: 2237.89 });
+  });
   it('keeps separate lots of the same product in a container', () => {
     const result = parseInventoryTransitWorkbook(tsv([line(), line({ Slabs: '21 Slabs', Quantity: '1515.99' })]));
     const shipments = groupTransitShipments(result.rows);

@@ -9,7 +9,7 @@ const lineSchema = new mongoose.Schema({
   poDate: Date, poEtaDate: Date, supplierSoNumber: String, siplNumber: String,
   slabs: Number, quantity: Number, units: String, supplier: String,
   freightForwarder: String, shipDate: Date, portEtaDate: Date, etaDate: Date,
-  vessel: String, customerReference: String, status: String
+  vessel: String, customerReference: String, supplierPurchaseNote: String, status: String
 }, { _id: false });
 const schema = new mongoose.Schema({
   poNumber: { type: String, required: true },

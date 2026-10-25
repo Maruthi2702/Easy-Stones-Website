@@ -62,7 +62,14 @@ const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModa
         return;
       }
       if (data.missingRequired?.length) {
-        setError(`This file is missing expected column(s): ${data.missingRequired.join(', ')}. Check you exported the right report.`);
+        if (isTransit) {
+          const labels: Record<string, string> = { product: 'Product', poNumber: 'PO#', containerNumber: 'Container#', location: 'Location', slabs: 'Slabs', quantity: 'Quantity', status: 'Status' };
+          const missing = data.missingRequired.map((field: string) => labels[field] || field).join(', ');
+          const detected = (data.headers || []).slice(0, 30).map((header: unknown) => String(header).slice(0, 80)).join(', ');
+          setError(`Could not recognize these columns: ${missing}. Detected headings: ${detected || 'none'}.`);
+        } else {
+          setError(`This file is missing expected column(s): ${data.missingRequired.join(', ')}. Check you exported the right report.`);
+        }
         return;
       }
       if (data.errors?.length) {

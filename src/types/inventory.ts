@@ -22,6 +22,7 @@ export interface TransitLine<DateValue = Date> {
   containerNumber: string;
   vessel: string;
   customerReference: string;
+  supplierPurchaseNote: string;
   status: string;
 }
 
