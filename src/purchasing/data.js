@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
-import InventoryItem from '../models/InventoryItem.js';
+import InventoryItem from '../models/InventoryItem.ts';
 import InventorySalesRecord from '../models/InventorySalesRecord.js';
 import Location from '../models/Location.js';
+import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
 import { SlabReservation } from '../holds/models.js';
 import { PurchasingScope, PurchasingInbound, PurchasingLock } from './models.js';
 import { HttpError } from '../server/http.js';
@@ -25,7 +26,7 @@ export async function sourceData(user) {
   const [stock, sales, scopes, reservations] = await Promise.all([
     InventoryItem.find(
       { location: { $in: branches } },
-      'product location units availableSlabs availableQuantity slabStatus remnant serialNumber importedAt',
+      'product location units type instockQty availableSlabs availableQuantity slabStatus remnant serialNumber importedAt',
     )
       .sort({ _id: 1 })
       .lean(),
@@ -96,6 +97,9 @@ export async function loadInputs(id, user) {
     sources = await sourceData(user);
   const cohort = sources.cohorts.find((c) => c.id === scope.cohortId) || null;
   const inbound = await PurchasingInbound.findOne({ scopeId: id }).sort({ createdAt: -1, _id: -1 }).lean();
-  const locks = await PurchasingLock.find({}).lean();
-  return { scope, ...sources, cohort, inbound, locks };
+  const [locks, transitShipments] = await Promise.all([
+    PurchasingLock.find({}).lean(),
+    InventoryTransitShipment.find({ location: { $in: scope.branches } }).sort({ _id: 1 }).lean(),
+  ]);
+  return { scope, ...sources, cohort, inbound, locks, transitShipments };
 }

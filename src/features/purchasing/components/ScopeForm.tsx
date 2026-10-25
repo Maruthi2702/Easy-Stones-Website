@@ -4,6 +4,8 @@ import { DatePicker } from '../../../components/shared/calendar/Calendar';
 import type { Metadata, Scope, Policy } from '../../../purchasing/types';
 import { purchasingApi, download, csv } from '../purchasingApi';
 import { parsePolicyCsv, policyHeaders } from '../policyCsv';
+import { reportSalesPeriod } from '../../../purchasing/salesPeriod';
+import { todayPacific } from '../../../purchasing/planning';
 const emptyPolicy = (): Policy => ({
   product: '',
   supplier: '',
@@ -18,7 +20,7 @@ const initial = (meta: Metadata, scope?: Scope) => ({
   name: scope?.name || '',
   branches: scope?.branches || [],
   cohortId: scope?.cohortId || meta.cohorts[0]?.id || '',
-  observedThrough: scope?.observedThrough || '',
+  observedThrough: reportSalesPeriod(meta.cohorts.find(c => c.id === (scope?.cohortId || meta.cohorts[0]?.id)), todayPacific(new Date()), scope?.observedThrough).through,
   fullSalesCoverage: scope?.fullSalesCoverage || false,
   stockCoverageConfirmed: false,
   freeStockValidated: scope?.freeStockValidated || false,
@@ -60,12 +62,17 @@ export default function ScopeForm({
       value.policies.map((p, n) => (n === i ? { ...p, [key]: next } : p)),
     );
   const cohort = metadata.cohorts.find((c) => c.id === value.cohortId);
+  const cutoffMax = [todayPacific(new Date()), cohort?.end].filter((day): day is string => !!day).sort()[0];
+  const period = reportSalesPeriod(cohort, todayPacific(new Date()), value.observedThrough);
+  const completedReport = !!cohort && cohort.end <= todayPacific(new Date());
   async function submit() {
     setSaving(true);
     setError('');
     try {
+      if (value.observedThrough > cutoffMax) throw new Error(`Observed sales cutoff must be on or before ${cutoffMax}, inside the report period.`);
+      if (period.errors.length) throw new Error(period.errors[0]);
       const saved = await purchasingApi.saveScope(
-        { ...value, stockSnapshotId: snapshotAtOpen, ...(scope ? { version: scope.__v } : {}) },
+        { ...value, observedThrough: period.through, stockSnapshotId: snapshotAtOpen, ...(scope ? { version: scope.__v } : {}) },
         scope?._id,
       );
       onSaved(saved);
@@ -127,7 +134,7 @@ export default function ScopeForm({
             value={value.cohortId}
             onChange={(e) => {
               change('cohortId', e.target.value);
-              change('observedThrough', '');
+              change('observedThrough', reportSalesPeriod(metadata.cohorts.find(c => c.id === e.target.value), todayPacific(new Date())).through);
               change('fullSalesCoverage', false);
             }}
           >
@@ -139,17 +146,15 @@ export default function ScopeForm({
           </select>
         </label>
         <p className="purchase-muted">
-          Imported {cohort ? new Date(cohort.importedAt).toLocaleString() : '—'}. Requested end is not proof
-          of actual coverage. Enter the last observed sales day from the source.
+          Sales period from uploaded report: {cohort?.start || '—'} → {cohort?.end || '—'}.
+          {period.days > 0 && <> Calculations use {period.days} calendar days.</>}
+          {' '}Upload time is kept for history and does not set the sales period.
         </p>
-        <div>
-          <span>Observed through</span>
-          <DatePicker
-            value={value.observedThrough}
-            onChange={(v) => change('observedThrough', v)}
-            ariaLabel="Observed sales cutoff"
-          />
-        </div>
+        {!completedReport && <div>
+          <span>Actual sales-through date from the report</span>
+          <DatePicker value={value.observedThrough} onChange={v => change('observedThrough', v)}
+            ariaLabel="Observed sales cutoff" min={cohort?.start} max={cutoffMax} />
+        </div>}
         {(
           ['fullSalesCoverage', 'stockCoverageConfirmed', 'freeStockValidated', 'policyConfirmed'] as const
         ).map((field, i) => (

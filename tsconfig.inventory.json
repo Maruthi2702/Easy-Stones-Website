@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "types": ["node", "vite/client", "google.maps"] },
+  "include": [
+    "src/components/sales/InventoryAnalysisTab.tsx",
+    "src/components/sales/InventoryImportModal.tsx",
+    "src/components/sales/InventoryLocationField.tsx",
+    "src/components/sales/InventoryTransitPanel.tsx",
+    "src/config/indexedModels.ts",
+    "src/routes/inventoryAnalysis.ts",
+    "src/routes/inventoryTransit.test.ts",
+    "src/models/InventoryTransitShipment.ts",
+    "src/utils/inventoryImport.ts",
+    "src/utils/inventoryTransitImport.ts",
+    "src/utils/inventoryTransitImport.test.ts",
+    "src/utils/runWorkbookParse.ts",
+    "src/utils/workbookParseWorker.ts"
+  ]
+}

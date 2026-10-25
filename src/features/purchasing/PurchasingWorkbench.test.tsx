@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
+import { clearInventoryCache } from '../../api/inventoryAnalysisCache';
+import { setAuthToken, clearAuthToken } from '../../api/authToken';
 import { project } from '../../purchasing/planning';
 import type { Plan, Metadata } from '../../purchasing/types';
 vi.mock('./purchasingApi', () => ({
@@ -86,6 +88,7 @@ const metadata: Metadata = {
   stockImportedAt: plan.stockImportedAt,
 };
 beforeEach(() => {
+  clearInventoryCache();
   vi.mocked(purchasingApi.metadata).mockResolvedValue(metadata);
   vi.mocked(purchasingApi.plan).mockResolvedValue(plan);
   vi.mocked(purchasingApi.drafts).mockResolvedValue([]);
@@ -156,6 +159,18 @@ describe('purchasing workbench rendering', () => {
     );
   });
 
+  it('shows imported PO/container quantities while a planning validation blocks recommendations', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, transitLineCount: 1, transitImportedAt: '2026-10-25T20:00:00Z',
+      rows: [{ ...plan.rows[0], transit: [{ key: 'sps-1', poNumber: '15364', containerNumber: 'TEMU1379996',
+        siplNumber: '15364', product: 'Quartz 3CM', branch: 'Seattle', supplier: 'ABC', slabs: 24, quantity: 1800,
+        units: 'SF', eta: '2026-11-24', importedAt: '2026-10-25T20:00:00Z' }] }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    await screen.findByRole('columnheader', { name: 'In-transit containers' });
+    expect(screen.getByText('24 slabs')).toBeTruthy();
+    expect(screen.getByText(/Reading 1 imported in-transit product lines/)).toBeTruthy();
+    expect(screen.getByText('PO #15364 · TEMU1379996')).toBeTruthy();
+    expect(screen.getByText('Check report data')).toBeTruthy();
+  });
   it('shows actual blockers and unknown availability without offering a buy quantity', async () => {
     render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
     await screen.findByRole('button', { name: 'Quartz 3CM' });
@@ -163,7 +178,8 @@ describe('purchasing workbench rendering', () => {
     expect(screen.getAllByText('Confirm source coverage').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'New planning scope' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Quartz 3CM' }));
-    expect(await screen.findByText('Quantity is blocked')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Stock evaluation' })).toBeTruthy();
+    expect(screen.queryByText('Quantity is blocked')).toBeNull();
     expect(screen.getByText('Unresolved; not assumed zero')).toBeTruthy();
   });
   it('offers scope and SPS supply configuration only to a purchasing editor', async () => {
@@ -189,5 +205,220 @@ describe('purchasing workbench rendering', () => {
     await screen.findByRole('button', { name: 'Quartz 3CM' });
     fireEvent.click(screen.getByRole('button', { name: 'Color performance' }));
     expect(screen.getByText(/30\/90\/180-day trend and statistical XYZ are unavailable/)).toBeTruthy();
+  });
+});
+
+
+describe('purchasing tab return', () => {
+  const user = { permissions: ['view_purchasing'] };
+  it('renders recent results on return without repeating four requests or flashing a loader', async () => {
+    const first = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    first.unmount();
+    render(<PurchasingWorkbench currentUser={user} />);
+    expect(screen.getByRole('button', { name: 'Quartz 3CM' })).toBeTruthy();
+    expect(screen.queryByText('Loading purchasing inputs…')).toBeNull();
+    await waitFor(() => expect(purchasingApi.metadata).toHaveBeenCalledTimes(1));
+    expect(purchasingApi.plan).toHaveBeenCalledTimes(1);
+    expect(purchasingApi.drafts).toHaveBeenCalledTimes(1);
+    expect(purchasingApi.inbound).toHaveBeenCalledTimes(1);
+  });
+  it('retains the selected scope across tab unmounts', async () => {
+    const secondScope = { ...scope, _id: 'second', name: 'Second scope' };
+    vi.mocked(purchasingApi.metadata).mockResolvedValue({ ...metadata, scopes: [scope, secondScope] });
+    vi.mocked(purchasingApi.plan).mockImplementation(async id => ({ ...plan, scope: id === 'second' ? secondScope : scope }));
+    const first = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    fireEvent.change(screen.getByLabelText('Planning scope'), { target: { value: 'second' } });
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText('Loading purchasing inputs…')).toBeNull());
+    first.unmount();
+    render(<PurchasingWorkbench currentUser={user} />);
+    expect((screen.getByLabelText('Planning scope') as HTMLSelectElement).value).toBe('second');
+    expect(screen.getByRole('button', { name: 'Quartz 3CM' })).toBeTruthy();
+    expect(purchasingApi.plan).toHaveBeenCalledTimes(2);
+  });
+  it('bypasses remembered results on explicit Refresh and inventory announcements', async () => {
+    const view = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
+    view.rerender(<PurchasingWorkbench currentUser={user} refreshSignal={1} />);
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(3));
+    expect(purchasingApi.metadata).toHaveBeenCalledTimes(3);
+  });
+  it('reloads after an import clears inventory caches while the tab is closed', async () => {
+    const first = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    first.unmount();
+    clearInventoryCache();
+    render(<PurchasingWorkbench currentUser={user} />);
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
+    expect(purchasingApi.metadata).toHaveBeenCalledTimes(2);
+  });
+  it('expires remembered answers after 30 seconds', async () => {
+    const now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
+    const first = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    first.unmount();
+    clock.mockReturnValue(now + 30001);
+    render(<PurchasingWorkbench currentUser={user} />);
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
+    expect(purchasingApi.metadata).toHaveBeenCalledTimes(2);
+  });
+  it("does not reuse another signed-in session's data", async () => {
+    setAuthToken('first-session');
+    const first = render(<PurchasingWorkbench currentUser={user} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    first.unmount();
+    clearAuthToken();
+    setAuthToken('second-session');
+    render(<PurchasingWorkbench currentUser={user} />);
+    await waitFor(() => expect(purchasingApi.plan).toHaveBeenCalledTimes(2));
+    expect(purchasingApi.metadata).toHaveBeenCalledTimes(2);
+    clearAuthToken();
+  });
+});
+
+
+describe('live purchasing stock columns', () => {
+  it('renders the requested counts and exact cover, and changes the forecast for arbitrary days', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan,
+      rows: [{ ...plan.rows[0], stockBreakdown: { total: 40, allocated: 28, otherUnavailable: 2, available: 10, availableQuantity: 750, problems: [] },
+        coverage: { state: 'known', days: 5, dailyQuantity: 150, availableQuantity: 750, stockoutDate: '2026-10-30', reasons: [] } }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    const color = await screen.findByRole('button', { name: 'Quartz 3CM' });
+    const row = within(color.closest('tr')!);
+    for (const label of ['Total SPS slabs', 'Allocated', 'Available to sell', 'Stock lasts', 'After 10 days'])
+      expect(screen.getByRole('columnheader', { name: label })).toBeTruthy();
+    expect(screen.queryByRole('columnheader', { name: '60-day need' })).toBeNull();
+    for (const value of ['40', '28', '10', '5 days']) expect(row.getByText(value, { exact: true })).toBeTruthy();
+    expect(row.getByText('750 short')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^2d$/ }));
+    expect(row.getByText('450 left')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Planning days'), { target: { value: '7' } });
+    expect(screen.getByRole('columnheader', { name: 'After 7 days' })).toBeTruthy();
+    expect(row.getByText('300 short')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Planning days'), { target: { value: '0' } });
+    expect(screen.getByText('Enter a whole number from 1 to 365 days.')).toBeTruthy();
+  });
+  it('keeps counts visible with unknown coverage and avoids repeating scope warnings in each row', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, rows: [{ ...plan.rows[0],
+      stockBreakdown: { total: 4, allocated: 2, otherUnavailable: 1, available: 1, availableQuantity: 75, problems: [] },
+      coverage: { state: 'unknown', days: null, dailyQuantity: null, availableQuantity: 75, stockoutDate: null, reasons: ['Invalid cutoff'] } }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    const color = await screen.findByRole('button', { name: 'Quartz 3CM' });
+    const row = within(color.closest('tr')!);
+    expect(row.getByText('4', { exact: true })).toBeTruthy();
+    expect(row.getByText('Coverage unknown')).toBeTruthy();
+    expect(row.queryByText('Confirm source coverage')).toBeNull();
+    expect(screen.getAllByText('Confirm source coverage')).toHaveLength(1);
+  });
+});
+
+
+describe('coverage repair diagnostics', () => {
+  it('shows the actual coverage reasons and opens the existing scope form for an editor', async () => {
+    const cutoff = 'Observed sales cutoff 2026-09-30 is after the report was imported on 2026-09-08';
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, rows: [{ ...plan.rows[0],
+      coverage: { state: 'unknown', days: null, dailyQuantity: null, availableQuantity: 75,
+        stockoutDate: null, reasons: [cutoff, 'Confirm complete warehouse coverage'] } }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
+    await screen.findByText('Coverage unknown');
+    fireEvent.click(screen.getByText('Why is coverage unavailable?'));
+    expect(screen.getByText(cutoff)).toBeTruthy();
+    expect(screen.getByText('Confirm complete warehouse coverage')).toBeTruthy();
+    expect(screen.getByText(/Supplier, bundle and weight settings are only needed for buying recommendations/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Review coverage inputs' }));
+    expect(await screen.findByRole('heading', { name: 'Edit purchasing scope' })).toBeTruthy();
+    expect(screen.getByLabelText(/^Observed sales cutoff/)).toBeTruthy();
+  });
+  it('shows coverage reasons without an edit action for a viewer', async () => {
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing'] }} />);
+    await screen.findByText('Coverage unknown');
+    expect(screen.getByText('Why is coverage unavailable?')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Review coverage inputs' })).toBeNull();
+  });
+});
+
+describe('estimated days of stock', () => {
+  it('renders numeric estimated cover and custom balances while keeping draft selection disabled', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, rows: [{ ...plan.rows[0],
+      coverage: { state: 'estimated', days: 3, dailyQuantity: 25, availableQuantity: 75, stockoutDate: '2026-10-28',
+        reasons: [], warnings: ['Sales coverage is stale; import an updated report'],
+        salesPeriod: { start: '2026-09-25', through: '2026-09-30' } } }] });
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
+    await screen.findByText('≈ 3 days');
+    expect(screen.getByText('Sales: 2026-09-25 – 2026-09-30')).toBeTruthy();
+    expect(screen.queryByText('Coverage unknown')).toBeNull();
+    expect(screen.getByText('175 short')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^2d$/ }));
+    expect(screen.getByText('25 left')).toBeTruthy();
+    fireEvent.click(screen.getByText('Estimate assumptions'));
+    expect(screen.getByText('Sales coverage is stale; import an updated report')).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: 'Select Quartz 3CM' }) as HTMLInputElement).disabled).toBe(true);
+  });
+});
+
+describe('using report dates automatically', () => {
+  it('shows the uploaded period and saves without asking for date confirmation', async () => {
+    const legacyScope = { ...scope, observedThrough: '2026-09-30', salesCoverageConfirmation: {
+      cohortId: 'cohort', through: '2026-09-30', confirmedAt: '2026-10-25T20:00:00Z',
+      confirmedBy: { id: null, name: 'Workspace owner' }, source: 'owner-confirmation' as const } };
+    const legacyCohort = { ...plan.cohort!, start: '2026-01-01', end: '2026-09-30', importedAt: '2026-09-08T07:14:03Z' };
+    vi.mocked(purchasingApi.metadata).mockResolvedValue({ ...metadata, scopes: [legacyScope], cohorts: [legacyCohort] });
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, scope: legacyScope, cohort: legacyCohort });
+    vi.mocked(purchasingApi.saveScope).mockResolvedValue(legacyScope);
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit scope & variant policies' }));
+    expect(screen.queryByRole('checkbox', { name: /I verified the report contains actual sales through/ })).toBeNull();
+    expect(screen.getByText(/Calculations use 273 calendar days/)).toBeTruthy();
+    expect(screen.queryByLabelText(/^Observed sales cutoff/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Save planning scope' }));
+    await waitFor(() => expect(purchasingApi.saveScope).toHaveBeenCalledWith(expect.objectContaining({
+      observedThrough: '2026-09-30',
+    }), 'scope'));
+  });
+});
+
+
+describe('stock evaluation separated from purchase planning', () => {
+  const evaluated = (): Plan => ({ ...plan, rows: [{ ...plan.rows[0], hasStock: true,
+    stockBreakdown: { total: 40, allocated: 28, otherUnavailable: 2, available: 10, availableQuantity: 750, problems: [] },
+    coverage: { state: 'estimated', days: 5, dailyQuantity: 150, availableQuantity: 750, stockoutDate: '2026-10-30',
+      reasons: [], warnings: ['Historical sales period'], salesPeriod: { start: '2026-01-01', through: '2026-09-30' } } }] });
+  it('shows source evaluation counts and a stock action even when supplier policies are absent', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue(evaluated());
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
+    const color = await screen.findByRole('button', { name: 'Quartz 3CM' });
+    const row = within(color.closest('tr')!);
+    expect(row.getByText('Review stock shortage')).toBeTruthy();
+    expect((screen.getByText('Purchase planning requirements (1)').closest('details') as HTMLDetailsElement).open).toBe(false);
+    expect(screen.queryByText('Quantity is blocked')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^2d$/ }));
+    expect(row.getByText('Estimated cover sufficient')).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: 'Select Quartz 3CM' }) as HTMLInputElement).disabled).toBe(true);
+  });
+  it('opens stock results first and carries the selected horizon into product details', async () => {
+    vi.mocked(purchasingApi.plan).mockResolvedValue(evaluated());
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    fireEvent.click(screen.getByRole('button', { name: /^2d$/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Quartz 3CM' }));
+    const modal = within(screen.getByRole('dialog'));
+    expect(modal.getByRole('heading', { name: 'Stock evaluation' })).toBeTruthy();
+    expect(modal.getByText('≈ 5 days')).toBeTruthy();
+    expect(modal.getByText('After 2 days')).toBeTruthy();
+    expect(modal.getByText('450 left')).toBeTruthy();
+    expect(modal.getByText('10 slabs')).toBeTruthy();
+    const requirements = modal.getByText('Purchase planning', { exact: true }).closest('details') as HTMLDetailsElement;
+    expect(requirements.open).toBe(false);
+    expect(modal.queryByText('Quantity is blocked')).toBeNull();
+    fireEvent.click(modal.getByText('Purchase planning', { exact: true }));
+    expect(modal.getByText('Requirements for purchase recommendations:')).toBeTruthy();
+    fireEvent.click(modal.getByRole('button', { name: 'Set up purchase planning' }));
+    expect(await screen.findByRole('heading', { name: 'Edit purchasing scope' })).toBeTruthy();
   });
 });

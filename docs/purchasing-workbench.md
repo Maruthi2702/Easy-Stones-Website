@@ -2,10 +2,14 @@
 
 Implemented on `feat/purchasing-workbench`, under Inventory Analysis → Purchasing. This is an internal buyer workflow; it does not place or send purchase orders.
 
+The proposed architecture and incremental migration are documented in
+[`purchasing-architecture.md`](purchasing-architecture.md). That design separates
+current behavior from target changes and preserves this workbench's UX.
+
 ## Enable and configure
 
 1. Users & Roles → Inventory Analysis: grant **View**, **Purchasing**, and, as appropriate, **Manage purchasing** and **Approve purchasing**. Admin/director receive the purchasing permissions once through the existing seeded-permission migration; revocations remain respected. Branch assignments restrict all purchasing scopes.
-2. Import stock and Fast Moving sales through the existing Inventory Analysis import screens. Create a scope using the report's actual branch membership, full-product coverage and confirmed observed-through date. A future requested end is allowed; the observed cutoff cannot be future or after import. No automatic splitting of legacy combined location labels occurs.
+2. Import stock and Fast Moving sales through the existing Inventory Analysis import screens. Create a scope using the report's actual branch membership and full-product coverage. Completed reports use their own sales start/end dates automatically; upload timestamps do not constrain coverage. A future requested end uses the report's actual sales-through date, never future unobserved days. No automatic splitting of legacy combined location labels occurs.
 3. Confirm the exact current stock snapshot, availability/commitment semantics, usable-receipt lead-time range, weekly review and buffer. A changed stock snapshot invalidates its coverage confirmation. Default proposals: 7-day review, 21-day buffer, stock/inbound at most 24 hours old, sales lag at most 14 days. The confirmed lead-time cases are 60 and 90 calendar days.
 4. Add exact variant policies, individually or with the downloadable CSV template. Supply actual supplier, bundle minimum/multiple, usable SF per purchased slab, slab weight and active/discontinued status. Approve name aliases explicitly. Thickness, finish and format are never fuzzy-merged.
 5. Import the complete SPS PO/transit scope through the CSV adapter, or explicitly confirm SPS has no remaining incoming supply. This is a validated manual integration boundary; no credentials, undocumented SPS API or automatic scrape is assumed. Adapt the actual SPS exports into the template's documented columns.
@@ -52,7 +56,7 @@ The urgent quantity is a subset of the proposed new buy. The separate early rece
 
 - `src/purchasing/`: schemas, dedicated collections, typed pure planning/reconciliation/container engine, source loading, buyer API and transaction-protected draft workflow.
 - `src/features/purchasing/`: typed API/hook, queue, performance view, source/policy setup, CSV adapters, explanation and receipt timeline, container approval/history views. Imported only through `index.ts`.
-- `server.js`: `/api/purchasing` mount and one-time permission grants. New model indexes join `src/config/indexedModels.js`.
+- `server.js`: `/api/purchasing` mount and one-time permission grants. New model indexes join `src/config/indexedModels.ts`.
 - Current stock detail and the existing descriptive velocity view remain available. The validated Purchasing view is separate and works even before stock has been imported, so missing inputs are explainable.
 
 ## Known boundaries and next data-backed work

@@ -8,7 +8,15 @@ export type Policy = {
   mixGroup: string;
   active: boolean;
 };
+export type SalesCoverageConfirmation = {
+  cohortId: string;
+  through: string;
+  confirmedAt: string | Date;
+  confirmedBy: { id: string | null; name: string };
+  source: 'scope-form' | 'owner-confirmation';
+};
 export type Scope = {
+  salesCoverageConfirmation?: SalesCoverageConfirmation | null;
   _id: string;
   __v: number;
   name: string;
@@ -98,7 +106,41 @@ export type Projection = {
   warnings: string[];
   points: { day: string; available: number }[];
 };
+export type ImportedTransitLine = {
+  key: string;
+  poNumber: string;
+  containerNumber: string;
+  siplNumber: string;
+  product: string;
+  branch: string;
+  supplier: string;
+  slabs: number | null;
+  quantity: number;
+  units: string;
+  eta: string | null;
+  importedAt: string | null;
+};
+export type StockBreakdown = {
+  total: number | null;
+  allocated: number | null;
+  otherUnavailable: number | null;
+  available: number | null;
+  availableQuantity: number | null;
+  problems: string[];
+};
+export type StockCoverage = {
+  state: 'known' | 'estimated' | 'unknown' | 'no-sales';
+  warnings?: string[];
+  salesPeriod?: { start: string; through: string };
+  days: number | null;
+  dailyQuantity: number | null;
+  availableQuantity: number | null;
+  stockoutDate: string | null;
+  reasons: string[];
+};
 export type PlanRow = {
+  stockBreakdown?: StockBreakdown | null;
+  coverage?: StockCoverage;
   key: string;
   product: string;
   uom: string;
@@ -108,6 +150,8 @@ export type PlanRow = {
   readyQuantity: number | null;
   excludedSlabs: number;
   hasStock: boolean;
+  transit?: ImportedTransitLine[];
+  receipts?: Receipt[];
   blockers: string[];
   policy: Policy | null;
   baseline: Projection | null;
@@ -124,6 +168,8 @@ export type Plan = {
   stockSnapshotId: string;
   stockImportedAt: string | null;
   inboundImportedAt: string | null;
+  transitImportedAt?: string | null;
+  transitLineCount?: number;
   blockers: string[];
   rows: PlanRow[];
   draftIds: string[];

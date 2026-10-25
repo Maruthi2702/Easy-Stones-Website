@@ -11,7 +11,8 @@ import {
   PurchasingLock,
   PurchasingPoLink,
 } from './models.js';
-import InventoryItem from '../models/InventoryItem.js';
+import InventoryItem from '../models/InventoryItem.ts';
+import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
 import InventorySalesRecord from '../models/InventorySalesRecord.js';
 import Location from '../models/Location.js';
 import { SlabReservation } from '../holds/models.js';
@@ -98,6 +99,7 @@ beforeAll(async () => {
     PurchasingLock.init(),
     PurchasingPoLink.init(),
     InventoryItem.init(),
+    InventoryTransitShipment.init(),
     InventorySalesRecord.init(),
     Location.init(),
     SlabReservation.init(),
@@ -128,6 +130,7 @@ beforeEach(async () => {
     PurchasingLock.deleteMany({}),
     PurchasingPoLink.deleteMany({}),
     InventoryItem.deleteMany({}),
+    InventoryTransitShipment.deleteMany({}),
     InventorySalesRecord.deleteMany({}),
     Location.deleteMany({}),
     SlabReservation.deleteMany({}),
@@ -187,6 +190,20 @@ describe('purchasing access and input validation', () => {
     expect(p.blockers).toEqual([]);
     expect(p.rows[0].protective.proposedSlabs).toBe(150);
     expect(p.rows[0].baseline.proposedSlabs).toBe(96);
+  });
+  it('reads uploaded in-transit containers in the purchasing plan and scopes them by branch', async () => {
+    const { id } = await setup();
+    await InventoryTransitShipment.create({ poNumber: 'P2', containerNumber: 'CONT2', location: 'Seattle', importedAt: clock,
+      lines: [{ product: 'Quartz 3CM', poNumber: 'P2', containerNumber: 'CONT2', location: 'Seattle', units: 'SF',
+        slabs: 24, quantity: 24, etaDate: new Date('2026-12-08'), status: 'INTRANSIT', supplier: 'ABC' }] });
+    await InventoryTransitShipment.create({ poNumber: 'P3', containerNumber: 'CONT3', location: 'Spokane', importedAt: clock,
+      lines: [{ product: 'Quartz 3CM', poNumber: 'P3', containerNumber: 'CONT3', location: 'Spokane', units: 'SF',
+        slabs: 500, quantity: 500, etaDate: new Date('2026-12-08'), status: 'INTRANSIT', supplier: 'ABC' }] });
+    const p = await plan(id);
+    expect(p.transitLineCount).toBe(1);
+    expect(p.rows[0].transit[0]).toMatchObject({ poNumber: 'P2', containerNumber: 'CONT2', slabs: 24 });
+    expect(p.rows[0].protective.inbound).toBe(48);
+    expect(p.rows[0].protective.proposedSlabs).toBe(126);
   });
   it('keeps unvalidated combined-scope coverage blocked and never splits labels', async () => {
     await InventorySalesRecord.updateMany({}, { $set: { location: 'Seattle Spokane' } });
@@ -383,5 +400,68 @@ describe('container draft workflow', () => {
     expect(await PurchasingLock.countDocuments()).toBe(0);
     expect(await PurchasingPoLink.countDocuments()).toBe(1);
     expect((await plan(id)).rows[0].protective.proposedSlabs).toBe(0);
+  });
+});
+
+describe('live stock overview API', () => {
+  it('returns total/allocated/available physical slabs and independent day coverage', async () => {
+    await InventoryItem.deleteMany({});
+    const physical = (serialNumber, slabStatus = '') => ({ product: 'Quartz 3CM', type: 'SLAB', serialNumber,
+      instockQty: 75, availableSlabs: slabStatus ? 0 : 1, availableQuantity: slabStatus ? 0 : 75,
+      slabStatus, remnant: '', units: 'SF', location: 'Seattle', importedAt: clock });
+    await InventoryItem.collection.insertMany([
+      physical('free'), physical('so', 'ONSO'), physical('held', 'ONHOLD'), physical('transfer', 'ONTRANSFER'),
+      { ...physical('outside'), location: 'Spokane' },
+    ]);
+    await SlabReservation.collection.insertOne({ slabKey: 'HELD', branch: 'Seattle', holdId: new mongoose.Types.ObjectId() });
+    await InventorySalesRecord.updateMany({}, { $set: { quantitySold: 150 } });
+    const { id } = await setup({ policies: [], policyConfirmed: false });
+    const result = await plan(id);
+    expect(result.rows[0].stockBreakdown).toEqual({ total: 4, allocated: 2, otherUnavailable: 1, available: 1, availableQuantity: 75, problems: [] });
+    expect(result.rows[0].coverage).toMatchObject({ state: 'known', days: 15, dailyQuantity: 5 });
+    expect(result.rows[0].protective).toBeNull(); // Packing policy blocks buying, not valid stock coverage.
+  });
+});
+
+describe('advisory stock coverage API', () => {
+  it('returns estimated coverage for stale/unconfirmed inputs without allowing a buying draft', async () => {
+    await InventoryItem.deleteMany({});
+    await InventoryItem.collection.insertOne({ product: 'Quartz 3CM', location: 'Seattle', type: 'SLAB',
+      serialNumber: 'only-slab', instockQty: 75, availableSlabs: 1, availableQuantity: 75,
+      slabStatus: '', remnant: '', units: 'SF', importedAt: clock });
+    await InventorySalesRecord.updateMany({}, { $set: { quantitySold: 150 } });
+    const { id } = await setup({ observedThrough: '2026-09-30', fullSalesCoverage: false,
+      stockCoverageConfirmed: false, freeStockValidated: false, policyConfirmed: false, policies: [] });
+    const p = await plan(id);
+    expect(p.rows[0].coverage).toMatchObject({ state: 'estimated', days: 3, dailyQuantity: 25 });
+    expect(p.rows[0].coverage.warnings).toHaveLength(4);
+    expect(p.rows[0].protective).toBeNull();
+    const attempted = await api('post', `/scopes/${id}/drafts`).send({ fingerprint: p.fingerprint,
+      lines: [{ key: p.rows[0].key, branch: 'Seattle', quantity: 6 }], note: 'Estimated cover is not approval evidence' }).expect(409);
+    expect(attempted.body.error).toMatch(/resolve planning inputs/i);
+  });
+});
+
+describe('using the uploaded sales period', () => {
+  it('derives a completed period without a date or confirmation and retains original import timestamps', async () => {
+    const legacyImport = new Date('2026-09-28T20:00:00Z');
+    await InventoryItem.deleteMany({});
+    await InventoryItem.collection.insertOne({ product: 'Quartz 3CM', location: 'Seattle', type: 'SLAB', serialNumber: 'file-slab',
+      instockQty: 75, availableSlabs: 1, availableQuantity: 75, units: 'SF', slabStatus: '', remnant: '', importedAt: clock });
+    await InventorySalesRecord.updateMany({}, { $set: { importedAt: legacyImport, periodEnd: new Date('2026-09-30') } });
+    const meta = (await api('get', '/metadata')).body;
+    const { body } = await setup({ observedThrough: '2026-09-27' });
+    const { observedThrough, ...request } = { ...body, cohortId: meta.cohorts[0].id };
+    const saved = await api('post', '/scopes').send(request).expect(201);
+    expect(saved.body.observedThrough).toBe('2026-09-30');
+    expect(saved.body.salesCoverageConfirmation).toBeNull();
+    const result = await plan(saved.body._id);
+    expect(result.scope.observedThrough).toBe('2026-09-30');
+    expect(result.rows[0].coverage).toMatchObject({ state: 'estimated', dailyQuantity: 9 });
+    expect(result.rows[0].coverage.days).toBeCloseTo(75 / 9);
+    expect(result.blockers.join(' ')).not.toMatch(/after the report was imported|confirm the actual report cutoff/);
+    expect((await InventorySalesRecord.findOne().lean()).importedAt.toISOString()).toBe(legacyImport.toISOString());
+    await api('post', '/scopes').send({ ...request, observedThrough: '2026-11-01' }).expect(400);
+    await api('post', '/scopes').send({ ...request, salesCoverageConfirmation: { through: '2026-09-30' } }).expect(400);
   });
 });

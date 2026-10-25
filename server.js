@@ -56,7 +56,7 @@ import { EASY_STONES_COLORS } from './src/data/easyStonesColors.js';
 // The one list of "every model that needs its indexes created on startup" —
 // see its own comment for why this used to be two hand-maintained arrays
 // (here and in ensure-indexes.js) that had already drifted apart.
-import { INDEXED_MODELS } from './src/config/indexedModels.js';
+import { INDEXED_MODELS } from './src/config/indexedModels.ts';
 import { parseLocationBody, publicLocationFields } from './src/utils/locationForm.js';
 import { prettifyUsername } from './src/utils/textUtils.js';
 import { sendContactFormEmail } from './src/services/emailService.js';
@@ -87,8 +87,8 @@ import {
 // The parsers themselves (parseInventoryStockWorkbook, parseInventorySalesWorkbook,
 // readCustomerSheet) are no longer called directly here — every uploaded file goes
 // through runWorkbookParse, which runs the real parse in a worker thread instead
-// of on this process's own thread. See runWorkbookParse.js for why.
-import { runWorkbookParse } from './src/utils/runWorkbookParse.js';
+// of on this process's own thread. See runWorkbookParse.ts for why.
+import { runWorkbookParse } from './src/utils/runWorkbookParse.ts';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
 import createDeliveriesRouter, { deliveryRoomsFor, renumberAllRuns } from './src/routes/deliveries.js';
 import createCheckInRouter from './src/routes/checkIn.js';
@@ -136,7 +136,7 @@ import {
 } from './src/utils/dashboardMatch.js';
 import { pickPanelFollowUps } from './src/utils/followUpPanel.js';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
-import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.js';
+import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.ts';
 import createPurchasingRouter from './src/purchasing/router.js';
 import createUserOnboardingRouter, { newInvite, inviteLinkFor, sendInviteEmail } from './src/routes/userOnboarding.js';
 import {
@@ -546,7 +546,7 @@ async function startServer() {
     // Ensure all database indexes are created/synced for performance scalability.
     // autoIndex is disabled on the connection, so a model missing from
     // INDEXED_MODELS silently runs with no indexes at all — see the comment on
-    // that list (src/config/indexedModels.js) for the incident history and why
+    // that list (src/config/indexedModels.ts) for the incident history and why
     // it is the one place this gets maintained now, instead of here and in
     // ensure-indexes.js separately.
     // Settled individually so one model's failure (e.g. a pre-existing index with
@@ -5457,7 +5457,7 @@ app.post('/api/admin/erp-import/:type', authenticate, requirePermission('manage_
 });
 
 // ── INVENTORY ANALYSIS ──
-// Lives in src/routes/inventoryAnalysis.js: the summary, stock list, reorder
+// Lives in src/routes/inventoryAnalysis.ts: the summary, stock list, reorder
 // and velocity reads, and the SPS stock/sales imports. Mounted here, where the
 // routes used to be, so their order among the other routes is unchanged.
 app.use('/api/purchasing', createPurchasingRouter({ authenticate }));

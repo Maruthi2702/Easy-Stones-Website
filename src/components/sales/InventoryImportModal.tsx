@@ -1,19 +1,36 @@
 import React, { useState } from 'react';
 import { X, Upload, AlertCircle, CheckCircle2, FileSpreadsheet } from 'lucide-react';
+import type { InventoryImportKind, InventoryImportResult, TransitLine } from '../../types/inventory';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { DatePicker } from '../shared/calendar/Calendar';
 
-const toInputDate = (d) => {
+const toInputDate = (d: string | null | undefined) => {
   if (!d) return '';
   const dt = new Date(d);
   return Number.isNaN(dt.getTime()) ? '' : dt.toISOString().slice(0, 10);
 };
 
-const InventoryImportModal = ({ type, onClose, onComplete }) => {
+interface ImportPreview {
+  uploadId?: string;
+  totalRows: number;
+  warnings?: string[];
+  shipmentCount?: number;
+  sample: TransitLine<string>[];
+  detected?: { location?: string; periodStart?: string; periodEnd?: string };
+}
+interface InventoryImportModalProps {
+  type: InventoryImportKind;
+  onClose: () => void;
+  onComplete: (result: InventoryImportResult) => void;
+}
+
+const InventoryImportModal = ({ type, onClose, onComplete }: InventoryImportModalProps) => {
   const isSales = type === 'sales';
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
+  const isTransit = type === 'transit';
+  const endpoint = isTransit ? 'transit' : isSales ? 'sales' : 'stock';
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -21,7 +38,7 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
 
-  const handleFileSelect = async (e) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
     setFile(selected);
@@ -39,7 +56,6 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
     try {
       const body = new FormData();
       body.append('file', selected);
-      const endpoint = isSales ? 'sales' : 'stock';
       const res = await authFetch(`${API_URL}/api/inventory-analysis/import/${endpoint}/preview`, { method: 'POST', body });
       const data = await res.json();
       if (!res.ok) {
@@ -47,7 +63,26 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
         return;
       }
       if (data.missingRequired?.length) {
-        setError(`This file is missing expected column(s): ${data.missingRequired.join(', ')}. Check you exported the right report.`);
+        if (isTransit) {
+          const labels: Record<string, string> = { product: 'Product', poNumber: 'PO#', containerNumber: 'Container#', location: 'Location', slabs: 'Slabs', quantity: 'Quantity', status: 'Status' };
+          const missing = data.missingRequired.map((field: string) => labels[field] || field).join(', ');
+          const detected = (data.headers || []).slice(0, 30).map((header: unknown) => String(header).slice(0, 80)).join(', ');
+          setError(`Could not recognize these columns: ${missing}. Detected headings: ${detected || 'none'}.`);
+        } else {
+          setError(`This file is missing expected column(s): ${data.missingRequired.join(', ')}. Check you exported the right report.`);
+        }
+        return;
+      }
+      if (data.errors?.length) {
+        setError(data.errors.slice(0, 5).join('; '));
+        return;
+      }
+      if (!data.totalRows) {
+        const diagnostic = data.diagnostics;
+        const statuses = Object.entries(diagnostic?.skippedStatusCounts || {}).map(([status, count]) => `${status}: ${count}`).join('; ');
+        setError(isTransit && diagnostic
+          ? `Read ${diagnostic.productRows} product/PO rows, but none had a recognized INTRANSIT status.${statuses ? ` Status values read: ${statuses}.` : ' No product rows were found below the headings.'}`
+          : 'No matching product rows found. Check the report type and status.');
         return;
       }
       setPreview(data);
@@ -73,13 +108,12 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
     setApplying(true);
     setError('');
     try {
-      const endpoint = isSales ? 'sales' : 'stock';
       // The server kept the file it parsed for the preview, so Import sends
       // only its id instead of uploading the whole file (~12 MB for a stock
       // export) a second time. If that copy has gone (it lasts 10 minutes, and
       // not past a server restart), the server answers 410 and the file is
       // sent after all.
-      const send = (withFile) => {
+      const send = (withFile: boolean) => {
         const body = new FormData();
         if (withFile || !preview.uploadId) body.append('file', file);
         else body.append('uploadId', preview.uploadId);
@@ -97,7 +131,7 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
         setError(data.message || 'Import failed');
         return;
       }
-      onComplete();
+      onComplete(data);
     } catch (err) {
       console.error('Error applying inventory import:', err);
       setError('Network error while importing file');
@@ -115,9 +149,9 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
               <FileSpreadsheet size={20} />
             </div>
             <div>
-              <h3>{isSales ? 'Import Sales History' : 'Import Inventory Stock'}</h3>
+              <h3>{isTransit ? 'Import In-Transit Containers' : isSales ? 'Import Sales History' : 'Import Inventory Stock'}</h3>
               <p className="invan-modal-sub-text">
-                {isSales
+                {isTransit ? 'Upload the SPS in-transit report with PO# and Container# columns' : isSales
                   ? 'Upload SPS\'s "Fast Moving Inventory" export for a location and date range'
                   : 'Upload SPS\'s "Inventory In Stock - Detail" export'}
               </p>
@@ -129,18 +163,20 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
         </div>
 
         <div className="invan-modal-form">
-          {!isSales && (
+          {!isSales && !isTransit && (
             <div className="invan-modal-warning-banner">
               <AlertCircle size={16} />
               <span>Importing replaces <strong>all</strong> current inventory stock data with this file's snapshot.</span>
             </div>
           )}
 
+          {isTransit && <p>Updates the shipments in this file by PO, container and branch. Shipments absent from this file are kept.</p>}
+
           {error && <div className="invan-modal-error-banner"><AlertCircle size={18} /> {error}</div>}
 
           <div className="invan-form-group">
-            <label>Export File (.xlsx or .xls) <span className="invan-req-star">*</span></label>
-            <input type="file" accept=".xlsx,.xls" onChange={handleFileSelect} className="invan-file-input" />
+            <label>Export File ({isTransit ? '.xlsx, .xls, .csv or .txt' : '.xlsx or .xls'}) <span className="invan-req-star">*</span></label>
+            <input type="file" accept={isTransit ? ".xlsx,.xls,.csv,.txt" : ".xlsx,.xls"} onChange={handleFileSelect} className="invan-file-input" />
           </div>
 
           {loading && <div className="invan-modal-loading">Reading file...</div>}
@@ -149,8 +185,22 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
             <>
               <div className="invan-preview-summary">
                 <CheckCircle2 size={16} />
-                <span>{preview.totalRows} row{preview.totalRows === 1 ? '' : 's'} found and ready to import.</span>
+                <span>{preview.totalRows} row{preview.totalRows === 1 ? '' : 's'} found{isTransit ? ` across ${preview.shipmentCount} PO/container groups` : ''} and ready to import.</span>
               </div>
+
+              {isTransit && !!preview.warnings?.length && <div className="invan-modal-warning-banner" role="status"><ul>{preview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
+
+              {isTransit && (
+                <div className="invan-grid-wrapper">
+                  <table className="invan-table">
+                    <thead><tr><th>PO#</th><th>Container#</th><th>Product</th><th>Slabs</th><th>Quantity</th><th>Branch</th><th>ETA</th></tr></thead>
+                    <tbody>{preview.sample.map((row, i) => <tr key={i}>
+                      <td>{row.poNumber || 'Unknown'}</td><td>{row.containerNumber || 'Unknown'}</td><td>{row.product}</td><td>{row.slabs ?? 'Unknown'}</td>
+                      <td>{row.quantity} {row.units}</td><td>{row.location}</td><td>{toInputDate(row.etaDate) || 'Unknown'}</td>
+                    </tr>)}</tbody>
+                  </table>
+                </div>
+              )}
 
               {isSales && (
                 <div className="invan-form-grid-3col">
@@ -179,7 +229,7 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
 
           {applying && (
             <div className="invan-modal-loading">
-              {isSales
+              {isTransit ? 'Saving PO and container details...' : isSales
                 ? 'Importing... this can take a little while for a large report.'
                 : 'Importing... a full catalog snapshot can take up to a minute. Please don\'t close this window.'}
             </div>
@@ -189,7 +239,7 @@ const InventoryImportModal = ({ type, onClose, onComplete }) => {
             <button type="button" className="invan-btn-cancel" onClick={onClose} disabled={applying}>Cancel</button>
             <button type="button" className="invan-btn-save" onClick={handleApply} disabled={!preview || applying}>
               <Upload size={18} />
-              <span>{applying ? 'Importing...' : isSales ? 'Import Sales History' : 'Replace Inventory Data'}</span>
+              <span>{applying ? 'Importing...' : isTransit ? 'Import Containers' : isSales ? 'Import Sales History' : 'Replace Inventory Data'}</span>
             </button>
           </div>
         </div>

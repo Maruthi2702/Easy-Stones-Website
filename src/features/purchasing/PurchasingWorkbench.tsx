@@ -21,16 +21,10 @@ export default function PurchasingWorkbench({
     [scopeForm, setScopeForm] = useState<{ scope?: Scope } | null>(null),
     [inboundForm, setInboundForm] = useState(false),
     [details, setDetails] = useState<PlanRow | null>(null),
+    [detailForecastDays, setDetailForecastDays] = useState(10),
     [draftRows, setDraftRows] = useState<PlanRow[] | null>(null);
   const canEdit = !!currentUser?.permissions?.includes('manage_purchasing'),
     canApprove = !!currentUser?.permissions?.includes('approve_purchasing');
-  const buy =
-    d.plan?.rows.filter(
-      (r) =>
-        r.protective &&
-        (r.protective.proposedSlabs > 0 || r.protective.bridgeShortfall > 0) &&
-        r.policy?.active,
-    ).length || 0;
   const scope = d.plan?.scope || d.metadata?.scopes.find((s) => s._id === d.scopeId);
   const refresh = () => {
     setInboundForm(false);
@@ -93,7 +87,7 @@ export default function PurchasingWorkbench({
           <h3>Start with a verified planning scope</h3>
           <p>
             Import stock and Fast Moving sales through Inventory Analysis, then choose the report's actual
-            branches and observed-through date. Unknown coverage is not treated as zero demand or zero
+            branches. The completed report supplies its own sales period. Unknown coverage is not treated as zero demand or zero
             inbound.
           </p>
           {!canEdit && <p>A purchasing manager can configure scopes and incoming supply.</p>}
@@ -108,27 +102,33 @@ export default function PurchasingWorkbench({
               <strong>{d.plan.rows.length}</strong>
             </div>
             <div>
-              <span>Ready for buyer review</span>
-              <strong>{buy}</strong>
+              <span>Stock cover available</span>
+              <strong>{d.plan.rows.filter(r => r.coverage && r.coverage.state !== 'unknown').length}</strong>
             </div>
             <div>
-              <span>Need input validation</span>
-              <strong>{d.plan.rows.filter((r) => r.blockers.length).length}</strong>
+              <span>Need source data</span>
+              <strong>{d.plan.rows.filter(r => !r.coverage || r.coverage.state === 'unknown').length}</strong>
             </div>
             <div>
               <span>Active draft reservations</span>
               <strong>{d.plan.draftIds.length}</strong>
             </div>
           </div>
+          {d.plan.transitImportedAt && <p role="status" className="purchase-muted">
+            Reading {d.plan.transitLineCount} imported in-transit product lines for {d.plan.scope.branches.join(' / ')}.
+            Last container import: {new Date(d.plan.transitImportedAt).toLocaleString()}.
+          </p>}
           {!!d.plan.blockers.length && (
-            <div className="purchase-warning">
-              <h3>Resolve these inputs before approving buy quantities</h3>
+            <details className="purchase-planning-requirements">
+              <summary>Purchase planning requirements ({d.plan.blockers.length})</summary>
+              <p>These settings apply to purchase recommendations and approvals. Stock evaluation uses the uploaded reports.</p>
               <ul>
                 {d.plan.blockers.map((b) => (
                   <li key={b}>{b}</li>
                 ))}
               </ul>
-            </div>
+              {canEdit && scope && <button onClick={() => setScopeForm({ scope })}>Review planning inputs</button>}
+            </details>
           )}
           <nav className="purchase-tabs" aria-label="Purchasing views">
             {[
@@ -155,9 +155,10 @@ export default function PurchasingWorkbench({
               <BuyerQueue
                 plan={d.plan}
                 performance={tab === 'performance'}
-                onInspect={setDetails}
+                onInspect={(row, days) => { setDetails(row); setDetailForecastDays(days || 10); }}
                 onDraft={setDraftRows}
                 canEdit={tab === 'queue' && canEdit}
+                onReviewCoverage={canEdit && scope ? () => setScopeForm({ scope }) : undefined}
               />
             </>
           )}
@@ -246,6 +247,7 @@ export default function PurchasingWorkbench({
             }
           }
           plan={d.plan}
+          forecastDays={detailForecastDays}
           onClose={() => setDetails(null)}
           onConfigure={
             canEdit

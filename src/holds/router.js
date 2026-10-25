@@ -19,7 +19,7 @@
  */
 import express from 'express';
 import mongoose from 'mongoose';
-import InventoryItem from '../models/InventoryItem.js';
+import InventoryItem from '../models/InventoryItem.ts';
 import Customer from '../models/Customer.js';
 import Location from '../models/Location.js';
 import { letterheadFor } from '../utils/locationForm.js';
@@ -53,7 +53,7 @@ async function findSlabs(keys) {
   const wanted = [...new Set(keys.map(slabKeyOf).filter(Boolean))];
   if (!wanted.length) return new Map();
   const found = new Map();
-  // Case-insensitive on the serial # index (InventoryItem.js), so one indexed read finds them.
+  // Case-insensitive on the serial # index (InventoryItem.ts), so one indexed read finds them.
   for (const item of await InventoryItem.find({ serialNumber: { $in: wanted } }, SLAB_FIELDS).collation(SERIAL_COLLATION).lean()) {
     found.set(slabKeyOf(item.serialNumber), item);
   }

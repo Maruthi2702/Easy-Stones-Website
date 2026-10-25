@@ -14,13 +14,13 @@
  */
 import { read, utils } from 'xlsx';
 
-const num = (v) => {
+const num = (v: unknown) => {
   if (v === null || v === undefined || v === '') return 0;
   const n = parseFloat(String(v).replace(/[$,%]/g, ''));
   return Number.isFinite(n) ? n : 0;
 };
 
-const dateOrNull = (v) => {
+const dateOrNull = (v: any): Date | null => {
   if (!v) return null;
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
@@ -38,8 +38,8 @@ const TR_RE = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
 const TH_RE = /<th[^>]*>([\s\S]*?)<\/th>/gi;
 const TD_RE = /<td[^>]*>([\s\S]*?)<\/td>/gi;
 
-const parseHtmlRows = (text) => {
-  const stripTags = (s) => s
+export const parseHtmlRows = (text: string) => {
+  const stripTags = (s: string) => s
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(/<[^>]*>/g, '')
     .replace(/&nbsp;/g, ' ')
@@ -54,7 +54,7 @@ const parseHtmlRows = (text) => {
   // global regex internally, so this is safe) avoids recompiling the same
   // pattern from scratch twice per row — the previous version constructed a
   // fresh RegExp per cellsOf() call, i.e. per row per tag.
-  const cellsOf = (rowHtml, re) =>
+  const cellsOf = (rowHtml: string, re: RegExp) =>
     [...rowHtml.matchAll(re)].map(c => stripTags(c[1]));
 
   const rows = [...text.matchAll(TR_RE)]
@@ -65,7 +65,7 @@ const parseHtmlRows = (text) => {
         ? { type: 'header', cells: th }
         : td.length ? { type: 'data', cells: td } : null;
     })
-    .filter(Boolean);
+    .filter((row): row is NonNullable<typeof row> => row !== null);
 
   const headerRow = rows
     .filter(r => r.type === 'header')
@@ -74,7 +74,7 @@ const parseHtmlRows = (text) => {
   // Some SPS exports use <td> for the header row too (no <th> at all) — fall
   // back to the widest data-shaped row that looks like text, not numbers.
   const fallbackHeaderRow = !headerRow && rows.length
-    ? rows.reduce((best, r) => (r.cells.length > (best?.cells.length || 0) ? r : best), null)
+    ? rows.reduce<(typeof rows)[number] | null>((best, r) => (r.cells.length > (best?.cells.length || 0) ? r : best), null)
     : null;
 
   const effectiveHeaderRow = headerRow || fallbackHeaderRow;
@@ -90,7 +90,7 @@ const parseHtmlRows = (text) => {
 };
 
 /** Real xlsx (zip) starts with 'PK'; real binary xls (OLE) starts with D0CF11E0. Same check as customerImport.js's isBinaryWorkbook. */
-const isBinaryWorkbook = (buffer) =>
+const isBinaryWorkbook = (buffer: Buffer) =>
   (buffer[0] === 0x50 && buffer[1] === 0x4b) ||
   (buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0);
 
@@ -99,7 +99,7 @@ const isBinaryWorkbook = (buffer) =>
  * HTML-disguised export, decided by magic bytes rather than guessing from
  * content shape.
  */
-const loadRows = (buffer, sheetHint) => {
+const loadRows = (buffer: Buffer, sheetHint?: string) => {
   if (!isBinaryWorkbook(buffer)) {
     const parsed = parseHtmlRows(buffer.toString('utf8'));
     return { headers: parsed.headers, rows: parsed.rows, rawFirstCell: parsed.rawText };
@@ -110,7 +110,7 @@ const loadRows = (buffer, sheetHint) => {
   const sheet = wb.Sheets[sheetName];
   if (!sheet) throw new Error('The file has no readable sheet');
 
-  const grid = utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+  const grid = utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' });
   const headerIndex = grid.findIndex(r => r.some(c => c !== ''));
   if (headerIndex === -1) throw new Error('The sheet has no header row');
 
@@ -121,8 +121,8 @@ const loadRows = (buffer, sheetHint) => {
   return { headers, rows, rawFirstCell: String(grid[0]?.[0] || '') };
 };
 
-const resolveMapping = (headers, columns) => {
-  const mapping = {};
+const resolveMapping = (headers: string[], columns: [string, string[]][]) => {
+  const mapping: Record<string, string | null> = {};
   const claimed = new Set();
   for (const [field, keywords] of columns) {
     mapping[field] = null;
@@ -152,10 +152,10 @@ const NUMERIC_FIELDS = new Set([
 ]);
 const DATE_FIELDS = new Set(['receivedDate']);
 
-const buildRow = (r, mapping, columns) => {
-  const row = {};
+const buildRow = (r: Record<string, any>, mapping: Record<string, string | null>, columns: [string, string[]][]) => {
+  const row: Record<string, any> = {};
   for (const [field] of columns) {
-    const raw = r[mapping[field]];
+    const raw = r[mapping[field] ?? ''];
     if (DATE_FIELDS.has(field)) row[field] = dateOrNull(raw);
     else if (NUMERIC_FIELDS.has(field)) row[field] = num(raw);
     else row[field] = String(raw ?? '').trim();
@@ -167,7 +167,7 @@ const buildRow = (r, mapping, columns) => {
 // Inventory In Stock - Detail
 // ---------------------------------------------------------------------------
 
-export const STOCK_COLUMNS = [
+export const STOCK_COLUMNS: [string, string[]][] = [
   ['product', ['product']],
   ['sku', ['sku']],
   ['genericSku', ['generic sku']],
@@ -204,7 +204,7 @@ export const STOCK_COLUMNS = [
 
 const STOCK_REQUIRED = ['product', 'receivedDate', 'instockQty'];
 
-export const parseInventoryStockWorkbook = (buffer) => {
+export const parseInventoryStockWorkbook = (buffer: Buffer) => {
   const { headers, rows } = loadRows(buffer, 'Sheet 1');
   const mapping = resolveMapping(headers, STOCK_COLUMNS);
   const missingRequired = STOCK_REQUIRED.filter(f => !mapping[f]);
@@ -220,7 +220,7 @@ export const parseInventoryStockWorkbook = (buffer) => {
 // Fast Moving Inventory (sold / velocity)
 // ---------------------------------------------------------------------------
 
-export const SALES_COLUMNS = [
+export const SALES_COLUMNS: [string, string[]][] = [
   ['product', ['name']],
   ['sku', ['sku']],
   ['type', ['type']],
@@ -251,7 +251,7 @@ const SALES_REQUIRED = ['product', 'quantitySold'];
 // still confirms or overrides both before anything is written, since a
 // mis-parsed date range would silently mislabel every velocity number
 // computed from it.
-export const parseSalesReportTitle = (rawText) => {
+export const parseSalesReportTitle = (rawText: unknown) => {
   const full = String(rawText || '');
   // Multiple <x:Name> tags can appear (e.g. a plain "Sheet 1" tab name
   // alongside the real report title) — the title is reliably the longest one.
@@ -269,7 +269,7 @@ export const parseSalesReportTitle = (rawText) => {
   return { location, periodStart, periodEnd };
 };
 
-export const parseInventorySalesWorkbook = (buffer) => {
+export const parseInventorySalesWorkbook = (buffer: Buffer) => {
   const { headers, rows, rawFirstCell } = loadRows(buffer);
   const mapping = resolveMapping(headers, SALES_COLUMNS);
   const missingRequired = SALES_REQUIRED.filter(f => !mapping[f]);

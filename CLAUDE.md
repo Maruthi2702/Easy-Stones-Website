@@ -542,7 +542,7 @@ the reason. Your own change's socket echo is ignored and other people's events a
 joined into one refresh of just the slabs that changed (`useSlabLocks`). The cart's
 customer also shows at once, and Create hold follows the cart's customer rather than
 copying it when it opens. Server: `findSlabs` reads the serial # through a
-case-insensitive index (`InventoryItem.js`), and `addToCart` / bundle removal are one
+case-insensitive index (`InventoryItem.ts`), and `addToCart` / bundle removal are one
 write each. **Every Cart & Holds model is in `INDEXED_MODELS`** — autoIndex is off,
 and until 2026-10-18 they weren't, so the unique indexes that stop two holds on one
 slab were never created in production (a startup log line names any that fail, e.g.
@@ -827,3 +827,15 @@ a page, or the map/Google Maps integration.
 When adding a new pure/testable function elsewhere in the app, consider
 adding it to this same narrow layer (a `<module>.test.js` beside the module)
 rather than leaving it untested by default now that the harness exists.
+
+## Inventory stock imports
+
+`src/services/inventoryStockImport.ts` publishes stock in one MongoDB
+transaction. Keep its shared publication state, backup and replacement writes
+in the same transaction; never restore insert-then-delete-by-timestamp cleanup.
+The existing `InventoryItems` collection stays the read surface for inventory,
+holds and purchasing. Previous records are archived for seven days; import
+metadata remains. Transactions require a replica set.
+
+The ordered inventory correction and TypeScript migration plan, including
+identified UX changes, is in `INVENTORY_MODULE_PLAN.md`.

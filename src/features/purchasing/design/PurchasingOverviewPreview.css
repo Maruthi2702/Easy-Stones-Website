@@ -1,0 +1,40 @@
+.pov { max-width: 1680px; margin: auto; padding: 24px 32px 48px; color: var(--text-primary); font-family: var(--font-main); }
+.pov button, .pov input { font: inherit; }
+.pov button { cursor: pointer; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); color: var(--text-primary); padding: 8px 12px; }
+.pov button:focus-visible, .pov input:focus-visible, .pov summary:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+.pov-demo { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--text-secondary); padding-bottom: 28px; }
+.pov-heading { display: flex; justify-content: space-between; align-items: center; gap: 24px; margin-bottom: 24px; }
+.pov-heading h1 { font-size: 28px; line-height: 1.3; letter-spacing: -.6px; margin: 8px 0; }
+.pov-heading p, .pov-footer { color: var(--text-secondary); font-size: 14px; }
+.pov .pov-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; }
+.pov .pov-primary { background: var(--gradient-primary); color: #000000; font-weight: 700; white-space: nowrap; }
+.pov-notice { padding: 13px 16px; border: 1px solid var(--border-color); border-left: 3px solid var(--accent-primary); border-radius: 8px; background: var(--bg-card); color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; }
+.pov-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden; }
+.pov-toolbar { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 24px; }
+.pov-toolbar input { border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; background: var(--bg-primary); color: var(--text-primary); }
+.pov-toolbar > input { width: 250px; }
+.pov-horizon { display: flex; align-items: center; gap: 9px; font-size: 14px; }
+.pov-horizon input { width: 76px; }
+.pov-presets { display: flex; gap: 5px; flex-wrap: wrap; }
+.pov-presets button { font-size: 12px; }
+.pov-presets button[aria-pressed=true] { background: var(--accent-primary); border-color: var(--accent-primary); color: #000000; font-weight: 700; }
+.pov-scroll { overflow-x: auto; }
+.pov table { border-collapse: collapse; width: 100%; min-width: 1280px; font-size: 13px; }
+.pov th { text-align: left; font-size: 10px; letter-spacing: .65px; text-transform: uppercase; color: var(--text-secondary); padding: 18px 16px; border-bottom: 1px solid var(--border-color); }
+.pov td { vertical-align: top; padding: 25px 16px; border-bottom: 1px solid var(--border-color); }
+.pov td:first-child { width: 230px; padding-left: 24px; }
+.pov td:last-child { width: 200px; }
+.pov td strong { font-weight: 650; }
+.pov small { display: block; font-size: 11px; line-height: 1.5; color: var(--text-secondary); margin-top: 7px; }
+.pov .pov-quantity, .pov .pov-cover { font-size: 20px; line-height: 1.1; }
+.pov .pov-danger { color: var(--status-danger); }
+.pov-badge { display: inline-block; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px 8px; font-size: 11px; font-weight: 600; }
+.pov-urgent { color: var(--status-danger); border-color: var(--status-danger); }
+.pov summary { cursor: pointer; color: var(--text-primary); margin-top: 12px; font-size: 11px; text-decoration: underline; text-underline-offset: 3px; }
+.pov-detail { margin-top: 12px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; font-size: 11px; line-height: 1.6; }
+.pov-detail p + p { margin-top: 8px; }
+.pov-footnote { padding: 18px 24px; color: var(--text-secondary); font-size: 11px; }
+.pov-footer { margin-top: 20px; font-size: 12px; }
+.pov-empty, .pov-validation { padding: 12px 24px; }
+@media (max-width: 600px) { .pov { padding: 16px; } .pov-heading { align-items: flex-start; flex-direction: column; gap: 12px; } .pov-heading h1 { font-size: 24px; } .pov-toolbar { padding: 16px; gap: 12px; } .pov-toolbar > input { width: 100%; } .pov-demo { font-size: 10px; } }
+@media print { .pov-demo, .pov-primary { display: none; } .pov { padding: 0; } .pov-scroll { overflow: visible; } }

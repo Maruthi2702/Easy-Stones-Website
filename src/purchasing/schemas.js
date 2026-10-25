@@ -15,7 +15,8 @@ export const scopeSchema = z
       .max(20)
       .refine((list) => new Set(list).size === list.length, 'Do not repeat branches'),
     cohortId: text,
-    observedThrough: day,
+    observedThrough: day.optional(),
+    salesCoverageDateConfirmed: z.boolean().optional().default(false),
     fullSalesCoverage: z.boolean(),
     stockSnapshotId: z.string(),
     stockCoverageConfirmed: z.boolean(),

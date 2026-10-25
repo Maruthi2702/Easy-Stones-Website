@@ -10,14 +10,28 @@
  * and clear their remembered answers (src/api/inventoryAnalysisCache.js).
  */
 import express from 'express';
+import type { Request, RequestHandler } from 'express';
+import type { Multer } from 'multer';
+import type { Model, QueryFilter } from 'mongoose';
+
+// Authentication is supplied by server.js before any handler runs.
+declare module 'express-serve-static-core' {
+  interface Request {
+    user: { id?: string; username?: string; displayName?: string; contactName?: string; permissions: string[] };
+  }
+}
 import mongoose from 'mongoose';
-import { randomUUID } from 'crypto';
-import InventoryItem from '../models/InventoryItem.js';
-import InventorySalesRecord from '../models/InventorySalesRecord.js';
+import { randomUUID, createHash } from 'crypto';
+import { importInventoryStock } from '../services/inventoryStockImport.ts';
+import InventoryItem from '../models/InventoryItem.ts';
+import InventorySalesRecordModel from '../models/InventorySalesRecord.js';
+const InventorySalesRecord = InventorySalesRecordModel as Model<Record<string, any>>;
+import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
+import { groupTransitShipments } from '../utils/inventoryTransitImport.ts';
 import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.js';
-// Parses run in a worker thread — see runWorkbookParse.js for why an uploaded
+// Parses run in a worker thread — see runWorkbookParse.ts for why an uploaded
 // file needs that isolation.
-import { runWorkbookParse } from '../utils/runWorkbookParse.js';
+import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
 // Big writes go in batches that survive a dropped database connection.
 import { insertInBatches, withDbRetry } from '../utils/dbRetry.js';
 
@@ -27,10 +41,16 @@ import { insertInBatches, withDbRetry } from '../utils/dbRetry.js';
  * @param {Function} deps.requirePermission - server.js's permission middleware
  * @param {object} deps.uploadMemory - server.js's in-memory multer instance
  */
-export default function createInventoryAnalysisRouter({ authenticate, requirePermission, uploadMemory }) {
+interface InventoryRouterDependencies {
+  authenticate: RequestHandler;
+  requirePermission: (permission: string) => RequestHandler;
+  uploadMemory: Multer;
+}
+
+export default function createInventoryAnalysisRouter({ authenticate, requirePermission, uploadMemory }: InventoryRouterDependencies) {
   const router = express.Router();
 
-  // Two SPS exports feed this feature (see src/utils/inventoryImport.js):
+  // Two SPS exports feed this feature (see src/utils/inventoryImport.ts):
   // - "stock": a full mirror of on-hand slabs/lots, wiped and replaced whole on
   //   every import since it's a point-in-time snapshot, not a ledger.
   // - "sales": per-product sold totals for a location+date-range period, kept
@@ -40,7 +60,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   // ?location= on the inventory routes: one branch, or several comma-separated
   // (Inventory's location filter lets people pick more than one). Empty means
   // every branch; undefined is returned so callers can skip the clause.
-  const inventoryLocationMatch = (location) => {
+  const inventoryLocationMatch = (location: unknown) => {
     const list = String(location || '').split(',').map(s => s.trim()).filter(Boolean);
     if (!list.length) return undefined;
     return list.length === 1 ? list[0] : { $in: list };
@@ -49,7 +69,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   // Shared by /summary and /items so the two never drift apart on what a
   // given search/category/location/status combination actually matches.
   const buildInventoryItemQuery = ({ search = '', category = '', location = '', status = '', product = '' } = {}) => {
-    const query = {};
+    const query: QueryFilter<Record<string, any>> = {};
     if (product) query.product = product;
     if (category) query.category = category;
     const locationMatch = inventoryLocationMatch(location);
@@ -153,8 +173,8 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
 
   router.get('/items', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
     try {
-      const page = Math.max(1, parseInt(req.query.page) || 1);
-      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 25));
+      const page = Math.max(1, parseInt(String(req.query.page || '')) || 1);
+      const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '')) || 25));
       const query = buildInventoryItemQuery(req.query);
 
       const [items, total] = await Promise.all([
@@ -182,8 +202,8 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   // rather than shipping every slab of every product up front.
   router.get('/items/grouped', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
     try {
-      const page = Math.max(1, parseInt(req.query.page) || 1);
-      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+      const page = Math.max(1, parseInt(String(req.query.page || '')) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '')) || 20));
       const filterQuery = buildInventoryItemQuery(req.query);
 
       const [result] = await InventoryItem.aggregate([
@@ -211,11 +231,11 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       ]);
 
       const canViewPrices = req.user.permissions.includes('view_inventory_prices');
-      const groups = (result?.data || []).map(g => {
+      const groups = (result?.data || []).map((g: Record<string, any>) => {
         // Keys must cover every bucket SLAB_STATUS_BUCKET can return, or that
         // bucket's ++ would land on undefined and ship NaN to the UI.
-        const statusCounts = { available: 0, hold: 0, so: 0, pickticket: 0, packinglist: 0, transfer: 0, other: 0 };
-        g.statuses.forEach(s => { statusCounts[SLAB_STATUS_BUCKET(s)]++; });
+        const statusCounts: Record<string, number> = { available: 0, hold: 0, so: 0, pickticket: 0, packinglist: 0, transfer: 0, other: 0 };
+        g.statuses.forEach((s: string) => { statusCounts[SLAB_STATUS_BUCKET(s)]++; });
         return {
           product: g._id,
           category: g.category,
@@ -280,7 +300,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
         let velocityPerDay = null;
         let daysOfSupply = null;
         if (sale) {
-          const periodDays = Math.max(1, (new Date(sale.periodEnd) - new Date(sale.periodStart)) / (1000 * 60 * 60 * 24));
+          const periodDays = Math.max(1, (new Date(sale.periodEnd).getTime() - new Date(sale.periodStart).getTime()) / (1000 * 60 * 60 * 24));
           velocityPerDay = sale.quantitySold / periodDays;
           daysOfSupply = velocityPerDay > 0 ? item.availableQuantity / velocityPerDay : null;
         }
@@ -322,7 +342,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   const PARSED_UPLOAD_TTL = 10 * 60 * 1000;
   const parsedUploads = new Map(); // id → { kind, userId, parsed, at }
 
-  const rememberParsedUpload = (kind, userId, parsed) => {
+  const rememberParsedUpload = (kind: string, userId: string, parsed: any) => {
     const now = Date.now();
     for (const [id, entry] of parsedUploads) {
       if (now - entry.at > PARSED_UPLOAD_TTL || (entry.kind === kind && entry.userId === userId)) parsedUploads.delete(id);
@@ -332,7 +352,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
     return id;
   };
 
-  const takeParsedUpload = (id, kind, userId) => {
+  const takeParsedUpload = (id: unknown, kind: string, userId: string) => {
     const entry = id ? parsedUploads.get(String(id)) : null;
     if (!entry || entry.kind !== kind || entry.userId !== userId || Date.now() - entry.at > PARSED_UPLOAD_TTL) return null;
     parsedUploads.delete(String(id));
@@ -340,25 +360,75 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   };
 
   /** The parsed import for an apply: the previewed one by uploadId, else the uploaded file. */
-  const parsedImportFor = async (req, kind) => {
+  const parsedImportFor = async (req: Request, kind: Parameters<typeof runWorkbookParse>[0]) => {
     const kept = takeParsedUpload(req.body?.uploadId, kind, String(req.user?.id || ''));
     if (kept) return kept;
     if (!req.file) return null;
     return runWorkbookParse(kind, req.file.buffer);
   };
 
+  router.get('/in-transit', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
+    try {
+      const shipments = await InventoryTransitShipment.find().sort({ poNumber: 1, containerNumber: 1 }).lean();
+      res.json({ shipments });
+    } catch (error) {
+      console.error('In-transit inventory error:', error);
+      res.status(500).json({ message: 'Failed to load in-transit containers' });
+    }
+  });
+
+  router.post('/import/transit/preview', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+      const parsed = await runWorkbookParse('inventory-transit', req.file.buffer);
+      const { headers, mapping, missingRequired, rows, errors, diagnostics, warnings } = parsed;
+      const uploadId = missingRequired.length || errors.length || !rows.length ? null
+        : rememberParsedUpload('inventory-transit', String(req.user?.id || ''), parsed);
+      res.json({ headers, mapping, missingRequired, errors, diagnostics, warnings, totalRows: rows.length,
+        shipmentCount: groupTransitShipments(rows).length, sample: rows.slice(0, 10), uploadId });
+    } catch (error) {
+      res.status(400).json({ message: `Preview failed: ${(error instanceof Error ? error.message : String(error))}` });
+    }
+  });
+
+  router.post('/import/transit/apply', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
+    try {
+      const parsed = await parsedImportFor(req, 'inventory-transit');
+      if (!parsed) return res.status(req.body?.uploadId ? 410 : 400).json({ message: 'Select the in-transit file again' });
+      if (parsed.missingRequired.length || parsed.errors.length || !parsed.rows.length) {
+        return res.status(400).json({ message: parsed.errors[0] ||
+          (parsed.missingRequired.length ? `Missing columns: ${parsed.missingRequired.join(', ')}` : 'No INTRANSIT product rows found') });
+      }
+      const shipments = groupTransitShipments(parsed.rows);
+      const importedAt = new Date();
+      const importedByName = req.user?.displayName || req.user?.contactName || req.user?.username || '';
+      await withDbRetry(() => InventoryTransitShipment.bulkWrite(shipments.map(shipment => ({
+        updateOne: {
+          filter: { poNumber: shipment.poNumber, containerNumber: shipment.containerNumber, location: shipment.location },
+          update: { $set: { ...shipment, importedAt, importedByName } }, upsert: true
+        }
+      }))));
+      req.app.get('io')?.emit('inventory_analysis_update');
+      res.json({ success: true, count: parsed.rows.length, shipmentCount: shipments.length, importedAt });
+    } catch (error) {
+      console.error('In-transit import error:', error);
+      res.status(400).json({ message: `Import failed: ${(error instanceof Error ? error.message : String(error))}` });
+    }
+  });
+
   router.post('/import/stock/preview', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
       // Parsed in a worker thread, not on this request's own thread — see
-      // runWorkbookParse.js for why an uploaded file needs that isolation.
-      const parsed = await runWorkbookParse('inventory-stock', req.file.buffer);
+      // runWorkbookParse.ts for why an uploaded file needs that isolation.
+      const parsed = { ...await runWorkbookParse('inventory-stock', req.file.buffer),
+        sourceFilename: req.file.originalname, sourceHash: createHash('sha256').update(req.file.buffer).digest('hex') };
       const { headers, mapping, missingRequired, rows } = parsed;
       const uploadId = missingRequired.length ? null : rememberParsedUpload('inventory-stock', String(req.user?.id || ''), parsed);
       res.json({ success: true, headers, mapping, missingRequired, totalRows: rows.length, sample: rows.slice(0, 10), uploadId });
     } catch (error) {
       console.error('Inventory stock import preview error:', error);
-      res.status(400).json({ message: `Preview failed: ${error.message}` });
+      res.status(400).json({ message: `Preview failed: ${(error instanceof Error ? error.message : String(error))}` });
     }
   });
 
@@ -376,49 +446,19 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
         return res.status(400).json({ message: 'No data rows found in file' });
       }
 
-      const importedAt = new Date();
-      const importedByName = req.user?.displayName || req.user?.contactName || req.user?.username || '';
-      const importedById = req.user?.id ? String(req.user.id) : null;
-      // Written lean — straight to the collection, without building a Mongoose
-      // document per row. The parser already gives every field its final type
-      // (strings trimmed, numbers and dates converted, rows without a product
-      // dropped), so the per-row casting and validation only cost time on the
-      // ~11k-row file. Lean also skips the automatic timestamps and version key,
-      // set here so the rows match what a normal insert writes.
-      // Each row gets its _id here, before it's sent, so a batch resent after
-      // a dropped connection can't write any row twice (src/utils/dbRetry.js).
-      const docs = rows.map(r => ({ _id: new mongoose.Types.ObjectId(), ...r, importedAt, importedByName, importedById, createdAt: importedAt, updatedAt: importedAt, __v: 0 }));
-
-      // Insert the new snapshot BEFORE removing the old one. This used to
-      // delete everything first — if insertMany then threw partway through
-      // (a bad row, a dropped connection), the whole InventoryItems collection
-      // was left empty with no way back, the same class of data-loss incident
-      // as the Daily Work Report bug documented in CLAUDE.md. `importedAt` is
-      // identical for every row in this batch, so it doubles as a batch tag:
-      // on failure, only this batch's (possibly partial) rows are removed and
-      // the previous snapshot is untouched.
-      try {
-        // 1,000 rows per send, each send repeated if the connection drops
-        // ("SSL alert bad record mac" and the like) — one ~12 MB write over
-        // the long link to the database used to fail the whole import on a
-        // single bad packet. A snapshot is all or nothing: any row refused
-        // outright fails it, and the partial batch is cleared below.
-        const refused = await insertInBatches(InventoryItem, docs, { insertOptions: { lean: true } });
-        if (refused.size) {
-          const [index, message] = refused.entries().next().value;
-          throw new Error(`Row ${index + 1} could not be saved: ${message}`);
-        }
-      } catch (insertErr) {
-        await withDbRetry(() => InventoryItem.deleteMany({ importedAt })).catch(() => {});
-        throw insertErr;
-      }
-      await withDbRetry(() => InventoryItem.deleteMany({ importedAt: { $ne: importedAt } }));
+      const result = await importInventoryStock({
+        rows,
+        sourceFilename: req.file?.originalname || parsed.sourceFilename || '',
+        sourceHash: req.file ? createHash('sha256').update(req.file.buffer).digest('hex') : parsed.sourceHash || '',
+        importedByName: req.user?.displayName || req.user?.contactName || req.user?.username || '',
+        importedById: req.user?.id ? String(req.user.id) : null,
+      });
 
       req.app.get('io')?.emit('inventory_analysis_update');
-      res.json({ success: true, count: docs.length, importedAt });
+      res.json({ success: true, ...result });
     } catch (error) {
       console.error('Inventory stock import apply error:', error);
-      res.status(400).json({ message: `Import failed: ${error.message}` });
+      res.status(400).json({ message: `Import failed: ${(error instanceof Error ? error.message : String(error))}` });
     }
   });
 
@@ -431,7 +471,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       res.json({ success: true, headers, mapping, missingRequired, totalRows: rows.length, sample: rows.slice(0, 10), detected, uploadId });
     } catch (error) {
       console.error('Inventory sales import preview error:', error);
-      res.status(400).json({ message: `Preview failed: ${error.message}` });
+      res.status(400).json({ message: `Preview failed: ${(error instanceof Error ? error.message : String(error))}` });
     }
   });
 
@@ -483,16 +523,16 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       try {
         const refused = await insertInBatches(
           InventorySalesRecord,
-          rows.map(r => ({ _id: new mongoose.Types.ObjectId(), ...r, location, periodStart, periodEnd, importedAt, importedByName, importedById }))
+          rows.map((r: Record<string, any>) => ({ _id: new mongoose.Types.ObjectId(), ...r, location, periodStart, periodEnd, importedAt, importedByName, importedById }))
         );
         if (refused.size) {
-          const [index, message] = refused.entries().next().value;
+          const [index, message] = refused.entries().next().value!;
           throw new Error(`Row ${index + 1} could not be saved: ${message}`);
         }
       } catch (insertErr) {
         await withDbRetry(() => InventorySalesRecord.deleteMany({ location, periodStart, periodEnd })).catch(() => {});
         if (previousDocs.length) {
-          const restoreDocs = previousDocs.map(({ _id, __v, ...rest }) => rest);
+          const restoreDocs = previousDocs.map(({ _id, __v, ...rest }: Record<string, any>) => rest);
           await withDbRetry(() => InventorySalesRecord.insertMany(restoreDocs, { ordered: false })).catch(() => {});
         }
         throw insertErr;
@@ -502,7 +542,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       res.json({ success: true, count: rows.length, location, periodStart, periodEnd });
     } catch (error) {
       console.error('Inventory sales import apply error:', error);
-      res.status(400).json({ message: `Import failed: ${error.message}` });
+      res.status(400).json({ message: `Import failed: ${(error instanceof Error ? error.message : String(error))}` });
     }
   });
 
