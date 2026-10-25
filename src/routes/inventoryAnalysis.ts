@@ -10,14 +10,28 @@
  * and clear their remembered answers (src/api/inventoryAnalysisCache.js).
  */
 import express from 'express';
+import type { RequestHandler } from 'express';
+import type { Multer } from 'multer';
+import type { Model, QueryFilter } from 'mongoose';
+
+// Authentication is supplied by server.js before any handler runs.
+declare module 'express-serve-static-core' {
+  interface Request {
+    user: { id?: string; username?: string; displayName?: string; contactName?: string; permissions: string[] };
+  }
+}
 import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
-import InventoryItem from '../models/InventoryItem.js';
-import InventorySalesRecord from '../models/InventorySalesRecord.js';
+import InventoryItemModel from '../models/InventoryItem.js';
+const InventoryItem = InventoryItemModel as Model<Record<string, any>>;
+import InventorySalesRecordModel from '../models/InventorySalesRecord.js';
+const InventorySalesRecord = InventorySalesRecordModel as Model<Record<string, any>>;
+import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
+import { groupTransitShipments } from '../utils/inventoryTransitImport.ts';
 import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.js';
-// Parses run in a worker thread — see runWorkbookParse.js for why an uploaded
+// Parses run in a worker thread — see runWorkbookParse.ts for why an uploaded
 // file needs that isolation.
-import { runWorkbookParse } from '../utils/runWorkbookParse.js';
+import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
 // Big writes go in batches that survive a dropped database connection.
 import { insertInBatches, withDbRetry } from '../utils/dbRetry.js';
 
@@ -27,10 +41,16 @@ import { insertInBatches, withDbRetry } from '../utils/dbRetry.js';
  * @param {Function} deps.requirePermission - server.js's permission middleware
  * @param {object} deps.uploadMemory - server.js's in-memory multer instance
  */
-export default function createInventoryAnalysisRouter({ authenticate, requirePermission, uploadMemory }) {
+interface InventoryRouterDependencies {
+  authenticate: RequestHandler;
+  requirePermission: (permission: string) => RequestHandler;
+  uploadMemory: Multer;
+}
+
+export default function createInventoryAnalysisRouter({ authenticate, requirePermission, uploadMemory }: InventoryRouterDependencies) {
   const router = express.Router();
 
-  // Two SPS exports feed this feature (see src/utils/inventoryImport.js):
+  // Two SPS exports feed this feature (see src/utils/inventoryImport.ts):
   // - "stock": a full mirror of on-hand slabs/lots, wiped and replaced whole on
   //   every import since it's a point-in-time snapshot, not a ledger.
   // - "sales": per-product sold totals for a location+date-range period, kept
@@ -49,7 +69,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   // Shared by /summary and /items so the two never drift apart on what a
   // given search/category/location/status combination actually matches.
   const buildInventoryItemQuery = ({ search = '', category = '', location = '', status = '', product = '' } = {}) => {
-    const query = {};
+    const query: QueryFilter<Record<string, any>> = {};
     if (product) query.product = product;
     if (category) query.category = category;
     const locationMatch = inventoryLocationMatch(location);
@@ -153,8 +173,8 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
 
   router.get('/items', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
     try {
-      const page = Math.max(1, parseInt(req.query.page) || 1);
-      const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 25));
+      const page = Math.max(1, parseInt(String(req.query.page || '')) || 1);
+      const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '')) || 25));
       const query = buildInventoryItemQuery(req.query);
 
       const [items, total] = await Promise.all([
@@ -182,8 +202,8 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   // rather than shipping every slab of every product up front.
   router.get('/items/grouped', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
     try {
-      const page = Math.max(1, parseInt(req.query.page) || 1);
-      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+      const page = Math.max(1, parseInt(String(req.query.page || '')) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '')) || 20));
       const filterQuery = buildInventoryItemQuery(req.query);
 
       const [result] = await InventoryItem.aggregate([
@@ -280,7 +300,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
         let velocityPerDay = null;
         let daysOfSupply = null;
         if (sale) {
-          const periodDays = Math.max(1, (new Date(sale.periodEnd) - new Date(sale.periodStart)) / (1000 * 60 * 60 * 24));
+          const periodDays = Math.max(1, (new Date(sale.periodEnd).getTime() - new Date(sale.periodStart).getTime()) / (1000 * 60 * 60 * 24));
           velocityPerDay = sale.quantitySold / periodDays;
           daysOfSupply = velocityPerDay > 0 ? item.availableQuantity / velocityPerDay : null;
         }
@@ -347,11 +367,60 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
     return runWorkbookParse(kind, req.file.buffer);
   };
 
+  router.get('/in-transit', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
+    try {
+      const shipments = await InventoryTransitShipment.find().sort({ poNumber: 1, containerNumber: 1 }).lean();
+      res.json({ shipments });
+    } catch (error) {
+      console.error('In-transit inventory error:', error);
+      res.status(500).json({ message: 'Failed to load in-transit containers' });
+    }
+  });
+
+  router.post('/import/transit/preview', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+      const parsed = await runWorkbookParse('inventory-transit', req.file.buffer);
+      const { headers, mapping, missingRequired, rows, errors } = parsed;
+      const uploadId = missingRequired.length || errors.length || !rows.length ? null
+        : rememberParsedUpload('inventory-transit', String(req.user?.id || ''), parsed);
+      res.json({ headers, mapping, missingRequired, errors, totalRows: rows.length,
+        shipmentCount: groupTransitShipments(rows).length, sample: rows.slice(0, 10), uploadId });
+    } catch (error) {
+      res.status(400).json({ message: `Preview failed: ${error.message}` });
+    }
+  });
+
+  router.post('/import/transit/apply', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
+    try {
+      const parsed = await parsedImportFor(req, 'inventory-transit');
+      if (!parsed) return res.status(req.body?.uploadId ? 410 : 400).json({ message: 'Select the in-transit file again' });
+      if (parsed.missingRequired.length || parsed.errors.length || !parsed.rows.length) {
+        return res.status(400).json({ message: parsed.errors[0] ||
+          (parsed.missingRequired.length ? `Missing columns: ${parsed.missingRequired.join(', ')}` : 'No INTRANSIT product rows found') });
+      }
+      const shipments = groupTransitShipments(parsed.rows);
+      const importedAt = new Date();
+      const importedByName = req.user?.displayName || req.user?.contactName || req.user?.username || '';
+      await withDbRetry(() => InventoryTransitShipment.bulkWrite(shipments.map(shipment => ({
+        updateOne: {
+          filter: { poNumber: shipment.poNumber, containerNumber: shipment.containerNumber, location: shipment.location },
+          update: { $set: { ...shipment, importedAt, importedByName } }, upsert: true
+        }
+      }))));
+      req.app.get('io')?.emit('inventory_analysis_update');
+      res.json({ success: true, count: parsed.rows.length, shipmentCount: shipments.length, importedAt });
+    } catch (error) {
+      console.error('In-transit import error:', error);
+      res.status(400).json({ message: `Import failed: ${error.message}` });
+    }
+  });
+
   router.post('/import/stock/preview', authenticate, requirePermission('import_inventory_analysis'), uploadMemory.single('file'), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
       // Parsed in a worker thread, not on this request's own thread — see
-      // runWorkbookParse.js for why an uploaded file needs that isolation.
+      // runWorkbookParse.ts for why an uploaded file needs that isolation.
       const parsed = await runWorkbookParse('inventory-stock', req.file.buffer);
       const { headers, mapping, missingRequired, rows } = parsed;
       const uploadId = missingRequired.length ? null : rememberParsedUpload('inventory-stock', String(req.user?.id || ''), parsed);

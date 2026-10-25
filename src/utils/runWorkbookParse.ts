@@ -1,6 +1,6 @@
 /**
  * Parse an uploaded workbook with a hard ceiling on how long it's allowed to
- * take — see workbookParseWorker.js for why this has to be an actual worker
+ * take — see workbookParseWorker.ts for why this has to be an actual worker
  * thread rather than a same-thread timeout, which cannot preempt a
  * synchronous parse that never yields.
  *
@@ -8,9 +8,10 @@
  * an occasional, human-triggered action (someone picking a file and clicking
  * Import), not a hot path worth the complexity of keeping workers warm for.
  */
+import type { WorkbookParseKind } from '../types/inventory.ts';
 import { Worker } from 'node:worker_threads';
 
-const WORKER_PATH = new URL('./workbookParseWorker.js', import.meta.url);
+const WORKER_PATH = new URL('./workbookParseWorker.ts', import.meta.url);
 
 // Generous relative to any real export this app has ever produced (SPS's
 // largest inventory snapshot so far is ~10,500 rows and parses in well under
@@ -19,16 +20,16 @@ const WORKER_PATH = new URL('./workbookParseWorker.js', import.meta.url);
 const DEFAULT_TIMEOUT_MS = 20_000;
 
 /**
- * @param {'inventory-stock'|'inventory-sales'|'customer'} kind - which parser
- *   in workbookParseWorker.js's PARSERS map to run.
+ * @param {'inventory-stock'|'inventory-sales'|'inventory-transit'|'customer'} kind - which parser
+ *   in workbookParseWorker.ts's PARSERS map to run.
  * @param {Buffer} buffer - the uploaded file, exactly as multer handed it to
  *   the route (memory storage, so already a Buffer, not a stream).
  * @param {number} [timeoutMs]
  * @returns {Promise<any>} whatever the underlying parser normally returns.
  */
-export function runWorkbookParse(kind, buffer, timeoutMs = DEFAULT_TIMEOUT_MS) {
-  return new Promise((resolve, reject) => {
-    const worker = new Worker(WORKER_PATH, { workerData: { kind, buffer } });
+export function runWorkbookParse(kind: WorkbookParseKind, buffer: Buffer, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<any> {
+  return new Promise<any>((resolve, reject) => {
+    const worker = new Worker(WORKER_PATH, { workerData: { kind, buffer }, execArgv: [...process.execArgv, '--import', 'tsx'] });
     let settled = false;
 
     const finish = (fn, arg) => {
@@ -55,7 +56,7 @@ export function runWorkbookParse(kind, buffer, timeoutMs = DEFAULT_TIMEOUT_MS) {
     });
 
     // A crash inside the worker that never reached the try/catch in
-    // workbookParseWorker.js (e.g. an out-of-memory kill) — surfaces here
+    // workbookParseWorker.ts (e.g. an out-of-memory kill) — surfaces here
     // instead of taking down the request, which is the whole point of the
     // isolation.
     worker.once('error', (err) => finish(reject, err));

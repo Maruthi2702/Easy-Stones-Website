@@ -7,7 +7,7 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "start": "node server.js",
+    "start": "node --import tsx server.js",
     "dev": "vite",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck:inventory": "tsc -p tsconfig.inventory.json"
   },
   "dependencies": {
     "@react-google-maps/api": "^2.20.7",
@@ -43,14 +44,19 @@
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "tesseract.js": "^7.0.0",
+    "tsx": "^4.23.15",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^3.25.76",
     "zxing-wasm": "2.1.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
+    "@types/supertest": "^7.2.1",
     "@vitejs/plugin-react": "^4.7.0",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -59,6 +65,7 @@
     "globals": "^16.5.0",
     "mongodb-memory-server": "^11.3.0",
     "supertest": "^7.3.1",
+    "typescript": "^7.0.2",
     "vite": "^5.4.21",
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^4.1.10"

@@ -17,16 +17,18 @@
  * A worker thread is the actual fix: it has its own JS heap and its own
  * timeline, so the main thread — everyone else's requests, the socket.io
  * board updates, the auto-submit job's clock — keeps running while this one
- * parse does whatever it does, and runWorkbookParse.js can forcibly
+ * parse does whatever it does, and runWorkbookParse.ts can forcibly
  * worker.terminate() this whole thread if it runs too long, which no amount
  * of Promise.race() on the main thread could ever do to code that never
  * yields.
  */
 import { parentPort, workerData } from 'node:worker_threads';
-import { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './inventoryImport.js';
+import { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './inventoryImport.ts';
 import { readCustomerSheet } from './customerImport.js';
+import { parseInventoryTransitWorkbook } from './inventoryTransitImport.ts';
 
 const PARSERS = {
+  'inventory-transit': parseInventoryTransitWorkbook,
   'inventory-stock': parseInventoryStockWorkbook,
   'inventory-sales': parseInventorySalesWorkbook,
   customer: readCustomerSheet

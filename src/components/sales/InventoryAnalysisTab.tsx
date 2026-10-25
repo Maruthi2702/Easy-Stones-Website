@@ -3,17 +3,17 @@ import {
   Boxes, Upload, RefreshCw, Search, Filter, Package, DollarSign,
   Layers, Clock, AlertTriangle, TrendingDown, ChevronRight
 } from 'lucide-react';
+import type { InventoryImportKind, InventoryImportResult } from '../../types/inventory';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { peekInventory, rememberInventory, clearInventoryCache } from '../../api/inventoryAnalysisCache';
-import CustomSelect from '../shared/CustomSelect';
-import LocationFilter from '../shared/LocationFilter';
+import { CustomSelect, LocationFilter, Pagination } from '../../types/inventoryLegacyComponents';
 import { useLocationsFilter } from '../shared/useLocationFilter';
 import InventoryLocationField from './InventoryLocationField';
 import { splitInventoryLocations, defaultInventoryLocations } from '../../utils/inventoryLocations';
-import Pagination from '../shared/Pagination';
 import { usePagination } from '../shared/paginationConfig';
 import InventoryImportModal from './InventoryImportModal';
+import InventoryTransitPanel from './InventoryTransitPanel';
 import { fmtMoney, fmtNum, ageDays, STATUS_ORDER, STATUS_LABEL, dominantStatus } from './inventoryFormat';
 import InventorySlabList from './InventorySlabList';
 import { CART, can } from '../../holds/permissions';
@@ -49,7 +49,7 @@ const fetchInventoryJson = async (url) => {
 };
 
 const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refreshSignal = 0 }) => {
-  const [view, setView] = useState('stock'); // 'stock' | 'reorder'
+  const [view, setView] = useState<'stock' | 'reorder' | 'transit'>('stock'); // 'stock' | 'reorder' | 'transit'
   const [summary, setSummary] = useState(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
   // Tracked separately from `summary` (which reflects the active filters) so
@@ -104,7 +104,9 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   const [velocityRows, setVelocityRows] = useState([]);
   const [loadingVelocity, setLoadingVelocity] = useState(false);
 
-  const [importModal, setImportModal] = useState(null); // 'stock' | 'sales' | null
+  const [transitRefresh, setTransitRefresh] = useState(0);
+  const [importResult, setImportResult] = useState('');
+  const [importModal, setImportModal] = useState<InventoryImportKind | null>(null); // 'stock' | 'sales' | 'transit' | null
 
   const userPermissions = currentUser?.permissions || [];
   // Permission-only, no role shortcut: admin/director hold both grants by
@@ -298,7 +300,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   };
 
   // Shared by the modal's onComplete and by the socket-driven refresh below,
-  // so an import applied from another tab/user (see src/routes/inventoryAnalysis.js's
+  // so an import applied from another tab/user (see src/routes/inventoryAnalysis.ts's
   // 'inventory_analysis_update' emit) refreshes this screen the same way
   // finishing an import locally does.
   const refreshAll = useCallback(() => {
@@ -313,7 +315,12 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     fetchVelocity();
   }, [fetchSummary, fetchFilterOptions, checkHasAnyInventory, fetchGroups, fetchVelocity]);
 
-  const handleImportComplete = () => {
+  const handleImportComplete = (data: InventoryImportResult) => {
+    if (importModal === 'transit') {
+      setView('transit');
+      setTransitRefresh(value => value + 1);
+      setImportResult(`Imported ${data.count} product lines across ${data.shipmentCount} shipments.`);
+    }
     setImportModal(null);
     refreshAll();
   };
@@ -355,8 +362,11 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
           {sidebarToggle}
           <h2 className="invan-title-text">Inventory Analysis</h2>
         </div>
-        {canImport && !hasNoData && (
+        {canImport && (
           <div className="invan-header-actions">
+            <button type="button" className="invan-btn-import secondary" onClick={() => setImportModal('transit')}>
+              <Upload size={15} /> <span>Import In-Transit</span>
+            </button>
             <button type="button" className="invan-btn-import secondary" onClick={() => setImportModal('sales')}>
               <Upload size={15} /> <span className="invan-btn-text-full">Import Sales History</span><span className="invan-btn-text-short">Sales</span>
             </button>
@@ -374,7 +384,14 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
         )}
       </p>
 
-      {initialLoading ? (
+      <div className="invan-view-toggle">
+        <button type="button" className={view === 'stock' ? 'active' : ''} onClick={() => setView('stock')}>Stock Detail</button>
+        <button type="button" className={view === 'reorder' ? 'active' : ''} onClick={() => setView('reorder')}>Reorder & Velocity</button>
+        <button type="button" className={view === 'transit' ? 'active' : ''} onClick={() => setView('transit')}>In-Transit</button>
+      </div>
+      {importResult && <p role="status">{importResult}</p>}
+      {view === 'transit' ? <InventoryTransitPanel refreshSignal={`${refreshSignal}-${transitRefresh}`} canImport={canImport}
+        onImport={() => setImportModal('transit')} /> : initialLoading ? (
         <div className="invan-loading"><RefreshCw size={24} className="invan-spin-icon" /><span>Loading inventory analysis...</span></div>
       ) : hasNoData ? (
         <div className="invan-empty-state">
@@ -444,12 +461,6 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
               </div>
             </div>
           )}
-
-          <div className="invan-view-toggle">
-            <button type="button" className={view === 'stock' ? 'active' : ''} onClick={() => setView('stock')}>Stock Detail</button>
-            <button type="button" className={view === 'reorder' ? 'active' : ''} onClick={() => setView('reorder')}>Reorder & Velocity</button>
-          </div>
-
           {view === 'stock' && (
             <>
               <div className="invan-filter-bar">

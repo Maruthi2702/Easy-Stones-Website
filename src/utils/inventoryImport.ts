@@ -38,7 +38,7 @@ const TR_RE = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
 const TH_RE = /<th[^>]*>([\s\S]*?)<\/th>/gi;
 const TD_RE = /<td[^>]*>([\s\S]*?)<\/td>/gi;
 
-const parseHtmlRows = (text) => {
+export const parseHtmlRows = (text) => {
   const stripTags = (s) => s
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(/<[^>]*>/g, '')
@@ -99,7 +99,7 @@ const isBinaryWorkbook = (buffer) =>
  * HTML-disguised export, decided by magic bytes rather than guessing from
  * content shape.
  */
-const loadRows = (buffer, sheetHint) => {
+const loadRows = (buffer: Buffer, sheetHint?: string) => {
   if (!isBinaryWorkbook(buffer)) {
     const parsed = parseHtmlRows(buffer.toString('utf8'));
     return { headers: parsed.headers, rows: parsed.rows, rawFirstCell: parsed.rawText };
@@ -110,7 +110,7 @@ const loadRows = (buffer, sheetHint) => {
   const sheet = wb.Sheets[sheetName];
   if (!sheet) throw new Error('The file has no readable sheet');
 
-  const grid = utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+  const grid = utils.sheet_to_json<string[]>(sheet, { header: 1, raw: false, defval: '' });
   const headerIndex = grid.findIndex(r => r.some(c => c !== ''));
   if (headerIndex === -1) throw new Error('The sheet has no header row');
 
@@ -153,7 +153,7 @@ const NUMERIC_FIELDS = new Set([
 const DATE_FIELDS = new Set(['receivedDate']);
 
 const buildRow = (r, mapping, columns) => {
-  const row = {};
+  const row: Record<string, any> = {};
   for (const [field] of columns) {
     const raw = r[mapping[field]];
     if (DATE_FIELDS.has(field)) row[field] = dateOrNull(raw);

@@ -3,12 +3,13 @@ dotenv.config();
 
 import mongoose from 'mongoose';
 // The one list of models needing indexes, shared with server.js's own startup
-// sync — see src/config/indexedModels.js for why this used to be two
+// sync — see src/config/indexedModels.ts for why this used to be two
 // hand-maintained arrays that had already drifted apart (this file was
 // missing DailyReport, InventoryItem, InventorySalesRecord, ContactSubmission,
 // SalesResource and SalesDashboardResource; server.js's own list was missing
 // some of the same ones).
-import { INDEXED_MODELS } from './src/config/indexedModels.js';
+import { tsImport } from 'tsx/esm/api';
+const { INDEXED_MODELS } = await tsImport('./src/config/indexedModels.ts', import.meta.url);
 
 const mongoOptions = {
   serverSelectionTimeoutMS: 5000,

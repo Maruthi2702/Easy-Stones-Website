@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "checkJs": false,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": [
+      "node",
+      "vite/client"
+    ],
+    "strict": false
+  },
+  "include": [
+    "src/components/sales/InventoryAnalysisTab.tsx",
+    "src/components/sales/InventoryImportModal.tsx",
+    "src/components/sales/InventoryTransitPanel.tsx",
+    "src/config/indexedModels.ts",
+    "src/routes/inventoryAnalysis.ts",
+    "src/routes/inventoryTransit.test.ts",
+    "src/models/InventoryTransitShipment.ts",
+    "src/utils/inventoryImport.ts",
+    "src/utils/inventoryTransitImport.ts",
+    "src/utils/inventoryTransitImport.test.ts",
+    "src/utils/runWorkbookParse.ts",
+    "src/utils/workbookParseWorker.ts"
+  ]
+}
