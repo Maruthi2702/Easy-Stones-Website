@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Printer, Download, X, AlertTriangle, Loader2 } from 'lucide-react';
 import { fetchHoldPdf } from '../../../api/holds';
 import { LETTER_HIDE } from '../../../holds/holdLetter';
 import type { Hold } from '../types';
+import { renderPages } from './letterPdf';
+import { printPdf, downloadPdf } from './letterOutput';
 import './HoldPrintPreview.css';
 
 /**
@@ -11,6 +13,7 @@ import './HoldPrintPreview.css';
  * boxes, then Print / Download PDF. The pages shown are the PDF itself, drawn
  * with pdf.js, so what's on screen is exactly what prints — there is one
  * letter (src/holds/holdPdf.js), not a screen copy that could drift from it.
+ * Drawing the pages is letterPdf.ts; printing and saving, letterOutput.ts.
  */
 
 const HIDE_KEY = 'holdLetterHide';
@@ -22,56 +25,6 @@ const readHide = (): Hide => {
 const saveHide = (hide: Hide) => {
   try { localStorage.setItem(HIDE_KEY, JSON.stringify(hide)); } catch { /* remembered for this visit only */ }
 };
-
-// Safari (and every iPhone/iPad browser) can't print a PDF from inside the
-// page; it opens in its own tab there, where Print / Share does the rest.
-const printsInTab = () => {
-  const ua = navigator.userAgent;
-  const iOS = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-  const safari = /Safari/.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|Edg/.test(ua);
-  return iOS || safari;
-};
-
-type Pdfjs = typeof import('pdfjs-dist/legacy/build/pdf.min.mjs');
-let pdfjsPromise: Promise<Pdfjs> | null = null;
-/** pdf.js, loaded the first time a preview opens (legacy build: older iPhones too). */
-function loadPdfjs(): Promise<Pdfjs> {
-  if (!pdfjsPromise) {
-    pdfjsPromise = Promise.all([
-      import('pdfjs-dist/legacy/build/pdf.min.mjs'),
-      import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url')
-    ]).then(([pdfjs, worker]) => {
-      pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-      return pdfjs;
-    }).catch((err) => { pdfjsPromise = null; throw err; });
-  }
-  return pdfjsPromise;
-}
-
-/** Draw every page of `blob` as canvases inside `host`. */
-async function renderPages(blob: Blob, host: HTMLElement | null, isCurrent: () => boolean) {
-  const pdfjs = await loadPdfjs();
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false }).promise;
-  try {
-    const canvases = [];
-    for (let n = 1; n <= doc.numPages; n += 1) {
-      const page = await doc.getPage(n);
-      const viewport = page.getViewport({ scale: 1.7 });
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
-      canvas.className = 'hp-page';
-      canvas.setAttribute('role', 'img');
-      canvas.setAttribute('aria-label', `Page ${n} of ${doc.numPages}`);
-      await page.render({ canvasContext: canvas.getContext('2d') as CanvasRenderingContext2D, viewport, canvas }).promise;
-      if (!isCurrent()) return;
-      canvases.push(canvas);
-    }
-    if (isCurrent()) (host as HTMLElement).replaceChildren(...canvases);
-  } finally {
-    doc.destroy();
-  }
-}
 
 export default function HoldPrintPreview({ hold, onClose }: { hold: Hold; onClose: () => void }) {
   const [hide, setHide] = useState(readHide);
@@ -124,34 +77,12 @@ export default function HoldPrintPreview({ hold, onClose }: { hold: Hold; onClos
 
   const print = () => {
     if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
-    if (printsInTab()) {
-      window.open(url, '_blank');
-      return;
-    }
-    frameRef.current?.remove();
-    const frame = document.createElement('iframe');
-    frame.className = 'hp-print-frame';
-    frame.title = 'Print';
-    frame.src = url;
-    frame.onload = () => {
-      try { frame.contentWindow!.focus(); frame.contentWindow!.print(); } catch { window.open(url, '_blank'); }
-    };
-    document.body.appendChild(frame);
-    frameRef.current = frame;
+    printPdf(blob, frameRef);
   };
 
   const download = () => {
     if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `hold-${hold.number}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    downloadPdf(blob, `hold-${hold.number}.pdf`);
   };
 
   return createPortal(

@@ -1,8 +1,12 @@
 import { editHoldDetails, changeHoldSlabs, swapHoldSlab, extendHold, releaseHold } from '../../../api/holds';
 import { longDate, slabCount } from '../../../utils/holdView';
 import { cartActions } from '../cartStore';
-import { DetailsForm, ExtendForm, ReleaseForm, SwapForm, AddSlabsForm } from '../forms/HoldForms';
-import type { AddedSlab, OfferedSlab } from '../forms/HoldForms';
+import DetailsForm from '../forms/DetailsForm';
+import ExtendForm from '../forms/ExtendForm';
+import ReleaseForm from '../forms/ReleaseForm';
+import SwapForm from '../forms/SwapForm';
+import AddSlabsForm from '../forms/AddSlabsForm';
+import type { AddedSlab, OfferedSlab } from '../forms/AddSlabsForm';
 import HoldPrintPreview from '../print/HoldPrintPreview';
 import type { CartLine, Hold, HoldLine } from '../types';
 import type { FormSave, OpenForm } from './holdPageActions';

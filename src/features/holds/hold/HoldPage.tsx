@@ -5,7 +5,7 @@ import { lotGroups, holdTotals, priceCentsOf, holdState } from '../../../holds/h
 import { CART, can } from '../../../holds/permissions';
 import { expiryLine, holdActions, cartSlabsFor } from '../../../utils/holdView';
 import type { HoldLine } from '../types';
-import type { OfferedSlab } from '../forms/HoldForms';
+import type { OfferedSlab } from '../forms/AddSlabsForm';
 import type { CurrentUser } from '../../../types/records';
 import { useCart, cartActions } from '../cartStore';
 import { useMenu } from './useMenu';
