@@ -8,7 +8,15 @@ export type Policy = {
   mixGroup: string;
   active: boolean;
 };
+export type SalesCoverageConfirmation = {
+  cohortId: string;
+  through: string;
+  confirmedAt: string | Date;
+  confirmedBy: { id: string | null; name: string };
+  source: 'scope-form' | 'owner-confirmation';
+};
 export type Scope = {
+  salesCoverageConfirmation?: SalesCoverageConfirmation | null;
   _id: string;
   __v: number;
   name: string;

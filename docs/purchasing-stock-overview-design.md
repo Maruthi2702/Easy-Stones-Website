@@ -199,3 +199,21 @@ creation from estimated inputs; TypeScript and build passed. Chromium verified
 the actual component's estimate, warnings, custom-day balance, disabled purchase
 selection, themes and phone containment. Database inspection was read-only;
 no report dates, import metadata or attestations were changed.
+
+## Confirmed sales period versus import metadata
+
+A manager can explicitly confirm the report's actual observed-through date when
+it conflicts with saved import metadata. The server stamps the actor/time and
+binds the evidence to the exact cohort revision and date. Changing the report
+or cutoff invalidates that evidence. The source import timestamp is preserved.
+
+The scope form accepts dates within the report range and no later than today;
+a conflict requires the explicit date confirmation. This supports a historical
+coverage estimate while retaining the metadata-conflict warning and all purchase
+validation. The owner's September 30, 2026 confirmation was recorded narrowly
+for the existing Seattle report, with a prior-state backup and optimistic
+version check. No sales records or warehouse coverage flags were changed.
+
+Verification: 77 rule/API/render tests, strict typecheck and build passed.
+Chromium verified the real form restores confirmation, rejects an unconfirmed
+conflicting date and submits the confirmed date without changing import time.

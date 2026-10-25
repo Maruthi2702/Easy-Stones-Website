@@ -441,3 +441,20 @@ describe('advisory stock coverage API', () => {
     expect(attempted.body.error).toMatch(/resolve planning inputs/i);
   });
 });
+
+describe('confirming actual sales coverage', () => {
+  it('records server-stamped confirmation for a conflicting import date and retains the original timestamps', async () => {
+    const legacyImport = new Date('2026-09-28T20:00:00Z');
+    await InventorySalesRecord.updateMany({}, { $set: { importedAt: legacyImport } });
+    const meta = (await api('get', '/metadata')).body;
+    const { body } = await setup({ observedThrough: '2026-09-27' });
+    const request = { ...body, cohortId: meta.cohorts[0].id, observedThrough: '2026-09-30' };
+    await api('post', '/scopes').send(request).expect(400);
+    const saved = await api('post', '/scopes').send({ ...request, salesCoverageDateConfirmed: true }).expect(201);
+    expect(saved.body.salesCoverageConfirmation).toMatchObject({ cohortId: meta.cohorts[0].id, through: '2026-09-30',
+      source: 'scope-form', confirmedBy: { id: ADMIN.id, name: ADMIN.displayName } });
+    expect((await InventorySalesRecord.findOne().lean()).importedAt.toISOString()).toBe(legacyImport.toISOString());
+    await api('post', '/scopes').send({ ...request, salesCoverageDateConfirmed: true, observedThrough: '2026-11-01' }).expect(400);
+    await api('post', '/scopes').send({ ...request, salesCoverageConfirmation: saved.body.salesCoverageConfirmation }).expect(400);
+  });
+});

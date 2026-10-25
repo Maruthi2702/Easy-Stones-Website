@@ -7,6 +7,14 @@ const scope = new Schema(
     branches: [String],
     cohortId: String,
     observedThrough: String,
+    salesCoverageConfirmation: {
+      type: new Schema({
+        cohortId: { type: String, required: true }, through: { type: String, required: true },
+        confirmedAt: { type: Date, required: true },
+        confirmedBy: { id: { type: String, default: null }, name: { type: String, required: true } },
+        source: { type: String, enum: ['scope-form', 'owner-confirmation'], required: true },
+      }, { _id: false }), default: null,
+    },
     fullSalesCoverage: Boolean,
     stockSnapshotId: String,
     stockCoverageConfirmed: Boolean,

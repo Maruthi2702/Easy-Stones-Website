@@ -359,3 +359,24 @@ describe('estimated days of stock', () => {
     expect((screen.getByRole('checkbox', { name: 'Select Quartz 3CM' }) as HTMLInputElement).disabled).toBe(true);
   });
 });
+
+describe('confirming a report date separately from upload time', () => {
+  it('opens with an existing confirmation checked and preserves it when saving', async () => {
+    const legacyScope = { ...scope, observedThrough: '2026-09-30', salesCoverageConfirmation: {
+      cohortId: 'cohort', through: '2026-09-30', confirmedAt: '2026-10-25T20:00:00Z',
+      confirmedBy: { id: null, name: 'Workspace owner' }, source: 'owner-confirmation' as const } };
+    const legacyCohort = { ...plan.cohort!, start: '2026-01-01', end: '2026-09-30', importedAt: '2026-09-08T07:14:03Z' };
+    vi.mocked(purchasingApi.metadata).mockResolvedValue({ ...metadata, scopes: [legacyScope], cohorts: [legacyCohort] });
+    vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, scope: legacyScope, cohort: legacyCohort });
+    vi.mocked(purchasingApi.saveScope).mockResolvedValue(legacyScope);
+    render(<PurchasingWorkbench currentUser={{ permissions: ['view_purchasing', 'manage_purchasing'] }} />);
+    await screen.findByRole('button', { name: 'Quartz 3CM' });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit scope & variant policies' }));
+    const confirmed = screen.getByRole('checkbox', { name: /I verified the report contains actual sales through 2026-09-30/ });
+    expect((confirmed as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Save planning scope' }));
+    await waitFor(() => expect(purchasingApi.saveScope).toHaveBeenCalledWith(expect.objectContaining({
+      observedThrough: '2026-09-30', salesCoverageDateConfirmed: true,
+    }), 'scope'));
+  });
+});

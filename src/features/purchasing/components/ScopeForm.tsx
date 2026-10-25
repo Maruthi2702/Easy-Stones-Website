@@ -4,6 +4,7 @@ import { DatePicker } from '../../../components/shared/calendar/Calendar';
 import type { Metadata, Scope, Policy } from '../../../purchasing/types';
 import { purchasingApi, download, csv } from '../purchasingApi';
 import { parsePolicyCsv, policyHeaders } from '../policyCsv';
+import { hasConfirmedSalesThrough } from '../../../purchasing/salesCoverage';
 import { todayPacific } from '../../../purchasing/planning';
 const emptyPolicy = (): Policy => ({
   product: '',
@@ -20,6 +21,7 @@ const initial = (meta: Metadata, scope?: Scope) => ({
   branches: scope?.branches || [],
   cohortId: scope?.cohortId || meta.cohorts[0]?.id || '',
   observedThrough: scope?.observedThrough || '',
+  salesCoverageDateConfirmed: scope ? hasConfirmedSalesThrough(scope, scope.cohortId) : false,
   fullSalesCoverage: scope?.fullSalesCoverage || false,
   stockCoverageConfirmed: false,
   freeStockValidated: scope?.freeStockValidated || false,
@@ -61,12 +63,14 @@ export default function ScopeForm({
       value.policies.map((p, n) => (n === i ? { ...p, [key]: next } : p)),
     );
   const cohort = metadata.cohorts.find((c) => c.id === value.cohortId);
-  const cutoffMax = [todayPacific(new Date()), cohort?.end, cohort?.importedAt ? todayPacific(new Date(cohort.importedAt)) : null].filter((day): day is string => !!day).sort()[0];
+  const cutoffMax = [todayPacific(new Date()), cohort?.end].filter((day): day is string => !!day).sort()[0];
+  const importDateConflict = !!cohort && value.observedThrough > todayPacific(new Date(cohort.importedAt));
   async function submit() {
     setSaving(true);
     setError('');
     try {
-      if (value.observedThrough > cutoffMax) throw new Error(`Observed sales cutoff must be on or before ${cutoffMax}, when this report was available.`);
+      if (value.observedThrough > cutoffMax) throw new Error(`Observed sales cutoff must be on or before ${cutoffMax}, inside the report period.`);
+      if (importDateConflict && !value.salesCoverageDateConfirmed) throw new Error('Confirm the actual report coverage date because it differs from the saved import timestamp.');
       const saved = await purchasingApi.saveScope(
         { ...value, stockSnapshotId: snapshotAtOpen, ...(scope ? { version: scope.__v } : {}) },
         scope?._id,
@@ -131,6 +135,7 @@ export default function ScopeForm({
             onChange={(e) => {
               change('cohortId', e.target.value);
               change('observedThrough', '');
+              change('salesCoverageDateConfirmed', false);
               change('fullSalesCoverage', false);
             }}
           >
@@ -149,12 +154,17 @@ export default function ScopeForm({
           <span>Observed through</span>
           <DatePicker
             value={value.observedThrough}
-            onChange={(v) => change('observedThrough', v)}
+            onChange={(v) => { change('observedThrough', v); change('salesCoverageDateConfirmed', false); }}
             ariaLabel="Observed sales cutoff"
             min={cohort?.start}
             max={cutoffMax}
           />
         </div>
+        {importDateConflict && <label className="purchase-check">
+          <input type="checkbox" checked={value.salesCoverageDateConfirmed}
+            onChange={e => change('salesCoverageDateConfirmed', e.target.checked)} />
+          I verified the report contains actual sales through {value.observedThrough}, despite the conflicting saved import timestamp.
+        </label>}
         {(
           ['fullSalesCoverage', 'stockCoverageConfirmed', 'freeStockValidated', 'policyConfirmed'] as const
         ).map((field, i) => (
