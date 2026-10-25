@@ -158,6 +158,36 @@ already on `main`, kept as they were.
 - [ ] Extend hold (`forms/ExtendForm.tsx`) opens with +7 days already picked
       and counts that as a change, so closing it untouched asks "Discard?".
 
+## Sales Planner — other
+
+Found while moving the module into `src/features/salesPlanner` (2026-10-25);
+all already on `main`, kept as they were.
+
+- [ ] The planner does its own date arithmetic in local `Date` objects
+      instead of `calendarDates.js` (CLAUDE.md "Dates"): `dayKey`, `localISO`,
+      `startOfDay`, `addDays`, `mondayOf`, `dayOffset`, `atMinutes`,
+      `rangeFor`, `weekdaysOf` / `weekendOf` / `weeksBetween`, `titleFor` in
+      `salesPlanner.ts`, and the period step in `useSalesPlannerData.ts`.
+      Moved as they were; folding them into `calendarDates.js` is a separate
+      change.
+- [ ] Month view → Next / Previous on the 29th–31st skips a month: the step is
+      `setMonth(month ± 1)` with no clamp (`stepPeriod` in
+      `useSalesPlannerData.ts`), so Oct 31 → "Nov 31" = Dec 1. The edge-of-screen
+      flip during a drag goes the same way. `calendarDates.js`'s `shiftMonth`
+      clamps the 31st.
+- [ ] A refused delete does nothing: `confirmDelete` (`useActivityEditor.ts`)
+      only acts on `response.ok`, so the check stays open with no message.
+- [ ] "Today" is worked out once when the planner opens (`today` in
+      `useSalesPlannerData.ts`): left open past midnight, the Today tag, the
+      "N stops today" chip and the column highlight stay on yesterday until the
+      tab is reopened.
+- [ ] The Customer field passed `required` to `SearchableSelect`, which never
+      read it (the `*` and the "Pick a customer" check are the planner's own).
+      Dropped in the move; nothing changes.
+- [ ] Its styles are the "Sales Planner" section of `src/pages/SalesPage.css`
+      (`.pl-*`), not a file of its own: moving them out would change the built
+      CSS order, so they stay until that sheet is split.
+
 ## Operations tabs review — fix this week (by Fri 2026-10-09)
 
 Found in a code review of Delivery Schedule, Daily Report and Check-In Log on

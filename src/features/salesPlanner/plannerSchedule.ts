@@ -1,6 +1,6 @@
-import { API_URL } from '../config/api';
+import { API_URL } from '../../config/api';
 import { io, type Socket } from 'socket.io-client';
-import { authFetch } from './authFetch';
+import { authFetch } from '../../api/authFetch';
 
 /**
  * The sales planner's data layer.
@@ -20,7 +20,19 @@ import { authFetch } from './authFetch';
  */
 
 /** A calendar entry from /api/schedule (src/routes/schedule.js). */
-export type PlannerItem = { _id: string; [key: string]: unknown };
+export type PlannerItem = {
+  _id: string;
+  /** Populated to the customer's name fields, or only its id. */
+  customerId?: { _id?: string; company?: string; contactName?: string; [key: string]: unknown } | string | null;
+  /** Local time, no zone ('YYYY-MM-DDTHH:mm:ss.000'). */
+  startTime: string;
+  endTime?: string;
+  activityType?: string;
+  status?: string;
+  notes?: string;
+  source?: string;
+  [key: string]: unknown;
+};
 type PlannerListener = (key: string, items: PlannerItem[]) => void;
 
 const cache: {
