@@ -330,3 +330,11 @@ cache expiry/tab return/import/sign-out; midnight/freshness boundaries; and
 unchanged historical draft evidence. Performance acceptance is no repeated full
 catalog load for a fresh tab return or unchanged version check, with measured
 workbench latency and bounded query counts before further optimization.
+
+## Stock overview UX proposal
+
+The [stock overview design](purchasing-stock-overview-design.md) specifies total,
+allocated, available and incoming slabs, exact days of cover and a custom-day
+forecast control. It also explains the existing 60/90-day lead-time purchase
+scenarios. The accompanying standalone TSX preview uses illustrative data;
+it is not wired into the live workbench.
