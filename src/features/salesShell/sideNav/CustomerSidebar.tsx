@@ -1,42 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import type React from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-    LayoutDashboard, Home, Pin, PinOff, PanelLeftClose, X, Sun, Moon, LogOut, UserCheck
-} from 'lucide-react';
+import { LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-import { railSections, visiblePinnedTabs, sectionOf, navItem, MAX_PINNED_TABS, isOnePageSection } from '../../../utils/navPins';
+import { railSections, visiblePinnedTabs, sectionOf, MAX_PINNED_TABS, isOnePageSection } from '../../../utils/navPins';
 import { CartRailButton } from '../../holds';
-import { ITEM_ICONS, SECTION_ICONS } from '../../../components/sales/navIcons';
+import { SECTION_ICONS } from '../../../components/sales/navIcons';
 import type { Loose } from '../../../types/records';
+import { readPinTipDismissed, savePinTipDismissed } from './sideNav';
+import type { IconMap, NavSection, RowContext } from './SideNavRow';
+import AccountMenu from './AccountMenu';
+import SideNavPanel from './SideNavPanel';
 import './CustomerSidebar.css';
-
-// New staff: until someone pins a page or taps "Got it", the pin buttons
-// show faintly on every page and a short tip explains them. Per device.
-const PIN_TIP_KEY = 'sideNavPinTipDismissed';
-const readPinTipDismissed = () => {
-    try {
-        return localStorage.getItem(PIN_TIP_KEY) === '1';
-    } catch {
-        return false;
-    }
-};
-
-const getInitials = (name: string | undefined) => {
-    if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-};
-
-/**
- * The Sales CRM side nav (design "Option C"): a rail of sections, and a panel
- * with the person's pinned pages on top and the chosen section's pages below.
- * The first pin is their default page — where /sales opens (SalesPage's
- * getDefaultTab). On phones/tablets (isMobile) the whole thing is a drawer.
- */
-/** A side nav section (navPins.js railSections) and one of its pages. */
-type NavPage = { id: string; label: string; href?: string };
-type NavSection = { id: string; label: string; items: NavPage[] };
-type IconMap = Record<string, React.ComponentType<{ size?: number }>>;
 
 export type CustomerSidebarProps = {
     crmTab: string;
@@ -52,6 +26,13 @@ export type CustomerSidebarProps = {
     navOrder: unknown;
 };
 
+/**
+ * The Sales CRM side nav (design "Option C"): a rail of sections, and a panel
+ * with the person's pinned pages on top and the chosen section's pages below.
+ * The first pin is their default page — where /sales opens (SalesPage's
+ * getDefaultTab). On phones/tablets (isMobile) the whole thing is a drawer.
+ * The panel is SideNavPanel (its rows SideNavRow), the account button AccountMenu.
+ */
 const CustomerSidebar = ({
     crmTab,
     handleCrmTabChange,
@@ -72,11 +53,7 @@ const CustomerSidebar = ({
     const showPinHints = !pinTipDismissed && (pinnedTabs || []).length === 0;
     const dismissPinTip = () => {
         setPinTipDismissed(true);
-        try {
-            localStorage.setItem(PIN_TIP_KEY, '1');
-        } catch {
-            // storage unavailable — the tip just comes back next visit
-        }
+        savePinTipDismissed();
     };
     const sections: NavSection[] = railSections(user, navOrder);
     const pins: string[] = visiblePinnedTabs(user, pinnedTabs);
@@ -167,62 +144,7 @@ const CustomerSidebar = ({
         navigate('/login');
     };
 
-    const renderRow = (item: NavPage, { inPinned = false, index = 0 } = {}) => {
-        const Icon = (ITEM_ICONS as IconMap)[item.id] || LayoutDashboard;
-        const active = crmTab === item.id;
-        const pinned = (pinnedTabs || []).includes(item.id);
-        const isDefault = inPinned && index === 0;
-        return (
-            <div key={`${inPinned ? 'pin' : 'sec'}-${item.id}`} className={`side-nav-row${active ? ' active' : ''}`}>
-                <button
-                    type="button"
-                    className="side-nav-link"
-                    onClick={() => go(item.id)}
-                    aria-current={active ? 'page' : undefined}
-                >
-                    <Icon size={18} />
-                    <span className="side-nav-link-label">{item.label}</span>
-                    {isDefault && (
-                        <span className="side-nav-default-tag" title="Opens first when you sign in">Default</span>
-                    )}
-                </button>
-                {inPinned && !isDefault && (
-                    <button
-                        type="button"
-                        className="side-nav-row-action"
-                        onClick={() => onMakeDefault(item.id)}
-                        aria-label={`Make ${item.label} your default page`}
-                        title="Make default (opens first when you sign in)"
-                    >
-                        <Home size={15} />
-                    </button>
-                )}
-                {item.href ? null : inPinned ? (
-                    <button
-                        type="button"
-                        className="side-nav-row-action"
-                        onClick={() => onTogglePin(item.id)}
-                        aria-label={`Unpin ${item.label}`}
-                        title="Unpin"
-                    >
-                        <PinOff size={15} />
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        className={`side-nav-row-action${pinned ? ' is-pinned' : ''}`}
-                        onClick={() => onTogglePin(item.id)}
-                        disabled={!pinned && pinsFull}
-                        aria-pressed={pinned}
-                        aria-label={pinned ? `Unpin ${item.label}` : `Pin ${item.label}`}
-                        title={pinned ? 'Unpin' : (pinsFull ? `You can pin up to ${MAX_PINNED_TABS} pages` : 'Pin to the top')}
-                    >
-                        <Pin size={15} fill={pinned ? 'currentColor' : 'none'} />
-                    </button>
-                )}
-            </div>
-        );
-    };
+    const rowContext: RowContext = { crmTab, pinnedTabs, pinsFull, onGo: go, onTogglePin, onMakeDefault };
 
     return (
         <nav
@@ -258,129 +180,33 @@ const CustomerSidebar = ({
                 <CartRailButton user={user} />
 
                 {user && (
-                    <div className="side-nav-account" ref={menuRef}>
-                        <button
-                            type="button"
-                            className={`side-nav-avatar${crmTab === 'profile' ? ' is-current' : ''}`}
-                            onClick={() => setMenuOpen(o => !o)}
-                            aria-haspopup="menu"
-                            aria-expanded={menuOpen}
-                            aria-label="Account menu"
-                            title={`${user.contactName || user.name || 'Account'}${user.role ? ` · ${user.role}` : ''}`}
-                        >
-                            {getInitials(user.contactName || user.name)}
-                        </button>
-                        {menuOpen && (
-                            <div className="side-nav-menu" role="menu">
-                                <div className="side-nav-menu-head">
-                                    <span className="side-nav-menu-name">{user.contactName || user.name}</span>
-                                    <span className="side-nav-menu-role">{user.role || 'Sales Rep'}</span>
-                                </div>
-                                <button type="button" role="menuitem" className="side-nav-menu-item" onClick={() => go('profile')}>
-                                    <UserCheck size={16} /><span>My Profile</span>
-                                </button>
-                                <button
-                                    type="button"
-                                    role="menuitem"
-                                    className="side-nav-menu-item"
-                                    onClick={() => { toggleTheme(); setMenuOpen(false); }}
-                                >
-                                    {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-                                    <span>{theme === 'dark' ? 'Light theme' : 'Dark theme'}</span>
-                                </button>
-                                <div className="side-nav-menu-divider" />
-                                <button type="button" role="menuitem" className="side-nav-menu-item danger" onClick={handleLogout}>
-                                    <LogOut size={16} /><span>Sign out</span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    <AccountMenu
+                        user={user}
+                        crmTab={crmTab}
+                        menuOpen={menuOpen}
+                        setMenuOpen={setMenuOpen}
+                        menuRef={menuRef}
+                        theme={theme}
+                        toggleTheme={toggleTheme}
+                        onGo={go}
+                        onLogout={handleLogout}
+                    />
                 )}
             </div>
 
             {/* Pinned + section panel */}
-            {showPanel && (() => {
-                // Hide-panel (desktop) / close-drawer (mobile) button, at the
-                // right end of the panel's first heading rather than a row of its own.
-                const panelButton = isMobile ? (
-                    <button
-                        type="button"
-                        className="side-nav-icon-btn side-nav-head-btn"
-                        onClick={() => setIsSidebarOpen(false)}
-                        aria-label="Close menu"
-                        title="Close menu"
-                    >
-                        <X size={18} />
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        className="side-nav-icon-btn side-nav-head-btn"
-                        onClick={() => { setFlyoutOpen(false); setMenuOpen(false); }}
-                        aria-label="Close menu panel"
-                        title="Close menu panel"
-                    >
-                        <PanelLeftClose size={18} />
-                    </button>
-                );
-                const isHome = shownSection?.id === 'home';
-                const sectionItems = !shownSection ? [] : isHome
-                    ? shownSection.items.filter(item => !pins.includes(item.id))
-                    : shownSection.items;
-                return (
-                <div className={`side-nav-panel${showPinHints ? ' show-pin-hints' : ''}`}>
-                    {/* The section's name as the panel's title, with the
-                        hide-panel / close button beside it. */}
-                    <div className="side-nav-panel-title-row">
-                        <h2 className="side-nav-panel-title">{shownSection?.label}</h2>
-                        <span className="side-nav-title-actions">
-                            {panelButton}
-                        </span>
-                    </div>
-                    <div className="side-nav-panel-body">
-                        {/* Home lists the pins (plus the Dashboard, unless it's
-                            pinned already); every other section only its own pages. */}
-                        {isHome && (
-                            <div className="side-nav-group">
-                                <div className="side-nav-group-label">
-                                    Pinned
-                                    {pins.length > 0 && (
-                                        <span className="side-nav-group-count" title={`You can pin up to ${MAX_PINNED_TABS} pages`}>
-                                            {pins.length}/{MAX_PINNED_TABS}
-                                        </span>
-                                    )}
-                                </div>
-                                {pins.length > 0 ? (
-                                    pins.map((id, index) => renderRow(navItem(id) as NavPage, { inPinned: true, index }))
-                                ) : (
-                                    <p className="side-nav-empty">
-                                        Pin the pages you use most from any section. Your first pin is the page that opens when you sign in.
-                                    </p>
-                                )}
-                            </div>
-                        )}
-
-                        {sectionItems.length > 0 && (
-                            <div className="side-nav-group">
-                                {isHome && <div className="side-nav-group-label">Pages</div>}
-                                {sectionItems.map(item => renderRow(item))}
-                            </div>
-                        )}
-
-                        {/* Home already explains pins in its empty Pinned list. */}
-                        {showPinHints && !isHome && (
-                            <div className="side-nav-tip" role="note">
-                                <div className="side-nav-tip-text">
-                                    <Pin size={16} aria-hidden="true" />
-                                    <p>Tap the pin next to a page to keep it on Home. Your first pin is the page that opens when you sign in.</p>
-                                </div>
-                                <button type="button" className="side-nav-tip-btn" onClick={dismissPinTip}>Got it</button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-                );
-            })()}
+            {showPanel && (
+                <SideNavPanel
+                    isMobile={isMobile}
+                    shownSection={shownSection}
+                    pins={pins}
+                    showPinHints={showPinHints}
+                    ctx={rowContext}
+                    onCloseDrawer={() => setIsSidebarOpen(false)}
+                    onClosePanel={() => { setFlyoutOpen(false); setMenuOpen(false); }}
+                    onDismissPinTip={dismissPinTip}
+                />
+            )}
         </nav>
     );
 };

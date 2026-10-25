@@ -10,7 +10,8 @@
 import { useRef, useState } from 'react';
 import { Upload, Check } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
-import SpsSide, { placeOf } from './SpsSide';
+import SpsSide from './SpsSide';
+import { placeOf } from './spsImport';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import type { Loose } from '../../../types/records';

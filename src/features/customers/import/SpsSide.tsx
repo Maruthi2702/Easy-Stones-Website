@@ -39,6 +39,3 @@ export default function SpsSide({ k, company, contact, phone, email, street, pla
         </div>
     );
 }
-
-/** "Seattle, WA 98101" from the parts that exist. */
-export const placeOf = (city?: string, state?: string, zip?: string): string => [city, [state, zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');

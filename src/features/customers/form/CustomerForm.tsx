@@ -1,28 +1,29 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type React from 'react';
-import { Camera, Info, Plus, Trash2, Upload } from 'lucide-react';
-import Tesseract from 'tesseract.js';
+import { Trash2 } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
-import { FormSection, FormRow, FormField, FormPicker, FormSheet } from '../../../components/shared/form/FormControls';
+import { FormSection, FormRow, FormField, FormPicker } from '../../../components/shared/form/FormControls';
 import type { FormOption } from '../../../components/shared/form/FormControls';
 import { goToField, describedBy } from '../../../components/shared/form/formFocus';
 import useTouched from '../../../components/shared/form/useTouched';
 import useIsPhone from '../../../components/shared/form/useIsPhone';
 import { formatPhoneInput } from '../../../utils/phoneUtils';
-import { parseBusinessCard } from '../../../utils/cardParser';
-import { API_URL } from '../../../config/api';
-import { authFetch } from '../../../api/authFetch';
 import { useStartingRep } from '../../../api/salesRepOptions';
 import RepPicker from '../../../components/shared/form/RepPicker';
-import type { RepOption } from '../../../components/shared/form/RepPicker';
 import LocationPicker from '../../../components/shared/form/LocationPicker';
 import {
     STATUS_OPTIONS, LEVEL_OPTIONS, TYPE_OPTIONS, MODA_DISPLAY_OPTIONS, FIELD_LABELS, withCurrent,
     emptyCustomerValues, customerToFormValues, validateCustomerValues, withEmail, countCustomerChanges,
-    applyCardScan, customerLastChangedText
+    customerLastChangedText
 } from '../../../utils/customerForm';
 import type { CustomerFormValues, CustomerAddress, Option } from '../../../utils/customerForm';
 import type { Loose } from '../../../types/records';
+import { customerRepOptions } from './customerFormView';
+import { useDuplicateCheck } from './useDuplicateCheck';
+import { useZipLookup } from './useZipLookup';
+import { useCardScan } from './useCardScan';
+import { CardMenuButton, CardScanPanel } from './CardScan';
+import DuplicateNotice from './DuplicateNotice';
 import './CustomerForm.css';
 
 /*
@@ -35,13 +36,10 @@ import './CustomerForm.css';
  * Mounted by AddCustomerModal (which keeps its old read-only view), so every
  * caller — Sales CRM, the Customers list, the route planner — gets it with
  * the same onSave(form, close) it already had. The rules are
- * src/utils/customerForm.ts.
+ * src/utils/customerForm.ts; the duplicate check, the ZIP lookup and the
+ * business card are their own hooks here (useDuplicateCheck, useZipLookup,
+ * useCardScan), the card's parts CardScan.tsx.
  */
-
-const ocr = (image: string, onProgress: (percent: number) => void): Promise<string> =>
-    Tesseract.recognize(image, 'eng', {
-        logger: (m) => { if (m.status === 'recognizing text') onProgress(Math.floor(m.progress * 100)); }
-    }).then((r) => r.data.text);
 
 export type CustomerFormProps = {
     onClose: () => void;
@@ -114,189 +112,14 @@ export default function CustomerForm({
     const dirtyCount = countCustomerChanges(values, initial);
 
     // ── Possible duplicates (new customers only; advice, never blocks saving) ──
-    // Same rules as the import and the duplicate audit (customerMatch.js, via
-    // POST /api/customers/possible-duplicates).
-    const [dupMatches, setDupMatches] = useState<{ customer: Loose; signals: string[] }[]>([]);
-    const [dupDismissed, setDupDismissed] = useState(false);
-    const dupSeq = useRef(0);
-    useEffect(() => {
-        if (isEdit) return undefined;
-        const company = values.company.trim();
-        const phone = values.phone.trim();
-        const email = values.email.trim();
-        const seq = ++dupSeq.current;
-        const timer = setTimeout(async () => {
-            if (!company && !phone && !email) { setDupMatches([]); return; }
-            try {
-                const res = await authFetch(`${API_URL}/api/customers/possible-duplicates`, {
-                    method: 'POST',
-                    body: JSON.stringify({ company, phone, email })
-                });
-                if (seq !== dupSeq.current || !res.ok) return;
-                const data = await res.json();
-                if (seq === dupSeq.current) setDupMatches(data.matches || []);
-            } catch {
-                // Advice only; a failed check just shows nothing.
-            }
-        }, 600);
-        return () => clearTimeout(timer);
-    }, [isEdit, values.company, values.phone, values.email]);
+    const { dupMatches, dupDismissed, setDupDismissed } = useDuplicateCheck({ isEdit, company: values.company, phone: values.phone, email: values.email });
 
     // ── ZIP → city/state: only into blank fields; the last ZIP typed wins ──
-    // Looked up when the ZIP field is left; a newer ZIP cancels an older lookup.
-    const [zipNote, setZipNote] = useState('');
-    const [zipQuery, setZipQuery] = useState('');
-    useEffect(() => {
-        if (!/^\d{5}$/.test(zipQuery)) return undefined;
-        let live = true;
-        const zip = zipQuery;
-        (async () => {
-            try {
-                const res = await authFetch(`${API_URL}/api/geocode/zip/${zip}`);
-                if (!live) return;
-                if (!res.ok) {
-                    setZipNote(res.status === 404 ? `No city found for ${zip} — enter it yourself` : 'Couldn’t look up the ZIP — enter the city and state yourself');
-                    return;
-                }
-                const { city, state } = await res.json();
-                if (!live) return;
-                setValues((v) => (v.address.zipCode.trim() !== zip ? v : {
-                    ...v,
-                    address: {
-                        ...v.address,
-                        city: v.address.city.trim() ? v.address.city : (city || v.address.city),
-                        state: v.address.state.trim() ? v.address.state : (state || v.address.state)
-                    }
-                }));
-            } catch {
-                if (live) setZipNote('Couldn’t look up the ZIP — enter the city and state yourself');
-            }
-        })();
-        return () => { live = false; };
-    }, [zipQuery]);
+    const { zipNote, setZipNote, setZipQuery } = useZipLookup(setValues);
 
     // ── Business card: the + next to the ✕ ──
-    const [menuOpen, setMenuOpen] = useState(false);
-    const [scan, setScan] = useState({ status: 'idle', progress: 0, result: '' }); // idle | camera | reading
-    const plusRef = useRef<HTMLDivElement | null>(null);
-    const fileRef = useRef<HTMLInputElement | null>(null);
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-    const streamRef = useRef<MediaStream | null>(null);
-
-    useEffect(() => {
-        if (!menuOpen || isPhone) return undefined;
-        const onDown = (e: MouseEvent) => { if (!plusRef.current?.contains(e.target as Node)) setMenuOpen(false); };
-        document.addEventListener('mousedown', onDown);
-        return () => document.removeEventListener('mousedown', onDown);
-    }, [menuOpen, isPhone]);
-
-    // Bumped by every stop, so a camera that finishes starting after the form
-    // closed (or Stop camera was pressed) is switched off instead of kept.
-    const cameraRun = useRef(0);
-    const stopCamera = () => {
-        cameraRun.current += 1;
-        streamRef.current?.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-        if (videoRef.current) videoRef.current.srcObject = null;
-    };
-    useEffect(() => stopCamera, []);
-
-    const readCard = async (image: string) => {
-        setScan({ status: 'reading', progress: 0, result: '' });
-        try {
-            const text = await ocr(image, (p) => setScan((s) => ({ ...s, progress: p })));
-            const parsed = parseBusinessCard(text);
-            // Whether anything was found depends only on the card; the values
-            // are merged in the updater so typing during the read isn't lost.
-            const { found } = applyCardScan(initial, parsed as Loose | null);
-            if (found) setValues((v) => applyCardScan(v, parsed as Loose | null).values);
-            setScan({ status: 'idle', progress: 0, result: found ? 'filled' : 'nothing' });
-        } catch (err) {
-            console.error('Card scan failed:', err);
-            setScan({ status: 'idle', progress: 0, result: 'failed' });
-        }
-    };
-
-    const startCamera = async () => {
-        setMenuOpen(false);
-        setScan({ status: 'camera', progress: 0, result: '' });
-        const run = ++cameraRun.current;
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
-            });
-            // Closed (or stopped) while the permission prompt was up.
-            if (run !== cameraRun.current) {
-                stream.getTracks().forEach((t) => t.stop());
-                return;
-            }
-            streamRef.current = stream;
-            if (videoRef.current) videoRef.current.srcObject = stream;
-        } catch (err) {
-            console.error('Camera error:', err);
-            setScan({ status: 'idle', progress: 0, result: 'nocamera' });
-        }
-    };
-    const capture = () => {
-        const video = videoRef.current;
-        if (!video || !video.videoWidth) return;
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d')!.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const image = canvas.toDataURL('image/jpeg');
-        stopCamera();
-        readCard(image);
-    };
-    const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        e.target.value = '';
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => readCard(ev.target!.result as string);
-        reader.readAsDataURL(file);
-    };
-    const pickPhoto = () => { setMenuOpen(false); fileRef.current?.click(); };
-
-    const scanNote = ({
-        filled: { tone: 'ok', text: 'Filled in from the card — check the details' },
-        nothing: { tone: 'err', text: 'Couldn’t find contact details on that card. Try again with the card filling the frame.' },
-        failed: { tone: 'err', text: 'Couldn’t read the card. Try again.' },
-        nocamera: { tone: 'err', text: 'Couldn’t open the camera. Allow camera access, or upload a photo instead.' }
-    } as Record<string, { tone: string; text: string }>)[scan.result];
-
-    const cardItems = (
-        <>
-            <button type="button" role="menuitem" className="fm-opt" onClick={startCamera}>
-                <Camera size={18} aria-hidden="true" /><span className="fm-opt-label">Scan card</span>
-            </button>
-            <button type="button" role="menuitem" className="fm-opt" onClick={pickPhoto}>
-                <Upload size={18} aria-hidden="true" /><span className="fm-opt-label">Upload card photo</span>
-            </button>
-        </>
-    );
-
-    const headerActions = (
-        <div
-            className="cf-plus"
-            ref={plusRef}
-            onKeyDown={(e) => { if (e.key === 'Escape' && menuOpen) { e.stopPropagation(); setMenuOpen(false); } }}
-        >
-            <button
-                type="button"
-                className="cf-plus-btn"
-                aria-label="Fill in from a business card"
-                title="Fill in from a business card"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-                disabled={isSaving || scan.status !== 'idle'}
-                onClick={() => setMenuOpen((o) => !o)}
-            >
-                <Plus size={18} strokeWidth={2.4} aria-hidden="true" />
-            </button>
-            {menuOpen && !isPhone && <div className="fm-menu cf-plus-menu" role="menu">{cardItems}</div>}
-        </div>
-    );
+    const { card, refs: cardRefs } = useCardScan({ isPhone, initial, setValues });
+    const { plusRef, fileRef, videoRef, streamRef } = cardRefs;
 
     // ── Save ──
     const submit = () => {
@@ -309,20 +132,8 @@ export default function CustomerForm({
         onSave(values, onClose);
     };
 
-    // Grouped under each rep's branch by RepPicker (the format every rep
-    // dropdown shares). The customer rep list (toSalesRepList) keeps
-    // deactivated reps so the Customer List can still filter by them; nobody
-    // picks one for an account, though — only the rep already on this
-    // customer still shows, and one no longer on the list shows under "Other".
-    const repOptions = (() => {
-        const list: RepOption[] = salesReps
-            .filter((r) => !r.inactive || String(r._id) === String(values.salesRep))
-            .map((r) => ({ value: String(r._id), label: r.name, location: r.location || '', id: String(r._id) }));
-        if (values.salesRep && !list.some((o) => o.value === String(values.salesRep))) {
-            list.push({ value: String(values.salesRep), label: editingCustomer?.salesRepName || 'Rep no longer listed', location: '' });
-        }
-        return list;
-    })();
+    // Grouped under each rep's branch (customerFormView.ts).
+    const repOptions = customerRepOptions(salesReps, values.salesRep, editingCustomer);
 
     const text = (name: string, label: string, { required = false, type = 'text', placeholder, inputMode, autoComplete = 'off', asTyped = false, onBlur, status, error, value, onChange }: TextOptions = {}) => {
         const id = `cf-${name}`;
@@ -365,14 +176,11 @@ export default function CustomerForm({
         </button>
     ) : null;
 
-    const dupName = (m: Loose) => m.company || m.contactName || m.name;
-    const dupMeta = (m: Loose) => [m.address?.city || m.city, m.phone, m.salesRepName || 'Unassigned', m.location || 'Seattle', m.status].filter(Boolean).join(' · ');
-
     return (
         <FormModal
             title={isEdit ? <>Edit customer <span className="fm-title-sub">· {editingCustomer!.company || editingCustomer!.contactName || 'Customer'}</span></> : 'Add a customer'}
             size="m"
-            onClose={() => { stopCamera(); onClose(); }}
+            onClose={() => { card.stopCamera(); onClose(); }}
             onSubmit={submit}
             submitLabel={isEdit ? 'Save changes' : 'Add customer'}
             savingLabel="Saving…"
@@ -385,65 +193,18 @@ export default function CustomerForm({
             fieldLabels={FIELD_LABELS}
             footerStart={footerStart}
             footerNote={isEdit ? customerLastChangedText(editingCustomer!) : null}
-            headerActions={headerActions}
+            headerActions={<CardMenuButton card={card} plusRef={plusRef} isPhone={isPhone} isSaving={isSaving} />}
         >
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={onPhoto} />
-            {isPhone && (
-                <FormSheet open={menuOpen} title="Business card" onClose={() => setMenuOpen(false)}>
-                    <div role="menu" aria-label="Business card">{cardItems}</div>
-                </FormSheet>
-            )}
-
-            {scan.status === 'camera' && (
-                <div className="cf-scan" role="region" aria-label="Scan a business card">
-                    <div className="cf-scan-frame">
-                        <video
-                            ref={(el) => { videoRef.current = el; if (el && streamRef.current && el.srcObject !== streamRef.current) el.srcObject = streamRef.current; }}
-                            autoPlay
-                            playsInline
-                            muted
-                            className="cf-scan-video"
-                        />
-                        <div className="cf-scan-guide" aria-hidden="true" />
-                    </div>
-                    <div className="cf-scan-actions">
-                        <button type="button" className="fm-btn" onClick={() => { stopCamera(); setScan({ status: 'idle', progress: 0, result: '' }); }}>Stop camera</button>
-                        <button type="button" className="fm-btn fm-btn-primary" onClick={capture}><Camera size={16} aria-hidden="true" />Capture</button>
-                    </div>
-                </div>
-            )}
-            {scan.status === 'reading' && (
-                <div className="cf-scan cf-scan-reading" role="status">
-                    <span className="cf-scan-reading-text"><span className="fm-spinner" aria-hidden="true" />Reading the card… {scan.progress}%</span>
-                    <span className="cf-progress"><span style={{ width: `${scan.progress}%` }} /></span>
-                </div>
-            )}
-            {scanNote && scan.status === 'idle' && (
-                <div className={`cf-scan-note${scanNote.tone === 'err' ? ' cf-scan-note-err' : ''}`} role="status">{scanNote.text}</div>
-            )}
+            <CardScanPanel card={card} fileRef={fileRef} videoRef={videoRef} streamRef={streamRef} isPhone={isPhone} />
 
             <FormSection>
                 {text('company', 'Company name', { required: true, error: shown('company'), onBlur: () => touchField('company', values.company !== initial.company) })}
                 {!isEdit && !dupDismissed && dupMatches.length > 0 && (
-                    <div className="cf-dup" role="status">
-                        <Info size={16} aria-hidden="true" />
-                        <div className="cf-dup-body">
-                            <strong>This may be a customer you already have</strong>
-                            {dupMatches.map(({ customer: m, signals }) => (
-                                <div className="cf-dup-row" key={m._id}>
-                                    <div className="cf-dup-text">
-                                        <b>{dupName(m)}</b>
-                                        <span>{dupMeta(m)}</span>
-                                        <span>Matches on: {signals.join(', ')}</span>
-                                    </div>
-                                    {onOpenExisting && (
-                                        <button type="button" className="fm-btn fm-btn-small" onClick={() => { onClose(); onOpenExisting(m); }}>Open it</button>
-                                    )}
-                                </div>
-                            ))}
-                            <button type="button" className="cf-link" onClick={() => setDupDismissed(true)}>It’s a different business</button>
-                        </div>
-                    </div>
+                    <DuplicateNotice
+                        matches={dupMatches}
+                        onOpen={onOpenExisting ? (m) => { onClose(); onOpenExisting(m); } : null}
+                        onDismiss={() => setDupDismissed(true)}
+                    />
                 )}
                 <FormRow>
                     {text('customerName', 'Contact name')}
