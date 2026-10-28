@@ -54,5 +54,5 @@ export interface ReportDetail extends ReportListItem {
   account: string; fleet: string; pageCount: number; review: Omit<ReportReview, 'facts'>;
   warnings: string[]; canViewSource: boolean; priorDateLineCount: number; periodClosed: boolean; currentPublishedReportId: string | null; currentPublishedTotalCents: number | null; currentPublishedRevision: number | null; publishedAt?: string; note?: string;
 }
-export interface DriverOption { key: string; name: string; active: boolean; locations: string[]; kind: 'user' | 'profile' }
+export interface DriverOption { key: string; name: string; active: boolean; locations: string[]; homeLocation?: string; kind: 'user' | 'profile' }
 export interface FuelMetadata { locations: string[]; drivers: DriverOption[]; global: boolean; permissions: string[] }

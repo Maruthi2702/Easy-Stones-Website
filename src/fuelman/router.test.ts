@@ -49,6 +49,26 @@ describe('Fuel Man import and review workflow', () => {
     await api('post', `/reports/${id}/assignments`, { ...user, permissions: [P.VIEW] }).send({}).expect(403);
     expect((await api('get', '/metadata')).body.drivers).toHaveLength(2);
   });
+  it('lists Users with any Driver profile role, excludes expense profiles and validates the selected user on save', async () => {
+    const customId = new mongoose.Types.ObjectId(), officeId = new mongoose.Types.ObjectId();
+    await Role.collection.insertOne({ name: 'custom_courier', displayName: 'Courier profile', permissions: ['delivery_driver_view'] });
+    await Role.collection.insertOne({ name: 'office', permissions: ['view_delivery_schedule'] });
+    await User.collection.insertMany([{ _id: customId, username: 'legacy.driver', role: 'custom_courier', location: 'Seattle', assignedLocations: [], isActive: false },
+      { _id: officeId, username: 'office', displayName: 'Office User', role: 'office' }]);
+    const profile = await FuelProfile.create({ name: 'Old expense profile', kind: 'driver', createdBy: { id: 'old', name: 'Old' } });
+    const metadata = (await api('get', '/metadata')).body;
+    expect(metadata.drivers).toHaveLength(3); expect(metadata.drivers.every((d: { kind: string }) => d.kind === 'user')).toBe(true);
+    expect(metadata.drivers.find((d: { key: string }) => d.key === `user:${customId}`)).toMatchObject({ name: 'Legacy Driver', active: false, locations: ['Seattle'], homeLocation: 'Seattle' });
+    expect(JSON.stringify(metadata.drivers)).not.toContain('password');
+    const id = await upload(), r = await detail(id), body = { ...envelope(r), externalId: 'A', from: r.start, allocations: [{ location: 'Seattle', percent: '100' }], note: 'Verified user selection' };
+    await api('post', `/reports/${id}/assignments`).send({ ...body, driverKey: `user:${officeId}` }).expect(400);
+    await api('post', `/reports/${id}/assignments`).send({ ...body, driverKey: `profile:${profile._id}` }).expect(400);
+    await api('post', `/reports/${id}/assignments`).send({ ...body, driverKey: `user:${customId}`, profileName: 'Spoofed name' }).expect(200);
+    expect((await detail(id)).review.drivers[0]!.driverName).toBe('Legacy Driver');
+    await User.collection.updateOne({ _id: customId }, { $set: { role: 'office' } });
+    await api('post', `/reports/${id}/assignments`).send({ ...body, ...envelope(await detail(id)), driverKey: `user:${customId}` }).expect(400);
+    expect(await FuelProfile.countDocuments()).toBe(1);
+  });
   it('stores the private original, rejects duplicate files/re-exports and reuses mappings', async () => {
     const source = fixtureReport(), id = await upload(source);
     expect(await FuelSource.countDocuments()).toBe(1);
@@ -161,7 +181,7 @@ describe('Fuel Man import and review workflow', () => {
     const id = await upload(fixtureReport('2026-09', ['A', 'B'])), r = await detail(id);
     expect(r.review.drivers).toHaveLength(2);
     expect(r.review.unassigned).toMatchObject({ totalCents: 10500, driverCount: 2, lineCount: 10 });
-    const assignments = r.review.drivers.map((d, i) => ({ externalId: d.externalId, driverKey: '', profileName: d.name, profileKind: 'driver', from: d.suggestedFrom,
+    const assignments = r.review.drivers.map((d, i) => ({ externalId: d.externalId, driverKey: `user:${i ? otherId : driverId}`, from: d.suggestedFrom,
       allocations: [{ location: i ? 'Spokane' : 'Seattle', percent: '100' }] }));
     const payload = { ...envelope(r), note: 'Confirmed first-time driver locations', assignments };
     await api('post', `/reports/${id}/assignments/batch`, { ...user, permissions: [P.VIEW] }).send(payload).expect(403);
@@ -172,15 +192,17 @@ describe('Fuel Man import and review workflow', () => {
     await api('post', `/reports/${id}/assignments/batch`).send(payload).expect(200);
     const next = await detail(id); expect(next.review.ready).toBe(true); expect(next.review.unassigned.lineCount).toBe(0);
     expect(next.review.locations.map(l => [l.location, l.totalCents])).toEqual([['Seattle', 5250], ['Spokane', 5250]]);
-    expect(next.version).toBe(r.version + 1); expect(await FuelProfile.countDocuments()).toBe(2); expect(await FuelExpense.countDocuments()).toBe(0);
-    await api('post', `/reports/${id}/assignments/batch`).send(payload).expect(409); expect(await FuelProfile.countDocuments()).toBe(2);
+    expect(next.version).toBe(r.version + 1); expect(await FuelProfile.countDocuments()).toBe(0); expect(await FuelExpense.countDocuments()).toBe(0);
+    await api('post', `/reports/${id}/assignments/batch`).send(payload).expect(409); expect(await FuelProfile.countDocuments()).toBe(0);
     const october = await upload(fixtureReport('2026-10', ['A', 'B'])); expect((await detail(october)).review.ready).toBe(true);
   });
-  it('supports private expense profiles without creating a website account and acknowledges late statement dates', async () => {
+  it('requires existing driver users and acknowledges late statement dates without creating profiles', async () => {
     const source = fixtureReport('2026-09'); source.lines[0]!.date = '2026-08-20';
     const id = await upload(source), r = await detail(id), beforeUsers = await User.countDocuments();
     await api('post', `/reports/${id}/assignments`).send({ ...envelope(r), externalId: 'A', driverKey: '', profileName: 'Shared Fleet', profileKind: 'shared',
-      from: '2026-08-01', allocations: [{ location: 'Seattle', percent: '100' }], note: 'Shared cost account' }).expect(200);
+      from: '2026-08-01', allocations: [{ location: 'Seattle', percent: '100' }], note: 'Shared cost account' }).expect(400);
+    await assign(id, 'A', 'Seattle', `user:${driverId}`, '2026-08-01');
+    expect(await FuelProfile.countDocuments()).toBe(0);
     expect(await User.countDocuments()).toBe(beforeUsers);
     expect((await publish(id)).status).toBe(400); expect((await publish(id, { acknowledgePriorDates: true })).status).toBe(200);
     expect((await api('get', '/pnl?month=2026-09')).body.totalCents).toBe(5250); expect((await api('get', '/pnl?month=2026-08')).body.totalCents).toBe(0);

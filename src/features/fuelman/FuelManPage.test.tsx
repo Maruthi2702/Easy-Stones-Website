@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import FuelManPage from './FuelManPage';
 import AssignmentForm from './forms/AssignmentForm';
 import DecisionForm from './forms/DecisionForm';
+import SetupDriversForm from './forms/SetupDriversForm';
 import { fuelApi } from './api';
 import { fixtureReport } from '../../fuelman/testing/fixtures';
 import { buildReview } from '../../fuelman/review';
@@ -12,10 +13,10 @@ import type { Assignment, FuelMetadata, ReportDetail } from '../../fuelman/types
 vi.mock('./api', () => ({ fuelApi: { metadata: vi.fn(), revision: vi.fn(), reports: vi.fn(), detail: vi.fn(), command: vi.fn() }, downloadFuel: vi.fn() }));
 const meta: FuelMetadata = { global: true, locations: ['Seattle', 'Spokane'], drivers: [{ key: 'user:1', name: 'Driver Alpha', active: true, locations: ['Seattle'], kind: 'user' }], permissions: ALL_FUEL_MAN_PERMISSIONS };
 const mapping: Assignment = { id: '1', externalId: 'A', driverKey: 'user:1', driverName: 'Driver Alpha', from: '2026-07-01', to: '', allocations: [{ location: 'Seattle', basisPoints: 10000 }] };
-function report(mapped = true): ReportDetail {
-  const source = fixtureReport(), { facts: _facts, ...review } = buildReview(source, mapped ? [mapping] : [], [], [], 'snapshot');
+function report(mapped = true, ids = ['A']): ReportDetail {
+  const source = fixtureReport('2026-07', ids), { facts: _facts, ...review } = buildReview(source, mapped ? [mapping] : [], [], [], 'snapshot');
   return { id: 'report1', version: 2, revision: 1, company: source.company, month: source.month, start: source.start, end: source.end,
-    totalCents: source.totalCents, employeeCount: 1, lineCount: 5, filename: 'report.pdf', status: 'draft', importedAt: '2026-08-01T00:00:00.000Z', importedBy: 'Finance',
+    totalCents: source.totalCents, employeeCount: source.employees.length, lineCount: source.lines.length, filename: 'report.pdf', status: 'draft', importedAt: '2026-08-01T00:00:00.000Z', importedBy: 'Finance',
     account: source.account, fleet: source.fleet, pageCount: 2, review, warnings: source.warnings, canViewSource: true, priorDateLineCount: 0,
     periodClosed: false, currentPublishedReportId: null, currentPublishedTotalCents: null, currentPublishedRevision: null };
 }
@@ -64,12 +65,35 @@ describe('Fuel Man screens', () => {
     render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Assign locations' }));
     const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Driver from Users & Roles' }));
+    fireEvent.click(screen.getByRole('option', { name: /Driver Alpha/ }));
+    expect(screen.queryByText('Create expense profile from report')).toBeNull();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Use one location for this group' }));
     fireEvent.click(screen.getByRole('option', { name: 'Seattle' })); fireEvent.click(within(dialog).getByRole('button', { name: 'Apply to all 1 drivers' }));
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Assignment note' }), { target: { value: 'Confirmed location' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save 1 assignments' })); await screen.findByRole('alert');
-    expect(fuelApi.command).toHaveBeenCalledWith('report1', 'assignments/batch', expect.objectContaining({ token: report(false).review.token, assignments: [expect.objectContaining({ externalId: 'A', driverKey: '', profileName: 'Driver Alp', allocations: [{ location: 'Seattle', percent: '100' }] })] }));
+    expect(fuelApi.command).toHaveBeenCalledWith('report1', 'assignments/batch', expect.objectContaining({ token: report(false).review.token, assignments: [expect.objectContaining({ externalId: 'A', driverKey: 'user:1', allocations: [{ location: 'Seattle', percent: '100' }] })] }));
     expect((within(dialog).getByRole('textbox', { name: 'Assignment note' }) as HTMLTextAreaElement).value).toBe('Confirmed location');
+  });
+  it('offers existing Driver users, excludes standalone expense profiles and fills an unambiguous profile location', async () => {
+    const r = report(false);
+    render(<AssignmentForm report={r} driver={r.review.drivers[0]!} metadata={{ ...meta, drivers: [...meta.drivers, { key: 'profile:legacy', name: 'Legacy expense', active: true, locations: [], kind: 'profile' }] }} onClose={vi.fn()} onSaved={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Driver from Users & Roles' }));
+    expect(screen.queryByRole('option', { name: /Legacy expense|New driver|Create expense profile/ })).toBeNull();
+    fireEvent.click(screen.getByRole('option', { name: /Driver Alpha/ }));
+    expect(screen.getByRole('button', { name: 'Cost location' }).textContent).toContain('Seattle');
+    expect(screen.queryByRole('textbox', { name: 'Profile name' })).toBeNull();
+  });
+  it('saves confirmed Driver-user matches while leaving unmatched report rows pending', async () => {
+    vi.mocked(fuelApi.command).mockResolvedValue({}); const saved = vi.fn(), r = report(false, ['A', 'B']);
+    render(<SetupDriversForm report={r} metadata={meta} onClose={vi.fn()} onSaved={saved} />);
+    expect((screen.getByRole('button', { name: 'Save assignments' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Driver from Users & Roles' })[0]!);
+    fireEvent.click(screen.getByRole('option', { name: /Driver Alpha/ }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Assignment note' }), { target: { value: 'Confirmed first match; second is pending' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save 1 assignments' })); await waitFor(() => expect(saved).toHaveBeenCalledOnce());
+    const body = vi.mocked(fuelApi.command).mock.calls[0]![2] as { assignments: { externalId: string; driverKey: string }[] };
+    expect(body.assignments).toHaveLength(1); expect(body.assignments[0]).toMatchObject({ externalId: 'A', driverKey: 'user:1' });
   });
   it('retains the original review token and typed note after a stale assignment rejection', async () => {
     const r = report(), onSaved = vi.fn(); vi.mocked(fuelApi.command).mockRejectedValue(Object.assign(new Error('This review changed. Refresh before saving; your form remains open.'), { status: 409 }));

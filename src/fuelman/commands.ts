@@ -1,6 +1,6 @@
 import type { ClientSession } from 'mongoose';
 import type { z } from 'zod';
-import { FuelAssignment, FuelProfile, FuelReport } from './models.ts';
+import { FuelAssignment, FuelReport } from './models.ts';
 import type { Actor } from './models.ts';
 import { checkedDraft, fleetTransaction, history, reportFor, reviewFor } from './storage.ts';
 import { driverOptions } from './access.ts';
@@ -26,16 +26,9 @@ async function applyAssignment(report: Awaited<ReturnType<typeof reportFor>>, bo
     basisPoints: Number(a.percent.split('.')[0]) * 100 + Number((a.percent.split('.')[1] || '').padEnd(2, '0')) }));
   if (allocations.some(a => !allowedLocations.includes(a.location) || a.basisPoints <= 0) || new Set(allocations.map(a => a.location)).size !== allocations.length ||
     allocations.reduce((s, a) => s + a.basisPoints, 0) !== 10000) throw new HttpError(400, 'Choose distinct valid locations adding to exactly 100%');
-  let driverKey = body.driverKey, driverName: string;
-  if (!driverKey) {
-    if (!body.profileName.trim()) throw new HttpError(400, 'Choose a driver or enter a new profile name');
-    const [profile] = await FuelProfile.create([{ name: body.profileName, kind: body.profileKind, createdBy: actor }], { session });
-    driverKey = `profile:${profile!._id}`; driverName = profile!.name;
-  } else {
-    const option = options.find(d => d.key === driverKey);
-    if (!option) throw new HttpError(400, 'The selected driver no longer exists');
-    driverName = option.name;
-  }
+  const option = options.find(d => d.kind === 'user' && d.key === body.driverKey);
+  if (!option) throw new HttpError(400, 'Choose a user with a Driver profile in Users & Roles');
+  const driverKey = option.key, driverName = option.name;
   const rows = await FuelAssignment.find({ scopeKey: report.scopeKey, externalId: body.externalId }).session(session).sort({ from: 1 }).lean();
   const next = rows.find(a => a.from > body.from);
   for (const row of rows.filter(a => a.from < body.from && (!a.to || a.to > body.from)))

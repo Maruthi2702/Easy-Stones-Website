@@ -4,6 +4,7 @@ import { CATEGORIES, REASONS } from './types.ts';
 const day = z.string().refine(validDay, 'Choose a valid date');
 const text = z.string().trim().min(1).max(500);
 const command = { version: z.number().int().min(0), token: z.string().length(64) };
+// Legacy profile fields are accepted for cached clients; assignment always requires a Driver user ID.
 export const mappingSchema = z.object({ externalId: text,
   driverKey: z.string().max(100).default(''), profileName: z.string().trim().max(150).default(''), profileKind: z.enum(['driver', 'shared']).default('driver'),
   from: day, allocations: z.array(z.object({ location: text, percent: z.string().regex(/^\d{1,3}(?:\.\d{1,2})?$/, 'Use a percentage with up to two decimals') }).strict()).min(1).max(20),

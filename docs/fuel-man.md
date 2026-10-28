@@ -11,11 +11,12 @@ No new dependencies are required.
 1. Upload one or several complete calendar-month PDFs. The backend determines
    the dates, account and fleet. Start review with the earliest month.
 2. On the first report, assign each reported employee number to a system
-   driver or an expense-only driver/shared profile and cost location. Multiple
+   user with a Driver profile in Users & Roles and a cost location. Multiple
    locations must total exactly 100%. Effective dates support transfers.
    **Assign locations** opens a group form for up to 100 unmatched drivers;
    each identity/location is confirmed, with an optional user-selected location
-   applied to the group. The backend saves the group atomically.
+   applied to the group. Save completed matches while others remain pending.
+   The backend saves the submitted group atomically.
 3. Later reports reuse dated assignments. Names and ID suffixes never decide
    the branch. Possible name matches are suggestions requiring confirmation.
 4. Give every missing identity a reason and note. No activity, leave and
@@ -50,8 +51,11 @@ No new dependencies are required.
 - Reported IDs are scoped to account + fleet and retained exactly. They are
   labels, not guaranteed immutable person IDs. Aliases require a confirmed
   system-driver match. Station location never implies the cost location.
-- An expense profile is separate from a website login. Historical inactive
-  drivers remain available for explicit mapping.
+- The driver picker reads existing Users whose role grants Driver view,
+  including custom driver roles. Report imports never create users or separate
+  driver profiles. A selected user's unambiguous home location prefills an empty
+  cost location for confirmation; manual splits and locations are preserved.
+  Historical inactive drivers remain available for explicit mapping.
 
 ## Backend structure
 
@@ -68,7 +72,7 @@ Collections:
 | `acct_fuelman_reports` | Immutable parsed source, revision and review decisions |
 | `acct_fuelman_sources` | Private original PDF, excluded from ordinary queries |
 | `acct_fuelman_assignments` | Dated reported-ID → driver → location shares |
-| `acct_fuelman_profiles` | Expense-only drivers/shared fleet accounts |
+| `acct_fuelman_profiles` | Legacy expense profiles retained for existing history |
 | `acct_fuelman_expenses` | Approved, immutable transaction/location facts |
 | `acct_fuelman_periods` | Current published revision and period close state |
 | `acct_fuelman_state` | Fleet transaction fence and change revision |
@@ -135,7 +139,7 @@ fact revisions.
 - Disposable-replica-set API tests: mapping reuse, dated allocation, missing
   reasons/aliases, roster correction, unknown categories, duplicates, concurrent
   approvals, stale review tokens, corrected revisions, period close/reversal,
-  expense-only profiles and branch privacy.
+  Driver user selection and branch privacy.
 - React tests: allocation preview, action permissions, blocked approval,
   preserved input after stale rejection and pre-statement acknowledgement.
 - Manual browser automation against the three supplied July/August/September

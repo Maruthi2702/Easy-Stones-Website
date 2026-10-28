@@ -2,7 +2,7 @@ import type { ClientSession } from 'mongoose';
 import LocationModel from '../models/Location.js';
 import UserModel from '../models/User.js';
 import RoleModel from '../models/Role.js';
-import { FuelProfile } from './models.ts';
+import { displayNameOf } from '../utils/salesReps.js';
 import { HttpError } from './http.ts';
 import type { DriverOption } from './types.ts';
 interface UserAccess { assignedLocations?: string[]; permissions?: string[] }
@@ -22,8 +22,10 @@ export async function requireGlobal(user: UserAccess, session: ClientSession | n
 }
 export async function driverOptions(session: ClientSession | null = null): Promise<DriverOption[]> {
   const roles = await Role.find({ permissions: 'delivery_driver_view' }, 'name').session(session).lean();
-  const people = await User.find({ role: { $in: roles.map(r => r.name) } }, 'username displayName assignedLocations isActive').session(session).sort({ displayName: 1, username: 1 }).lean();
-  const profiles = await FuelProfile.find().session(session).sort({ name: 1 }).lean();
-  return [...people.map(u => ({ key: `user:${u._id}`, name: u.displayName || u.username, active: u.isActive !== false, locations: u.assignedLocations || [], kind: 'user' as const })),
-    ...profiles.map(p => ({ key: `profile:${p._id}`, name: p.name, active: true, locations: [], kind: 'profile' as const }))];
+  const people = await User.find({ role: { $in: roles.map(r => r.name) } }, 'username displayName location assignedLocations isActive').session(session).sort({ displayName: 1, username: 1 }).lean();
+  return people.map(u => {
+    const locations = u.assignedLocations?.length ? u.assignedLocations : u.location ? [u.location] : [];
+    const homeLocation = u.location && (locations.includes('*') || locations.includes(u.location)) ? u.location : locations.length === 1 && locations[0] !== '*' ? locations[0]! : '';
+    return { key: `user:${u._id}`, name: displayNameOf(u), active: u.isActive !== false, locations, homeLocation, kind: 'user' as const };
+  }).sort((a, b) => Number(b.active) - Number(a.active) || a.name.localeCompare(b.name));
 }
