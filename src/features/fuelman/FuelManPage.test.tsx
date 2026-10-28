@@ -30,43 +30,43 @@ beforeEach(() => {
   vi.mocked(fuelApi.reports).mockResolvedValue({ items: [report()], total: 1, page: 1, limit: 50 }); vi.mocked(fuelApi.detail).mockResolvedValue(report());
 });
 afterEach(cleanup);
-const OPEN = { name: '2026-07 · Revision 1' };
+const OPEN = { name: 'July 2026' };
 /** A draft opens on the one-page summary; the full tabbed review is behind Details. */
 async function openDetails() { fireEvent.click(await screen.findByRole('button', { name: 'Details' })); await screen.findByRole('tablist', { name: 'Report review views' }); }
 describe('Fuel Man screens', () => {
   it('shows server-calculated branch allocations before approval', async () => {
-    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' })); await openDetails();
+    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: 'July 2026' })); await openDetails();
     await screen.findByText('Ready to approve'); fireEvent.click(screen.getByRole('tab', { name: 'Location allocations' }));
     const row = screen.getByRole('cell', { name: /Seattle/ }).closest('tr')!;
     expect(within(row).getByText('$52.50')).toBeTruthy(); expect(within(row).getByText('-$1.00')).toBeTruthy();
     expect(screen.getByText(/Preview only/)).toBeTruthy(); expect(fuelApi.command).not.toHaveBeenCalled();
   });
   it('shows saved driver matches without asking for monthly setup again', async () => {
-    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' })); await openDetails();
+    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: 'July 2026' })); await openDetails();
     await screen.findByText('Saved match'); expect(screen.getByText(/Saved driver matches carry forward each month/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Assign locations' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Assign driver' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Edit assignment' })).toBeTruthy();
   });
   it('keeps the open report and tab in the address, and Back returns to the list', async () => {
-    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' })); await openDetails();
+    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: 'July 2026' })); await openDetails();
     await screen.findByText('Ready to approve');
     expect(window.location.search).toContain(`fm_report=${REPORT_ID}`);
     fireEvent.click(screen.getByRole('tab', { name: 'Location allocations' }));
     expect(window.location.search).toContain('fm_tab=allocations');
     window.history.back(); // the tab change replaced the report's entry, so Back leaves the report
     await waitFor(() => expect(window.location.search).not.toContain('fm_report'));
-    await screen.findByRole('button', { name: '2026-07 · Revision 1' });
+    await screen.findByRole('button', { name: 'July 2026' });
   });
   it('shows the steps to approve and lands on drivers that need attention first', async () => {
     vi.mocked(fuelApi.detail).mockResolvedValue(report(false)); render(<FuelManPage />);
-    fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' })); await openDetails();
+    fireEvent.click(await screen.findByRole('button', { name: 'July 2026' })); await openDetails();
     const steps = await screen.findByRole('list', { name: 'Steps to approve this report' });
     expect(within(steps).getByText('Match drivers')).toBeTruthy(); expect(within(steps).getByText('Not yet')).toBeTruthy();
     expect((screen.getByRole('checkbox', { name: 'Needs attention only' }) as HTMLInputElement).checked).toBe(true);
   });
   it('announces the selected tab and moves between tabs with the arrow keys', async () => {
-    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' })); await openDetails();
+    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: 'July 2026' })); await openDetails();
     const drivers = await screen.findByRole('tab', { name: 'Drivers' });
     expect(drivers.getAttribute('aria-selected')).toBe('true'); expect(screen.getByRole('tab', { name: 'Missing drivers' }).getAttribute('aria-selected')).toBe('false');
     fireEvent.keyDown(drivers, { key: 'ArrowRight' });
@@ -118,30 +118,51 @@ describe('Fuel Man screens', () => {
       expect(screen.getByText(/31.3% vs June 2026/)).toBeTruthy(); expect(screen.getByText('Nothing needs a look')).toBeTruthy();
       fireEvent.click(approve); expect(await screen.findByRole('dialog')).toBeTruthy();
     });
-    it('sends a first month with many unmatched cards to one batch form', async () => {
+    it('walks a first month step by step: cards with suggestions, one batch save for the ready ones', async () => {
       const ids = Array.from({ length: 10 }, (_, n) => `D${n}`); vi.mocked(fuelApi.detail).mockResolvedValue(report(false, ids));
+      vi.mocked(fuelApi.command).mockResolvedValue({ success: true });
       render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', OPEN));
-      expect(await screen.findByText(/10 cards need a driver and a location/)).toBeTruthy(); expect(screen.queryByText(/Looks like/)).toBeNull();
-      fireEvent.click(screen.getByRole('button', { name: 'Match drivers' })); expect(await screen.findByRole('dialog')).toBeTruthy();
+      expect(await screen.findByText('Who is each card?')).toBeTruthy(); expect(screen.queryByText(/Needs a look/)).toBeNull();
+      const steps = screen.getByRole('list', { name: 'Steps to approve' }); expect(within(steps).getByText('Match drivers')).toBeTruthy();
+      expect(screen.getAllByText('Employee #D3 · $52.50 this month').length).toBe(1);
+      fireEvent.click(screen.getByRole('button', { name: 'Next: explain absences' })); expect(await screen.findByText("Who didn't fuel this month?")).toBeTruthy();
+      fireEvent.click(within(steps).getByRole('button', { name: /Approve/ })); expect(await screen.findByText('Check the totals, then approve')).toBeTruthy();
+      expect((screen.getByRole('button', { name: 'Some steps are not done' }) as HTMLButtonElement).disabled).toBe(true);
     });
+    it('accepts a clear suggestion on a first-month card with one tap', async () => {
+      const ids = ['A', ...Array.from({ length: 9 }, (_, n) => `D${n}`)]; vi.mocked(fuelApi.detail).mockResolvedValue(report(false, ids));
+      vi.mocked(fuelApi.command).mockResolvedValue({ success: true });
+      render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', OPEN));
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Accept' }))[0]!);
+      await waitFor(() => expect(fuelApi.command).toHaveBeenCalledWith(REPORT_ID, 'assignments/batch', expect.objectContaining({ assignments: [expect.objectContaining({ externalId: 'A', driverKey: 'user:1' })] })));
+    });
+  });
+  it('puts the month that needs you first, says what to do next, and tells later months to wait', async () => {
+    const june = { ...report(), id: 'aaaaaaaaaaaaaaaaaaaaaaaa', month: '2026-06' }, july = { ...report(), month: '2026-07' };
+    vi.mocked(fuelApi.reports).mockResolvedValue({ items: [july, june] as never, total: 2, page: 1, limit: 50 });
+    vi.mocked(fuelApi.detail).mockImplementation(async id => (id === june.id ? { ...report(false), id, month: '2026-06' } : report()));
+    render(<FuelManPage />);
+    const hero = await screen.findByRole('region', { name: 'Month that needs you' });
+    expect(within(hero).getByText('June 2026')).toBeTruthy(); await within(hero).findByText('Next: match 1 driver');
+    expect(screen.getByText('Review June 2026 first')).toBeTruthy(); expect(screen.getByText('Choose PDF files')).toBeTruthy();
   });
   it('hides company review actions from branch readers even if their role has import permission', async () => {
     vi.mocked(fuelApi.metadata).mockResolvedValue({ ...meta, global: false });
-    render(<FuelManPage />); await screen.findByRole('button', { name: '2026-07 · Revision 1' });
+    render(<FuelManPage />); await screen.findByRole('button', { name: 'July 2026' });
     expect(screen.queryByRole('button', { name: 'Upload reports' })).toBeNull();
   });
   it('disables approval for unresolved drivers and read-only roles', async () => {
     vi.mocked(fuelApi.detail).mockResolvedValue(report(false)); render(<FuelManPage />);
-    fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' })); await openDetails();
+    fireEvent.click(await screen.findByRole('button', { name: 'July 2026' })); await openDetails();
     expect((await screen.findByRole('button', { name: 'Approve location expenses' }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByRole('button', { name: 'Assign driver' })).toBeTruthy();
     cleanup(); vi.mocked(fuelApi.metadata).mockResolvedValue({ ...meta, permissions: [P.VIEW] }); render(<FuelManPage />);
-    fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' })); await screen.findByText('Not assigned');
+    fireEvent.click(await screen.findByRole('button', { name: 'July 2026' })); await screen.findByText('Not assigned');
     expect(screen.queryByRole('button', { name: 'Approve location expenses' })).toBeNull(); expect(screen.queryByRole('button', { name: 'Assign driver' })).toBeNull();
   });
   it('shows uploaded driver expenses and the unassigned total before any location is chosen', async () => {
     vi.mocked(fuelApi.detail).mockResolvedValue(report(false)); render(<FuelManPage />);
-    fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' })); await openDetails();
+    fireEvent.click(await screen.findByRole('button', { name: 'July 2026' })); await openDetails();
     await screen.findByText('Awaiting locations'); expect(screen.getByRole('button', { name: 'Driver Alp' })).toBeTruthy();
     expect(screen.getByText('1 drivers need a location')).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: 'Location totals' }));
@@ -152,7 +173,7 @@ describe('Fuel Man screens', () => {
   it('sets up driver locations in one form with a backend command and preserves input on a stale review', async () => {
     vi.mocked(fuelApi.detail).mockResolvedValue(report(false));
     vi.mocked(fuelApi.command).mockRejectedValue(new Error('This review changed. Refresh before saving.'));
-    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' })); await openDetails();
+    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: 'July 2026' })); await openDetails();
     fireEvent.click(await screen.findByRole('button', { name: 'Assign locations' }));
     const dialog = screen.getByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Driver from Users & Roles' }));

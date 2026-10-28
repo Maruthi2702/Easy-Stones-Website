@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currentStep, reviewSteps } from './progressSteps';
+import { currentStep, nextAction, reviewSteps } from './progressSteps';
 import type { ReportDetail } from '../../fuelman/types';
 const base = (over: Partial<ReportDetail['review']>, status: ReportDetail['status'] = 'draft') =>
   ({ status, review: { ready: false, drivers: [], missing: [], ...over } }) as unknown as ReportDetail;
@@ -13,5 +13,10 @@ describe('approval steps', () => {
     const steps = reviewSteps(base({ ready: true }));
     expect(steps.map(s => s.status)).toEqual(['Done', 'Done', 'Done', 'Ready']);
     expect(currentStep(steps)).toBe('approve');
+  });
+  it('says what to do next in words', () => {
+    expect(nextAction(base({ drivers: [{ driverKey: '', amounts: { other: 0 } }, { driverKey: '', amounts: { other: 0 } }] as never }))).toBe('match 2 drivers');
+    expect(nextAction(base({ missing: [{ resolved: false }] as never }))).toBe('explain 1 absence');
+    expect(nextAction(base({ ready: true }))).toBe('approve it');
   });
 });

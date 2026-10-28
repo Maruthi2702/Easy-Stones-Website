@@ -145,3 +145,44 @@
   .fuel-mr-loc > .fuel-status { display: none; }
   .fuel-mr-dock { margin: 28px -16px -16px; padding: 12px 16px; }
 }
+/* First-month flow: steps beside the work (canvas boards 2 to 5); on a phone the steps become one line with a meter */
+.fuel-sr { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+.fuel-sr-steps { flex: 0 0 250px; list-style: none; margin: 0; padding: 8px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; position: sticky; top: 8px; }
+.fuel-man .fuel-sr-steps button { width: 100%; justify-content: flex-start; border-color: transparent; background: transparent; text-align: left; gap: 12px; padding: 12px; min-height: 56px; }
+.fuel-sr-steps b { flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; border: 1.5px solid var(--border-color); color: var(--text-secondary); }
+.fuel-sr-steps span { display: flex; flex-direction: column; }
+.fuel-sr-steps small { color: var(--text-secondary); font-size: 12px; }
+.fuel-sr-steps .now button { background: var(--bg-secondary); }
+.fuel-sr-steps .now b { background: var(--accent-primary); border-color: var(--accent-primary); color: #000; }
+.fuel-sr-steps .done b { background: rgba(125,219,163,.14); border-color: transparent; color: #7ddba3; }
+.fuel-sr-phone { display: none; flex: 1 0 100%; }
+.fuel-sr-phone > div:first-child { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+.fuel-sr-main { flex: 999 1 560px; min-width: 0; }
+.fuel-sr-rows { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
+.fuel-sr-row { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(0, 2fr) auto; gap: 16px; align-items: center; padding: 14px 18px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; }
+.fuel-sr-who strong { display: block; font-size: 15px; } .fuel-sr-who small { color: var(--text-secondary); font-size: 12px; }
+.fuel-sr-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.fuel-sr-fields label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-secondary); margin-bottom: 4px; }
+.fuel-sr-total { margin: 4px 0 0; }
+@media(max-width: 700px) {
+  .fuel-sr-steps { display: none; } .fuel-sr-phone { display: block; }
+  .fuel-sr-row { grid-template-columns: 1fr; gap: 10px; } .fuel-sr-fields { grid-template-columns: 1fr; }
+}
+/* Reports page (canvas board 1) */
+.fuel-home-hero { display: flex; flex-wrap: wrap; gap: 24px; align-items: center; justify-content: space-between; background: var(--bg-card); border: 1px solid rgba(212,175,55,.45); border-radius: 16px; padding: 22px 24px; margin: 8px 0 24px; }
+.fuel-home-hero h2 { font-size: 30px; letter-spacing: -.8px; margin: 12px 0 4px; }
+.fuel-home-hero > div:first-child { flex: 1 1 340px; min-width: 0; }
+.fuel-home-progress { max-width: 420px; margin-top: 18px; }
+.fuel-home-progress > div:first-child { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+.fuel-home-total { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.fuel-home-total strong { font-size: 34px; letter-spacing: -1px; font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+.fuel-home-h { font-size: 16px; }
+.fuel-home-table { padding: 8px 12px; margin-top: 8px; }
+.fuel-dropzone { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 20px; padding: 20px; border: 1.5px dashed var(--border-color); border-radius: 16px; }
+.fuel-dropzone.over { border-color: var(--accent-primary); background: var(--accent-glow); }
+.fuel-dropzone p { margin: 2px 0 0; }
+.fuel-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media(max-width: 700px) { .fuel-home-total { align-items: flex-start; text-align: left; } }
+.fuel-stats.fuel-stats-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fuel-table tfoot td { border-top: 1px solid var(--border-color); font-weight: 620; }
+@media(max-width: 700px) { .fuel-stats.fuel-stats-3 { grid-template-columns: 1fr; } }

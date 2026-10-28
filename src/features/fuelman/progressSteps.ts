@@ -18,3 +18,12 @@ export function reviewSteps(report: ReportDetail): Step[] {
 }
 // The first step that still has work; the strip lights it.
 export const currentStep = (steps: Step[]) => steps.find(s => !s.done)?.key;
+// "Next: match 6 drivers" for the card on the Reports page.
+export function nextAction(report: ReportDetail): string {
+  const steps = reviewSteps(report), now = currentStep(steps);
+  const n = (key: StepKey) => steps.find(s => s.key === key)!.left;
+  if (now === 'match') return `match ${n('match')} ${n('match') === 1 ? 'driver' : 'drivers'}`;
+  if (now === 'missing') return `explain ${n('missing')} ${n('missing') === 1 ? 'absence' : 'absences'}`;
+  if (now === 'unknown') return 'sort the unknown charges';
+  return report.status === 'draft' ? 'approve it' : 'nothing, it is approved';
+}

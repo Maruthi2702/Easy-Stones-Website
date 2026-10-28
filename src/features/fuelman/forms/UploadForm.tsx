@@ -2,8 +2,8 @@ import { useState } from 'react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormField } from '../../../components/shared/form/FormControls';
 import { fuelApi } from '../api';
-export default function UploadForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id: string) => void }) {
-  const [files, setFiles] = useState<File[]>([]), [saving, setSaving] = useState(false), [error, setError] = useState(''), [progress, setProgress] = useState('');
+export default function UploadForm({ onClose, onSaved, initialFiles = [] }: { onClose: () => void; onSaved: (id: string) => void; initialFiles?: File[] }) {
+  const [files, setFiles] = useState<File[]>(initialFiles), [saving, setSaving] = useState(false), [error, setError] = useState(''), [progress, setProgress] = useState('');
   const [results, setResults] = useState<{ file: File; filename: string; id: string; month: string; duplicate: boolean }[]>([]);
   async function submit() {
     setSaving(true); setError('');

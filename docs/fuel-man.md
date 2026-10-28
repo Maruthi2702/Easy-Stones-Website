@@ -6,6 +6,22 @@ new/missing identities, and publishes an approved monthly expense component
 for location P&L. React components are TSX; backend/domain code is TypeScript.
 No new dependencies are required.
 
+## Screens (redesign, 2026-10-28)
+
+The design is the claude.ai canvas **Fuel Man redesign canvas**
+(https://claude.ai/artifact/H8dG8qpKLGvmhNEG5FMR6T); change the canvas when these screens change.
+
+- **Reports** (`ReportsHome`): the earliest unfinished month as a card with its next step, then every month
+  (later drafts say "Review <month> first"), then the upload drop area.
+- **A draft opens on a summary.** A normal month is `MonthReview`: total and change vs last month, "Needs a look"
+  answered in place (new cards with a name match, absences, unknown charges grouped by their printed text), checks
+  done for you, a by-location comparison and a pinned Approve bar. A month with more than 8 unmatched cards
+  (`isSetupMonth`) is `SetupReview`: four steps (match, absences, unknown charges, approve), cards with a
+  suggestion or inline pickers, one batch save. **Details** opens the full tabbed review. Rules live in
+  `monthReview.ts` (name matching, change %, grouping) and `progressSteps.ts`.
+- The report detail carries `compare` (last month's approved totals by location, drivers carried over; null for
+  branch readers). The summary page and the steps use the same save commands as the Details view.
+
 ## User workflow
 
 1. Upload one or several complete calendar-month PDFs. The backend determines
