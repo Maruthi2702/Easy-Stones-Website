@@ -1,4 +1,5 @@
-.fuel-man { color: var(--text-primary); background: var(--bg-primary); padding: 24px; min-width: 0; font-size: 14px; line-height: 1.5; }
+/* The fixed-height sales shell clips overflow; this page owns its vertical scroll. */
+.fuel-man { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; color: var(--text-primary); background: var(--bg-primary); padding: 24px; min-width: 0; font-size: 14px; line-height: 1.5; }
 .fuel-man h1 { font-size: 25px; letter-spacing: -.6px; margin: 0; }
 .fuel-man h2 { font-size: 18px; margin: 0; }
 .fuel-man h3 { font-size: 16px; }
