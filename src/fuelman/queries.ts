@@ -61,12 +61,23 @@ export async function listReports(visibility: Visibility, session: ClientSession
   for (const report of reports) items.push(listItem(report, await visibleFacts(report, visibility, session)));
   return { items, total, page, limit };
 }
-export async function linesFor(report: ReportRecord, visibility: Visibility, session: ClientSession, options: { externalId: string; unknownOnly: boolean; page: number; limit: number }) {
+// A branch reader only sees vehicle, site, date and identity, so only those can be searched;
+// the company-wide view also searches the printed line and its amount.
+function matchesSearch(line: { externalId: string; vehicle: string; site: string; date: string; description: string; amountCents: number }, search: string, full: boolean) {
+  const needle = search.trim().toLowerCase();
+  if (!needle) return true;
+  const text = [line.externalId, line.vehicle, line.site, line.date, ...(full ? [line.description, (line.amountCents / 100).toFixed(2)] : [])];
+  return text.some(value => value.toLowerCase().includes(needle));
+}
+export async function linesFor(report: ReportRecord, visibility: Visibility, session: ClientSession, options: { externalId: string; unknownOnly: boolean; page: number; limit: number; search?: string; category?: string; priorOnly?: boolean }) {
   const own = await visibleFacts(report, visibility, session), lineIds = own ? new Set(own.map(f => f.sourceLine)) : null;
   const overrides = new Map(report.overrides.map(o => [o.index, o.category]));
   const rows = report.parsed.lines.filter(l => (!lineIds || lineIds.has(l.index)) && (!options.externalId || l.externalId === options.externalId))
     .map(l => ({ ...l, category: overrides.get(l.index) || l.category }))
-    .filter(l => !options.unknownOnly || l.category === 'other');
+    .filter(l => !options.unknownOnly || l.category === 'other')
+    .filter(l => !options.category || l.category === options.category)
+    .filter(l => !options.priorOnly || l.date < report.parsed.start)
+    .filter(l => matchesSearch(l, options.search || '', !own));
   const visible = rows.slice((options.page - 1) * options.limit, options.page * options.limit).map(line => own ? { ...line,
     amountCents: own.filter(f => f.sourceLine === line.index).reduce((n, f) => n + f.amountCents, 0),
     description: `${line.category} · allocated share`, quantity: '', netPrice: '', taxRate: '', exceptionCodes: [],

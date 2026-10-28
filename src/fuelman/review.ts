@@ -37,7 +37,7 @@ export function buildReview(report: ParsedReport, assignments: Assignment[], dis
     for (const line of report.lines.filter(l => l.externalId === employee.externalId)) {
       const category = override.get(line.index) || line.category;
       employeeAmounts[category] += line.amountCents; amounts[category] += line.amountCents;
-      if (category === 'other') problems.add('Classify unrecognized non-fuel expenses');
+      if (category === 'other') problems.add('Sort unknown charges into a category');
       const current = mappings.filter(a => a.from <= line.date && (!a.to || line.date < a.to));
       if (current.length !== 1) { problems.add(current.length ? 'Assignments overlap for this period' : 'Assign a driver and location for every transaction date'); continue; }
       const a = current[0]!; keys.add(a.driverKey); names.add(a.driverName);

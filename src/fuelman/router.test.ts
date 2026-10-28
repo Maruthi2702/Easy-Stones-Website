@@ -190,6 +190,18 @@ describe('Fuel Man import and review workflow', () => {
     expect((await api('get', '/pnl?month=2026-07', branch)).body.totalCents).toBe(2625);
     await api('get', '/pnl?month=2026-07&location=Spokane', branch).expect(403);
   });
+  it('filters transaction lines by search text and category, and branch readers cannot search the printed line', async () => {
+    const id = await upload(), r = await detail(id);
+    await api('post', `/reports/${id}/assignments`).send({ ...envelope(r), externalId: 'A', driverKey: `user:${driverId}`, from: r.start,
+      allocations: [{ location: 'Seattle', percent: '100' }], note: 'One branch' }).expect(200);
+    const all = (await api('get', `/reports/${id}/lines`).expect(200)).body;
+    const first = all.items[0];
+    const hit = (await api('get', `/reports/${id}/lines?q=${encodeURIComponent(first.vehicle)}`).expect(200)).body;
+    expect(hit.total).toBeGreaterThan(0); expect(hit.items.every((l: { vehicle: string }) => l.vehicle.toLowerCase().includes(first.vehicle.toLowerCase()))).toBe(true);
+    expect((await api('get', `/reports/${id}/lines?q=zzz-no-such-text`).expect(200)).body.total).toBe(0);
+    expect((await api('get', `/reports/${id}/lines?category=nonsense`).expect(200)).body.total).toBe(all.total);
+    expect((await api('get', `/reports/${id}/lines?category=${first.category}`).expect(200)).body.total).toBeGreaterThan(0);
+  });
   it('restores future roster expectations when a retirement reason is corrected', async () => {
     const july = await upload(); await assign(july);
     const august = await upload(fixtureReport('2026-08', ['B'])); await assign(august, 'B');

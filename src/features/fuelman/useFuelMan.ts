@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePagination } from '../../components/shared/paginationConfig';
 import type { FuelMetadata, ReportDetail, ReportListItem } from '../../fuelman/types';
 import { fuelApi } from './api';
-export function useFuelMan() {
+export function useFuelMan(selectedId: string) {
   const [metadata, setMetadata] = useState<FuelMetadata | null>(null), [reports, setReports] = useState<ReportListItem[]>([]),
-    [total, setTotal] = useState(0), [selectedId, setSelectedId] = useState(''), [detail, setDetail] = useState<ReportDetail | null>(null),
+    [total, setTotal] = useState(0), [detail, setDetail] = useState<ReportDetail | null>(null),
     [error, setError] = useState(''), [loading, setLoading] = useState(true), [detailLoading, setDetailLoading] = useState(false), [reload, setReload] = useState(0);
   const pager = usePagination(), revision = useRef<number | null>(null), denied = useRef(false);
   const refresh = useCallback(() => { setReload(v => v + 1); }, []);
@@ -43,5 +43,5 @@ export function useFuelMan() {
     window.addEventListener('online', check); document.addEventListener('visibilitychange', check);
     return () => { controller.abort(); clearInterval(timer); window.removeEventListener('online', check); document.removeEventListener('visibilitychange', check); };
   }, [refresh, fail]);
-  return { metadata, reports, total, selectedId, setSelectedId, detail: detail?.id === selectedId ? detail : null, error, loading, detailLoading, refresh, pager, reload };
+  return { metadata, reports, total, detail: detail?.id === selectedId ? detail : null, error, loading, detailLoading, refresh, pager, reload };
 }

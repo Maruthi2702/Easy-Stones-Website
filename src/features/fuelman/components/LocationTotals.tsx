@@ -8,6 +8,7 @@ import { pageCount, usePagination } from '../../../components/shared/paginationC
 import { FUEL_MAN as P } from '../../../fuelman/permissions';
 import { fuelApi, downloadFuel } from '../api';
 import { money } from '../format';
+import Tabs from './Tabs';
 import { useFuelQuery } from '../useFuelQuery';
 export default function LocationTotals({ metadata, initialMonth, reload }: { metadata: FuelMetadata; initialMonth?: string; reload: number }) {
   const [month, setMonth] = useState(initialMonth || todayISO().slice(0, 7)), [location, setLocation] = useState(''), [view, setView] = useState('locations');
@@ -26,7 +27,7 @@ export default function LocationTotals({ metadata, initialMonth, reload }: { met
     {data && !loading && <><div className="fuel-stats"><div><span>Published expense total</span><strong>{data.reportCount ? money(data.totalCents) : 'Not published'}</strong></div>
       <div><span>Published reports</span><strong>{data.reportCount}</strong></div><div><span>Previous month · {data.previousMonth}</span><strong>{money(data.previousTotalCents)}</strong></div>
       <div><span>Change in expense</span><strong>{data.changePercent === null ? '—' : `${data.changePercent > 0 ? '+' : ''}${data.changePercent}%`}</strong></div></div>
-      <nav className="fuel-tabs" aria-label="Expense totals views"><button className={view === 'locations' ? 'active' : ''} onClick={() => { setView('locations'); pager.resetPage(); }}>By location</button><button className={view === 'drivers' ? 'active' : ''} onClick={() => { setView('drivers'); pager.resetPage(); }}>By driver</button></nav>
+      <Tabs label="Expense totals views" value={view as 'locations' | 'drivers'} onChange={id => { setView(id); pager.resetPage(); }} items={[{ id: 'locations', label: 'By location' }, { id: 'drivers', label: 'By driver' }]} />
       <div className="fuel-table-wrap"><table className="fuel-table"><thead>{view === 'locations' ? <tr><th>Location</th><th>Fuel</th><th>DEF</th><th>Supplies</th><th>Non-fuel tax</th><th>Adjustments</th><th>Total</th></tr> : <tr><th>Driver</th><th>Locations</th><th>Total expenses</th></tr>}</thead>
         <tbody>{view === 'locations' ? data.locations.slice(range, range + pager.rowsPerPage).map(row => <tr key={row.location}>
           <td data-label="Location"><strong>{row.location}</strong><small>{row.driverCount} drivers</small></td><td data-label="Fuel">{money(row.amounts.fuel)}</td><td data-label="DEF">{money(row.amounts.def)}</td><td data-label="Supplies">{money(row.amounts.supplies)}</td><td data-label="Non-fuel tax">{money(row.amounts.tax)}</td><td data-label="Adjustments">{money(row.amounts.adjustment)}</td><td data-label="Total"><strong>{money(row.totalCents)}</strong></td>

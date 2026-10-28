@@ -6,6 +6,7 @@ import { requireAll } from '../server/http.js';
 import { access, driverOptions, requireGlobal } from './access.ts';
 import { readFuelManPdf } from './readPdf.ts';
 import type { ParsedReport } from './types.ts';
+import { CATEGORIES } from './types.ts';
 import { importReport } from './importReport.ts';
 import { FuelAudit, FuelPeriod, FuelSource, FuelState } from './models.ts';
 import { reportFor, snapshot } from './storage.ts';
@@ -56,6 +57,7 @@ export default function createFuelManRouter({ authenticate, parsePdf = readFuelM
   router.get('/reports/:id/lines', handle(async (req, res) => res.json(await snapshot(async session =>
     linesFor(await reportFor(idParam(req), session), await access(req.user, session), session, {
       externalId: String(req.query.externalId || ''), unknownOnly: req.query.unknown === 'true', page: pageOf(req.query.page), limit: limitOf(req.query.limit),
+      search: String(req.query.q || '').slice(0, 100), category: CATEGORIES.find(c => c === req.query.category) || '', priorOnly: req.query.prior === 'true',
     })))));
   router.get('/reports/:id/source', handle(async (req, res) => {
     await requireGlobal(req.user); await reportFor(idParam(req));

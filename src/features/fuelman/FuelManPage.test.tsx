@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import FuelManPage from './FuelManPage';
 import AssignmentForm from './forms/AssignmentForm';
+import ClassificationForm from './forms/ClassificationForm';
 import DecisionForm from './forms/DecisionForm';
 import SetupDriversForm from './forms/SetupDriversForm';
 import { fuelApi } from './api';
@@ -13,9 +14,10 @@ import type { Assignment, FuelMetadata, ReportDetail } from '../../fuelman/types
 vi.mock('./api', () => ({ fuelApi: { metadata: vi.fn(), revision: vi.fn(), reports: vi.fn(), detail: vi.fn(), command: vi.fn() }, downloadFuel: vi.fn() }));
 const meta: FuelMetadata = { global: true, locations: ['Seattle', 'Spokane'], drivers: [{ key: 'user:1', name: 'Driver Alpha', active: true, locations: ['Seattle'], kind: 'user' }], permissions: ALL_FUEL_MAN_PERMISSIONS };
 const mapping: Assignment = { id: '1', externalId: 'A', driverKey: 'user:1', driverName: 'Driver Alpha', from: '2026-07-01', to: '', allocations: [{ location: 'Seattle', basisPoints: 10000 }] };
+const REPORT_ID = 'abcdef012345678901234567';
 function report(mapped = true, ids = ['A']): ReportDetail {
   const source = fixtureReport('2026-07', ids), { facts: _facts, ...review } = buildReview(source, mapped ? [mapping] : [], [], [], 'snapshot');
-  return { id: 'report1', version: 2, revision: 1, company: source.company, month: source.month, start: source.start, end: source.end,
+  return { id: REPORT_ID, version: 2, revision: 1, company: source.company, month: source.month, start: source.start, end: source.end,
     totalCents: source.totalCents, employeeCount: source.employees.length, lineCount: source.lines.length, filename: 'report.pdf', status: 'draft', importedAt: '2026-08-01T00:00:00.000Z', importedBy: 'Finance',
     account: source.account, fleet: source.fleet, pageCount: 2, review, warnings: source.warnings, canViewSource: true, priorDateLineCount: 0,
     periodClosed: false, currentPublishedReportId: null, currentPublishedTotalCents: null, currentPublishedRevision: null };
@@ -30,7 +32,7 @@ afterEach(cleanup);
 describe('Fuel Man screens', () => {
   it('shows server-calculated branch allocations before approval', async () => {
     render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' }));
-    await screen.findByText('Ready to approve'); fireEvent.click(screen.getByRole('button', { name: 'Location allocations' }));
+    await screen.findByText('Ready to approve'); fireEvent.click(screen.getByRole('tab', { name: 'Location allocations' }));
     const row = screen.getByRole('cell', { name: /Seattle/ }).closest('tr')!;
     expect(within(row).getByText('$52.50')).toBeTruthy(); expect(within(row).getByText('-$1.00')).toBeTruthy();
     expect(screen.getByText(/Preview only/)).toBeTruthy(); expect(fuelApi.command).not.toHaveBeenCalled();
@@ -41,6 +43,44 @@ describe('Fuel Man screens', () => {
     expect(screen.queryByRole('button', { name: 'Assign locations' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Assign driver' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Edit assignment' })).toBeTruthy();
+  });
+  it('keeps the open report and tab in the address, and Back returns to the list', async () => {
+    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' }));
+    await screen.findByText('Ready to approve');
+    expect(window.location.search).toContain(`fm_report=${REPORT_ID}`);
+    fireEvent.click(screen.getByRole('tab', { name: 'Location allocations' }));
+    expect(window.location.search).toContain('fm_tab=allocations');
+    window.history.back(); // the tab change replaced the report's entry, so Back leaves the report
+    await waitFor(() => expect(window.location.search).not.toContain('fm_report'));
+    await screen.findByRole('button', { name: '2026-07 · Revision 1' });
+  });
+  it('shows the steps to approve and lands on drivers that need attention first', async () => {
+    vi.mocked(fuelApi.detail).mockResolvedValue(report(false)); render(<FuelManPage />);
+    fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' }));
+    const steps = await screen.findByRole('list', { name: 'Steps to approve this report' });
+    expect(within(steps).getByText('Match drivers')).toBeTruthy(); expect(within(steps).getByText('Not yet')).toBeTruthy();
+    expect((screen.getByRole('checkbox', { name: 'Needs attention only' }) as HTMLInputElement).checked).toBe(true);
+  });
+  it('announces the selected tab and moves between tabs with the arrow keys', async () => {
+    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' }));
+    const drivers = await screen.findByRole('tab', { name: 'Drivers' });
+    expect(drivers.getAttribute('aria-selected')).toBe('true'); expect(screen.getByRole('tab', { name: 'Missing drivers' }).getAttribute('aria-selected')).toBe('false');
+    fireEvent.keyDown(drivers, { key: 'ArrowRight' });
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Missing drivers' }).getAttribute('aria-selected')).toBe('true'));
+  });
+  it('lists what each location will carry in the approval dialog', async () => {
+    render(<DecisionForm report={report()} action="publish" onClose={() => {}} onSaved={() => {}} />);
+    const table = screen.getByRole('table'); expect(within(table).getByText('Seattle')).toBeTruthy(); expect(within(table).getAllByText('$52.50').length).toBeGreaterThan(0);
+  });
+  it('classifies several unknown charges together with one category and note', async () => {
+    const lines = [{ index: 3, externalId: 'A', date: '2026-07-04', amountCents: 1200, page: 2, description: 'Misc', category: 'other' }, { index: 4, externalId: 'A', date: '2026-07-05', amountCents: 800, page: 2, description: 'Misc 2', category: 'other' }] as never;
+    vi.mocked(fuelApi.command).mockResolvedValue({ success: true });
+    render(<ClassificationForm report={report()} lines={lines} onClose={() => {}} onSaved={() => {}} />);
+    expect(screen.getByText(/2 charges totalling \$20.00/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Expense category' })); fireEvent.click(screen.getByRole('option', { name: 'Supplies' }));
+    fireEvent.change(screen.getByRole('textbox', { name: /Why this category/ }), { target: { value: 'Shop supplies' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save for 2 charges' }));
+    await waitFor(() => expect(fuelApi.command).toHaveBeenCalledWith(REPORT_ID, 'classifications', expect.objectContaining({ rows: [{ index: 3, category: 'supplies', note: 'Shop supplies' }, { index: 4, category: 'supplies', note: 'Shop supplies' }] })));
   });
   it('hides company review actions from branch readers even if their role has import permission', async () => {
     vi.mocked(fuelApi.metadata).mockResolvedValue({ ...meta, global: false });
@@ -61,7 +101,7 @@ describe('Fuel Man screens', () => {
     fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' }));
     await screen.findByText('Awaiting locations'); expect(screen.getByRole('button', { name: 'Driver Alp' })).toBeTruthy();
     expect(screen.getByText('1 drivers need a location')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Location totals' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Location totals' }));
     await screen.findByText('2026-07 · Draft location totals');
     const row = screen.getByRole('cell', { name: /Unassigned/ }).closest('tr')!;
     expect(within(row).getByText('$52.50')).toBeTruthy(); expect(fuelApi.command).not.toHaveBeenCalled();
@@ -79,7 +119,7 @@ describe('Fuel Man screens', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Seattle' })); fireEvent.click(within(dialog).getByRole('button', { name: 'Apply to all 1 drivers' }));
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Assignment note' }), { target: { value: 'Confirmed location' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save 1 assignments' })); await screen.findByRole('alert');
-    expect(fuelApi.command).toHaveBeenCalledWith('report1', 'assignments/batch', expect.objectContaining({ token: report(false).review.token, assignments: [expect.objectContaining({ externalId: 'A', driverKey: 'user:1', allocations: [{ location: 'Seattle', percent: '100' }] })] }));
+    expect(fuelApi.command).toHaveBeenCalledWith(REPORT_ID, 'assignments/batch', expect.objectContaining({ token: report(false).review.token, assignments: [expect.objectContaining({ externalId: 'A', driverKey: 'user:1', allocations: [{ location: 'Seattle', percent: '100' }] })] }));
     expect((within(dialog).getByRole('textbox', { name: 'Assignment note' }) as HTMLTextAreaElement).value).toBe('Confirmed location');
   });
   it('offers existing Driver users, excludes standalone expense profiles and fills an unambiguous profile location', async () => {

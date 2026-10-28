@@ -97,3 +97,18 @@
   .fuel-setup-notice, .fuel-setup-apply { flex-direction: column; align-items: stretch; }
   .fuel-setup-row { grid-template-columns: 1fr; gap: 8px; }
 }
+/* Steps to approve: state is the check mark and the words, not only colour. */
+.fuel-steps { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; list-style: none; margin: 12px 0; padding: 0; }
+.fuel-man .fuel-steps button { width: 100%; justify-content: flex-start; text-align: left; flex-wrap: wrap; gap: 4px 8px; }
+.fuel-steps b { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-color); font-size: 12px; }
+.fuel-steps small { flex-basis: 100%; padding-left: 30px; color: var(--text-secondary); font-size: 12px; }
+.fuel-steps .done b { background: var(--accent-glow); border-color: var(--accent-primary); }
+.fuel-man .fuel-steps .current button { border-color: var(--accent-primary); box-shadow: 0 0 0 1px var(--accent-primary); }
+.fuel-sort { background: none; border: 0; padding: 0; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.fuel-man button.fuel-sort { padding: 0; border: 0; background: none; font-size: inherit; text-transform: inherit; }
+@media(max-width: 700px) { .fuel-steps { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+.fuel-bulk { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; position: sticky; top: 0; z-index: 2; background: var(--bg-card); border: 1px solid var(--accent-primary); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+.fuel-bulk-list { margin: 6px 0 12px; padding-left: 18px; color: var(--text-secondary); font-size: 12px; }
+.fuel-approve-summary { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; margin: 8px 0 14px; }
+.fuel-approve-summary th, .fuel-approve-summary td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border-color); }
+.fuel-approve-summary td:last-child, .fuel-approve-summary th:last-child { text-align: right; }
