@@ -202,6 +202,14 @@ describe('Fuel Man import and review workflow', () => {
     expect((await api('get', `/reports/${id}/lines?category=nonsense`).expect(200)).body.total).toBe(all.total);
     expect((await api('get', `/reports/${id}/lines?category=${first.category}`).expect(200)).body.total).toBeGreaterThan(0);
   });
+  it('compares a draft with last month\'s approved report and counts drivers carried over', async () => {
+    const july = await upload(); await assign(july); expect((await publish(july)).status).toBe(200);
+    expect((await detail(july)).compare).toBeNull();
+    const august = await upload(fixtureReport('2026-08', ['A'])), r = await detail(august);
+    expect(r.compare?.previousMonth).toBe('2026-07'); expect(r.compare?.previousTotalCents).toBe((await detail(july)).totalCents);
+    expect(r.compare?.carriedOverCount).toBe(1); expect(r.compare?.locations.length).toBeGreaterThan(0);
+    expect((await api('get', `/reports/${july}`, { ...user, assignedLocations: ['Seattle'] })).body.compare).toBeNull();
+  });
   it('restores future roster expectations when a retirement reason is corrected', async () => {
     const july = await upload(); await assign(july);
     const august = await upload(fixtureReport('2026-08', ['B'])); await assign(august, 'B');

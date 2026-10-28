@@ -10,6 +10,7 @@ import { useFuelLocation } from './urlState';
 import Tabs from './components/Tabs';
 import ReportList from './components/ReportList';
 import ReportReview from './components/ReportReview';
+import MonthReview from './components/MonthReview';
 import LocationTotals from './components/LocationTotals';
 import UploadForm from './forms/UploadForm';
 import AssignmentForm from './forms/AssignmentForm';
@@ -23,8 +24,11 @@ import './FuelMan.css';
 type Form = { type: 'setup'; report: ReportDetail } | { type: 'assign'; report: ReportDetail; driver: ReviewDriver } | { type: 'missing'; report: ReportDetail; missing: MissingIdentity } |
   { type: 'decision'; report: ReportDetail; action: Decision } | { type: 'classify'; report: ReportDetail; lines: ExpenseLine[] };
 export default function FuelManPage({ sidebarToggle }: { currentUser?: { permissions?: string[] } | null; sidebarToggle?: ReactNode }) {
-  const nav = useFuelLocation(), d = useFuelMan(nav.report), view = nav.view, [upload, setUpload] = useState(false), [form, setForm] = useState<Form | null>(null), [toast, setToast] = useState('');
+  const nav = useFuelLocation(), d = useFuelMan(nav.report), view = nav.view, [upload, setUpload] = useState(false), [detailsFor, setDetailsFor] = useState(''), [form, setForm] = useState<Form | null>(null), [toast, setToast] = useState('');
   const meta = d.metadata, report = d.detail;
+  // A draft being reconciled opens on the one-page monthly review; "Details" is the full tabbed view.
+  const monthView = !!report && report.status === 'draft' && !!meta?.global && meta.permissions.includes(P.RECONCILE);
+  const showDetails = !!report && (detailsFor === report.id || nav.tab !== 'drivers' || nav.unknownOnly);
   const saved = () => { setForm(null); setToast(form?.type === 'setup' || form?.type === 'assign' ? 'Driver matches saved. Later monthly reports reuse these drivers and locations automatically.' : 'Saved. Review totals have been refreshed.'); d.refresh(); };
   return <section className="fuel-man" aria-label="Fuel Man">
     <header className="fuel-header"><div className="fuel-title">{sidebarToggle}<Fuel size={24} /><div><h1>Fuel Man</h1><p>Fleet reports, driver review and location expenses.</p></div></div>
@@ -37,7 +41,11 @@ export default function FuelManPage({ sidebarToggle }: { currentUser?: { permiss
     {view === 'reports' && <>
       {nav.report ? <><button className="fuel-back" onClick={() => nav.go({ report: '', tab: 'drivers' })}><ArrowLeft size={16} />All reports</button>
         {d.detailLoading && <p role="status">Refreshing report…</p>}
-        {report && meta && <ReportReview key={report.id} report={report} metadata={meta} reload={d.reload} view={nav.tab} unknownOnly={nav.unknownOnly} onView={(tab, unknownOnly) => nav.go({ tab, unknownOnly: !!unknownOnly }, false)}
+        {report && meta && monthView && !showDetails && <MonthReview report={report} metadata={meta} reload={d.reload} onSaved={d.refresh}
+          onSetup={() => setForm({ type: 'setup', report })} onAssign={driver => setForm({ type: 'assign', report, driver })} onMissing={missing => setForm({ type: 'missing', report, missing })}
+          onClassify={lines => setForm({ type: 'classify', report, lines })} onDecision={action => setForm({ type: 'decision', report, action })} onDetails={() => setDetailsFor(report.id)} />}
+        {report && meta && monthView && showDetails && <button className="fuel-back" onClick={() => { setDetailsFor(''); nav.go({ tab: 'drivers' }, false); }}><ArrowLeft size={16} />Back to the summary</button>}
+        {report && meta && (!monthView || showDetails) && <ReportReview key={report.id} report={report} metadata={meta} reload={d.reload} view={nav.tab} unknownOnly={nav.unknownOnly} onView={(tab, unknownOnly) => nav.go({ tab, unknownOnly: !!unknownOnly }, false)}
           onAssign={driver => setForm({ type: 'assign', report, driver })} onMissing={missing => setForm({ type: 'missing', report, missing })}
           onSetup={() => setForm({ type: 'setup', report })} onClassify={lines => setForm({ type: 'classify', report, lines })} onDecision={action => setForm({ type: 'decision', report, action })} />}
       </> : <div className="fuel-panel"><div className="fuel-section-heading"><div><h2>Monthly reports</h2><p className="fuel-muted">Upload once, remember assignments and review changes before publishing expenses.</p></div></div>

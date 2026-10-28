@@ -12,3 +12,5 @@ export const reasonHelp = {
   incomplete: 'The Fuelman report seems to be missing this driver. Approval stays blocked until this is settled.',
   investigating: 'Still finding out. Approval stays blocked until this is settled.',
 } as const;
+/** '2026-07' → 'July 2026' */
+export const monthName = (month: string) => new Date(`${month}-01T00:00:00Z`).toLocaleString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });

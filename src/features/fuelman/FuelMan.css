@@ -112,3 +112,36 @@
 .fuel-approve-summary { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; margin: 8px 0 14px; }
 .fuel-approve-summary th, .fuel-approve-summary td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--border-color); }
 .fuel-approve-summary td:last-child, .fuel-approve-summary th:last-child { text-align: right; }
+/* One-page monthly review (design: Fuel Man redesign canvas, board 9) */
+.fuel-mr { max-width: 960px; margin: 0 auto; }
+.fuel-mr-total { font-size: 52px; font-weight: 700; letter-spacing: -2px; line-height: 1; font-variant-numeric: tabular-nums; margin: 18px 0 0; }
+.fuel-mr-lede { font-size: 16px; max-width: 640px; margin: 14px 0 0; }
+.fuel-mr-chips { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fuel-mr-label { font-size: 12px; letter-spacing: .8px; text-transform: uppercase; color: var(--text-secondary); font-weight: 600; margin: 34px 0 10px; }
+.fuel-mr-todo, .fuel-mr-cmp { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 4px 20px; }
+.fuel-mr-item { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 16px 0; border-top: 1px solid var(--border-color); }
+.fuel-mr-item:first-child { border-top: 0; }
+.fuel-mr-n { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-glow); color: var(--accent-primary); font-weight: 700; }
+.fuel-mr-item h4 { margin: 0; font-size: 15px; font-weight: 620; }
+.fuel-mr-item p { margin: 2px 0 0; color: var(--text-secondary); font-size: 13px; }
+.fuel-mr-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.fuel-mr-ticks { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 22px; color: var(--text-secondary); font-size: 13px; }
+.fuel-mr-ticks li::before { content: '✓ '; color: #7ddba3; font-weight: 700; }
+.fuel-mr-ticks li[data-ok='false']::before { content: '! '; color: var(--accent-primary); }
+.fuel-mr-loc { display: grid; grid-template-columns: 110px minmax(0, 1fr) 140px 92px; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--border-color); }
+.fuel-mr-loc:first-child { border-top: 0; }
+.fuel-mr-money { text-align: right; font-weight: 620; font-variant-numeric: tabular-nums; }
+.fuel-mr-track { position: relative; height: 10px; border-radius: 10px; background: var(--bg-secondary); }
+.fuel-mr-track i { position: absolute; inset: 0 auto 0 0; border-radius: 10px; background: linear-gradient(90deg, var(--accent-secondary), var(--accent-primary)); }
+.fuel-mr-track u { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--text-primary); opacity: .7; }
+.fuel-mr-dock { position: sticky; bottom: -24px; margin: 36px -24px -24px; padding: 14px 24px; background: var(--bg-card); border-top: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; z-index: 3; }
+.fuel-mr-dock p { max-width: 460px; margin: 0; }
+@media(max-width: 700px) {
+  .fuel-mr-total { font-size: 38px; }
+  .fuel-mr-item { grid-template-columns: 34px minmax(0, 1fr); }
+  .fuel-mr-acts { grid-column: 1 / -1; justify-content: flex-start; }
+  .fuel-mr-loc { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+  .fuel-mr-track { grid-column: 1 / -1; order: 3; }
+  .fuel-mr-loc > .fuel-status { display: none; }
+  .fuel-mr-dock { margin: 28px -16px -16px; padding: 12px 16px; }
+}

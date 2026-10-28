@@ -50,7 +50,11 @@ export interface ReportListItem {
   totalCents: number; employeeCount: number; lineCount: number; filename: string;
   status: 'draft' | 'posted' | 'superseded' | 'reversed'; revision: number; importedAt: string; importedBy: string;
 }
+// What last month's approved report looked like, for the "compared with" lines. Null when
+// there is nothing approved for the month before (or for a branch reader).
+export interface Comparison { previousMonth: string; previousTotalCents: number; locations: { location: string; previousCents: number }[]; carriedOverCount: number }
 export interface ReportDetail extends ReportListItem {
+  compare: Comparison | null;
   account: string; fleet: string; pageCount: number; review: Omit<ReportReview, 'facts'>;
   warnings: string[]; canViewSource: boolean; priorDateLineCount: number; periodClosed: boolean; currentPublishedReportId: string | null; currentPublishedTotalCents: number | null; currentPublishedRevision: number | null; publishedAt?: string; note?: string;
 }

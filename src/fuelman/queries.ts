@@ -1,7 +1,7 @@
 import type { ClientSession } from 'mongoose';
 import { FuelExpense, FuelPeriod, FuelReport } from './models.ts';
 import type { ReportRecord } from './models.ts';
-import type { CostFact, ReportDetail, ReportListItem, ReportReview } from './types.ts';
+import type { Comparison, CostFact, ReportDetail, ReportListItem, ReportReview } from './types.ts';
 import { emptyAmounts } from './types.ts';
 import { reviewFor } from './storage.ts';
 import { locationTotals } from './review.ts';
@@ -34,13 +34,22 @@ function scopedReview(full: ReportReview, facts: CostFact[]): ReportReview {
   const total = facts.reduce((s, f) => s + f.amountCents, 0);
   return { token: '', ready: true, issues: [], missing: [], drivers, locations: locationTotals(facts), unassigned: { amounts: emptyAmounts(), totalCents: 0, driverCount: 0, lineCount: 0 }, facts, totalCents: total, amounts, unresolvedCount: 0, allocatedCents: total, unallocatedCents: 0 };
 }
+export const monthBefore = (month: string) => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7);
+async function comparisonFor(report: ReportRecord, review: ReportReview, session: ClientSession): Promise<Comparison | null> {
+  const previousMonth = monthBefore(report.parsed.month), facts = await monthlyFacts(previousMonth, { global: true, locations: [] }, session);
+  const carriedOverCount = review.drivers.filter(d => d.driverKey && d.assignments.some(a => a.from < report.parsed.start)).length;
+  if (!facts.length) return carriedOverCount ? { previousMonth, previousTotalCents: 0, locations: [], carriedOverCount } : null;
+  return { previousMonth, previousTotalCents: facts.reduce((s, f) => s + f.amountCents, 0), carriedOverCount,
+    locations: locationTotals(facts).map(l => ({ location: l.location, previousCents: l.totalCents })) };
+}
 export async function detailFor(report: ReportRecord, visibility: Visibility, session: ClientSession): Promise<ReportDetail> {
   const own = await visibleFacts(report, visibility, session), full = await reviewFor(report, session);
   const review = own ? scopedReview(full, own) : full;
   const { facts: _facts, ...publicReview } = review;
   const period = visibility.global ? await FuelPeriod.findById(report.periodKey).session(session).lean() : null;
   const previous = period?.publishedReportId ? await FuelReport.findById(period.publishedReportId, 'parsed.totalCents revision').session(session).lean() : null;
-  return { ...listItem(report, own), account: visibility.global ? report.parsed.account : '', fleet: visibility.global ? report.parsed.fleet : '',
+  const compare = visibility.global ? await comparisonFor(report, full, session) : null;
+  return { ...listItem(report, own), compare, account: visibility.global ? report.parsed.account : '', fleet: visibility.global ? report.parsed.fleet : '',
     pageCount: report.parsed.pageCount, review: publicReview, warnings: visibility.global ? report.parsed.warnings : ['Showing allocated expenses for your permitted locations.'],
     canViewSource: visibility.global, publishedAt: report.publishedAt?.toISOString(), note: visibility.global ? report.note : '',
     periodClosed: !!period?.closed, currentPublishedReportId: period?.publishedReportId ? String(period.publishedReportId) : null,
@@ -89,7 +98,7 @@ export async function monthlyFacts(month: string, visibility: Visibility, sessio
   return FuelExpense.find({ month, reportId: { $in: ids }, ...(visibility.global ? {} : { location: { $in: visibility.locations } }) }).session(session).lean();
 }
 export async function pnlFor(month: string, visibility: Visibility, session: ClientSession) {
-  const previousMonth = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7);
+  const previousMonth = monthBefore(month);
   const facts = await monthlyFacts(month, visibility, session), prior = await monthlyFacts(previousMonth, visibility, session);
   const total = facts.reduce((s, f) => s + f.amountCents, 0), previous = prior.reduce((s, f) => s + f.amountCents, 0);
   const drivers = new Map<string, { driverKey: string; driverName: string; totalCents: number; locations: string[] }>();
