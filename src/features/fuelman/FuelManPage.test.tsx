@@ -129,6 +129,16 @@ describe('Fuel Man screens', () => {
       fireEvent.click(within(steps).getByRole('button', { name: /Approve/ })); expect(await screen.findByText('Check the totals, then approve')).toBeTruthy();
       expect((screen.getByRole('button', { name: 'Some steps are not done' }) as HTMLButtonElement).disabled).toBe(true);
     });
+    it('tells a card with no suggestion what it needs, then that it is ready once a driver is chosen (their home location fills in)', async () => {
+      const ids = Array.from({ length: 10 }, (_, n) => `D${n}`); vi.mocked(fuelApi.detail).mockResolvedValue(report(false, ids));
+      render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', OPEN));
+      const card = (await screen.findByText('Employee #D3 · $52.50 this month')).closest('article')!;
+      expect(within(card).getByText('Choose a driver', { selector: '.fuel-status' })).toBeTruthy();
+      fireEvent.click(within(card).getByLabelText('Driver')); fireEvent.click(await screen.findByRole('option', { name: /Driver Alpha/ }));
+      expect(within(card).getByText('Ready to save')).toBeTruthy(); expect(screen.getByRole('button', { name: 'Save 1 match' })).toBeTruthy();
+      fireEvent.click(within(card).getByLabelText('Charge to')); fireEvent.click(await screen.findByRole('option', { name: /Spokane/ }));
+      expect(within(card).getByText('Ready to save')).toBeTruthy();
+    });
     it('accepts a clear suggestion on a first-month card with one tap', async () => {
       const ids = ['A', ...Array.from({ length: 9 }, (_, n) => `D${n}`)]; vi.mocked(fuelApi.detail).mockResolvedValue(report(false, ids));
       vi.mocked(fuelApi.command).mockResolvedValue({ success: true });

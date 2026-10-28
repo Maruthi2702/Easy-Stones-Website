@@ -10,13 +10,15 @@
 .fuel-title > svg { color: var(--accent-primary); }
 .fuel-title p, .fuel-muted { color: var(--text-secondary); font-size: 12px; }
 .fuel-man button, .fuel-man input, .fuel-man select { font: inherit; }
-.fuel-man button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 13px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); border-radius: 8px; cursor: pointer; transition: border-color .15s, background-color .15s; }
-.fuel-man button:hover:not(:disabled) { border-color: var(--accent-primary); }
-.fuel-man button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
-.fuel-man button:disabled { opacity: .45; cursor: not-allowed; }
+/* The shared form controls (.fm-picker-trigger, .fm-opt, .fm-search-input) are styled by FormModal.css; Fuel Man's own
+   button and input looks must not reach into them (they boxed every option and framed the search field). */
+.fuel-man button:not(.fm-picker-trigger, .fm-opt) { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 13px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-primary); border-radius: 8px; cursor: pointer; transition: border-color .15s, background-color .15s; }
+.fuel-man button:hover:not(:disabled, .fm-picker-trigger, .fm-opt) { border-color: var(--accent-primary); }
+.fuel-man button:focus-visible:not(.fm-picker-trigger, .fm-opt) { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+.fuel-man button:disabled:not(.fm-picker-trigger, .fm-opt) { opacity: .45; cursor: not-allowed; }
 .fuel-man .fuel-primary { background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); color: #000000; border-color: var(--accent-primary); font-weight: 600; }
-.fuel-man input:not([type='checkbox']) { padding: 9px 12px; min-height: 40px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); color: var(--text-primary); }
-.fuel-man input:focus { outline: 2px solid var(--accent-glow); border-color: var(--accent-primary); }
+.fuel-man input:not([type='checkbox'], .fm-search-input) { padding: 9px 12px; min-height: 40px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); color: var(--text-primary); }
+.fuel-man input:focus:not(.fm-search-input) { outline: 2px solid var(--accent-glow); border-color: var(--accent-primary); }
 .fuel-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 20px; margin: 16px 0; min-width: 0; }
 .fuel-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 18px; }
 .fuel-main-tabs { border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 10px; }

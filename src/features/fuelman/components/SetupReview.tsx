@@ -65,10 +65,10 @@ export default function SetupReview({ report, metadata, reload, onSaved, onMissi
             <div className="fuel-sr-who"><strong>{c.driver.name}</strong><small>Employee #{id} · {money(c.driver.totalCents)} this month</small></div>
             {suggest ? <><div className="fuel-sr-suggest"><span className="fuel-status draft">Suggested</span> <strong>{c.user!.name}</strong> → <strong>{c.location}</strong>{c.since && <small> · same as {monthName(c.since.slice(0, 7))}</small>}</div>
               <div className="fuel-mr-acts"><button className="fuel-primary" disabled={!!actions.busy} onClick={() => void actions.accept(c)}>Accept</button><button disabled={!!actions.busy} onClick={() => setManual(old => new Set(old).add(id))}>Change</button></div></>
-              : <><div className="fuel-sr-fields">
+              : <><div className="fuel-sr-fields fm-tokens">
                 <div><label htmlFor={`sr-d-${id}`}>Driver</label><FormSearchPicker id={`sr-d-${id}`} value={pick?.driverKey || ''} options={options} placeholder="Choose a driver" onChange={v => chooseDriver(c, v)} /></div>
                 <div><label htmlFor={`sr-l-${id}`}>Charge to</label><LocationPicker id={`sr-l-${id}`} value={pick?.location || ''} options={metadata.locations} noneLabel="Choose a location" onChange={v => setPick(id, { location: v })} /></div></div>
-                <div className="fuel-mr-acts"><span className="fuel-status">{!c.user ? 'No match found' : ready.includes(c) ? 'Ready to save' : 'Pick a location'}</span></div></>}
+                <div className="fuel-mr-acts"><span className={`fuel-status${ready.includes(c) ? ' posted' : ''}`}>{ready.includes(c) ? 'Ready to save' : pick?.driverKey || c.user ? 'Pick a location' : 'Choose a driver'}</span></div></>}
           </article>;
         })}</div>
         {!cards.length && <p className="fuel-empty">Every card has a driver and a location.</p>}
