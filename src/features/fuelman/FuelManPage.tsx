@@ -15,8 +15,10 @@ import MissingForm from './forms/MissingForm';
 import DecisionForm from './forms/DecisionForm';
 import type { Decision } from './forms/DecisionForm';
 import ClassificationForm from './forms/ClassificationForm';
+import SetupDriversForm from './forms/SetupDriversForm';
+import DraftLocationTotals from './components/DraftLocationTotals';
 import './FuelMan.css';
-type Form = { type: 'assign'; report: ReportDetail; driver: ReviewDriver } | { type: 'missing'; report: ReportDetail; missing: MissingIdentity } |
+type Form = { type: 'setup'; report: ReportDetail } | { type: 'assign'; report: ReportDetail; driver: ReviewDriver } | { type: 'missing'; report: ReportDetail; missing: MissingIdentity } |
   { type: 'decision'; report: ReportDetail; action: Decision } | { type: 'classify'; report: ReportDetail; line: ExpenseLine };
 export default function FuelManPage({ sidebarToggle }: { currentUser?: { permissions?: string[] } | null; sidebarToggle?: ReactNode }) {
   const d = useFuelMan(), [view, setView] = useState('reports'), [upload, setUpload] = useState(false), [form, setForm] = useState<Form | null>(null), [toast, setToast] = useState('');
@@ -26,7 +28,7 @@ export default function FuelManPage({ sidebarToggle }: { currentUser?: { permiss
     <header className="fuel-header"><div className="fuel-title">{sidebarToggle}<Fuel size={24} /><div><h1>Fuel Man</h1><p>Fleet reports, driver review and location expenses.</p></div></div>
       <div className="fuel-actions"><button onClick={d.refresh} aria-label="Refresh Fuel Man"><RefreshCw size={16} />Refresh</button>
         {meta?.global && meta.permissions.includes(P.IMPORT) && <button className="fuel-primary" onClick={() => setUpload(true)}><Upload size={16} />Upload reports</button>}</div></header>
-    <nav className="fuel-tabs fuel-main-tabs" aria-label="Fuel Man views"><button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}>Reports</button><button className={view === 'totals' ? 'active' : ''} onClick={() => setView('totals')}>Location totals</button></nav>
+    <nav className="fuel-tabs fuel-main-tabs" aria-label="Fuel Man views"><button className={view === 'reports' ? 'active' : ''} onClick={() => setView('reports')}>Reports</button><button className={view === 'totals' ? 'active' : ''} onClick={() => { if (!d.selectedId && d.reports[0]) d.setSelectedId(d.reports[0].id); setView('totals'); }}>Location totals</button></nav>
     {toast && <div role="status" className="fuel-toast">{toast}<button onClick={() => setToast('')} aria-label="Dismiss message">×</button></div>}
     {d.error && <div className="fuel-error" role="alert">{d.error}<button onClick={d.refresh}>Retry</button></div>}
     {view === 'reports' && <>
@@ -34,7 +36,7 @@ export default function FuelManPage({ sidebarToggle }: { currentUser?: { permiss
         {d.detailLoading && <p role="status">Refreshing report…</p>}
         {report && meta && <ReportReview key={report.id} report={report} metadata={meta} reload={d.reload}
           onAssign={driver => setForm({ type: 'assign', report, driver })} onMissing={missing => setForm({ type: 'missing', report, missing })}
-          onClassify={line => setForm({ type: 'classify', report, line })} onDecision={action => setForm({ type: 'decision', report, action })} />}
+          onSetup={() => setForm({ type: 'setup', report })} onClassify={line => setForm({ type: 'classify', report, line })} onDecision={action => setForm({ type: 'decision', report, action })} />}
       </> : <div className="fuel-panel"><div className="fuel-section-heading"><div><h2>Monthly reports</h2><p className="fuel-muted">Upload once, remember assignments and review changes before publishing expenses.</p></div></div>
         {d.loading && <p role="status">Loading reports…</p>}
         {!!d.reports.length && <ReportList reports={d.reports} onOpen={d.setSelectedId} />}
@@ -44,8 +46,11 @@ export default function FuelManPage({ sidebarToggle }: { currentUser?: { permiss
         <Pagination {...d.pager} totalPages={pageCount(d.total, d.pager.rowsPerPage)} totalCount={d.total} onPageChange={d.pager.setCurrentPage} onRowsPerPageChange={d.pager.setRowsPerPage} />
       </div>}
     </>}
-    {view === 'totals' && meta && <LocationTotals metadata={meta} initialMonth={report?.month || d.reports[0]?.month} reload={d.reload} />}
-    {upload && meta?.global && meta.permissions.includes(P.IMPORT) && <UploadForm onClose={() => { setUpload(false); d.refresh(); }} onSaved={id => { setUpload(false); setView('reports'); d.setSelectedId(id); d.refresh(); setToast('Reports are saved for review. Nothing has been published to location totals.'); }} />}
+    {view === 'totals' && meta && (d.detailLoading && !report ? <p role="status">Loading location totals…</p> : report?.status === 'draft' && meta.global
+      ? <DraftLocationTotals key={report.id} report={report} metadata={meta} reload={d.reload} onSetup={() => setForm({ type: 'setup', report })} />
+      : <LocationTotals metadata={meta} initialMonth={report?.month || d.reports[0]?.month} reload={d.reload} />)}
+    {upload && meta?.global && meta.permissions.includes(P.IMPORT) && <UploadForm onClose={() => { setUpload(false); d.refresh(); }} onSaved={id => { setUpload(false); setView('reports'); d.setSelectedId(id); d.refresh(); setToast(''); }} />}
+    {form?.type === 'setup' && meta?.global && meta.permissions.includes(P.RECONCILE) && <SetupDriversForm report={form.report} metadata={meta} onClose={() => setForm(null)} onSaved={saved} />}
     {form?.type === 'assign' && meta && <AssignmentForm report={form.report} driver={form.driver} metadata={meta} onClose={() => setForm(null)} onSaved={saved} />}
     {form?.type === 'missing' && meta?.global && <MissingForm report={form.report} missing={form.missing} onClose={() => setForm(null)} onSaved={saved} />}
     {form?.type === 'decision' && meta?.global && <DecisionForm report={form.report} action={form.action} onClose={() => setForm(null)} onSaved={saved} />}

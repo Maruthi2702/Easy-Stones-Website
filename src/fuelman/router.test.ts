@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import createRouter from './router';
 import { ALL_FUEL_MAN_PERMISSIONS, FUEL_MAN as P } from './permissions';
-import { FUEL_MODELS, FuelExpense, FuelReport, FuelSource, FuelPeriod } from './models';
+import { FUEL_MODELS, FuelExpense, FuelReport, FuelSource, FuelPeriod, FuelProfile, FuelAssignment } from './models';
 import Location from '../models/Location.js';
 import User from '../models/User.js';
 import Role from '../models/Role.js';
@@ -156,6 +156,25 @@ describe('Fuel Man import and review workflow', () => {
     const other = await upload(fixtureReport('2026-08')); await assign(other, 'A', 'Spokane', `user:${driverId}`, '2026-07-01');
     await api('post', `/reports/${id}/publish`).send({ ...envelope(r), note: 'Stale cross-report review' }).expect(409);
     expect(await FuelExpense.countDocuments()).toBe(0);
+  });
+  it('shows unassigned costs immediately and atomically sets up several drivers without posting expenses', async () => {
+    const id = await upload(fixtureReport('2026-09', ['A', 'B'])), r = await detail(id);
+    expect(r.review.drivers).toHaveLength(2);
+    expect(r.review.unassigned).toMatchObject({ totalCents: 10500, driverCount: 2, lineCount: 10 });
+    const assignments = r.review.drivers.map((d, i) => ({ externalId: d.externalId, driverKey: '', profileName: d.name, profileKind: 'driver', from: d.suggestedFrom,
+      allocations: [{ location: i ? 'Spokane' : 'Seattle', percent: '100' }] }));
+    const payload = { ...envelope(r), note: 'Confirmed first-time driver locations', assignments };
+    await api('post', `/reports/${id}/assignments/batch`, { ...user, permissions: [P.VIEW] }).send(payload).expect(403);
+    await api('post', `/reports/${id}/assignments/batch`, { ...user, assignedLocations: ['Seattle'] }).send(payload).expect(403);
+    await api('post', `/reports/${id}/assignments/batch`).send({ ...payload, assignments: [assignments[0], assignments[0]] }).expect(400);
+    await api('post', `/reports/${id}/assignments/batch`).send({ ...payload, assignments: [assignments[0], { ...assignments[1], allocations: [{ location: 'Missing branch', percent: '100' }] }] }).expect(400);
+    expect(await FuelProfile.countDocuments()).toBe(0); expect(await FuelAssignment.countDocuments()).toBe(0); expect((await detail(id)).version).toBe(r.version);
+    await api('post', `/reports/${id}/assignments/batch`).send(payload).expect(200);
+    const next = await detail(id); expect(next.review.ready).toBe(true); expect(next.review.unassigned.lineCount).toBe(0);
+    expect(next.review.locations.map(l => [l.location, l.totalCents])).toEqual([['Seattle', 5250], ['Spokane', 5250]]);
+    expect(next.version).toBe(r.version + 1); expect(await FuelProfile.countDocuments()).toBe(2); expect(await FuelExpense.countDocuments()).toBe(0);
+    await api('post', `/reports/${id}/assignments/batch`).send(payload).expect(409); expect(await FuelProfile.countDocuments()).toBe(2);
+    const october = await upload(fixtureReport('2026-10', ['A', 'B'])); expect((await detail(october)).review.ready).toBe(true);
   });
   it('supports private expense profiles without creating a website account and acknowledges late statement dates', async () => {
     const source = fixtureReport('2026-09'); source.lines[0]!.date = '2026-08-20';

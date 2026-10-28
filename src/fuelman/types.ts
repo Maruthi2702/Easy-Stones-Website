@@ -39,9 +39,10 @@ export interface CostFact {
 }
 export interface MissingIdentity { externalId: string; driverName: string; reason: MissingReason | ''; note: string; resolved: boolean }
 export interface LocationTotal { location: string; amounts: Amounts; totalCents: number; driverCount: number; lineCount: number }
+export interface UnassignedExpenses { amounts: Amounts; totalCents: number; driverCount: number; lineCount: number }
 export interface ReportReview {
   token: string; ready: boolean; issues: string[]; drivers: ReviewDriver[];
-  missing: MissingIdentity[]; locations: LocationTotal[]; facts: CostFact[];
+  missing: MissingIdentity[]; locations: LocationTotal[]; unassigned: UnassignedExpenses; facts: CostFact[];
   totalCents: number; amounts: Amounts; unresolvedCount: number; allocatedCents: number; unallocatedCents: number;
 }
 export interface ReportListItem {

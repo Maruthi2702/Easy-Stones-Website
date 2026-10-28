@@ -32,7 +32,7 @@ function scopedReview(full: ReportReview, facts: CostFact[]): ReportReview {
       assignments: [], suggestions: [], locations: [...new Set(own.map(f => f.location))], issues: [], newIdentity: false };
   });
   const total = facts.reduce((s, f) => s + f.amountCents, 0);
-  return { token: '', ready: true, issues: [], missing: [], drivers, locations: locationTotals(facts), facts, totalCents: total, amounts, unresolvedCount: 0, allocatedCents: total, unallocatedCents: 0 };
+  return { token: '', ready: true, issues: [], missing: [], drivers, locations: locationTotals(facts), unassigned: { amounts: emptyAmounts(), totalCents: 0, driverCount: 0, lineCount: 0 }, facts, totalCents: total, amounts, unresolvedCount: 0, allocatedCents: total, unallocatedCents: 0 };
 }
 export async function detailFor(report: ReportRecord, visibility: Visibility, session: ClientSession): Promise<ReportDetail> {
   const own = await visibleFacts(report, visibility, session), full = await reviewFor(report, session);

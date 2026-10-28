@@ -22,6 +22,12 @@ export function locationTotals(facts: CostFact[]): LocationTotal[] {
   }
   return [...map.values()].map(v => ({ ...v.total, driverCount: v.drivers.size, lineCount: v.lines.size })).sort((a, b) => a.location.localeCompare(b.location));
 }
+export function unassignedExpenses(report: ParsedReport, facts: CostFact[], overrides: CategoryOverride[]) {
+  const assigned = new Set(facts.map(f => f.sourceLine)), categories = new Map(overrides.map(o => [o.index, o.category]));
+  const rows = report.lines.filter(l => !assigned.has(l.index)), amounts = emptyAmounts();
+  rows.forEach(l => { amounts[categories.get(l.index) || l.category] += l.amountCents; });
+  return { amounts, totalCents: rows.reduce((n, l) => n + l.amountCents, 0), driverCount: new Set(rows.map(l => l.externalId)).size, lineCount: rows.length };
+}
 export function buildReview(report: ParsedReport, assignments: Assignment[], dispositions: Disposition[], overrides: CategoryOverride[], context: unknown): ReportReview {
   const facts: CostFact[] = [], issues: string[] = [], amounts = emptyAmounts(), present = new Set(report.employees.map(e => e.externalId));
   const override = new Map(overrides.map(o => [o.index, o.category]));
@@ -64,7 +70,7 @@ export function buildReview(report: ParsedReport, assignments: Assignment[], dis
   });
   const locations = locationTotals(facts), allocatedCents = facts.reduce((s, f) => s + f.amountCents, 0);
   if (allocatedCents !== report.totalCents && !issues.length) issues.push('Allocated expenses do not reconcile to the source total');
-  return { token: digest([context, assignments, dispositions, overrides]), ready: !issues.length, issues, drivers, missing, locations, facts,
+  return { token: digest([context, assignments, dispositions, overrides]), ready: !issues.length, issues, drivers, missing, locations, unassigned: unassignedExpenses(report, facts, overrides), facts,
     totalCents: report.totalCents, amounts, unresolvedCount: drivers.filter(d => d.issues.length).length + missing.filter(m => !m.resolved).length,
     allocatedCents, unallocatedCents: report.totalCents - allocatedCents };
 }

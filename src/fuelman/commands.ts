@@ -4,10 +4,10 @@ import { FuelAssignment, FuelProfile, FuelReport } from './models.ts';
 import type { Actor } from './models.ts';
 import { checkedDraft, fleetTransaction, history, reportFor, reviewFor } from './storage.ts';
 import { driverOptions } from './access.ts';
-import { assignmentSchema, classificationSchema, dispositionSchema } from './schemas.ts';
+import { assignmentSchema, batchAssignmentSchema, mappingSchema, classificationSchema, dispositionSchema } from './schemas.ts';
 import { HttpError } from './http.ts';
 import { validDay } from './parserRows.ts';
-import type { Allocation, Disposition } from './types.ts';
+import type { Allocation, Disposition, DriverOption } from './types.ts';
 async function withDraft(id: string, version: number, token: string, actor: Actor, action: string, note: string,
   work: (report: Awaited<ReturnType<typeof reportFor>>, session: ClientSession) => Promise<unknown>) {
   const source = await reportFor(id);
@@ -18,33 +18,44 @@ async function withDraft(id: string, version: number, token: string, actor: Acto
     return { success: true };
   });
 }
+async function applyAssignment(report: Awaited<ReturnType<typeof reportFor>>, body: z.output<typeof mappingSchema>, actor: Actor,
+  allowedLocations: string[], session: ClientSession, options: DriverOption[]) {
+  if (!report.parsed.employees.some(e => e.externalId === body.externalId)) throw new HttpError(400, 'Choose an identity present in this report');
+  if (body.from > report.parsed.end) throw new HttpError(400, 'The assignment starts after this report ends');
+  const allocations: Allocation[] = body.allocations.map(a => ({ location: a.location,
+    basisPoints: Number(a.percent.split('.')[0]) * 100 + Number((a.percent.split('.')[1] || '').padEnd(2, '0')) }));
+  if (allocations.some(a => !allowedLocations.includes(a.location) || a.basisPoints <= 0) || new Set(allocations.map(a => a.location)).size !== allocations.length ||
+    allocations.reduce((s, a) => s + a.basisPoints, 0) !== 10000) throw new HttpError(400, 'Choose distinct valid locations adding to exactly 100%');
+  let driverKey = body.driverKey, driverName: string;
+  if (!driverKey) {
+    if (!body.profileName.trim()) throw new HttpError(400, 'Choose a driver or enter a new profile name');
+    const [profile] = await FuelProfile.create([{ name: body.profileName, kind: body.profileKind, createdBy: actor }], { session });
+    driverKey = `profile:${profile!._id}`; driverName = profile!.name;
+  } else {
+    const option = options.find(d => d.key === driverKey);
+    if (!option) throw new HttpError(400, 'The selected driver no longer exists');
+    driverName = option.name;
+  }
+  const rows = await FuelAssignment.find({ scopeKey: report.scopeKey, externalId: body.externalId }).session(session).sort({ from: 1 }).lean();
+  const next = rows.find(a => a.from > body.from);
+  for (const row of rows.filter(a => a.from < body.from && (!a.to || a.to > body.from)))
+    await FuelAssignment.updateOne({ _id: row._id }, { $set: { to: body.from, updatedBy: actor, updatedAt: new Date() } }, { session });
+  const old = rows.find(a => a.from === body.from);
+  const after = { scopeKey: report.scopeKey, externalId: body.externalId, reportedName: report.parsed.employees.find(e => e.externalId === body.externalId)!.name, driverKey, driverName, from: body.from,
+    to: next?.from || old?.to || '', allocations, updatedBy: actor, updatedAt: new Date() };
+  await FuelAssignment.findOneAndUpdate({ scopeKey: report.scopeKey, externalId: body.externalId, from: body.from }, { $set: after }, { session, upsert: true });
+  return { before: rows, after };
+}
 export function saveAssignment(id: string, body: z.output<typeof assignmentSchema>, actor: Actor, allowedLocations: string[]) {
-  return withDraft(id, body.version, body.token, actor, 'assignment', body.note, async (report, session) => {
-    if (!report.parsed.employees.some(e => e.externalId === body.externalId)) throw new HttpError(400, 'Choose an identity present in this report');
-    if (body.from > report.parsed.end) throw new HttpError(400, 'The assignment starts after this report ends');
-    const allocations: Allocation[] = body.allocations.map(a => ({ location: a.location,
-      basisPoints: Number(a.percent.split('.')[0]) * 100 + Number((a.percent.split('.')[1] || '').padEnd(2, '0')) }));
-    if (allocations.some(a => !allowedLocations.includes(a.location) || a.basisPoints <= 0) || new Set(allocations.map(a => a.location)).size !== allocations.length ||
-      allocations.reduce((s, a) => s + a.basisPoints, 0) !== 10000) throw new HttpError(400, 'Choose distinct valid locations adding to exactly 100%');
-    let driverKey = body.driverKey, driverName: string;
-    if (!driverKey) {
-      if (!body.profileName.trim()) throw new HttpError(400, 'Choose a driver or enter a new profile name');
-      const [profile] = await FuelProfile.create([{ name: body.profileName, kind: body.profileKind, createdBy: actor }], { session });
-      driverKey = `profile:${profile!._id}`; driverName = profile!.name;
-    } else {
-      const option = (await driverOptions(session)).find(d => d.key === driverKey);
-      if (!option) throw new HttpError(400, 'The selected driver no longer exists');
-      driverName = option.name;
-    }
-    const rows = await FuelAssignment.find({ scopeKey: report.scopeKey, externalId: body.externalId }).session(session).sort({ from: 1 }).lean();
-    const next = rows.find(a => a.from > body.from);
-    for (const row of rows.filter(a => a.from < body.from && (!a.to || a.to > body.from)))
-      await FuelAssignment.updateOne({ _id: row._id }, { $set: { to: body.from, updatedBy: actor, updatedAt: new Date() } }, { session });
-    const old = rows.find(a => a.from === body.from);
-    const after = { scopeKey: report.scopeKey, externalId: body.externalId, reportedName: report.parsed.employees.find(e => e.externalId === body.externalId)!.name, driverKey, driverName, from: body.from,
-      to: next?.from || old?.to || '', allocations, updatedBy: actor, updatedAt: new Date() };
-    await FuelAssignment.findOneAndUpdate({ scopeKey: report.scopeKey, externalId: body.externalId, from: body.from }, { $set: after }, { session, upsert: true });
-    return { before: rows, after };
+  return withDraft(id, body.version, body.token, actor, 'assignment', body.note, async (report, session) =>
+    applyAssignment(report, body, actor, allowedLocations, session, await driverOptions(session)));
+}
+export function saveAssignments(id: string, body: z.output<typeof batchAssignmentSchema>, actor: Actor, allowedLocations: string[]) {
+  return withDraft(id, body.version, body.token, actor, 'assignments', body.note, async (report, session) => {
+    if (new Set(body.assignments.map(a => a.externalId)).size !== body.assignments.length) throw new HttpError(400, 'Choose each reported driver only once');
+    const options = await driverOptions(session), changes = [];
+    for (const assignment of body.assignments) changes.push(await applyAssignment(report, assignment, actor, allowedLocations, session, options));
+    return { changes };
   });
 }
 export function saveDisposition(id: string, body: z.output<typeof dispositionSchema>, actor: Actor) {

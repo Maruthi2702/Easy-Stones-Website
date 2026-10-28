@@ -4,11 +4,12 @@ import { CATEGORIES, REASONS } from './types.ts';
 const day = z.string().refine(validDay, 'Choose a valid date');
 const text = z.string().trim().min(1).max(500);
 const command = { version: z.number().int().min(0), token: z.string().length(64) };
-export const assignmentSchema = z.object({ ...command, externalId: text,
+export const mappingSchema = z.object({ externalId: text,
   driverKey: z.string().max(100).default(''), profileName: z.string().trim().max(150).default(''), profileKind: z.enum(['driver', 'shared']).default('driver'),
   from: day, allocations: z.array(z.object({ location: text, percent: z.string().regex(/^\d{1,3}(?:\.\d{1,2})?$/, 'Use a percentage with up to two decimals') }).strict()).min(1).max(20),
-  note: text,
 }).strict();
+export const assignmentSchema = mappingSchema.extend({ ...command, note: text }).strict();
+export const batchAssignmentSchema = z.object({ ...command, note: text, assignments: z.array(mappingSchema).min(1).max(100) }).strict();
 export const dispositionSchema = z.object({ ...command, externalId: text, reason: z.enum(REASONS), note: text,
   effectiveDate: day.optional(), replacementId: z.string().trim().max(150).optional(),
 }).strict();

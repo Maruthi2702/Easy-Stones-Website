@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import type { ClientSession } from 'mongoose';
 import { FuelState, FuelReport, FuelAssignment, FuelExpense, FuelAudit } from './models.ts';
 import type { Actor, ReportRecord } from './models.ts';
-import { buildReview, digest } from './review.ts';
+import { buildReview, digest, unassignedExpenses } from './review.ts';
 import type { Assignment } from './types.ts';
 import { HttpError } from './http.ts';
 export async function fleetTransaction<T>(scopeKey: string, work: (session: ClientSession) => Promise<T>): Promise<T> {
@@ -31,7 +31,7 @@ export async function reportFor(id: string, session: ClientSession | null = null
 export async function reviewFor(report: ReportRecord, session: ClientSession) {
   if (report.status !== 'draft' && report.frozenReview) {
     const facts = await FuelExpense.find({ reportId: report._id }).session(session).lean();
-    return { ...report.frozenReview, token: digest([String(report._id), report.__v, 'frozen', report.frozenReview.token]), facts };
+    return { ...report.frozenReview, unassigned: unassignedExpenses(report.parsed, facts, report.overrides), token: digest([String(report._id), report.__v, 'frozen', report.frozenReview.token]), facts };
   }
   const rows = await FuelAssignment.find({ scopeKey: report.scopeKey }).session(session).sort({ externalId: 1, from: 1 }).lean();
   const assignments: Assignment[] = rows.map(a => ({ id: String(a._id), externalId: a.externalId, reportedName: a.reportedName, driverKey: a.driverKey, driverName: a.driverName,

@@ -48,6 +48,29 @@ describe('Fuel Man screens', () => {
     fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' })); await screen.findByText('Not assigned');
     expect(screen.queryByRole('button', { name: 'Approve location expenses' })).toBeNull(); expect(screen.queryByRole('button', { name: 'Assign driver' })).toBeNull();
   });
+  it('shows uploaded driver expenses and the unassigned total before any location is chosen', async () => {
+    vi.mocked(fuelApi.detail).mockResolvedValue(report(false)); render(<FuelManPage />);
+    fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' }));
+    await screen.findByText('Awaiting locations'); expect(screen.getByRole('button', { name: 'Driver Alp' })).toBeTruthy();
+    expect(screen.getByText('1 drivers need a location')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Location totals' }));
+    await screen.findByText('2026-07 · Draft location totals');
+    const row = screen.getByRole('cell', { name: /Unassigned/ }).closest('tr')!;
+    expect(within(row).getByText('$52.50')).toBeTruthy(); expect(fuelApi.command).not.toHaveBeenCalled();
+  });
+  it('sets up driver locations in one form with a backend command and preserves input on a stale review', async () => {
+    vi.mocked(fuelApi.detail).mockResolvedValue(report(false));
+    vi.mocked(fuelApi.command).mockRejectedValue(new Error('This review changed. Refresh before saving.'));
+    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Assign locations' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Use one location for this group' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Seattle' })); fireEvent.click(within(dialog).getByRole('button', { name: 'Apply to all 1 drivers' }));
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Assignment note' }), { target: { value: 'Confirmed location' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save 1 assignments' })); await screen.findByRole('alert');
+    expect(fuelApi.command).toHaveBeenCalledWith('report1', 'assignments/batch', expect.objectContaining({ token: report(false).review.token, assignments: [expect.objectContaining({ externalId: 'A', driverKey: '', profileName: 'Driver Alp', allocations: [{ location: 'Seattle', percent: '100' }] })] }));
+    expect((within(dialog).getByRole('textbox', { name: 'Assignment note' }) as HTMLTextAreaElement).value).toBe('Confirmed location');
+  });
   it('retains the original review token and typed note after a stale assignment rejection', async () => {
     const r = report(), onSaved = vi.fn(); vi.mocked(fuelApi.command).mockRejectedValue(Object.assign(new Error('This review changed. Refresh before saving; your form remains open.'), { status: 409 }));
     render(<AssignmentForm report={r} driver={r.review.drivers[0]!} metadata={meta} onClose={vi.fn()} onSaved={onSaved} />);

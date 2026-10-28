@@ -13,6 +13,9 @@ No new dependencies are required.
 2. On the first report, assign each reported employee number to a system
    driver or an expense-only driver/shared profile and cost location. Multiple
    locations must total exactly 100%. Effective dates support transfers.
+   **Assign locations** opens a group form for up to 100 unmatched drivers;
+   each identity/location is confirmed, with an optional user-selected location
+   applied to the group. The backend saves the group atomically.
 3. Later reports reuse dated assignments. Names and ID suffixes never decide
    the branch. Possible name matches are suggestions requiring confirmation.
 4. Give every missing identity a reason and note. No activity, leave and
@@ -24,7 +27,10 @@ No new dependencies are required.
    edited in this workflow; upload a corrected report instead.
 6. Approve to include the report in location totals. View monthly fuel, DEF,
    supplies, non-fuel taxes, signed adjustments and driver totals, or export
-   the approved P&L component as CSV.
+   the approved P&L component as CSV. Uploaded driver expenses are visible
+   immediately. Draft location totals include an explicit **Unassigned** row
+   until mappings are confirmed; this row never becomes a real branch or a
+   published expense. Source details stay below the report rows.
 
 ## Data and accounting rules
 
@@ -99,6 +105,7 @@ All endpoints are authenticated under `/api/accounting/fuel-man` and require
 | GET `/reports/:id` | Backend-calculated review and allocation preview |
 | GET `/reports/:id/lines`, `/reports/:id/history` | Paginated detail/audit |
 | GET `/reports/:id/source` | Authorized original PDF download |
+| POST `/reports/:id/assignments/batch` | Confirm a group of driver/location assignments atomically |
 | POST `/reports/:id/assignments` | Save a dated assignment/location split |
 | POST `/reports/:id/missing` | Record/change a missing identity disposition |
 | POST `/reports/:id/classifications` | Categorize ambiguous expense lines |

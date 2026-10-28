@@ -4,7 +4,7 @@
 .fuel-man h3 { font-size: 16px; }
 .fuel-man p { margin: 6px 0 12px; }
 .fuel-header, .fuel-review-heading, .fuel-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-.fuel-header { margin-bottom: 22px; }
+.fuel-header { margin-bottom: 12px; }
 .fuel-title, .fuel-actions, .fuel-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .fuel-title > svg { color: var(--accent-primary); }
 .fuel-title p, .fuel-muted { color: var(--text-secondary); font-size: 12px; }
@@ -18,12 +18,12 @@
 .fuel-man input:focus { outline: 2px solid var(--accent-glow); border-color: var(--accent-primary); }
 .fuel-panel { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 20px; margin: 16px 0; min-width: 0; }
 .fuel-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 18px; }
-.fuel-main-tabs { border-bottom: 1px solid var(--border-color); padding-bottom: 14px; }
+.fuel-main-tabs { border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 10px; }
 .fuel-man .fuel-tabs .active { background: var(--accent-primary); color: #000; border-color: var(--accent-primary); }
-.fuel-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 18px 0; }
-.fuel-stats > div { border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-card); padding: 16px; }
+.fuel-stats { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 12px 0; }
+.fuel-stats > div { border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-card); padding: 12px 16px; }
 .fuel-stats span { color: var(--text-secondary); font-size: 12px; display: block; }
-.fuel-stats strong { font-size: 24px; display: block; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.fuel-stats strong { font-size: 21px; display: block; margin-top: 3px; font-variant-numeric: tabular-nums; }
 .fuel-stats strong.fuel-stat-status { font-size: 17px; }
 .fuel-toolbar { margin-bottom: 18px; }
 .fuel-toolbar > input { min-width: 240px; max-width: 100%; }
@@ -54,7 +54,7 @@
 .fuel-history span { display: block; color: var(--text-secondary); font-size: 12px; margin-top: 4px; }
 .fuel-allocation-share { display: flex; gap: 8px; }
 .fuel-allocation-share input { min-width: 0; width: 100%; }
-.fuel-back { margin-bottom: 18px; }
+.fuel-back { margin-bottom: 10px; }
 @media(max-width: 700px) {
   .fuel-man { padding: 14px 10px; }
   .fuel-header { align-items: flex-start; }
@@ -80,3 +80,19 @@
 .fuel-form-action { font: inherit; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); background: var(--bg-card); cursor: pointer; }
 .fuel-form-action:hover { border-color: var(--accent-primary); }
 .fuel-form-action:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+
+/* Keep report rows visible before secondary source details. */
+.fuel-report-panel { margin-top: 10px; }
+.fuel-setup-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 10px; }
+.fuel-setup-notice span { display: block; color: var(--text-secondary); font-size: 12px; }
+.fuel-unassigned-row { background: var(--bg-secondary); }
+.fuel-setup-apply { display: flex; gap: 12px; align-items: center; margin: 16px 0; }
+.fuel-setup-apply > div { flex: 1; }
+.fuel-setup-row { display: grid; grid-template-columns: minmax(150px,1fr) minmax(180px,1.2fr) minmax(150px,1fr); gap: 14px; padding: 16px 0; border-top: 1px solid var(--border-color); align-items: center; }
+.fuel-setup-person { min-width: 0; overflow-wrap: anywhere; }
+.fuel-setup-person > span, .fuel-setup-person > small { display: block; color: var(--text-secondary); font-size: 12px; margin-bottom: 8px; }
+.fuel-form-action:disabled { opacity: .45; cursor: not-allowed; }
+@media(max-width: 700px) {
+  .fuel-setup-notice, .fuel-setup-apply { flex-direction: column; align-items: stretch; }
+  .fuel-setup-row { grid-template-columns: 1fr; gap: 8px; }
+}

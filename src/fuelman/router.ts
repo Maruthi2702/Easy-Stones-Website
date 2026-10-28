@@ -10,9 +10,9 @@ import { importReport } from './importReport.ts';
 import { FuelAudit, FuelPeriod, FuelSource, FuelState } from './models.ts';
 import { reportFor, snapshot } from './storage.ts';
 import { detailFor, linesFor, listReports, pnlFor } from './queries.ts';
-import { saveAssignment, saveClassifications, saveDisposition } from './commands.ts';
+import { saveAssignment, saveAssignments, saveClassifications, saveDisposition } from './commands.ts';
 import { publishReport, reverseReport, closePeriod } from './publication.ts';
-import { assignmentSchema, classificationSchema, dispositionSchema, publicationSchema, reverseSchema, closeSchema } from './schemas.ts';
+import { assignmentSchema, batchAssignmentSchema, classificationSchema, dispositionSchema, publicationSchema, reverseSchema, closeSchema } from './schemas.ts';
 import { actor, handle, HttpError, idParam, parse } from './http.ts';
 const pageOf = (v: unknown) => Math.max(1, Math.floor(Number(v) || 1));
 const limitOf = (v: unknown) => [25, 50, 100].includes(Number(v)) ? Number(v) : 50;
@@ -72,6 +72,10 @@ export default function createFuelManRouter({ authenticate, parsePdf = readFuelM
   router.post('/reports/:id/assignments', requireAll(P.RECONCILE), handle(async (req, res) => {
     const a = await requireGlobal(req.user), body = parse(assignmentSchema, req.body);
     res.json(await saveAssignment(idParam(req), body, actor(req), a.locations)); changed(req);
+  }));
+  router.post('/reports/:id/assignments/batch', requireAll(P.RECONCILE), handle(async (req, res) => {
+    const a = await requireGlobal(req.user), body = parse(batchAssignmentSchema, req.body);
+    res.json(await saveAssignments(idParam(req), body, actor(req), a.locations)); changed(req);
   }));
   router.post('/reports/:id/missing', requireAll(P.RECONCILE), handle(async (req, res) => {
     await requireGlobal(req.user); res.json(await saveDisposition(idParam(req), parse(dispositionSchema, req.body), actor(req))); changed(req);

@@ -14,6 +14,16 @@ describe('backend expense allocation and roster review', () => {
     expect(splitCents(100, shares)).toEqual([33, 33, 34]); expect(splitCents(-100, shares)).toEqual([-33, -33, -34]);
     expect(() => splitCents(100, [{ location: 'Seattle', basisPoints: 5000 }])).toThrow(/100%/);
   });
+  it('reconciles assigned and unassigned costs, including zero-net missing expenses', () => {
+    const source = fixtureReport(), missing = buildReview(source, [], [], [], '1');
+    expect(missing.unassigned.totalCents).toBe(5250); expect(missing.unassigned.amounts.adjustment).toBe(-100);
+    source.lines[0]!.date = '2026-07-20';
+    const partial = buildReview(source, [mapping({ from: '2026-07-15' })], [], [], '1');
+    expect(partial.unassigned).toMatchObject({ totalCents: 1050, lineCount: 4, driverCount: 1 });
+    expect(partial.allocatedCents + partial.unassigned.totalCents).toBe(source.totalCents);
+    const zero = fixtureReport(); zero.lines = [zero.lines[0]!, { ...zero.lines[0]!, index: 1, amountCents: -4200 }]; zero.totalCents = 0;
+    const review = buildReview(zero, [], [], [], '1'); expect(review.unassigned.totalCents).toBe(0); expect(review.unassigned.lineCount).toBe(2); expect(review.ready).toBe(false);
+  });
   it('uses the transaction-date assignment across a mid-month transfer', () => {
     const source = fixtureReport(); source.lines[0]!.date = '2026-07-20';
     const review = buildReview(source, [mapping({ to: '2026-07-15' }), mapping({ id: '2', from: '2026-07-15', allocations: [{ location: 'Spokane', basisPoints: 10000 }] })], [], [], '1');
