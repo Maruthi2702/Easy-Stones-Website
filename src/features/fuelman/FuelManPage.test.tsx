@@ -97,10 +97,10 @@ describe('Fuel Man screens', () => {
     expect((screen.getByRole('button', { name: 'Save assignments' }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getAllByRole('button', { name: 'Driver from Users & Roles' })[0]!);
     fireEvent.click(screen.getByRole('option', { name: /Driver Alpha/ }));
-    fireEvent.change(screen.getByRole('textbox', { name: 'Assignment note' }), { target: { value: 'Confirmed first match; second is pending' } });
+    expect((screen.getByRole('textbox', { name: 'Assignment note' }) as HTMLTextAreaElement).required).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Save 1 assignments' })); await waitFor(() => expect(saved).toHaveBeenCalledOnce());
-    const body = vi.mocked(fuelApi.command).mock.calls[0]![2] as { assignments: { externalId: string; driverKey: string }[] };
-    expect(body.assignments).toHaveLength(1); expect(body.assignments[0]).toMatchObject({ externalId: 'A', driverKey: 'user:1' });
+    const body = vi.mocked(fuelApi.command).mock.calls[0]![2] as { note: string; assignments: { externalId: string; driverKey: string }[] };
+    expect(body.note).toBe(''); expect(body.assignments).toHaveLength(1); expect(body.assignments[0]).toMatchObject({ externalId: 'A', driverKey: 'user:1' });
   });
   it('retains the original review token and typed note after a stale assignment rejection', async () => {
     const r = report(), onSaved = vi.fn(); vi.mocked(fuelApi.command).mockRejectedValue(Object.assign(new Error('This review changed. Refresh before saving; your form remains open.'), { status: 409 }));
@@ -108,6 +108,15 @@ describe('Fuel Man screens', () => {
     fireEvent.change(screen.getByRole('textbox', { name: 'Assignment note' }), { target: { value: 'Verified this assignment' } }); fireEvent.click(screen.getByRole('button', { name: 'Save assignment' }));
     await screen.findByRole('alert'); expect((screen.getByRole('textbox', { name: 'Assignment note' }) as HTMLTextAreaElement).value).toBe('Verified this assignment');
     expect(fuelApi.command).toHaveBeenCalledWith(r.id, 'assignments', expect.objectContaining({ version: 2, token: r.review.token, note: 'Verified this assignment' })); expect(onSaved).not.toHaveBeenCalled();
+  });
+  it('saves an individual driver assignment with a blank optional note', async () => {
+    const r = report(), saved = vi.fn(); vi.mocked(fuelApi.command).mockResolvedValue({});
+    render(<AssignmentForm report={r} driver={r.review.drivers[0]!} metadata={meta} onClose={vi.fn()} onSaved={saved} />);
+    expect((screen.getByRole('textbox', { name: 'Assignment note' }) as HTMLTextAreaElement).required).toBe(false);
+    expect((screen.getByRole('button', { name: 'Save assignment' }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Save assignment' }));
+    await waitFor(() => expect(saved).toHaveBeenCalledOnce());
+    expect(fuelApi.command).toHaveBeenCalledWith(r.id, 'assignments', expect.objectContaining({ note: '' }));
   });
   it('requires explicit acknowledgement of pre-statement transactions', async () => {
     const r = { ...report(), priorDateLineCount: 1 }; vi.mocked(fuelApi.command).mockResolvedValue({}); const saved = vi.fn();

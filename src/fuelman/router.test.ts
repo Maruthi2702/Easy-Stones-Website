@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import createRouter from './router';
 import { ALL_FUEL_MAN_PERMISSIONS, FUEL_MAN as P } from './permissions';
-import { FUEL_MODELS, FuelExpense, FuelReport, FuelSource, FuelPeriod, FuelProfile, FuelAssignment } from './models';
+import { FUEL_MODELS, FuelExpense, FuelReport, FuelSource, FuelPeriod, FuelProfile, FuelAssignment, FuelAudit } from './models';
 import Location from '../models/Location.js';
 import User from '../models/User.js';
 import Role from '../models/Role.js';
@@ -99,6 +99,18 @@ describe('Fuel Man import and review workflow', () => {
     expect(review.drivers.filter(d => !d.driverKey).map(d => d.externalId)).toEqual(['NEW']);
     expect(review.drivers.find(d => d.externalId === 'NEW')!.newIdentity).toBe(true);
     expect(await FuelAssignment.countDocuments()).toBe(1); expect(String((await FuelAssignment.findOne())!._id)).toBe(String(saved!._id));
+  });
+  it('saves single and batch assignments without notes and keeps actor history', async () => {
+    const id = await upload(fixtureReport('2026-07', ['A', 'B'])); let r = await detail(id);
+    const mapping = (externalId: string) => ({ externalId, driverKey: `user:${driverId}`, from: r.start, allocations: [{ location: 'Seattle', percent: '100' }] });
+    await api('post', `/reports/${id}/assignments`).send({ ...envelope(r), ...mapping('A') }).expect(200);
+    r = await detail(id);
+    await api('post', `/reports/${id}/assignments/batch`).send({ ...envelope(r), assignments: [mapping('B')], note: '   ' }).expect(200);
+    expect((await detail(id)).review.ready).toBe(true);
+    const entries = await FuelAudit.find({ reportId: id, action: { $in: ['assignment', 'assignments'] } }).lean();
+    expect(entries).toHaveLength(2); expect(entries.every(e => e.note === '' && e.actor.id === 'finance')).toBe(true);
+    r = await detail(id);
+    await api('post', `/reports/${id}/assignments`).send({ ...envelope(r), ...mapping('A'), note: 'x'.repeat(501) }).expect(400);
   });
   it('keeps unpublished expenses outside location P&L and publishes once under concurrent clicks', async () => {
     const id = await upload(); await assign(id);

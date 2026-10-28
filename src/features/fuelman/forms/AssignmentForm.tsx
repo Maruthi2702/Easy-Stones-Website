@@ -22,7 +22,7 @@ export default function AssignmentForm({ report, driver, metadata, onClose, onSa
       driverKey: key, from, allocations, note }); onSaved(); }
     catch (e) { setError((e as Error).message); } finally { setSaving(false); }
   }
-  return <FormModal title={`Assign ${driver.externalId}`} size="m" onClose={onClose} saving={saving} onSubmit={e => { e.preventDefault(); void save(); }} submitLabel="Save assignment" submitDisabled={!key || !from || !note.trim()} dirtyCount={1}>
+  return <FormModal title={`Assign ${driver.externalId}`} size="m" onClose={onClose} saving={saving} onSubmit={e => { e.preventDefault(); void save(); }} submitLabel="Save assignment" submitDisabled={!key || !from} dirtyCount={1}>
     <p>{driver.name} · {report.month}. This assignment is remembered for future reports. Published history stays unchanged.</p>
     {error && <p className="fuel-error" role="alert">{error}</p>}
     {!driver.driverKey && !!driver.suggestions?.length && <div className="fuel-notice"><p>Possible match from an earlier report. Confirm the identity before using it.</p>
@@ -40,6 +40,6 @@ export default function AssignmentForm({ report, driver, metadata, onClose, onSa
       <FormField id={`fuel-share-${index}`} label="Share (%)" required><div className="fuel-allocation-share"><input className="fm-input" id={`fuel-share-${index}`} value={a.percent} required inputMode="decimal" onChange={e => setAllocations(old => old.map((v, i) => i === index ? { ...v, percent: e.target.value } : v))} />
         {allocations.length > 1 && <button className="fuel-form-action" type="button" aria-label={`Remove location ${index + 1}`} onClick={() => setAllocations(old => old.filter((_, i) => i !== index))}>Remove</button>}</div></FormField></FormRow>)}
     <button className="fuel-form-action" type="button" onClick={() => setAllocations(old => [...old, { location: '', percent: '' }])}>Add another cost location</button>
-    <FormField id="fuel-assignment-note" label="Assignment note" required><textarea className="fm-input" id="fuel-assignment-note" required value={note} maxLength={500} onChange={e => setNote(e.target.value)} /></FormField>
+    <FormField id="fuel-assignment-note" label="Assignment note"><textarea className="fm-input" id="fuel-assignment-note" value={note} maxLength={500} onChange={e => setNote(e.target.value)} /></FormField>
   </FormModal>;
 }

@@ -31,7 +31,7 @@ export default function SetupDriversForm({ report, metadata, onClose, onSaved }:
     } catch (e) { setError((e as Error).message); } finally { setSaving(false); }
   }
   return <FormModal title="Assign driver locations" size="l" onClose={onClose} saving={saving} onSubmit={e => { e.preventDefault(); void save(); }}
-    submitLabel={complete ? `Save ${complete} assignments` : 'Save assignments'} submitDisabled={!complete || !note.trim()} dirtyCount={rows.some(r => r.location || r.driverKey) || note ? 1 : 0} footerNote={`${complete} of ${rows.length} ready`}>
+    submitLabel={complete ? `Save ${complete} assignments` : 'Save assignments'} submitDisabled={!complete} dirtyCount={rows.some(r => r.location || r.driverKey) || note ? 1 : 0} footerNote={`${complete} of ${rows.length} ready`}>
     <p>Match each reported driver to a user with a Driver profile in Users & Roles, then confirm the cost location. Save each driver match once; it continues in later monthly reports until you change it. Only completed rows are saved; unmatched drivers stay pending.</p>
     <p className="fuel-muted">Assignments begin from the earliest required date in this report; use individual assignment editing for transfers or split costs.</p>
     {!drivers.length && <p className="fuel-notice">No users with a Driver profile are available in this database. Add or update the driver in Users &amp; Roles, then refresh Fuel Man.</p>}
@@ -45,6 +45,6 @@ export default function SetupDriversForm({ report, metadata, onClose, onSaved }:
       <FormField id={`fuel-setup-location-${i}`} label="Cost location" required><LocationPicker id={`fuel-setup-location-${i}`} value={r.location} options={metadata.locations} noneLabel="Choose location" onChange={v => changeLocation(r.externalId, v)} /></FormField>
     </div>)}
     <Pagination {...pager} totalPages={pageCount(rows.length, pager.rowsPerPage)} totalCount={rows.length} onPageChange={pager.setCurrentPage} onRowsPerPageChange={pager.setRowsPerPage} />
-    <FormField id="fuel-setup-note" label="Assignment note" required><textarea className="fm-input" id="fuel-setup-note" value={note} maxLength={500} required onChange={e => setNote(e.target.value)} /></FormField>
+    <FormField id="fuel-setup-note" label="Assignment note"><textarea className="fm-input" id="fuel-setup-note" value={note} maxLength={500} onChange={e => setNote(e.target.value)} /></FormField>
   </FormModal>;
 }
