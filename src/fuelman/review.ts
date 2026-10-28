@@ -28,13 +28,24 @@ export function unassignedExpenses(report: ParsedReport, facts: CostFact[], over
   rows.forEach(l => { amounts[categories.get(l.index) || l.category] += l.amountCents; });
   return { amounts, totalCents: rows.reduce((n, l) => n + l.amountCents, 0), driverCount: new Set(rows.map(l => l.externalId)).size, lineCount: rows.length };
 }
+const groupBy = <T>(items: T[], key: (item: T) => string): Map<string, T[]> => {
+  const groups = new Map<string, T[]>();
+  for (const item of items) { const k = key(item), list = groups.get(k); if (list) list.push(item); else groups.set(k, [item]); }
+  return groups;
+};
+const nameKey = (name: string | undefined) => (name ?? '').trim().toLowerCase();
+// One pass over lines and assignments up front, so each driver reads only its own rows (O(lines + assignments + drivers), not their product).
 export function buildReview(report: ParsedReport, assignments: Assignment[], dispositions: Disposition[], overrides: CategoryOverride[], context: unknown): ReportReview {
   const facts: CostFact[] = [], issues: string[] = [], amounts = emptyAmounts(), present = new Set(report.employees.map(e => e.externalId));
   const override = new Map(overrides.map(o => [o.index, o.category]));
+  const linesOf = groupBy(report.lines, l => l.externalId), mappingsOf = groupBy(assignments, a => a.externalId);
+  const byName = groupBy(assignments.filter(a => a.reportedName !== undefined), a => nameKey(a.reportedName));
   const drivers = report.employees.map(employee => {
-    const mappings = assignments.filter(a => a.externalId === employee.externalId), problems = new Set<string>(), locations = new Set<string>();
+    const mappings = mappingsOf.get(employee.externalId) || [], lines = linesOf.get(employee.externalId) || [], problems = new Set<string>(), locations = new Set<string>();
     const keys = new Set<string>(), names = new Set<string>(), employeeAmounts = emptyAmounts();
-    for (const line of report.lines.filter(l => l.externalId === employee.externalId)) {
+    let suggestedFrom = report.start;
+    for (const line of lines) {
+      if (line.date < suggestedFrom) suggestedFrom = line.date;
       const category = override.get(line.index) || line.category;
       employeeAmounts[category] += line.amountCents; amounts[category] += line.amountCents;
       if (category === 'other') problems.add('Sort unknown charges into a category');
@@ -52,18 +63,21 @@ export function buildReview(report: ParsedReport, assignments: Assignment[], dis
     }
     if (keys.size > 1) problems.add('One reported identity is assigned to different drivers within this report; review the identity');
     const employeeIssues = [...problems]; issues.push(...employeeIssues.map(p => `${employee.externalId}: ${p}`));
+    const suggestions = new Map<string, { driverKey: string; driverName: string; externalId: string }>();
+    for (const a of byName.get(nameKey(employee.name)) || [])
+      if (a.externalId !== employee.externalId && a.from <= report.end) suggestions.set(a.driverKey, { driverKey: a.driverKey, driverName: a.driverName, externalId: a.externalId });
     return { ...employee, amounts: employeeAmounts, driverKey: [...keys][0] || '', driverName: [...names][0] || '', locations: [...locations], issues: employeeIssues,
-      suggestedFrom: [report.start, ...report.lines.filter(l => l.externalId === employee.externalId).map(l => l.date)].sort()[0]!,
-      suggestions: [...new Map(assignments.filter(a => a.externalId !== employee.externalId && a.from <= report.end && a.reportedName?.trim().toLowerCase() === employee.name.trim().toLowerCase()).map(a => [a.driverKey, { driverKey: a.driverKey, driverName: a.driverName, externalId: a.externalId }])).values()],
-      newIdentity: !mappings.some(a => a.from <= report.end), assignments: mappings };
+      suggestedFrom, suggestions: [...suggestions.values()], newIdentity: !mappings.some(a => a.from <= report.end), assignments: mappings };
   });
   const expected = new Map<string, string>();
   assignments.filter(a => a.from <= report.end && (!a.to || a.to > report.start)).forEach(a => expected.set(a.externalId, a.driverName));
   // Resolved retirements/aliases remain visible on their review, even though
   // ending their expected interval removes them from future missing rosters.
-  dispositions.forEach(d => { if (!present.has(d.externalId) && !expected.has(d.externalId)) expected.set(d.externalId, assignments.find(a => a.externalId === d.externalId)?.driverName || d.externalId); });
+  const dispositionOf = new Map<string, Disposition>();
+  for (const d of dispositions) if (!dispositionOf.has(d.externalId)) dispositionOf.set(d.externalId, d);
+  dispositions.forEach(d => { if (!present.has(d.externalId) && !expected.has(d.externalId)) expected.set(d.externalId, mappingsOf.get(d.externalId)?.[0]?.driverName || d.externalId); });
   const missing = [...expected].filter(([id]) => !present.has(id)).map(([externalId, driverName]) => {
-    const d = dispositions.find(d => d.externalId === externalId);
+    const d = dispositionOf.get(externalId);
     const resolved = !!d && !['incomplete', 'investigating'].includes(d.reason);
     if (!resolved) issues.push(`${externalId}: explain the missing driver${d ? ` (${d.reason})` : ''}`);
     return { externalId, driverName, reason: d?.reason || '' as const, note: d?.note || '', resolved };

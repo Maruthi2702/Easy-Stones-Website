@@ -9,7 +9,7 @@ import type { ParsedReport } from './types.ts';
 import { CATEGORIES } from './types.ts';
 import { importReport } from './importReport.ts';
 import { FuelAudit, FuelPeriod, FuelSource, FuelState } from './models.ts';
-import { reportFor, snapshot } from './storage.ts';
+import { reportFor, requireReport, snapshot } from './storage.ts';
 import { detailFor, linesFor, listReports, pnlFor } from './queries.ts';
 import { saveAssignment, saveAssignments, saveClassifications, saveDisposition } from './commands.ts';
 import { publishReport, reverseReport, closePeriod } from './publication.ts';
@@ -60,13 +60,13 @@ export default function createFuelManRouter({ authenticate, parsePdf = readFuelM
       search: String(req.query.q || '').slice(0, 100), category: CATEGORIES.find(c => c === req.query.category) || '', priorOnly: req.query.prior === 'true',
     })))));
   router.get('/reports/:id/source', handle(async (req, res) => {
-    await requireGlobal(req.user); await reportFor(idParam(req));
+    await requireGlobal(req.user); await requireReport(idParam(req));
     const source = await FuelSource.findOne({ reportId: idParam(req) }).select('+pdf');
     if (!source) throw new HttpError(404, 'Original file not found');
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="fuelman-report.pdf"', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' }).send(source.pdf);
   }));
   router.get('/reports/:id/history', requireAll(P.HISTORY), handle(async (req, res) => {
-    await requireGlobal(req.user); await reportFor(idParam(req));
+    await requireGlobal(req.user); await requireReport(idParam(req));
     const page = pageOf(req.query.page), limit = limitOf(req.query.limit);
     res.json(await snapshot(async session => ({ total: await FuelAudit.countDocuments({ reportId: idParam(req) }).session(session),
       items: await FuelAudit.find({ reportId: idParam(req) }).session(session).sort({ at: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(), page, limit })));

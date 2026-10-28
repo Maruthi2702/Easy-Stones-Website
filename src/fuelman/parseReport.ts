@@ -82,9 +82,10 @@ export function parseReport(pages: PdfPage[]): ParsedReport {
     }
   }
   if (!lines.length || !employees.size) throw new Error('No employee expense detail was found; an exception summary alone is not a complete report');
-  const amounts = emptyAmounts(), summaries: EmployeeSummary[] = [];
+  const amounts = emptyAmounts(), summaries: EmployeeSummary[] = [], linesOf = new Map<string, ExpenseLine[]>();
+  for (const line of lines) { const list = linesOf.get(line.externalId); if (list) list.push(line); else linesOf.set(line.externalId, [line]); }
   for (const [id, state] of employees) {
-    const entries = lines.filter(line => line.externalId === id), total = entries.reduce((s, l) => s + l.amountCents, 0);
+    const entries = linesOf.get(id) || [], total = entries.reduce((s, l) => s + l.amountCents, 0);
     const reported = state.printedTotal ?? state.subtotals.reduce((s, t) => s + t.cents, 0);
     if (!state.subtotals.length || total !== reported || entries.length !== state.subtotals.reduce((s, t) => s + t.count, 0))
       throw new Error(`Employee ${id}: detail count or amount does not reconcile to the printed totals`);

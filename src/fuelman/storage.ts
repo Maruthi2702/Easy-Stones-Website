@@ -28,6 +28,16 @@ export async function reportFor(id: string, session: ClientSession | null = null
   if (!report) throw new HttpError(404, 'Report not found');
   return report;
 }
+// The scope key alone: publish/reverse/close/commands need it to open their transaction, and loading
+// the whole report (every parsed line) just to read it is the most expensive way to ask.
+export async function scopeOf(id: string): Promise<string> {
+  const report = await FuelReport.findById(id, 'scopeKey').lean();
+  if (!report) throw new HttpError(404, 'Report not found');
+  return report.scopeKey;
+}
+export async function requireReport(id: string): Promise<void> {
+  if (!(await FuelReport.exists({ _id: id }))) throw new HttpError(404, 'Report not found');
+}
 export async function reviewFor(report: ReportRecord, session: ClientSession) {
   if (report.status !== 'draft' && report.frozenReview) {
     const facts = await FuelExpense.find({ reportId: report._id }).session(session).lean();
@@ -41,8 +51,9 @@ export async function reviewFor(report: ReportRecord, session: ClientSession) {
 export async function checkedDraft(id: string, version: number, token: string, session: ClientSession) {
   const report = await reportFor(id, session);
   if (report.status !== 'draft') throw new HttpError(409, 'Published reports retain their original assignments. Upload a correction to change them.');
-  if (report.__v !== version || (await reviewFor(report, session)).token !== token) throw new HttpError(409, 'This review changed. Refresh before saving; your form remains open.');
-  return report;
+  const review = await reviewFor(report, session);
+  if (report.__v !== version || review.token !== token) throw new HttpError(409, 'This review changed. Refresh before saving; your form remains open.');
+  return { report, review };
 }
 export async function history(report: ReportRecord, actor: Actor, action: string, note: string, detail: unknown, session: ClientSession) {
   await FuelAudit.create([{ reportId: report._id, scopeKey: report.scopeKey, actor, action, note, detail, at: new Date() }], { session });

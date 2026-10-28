@@ -1,12 +1,12 @@
 import type { z } from 'zod';
 import { FuelReport, FuelExpense, FuelPeriod } from './models.ts';
 import type { Actor } from './models.ts';
-import { reportFor, reviewFor, fleetTransaction, history } from './storage.ts';
+import { reportFor, reviewFor, fleetTransaction, history, scopeOf } from './storage.ts';
 import { publicationSchema, reverseSchema, closeSchema } from './schemas.ts';
 import { HttpError } from './http.ts';
 export async function publishReport(id: string, body: z.output<typeof publicationSchema>, actor: Actor, canReplace: boolean) {
-  const source = await reportFor(id);
-  return fleetTransaction(source.scopeKey, async session => {
+  const scopeKey = await scopeOf(id);
+  return fleetTransaction(scopeKey, async session => {
     const report = await reportFor(id, session), period = await FuelPeriod.findById(report.periodKey).session(session).lean();
     if (report.status === 'posted') {
       if (String(period?.publishedReportId) === id) return { success: true, duplicate: true };
@@ -36,8 +36,8 @@ export async function publishReport(id: string, body: z.output<typeof publicatio
   });
 }
 export async function reverseReport(id: string, body: z.output<typeof reverseSchema>, actor: Actor) {
-  const source = await reportFor(id);
-  return fleetTransaction(source.scopeKey, async session => {
+  const scopeKey = await scopeOf(id);
+  return fleetTransaction(scopeKey, async session => {
     const report = await reportFor(id, session), period = await FuelPeriod.findById(report.periodKey).session(session).lean();
     if (period?.closed) throw new HttpError(409, 'This period is closed');
     if (report.status !== 'posted' || report.__v !== body.version || String(period?.publishedReportId) !== id) throw new HttpError(409, 'Only the current published revision can be reversed. Refresh the report.');
@@ -48,8 +48,8 @@ export async function reverseReport(id: string, body: z.output<typeof reverseSch
   });
 }
 export async function closePeriod(id: string, body: z.output<typeof closeSchema>, actor: Actor) {
-  const source = await reportFor(id);
-  return fleetTransaction(source.scopeKey, async session => {
+  const scopeKey = await scopeOf(id);
+  return fleetTransaction(scopeKey, async session => {
     const report = await reportFor(id, session);
     await FuelPeriod.updateOne({ _id: report.periodKey }, { $set: { closed: body.closed, closedBy: actor, closedAt: new Date() } }, { session });
     await history(report, actor, body.closed ? 'period-closed' : 'period-reopened', body.note, { periodKey: report.periodKey }, session);

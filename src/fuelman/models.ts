@@ -26,6 +26,8 @@ const report = new Schema<ReportRecord>({ scopeKey: { type: String, required: tr
 report.index({ scopeKey: 1, contentHash: 1 }, { unique: true });
 report.index({ periodKey: 1, revision: 1 }, { unique: true });
 report.index({ importedAt: -1 });
+// The reports list: newest month first, then newest revision.
+report.index({ 'parsed.month': -1, revision: -1, importedAt: -1, _id: -1 });
 const assignment = new Schema<AssignmentRecord>({ scopeKey: { type: String, required: true }, externalId: { type: String, required: true },
   reportedName: String, driverKey: String, driverName: String, from: String, to: String, allocations: [{ _id: false, location: String, basisPoints: Number }],
   updatedBy: person, updatedAt: Date,
@@ -38,9 +40,12 @@ const fact = new Schema<FactRecord>({ reportId: { type: Schema.Types.ObjectId, r
 }, { collection: 'acct_fuelman_expenses' });
 fact.index({ reportId: 1, sourceLine: 1, location: 1 }, { unique: true });
 fact.index({ month: 1, location: 1 });
+fact.index({ location: 1, reportId: 1 }); // a branch reader's list
+fact.index({ month: 1, reportId: 1 }); // a month's published facts
 const state = new Schema<StateRecord>({ _id: String, revision: { type: Number, default: 0 } }, { collection: 'acct_fuelman_state', versionKey: false });
 const period = new Schema<PeriodRecord>({ _id: String, scopeKey: String, month: String, publishedReportId: Schema.Types.ObjectId,
   closed: { type: Boolean, default: false }, closedBy: person, closedAt: Date }, { collection: 'acct_fuelman_periods', versionKey: false });
+period.index({ month: 1, publishedReportId: 1 }); // which reports are published for a month
 const audit = new Schema<AuditRecord>({ reportId: Schema.Types.ObjectId, scopeKey: String, action: String, at: Date, actor: person, note: String, detail: Schema.Types.Mixed }, { collection: 'acct_fuelman_history' });
 audit.index({ reportId: 1, at: -1 });
 const model = <T>(name: string, schema: mongoose.Schema<T>): Model<T> => (mongoose.models[name] as Model<T> | undefined) || mongoose.model<T>(name, schema);
