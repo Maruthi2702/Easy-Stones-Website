@@ -42,7 +42,7 @@ function scopedReview(full: ReportReview, facts: CostFact[]): ReportReview {
     const own = factsOf.get(d.externalId)!, sum = own.reduce((s, f) => s + f.amountCents, 0), a = emptyAmounts();
     own.forEach(f => { a[f.category] += f.amountCents; });
     return { ...d, totalCents: sum, reportedTotalCents: sum, amounts: a, lineCount: new Set(own.map(f => f.sourceLine)).size,
-      assignments: [], suggestions: [], locations: [...new Set(own.map(f => f.location))], issues: [], newIdentity: false };
+      assignments: [], suggestions: [], carriedFrom: undefined, locations: [...new Set(own.map(f => f.location))], issues: [], newIdentity: false };
   });
   const total = facts.reduce((s, f) => s + f.amountCents, 0);
   return { token: '', ready: true, issues: [], missing: [], drivers, locations: locationTotals(facts), unassigned: { amounts: emptyAmounts(), totalCents: 0, driverCount: 0, lineCount: 0 }, facts, totalCents: total, amounts, unresolvedCount: 0, allocatedCents: total, unallocatedCents: 0 };

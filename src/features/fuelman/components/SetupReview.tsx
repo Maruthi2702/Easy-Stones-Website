@@ -63,7 +63,7 @@ export default function SetupReview({ report, metadata, reload, onSaved, onMissi
           const id = c.driver.externalId, pick = picks[id], suggest = c.user && c.location && !manual.has(id) && !ready.includes(c);
           return <article className="fuel-sr-row" key={id}>
             <div className="fuel-sr-who"><strong>{c.driver.name}</strong><small>Employee #{id} · {money(c.driver.totalCents)} this month</small></div>
-            {suggest ? <><div className="fuel-sr-suggest"><span className="fuel-status draft">Suggested</span> <strong>{c.user!.name}</strong> → <strong>{c.location}</strong></div>
+            {suggest ? <><div className="fuel-sr-suggest"><span className="fuel-status draft">Suggested</span> <strong>{c.user!.name}</strong> → <strong>{c.location}</strong>{c.since && <small> · same as {monthName(c.since.slice(0, 7))}</small>}</div>
               <div className="fuel-mr-acts"><button className="fuel-primary" disabled={!!actions.busy} onClick={() => void actions.accept(c)}>Accept</button><button disabled={!!actions.busy} onClick={() => setManual(old => new Set(old).add(id))}>Change</button></div></>
               : <><div className="fuel-sr-fields">
                 <div><label htmlFor={`sr-d-${id}`}>Driver</label><FormSearchPicker id={`sr-d-${id}`} value={pick?.driverKey || ''} options={options} placeholder="Choose a driver" onChange={v => chooseDriver(c, v)} /></div>

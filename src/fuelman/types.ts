@@ -31,7 +31,10 @@ export interface Disposition { externalId: string; reason: MissingReason; note: 
 export interface CategoryOverride { index: number; category: Category; note: string }
 export interface ReviewDriver extends EmployeeSummary {
   driverKey: string; driverName: string; locations: string[]; issues: string[];
-  newIdentity: boolean; assignments: Assignment[]; suggestedFrom: string; suggestions: { driverKey: string; driverName: string; externalId: string }[];
+  newIdentity: boolean; assignments: Assignment[];
+  // Set when this identity has no assignment covering this report but one that starts later (e.g. matched in September, now
+  // reviewing August) with a single 100% location: the match to offer, never applied without a person confirming it.
+  carriedFrom?: { driverKey: string; driverName: string; location: string; since: string }; suggestedFrom: string; suggestions: { driverKey: string; driverName: string; externalId: string }[];
 }
 export interface CostFact {
   externalId: string; driverKey: string; driverName: string; location: string;

@@ -20,11 +20,15 @@ export function matchUserByName(reported: string, users: DriverOption[]): Driver
   const found = users.filter(u => u.active && same(u));
   return found.length === 1 ? found[0] : undefined;
 }
-export interface CardSuggestion { driver: ReviewDriver; user: DriverOption | undefined; location: string }
+// `since` is set when the answer is the one saved for a later month (an earlier report being reviewed after it).
+export interface CardSuggestion { driver: ReviewDriver; user: DriverOption | undefined; location: string; since?: string }
 /** A reported card with no saved match, plus the ready-made answer when the name and home location are clear. */
 export function suggestionsFor(report: ReportDetail, metadata: FuelMetadata): CardSuggestion[] {
   const users = metadata.drivers.filter(d => d.kind === 'user');
   return report.review.drivers.filter(d => !d.driverKey).map(driver => {
+    // What this same card was matched to in a later month beats guessing from the name.
+    const later = driver.carriedFrom, saved = later && users.find(u => u.key === later.driverKey);
+    if (later && saved) return { driver, user: saved, location: metadata.locations.includes(later.location) ? later.location : '', since: later.since };
     const user = matchUserByName(driver.name, users);
     return { driver, user, location: suggestedLocation(user, metadata.locations) };
   });

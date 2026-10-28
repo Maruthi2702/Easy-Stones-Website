@@ -66,7 +66,10 @@ export function buildReview(report: ParsedReport, assignments: Assignment[], dis
     const suggestions = new Map<string, { driverKey: string; driverName: string; externalId: string }>();
     for (const a of byName.get(nameKey(employee.name)) || [])
       if (a.externalId !== employee.externalId && a.from <= report.end) suggestions.set(a.driverKey, { driverKey: a.driverKey, driverName: a.driverName, externalId: a.externalId });
-    return { ...employee, amounts: employeeAmounts, driverKey: [...keys][0] || '', driverName: [...names][0] || '', locations: [...locations], issues: employeeIssues,
+    const earliest = mappings.reduce<Assignment | undefined>((first, a) => !first || a.from < first.from ? a : first, undefined);
+    const carriedFrom = !keys.size && earliest && earliest.from > suggestedFrom && earliest.allocations.length === 1 && earliest.allocations[0]!.basisPoints === 10000
+      ? { driverKey: earliest.driverKey, driverName: earliest.driverName, location: earliest.allocations[0]!.location, since: earliest.from } : undefined;
+    return { ...employee, ...(carriedFrom && { carriedFrom }), amounts: employeeAmounts, driverKey: [...keys][0] || '', driverName: [...names][0] || '', locations: [...locations], issues: employeeIssues,
       suggestedFrom, suggestions: [...suggestions.values()], newIdentity: !mappings.some(a => a.from <= report.end), assignments: mappings };
   });
   const expected = new Map<string, string>();

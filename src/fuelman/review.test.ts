@@ -38,6 +38,16 @@ describe('backend expense allocation and roster review', () => {
     expect(resolved.ready).toBe(true); expect(resolved.totalCents).toBe(5250);
     expect(buildReview(fixtureReport('2026-09', ['B']), [mapping(), mapping({ id: '2', externalId: 'B' })], [], [], '1').missing[0]!.resolved).toBe(false);
   });
+  it('offers the later month\'s match for an earlier report, but only when it is one clear location', () => {
+    const august = fixtureReport('2026-08'), september = mapping({ from: '2026-09-01' });
+    const [driver] = buildReview(august, [september], [], [], '1').drivers;
+    expect(driver).toMatchObject({ driverKey: '', newIdentity: true, carriedFrom: { driverKey: 'driver1', driverName: 'Driver Alpha', location: 'Seattle', since: '2026-09-01' } });
+    expect(buildReview(august, [], [], [], '1').drivers[0]!.carriedFrom).toBeUndefined(); // never seen before
+    const split = mapping({ from: '2026-09-01', allocations: [{ location: 'Seattle', basisPoints: 5000 }, { location: 'Spokane', basisPoints: 5000 }] });
+    expect(buildReview(august, [split], [], [], '1').drivers[0]!.carriedFrom).toBeUndefined(); // a split is never guessed
+    expect(buildReview(august, [mapping()], [], [], '1').drivers[0]!.carriedFrom).toBeUndefined(); // already covered
+    expect(buildReview(august, [september], [], [], '1').ready).toBe(false); // offering is not applying
+  });
   it('does not expect future or retired identities in a historical report', () => {
     const review = buildReview(fixtureReport(), [mapping(), mapping({ id: '2', externalId: 'future', from: '2026-09-01' }), mapping({ id: '3', externalId: 'retired', from: '2026-01-01', to: '2026-07-01' })], [], [], '1');
     expect(review.missing).toEqual([]); expect(review.ready).toBe(true);

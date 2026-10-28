@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { changeFrom, groupCharges, matchUserByName } from './monthReview';
-import type { DriverOption, ExpenseLine } from '../../fuelman/types';
+import { changeFrom, groupCharges, matchUserByName, suggestionsFor } from './monthReview';
+import type { DriverOption, ExpenseLine, FuelMetadata, ReportDetail, ReviewDriver } from '../../fuelman/types';
 const user = (name: string, active = true): DriverOption => ({ key: `user:${name}`, name, active, locations: ['Kent'], kind: 'user' });
 describe('matching a report name to a driver', () => {
   const users = [user('Jin Park'), user('Marcus Tran'), user('Denise Okafor'), user('Tom Bradley'), user('Tom Baker')];
@@ -15,6 +15,18 @@ describe('matching a report name to a driver', () => {
     expect(matchUserByName('TOM B', users)).toBeUndefined(); // Bradley or Baker
     expect(matchUserByName('SHOP TRUCK 3', users)).toBeUndefined();
     expect(matchUserByName('J PARK', [user('Jin Park', false)])).toBeUndefined(); // inactive
+  });
+});
+describe('suggesting a match for a card', () => {
+  const kent = user('Jin Park'), meta = { locations: ['Kent', 'Seattle'], drivers: [kent, user('Marcus Tran')], global: true, permissions: [] } as FuelMetadata;
+  const report = (driver: Partial<ReviewDriver>) => ({ review: { drivers: [{ externalId: 'X', name: 'SHOP TRUCK 3', driverKey: '', ...driver }] } }) as unknown as ReportDetail;
+  it('uses what the same card was matched to in a later month, ahead of any name guess', () => {
+    const [card] = suggestionsFor(report({ carriedFrom: { driverKey: 'user:Marcus Tran', driverName: 'Marcus Tran', location: 'Seattle', since: '2026-09-01' } }), meta);
+    expect(card).toMatchObject({ user: { name: 'Marcus Tran' }, location: 'Seattle', since: '2026-09-01' });
+  });
+  it('falls back to the name when the saved driver is no longer a user or the location is gone', () => {
+    expect(suggestionsFor(report({ name: 'J PARK', carriedFrom: { driverKey: 'user:gone', driverName: 'Gone', location: 'Seattle', since: '2026-09-01' } }), meta)[0]).toMatchObject({ user: { name: 'Jin Park' }, location: 'Kent' });
+    expect(suggestionsFor(report({ carriedFrom: { driverKey: 'user:Jin Park', driverName: 'Jin Park', location: 'Closed', since: '2026-09-01' } }), meta)[0]).toMatchObject({ location: '' });
   });
 });
 describe('change versus last month', () => {

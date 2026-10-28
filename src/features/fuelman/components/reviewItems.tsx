@@ -9,7 +9,7 @@ export function CardItem({ n, c, actions, onChoose }: { n: number; c: CardSugges
   const { busy } = actions;
   return <div className="fuel-mr-item"><span className="fuel-mr-n" aria-hidden="true">{n}</span>
     <div><h4>New card: {c.driver.name} <span className="fuel-muted">· #{c.driver.externalId} · {money(c.driver.totalCents)}</span></h4>
-      <p>{c.user ? `Looks like ${c.user.name}${c.location ? `, home location ${c.location}` : ''}.` : 'Not seen before, and no driver in Users & Roles clearly matches.'}</p></div>
+      <p>{c.since && c.user ? `Matched to ${c.user.name}${c.location ? ` at ${c.location}` : ''} from ${monthName(c.since.slice(0, 7))}.` : c.user ? `Looks like ${c.user.name}${c.location ? `, home location ${c.location}` : ''}.` : 'Not seen before, and no driver in Users & Roles clearly matches.'}</p></div>
     <div className="fuel-mr-acts">{c.user && c.location && <button className="fuel-primary" disabled={!!busy} onClick={() => void actions.accept(c)}>{busy === `card:${c.driver.externalId}` ? 'Saving…' : `Yes, ${c.user.name} → ${c.location}`}</button>}
       <button disabled={!!busy} onClick={() => onChoose(c.driver)}>{c.user && c.location ? 'Someone else' : 'Choose driver'}</button></div></div>;
 }

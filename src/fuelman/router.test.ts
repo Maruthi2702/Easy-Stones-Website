@@ -100,6 +100,20 @@ describe('Fuel Man import and review workflow', () => {
     expect(review.drivers.find(d => d.externalId === 'NEW')!.newIdentity).toBe(true);
     expect(await FuelAssignment.countDocuments()).toBe(1); expect(String((await FuelAssignment.findOne())!._id)).toBe(String(saved!._id));
   });
+  it('offers a later month\'s driver match for an earlier report and, once confirmed, ends it where the later one begins', async () => {
+    const september = await upload(fixtureReport('2026-09')), august = await upload(fixtureReport('2026-08'));
+    await assign(september);
+    const before = (await detail(august)).review.drivers[0]!;
+    expect(before).toMatchObject({ driverKey: '', newIdentity: true, suggestedFrom: '2026-08-01', carriedFrom: { driverKey: `user:${driverId}`, location: 'Seattle', since: '2026-09-01' } });
+    expect((await detail(august)).review.ready).toBe(false);
+    await assign(august, 'A', before.carriedFrom!.location, before.carriedFrom!.driverKey, before.suggestedFrom);
+    const rows = await FuelAssignment.find().sort({ from: 1 }).lean();
+    expect(rows.map(r => [r.from, r.to])).toEqual([['2026-08-01', '2026-09-01'], ['2026-09-01', '']]);
+    expect((await detail(august)).review).toMatchObject({ ready: true, totalCents: 5250 });
+    expect((await detail(september)).review).toMatchObject({ ready: true, totalCents: 5250 });
+    const branch = await api('get', `/reports/${august}`, { ...user, assignedLocations: ['Seattle'] });
+    expect([200, 404]).toContain(branch.status); expect(JSON.stringify(branch.body)).not.toContain('carriedFrom');
+  });
   it('saves single and batch assignments without notes and keeps actor history', async () => {
     const id = await upload(fixtureReport('2026-07', ['A', 'B'])); let r = await detail(id);
     const mapping = (externalId: string) => ({ externalId, driverKey: `user:${driverId}`, from: r.start, allocations: [{ location: 'Seattle', percent: '100' }] });
