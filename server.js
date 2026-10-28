@@ -92,6 +92,7 @@ import { runWorkbookParse } from './src/utils/runWorkbookParse.ts';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
 import createDeliveriesRouter, { deliveryRoomsFor, renumberAllRuns } from './src/routes/deliveries.js';
 import createCheckInRouter from './src/routes/checkIn.js';
+import createFuelManRouter from './src/fuelman/router.ts';
 import createAccountingRouter from './src/accounting/router.js';
 import { createFreightSync } from './src/accounting/sync.js';
 import { setDeliveriesChangedHandler } from './src/accounting/hooks.js';
@@ -4498,6 +4499,7 @@ const freightSync = createFreightSync({
   Delivery, User, startDate: process.env.FREIGHT_CHARGES_FROM || '2026-10-01'
 });
 setDeliveriesChangedHandler((ids) => freightSync.syncDeliveryIds(ids));
+app.use('/api/accounting/fuel-man', createFuelManRouter({ authenticate }));
 app.use('/api/accounting', createAccountingRouter({ authenticate, sync: freightSync }));
 let freightReconcileRunning = false;
 const reconcileFreight = async () => {

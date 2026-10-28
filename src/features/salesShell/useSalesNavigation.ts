@@ -51,6 +51,8 @@ export function useSalesNavigation({ currentUser, pinnedTabsRef, isMobile, setIs
         if (perms.includes('view_lost_sales')) return 'lost_sales';
         if (perms.includes('view_crossover_sheet')) return 'crossover_sheet';
         if (perms.includes('view_delivery_schedule')) return 'delivery_schedule';
+        if (perms.includes('view_fuel_man')) return 'fuel_man';
+        if (perms.includes('view_freight_charges')) return 'freight';
         return 'checkin'; // safe fallback
     };
     const [crmTab, setCrmTab] = useState<string>(getDefaultTab); // 'dashboard', 'customers', 'checkin', 'pricelist', 'delivery_schedule'

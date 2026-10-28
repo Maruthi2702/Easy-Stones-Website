@@ -22,6 +22,7 @@
  * the first place. Adding a model file without adding it here is the one
  * way to reintroduce the bug — nothing enforces that at build time.
  */
+import { FUEL_MODELS } from '../fuelman/models.ts';
 import Customer from '../models/Customer.js';
 import Product from '../models/Product.js';
 import User from '../models/User.js';
@@ -53,6 +54,7 @@ import { Cart, Hold, SlabReservation, Counter, HoldHistory } from '../holds/mode
 import { PurchasingScope, PurchasingInbound, PurchasingDraft, PurchasingLock, PurchasingPoLink } from '../purchasing/models.ts';
 
 export const INDEXED_MODELS = [
+  ...FUEL_MODELS.map(model => [model.modelName, model]),
   ['PurchasingScope', PurchasingScope], ['PurchasingInbound', PurchasingInbound],
   ['PurchasingDraft', PurchasingDraft], ['PurchasingLock', PurchasingLock], ['PurchasingPoLink', PurchasingPoLink],
   ['Customer', Customer],

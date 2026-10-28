@@ -79,6 +79,7 @@ export const NAV_ITEMS = [
   // Accounting (src/accounting/): the permission is the only key, as with
   // every Accounting action.
   { id: 'freight', label: '3rd-Party Freight', section: 'accounting', canSee: (u) => has(u, 'view_freight_charges') },
+  { id: 'fuel_man', label: 'Fuel Man', section: 'accounting', canSee: (u) => has(u, 'view_fuel_man') },
   // Users & Roles is three pages (2026-10-16), each opened by any action in its area
   // (src/utils/usersAccess.js), Users also by team access (src/utils/teamAccess.js).
   { id: 'users', label: 'Users', section: 'admin', canSee: (u) => canOpenUsersPage(u) },

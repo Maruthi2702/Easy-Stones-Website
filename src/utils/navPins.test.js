@@ -116,7 +116,7 @@ describe('admin nav order', () => {
       ['sales', ['lost_sales', 'customers', 'route_planner', 'holds', 'permits']],
       ['home', ['dashboard']],
       ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet', 'live_inventory']],
-      ['accounting', ['freight']],
+      ['accounting', ['freight', 'fuel_man']],
       ['admin', ['users', 'roles', 'locations', 'nav_order']]
     ]);
   });
@@ -191,5 +191,15 @@ describe('Live Inventory — a link, not a page', () => {
   it('can’t be pinned', () => {
     expect(sanitizePinnedTabs(['live_inventory', 'customers'])).toEqual(['customers']);
     expect(togglePinnedTab(['customers'], 'live_inventory')).toEqual(['customers']);
+  });
+});
+
+
+describe('Fuel Man accounting navigation', () => {
+  it('requires its view permission and supports a direct pin', () => {
+    const user = { permissions: ['view_fuel_man'] };
+    expect(visibleSections(user).map(s => [s.id, s.items.map(i => i.id)])).toEqual([['accounting', ['fuel_man']]]);
+    expect(pinnedDefaultTab(user, ['fuel_man'])).toBe('fuel_man');
+    expect(visibleSections({ permissions: ['import_fuel_man'] })).toEqual([]);
   });
 });

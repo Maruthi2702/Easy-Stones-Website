@@ -21,6 +21,9 @@ const setup = (over: Record<string, unknown> = {}) => {
 beforeEach(() => { go('/sales'); vi.spyOn(window, 'scrollTo').mockImplementation(() => {}); });
 
 describe('useSalesNavigation', () => {
+  it('opens Fuel Man for a role with only its accounting permission', () => {
+    expect(setup({ currentUser: { permissions: ['view_fuel_man'] } }).result.current.crmTab).toBe('fuel_man');
+  });
   it('opens on the URL tab, or their default page', () => {
     go('/sales?tab=pricelist');
     expect(setup().result.current.crmTab).toBe('pricelist');

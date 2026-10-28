@@ -1,6 +1,7 @@
 // Users & Roles' per-page permission definitions, shared with the Add/Edit
 // user forms (role summaries) and the /admin screen.
 import { summarizeRole } from '../../../utils/userForm';
+import { FUEL_MAN } from '../../../fuelman/permissions';
 import { FREIGHT, CARRIERS } from '../../../accounting/permissions';
 import { CART, HOLDS } from '../../../holds/permissions';
 import { PERMITS } from '../../../permits/permissions';
@@ -272,6 +273,20 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: FREIGHT.VOID,    label: 'Void',         icon: Trash2,     desc: 'Cancel a charge or invoice with a reason — nothing is ever deleted' },
             { key: FREIGHT.EXPORT,  label: 'Export',       icon: Upload,     desc: 'Download charges as Excel' },
             { key: FREIGHT.HISTORY, label: 'View history', icon: Clock,      desc: 'See who changed what, and when' }
+        ]
+    },
+    {
+        id: 'accounting_fuel_man', page: 'Accounting · Fuel Man', icon: Truck,
+        description: 'Fuelman reports, driver identity review and approved location expenses', color: '#d4af37',
+        actions: [
+            { key: FUEL_MAN.VIEW, label: 'View', icon: Eye, desc: 'See published Fuel Man expenses at assigned locations' },
+            { key: FUEL_MAN.IMPORT, label: 'Import', icon: Upload, desc: 'Read original company-wide Fuelman PDFs (all-location access required)' },
+            { key: FUEL_MAN.RECONCILE, label: 'Reconcile', icon: Pencil, desc: 'Assign driver identities, locations, categories and missing-driver reasons' },
+            { key: FUEL_MAN.APPROVE, label: 'Approve', icon: CheckCheck, desc: 'Publish reviewed location expenses to the Fuel Man P&L component' },
+            { key: FUEL_MAN.REVERSE, label: 'Reverse / replace', icon: RotateCcw, desc: 'Reverse, replace or restore a published report revision with a reason' },
+            { key: FUEL_MAN.CLOSE, label: 'Close periods', icon: Lock, desc: 'Close or reopen Fuel Man reporting periods with a reason' },
+            { key: FUEL_MAN.EXPORT, label: 'Export', icon: Download, desc: 'Export approved P&L input for assigned locations' },
+            { key: FUEL_MAN.HISTORY, label: 'History', icon: Clock, desc: 'Read report import, reconciliation and approval history' }
         ]
     },
     {

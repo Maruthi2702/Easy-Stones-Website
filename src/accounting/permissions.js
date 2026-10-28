@@ -8,6 +8,8 @@
  * (src/features/users/roles/pagePermissions.ts) and the screens' buttons.
  */
 
+import { ALL_FUEL_MAN_PERMISSIONS } from '../fuelman/permissions.ts';
+
 export const FREIGHT = Object.freeze({
   VIEW: 'view_freight_charges',
   ADD: 'add_freight_charges',
@@ -27,6 +29,7 @@ export const CARRIERS = Object.freeze({
 });
 
 export const ALL_ACCOUNTING_PERMISSIONS = Object.freeze([
+  ...ALL_FUEL_MAN_PERMISSIONS,
   ...Object.values(FREIGHT),
   ...Object.values(CARRIERS)
 ]);

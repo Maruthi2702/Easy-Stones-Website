@@ -32,6 +32,7 @@ const CrossoverSheetTab = page(() => import('../../components/sales/CrossoverShe
 const InventoryAnalysisTab = page(() => import('../../components/sales/InventoryAnalysisTab'));
 const DeliveryScheduleTab = page(() => import('../delivery/DeliveryScheduleTab'));
 const DailyReportTab = page(() => import('../dailyReport/DailyReportTab'));
+const FuelManPage = page(() => import('../fuelman'));
 const FreightTab = page(() => import('../freight/FreightTab'));
 const HoldsTab = page(() => import('../holds/HoldsTab'));
 const PermitsTab = page(() => import('../../components/sales/permits/PermitsTab'));
@@ -167,6 +168,12 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
                     <Suspense fallback={<TabLoader />}>
                         <DailyReportTab currentUser={currentUser} sidebarToggle={menu(true)} />
                     </Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && crmTab === 'fuel_man' && perms.includes('view_fuel_man') && (
+                <ErrorBoundary key="fuel-man-view">
+                    <Suspense fallback={<TabLoader />}><FuelManPage key={currentUser?.id || currentUser?._id || 'fuel-man'} currentUser={currentUser} sidebarToggle={menu(true)} /></Suspense>
                 </ErrorBoundary>
             )}
 
