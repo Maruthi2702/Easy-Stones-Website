@@ -5,6 +5,8 @@ import type { Actor, ReportRecord } from './models.ts';
 import { buildReview, digest, unassignedExpenses } from './review.ts';
 import type { Assignment } from './types.ts';
 import { HttpError } from './http.ts';
+import { driverOptions } from './access.ts';
+import { impliedAssignments } from './carryBack.ts';
 export async function fleetTransaction<T>(scopeKey: string, work: (session: ClientSession) => Promise<T>): Promise<T> {
   await FuelState.createCollection();
   try { await FuelState.updateOne({ _id: scopeKey }, { $setOnInsert: { revision: 0 } }, { upsert: true }); }
@@ -46,7 +48,11 @@ export async function reviewFor(report: ReportRecord, session: ClientSession) {
   const rows = await FuelAssignment.find({ scopeKey: report.scopeKey }).session(session).sort({ externalId: 1, from: 1 }).lean();
   const assignments: Assignment[] = rows.map(a => ({ id: String(a._id), externalId: a.externalId, reportedName: a.reportedName, driverKey: a.driverKey, driverName: a.driverName,
     from: a.from, to: a.to || '', allocations: a.allocations.map(p => ({ location: p.location, basisPoints: p.basisPoints })) }));
-  return buildReview(report.parsed, assignments, report.dispositions, report.overrides, [String(report._id), report.__v, report.contentHash]);
+  const context = [String(report._id), report.__v, report.contentHash], review = buildReview(report.parsed, assignments, report.dispositions, report.overrides, context);
+  // Only when some driver has a later month's match does it cost anything: one read of the driver list and a second pass.
+  if (!review.drivers.some(d => d.carriedFrom)) return review;
+  const implied = impliedAssignments(review.drivers, await driverOptions(session));
+  return implied.length ? buildReview(report.parsed, [...assignments, ...implied].sort((x, y) => x.externalId.localeCompare(y.externalId) || x.from.localeCompare(y.from)), report.dispositions, report.overrides, context) : review;
 }
 export async function checkedDraft(id: string, version: number, token: string, session: ClientSession) {
   const report = await reportFor(id, session);

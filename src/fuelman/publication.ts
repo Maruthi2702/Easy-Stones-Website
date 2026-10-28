@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import { FuelReport, FuelExpense, FuelPeriod } from './models.ts';
+import { FuelReport, FuelExpense, FuelPeriod, FuelAssignment } from './models.ts';
 import type { Actor } from './models.ts';
 import { reportFor, reviewFor, fleetTransaction, history, scopeOf } from './storage.ts';
 import { publicationSchema, reverseSchema, closeSchema } from './schemas.ts';
@@ -25,13 +25,19 @@ export async function publishReport(id: string, body: z.output<typeof publicatio
       await FuelReport.updateOne({ _id: previous._id }, { $set: { status: 'superseded' }, $inc: { __v: 1 } }, { session });
       await history(previous, actor, 'superseded', body.note, { replacementId: id }, session);
     }
+    // Drivers carried back from a later month are saved now, so the match is on record and ends where the later one begins.
+    const implied = review.drivers.flatMap(d => d.assignments.filter(a => a.implied).map(a => ({ ...a, reportedName: a.reportedName ?? d.name })));
+    if (report.status === 'draft' && implied.length) await FuelAssignment.bulkWrite(implied.map(a => ({ updateOne: {
+      filter: { scopeKey: report.scopeKey, externalId: a.externalId, from: a.from },
+      update: { $setOnInsert: { scopeKey: report.scopeKey, externalId: a.externalId, reportedName: a.reportedName, driverKey: a.driverKey, driverName: a.driverName, from: a.from, to: a.to,
+        allocations: a.allocations, updatedBy: actor, updatedAt: new Date() } }, upsert: true } })), { session });
     if (report.status === 'draft') {
       for (let n = 0; n < review.facts.length; n += 1000)
         await FuelExpense.insertMany(review.facts.slice(n, n + 1000).map(f => ({ ...f, reportId: report._id, month: report.parsed.month, scopeKey: report.scopeKey })), { session });
     }
     await FuelPeriod.updateOne({ _id: report.periodKey }, { $set: { publishedReportId: report._id } }, { session });
     await FuelReport.updateOne({ _id: report._id, __v: body.version }, { $set: { status: 'posted', frozenReview: { ...review, facts: [] }, publishedAt: new Date(), note: body.note }, $inc: { __v: 1 } }, { session });
-    await history(report, actor, report.status === 'draft' ? 'published' : 'restored', body.note, { totalCents: report.parsed.totalCents, replacedReportId: previous ? String(previous._id) : null, accountingBasis: 'statement-month', priorDatesAcknowledged: body.acknowledgePriorDates }, session);
+    await history(report, actor, report.status === 'draft' ? 'published' : 'restored', body.note, { totalCents: report.parsed.totalCents, replacedReportId: previous ? String(previous._id) : null, accountingBasis: 'statement-month', priorDatesAcknowledged: body.acknowledgePriorDates, carriedBack: implied.map(a => a.externalId) }, session);
     return { success: true, duplicate: false };
   });
 }

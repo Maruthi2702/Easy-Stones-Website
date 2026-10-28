@@ -24,6 +24,8 @@ export interface Allocation { location: string; basisPoints: number }
 export interface Assignment {
   id: string; externalId: string; reportedName?: string; driverKey: string; driverName: string;
   from: string; to: string; allocations: Allocation[];
+  /** Not stored yet: a later month's match carried back while reviewing (see carryBack.ts); saved when the month is approved. */
+  implied?: boolean;
 }
 export const REASONS = ['no_activity', 'leave', 'retired', 'transferred', 'identifier_changed', 'incomplete', 'investigating'] as const;
 export type MissingReason = typeof REASONS[number];

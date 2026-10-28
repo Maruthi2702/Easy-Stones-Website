@@ -101,6 +101,7 @@ describe('Fuel Man import and review workflow', () => {
     expect(await FuelAssignment.countDocuments()).toBe(1); expect(String((await FuelAssignment.findOne())!._id)).toBe(String(saved!._id));
   });
   it('offers a later month\'s driver match for an earlier report and, once confirmed, ends it where the later one begins', async () => {
+    await User.updateOne({ _id: driverId }, { assignedLocations: ['Seattle', 'Spokane'] }); // more than one location: never assumed
     const september = await upload(fixtureReport('2026-09')), august = await upload(fixtureReport('2026-08'));
     await assign(september);
     const before = (await detail(august)).review.drivers[0]!;
@@ -113,6 +114,29 @@ describe('Fuel Man import and review workflow', () => {
     expect((await detail(september)).review).toMatchObject({ ready: true, totalCents: 5250 });
     const branch = await api('get', `/reports/${august}`, { ...user, assignedLocations: ['Seattle'] });
     expect([200, 404]).toContain(branch.status); expect(JSON.stringify(branch.body)).not.toContain('carriedFrom');
+  });
+  it('carries a single-location driver\'s later match back without a click, saving it only when the month is approved', async () => {
+    const september = await upload(fixtureReport('2026-09')), august = await upload(fixtureReport('2026-08'));
+    await assign(september);
+    const review = (await detail(august)).review;
+    expect(review).toMatchObject({ ready: true, totalCents: 5250, issues: [] });
+    expect(review.drivers[0]).toMatchObject({ driverKey: `user:${driverId}`, locations: ['Seattle'], issues: [] });
+    expect(review.drivers[0]!.carriedFrom).toBeUndefined(); expect(review.drivers[0]!.assignments[0]).toMatchObject({ implied: true, from: '2026-08-01', to: '2026-09-01' });
+    expect(await FuelAssignment.countDocuments()).toBe(1); // reading stored nothing
+    expect((await publish(august)).status).toBe(200);
+    expect((await FuelAssignment.find().sort({ from: 1 }).lean()).map(r => [r.from, r.to, r.driverKey])).toEqual([['2026-08-01', '2026-09-01', `user:${driverId}`], ['2026-09-01', '', `user:${driverId}`]]);
+    expect((await detail(september)).review.ready).toBe(true);
+    expect((await FuelAudit.findOne({ action: 'published', reportId: august }).lean())!.detail).toMatchObject({ carriedBack: ['A'] });
+  });
+  it('leaves the card for a person when the driver\'s account has another location or all of them', async () => {
+    const september = await upload(fixtureReport('2026-09')), august = await upload(fixtureReport('2026-08'));
+    await assign(september);
+    for (const assignedLocations of [['Seattle', 'Spokane'], ['*'], ['Spokane']]) {
+      await User.updateOne({ _id: driverId }, { assignedLocations });
+      const driver = (await detail(august)).review.drivers[0]!;
+      expect(driver).toMatchObject({ driverKey: '', carriedFrom: { location: 'Seattle' } });
+    }
+    expect((await publish(august)).status).toBe(409);
   });
   it('saves single and batch assignments without notes and keeps actor history', async () => {
     const id = await upload(fixtureReport('2026-07', ['A', 'B'])); let r = await detail(id);
