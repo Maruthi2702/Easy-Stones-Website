@@ -79,6 +79,27 @@ describe('Fuel Man import and review workflow', () => {
     const august = await upload(fixtureReport('2026-08')); expect((await detail(august)).review.ready).toBe(true);
     const pdf = await api('get', `/reports/${id}/source`).expect(200); expect(pdf.headers['content-type']).toContain('application/pdf');
   });
+  it('saves a driver match once and reuses it across existing uploads, later months and gaps, prompting only for a new identity', async () => {
+    const july = await upload(), august = await upload(fixtureReport('2026-08')), september = await upload(fixtureReport('2026-09'));
+    const initial = await detail(july);
+    await api('post', `/reports/${july}/assignments/batch`).send({ ...envelope(initial), note: 'One-time confirmed driver match', assignments: [{
+      externalId: 'A', driverKey: `user:${driverId}`, from: initial.start, allocations: [{ location: 'Seattle', percent: '100' }],
+    }] }).expect(200);
+    const saved = await FuelAssignment.findOne().lean(); expect(saved!.to).toBe('');
+    for (const id of [july, august, september]) {
+      const r = await detail(id); expect(r.review.ready).toBe(true);
+      expect(r.review.drivers[0]).toMatchObject({ driverKey: `user:${driverId}`, locations: ['Seattle'], newIdentity: false, issues: [] });
+      expect(r.review.locations[0]!.totalCents).toBe(5250);
+    }
+    // Approving a later month's costs requires no second assignment, even
+    // when the original matching report has not itself been approved.
+    expect((await publish(august)).status).toBe(200);
+    const future = await upload(fixtureReport('2027-03', ['A', 'NEW'])), review = (await detail(future)).review;
+    expect(review.drivers.find(d => d.externalId === 'A')).toMatchObject({ driverKey: `user:${driverId}`, locations: ['Seattle'], newIdentity: false, issues: [] });
+    expect(review.drivers.filter(d => !d.driverKey).map(d => d.externalId)).toEqual(['NEW']);
+    expect(review.drivers.find(d => d.externalId === 'NEW')!.newIdentity).toBe(true);
+    expect(await FuelAssignment.countDocuments()).toBe(1); expect(String((await FuelAssignment.findOne())!._id)).toBe(String(saved!._id));
+  });
   it('keeps unpublished expenses outside location P&L and publishes once under concurrent clicks', async () => {
     const id = await upload(); await assign(id);
     expect((await api('get', '/pnl?month=2026-07')).body.reportCount).toBe(0);

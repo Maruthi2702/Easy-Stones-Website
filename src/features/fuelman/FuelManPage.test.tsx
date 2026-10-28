@@ -35,6 +35,13 @@ describe('Fuel Man screens', () => {
     expect(within(row).getByText('$52.50')).toBeTruthy(); expect(within(row).getByText('-$1.00')).toBeTruthy();
     expect(screen.getByText(/Preview only/)).toBeTruthy(); expect(fuelApi.command).not.toHaveBeenCalled();
   });
+  it('shows saved driver matches without asking for monthly setup again', async () => {
+    render(<FuelManPage />); fireEvent.click(await screen.findByRole('button', { name: '2026-07 · Revision 1' }));
+    await screen.findByText('Saved match'); expect(screen.getByText(/Saved driver matches carry forward each month/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Assign locations' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Assign driver' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Edit assignment' })).toBeTruthy();
+  });
   it('hides company review actions from branch readers even if their role has import permission', async () => {
     vi.mocked(fuelApi.metadata).mockResolvedValue({ ...meta, global: false });
     render(<FuelManPage />); await screen.findByRole('button', { name: '2026-07 · Revision 1' });

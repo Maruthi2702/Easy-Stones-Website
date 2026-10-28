@@ -23,7 +23,7 @@ type Form = { type: 'setup'; report: ReportDetail } | { type: 'assign'; report: 
 export default function FuelManPage({ sidebarToggle }: { currentUser?: { permissions?: string[] } | null; sidebarToggle?: ReactNode }) {
   const d = useFuelMan(), [view, setView] = useState('reports'), [upload, setUpload] = useState(false), [form, setForm] = useState<Form | null>(null), [toast, setToast] = useState('');
   const meta = d.metadata, report = d.detail;
-  const saved = () => { setForm(null); setToast('Saved. Review totals have been refreshed.'); d.refresh(); };
+  const saved = () => { setForm(null); setToast(form?.type === 'setup' || form?.type === 'assign' ? 'Driver matches saved. Later monthly reports reuse these drivers and locations automatically.' : 'Saved. Review totals have been refreshed.'); d.refresh(); };
   return <section className="fuel-man" aria-label="Fuel Man">
     <header className="fuel-header"><div className="fuel-title">{sidebarToggle}<Fuel size={24} /><div><h1>Fuel Man</h1><p>Fleet reports, driver review and location expenses.</p></div></div>
       <div className="fuel-actions"><button onClick={d.refresh} aria-label="Refresh Fuel Man"><RefreshCw size={16} />Refresh</button>

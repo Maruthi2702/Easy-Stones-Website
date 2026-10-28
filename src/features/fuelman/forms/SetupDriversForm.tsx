@@ -32,7 +32,7 @@ export default function SetupDriversForm({ report, metadata, onClose, onSaved }:
   }
   return <FormModal title="Assign driver locations" size="l" onClose={onClose} saving={saving} onSubmit={e => { e.preventDefault(); void save(); }}
     submitLabel={complete ? `Save ${complete} assignments` : 'Save assignments'} submitDisabled={!complete || !note.trim()} dirtyCount={rows.some(r => r.location || r.driverKey) || note ? 1 : 0} footerNote={`${complete} of ${rows.length} ready`}>
-    <p>Match each reported driver to a user with a Driver profile in Users & Roles, then confirm the cost location. Future reports reuse these assignments. Only completed rows are saved; unmatched drivers stay pending.</p>
+    <p>Match each reported driver to a user with a Driver profile in Users & Roles, then confirm the cost location. Save each driver match once; it continues in later monthly reports until you change it. Only completed rows are saved; unmatched drivers stay pending.</p>
     <p className="fuel-muted">Assignments begin from the earliest required date in this report; use individual assignment editing for transfers or split costs.</p>
     {!drivers.length && <p className="fuel-notice">No users with a Driver profile are available in this database. Add or update the driver in Users &amp; Roles, then refresh Fuel Man.</p>}
     {report.review.drivers.filter(d => !d.driverKey).length > 100 && <p>Showing the first 100 unassigned drivers. Save these to continue with the next group.</p>}
