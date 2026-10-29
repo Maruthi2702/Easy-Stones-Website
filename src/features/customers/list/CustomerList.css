@@ -538,6 +538,8 @@ body.light-theme-active .cl-type.fabricator { background: rgba(15, 118, 110, 0.1
 .cl-ct2-card .cl-cpb { width: 40px; height: 40px; border: 1px solid var(--cl-line); border-radius: 9px; }
 .cl-ct2-cardacts { display: flex; gap: 8px; justify-content: flex-end; padding-top: 10px; border-top: 1px solid var(--cl-line-soft); }
 .cl-ct2-cardacts .cl-ct2-ic { width: 40px; height: 40px; }
+/* The ⋯ (profile/RowMenu.tsx) matches the card's other buttons. */
+.cl-ct2-cardacts .cp-rm .cl-ib { width: 40px; height: 40px; border: 1px solid var(--cl-input-border); background: var(--cl-surface); border-radius: 10px; color: var(--cl-text-2); }
 .cl-ct2-savelbl { display: none; }
 @media (max-width: 1024px) {
   .cl-ct2-tablewrap { display: none; }
@@ -549,6 +551,7 @@ body.light-theme-active .cl-type.fabricator { background: rgba(15, 118, 110, 0.1
   .cl-ct2-cardacts .cl-ct2-save.labelled { flex: 1; width: auto; gap: 6px; font-weight: 600; font-size: 13px; }
   .cl-ct2-savelbl { display: inline; }
   .cl-ct2-cardacts .cl-ct2-ic { width: 44px; height: 44px; }
+  .cl-ct2-cardacts .cp-rm .cl-ib { width: 44px; height: 44px; }
   .cl-ct2-head .cl-btn { height: 44px; }
   .cl-ct2 { padding-bottom: 72px; }
 }

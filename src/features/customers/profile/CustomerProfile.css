@@ -80,7 +80,8 @@ body.light-theme-active .cp {
 .cp .cp-scrim { position: fixed; inset: 0; z-index: 59; }
 .cp .cp-sheet-h { display: none; }
 .cp .cp-only-sm, .cp .cp-only-ph { display: none; }
-.cp.cp-rm { position: relative; display: inline-flex; }
+/* Not the full width `.cl` gives it — that crushed "Save to phone" beside it. */
+.cp.cp-rm { position: relative; display: inline-flex; width: auto; flex: none; }
 
 /* ── Tabs and the Add button ── */
 .cp .cp-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
