@@ -8,6 +8,8 @@ import { STATUSES, companyOf, cityLineOf, cityOf, streetOf } from '../../../util
 import { StatusDot, LocationTag, RepBadge, TypeTag, LevelTag } from './parts';
 import { useDismiss } from './uiHelpers';
 import { planHeaderMenu, telHref, directionsHref } from '../profile/profileHeaderRules';
+import MenuLayer from '../profile/MenuLayer';
+import { isSheetScreen, useSheetEscape } from '../profile/sheetScreen';
 import type { Loose } from '../../../types/records';
 import './CustomerList.css';
 import '../profile/CustomerProfile.css';
@@ -61,9 +63,11 @@ const CustomerProfileHeader = ({
   const [error, setError] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const closeMenu = () => { setMenuOpen(false); setStatusOpen(false); };
-  useDismiss(menuOpen, (open: boolean) => { if (!open) closeMenu(); }, menuRef);
+  useDismiss(menuOpen && !sheet, (open: boolean) => { if (!open) closeMenu(); }, menuRef);
+  useSheetEscape(menuOpen, sheet, closeMenu);
 
   const c: Loose = useMemo(() => customer || {}, [customer]);
   const address = [streetOf(c), cityLineOf(c)].filter(Boolean).join(', ');
@@ -142,12 +146,12 @@ const CustomerProfileHeader = ({
               <div className="cp-more-wrap" ref={menuRef}>
                 <button
                   type="button" className={`cp-more cp-more--${plan.button}`} aria-label="More actions" aria-haspopup="menu" aria-expanded={menuOpen}
-                  onClick={() => { setMenuOpen(o => !o); setStatusOpen(false); }}
+                  onClick={() => { setSheet(isSheetScreen()); setMenuOpen(o => !o); setStatusOpen(false); }}
                 >
                   <MoreHorizontal size={20} aria-hidden="true" />
                 </button>
                 {menuOpen && (
-                  <>
+                  <MenuLayer sheet={sheet}>
                     <div className="cp-scrim" onClick={closeMenu} aria-hidden="true" />
                     <div className="cp-menu" role="menu" aria-label="Customer actions">
                       <div className="cp-sheet-h" aria-hidden="true" />
@@ -188,7 +192,7 @@ const CustomerProfileHeader = ({
                         </button>
                       )}
                     </div>
-                  </>
+                  </MenuLayer>
                 )}
               </div>
             )}
