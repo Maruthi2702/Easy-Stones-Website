@@ -6,7 +6,7 @@ import useSalesPlannerData from './useSalesPlannerData';
 import useActivityEditor from './useActivityEditor';
 import useEdgeFlip from './useEdgeFlip';
 import useMoveStop from './useMoveStop';
-import { ACTIVITY_COLORS, activityColor, customerName, dayKey, isSameDay, timeLabel, titleFor } from './salesPlanner';
+import { ACTIVITY_COLORS, activityColor, customerName, dayKey, isCurrentPeriod, isSameDay, relativeDayLabel, timeLabel, titleFor } from './salesPlanner';
 import PlannerToolbar from './components/PlannerToolbar';
 import DayColumn from './components/DayColumn';
 import WeekendRail from './components/WeekendRail';
@@ -78,6 +78,9 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 currentDate={currentDate}
                 titleLabel={titleLabel}
                 todayCount={todayCount}
+                dayLabel={relativeDayLabel(currentDate, today)}
+                dayCount={itemsFor(currentDate).length}
+                isCurrent={isCurrentPeriod(currentDate, viewMode, today)}
                 edgeDir={edgeDir}
                 navHoverProps={move.navHoverProps}
                 onPrev={() => stepPeriod(-1)}

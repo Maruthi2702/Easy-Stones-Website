@@ -180,6 +180,23 @@ type; PUT can't change userId or source) and a new entry carries its own `_id`
 so a repeated POST answers 200 `alreadySaved`. Old entries with no end time are
 not backfilled.
 
+## Sales Planner on a phone (2026-10-29)
+
+Under 640px (where the phone tab bar is) the planner is laid out by the last
+block of its rules in `src/pages/SalesPage.css` ("Sales Planner on a phone");
+tablet and desktop keep the rules above it. Design: claude.ai artifact **Sales
+Planner mobile redesign** (https://claude.ai/artifact/GumfdseBzFVABVrq5jAwMn).
+One header row ‹ date ›, the Day / Week / Month switch under it, a "Today"
+button only when the period on screen doesn't hold today
+(`isCurrentPeriod`), the Day view's subtitle ("Today · 9 stops",
+`relativeDayLabel`), no column header in the Day view, and **Schedule
+Activity is the round + at the bottom right** (`.pl-new`, fixed above
+`--app-bottom-h`). A stop shows its time in its own column and its length when
+it saved an end; the pencil and bin become one "⋯" (`.pl-kebab`) that opens
+Edit / Delete under the card. The extra parts (`.pl-time`, `.pl-kebab`,
+`.pl-drawer`, `.pl-sub`) are in the markup on every screen and hidden above
+640px. `.pl-more` is the Month view's "+N more", not the ⋯.
+
 ## Phone tab bar (2026-10-18)
 
 Under 640px SalesPage shows a bottom tab bar instead of the drawer

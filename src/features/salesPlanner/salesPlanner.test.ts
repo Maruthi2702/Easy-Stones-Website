@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { PlannerItem } from './plannerSchedule';
 import {
     dayKey, localISO, mondayOf, dayOffset, slotMinutes, aimedMinutes, planMove, gapsFor, dayFromKey,
-    activityModifier, activityColor, customerName, initialFor, bookedRowOf, rangeFor, groupByDay,
+    activityModifier, activityColor, customerName, initialFor, bookedRowOf, timeParts, shortDayTitle, durationText, lengthOf, relativeDayLabel, isCurrentPeriod, rangeFor, groupByDay,
     weekdaysOf, weekendOf, weeksBetween, titleFor, visitFlag, describeAim, addLabel
 } from './salesPlanner';
 
@@ -150,5 +150,48 @@ describe('cards and the form', () => {
         const map = groupByDay([stop('b', '2026-10-22T11:00:00.000'), stop('a', '2026-10-22T09:00:00.000'), stop('z', 'nope')]);
         expect([...map.keys()]).toEqual(['2026-10-22']);
         expect(map.get('2026-10-22')!.map(i => i._id)).toEqual(['a', 'b']);
+    });
+});
+
+describe('the phone Day view', () => {
+    it('splits a time for the card\'s time column', () => {
+        expect(timeParts(new Date(2026, 9, 29, 9, 0))).toEqual({ clock: '9:00', period: 'AM' });
+        expect(timeParts(new Date(2026, 9, 29, 13, 5))).toEqual({ clock: '1:05', period: 'PM' });
+    });
+
+    it('shortens the Day title for a phone', () => {
+        expect(shortDayTitle(day(2026, 10, 29))).toBe('Thu, Oct 29');
+    });
+
+    it('names a length', () => {
+        expect(durationText(15)).toBe('15 min');
+        expect(durationText(60)).toBe('1 hr');
+        expect(durationText(90)).toBe('1½ hr');
+        expect(durationText(120)).toBe('2 hr');
+        expect(durationText(50)).toBe('50 min');
+    });
+
+    it('shows a stop\'s length only when it saved an end', () => {
+        expect(lengthOf(stop('a', '2026-10-22T09:00:00.000', { endTime: '2026-10-22T09:30:00.000' }))).toBe('30 min');
+        expect(lengthOf(stop('a', '2026-10-22T09:00:00.000'))).toBe('');
+        expect(lengthOf(stop('a', '2026-10-22T09:00:00.000', { endTime: '2026-10-22T08:00:00.000' }))).toBe('');
+    });
+
+    it('says today, tomorrow and yesterday, and nothing for other days', () => {
+        const today = day(2026, 10, 29);
+        expect(relativeDayLabel(day(2026, 10, 29), today)).toBe('Today');
+        expect(relativeDayLabel(day(2026, 10, 30), today)).toBe('Tomorrow');
+        expect(relativeDayLabel(day(2026, 10, 28), today)).toBe('Yesterday');
+        expect(relativeDayLabel(day(2026, 11, 3), today)).toBeNull();
+    });
+
+    it('knows when the period on screen holds today', () => {
+        const today = day(2026, 10, 29);
+        expect(isCurrentPeriod(day(2026, 10, 29), 'day', today)).toBe(true);
+        expect(isCurrentPeriod(day(2026, 10, 30), 'day', today)).toBe(false);
+        expect(isCurrentPeriod(day(2026, 10, 26), 'week', today)).toBe(true);
+        expect(isCurrentPeriod(day(2026, 11, 2), 'week', today)).toBe(false);
+        expect(isCurrentPeriod(day(2026, 10, 1), 'month', today)).toBe(true);
+        expect(isCurrentPeriod(day(2026, 11, 1), 'month', today)).toBe(false);
     });
 });

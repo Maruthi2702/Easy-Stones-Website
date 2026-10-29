@@ -198,6 +198,37 @@ export const timeLabel = (value: string | Date) => {
     return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
 
+/** '9:00 AM' as { clock: '9:00', period: 'AM' } — the phone card's time column. A 24-hour locale has no period. */
+export const timeParts = (value: string | Date): { clock: string; period: string } => {
+    const [clock = '', period = ''] = timeLabel(value).split(' ');
+    return { clock, period };
+};
+
+/** '30 min', '1 hr', '1½ hr' — what a length of `minutes` is called. */
+export const durationText = (minutes: number): string =>
+    minutes < 60 ? `${minutes} min` : minutes % 60 === 0 ? `${minutes / 60} hr` : minutes % 60 === 30 ? `${Math.floor(minutes / 60)}½ hr` : `${minutes} min`;
+
+/** A stop's length from its own end time; '' when it has none (older stops never saved one). */
+export const lengthOf = (item: PlannerItem): string => {
+    const start = minutesOf(item.startTime);
+    const end = minutesOf(item.endTime);
+    return start !== null && end !== null && end > start ? durationText(end - start) : '';
+};
+
+/** 'Today', 'Tomorrow' or 'Yesterday' for the Day view's subtitle; null for any other day. */
+export const relativeDayLabel = (day: Date, today: Date): 'Today' | 'Tomorrow' | 'Yesterday' | null => {
+    const offset = dayOffset(today, day);
+    return offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : offset === -1 ? 'Yesterday' : null;
+};
+
+/** Whether the period on screen (the day, the week, the month) contains today — the phone's Today button hides when it does. */
+export const isCurrentPeriod = (date: Date, mode: ViewMode, today: Date): boolean => {
+    if (mode === 'month') return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth();
+    const { start, end } = rangeFor(date, mode);
+    const key = dayKey(today);
+    return key >= dayKey(start) && key <= dayKey(end);
+};
+
 /** The populated customer on an item, or null when it is only an id. */
 export const customerOf = (item: PlannerItem) => (item.customerId && typeof item.customerId === 'object' ? item.customerId : null);
 
@@ -294,6 +325,10 @@ export const weeksBetween = (start: Date, end: Date) => {
     }
     return weeks;
 };
+
+/** The Day view's title on a phone, where the long form doesn't fit between the arrows: 'Thu, Oct 29'. */
+export const shortDayTitle = (date: Date) =>
+    date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
 /** The toolbar's title: the day, the week's span, or the month. */
 export const titleFor = (viewMode: ViewMode, currentDate: Date) => {

@@ -1,7 +1,8 @@
-import { Edit2, Trash2, Check, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { Edit2, Trash2, Check, AlertTriangle, Ellipsis } from 'lucide-react';
 import type { PlannerItem } from '../plannerSchedule';
 import type { StopMove } from '../useMoveStop';
-import { activityModifier, activityColor, customerName, timeLabel, visitFlag } from '../salesPlanner';
+import { activityModifier, activityColor, customerName, lengthOf, timeLabel, timeParts, visitFlag } from '../salesPlanner';
 import type { Loose } from '../../../types/records';
 
 export type CardActions = {
@@ -11,15 +12,27 @@ export type CardActions = {
     onDelete: (id: string) => void;
 };
 
-/** One stop in a day column or the weekend rail: open, edit, delete, drag. */
+/**
+ * One stop in a day column or the weekend rail: open, edit, delete, drag.
+ * On a phone (SalesPage.css, under 640px) the time sits in its own column and
+ * the pencil and bin collapse into one "⋯" that opens Edit / Delete under the
+ * card, so a long name keeps its width and every button is a full touch target.
+ */
 export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDelete }: { item: PlannerItem } & CardActions) {
     const flag = visitFlag(item);
+    const [open, setOpen] = useState(false);
+    const { clock, period } = timeParts(item.startTime);
+    const length = lengthOf(item);
     return (
         <div
-            className={`pl-item pl-item--${activityModifier(item.activityType)}${move.itemState(item)}${flag ? ` is-${flag}` : ''}`}
+            className={`pl-item pl-item--${activityModifier(item.activityType)}${move.itemState(item)}${flag ? ` is-${flag}` : ''}${open ? ' is-open' : ''}`}
             title={`${customerName(item)} — drag to another day, or press Space to move it with the arrow keys`}
             {...move.dragProps(item)}
         >
+            <div className="pl-time">
+                <span className="pl-time-clock">{clock}</span>
+                {period && <span className="pl-time-period">{period}</span>}
+            </div>
             <div className="pl-item-top">
                 <span
                     className="pl-typedot"
@@ -42,9 +55,18 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                         <Trash2 size={13} />
                     </button>
                 </div>
+                <button
+                    type="button"
+                    className="pl-kebab"
+                    aria-expanded={open}
+                    aria-label={`More for ${customerName(item)}`}
+                    onClick={() => setOpen(o => !o)}
+                >
+                    <Ellipsis size={20} />
+                </button>
             </div>
             <div className="pl-meta">
-                {timeLabel(item.startTime)} · {item.activityType || 'Visit'}
+                <span className="pl-meta-time">{timeLabel(item.startTime)} · </span>{item.activityType || 'Visit'}{length && ` · ${length}`}
                 {/* source 'visit_log' = added by logging a visit with
                     nothing scheduled (src/services/visitSchedule.js). */}
                 {flag === 'done' && (item.source === 'visit_log' ? (
@@ -59,6 +81,14 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                 )}
             </div>
             {item.notes && <div className="pl-note" title={item.notes}>{item.notes}</div>}
+            <div className="pl-drawer">
+                <button type="button" className="pl-drawer-btn" onClick={() => { setOpen(false); onEdit(item); }}>
+                    <Edit2 size={16} /> Edit
+                </button>
+                <button type="button" className="pl-drawer-btn pl-drawer-btn--danger" onClick={() => { setOpen(false); onDelete(item._id); }}>
+                    <Trash2 size={16} /> Delete
+                </button>
+            </div>
         </div>
     );
 }
