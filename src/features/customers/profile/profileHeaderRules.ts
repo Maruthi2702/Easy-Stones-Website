@@ -1,3 +1,4 @@
+import { contactOf, realEmailsOf } from '../../../utils/customerList';
 import type { Loose } from '../../../types/records';
 
 /**
@@ -55,4 +56,10 @@ export const deleteSummary = (c: Loose | null | undefined): string => {
     const list = [visits && part(visits, 'visit', 'visits'), resources && part(resources, 'resource', 'resources'), contacts && part(contacts, 'contact', 'contacts')].filter(Boolean) as string[];
     const joined = list.length > 1 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list[0];
     return `This also removes its ${joined}.`;
+};
+
+/** Does this customer show any row on the Contacts tab (the main contact counts)? */
+export const hasAnyContact = (customer: Loose | null | undefined): boolean => {
+    const c: Loose = customer || {};
+    return Boolean(contactOf(c) || c.phone || realEmailsOf(c).length || (c.contacts || []).length);
 };

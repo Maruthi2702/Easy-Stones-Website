@@ -12,7 +12,7 @@ import type { Loose } from '../../../types/records';
 import './CustomerList.css';
 import '../profile/CustomerProfile.css';
 
-export const TABS = [
+const TABS = [
   { key: 'visits', label: 'Visits', icon: Clock, count: (c: Loose) => (c.visits || []).length },
   { key: 'resources', label: 'Resources', icon: Folder, count: (c: Loose) => (c.resources || []).length },
   { key: 'contacts', label: 'Contacts', icon: Users, count: (c: Loose) => (c.contacts || []).length },

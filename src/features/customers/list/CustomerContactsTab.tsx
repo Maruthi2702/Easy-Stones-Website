@@ -166,10 +166,4 @@ const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete, onEditCustomer
   );
 };
 
-/** Does this customer show any row on the Contacts tab (the main contact counts)? */
-export const hasAnyContact = (customer: Loose | null | undefined): boolean => {
-  const c: Loose = customer || {};
-  return Boolean(contactOf(c) || c.phone || realEmailsOf(c).length || (c.contacts || []).length);
-};
-
 export default CustomerContactsTab;

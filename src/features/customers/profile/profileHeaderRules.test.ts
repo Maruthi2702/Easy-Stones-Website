@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planHeaderMenu, telHref, directionsHref, deleteSummary } from './profileHeaderRules';
+import { planHeaderMenu, telHref, directionsHref, deleteSummary, hasAnyContact } from './profileHeaderRules';
 
 const none = { canEditCustomer: false, canDeleteCustomer: false, canChangeStatus: false, hasPhone: false, hasAddress: false };
 
@@ -41,5 +41,14 @@ describe('deleteSummary', () => {
   it('says only that the customer goes when it has nothing', () => {
     expect(deleteSummary({})).toBe('This removes the customer.');
     expect(deleteSummary(null)).toBe('This removes the customer.');
+  });
+});
+
+describe('hasAnyContact', () => {
+  it('counts the main contact (name, phone or email) and the extra contacts', () => {
+    expect(hasAnyContact({})).toBe(false);
+    expect(hasAnyContact(null)).toBe(false);
+    expect(hasAnyContact({ phone: '2065550147' })).toBe(true);
+    expect(hasAnyContact({ contacts: [{ _id: 'k1' }] })).toBe(true);
   });
 });
