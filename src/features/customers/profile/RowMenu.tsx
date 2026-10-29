@@ -24,7 +24,7 @@ export default function RowMenu({ noun, onEdit, onDelete }: RowMenuProps) {
     if (!onEdit && !onDelete) return null;
     const run = (fn?: () => void) => () => { setOpen(false); fn?.(); };
     return (
-        <div className="cl cp-rm" ref={ref} onClick={(e) => e.stopPropagation()}>
+        <div className="cl cp cp-rm" ref={ref} onClick={(e) => e.stopPropagation()}>
             <button type="button" className="cl-ib" aria-label={`${noun[0].toUpperCase()}${noun.slice(1)} actions`} aria-haspopup="menu" aria-expanded={open} onClick={(e) => {
                 // A table or card list scrolls sideways and would clip an absolute menu, so it
                 // sits on the screen beside its button (the list's ⋯ does the same); a phone
