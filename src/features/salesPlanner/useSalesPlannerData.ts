@@ -18,11 +18,15 @@ import {
  * it defaults to, throwing away a deliberate navigation; this remembers it for
  * as long as the page is loaded.
  */
-const lastView: { date: number | null; mode: ViewMode } = { date: null, mode: 'week' };
+const lastView: { date: number | null; mode: ViewMode | null } = { date: null, mode: null };
+
+/** Phones (under 640px, the phone tab bar's breakpoint) open on Day; tablets and desktop on Week. */
+const defaultMode = (): ViewMode =>
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 'day' : 'week';
 
 const cachedItemsForLastView = () => {
     const date = lastView.date ? new Date(lastView.date) : new Date();
-    const r = rangeFor(date, lastView.mode);
+    const r = rangeFor(date, lastView.mode ?? defaultMode());
     return getCachedPlannerRange(dayKey(r.start), dayKey(r.end));
 };
 
@@ -33,7 +37,7 @@ const cachedItemsForLastView = () => {
  */
 export default function useSalesPlannerData(currentUserId: string | null) {
     const [currentDate, setCurrentDate] = useState(() => (lastView.date ? new Date(lastView.date) : new Date()));
-    const [viewMode, setViewMode] = useState<ViewMode>(lastView.mode);
+    const [viewMode, setViewMode] = useState<ViewMode>(() => lastView.mode ?? defaultMode());
     // Anything already fetched this session paints in the first frame — a tab
     // switch should not cost a round trip before the week reappears.
     const [scheduleItems, setScheduleItems] = useState<PlannerItem[]>(() => cachedItemsForLastView() || []);
