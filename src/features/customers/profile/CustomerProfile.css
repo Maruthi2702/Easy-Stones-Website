@@ -125,12 +125,9 @@ body.light-theme-active .cp {
   .cp .cp-more--phone { display: inline-flex; }
   .cp .cp-only-ph { display: flex; }
   .cp .cp-sep.cp-only-ph { display: block; }
-  .cp .cp-tools { gap: 6px; }
-  .cp .cp-more, .cp .cp-close { width: 30px; height: 30px; }
-  .cp .cp-more svg, .cp .cp-close svg { width: 16px; height: 16px; }
-  .cp .cp-more::after, .cp .cp-close::after { inset: -7px; }
+  /* ⋯ and ✕ keep the laptop's size (40 / 36) — the 30px ones read as too small on a phone. */
   .cp .cp-close:hover { transform: none; box-shadow: none; }
-  .cp .cp-name { font-size: 19px; }
+  .cp .cp-name { font-size: 22px; }
   .cp .cp-bar { margin-top: 12px; }
   .cp .cp-tabs { flex: 1 1 100%; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
   .cp .cp-tab { min-height: 56px; padding: 0 2px; }
@@ -151,6 +148,7 @@ body.light-theme-active .cp {
   .cp .cp-sheet-h { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--cl-line); margin: 4px auto 10px; }
   .cp .cp-mi { min-height: 52px; font-size: 16px; }
 }
+@media (max-width: 380px) { .cp .cp-name { font-size: 20px; } }
 @media (min-width: 701px) { .cp .cp-more--narrow { display: none; } }
 @media (min-width: 641px) { .cp .cp-more--phone { display: none; } }
 
