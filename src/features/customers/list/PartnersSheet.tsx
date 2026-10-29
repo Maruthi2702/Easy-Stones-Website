@@ -4,6 +4,8 @@ import { Plus } from 'lucide-react';
 import ListHeader from './ListHeader';
 import ListBody from './ListBody';
 import AddCustomerModalJs from '../form/AddCustomerModal';
+import { EDIT_REQUEST, DELETE_REQUEST } from '../customerBridge';
+import type { DeleteRequestDetail } from '../customerBridge';
 import CustomerImportModalJs from '../import/CustomerImportModal';
 import SpsConnectModalJs from '../import/SpsConnectModal';
 import SpsImportModalJs from '../import/SpsImportModal';
@@ -100,6 +102,22 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
         setSelected, setPartners: data.setPartners, setCountsNonce: data.setCountsNonce, refreshAll
     });
     const { handleDeletePartner } = writes;
+    // The open profile's ⋯ menu asks for Edit customer and Delete here — this list
+    // stays mounted under it and owns both (customerBridge.ts).
+    useEffect(() => {
+        const onEdit = (e: Event) => {
+            const customer = (e as CustomEvent).detail?.customer;
+            if (customer && canEdit) dialogs.openEdit(customer);
+        };
+        const onDelete = (e: Event) => {
+            const { id, onSettled } = (e as CustomEvent<DeleteRequestDetail>).detail || {};
+            if (id && canDelete) handleDeletePartner(id, { confirmed: true }).then(ok => onSettled?.(ok));
+            else onSettled?.(false);
+        };
+        window.addEventListener(EDIT_REQUEST, onEdit);
+        window.addEventListener(DELETE_REQUEST, onDelete);
+        return () => { window.removeEventListener(EDIT_REQUEST, onEdit); window.removeEventListener(DELETE_REQUEST, onDelete); };
+    });
     const bulk = useBulkActions({ selected, selectedRows, setSelected, setBulkMessage, openCustomer, setOpenCustomer, refreshAll });
     const { exportToExcel, emailAllContacts } = listExportActions({ fetchAllMatching: data.fetchAllMatching, activeTab, setMoreOpen: dialogs.setMoreOpen, setNotice });
 

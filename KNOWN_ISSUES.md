@@ -324,6 +324,34 @@ recorded (done), 2 file check + SPS key (done), 3 connect existing customers
       file and check the report before it goes to `main`; the new import
       (step 5) needs customers connected first.
 
+## Customer profile — other (2026-10-29)
+
+Found while building the redesigned header and tabs
+(`src/features/customers/profile/`, `list/CustomerProfileHeader.tsx`).
+
+- [ ] **Not built from the canvas:** the header shrinking to name, ⋯ and ✕ as
+      you scroll (needs scroll tracking), and a sticky tab bar (the header sits
+      above `.tab-content`, so `position: sticky` has nothing to stick in —
+      check whether the tab area scrolling inside itself on phones already
+      keeps it on screen).
+- [ ] A visit's own ⋯ (Edit / Delete) is still `VisitPostCard`'s row of icons —
+      the card is shared with the Dashboard, so it wasn't restyled with the
+      Resources / Contacts rows' ⋯ menu.
+- [ ] Dead CSS after the redesign: `.cl-ph-top`, `.cl-ph-log`, `.cl-ct2-head`
+      (CustomerList.css); `.add-visit-container`, `.icon-action-btn.secondary`,
+      `.add-visit-btn`, `.add-resource-btn`, `.add-btn`, `.tab-header` rules for
+      the profile and `.network-empty-state` (SalesPage.css) — check the
+      Dashboard and Route Planner don't use them before deleting.
+- [ ] Delete customer's wording ("This also removes its 1 visit, 2 resources and
+      2 contacts.") was written from the canvas; confirm what `DELETE
+      /api/customers/:id` really removes.
+- [ ] The Edit customer form and Delete are still owned by the Customers list
+      (`PartnersSheet`), which stays mounted under the profile; the profile asks
+      for them through `customerBridge.ts` events. Moving them up to the page
+      would remove the bridge.
+- [ ] Component tests (`profileHeader.test.tsx`, `profile.test.tsx`) were written
+      but not run — `@testing-library/react` isn't installed in this checkout.
+
 ## Cleanup due
 
 - [ ] **On or after 2026-11-06:** drop the old customer API addresses kept

@@ -197,6 +197,35 @@ Edit / Delete under the card. The extra parts (`.pl-time`, `.pl-kebab`,
 `.pl-drawer`, `.pl-sub`) are in the markup on every screen and hidden above
 640px. `.pl-more` is the Month view's "+N more", not the ⋯.
 
+## Customer profile header and tabs (2026-10-29)
+
+Design: claude.ai artifact **Customer profile header redesign**
+(https://claude.ai/artifact/Ghe3d6UBu5zmFKYDU5pKbN — desktop, tablet, phone,
+dark, empty, loading, long lists, delete check, phone ⋯ menu). The header is
+`src/features/customers/list/CustomerProfileHeader.tsx` with its styles in
+`profile/CustomerProfile.css` (`.cp-*`, on the Customer list's `--cl-*` tokens,
+so dark/light follow the app). There is **no Dashboard icon and no Customers
+button**: a **✕** goes back to the list, and a **⋯** menu holds Edit customer /
+Delete customer… only for logins with `manage_customers` / `delete_customers`
+(`canEditCustomers` / `canDeleteCustomers`). What the menu holds and where it
+shows is `profile/profileHeaderRules.ts` (tested): up to 700px the status picker
+moves into it, on a phone so do Call and Directions. The ✕ and ⋯ copy the forms
+template (`.fm-close`, the Selection Sheet's "…"). Under 640px the tabs are
+icons with count badges and Add is the round + (above `--app-bottom-h`). Each
+tab has **one** Add button in the header (Add visit / resource / contact, Link
+partner); a tab with nothing on it shows `TabEmpty` (which holds the button) and
+the header's hides. Visits and Resources use the shared `Pagination`.
+
+The Customers list owns the Edit customer form and Delete and stays mounted under
+the profile, so the profile asks for them through `customerBridge.ts` (window
+events: edit / delete request, and "saved" so the profile reloads). Delete asks
+its own check first (`DeleteCustomerDialog`), then the list deletes without
+its native `confirm`. A row menu in a table is `profile/RowMenu.tsx`: it sits on
+the screen beside its button (the list's `anchoredMenuStyle`) because the tables
+clip, which is why `.resources-table tr:hover` no longer scales — a transformed
+row becomes the reference frame of a fixed menu inside it and sent the menu off
+the page. A new menu inside a table must be checked with the mouse over the row.
+
 ## Phone tab bar (2026-10-18)
 
 Under 640px SalesPage shows a bottom tab bar instead of the drawer

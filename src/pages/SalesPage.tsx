@@ -379,7 +379,6 @@ const SalesPage = () => {
                         activeTab={activeTab}
                         onTab={handleActiveTabChange}
                         onBack={handleBackToCustomersList}
-                        onGoHome={handleGoHome}
                         onOpenCustomer={handleSelectCustomer}
                         currentUser={currentUser}
                         currentUserId={currentUserId}

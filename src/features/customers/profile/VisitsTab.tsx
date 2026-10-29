@@ -1,6 +1,9 @@
-import { FolderPlus, Loader, Plus, UserPlus } from 'lucide-react';
+import { Clock } from 'lucide-react';
 import VisitPostCard from '../../../components/sales/VisitPostCard';
 import { canModifyVisit, canDeleteVisit } from '../../../utils/visitAccess';
+import Pagination from '../../../components/shared/Pagination';
+import { usePagination, pageCount } from '../../../components/shared/paginationConfig';
+import { TabEmpty, TabSkeleton } from './TabStates';
 import type { Loose } from '../../../types/records';
 
 export type VisitsTabProps = {
@@ -12,8 +15,7 @@ export type VisitsTabProps = {
     currentUser: Loose | null;
     currentUserId: string | null;
     canAddVisits: boolean;
-    onAddContact: () => void;
-    onAddResource: () => void;
+    /** The empty tab's own Add visit button (the header's one hides while the tab is empty). */
     onAddVisit: () => void;
     onReaction: (visitId: string, type: string) => void;
     onEditVisit: (visit: Loose) => void;
@@ -24,44 +26,29 @@ export type VisitsTabProps = {
     setActiveReactionMessageId: (id: string | null) => void;
 };
 
-/** Customer profile → Visits: the feed of posts, with Add Contact / Resource / Visit. */
+/**
+ * Customer profile → Visits: the feed of posts, newest first, 50 to a page. The
+ * Add visit button is the header's (2026-10-29); the empty tab holds its own.
+ */
 export default function VisitsTab({
-    visits, loading, customerLocation, currentUser, currentUserId, canAddVisits, onAddContact, onAddResource, onAddVisit, onReaction,
+    visits, loading, customerLocation, currentUser, currentUserId, canAddVisits, onAddVisit, onReaction,
     onEditVisit, onDeleteVisit, onOpenGallery, activeReactionMessageId, setActiveReactionMessageId
 }: VisitsTabProps) {
+    const paging = usePagination();
+    const newestFirst = [...visits].reverse();
+    const totalPages = pageCount(newestFirst.length, paging.rowsPerPage);
+    const page = Math.min(paging.currentPage, totalPages);
+    const shown = newestFirst.slice((page - 1) * paging.rowsPerPage, page * paging.rowsPerPage);
+
     return (
         <div className="tab-section visits-tab">
-            {/* Top "New Post" Input Area */}
-            {/* Add Visit Button Area */}
-            <div className="add-visit-container">
-                <button className="icon-action-btn secondary" onClick={onAddContact} title="Add Contact">
-                    <UserPlus size={18} />
-                    <span className="btn-label">Add Contact</span>
-                </button>
-                {canAddVisits && (
-                    <>
-                        <button className="icon-action-btn secondary" onClick={onAddResource} title="Add Resource">
-                            <FolderPlus size={18} />
-                            <span className="btn-label">Add Resource</span>
-                        </button>
-                        <button className="add-visit-btn" onClick={onAddVisit}>
-                            <Plus size={18} />
-                            Add Visit
-                        </button>
-                    </>
-                )}
-            </div>
-
             <div className="chat-container channel-feed">
                 <div className="chat-messages feed-list">
                     {loading ? (
-                        <div className="loading-spinner-container" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '220px', padding: '3rem 2rem', gap: '12px' }}>
-                            <Loader className="spin-animation" size={32} color="#D4AF37" />
-                            <span style={{ color: '#94a3b8', fontSize: '0.9rem', fontWeight: 500 }}>Loading customer history...</span>
-                        </div>
+                        <TabSkeleton />
                     ) : (
-                        visits.length > 0 ? (
-                            [...visits].reverse().map(visit => (
+                        shown.length > 0 ? (
+                            shown.map(visit => (
                                 <VisitPostCard
                                     key={visit._id}
                                     visit={visit}
@@ -78,13 +65,23 @@ export default function VisitsTab({
                                 />
                             ))
                         ) : (
-                            <div className="empty-list-message">
-                                No posts yet. Be the first to post!
-                            </div>
+                            <TabEmpty
+                                icon={<Clock size={28} aria-hidden="true" />}
+                                title="No visits yet"
+                                text="Log a visit to start this customer's history."
+                                actionLabel={canAddVisits ? 'Add visit' : undefined}
+                                onAction={onAddVisit}
+                            />
                         )
                     )}
                 </div>
             </div>
+            {!loading && newestFirst.length > paging.rowsPerPage && (
+                <Pagination
+                    currentPage={page} totalPages={totalPages} onPageChange={paging.setCurrentPage}
+                    rowsPerPage={paging.rowsPerPage} onRowsPerPageChange={paging.setRowsPerPage} totalCount={newestFirst.length}
+                />
+            )}
         </div>
     );
 }

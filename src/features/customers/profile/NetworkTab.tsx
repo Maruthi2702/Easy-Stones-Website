@@ -1,4 +1,5 @@
-import { Plus, Users } from 'lucide-react';
+import { Users } from 'lucide-react';
+import { TabEmpty } from './TabStates';
 import { formatDate } from '../../../utils/dateUtils';
 import type { Loose } from '../../../types/records';
 
@@ -9,7 +10,10 @@ export type NetworkTabProps = {
     onLinkPartner: () => void;
 };
 
-/** Customer profile → Network: the fabricators, designers and builders linked to this customer. */
+/**
+ * Customer profile → Network: the fabricators, designers and builders linked to this
+ * customer. The Link partner button is the header's (2026-10-29); the empty tab holds its own.
+ */
 export default function NetworkTab({ customer, onOpenCustomer, onUnlink, onLinkPartner }: NetworkTabProps) {
     const partners: Loose[] = customer.associatedCustomers || [];
 
@@ -84,27 +88,14 @@ export default function NetworkTab({ customer, onOpenCustomer, onUnlink, onLinkP
 
     return (
         <div className="network-tab-container">
-            <div className="tab-header">
-                <div className="tab-header-left">
-                    <h3>Partner Network</h3>
-                    <p className="network-subtitle">Track and link fabricators, designers, and builders associated with this customer.</p>
-                </div>
-                <button className="add-btn" onClick={() => onLinkPartner()}>
-                    <Plus size={18} /> Link Partner
-                </button>
-            </div>
-
             {partners.length === 0 ? (
-                <div className="network-empty-state">
-                    <div className="empty-icon-container">
-                        <Users size={32} className="empty-icon" />
-                    </div>
-                    <h4>No associated partners linked yet</h4>
-                    <p>Link this customer to fabricators, designers, or builders they work with to see mutual activity and share details.</p>
-                    <button className="link-action-btn" onClick={() => onLinkPartner()}>
-                        <Plus size={16} /> Link Your First Partner
-                    </button>
-                </div>
+                <TabEmpty
+                    icon={<Users size={28} aria-hidden="true" />}
+                    title="No partners linked yet"
+                    text="Link the designers and builders this customer works with."
+                    actionLabel="Link partner"
+                    onAction={onLinkPartner}
+                />
             ) : (
                 <div className="network-sections">
                     {renderPartnerGrid(fabricators, "Associated Fabricators")}

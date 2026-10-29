@@ -8,6 +8,7 @@ import { emailListFor } from '../../../utils/customerList';
 import { deletedMessage, restoredMessage } from '../../../utils/customerBulkDelete';
 import { copyText } from './uiHelpers';
 import { clearListCache } from './listOptions';
+import { announceCustomerSaved } from '../customerBridge';
 import type { Loose } from '../../../types/records';
 
 type Selection = Map<string, Loose>;
@@ -49,6 +50,7 @@ export function useCustomerWrites(d: CustomerWritesDeps) {
                 setEditingPartner(null);
                 setViewingPartner(null);
                 if (saved && openCustomer && saved._id === openCustomer._id) setOpenCustomer(saved);
+                announceCustomerSaved(saved?._id ?? editingPartner?._id);
             } else {
                 const errorData = await response.json().catch(() => ({}));
                 console.error('Server error saving lead:', errorData);
@@ -63,8 +65,9 @@ export function useCustomerWrites(d: CustomerWritesDeps) {
     };
 
     // Resolves true once the customer is gone (the Edit form closes on that).
-    const handleDeletePartner = async (id: string) => {
-        if (!window.confirm('Are you sure you want to delete this customer?')) return false;
+    // The open profile asks its own question first, so it passes `confirmed`.
+    const handleDeletePartner = async (id: string, { confirmed = false }: { confirmed?: boolean } = {}) => {
+        if (!confirmed && !window.confirm('Are you sure you want to delete this customer?')) return false;
         try {
             const response = await authFetch(`${API_URL}/api/customers/${id}`, { method: 'DELETE' });
             if (response.ok) {

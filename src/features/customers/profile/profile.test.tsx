@@ -31,13 +31,23 @@ describe('Resources tab', () => {
     expect(screen.getByText('Placed in showroom')).toBeTruthy();
     expect(screen.getByText('No attachments')).toBeTruthy();
     rerender(<ResourcesTab {...props} resources={[]} />);
-    expect(screen.getByText('No resources found')).toBeTruthy();
+    expect(screen.getByText('No resources yet')).toBeTruthy();
   });
-  it('Add Resource calls back', () => {
+  it('the empty tab holds its own Add resource button (the header\'s hides while empty)', () => {
     const onAddResource = vi.fn();
-    render(<ResourcesTab {...props} onAddResource={onAddResource} />);
-    fireEvent.click(screen.getByText('Add Resource'));
+    render(<ResourcesTab {...props} resources={[]} onAddResource={onAddResource} />);
+    fireEvent.click(screen.getByText('Add resource'));
     expect(onAddResource).toHaveBeenCalled();
+  });
+  it('a row\'s Edit and Delete are in its ⋯ menu', () => {
+    const onEditResource = vi.fn(); const onDeleteResource = vi.fn();
+    render(<ResourcesTab {...props} onEditResource={onEditResource} onDeleteResource={onDeleteResource} />);
+    fireEvent.click(screen.getByLabelText('Resource actions'));
+    fireEvent.click(screen.getByText('Edit resource'));
+    expect(onEditResource).toHaveBeenCalledWith(resources[0]);
+    fireEvent.click(screen.getByLabelText('Resource actions'));
+    fireEvent.click(screen.getByText('Delete resource…'));
+    expect(onDeleteResource).toHaveBeenCalledWith('r1', 'c1');
   });
 });
 
@@ -55,28 +65,28 @@ describe('Network tab', () => {
   it('invites the first link when there are none', () => {
     const onLinkPartner = vi.fn();
     render(<NetworkTab customer={{}} onOpenCustomer={noop} onUnlink={noop} onLinkPartner={onLinkPartner} />);
-    fireEvent.click(screen.getByText('Link Your First Partner'));
+    fireEvent.click(screen.getByText('Link partner'));
     expect(onLinkPartner).toHaveBeenCalled();
   });
 });
 
 describe('Visits tab', () => {
   const props = {
-    visits: [], loading: false, currentUser: admin, currentUserId: 'u1', canAddVisits: true, onAddContact: noop, onAddResource: noop, onAddVisit: noop,
+    visits: [], loading: false, currentUser: admin, currentUserId: 'u1', canAddVisits: true, onAddVisit: noop,
     onReaction: noop, onEditVisit: noop, onDeleteVisit: noop, onOpenGallery: noop, activeReactionMessageId: null, setActiveReactionMessageId: noop
   };
   it('says so when empty, and while loading', () => {
     const { rerender } = render(<VisitsTab {...props} />);
-    expect(screen.getByText('No posts yet. Be the first to post!')).toBeTruthy();
+    expect(screen.getByText('No visits yet')).toBeTruthy();
     rerender(<VisitsTab {...props} loading />);
-    expect(screen.getByText('Loading customer history...')).toBeTruthy();
+    expect(screen.getByRole('status')).toBeTruthy();
   });
-  it('Add Visit and Add Contact call back', () => {
-    const onAddVisit = vi.fn(); const onAddContact = vi.fn();
-    render(<VisitsTab {...props} onAddVisit={onAddVisit} onAddContact={onAddContact} />);
-    fireEvent.click(screen.getByText('Add Visit'));
-    fireEvent.click(screen.getByText('Add Contact'));
+  it('the empty tab holds its own Add visit button, and only with permission', () => {
+    const onAddVisit = vi.fn();
+    const { rerender } = render(<VisitsTab {...props} onAddVisit={onAddVisit} />);
+    fireEvent.click(screen.getByText('Add visit'));
     expect(onAddVisit).toHaveBeenCalled();
-    expect(onAddContact).toHaveBeenCalled();
+    rerender(<VisitsTab {...props} canAddVisits={false} onAddVisit={onAddVisit} />);
+    expect(screen.queryByText('Add visit')).toBeNull();
   });
 });

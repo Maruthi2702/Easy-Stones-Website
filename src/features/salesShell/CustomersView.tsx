@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import ErrorBoundary from '../../components/shared/ErrorBoundary';
 import { CustomerProfile, getCustomerLevelLabel } from '../customers';
 import type { CustomerActions, OpenCustomer } from '../customers';
+import { requestEditCustomer, requestDeleteCustomer, CUSTOMER_SAVED } from '../customers/customerBridge';
 import type { VisitEditor } from '../visits';
 import type { ResourceEditor } from '../resources';
 import type { Loose } from '../../types/records';
@@ -16,7 +18,6 @@ export type CustomersViewProps = {
     activeTab: string;
     onTab: (tab: string) => void;
     onBack: () => void;
-    onGoHome: () => void;
     onOpenCustomer: (customer: Loose) => void;
     currentUser: Loose | null;
     currentUserId: string | null;
@@ -37,7 +38,18 @@ export type CustomersViewProps = {
  */
 export default function CustomersView(p: CustomersViewProps) {
     const { open, actions, visits, resources, selectedCustomerId } = p;
-    const { selectedCustomer, selectedCustomerDetail, customerCacheRef, visitsLoading } = open;
+    const { selectedCustomer, selectedCustomerDetail, customerCacheRef, visitsLoading, fetchSingleCustomer } = open;
+
+    // The list's Edit customer form saved the open customer: load it again.
+    useEffect(() => {
+        const onSaved = (e: Event) => {
+            const id = (e as CustomEvent).detail?.id;
+            if (id && id === selectedCustomerId) fetchSingleCustomer(id, true);
+        };
+        window.addEventListener(CUSTOMER_SAVED, onSaved);
+        return () => window.removeEventListener(CUSTOMER_SAVED, onSaved);
+    }, [selectedCustomerId, fetchSingleCustomer]);
+
     return (
         <>
             {selectedCustomer && (
@@ -48,7 +60,8 @@ export default function CustomersView(p: CustomersViewProps) {
                     activeTab={p.activeTab}
                     onTab={p.onTab}
                     onBack={p.onBack}
-                    onGoHome={p.onGoHome}
+                    onEditCustomer={() => requestEditCustomer(selectedCustomerDetail || selectedCustomer)}
+                    onDeleteCustomer={(settled) => requestDeleteCustomer(selectedCustomerId!, settled)}
                     onStatusChanged={(status) => {
                         open.setSelectedCustomerDetail(prev => (prev ? { ...prev, status } : prev));
                         const cached = customerCacheRef.current[selectedCustomerId!];

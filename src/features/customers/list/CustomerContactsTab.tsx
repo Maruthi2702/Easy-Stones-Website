@@ -1,9 +1,11 @@
 import React, { useMemo } from 'react';
-import { Plus, Pencil, Trash2, BookUser } from 'lucide-react';
+import { BookUser, Users } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { formatPhoneForDisplay } from '../../../utils/phoneUtils';
 import { companyOf, contactOf, realEmailsOf } from '../../../utils/customerList';
 import { CopyButton } from './parts';
+import RowMenu from '../profile/RowMenu';
+import { TabEmpty } from '../profile/TabStates';
 import type { Loose } from '../../../types/records';
 import './CustomerList.css';
 
@@ -30,9 +32,11 @@ export type CustomerContactsTabProps = {
   onAdd: () => void;
   onEdit: (contact: Loose) => void;
   onDelete: (contactId: string) => void;
+  /** Opens Edit customer — where the main contact is changed. Left out for a login that can't edit customers. */
+  onEditCustomer?: () => void;
 };
 
-const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete }: CustomerContactsTabProps) => {
+const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete, onEditCustomer }: CustomerContactsTabProps) => {
   const c: Loose = customer || {};
 
   const rows = useMemo(() => {
@@ -76,28 +80,23 @@ const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete }: CustomerCont
     </a>
   );
 
-  const editDelete = (row: ContactRow) => (row.primary ? null : (
-    <>
-      <button type="button" className="cl-ib box cl-ct2-ic cl-ct2-edit" aria-label={`Edit ${row.name || 'contact'}`} onClick={() => onEdit(row.contact as Loose)}>
-        <Pencil size={15} aria-hidden="true" />
-      </button>
-      <button type="button" className="cl-ib box cl-ct2-ic cl-ct2-del" aria-label={`Delete ${row.name || 'contact'}`} onClick={() => onDelete((row.contact as Loose)._id)}>
-        <Trash2 size={15} aria-hidden="true" />
-      </button>
-    </>
+  // The main contact is on the customer record, so its ⋯ has one item: Edit customer.
+  const editDelete = (row: ContactRow) => (row.primary ? (onEditCustomer ? <RowMenu noun="customer" onEdit={onEditCustomer} /> : null) : (
+    <RowMenu noun="contact" onEdit={() => onEdit(row.contact as Loose)} onDelete={() => onDelete((row.contact as Loose)._id)} />
   ));
 
   const phoneText = (p: string) => formatPhoneForDisplay(p) || p;
 
   return (
     <div className="cl cl-ct2">
-      <div className="cl-ct2-head">
-        <h3>Contacts</h3>
-        <button type="button" className="cl-btn gold" onClick={onAdd}><Plus size={16} aria-hidden="true" />Add contact</button>
-      </div>
-
       {rows.length === 0 ? (
-        <div className="cl-sec cl-muted" style={{ textAlign: 'center' }}>No contacts added yet</div>
+        <TabEmpty
+          icon={<Users size={28} aria-hidden="true" />}
+          title="No contacts yet"
+          text="Add the people you work with at this customer."
+          actionLabel="Add contact"
+          onAction={onAdd}
+        />
       ) : (
         <>
           {/* Laptop: the table. */}
@@ -165,6 +164,12 @@ const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete }: CustomerCont
       )}
     </div>
   );
+};
+
+/** Does this customer show any row on the Contacts tab (the main contact counts)? */
+export const hasAnyContact = (customer: Loose | null | undefined): boolean => {
+  const c: Loose = customer || {};
+  return Boolean(contactOf(c) || c.phone || realEmailsOf(c).length || (c.contacts || []).length);
 };
 
 export default CustomerContactsTab;

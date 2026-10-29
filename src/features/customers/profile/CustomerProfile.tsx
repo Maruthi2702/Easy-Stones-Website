@@ -1,7 +1,10 @@
+import { useState } from 'react';
 import ErrorBoundary from '../../../components/shared/ErrorBoundary';
 import CustomerProfileHeader from '../list/CustomerProfileHeader';
 import CustomerDetailsTab from '../list/CustomerDetailsTab';
-import CustomerContactsTab from '../list/CustomerContactsTab';
+import CustomerContactsTab, { hasAnyContact } from '../list/CustomerContactsTab';
+import DeleteCustomerDialog from './DeleteCustomerDialog';
+import { canEditCustomers, canDeleteCustomers } from '../../../utils/customerAccess';
 import VisitsTab from './VisitsTab';
 import ResourcesTab from './ResourcesTab';
 import NetworkTab from './NetworkTab';
@@ -15,7 +18,10 @@ export type CustomerProfileProps = {
     activeTab: string;
     onTab: (tab: string) => void;
     onBack: () => void;
-    onGoHome: () => void;
+    /** Open the Edit customer form on this customer (the list owns it — customerBridge.ts). */
+    onEditCustomer: () => void;
+    /** Delete this customer; `settled` says whether it's gone. */
+    onDeleteCustomer: (settled: (deleted: boolean) => void) => void;
     /** The header's status picker saved: show it on the open record at once. */
     onStatusChanged: (status: string) => void;
     currentUser: Loose | null;
@@ -71,10 +77,37 @@ export type CustomerProfileProps = {
  */
 export default function CustomerProfile(p: CustomerProfileProps) {
     const { customer, detail, activeTab, currentUser, currentUserId } = p;
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const canEditCustomer = canEditCustomers(currentUser);
+    const canDeleteCustomer = canDeleteCustomers(currentUser);
+
+    // The active tab's one Add button (in the header). A tab with nothing on it
+    // shows its own "nothing yet" card with the button, so the header's hides.
+    const visits = (customer.visits || []).length;
+    const adds: Record<string, { label: string; onClick: () => void; show: boolean }> = {
+        visits: { label: 'Add visit', onClick: p.onAddVisit, show: p.canAddVisits && (visits > 0 || p.historyLoading) },
+        resources: { label: 'Add resource', onClick: p.onAddResource, show: p.canAddVisits && (customer.resources || []).length > 0 },
+        contacts: { label: 'Add contact', onClick: p.onAddContact, show: hasAnyContact(customer) },
+        network: { label: 'Link partner', onClick: p.onLinkPartner, show: (customer.associatedCustomers || []).length > 0 }
+    };
+    const add = adds[activeTab];
+    const action = add && add.show ? { label: add.label, onClick: add.onClick } : null;
+
+    const askDelete = () => setConfirmDelete(true);
+    const deleteNow = () => {
+        setDeleting(true);
+        p.onDeleteCustomer((deleted) => {
+            setDeleting(false);
+            setConfirmDelete(false);
+            if (deleted) p.onBack();
+        });
+    };
+
     return (
         <ErrorBoundary key={p.customerId}>
             <>
-                {/* Customer header: who they are, status, actions, summary, tabs. */}
+                {/* Customer header: who they are, status, ⋯ menu, ✕, tabs and the tab's Add button. */}
                 <div className="cl-ph-wrap">
                     <CustomerProfileHeader
                         customer={customer}
@@ -82,9 +115,13 @@ export default function CustomerProfile(p: CustomerProfileProps) {
                         activeTab={activeTab}
                         onTab={p.onTab}
                         onBack={p.onBack}
-                        onGoHome={p.onGoHome}
                         canEdit={!!currentUser?.permissions?.includes('manage_customers')}
+                        canEditCustomer={canEditCustomer}
+                        canDeleteCustomer={canDeleteCustomer}
+                        onEditCustomer={p.onEditCustomer}
+                        onDeleteCustomer={askDelete}
                         onStatusChanged={p.onStatusChanged}
+                        action={action}
                     />
                 </div>
 
@@ -120,6 +157,7 @@ export default function CustomerProfile(p: CustomerProfileProps) {
                                 onAdd={p.onAddContact}
                                 onEdit={p.onEditContact}
                                 onDelete={p.onDeleteContact}
+                                onEditCustomer={canEditCustomer ? p.onEditCustomer : undefined}
                             />
                         </div>
                     )}
@@ -132,8 +170,6 @@ export default function CustomerProfile(p: CustomerProfileProps) {
                             currentUser={currentUser}
                             currentUserId={currentUserId}
                             canAddVisits={p.canAddVisits}
-                            onAddContact={p.onAddContact}
-                            onAddResource={p.onAddResource}
                             onAddVisit={p.onAddVisit}
                             onReaction={p.onReaction}
                             onEditVisit={p.onEditVisit}
@@ -173,6 +209,9 @@ export default function CustomerProfile(p: CustomerProfileProps) {
                         </div>
                     )}
                 </div>
+                {confirmDelete && (
+                    <DeleteCustomerDialog customer={detail || customer} deleting={deleting} onKeep={() => setConfirmDelete(false)} onDelete={deleteNow} />
+                )}
             </>
         </ErrorBoundary>
     );

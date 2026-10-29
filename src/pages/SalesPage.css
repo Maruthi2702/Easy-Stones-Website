@@ -2205,9 +2205,9 @@ body.light-theme-active .fancy-mobile-menu-btn:active,
 
 .resources-table tbody tr:hover {
   background: rgba(255, 255, 255, 0.05);
-  /* Visible hover state */
-  transform: scale(1.002);
-  /* Tiny scale for tactile feel */
+  /* Visible hover state. (It used to also scale the row 0.2%: a transformed
+     row becomes the reference frame for the ⋯ menu inside it, which is placed
+     on the screen, and the menu landed off the page — 2026-10-29.) */
 }
 
 .resources-table tbody tr.expanded {
