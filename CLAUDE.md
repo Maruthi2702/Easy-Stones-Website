@@ -157,6 +157,29 @@ clock passes `today` (holds). The Check-In Log's Filters panel uses a
 the month). Not done: typing a date straight into the field (it was possible
 with the native inputs).
 
+## Scheduling: one form, one rule set (2026-10-29)
+
+Anything that puts an entry on a rep's calendar is
+`src/components/shared/schedule/ScheduleActivityForm.tsx` (design: claude.ai
+artifact **Schedule activity form canvas**, https://claude.ai/artifact/UZhEot9fsANGStM4yKyAaQ):
+the Sales Planner's add / edit activity (`ActivityDialog`), the Route Planner's
+Add to calendar / Reschedule (`ScheduleVisitSheet`) and its Schedule panel's
+add / edit. Each is a thin adapter that passes a fixed customer or a picker,
+`bookedOn(date)` and an `onSave`; don't build a fourth. It's on FormModal (no
+Cancel, the ✕ asks about unsaved changes). The rules are `src/utils/visitSlots.ts`
+(tested): opens on today until 6 PM, tomorrow after (`defaultVisitDate`); the
+start is the first free slot between 9 and 5, or the next quarter hour today
+(`earliestStart`); a new visit is **30 minutes** and a booking with no end time
+counts as 30 whatever length is chosen (`DEFAULT_VISIT_MINUTES`, in
+`scheduleRecord.js`, which the .ics feed uses too). Overlaps, the same customer
+twice in a day, a start already past and a full day **warn and never block**
+(two reps can visit at once). No Today / Tomorrow chips (owner, 2026-10-29).
+Type (Visit / Call / Drop-off / Other) is on every screen. The server checks
+every write (`src/utils/scheduleRecord.js`: real times, end after start, a known
+type; PUT can't change userId or source) and a new entry carries its own `_id`
+so a repeated POST answers 200 `alreadySaved`. Old entries with no end time are
+not backfilled.
+
 ## Phone tab bar (2026-10-18)
 
 Under 640px SalesPage shows a bottom tab bar instead of the drawer

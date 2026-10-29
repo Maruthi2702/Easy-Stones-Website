@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { refreshPlannerSchedule } from './plannerSchedule';
 import type { PlannerItem } from './plannerSchedule';
 import { saveActivity, deleteActivity } from './salesPlannerApi';
-import { EMPTY_FORM, defaultStartFor, formFor, type ActivityForm } from './salesPlanner';
+import type { ScheduleSave } from '../../components/shared/schedule/ScheduleActivityForm';
+import { newScheduleId } from '../../utils/visitSlots';
 
 /**
- * The add / edit form and the delete check: what each holds, opening and
- * closing them (Escape included), and their writes. A write that lands
+ * The add / edit form and the delete check: which one is open, and their
+ * writes. The form (components/shared/schedule) holds its own fields and checks
+ * its own unsaved changes; this saves what it hands back. A write that lands
  * refreshes the planner's own copy and tells the dashboard (`onScheduleChange`).
  */
 export default function useActivityEditor(onScheduleChange?: () => void) {
@@ -17,13 +19,14 @@ export default function useActivityEditor(onScheduleChange?: () => void) {
     const [addingForDay, setAddingForDay] = useState<Date | null>(null);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
-    const [form, setForm] = useState<ActivityForm>(EMPTY_FORM);
+    // A new entry's own id, set each time Add opens: a repeated send books once.
+    const [newEntryId, setNewEntryId] = useState(newScheduleId);
 
     const openAdd = (day: Date | null) => {
         setEditingItem(null);
-        setAddingForDay(day ? new Date(day) : new Date());
+        setAddingForDay(day ? new Date(day) : null);
         setSaveError(null);
-        setForm({ ...EMPTY_FORM, startTime: defaultStartFor(day) });
+        setNewEntryId(newScheduleId());
         setShowAddModal(true);
     };
 
@@ -31,7 +34,6 @@ export default function useActivityEditor(onScheduleChange?: () => void) {
         setEditingItem(item);
         setAddingForDay(null);
         setSaveError(null);
-        setForm(formFor(item));
         setShowAddModal(true);
     };
 
@@ -42,29 +44,25 @@ export default function useActivityEditor(onScheduleChange?: () => void) {
         setSaveError(null);
     };
 
+    // The schedule form closes itself on Escape (asking first when there are
+    // unsaved changes); only the delete check is closed here.
     useEffect(() => {
-        if (!showAddModal && !showDeleteModal) return undefined;
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape') return;
-            if (showDeleteModal) setShowDeleteModal(false);
-            else closeModal();
-        };
+        if (!showDeleteModal) return undefined;
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowDeleteModal(false); };
         document.addEventListener('keydown', onKey);
         return () => document.removeEventListener('keydown', onKey);
-    }, [showAddModal, showDeleteModal]);
+    }, [showDeleteModal]);
 
-    const handleSave = async (e?: React.SyntheticEvent) => {
-        if (e) e.preventDefault();
-
-        if (!form.customerId || !form.startTime) {
-            setSaveError('Pick a customer and a start time.');
-            return;
-        }
-
+    /** Save what the form hands back; true when it landed, false (with the server's reason shown) when not. */
+    const handleSave = async (value: ScheduleSave): Promise<boolean> => {
+        const { customerId, startTime, endTime, activityType, notes } = value;
         try {
             setSaving(true);
             setSaveError(null);
-            const response = await saveActivity(editingItem ? editingItem._id : null, form);
+            const response = await saveActivity(editingItem ? editingItem._id : null, {
+                customerId, startTime, endTime, activityType, notes,
+                ...(editingItem ? {} : { _id: newEntryId })
+            });
 
             if (response.ok) {
                 // The server has already broadcast this write, but our own copy
@@ -72,15 +70,16 @@ export default function useActivityEditor(onScheduleChange?: () => void) {
                 refreshPlannerSchedule();
                 if (onScheduleChange) onScheduleChange();
                 closeModal();
-                setForm(EMPTY_FORM);
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                console.error('[Planner] Save failed:', errorData);
-                setSaveError(errorData.message || errorData.error || 'That did not save. Try again.');
+                return true;
             }
+            const errorData = await response.json().catch(() => ({}));
+            console.error('[Planner] Save failed:', errorData);
+            setSaveError(errorData.message || errorData.error || 'That did not save. Try again.');
+            return false;
         } catch (error) {
             console.error('[Planner] Save error:', error);
             setSaveError(`Network error: ${(error as Error).message}`);
+            return false;
         } finally {
             setSaving(false);
         }
@@ -109,7 +108,7 @@ export default function useActivityEditor(onScheduleChange?: () => void) {
     };
 
     return {
-        form, setForm, saving, saveError, showAddModal, editingItem, addingForDay,
+        saving, saveError, showAddModal, editingItem, addingForDay,
         showDeleteModal, openAdd, openEdit, closeModal, handleSave,
         handleDelete, closeDelete, confirmDelete
     };

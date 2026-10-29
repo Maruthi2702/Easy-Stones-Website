@@ -1,6 +1,6 @@
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
-import type { ActivityForm } from './salesPlanner';
+import type { ActivitySave } from './salesPlanner';
 
 /**
  * The planner's writes to /api/schedule (src/routes/schedule.js). Reads go
@@ -9,7 +9,7 @@ import type { ActivityForm } from './salesPlanner';
  */
 
 /** Add a stop (no id) or save the edit form over one. */
-export const saveActivity = (id: string | null, form: ActivityForm) => authFetch(
+export const saveActivity = (id: string | null, form: ActivitySave) => authFetch(
     id !== null ? `${API_URL}/api/schedule/${id}` : `${API_URL}/api/schedule`,
     { method: id !== null ? 'PUT' : 'POST', body: JSON.stringify(form) }
 );

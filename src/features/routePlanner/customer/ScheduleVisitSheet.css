@@ -1,8 +1,0 @@
-/* "Schedule a visit" (ScheduleVisitSheet.tsx) — colours come from FormModal's --fm-* tokens. */
-.rpv2-sched-who { margin: 0 0 4px; font-size: 14px; color: var(--fm-mut); }
-.rpv2-sched-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.rpv2-sched-day { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--fm-bd2); border-radius: 12px; }
-.rpv2-sched-day-title { font-size: 12.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--fm-mut); }
-.rpv2-sched-none { font-size: 13.5px; color: var(--fm-mut); }
-.rpv2-sched-visit { display: flex; gap: 10px; font-size: 13.5px; color: var(--fm-tx); }
-.rpv2-sched-time { width: 72px; flex: none; color: var(--fm-mut); font-variant-numeric: tabular-nums; }

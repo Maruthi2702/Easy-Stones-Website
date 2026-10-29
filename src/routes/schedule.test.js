@@ -129,3 +129,87 @@ describe('atomic route replacement', () => {
     expect(await Schedule.countDocuments()).toBe(2);
   });
 });
+
+describe('saving one entry', () => {
+  const body = (over = {}) => ({ customerId: String(customer), startTime: '2026-10-30T09:00:00.000', endTime: '2026-10-30T09:30:00.000', activityType: 'Call', notes: 'hi', ...over });
+  const create = (over, user = staff) => request(app).post('/api/schedule').set(as(user)).send(body(over));
+
+  it('saves a good entry and defaults the type', async () => {
+    const res = await create({ activityType: undefined }).expect(201);
+    expect(res.body.activityType).toBe('Visit');
+    expect(res.body.endTime).toBe('2026-10-30T09:30:00.000');
+    expect(emit).toHaveBeenCalledTimes(1);
+  });
+  it('refuses a bad type, times, notes and an unknown customer, and writes nothing', async () => {
+    await create({ activityType: 'Lunch' }).expect(400);
+    await create({ startTime: 'later' }).expect(400);
+    await create({ endTime: '2026-10-30T09:00:00.000' }).expect(400);
+    await create({ notes: 'x'.repeat(2001) }).expect(400);
+    await create({ customerId: String(new mongoose.Types.ObjectId()) }).expect(400);
+    expect(await Schedule.countDocuments()).toBe(0);
+    expect(emit).not.toHaveBeenCalled();
+  });
+  it('answers a repeated send with the entry it already saved', async () => {
+    const _id = String(new mongoose.Types.ObjectId());
+    const first = await create({ _id }).expect(201);
+    const again = await create({ _id }).expect(200);
+    expect(again.body.alreadySaved).toBe(true);
+    expect(again.body._id).toBe(first.body._id);
+    expect(await Schedule.countDocuments()).toBe(1);
+    expect(emit).toHaveBeenCalledTimes(1);
+  });
+  it('books once when the same send arrives twice at the same moment', async () => {
+    const _id = String(new mongoose.Types.ObjectId());
+    const results = await Promise.all([create({ _id }), create({ _id })]);
+    expect(results.map(r => r.status).sort()).toEqual([200, 201]);
+    expect(await Schedule.countDocuments()).toBe(1);
+  });
+  it('will not reuse another person\'s entry id', async () => {
+    const _id = String(new mongoose.Types.ObjectId());
+    await create({ _id }, { ...staff, id: String(other) }).expect(201);
+    await create({ _id }).expect(409);
+    expect(await Schedule.countDocuments()).toBe(1);
+  });
+  it('an edit changes only what may change, and not whose or where it came from', async () => {
+    const saved = await create().expect(201);
+    const res = await request(app).put(`/api/schedule/${saved.body._id}`).set(as())
+      .send({ notes: 'new', userId: String(other), source: 'route_planner' }).expect(200);
+    expect(res.body.notes).toBe('new');
+    const stored = await Schedule.findById(saved.body._id).lean();
+    expect(String(stored.userId)).toBe(String(owner));
+    expect(stored.source).toBe('manual');
+  });
+  it('an edit that puts the start after the stored end is refused', async () => {
+    const saved = await create().expect(201);
+    await request(app).put(`/api/schedule/${saved.body._id}`).set(as()).send({ startTime: '2026-10-30T10:00:00.000' }).expect(400);
+    await request(app).put(`/api/schedule/${saved.body._id}`).set(as())
+      .send({ startTime: '2026-10-30T10:00:00.000', endTime: '2026-10-30T10:30:00.000' }).expect(200);
+  });
+  it('cannot edit someone else\'s entry or a made-up id', async () => {
+    const saved = await create().expect(201);
+    await request(app).put(`/api/schedule/${saved.body._id}`).set(as({ ...staff, id: String(other) })).send({ notes: 'x' }).expect(404);
+    await request(app).put('/api/schedule/not-an-id').set(as()).send({ notes: 'x' }).expect(404);
+  });
+  it('the route planner\'s one-stop add checks times and can be repeated', async () => {
+    const _id = String(new mongoose.Types.ObjectId());
+    const item = { _id, customerId: String(customer), startTime: '2026-10-30T09:30:00.000', endTime: '2026-10-30T10:00:00.000', activityType: 'Visit' };
+    await replace({ date: '2026-10-30', items: [{ ...item, endTime: '2026-10-30T09:00:00.000' }] }).expect(400);
+    await replace({ date: '2026-10-30', items: [item] }).expect(201);
+    const again = await replace({ date: '2026-10-30', items: [item] }).expect(200);
+    expect(again.body.alreadySaved).toBe(true);
+    expect(await Schedule.countDocuments()).toBe(1);
+  });
+});
+
+describe('the calendar feed', () => {
+  it('gives an entry with no end time 30 minutes, the length the planners assume', async () => {
+    await Schedule.create(stop({ startTime: '2026-10-30T09:00:00.000', endTime: undefined }));
+    const link = (await subscription()).body.path;
+    const res = await request(app).get(link).expect(200);
+    const start = res.text.match(/DTSTART[^:]*:(\d{8}T\d{6}Z)/)?.[1];
+    const end = res.text.match(/DTEND[^:]*:(\d{8}T\d{6}Z)/)?.[1];
+    expect(start && end).toBeTruthy();
+    const ms = (t) => Date.UTC(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8), +t.slice(9, 11), +t.slice(11, 13));
+    expect(ms(end) - ms(start)).toBe(30 * 60000);
+  });
+});

@@ -94,7 +94,13 @@ export type ColorMode = 'type' | 'visit';
 /** "Plan route" from the Customers list: these customers become the selection. */
 export type Preselect = { ids: string[]; nonce: unknown } | null;
 
-/** The form ScheduleVisitForm sends: a new entry or an edit of one. */
-export type ScheduleVisitInput = { customerId: string; startTime: string; activityType: string; notes: string };
+/** The form ScheduleActivityForm sends: a new entry or an edit of one. */
+/** What the Schedule panel's add / edit form saves. `id` is a new entry's own id, so a repeated send books once. */
+export type ScheduleVisitInput = { customerId: string; startTime: string; endTime: string; activityType: string; notes: string; id?: string };
 /** What ScheduleVisitSheet saves: a new booking, or the customer's existing one moved. */
-export type VisitSlotInput = { customer: MapPin; booking: Booking | null; date: string; startTime: string; endTime: string };
+export type VisitSlotInput = {
+    customer: MapPin; booking: Booking | null; date: string; startTime: string; endTime: string;
+    activityType: string; notes: string;
+    /** The new entry's own id, so a repeated send books once. */
+    id?: string;
+};

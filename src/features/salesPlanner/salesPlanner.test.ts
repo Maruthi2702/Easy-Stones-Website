@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { PlannerItem } from './plannerSchedule';
 import {
     dayKey, localISO, mondayOf, dayOffset, slotMinutes, aimedMinutes, planMove, gapsFor, dayFromKey,
-    activityModifier, activityColor, customerName, defaultStartFor, formFor, rangeFor, groupByDay,
+    activityModifier, activityColor, customerName, initialFor, bookedRowOf, rangeFor, groupByDay,
     weekdaysOf, weekendOf, weeksBetween, titleFor, visitFlag, describeAim, addLabel
 } from './salesPlanner';
 
@@ -125,14 +125,25 @@ describe('cards and the form', () => {
         expect(visitFlag(stop('a', '2026-10-25T09:00:00.000', { status: 'Scheduled' }), now)).toBeNull();
     });
 
-    it('opens a new stop at 9am on another day', () => {
-        expect(defaultStartFor(day(2030, 1, 2))).toBe('2030-01-02T09:00:00.000');
+    it('opens a new stop on the day clicked, with the first free start left to the form', () => {
+        expect(initialFor(null, day(2030, 1, 2))).toEqual({ date: '2030-01-02', start: null, minutes: 30 });
     });
 
-    it('opens the edit form with the stop as it is', () => {
-        expect(formFor(stop('a', '2026-10-22T09:00:00.000', { customerId: { _id: 'c1' }, notes: 'Bring samples' })))
-            .toEqual({ customerId: 'c1', startTime: '2026-10-22T09:00:00.000', activityType: 'Visit', notes: 'Bring samples' });
-        expect(formFor(stop('a', '2026-10-22T09:00:00.000', { customerId: 'c2', activityType: 'Call' })).customerId).toBe('c2');
+    it('opens a new stop from the New button on today, or tomorrow from 6 PM', () => {
+        expect(initialFor(null, null, new Date(2026, 9, 29, 10, 0)).date).toBe('2026-10-29');
+        expect(initialFor(null, null, new Date(2026, 9, 29, 18, 0)).date).toBe('2026-10-30');
+    });
+
+    it('opens the edit form with the stop as it is, its length from its end', () => {
+        expect(initialFor(stop('a', '2026-10-22T09:00:00.000', { customerId: { _id: 'c1' }, notes: 'Bring samples', endTime: '2026-10-22T10:00:00.000' }), null))
+            .toEqual({ customerId: 'c1', date: '2026-10-22', start: '09:00', minutes: 60, activityType: 'Visit', notes: 'Bring samples' });
+        expect(initialFor(stop('a', '2026-10-22T09:00:00.000', { customerId: 'c2', activityType: 'Call' }), null))
+            .toMatchObject({ customerId: 'c2', minutes: 30, activityType: 'Call' });
+    });
+
+    it('turns a stop into a row of "already booked"', () => {
+        expect(bookedRowOf(stop('a', '2026-10-22T09:00:00.000', { customerId: { _id: 'c1', company: 'Pacific Granite' } })))
+            .toEqual({ id: 'a', customerId: 'c1', startTime: '2026-10-22T09:00:00.000', endTime: undefined, label: 'Pacific Granite' });
     });
 
     it('groups by day in time order and skips unreadable times', () => {

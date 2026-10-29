@@ -6004,29 +6004,6 @@ body.light-theme-active .pl-ev-flag--done { color: #16a34a; }
   cursor: pointer;
 }
 
-.pl-form-err {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  padding: 0.6rem 0.8rem;
-  border-radius: 8px;
-  background: var(--pl-danger-bg);
-  border: 1px solid var(--pl-danger-line);
-  color: var(--pl-danger-ink);
-  font-size: 0.82rem;
-}
-
-.pl-modal-sub {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0.25rem 0 0;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--pl-gold);
-}
-
 .pl-confirm {
   padding: 1.5rem;
   text-align: center;

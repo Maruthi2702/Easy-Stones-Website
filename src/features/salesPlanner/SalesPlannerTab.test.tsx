@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Sales Planner render: the week (weekday columns and the weekend rail), the
-// Day and Month views, "+N more", the add / edit form and its check, the
+// Day and Month views, "+N more", the add / edit form (the shared schedule form) and its check, the
 // delete check, a save and a delete reaching the API, a keyboard pick-up, and a
 // refused load. The API is a fake keyed on the URL; the socket is a stand-in.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
@@ -84,33 +84,48 @@ describe('Sales Planner', () => {
         await open({ onScheduleChange });
         fireEvent.click(document.querySelectorAll('.pl-addday')[0]);
         await settle();
-        expect(screen.getByText('Schedule New Activity')).toBeTruthy();
-        expect(document.querySelector('.pl-modal-sub')).not.toBeNull();
-        fireEvent.click(button('Save Plan'));
+        expect(screen.getByText('Schedule activity')).toBeTruthy();
+        fireEvent.click(document.querySelector('.fm-btn-primary') as Element);
         await settle();
-        expect(screen.getByText('Pick a customer and a start time.')).toBeTruthy();
+        expect(screen.getAllByText('Pick a customer').length).toBeGreaterThan(0);
+        expect(calls.find((c) => c.method === 'POST')).toBeUndefined();
 
-        fireEvent.click(document.querySelector('.modal-content .searchable-select-trigger') as Element);
+        fireEvent.click(document.getElementById('sa-customer') as Element);
         await settle();
-        fireEvent.click([...document.querySelectorAll('.searchable-select-option')].find((o) => o.textContent?.includes('Stone River')) as Element);
-        fireEvent.click(button('Save Plan'));
+        fireEvent.click([...document.querySelectorAll('.fm-opt')].find((o) => o.textContent?.includes('Stone River')) as Element);
+        fireEvent.click(document.querySelector('.fm-btn-primary') as Element);
         await settle();
         const post = calls.find((c) => c.method === 'POST');
         expect(post?.url).toMatch(/\/api\/schedule$/);
-        expect(JSON.parse(post!.body!)).toMatchObject({ customerId: 'c2', activityType: 'Visit', notes: '' });
+        // A type, a start and an end (30 minutes by default), and its own id so a repeat books once.
+        const sent = JSON.parse(post!.body!);
+        expect(sent).toMatchObject({ customerId: 'c2', activityType: 'Visit', notes: '' });
+        expect(sent._id).toMatch(/^[a-f0-9]{24}$/);
+        expect(new Date(sent.endTime).getTime() - new Date(sent.startTime).getTime()).toBe(30 * 60000);
         expect(onScheduleChange).toHaveBeenCalled();
-        expect(screen.queryByText('Schedule New Activity')).toBeNull();
+        expect(screen.queryByText('Schedule activity')).toBeNull();
+    });
+
+    it('opens a day that has a 9:00 stop on the next free start, not on top of it', async () => {
+        await open();
+        fireEvent.click(document.querySelectorAll('.pl-addday')[0]);
+        await settle();
+        const text = document.querySelector('.fm-dialog')?.textContent || '';
+        expect(text).toContain('Already on');
+        expect(text).toContain('This visit');
     });
 
     it('edits a stop and saves it with PUT', async () => {
         await open();
         fireEvent.click(screen.getAllByLabelText('Edit activity')[0]);
         await settle();
-        expect(screen.getByText('Edit Activity')).toBeTruthy();
-        expect((document.querySelector('.modal-content textarea') as HTMLTextAreaElement).value).toBe('Bring the Moda binder');
-        fireEvent.click(button('Save Plan'));
+        expect(screen.getByText('Edit activity')).toBeTruthy();
+        expect((document.querySelector('.fm-dialog textarea') as HTMLTextAreaElement).value).toBe('Bring the Moda binder');
+        fireEvent.click(document.querySelector('.fm-btn-primary') as Element);
         await settle();
-        expect(calls.find((c) => c.method === 'PUT')?.url).toMatch(/\/api\/schedule\/s1$/);
+        const put = calls.find((c) => c.method === 'PUT');
+        expect(put?.url).toMatch(/\/api\/schedule\/s1$/);
+        expect(JSON.parse(put!.body!)).toMatchObject({ customerId: 'c1', activityType: 'Visit', notes: 'Bring the Moda binder' });
     });
 
     it('asks before deleting, and Escape closes the check', async () => {

@@ -17,6 +17,7 @@ import Customer from '../models/Customer.js';
 import User from '../models/User.js';
 import { calendarFeedToken, validCalendarFeedToken } from '../services/calendarFeed.js';
 import { zonedTimeToUtc } from '../utils/dateUtils.js';
+import { cleanScheduleFields, isObjectId, DEFAULT_VISIT_MINUTES } from '../utils/scheduleRecord.js';
 import { discoverICloudCalendars, syncICloudCalendar } from '../services/icloudSyncService.js';
 
 /**
@@ -109,31 +110,50 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
     }
   });
 
-  // Create schedule item
+  // Create schedule item. The rules are the server's (utils/scheduleRecord.js):
+  // a real customer, real times with the end after the start, a known type. A
+  // client that sends its own `_id` can repeat the same POST safely — the second
+  // answers 200 with the entry it already saved, so a double tap or a retry on a
+  // bad connection never books twice.
   router.post('/schedule', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
-      const { customerId, startTime, endTime, activityType, notes } = req.body;
+      const { fields, error } = cleanScheduleFields(req.body);
+      if (error) return res.status(400).json({ message: error });
 
-      if (!customerId || !startTime) {
-        return res.status(400).json({ message: 'Missing required schedule fields' });
+      const wantedId = req.body._id;
+      if (wantedId !== undefined && !isObjectId(wantedId)) {
+        return res.status(400).json({ message: 'That entry id is not valid' });
+      }
+      if (!(await Customer.exists({ _id: fields.customerId }))) {
+        return res.status(400).json({ message: 'That customer no longer exists' });
       }
 
-      const newItem = new Schedule({
-        userId,
-        customerId,
-        startTime,
-        endTime,
-        activityType,
-        notes
-      });
+      const populate = (id) => Schedule.findById(id).populate('customerId', 'contactName company');
+      const alreadySaved = async () => {
+        const existing = await populate(wantedId);
+        if (!existing) return null;
+        if (String(existing.userId) !== String(userId)) {
+          res.status(409).json({ message: 'That entry id is already used' });
+          return true;
+        }
+        res.status(200).json({ ...existing.toObject(), alreadySaved: true });
+        return true;
+      };
+      if (wantedId !== undefined && await alreadySaved()) return;
 
-      await newItem.save();
+      const created = new Schedule({ ...(wantedId !== undefined ? { _id: wantedId } : {}), userId, ...fields });
+      try {
+        await created.save();
+      } catch (saveError) {
+        // Two identical sends racing: the other one won, so answer with its entry.
+        if (saveError?.code === 11000 && wantedId !== undefined && await alreadySaved()) return;
+        throw saveError;
+      }
 
-      // Populate customer info for the response
-      const populatedItem = await Schedule.findById(newItem._id).populate('customerId', 'contactName company');
+      const populatedItem = await populate(created._id);
 
-      emitScheduleUpdate({ type: 'upsert', userId, id: String(newItem._id) });
+      emitScheduleUpdate({ type: 'upsert', userId, id: String(populatedItem._id) });
 
       res.status(201).json(populatedItem);
     } catch (error) {
@@ -184,6 +204,25 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       if (items.some(item => !item.startTime)) {
         return res.status(400).json({ message: 'Every stop needs a start time' });
       }
+      // Real times, the end after the start, a known type — the same rules as a
+      // single entry. Cleaned here so what's stored is only what was checked.
+      const cleaned = [];
+      for (const item of items) {
+        const result = cleanScheduleFields(item);
+        if (result.error) return res.status(400).json({ message: result.error });
+        cleaned.push(result.fields);
+      }
+      // One stop sent with its own `_id` can be repeated safely (a double tap):
+      // the second answers with the entry already saved.
+      const wantedId = items.length === 1 ? items[0]._id : undefined;
+      if (wantedId !== undefined) {
+        if (!isObjectId(wantedId)) return res.status(400).json({ message: 'That entry id is not valid' });
+        const existing = await Schedule.findById(wantedId).populate('customerId', 'contactName company');
+        if (existing) {
+          if (String(existing.userId) !== String(userId)) return res.status(409).json({ message: 'That entry id is already used' });
+          return res.status(200).json({ stops: [existing], replaced: 0, alreadySaved: true });
+        }
+      }
 
       const known = await Customer.find({ _id: { $in: wanted } }).select('_id').lean();
       if (known.length !== new Set(wanted.map(String)).size) {
@@ -198,13 +237,10 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         return res.status(400).json({ message: 'A date (YYYY-MM-DD) is required to replace a day' });
       }
 
-      const documents = items.map(item => new Schedule({
+      const documents = cleaned.map(fields => new Schedule({
+        ...(wantedId !== undefined ? { _id: wantedId } : {}),
         userId,
-        customerId: item.customerId,
-        startTime: item.startTime,
-        endTime: item.endTime,
-        activityType: item.activityType || 'Visit',
-        notes: item.notes || '',
+        ...fields,
         source: 'route_planner'
       }));
       // insertMany's validation occurs after the old plan would be deleted.
@@ -279,16 +315,27 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
     }
   });
 
-  // Update schedule item
+  // Update schedule item: only the fields a write may set (never userId or
+  // source), checked the same way as a create, with a start sent alone checked
+  // against the entry's stored end.
   router.put('/schedule/:id', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
       const { id } = req.params;
-      const updates = req.body;
+      if (!isObjectId(id)) return res.status(404).json({ message: 'Schedule item not found' });
+
+      const existing = await Schedule.findOne({ _id: id, userId }).lean();
+      if (!existing) return res.status(404).json({ message: 'Schedule item not found' });
+
+      const { fields, error } = cleanScheduleFields(req.body, existing);
+      if (error) return res.status(400).json({ message: error });
+      if (fields.customerId && !(await Customer.exists({ _id: fields.customerId }))) {
+        return res.status(400).json({ message: 'That customer no longer exists' });
+      }
 
       const item = await Schedule.findOneAndUpdate(
         { _id: id, userId },
-        updates,
+        { $set: fields },
         { new: true }
       ).populate('customerId', 'contactName company');
 
@@ -409,11 +456,12 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
           : 'Unknown Customer';
 
         const startStr = formatIcsDate(item.startTime);
-        // Default to 1 hour meeting if endTime is not set or invalid
+        // An entry with no end time lasts DEFAULT_VISIT_MINUTES, the same as the
+        // planners assume when they look for a free slot.
         let endStr = formatIcsDate(item.endTime);
         if (!endStr && item.startTime) {
           const startDateObj = new Date(item.startTime);
-          startDateObj.setHours(startDateObj.getHours() + 1);
+          startDateObj.setMinutes(startDateObj.getMinutes() + DEFAULT_VISIT_MINUTES);
           endStr = formatIcsDate(startDateObj);
         }
 

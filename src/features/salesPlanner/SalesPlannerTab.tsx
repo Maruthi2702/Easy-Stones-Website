@@ -163,7 +163,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
             </div>
 
             {editor.showAddModal && (
-                <ActivityDialog editor={editor} customerOptions={effectiveCustomerOptions} isDropdownLoading={isDropdownLoading} />
+                <ActivityDialog editor={editor} customerOptions={effectiveCustomerOptions} isDropdownLoading={isDropdownLoading} itemsFor={itemsFor} />
             )}
 
             {editor.showDeleteModal && (

@@ -139,6 +139,15 @@ export function loadPlannerRange(start: string, end: string): Promise<PlannerIte
 }
 
 /**
+ * One day's entries, fetched now — for the schedule form, which checks a time
+ * against whatever day the person picks, loaded or not. Doesn't change which
+ * range the planner treats as the one on screen.
+ */
+export function loadPlannerDay(day: string): Promise<PlannerItem[]> {
+  return loadRange(day, day);
+}
+
+/**
  * Change one item everywhere it is cached and tell the listeners at once.
  *
  * This exists for the drag-to-reschedule move, which has to look immediate:

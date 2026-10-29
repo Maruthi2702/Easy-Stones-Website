@@ -1,4 +1,6 @@
 import type { PlannerItem } from './plannerSchedule';
+import type { ScheduleInitial } from '../../components/shared/schedule/ScheduleActivityForm';
+import { DEFAULT_VISIT_MINUTES, defaultVisitDate, timeText, type BookedRow } from '../../utils/visitSlots';
 
 /**
  * The sales planner's pure rules: the days a view shows and fetches, where a
@@ -11,7 +13,8 @@ import type { PlannerItem } from './plannerSchedule';
 
 export type ViewMode = 'day' | 'week' | 'month';
 
-export type ActivityForm = { customerId: string; startTime: string; activityType: string; notes: string };
+/** What a save of the schedule form sends (src/routes/schedule.js checks it again). `_id` is a new entry's own id, so a repeated send books once. */
+export type ActivitySave = { customerId: string; startTime: string; endTime: string; activityType: string; notes: string; _id?: string };
 
 /** One move in the air, whichever input started it. */
 export type Drag = { item: PlannerItem; source: 'mouse' | 'touch' | 'keyboard'; dayKey: string | null; index: number | null };
@@ -202,30 +205,32 @@ export const customerName = (item: PlannerItem) =>
     customerOf(item)?.company || customerOf(item)?.contactName || 'Unknown';
 
 /**
- * A new activity opens on the day you clicked. On today that means the next
- * five-minute mark, so the picker doesn't hand you a time that has already been
- * and gone; on any other day, 9am — early enough to be worth dragging later.
+ * What the schedule form opens with. A new activity opens on the day you
+ * clicked, or on today / tomorrow after 6 PM when you came from the New button,
+ * at the first free start (the form works that out); an existing stop opens
+ * with its own day, start, length, type and notes.
  */
-export const defaultStartFor = (day: Date | null) => {
-    const now = new Date();
-    const d = day ? new Date(day) : new Date();
-    if (isSameDay(d, now)) {
-        // setMinutes rolls the hour over on its own when this reaches 60.
-        d.setHours(now.getHours(), Math.ceil(now.getMinutes() / 5) * 5, 0, 0);
-    } else {
-        d.setHours(9, 0, 0, 0);
-    }
-    return localISO(d);
+export const initialFor = (item: PlannerItem | null, day: Date | null, now: Date = new Date()): ScheduleInitial => {
+    if (!item) return { date: day ? dayKey(day) : defaultVisitDate(now), start: null, minutes: DEFAULT_VISIT_MINUTES };
+    const start = minutesOf(item.startTime);
+    const end = minutesOf(item.endTime);
+    return {
+        customerId: customerOf(item)?._id || (item.customerId as string) || '',
+        date: dayKey(new Date(item.startTime)),
+        start: start === null ? null : timeText(start),
+        minutes: start !== null && end !== null && end > start ? end - start : DEFAULT_VISIT_MINUTES,
+        activityType: item.activityType || 'Visit',
+        notes: item.notes || ''
+    };
 };
 
-export const EMPTY_FORM: ActivityForm = { customerId: '', startTime: '', activityType: 'Visit', notes: '' };
-
-/** What the edit form opens with for an existing stop. */
-export const formFor = (item: PlannerItem): ActivityForm => ({
-    customerId: customerOf(item)?._id || (item.customerId as string) || '',
+/** An entry as a row of "already booked" for the form. Cancelled ones don't count. */
+export const bookedRowOf = (item: PlannerItem): BookedRow => ({
+    id: String(item._id),
+    customerId: String(customerOf(item)?._id || (typeof item.customerId === 'string' ? item.customerId : '') || ''),
     startTime: item.startTime,
-    activityType: item.activityType || 'Visit',
-    notes: item.notes || ''
+    endTime: item.endTime,
+    label: customerName(item)
 });
 
 /**

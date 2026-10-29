@@ -1,0 +1,58 @@
+/* The shared schedule form (ScheduleActivityForm.tsx) — colours come from FormModal's --fm-* tokens. */
+.sa-who { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; font-weight: 600; color: var(--fm-tx); }
+.sa-who svg { flex: none; color: var(--fm-mut); }
+.sa-who-city { font-weight: 500; color: var(--fm-mut); }
+
+/* Type: icon beside the word; stacked on phones so four fit. */
+.sa-type .fm-seg { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sa-type .fm-seg-btn { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.sa-length .fm-seg { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.sa-length .fm-seg-btn { padding-left: 4px; padding-right: 4px; white-space: nowrap; }
+.sa-long { display: inline; }
+.sa-short { display: none; }
+
+.sa-notices { display: flex; flex-direction: column; gap: 8px; }
+.sa-notices:empty { display: none; }
+.sa-note {
+    display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 12px 14px;
+    border-radius: 12px; border: 1px solid; font-size: 14px; line-height: 1.45;
+}
+.sa-note svg { flex: none; margin-top: 1px; }
+.sa-note[data-tone="warn"] { background: #fff4e0; border-color: #e9b44c; color: #5c3a00; }
+.sa-note[data-tone="info"] { background: var(--fm-seg); border-color: var(--fm-bd2); color: var(--fm-tx); }
+.sa-note[data-tone="error"] { background: #fdecea; border-color: #e5a29b; color: #7a1f16; }
+.sa-note-action {
+    display: inline; padding: 0; border: 0; background: none; font: inherit; font-weight: 700;
+    color: inherit; text-decoration: underline; cursor: pointer;
+}
+.sa-note-action:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 2px; border-radius: 3px; }
+:root[data-theme="dark"] .sa-note[data-tone="warn"] { background: #3a2c10; border-color: #8a6a22; color: #f3d9a0; }
+:root[data-theme="dark"] .sa-note[data-tone="error"] { background: #3b1a17; border-color: #8a3a32; color: #f5c3be; }
+
+.sa-day { display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; border: 1px solid var(--fm-bd2); border-radius: 14px; }
+.sa-day-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+.sa-day-title { font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fm-mut); }
+.sa-day-count { font-size: 12px; font-weight: 600; color: var(--fm-mut); }
+.sa-day-row { display: flex; gap: 12px; padding: 6px 0; font-size: 14px; color: var(--fm-tx); }
+.sa-day-time { flex: none; min-width: 132px; color: var(--fm-mut); font-variant-numeric: tabular-nums; }
+.sa-day-what { min-width: 0; overflow-wrap: anywhere; }
+.sa-day-row[data-mine="true"] {
+    margin: 2px -8px 0; padding: 6px 8px; border-radius: 8px;
+    border: 1px dashed var(--fm-gold); background: var(--fm-gold-bg, rgba(196, 164, 63, 0.14));
+}
+.sa-day-row[data-mine="true"] .sa-day-time { color: var(--fm-gold-tx); font-weight: 700; }
+.sa-day-row[data-mine="true"] .sa-day-what { font-weight: 700; }
+
+.sa-remove {
+    display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 14px; border-radius: 12px;
+    border: 1px solid var(--fm-bd2); background: transparent; font: inherit; font-weight: 700; color: #b3261e; cursor: pointer;
+}
+.sa-remove:disabled { opacity: 0.5; cursor: default; }
+
+@media (max-width: 639px) {
+    .sa-type .fm-seg-btn { flex-direction: column; gap: 3px; height: 56px; font-size: 12.5px; }
+    .sa-length .fm-seg-btn { font-size: 13.5px; }
+    .sa-long { display: none; }
+    .sa-short { display: inline; }
+    .sa-day-time { min-width: 112px; }
+}

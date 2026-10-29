@@ -117,7 +117,7 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
         if (held) map.setCenter(held);
     }, [isActive]);
 
-    // ScheduleVisitForm's customer picker — the customers already loaded for
+    // ScheduleActivityForm's customer picker — the customers already loaded for
     // the map (only ones with a pin can be put on a route), shaped by the same
     // rules as every other customer dropdown (customerOptions.js) rather than
     // a second fetch of the same data.
@@ -341,7 +341,6 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                     customer={scheduleSheet}
                     booking={schedule.scheduled.get(String(scheduleSheet._id)) || null}
                     visitsByDate={schedule.visitsByDate}
-                    minutes={Number(plan.stopMinutes) || 45}
                     saving={actions.saving}
                     onClose={() => setScheduleSheet(null)}
                     onSave={actions.saveVisitSlot}

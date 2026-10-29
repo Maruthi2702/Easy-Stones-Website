@@ -68,31 +68,6 @@
     flex-direction: column;
 }
 
-/* Add/edit as a sheet over the calendar+list rather than replacing them —
-   see SchedulePanel.tsx's own header comment for why (they stay mounted
-   underneath the whole time, so closing this just reveals them again).
-   A solid surface fill, not a translucent one: this is a real form to fill
-   out, not a confirmation glancing past something behind it. */
-.rpv2-schedule-form-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 5;
-    display: flex;
-    flex-direction: column;
-    background: var(--cd2-surface);
-    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.25);
-    animation: rpv2-schedule-form-in 0.18s ease-out;
-}
-
-@keyframes rpv2-schedule-form-in {
-    from { transform: translateY(14px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .rpv2-schedule-form-overlay { animation: none; }
-}
-
 .rpv2-schedule-cal {
     padding: 0.75rem 1.1rem 0.4rem;
     flex-shrink: 0;

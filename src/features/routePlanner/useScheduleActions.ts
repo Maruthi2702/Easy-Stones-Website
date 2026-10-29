@@ -26,25 +26,25 @@ export function useScheduleActions({ schedule, date, replaceExisting, canReplace
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState<SavedDay | null>(null);
     // Separate from `saving` above — that one covers the Tools panel's
-    // route-day scheduling flow; this is ScheduleVisitForm's own
+    // route-day scheduling flow; this is ScheduleActivityForm's own
     // add/edit save, a different action with its own button/disabled state.
     const [savingVisit, setSavingVisit] = useState(false);
 
     // "Schedule a visit" (ScheduleVisitSheet): the customer being put on a day, or
     // rescheduled. Books the chosen day and time — a new entry, or the customer's
     // existing one moved — instead of the day set in the Tools panel.
-    const saveVisitSlot = async ({ customer, booking, startTime, endTime }: VisitSlotInput) => {
+    const saveVisitSlot = async ({ customer, booking, id, startTime, endTime, activityType, notes }: VisitSlotInput) => {
         if (saving) return false;
         setSaving(true);
         setError('');
         try {
             const res = booking
-                ? await authFetch(`${API_URL}/api/schedule/${booking.id}`, { method: 'PUT', body: JSON.stringify({ startTime, endTime }) })
+                ? await authFetch(`${API_URL}/api/schedule/${booking.id}`, { method: 'PUT', body: JSON.stringify({ startTime, endTime, activityType, notes }) })
                 : await authFetch(`${API_URL}/api/schedule/bulk`, {
                     method: 'POST',
                     body: JSON.stringify({
                         date: startTime.slice(0, 10),
-                        items: [{ customerId: customer._id, startTime, endTime, activityType: 'Visit', notes: '' }]
+                        items: [{ _id: id, customerId: customer._id, startTime, endTime, activityType, notes }]
                     })
                 });
             const body = await res.json().catch(() => ({}));
@@ -108,7 +108,7 @@ export function useScheduleActions({ schedule, date, replaceExisting, canReplace
         }
     };
 
-    // Add/edit from ScheduleVisitForm — POST for a new visit, PUT (by the
+    // Add/edit from ScheduleActivityForm — POST for a new visit, PUT (by the
     // row's own _id) to edit an existing one, the same two /api/schedule
     // verbs the rest of this screen already uses (addOneToCalendar/
     // scheduleStops for POST, removeFromCalendar/deleteScheduledVisit's
@@ -122,7 +122,8 @@ export function useScheduleActions({ schedule, date, replaceExisting, canReplace
         try {
             const method = visitId ? 'PUT' : 'POST';
             const url = visitId ? `${API_URL}/api/schedule/${visitId}` : `${API_URL}/api/schedule`;
-            const res = await authFetch(url, { method, body: JSON.stringify(form) });
+            const { id, ...fields } = form;
+            const res = await authFetch(url, { method, body: JSON.stringify(id ? { ...fields, _id: id } : fields) });
             const body = await res.json();
             if (!res.ok) throw new Error(body.message || 'Could not save this visit');
             setScheduleById(prev => {

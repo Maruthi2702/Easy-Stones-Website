@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar, Check, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { buildMonthGrid, todayKey, nameOf, real, customerOf } from '../helpers';
-import ScheduleVisitForm from './ScheduleVisitForm';
+import ScheduleActivityForm, { type ScheduleSave } from '../../../components/shared/schedule/ScheduleActivityForm';
+import { DEFAULT_VISIT_MINUTES, minutesOf, newScheduleId, timeText, type BookedRow } from '../../../utils/visitSlots';
 import type { CustomerOption } from '../../../utils/customerOptions';
 import type { ScheduleRow, ScheduleVisitInput } from '../types';
 import './SchedulePanel.css';
@@ -19,6 +20,13 @@ const timeLabel = (startTime: string) => {
 // across that boundary, since it's four fixed brand colours, not shared
 // logic, and the two screens don't otherwise share a module.
 const ACTIVITY_MODIFIER: Record<string, string> = { Visit: 'visit', Call: 'call', 'Drop-off': 'dropoff' };
+// How long an entry runs, from its stored start and end (30 minutes when it has no end).
+const lengthOf = (visit: ScheduleRow) => {
+    const a = minutesOf(visit.startTime);
+    const b = minutesOf(visit.endTime);
+    return a != null && b != null && b > a ? b - a : DEFAULT_VISIT_MINUTES;
+};
+
 const activityModifier = (type: string | undefined) => ACTIVITY_MODIFIER[type as string] || 'other';
 
 // 'Completed'/linkedVisitId only get set once an Add Visit actually lands
@@ -79,13 +87,15 @@ const SchedulePanel = ({
         return d;
     });
     const [selectedDate, setSelectedDate] = useState(() => todayKey());
-    // formOpen toggles the whole panel body over to ScheduleVisitForm;
+    // formOpen toggles the whole panel body over to ScheduleActivityForm;
     // editingVisit distinguishes which mode that form is in — null while
     // adding a new visit, or the visit object being edited. Kept local
     // (not lifted to RoutePlannerV2) since it's pure "which view is this
     // panel showing right now" state, same as viewMonth/selectedDate above.
     const [formOpen, setFormOpen] = useState(false);
     const [editingVisit, setEditingVisit] = useState<ScheduleRow | null>(null);
+    // A new entry's own id, so a repeated send books once (set each time Add opens).
+    const [newEntryId, setNewEntryId] = useState(newScheduleId);
     // Collapses the month grid down to just its header (month label + prev/
     // next) so the day's visit list below gets more room — the grid itself
     // adds little once you already know which day you're looking at, and on
@@ -124,7 +134,7 @@ const SchedulePanel = ({
         setSelectedDate(todayKey());
     };
 
-    const openAdd = () => { setEditingVisit(null); setFormOpen(true); };
+    const openAdd = () => { setEditingVisit(null); setNewEntryId(newScheduleId()); setFormOpen(true); };
     const openEdit = (visit: ScheduleRow) => { setEditingVisit(visit); setFormOpen(true); };
     const closeForm = () => { setFormOpen(false); setEditingVisit(null); };
 
@@ -132,15 +142,28 @@ const SchedulePanel = ({
     // editing one can move it to a different day/month than the one you
     // started from, and a rep should see it land there, not have the form
     // just close back onto the day they happened to be looking at before.
-    const handleSubmitForm = async (form: ScheduleVisitInput) => {
-        const saved = await onSaveVisit(form, editingVisit?._id);
-        if (!saved) return; // onSaveVisit already surfaced the error via RoutePlannerV2's `error` state
+    const handleSubmitForm = async (form: ScheduleSave) => {
+        const { customerId, startTime, endTime, activityType, notes } = form;
+        const saved = await onSaveVisit({ customerId, startTime, endTime, activityType, notes, id: editingVisit ? undefined : newEntryId }, editingVisit?._id);
+        if (!saved) return false; // onSaveVisit already surfaced the error via RoutePlannerV2's `error` state
         const savedDate = new Date(saved.startTime);
         setSelectedDate(todayKey(savedDate));
         const month = new Date(savedDate.getFullYear(), savedDate.getMonth(), 1);
         setViewMonth(month);
         closeForm();
+        return true;
     };
+
+    // What the form checks a time against: any day's entries, minus the one being edited.
+    const bookedOn = useCallback((iso: string): BookedRow[] => (visitsByDate.get(iso) || [])
+        .filter(v => !editingVisit || v._id !== editingVisit._id)
+        .map(v => ({
+            id: String(v._id),
+            customerId: String(customerOf(v)?._id || (typeof v.customerId === 'string' ? v.customerId : '') || ''),
+            startTime: v.startTime,
+            endTime: v.endTime,
+            label: real(customerOf(v)?.company) || real(customerOf(v)?.contactName) || v.activityType || 'Visit'
+        })), [visitsByDate, editingVisit]);
 
     return (
         <div className="rpv2-panel" data-dialog="schedule">
@@ -308,20 +331,25 @@ const SchedulePanel = ({
             </div>
 
             {formOpen && (
-                <div className="rpv2-schedule-form-overlay">
-                    <ScheduleVisitForm
-                        customerOptions={customerOptions}
-                        isEdit={Boolean(editingVisit)}
-                        initialCustomerId={editingVisit ? String(customerOf(editingVisit)?._id || editingVisit.customerId || '') : ''}
-                        initialStartTime={editingVisit ? editingVisit.startTime : `${selectedDate}T09:00:00.000`}
-                        initialActivityType={editingVisit?.activityType || 'Visit'}
-                        initialNotes={editingVisit?.notes || ''}
-                        saving={savingVisit}
-                        onCancel={closeForm}
-                        onSubmit={handleSubmitForm}
-                        onDelete={editingVisit && onDeleteVisit ? () => { onDeleteVisit(editingVisit); closeForm(); } : null}
-                    />
-                </div>
+                <ScheduleActivityForm
+                    title={editingVisit ? 'Edit visit' : 'Schedule a visit'}
+                    customerOptions={customerOptions}
+                    initial={{
+                        customerId: editingVisit ? String(customerOf(editingVisit)?._id || editingVisit.customerId || '') : '',
+                        date: editingVisit ? editingVisit.startTime.slice(0, 10) : selectedDate,
+                        start: editingVisit ? timeText(minutesOf(editingVisit.startTime) as number) : null,
+                        minutes: editingVisit ? lengthOf(editingVisit) : DEFAULT_VISIT_MINUTES,
+                        activityType: editingVisit?.activityType || 'Visit',
+                        notes: editingVisit?.notes || ''
+                    }}
+                    bookedOn={bookedOn}
+                    isEdit={Boolean(editingVisit)}
+                    minDate={editingVisit ? '' : todayKey()}
+                    saving={savingVisit}
+                    onClose={closeForm}
+                    onSave={handleSubmitForm}
+                    onDelete={editingVisit && onDeleteVisit ? () => { onDeleteVisit(editingVisit); closeForm(); } : null}
+                />
             )}
             </div>
         </div>
