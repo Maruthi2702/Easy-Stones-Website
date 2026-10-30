@@ -6,8 +6,9 @@ import { FREIGHT, CARRIERS } from '../../../accounting/permissions';
 import { CART, HOLDS } from '../../../holds/permissions';
 import { PERMITS } from '../../../permits/permissions';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
+import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CheckCheck, Download, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert
+    ArrowLeftRight, Boxes, CheckCheck, Download, FolderOpen, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
@@ -253,6 +254,20 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: PERMITS.VIEW,    label: 'View',        icon: Eye,       desc: 'See the permits with their contractor, owner and applicant contacts' },
             { key: PERMITS.EXPORT,  label: 'Export',      icon: Download,  desc: 'Download permits as Excel' },
             { key: PERMITS.REFRESH, label: 'Refresh now', icon: RefreshCw, desc: 'Run the morning pull on demand, and see each source’s run details' }
+        ]
+    },
+    // Team Files (src/utils/teamFilesAccess.js, 2026-10-30): its own Sales
+    // page. Every role with the Dashboard got both once, since the Dashboard
+    // used to let anyone upload and delete.
+    {
+        id: 'team_files',
+        page: 'Team Files',
+        icon: FolderOpen,
+        description: 'Folders, files and links shared with the whole team',
+        color: '#d4af37',
+        actions: [
+            { key: TEAM_FILES.VIEW,   label: 'View',   icon: Eye,    desc: 'Open Team Files: browse, search, preview, download and copy links' },
+            { key: TEAM_FILES.MANAGE, label: 'Manage', icon: Upload, desc: 'Upload files and links, add folders, rename, move, replace, pin and delete (for everyone)' }
         ]
     },
     // Accounting (src/accounting/permissions.js, 2026-10-09). Nothing in
