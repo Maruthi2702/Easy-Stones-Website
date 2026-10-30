@@ -6,14 +6,11 @@ import { VisitsPanel } from './visits';
 import { FollowUpsPanel } from './followUps';
 import { ResourcesPanel } from './resources';
 import type { DashboardData } from './useDashboardData';
-import type { TeamFiles } from './teamFiles';
 import type { Loose } from '../../types/records';
 
 export type DashboardPageProps = {
     /** The dashboard's data (useDashboardData). */
     data: DashboardData;
-    /** Team Files (useTeamFiles). */
-    files: TeamFiles;
     currentUser: Loose | null;
     currentUserId: string | null;
     /** The Customers tab's first page — names for the Today panel. */
@@ -42,8 +39,6 @@ export type DashboardPageProps = {
     onOpenGallery: (images: string[], index: number) => void;
     /** A customer's profile (the page leaves the dashboard). */
     onOpenCustomer: (customerId: string) => void;
-    /** A customer's Resources tab (the page leaves the dashboard). */
-    onOpenCustomerResources: (customerId: string) => void;
     /** The planner picked a customer. */
     onSelectCustomer: (customer: Loose) => void;
     /** The Leads tab is the Customers module's partner sheet. */
@@ -57,9 +52,9 @@ export type DashboardPageProps = {
  * the dashboard's data and hands changes back as callbacks.
  */
 export default function DashboardPage({
-    data, files, currentUser, currentUserId, customers, customerSelection, customerOptions, isDropdownLoading, fallback, showMenuButton,
+    data, currentUser, currentUserId, customers, customerSelection, customerOptions, isDropdownLoading, fallback, showMenuButton,
     onOpenSidebar, loadingVisitId, loadingResourceId, onOpenCalendarSync, onAddVisit, onAddResource, onViewVisit, onEditVisit, onDeleteVisit,
-    onOpenVisitCard, onViewResource, onEditResource, onDeleteResource, onOpenGallery, onOpenCustomer, onOpenCustomerResources,
+    onOpenVisitCard, onViewResource, onEditResource, onDeleteResource, onOpenGallery, onOpenCustomer,
     onSelectCustomer, renderLeads
 }: DashboardPageProps) {
     const tab = data.activeDashboardTab;
@@ -168,56 +163,25 @@ export default function DashboardPage({
 
                     {tab === 'resources' && (
                         <ResourcesPanel
-                            subTab={data.activeResourceSubTab as 'client' | 'team'}
-                            onSubTabChange={data.setActiveResourceSubTab}
+                            rows={data.memoizedFilteredResources}
+                            tableLoading={data.dashboardTableLoading}
+                            page={data.currentResourcesPage}
+                            rowsPerPage={data.visitsPerPage}
+                            onPageChange={data.setCurrentResourcesPage}
+                            onRowsPerPageChange={data.handleVisitsPerPageChange}
+                            searchTerm={data.dashboardSearchTerm}
+                            onSearchChange={(value) => { data.setDashboardSearchTerm(value); data.setCurrentResourcesPage(1); }}
                             locationOptions={data.dashboardLocationOptions}
                             location={data.dashboardLocation}
                             onLocationChange={data.handleDashboardLocationChange}
                             currentUser={currentUser}
-                            searchTerm={data.dashboardSearchTerm}
-                            onSearchChange={data.setDashboardSearchTerm}
-                            onExport={data.handleExportResources}
-                            client={{
-                                rows: data.memoizedFilteredResources,
-                                tableLoading: data.dashboardTableLoading,
-                                page: data.currentResourcesPage,
-                                rowsPerPage: data.visitsPerPage,
-                                onPageChange: data.setCurrentResourcesPage,
-                                onRowsPerPageChange: data.handleVisitsPerPageChange,
-                                loadingResourceId,
-                                onOpenCustomerResources,
-                                onViewResource,
-                                onEditResource,
-                                onDeleteResource,
-                                onOpenGallery,
-                                onDownload: files.handleDashboardDownload
-                            }}
-                            teamControls={{
-                                folderPath: files.folderPath,
-                                onGoHome: () => {
-                                    files.setCurrentFolderId(null);
-                                    files.setFolderPath([]);
-                                    data.setDashboardSearchTerm('');
-                                },
-                                onBreadcrumbClick: files.handleBreadcrumbClick,
-                                onRefresh: files.fetchDashboardResources,
-                                onAddFolder: () => { files.setFolderName(''); files.setShowAddFolderModal(true); },
-                                onUpload: () => {
-                                    files.setDashboardUploadForm({ name: '', type: 'file', content: '', file: null });
-                                    files.setEditingDashboardResource(null);
-                                    files.setShowDashboardUploadModal(true);
-                                }
-                            }}
-                            teamList={{
-                                resources: files.salesResources,
-                                folderPath: files.folderPath,
-                                searchTerm: data.dashboardSearchTerm,
-                                onBreadcrumbClick: files.handleBreadcrumbClick,
-                                onResourceClick: files.handleResourceClick,
-                                onEditResource: files.handleEditDashboardResource,
-                                onDeleteResource: files.handleDeleteDashboardResource,
-                                onOpenUpload: () => files.setShowDashboardUploadModal(true)
-                            }}
+                            currentUserId={currentUserId}
+                            loadingResourceId={loadingResourceId}
+                            onViewResource={onViewResource}
+                            onEditResource={onEditResource}
+                            onDeleteResource={onDeleteResource}
+                            onExportView={(rows) => data.handleExportResources(rows)}
+                            onExportAll={data.handleExportAllResources}
                         />
                     )}
                 </>

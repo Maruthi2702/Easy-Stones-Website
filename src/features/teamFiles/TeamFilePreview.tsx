@@ -1,8 +1,8 @@
 import { Download, ExternalLink, File, FileImage, FileText, Folder, Link, X } from 'lucide-react';
-import { API_URL } from '../../../config/api';
-import { formatDate } from '../../../utils/dateUtils';
-import { openPdfInline } from '../../../utils/packingList';
-import type { Loose } from '../../../types/records';
+import { API_URL } from '../../config/api';
+import { formatDate } from '../../utils/dateUtils';
+import { openPdfInline } from '../../utils/packingList';
+import type { Loose } from '../../types/records';
 
 export type TeamFilePreviewProps = {
     resource: Loose;

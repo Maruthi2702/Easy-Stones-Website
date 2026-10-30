@@ -1,6 +1,6 @@
 import {
     LayoutDashboard, User, Clock, Truck, Map as MapIcon, ClipboardList, Tag, TrendingDown, ArrowLeftRight, Boxes,
-    Users, Briefcase, Warehouse, ExternalLink, Layers, Shield, Calculator, Lock, HardHat, ShieldCheck, MapPin, ArrowUpDown, Receipt, Fuel
+    Users, Briefcase, Warehouse, ExternalLink, Layers, Shield, Calculator, Lock, HardHat, ShieldCheck, MapPin, ArrowUpDown, Receipt, Fuel, FolderOpen
 } from 'lucide-react';
 
 // The side nav's icons, shared by the desktop rail (features/salesShell/sideNav/CustomerSidebar.tsx) and
@@ -14,6 +14,7 @@ export const ITEM_ICONS = {
     route_planner: MapIcon,
     holds: Lock,
     permits: HardHat,
+    team_files: FolderOpen,
     lost_sales: TrendingDown,
     delivery_schedule: Truck,
     daily_report: ClipboardList,

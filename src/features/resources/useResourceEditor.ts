@@ -5,7 +5,7 @@ import { authFetch } from '../../api/authFetch';
 import { formatForDateInput } from '../../utils/dateUtils';
 import { compressImage, fileToBase64 } from '../../utils/attachmentFiles';
 import type { Loose } from '../../types/records';
-import type { DeleteRequest } from '../dashboard/teamFiles/useTeamFiles';
+import type { DeleteRequest } from '../teamFiles/useTeamFiles';
 
 /** What the page gives the resource editor (MIGRATION_NOTES.md §4, step A4). */
 export type ResourceEditorDeps = {
@@ -36,6 +36,7 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
         customer: '',
         location: '',
         resourceType: '',
+        qty: '1',
         image: [], // Array of strings
         description: '',
         notes: '',
@@ -63,6 +64,7 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
             customer: '',
             location: '',
             resourceType: '',
+            qty: '1',
             image: [],
             description: '',
             notes: '',
@@ -85,6 +87,7 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
             customer: pin ? (pin.company || pin.contactName || '') : '',
             location: '',
             resourceType: '',
+            qty: '1',
             image: [],
             description: '',
             notes: '',
@@ -109,6 +112,7 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
             customer: selectedCustomer ? (selectedCustomer.company || selectedCustomer.contactName) : '',
             location: '',
             resourceType: '',
+            qty: '1',
             image: [],
             description: '',
             notes: '',
@@ -129,6 +133,7 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
             customer: selectedCustomer ? (selectedCustomer.company || selectedCustomer.contactName) : '',
             location: '',
             resourceType: '',
+            qty: '1',
             image: [],
             description: '',
             notes: '',
@@ -152,6 +157,7 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
                 customer: resource.customer || '',
                 location: resource.location || '',
                 resourceType: resource.resourceType || '',
+                qty: resource.qty ?? 1,
                 image: Array.isArray(resource.image) ? resource.image : (resource.image ? [resource.image] : []),
                 description: resource.description || '',
                 notes: resource.notes || '',
@@ -172,6 +178,10 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
                 const formattedResource = {
                     ...data.resource,
                     customerId: resource.customerId, // Preserve customerId
+                    // The customer's branch, for who may edit / delete it (the dashboard list carries it).
+                    customerLocation: resource.customerLocation,
+                    city: resource.city,
+                    uploadedByName: resource.uploadedByName,
                     date: formatForDateInput(data.resource.date)
                 };
                 setResourceForm(formattedResource);
@@ -218,6 +228,10 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
                 const formattedResource = {
                     ...data.resource,
                     customerId: resource.customerId, // Preserve customerId
+                    // The customer's branch, for who may edit / delete it (the dashboard list carries it).
+                    customerLocation: resource.customerLocation,
+                    city: resource.city,
+                    uploadedByName: resource.uploadedByName,
                     date: formatForDateInput(data.resource.date)
                 };
                 setResourceForm(formattedResource);
@@ -270,11 +284,16 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
         }
     };
 
-    const handleSaveResource = async () => {
+    // `fields` are the form's checked values (resourceValuesToSave, src/utils/resourceForm.ts),
+    // laid over what the form holds (attachments, the record's other fields).
+    const handleSaveResource = async (fields?: Loose) => {
+        // The customer's branch, city and the logger's name are shown, not saved.
+        const { customerLocation: _branch, city: _city, uploadedByName: _by, ...stored } = resourceForm;
+        const body = fields ? { ...stored, ...fields } : stored;
         try {
             setIsSaving(true);
             // Use the selected customer ID from the form, or fallback to the currently selected customer
-            const targetCustomerId = resourceForm.customerId || selectedCustomerId;
+            const targetCustomerId = body.customerId || selectedCustomerId;
 
             if (!targetCustomerId) {
                 alert('Please select a client');
@@ -291,7 +310,7 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
 
             const response = await authFetch(url, {
                 method,
-                body: JSON.stringify(resourceForm)
+                body: JSON.stringify(body)
             });
 
             if (response.ok) {
@@ -311,6 +330,9 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
             setIsSaving(false);
         }
     };
+
+    // View → Edit: the record is already loaded, so the same form turns editable.
+    const handleEditFromView = () => setIsViewingResource(false);
 
     const handleDeleteResource = async (resourceId: string, customerId: string | null = null) => {
         setDeleteConfirmation({
@@ -383,6 +405,8 @@ export function useResourceEditor({ selectedCustomerId, selectedCustomer, setIsS
         handleEditResource,
         handleViewResource,
         handleSaveResource,
+        handleEditFromView,
+        handleCloseResourceModal,
         handleDeleteResource,
         handleResourceImageUpload,
         handleRemoveResourceImage,

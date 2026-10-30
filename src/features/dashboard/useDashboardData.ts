@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
-import { formatDate, formatInstant, getLocalISOString } from '../../utils/dateUtils';
+import { formatDate, getLocalISOString } from '../../utils/dateUtils';
 import { DEFAULT_ROWS_PER_PAGE } from '../../components/shared/paginationConfig';
 import { useLocationFilter } from '../../components/shared/useLocationFilter';
 import { splitCustomer } from '../../components/sales/visitsListHelpers';
 import { canAddVisit, visitViewScope } from '../../utils/visitAccess.js';
+import { resourceExportRows } from './resources/resourceList';
 import type { Loose } from '../../types/records';
 
 /**
@@ -66,7 +67,6 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     // first response landing — which read as an empty dashboard.
     const [dashboardLoaded, setDashboardLoaded] = React.useState(false);
     const [allSchedules, setAllSchedules] = useState<Loose[]>([]);
-    const [activeResourceSubTab, setActiveResourceSubTab] = useState('client'); // 'client' or 'team'
 
     // Fetch Dashboard Stats from Backend — merged into one effect with fetchDashboardData below
     // Each dashboard fetch is numbered and only the latest may write its
@@ -314,7 +314,9 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
                 (r.customerName?.toLowerCase().includes(searchLower)) ||
                 (r.description?.toLowerCase().includes(searchLower)) ||
                 (r.resourceType?.toLowerCase().includes(searchLower)) ||
-                (r.notes?.toLowerCase().includes(searchLower));
+                (r.notes?.toLowerCase().includes(searchLower)) ||
+                (r.city?.toLowerCase().includes(searchLower)) ||
+                (r.uploadedByName?.toLowerCase().includes(searchLower));
 
             return dateMatch && userMatch && searchMatch;
         });
@@ -498,21 +500,27 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         XLSX.writeFile(wb, "Sales_Visits.xlsx");
     };
 
-    const handleExportResources = async () => {
+    // Resources → ⋯ → Export this view: the rows on screen (filters and search applied).
+    const handleExportResources = async (rows: Loose[] = memoizedFilteredResources, fileName = 'Resources.xlsx') => {
         const XLSX = await import('xlsx');
-        const resources = memoizedFilteredResources;
-        const data = resources.map(r => ({
-            Date: r.date ? formatDate(r.date) : formatInstant(r.createdAt),
-            Customer: r.customerName,
-            Type: r.resourceType || '-',
-            Description: r.description || r.notes || '-',
-            Status: r.status || 'Active'
-        }));
-
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(data);
-        XLSX.utils.book_append_sheet(wb, ws, "Client Resources");
-        XLSX.writeFile(wb, "Client_Resources.xlsx");
+        const ws = XLSX.utils.json_to_sheet(resourceExportRows(rows));
+        XLSX.utils.book_append_sheet(wb, ws, 'Resources');
+        XLSX.writeFile(wb, fileName);
+    };
+
+    // Resources → ⋯ → Export all resources: every date and location this login may see (the server scopes it).
+    const handleExportAllResources = async () => {
+        try {
+            const localDateStr = new Date().toLocaleDateString('en-CA');
+            const res = await authFetch(`${API_URL}/api/dashboard/resources?timeRange=all&localDate=${localDateStr}`);
+            if (!res.ok) throw new Error(`The server answered ${res.status}`);
+            const rows = await res.json();
+            await handleExportResources(Array.isArray(rows) ? rows : [], 'All_Resources.xlsx');
+        } catch (error) {
+            console.error('Export all resources failed:', error);
+            alert(`Couldn't export all resources: ${(error as Error).message}. Try again in a moment.`);
+        }
     };
 
     return {
@@ -531,8 +539,6 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         statsLoading,
         followUpPanel,
         allSchedules,
-        activeResourceSubTab,
-        setActiveResourceSubTab,
         fetchDashboardStats,
         fetchDashboardData,
         dashboardTableLoading,
@@ -555,6 +561,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         removeDashboardVisit,
         handleExportVisits,
         handleExportResources,
+        handleExportAllResources,
     };
 }
 

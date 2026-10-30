@@ -31,7 +31,8 @@ import { useSidebarLayout } from '../features/salesShell/useSidebarLayout';
 import { useSalesNavigation } from '../features/salesShell/useSalesNavigation';
 import { useCalendarSync } from '../features/calendarSync';
 import { useCheckInLog } from '../features/checkin';
-import { DashboardPage, useDashboardData, useTeamFiles } from '../features/dashboard';
+import { DashboardPage, useDashboardData } from '../features/dashboard';
+import { useTeamFiles } from '../features/teamFiles';
 import { useCustomerOptions } from '../api/customerOptions';
 import { toCustomerOptions } from '../utils/customerOptions';
 import CartDrawer, { CartToast } from '../features/holds/cart/CartDrawer';
@@ -69,7 +70,7 @@ const SalesPage = () => {
 
     // Where the page is: the page showing, the open customer, the URL (src/features/salesShell/useSalesNavigation.ts).
     const {
-        crmTab, showDashboard, setShowDashboard, selectedCustomerId, activeTab, routePlannerOpened, setRoutePlannerOpened,
+        crmTab, setShowDashboard, selectedCustomerId, activeTab, routePlannerOpened, setRoutePlannerOpened,
         handleCrmTabChange, handleGoHome, handleActiveTabChange, handleSelectCustomer, handleBackToCustomersList
     } = useSalesNavigation({
         currentUser, pinnedTabsRef, isMobile, setIsSidebarOpen,
@@ -118,7 +119,7 @@ const SalesPage = () => {
     }, [currentUserId]);
     const dashboardData = useDashboardData({ currentUser, locations, customers, currentUserId, customerRefreshTrigger, resourceRefreshTrigger });
     const {
-        activeDashboardTab, setActiveDashboardTab, activeResourceSubTab, fetchDashboardStats, fetchDashboardData, fetchSchedules,
+        activeDashboardTab, setActiveDashboardTab, fetchDashboardStats, fetchDashboardData, fetchSchedules,
         canAddVisits, setCurrentVisitsPage, setCurrentFollowUpPage, setCurrentResourcesPage, patchDashboardVisit, removeDashboardVisit
     } = dashboardData;
 
@@ -199,7 +200,7 @@ const SalesPage = () => {
     // The one "Confirm Deletion" check (src/features/salesShell/deleteCheck.ts).
     const { deleteConfirmation, setDeleteConfirmation, cancelDelete } = useDeleteCheck();
 
-    const teamFiles = useTeamFiles({ showDashboard, activeResourceSubTab, resourceRefreshTrigger, setIsSaving, fetchDashboardData, fetchDashboardStats, setDeleteConfirmation });
+    const teamFiles = useTeamFiles({ active: crmTab === 'team_files', resourceRefreshTrigger, setIsSaving, fetchDashboardData, fetchDashboardStats, setDeleteConfirmation });
     const {
         fetchDashboardResources
     } = teamFiles;
@@ -280,6 +281,13 @@ const SalesPage = () => {
     const {
         setQuickNote, setResetPasswordValue, setAccountActionStatus
     } = customerActions;
+
+    // A customer's Resources tab, from the dashboard's list or an opened resource.
+    const openCustomerResources = (customerId: string) => {
+        handleSelectCustomer({ _id: customerId });
+        handleActiveTabChange('resources');
+        setShowDashboard(false);
+    };
 
     const confirmDelete = makeConfirmDelete({
         deleteConfirmation, setDeleteConfirmation, selectedCustomerId, activeDashboardTab,
@@ -372,6 +380,7 @@ const SalesPage = () => {
                     onCreatePrefilledCustomer={openNewCustomer ? (values) => { setCustomerPrefill(values); setShowAddCustomerModal(true); } : null}
                     onAddVisitForPin={handleAddVisitForPin}
                     onAddResourceForPin={handleAddResourceForPin}
+                    teamFiles={teamFiles}
                 />
 
                 {!authLoading && currentUser?.permissions && crmTab === 'customers' && currentUser.permissions.includes('view_customers') && (
@@ -407,7 +416,6 @@ const SalesPage = () => {
             {!authLoading && currentUser?.permissions && crmTab === 'dashboard' && currentUser.permissions.includes('view_dashboard') && (
             <DashboardPage
                 data={dashboardData}
-                files={teamFiles}
                 currentUser={currentUser}
                 currentUserId={currentUserId}
                 customers={customers}
@@ -432,11 +440,6 @@ const SalesPage = () => {
                 onOpenGallery={handleOpenGallery}
                 onOpenCustomer={(customerId) => {
                     handleSelectCustomer({ _id: customerId });
-                    setShowDashboard(false);
-                }}
-                onOpenCustomerResources={(customerId) => {
-                    handleSelectCustomer({ _id: customerId });
-                    handleActiveTabChange('resources');
                     setShowDashboard(false);
                 }}
                 onSelectCustomer={handleSelectCustomer}
@@ -467,6 +470,8 @@ const SalesPage = () => {
                     onCreateNew={openNewCustomer}
                     visits={visitEditor}
                     resources={resourceEditor}
+                    // A resource opened on the dashboard links to its customer's Resources tab.
+                    onOpenCustomerResources={crmTab === 'dashboard' ? openCustomerResources : undefined}
                     actions={customerActions}
                     teamFiles={teamFiles}
                     gallery={gallery}

@@ -10,6 +10,8 @@ import { canViewCheckInLog } from '../../utils/checkInAccess';
 import { canOpenUsersPage } from '../../utils/teamAccess';
 import { canOpenArea, can, NAV_ORDER } from '../../utils/usersAccess';
 import { PERMITS } from '../../permits/permissions';
+import { TeamFilesPage } from '../teamFiles';
+import type { TeamFiles } from '../teamFiles';
 import type { Loose } from '../../types/records';
 import TabLoader from './TabLoader';
 
@@ -74,6 +76,8 @@ export type SalesTabViewsProps = {
     onCreatePrefilledCustomer: ((values: Loose) => void) | null;
     onAddVisitForPin: (pin: Loose | null) => void;
     onAddResourceForPin: (pin: Loose | null) => void;
+    /** Team Files' folders, files and pop-ups (useTeamFiles; the pop-ups are in SalesModals). */
+    teamFiles: TeamFiles;
 };
 
 /**
@@ -202,6 +206,12 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
                             onCreateCustomer={p.onCreatePrefilledCustomer}
                         />
                     </Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && crmTab === 'team_files' && perms.includes('view_dashboard') && (
+                <ErrorBoundary key="team-files-view">
+                    <TeamFilesPage files={p.teamFiles} sidebarToggle={menu()} />
                 </ErrorBoundary>
             )}
 

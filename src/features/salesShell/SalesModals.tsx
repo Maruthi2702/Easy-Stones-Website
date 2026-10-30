@@ -5,22 +5,19 @@ import DeleteConfirmModal from '../../components/shared/DeleteConfirmModal';
 import type { ImageGalleryState } from '../../components/shared/useImageGallery';
 import VisitCustomerCardJs from '../../components/sales/VisitCustomerCard';
 import VisitModalJs from '../../components/sales/VisitModal';
-import ResourceModalJs from '../../components/sales/ResourceModal';
 import AddCustomerModalJs from '../customers/form/AddCustomerModal';
-import { API_URL } from '../../config/api';
-import { formatDate } from '../../utils/dateUtils';
 import { canViewCustomerProfile } from '../../utils/customerAccess';
-import { canDeleteVisit } from '../../utils/visitAccess';
+import { canDeleteVisit, canModifyVisit } from '../../utils/visitAccess';
 import { CalendarSyncModal } from '../calendarSync';
 import type { CalendarSync } from '../calendarSync';
 import { CheckInDetailModal } from '../checkin';
 import type { CheckInLog } from '../checkin';
 import { ContactModal, LinkPartnerModal } from '../customers';
 import type { CustomerActions } from '../customers';
-import { TeamFilePreview, TeamFileUploadModal, AddFolderModal } from '../dashboard';
-import type { TeamFiles } from '../dashboard';
+import { TeamFilePreview, TeamFileUploadModal, AddFolderModal } from '../teamFiles';
+import type { TeamFiles } from '../teamFiles';
 import type { VisitEditor } from '../visits';
-import { RESOURCE_TYPES } from '../resources';
+import { ResourceModal } from '../resources';
 import type { ResourceEditor } from '../resources';
 import type { DeleteRequest } from './deleteCheck';
 import type { Loose } from '../../types/records';
@@ -29,7 +26,6 @@ import type { Loose } from '../../types/records';
 // allowed, so they're taken as taking any props until they're typed.
 const VisitCustomerCard = VisitCustomerCardJs as unknown as ComponentType<Loose>;
 const VisitModal = VisitModalJs as unknown as ComponentType<Loose>;
-const ResourceModal = ResourceModalJs as unknown as ComponentType<Loose>;
 const AddCustomerModal = AddCustomerModalJs as unknown as ComponentType<Loose>;
 
 export type SalesModalsProps = {
@@ -49,6 +45,8 @@ export type SalesModalsProps = {
     onCreateNew?: () => void;
     visits: VisitEditor;
     resources: ResourceEditor;
+    /** "Open customer ›" in an opened resource (the dashboard only). */
+    onOpenCustomerResources?: (customerId: string) => void;
     actions: CustomerActions;
     teamFiles: TeamFiles;
     gallery: ImageGalleryState;
@@ -72,6 +70,17 @@ export type SalesModalsProps = {
 export default function SalesModals(p: SalesModalsProps) {
     const { visits, resources, actions, teamFiles, gallery, currentUser, currentUserId, selectedCustomer } = p;
     const { editingVisit } = visits;
+    // A resource follows the visit rules, its uploader standing in for who logged
+    // the visit (as the server checks it, resourceAccessArgs in server.js).
+    const editingResource = resources.editingResource;
+    const resourceAccess = [
+        { ...currentUser, id: currentUserId },
+        { createdBy: editingResource?.uploadedBy || editingResource?.createdBy },
+        editingResource?.customerLocation
+            || (selectedCustomer?._id === editingResource?.customerId ? selectedCustomer?.location : undefined)
+    ] as const;
+    const canEditResource = Boolean(editingResource?._id) && canModifyVisit(...resourceAccess);
+    const canDeleteResource = Boolean(editingResource?._id) && canDeleteVisit(...resourceAccess);
     return (
         <>
             {/* Dashboard Resource Preview Modal */}
@@ -160,26 +169,36 @@ export default function SalesModals(p: SalesModalsProps) {
             )}
 
             <ResourceModal
-                showResourceModal={resources.showResourceModal}
-                setShowResourceModal={resources.setShowResourceModal}
-                editingResource={resources.editingResource}
-                isViewingResource={resources.isViewingResource}
-                resourceForm={resources.resourceForm}
-                setResourceForm={resources.setResourceForm}
-                customerOptions={p.customerOptions}
-                isDropdownLoading={p.isDropdownLoading}
-                customers={p.customers}
-                resourceTypes={RESOURCE_TYPES}
-                formatDate={formatDate}
-                API_URL={API_URL}
-                isSaving={p.isSaving}
-                handleSaveResource={resources.handleSaveResource}
-                handleResourceImageUpload={resources.handleResourceImageUpload}
-                handleRemoveResourceImage={resources.handleRemoveResourceImage}
-                handleDashboardDownload={teamFiles.handleDashboardDownload}
-                setFullScreenImage={gallery.setFullScreenImage}
-                handleOpenGallery={gallery.handleOpenGallery}
-                onCreateNew={p.onCreateNew}
+                open={resources.showResourceModal}
+                viewing={resources.isViewingResource}
+                record={editingResource}
+                form={resources.resourceForm}
+                setForm={resources.setResourceForm}
+                customerOptions={p.customerOptions as never}
+                customersLoading={p.isDropdownLoading}
+                saving={p.isSaving}
+                onSave={(fields) => resources.handleSaveResource(fields)}
+                onClose={resources.handleCloseResourceModal}
+                onUpload={resources.handleResourceImageUpload}
+                onRemoveAttachment={resources.handleRemoveResourceImage}
+                onCreateCustomer={p.onCreateNew}
+                onOpenGallery={gallery.handleOpenGallery}
+                onDownload={teamFiles.handleDashboardDownload}
+                onEditFromView={resources.handleEditFromView}
+                onOpenCustomer={p.onOpenCustomerResources ? (customerId) => {
+                    resources.handleCloseResourceModal();
+                    p.onOpenCustomerResources?.(customerId);
+                } : undefined}
+                canEdit={canEditResource}
+                canDelete={canDeleteResource}
+                // The form closes first: the delete check is a page modal and
+                // would otherwise open underneath it.
+                onDelete={() => {
+                    const { _id, customerId } = editingResource!;
+                    resources.handleCloseResourceModal();
+                    resources.handleDeleteResource(_id, customerId);
+                }}
+                suspended={p.addCustomer.show}
             />
 
             {gallery.fullScreenImage && (

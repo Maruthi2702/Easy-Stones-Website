@@ -13,7 +13,7 @@ describe('nav visibility', () => {
     const ids = (u) => visibleSections(u).flatMap((s) => s.items.map((i) => i.id));
     expect(ids(rep)).toEqual(['customers', 'route_planner', 'daily_report']);
     expect(ids(admin)).toEqual([
-      'dashboard', 'lost_sales', 'delivery_schedule', 'daily_report',
+      'dashboard', 'team_files', 'lost_sales', 'delivery_schedule', 'daily_report',
       'inventory_analysis', 'crossover_sheet', 'live_inventory', 'users', 'roles', 'locations', 'nav_order'
     ]);
   });
@@ -113,7 +113,7 @@ describe('admin nav order', () => {
     const order = { sections: ['operations', 'sales'], items: { sales: ['lost_sales'], operations: ['checkin', 'delivery_schedule'] } };
     expect(ids(orderedSections(order))).toEqual([
       ['operations', ['checkin', 'delivery_schedule', 'daily_report']],
-      ['sales', ['lost_sales', 'customers', 'route_planner', 'holds', 'permits']],
+      ['sales', ['lost_sales', 'customers', 'route_planner', 'holds', 'permits', 'team_files']],
       ['home', ['dashboard']],
       ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet', 'live_inventory']],
       ['accounting', ['freight', 'fuel_man']],

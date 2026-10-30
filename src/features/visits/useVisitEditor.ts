@@ -6,7 +6,7 @@ import { formatForDateInput } from '../../utils/dateUtils';
 import { newVisitId } from '../../utils/visitForm';
 import { compressImage, fileToBase64 } from '../../utils/attachmentFiles';
 import type { Loose } from '../../types/records';
-import type { DeleteRequest } from '../dashboard/teamFiles/useTeamFiles';
+import type { DeleteRequest } from '../teamFiles/useTeamFiles';
 
 /** What the page gives the visit editor (MIGRATION_NOTES.md §4, step A3). */
 export type VisitEditorDeps = {

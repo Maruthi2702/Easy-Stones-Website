@@ -24,9 +24,11 @@ describe('what sits on the bar', () => {
     });
     it('only ever lists what the login may open', () => {
         const m = phoneNavModel(user('view_dashboard', 'view_pricelist'));
-        expect(ids(m.bar)).toEqual(['products']);
+        // The Dashboard's permission also opens Team Files (Sales) since 2026-10-30.
+        expect(ids(m.bar)).toEqual(['sales', 'products']);
         expect(m.more).toEqual([]);
-        expect(m.bar[0].items.map((i) => i.id)).toEqual(['pricelist', 'live_inventory']);
+        expect(m.bar[0].items.map((i) => i.id)).toEqual(['team_files']);
+        expect(m.bar[1].items.map((i) => i.id)).toEqual(['pricelist', 'live_inventory']);
     });
     it('follows the order an admin set', () => {
         const order = { sections: ['home', 'products', 'operations', 'sales', 'accounting', 'admin'], items: {} };

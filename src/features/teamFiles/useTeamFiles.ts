@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { API_URL } from '../../../config/api';
-import { authFetch } from '../../../api/authFetch';
-import type { Loose } from '../../../types/records';
+import { API_URL } from '../../config/api';
+import { authFetch } from '../../api/authFetch';
+import type { Loose } from '../../types/records';
 
 /** The page's delete check (a team file or folder asks it before deleting). */
 export type DeleteRequest = { isOpen: boolean; isDeleting?: boolean; type: string; id: string | null; customerId?: string | null; message: string };
@@ -10,10 +10,8 @@ export type DeleteRequest = { isOpen: boolean; isDeleting?: boolean; type: strin
 export type TeamFileForm = { name: string; type: string; content: string; file: File | null };
 
 export type TeamFilesDeps = {
-    /** Whether the dashboard is the screen showing (the list loads only then). */
-    showDashboard: boolean;
-    /** The Resources tab's sub-tab: 'client' or 'team'. */
-    activeResourceSubTab: string;
+    /** Whether the Team Files page is showing (the list loads only then). */
+    active: boolean;
     /** Bumped when resources change (socket), to refetch. */
     resourceRefreshTrigger: number;
     setIsSaving: (saving: boolean) => void;
@@ -23,12 +21,12 @@ export type TeamFilesDeps = {
 };
 
 /**
- * The dashboard's Team Files (Resources → Team Files): folders and files
- * shared with the whole team — browse, upload, edit, preview, download and
- * delete. Moved out of SalesPage unchanged (2026-10-23). `handleDashboardDownload`
+ * Sales → Team Files (its own page since 2026-10-30; it was a sub-tab of the
+ * dashboard's Resources): folders and files shared with the whole team —
+ * browse, upload, edit, preview, download and delete. `handleDashboardDownload`
  * is also how the visit and resource forms download an attachment.
  */
-export function useTeamFiles({ showDashboard, activeResourceSubTab, resourceRefreshTrigger, setIsSaving, fetchDashboardData, fetchDashboardStats, setDeleteConfirmation }: TeamFilesDeps) {
+export function useTeamFiles({ active, resourceRefreshTrigger, setIsSaving, fetchDashboardData, fetchDashboardStats, setDeleteConfirmation }: TeamFilesDeps) {
     const [showAddFolderModal, setShowAddFolderModal] = useState(false);
     const [folderName, setFolderName] = useState('');
 
@@ -68,10 +66,10 @@ export function useTeamFiles({ showDashboard, activeResourceSubTab, resourceRefr
     };
 
     useEffect(() => {
-        if (showDashboard && activeResourceSubTab === 'team') {
+        if (active) {
             fetchDashboardResources();
         }
-    }, [showDashboard, currentFolderId, activeResourceSubTab, resourceRefreshTrigger]);
+    }, [active, currentFolderId, resourceRefreshTrigger]);
 
     const handleDashboardUpload = async (e: { preventDefault: () => void }) => {
         e.preventDefault();

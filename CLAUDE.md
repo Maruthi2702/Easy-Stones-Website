@@ -226,6 +226,33 @@ clip, which is why `.resources-table tr:hover` no longer scales — a transforme
 row becomes the reference frame of a fixed menu inside it and sent the menu off
 the page. A new menu inside a table must be checked with the mouse over the row.
 
+## Resources and Team Files (2026-10-30, on `feat/resources-redesign`)
+
+Design: claude.ai artifact **Resources Redesign Canvas**
+(https://claude.ai/artifact/TSMaMjGbsD5o1WDD7CYUiu, Option A). Dashboard →
+Resources is one list, the resources placed at customers
+(`src/features/dashboard/resources/`): search, the shared `LocationFilter`
+panel with resource types (grouped by family — tower, tabletop, binder,
+samples, other: `familyOf`) and Logged by inside it, what's ticked shown as
+removable tags, and ⋯ (`RowMenu`) with **Export this view** / **Export all
+resources**. A table on desktop (Note and Logged by fold away under 1024px),
+cards grouped by week on a phone (`useIsPhone`); a row opens the resource.
+The rules are `resourceList.ts` (tested). A resource has a **Qty**
+(`src/utils/resourceForm.ts`, shared with the server: a whole number 1–999,
+missing = 1; never backfilled). Add / Edit / View resource is
+`src/features/resources/form/` on FormModal (no Cancel; View is the same
+shell read-only with Edit resource); `components/sales/ResourceModal.jsx` is
+gone. Who may edit / delete one is the visit rule with its uploader as the
+logger (server's `resourceAccessArgs`, the screens' `canModifyVisit`).
+`GET /api/dashboard/resources` also sends `qty`, `notes`, `status`,
+`customerLocation`, `city`, `company`, `contactName` and `uploadedByName`.
+
+**Team Files** is its own Sales page (`team_files` in `navPins.js`, still
+opened by `view_dashboard`; `src/features/teamFiles/`). The page is the old
+list and pop-ups unchanged; the redesign on the **Team Files Page Canvas**
+(https://claude.ai/artifact/NRBYg5zf4Ycw8NCuMrpd97 — tree, preview, pinning,
+size, own permissions) is not built.
+
 ## Phone tab bar (2026-10-18)
 
 Under 640px SalesPage shows a bottom tab bar instead of the drawer

@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import type { Loose } from '../../types/records';
-import type { DeleteRequest } from '../dashboard/teamFiles/useTeamFiles';
+import type { DeleteRequest } from '../teamFiles/useTeamFiles';
 
 /** What the page gives the customer actions (MIGRATION_NOTES.md §4, step A5). */
 export type CustomerActionsDeps = {

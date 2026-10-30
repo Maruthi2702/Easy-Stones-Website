@@ -8,8 +8,8 @@ vi.mock('../../api/authFetch', () => ({ authFetch: () => Promise.resolve(new Res
 
 const { FollowUpsPanel } = await import('./followUps');
 const { VisitsPanel } = await import('./visits');
-const { default: ClientResources } = await import('./resources/ClientResources');
-const { default: TeamFilesList } = await import('./resources/TeamFilesList');
+const { ResourcesPanel } = await import('./resources');
+const { default: TeamFilesList } = await import('../teamFiles/components/TeamFilesList');
 
 afterEach(() => cleanup());
 const noop = () => {};
@@ -60,18 +60,45 @@ describe('Sales Visits tab', () => {
 });
 
 describe('Resources tab', () => {
-  it('Client Updates: empty state', () => {
-    render(
-      <table><tbody>
-        <ClientResources
-          rows={[]} tableLoading={false} page={1} rowsPerPage={50} onPageChange={noop} onRowsPerPageChange={noop} loadingResourceId={null}
-          onOpenCustomerResources={noop} onViewResource={noop} onEditResource={noop} onDeleteResource={noop} onOpenGallery={noop} onDownload={noop}
-        />
-      </tbody></table>
-    );
-    expect(screen.getByText('No resources found')).toBeTruthy();
+  const panel = (over: Record<string, unknown> = {}) => ({
+    rows: [] as Record<string, unknown>[], tableLoading: false, page: 1, rowsPerPage: 50, onPageChange: noop, onRowsPerPageChange: noop,
+    searchTerm: '', onSearchChange: noop, locationOptions: [], location: '', onLocationChange: noop,
+    currentUser: { permissions: ['edit_own_visits'] }, currentUserId: 'u1', loadingResourceId: null,
+    onViewResource: noop, onEditResource: noop, onDeleteResource: noop, onExportView: noop, onExportAll: noop,
+    ...over
   });
-  it('Team Files: a folder row opens, and the empty state offers an upload', () => {
+  const rows = [
+    { _id: 'r1', customerId: 'c1', company: 'TopLine Counters', contactName: 'Gabe', city: 'Kent', resourceType: 'Moda Sample Binder NorthWest V1 12', qty: 6, date: '2026-10-09', description: 'For Gabe', uploadedBy: 'u1', uploadedByName: 'Krish' },
+    { _id: 'r2', customerId: 'c2', company: 'Casey’s Flooring', resourceType: '2025V3 Moda Tower', date: '2026-10-13', uploadedBy: 'u2', uploadedByName: 'Dave' }
+  ];
+
+  it('says so when the period has none', () => {
+    render(<ResourcesPanel {...panel()} />);
+    expect(screen.getByText('No resources for this period.')).toBeTruthy();
+  });
+
+  it('shows each resource with its qty (1 when unsaid), and a click opens it', () => {
+    const onViewResource = vi.fn();
+    const { container } = render(<ResourcesPanel {...panel({ rows, onViewResource })} />);
+    expect(screen.getByText('TopLine Counters')).toBeTruthy();
+    expect([...container.querySelectorAll('tbody td.rs-num')].map((td) => td.textContent)).toEqual(['6', '1']);
+    fireEvent.click(screen.getByText('Casey’s Flooring'));
+    expect(onViewResource).toHaveBeenCalledWith(rows[1]);
+  });
+
+  it('filters by resource type from the Filters panel, with a tag to take it off', () => {
+    render(<ResourcesPanel {...panel({ rows })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    expect(screen.getByText('Display towers')).toBeTruthy();
+    fireEvent.click(screen.getByRole('checkbox', { name: /2025V3 Moda Tower/ }));
+    expect(screen.queryByText('TopLine Counters')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Remove 2025V3 Moda Tower' }));
+    expect(screen.getByText('TopLine Counters')).toBeTruthy();
+  });
+});
+
+describe('Team Files page', () => {
+  it('a folder row opens, and the empty state offers an upload', () => {
     const onResourceClick = vi.fn();
     const files = [{ _id: 'r1', name: 'Brochures', type: 'folder', createdAt: '2026-10-01T10:00:00Z' }];
     const { rerender } = render(

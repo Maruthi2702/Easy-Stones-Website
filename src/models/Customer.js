@@ -163,6 +163,8 @@ const customerSchema = new mongoose.Schema({
     customer: String,
     location: String,
     resourceType: String,
+    // How many were left (src/utils/resourceForm.ts); missing on resources saved before 2026-10-30 = 1.
+    qty: Number,
     title: { type: String, required: true },
     image: mongoose.Schema.Types.Mixed, // Use Mixed to support both legacy Strings and new Arrays
     description: String,

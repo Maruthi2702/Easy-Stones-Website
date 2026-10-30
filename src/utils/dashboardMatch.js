@@ -141,10 +141,11 @@ export const followUpDatePrefilter = (dayStr) => ({
  * Trim each customer to what a rollup over `<prefix>` reads, before `$unwind`
  * copies the whole document once per entry. A customer with photos stored
  * inline in its visits was being copied megabytes at a time per visit, for
- * output that never includes the photos.
+ * output that never includes the photos. `extra` keeps more customer fields
+ * (the Resources list shows the customer's city).
  */
-export const slimForUnwind = (prefix) => [
-  { $project: { company: 1, contactName: 1, location: 1, [prefix]: 1 } },
+export const slimForUnwind = (prefix, extra = []) => [
+  { $project: { company: 1, contactName: 1, location: 1, ...Object.fromEntries(extra.map((f) => [f, 1])), [prefix]: 1 } },
   { $unset: `${prefix}.image` }
 ];
 

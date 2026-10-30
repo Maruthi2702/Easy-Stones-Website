@@ -14,6 +14,7 @@ vi.mock('../../components/sales/permits/PermitsTab', () => stub('Permits'));
 vi.mock('../delivery/DeliveryScheduleTab', () => stub('Delivery'));
 vi.mock('../routePlanner/RoutePlannerV2', () => stub('RoutePlanner'));
 vi.mock('../../components/sales/UserProfileTab', () => stub('Profile'));
+vi.mock('../teamFiles/TeamFilesPage', () => stub('TeamFiles'));
 
 const { default: SalesTabViews } = await import('./SalesTabViews');
 afterEach(() => cleanup());
@@ -24,6 +25,7 @@ const base = (over: Record<string, unknown> = {}) => ({
   checkInLog: {} as never, locations: [], fetchLocations: () => {}, customersList: [], customerOptions: [], isDropdownLoading: false,
   inventoryRefreshSignal: 0, navOrder: null, onSaveNavOrder: () => {}, canSeeHolds: false, routePlannerOpened: false, routePreselect: null,
   canAddVisits: true, onGoHome: () => {}, onOpenCustomer: () => {}, onCreatePrefilledCustomer: null, onAddVisitForPin: () => {}, onAddResourceForPin: () => {},
+  teamFiles: {} as never,
   ...over
 });
 
@@ -39,6 +41,12 @@ describe('SalesTabViews', () => {
     expect(document.body.textContent).toBe('');
     rerender(<SalesTabViews {...base({ crmTab: 'holds', canSeeHolds: false })} />);
     expect(document.body.textContent).toBe('');
+  });
+  it('Team Files is its own page, for anyone who can open the Dashboard', async () => {
+    const { rerender } = render(<SalesTabViews {...base({ crmTab: 'team_files', currentUser: { permissions: ['view_dashboard'] } })} />);
+    expect((await screen.findByTestId('page')).textContent).toContain('TeamFiles');
+    rerender(<SalesTabViews {...base({ crmTab: 'team_files', currentUser: { permissions: ['view_customers'] } })} />);
+    expect(screen.queryByTestId('page')).toBeNull();
   });
   it("the Price List's menu button opens the nav; Freight's toggles it", async () => {
     const p = base();

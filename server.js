@@ -89,6 +89,7 @@ import {
 // through runWorkbookParse, which runs the real parse in a worker thread instead
 // of on this process's own thread. See runWorkbookParse.ts for why.
 import { runWorkbookParse } from './src/utils/runWorkbookParse.ts';
+import { parseResourceQty, RESOURCE_QTY_MAX } from './src/utils/resourceForm.ts';
 import createDailyReportsRouter from './src/routes/dailyReports.js';
 import createDeliveriesRouter, { deliveryRoomsFor, renumberAllRuns } from './src/routes/deliveries.js';
 import createCheckInRouter from './src/routes/checkIn.js';
@@ -3153,7 +3154,7 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
     const resources = await Customer.aggregate([
       ...(branchPrefilter ? [branchPrefilter] : []),
       ...(resourcePrefilter ? [resourcePrefilter] : []),
-      ...slimForUnwind('resources'),
+      ...slimForUnwind('resources', ['city']),
       { $unwind: "$resources" },
       { $match: resourceMatchStage },
       {
@@ -3163,6 +3164,15 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
           description: "$resources.description",
           type: "$resources.type",
           resourceType: "$resources.resourceType",
+          // The Resources list (Option A): how many, the note, and the
+          // customer's branch (for who may edit) and city.
+          qty: "$resources.qty",
+          notes: "$resources.notes",
+          status: "$resources.status",
+          customerLocation: "$location",
+          city: "$city",
+          company: "$company",
+          contactName: "$contactName",
           date: {
             $cond: [
               { $eq: [{ $type: "$resources.date" }, "string"] },
@@ -3202,6 +3212,14 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
       },
       { $sort: { date: -1, createdAt: -1 } }
     ]);
+
+    // Who logged each one, by name (the list's "Logged by" and its filter).
+    const uploaderIds = [...new Set(resources.map(r => String(r.uploadedBy || '')).filter(id => /^[a-f0-9]{24}$/i.test(id)))];
+    const uploaders = uploaderIds.length
+      ? await User.find({ _id: { $in: uploaderIds } }).select('username displayName').lean()
+      : [];
+    const nameById = new Map(uploaders.map(u => [String(u._id), displayNameOf(u)]));
+    resources.forEach(r => { r.uploadedByName = nameById.get(String(r.uploadedBy || '')) || ''; });
 
     res.json(resources);
   } catch (error) {
@@ -4655,6 +4673,8 @@ app.post('/api/customers/:customerId/resources', authenticate, requirePermission
     // A placement writes a visit with this date, so it gets the same check.
     const resourceDateStr = date ? normalizeVisitDate(date) : ensureDateString(new Date());
     if (!resourceDateStr) return res.status(400).json({ message: 'Resource date must be a date (YYYY-MM-DD)' });
+    const qty = parseResourceQty(req.body.qty);
+    if (qty === null) return res.status(400).json({ message: `Qty must be a whole number from 1 to ${RESOURCE_QTY_MAX}` });
 
     const newResource = {
       title: finalTitle,
@@ -4662,6 +4682,7 @@ app.post('/api/customers/:customerId/resources', authenticate, requirePermission
       customer: customer || customerDoc.company || customerDoc.contactName || '',
       location: location || '',
       resourceType: resourceType || '',
+      qty,
       image: processedImages,
       description: description || '',
       notes: notes || '',
@@ -4744,6 +4765,11 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
       const normalized = normalizeVisitDate(fields.date);
       if (!normalized) return res.status(400).json({ message: 'Resource date must be a date (YYYY-MM-DD)' });
       fields.date = normalized;
+    }
+    if (fields.qty !== undefined) {
+      const qty = parseResourceQty(fields.qty);
+      if (qty === null) return res.status(400).json({ message: `Qty must be a whole number from 1 to ${RESOURCE_QTY_MAX}` });
+      fields.qty = qty;
     }
 
     const customer = await Customer.findById(customerId);

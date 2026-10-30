@@ -1,0 +1,219 @@
+/* Dashboard → Resources (Option A). Builds on the dashboard's section card,
+   search and table (SalesPageDashboard.css); only what's new is here.
+   Dark is the default; body.light-theme-active switches the few colours
+   that aren't already theme variables. */
+
+.rs-panel {
+    --rs-tower: #6f9cf2;
+    --rs-tabletop: #b08cf0;
+    --rs-binder: #4cc79d;
+    --rs-samples: #e8946c;
+    --rs-other: #a0a0a8;
+    --rs-chip-alpha: 0.16;
+}
+body.light-theme-active .rs-panel {
+    --rs-tower: #2f5fc4;
+    --rs-tabletop: #6b45b8;
+    --rs-binder: #17805c;
+    --rs-samples: #b4542f;
+    --rs-other: #5a6574;
+    --rs-chip-alpha: 0.12;
+}
+
+/* Search, Filters, ⋯ in that order at every width (the dashboard's phone rule reverses .table-controls). */
+.rs-panel .rs-controls { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; }
+
+/* The Filters panel's own groups: each family's label above its checkboxes, and a count on the right. */
+.rs-fgroup + .rs-fgroup { margin-top: 8px; }
+.rs-fgroup-label { display: block; font-size: 11.5px; color: var(--text-secondary); margin: 2px 0 4px; }
+.rs-check-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rs-count { margin-left: auto; padding-left: 8px; font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+/* What's ticked, as tags under the header. */
+.rs-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -0.5rem 0 1rem; }
+.rs-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 28px;
+    padding: 0 4px 0 10px;
+    border-radius: 999px;
+    background: rgba(212, 175, 55, 0.14);
+    color: var(--accent-primary);
+    font-size: 12.5px;
+    font-weight: 600;
+    max-width: 100%;
+}
+body.light-theme-active .rs-pill { color: #7a5c0b; background: #f6efd9; }
+.rs-pill button {
+    width: 20px;
+    height: 20px;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: none;
+}
+.rs-pill button:hover { background: rgba(0, 0, 0, 0.1); }
+.rs-clear-link {
+    border: 0;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 4px 6px;
+}
+
+/* Table */
+.rs-table .rs-row { cursor: pointer; }
+.rs-table .rs-row:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: -2px; }
+.rs-table td { padding-top: 0.85rem; padding-bottom: 0.85rem; }
+.rs-date { white-space: nowrap; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.rs-cust strong { display: block; font-weight: 600; }
+.rs-sub { display: block; font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.rs-note-inline { display: none; }
+.rs-note { color: var(--text-secondary); max-width: 320px; }
+.rs-by { white-space: nowrap; color: var(--text-secondary); }
+.rs-num { text-align: right; font-variant-numeric: tabular-nums; width: 1%; white-space: nowrap; }
+.rs-actions { width: 1%; text-align: right; }
+.rs-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* A resource type, coloured by what it's a kind of. */
+.rs-type {
+    --rs-c: var(--rs-other);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--rs-c);
+    background: color-mix(in srgb, var(--rs-c) calc(var(--rs-chip-alpha) * 100%), transparent);
+}
+.rs-type i { width: 7px; height: 7px; border-radius: 2px; background: currentColor; flex: none; }
+.rs-type--tower { --rs-c: var(--rs-tower); }
+.rs-type--tabletop { --rs-c: var(--rs-tabletop); }
+.rs-type--binder { --rs-c: var(--rs-binder); }
+.rs-type--samples { --rs-c: var(--rs-samples); }
+.rs-type--other { --rs-c: var(--rs-other); }
+
+/* Nothing to show */
+.rs-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 2.5rem 1rem;
+    text-align: center;
+    color: var(--text-secondary);
+}
+.rs-empty strong { color: var(--text-primary); font-size: 15px; }
+.rs-clear-btn {
+    margin-top: 6px;
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-primary);
+    font-weight: 600;
+    cursor: pointer;
+}
+.rs-clear-btn:hover { border-color: var(--accent-primary); }
+
+/* Tablet: the note moves under the customer and Logged by folds away. */
+@media (max-width: 1023px) {
+    .rs-col-note, .rs-col-by { display: none; }
+    .rs-note-inline {
+        display: block;
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-top: 2px;
+        max-width: 360px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+/* Phone (under 640px, where useIsPhone renders the cards). */
+.rs-cards { display: flex; flex-direction: column; gap: 6px; }
+.rs-week { display: flex; flex-direction: column; gap: 6px; }
+.rs-week-head {
+    display: flex;
+    justify-content: space-between;
+    margin: 10px 4px 2px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+.rs-week:first-child .rs-week-head { margin-top: 0; }
+.rs-card {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+    min-height: 72px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 14px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+.rs-card:active { background: rgba(212, 175, 55, 0.08); }
+.rs-card:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 2px; }
+.rs-card:disabled { opacity: 0.7; }
+.rs-tile {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    font: 700 11px ui-monospace, 'SF Mono', Consolas, monospace;
+    color: var(--rs-c);
+    background: color-mix(in srgb, var(--rs-c) calc(var(--rs-chip-alpha) * 100%), transparent);
+}
+.rs-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rs-card-text strong, .rs-card-text span, .rs-card-text small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rs-card-text strong { font-size: 15px; }
+.rs-card-text span { font-size: 13px; }
+.rs-card-text small { font-size: 12px; color: var(--text-secondary); }
+.rs-card-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.rs-qty {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text-primary);
+    background: rgba(127, 127, 127, 0.14);
+    border-radius: 6px;
+    padding: 1px 7px;
+}
+
+@media (max-width: 639px) {
+    .rs-panel .rs-controls { flex-wrap: nowrap; gap: 8px; }
+    .rs-panel .rs-search { flex: 1; min-width: 0; }
+    .rs-panel .rs-search input { width: 100%; height: 42px; font-size: 16px; box-sizing: border-box; }
+    .rs-pills { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: -0.5rem -4px 0.75rem; padding: 0 4px; }
+    .rs-pills::-webkit-scrollbar { display: none; }
+    .rs-pill { flex: none; height: 32px; }
+}

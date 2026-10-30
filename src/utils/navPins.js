@@ -43,6 +43,8 @@ export const NAV_ITEMS = [
   { id: 'holds', label: 'Holds', section: 'sales', canSee: (u) => HOLD_VIEW_PERMISSIONS.some((p) => has(u, p)) },
   // Permits (src/permits/): building permits as sales leads; the permission is the only key.
   { id: 'permits', label: 'Permits', section: 'sales', canSee: (u) => has(u, PERMITS.VIEW) },
+  // Team Files (src/features/teamFiles/): was the dashboard's Resources → Team Files, so it opens with the Dashboard.
+  { id: 'team_files', label: 'Team Files', section: 'sales', canSee: (u) => has(u, 'view_dashboard') },
   {
     id: 'lost_sales', label: 'Lost Sales', section: 'sales',
     canSee: (u) => canViewLostSales(u) || !u
