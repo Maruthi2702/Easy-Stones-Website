@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { API_URL } from '../../config/api';
-import { getAuthToken } from '../../api/authToken';
+import { followCheckIns } from '../../api/checkInLive';
 import { expireCacheKeys } from '../../utils/dataCache';
 import { refreshCustomers } from '../../api/customerOptions';
 import { cartActions } from '../holds';
@@ -16,6 +16,8 @@ import { clearInventoryCache } from '../../api/inventoryAnalysisCache';
 export type LiveUpdateHandlers = {
     /** The current filters' check-in fetch (a ref: the filters change). */
     refreshCheckInsRef: { current: () => void };
+    /** After updates may have been missed: reload the log if it's on screen (a ref, like the above). */
+    resyncCheckInsRef: { current: () => void };
     /** The signed-in user's id (a ref: it loads after the first render). */
     currentUserIdRef: { current: string | null };
     onCustomersChanged: () => void;
@@ -35,7 +37,7 @@ export type LiveUpdateHandlers = {
  */
 export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
     useEffect(() => {
-        const { refreshCheckInsRef, currentUserIdRef, onCustomersChanged, onResourcesChanged, onLocationsChanged, onInventoryChanged, onMySchedulesChanged, onStart } = handlers;
+        const { refreshCheckInsRef, resyncCheckInsRef, currentUserIdRef, onCustomersChanged, onResourcesChanged, onLocationsChanged, onInventoryChanged, onMySchedulesChanged, onStart } = handlers;
         const socket = io(API_URL || window.location.origin, {
             transports: ['websocket', 'polling'],
             withCredentials: true
@@ -43,13 +45,12 @@ export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
 
         // checkin_update is scoped to the viewer's own assigned location(s)
         // (mirrors join_delivery_rooms for delivery_update) rather than
-        // broadcast to every connected socket — this proves who the socket
-        // is so the server knows which room(s) to put it in. Re-sent on
-        // every reconnect, since a fresh connection joins no rooms until
-        // this fires again.
-        socket.on('connect', () => {
-            const token = getAuthToken();
-            if (token) socket.emit('join_checkin_rooms', { token });
+        // broadcast to every connected socket. followCheckIns joins those
+        // rooms on every connect (with a fresh token if the old one expired)
+        // and reloads the log after a reconnect or the phone waking up.
+        const stopFollowing = followCheckIns(socket, () => {
+            expireCacheKeys('checkins_');
+            resyncCheckInsRef.current();
         });
 
         // Through a ref: this handler is registered once, and calling
@@ -106,6 +107,7 @@ export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
         onStart();
 
         return () => {
+            stopFollowing();
             socket.disconnect();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- registered once; see LiveUpdateHandlers

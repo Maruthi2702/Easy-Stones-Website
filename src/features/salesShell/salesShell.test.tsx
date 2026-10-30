@@ -10,7 +10,7 @@ const disconnect = vi.fn();
 vi.mock('socket.io-client', () => ({
   io: () => ({ on: (event: string, fn: Handler) => { listeners[event] = fn; }, emit, disconnect })
 }));
-vi.mock('../../api/authToken', () => ({ getAuthToken: () => 'tok' }));
+vi.mock('../../api/authToken', () => ({ getAuthToken: () => 'tok', setAuthToken: vi.fn(), onAuthTokenChange: () => () => {} }));
 const refreshCustomers = vi.fn();
 vi.mock('../../api/customerOptions', () => ({ refreshCustomers: () => refreshCustomers() }));
 const reservationsChanged = vi.fn();
@@ -59,7 +59,7 @@ describe('useSalesTheme', () => {
 describe('useSalesLiveUpdates', () => {
   const setup = (userId: string | null = 'u1') => {
     const h = {
-      refreshCheckInsRef: { current: vi.fn() }, currentUserIdRef: { current: userId },
+      refreshCheckInsRef: { current: vi.fn() }, resyncCheckInsRef: { current: vi.fn() }, currentUserIdRef: { current: userId },
       onCustomersChanged: vi.fn(), onResourcesChanged: vi.fn(), onLocationsChanged: vi.fn(),
       onInventoryChanged: vi.fn(), onMySchedulesChanged: vi.fn(), onStart: vi.fn()
     };
@@ -70,7 +70,14 @@ describe('useSalesLiveUpdates', () => {
     const { h } = setup();
     expect(h.onStart).toHaveBeenCalledTimes(1);
     listeners.connect();
-    expect(emit).toHaveBeenCalledWith('join_checkin_rooms', { token: 'tok' });
+    expect(emit).toHaveBeenCalledWith('join_checkin_rooms', { token: 'tok' }, expect.any(Function));
+  });
+  it('reloads the check-in log after a reconnect, not the first connect', () => {
+    const { h } = setup();
+    listeners.connect();
+    expect(h.resyncCheckInsRef.current).not.toHaveBeenCalled();
+    listeners.connect();
+    expect(h.resyncCheckInsRef.current).toHaveBeenCalledTimes(1);
   });
   it('runs the right refresh for each update', () => {
     const { h } = setup();

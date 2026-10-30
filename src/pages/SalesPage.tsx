@@ -88,10 +88,12 @@ const SalesPage = () => {
     const currentUserIdRef = useRef<string | null>(null);
     // Set after fetchCheckIns below; read by the checkin_update handler.
     const refreshCheckInsRef = useRef(() => {});
+    const resyncCheckInsRef = useRef(() => {});
 
     // Live updates from the server (src/features/salesShell/useSalesLiveUpdates.ts).
     useSalesLiveUpdates({
         refreshCheckInsRef,
+        resyncCheckInsRef,
         currentUserIdRef,
         onCustomersChanged: () => fetchCustomers(true),
         onResourcesChanged: () => setResourceRefreshTrigger(prev => prev + 1),
@@ -142,6 +144,9 @@ const SalesPage = () => {
 
     // What a live check-in update runs: always the current filters' fetch.
     refreshCheckInsRef.current = () => checkInLog.refresh(true);
+    // After a reconnect or the app coming back on screen: only while the log
+    // is showing (its cache is expired either way, so opening it reloads).
+    resyncCheckInsRef.current = () => { if (crmTab === 'checkin') checkInLog.refresh(true); };
 
     // Modal states
     const [showCalendarSyncModal, setShowCalendarSyncModal] = useState(false);
