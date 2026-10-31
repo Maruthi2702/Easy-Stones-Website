@@ -4,7 +4,7 @@ import { canModifyVisit, canDeleteVisit } from '../../../utils/visitAccess';
 import { useMyTeam } from '../../../api/myTeam';
 import DashboardAside from '../components/DashboardAside';
 import VisitsFocusList from '../components/VisitsFocusList';
-import RepBreakdownTable, { VisitsViewSwitch } from '../components/RepBreakdownTable';
+import RepBreakdownTable from '../components/RepBreakdownTable';
 import type { RepRow } from '../repBreakdown';
 import type { Loose } from '../../../types/records';
 
@@ -56,7 +56,6 @@ export default function VisitsPanel({
             <div className="section-header">
                 <h2>Sales Visits</h2>
                 <div className="table-controls">
-                    {byRep && <VisitsViewSwitch value={byRep.view} onChange={byRep.onViewChange} />}
                     {!showingByRep && (
                     <div className="table-search">
                          <Search className="search-icon" size={18} />

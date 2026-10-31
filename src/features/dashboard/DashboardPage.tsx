@@ -90,6 +90,7 @@ export default function DashboardPage({
                         onLocationChange={data.handleDashboardLocationChange}
                         currentUser={currentUser}
                         people={people}
+                        visitsView={data.canPickPeople ? { value: data.visitsView, onChange: data.setVisitsView } : null}
                         showPeopleOnCalendar={data.teamCalendar}
                         showMenuButton={showMenuButton}
                         onOpenSidebar={onOpenSidebar}

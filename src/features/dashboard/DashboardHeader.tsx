@@ -3,6 +3,7 @@ import LocationFilter from '../../components/shared/LocationFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import { DashboardRange } from './components/DashboardStats';
 import PeopleField from './components/PeopleField';
+import { VisitsViewSwitch } from './components/RepBreakdownTable';
 import type { PeopleFilter } from './components/PeopleField';
 import type { Loose } from '../../types/records';
 
@@ -16,6 +17,8 @@ export type DashboardHeaderProps = {
     currentUser: Loose | null;
     /** The People filter, for anyone who can see more than their own; null otherwise. */
     people: PeopleFilter | null;
+    /** Sales Visits' "List | By rep" switch, shown in the Filters panel; null hides it. */
+    visitsView?: { value: 'list' | 'byRep'; onChange: (v: 'list' | 'byRep') => void } | null;
     /** The Calendar tab follows it too (Users & Roles → Visits → Team calendar). */
     showPeopleOnCalendar?: boolean;
     /** The menu button shows when the side nav is closed or on a phone. */
@@ -30,7 +33,7 @@ export type DashboardHeaderProps = {
 
 /** The Dashboard's title, date and actions (time range, branch, export, calendar sync, add). */
 export default function DashboardHeader({
-    activeTab: activeDashboardTab, timeRange, onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, showPeopleOnCalendar = false,
+    activeTab: activeDashboardTab, timeRange, onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, visitsView = null, showPeopleOnCalendar = false,
     showMenuButton, onOpenSidebar, onExportVisits, onOpenCalendarSync, canAddVisits, onAddResource, onAddVisit
 }: DashboardHeaderProps) {
     return (
@@ -66,6 +69,12 @@ export default function DashboardHeader({
                                 active={Boolean(people?.active)}
                                 onClear={people?.onReset}
                             >
+                                {visitsView && (
+                                    <div className="lf-group" role="group" aria-label="Show visits as">
+                                        <span className="lf-group-label">View</span>
+                                        <VisitsViewSwitch value={visitsView.value} onChange={visitsView.onChange} />
+                                    </div>
+                                )}
                                 {people ? <PeopleField {...people} /> : null}
                             </LocationFilter>
                             <RowMenu
