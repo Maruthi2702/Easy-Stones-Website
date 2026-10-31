@@ -1,11 +1,13 @@
+import { useMemo } from 'react';
 import { Eye, Loader, Pencil, Trash2 } from 'lucide-react';
+import { useResourceTypes } from '../../../api/typeLists';
 import RowMenu from '../../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import { canDeleteVisit, canModifyVisit } from '../../../utils/visitAccess';
 import { resourceQty } from '../../../utils/resourceForm';
 import type { Loose } from '../../../types/records';
 import {
-    FAMILY_TAGS, customerParts, familyOf, groupByWeek, loggedByOf, resourceDay, shortDay, typeOf
+    FAMILY_TAGS, customerParts, groupByWeek, loggedByOf, resourceDay, shortDay, typeInfoFrom, typeOf
 } from './resourceList';
 
 export type ResourceRowActions = {
@@ -39,9 +41,16 @@ const rowMenuItems = (a: ResourceRowActions, r: Loose): RowMenuItem[] => {
     return items;
 };
 
-const TypeChip = ({ type }: { type: string }) => (
-    <span className={`rs-type rs-type--${familyOf(type)}`}><i aria-hidden="true" />{type || '—'}</span>
-);
+/** The Resource Types list as a lookup: family and label for a stored type name. */
+const useTypeInfo = () => {
+    const { types } = useResourceTypes();
+    return useMemo(() => typeInfoFrom(types), [types]);
+};
+
+const TypeChip = ({ type }: { type: string }) => {
+    const { family, label } = useTypeInfo()(type);
+    return <span className={`rs-type rs-type--${family}`}><i aria-hidden="true" />{type ? label : '—'}</span>;
+};
 
 /** Desktop and tablet: one row per resource; a click (or Enter) opens it. */
 export function ResourceTable({ rows, today, ...a }: RowsProps) {
@@ -100,6 +109,7 @@ export function ResourceTable({ rows, today, ...a }: RowsProps) {
 
 /** Phones: cards under week headings; the whole card opens the resource (Edit / Delete are inside it). */
 export function ResourceCards({ rows, today, ...a }: RowsProps) {
+    const info = useTypeInfo();
     return (
         <div className="rs-cards">
             {groupByWeek(rows, today).map((group) => (
@@ -108,7 +118,7 @@ export function ResourceCards({ rows, today, ...a }: RowsProps) {
                     {group.rows.map((r) => {
                         const { company } = customerParts(r);
                         const type = typeOf(r);
-                        const family = familyOf(type);
+                        const { family, label: typeLabel } = info(type);
                         const meta = [r.city, loggedByOf(r)].filter(Boolean).join(' · ');
                         const busy = a.loadingResourceId === r._id;
                         return (
@@ -116,7 +126,7 @@ export function ResourceCards({ rows, today, ...a }: RowsProps) {
                                 <span className={`rs-tile rs-type--${family}`} aria-hidden="true">{FAMILY_TAGS[family]}</span>
                                 <span className="rs-card-text">
                                     <strong>{company || '—'}</strong>
-                                    <span>{type || '—'}</span>
+                                    <span>{type ? typeLabel : '—'}</span>
                                     {meta && <small>{meta}</small>}
                                 </span>
                                 <span className="rs-card-side">

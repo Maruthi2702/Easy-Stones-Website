@@ -1,37 +1,42 @@
 import { describe, it, expect } from 'vitest';
 import {
-  VISIT_TYPES, visitTypeLabel, visitFieldsFor, hasFollowUp, validateVisitValues,
+  visitTypeLabel, visitFieldsFor, hasFollowUp, validateVisitValues,
   countVisitChanges, visitLastChangedText, visitValuesToSave, followUpShown
 } from './visitForm.js';
 
-describe('visit types', () => {
-  it('keeps the ten stored values, in the old order', () => {
-    expect(VISIT_TYPES.map((t) => t.value)).toEqual([
-      'Quick Note', 'Follow up Notes', 'Scheduled in Person Sales Meeting', 'Unscheduled in Person Sales Call',
-      'Resource Placement', 'Resource Update', 'Formal Presentation', 'Important Remote Meeting/Call',
-      'In Office Administration Day', 'Personal Time Off'
-    ]);
-  });
+// Visit types come from the database (Admin → Visit Types); these are records as the API sends them.
+const full = { name: 'Formal Presentation', label: 'Formal presentation', fields: { notes: true, outcome: true, followUp: 'optional' } };
+const quick = { name: 'Quick Note', label: 'Quick note', fields: { notes: true, outcome: false, followUp: 'none' } };
+const followOnly = { name: 'Follow up Notes', label: 'Follow-up notes', fields: { notes: false, outcome: false, followUp: 'always' } };
 
-  it('shows a sentence-case label, and an unknown purpose as stored', () => {
-    expect(visitTypeLabel('Scheduled in Person Sales Meeting')).toBe('Scheduled in-person sales meeting');
-    expect(visitTypeLabel('Old Type')).toBe('Old Type');
+describe('visit type labels', () => {
+  it('shows the list’s label, and an unknown purpose as stored', () => {
+    expect(visitTypeLabel('Quick Note', [quick, full])).toBe('Quick note');
+    expect(visitTypeLabel('Old Type', [quick])).toBe('Old Type');
     expect(visitTypeLabel('')).toBe('');
   });
 });
 
 describe('visitFieldsFor', () => {
-  it('Quick note: notes only', () => {
-    expect(visitFieldsFor('Quick Note')).toEqual({ notes: true, outcome: false, followUp: false, followUpToggle: false });
+  it('a type with no follow-up: notes only', () => {
+    expect(visitFieldsFor(quick)).toEqual({ notes: true, outcome: false, followUp: false, followUpToggle: false });
   });
 
-  it('Follow-up notes: follow-up only, always open', () => {
-    expect(visitFieldsFor('Follow up Notes')).toEqual({ notes: false, outcome: false, followUp: true, followUpToggle: false });
+  it('a follow-up-only type: follow-up always open', () => {
+    expect(visitFieldsFor(followOnly)).toEqual({ notes: false, outcome: false, followUp: true, followUpToggle: false });
   });
 
-  it('any other type: notes, outcome, follow-up behind the toggle', () => {
-    expect(visitFieldsFor('Formal Presentation')).toEqual({ notes: true, outcome: true, followUp: true, followUpToggle: true });
-    expect(visitFieldsFor('')).toEqual({ notes: true, outcome: true, followUp: true, followUpToggle: true });
+  it('an optional follow-up sits behind the toggle', () => {
+    expect(visitFieldsFor(full)).toEqual({ notes: true, outcome: true, followUp: true, followUpToggle: true });
+  });
+
+  it('a type no longer in the list (undefined) gets every field, follow-up behind the toggle', () => {
+    expect(visitFieldsFor(undefined)).toEqual({ notes: true, outcome: true, followUp: true, followUpToggle: true });
+  });
+
+  it('follows the settings a manager chose, not the name', () => {
+    const renamed = { name: 'Quick Note', label: 'Quick note', fields: { notes: true, outcome: true, followUp: 'always' } };
+    expect(visitFieldsFor(renamed)).toEqual({ notes: true, outcome: true, followUp: true, followUpToggle: false });
   });
 });
 
@@ -87,41 +92,38 @@ describe('visitLastChangedText', () => {
 });
 
 describe('visitValuesToSave', () => {
-    const typed = { purpose: 'Scheduled in Person Sales Meeting', notes: 'n', followUp: 'Call back', followUpDate: '2026-10-09' };
+    const typed = { purpose: 'Formal Presentation', notes: 'n', followUp: 'Call back', followUpDate: '2026-10-09' };
 
     it('drops follow-up details the form is hiding', () => {
-        expect(visitValuesToSave(typed, false)).toMatchObject({ followUp: '', followUpDate: '', notes: 'n' });
-        expect(visitValuesToSave({ ...typed, purpose: 'Quick Note' }, true)).toMatchObject({ followUp: '', followUpDate: '' });
+        expect(visitValuesToSave(typed, full, false)).toMatchObject({ followUp: '', followUpDate: '', notes: 'n' });
+        expect(visitValuesToSave({ ...typed, purpose: 'Quick Note' }, quick, true)).toMatchObject({ followUp: '', followUpDate: '' });
     });
 
     it('keeps them when they are on screen', () => {
-        expect(visitValuesToSave(typed, true)).toBe(typed);
-        expect(visitValuesToSave({ ...typed, purpose: 'Follow up Notes' }, false).followUp).toBe('Call back');
+        expect(visitValuesToSave(typed, full, true)).toBe(typed);
+        expect(visitValuesToSave({ ...typed, purpose: 'Follow up Notes' }, followOnly, false).followUp).toBe('Call back');
     });
 
     it('followUpShown matches what the form shows', () => {
-        expect(followUpShown('Scheduled in Person Sales Meeting', false)).toBe(false);
-        expect(followUpShown('Scheduled in Person Sales Meeting', true)).toBe(true);
-        expect(followUpShown('Follow up Notes', false)).toBe(true);
-        expect(followUpShown('Quick Note', true)).toBe(false);
+        expect(followUpShown(full, false)).toBe(false);
+        expect(followUpShown(full, true)).toBe(true);
+        expect(followUpShown(followOnly, false)).toBe(true);
+        expect(followUpShown(quick, true)).toBe(false);
     });
 });
 
-import { cleanVisitFields, isVisitType, newVisitId } from './visitForm';
+import { cleanVisitFields, newVisitId } from './visitForm';
 
 describe('server-side visit rules', () => {
-    it('a Quick note stores no follow-up, but only for the fields that were sent', () => {
-        expect(cleanVisitFields('Quick Note', { followUp: 'x', followUpDate: '2026-11-01' })).toEqual({ followUp: '', followUpDate: '' });
-        expect(cleanVisitFields('Quick Note', { followUp: undefined, followUpDate: undefined })).toEqual({ followUp: undefined, followUpDate: undefined });
+    it('a type with no follow-up stores none, but only for the fields that were sent', () => {
+        expect(cleanVisitFields(quick, { followUp: 'x', followUpDate: '2026-11-01' })).toEqual({ followUp: '', followUpDate: '' });
+        expect(cleanVisitFields(quick, { followUp: undefined, followUpDate: undefined })).toEqual({ followUp: undefined, followUpDate: undefined });
     });
     it('other types keep it', () => {
         const f = { followUp: 'x', followUpDate: '2026-11-01' };
-        expect(cleanVisitFields('Follow up Notes', f)).toEqual(f);
-        expect(cleanVisitFields('Formal Presentation', f)).toEqual(f);
-    });
-    it('knows the form’s visit types', () => {
-        expect(isVisitType('Resource Update')).toBe(true);
-        expect(isVisitType('Chat')).toBe(false);
+        expect(cleanVisitFields(followOnly, f)).toEqual(f);
+        expect(cleanVisitFields(full, f)).toEqual(f);
+        expect(cleanVisitFields(undefined, f)).toEqual(f);
     });
 });
 

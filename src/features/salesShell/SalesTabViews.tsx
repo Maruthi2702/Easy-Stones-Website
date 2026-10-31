@@ -29,6 +29,7 @@ const RoutePlannerV2 = page(() => import('../routePlanner/RoutePlannerV2'));
 const PriceListPanel = page(() => import('../../components/sales/PriceListPanel'));
 const UsersRolesTab = page(() => import('../users/UsersRolesTab'));
 const NavOrderTab = page(() => import('../users/navOrder/NavOrderTab'));
+const TypeListTab = page(() => import('../types/TypeListTab'));
 const LostSalesTab = page(() => import('../../components/sales/LostSalesTab'));
 const CrossoverSheetTab = page(() => import('../../components/sales/CrossoverSheetTab'));
 const InventoryAnalysisTab = page(() => import('../../components/sales/InventoryAnalysisTab'));
@@ -116,6 +117,15 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
                 <ErrorBoundary key={`users-roles-view-${crmTab}`}>
                     <Suspense fallback={<TabLoader />}>
                         <UsersRolesTab section={crmTab} sidebarToggle={menu()} locations={locations} fetchLocations={p.fetchLocations} />
+                    </Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && (crmTab === 'visit_types' || crmTab === 'resource_types')
+                && canOpenArea(currentUser, crmTab === 'visit_types' ? 'visitTypes' : 'resourceTypes') && (
+                <ErrorBoundary key={`type-list-view-${crmTab}`}>
+                    <Suspense fallback={<TabLoader />}>
+                        <TypeListTab kind={crmTab === 'visit_types' ? 'visit' : 'resource'} currentUser={currentUser} sidebarToggle={menu()} />
                     </Suspense>
                 </ErrorBoundary>
             )}

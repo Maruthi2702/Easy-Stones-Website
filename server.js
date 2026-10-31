@@ -120,6 +120,11 @@ import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.js
 import createCustomerMapRouter from './src/routes/customerMap.js';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.js';
 import createNavOrderRouter from './src/routes/navOrder.js';
+import createTypeListRouter from './src/routes/typeLists.js';
+import VisitType from './src/models/VisitType.js';
+import ResourceType from './src/models/ResourceType.js';
+import { seedTypeLists } from './src/services/seedTypeLists.js';
+import { VISIT_TYPES as VISIT_TYPE_ACTIONS, RESOURCE_TYPES as RESOURCE_TYPE_ACTIONS } from './src/utils/usersAccess.js';
 import { checkSheet, spsCoverage } from './src/utils/spsSheet.js';
 import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.js';
 import createCustomerSpsImportRouter from './src/routes/customerSpsImport.js';
@@ -594,6 +599,14 @@ async function startServer() {
       }
     } catch (migError) {
       console.error('Error running user locations migration:', migError);
+    }
+
+    // Fill the visit / resource type lists on their first start (they live in the
+    // database from then on; src/services/seedTypeLists.js).
+    try {
+      await seedTypeLists();
+    } catch (seedError) {
+      console.error('Error seeding the visit / resource type lists:', seedError);
     }
 
     // Database migration (once): Seattle's Daily Report email list was typed
@@ -2288,6 +2301,25 @@ app.get('/api/user/me', authenticate, async (req, res) => {
 // src/routes/routePlannerFilters.js).
 app.use('/api/user/me/route-planner-filters', createRoutePlannerFiltersRouter({ authenticate }));
 app.use('/api/user/me/pinned-tabs', createPinnedTabsRouter({ authenticate }));
+// The Add visit / Add resource type lists, set by managers (src/routes/typeLists.js).
+// Every staff login that can open a Sales page reads them; the writes have their own actions.
+app.use('/api/visit-types', createTypeListRouter({
+  kind: 'visit',
+  Model: VisitType,
+  countUses: (name) => Customer.countDocuments({ 'visits.purpose': name }),
+  actions: { add: VISIT_TYPE_ACTIONS.ADD, edit: VISIT_TYPE_ACTIONS.EDIT, reorder: VISIT_TYPE_ACTIONS.REORDER, delete: VISIT_TYPE_ACTIONS.DELETE },
+  authenticate: [authenticate, requireSalesPage],
+  requireAction
+}));
+app.use('/api/resource-types', createTypeListRouter({
+  kind: 'resource',
+  Model: ResourceType,
+  countUses: (name) => Customer.countDocuments({ 'resources.resourceType': name }),
+  actions: { add: RESOURCE_TYPE_ACTIONS.ADD, edit: RESOURCE_TYPE_ACTIONS.EDIT, reorder: RESOURCE_TYPE_ACTIONS.REORDER, delete: RESOURCE_TYPE_ACTIONS.DELETE },
+  authenticate: [authenticate, requireSalesPage],
+  requireAction
+}));
+
 // The side nav's admin-set order, for everyone (src/routes/navOrder.js).
 app.use('/api/nav-order', createNavOrderRouter({ authenticate, requirePermission, requireAction }));
 // The ZIP lookup calls Google (billed): staff with a Sales page only.

@@ -11,6 +11,8 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 const { default: createVisitsRouter } = await import('./visits.js');
 const { default: Customer } = await import('../models/Customer.js');
 const { default: User } = await import('../models/User.js');
+const { default: VisitType } = await import('../models/VisitType.js');
+const { seedTypeLists } = await import('../services/seedTypeLists.js');
 
 let mongo;
 let app;
@@ -49,8 +51,29 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await Customer.deleteMany({});
+  // The visit types live in the database; start each test with the first-start list.
+  await VisitType.deleteMany({});
+  await seedTypeLists();
   customerId = String((await Customer.create({ contactName: 'Sam', company: 'Sam Homes', email: 'sam@x.com' }))._id);
   processBase64Image.mockClear();
+});
+
+describe('visit types come from the database', () => {
+  it('refuses a hidden type for a new visit but keeps it on the visit that has it', async () => {
+    await VisitType.create({ name: 'Trade Show', label: 'Trade show', order: 99, active: false });
+    const url = `/api/customers/${customerId}/visits`;
+    expect((await send('post', url, base({ purpose: 'Trade Show' }))).status).toBe(400);
+    await Customer.updateOne({ _id: customerId }, { $push: { visits: { date: '2026-01-01', purpose: 'Trade Show', createdBy: 'u1' } } });
+    const v = (await visitsNow())[0];
+    expect((await send('put', `${url}/${v._id}`, { purpose: 'Trade Show', notes: 'x' })).status).toBe(200);
+  });
+
+  it('accepts a type a manager added, and follows the fields they chose', async () => {
+    await VisitType.create({ name: 'Site Walk', label: 'Site walk', order: 99, fields: { notes: true, outcome: false, followUp: 'none' } });
+    const res = await send('post', `/api/customers/${customerId}/visits`, base({ purpose: 'Site Walk', followUp: 'call', followUpDate: '2026-11-01' }));
+    expect(res.status).toBe(201);
+    expect(res.body.visit.followUp || '').toBe('');
+  });
 });
 
 describe('POST /:customerId/visits', () => {

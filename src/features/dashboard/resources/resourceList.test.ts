@@ -1,23 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
-    familyOf, typeFacets, loggerFacets, applyResourceFilters, activeFilterCount, weekHeading, groupByWeek,
+    typeInfoFrom, typeFacets, loggerFacets, applyResourceFilters, activeFilterCount, weekHeading, groupByWeek,
     customerParts, resourceDay, shortDay, resourceExportRows
 } from './resourceList';
-import { RESOURCE_TYPES } from '../../resources/resourceTypes';
 
 const r = (over: Record<string, unknown>) => ({ _id: Math.random().toString(36), ...over });
 
-describe('familyOf', () => {
-    it('sorts every type on the form into a family', () => {
-        const families = Object.fromEntries(RESOURCE_TYPES.map((t) => [t, familyOf(t)]));
-        expect(families['2025V3 Moda Tower']).toBe('tower');
-        expect(families['2025V3 Moda Tower Updated 24>25']).toBe('tower');
-        expect(families['Moda Tabletop 2024 version 1']).toBe('tabletop');
-        expect(families['Moda Sample Binder NorthWest V1 12']).toBe('binder');
-        expect(families['Moda Misc. Samples']).toBe('samples');
-        expect(families['Ascale A&D Box 2023 version 1']).toBe('other');
+const LIST = [
+    { name: '2025V3 Moda Tower', label: '2025V3 Moda Tower', order: 0, family: 'tower' as const },
+    { name: 'Moda Sample Binder NorthWest V1 12', label: 'NW binder', order: 1, family: 'binder' as const },
+    { name: 'Moda Misc. Samples', label: 'Moda Misc. Samples', order: 2, family: 'samples' as const }
+];
+const info = typeInfoFrom(LIST);
+
+describe('typeInfoFrom', () => {
+    it('reads the family, label and order a manager set', () => {
+        expect(info('2025V3 Moda Tower')).toEqual({ family: 'tower', label: '2025V3 Moda Tower', order: 0 });
+        expect(info('Moda Sample Binder NorthWest V1 12').label).toBe('NW binder');
     });
-    it('a blank type is Other', () => expect(familyOf('')).toBe('other'));
+    it('a type not in the list is Other and shows as stored', () => {
+        expect(info('Old thing')).toMatchObject({ family: 'other', label: 'Old thing' });
+        expect(info('')).toMatchObject({ family: 'other', label: '' });
+    });
 });
 
 describe('the Filters panel', () => {
@@ -29,10 +33,10 @@ describe('the Filters panel', () => {
     ];
 
     it('groups types by family with counts, families in order', () => {
-        expect(typeFacets(rows)).toEqual([
-            { family: 'tower', label: 'Display towers', types: [{ type: '2025V3 Moda Tower', count: 2 }] },
-            { family: 'binder', label: 'Sample binders', types: [{ type: 'Moda Sample Binder NorthWest V1 12', count: 1 }] },
-            { family: 'samples', label: 'Samples', types: [{ type: 'Moda Misc. Samples', count: 1 }] }
+        expect(typeFacets(rows, info)).toEqual([
+            { family: 'tower', label: 'Display towers', types: [{ type: '2025V3 Moda Tower', label: '2025V3 Moda Tower', count: 2 }] },
+            { family: 'binder', label: 'Sample binders', types: [{ type: 'Moda Sample Binder NorthWest V1 12', label: 'NW binder', count: 1 }] },
+            { family: 'samples', label: 'Samples', types: [{ type: 'Moda Misc. Samples', label: 'Moda Misc. Samples', count: 1 }] }
         ]);
     });
 

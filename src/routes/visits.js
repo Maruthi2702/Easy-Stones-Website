@@ -5,7 +5,8 @@ import ActivityLog from '../models/ActivityLog.js';
 import { normalizeVisitDate, normalizeOptionalDate } from '../utils/visitDates.js';
 import { canModifyVisit, ANY_EDIT_VISIT_PERMISSIONS } from '../utils/visitAccess.js';
 import { teamOfRequest } from '../services/teamDirectory.js';
-import { cleanVisitFields, isVisitType } from '../utils/visitForm.js';
+import VisitType from '../models/VisitType.js';
+import { cleanVisitFields } from '../utils/visitForm.js';
 import { linkVisitToSchedule, moveVisitOnSchedule } from '../services/visitSchedule.js';
 
 /**
@@ -80,13 +81,15 @@ export default function createVisitsRouter({
       if (!processedDate || !purpose) {
         return res.status(400).json({ message: 'A visit date (YYYY-MM-DD) and a purpose are required' });
       }
-      if (!isVisitType(purpose)) {
+      // The list is Admin → Visit Types; a hidden type can't start a new visit.
+      const visitType = await VisitType.findOne({ name: String(purpose) }).lean();
+      if (!visitType || visitType.active === false) {
         return res.status(400).json({ message: 'Choose one of the visit types.' });
       }
       if (processedFollowUpDate === null) {
         return res.status(400).json({ message: 'Follow-up date must be a date (YYYY-MM-DD)' });
       }
-      const { followUp, followUpDate } = cleanVisitFields(purpose, { followUp: req.body.followUp, followUpDate: processedFollowUpDate });
+      const { followUp, followUpDate } = cleanVisitFields(visitType, { followUp: req.body.followUp, followUpDate: processedFollowUpDate });
 
       // The form's own id, so a repeat of this request can be told from a new visit.
       const sentId = String(req.body._id || '');
@@ -211,12 +214,14 @@ export default function createVisitsRouter({
       if (!canModifyVisit({ id: req.userId, permissions: req.user?.permissions }, before, await teamOfRequest(req))) {
         return res.status(403).json({ message: "You don't have permission to edit this visit. You can edit visits you logged; anything else needs a Visits permission under Users & Roles." });
       }
-      // A type that has since left the list stays valid on the visit that has it.
-      if (purpose !== undefined && !isVisitType(purpose) && purpose !== before.purpose) {
+      // A type that has since been hidden or removed stays valid on the visit that has it.
+      const typeName = String(purpose ?? before.purpose ?? '');
+      const visitType = await VisitType.findOne({ name: typeName }).lean();
+      if (purpose !== undefined && purpose !== before.purpose && (!visitType || visitType.active === false)) {
         return res.status(400).json({ message: 'Choose one of the visit types.' });
       }
 
-      const clean = cleanVisitFields(purpose ?? before.purpose, { followUp: req.body.followUp, followUpDate });
+      const clean = cleanVisitFields(visitType, { followUp: req.body.followUp, followUpDate });
       const { id: updatedBy, name: updatedByName } = await getPerformerInfo(req);
 
       if (clean.followUpDate !== undefined) updateData['visits.$.followUpDate'] = clean.followUpDate;

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Download, Search, X } from 'lucide-react';
 import LocationFilter from '../../../components/shared/LocationFilter';
 import { useMyTeam } from '../../../api/myTeam';
+import { useResourceTypes } from '../../../api/typeLists';
 import PeopleField from '../components/PeopleField';
 import type { PeopleFilter } from '../components/PeopleField';
 import Pagination from '../../../components/shared/Pagination';
@@ -13,7 +14,7 @@ import type { Loose } from '../../../types/records';
 import { ResourceCards, ResourceTable } from './ResourceRows';
 import type { ResourceRowActions } from './ResourceRows';
 import {
-    NO_RESOURCE_FILTERS, activeFilterCount, applyResourceFilters, loggerFacets, typeFacets
+    NO_RESOURCE_FILTERS, activeFilterCount, typeInfoFrom, applyResourceFilters, loggerFacets, typeFacets
 } from './resourceList';
 import type { ResourceFilters } from './resourceList';
 import './ResourcesPanel.css';
@@ -55,7 +56,9 @@ export default function ResourcesPanel(p: ResourcesPanelProps) {
     const [filters, setFilters] = useState<ResourceFilters>(NO_RESOURCE_FILTERS);
     const today = formatForDateInput(new Date());
 
-    const types = useMemo(() => typeFacets(rows), [rows]);
+    const resourceTypes = useResourceTypes();
+    const info = useMemo(() => typeInfoFrom(resourceTypes.types), [resourceTypes.types]);
+    const types = useMemo(() => typeFacets(rows, info), [rows, info]);
     const loggers = useMemo(() => loggerFacets(rows), [rows]);
     const filtered = useMemo(() => applyResourceFilters(rows, filters), [rows, filters]);
     const paged = filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage);
@@ -135,10 +138,10 @@ export default function ResourcesPanel(p: ResourcesPanelProps) {
                                         <div key={family.family} className="rs-fgroup">
                                             <span className="rs-fgroup-label">{family.label}</span>
                                             <div className="lf-checks">
-                                                {family.types.map(({ type, count }) => (
+                                                {family.types.map(({ type, label, count }) => (
                                                     <label key={type} className="lf-check">
                                                         <input type="checkbox" checked={filters.types.includes(type)} onChange={() => toggle('types', type)} />
-                                                        <span className="rs-check-text">{type}</span>
+                                                        <span className="rs-check-text">{label}</span>
                                                         <span className="rs-count">{count}</span>
                                                     </label>
                                                 ))}
@@ -184,8 +187,8 @@ export default function ResourcesPanel(p: ResourcesPanelProps) {
                     )}
                     {filters.types.map((t) => (
                         <span key={`t-${t}`} className="rs-pill">
-                            {t}
-                            <button type="button" aria-label={`Remove ${t}`} onClick={() => toggle('types', t)}><X size={12} /></button>
+                            {info(t).label}
+                            <button type="button" aria-label={`Remove ${info(t).label}`} onClick={() => toggle('types', t)}><X size={12} /></button>
                         </span>
                     ))}
                     {filters.loggedBy.map((n) => (

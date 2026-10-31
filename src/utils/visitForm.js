@@ -1,51 +1,39 @@
 import { lastChangedText } from './userForm.js';
+import { visitFieldsOf } from './typeLists.js';
 
 /*
  * Add / Edit visit's rules (src/components/sales/VisitForm.jsx). Approved
  * design: model C on the "Add & Edit Visit" canvas
  * (claude.ai/artifact/UPcjj89doxCRsubhTrDZfN), on the shared form template.
  *
- * `purpose` keeps the stored values below — lists, filters, reports and the
- * calendar all match on them — the form only shows them in sentence case.
+ * `purpose` is a visit type's stored name (Admin → Visit Types, the VisitType
+ * collection) — lists, filters, reports and the calendar all match on it; the
+ * form shows the type's label.
  */
 
-export const VISIT_TYPES = Object.freeze([
-    { value: 'Quick Note', label: 'Quick note' },
-    { value: 'Follow up Notes', label: 'Follow-up notes' },
-    { value: 'Scheduled in Person Sales Meeting', label: 'Scheduled in-person sales meeting' },
-    { value: 'Unscheduled in Person Sales Call', label: 'Unscheduled in-person sales call' },
-    { value: 'Resource Placement', label: 'Resource placement' },
-    { value: 'Resource Update', label: 'Resource update' },
-    { value: 'Formal Presentation', label: 'Formal presentation' },
-    { value: 'Important Remote Meeting/Call', label: 'Important remote meeting / call' },
-    { value: 'In Office Administration Day', label: 'In-office admin day' },
-    { value: 'Personal Time Off', label: 'Personal time off' }
-]);
-
-/** The form's label for a stored purpose; an unknown (legacy) one shows as stored. */
-export const visitTypeLabel = (purpose) => VISIT_TYPES.find((t) => t.value === purpose)?.label || purpose || '';
+/** The form's label for a stored purpose, from the loaded list; an unknown (legacy) one shows as stored. */
+export const visitTypeLabel = (purpose, types = []) => types.find((t) => t.name === purpose)?.label || purpose || '';
 
 /**
- * Which fields a visit type uses — the same rules the old form had:
- *   Quick note       → Notes only (no Outcome, no Follow-up)
- *   Follow-up notes  → Follow-up only (no Notes, no Outcome), always open
- *   anything else    → Notes, Outcome, and Follow-up behind a toggle
+ * Which fields a visit type uses — set per type in Admin → Visit Types and read
+ * from its record (`type`; undefined for a legacy value no longer in the list,
+ * which gets every field with the follow-up behind a toggle):
+ *   notes / outcome → on or off
+ *   follow-up 'none' → hidden, 'optional' → behind a toggle, 'always' → open
  */
-export const visitFieldsFor = (purpose) => {
-    const p = String(purpose || '');
-    const quick = p.toLowerCase().includes('quick note');
-    const followUpOnly = p === 'Follow up Notes';
+export const visitFieldsFor = (type) => {
+    const f = visitFieldsOf(type);
     return {
-        notes: !followUpOnly,
-        outcome: !quick && !followUpOnly,
-        followUp: !quick,
-        followUpToggle: !quick && !followUpOnly
+        notes: f.notes,
+        outcome: f.outcome,
+        followUp: f.followUp !== 'none',
+        followUpToggle: f.followUp === 'optional'
     };
 };
 
 /** Whether the follow-up fields are on screen for this type and toggle. */
-export const followUpShown = (purpose, followUpOn = false) => {
-    const f = visitFieldsFor(purpose);
+export const followUpShown = (type, followUpOn = false) => {
+    const f = visitFieldsFor(type);
     return f.followUp && (!f.followUpToggle || Boolean(followUpOn));
 };
 
@@ -54,24 +42,21 @@ export const followUpShown = (purpose, followUpOn = false) => {
  * a follow-up, then switched to a type (or toggle) that hides it, they used to
  * be saved anyway — with a calendar reminder nobody could see on the form.
  */
-export const visitValuesToSave = (values = {}, followUpOn = false) =>
-    (followUpShown(values.purpose, followUpOn) ? values : { ...values, followUp: '', followUpDate: '' });
+export const visitValuesToSave = (values = {}, type, followUpOn = false) =>
+    (followUpShown(type, followUpOn) ? values : { ...values, followUp: '', followUpDate: '' });
 
 /**
- * The server's copy of the rule above: a type with no follow-up (Quick note)
- * never stores one, whatever the request carried. Only the fields the request
- * sent are touched, so an edit that doesn't mention follow-up leaves it alone.
+ * The server's copy of the rule above: a type with no follow-up never stores
+ * one, whatever the request carried. Only the fields the request sent are
+ * touched, so an edit that doesn't mention follow-up leaves it alone.
  */
-export const cleanVisitFields = (purpose, fields = {}) => {
-    if (visitFieldsFor(purpose).followUp) return fields;
+export const cleanVisitFields = (type, fields = {}) => {
+    if (visitFieldsFor(type).followUp) return fields;
     const out = { ...fields };
     if (out.followUp !== undefined) out.followUp = '';
     if (out.followUpDate !== undefined) out.followUpDate = '';
     return out;
 };
-
-/** Whether a purpose is one of the form's visit types (stored values). */
-export const isVisitType = (purpose) => VISIT_TYPES.some((t) => t.value === purpose);
 
 /** Whether a visit already has follow-up details (opens the toggle on "Set a follow-up"). */
 export const hasFollowUp = (values = {}) =>

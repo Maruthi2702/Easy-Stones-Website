@@ -7,9 +7,10 @@ import useTouched from '../shared/form/useTouched';
 import { API_URL } from '../../config/api';
 import { isPdfSource } from '../../utils/attachments';
 import {
-    VISIT_TYPES, FIELD_LABELS, visitFieldsFor, validateVisitValues, countVisitChanges, visitLastChangedText,
+    FIELD_LABELS, visitFieldsFor, validateVisitValues, countVisitChanges, visitLastChangedText,
     followUpShown, visitValuesToSave
 } from '../../utils/visitForm';
+import { useVisitTypes, typeOptions as buildTypeOptions } from '../../api/typeLists';
 import './VisitForm.css';
 import { DatePicker } from '../shared/calendar/Calendar';
 
@@ -65,18 +66,19 @@ export default function VisitForm({
     const visibleErrors = Object.fromEntries(Object.keys(FIELD_LABELS).filter((k) => errors[k]).map((k) => [k, errors[k]]));
     const dirtyCount = countVisitChanges(values, initial);
 
-    const fields = visitFieldsFor(values.purpose);
-    const showFollowUpFields = followUpShown(values.purpose, followUpOn);
+    const visitTypes = useVisitTypes();
+    const visitType = visitTypes.byName(values.purpose);
+    const fields = visitFieldsFor(visitType);
+    const showFollowUpFields = followUpShown(visitType, followUpOn);
 
     // Already shaped by the shared rules (src/utils/customerOptions.js): the
     // city under the name, and the contact and city searchable.
     const customers = customerOptions;
-    // A visit saved with a type that's since left the list still shows it.
+    // The list is Admin → Visit Types, in the managers' order; a visit saved with
+    // a type that's since been hidden still shows it.
     const typeOptions = useMemo(
-        () => (values.purpose && !VISIT_TYPES.some((t) => t.value === values.purpose)
-            ? [{ value: values.purpose, label: values.purpose }, ...VISIT_TYPES]
-            : VISIT_TYPES),
-        [values.purpose]
+        () => buildTypeOptions(visitTypes.active, visitTypes.types, values.purpose),
+        [visitTypes.active, visitTypes.types, values.purpose]
     );
     const images = Array.isArray(values.image) ? values.image : (values.image ? [values.image] : []);
 
@@ -88,7 +90,7 @@ export default function VisitForm({
             return;
         }
         // Hidden follow-up fields are cleared, not saved (visitValuesToSave).
-        onSave(visitValuesToSave(values, followUpOn));
+        onSave(visitValuesToSave(values, visitType, followUpOn));
     };
 
     const textarea = (name, label, { placeholder, rows = 3, large = false } = {}) => (
