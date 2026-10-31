@@ -61,8 +61,10 @@ describe('the Date range', () => {
         expect(followUpsDueIn(rows, q('90days'), TODAY).map(dueDayOf)).toEqual(['2026-08-03', '2026-10-29', TODAY]);
         expect(followUpsDueIn(rows, q('all'), TODAY)).toHaveLength(6);
     });
-    it('lists those plus every one still overdue — never an old done one or an upcoming one', () => {
-        expect(followUpsInView(rows, q('1day'), TODAY).map(dueDayOf)).toEqual(['2026-08-02', '2026-08-03', TODAY]);
+    it('lists those plus every one still overdue — never an old done one; Today also lists upcoming ones', () => {
+        expect(followUpsInView(rows, q('1day'), TODAY).map(dueDayOf)).toEqual(['2026-08-02', '2026-08-03', TODAY, '2026-11-02']);
+        // Other ranges still leave upcoming ones out.
+        expect(followUpsInView(rows, q('7days'), TODAY).map(dueDayOf)).not.toContain('2026-11-02');
         // Ticked done today: listed under Today whatever day it was due.
         const tickedToday = done(TODAY, { followUpDate: '2026-10-20' });
         expect(followUpsInView([tickedToday], q('1day'), TODAY)).toHaveLength(1);

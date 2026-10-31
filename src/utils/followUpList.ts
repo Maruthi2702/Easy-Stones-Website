@@ -159,7 +159,8 @@ export const followUpsDueIn = (rows: FollowUpRow[], q: FollowUpRangeQuery, today
 /**
  * What the list holds for a range: the ones due in it, every one still
  * overdue, and every one ticked done in it (so Today + Done is what got done
- * today).
+ * today). Today also lists every pending one due later (owner's call,
+ * 2026-10-31), so the day's work and what's coming sit together.
  */
 export const followUpsInView = (rows: FollowUpRow[], q: FollowUpRangeQuery, today: string): FollowUpRow[] => {
     const b = rangeBounds(q.range, today, q.from, q.to);
@@ -167,7 +168,8 @@ export const followUpsInView = (rows: FollowUpRow[], q: FollowUpRangeQuery, toda
         if (!r || !hasFollowUpFields(r)) return false;
         const due = dueDayOf(r);
         if (inBounds(due, b)) return true;
-        return isFollowUpDone(r) ? inBounds(doneDayOf(r), b) : Boolean(due) && due < today;
+        if (isFollowUpDone(r)) return inBounds(doneDayOf(r), b);
+        return Boolean(due) && (due < today || (q.range === '1day' && due > today));
     });
 };
 

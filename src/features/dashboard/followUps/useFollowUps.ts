@@ -9,6 +9,17 @@ import { changeFollowUp, fetchFollowUps } from './followUpsApi';
 const NO_COUNTS: FollowUpCounts = { all: 0, done: 0, doneOnTime: 0, pending: 0, overdue: 0, today: 0, next7: 0, later: 0 };
 const DONE_FIELDS = { followUpDoneAt: '', followUpDoneOn: '', followUpDoneBy: '', followUpDoneByName: '', followUpOutcome: '' };
 
+/**
+ * The last answer per query, kept across tab switches (the panel unmounts when
+ * another tab opens). Remounting shows it at once and only re-reads when it's
+ * older than FRESH_MS or the dashboard's `refreshKey` moved.
+ */
+const FRESH_MS = 30_000;
+type Cached = { rows: FollowUpRow[]; counts: FollowUpCounts; summary: FollowUpCounts; at: number; refreshKey: number };
+const cache = new Map<string, Cached>();
+/** Forget every kept answer (tests, sign-out). */
+export const clearFollowUpCache = () => cache.clear();
+
 export type FollowUpNotice = { id: number; text: string; kind: 'ok' | 'error' };
 /** The bar after a tick: Undo, or add what happened. */
 export type FollowUpUndo = { id: number; row: FollowUpRow };
@@ -36,14 +47,18 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
     const today = todayISO();
     const [filters, setFiltersRaw] = useState<FollowUpFilters>(DEFAULT_FOLLOW_UP_FILTERS);
     const [search, setSearchRaw] = useState('');
-    const [rows, setRows] = useState<FollowUpRow[]>([]);
-    const [counts, setCounts] = useState<FollowUpCounts>(NO_COUNTS);
-    const [summary, setSummary] = useState<FollowUpCounts>(NO_COUNTS);
-    const [loading, setLoading] = useState(true);
+    const queryKey = `${scope}|${filters.status}|${rangeQ.range}|${rangeQ.from}|${rangeQ.to}|${today}`;
+    const seed = cache.get(queryKey);
+    const [rows, setRows] = useState<FollowUpRow[]>(seed?.rows ?? []);
+    const [counts, setCounts] = useState<FollowUpCounts>(seed?.counts ?? NO_COUNTS);
+    const [summary, setSummary] = useState<FollowUpCounts>(seed?.summary ?? NO_COUNTS);
+    const [loading, setLoading] = useState(!seed);
     const [loadError, setLoadError] = useState('');
     const [notice, setNotice] = useState<FollowUpNotice | null>(null);
     const [undo, setUndo] = useState<FollowUpUndo | null>(null);
     const reqRef = useRef(0);
+    const refreshKeyRef = useRef(refreshKey);
+    refreshKeyRef.current = refreshKey;
     // The rows as they stand, for putting one back after a refused change.
     const rowsRef = useRef<FollowUpRow[]>([]);
     useEffect(() => { rowsRef.current = rows; }, [rows]);
@@ -56,18 +71,28 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
         try {
             const answer = await fetchFollowUps(status, { range, from, to }, todayISO(), scope);
             if (id !== reqRef.current) return; // a later request is on its way
-            setRows(Array.isArray(answer.rows) ? answer.rows : []);
+            const nextRows = Array.isArray(answer.rows) ? answer.rows : [];
+            setRows(nextRows);
             setCounts(answer.counts || NO_COUNTS);
             setSummary(answer.summary || NO_COUNTS);
+            cache.set(queryKey, { rows: nextRows, counts: answer.counts || NO_COUNTS, summary: answer.summary || NO_COUNTS, at: Date.now(), refreshKey: refreshKeyRef.current });
             setLoadError('');
         } catch (error) {
             if (id === reqRef.current) setLoadError((error as Error).message || 'Could not load follow-ups');
         } finally {
             if (id === reqRef.current) setLoading(false);
         }
-    }, [status, range, from, to, scope]);
+    }, [status, range, from, to, scope, queryKey]);
 
-    useEffect(() => { load(); }, [load, refreshKey]);
+    useEffect(() => {
+        const hit = cache.get(queryKey);
+        if (hit && hit.refreshKey === refreshKey && Date.now() - hit.at < FRESH_MS) {
+            setRows(hit.rows); setCounts(hit.counts); setSummary(hit.summary); setLoading(false);
+            return;
+        }
+        // Something is on screen already (cached or from before): refresh without the spinner.
+        load({ quiet: !!hit });
+    }, [load, refreshKey, queryKey]);
     // A new dashboard range starts the list on page 1 (skipping the first run).
     const rangeKey = `${range}|${from}|${to}`;
     const lastRangeKey = useRef(rangeKey);
@@ -99,6 +124,7 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
         try {
             const saved = await changeFollowUp(row, body);
             if (saved) patchRow(row._id, saved);
+            cache.clear();
             load({ quiet: true });
             onChanged?.();
             return true;

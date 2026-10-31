@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The Dashboard's tab modules render from props and report changes through callbacks.
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { permissions: [] }, loading: false }) }));
@@ -25,13 +25,15 @@ vi.mock('../../api/authFetch', () => ({
 }));
 
 const { FollowUpsPanel } = await import('./followUps');
+const { clearFollowUpCache } = await import('./followUps/useFollowUps');
 const { VisitsPanel } = await import('./visits');
 const { VisitsViewSwitch } = await import('./components/RepBreakdownTable');
 const { ResourcesPanel } = await import('./resources');
 const { default: TeamFilesList } = await import('../teamFiles/components/TeamFilesList');
 const { todayISO, shiftDay } = await import('../../components/shared/calendar/calendarDates');
 
-afterEach(() => { cleanup(); followUps.rows = []; followUps.calls = []; });
+beforeEach(() => clearFollowUpCache());
+afterEach(() => { cleanup(); clearFollowUpCache(); followUps.rows = []; followUps.calls = []; });
 const noop = () => {};
 
 describe('Follow-ups tab', () => {
