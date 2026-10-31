@@ -289,11 +289,11 @@ describe('claimSubmission — one sign-off per day', () => {
   // A stand-in for the stored day: findOneAndUpdate only matches while it's a draft.
   const fakeStore = () => {
     const doc = { _id: 'r1', status: 'draft' };
-    vi.spyOn(DailyReport, 'findOneAndUpdate').mockImplementation((async (filter, update) => {)!
-      if ((filter)!._id !== doc._id || doc.status !== (filter)!.status) return null;
-      Object.assign(doc, (update)!.$set);
+    vi.spyOn(DailyReport, 'findOneAndUpdate').mockImplementation((async (filter: Loose, update: Loose) => {
+      if (filter._id !== doc._id || doc.status !== filter.status) return null;
+      Object.assign(doc, update.$set);
       return { ...doc, toObject: () => ({ ...doc }) };
-    });
+    }) as Loose);
     return doc;
   };
   const submittedBy = (who: Loose) => ({

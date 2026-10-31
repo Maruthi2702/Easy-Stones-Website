@@ -9,8 +9,19 @@ const RESOURCE_TYPE_LIST = [
   { _id: 't1', name: '2025V3 Moda Tower', label: '2025V3 Moda Tower', order: 0, active: true, system: false, family: 'tower' },
   { _id: 't2', name: 'Moda Sample Binder NorthWest V1 12', label: 'Moda Sample Binder NorthWest V1 12', order: 1, active: true, system: false, family: 'binder' }
 ];
+// The follow-ups list answers from `followUps.rows`; every other call gets '{}'.
+const followUps = vi.hoisted(() => ({ rows: [] as Record<string, unknown>[], calls: [] as { url: string; init?: RequestInit }[] }));
 vi.mock('../../api/authFetch', () => ({
-  authFetch: (url: string) => Promise.resolve(new Response(JSON.stringify(String(url).includes('/api/resource-types') ? { types: RESOURCE_TYPE_LIST } : {})))
+  authFetch: (url: string, init?: RequestInit) => {
+    followUps.calls.push({ url, init });
+    if (url.includes('/api/dashboard/followups?')) {
+      const counts = { all: 0, done: 0, doneOnTime: 0, pending: followUps.rows.length, overdue: 0, today: 0, next7: 0, later: 0 };
+      return Promise.resolve(new Response(JSON.stringify({ rows: followUps.rows, counts, summary: counts, doneThisWeek: 0 })));
+    }
+    if (url.includes('/follow-up')) return Promise.resolve(new Response(JSON.stringify({ visit: {} })));
+    if (String(url).includes('/api/resource-types')) return Promise.resolve(new Response(JSON.stringify({ types: RESOURCE_TYPE_LIST })));
+    return Promise.resolve(new Response('{}'));
+  }
 }));
 
 const { FollowUpsPanel } = await import('./followUps');
@@ -18,44 +29,85 @@ const { VisitsPanel } = await import('./visits');
 const { VisitsViewSwitch } = await import('./components/RepBreakdownTable');
 const { ResourcesPanel } = await import('./resources');
 const { default: TeamFilesList } = await import('../teamFiles/components/TeamFilesList');
+const { todayISO, shiftDay } = await import('../../components/shared/calendar/calendarDates');
 
-afterEach(() => cleanup());
+afterEach(() => { cleanup(); followUps.rows = []; followUps.calls = []; });
 const noop = () => {};
 
 describe('Follow-ups tab', () => {
+  const today = todayISO();
+  const row = (over: Record<string, unknown> = {}) => ({
+    _id: 'f1', customerId: 'c1', company: 'Pacific Granite', followUp: 'Send quote', followUpDate: shiftDay(today, -3), date: shiftDay(today, -10),
+    createdBy: 'me1', createdByName: 'Krish', purpose: 'Unscheduled in Person Sales Call', ...over
+  });
   const props = {
-    rows: [{ _id: 'f1', displayDate: '2026-10-20', customerId: 'c1', customerName: 'Pacific Granite', displayNote: 'Send quote', source: 'Visit' }],
-    filter: 'all' as const, onFilterChange: noop, locationOptions: [], location: '', onLocationChange: noop, currentUser: null,
-    searchTerm: '', onSearchChange: noop, page: 1, rowsPerPage: 50, onPageChange: noop, onRowsPerPageChange: noop, tableLoading: false,
-    onExport: noop, onOpenPlanner: noop, onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop, people: null
+    scope: '', range: { range: 'all' as const, from: '', to: '' }, refreshKey: 0, page: 1, rowsPerPage: 50, onPageChange: noop, onRowsPerPageChange: noop, locationOptions: [], location: '',
+    onLocationChange: noop, currentUser: { permissions: ['edit_own_visits'] }, currentUserId: 'me1', people: null,
+    onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop
   };
-  it('lists a follow-up and opens its customer', () => {
+
+  it('groups pending follow-ups by when they are due and opens a customer', async () => {
+    followUps.rows = [row(), row({ _id: 'f2', company: 'Stone River', followUp: 'Drop samples', followUpDate: today })];
     const onOpenCustomer = vi.fn();
     render(<FollowUpsPanel {...props} onOpenCustomer={onOpenCustomer} />);
-    fireEvent.click(screen.getByText('Pacific Granite'));
+    fireEvent.click(await screen.findByText('Pacific Granite'));
     expect(onOpenCustomer).toHaveBeenCalledWith('c1');
-    expect(screen.getByText('Send quote')).toBeTruthy();
+    expect(screen.getByText('Overdue')).toBeTruthy();
+    expect(screen.getByText('Today', { selector: '.fu-group span' })).toBeTruthy();
+    expect(screen.getByText('3 days late')).toBeTruthy();
+    expect(followUps.calls.some((c) => /status=pending&timeRange=all/.test(c.url))).toBe(true);
   });
-  it('says so when there is nothing, and when it is loading', () => {
-    const { rerender } = render(<FollowUpsPanel {...props} rows={[]} />);
-    expect(screen.getByText('No follow-up notes found')).toBeTruthy();
-    rerender(<FollowUpsPanel {...props} rows={[]} tableLoading />);
-    expect(screen.getByText(/Loading/)).toBeTruthy();
+
+  it('ticks one done in a click, then Undo reopens it', async () => {
+    followUps.rows = [row()];
+    render(<FollowUpsPanel {...props} />);
+    fireEvent.click(await screen.findByLabelText('Mark the follow-up for Pacific Granite done'));
+    await screen.findByText('Undo');
+    const patch = followUps.calls.find((c) => c.url.includes('/api/customers/c1/visits/f1/follow-up'));
+    expect(JSON.parse(String(patch?.init?.body))).toMatchObject({ action: 'done' });
+    fireEvent.click(screen.getByText('Undo'));
+    expect(followUps.calls.filter((c) => c.url.includes('/follow-up')).map((c) => JSON.parse(String(c.init?.body)).action)).toEqual(['done', 'reopen']);
   });
-  it('the Next Week button asks for that filter', () => {
-    const onFilterChange = vi.fn();
-    render(<FollowUpsPanel {...props} onFilterChange={onFilterChange} />);
-    fireEvent.click(screen.getByText('Next Week'));
-    expect(onFilterChange).toHaveBeenCalledWith('nextWeek');
+
+  it('offers no tick on a visit the viewer may not change', async () => {
+    followUps.rows = [row({ createdBy: 'someone-else' })];
+    render(<FollowUpsPanel {...props} />);
+    await screen.findByText('Pacific Granite');
+    expect(screen.queryByLabelText('Mark the follow-up for Pacific Granite done')).toBeNull();
+  });
+
+  it("asks for the dashboard's range, Custom's days included", async () => {
+    render(<FollowUpsPanel {...props} range={{ range: 'custom', from: '2026-10-01', to: '2026-10-31' }} />);
+    await screen.findByText('Nothing to follow up');
+    expect(followUps.calls.some((c) => /timeRange=custom&localDate=[\d-]+&from=2026-10-01&to=2026-10-31/.test(c.url))).toBe(true);
+  });
+
+  it('shows the totals for a range looking back, and where a snoozed one was first due', async () => {
+    followUps.rows = [row({ followUpDate: today, followUpHistory: [{ action: 'snooze', at: 'x', on: today, by: 'me1', byName: 'Krish', from: '2026-10-24', to: today }] })];
+    render(<FollowUpsPanel {...props} range={{ range: '90days', from: '', to: '' }} />);
+    expect(await screen.findByText('Snoozed from Oct 24')).toBeTruthy();
+    expect(screen.getByText('All follow-ups')).toBeTruthy();
+  });
+
+  it('says so when there is nothing to follow up', async () => {
+    render(<FollowUpsPanel {...props} />);
+    expect(await screen.findByText('Nothing to follow up')).toBeTruthy();
+  });
+
+  it('Status: Done asks the server for done ones and shows a tag to take it off', async () => {
+    render(<FollowUpsPanel {...props} />);
+    await screen.findByText('Nothing to follow up');
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Done' }));
+    await screen.findByText('Status: Done');
+    expect(followUps.calls.some((c) => /status=done/.test(c.url))).toBe(true);
   });
 });
 
 describe('People filter (manager view)', () => {
-  const rows = [{ _id: 'f1', displayDate: '2026-10-20', customerId: 'c1', customerName: 'Pacific Granite', displayNote: 'Send quote', source: 'Visit', createdByName: 'Jesus B.' }];
   const base = {
-    rows, filter: 'all' as const, onFilterChange: noop, locationOptions: [], location: '', onLocationChange: noop, currentUser: null,
-    searchTerm: '', onSearchChange: noop, page: 1, rowsPerPage: 50, onPageChange: noop, onRowsPerPageChange: noop, tableLoading: false,
-    onExport: noop, onOpenPlanner: noop, onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop
+    scope: '', range: { range: 'all' as const, from: '', to: '' }, refreshKey: 0, page: 1, rowsPerPage: 50, onPageChange: noop, onRowsPerPageChange: noop, locationOptions: [], location: '',
+    onLocationChange: noop, currentUser: null, currentUserId: 'me1', onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop
   };
   const people = (over = {}) => ({
     options: [
@@ -82,8 +134,10 @@ describe('People filter (manager view)', () => {
     expect(p.onReset).toHaveBeenCalled();
   });
 
-  it('shows a Rep column only when more than the viewer is in view', () => {
+  it('shows a Rep column only when more than the viewer is in view', async () => {
+    followUps.rows = [{ _id: 'f1', customerId: 'c1', company: 'Pacific Granite', followUp: 'Send quote', followUpDate: todayISO(), createdByName: 'Jesus B.' }];
     const { rerender } = render(<FollowUpsPanel {...base} people={people()} />);
+    await screen.findByText('Pacific Granite');
     expect(screen.queryByText('Rep')).toBeNull();
     rerender(<FollowUpsPanel {...base} people={people({ value: [] })} showWhoLogged />);
     expect(screen.getByText('Rep')).toBeTruthy();

@@ -11,6 +11,38 @@ import type { Loose } from '../types/records.ts';
  * every visit of every customer on every request.
  */
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const LAST_DAYS: Record<string, number> = { '7days': 7, '30days': 30, '90days': 90 };
+const isDay = (s: unknown): s is string => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
+
+/**
+ * The dashboard's time range (its header, every tab) as the first and last
+ * moment it covers — null for an open end. `1day` is the target day; 7 / 30 /
+ * 90 days count back from `now`; `year` is from January 1; `custom` is
+ * `from`–`to` (YYYY-MM-DD, whole days, either may be missing, either way
+ * round); `all` or anything unknown is open both ends.
+ */
+export const dashboardRangeDates = (
+  timeRange: unknown,
+  { now = new Date(), startOfTargetDay = null, endOfTargetDay = null, from, to }:
+    { now?: Date; startOfTargetDay?: Date | null; endOfTargetDay?: Date | null; from?: unknown; to?: unknown } = {}
+): { startDate: Date | null; endDate: Date | null } => {
+  const range = String(timeRange || '');
+  if (range === '1day') return { startDate: startOfTargetDay, endDate: endOfTargetDay };
+  if (LAST_DAYS[range]) return { startDate: new Date(now.getTime() - LAST_DAYS[range] * DAY_MS), endDate: null };
+  if (range === 'year') return { startDate: new Date(now.getFullYear(), 0, 1), endDate: null };
+  if (range === 'custom') {
+    let a = isDay(from) ? from : '';
+    let b = isDay(to) ? to : '';
+    if (a && b && a > b) [a, b] = [b, a];
+    return {
+      startDate: a ? new Date(`${a}T00:00:00.000Z`) : null,
+      endDate: b ? new Date(`${b}T23:59:59.999Z`) : null
+    };
+  }
+  return { startDate: null, endDate: null };
+};
+
 export const getAggregationDateRef = (prefix: string) => ({
   $cond: [
     { $eq: [{ $type: `$${prefix}.date` }, "string"] },

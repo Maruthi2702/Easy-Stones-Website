@@ -144,11 +144,13 @@ import { normalizeVisitDate } from './src/utils/visitDates.ts';
 import { canModifyVisit, canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from './src/utils/visitAccess.ts';
 import { homeLocationOf, homeLocationProblem, fallbackHomeLocation } from './src/utils/locationFilter.ts';
 import {
-  getAggregationRangeMatch, getFollowUpRangeMatch, rangePrefilter, followUpDatePrefilter, slimForUnwind,
+  getAggregationRangeMatch, getFollowUpRangeMatch, dashboardRangeDates, rangePrefilter, followUpDatePrefilter, slimForUnwind,
   peopleMatch, peoplePrefilter
 } from './src/utils/dashboardMatch.ts';
 import { dashboardPeopleOf, teamOfRequest, idVariants } from './src/services/teamDirectory.ts';
 import { pickPanelFollowUps } from './src/utils/followUpPanel.ts';
+import type { Loose } from './src/types/records.ts';
+import { FOLLOW_UP_RANGE_IDS, FOLLOW_UP_STATUSES, followUpsInView, followUpsDueIn, withStatus, followUpCounts, doneThisWeek } from './src/utils/followUpList.ts';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.ts';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.ts';
 import createPurchasingRouter from './src/purchasing/router.ts';
@@ -2810,16 +2812,7 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     let startDate: Date | null = null;
     let endDate: Date | null = null;
 
-    if (timeRange === '1day') {
-      startDate = startOfTargetDay;
-      endDate = endOfTargetDay;
-    } else if (timeRange === '7days') {
-      startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-    } else if (timeRange === '30days') {
-      startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-    } else if (timeRange === 'year') {
-      startDate = new Date(now.getFullYear(), 0, 1);
-    }
+    ({ startDate, endDate } = dashboardRangeDates(timeRange, { now, startOfTargetDay, endOfTargetDay, from: req.query.from, to: req.query.to }));
 
     const userId = req.authType === 'admin' ? req.userId : req.customerId;
     // Whose entries count, by the REP's branch (src/utils/teamScope.ts): View
@@ -2831,21 +2824,6 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     const visitPeopleBefore = visitsOfPeople ? [peoplePrefilter(people, 'visits', idVariants)] : [];
     const visitPeopleAfter = visitsOfPeople ? [visitsOfPeople] : [];
     const visitDateMatch = getAggregationRangeMatch(startDate, endDate, "visits");
-
-    // Crucial: Pass the exact same string arguments as the visits endpoint to trigger the "Today + Future" logic
-    let followUpStartStr = startDate ? startDate.toISOString().split('T')[0] : null;
-    let followUpEndStr = endDate ? endDate.toISOString().split('T')[0] : null;
-    if (timeRange === '1day') {
-      // Force strings to be identical to trigger 'Today' logic in getFollowUpRangeMatch
-      followUpStartStr = targetDateStr;
-      followUpEndStr = targetDateStr;
-    }
-
-    // Create a mock object that getFollowUpRangeMatch will extract strings from
-    const mockStartDate = followUpStartStr ? { toISOString: () => followUpStartStr + 'T' } : null;
-    const mockEndDate = followUpEndStr ? { toISOString: () => followUpEndStr + 'T' } : null;
-
-    const followUpDateMatchScoped = getFollowUpRangeMatch(mockStartDate, mockEndDate);
 
     // The five rollups below are independent, so they run at once (Promise.all
     // further down) rather than one after another. Each filters and slims
@@ -2897,15 +2875,12 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
       }
     ] as mongoose.PipelineStage[]));
 
-    // Separate Aggregation for Follow-Up Stats (Strictly by Follow-Up Date)
-    const followUpStatsQuery = Customer.aggregate(([
-      ...visitPeopleBefore,
-      ...slimForUnwind('visits'),
-      { $unwind: "$visits" },
-      { $match: followUpDateMatchScoped },
-      ...visitPeopleAfter,
-      { $count: "count" }
-    ] as mongoose.PipelineStage[]));
+    // The Follow-up tile counts what Dashboard → Follow-ups lists as pending for this
+    // range: due in it, plus every one still overdue (src/utils/followUpList.ts).
+    const followUpStatsQuery = loadDashboardVisits(req, 'followup', { timeRange: 'all' })
+      .then((all) => [{ count: withStatus(followUpsInView(all, followUpRangeOf(req), followUpTodayOf(req)), 'pending').length }]);
+    // Ticked done → not counted in today's follow-ups below either (blank or missing = pending).
+    const followUpPending = { $match: { 'visits.followUpDoneAt': { $in: [null, ''] } } };
 
     // Today's Schedule count
 
@@ -2914,6 +2889,7 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
       followUpDatePrefilter(todayStr),
       ...slimForUnwind('visits'),
       { $unwind: "$visits" },
+      followUpPending,
       ...visitPeopleAfter,
       {
         $match: {
@@ -2978,8 +2954,9 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
 // Get dashboard visits (returns a flat list for all customers in range)
 // The dashboard's visit rows for the caller's scope, range and location; filterType 'followup'
 // swaps the date rule for the follow-up one. Shared by the list and the Follow-ups panel.
-const loadDashboardVisits = async (req: Request, filterType: string) => {
-    const { timeRange = 'all', localDate } = (req.query as ScalarQuery);
+const loadDashboardVisits = async (req: Request, filterType: string, { timeRange: forcedRange }: { timeRange?: string } = {}) => {
+    const { timeRange: askedRange = 'all', localDate } = (req.query as ScalarQuery);
+    const timeRange = forcedRange || askedRange;
     const now = new Date();
 
     // Determine "Today" based on localDate from client or server now
@@ -2996,16 +2973,7 @@ const loadDashboardVisits = async (req: Request, filterType: string) => {
     let startDate: Date | null = null;
     let endDate: Date | null = null;
 
-    if (timeRange === '1day') {
-      startDate = startOfTargetDay;
-      endDate = endOfTargetDay;
-    } else if (timeRange === '7days') {
-      startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-    } else if (timeRange === '30days') {
-      startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-    } else if (timeRange === 'year') {
-      startDate = new Date(now.getFullYear(), 0, 1);
-    }
+    ({ startDate, endDate } = dashboardRangeDates(timeRange, { now, startOfTargetDay, endOfTargetDay, from: req.query.from, to: req.query.to }));
 
     // Whose visits, by the REP's branch (src/utils/teamScope.ts): View all →
     // everyone's; View branch → everyone working at their locations'; neither
@@ -3026,7 +2994,8 @@ const loadDashboardVisits = async (req: Request, filterType: string) => {
     const visits = await Customer.aggregate(([
       ...(visitsOfPeople ? [peoplePrefilter(people, 'visits', idVariants)] : []),
       ...(visitPrefilter ? [visitPrefilter] : []),
-      ...slimForUnwind('visits'),
+      // Follow-up rows also carry the customer's phone and city (Dashboard → Follow-ups).
+      ...slimForUnwind('visits', filterType === 'followup' ? ['phone', 'address.city'] : []),
       { $unwind: "$visits" },
       { $match: dateMatch },
       ...(visitsOfPeople ? [visitsOfPeople] : []),
@@ -3057,6 +3026,13 @@ const loadDashboardVisits = async (req: Request, filterType: string) => {
           nextAction: "$visits.nextAction",
           followUp: "$visits.followUp",
           followUpDate: "$visits.followUpDate",
+          followUpDoneAt: "$visits.followUpDoneAt",
+          followUpDoneOn: "$visits.followUpDoneOn",
+          followUpDoneByName: "$visits.followUpDoneByName",
+          followUpOutcome: "$visits.followUpOutcome",
+          followUpHistory: "$visits.followUpHistory",
+          phone: "$phone",
+          city: "$address.city",
           createdBy: "$visits.createdBy",
           createdAt: {
             $cond: [
@@ -3111,6 +3087,36 @@ app.get('/api/dashboard/followups/panel', authenticate, requirePermission('view_
   }
 });
 
+// Dashboard → Follow-ups: every follow-up in the caller's scope (People / location, by
+// the rep's branch), then the dashboard's time range by due date — plus every one still
+// overdue — and Status, by src/utils/followUpList.ts. `counts` are the totals for the ones
+// due in the range (the tiles); `summary` counts the list (pending / overdue in the header,
+// the Due field); `doneThisWeek` is over every date.
+const followUpRangeOf = (req: Loose) => ({
+  range: FOLLOW_UP_RANGE_IDS.includes(req.query.timeRange) ? req.query.timeRange : 'all',
+  from: String(req.query.from || ''),
+  to: String(req.query.to || '')
+});
+const followUpTodayOf = (req: Loose) => (/^\d{4}-\d{2}-\d{2}$/.test(req.query.localDate || '') ? req.query.localDate : getNowLocalISO().slice(0, 10));
+app.get('/api/dashboard/followups', authenticate, requirePermission('view_dashboard'), async (req, res) => {
+  try {
+    const all = await loadDashboardVisits(req, 'followup', { timeRange: 'all' });
+    const today = followUpTodayOf(req);
+    const range = followUpRangeOf(req);
+    const status = FOLLOW_UP_STATUSES.find((s) => s.value === req.query.status)?.value ?? 'pending';
+    const inView = followUpsInView(all, range, today);
+    res.json({
+      rows: withStatus(inView, status),
+      counts: followUpCounts(followUpsDueIn(all, range, today), today),
+      summary: followUpCounts(inView, today),
+      doneThisWeek: doneThisWeek(all, today)
+    });
+  } catch (error) {
+    console.error('Error fetching follow-ups:', error);
+    res.status(500).json({ message: 'Failed to fetch follow-ups' });
+  }
+});
+
 // Get dashboard resources (returns a flat list for all customers in range)
 app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
   try {
@@ -3131,16 +3137,7 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
     let startDate: Date | null = null;
     let endDate: Date | null = null;
 
-    if (timeRange === '1day') {
-      startDate = startOfTargetDay;
-      endDate = endOfTargetDay;
-    } else if (timeRange === '7days') {
-      startDate = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
-    } else if (timeRange === '30days') {
-      startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-    } else if (timeRange === 'year') {
-      startDate = new Date(now.getFullYear(), 0, 1);
-    }
+    ({ startDate, endDate } = dashboardRangeDates(timeRange, { now, startOfTargetDay, endOfTargetDay, from: req.query.from, to: req.query.to }));
 
     // The same people as the visits list (src/utils/teamScope.ts), by
     // whoever uploaded each resource; ?reps= and ?location= can only narrow.
@@ -5965,7 +5962,10 @@ app.get('/api/health', async (req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     dbStatus: dbStatusMap[mongoose.connection.readyState] || 'unknown',
     dbPing: dbPing,
-    dbHost: mongoose.connection.host
+    dbHost: mongoose.connection.host,
+    // Which commit is running (Render sets RENDER_GIT_COMMIT): a failed deploy
+    // leaves the old build serving, so this is how a push is seen to be live.
+    commit: process.env.RENDER_GIT_COMMIT ? process.env.RENDER_GIT_COMMIT.slice(0, 7) : null
   });
 });
 

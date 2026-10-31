@@ -77,7 +77,7 @@ Open enhancement requested by the owner; no OCR engine has been replaced.
 
 ## Dashboard, Operations and customer fixes (2026-10-31)
 
-Implemented locally and verified; not yet committed or deployed. The original
+Included in `9fba1a6`, merged into `main` by `93da4c8`. The original
 reproductions and implementation notes are in
 [the module review](docs/module-review-2026-10-31.md).
 
@@ -101,9 +101,10 @@ reproductions and implementation notes are in
 Validation: 2,485 tests passed, four skipped; type checking, production build,
 real isolated-server startup, and desktop/mobile browser checks passed.
 The date-dependent Purchasing test now fixes its test clock explicitly.
-These results precede a separate TypeScript migration in the shared workspace.
-A follow-up build and server import check pass; a follow-up type check reports
-errors in the migration files. See the review's handoff note for details.
+The TypeScript migration is also on `main`; see the review's publication check
+for verification of the combined code at `445ce84`: 65 targeted tests and the
+production build pass. Full type checking still fails across the broader
+migration; the earlier successful type check predates it.
 
 ### Remaining historical-data review
 
@@ -114,7 +115,7 @@ errors in the migration files. See the review's handoff note for details.
 
 ## Transfers & Daily Report
 
-Found in a read-only review on 2026-09-29. Nothing below has been changed yet.
+Found in a read-only review on 2026-09-29. Resolved items are recorded in Fixed.
 
 ### Live data still to update
 
@@ -143,7 +144,6 @@ Both scripts only preview until run with `--apply`.
 
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
-| 3 | The receiving branch can drag the sender's Pending transfers onto its own driver. The transfer then vanishes from the sender's board (no column for that driver) but still counts as shipped, and the drop day is saved as the *ship* date. | `?pending=true` in `GET /api/deliveries`, `scopeDeliveryQueryToLocations`, `PATCH /deliveries/:id/assignment` | Receiving edits limited to ETA/slab count; sender controls shipment | Implemented locally (2026-10-31) |
 | 4 | A transfer on a branch-only driver is invisible on the receiving branch's board (no column for that driver). 1 of 76 transfers today (Sergio); the rest use the all-branch "3rd party - delivery" driver, which shows on every board. | `BoardGrid.tsx` columns, `fetchDriverUsers` in `src/api/deliverySchedule.ts` | Blocked on question B | Open |
 | 5 | No "mark received" button. `PATCH /deliveries/:id/receive` and the report's received fields exist, but nothing calls them. | `src/routes/deliveries.ts`, inbound `ticketIds` in `deriveFromSystem` | New feature: a Received button on incoming lines or cards | Open |
 | 6 | A transfer line added by hand always counts as Outgoing; there's no way to add an incoming line. | `addTransfer` in `src/features/dailyReport/sheetEditing.ts`, PUT `/api/daily-reports/:date` | New feature: an In/Out toggle on manual lines | Fixed `a75e9b3` |
@@ -153,7 +153,7 @@ Both scripts only preview until run with `--apply`.
 
 - **A. Answered 2026-10-31:** the receiving branch may update expected delivery
   date and slab count only. Shipment driver/date, status and deletion belong
-  to the sender. Implemented locally and regression-tested.
+  to the sender. Fixed in `9fba1a6` and regression-tested.
 - **B.** When one branch logs a transfer on behalf of the sending branch,
   should the form's driver list show the sending branch's drivers? Today it
   shows the logged-in user's own branch plus the all-branch driver (issue 4).
@@ -162,7 +162,7 @@ Both scripts only preview until run with `--apply`.
 
 1. Update the live data (above).
 2. ~~Issues 1 and 2~~ — fixed (see Fixed).
-3. Issue 3 is implemented locally; answer B before changing issue 4.
+3. Issue 3 is fixed (see Fixed); answer B before changing issue 4.
 4. Decide whether 5 and 6 are worth building.
 
 ## Daily Report — other
@@ -427,6 +427,8 @@ Found while building the redesigned header and tabs
 
 | Date | Issue | Commit |
 |---|---|---|
+| 2026-10-31 | Review R1–R8: scoped customer reads/write responses, protected resource ownership, transactional placement/history/calendar updates, local date chips, dashboard retry, read-only contact controls and session recovery. | `9fba1a6` (merged by `93da4c8`) |
+| 2026-10-31 | Transfers #3: receiving branches may edit expected delivery date and slab count only; sending branch controls driver, ship date, dispatch/status and deletion. | `9fba1a6` (merged by `93da4c8`) |
 | 2026-10-24 | Route Planner dead code, on the owner's go-ahead: `panels/AreaScheduleTrigger.tsx` and `rail/ScheduleSummaryButton.tsx` with their CSS (imported by nothing) and the unused `statusTone` / `STATUS_TONE` in `helpers.ts` deleted. | on `feat/typescript` |
 | 2026-10-24 | Delivery board: a dead effect meant to scroll the phone's selected day pill into view (its selector matched no element). Not a visible bug — the five pills are a grid that always fits — so it was removed rather than revived (`scrollIntoView` also scrolls the page, see Locations in CLAUDE.md). | on `feat/typescript` |
 | 2026-10-24 | Daily Report: a save refused because someone else had submitted the day (409) reloaded the sheet locked but wiped "This day has been submitted" at once, and Submit in that case said "check your connection". The reload now keeps the note (`loadDay(notice)` in `useDaySheet.ts`). | on `feat/typescript` |

@@ -11,6 +11,10 @@ import { peopleDefault, repsParam, includesPerson, parseStoredPeople, showsWhoLo
 import { repBreakdown } from './repBreakdown';
 import { canSeeTeamCalendar } from '../../utils/teamScope.ts';
 import { resourceExportRows } from './resources/resourceList';
+import { rangeQuery } from './dashboardFocus';
+import { followUpsInView, withStatus } from '../../utils/followUpList';
+import type { FollowUpRange } from '../../utils/followUpList';
+import { todayISO } from '../../components/shared/calendar/calendarDates';
 import type { Loose } from '../../types/records';
 
 /**
@@ -34,7 +38,16 @@ export type DashboardDeps = {
 
 export function useDashboardData({ currentUser, locations, customers, currentUserId, customerRefreshTrigger, resourceRefreshTrigger }: DashboardDeps) {
         // Dashboard State (Required for memoized values)
+    // One time range for the whole dashboard (dashboardFocus.ts's RANGES); Custom has its days.
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
+    const [rangeFrom, setRangeFrom] = useState('');
+    const [rangeTo, setRangeTo] = useState('');
+    const setDashboardRange = (id: string, from = '', to = '') => {
+        setDashboardTimeRange(id);
+        setRangeFrom(id === 'custom' ? from : '');
+        setRangeTo(id === 'custom' ? to : '');
+    };
+    const rangeParam = rangeQuery(dashboardTimeRange, rangeFrom, rangeTo);
     // The Sales dashboard's location filter: Visits, Follow-ups, Resources and
     // the tiles above them all follow it ('' = every branch the viewer may
     // see). Offered from the viewer's Visits permissions (visitViewScope in
@@ -85,7 +98,6 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
 
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
-    const [followupFilter, setFollowupFilter] = useState<'all' | 'nextWeek'>('all');
     const [todayScheduleCount, setTodayScheduleCount] = useState(0);
     const [stats, setStats] = useState<Loose>({ visits: 0, keyVisits: 0, bids: 0, followUp: 0, resources: 0 });
     const [statsLoading, setStatsLoading] = useState(true);
@@ -103,6 +115,9 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     const [dashboardLoaded, setDashboardLoaded] = React.useState(false);
     const [dashboardErrors, setDashboardErrors] = useState<Record<string, string | null>>({});
     const loadError = (part: string, message: string | null) => setDashboardErrors(previous => ({ ...previous, [part]: message }));
+    // Bumped each time the lists are read again (a save anywhere refetches
+    // them), so Dashboard → Follow-ups, which loads its own, catches up too.
+    const [dashboardDataVersion, setDashboardDataVersion] = React.useState(0);
     const [allSchedules, setAllSchedules] = useState<Loose[]>([]);
 
     // Fetch Dashboard Stats from Backend — merged into one effect with fetchDashboardData below
@@ -118,7 +133,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         setStatsLoading(true);
         try {
             const localDate = new Date().toLocaleDateString('en-CA');
-            const response = await authFetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}&localDate=${localDate}${dashboardLocationParam}`);
+            const response = await authFetch(`${API_URL}/api/dashboard/stats?${rangeParam}&localDate=${localDate}${dashboardLocationParam}`);
             if (!response.ok) throw new Error(`Stats request failed (${response.status})`);
             const data = await response.json();
             if (reqId === dashboardStatsReqRef.current) { setStats(data); loadError('stats', null); }
@@ -128,13 +143,13 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         } finally {
             if (reqId === dashboardStatsReqRef.current) setStatsLoading(false);
         }
-    }, [dashboardTimeRange, dashboardLocationParam]);
+    }, [rangeParam, dashboardLocationParam]);
 
     const fetchFollowUpPanel = useCallback(async () => {
         const reqId = ++followUpPanelReqRef.current;
         try {
             const localDateStr = new Date().toLocaleDateString('en-CA');
-            const res = await authFetch(`${API_URL}/api/dashboard/followups/panel?timeRange=${dashboardTimeRange}&localDate=${localDateStr}${dashboardLocationParam}`);
+            const res = await authFetch(`${API_URL}/api/dashboard/followups/panel?${rangeParam}&localDate=${localDateStr}${dashboardLocationParam}`);
             if (!res.ok) throw new Error(`Follow-ups request failed (${res.status})`);
             const rows = await res.json();
             if (!Array.isArray(rows)) throw new Error('Invalid follow-ups response');
@@ -143,7 +158,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
             console.error('Error fetching follow-up panel:', error);
             if (reqId === followUpPanelReqRef.current) loadError('followUpPanel', 'follow-ups');
         }
-    }, [dashboardTimeRange, dashboardLocationParam]);
+    }, [rangeParam, dashboardLocationParam]);
 
     // Fetch Independent Dashboard Data
     const fetchDashboardData = useCallback(async () => {
@@ -153,9 +168,10 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         try {
             const localDateStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
             const [visitsRes, resourcesRes, followupsRes] = await Promise.all([
-                authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}${dashboardLocationParam}`),
-                authFetch(`${API_URL}/api/dashboard/resources?timeRange=${dashboardTimeRange}&localDate=${localDateStr}${dashboardLocationParam}`),
-                authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}&filterType=followup${dashboardLocationParam}`)
+                authFetch(`${API_URL}/api/dashboard/visits?${rangeParam}&localDate=${localDateStr}${dashboardLocationParam}`),
+                authFetch(`${API_URL}/api/dashboard/resources?${rangeParam}&localDate=${localDateStr}${dashboardLocationParam}`),
+                // Every follow-up in scope: By rep counts them by the Follow-ups tab's rule (followUpList.ts).
+                authFetch(`${API_URL}/api/dashboard/visits?timeRange=all&localDate=${localDateStr}&filterType=followup${dashboardLocationParam}`)
             ]);
             if (![visitsRes, resourcesRes, followupsRes].every(response => response.ok)) throw new Error('Dashboard list request failed');
             const visits = await visitsRes.json();
@@ -168,6 +184,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
             setDashboardResources(Array.isArray(resources) ? resources : []);
             setDashboardFollowups(followups);
             loadError('data', null);
+            setDashboardDataVersion((v) => v + 1);
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
             if (reqId === dashboardDataReqRef.current) loadError('data', 'visits and resources');
@@ -177,7 +194,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
                 setDashboardLoaded(true);
             }
         }
-    }, [dashboardTimeRange, dashboardLocationParam, fetchFollowUpPanel]);
+    }, [rangeParam, dashboardLocationParam, fetchFollowUpPanel]);
 
     // A dashboard table with no rows yet while its data is still on the way
     // says so, instead of claiming there's nothing there.
@@ -253,6 +270,11 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
             case '30days':
                 start = new Date();
                 start.setDate(now.getDate() - 30);
+                start.setHours(0, 0, 0, 0);
+                break;
+            case '90days':
+                start = new Date();
+                start.setDate(now.getDate() - 90);
                 start.setHours(0, 0, 0, 0);
                 break;
             case 'year':
@@ -385,102 +407,6 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         return [...filtered].sort((a, b) => parseSortDate(b) - parseSortDate(a));
     }, [dashboardResources, dashboardDateRangeStart, seesOthers, currentUserId, dashboardSearchTerm]);
 
-    const memoizedFollowups = React.useMemo(() => {
-        let followups: Loose[] = [];
-        if (followupFilter === 'all') {
-            const searchLower = dashboardSearchTerm.toLowerCase();
-            // Select the source: strictly dashboardFollowups for specific ranges to avoid leaking historical data
-            const source = (dashboardTimeRange === 'all')
-                ? (dashboardFollowups.length > 0 ? dashboardFollowups : memoizedFilteredVisits)
-                : dashboardFollowups;
-
-            followups = source
-                .filter(v => v && (v.nextAction || v.followUp || v.followUpDate))
-                .filter(v => !dashboardSearchTerm ||
-                    v.customerName?.toLowerCase().includes(searchLower) ||
-                    v.notes?.toLowerCase().includes(searchLower) ||
-                    v.followUp?.toLowerCase().includes(searchLower)
-                )
-                .map(v => ({
-                    ...v,
-                    displayDate: v.followUpDate || v.date,
-                    displayNote: v.followUp || v.nextAction,
-                    source: 'Visit'
-                }));
-        } else if (followupFilter === 'nextWeek') {
-            const now = new Date();
-            const startOfNextWeek = new Date(now);
-            startOfNextWeek.setDate(now.getDate() + (8 - now.getDay()) % 7 || 7);
-            startOfNextWeek.setHours(0, 0, 0, 0);
-            const endOfNextWeek = new Date(startOfNextWeek);
-            endOfNextWeek.setDate(startOfNextWeek.getDate() + 6);
-            endOfNextWeek.setHours(23, 59, 59, 999);
-
-            // Respect dashboard filter: only look at all items if 'all' is selected. Otherwise only use backend data.
-            const sourceVisits = (dashboardTimeRange === 'all')
-                ? (dashboardFollowups.length > 0 ? dashboardFollowups : memoizedFilteredVisits)
-                : dashboardFollowups;
-
-            // Note: Schedules are NOT filtered by the dashboard time range currently, they are always "All".
-            // If the user expects schedules to be filtered, that requires a backend change to /api/schedules.
-            // For now, we keep schedules global but strictly enforce the dashboard filter for visits.
-            const nextWeekSchedules = allSchedules.filter(s => {
-                const d = new Date(s.startTime);
-                return d >= startOfNextWeek && d <= endOfNextWeek;
-            }).map(s => {
-                const targetId = s.customerId?._id || s.customerId;
-                const customer = customers.find(c => String(c._id) === String(targetId));
-                const customerName = customer
-                    ? (customer.company || customer.contactName || `${customer.firstName || ''} ${customer.lastName || ''}`.trim())
-                    : (s.customerId?.company || s.customerId?.contactName || 'Unknown Customer');
-
-                return {
-                    _id: s._id,
-                    customerId: targetId,
-                    customerName,
-                    displayDate: s.startTime,
-                    displayNote: s.notes || 'Scheduled Follow-up',
-                    source: 'Planner',
-                    isSchedule: true
-                };
-            });
-            const nextWeekVisits = sourceVisits.filter(v => {
-                if (!v.followUpDate) return false;
-                const d = new Date(v.followUpDate);
-                return d >= startOfNextWeek && d <= endOfNextWeek;
-            }).map(v => ({
-                ...v,
-                displayDate: v.followUpDate,
-                displayNote: v.followUp || v.nextAction || 'Follow-up Visit',
-                source: 'Visit'
-            }));
-
-            followups = [...nextWeekSchedules, ...nextWeekVisits];
-        }
-
-        if (dashboardSearchTerm && followupFilter === 'nextWeek') {
-            const term = dashboardSearchTerm.toLowerCase();
-            followups = followups.filter(f =>
-                f.customerName?.toLowerCase().includes(term) ||
-                f.displayNote?.toLowerCase().includes(term)
-            );
-        }
-
-        const parseDate = (d: unknown): number => {
-            if (!d) return 0;
-            if (d instanceof Date) return d.getTime();
-            const dateStr = String(d);
-            if (dateStr.includes('/')) {
-                const [m, day, y] = dateStr.split('/');
-                return new Date(Number(y), Number(m) - 1, Number(day)).getTime();
-            }
-            const parsed = new Date(dateStr).getTime();
-            return isNaN(parsed) ? 0 : parsed;
-        };
-
-        return [...followups].sort((a, b) => parseDate(b.displayDate) - parseDate(a.displayDate));
-    }, [followupFilter, dashboardFollowups, memoizedFilteredVisits, dashboardSearchTerm, allSchedules, customers]);
-
     // Pagination State
     const [currentVisitsPage, setCurrentVisitsPage] = useState(1);
     const [currentFollowUpPage, setCurrentFollowUpPage] = useState(1);
@@ -537,7 +463,8 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     const repRows = React.useMemo(() => (canPickPeople ? repBreakdown({
         visits: dashboardVisits,
         resources: dashboardResources,
-        followUps: dashboardFollowups,
+        // What Dashboard → Follow-ups lists as pending for the range: due in it, plus still overdue.
+        followUps: withStatus(followUpsInView(dashboardFollowups, { range: dashboardTimeRange as FollowUpRange, from: rangeFrom, to: rangeTo }, todayISO()), 'pending'),
         schedules: teamCalendar ? allSchedules : [],
         people: peopleOptions,
         selection: dashboardPeople,
@@ -546,7 +473,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         today: new Date().toLocaleDateString('en-CA')
     }) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dashboardPeople is rebuilt each render; its key is what changes
-    [canPickPeople, dashboardVisits, dashboardResources, dashboardFollowups, teamCalendar, allSchedules, peopleOptions, peopleValueKey, dashboardLocation, me]);
+    [canPickPeople, dashboardVisits, dashboardResources, dashboardFollowups, dashboardTimeRange, rangeFrom, rangeTo, teamCalendar, allSchedules, peopleOptions, peopleValueKey, dashboardLocation, me]);
 
     // The dashboard's Sales Visits list is its own copy (fetchDashboardData), so a
     // saved visit is put in it too, tagged _saving until the server confirms.
@@ -616,7 +543,9 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         dashboardErrors,
         retryDashboard: () => Promise.all([fetchDashboardStats(), fetchDashboardData(), fetchSchedules()]),
         dashboardTimeRange,
-        setDashboardTimeRange,
+        rangeFrom,
+        rangeTo,
+        setDashboardRange,
         dashboardLocationOptions,
         dashboardLocation,
         canPickPeople,
@@ -638,8 +567,8 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         setDashboardSearchTerm,
         activeDashboardTab,
         setActiveDashboardTab,
-        followupFilter,
-        setFollowupFilter,
+        dashboardScope: dashboardLocationParam,
+        dashboardDataVersion,
         todayScheduleCount,
         stats,
         statsLoading,
@@ -652,7 +581,6 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         canAddVisits,
         memoizedFilteredVisits,
         memoizedFilteredResources,
-        memoizedFollowups,
         currentVisitsPage,
         setCurrentVisitsPage,
         currentFollowUpPage,

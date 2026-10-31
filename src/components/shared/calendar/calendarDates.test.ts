@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    parseISO, isValidISO, parseMonth, parseYear, shiftDay, shiftMonth, withMonth, shiftMonthKey,
+    parseISO, isValidISO, parseMonth, parseYear, shiftDay, nextWeekday, shiftMonth, withMonth, shiftMonthKey,
     weekdayLabels, monthGrid, weekBounds, decadeStart, yearCells,
     dayOutside, monthOutside, yearOutside, clampDay,
     formatDateText, formatMonthText, formatRangeText, dayAfterKey, inDays,
@@ -47,6 +47,12 @@ describe('moving around', () => {
         expect(withMonth('2026-01-31', '2026-02')).toBe('2026-02-28');
         expect(withMonth('2026-10-17', '2027-03')).toBe('2027-03-17');
         expect(withMonth('2026-10-17', 'junk')).toBe('2026-10-17');
+    });
+    it('finds the next given weekday, never the same day', () => {
+        expect(nextWeekday('2026-10-31', 1)).toBe('2026-11-02'); // Saturday → Monday
+        expect(nextWeekday('2026-11-02', 1)).toBe('2026-11-09'); // Monday → next Monday
+        expect(nextWeekday('2026-11-01', 1)).toBe('2026-11-02'); // Sunday → tomorrow
+        expect(nextWeekday('junk', 1)).toBe('junk');
     });
     it('moves a month key', () => {
         expect(shiftMonthKey('2026-12', 1)).toBe('2027-01');

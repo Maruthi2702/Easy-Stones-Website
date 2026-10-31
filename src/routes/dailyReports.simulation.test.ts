@@ -35,10 +35,10 @@ let deliveryQueries = 0;
 
 beforeEach(() => {
   deliveryQueries = 0;
-  vi.spyOn(Delivery, 'find').mockImplementation(((query) => {)!
+  vi.spyOn(Delivery, 'find').mockImplementation(((query: Loose) => {
     deliveryQueries += 1;
-    return { lean: async () => tickets.filter((t) => matches(t, (query)!)) };
-  });
+    return { lean: async () => tickets.filter((t) => matches(t, query)) };
+  }) as Loose);
   vi.spyOn(OfficeCheckIn, 'countDocuments').mockImplementation(async (query) => checkIns.filter((c) => matches(c, (query)!)).length);
 });
 afterEach(() => vi.restoreAllMocks());

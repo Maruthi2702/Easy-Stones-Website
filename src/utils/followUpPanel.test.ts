@@ -15,6 +15,13 @@ describe('pickPanelFollowUps', () => {
     expect(rows.map((r) => r.id)).toEqual(['4', '1', '2', '5']);
     expect(rows[2]).toMatchObject({ note: 'late one', dueDate: '2026-10-17' });
   });
+  it('leaves off follow-ups ticked done', () => {
+    const rows = pickPanelFollowUps([
+      { _id: '1', followUpDate: '2026-10-20', followUp: 'x', followUpDoneAt: '2026-10-19T09:00:00.000' },
+      { _id: '2', followUpDate: '2026-10-21', followUp: 'y', followUpDoneAt: '' }
+    ], today);
+    expect(rows.map((r) => r.id)).toEqual(['2']);
+  });
   it('limits the list', () => {
     const many = Array.from({ length: 9 }, (_, i) => ({ _id: String(i), followUpDate: `2026-10-${20 + i}`, followUp: 'x' }));
     expect(pickPanelFollowUps(many, today)).toHaveLength(6);

@@ -2,7 +2,7 @@
 
 Date: 2026-10-31. Reviewed commit: `84ebd3f`.
 
-The initial review below reproduced eight new findings and an existing incoming-transfer assignment issue without changing live records. The fixes have since been implemented locally; see the implementation update at the end.
+The initial review below reproduced eight new findings and an existing incoming-transfer assignment issue without changing live records. The fixes are included in `9fba1a6`, merged into `main` by `93da4c8`; see the implementation update at the end.
 
 ## Verification
 
@@ -217,7 +217,8 @@ decision, not an additional new finding.
 
 ## Implementation update — 2026-10-31
 
-R1–R8 are implemented locally. Code is not committed, pushed or deployed.
+R1–R8 and the incoming-transfer fix are included in `9fba1a6`, merged into
+`main` by `93da4c8`. Hosting deployment is separate from Git publication.
 
 - Customer history, individual reads and customer create/edit responses use
   the same people scope as the dashboard. Responses omit password hashes.
@@ -252,13 +253,18 @@ Backend tests also verify ETA changes, rejection of forbidden receiving edits,
 source rollback on a real injected destination failure, and linked calendar
 consistency. The API dates and rendering tests ran in Pacific time.
 
-Handoff check: a separate TypeScript migration appeared in the shared working
-tree after the bug-fix run. The production build and server import check still
-pass. A subsequent type check reports errors in migration files (Freight
-HistoryList, WarrantyPage, checkInAccess tests and holdView; the captured run
-also included HomePage while it was being moved). Those concurrent edits were
-preserved. The earlier complete test/type-check results do not certify that
-unfinished migration.
+The TypeScript migration subsequently included the bug-fix files and was
+merged into `main`. Publication verification uses the combined code at
+`445ce84`: all **65 targeted regression tests in 10 files passed**, including
+the customer-history/resource routes, placement relationships, transfer access,
+calendar links, authentication, dashboard errors/dates, contact permissions and
+receiving form. The production build and server import check passed.
+
+Full `npm run typecheck` still fails across the broader migration, including
+maintenance scripts, server modules and existing tests. The successful original
+bug-fix type check above predates that migration; it does not certify the merged
+tree. This publication update changes documentation only and does not claim
+those migration errors are resolved.
 
 New regression coverage lives beside the routes, auth context, dashboard,
 contact tab and incoming transfer form, plus `resourcePlacement.test.ts`.

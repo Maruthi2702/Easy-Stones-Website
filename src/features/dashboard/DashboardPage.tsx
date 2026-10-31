@@ -9,6 +9,7 @@ import type { DashboardData } from './useDashboardData';
 import type { PeopleFilter } from './components/PeopleField';
 import { isJustMe, peopleSummary } from './dashboardPeople';
 import type { Loose } from '../../types/records';
+import type { FollowUpRange } from '../../utils/followUpList';
 
 export type DashboardPageProps = {
     /** The dashboard's data (useDashboardData). */
@@ -86,7 +87,9 @@ export default function DashboardPage({
                     <DashboardHeader
                         activeTab={tab}
                         timeRange={data.dashboardTimeRange}
-                        onTimeRangeChange={data.setDashboardTimeRange}
+                        rangeFrom={data.rangeFrom}
+                        rangeTo={data.rangeTo}
+                        onTimeRangeChange={data.setDashboardRange}
                         locationOptions={data.dashboardLocationOptions}
                         location={data.dashboardLocation}
                         onLocationChange={data.handleDashboardLocationChange}
@@ -114,6 +117,8 @@ export default function DashboardPage({
                         stats={data.stats}
                         statsLoading={data.statsLoading}
                         dashboardTimeRange={data.dashboardTimeRange}
+                        rangeFrom={data.rangeFrom}
+                        rangeTo={data.rangeTo}
                         activeDashboardTab={tab}
                         setActiveDashboardTab={data.setActiveDashboardTab}
                         todayScheduleCount={data.todayScheduleCount}
@@ -171,27 +176,21 @@ export default function DashboardPage({
 
                     {tab === 'followups' && (
                         <FollowUpsPanel
-                            rows={data.memoizedFollowups}
-                            filter={data.followupFilter}
-                            onFilterChange={(filter) => {
-                                data.setFollowupFilter(filter);
-                                data.setCurrentFollowUpPage(1);
-                            }}
-                            locationOptions={data.dashboardLocationOptions}
-                            location={data.dashboardLocation}
-                            onLocationChange={data.handleDashboardLocationChange}
-                            currentUser={currentUser}
-                            people={people}
-                            searchTerm={data.dashboardSearchTerm}
-                            onSearchChange={data.setDashboardSearchTerm}
+                            scope={data.dashboardScope}
+                            range={{ range: data.dashboardTimeRange as FollowUpRange, from: data.rangeFrom, to: data.rangeTo }}
+                            refreshKey={data.dashboardDataVersion}
+                            onChanged={() => { data.fetchDashboardStats(); }}
                             page={data.currentFollowUpPage}
                             rowsPerPage={data.visitsPerPage}
                             onPageChange={data.setCurrentFollowUpPage}
                             onRowsPerPageChange={data.handleVisitsPerPageChange}
-                            tableLoading={data.dashboardTableLoading}
+                            locationOptions={data.dashboardLocationOptions}
+                            location={data.dashboardLocation}
+                            onLocationChange={data.handleDashboardLocationChange}
+                            currentUser={currentUser}
+                            currentUserId={currentUserId}
+                            people={people}
                             showWhoLogged={data.showWhoLogged}
-                            onExport={() => data.handleExportVisits(data.memoizedFilteredVisits.filter((v: Loose) => v && (v.nextAction || v.followUp)))}
-                            onOpenPlanner={() => data.setActiveDashboardTab('planner')}
                             onViewVisit={onViewVisit}
                             onEditVisit={onEditVisit}
                             onOpenCustomer={onOpenCustomer}

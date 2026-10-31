@@ -149,6 +149,43 @@ each range by whose calendar it holds (`plannerSchedule.ts`'s `rangeKey`), and
 the schedule form's clash check reads your own day only. A new screen that
 shows or edits visits or calendars uses these, never the customer's branch.
 
+## Follow-ups: one list, ticked done, by due date (2026-10-31, on `feat/followups-redesign`)
+
+Dashboard → Follow-up is design **A · Due list** on the claude.ai artifact
+**Follow-ups redesign canvas** (https://claude.ai/artifact/5x7prJdkNJAKcViVbzeTbK).
+A follow-up is a visit's `followUp` / `followUpDate`; it's due on its follow-up
+date, else the visit's day. **Done** is on the visit: `followUpDoneAt`,
+`followUpDoneOn` (the day on the ticker's clock), `followUpDoneBy` / `…ByName`,
+`followUpOutcome` ("What happened"); blank = pending, never backfilled. Every
+snooze (from → to), tick and reopen is **kept** in `followUpHistory` (owner's
+call) — never trimmed; rows say "Snoozed from Oct 24" / "Snoozed 2× · first due
+…" and the Excel has First due / Times snoozed. A tick finishes it in one click
+(owner's call); Undo or "What happened?" are on the bar after.
+
+**One time range for the whole dashboard** (owner's call): the header's
+Today / 7 / 30 / **90 days** / YTD / All / **Custom** (From–To, the shared
+DatePicker) drives every tab and tile — `RANGES`, `rangeQuery` in
+`dashboardFocus.ts`, `dashboardRangeDates` in `src/utils/dashboardMatch.ts`
+(tested) for the server's routes. Follow-ups reads it **by due date, and
+anything still overdue is always listed** (owner's pick), so Today = overdue +
+due today and upcoming ones show with All or a Custom range ahead; a done one
+is also listed when it was ticked in the range (Today + Done = what got done
+today, and the header's "N done" link opens exactly those); a range
+looking back (7 / 30 / 90 days, YTD, Custom) brings up the totals tiles, which
+count only those due in the range. The Follow-up tile and By rep count the
+same pending list.
+
+Every rule is `src/utils/followUpList.ts` (tested), shared by the server and
+the screen. `GET /api/dashboard/followups?timeRange=…&status=…` (server.ts:
+`rows`, `counts` for the range, `summary` for the list, `doneThisWeek`) and
+`PATCH /api/customers/:customerId/visits/:visitId/follow-up` (`src/routes/visits.ts`,
+tested; whoever may edit the visit, `canModifyVisit`). The screen is
+`src/features/dashboard/followUps/` (`useFollowUps`): pending grouped Overdue /
+Today / Next 7 days / Later; Snooze moves the due day; the Filters panel holds
+People, **Status** (Pending / Done / All) and **Due**. Done ones are off the
+Follow-up tile, the Visits tab's panel (`followUpPanel.ts`) and By rep.
+Calendar stops are no longer listed here (the Calendar tab shows them).
+
 ## Locations: one dropdown, one order (2026-10-17)
 
 Every single-choice location field and filter is
@@ -981,6 +1018,10 @@ counties' report checks, the WA contractor registry, the API and its county
 filter with an in-memory MongoDB, and the list's PDF) and the screen's rules
 in `src/utils/permitView.ts` (the county tree, the place filter, registry
 phones, and the PDF's rows, heading and link).
+Dashboard → Follow-ups' rules are covered (`src/utils/followUpList.ts`: due day,
+range, status, counts, order, headings, words, and what a tick / reopen /
+snooze / note writes), with its PATCH route in `src/routes/visits.test.js` and
+a render smoke test in `src/features/dashboard/dashboard.test.tsx`.
 The calendar's date rules are covered too
 (`src/components/shared/calendar/calendarDates.test.ts`: parsing real days,
 shifting with the 31st clamped, the Monday-first grid, week bounds, limits,

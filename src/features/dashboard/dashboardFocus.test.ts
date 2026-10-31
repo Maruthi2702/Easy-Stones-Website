@@ -44,3 +44,15 @@ describe('panelFollowUps', () => {
     expect(rows.map((r) => [r.id, r.text, r.tone])).toEqual([['1', 'Today', 'today'], ['2', 'Tomorrow', 'later'], ['3', '2 days late', 'late']]);
   });
 });
+
+describe('the dashboard range', () => {
+  it('offers 90 days and Custom, and names a custom range by its days', async () => {
+    const { RANGES, rangeLabel, rangeFooter, rangeQuery } = await import('./dashboardFocus');
+    expect(RANGES.map((r) => r.id)).toEqual(['1day', '7days', '30days', '90days', 'year', 'all', 'custom']);
+    expect(rangeLabel('90days')).toBe('Last 90 days');
+    expect(rangeLabel('custom', '2026-10-01', '2026-10-31')).toBe('Oct 1 – Oct 31');
+    expect(rangeFooter('custom', '2026-10-01', '')).toBe('Oct 1 – …');
+    expect(rangeQuery('90days')).toBe('timeRange=90days');
+    expect(rangeQuery('custom', '2026-10-01', '2026-10-31')).toBe('timeRange=custom&from=2026-10-01&to=2026-10-31');
+  });
+});

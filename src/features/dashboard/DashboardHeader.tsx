@@ -10,7 +10,10 @@ import type { Loose } from '../../types/records';
 export type DashboardHeaderProps = {
     activeTab: string;
     timeRange: string;
-    onTimeRangeChange: (id: string) => void;
+    /** Custom's days (YYYY-MM-DD). */
+    rangeFrom?: string;
+    rangeTo?: string;
+    onTimeRangeChange: (id: string, from?: string, to?: string) => void;
     locationOptions: string[];
     location: string;
     onLocationChange: (value: string) => void;
@@ -33,7 +36,7 @@ export type DashboardHeaderProps = {
 
 /** The Dashboard's title, date and actions (time range, branch, export, calendar sync, add). */
 export default function DashboardHeader({
-    activeTab: activeDashboardTab, timeRange, onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, visitsView = null, showPeopleOnCalendar = false,
+    activeTab: activeDashboardTab, timeRange, rangeFrom = '', rangeTo = '', onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, visitsView = null, showPeopleOnCalendar = false,
     showMenuButton, onOpenSidebar, onExportVisits, onOpenCalendarSync, canAddVisits, onAddResource, onAddVisit
 }: DashboardHeaderProps) {
     return (
@@ -58,7 +61,8 @@ export default function DashboardHeader({
                     </div>
                 </div>
                 <div className="dashboard-actions">
-                    <DashboardRange value={timeRange} onChange={onTimeRangeChange} />
+                    {/* One range for every tab; Follow-ups reads it by due date. */}
+                    <DashboardRange value={timeRange} from={rangeFrom} to={rangeTo} onChange={onTimeRangeChange} />
                     {activeDashboardTab === 'visits' && (
                         <>
                             <LocationFilter
