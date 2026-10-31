@@ -5955,7 +5955,10 @@ app.get('/api/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     dbStatus: dbStatusMap[mongoose.connection.readyState] || 'unknown',
     dbPing: dbPing,
-    dbHost: mongoose.connection.host
+    dbHost: mongoose.connection.host,
+    // Which commit is running (Render sets RENDER_GIT_COMMIT): a failed deploy
+    // leaves the old build serving, so this is how a push is seen to be live.
+    commit: process.env.RENDER_GIT_COMMIT ? process.env.RENDER_GIT_COMMIT.slice(0, 7) : null
   });
 });
 
