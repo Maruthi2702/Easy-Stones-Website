@@ -4637,10 +4637,23 @@ app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requi
 // ============================================
 
 // Add resource
+// A resource's type must be on the Resource Types list (Admin → Resource Types)
+// and not hidden; one a resource already has can stay (`current`). Returns the
+// message to refuse with, or ''.
+const resourceTypeRefusal = async (name, current = '') => {
+  const type = String(name || '').trim();
+  if (!type || type === String(current || '')) return '';
+  const found = await ResourceType.findOne({ name: type }).select('active').lean();
+  return found && found.active !== false ? '' : 'Choose one of the resource types.';
+};
+
 app.post('/api/customers/:customerId/resources', authenticate, requirePermission('add_visits'), async (req, res) => {
   try {
     const { customerId } = req.params;
     const { title, date, customer, location, resourceType, image, description, notes, status, url, uploadedBy } = req.body;
+
+    const typeRefusal = await resourceTypeRefusal(resourceType);
+    if (typeRefusal) return res.status(400).json({ message: typeRefusal });
 
     // If title is missing but resourceType is present, use resourceType as title
     const finalTitle = title || resourceType;
@@ -4780,6 +4793,10 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
     const current = existingResource || moving;
     if (current && !(await canModifyResource(req, current))) {
       return res.status(403).json({ message: "You don't have permission to edit this resource. You can edit resources you uploaded; anything else needs a Visits permission under Users & Roles." });
+    }
+    if (fields.resourceType !== undefined) {
+      const typeRefusal = await resourceTypeRefusal(fields.resourceType, current?.resourceType);
+      if (typeRefusal) return res.status(400).json({ message: typeRefusal });
     }
 
     // Process images if they are being updated

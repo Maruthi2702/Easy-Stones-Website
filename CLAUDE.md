@@ -283,8 +283,9 @@ record, not a name. Each list has four switches on the Users & Roles card (add,
 edit, reorder, delete; `src/utils/usersAccess.js`), all held by `manage_users`;
 no migration grants them to other roles. `src/services/seedTypeLists.js` fills
 an EMPTY collection once, from the old lists plus any name old records carry
-(hidden); after that editing it changes nothing. Resource writes are not checked
-against the list yet — an unknown `resourceType` is still accepted.
+(hidden); after that editing it changes nothing. A resource's type is checked against the list on
+add and on a change of type (`resourceTypeRefusal` in server.js): unknown or hidden
+is refused, the type it already has can stay.
 
 ## Resources and Team Files (2026-10-30, on `feat/resources-redesign`)
 
