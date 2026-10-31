@@ -6,6 +6,7 @@ import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import Customer from '../models/Customer.ts';
 import User from '../models/User.ts';
 import Schedule from '../models/Schedule.ts';
+import ResourceType from '../models/ResourceType.ts';
 import createCustomerResourcesRouter from './customerResources';
 
 let mongo: MongoMemoryReplSet;
@@ -29,10 +30,24 @@ beforeAll(async () => {
 afterAll(async () => { await mongoose.disconnect(); await mongo?.stop(); });
 beforeEach(async () => {
   await mongoose.connection.db!.command({ collMod: 'customers', validator: {} });
-  await Promise.all([Customer.deleteMany({}), User.deleteMany({}), Schedule.deleteMany({})]); emit.mockClear();
+  await Promise.all([Customer.deleteMany({}), User.deleteMany({}), Schedule.deleteMany({}), ResourceType.deleteMany({})]); emit.mockClear();
+  // Resource types come from the database (Admin → Resource Types).
+  await ResourceType.create([{ name: 'Same type', label: 'Same type', order: 0 }, { name: 'Hidden type', label: 'Hidden type', order: 1, active: false }]);
   await User.collection.insertMany([{ _id: me, username: 'rep', assignedLocations: ['Seattle'] }, { _id: other, username: 'other', assignedLocations: ['Spokane'] }]);
   await Customer.create([{ _id: source, company: 'Source', contactName: 'Pat', email: 'source@example.invalid' }, { _id: destination, company: 'Destination', contactName: 'Lee', email: 'destination@example.invalid' }]);
 });
+describe('resource types come from the list', () => {
+  it('refuses a type that is not on the list or is hidden, but lets a resource keep the one it has', async () => {
+    await add('x', { resourceType: 'Nope' }).expect(400);
+    await add('x', { resourceType: 'Hidden type' }).expect(400);
+    const created = await add('x').expect(201);
+    await ResourceType.updateOne({ name: 'Same type' }, { $set: { active: false } });
+    const id = created.body.resource._id;
+    await request(app).put(`/api/customers/${source}/resources/${id}`).send({ resourceType: 'Same type', notes: 'kept' }).expect(200);
+    await request(app).put(`/api/customers/${source}/resources/${id}`).send({ resourceType: 'Nope' }).expect(400);
+  });
+});
+
 describe('resource identity and history', () => {
   it('derives uploader from the actor and protects it, IDs and creation metadata on edit', async () => {
     const created = await add('One', { uploadedBy: String(other), visitId: String(other), createdAt: 'bad' }).expect(201);

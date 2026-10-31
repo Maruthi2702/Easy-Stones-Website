@@ -11,7 +11,7 @@ import {
     RESOURCE_FIELD_LABELS, RESOURCE_STATUSES, validateResourceValues, countResourceChanges, resourceValuesToSave
 } from '../../../utils/resourceForm';
 import type { ResourceValues } from '../../../utils/resourceForm';
-import { RESOURCE_TYPES } from '../resourceTypes';
+import { useResourceTypes, typeOptions as buildTypeOptions } from '../../../api/typeLists';
 import { attachmentSrc } from './attachmentSrc';
 import './ResourceForm.css';
 
@@ -58,13 +58,13 @@ export default function ResourceForm({
     const shown = (field: string) => (errors[field] && (submitted || touched[field]) ? errors[field] : '');
     const dirtyCount = countResourceChanges(values, initial) + (attachments.length !== initialAttachmentCount ? 1 : 0);
 
-    // A resource saved with a type that's since left the list still shows it.
-    const typeOptions = useMemo(() => {
-        const list = RESOURCE_TYPES.map((t) => ({ value: t, label: t }));
-        return values.resourceType && !RESOURCE_TYPES.includes(values.resourceType)
-            ? [{ value: values.resourceType, label: values.resourceType }, ...list]
-            : list;
-    }, [values.resourceType]);
+    // The list is Admin → Resource Types, in the managers' order; a resource saved
+    // with a type that's since been hidden still shows it.
+    const resourceTypes = useResourceTypes();
+    const typeOptions = useMemo(
+        () => buildTypeOptions(resourceTypes.active, resourceTypes.types, values.resourceType),
+        [resourceTypes.active, resourceTypes.types, values.resourceType]
+    );
 
     const submit = () => {
         setSubmitted(true);

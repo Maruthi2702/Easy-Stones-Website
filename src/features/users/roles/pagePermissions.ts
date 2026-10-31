@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
-import { FULL_ACCESS, USERS, ROLES, LOCATIONS, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
+import { FULL_ACCESS, USERS, ROLES, LOCATIONS, VISIT_TYPES, RESOURCE_TYPES, TYPE_LISTS_ALL, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
 import type { PageDef, RoleRecord } from '../types';
 
 // The Check In card's switches, by key. Which section each sits in, and the
@@ -48,6 +48,9 @@ const USERS_ROLES_ICONS = {
     [USERS.DEACTIVATE]: UserX, [USERS.UNLOCK]: Lock, [USERS.DELETE]: Trash2,
     [ROLES.VIEW]: Eye, [ROLES.EDIT]: ShieldAlert, [ROLES.ADD]: Plus, [ROLES.DELETE]: Trash2,
     [LOCATIONS.VIEW]: Eye, [LOCATIONS.ADD]: Plus, [LOCATIONS.EDIT]: Pencil, [LOCATIONS.DELETE]: Trash2,
+    [TYPE_LISTS_ALL]: ShieldCheck,
+    [VISIT_TYPES.ADD]: Plus, [VISIT_TYPES.EDIT]: Pencil, [VISIT_TYPES.REORDER]: ArrowUpDown, [VISIT_TYPES.DELETE]: Trash2,
+    [RESOURCE_TYPES.ADD]: Plus, [RESOURCE_TYPES.EDIT]: Pencil, [RESOURCE_TYPES.REORDER]: ArrowUpDown, [RESOURCE_TYPES.DELETE]: Trash2,
     [NAV_ORDER]: ArrowUpDown
 };
 

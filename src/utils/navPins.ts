@@ -93,6 +93,9 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'users', label: 'Users', section: 'admin', canSee: (u: NavUser) => canOpenUsersPage(u) },
   { id: 'roles', label: 'Roles & Permissions', section: 'admin', canSee: (u: NavUser) => canOpenArea(u, 'roles') },
   { id: 'locations', label: 'Locations', section: 'admin', canSee: (u: NavUser) => canOpenArea(u, 'locations') },
+  // The lists the Add visit / Add resource forms offer (src/features/types/), opened by any action on them.
+  { id: 'visit_types', label: 'Visit Types', section: 'admin', canSee: (u: NavUser) => canOpenArea(u, 'visitTypes') },
+  { id: 'resource_types', label: 'Resource Types', section: 'admin', canSee: (u: NavUser) => canOpenArea(u, 'resourceTypes') },
   // The side nav's order for everyone (NavOrderTab.jsx); saving needs the same permission.
   { id: 'nav_order', label: 'Side Nav Order', section: 'admin', canSee: (u: NavUser) => can(u, NAV_ORDER) }
 ];

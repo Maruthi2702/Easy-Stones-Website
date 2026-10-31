@@ -45,26 +45,53 @@ export const LOCATIONS = {
 
 export const NAV_ORDER = 'edit_nav_order';
 
+// Admin → Visit Types / Resource Types (src/routes/typeLists.ts): the lists the
+// Add visit and Add resource forms offer, in the order a manager sets.
+export const VISIT_TYPES = {
+  ADD: 'add_visit_types',
+  EDIT: 'edit_visit_types',
+  REORDER: 'reorder_visit_types',
+  DELETE: 'delete_visit_types'
+};
+
+export const RESOURCE_TYPES = {
+  ADD: 'add_resource_types',
+  EDIT: 'edit_resource_types',
+  REORDER: 'reorder_resource_types',
+  DELETE: 'delete_resource_types'
+};
+
+// One switch for both lists: every visit-type and resource-type action at once,
+// so an admin can give a role the whole of it in one click. The single actions
+// above stay for a role that should only reorder, say.
+export const TYPE_LISTS_ALL = 'manage_type_lists';
+
 export const AREAS: Record<string, string[]> = {
   users: Object.values(USERS),
   roles: Object.values(ROLES),
-  locations: Object.values(LOCATIONS)
+  locations: Object.values(LOCATIONS),
+  visitTypes: Object.values(VISIT_TYPES),
+  resourceTypes: Object.values(RESOURCE_TYPES)
 };
 
 const has = (user: Loose | null | undefined, perm: string) => !!user?.permissions?.includes(perm);
 
-/** Whether `user` may do the one action `key` (the master key counts). */
-export const can = (user: Loose | null | undefined, key: string) => has(user, FULL_ACCESS) || has(user, key);
+const TYPE_KEYS = [...Object.values(VISIT_TYPES), ...Object.values(RESOURCE_TYPES)];
 
-/** Whether `user` holds any action in `area` ('users' | 'roles' | 'locations'): the page opens, the list loads. */
+/** Whether `user` may do the one action `key` (the master key counts, and the type lists' own). */
+export const can = (user: Loose | null | undefined, key: string) =>
+  has(user, FULL_ACCESS) || has(user, key) || (TYPE_KEYS.includes(key) && has(user, TYPE_LISTS_ALL));
+
+/** Whether `user` holds any action in `area` ('users' | 'roles' | 'locations' | the type lists): the page opens, the list loads. */
 export const canOpenArea = (user: Loose | null | undefined, area: string) =>
-  has(user, FULL_ACCESS) || (AREAS[area] || []).some((key: string) => has(user, key));
+  has(user, FULL_ACCESS) || (AREAS[area] || []).some((key: string) => has(user, key))
+  || ((area === 'visitTypes' || area === 'resourceTypes') && has(user, TYPE_LISTS_ALL));
 
 /** Whether this person can load the Roles list — the Add / Edit user forms need it for their role picker. */
 export const canReadRoles = (user: Loose | null | undefined) => canOpenArea(user, 'roles') || canOpenArea(user, 'users');
 
 /** Every key above, for the "does the card have a switch for it" test. */
-export const ALL_USERS_ROLES_KEYS = [...AREAS.users, ...AREAS.roles, ...AREAS.locations, NAV_ORDER];
+export const ALL_USERS_ROLES_KEYS = [...AREAS.users, ...AREAS.roles, ...AREAS.locations, ...AREAS.visitTypes, ...AREAS.resourceTypes, TYPE_LISTS_ALL, NAV_ORDER];
 
 /** The Users & Roles card's switches, in sections: [{ section, actions: [{ key, label, desc }] }]. */
 export const USERS_ROLES_SECTIONS = [
@@ -96,6 +123,30 @@ export const USERS_ROLES_SECTIONS = [
       { key: LOCATIONS.ADD, label: 'Add locations', desc: 'Create a location' },
       { key: LOCATIONS.EDIT, label: 'Edit locations', desc: 'Change a location’s details and defaults' },
       { key: LOCATIONS.DELETE, label: 'Delete locations', desc: 'Delete a location' }
+    ]
+  },
+  {
+    section: 'Visit & resource types',
+    actions: [
+      { key: TYPE_LISTS_ALL, label: 'Manage both type lists', desc: 'Everything below for visit types and resource types, in one switch' }
+    ]
+  },
+  {
+    section: 'Visit types',
+    actions: [
+      { key: VISIT_TYPES.ADD, label: 'Add visit types', desc: 'Add a type to the Add visit list' },
+      { key: VISIT_TYPES.EDIT, label: 'Edit visit types', desc: 'Rename a type, change the fields it uses, hide or show it' },
+      { key: VISIT_TYPES.REORDER, label: 'Reorder visit types', desc: 'Set the order everyone sees in the list' },
+      { key: VISIT_TYPES.DELETE, label: 'Delete visit types', desc: 'Delete a type no visit uses' }
+    ]
+  },
+  {
+    section: 'Resource types',
+    actions: [
+      { key: RESOURCE_TYPES.ADD, label: 'Add resource types', desc: 'Add a type to the Add resource list' },
+      { key: RESOURCE_TYPES.EDIT, label: 'Edit resource types', desc: 'Rename a type, change its family, hide or show it' },
+      { key: RESOURCE_TYPES.REORDER, label: 'Reorder resource types', desc: 'Set the order everyone sees in the list' },
+      { key: RESOURCE_TYPES.DELETE, label: 'Delete resource types', desc: 'Delete a type no resource uses' }
     ]
   },
   {

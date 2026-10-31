@@ -1,0 +1,172 @@
+/*
+ * Admin → Visit Types / Resource Types (TypeListTab.tsx). Colours match the
+ * form template's tokens (shared/form/FormModal.css) like the other admin
+ * screens; dark by default, body.light-theme-active switches them.
+ */
+
+.tl-page {
+    --tl-card: #1c1c1e;
+    --tl-tx: #ffffff;
+    --tl-label: #e5e5e5;
+    --tl-mut: #999999;
+    --tl-bd: rgba(255, 255, 255, 0.18);
+    --tl-bd2: rgba(255, 255, 255, 0.1);
+    --tl-gold: #d4af37;
+    --tl-gold-bd: #c5a028;
+    --tl-gold-soft: rgba(212, 175, 55, 0.08);
+    --tl-on-gold: #1a1505;
+    --tl-hover: rgba(255, 255, 255, 0.07);
+    --tl-err: #f87171;
+
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    font-family: var(--font-main, 'Inter', system-ui, sans-serif);
+    color: var(--tl-tx);
+}
+
+body.light-theme-active .tl-page {
+    --tl-card: #ffffff;
+    --tl-tx: #0f172a;
+    --tl-label: #334155;
+    --tl-mut: #5a6574;
+    --tl-bd: #cbd5e1;
+    --tl-bd2: #e2e8f0;
+    --tl-gold-bd: #b8961f;
+    --tl-gold-soft: rgba(212, 175, 55, 0.1);
+    --tl-hover: rgba(15, 23, 42, 0.06);
+    --tl-err: #dc2626;
+}
+
+.tl-inner {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px 24px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.tl-header { display: flex; align-items: center; gap: 12px; }
+
+.tl-header-icon {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    border-radius: 10px;
+    background: var(--tl-gold-soft);
+    color: var(--tl-gold-bd);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tl-title { margin: 0; flex: 1; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+
+.tl-hint { margin: 0; font-size: 13px; color: var(--tl-mut); }
+
+.tl-btn {
+    height: 40px;
+    padding: 0 16px;
+    border-radius: 10px;
+    border: 1px solid var(--tl-bd);
+    background: transparent;
+    color: var(--tl-tx);
+    font: 600 14px var(--font-main, 'Inter', system-ui, sans-serif);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+.tl-btn:focus-visible { outline: 2px solid var(--tl-gold); outline-offset: 2px; }
+.tl-btn-primary { background: var(--tl-gold); border-color: var(--tl-gold-bd); color: var(--tl-on-gold); font-weight: 700; }
+.tl-btn-primary:hover { background: var(--tl-gold-bd); }
+
+.tl-error {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--tl-err);
+}
+
+.tl-empty { padding: 32px 0; text-align: center; color: var(--tl-mut); font-size: 14px; }
+
+.tl-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--tl-bd2);
+    border-radius: 12px;
+    background: var(--tl-card);
+}
+
+.tl-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 56px;
+    padding: 6px 6px 6px 10px;
+}
+.tl-row:first-child { border-radius: 12px 12px 0 0; }
+.tl-row:last-child { border-radius: 0 0 12px 12px; }
+.tl-row + .tl-row { border-top: 1px solid var(--tl-bd2); }
+.tl-row[draggable='true'] { cursor: grab; }
+.tl-row.is-dragging { opacity: 0.45; }
+.tl-row.is-over { box-shadow: inset 0 2px 0 var(--tl-gold); }
+.tl-row.is-hidden .tl-text { opacity: 0.55; }
+
+.tl-grip { flex: none; color: var(--tl-mut); display: inline-flex; }
+
+.tl-num {
+    width: 22px;
+    flex: none;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--tl-mut);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.tl-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tl-name { font-size: 14px; font-weight: 600; color: var(--tl-label); display: flex; align-items: center; flex-wrap: wrap; gap: 6px; overflow-wrap: anywhere; }
+.tl-sub { font-size: 12px; color: var(--tl-mut); }
+
+.tl-badge {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--tl-bd);
+    color: var(--tl-mut);
+}
+.tl-badge-off { border-color: var(--tl-gold-bd); color: var(--tl-gold-bd); }
+
+.tl-moves { display: inline-flex; flex: none; }
+
+.tl-icon {
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--tl-mut);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+.tl-icon:hover:not(:disabled) { background: var(--tl-hover); color: var(--tl-tx); }
+.tl-icon:focus-visible { outline: 2px solid var(--tl-gold); outline-offset: 1px; }
+.tl-icon:disabled { opacity: 0.3; cursor: default; }
+
+.tl-confirm { margin: 0 0 8px; font-size: 14px; line-height: 1.5; }
+
+@media (max-width: 640px) {
+    .tl-inner { padding: 16px 12px 32px; }
+    /* Touch has no drag: the arrows do the work, and the grip would only mislead. */
+    .tl-grip { display: none; }
+    .tl-icon { width: 34px; }
+}

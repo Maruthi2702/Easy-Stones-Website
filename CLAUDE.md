@@ -262,6 +262,32 @@ clip, which is why `.resources-table tr:hover` no longer scales — a transforme
 row becomes the reference frame of a fixed menu inside it and sent the menu off
 the page. A new menu inside a table must be checked with the mouse over the row.
 
+## Visit types and Resource types: in the database, set by managers (2026-10-31, on `feat/admin-types`)
+
+The lists behind the Add visit and Add resource dropdowns are the `VisitType` /
+`ResourceType` collections, edited in Admin → **Visit Types** / **Resource
+Types** (`src/features/types/`, one `TypeListTab` for both). Nothing in the
+code names a type any more: `VISIT_TYPES` and `resourceTypes.ts` are gone, and
+`familyOf` became `typeInfoFrom` (family, label and order come from the
+record). A new dropdown, filter or rule reads them through `useVisitTypes()` /
+`useResourceTypes()` (`src/api/typeLists.ts`); the server checks a visit's type
+against the collection (`src/routes/visits.js`). `name` is what records store
+and never changes; `label` is what staff read and can be renamed. Managers add,
+rename, hide / show and **reorder** (the order is everyone's dropdown order;
+saves on drop through `PATCH /reorder`, which takes the whole id list). A hidden
+type can't start a new visit but stays valid on the ones that have it; delete is
+only for a type no record uses and never the 10 built-in visit types. A visit
+type carries `fields` (notes, outcome, follow-up none / optional / always) that
+the form and `cleanVisitFields` follow — `visitFieldsFor(type)` takes the
+record, not a name. Each list has four switches on the Users & Roles card (add,
+edit, reorder, delete; `src/utils/usersAccess.js`), plus one **Manage both type
+lists** (`manage_type_lists`) that holds all eight; `manage_users` holds them too.
+No migration grants them to other roles. `src/services/seedTypeLists.ts` fills
+an EMPTY collection once, from the old lists plus any name old records carry
+(hidden); after that editing it changes nothing. A resource's type is checked against the list on
+add and on a change of type (`resourceTypeRefusal` in server.js): unknown or hidden
+is refused, the type it already has can stay.
+
 ## Resources and Team Files (2026-10-30, on `feat/resources-redesign`)
 
 Design: claude.ai artifact **Resources Redesign Canvas**

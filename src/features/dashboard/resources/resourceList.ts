@@ -29,14 +29,21 @@ export const FAMILY_TAGS: Record<ResourceFamily, string> = {
     other: 'OTH'
 };
 
-/** What a type name is a kind of, read from its words ("Moda Sample Binder…" is a binder, not samples). */
-export const familyOf = (type: unknown): ResourceFamily => {
-    const t = String(type || '').toLowerCase();
-    if (/binder/.test(t)) return 'binder';
-    if (/tower/.test(t)) return 'tower';
-    if (/tabletop|table top/.test(t)) return 'tabletop';
-    if (/sample/.test(t)) return 'samples';
-    return 'other';
+/** What the list knows about a type: its family and the label staff read. */
+export type TypeInfo = (type: unknown) => { family: ResourceFamily; label: string; order: number };
+
+/**
+ * Lookup over the Resource Types list (Admin → Resource Types, from the
+ * database): the family a manager chose and the current label. A name that is
+ * not in the list (a very old resource) is Other and shows as stored.
+ */
+export const typeInfoFrom = (list: { name: string; label: string; order?: number; family?: ResourceFamily }[]): TypeInfo => {
+    const byName = new Map(list.map((t) => [t.name, t]));
+    return (type) => {
+        const name = String(type ?? '');
+        const t = byName.get(name);
+        return { family: t?.family && FAMILY_LABELS[t.family] ? t.family : 'other', label: t?.label || name, order: t?.order ?? Number.MAX_SAFE_INTEGER };
+    };
 };
 
 /** A resource's type as shown (old ones may only have a title). */
@@ -74,10 +81,10 @@ export const applyResourceFilters = (rows: Loose[], f: ResourceFilters): Loose[]
     (f.types.length === 0 || f.types.includes(typeOf(r))) &&
     (f.loggedBy.length === 0 || f.loggedBy.includes(loggedByOf(r))));
 
-export type TypeFacet = { family: ResourceFamily; label: string; types: { type: string; count: number }[] };
+export type TypeFacet = { family: ResourceFamily; label: string; types: { type: string; label: string; count: number }[] };
 
-/** The types in the rows, grouped by family (families in FAMILY_ORDER, types A–Z), each with its count. */
-export const typeFacets = (rows: Loose[]): TypeFacet[] => {
+/** The types in the rows, grouped by family (families in FAMILY_ORDER, types in the managers' order), each with its count. */
+export const typeFacets = (rows: Loose[], info: TypeInfo): TypeFacet[] => {
     const counts = new Map<string, number>();
     rows.forEach((r) => {
         const t = typeOf(r);
@@ -88,9 +95,9 @@ export const typeFacets = (rows: Loose[]): TypeFacet[] => {
             family,
             label: FAMILY_LABELS[family],
             types: [...counts.entries()]
-                .filter(([t]) => familyOf(t) === family)
-                .map(([type, count]) => ({ type, count }))
-                .sort((a, b) => a.type.localeCompare(b.type))
+                .filter(([t]) => info(t).family === family)
+                .map(([type, count]) => ({ type, label: info(type).label, count }))
+                .sort((a, b) => info(a.type).order - info(b.type).order || a.label.localeCompare(b.label))
         }))
         .filter((g) => g.types.length > 0);
 };

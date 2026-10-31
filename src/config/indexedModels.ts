@@ -43,6 +43,8 @@ import InventoryItem from '../models/InventoryItem.ts';
 import { InventoryStockImport, InventoryStockBackup, InventoryStockState } from '../models/InventoryStockImport.ts';
 import InventorySalesRecord from '../models/InventorySalesRecord.ts';
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
+import VisitType from '../models/VisitType.ts';
+import ResourceType from '../models/ResourceType.ts';
 import ContactSubmission from '../models/ContactSubmission.ts';
 import SalesResource from '../models/SalesResource.ts';
 import SalesDashboardResource from '../models/SalesDashboardResource.ts';
@@ -58,6 +60,8 @@ export const INDEXED_MODELS = [
   ['PurchasingScope', PurchasingScope], ['PurchasingInbound', PurchasingInbound],
   ['PurchasingDraft', PurchasingDraft], ['PurchasingLock', PurchasingLock], ['PurchasingPoLink', PurchasingPoLink],
   ['Customer', Customer],
+  ['VisitType', VisitType],
+  ['ResourceType', ResourceType],
   ['Product', Product],
   ['User', User],
   ['OfficeCheckIn', OfficeCheckIn],

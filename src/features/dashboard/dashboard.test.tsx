@@ -4,7 +4,14 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { permissions: [] }, loading: false }) }));
-vi.mock('../../api/authFetch', () => ({ authFetch: () => Promise.resolve(new Response('{}')) }));
+// Resource types come from the database (Admin → Resource Types); the Resources tab reads them for family and label.
+const RESOURCE_TYPE_LIST = [
+  { _id: 't1', name: '2025V3 Moda Tower', label: '2025V3 Moda Tower', order: 0, active: true, system: false, family: 'tower' },
+  { _id: 't2', name: 'Moda Sample Binder NorthWest V1 12', label: 'Moda Sample Binder NorthWest V1 12', order: 1, active: true, system: false, family: 'binder' }
+];
+vi.mock('../../api/authFetch', () => ({
+  authFetch: (url: string) => Promise.resolve(new Response(JSON.stringify(String(url).includes('/api/resource-types') ? { types: RESOURCE_TYPE_LIST } : {})))
+}));
 
 const { FollowUpsPanel } = await import('./followUps');
 const { VisitsPanel } = await import('./visits');
@@ -171,10 +178,10 @@ describe('Resources tab', () => {
     expect(onViewResource).toHaveBeenCalledWith(rows[1]);
   });
 
-  it('filters by resource type from the Filters panel, with a tag to take it off', () => {
+  it('filters by resource type from the Filters panel, with a tag to take it off', async () => {
     render(<ResourcesPanel {...panel({ rows })} />);
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
-    expect(screen.getByText('Display towers')).toBeTruthy();
+    expect(await screen.findByText('Display towers')).toBeTruthy();
     fireEvent.click(screen.getByRole('checkbox', { name: /2025V3 Moda Tower/ }));
     expect(screen.queryByText('TopLine Counters')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Remove 2025V3 Moda Tower' }));

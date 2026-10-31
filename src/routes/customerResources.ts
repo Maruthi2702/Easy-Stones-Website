@@ -3,6 +3,7 @@ import type { Request, RequestHandler, Response } from 'express';
 import mongoose from 'mongoose';
 import Customer from '../models/Customer.ts';
 import Schedule from '../models/Schedule.ts';
+import ResourceType from '../models/ResourceType.ts';
 import { canModifyVisit, canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from '../utils/visitAccess.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
 import { normalizeVisitDate } from '../utils/visitDates.ts';
@@ -45,7 +46,15 @@ export default function createCustomerResourcesRouter(deps: Deps) {
     console.error('Resource write failed:', error);
     return res.status(500).json({ message: 'Could not save the resource. Nothing was changed; please try again.' });
   };
-  const fieldsOf = async (body: Loose, creating: boolean): Promise<Loose> => {
+  // A resource's type must be on the Resource Types list (Admin → Resource Types)
+  // and not hidden; the type a resource already has can stay (`current`).
+  const checkType = async (type: unknown, current: unknown) => {
+    const name = String(type || '').trim();
+    if (!name || name === String(current || '')) return;
+    const found = await ResourceType.findOne({ name }).select('active').lean();
+    if (!found || found.active === false) throw new ResourceError(400, 'Choose one of the resource types.');
+  };
+  const fieldsOf = async (body: Loose, creating: boolean, currentType?: unknown): Promise<Loose> => {
     const fields: Loose = Object.fromEntries(MUTABLE.filter(key => body[key] !== undefined).map(key => [key, body[key]]));
     if (creating || fields.date !== undefined) {
       fields.date = normalizeVisitDate(fields.date || (creating ? getNowLocalISO().slice(0, 10) : ''));
@@ -55,6 +64,7 @@ export default function createCustomerResourcesRouter(deps: Deps) {
       fields.qty = parseResourceQty(fields.qty);
       if (fields.qty === null) throw new ResourceError(400, `Qty must be a whole number from 1 to ${RESOURCE_QTY_MAX}`);
     }
+    if (fields.resourceType !== undefined) await checkType(fields.resourceType, currentType);
     if (fields.resourceType && fields.title === undefined) fields.title = fields.resourceType;
     if (creating && !fields.title) throw new ResourceError(400, 'Resource title or type is required');
     if (fields.image !== undefined) fields.image = await processBase64Images(fields.image, 'Resources');
@@ -102,7 +112,7 @@ export default function createCustomerResourcesRouter(deps: Deps) {
       const before = existing?.resources.id(String(req.params.resourceId));
       if (!before) throw new ResourceError(404, 'Resource not found');
       if (!canModifyVisit(actorOf(req), ownerOf(before), team)) throw new ResourceError(403, 'You do not have permission to edit this resource.');
-      const fields = await fieldsOf(req.body, false);
+      const fields = await fieldsOf(req.body, false, before.resourceType);
       const result = await mongoose.connection.transaction(async session => {
         const source = await Customer.findOne({ 'resources._id': req.params.resourceId }).session(session);
         const resource = source?.resources.id(String(req.params.resourceId));
