@@ -17,7 +17,7 @@ export type MapPinsDeps = {
 /**
  * The customers on the map. Only the checked reps' customers are loaded
  * (GET /api/customers/map?reps=…), and the server only ever answers for reps
- * this person may see (src/utils/routePlannerScope.js). Ticking a rep fetches
+ * this person may see (src/utils/routePlannerScope.ts). Ticking a rep fetches
  * just that rep's customers, once; unticking only hides them. Also the rep
  * filter's counts (GET /api/customers/map/rep-counts), and the contact details
  * fetched when a customer is opened.
@@ -26,7 +26,7 @@ export function useMapPins({ isActive, activeSalesReps, repsReady, setError }: M
     const [pins, setPins] = useState<Pin[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // A pin is slim (src/routes/customerMap.js): phone, email, address, notes… are
+    // A pin is slim (src/routes/customerMap.ts): phone, email, address, notes… are
     // fetched when a customer is opened, and kept for the next time (cleared by
     // load(), since an edit elsewhere changes them).
     const detailsCache = useRef(new Map<string, Loose>());

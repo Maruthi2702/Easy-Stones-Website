@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Eye, FileSpreadsheet, FileText, Loader2, MoreHorizontal, QrCode } from 'lucide-react';
 import { API_URL } from '../../../config/api';
-import { checkInPdfUrl } from '../../../utils/checkInExport.js';
+import { checkInPdfUrl } from '../../../utils/checkInExport.ts';
 
 /**
  * The Check-In Log's More menu (⋯): View as PDF, Download as PDF, Download as

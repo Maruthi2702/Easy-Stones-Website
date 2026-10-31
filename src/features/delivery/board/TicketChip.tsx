@@ -105,11 +105,11 @@ const TicketChip = ({
   // A signed-for delivery keeps its driver/column fixed — dragging it to
   // reassign after the fact would misrepresent who actually delivered it.
   // A card showing its expected-arrival date rather than its real ship date
-  // (see the list route in server.js) can't be dragged either — a truck
+  // (see the list route in server.ts) can't be dragged either — a truck
   // reassignment PATCH always writes the ship date, which would silently
   // overwrite it with whatever day the card was dropped on. Still fully
   // editable via its own modal, where both dates are what they really are.
-  const canDrag = Boolean(editable && delivery.status !== 'completed' && !delivery.isIncomingView);
+  const canDrag = Boolean(editable && delivery.status !== 'completed' && !delivery.isIncomingView && !delivery.receivingOnly);
   const shipNote = isTransfer ? transferShipNote(delivery, formatForDateInput(new Date())) : '';
   // Only where a stop number would otherwise show; a transfer, will call or
   // drop-off already says what it is instead.

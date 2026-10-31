@@ -1,5 +1,5 @@
 /**
- * Team Files' rules (2026-10-30), shared by the server (src/routes/teamFiles.js)
+ * Team Files' rules (2026-10-30), shared by the server (src/routes/teamFiles.ts)
  * and the page (src/features/teamFiles/). Design: the claude.ai artifact
  * **Team Files Page Canvas** (https://claude.ai/artifact/NRBYg5zf4Ycw8NCuMrpd97).
  *
@@ -10,7 +10,7 @@
  * so they sort as text.
  */
 
-/** multer's cap in server.js (uploadResources). The page refuses bigger before sending. */
+/** multer's cap in server.ts (uploadResources). The page refuses bigger before sending. */
 export const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
 
 /** How many search hits the server returns. */

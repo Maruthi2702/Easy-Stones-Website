@@ -3,7 +3,17 @@ import { API_URL } from '../config/api';
 import { useAuth } from './AuthContext';
 import { publicProduct } from '../utils/productView';
 
-export type Product = { [key: string]: unknown };
+export type Product = {
+    id: string | number;
+    name: string;
+    category: string;
+    availability: string;
+    image: string;
+    collectionType?: string;
+    isNewArrival?: boolean;
+    showInSlider?: boolean;
+    [key: string]: unknown;
+};
 export type ProductContextValue = {
     products: Product[];
     loading: boolean;
@@ -26,7 +36,7 @@ export const ProductProvider = ({ children }: { children: ReactNode }) => {
     const [products, setProducts] = useState<Product[]>(() => {
         try {
             const cached = localStorage.getItem('cached_products');
-            const data = cached ? JSON.parse(cached) : [];
+            const data: Product[] = cached ? JSON.parse(cached) : [];
             const safe = Array.isArray(data) ? data.map(publicProduct) : [];
             // Strip costs and tiers left behind by older builds too.
             localStorage.setItem('cached_products', JSON.stringify(safe));

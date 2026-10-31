@@ -6,7 +6,7 @@ import {
 
 /**
  * The value behind a location filter: opens on the person's home location
- * (src/utils/locationFilter.js), and remembers a different pick for the rest
+ * (src/utils/locationFilter.ts), and remembers a different pick for the rest
  * of the browser tab's session — per screen and per person, so switching
  * Delivery Schedule to Spokane leaves Sales Visits where it was, and the next
  * person to sign in on this tab still opens on their own home.

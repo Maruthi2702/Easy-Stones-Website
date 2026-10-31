@@ -81,7 +81,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                 {owner && <span className="pl-owner">{owner} · </span>}
                 <span className="pl-meta-time">{timeLabel(item.startTime)} · </span>{item.activityType || 'Visit'}{length && ` · ${length}`}
                 {/* source 'visit_log' = added by logging a visit with
-                    nothing scheduled (src/services/visitSchedule.js). */}
+                    nothing scheduled (src/services/visitSchedule.ts). */}
                 {flag === 'done' && (item.source === 'visit_log' ? (
                     <span className="pl-visit-flag pl-visit-flag--done" title="Not planned — added when the visit was logged">
                         <Check size={11} /> Drop-in

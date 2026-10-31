@@ -60,7 +60,7 @@ describe('buildSaveBody', () => {
   //
   // The save before Submit is now a draft save like any other: POST /submit
   // re-derives before locking (see 'applyDerived — at submit' in
-  // src/routes/dailyReports.test.js), so the blanks this leaves are filled
+  // src/routes/dailyReports.test.ts), so the blanks this leaves are filled
   // with the figures as of the submit rather than locked in empty.
   it('sends the draft body, leaving untouched figures for the server to fill', () => {
     const body = buildSaveBody(baseReport(), {

@@ -6,7 +6,7 @@ import type { LocationRecord, StaffMember } from '../../types/records';
 
 /**
  * The Sales page's locations (GET /api/admin/locations) and sales reps
- * (/api/salesreps, who may own a customer — src/utils/salesReps.js). Loaded by
+ * (/api/salesreps, who may own a customer — src/utils/salesReps.ts). Loaded by
  * useSalesLiveUpdates on mount, locations again on a `location_update`.
  * Moved out of SalesPage unchanged (2026-10-24).
  */

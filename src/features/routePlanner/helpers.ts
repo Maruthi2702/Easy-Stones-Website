@@ -3,7 +3,7 @@ import { isFillerName, isPlaceholderEmail } from '../../utils/customerMatch';
 import { visitRecency as recencyOfVisit } from '../../utils/routePlan';
 import type { LatLng, Lead, Recency, RecencyColors, RecencyKey, ScheduleRow } from './types';
 
-/** How long since the last visit — visitRecency (src/utils/routePlan.js) with its answer typed. */
+/** How long since the last visit — visitRecency (src/utils/routePlan.ts) with its answer typed. */
 export const visitRecency = recencyOfVisit as (lastVisitAt: unknown, today?: Date) => Recency;
 
 // A red → orange → yellow → gray ramp rather than the original single-hue

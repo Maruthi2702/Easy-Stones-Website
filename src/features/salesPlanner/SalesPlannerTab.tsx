@@ -47,7 +47,7 @@ export type SalesPlannerTabProps = {
     onSelectCustomer?: (customer: Loose) => void; onScheduleChange?: () => void;
     isDropdownLoading?: boolean; currentUserId?: string | null;
     /**
-     * The team calendar (the dashboard's People filter, src/utils/teamScope.js):
+     * The team calendar (the dashboard's People filter, src/utils/teamScope.ts):
      * `viewing` is '' for your own calendar or the query for whose to show;
      * `includesMe` whether yours is among them (Add needs it); `justMe`
      * whether it's yours alone (moving a stop needs it). Others' stops are

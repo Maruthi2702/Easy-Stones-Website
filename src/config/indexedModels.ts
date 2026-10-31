@@ -1,9 +1,9 @@
 /**
  * Every model whose indexes need creating on startup — the one list both
- * server.js and ensure-indexes.js sync against.
+ * server.ts and ensure-indexes.ts sync against.
  *
  * autoIndex is disabled on the connection (see mongoose.set('autoIndex',
- * false) in server.js), so nothing here creates an index by just existing —
+ * false) in server.ts), so nothing here creates an index by just existing —
  * a model missing from this list silently runs with no indexes at all,
  * which is exactly what happened to Delivery/Truck/LostSale in the past
  * (full collection scans on the delivery board, and Delivery.id's unique
@@ -12,7 +12,7 @@
  * hand-maintained lists this module replaces — or in neither.
  *
  * That was two lists kept in sync by memory, the same failure shape as
- * src/utils/deliveryTypes.js existed to fix for the delivery board: every
+ * src/utils/deliveryTypes.ts existed to fix for the delivery board: every
  * model is listed here once, and both call sites import this array rather
  * than maintaining their own. Every model in src/models/ is included, not
  * just the ones that currently declare an index — a model with none today
@@ -23,33 +23,33 @@
  * way to reintroduce the bug — nothing enforces that at build time.
  */
 import { FUEL_MODELS } from '../fuelman/models.ts';
-import Customer from '../models/Customer.js';
-import Product from '../models/Product.js';
-import User from '../models/User.js';
-import OfficeCheckIn from '../models/OfficeCheckIn.js';
-import ActivityLog from '../models/ActivityLog.js';
-import Schedule from '../models/Schedule.js';
-import Delivery from '../models/Delivery.js';
-import Truck from '../models/Truck.js';
-import LostSale from '../models/LostSale.js';
-import Location from '../models/Location.js';
-import Role from '../models/Role.js';
-import DailyReport from '../models/DailyReport.js';
-import CrossoverSheet from '../models/CrossoverSheet.js';
-import EasyStonesColor from '../models/EasyStonesColor.js';
+import Customer from '../models/Customer.ts';
+import Product from '../models/Product.ts';
+import User from '../models/User.ts';
+import OfficeCheckIn from '../models/OfficeCheckIn.ts';
+import ActivityLog from '../models/ActivityLog.ts';
+import Schedule from '../models/Schedule.ts';
+import Delivery from '../models/Delivery.ts';
+import Truck from '../models/Truck.ts';
+import LostSale from '../models/LostSale.ts';
+import Location from '../models/Location.ts';
+import Role from '../models/Role.ts';
+import DailyReport from '../models/DailyReport.ts';
+import CrossoverSheet from '../models/CrossoverSheet.ts';
+import EasyStonesColor from '../models/EasyStonesColor.ts';
 import InventoryTransitReport, { InventoryTransitEvent } from '../models/InventoryTransitReport.ts';
 import InventoryRevision from '../models/InventoryRevision.ts';
 import InventoryItem from '../models/InventoryItem.ts';
 import { InventoryStockImport, InventoryStockBackup, InventoryStockState } from '../models/InventoryStockImport.ts';
 import InventorySalesRecord from '../models/InventorySalesRecord.ts';
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
-import ContactSubmission from '../models/ContactSubmission.js';
-import SalesResource from '../models/SalesResource.js';
-import SalesDashboardResource from '../models/SalesDashboardResource.js';
-import ImportMemory from '../models/ImportMemory.js';
-import CustomerMergeBackup from '../models/CustomerMergeBackup.js';
-import CustomerDeleteBackup from '../models/CustomerDeleteBackup.js';
-import { Cart, Hold, SlabReservation, Counter, HoldHistory } from '../holds/models.js';
+import ContactSubmission from '../models/ContactSubmission.ts';
+import SalesResource from '../models/SalesResource.ts';
+import SalesDashboardResource from '../models/SalesDashboardResource.ts';
+import ImportMemory from '../models/ImportMemory.ts';
+import CustomerMergeBackup from '../models/CustomerMergeBackup.ts';
+import CustomerDeleteBackup from '../models/CustomerDeleteBackup.ts';
+import { Cart, Hold, SlabReservation, Counter, HoldHistory } from '../holds/models.ts';
 
 import { PurchasingScope, PurchasingInbound, PurchasingDraft, PurchasingLock, PurchasingPoLink } from '../purchasing/models.ts';
 

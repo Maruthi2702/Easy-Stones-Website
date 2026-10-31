@@ -57,7 +57,7 @@ const CheckRow = ({ label, count, on, color, onClick }: CheckRowProps) => (
  * "Filter by", opened from the funnel icon — the fixed right column the info,
  * lead and Tools panels use. Three sections in this order (the owner's call,
  * 2026-10-18): Sales reps (only the reps this person may see, and only the
- * checked ones' customers are loaded — src/utils/routePlannerScope.js), then
+ * checked ones' customers are loaded — src/utils/routePlannerScope.ts), then
  * Customer type, then Days since last visit. The "Colour pins by" switch in
  * the header decides what the pins' colour means; whichever of the two
  * sections it colours shows its colours here, as the map's key.

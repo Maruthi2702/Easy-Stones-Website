@@ -46,7 +46,7 @@ const SIGN_IN_OPTIONS = [
 ];
 
 // `access` (from the Users & Roles actions the signed-in person holds,
-// src/utils/usersAccess.js): edit = change details, role and locations;
+// src/utils/usersAccess.ts): edit = change details, role and locations;
 // resetSignIn = temporary password / invite link; unlock; deactivate. Without
 // edit the form is read-only. The server checks each again.
 export type UserAccessFlags = { edit: boolean; resetSignIn: boolean; unlock: boolean; deactivate: boolean };

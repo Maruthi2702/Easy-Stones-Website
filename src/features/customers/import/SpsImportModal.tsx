@@ -1,7 +1,7 @@
 /**
  * Import customers from SPS — the five-step import from the "SPS Import
  * Redesign" artifact: Upload → Columns & names → Review → Import → Results,
- * plus Import history. The server does the work (src/routes/customerSpsImport.js):
+ * plus Import history. The server does the work (src/routes/customerSpsImport.ts):
  * it saves the file and every answer as a draft run, plans from that file,
  * writes in the background and checks the result; this window only asks and
  * shows. Every answer is saved as you go, so closing it loses nothing.

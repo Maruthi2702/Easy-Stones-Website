@@ -1,4 +1,4 @@
-import { isFillerName } from './customerMatch.js';
+import { isFillerName } from './customerMatch.ts';
 
 /** The customer fields the dropdown reads (any record shape the API sends). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- address fields come in several stored shapes

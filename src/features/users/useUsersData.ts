@@ -36,7 +36,7 @@ export type UsersDataOptions = {
     /** The page showing: 'users', 'roles' or 'locations'. */
     section: string;
     me: CurrentUser | null | undefined;
-    /** Team access (src/utils/teamAccess.js): their own people, no roles. */
+    /** Team access (src/utils/teamAccess.ts): their own people, no roles. */
     teamMode: boolean;
     /** The role to show first once the roles load (Sales Rep, else the first). */
     onRolesLoaded: (role: RoleRecord) => void;

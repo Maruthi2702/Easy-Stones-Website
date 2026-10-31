@@ -62,14 +62,14 @@ import and duplicates `/import/*`, `/duplicates/*`. The old addresses
 (`/api/sales/customers`, `/api/partners…`, `/api/admin/customers…`) still
 answer as aliases until cached apps update — see KNOWN_ISSUES.md's Cleanup
 due. Don't add a customer route anywhere else: the cache-busting middleware
-in server.js matches on the path, and a create living at
+in server.ts matches on the path, and a create living at
 `/api/sales/customers` is why new customers didn't show in the dropdown for
 ten minutes. **Bulk delete** (2026-10-17, the Customer List's selection bar,
 Delete switch only) is `POST /bulk-delete` + `/bulk-delete/undo`
-(`src/routes/customerBulkDelete.js`, tested): every customer is saved whole to
+(`src/routes/customerBulkDelete.ts`, tested): every customer is saved whole to
 `customerdeletebackups` before it's removed, and Undo restores it under the
 same id so what points at it by id finds it again. Above 10 the confirmation
-asks for the count to be typed (`src/utils/customerBulkDelete.js`). What a create/edit may write is `src/utils/customerRecord.js`
+asks for the count to be typed (`src/utils/customerBulkDelete.ts`). What a create/edit may write is `src/utils/customerRecord.ts`
 (never password, login state, the map point or the rep's name).
 
 Every customer dropdown reads the one shared list,
@@ -81,7 +81,7 @@ don't map `/api/customers/dropdown` by hand again.
 
 ## Sales reps: one rule, one list
 
-Who can be picked as a sales rep is decided once, in `src/utils/salesReps.js`
+Who can be picked as a sales rep is decided once, in `src/utils/salesReps.ts`
 (2026-10-10): `isSalesRep` (sales_rep, manager, director, admin — never the
 shared `admin` login, drivers or CSRs). The customer rep picker and Customer
 List filter use `toSalesRepList` (by id; deactivated reps kept, marked, for
@@ -109,14 +109,14 @@ the screen did before. New customers and deliveries get it on the form
 (`useStartingRep()`), new check-ins from the server when they're logged
 (so the Selection Sheet opens with a rep). It never replaces a rep someone
 already set or picked. **Paused for check-ins since 2026-10-12** (owner's
-request): `NEW_VISITS_START_WITH_REP = false` in `src/routes/checkIn.js`, so
+request): `NEW_VISITS_START_WITH_REP = false` in `src/routes/checkIn.ts`, so
 new visits and their Selection Sheets start with None until it's set back
 to `true`; customers and deliveries still use the rule.
 
 ## Team view: whose work a manager sees, by the rep's branch (2026-10-31)
 
 Visits, resources, follow-ups and calendars go by **where the
-rep works**, not where the customer is (owner's call): `src/utils/teamScope.js`
+rep works**, not where the customer is (owner's call): `src/utils/teamScope.ts`
 (tested). A person's team is everyone whose location / assigned locations
 include one of their assigned locations, deactivated people included, plus
 themselves; someone assigned `'*'` is on no branch's team. Users & Roles →
@@ -124,7 +124,7 @@ Visits: View all → everyone, View branch → their team, neither → their own
 Edit / Delete branch → visits and resources **logged by** their team
 (`canModifyVisit(user, visit, team)` — the third argument is the team, not a
 customer location). The server reads the staff list per request
-(`src/services/teamDirectory.js`); screens use `useMyTeam` /
+(`src/services/teamDirectory.ts`); screens use `useMyTeam` /
 `usePeopleOptions` (`src/api/myTeam.ts`). The Sales dashboard's Filters panel
 has a **People** field (Me / My team / reps by branch, `PeopleField.tsx`,
 value rules in `dashboardPeople.ts`, tested): it opens on **Me** (owner's
@@ -156,7 +156,7 @@ Every single-choice location field and filter is
 blank choice ("All locations" on a filter, None where a form allows it), the
 home location marked "· Home", then every other location A–Z, with a search
 box from 8 choices — `orderLocations` / `matchLocations` in
-`src/utils/locationFilter.js`. It's in every Filters panel (LocationFilter's
+`src/utils/locationFilter.ts`. It's in every Filters panel (LocationFilter's
 `LocationField`, the Check-In Log's own panel), the customer, delivery
 transfer From/To, freight, cart checkout, Location RDC and lost-sale forms,
 the staff check-in page and the QR modal. Checkbox lists (Inventory, Users'
@@ -211,7 +211,7 @@ counts as 30 whatever length is chosen (`DEFAULT_VISIT_MINUTES`, in
 twice in a day, a start already past and a full day **warn and never block**
 (two reps can visit at once). No Today / Tomorrow chips (owner, 2026-10-29).
 Type (Visit / Call / Drop-off / Other) is on every screen. The server checks
-every write (`src/utils/scheduleRecord.js`: real times, end after start, a known
+every write (`src/utils/scheduleRecord.ts`: real times, end after start, a known
 type; PUT can't change userId or source) and a new entry carries its own `_id`
 so a repeated POST answers 200 `alreadySaved`. Old entries with no end time are
 not backfilled.
@@ -283,6 +283,24 @@ logger (server's `resourceAccessArgs`, the screens' `canModifyVisit`).
 `GET /api/dashboard/resources` also sends `qty`, `notes`, `status`,
 `customerLocation`, `city`, `company`, `contactName` and `uploadedByName`.
 
+Resource writes now live in `src/routes/customerResources.ts` (2026-10-31).
+The actor owns a new resource; clients cannot change ownership or link metadata.
+A resource's `visitId` and its placement visit's `resourceId` are durable links.
+Resource/history/calendar creation, edits, deletes and moves commit together in
+one transaction; notify after commit. Legacy matching must be unique across
+exact title/type, day, author and available metadata; ambiguous matches return
+409 without changing anything. Never restore first-title-match synchronization.
+`src/services/resourcePlacement.ts` also resolves deletion through the Visits tab.
+Customer profile/detail reads and customer create/edit responses share
+`customerHistoryResponse` in `src/routes/customerHistory.ts`: full-profile
+permission does not widen the separate Visits read scope.
+
+Incoming transfers (owner's decision, 2026-10-31): a receiving branch may change
+only **expected delivery date and slab count**, through
+`PATCH /api/deliveries/:id/receiving` and `IncomingTransferForm.tsx`. The sender
+controls driver/ship date, dispatch/status and deletion. Read access to both
+branches must never be reused as shipping-write access (`transferAccess.ts`).
+
 **Team Files** is its own Sales page (`team_files` in `navPins.js`, still
 opened by `view_dashboard`; `src/features/teamFiles/`). The page is the old
 list and pop-ups unchanged; the redesign on the **Team Files Page Canvas**
@@ -292,7 +310,7 @@ size, own permissions) is not built.
 ## Phone tab bar (2026-10-18)
 
 Under 640px SalesPage shows a bottom tab bar instead of the drawer
-(`src/components/sales/PhoneTabBar.jsx` + `.css`; owner's design: claude.ai
+(`src/components/sales/PhoneTabBar.tsx` + `.css`; owner's design: claude.ai
 artifacts **Phone tab bar canvas** https://claude.ai/artifact/Qxs7fJxBs6MGJYiXowkirQ
 and **Phone menu search** https://claude.ai/artifact/GZ622Er9juw3MXzr6JjySA).
 Dashboard · two modules (Sales, Operations by default) · **More**. What sits
@@ -300,7 +318,7 @@ on the bar, which tab is lit and what the page search finds are in
 `src/utils/phoneNav.ts` (tested): the bar takes the first two modules the login
 can open in the admin's Side Nav Order and More lists the rest, so a new page
 or module in `navPins.js` shows up with no phone-specific change (its icon goes
-in `src/components/sales/navIcons.js`, shared with the desktop rail). Customers
+in `src/components/sales/navIcons.ts`, shared with the desktop rail). Customers
 lives only inside Sales. More = account row (profile, cart, theme, sign out),
 a search box for pages, Pinned, then the other modules; pins are still set on
 desktop. Tablets and desktop keep the rail and the drawer. The bar sets
@@ -319,7 +337,7 @@ Check-In button, the staff `/checkin` page, saving a check-in and its phone
 autofill; `view_checkin_qr`), Check-In Log (`view_checkins`,
 `manage_checkins` = edit visitor details, `delete_checkins`) and Selection
 Sheet (`edit_selection_sheets`, `send_checkin_email`). Every key, its section
-and the rules live in `src/utils/checkInAccess.js`; the routes, the screens,
+and the rules live in `src/utils/checkInAccess.ts`; the routes, the screens,
 the side nav and the card all read it, never a hand-typed string. A save to
 `PUT /api/checkin/:id` needs the switch for what it changes
 (`missingEditPermission`: details vs. sheet fields). **A new permission for
@@ -363,11 +381,11 @@ use `ChoosePasswordCard`. Every password change — their own, a first
 password, an invite, an admin reset — bumps `sessionVersion`, which every
 staff token carries as `sv` and `authenticate` checks, so older sessions end.
 `authenticate` also refuses any account still on a temporary password. The
-rules live in `src/services/staffSession.js`, the routes in
-`src/routes/userOnboarding.js`; a new way to sign in or set a password goes
+rules live in `src/services/staffSession.ts`, the routes in
+`src/routes/userOnboarding.ts`; a new way to sign in or set a password goes
 through them. Five wrong passwords lock an account for 15 minutes
 (`User.incLoginAttempts`); Users & Roles and `/admin` badge it "Locked"
-(`lockedUntil` in `src/utils/userForm.js`), Edit user → Sign-in has **Unlock
+(`lockedUntil` in `src/utils/userForm.ts`), Edit user → Sign-in has **Unlock
 now** (`POST /api/admin/users/:id/unlock`, `manage_users`), and any password
 reset or chosen password also lifts it (`clearSignInLock`).
 
@@ -382,20 +400,20 @@ online, and **deactivate / reactivate / unlock** them — nothing else (no add,
 edit, delete, passwords, Roles, Locations; those stay `manage_users`). Which
 people: the role's `manageableRoles` (Roles & Permissions → "People … can
 manage", chosen per role by an admin), only those whose locations are **all**
-the manager's, never themselves or an admin. Rules in `src/utils/teamAccess.js`
-(shared), the guard in `src/services/teamAccess.js`; the Users list, presence,
+the manager's, never themselves or an admin. Rules in `src/utils/teamAccess.ts`
+(shared), the guard in `src/services/teamAccess.ts`; the Users list, presence,
 active and unlock routes use `usersAccess` / `memberAllowed`. A new Users
 action for managers must go through them. Nobody holds the permission until
 an admin turns it on.
 
 **One permission per action (2026-10-16).** Every Users & Roles action has its
-own switch (`src/utils/usersAccess.js`: view/add/edit/reset sign-in/
+own switch (`src/utils/usersAccess.ts`: view/add/edit/reset sign-in/
 deactivate/unlock/delete users; view/edit/add/delete roles; view/add/edit/
 delete locations; side nav order), on the Users & Roles card in sections.
 `manage_users` is now **Full access**: it holds every one, so existing roles
 lost nothing. Any action in an area opens that area's page and loads its list
 (no separate "view" needed). Routes use `requireAction(key)` /
-`requireArea(area)` / `usersAccess(key)` (`src/services/teamAccess.js`), never
+`requireArea(area)` / `usersAccess(key)` (`src/services/teamAccess.ts`), never
 a hand-typed `requirePermission('manage_users')`; screens use `can(user, key)`.
 A new Users & Roles action goes in that file's `USERS_ROLES_SECTIONS` (the
 card is built from it; `usersAccess.test.js` fails if a key has no switch).
@@ -409,7 +427,7 @@ socket (`PresenceReporter` → `src/api/presence.ts`) that says who it is
 (`presence_hello`, a staff token only — customers are refused) and, at most
 once a minute while the mouse/keys/touch are used in a visible tab,
 `presence_active`. The server keeps the list **in memory**
-(`src/services/presence.js`: one entry per tab, **Active** until 10 minutes
+(`src/services/presence.ts`: one entry per tab, **Active** until 10 minutes
 without activity, then **Idle**; device from the browser's User-Agent) and
 pushes it (`presence_update`) only to sockets whose user has `manage_users`;
 `GET /api/admin/users/presence` is the first load. `lastSeenAt` (written at
@@ -588,19 +606,19 @@ The plan is the claude.ai artifact **SPS Import Redesign**
 (https://claude.ai/artifact/BcFNBYMJE9fQz6bxjmMCte); what's built and what
 isn't is in KNOWN_ISSUES.md. A customer is an SPS customer by `sps.key` (its SPS
 Name, trimmed and lowercased, inner spaces kept — `spsKey` in
-`src/utils/spsSheet.js`), and the partial unique index refuses a name held
+`src/utils/spsSheet.ts`), and the partial unique index refuses a name held
 twice; never write it from a request body (`PROTECTED_CUSTOMER_FIELDS`).
 **Connect existing customers** (Customers ⋯ → Connect customers to SPS,
-`src/utils/spsConnect.js`, `src/routes/customerSpsConnect.js`) gives today's
+`src/utils/spsConnect.ts`, `src/routes/customerSpsConnect.ts`) gives today's
 customers their key: exact names unasked, the rest by a person. The **new
 import** (Customers ⋯ → Import from SPS, `src/features/customers/import/SpsImportModal.tsx`,
 its state `useSpsImport.ts`, each step in `import/sps/`) is five steps
 over saved runs (`SpsImportRun` / `SpsImportItem`): the planner
-`src/utils/spsImportPlan.js` gives every SPS name exactly one outcome (held
+`src/utils/spsImportPlan.ts` gives every SPS name exactly one outcome (held
 key → update; exact name → connect; deleted before → asked, never silent;
 look-alike → "Need a decision" with Add as new pre-set; else new), the plan is
 **frozen into items** at Start and written in batches by
-`src/services/spsImportRunner.js` (an upsert on the key, so a retry or a
+`src/services/spsImportRunner.ts` (an upsert on the key, so a retry or a
 restart never doubles; resumed at server start), then the checker looks every
 name up and the run is green only with none missing. Undo needs Delete; an
 undo's deletions are saved with source `sps-undo` so the next import doesn't
@@ -623,13 +641,13 @@ at the top of every staff screen.
 
 ## Route Planner: scoped reps, loaded per rep (2026-10-18)
 
-Who the Route Planner offers is decided once, in `src/utils/routePlannerScope.js`,
+Who the Route Planner offers is decided once, in `src/utils/routePlannerScope.ts`,
 by the **locations assigned in Users & Roles** (not role name): admins and
 all-location ('*') logins see every rep; anyone else sees the reps working at
 their locations (a sales rep gets the same as a manager for now — the owner's
 call; narrowing it later is a change to `repsInScope`/`inScopePins` only), their
 customers, and the unowned ones at those locations ("Unassigned"). The server
-routes live in `src/routes/customerMap.js` (tested, in-memory MongoDB):
+routes live in `src/routes/customerMap.ts` (tested, in-memory MongoDB):
 `GET /api/customers/map?reps=<ids>,unassigned` sends only the named reps' pins
 (reps outside the scope return nothing), `/map/rep-counts` feeds the Filter's
 counts, and `/map/:id` returns one customer's contact details (404 outside the
@@ -682,9 +700,9 @@ on duplicates already there).
 
 ## Saving a visit: the server decides, the form doesn't wait (2026-10-23, on `feat/visit-save-server`)
 
-Add / edit visit is `src/routes/visits.js` (tested in `visits.test.js`, in-memory
-MongoDB; mounted in server.js where the old routes were). The rules are the
-server's, from `src/utils/visitForm.js`: the type must be one of `VISIT_TYPES`
+Add / edit visit is `src/routes/visits.ts` (tested in `visits.test.js`, in-memory
+MongoDB; mounted in server.ts where the old routes were). The rules are the
+server's, from `src/utils/visitForm.ts`: the type must be one of `VISIT_TYPES`
 (a legacy type already on the visit may be kept on edit), a type with no
 follow-up stores none (`cleanVisitFields`), dates are real days. A new visit
 carries its own `_id` (`newVisitId()`); a repeat of the same POST answers 200
@@ -710,20 +728,20 @@ auth, theme and the toast. Files are split by what they do, not by a line count
 (owner, 2026-10-24: no 500-line limit) — one clear job per file, so none is
 overwhelming to read; a long file that does one thing can stay whole. A move
 changes no DOM, class names or CSS. Each extracted module gets a render smoke
-test (`*.test.tsx`, React Testing Library). `server.js` is being split the same
+test (`*.test.tsx`, React Testing Library). `server.ts` is being split the same
 way into `src/routes/<area>.js` routers, checked against a route-table
 snapshot so no path, middleware or order changes.
 
 ## TypeScript and Node 24 (2026-10-23, on `feat/typescript`)
 
-The plan is `MIGRATION_NOTES.md` §1. Render runs `node server.js` on **Node
+The plan is `MIGRATION_NOTES.md` §1. Render runs `node server.ts` on **Node
 24** (owner's go-ahead 2026-10-23; `render.yaml`, `engines`, `.node-version`
 pin 24.22.1), which strips TypeScript types itself, so any file may be `.ts`.
 What the server loads must be **plain, erasable TypeScript** (no `enum`,
 `namespace` or parameter properties — `erasableSyntaxOnly`), type-only imports
 written `import type` (`verbatimModuleSyntax`), never `.tsx`, and every import
 naming the file exactly, `.ts` included (`import x from './rules.ts'`) — Node
-has no extension guessing. `scripts/check-server-ts.mjs` walks what the server
+has no extension guessing. `scripts/check-server-ts.ts` walks what the server
 loads and fails on a `.tsx` or an import Node can't find as written (the
 missing-`.js` crash of 2026-10-23); `npm run build` runs it first, so on Render
 a bad import fails the deploy instead of the live server. `npm run typecheck`
@@ -733,7 +751,7 @@ record not typed yet — a spot to tighten). A shared `.js` file a typed one
 imports gets JSDoc types when TypeScript misreads a parameter (`= []` reads as
 an always-empty list). A conversion is types only: `git mv`, annotations,
 importers updated, no behaviour change; check with typecheck, `npm test`,
-`vite build`, and the screen by hand — for a server file also boot `server.js`
+`vite build`, and the screen by hand — for a server file also boot `server.ts`
 (an in-memory MongoDB is enough).
 
 ## Forms: one template, everywhere
@@ -777,7 +795,7 @@ fixing was noticed.
 
 The Daily Work Report's Deliveries/Pick-ups slabs and transfer-line slabs are
 meant to auto-update from the schedule (`deriveFromSystem` /
-`applyDerived` in `src/routes/dailyReports.js`) until a person hand-corrects
+`applyDerived` in `src/routes/dailyReports.ts`) until a person hand-corrects
 one — `capacity: null` means "nobody's counted it yet," and a submitted
 report is never re-derived again, since it's the permanent record of what was
 true when it was signed off.
@@ -815,38 +833,38 @@ a reload and the next save (the one before Submit included) blanked it. See
 load/autosave/submit hook `useDaySheet.ts` (its tests pin the flush on a
 day/branch/view change and unmount, Submit stopping on a failed save, and a
 late answer ignored), and
-`applyDerived`'s tests in `src/routes/dailyReports.test.js` (including
+`applyDerived`'s tests in `src/routes/dailyReports.test.ts` (including
 "at submit") for the merge contract those payloads have to be correct
 against.
 
 ## Automated tests are narrow — most verification is still manual
 
-`npm test` runs Vitest (`vite.config.js`'s `test` block, `src/**/*.test.{js,ts}`).
+`npm test` runs Vitest (`vite.config.ts`'s `test` block, `src/**/*.test.{js,ts}`).
 As of 2026-08-28 that covers the pure, no-DOM business logic in
-`src/utils/routePlan.js` and `src/features/routePlanner/helpers.ts`
+`src/utils/routePlan.ts` and `src/features/routePlanner/helpers.ts`
 (great-circle distance, point-in-polygon, stop ordering/scheduling math,
 recency bucketing, small formatting/localStorage helpers), plus the Daily
-Work Report's derive/save-payload rules (`src/routes/dailyReports.js`'s
+Work Report's derive/save-payload rules (`src/routes/dailyReports.ts`'s
 `applyDerived`, `src/features/dailyReport/savePayload.ts`) added
 after the incident above, and its payment methods and totals
-(`src/utils/dailyReportPayments.js`: ACH, Cash, Credit Card, Check; reports
+(`src/utils/dailyReportPayments.ts`: ACH, Cash, Credit Card, Check; reports
 saved before ACH read it as unsaid), its transfer lines
-(`src/utils/transferDirection.js`: one line per transfer with its one
+(`src/utils/transferDirection.ts`: one line per transfer with its one
 Transfer # — a ticket line per ticket — so the count the month view, its
 PDF and the CSV total is the number of lines, never typed; a hand-added
 line's direction comes from its route (ending at the report's branch is
 Incoming); `transferLineKey`, the per-transfer key a typed slab figure is
 kept against, and how a draft saved per route carries over; and the notes
 for a repeated transfer number, a route that skips the branch or repeats a
-ticket line; the routes, in `src/routes/dailyReportManualTransfers.test.js`), and the customer list's rules
-(`src/utils/customerList.js`: status labels, the ⚠ data-quality checks and
+ticket line; the routes, in `src/routes/dailyReportManualTransfers.test.ts`), and the customer list's rules
+(`src/utils/customerList.ts`: status labels, the ⚠ data-quality checks and
 the "Incomplete" query that must match them, saved views, A–Z, role-scoped
 filter options), the shared pagination sizes/range math
 (`src/components/shared/paginationConfig.ts`), and the location-filter rules
-every screen's location filter shares (`src/utils/locationFilter.js`: home
+every screen's location filter shares (`src/utils/locationFilter.ts`: home
 location, which branch a filter opens on, remembered picks, and the server's
-home-location validation), and who can be picked as a sales rep (`src/utils/salesReps.js`: the role
-rule, branches, deactivated and already-saved reps), and Add User's rules (`src/utils/userForm.js`:
+home-location validation), and who can be picked as a sales rep (`src/utils/salesReps.ts`: the role
+rule, branches, deactivated and already-saved reps), and Add User's rules (`src/utils/userForm.ts`:
 username suggestion and format, required fields, temporary passwords, the
 Locations/home rule, role summaries), and the Selection Sheet's slab-tag
 scanner (`src/utils/stoneLabel.ts`: reading lot/slab/size/material out of OCR
@@ -857,11 +875,11 @@ per lot with its slabs together — and which sheet rows they fill;
 `src/utils/tagPhoto.ts`: a photo's tilt, the printed line in a strip cut
 beside a barcode, and the levelling score). The scan itself
 (`src/features/checkin/selectionSheet/readTagPhoto.ts`: barcodes with zxing-wasm, then each
-tag's line with Tesseract) is checked by hand on real tag photos — and Add / Edit location's rules (`src/utils/locationForm.js`:
+tag's line with Tesseract) is checked by hand on real tag photos — and Add / Edit location's rules (`src/utils/locationForm.ts`:
 required fields and formats, unique short name/code, which locations can be
 an RDC, the record ↔ form conversion the API also runs, what non-managers
 may read, and the selection-sheet letterhead with its Kent fallback), and
-Add / Edit visit's rules (`src/utils/visitForm.js`: the visit types and
+Add / Edit visit's rules (`src/utils/visitForm.ts`: the visit types and
 their stored values, which fields each type uses, required fields, the
 change count, and the "Last changed by" note), and the Selection Sheet's
 rules (`src/utils/selectionSheet.ts`: rows, the change count behind the
@@ -869,17 +887,17 @@ unsaved-changes check, the save body with its stale-save
 `expectedUpdatedAt`, the escaped print page,
 price per SF in cents and when it prints, internal vs printed notes, and
 what the server accepts and when it re-emails the rep) plus its save/email
-routes (`src/routes/checkIn.test.js`, in-memory MongoDB, including which
+routes (`src/routes/checkIn.test.ts`, in-memory MongoDB, including which
 Check In switch each route needs), and the Check In permissions
-(`src/utils/checkInAccess.js`: the sections, the Users & Roles card built
+(`src/utils/checkInAccess.ts`: the sections, the Users & Roles card built
 from them, what a check-in save needs, the migration) and Lost Sales access
-(`src/utils/lostSaleAccess.js`), and the email's
-contents (`src/services/emailService.test.js`),
+(`src/utils/lostSaleAccess.ts`), and the email's
+contents (`src/services/emailService.test.ts`),
 and Add / Edit customer's rules (`src/utils/customerForm.ts`: stored option
 values, new-customer defaults, record ↔ form mapping, required fields, the
 email/marketing-email sync, the change count, and what a business-card scan
 fills in), and the Delivery form's packing-list reader
-(`src/utils/packingListPdf.js`: reading packing list #, Bill To / Ship To,
+(`src/utils/packingListPdf.ts`: reading packing list #, Bill To / Ship To,
 the order row and the slab count out of a StoneProfits packing list PDF, and
 which empty form fields an upload fills — Sales Orders, Pick Tickets and
 Invoices read the same way), and Add / Edit delivery's rules
@@ -887,41 +905,41 @@ Invoices read the same way), and Add / Edit delivery's rules
 vs. a required date, the driver list with each truck's load and the full
 ones greyed out, a 3rd-party truck's optional carrier / BOL / agreed price,
 transfer checks, the change count, and the save body), and the customer
-write rules (`src/utils/customerRecord.js`: what a create/edit may write,
+write rules (`src/utils/customerRecord.ts`: what a create/edit may write,
 defaults, the placeholder email, protected fields) and dropdown rules
 (`src/utils/customerOptions.ts`: name, address parts, sort, search), and
-the Check-In Log's branch clock (`src/utils/checkInClock.js`: which day and
+the Check-In Log's branch clock (`src/utils/checkInClock.ts`: which day and
 month a check-in belongs to on its own branch's clock, the per-zone query the
 list's month filter and counts use, and the date/time/"Today" shown and
-exported), and the Check-In Log's exports (`src/utils/checkInExport.js`: the
-Excel rows, the PDF's filter line, link and row cap; `src/utils/checkInLogPdf.js`:
+exported), and the Check-In Log's exports (`src/utils/checkInExport.ts`: the
+Excel rows, the PDF's filter line, link and row cap; `src/utils/checkInLogPdf.ts`:
 that the PDF builds, pages, and survives characters its font lacks), and the
 3rd-Party Freight screen's rules (`src/features/freight/freightView.ts`: its tabs and
 counts, charges grouped by carrier, what a selection offers — Approve,
 Approve & pay, Mark paid — and why not, payment wording and the Excel rows;
 the page itself has a render smoke test, `freight.test.tsx`),
 and the Delivery Schedule's column order per branch
-(`src/utils/deliveryColumns.js`: the default — our drivers A–Z, 3rd-party
+(`src/utils/deliveryColumns.ts`: the default — our drivers A–Z, 3rd-party
 trucks, Will Call — a branch's saved order, where a new driver lands; its
-routes in `src/routes/deliveryColumns.test.js`: the Arrange Driver Columns
+routes in `src/routes/deliveryColumns.test.ts`: the Arrange Driver Columns
 permission, own locations only), and its stop
-numbers (`src/utils/stopGrouping.js`'s `compactStopNumbers`: every driver's
+numbers (`src/utils/stopGrouping.ts`'s `compactStopNumbers`: every driver's
 run saved as 1, 2, 3… with no gaps, which the board, the Edit delivery form
 and the driver's phone all show; the routes that keep it so after a delete,
 cancel, move, edit or reorder, and the startup pass, in
-`src/routes/deliveryStops.test.js`), the card's edge colour by ticket kind
-(`ticketAccentFor` in `src/utils/deliveryTypes.js`), and the delivery write
-rules (`src/routes/deliveryAccess.test.js`: a view-only login can't write, a
+`src/routes/deliveryStops.test.ts`), the card's edge colour by ticket kind
+(`ticketAccentFor` in `src/utils/deliveryTypes.ts`), and the delivery write
+rules (`src/routes/deliveryAccess.test.ts`: a view-only login can't write, a
 driver writes only an ePOD, a packing-list upload can't take another branch's
 ticket id, reorders ignore tickets the board doesn't show, and a ticket with
 no branch reaches every open branch room, and the ePOD save that writes the
 ePOD and nothing else), and staff sign-in
-(`src/services/staffSession.test.js`: the setup token failing every ordinary
+(`src/services/staffSession.test.ts`: the setup token failing every ordinary
 check, temporary-password expiry, session versions;
-`src/routes/userOnboarding.test.js`, in-memory MongoDB: a temporary password
+`src/routes/userOnboarding.test.ts`, in-memory MongoDB: a temporary password
 → setup session → own password → signed in, invite links once and racing,
 change-password and admin resets ending older sessions — its `signIn` and
-`authenticate` are stand-ins for server.js's, keep them in step).
+`authenticate` are stand-ins for server.ts's, keep them in step).
 Accounting's server rules and API have their own tests in
 `src/accounting/*.test.js` (an in-memory MongoDB replica set, transactions
 included). Cart & Holds do too: `src/holds/*.test.js` (expiry and totals
@@ -935,15 +953,15 @@ contract each source keeps, exact copying of each source's fields, every
 reader's stop/short-answer rules against fake servers, the morning pull, both
 counties' report checks, the WA contractor registry, the API and its county
 filter with an in-memory MongoDB, and the list's PDF) and the screen's rules
-in `src/utils/permitView.js` (the county tree, the place filter, registry
+in `src/utils/permitView.ts` (the county tree, the place filter, registry
 phones, and the PDF's rows, heading and link).
 The calendar's date rules are covered too
-(`src/components/shared/calendar/calendarDates.test.js`: parsing real days,
+(`src/components/shared/calendar/calendarDates.test.ts`: parsing real days,
 shifting with the 31st clamped, the Monday-first grid, week bounds, limits,
 keyboard moves, the scheduler's date-time helpers); its rendering was checked by
 hand in a browser.
 Nothing else in the app has test coverage — no
-rendered components, no other routes, no other server.js endpoints.
+rendered components, no other routes, no other server.ts endpoints.
 
 That means passing `npm test` only proves the math didn't regress; it says
 nothing about whether a screen actually renders or behaves correctly.

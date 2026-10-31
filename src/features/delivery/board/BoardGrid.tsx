@@ -270,7 +270,7 @@ const BoardGrid = ({
     //
     // Left to right is the branch's saved order (an admin's Arrange columns),
     // else our drivers A–Z, contract trucks, then Will Call — see
-    // src/utils/deliveryColumns.js.
+    // src/utils/deliveryColumns.ts.
     //
     // A deactivated driver (Users & Roles) keeps a column only on weeks they
     // have orders: their history stays where it happened, and anything still

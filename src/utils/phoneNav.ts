@@ -1,4 +1,5 @@
-import { railSections, visiblePinnedTabs, sectionOf, isOnePageSection } from './navPins.js';
+import type { Loose } from '../types/records.ts';
+import { railSections, visiblePinnedTabs, sectionOf, isOnePageSection } from './navPins.ts';
 
 /** A page in the side nav (navPins.js NAV_ITEMS), and a module with its pages. */
 export type NavItem = { id: string; label: string; [key: string]: unknown };
@@ -10,7 +11,7 @@ export type NavGroup = { id: string; label: string; items: NavItem[] };
  * The phone's bottom tab bar (2026-10-18; design: claude.ai artifact "Phone
  * tab bar canvas" https://claude.ai/artifact/Qxs7fJxBs6MGJYiXowkirQ, and
  * "Phone menu search" https://claude.ai/artifact/GZ622Er9juw3MXzr6JjySA).
- * The screen is src/components/sales/PhoneTabBar.jsx; every rule about what
+ * The screen is src/components/sales/PhoneTabBar.tsx; every rule about what
  * sits on the bar, what is lit and what the search finds is here.
  *
  * The bar is Dashboard · two modules · More. Which modules is the same list
@@ -34,7 +35,7 @@ export const MORE = 'more';
  *   more      — the other modules, listed in the More sheet
  *   pins      — their pinned pages, in pin order (excluding the Dashboard)
  */
-export const phoneNavModel = (user: unknown, navOrder: unknown = null, pinnedTabs: string[] = []): PhoneNavModel => {
+export const phoneNavModel = (user: Loose | null | undefined, navOrder: unknown = null, pinnedTabs: string[] = []): PhoneNavModel => {
     const sections: NavSection[] = railSections(user, navOrder);
     const dashboard = sections.find((s) => s.id === 'home')?.items.find((i) => i.id === 'dashboard') || null;
     const modules = sections.filter((s) => s.id !== 'home' && s.items.length > 0);
@@ -85,7 +86,7 @@ export const highlightParts = (label: string, query: string | null | undefined):
  * grouped by module. Pinned is not shown while searching, so no page appears
  * twice. Empty when nothing matches.
  */
-export const searchPages = (user: unknown, navOrder: unknown, query: string | null | undefined): NavGroup[] => {
+export const searchPages = (user: Loose | null | undefined, navOrder: unknown, query: string | null | undefined): NavGroup[] => {
     const q = (query || '').trim().toLowerCase();
     if (!q) return [];
     return (railSections(user, navOrder) as NavSection[])

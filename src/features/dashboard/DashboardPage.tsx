@@ -60,6 +60,8 @@ export default function DashboardPage({
     onSelectCustomer, renderLeads
 }: DashboardPageProps) {
     const tab = data.activeDashboardTab;
+    const failed = Object.values(data.dashboardErrors || {}).filter(Boolean);
+    const loadFailed = failed.length > 0;
     // The People filter, the same in the header (Sales Visits), Follow-up and Resources.
     const me = String(currentUserId || '');
     const people: PeopleFilter | null = data.canPickPeople ? {
@@ -90,6 +92,7 @@ export default function DashboardPage({
                         onLocationChange={data.handleDashboardLocationChange}
                         currentUser={currentUser}
                         people={people}
+                        visitsView={data.canPickPeople ? { value: data.visitsView, onChange: data.setVisitsView } : null}
                         showPeopleOnCalendar={data.teamCalendar}
                         showMenuButton={showMenuButton}
                         onOpenSidebar={onOpenSidebar}
@@ -100,6 +103,13 @@ export default function DashboardPage({
                         onAddVisit={onAddVisit}
                     />
 
+                    {loadFailed && (
+                        <div className="dfx-load-error" role="alert">
+                            <div><strong>Couldn’t load {failed.join(', ')}.</strong><span>Your filters are kept. Retry to load the current view.</span></div>
+                            <button type="button" className="dfx-retry" onClick={() => { void data.retryDashboard(); }}>Retry</button>
+                        </div>
+                    )}
+                    {!loadFailed && <>
                     <DashboardStats
                         stats={data.stats}
                         statsLoading={data.statsLoading}
@@ -214,6 +224,7 @@ export default function DashboardPage({
                             onExportAll={data.handleExportAllResources}
                         />
                     )}
+                    </>}
                 </>
             </div>
         </ErrorBoundary>

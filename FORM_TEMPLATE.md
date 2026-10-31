@@ -18,8 +18,8 @@ agreed template, built from design **A · One clear form** on the
 **Add User** and **Edit User** (`src/features/users/userForm/`) are on it, on
 both Sales CRM → Users & Roles and the /admin page. **Add / Edit location**
 (`src/features/users/locations/LocationForm.tsx`, size L) is on it too.
-**Add / Edit visit** (`src/components/sales/VisitForm.jsx`, size M; rules in
-`src/utils/visitForm.js`) is on it, built from model C on the
+**Add / Edit visit** (`src/components/sales/VisitForm.tsx`, size M; rules in
+`src/utils/visitForm.ts`) is on it, built from model C on the
 [Add & Edit Visit canvas](https://claude.ai/artifact/UPcjj89doxCRsubhTrDZfN):
 no section headings, follow-up behind a toggle, and **no Cancel button**
 (owner's call, 2026-10-04: the ✕ closes, with the unsaved-changes check).

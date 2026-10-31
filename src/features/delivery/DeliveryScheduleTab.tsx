@@ -13,7 +13,7 @@ import PodViewer from './pod/PodViewer';
 import ScheduleHeader from './ScheduleHeader';
 import { useLocationFilter } from '../../components/shared/useLocationFilter';
 import { accessibleLocations } from '../../utils/locationFilter';
-import { getDeliveryById } from '../../api/deliverySchedule';
+import { getDeliveryById, updateIncomingTransfer } from '../../api/deliverySchedule';
 import {
   getWeekMonday,
   getWeekDates,
@@ -36,7 +36,7 @@ import './DeliveryScheduleTab.css';
 
 // Which screen this person gets — driver, office board or read-only board —
 // comes from their role's Delivery Schedule permissions in Users & Roles
-// (deliveryViewMode in src/utils/deliveryAccess.js), not the role's name.
+// (deliveryViewMode in src/utils/deliveryAccess.ts), not the role's name.
 
 export type DeliveryScheduleTabProps = {
   currentUser?: CurrentUser | null;
@@ -267,6 +267,7 @@ const DeliveryScheduleTab = ({
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveDelivery}
+        onReceivingSave={async (id, fields) => { await applyUpdatedList(await updateIncomingTransfer(id, fields)); }}
         onDelete={handleDeleteDelivery}
         initialData={editingDelivery}
         trucks={trucks}

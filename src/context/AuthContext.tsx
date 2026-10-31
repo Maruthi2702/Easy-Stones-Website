@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 import { API_URL } from '../config/api';
 import { resetSessionExpiredGuard } from '../api/authFetch';
 import { getAuthToken, setAuthToken, clearAuthToken } from '../api/authToken';
@@ -13,13 +13,15 @@ export type AuthUser = CurrentUser & {
     contactName?: string;
 };
 
-/** A browser mid first password (a setup session — src/services/staffSession.js). */
+/** A browser mid first password (a setup session — src/services/staffSession.ts). */
 export type PasswordSetup = { username: string; name?: string };
 
 export type AuthContextValue = {
     user: AuthUser | null;
     loading: boolean;
     passwordSetup: PasswordSetup | null;
+    authError: string | null;
+    retryAuth: () => void;
     startPasswordSetup: () => Promise<PasswordSetup | null>;
     login: (userData: AuthUser) => void;
     completeLogin: (fallbackUser: AuthUser) => Promise<AuthUser>;
@@ -50,9 +52,12 @@ export const useAuth = (): AuthContextValue => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<AuthUser | null>(null);
     const [loading, setLoading] = useState(true);
+    const [authFailure, setAuthFailure] = useState<{ message: string; attempt: number; delay: number } | null>(null);
+    const authRequest = useRef(0);
+    const checkAgain = useRef<() => void>(() => {});
     // { username, name } while this browser is signed in with a temporary
     // password and has to choose its own before anything else — a setup
-    // session, not a real one (src/services/staffSession.js). Every
+    // session, not a real one (src/services/staffSession.ts). Every
     // ProtectedRoute shows ChoosePasswordPage instead of its page meanwhile.
     const [passwordSetup, setPasswordSetup] = useState<PasswordSetup | null>(null);
 
@@ -84,6 +89,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
      * needs to hold the page back.
      */
     const checkAuth = async ({ silent = false }: { silent?: boolean } = {}): Promise<AuthUser | null> => {
+        const requestId = ++authRequest.current;
+        let retryAfter = 0;
         if (!silent) setLoading(true);
         try {
             const token = getAuthToken();
@@ -101,18 +108,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 credentials: 'include'
             });
 
+            if (requestId !== authRequest.current) return null;
             if (!verifyRes.ok) {
-                setUser(null);
-                setPasswordSetup(null);
-                setLoading(false);
-                return null;
+                if (verifyRes.status === 401 || verifyRes.status === 403) {
+                    setUser(null); setPasswordSetup(null); setAuthFailure(null);
+                    return null;
+                }
+                const retry = verifyRes.headers.get('Retry-After');
+                retryAfter = retry ? (/^\d+$/.test(retry) ? Number(retry) * 1000 : Date.parse(retry) - Date.now()) : 0;
+                throw new Error('Your session could not be checked. Please retry in a moment.');
             }
 
             const authData = await verifyRes.json();
+            if (requestId !== authRequest.current) return null;
 
             // Server returns { valid: false } when no token is present —
             // with `setup` when this browser is mid first password.
             if (!authData.valid) {
+                setAuthFailure(null);
                 setPasswordSetup(authData.setup ? await readPasswordSetup() : null);
                 setUser(null);
                 setLoading(false);
@@ -135,7 +148,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 const tokenRes = await fetch(`${API_URL}/api/auth/token`, { credentials: 'include' });
                 if (tokenRes.ok) {
                     const tokenData = await tokenRes.json();
-                    if (tokenData.token) setAuthToken(tokenData.token);
+                    if (requestId === authRequest.current && tokenData.token) setAuthToken(tokenData.token);
                 }
             } catch {
                 // Non-fatal — everything else here already works off the cookie alone
@@ -153,6 +166,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
             if (profileRes.ok) {
                 const userData = await profileRes.json();
+                if (requestId !== authRequest.current) return null;
                 // Normalize user object for UI consistency
                 const nextUser: AuthUser = {
                     ...userData,
@@ -162,19 +176,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                     // tidied username); prefer it over the raw lower-case login id.
                     contactName: userData.contactName || userData.name || userData.username || userData.email
                 };
+                setAuthFailure(null);
                 setUser(nextUser);
                 return nextUser;
             } else {
-                setUser(null);
+                if (profileRes.status === 401 || profileRes.status === 403) {
+                    if (requestId === authRequest.current) { setUser(null); setAuthFailure(null); }
+                } else throw new Error('Your account could not be loaded. Please retry in a moment.');
             }
         } catch (error) {
             console.error('Auth check failed:', error);
-            setUser(null);
+            if (requestId === authRequest.current) setAuthFailure(previous => ({
+                message: 'We could not verify your session. Your session has not been signed out.',
+                attempt: (previous?.attempt || 0) + 1,
+                delay: Math.max(1000, Math.min(60000, retryAfter || 1000 * 2 ** Math.min(previous?.attempt || 0, 5)))
+            }));
         } finally {
-            setLoading(false);
+            if (requestId === authRequest.current) setLoading(false);
         }
         return null;
     };
+
+    checkAgain.current = () => { void checkAuth({ silent: Boolean(user) }); };
+    useEffect(() => {
+        if (!authFailure || authFailure.attempt > 3) return;
+        const timer = setTimeout(() => checkAgain.current(), authFailure.delay);
+        return () => clearTimeout(timer);
+    }, [authFailure]);
 
     // Auto-logout after inactivity timeout
     useEffect(() => {
@@ -218,12 +246,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             // timestamp markers set by login()/logout() below and were always
             // the other half of this OR, so cross-tab sync is unaffected.
             if (e.key === 'auth_logout_event') {
+                authRequest.current++; setAuthFailure(null); clearAuthToken();
                 console.log('Cross-tab logout event received');
                 forgetSessionData();
                 setPasswordSetup(null);
                 setUser(null);
             } else if (e.key === 'auth_login_event') {
                 console.log('Cross-tab login event received');
+                clearAuthToken(); setUser(null);
                 // A different person may have just signed in on the other tab.
                 forgetSessionData();
                 // Silent: a tab already open on a page keeps it mounted.
@@ -252,6 +282,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const login = (userData: AuthUser): void => {
+        authRequest.current++; setAuthFailure(null);
         resetSessionExpiredGuard();
         localStorage.setItem('auth_login_event', Date.now().toString());
         setUser(userData);
@@ -281,6 +312,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const logout = async (): Promise<void> => {
+        authRequest.current++; setAuthFailure(null);
         try {
             await Promise.all([
                 fetch(`${API_URL}/api/customer/logout`, { method: 'POST', credentials: 'include' }),
@@ -316,6 +348,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         user,
         loading,
         passwordSetup,
+        authError: authFailure?.message || null,
+        retryAuth: () => { setAuthFailure(null); checkAgain.current(); },
         startPasswordSetup,
         login,
         completeLogin,

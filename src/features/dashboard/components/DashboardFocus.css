@@ -236,3 +236,10 @@ body:not(.light-theme-active) .dfx-btn--dark { background: #f1f5f9; border-color
     white-space: nowrap;
   }
 }
+
+/* Failed requests are distinct from an empty result, in either theme. */
+.dfx-load-error { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 18px; border: 1px solid var(--accent-primary); border-radius: 12px; background: var(--bg-card); color: var(--text-primary); }
+.dfx-load-error > div { display: flex; flex-direction: column; gap: 6px; }
+.dfx-load-error span { color: var(--text-secondary); font-size: 14px; }
+.dfx-load-error .dfx-retry { padding: 10px 18px; border: 1px solid var(--accent-primary); border-radius: 8px; background: var(--accent-primary); color: #000000; font: inherit; font-weight: 700; cursor: pointer; }
+.dfx-load-error .dfx-retry:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }

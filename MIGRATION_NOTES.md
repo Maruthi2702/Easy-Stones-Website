@@ -15,7 +15,7 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 | Area | Today | Plan | Status |
 |---|---|---|---|
 | Frontend | React 19 + Vite 5, JavaScript | Stay on React; JS → TypeScript gradually | Started; SalesPage split done (A1–A7, 2026-10-24) |
-| Backend | Node + Express 5, `node server.js` on Render | Stay on Node; Node 24, split `server.js` | Node 24 approved 2026-10-23; split started |
+| Backend | Node + Express 5, `node server.ts` on Render | Stay on Node; Node 24, split `server.ts` | Node 24 approved 2026-10-23; split started |
 | Django | — | **Not recommended** | Answered |
 | Database | MongoDB (Mongoose 9) | PostgreSQL (not DynamoDB), one area at a time | Proposed |
 | Staging | None (deferred by the owner 2026-10-07) | Needed before any database move | Owner to decide |
@@ -27,7 +27,7 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 2. **Staging server** with a copy of production data.
 3. **Node 24 on Render** as its own change (Node 20 reached end of life
    2026-04-30, and it can't load `.ts`).
-4. **Split `server.js`** into per-area route files.
+4. **Split `server.ts`** into per-area route files.
 5. **Shared files to TypeScript**, now that Node 24 can load them.
 6. **A data layer per area**, still on MongoDB, then **PostgreSQL one area
    at a time**, Permits first.
@@ -47,21 +47,21 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 ## 1. Frontend: JavaScript → TypeScript
 
 The frontend is already React 19, so this is JS → TS only. Numbers from
-walking the import graph from `src/main.jsx` and from `server.js` + `scripts/`:
+walking the import graph from `src/main.tsx` and from `server.ts` + `scripts/`:
 
 | Files | Count | Lines | Who loads them |
 |---|---|---|---|
 | Browser-only | 207 (145 `.jsx`) | ~55k | Vite only |
-| Shared | 69 (38 `src/utils`, 24 `src/permits/rules`, + accounting/holds/config) | ~9.6k | Vite **and** `node server.js` |
-| Server-only | 106 + `server.js` | ~20k + 6.5k | Node only |
+| Shared | 69 (38 `src/utils`, 24 `src/permits/rules`, + accounting/holds/config) | ~9.6k | Vite **and** `node server.ts` |
+| Server-only | 106 + `server.ts` | ~20k + 6.5k | Node only |
 
 **Update 2026-10-23:** the owner approved Node 24, so the constraint below is
-lifted on `feat/typescript` (pinned to 24.22.1; checked by booting `server.js`
+lifted on `feat/typescript` (pinned to 24.22.1; checked by booting `server.ts`
 on Node 24 against an in-memory MongoDB, the full test suite, and sharp,
 pdf-lib, Tesseract, Playwright, xlsx and bcrypt loading). Server-loaded files
 may now be `.ts` with explicit `.ts` imports; `.tsx` stays browser-only.
 
-**The constraint (until then):** Render ran `node server.js` on Node **20.19** with no
+**The constraint (until then):** Render ran `node server.ts` on Node **20.19** with no
 compile step. Node 20 can't load a `.ts` file (`ERR_UNKNOWN_FILE_EXTENSION`,
 checked); Node 24 strips the types itself (checked). So a shared file renamed
 to `.ts` on Node 20 crashes the live server at start. Node 20 also reached end
@@ -79,7 +79,7 @@ like `= {}`), not hidden bugs.
 1. **Setup (no runtime change):** `typescript` + `typescript-eslint`,
    `tsconfig.json` (`allowJs`, `strict` for `.ts` only, `noEmit`,
    `erasableSyntaxOnly`), `npm run typecheck` (tsc + a check that nothing
-   `server.js` loads is `.ts` until step 4), Vitest/ESLint globs for
+   `server.ts` loads is `.ts` until step 4), Vitest/ESLint globs for
    `.ts`/`.tsx`. Deploy keeps `vite build`; typecheck joins the pre-merge
    check, and joins the build once the tree is clean.
 2. **Data types** in `src/types/` (Customer, Delivery, CheckIn, Location,
@@ -93,7 +93,7 @@ like `= {}`), not hidden bugs.
    smoke-test sharp, tesseract, PDFs, Playwright permit readers). Then the
    shared files, erasable syntax only (no `enum`/`namespace`), imported with
    `.ts` extensions.
-5. **Server-only** files, with or after the `server.js` split.
+5. **Server-only** files, with or after the `server.ts` split.
 
 **Rules for every conversion commit:** `git mv` + types only, no behaviour
 change; fix importers in the same commit; typecheck + `npm test` +
@@ -109,8 +109,8 @@ on a live app with no staging, and it costs more than it fixes.
 
 | Backend today | Size |
 |---|---|
-| API routes | ~275 (128 in `server.js`, 147 in route files) |
-| `server.js` | 6,742 lines |
+| API routes | ~275 (128 in `server.ts`, 147 in route files) |
+| `server.ts` | 6,742 lines |
 | Database models | 25 in `src/models` (40 registered in all) |
 | Server test files | 39 |
 | Live socket updates (`emit`) | 50 |
@@ -133,7 +133,7 @@ on a live app with no staging, and it costs more than it fixes.
 - **No shared types:** the TypeScript plan's main gain — one definition of a
   Customer or Delivery for both screens and server — is lost.
 
-What fixes the real backend risks instead: split `server.js`, Node 24 then
+What fixes the real backend risks instead: split `server.ts`, Node 24 then
 TypeScript, tighten the database, staging. Python would make sense only as a
 small separate service for one job it's clearly better at (heavy data
 analysis, machine learning), next to Node, not replacing it. If something
@@ -158,7 +158,7 @@ Postgres.
 |---|---|
 | Models | 40 |
 | Files that touch the database | 114 |
-| Database calls | ~665 (165 in `server.js`) |
+| Database calls | ~665 (165 in `server.ts`) |
 | Aggregation pipelines | 24 in 7 files |
 | Regex searches | 57 in 19 files |
 | Free-form (`Mixed`) fields | 31 in 12 files |
@@ -191,7 +191,7 @@ keys would refuse those rows.
 1. **Staging with a copy of production data.** A database move without it is
    the riskiest change this app could make. (Deferred by the owner
    2026-10-07; this is the time to bring it back.)
-2. **Node 24, then split `server.js`.** Its 165 database calls must move into
+2. **Node 24, then split `server.ts`.** Its 165 database calls must move into
    area files anyway.
 3. **A data layer per area** (`customers`, `deliveries`…): every Mongoose call
    behind functions with tests, still on MongoDB. The switch then rewrites
@@ -223,7 +223,7 @@ small reversible step at a time.
 
 | File | Lines | What's inside |
 |---|---|---|
-| `server.js` | 6,537 | bootstrap, sockets, presence, auth middleware, ~90 routes (products, auth, admin users/roles/locations, customers, dashboard, sales-dashboard, lost sales, crossover, colors, uploads, resources…), jobs |
+| `server.ts` | 6,537 | bootstrap, sockets, presence, auth middleware, ~90 routes (products, auth, admin users/roles/locations, customers, dashboard, sales-dashboard, lost sales, crossover, colors, uploads, resources…), jobs |
 | `src/pages/SalesPage.jsx` | 5,583 | the shell (side nav, phone bar, tab switch), **plus** the Dashboard, the customer profile page, the visit/resource/contact forms' state, the Check-In Log's state, calendar sync, image gallery, delete confirm — 117 `useState`, 68 handlers |
 | `RoutePlannerV2.jsx` | 1,722 | map, panels, filters, scheduling |
 | `SalesPlannerTab.jsx` | 1,536 | the planner calendar |
@@ -288,7 +288,7 @@ move per module, never a second.
 ### Server layout (target)
 
 ```
-server.js                    bootstrap only: env, database, app, middleware
+server.ts                    bootstrap only: env, database, app, middleware
                              order, mount routers, sockets, jobs, listen
 src/app/createApp.js         builds the Express app (no listen) — so tests and
                              a route-table check can load it
@@ -372,7 +372,7 @@ browser yet.
 | A7 | Shell: module registry, live-updates wiring; SalesPage < 500 lines | medium |
 | B | Each module: move to `features/`, TypeScript, split files that do several jobs (RoutePlannerV2, SalesPlannerTab, AdminPage, DailyReportTab, PartnersSheet, UsersRolesTab, CheckInLogPanel…) | per module |
 | C1 | `createApp()` + route-table snapshot | low |
-| C2+ | `server.js` areas into routers, least used first: colors, crossover, lost sales, uploads/resources, products, sales-dashboard, dashboard, admin, auth, customers | per area |
+| C2+ | `server.ts` areas into routers, least used first: colors, crossover, lost sales, uploads/resources, products, sales-dashboard, dashboard, admin, auth, customers | per area |
 
 Each step is its own commit with typecheck, `npm test`, `vite build`, the
 import check, and a short hand-check list for the screens it touched. Steps

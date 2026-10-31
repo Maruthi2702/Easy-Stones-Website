@@ -8,7 +8,7 @@ import type { LocationRecord, StaffMember } from '../types/records';
  * The one staff list behind every sales rep dropdown that saves a name
  * (Selection Sheet, Delivery, Location). Loaded once per page load from
  * /api/salesreps and shared, so each screen shows the same people; who is
- * offered is decided in src/utils/salesReps.js (salesRepNameOptions), the same
+ * offered is decided in src/utils/salesReps.ts (salesRepNameOptions), the same
  * rule as the customer rep picker (toSalesRepList).
  */
 

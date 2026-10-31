@@ -20,7 +20,7 @@ export type BulkDeleteDialogProps = {
  * which (the first five names), and — above 10 — the count typed back before
  * Delete unlocks, so a select-all can't be thrown away with one stray click.
  * Every deleted customer is saved first and the bar offers Undo afterwards
- * (src/utils/customerBulkDelete.js, src/routes/customerBulkDelete.js).
+ * (src/utils/customerBulkDelete.ts, src/routes/customerBulkDelete.ts).
  */
 export default function BulkDeleteDialog({ rows = [], saving = false, error = '', onConfirm, onClose }: BulkDeleteDialogProps) {
     const count = rows.length;

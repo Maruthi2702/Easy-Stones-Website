@@ -6,7 +6,7 @@ import type { Id } from '../../types/api';
 /**
  * One cart, shared by the side-rail button, the cart drawer and the inventory
  * checkboxes (2026-10-10), so ticking a slab anywhere updates all three.
- * The server is the source of truth (src/holds/router.js); this keeps the
+ * The server is the source of truth (src/holds/router.ts); this keeps the
  * latest copy and the drawer's open/closed state.
  *
  * `reservationsTick` goes up whenever slabs were held, released or carted by

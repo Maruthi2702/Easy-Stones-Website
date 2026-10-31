@@ -1,6 +1,6 @@
 /**
  * The 3rd-Party Freight screen's shapes. Records stay loose (as /api/accounting
- * sends them, src/accounting/models.js); what's typed is how the screen's parts
+ * sends them, src/accounting/models.ts); what's typed is how the screen's parts
  * talk to each other: which panel or form is open, and the actions they call.
  */
 import type { ReactNode } from 'react';

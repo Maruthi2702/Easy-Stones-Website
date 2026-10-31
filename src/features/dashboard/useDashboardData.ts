@@ -5,11 +5,11 @@ import { formatDate, getLocalISOString } from '../../utils/dateUtils';
 import { DEFAULT_ROWS_PER_PAGE } from '../../components/shared/paginationConfig';
 import { useLocationFilter } from '../../components/shared/useLocationFilter';
 import { splitCustomer } from '../../components/sales/visitsListHelpers';
-import { canAddVisit, visitViewScope } from '../../utils/visitAccess.js';
+import { canAddVisit, visitViewScope } from '../../utils/visitAccess.ts';
 import { usePeopleOptions } from '../../api/myTeam';
 import { peopleDefault, repsParam, includesPerson, parseStoredPeople, showsWhoLogged, togglePerson, isJustMe, MY_TEAM } from './dashboardPeople';
 import { repBreakdown } from './repBreakdown';
-import { canSeeTeamCalendar } from '../../utils/teamScope.js';
+import { canSeeTeamCalendar } from '../../utils/teamScope.ts';
 import { resourceExportRows } from './resources/resourceList';
 import type { Loose } from '../../types/records';
 
@@ -38,7 +38,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     // The Sales dashboard's location filter: Visits, Follow-ups, Resources and
     // the tiles above them all follow it ('' = every branch the viewer may
     // see). Offered from the viewer's Visits permissions (visitViewScope in
-    // src/utils/visitAccess.js): every branch with view_all_visits, their
+    // src/utils/visitAccess.ts): every branch with view_all_visits, their
     // assigned ones with view_branch_visits (all, if assigned '*'), none for
     // anyone who only sees their own visits. The server enforces the same
     // limits (narrowScopeToLocation). Opens on their home location.
@@ -101,6 +101,8 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     // "No data available" between the workspace spinner going away and the
     // first response landing — which read as an empty dashboard.
     const [dashboardLoaded, setDashboardLoaded] = React.useState(false);
+    const [dashboardErrors, setDashboardErrors] = useState<Record<string, string | null>>({});
+    const loadError = (part: string, message: string | null) => setDashboardErrors(previous => ({ ...previous, [part]: message }));
     const [allSchedules, setAllSchedules] = useState<Loose[]>([]);
 
     // Fetch Dashboard Stats from Backend — merged into one effect with fetchDashboardData below
@@ -117,12 +119,12 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         try {
             const localDate = new Date().toLocaleDateString('en-CA');
             const response = await authFetch(`${API_URL}/api/dashboard/stats?timeRange=${dashboardTimeRange}&localDate=${localDate}${dashboardLocationParam}`);
-            if (response.ok) {
-                const data = await response.json();
-                if (reqId === dashboardStatsReqRef.current) setStats(data);
-            }
+            if (!response.ok) throw new Error(`Stats request failed (${response.status})`);
+            const data = await response.json();
+            if (reqId === dashboardStatsReqRef.current) { setStats(data); loadError('stats', null); }
         } catch (error) {
             console.error('Error fetching dashboard stats:', error);
+            if (reqId === dashboardStatsReqRef.current) loadError('stats', 'summary totals');
         } finally {
             if (reqId === dashboardStatsReqRef.current) setStatsLoading(false);
         }
@@ -133,11 +135,13 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         try {
             const localDateStr = new Date().toLocaleDateString('en-CA');
             const res = await authFetch(`${API_URL}/api/dashboard/followups/panel?timeRange=${dashboardTimeRange}&localDate=${localDateStr}${dashboardLocationParam}`);
-            if (!res.ok) return;
+            if (!res.ok) throw new Error(`Follow-ups request failed (${res.status})`);
             const rows = await res.json();
-            if (reqId === followUpPanelReqRef.current) setFollowUpPanel(Array.isArray(rows) ? rows : []);
+            if (!Array.isArray(rows)) throw new Error('Invalid follow-ups response');
+            if (reqId === followUpPanelReqRef.current) { setFollowUpPanel(rows); loadError('followUpPanel', null); }
         } catch (error) {
             console.error('Error fetching follow-up panel:', error);
+            if (reqId === followUpPanelReqRef.current) loadError('followUpPanel', 'follow-ups');
         }
     }, [dashboardTimeRange, dashboardLocationParam]);
 
@@ -153,16 +157,20 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
                 authFetch(`${API_URL}/api/dashboard/resources?timeRange=${dashboardTimeRange}&localDate=${localDateStr}${dashboardLocationParam}`),
                 authFetch(`${API_URL}/api/dashboard/visits?timeRange=${dashboardTimeRange}&localDate=${localDateStr}&filterType=followup${dashboardLocationParam}`)
             ]);
+            if (![visitsRes, resourcesRes, followupsRes].every(response => response.ok)) throw new Error('Dashboard list request failed');
             const visits = await visitsRes.json();
             const resources = await resourcesRes.json();
             const followups = await followupsRes.json();
+            if (![visits, resources, followups].every(Array.isArray)) throw new Error('Invalid dashboard list response');
             if (reqId !== dashboardDataReqRef.current) return; // superseded — see dashboardDataReqRef
 
             setDashboardVisits(Array.isArray(visits) ? visits : []);
             setDashboardResources(Array.isArray(resources) ? resources : []);
-            setDashboardFollowups(Array.isArray(followups) ? followups : []);
+            setDashboardFollowups(followups);
+            loadError('data', null);
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
+            if (reqId === dashboardDataReqRef.current) loadError('data', 'visits and resources');
         } finally {
             if (reqId === dashboardDataReqRef.current) {
                 setDashboardDataLoading(false);
@@ -181,7 +189,9 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     }, [fetchDashboardStats, fetchDashboardData, customerRefreshTrigger, resourceRefreshTrigger]);
 
     // Fetch schedules for the dashboard
+    const schedulesReqRef = React.useRef(0);
     const fetchSchedules = useCallback(async () => {
+        const reqId = ++schedulesReqRef.current;
         try {
             // Fetch a broad range of schedules for the dashboard (e.g., +/- 1 month)
             const now = new Date();
@@ -192,8 +202,12 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
 
             // Use getLocalISOString to avoid UTC conversion logic
             const response = await authFetch(`${API_URL}/api/schedule?start=${getLocalISOString(start)}&end=${getLocalISOString(end)}${calendarViewing}`);
-            if (response.ok) {
+            if (!response.ok) throw new Error(`Schedule request failed (${response.status})`);
+            {
                 const data = await response.json();
+                if (!Array.isArray(data)) throw new Error('Invalid schedule response');
+                if (reqId !== schedulesReqRef.current) return;
+                loadError('schedules', null);
                 setAllSchedules(data);
 
                 // Update today's count from the fetched data
@@ -210,6 +224,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
             }
         } catch (error) {
             console.error('Error fetching schedules:', error);
+            if (reqId === schedulesReqRef.current) loadError('schedules', 'calendar');
         }
     }, [calendarViewing]);
 
@@ -263,7 +278,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         const currentUserIdStr = currentUserId?.toString();
 
         // Always the server's list, which is already scoped to who may see what
-        // (dashboardScope in src/utils/dashboardMatch.js: a manager only their
+        // (dashboardScope in src/utils/dashboardMatch.ts: a manager only their
         // branches). The "All" range used to read allVisits instead — built from
         // the Customers tab's current page, unscoped and only one page deep.
         const sourceVisits = dashboardVisits;
@@ -598,6 +613,8 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     };
 
     return {
+        dashboardErrors,
+        retryDashboard: () => Promise.all([fetchDashboardStats(), fetchDashboardData(), fetchSchedules()]),
         dashboardTimeRange,
         setDashboardTimeRange,
         dashboardLocationOptions,

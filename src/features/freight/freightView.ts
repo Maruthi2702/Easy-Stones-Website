@@ -7,12 +7,12 @@
  *
  * Pure, tested in freightView.test.ts.
  */
-import { FREIGHT } from '../../accounting/permissions.js';
-import { PAYMENT_TERMS } from '../../accounting/freightRules.js';
-import { sumCents } from '../../accounting/money.js';
+import { FREIGHT } from '../../accounting/permissions.ts';
+import { PAYMENT_TERMS } from '../../accounting/freightRules.ts';
+import { sumCents } from '../../accounting/money.ts';
 import type { Loose } from '../../types/records';
 
-/** A freight charge / carrier / payment as /api/accounting sends them (src/accounting/models.js). */
+/** A freight charge / carrier / payment as /api/accounting sends them (src/accounting/models.ts). */
 export type FreightCharge = Loose;
 export type CarrierGroup = { key: string; carrier: Loose | null; name: string; perInvoice: boolean; unmatched: boolean; items: FreightCharge[]; cents: number };
 

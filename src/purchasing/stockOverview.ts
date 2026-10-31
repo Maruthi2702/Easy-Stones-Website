@@ -1,4 +1,4 @@
-import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.js';
+import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.ts';
 import { shiftDay, variantKey } from './planning.ts';
 import type { StockBreakdown, StockCoverage } from './types.ts';
 

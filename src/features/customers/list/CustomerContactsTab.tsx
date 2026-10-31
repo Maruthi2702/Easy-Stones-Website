@@ -29,6 +29,7 @@ type ContactRow = { key: string; primary?: boolean; contact?: Loose; name: strin
 
 export type CustomerContactsTabProps = {
   customer: Loose | null;
+  canManage?: boolean;
   onAdd: () => void;
   onEdit: (contact: Loose) => void;
   onDelete: (contactId: string) => void;
@@ -36,7 +37,7 @@ export type CustomerContactsTabProps = {
   onEditCustomer?: () => void;
 };
 
-const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete, onEditCustomer }: CustomerContactsTabProps) => {
+const CustomerContactsTab = ({ customer, canManage = false, onAdd, onEdit, onDelete, onEditCustomer }: CustomerContactsTabProps) => {
   const c: Loose = customer || {};
 
   const rows = useMemo(() => {
@@ -81,7 +82,7 @@ const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete, onEditCustomer
   );
 
   // The main contact is on the customer record, so its ⋯ has one item: Edit customer.
-  const editDelete = (row: ContactRow) => (row.primary ? (onEditCustomer ? <RowMenu noun="customer" onEdit={onEditCustomer} /> : null) : (
+  const editDelete = (row: ContactRow) => (!canManage ? null : row.primary ? (onEditCustomer ? <RowMenu noun="customer" onEdit={onEditCustomer} /> : null) : (
     <RowMenu noun="contact" onEdit={() => onEdit(row.contact as Loose)} onDelete={() => onDelete((row.contact as Loose)._id)} />
   ));
 
@@ -94,7 +95,7 @@ const CustomerContactsTab = ({ customer, onAdd, onEdit, onDelete, onEditCustomer
           icon={<Users size={28} aria-hidden="true" />}
           title="No contacts yet"
           text="Add the people you work with at this customer."
-          actionLabel="Add contact"
+          actionLabel={canManage ? "Add contact" : undefined}
           onAction={onAdd}
         />
       ) : (

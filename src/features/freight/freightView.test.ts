@@ -3,7 +3,7 @@ import {
   FREIGHT_TABS, tabCount, groupByCarrier, selectionActions, referenceLabel, paymentMethodText,
   historyLabel, todayIso, shortDate, newRequestId, freightExportRows, has, plural, isSelectable
 } from './freightView';
-import { FREIGHT } from '../../accounting/permissions.js';
+import { FREIGHT } from '../../accounting/permissions.ts';
 
 const ABC = { _id: 'c1', name: 'ABC Freight Inc', paymentTerms: 'per_delivery' };
 const WX = { _id: 'c2', name: 'Western Express', paymentTerms: 'per_invoice' };

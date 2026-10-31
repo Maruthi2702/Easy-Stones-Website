@@ -4,7 +4,7 @@ import { getAuthToken, onAuthTokenChange } from './authToken';
 
 /**
  * Tells the server this tab is open and in use, for Users & Roles' Online
- * badges (server side: src/services/presence.js). One socket per tab, started
+ * badges (server side: src/services/presence.ts). One socket per tab, started
  * by <PresenceReporter/> while someone is signed in.
  *
  * The tab says who it is (its token) on every connect and whenever the
@@ -23,7 +23,7 @@ let socket: Socket | null = null;
 let stopAuthListener: (() => void) | null = null;
 let lastReportedAt = 0;
 // The newest list pushed by the server, or null. Its rows are
-// src/services/presence.js's; src/utils/userPresence.js reads them.
+// src/services/presence.ts's; src/utils/userPresence.js reads them.
 export type PresenceList = unknown;
 type PresenceSubscriber = (list: PresenceList) => void;
 let latest: PresenceList | null = null;

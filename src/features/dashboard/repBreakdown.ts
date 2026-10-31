@@ -1,4 +1,4 @@
-import { dayOf } from '../../utils/followUpPanel.js';
+import { dayOf } from '../../utils/followUpPanel.ts';
 import type { PersonOption } from '../../api/myTeam';
 import type { Loose } from '../../types/records';
 

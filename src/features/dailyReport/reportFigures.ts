@@ -1,4 +1,4 @@
-import { transferCountOf } from '../../utils/transferDirection.js';
+import { transferCountOf } from '../../utils/transferDirection.ts';
 import { withAllPaymentMethods, paymentCount, paymentAmount } from '../../utils/dailyReportPayments';
 import type { DayTotals, Figure, Report, SlabRange } from './types';
 

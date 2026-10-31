@@ -72,7 +72,7 @@ export default function SalesModals(p: SalesModalsProps) {
     const { visits, resources, actions, teamFiles, gallery, currentUser, currentUserId, selectedCustomer } = p;
     const { editingVisit } = visits;
     // A resource follows the visit rules, its uploader standing in for who logged
-    // the visit (as the server checks it, resourceAccessArgs in server.js).
+    // the visit (as the server checks it, resourceAccessArgs in server.ts).
     const editingResource = resources.editingResource;
     // The "branch" switches go by the uploader's / logger's branch (useMyTeam).
     const team = useMyTeam(currentUser, currentUserId);

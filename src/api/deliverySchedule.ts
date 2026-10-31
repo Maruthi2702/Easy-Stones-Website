@@ -1,3 +1,4 @@
+import { isReceivingTransfer } from '../utils/transferAccess';
 // The ONLY place in the app that calls the delivery API — every component
 // under src/features/delivery/ gets its data by calling the
 // exported functions here, never by fetching /api/deliveries directly. Also
@@ -69,7 +70,7 @@ const scheduleCache: {
   // The current viewer's assignedLocations ('*' for admin), kept in sync on
   // every getScheduleDataCached call. Lets upsertDeliveryIntoCache apply the
   // same origin-vs-destination transfer-date rule the server's list route
-  // uses — see applyTransferPerspective in src/utils/deliveryTypes.js.
+  // uses — see applyTransferPerspective in src/utils/deliveryTypes.ts.
   viewerLocations: [],
   listeners: new Set(),
   // Told "something may have changed" — every socket update, reconnect and
@@ -165,7 +166,7 @@ function getActiveWeekDeliveries(): DeliveryRecord[] {
 // Pending means no driver assigned yet — such an order has no truck column to
 // sit in, so it waits in the Pending list until one is chosen. Will calls and
 // customer drop-offs are the exceptions, since neither ever gets a driver.
-// The rule itself (and its tests) live in src/utils/deliveryTypes.js, shared
+// The rule itself (and its tests) live in src/utils/deliveryTypes.ts, shared
 // with the board so the two cannot drift; it must also stay the complement of
 // the server's week query in GET /api/deliveries.
 
@@ -174,6 +175,7 @@ function getActiveWeekDeliveries(): DeliveryRecord[] {
 // e.g. if its date was edited).
 function upsertDeliveryIntoCache(rawDelivery: DeliveryRecord | null | undefined): void {
   if (!rawDelivery || !rawDelivery.id) return;
+  rawDelivery = { ...rawDelivery, receivingOnly: isReceivingTransfer({ assignedLocations: scheduleCache.viewerLocations }, rawDelivery) } as DeliveryRecord;
   // Raw record as the server stored it (ship date, real location) — reshaped
   // to the current viewer's perspective before it's bucketed, the same way
   // GET /api/deliveries reshapes its list for a destination branch looking
@@ -457,7 +459,7 @@ export function subscribeScheduleCache(callback: (snapshot: ScheduleSnapshot) =>
   };
 }
 
-// ── COLUMN ORDER PER BRANCH (src/utils/deliveryColumns.js) ──
+// ── COLUMN ORDER PER BRANCH (src/utils/deliveryColumns.ts) ──
 // `{ Seattle: ['drv_angel', …], … }`; a branch missing or empty uses the
 // default order. A failed read is `{}` — the board still draws, just in the
 // default order.
@@ -744,7 +746,7 @@ async function fetchDriverUsers(cacheKey: string, userLocation: string | null = 
 
     // The truck columns: users whose role has Users & Roles → Delivery
     // Schedule → Driver view — the same switch that gives them the driver
-    // screen (src/utils/deliveryAccess.js). /api/salesreps works it out per
+    // screen (src/utils/deliveryAccess.ts). /api/salesreps works it out per
     // user. It used to be users whose role was named driver or logistics.
     // Deactivated drivers stay in the list, marked `inactive`: the board
     // shows their column only on weeks they have orders (their history, and
@@ -977,6 +979,16 @@ export async function deleteDelivery(id: string): Promise<DeliveryRecord[]> {
 // other field as their browser last saw it — quietly reverting an address or a
 // time the office had changed in the meantime. It also can't be done offline in
 // any honest way, so a failure is raised rather than swallowed.
+/** An inbound receipt edit never echoes the sender's shipping fields. */
+export async function updateIncomingTransfer(id: string, fields: { expectedArrivalDate?: string; numberOfSlabs?: number }): Promise<DeliveryRecord[]> {
+  const res = await authFetch(`${API_URL}/api/deliveries/${encodeURIComponent(id)}/receiving`, { method: 'PATCH', body: JSON.stringify(fields) });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Could not update the incoming transfer.');
+  upsertDeliveryIntoCache(body);
+  notifyScheduleListeners();
+  return getActiveWeekDeliveries();
+}
+
 export async function updateDeliveryStatus(id: string, newStatus: string): Promise<DeliveryRecord[]> {
   const res = await authFetch(`${API_URL}/api/deliveries/${id}/status`, {
     method: 'PATCH',

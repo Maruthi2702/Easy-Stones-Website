@@ -12,7 +12,7 @@ import './HoldPrintPreview.css';
  * Print preview for the Hold Information Letter (after SPS's): the "Hide …"
  * boxes, then Print / Download PDF. The pages shown are the PDF itself, drawn
  * with pdf.js, so what's on screen is exactly what prints — there is one
- * letter (src/holds/holdPdf.js), not a screen copy that could drift from it.
+ * letter (src/holds/holdPdf.ts), not a screen copy that could drift from it.
  * Drawing the pages is letterPdf.ts; printing and saving, letterOutput.ts.
  */
 

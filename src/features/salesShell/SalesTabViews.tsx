@@ -23,7 +23,7 @@ type JsPage = ComponentType<Loose>;
 const page = (load: () => Promise<{ default: ComponentType<any> }>) => lazyRetry(load) as unknown as JsPage;
 
 // Each page loads only once its own tab is opened (the same lazyRetry pattern
-// src/App.jsx uses per route): before, every tab — Route Planner's Google Maps
+// src/App.tsx uses per route): before, every tab — Route Planner's Google Maps
 // code, Users & Roles, Price List — was in one bundle loaded for any tab.
 const RoutePlannerV2 = page(() => import('../routePlanner/RoutePlannerV2'));
 const PriceListPanel = page(() => import('../../components/sales/PriceListPanel'));

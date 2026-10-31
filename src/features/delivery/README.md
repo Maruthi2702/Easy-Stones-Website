@@ -12,7 +12,7 @@ talks to what, not just a file listing.
 ```
 Browser  (src/features/delivery/)          Server
 ────────────────────────────────────────   ──────────────────────────────────
-DeliveryScheduleTab.tsx  (page shell,       src/routes/deliveries.js
+DeliveryScheduleTab.tsx  (page shell,       src/routes/deliveries.ts
   role switch, week nav, location filter)     (every /api/deliveries and
         │                                      /api/trucks route)
         ├─ board/BoardGrid.tsx  (office/sales        │
@@ -23,9 +23,9 @@ DeliveryScheduleTab.tsx  (page shell,       src/routes/deliveries.js
         │   board/CancelledOrders.tsx                 │
         ├─ form/DeliveryForm.tsx (the one add/edit    │
         │   form — jobsite, transfer, will call,       ▼
-        │   return, drop-off; rules in          src/models/Delivery.js
+        │   return, drop-off; rules in          src/models/Delivery.ts
         │   src/utils/deliveryForm.ts)
-        ├─ pod/PodModal.tsx / pod/PodViewer.tsx   src/models/Truck.js
+        ├─ pod/PodModal.tsx / pod/PodViewer.tsx   src/models/Truck.ts
         │   (capture / view proof of delivery)
         ├─ search/DeliveryOrderSearch.tsx, board/ColumnOrderForm.tsx
         └─ board/TicketChip.tsx → StatusPill.tsx,
@@ -50,6 +50,19 @@ Pure logic with no DOM/network dependency lives in `src/utils/`:
 detection — no test file yet, low risk since it's pure string/config logic),
 `deliverySearch.js` (order search — has `.test.js`, see below).
 
+## Incoming transfers
+
+Both branches can read a transfer. Only its sending branch (or an authorized
+all-branches user) controls the shipment's driver, ship date, status and deletion.
+`src/utils/transferAccess.ts` supplies that rule to the server and interface.
+
+The receiving branch opens `form/IncomingTransferForm.tsx`, using the shared
+form shell, to update expected delivery date and slab count only.
+`updateIncomingTransfer` in `src/api/deliverySchedule.ts` sends the narrow
+`PATCH /api/deliveries/:id/receiving` request. The route validates both fields
+and notifies both branch rooms. Pending inbound cards cannot be dispatched by
+receiving users. Submitted Daily Reports retain their existing reopen rule.
+
 ## Order search (SO# / company, every date)
 
 `search/DeliveryOrderSearch.tsx` is the "Search SO# or company…" box in the header,
@@ -62,11 +75,11 @@ week (widening a one-branch filter if needed); the office also gets the
 ticket opened, sales gets the Pending/Cancelled list scrolled into view.
 
 The rules — who may search, what matches, the branch scope, the result
-wording — live in `src/utils/deliverySearch.js`, shared by the route and the
+wording — live in `src/utils/deliverySearch.ts`, shared by the route and the
 box. Two deliberate differences from the board:
 - **Drivers are refused** server-side — anyone whose role has Users &
   Roles → Delivery Schedule → **Driver view** (`isDeliveryDriver`,
-  `src/utils/deliveryAccess.js`) — not just hidden in the UI.
+  `src/utils/deliveryAccess.ts`) — not just hidden in the UI.
 - **Only the user's own `assignedLocations`** (plus transfers heading to
   them). The board's `scopeDeliveryQueryToLocations` also shows tickets with
   no location at all; search does not. Admins/directors (`'*'`) see every
@@ -106,11 +119,11 @@ delivery data is really just a view over that one cache, kept in sync via
 2. **The socket only pushes updates to rooms a client has actually joined.**
    `deliverySchedule.ts`'s `initScheduleSocket()` connects, then emits
    `join_delivery_rooms` with the current auth token on every `connect`
-   event (including reconnects). The **server** (`server.js`'s
+   event (including reconnects). The **server** (`server.ts`'s
    `io.on('connection', ...)` handler) verifies that token and joins the
    socket to a room per the user's `assignedLocations` — see
    `deliveryRoomFor`/`DELIVERY_ROOM_ALL`, exported from
-   `src/routes/deliveries.js` specifically so the join side and the emit
+   `src/routes/deliveries.ts` specifically so the join side and the emit
    side (`emitDeliveryUpdate`, same file) can't drift apart on the room
    naming scheme. A socket that never sends `join_delivery_rooms` (or whose
    token fails) simply receives no `delivery_update` events — it isn't
@@ -118,16 +131,16 @@ delivery data is really just a view over that one cache, kept in sync via
    (`crossover_sheet_update`, etc.) aren't scoped this way and still need it
    to work.
 
-## Backend: `src/routes/deliveries.js`
+## Backend: `src/routes/deliveries.ts`
 
 Every `/api/deliveries*` and `/api/trucks` route, plus every delivery/POD
 helper (Cloudinary storage, signature stamping, certificate wording) — all
-previously inline in `server.js`, extracted here for the same reason
-`src/routes/dailyReports.js` was: a self-contained feature, and `server.js`
+previously inline in `server.ts`, extracted here for the same reason
+`src/routes/dailyReports.ts` was: a self-contained feature, and `server.ts`
 is thousands of lines covering a dozen unrelated ones. Generic, cross-feature
 helpers (`getPerformerInfo`, `processBase64Images`, `getNowLocalISO`) are
 handed in as dependencies rather than imported, since other features that
-also live in `server.js` share them — see that file's own top-of-file
+also live in `server.ts` share them — see that file's own top-of-file
 comment for the exact contract.
 
 **Permission model**, since it's easy to get backwards:
@@ -136,7 +149,7 @@ comment for the exact contract.
 - `delivery_driver_view` — "Driver view": the user gets the driver screen
   (only their own stops) and no order search. Which screen anyone gets —
   driver, office board or read-only board — comes from these permissions
-  alone (`deliveryViewMode`, `src/utils/deliveryAccess.js`, Driver view →
+  alone (`deliveryViewMode`, `src/utils/deliveryAccess.ts`, Driver view →
   Edit → View), never from the role's name.
 - `delete_delivery_schedule` — separate again; admin/director/manager only
   by default.
@@ -170,12 +183,12 @@ two-sided treatment.
   breaks that invariant, that's the first place to look.
 - **Real-time updates aren't arriving**: check whether the socket actually
   called `join_delivery_rooms` (client) and whether the server accepted the
-  token and joined a room (server, `io.on('connection')` in `server.js`) —
+  token and joined a room (server, `io.on('connection')` in `server.ts`) —
   a silently-expired token means the socket connects fine but never joins a
   room, so it looks "connected" while receiving nothing.
 - **Someone can/can't see another branch's data**: the fix is almost always
   in `scopeDeliveryQueryToLocations` or `userCanAccessDeliveryLocation` in
-  `src/routes/deliveries.js` — both are deliberately kept in sync with each
+  `src/routes/deliveries.ts` — both are deliberately kept in sync with each
   other (query-shaped vs. boolean-shaped versions of the same rule) and
   documented as such where they're defined.
 - **A field you added isn't saving**: `Delivery.js`'s schema has

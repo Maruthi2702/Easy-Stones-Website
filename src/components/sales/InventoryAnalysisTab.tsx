@@ -124,7 +124,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
 
   const userPermissions = currentUser?.permissions || [];
   // Permission-only, no role shortcut: admin/director hold both grants by
-  // default (see server.js's NEW_PERMISSION_GRANTS), but both are also
+  // default (see server.ts's NEW_PERMISSION_GRANTS), but both are also
   // independently revocable per-role under Users & Roles (this feature adds
   // that exact toggle). A role-name bypass here would keep showing the
   // Import buttons/price figures to a role after an admin turned them off

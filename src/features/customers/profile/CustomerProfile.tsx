@@ -89,7 +89,7 @@ export default function CustomerProfile(p: CustomerProfileProps) {
     const adds: Record<string, { label: string; onClick: () => void; show: boolean }> = {
         visits: { label: 'Add visit', onClick: p.onAddVisit, show: p.canAddVisits && (visits > 0 || p.historyLoading) },
         resources: { label: 'Add resource', onClick: p.onAddResource, show: p.canAddVisits && (customer.resources || []).length > 0 },
-        contacts: { label: 'Add contact', onClick: p.onAddContact, show: hasAnyContact(customer) },
+        contacts: { label: 'Add contact', onClick: p.onAddContact, show: canEditCustomer && hasAnyContact(customer) },
         network: { label: 'Link partner', onClick: p.onLinkPartner, show: (customer.associatedCustomers || []).length > 0 }
     };
     const add = adds[activeTab];
@@ -155,6 +155,7 @@ export default function CustomerProfile(p: CustomerProfileProps) {
                         <div className="tab-section contacts-tab">
                             <CustomerContactsTab
                                 customer={customer}
+                                canManage={canEditCustomer}
                                 onAdd={p.onAddContact}
                                 onEdit={p.onEditContact}
                                 onDelete={p.onDeleteContact}

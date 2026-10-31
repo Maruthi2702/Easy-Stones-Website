@@ -8,8 +8,8 @@
  * { startTime, endTime } as the Schedule stores them ('YYYY-MM-DDTHH:mm:ss…').
  */
 
-import { DEFAULT_VISIT_MINUTES } from './scheduleRecord.js';
-import { newVisitId } from './visitForm.js';
+import { DEFAULT_VISIT_MINUTES } from './scheduleRecord.ts';
+import { newVisitId } from './visitForm.ts';
 
 const pad = (n: number): string => String(n).padStart(2, '0');
 

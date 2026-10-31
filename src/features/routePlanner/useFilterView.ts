@@ -92,7 +92,7 @@ export function useFilterView({
     // salesReps supplies the display name for each id.
     // Unassigned first, then reps grouped under their branch with you marked
     // "(you)" — the format every rep dropdown and filter shares
-    // (groupRepOptions in src/utils/salesReps.js). `group` is the heading.
+    // (groupRepOptions in src/utils/salesReps.ts). `group` is the heading.
     const salesRepOptions = useMemo((): RepOption[] => {
         const reps = scopedReps.map((r: StaffMember) => ({
             value: String(r._id), id: String(r._id), label: r.name || 'Unnamed', location: r.location || ''

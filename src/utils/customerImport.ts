@@ -1,0 +1,728 @@
+import type { Loose } from '../types/records.ts';
+/**
+ * What would importing this spreadsheet do?
+ *
+ * Everything here is pure: a workbook goes in, along with the branches, the
+ * sellable reps and the customers we already hold, and a plan comes out saying
+ * row by row what would be created, what would be updated, and what a person
+ * needs to look at first. Nothing reads or writes the database — server.ts
+ * fetches the reference data and carries the plan out, which is what lets the
+ * whole decision be exercised against a real sheet without touching a record.
+ *
+ * Whether a row is someone we already have is decided by
+ * src/utils/customerMatch.ts, the same matcher the duplicate audit and the
+ * merge script use. The import had its own looser rule until this file existed,
+ * and the two disagreed about the very duplicates the audit was written to find.
+ */
+import { read, utils } from 'xlsx';
+import {
+  buildSignalIndex, addToSignalIndex, matchAgainst, STRONG, isPlaceholderEmail
+} from './customerMatch.ts';
+
+/**
+ * Marks an id as belonging to a row of the sheet being imported rather than to
+ * a customer in the database. Nothing can be written to one of these.
+ */
+const SHEET_ROW_PREFIX = 'sheet:';
+
+/**
+ * The fields a spreadsheet can fill, and the headings that mean each one.
+ *
+ * Order is load-bearing. Each column is claimed by at most one field and the
+ * list is walked top to bottom, so a specific heading wins over a loose one:
+ * 'Sales Person1' has to be taken as the owner before the contact matcher sees
+ * the word "name" in it, and 'Parent Location' as the branch before the address
+ * matcher sees "location". Within a field the keywords are tried in order for
+ * the same reason — 'contact' claims 'Contact Name' first, which is what frees
+ * the bare 'Name' column for the company, where SPS exports put it.
+ *
+ * Detection is an opening guess, not the contract. The preview reports what it
+ * matched and the admin can reassign any column before anything is written,
+ * because the next export will name its columns something else again.
+ */
+export const IMPORT_COLUMNS = [
+  ['salesRep', ['sales rep', 'salesrep', 'sales person', 'salesperson', 'account manager', 'account owner', 'assigned to', 'rep']],
+  ['location', ['easy stones location', 'es location', 'branch', 'location', 'store', 'office']],
+  // Ahead of the plain 'email' field below for the same reason 'Sales Person1'
+  // is claimed ahead of the loose contact-name matcher: 'Marketing Email' also
+  // contains the word 'email', and would otherwise be grabbed by the generic
+  // matcher first, leaving the real login-email column unclaimed.
+  ['marketingEmail', ['marketing email', 'newsletter email', 'marketingemail']],
+  ['email', ['email', 'e-mail', 'mail']],
+  ['contactName', ['contact', 'full name', 'customer name', 'customer', 'name']],
+  ['company', ['company', 'business', 'organization', 'firm', 'name', 'account']],
+  ['phone', ['phone', 'mobile', 'cell', 'tel']],
+  ['street', ['address', 'street']],
+  // Ahead of nothing in particular, but must exist as its own field rather
+  // than being read off the same 'address' keyword as street — a sheet with
+  // both an "Address" and an "Address2" column needs both, not one
+  // overwriting the other depending on header order.
+  ['street2', ['address 2', 'address2', 'suite', 'unit number', 'apt']],
+  ['city', ['city', 'town']],
+  ['state', ['state', 'province', 'region']],
+  ['zipCode', ['zip', 'postal', 'code']],
+  ['level', ['level', 'tier', 'grade']],
+  ['customerType', ['customertype', 'customer type', 'type', 'category']],
+  ['status', ['status', 'stage', 'lead status']],
+  ['modaDisplay', ['modadisplay', 'moda display', 'display']],
+  ['modaBinder', ['modabinder', 'moda binder', 'binder']],
+  ['receiveMarketing', ['receive marketing', 'marketing consent', 'opt in', 'opt-in', 'subscribe']],
+  ['quickNote', ['quick note', 'notes', 'note', 'comments', 'remarks']],
+  // The schema has one freeform note field, not three — these fold into it
+  // rather than being dropped, because an account-hold flag ("BAD DEBT",
+  // "Past Dues") is exactly the kind of thing a rep needs to see before
+  // they sell to this customer again.
+  ['deliveryInstructions', ['delivery instructions', 'delivery notes', 'shipping instructions']],
+  ['accountAlert', ['lock alert', 'account alert', 'credit hold', 'alert']]
+];
+
+export const IMPORT_FIELDS = IMPORT_COLUMNS.map(([field]) => field);
+
+/** Lowercase, letters and digits only. For matching branch and rep names, nothing else. */
+export const importNormalize = (value: unknown) =>
+  String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Alias values meaning "decided: nobody" rather than "not decided yet". A rep
+ * alias of '' in the request just means the admin hasn't answered, and the
+ * name keeps being asked about; these are the answers that get remembered.
+ * features/customers/import/CustomerImportModal.tsx sends the same two strings.
+ */
+export const IMPORT_UNASSIGNED = '__none__';
+export const IMPORT_DEFAULT_BRANCH = '__default__';
+
+/**
+ * A sheet row's identity across exports, for remembering what the admin
+ * decided about it. Row numbers shift every time a customer is added to the
+ * source CRM, so a decision filed under "row 131" would land on the wrong
+ * business next month; company + email + phone digits does not move.
+ * Letters, digits and '|' only, so it's safe as a Mongo map key.
+ */
+export const importRowKey = (candidate: Loose = {}) => [
+  importNormalize(candidate.company),
+  importNormalize(candidate.email),
+  String(candidate.phone ?? '').replace(/\D/g, '')
+].join('|');
+
+/**
+ * Which sheet column feeds which field. An override of '' means "leave this
+ * field alone"; a field the override omits is auto-detected. Explicit choices
+ * are claimed up front so detection cannot take a column the admin assigned.
+ */
+export const resolveImportMapping = (headers: Loose[], override: Loose = {}) => {
+  const mapping: Record<string, string | null> = {};
+  const claimed = new Set();
+
+  for (const field of IMPORT_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(override, field)) continue;
+    const chosen = String(override[field] ?? '').trim();
+    mapping[field] = headers.includes(chosen) ? chosen : null;
+    if (mapping[field]) claimed.add(mapping[field]);
+  }
+
+  for (const [field, keywords] of IMPORT_COLUMNS) {
+    if (field in mapping) continue;
+    mapping[field] = null;
+    for (const word of keywords) {
+      const hit = headers.find((h: string) => !claimed.has(h) && h.toLowerCase().includes(word));
+      if (hit) {
+        claimed.add(hit);
+        mapping[field] = hit;
+        break;
+      }
+    }
+  }
+
+  return mapping;
+};
+
+// Built once, not once per row: a 4,500-row export asked for two fresh
+// RegExps per row before.
+const TH_CELLS = /<th[^>]*>([\s\S]*?)<\/th>/gi;
+const TD_CELLS = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+const ENTITIES = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+
+/**
+ * Text inside a cell. Entities are decoded in one pass, so "&amp;lt;" reads
+ * "&lt;" — decoding &amp; first, as this used to, turned it into "<". Numeric
+ * entities (&#39;, &#x27;) are read too.
+ */
+const stripTags = (s: Loose) => s
+  .replace(/<br\s*\/?>/gi, ' ')
+  .replace(/<[^>]*>/g, '')
+  .replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (whole: string, dec: string, hex: string, name: string) => {
+    if (name) return ENTITIES[name.toLowerCase()] ?? whole;
+    const code = dec ? parseInt(dec, 10) : parseInt(hex, 16);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  })
+  .trim();
+
+const cellsOf = (rowHtml: string, cells: RegExp) =>
+  [...rowHtml.matchAll(cells)].map(c => stripTags(c[1]));
+
+/**
+ * SPS's own export, downloaded straight from its web CRM rather than
+ * re-saved through Excel, is not a real workbook: it's an HTML document
+ * (Excel's lenient HTML+XML dialect) with the real data table nested
+ * inside a decorative outer one, and only one closing </table> for the
+ * three that get opened. `xlsx`'s HTML reader takes the nesting at face
+ * value and grabs the outer, decorative table — its <td> content, not the
+ * customer grid — which is why every column comes back unmapped.
+ *
+ * <tr>/<td>/<th> tags themselves are well-formed even though the table
+ * nesting isn't, so scanning for rows directly (rather than resolving the
+ * broken table structure) still finds the real grid: the header row is
+ * whichever row is made entirely of <th> cells, and the true one is the
+ * widest, since decorative rows elsewhere in the document aren't real
+ * column headers with this many fields.
+ */
+const parseHtmlWorkbook = (text: string) => {
+  const rows = [...text.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)]
+    .map(m => {
+      const th = cellsOf(m[1], TH_CELLS);
+      const td = cellsOf(m[1], TD_CELLS);
+      return th.length && !td.length
+        ? { type: 'header', cells: th }
+        : td.length ? { type: 'data', cells: td } : null;
+    })
+    .filter(Boolean);
+
+  const headerRow = rows
+    .filter(r => r.type === 'header')
+    .sort((a, b) => b.cells.length - a.cells.length)[0];
+  if (!headerRow) return null;
+
+  const rawHeaders = headerRow.cells;
+  const headerRowIndex = rows.indexOf(headerRow);
+  const after = rows.slice(headerRowIndex + 1);
+  const isCustomer = (r: Loose) => r.type === 'data' && r.cells.length === rawHeaders.length;
+  const dataRows = after
+    .filter(isCustomer)
+    .map(r => Object.fromEntries(rawHeaders.map((h, i) => [h, r.cells[i] ?? ''])));
+  // A data row whose cells don't line up with the headings used to vanish here
+  // without a word. It's reported now, so the import can refuse the file
+  // instead of quietly importing fewer customers (src/utils/spsSheet.ts).
+  const malformed = after
+    .map((r, i) => ({ r, position: i + 1 }))
+    .filter(({ r }) => r.type === 'data' && r.cells.length !== rawHeaders.length)
+    .map(({ r, position }) => ({ position, cells: r.cells.length, expected: rawHeaders.length }));
+
+  const headers = [...new Set(rawHeaders.map(h => h.trim()).filter(Boolean))];
+  return { headers, rows: dataRows, parse: { format: 'html', malformed } };
+};
+
+/** "Yes", "y", "true" or "1". */
+export const YES = /^(yes|y|true|1)$/i;
+
+/** A value the schema treats as not filled in: empty, or the "N/A" placeholder. */
+export const isBlankValue = (v: unknown) => !String(v ?? '').trim() || String(v).trim().toUpperCase() === 'N/A';
+
+/** A weak match whose only evidence is a shared email domain (see buildImportPlan). */
+export const isDomainOnly = (m: Loose) => m.signals.length === 1 && m.signals[0] === 'email domain';
+
+/** Real xlsx (zip) starts with 'PK'; real binary xls (OLE) starts with D0CF11E0. */
+const isBinaryWorkbook = (buffer: Uint8Array) =>
+  (buffer[0] === 0x50 && buffer[1] === 0x4b) ||
+  (buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0);
+
+/**
+ * Headings come from the header row itself, not from the keys of the first data
+ * row. A sheet whose first customer happens to have no contact name would
+ * otherwise lose the Contact Name column for every row beneath it.
+ */
+export const readCustomerSheet = (buffer: Buffer) => {
+  if (!isBinaryWorkbook(buffer)) {
+    const parsed = parseHtmlWorkbook(buffer.toString('utf8'));
+    if (parsed && parsed.rows.length) return parsed;
+  }
+
+  const workbook = read(buffer, { type: 'buffer' });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  if (!sheet) throw new Error('The file has no readable sheet');
+
+  const headers = [...new Set(
+    (utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false })[0] || [])
+      .map((h: unknown) => String(h ?? '').trim())
+      .filter(Boolean)
+  )];
+  const rows = utils.sheet_to_json<Loose>(sheet, { defval: '' });
+  if (!rows.length) throw new Error('The sheet has no data rows');
+
+  return { headers, rows, parse: { format: 'workbook', malformed: [] } };
+};
+
+export const parseLevel = (value: unknown) => {
+  const s = String(value ?? '').trim();
+  for (const n of [1, 2, 3, 4]) {
+    if (s.includes(String(n))) return { level: `Level - ${n}`, priceLevel: n };
+  }
+  return { level: 'Level - 4', priceLevel: 4 };
+};
+
+/**
+ * Both of these answer null for a value they cannot place, and the caller then
+ * files the row under the schema's default and says so.
+ *
+ * They used to pass the unrecognised text straight through, which the schema
+ * rejected on save — so one customer typed as 'Retail', a category we do not
+ * have, lost the whole record rather than the one field. A sheet is allowed to
+ * contain words we have no column for; it is not allowed to cost us a customer.
+ */
+export const parseType = (value: unknown) => {
+  const s = String(value ?? '').trim().toLowerCase();
+  if (!s) return 'Fabricator';
+  if (s.includes('contractor')) return 'Contractor';
+  // "Retail" is SPS's own word for a business that sells finished product to
+  // the public rather than fabricating it — the closest thing we have is
+  // Dealer, not the Fabricator default, so it's a synonym here rather than
+  // an unrecognised value.
+  if (s.includes('dealer') || s.includes('retail')) return 'Dealer';
+  if (s.includes('floor')) return 'Floor Covering';
+  if (s.includes('designer')) return 'Designer';
+  if (s.includes('builder')) return 'Builder';
+  if (s.includes('fabricator')) return 'Fabricator';
+  return null;
+};
+
+export const parseStatus = (value: unknown) => {
+  const s = String(value ?? '').trim().toLowerCase();
+  if (!s) return 'Onboarded';
+  if (s.includes('new') || s.includes('lead')) return 'New Lead';
+  if (s.includes('try') || s.includes('onboard')) return 'Trying to Onboard';
+  if (s.includes('contact') || s.includes('discuss')) return 'Contacted / In Discussion';
+  if (s.includes('different') || s.includes('rep')) return 'Different Sales Person';
+  if (s.includes('not interested')) return 'Not Interested';
+  if (s.includes('inactive')) return 'Inactive';
+  if (s.includes('onboarded')) return 'Onboarded';
+  return null;
+};
+
+/**
+ * Who might "Stephen Watson" be, when the staff list holds a "Steve"?
+ *
+ * SPS writes people's full legal names and our user records hold whatever they
+ * log in as, so the two rarely match outright. Compared on first names only,
+ * and offered only when exactly one person could be meant — a suggestion the
+ * admin still has to accept is useful; one that quietly picks the wrong Steve
+ * moves accounts onto someone who never sold them.
+ */
+export const suggestRep = (given: string, repNames: string[]) => {
+  const first = importNormalize(String(given).trim().split(/\s+/)[0] || '');
+  if (first.length < 3) return null;
+
+  const hits = repNames.filter((name: string) => {
+    const theirs = importNormalize(String(name).trim().split(/\s+/)[0] || '');
+    if (theirs.length < 3) return false;
+    const shared = Math.min(first.length, theirs.length);
+    return first.slice(0, shared) === theirs.slice(0, shared) ||
+      first.slice(0, 3) === theirs.slice(0, 3);
+  });
+
+  return hits.length === 1 ? hits[0] : null;
+};
+
+/** How a customer reads in a review list, where the admin is deciding by eye. */
+export const importLabel = (c: Loose = {}) => [
+  c.company || '(no company)',
+  c.contactName || '(no contact)',
+  c.email || '(no email)',
+  c.phone || '',
+  c.address?.city || ''
+].filter(Boolean).join(' — ');
+
+/**
+ * Work out, row by row, what importing this sheet would do.
+ *
+ * @param {object}  input
+ * @param {string[]} input.headers    the sheet's header row
+ * @param {object[]} input.rows       the sheet's data rows, keyed by heading
+ * @param {object}  input.mapping     field → heading, from resolveImportMapping
+ * @param {Map}     input.branchByKey normalized branch name → its stored casing,
+ *                                    or '' for "decided: use the default branch"
+ * @param {Map}     input.repByKey    normalized alias → { salesRep, salesRepName },
+ *                                    or false for "decided: leave unassigned"
+ * @param {object[]} input.existing   the customers already held
+ * @param {object}  input.decisions   sheet row number → 'create', or the id of
+ *                                    the matched customer to update instead.
+ *                                    How a flagged row stops being flagged.
+ * @param {object}  input.decisionsByKey importRowKey → customer id, remembered
+ *                                    from an earlier upload. A decision made
+ *                                    in this upload (`decisions`) wins.
+ */
+export const buildImportPlan = ({
+  headers, rows, mapping, branchByKey, repByKey, existing, decisions = {}, decisionsByKey = {}
+}: Loose) => {
+  const cell = (row: Loose, field: string) => (mapping[field] ? String(row[mapping[field]] ?? '').trim() : '');
+
+  const byId = new Map<string, Loose>(existing.map((c: Loose) => [String(c._id), c]));
+  const index = buildSignalIndex(existing);
+
+  const planned: Loose[] = [];
+  const counts = { create: 0, update: 0, review: 0, unchanged: 0, error: 0 };
+  // Flagged rows settled by a decision remembered from an earlier upload,
+  // so the preview can say how much of the review queue it cleared by itself.
+  let rememberedDecisionsUsed = 0;
+
+  // Names the sheet used that nobody answers to, counted so the preview can ask
+  // once who "Stephen Watson" is rather than once per row he appears on.
+  const unresolvedReps = new Map();
+  const unresolvedBranches = new Map();
+  const tally = (map: Loose, given: string) => map.set(given, (map.get(given) || 0) + 1);
+
+  /**
+   * A email address nobody else holds, because the column is uniquely indexed
+   * and a collision costs the whole record.
+   *
+   * Two things collide here. Reps write their own address into a customer's
+   * email box — a dozen accounts carry vish@easystones.com — and the matcher
+   * deliberately reads none of those as identifying, so the rows are correctly
+   * planned as separate customers and then fight over one unique key. And a
+   * sheet can simply name the same business twice. Neither is a reason to lose
+   * a record, so an address that is already spoken for is replaced by one that
+   * says plainly that this customer has no address of its own.
+   */
+  const takenEmails = new Set<string>(existing.map((c: Loose) => String(c.email || '').toLowerCase()).filter(Boolean));
+  const claimEmail = (preferred: string, slug: string, rowNumber: number, warn: (warning: string) => void) => {
+    if (preferred && !takenEmails.has(preferred)) {
+      takenEmails.add(preferred);
+      return preferred;
+    }
+    if (preferred) warn(`${preferred} already belongs to another customer — filed without an email`);
+
+    const base = `na+${slug || `row${rowNumber}`}`;
+    let candidate = `${base}@easystones-client.com`;
+    for (let n = 2; takenEmails.has(candidate); n++) candidate = `${base}-${n}@easystones-client.com`;
+    takenEmails.add(candidate);
+    return candidate;
+  };
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNumber = i + 2; // 1-based, and row 1 is the header
+    const warnings: string[] = [];
+
+    try {
+      const contactName = cell(row, 'contactName');
+      const company = cell(row, 'company') || contactName;
+      const phone = cell(row, 'phone');
+      const rawEmail = cell(row, 'email');
+
+      // A row with nothing that names a business is a spacer or a stray total,
+      // not a customer. Importing it would mint one more "N/A" record of exactly
+      // the kind this import exists to stop creating.
+      if (!company && !contactName && !rawEmail && !phone) continue;
+
+      const branchGiven = cell(row, 'location');
+      const branch = branchGiven ? (branchByKey.get(importNormalize(branchGiven)) ?? null) : '';
+      if (branch === null) {
+        warnings.push(`Unknown branch "${branchGiven}"`);
+        tally(unresolvedBranches, branchGiven);
+      }
+
+      const repGiven = cell(row, 'salesRep');
+      const rep = repGiven ? (repByKey.get(importNormalize(repGiven)) ?? null) : null;
+      if (repGiven && rep === null) {
+        warnings.push(`"${repGiven}" is not a selectable sales rep`);
+        tally(unresolvedReps, repGiven);
+      }
+
+      // The address this row identifies the business by, which is not always
+      // the one in the email column: a rep's own @easystones.com, or a previous
+      // import's placeholder, says nothing about who the customer is. Blank here
+      // rather than substituted, because matching has to happen on the sheet's
+      // real evidence — swapping in a generated address before the comparison
+      // would throw away the email signal and duplicate the customer.
+      const usable = rawEmail.includes('@') && !isPlaceholderEmail(rawEmail);
+      const sheetEmail = usable ? rawEmail.toLowerCase() : '';
+
+      /**
+       * The address to store, decided only once we know this row is a new
+       * customer. Updates never reach here — they touch owner and branch and
+       * leave the existing record's email alone.
+       */
+      const emailToStore = () => {
+        if (rawEmail && !usable) {
+          warnings.push(`"${rawEmail}" is not this customer's own address — filed without an email`);
+        }
+        return claimEmail(
+          sheetEmail,
+          importNormalize(company) || importNormalize(contactName),
+          rowNumber,
+          (w: string) => warnings.push(w)
+        );
+      };
+
+      const type = parseType(cell(row, 'customerType'));
+      if (type === null) {
+        warnings.push(`Customer type "${cell(row, 'customerType')}" is not one of ours — imported as Fabricator`);
+      }
+      const status = parseStatus(cell(row, 'status'));
+      if (status === null) {
+        warnings.push(`Status "${cell(row, 'status')}" is not one of ours — imported as Onboarded`);
+      }
+
+      // Blank means "the sheet said nothing" and should not overrule the
+      // schema's own default (true) the way an explicit 'No' should.
+      const receiveMarketingCell = cell(row, 'receiveMarketing');
+
+      // A suite/unit sits in its own column on SPS's export; the schema has
+      // one street line, so it's appended rather than dropped.
+      const street = [cell(row, 'street'), cell(row, 'street2')].filter(Boolean).join(', ');
+
+      // Same story for notes: an account hold and delivery instructions each
+      // get their own column on the sheet but the schema has one quickNote.
+      // The alert goes first and marked, since it's the one a rep can't
+      // afford to miss by having to scroll past routine notes to find it.
+      const accountAlert = cell(row, 'accountAlert');
+      const quickNote = [
+        accountAlert && `⚠ ${accountAlert}`,
+        cell(row, 'quickNote'),
+        cell(row, 'deliveryInstructions') && `Delivery: ${cell(row, 'deliveryInstructions')}`
+      ].filter(Boolean).join(' | ');
+
+      const candidate = {
+        contactName: contactName || 'N/A',
+        company: company || 'N/A',
+        email: sheetEmail,
+        phone,
+        address: {
+          street,
+          city: cell(row, 'city'),
+          state: cell(row, 'state'),
+          zipCode: cell(row, 'zipCode')
+        },
+        ...parseLevel(cell(row, 'level')),
+        customerType: type ?? 'Fabricator',
+        status: status ?? 'Onboarded',
+        modaDisplay: YES.test(cell(row, 'modaDisplay')) ? 'Yes' : 'No',
+        modaBinder: cell(row, 'modaBinder') || '0',
+        marketingEmail: cell(row, 'marketingEmail').toLowerCase(),
+        receiveMarketing: receiveMarketingCell ? YES.test(receiveMarketingCell) : true,
+        quickNote
+      };
+
+      const rowKey = importRowKey(candidate);
+
+      const base = {
+        rowNumber,
+        rowKey,
+        label: importLabel(candidate),
+        company: candidate.company,
+        contactName: candidate.contactName,
+        email: candidate.email,
+        phone: candidate.phone,
+        city: candidate.address.city,
+        sheetSalesRep: repGiven,
+        sheetLocation: branchGiven,
+        warnings
+      };
+
+      const matches = matchAgainst(index, candidate);
+      const strong = matches.filter(m => m.score >= STRONG);
+      // A weak match whose only evidence is a shared email domain isn't worth
+      // stopping an import for — SIGNALS' own comment on 'email domain' says
+      // why: every branch of a multi-location dealer shares one, so alone
+      // it's "barely a hint," not evidence of the same business. Company name
+      // and phone matches are still specific enough to be worth a human's
+      // glance even though neither reaches STRONG on its own. Without this, a
+      // routine re-export from the same source CRM sent nearly every
+      // returning customer to manual review, since most share a domain with
+      // somebody.
+      const weak = matches.filter(m => m.score < STRONG);
+      const meaningfulWeak = weak.filter(m => !isDomainOnly(m));
+      const describe = (list: Loose[]) => list.map((m: Loose) => ({
+        id: m.id,
+        label: importLabel(byId.get(m.id)),
+        signals: m.signals,
+        score: m.score,
+        salesRepName: byId.get(m.id)?.salesRepName || '',
+        location: byId.get(m.id)?.location || '',
+        // A match against a row earlier in this same sheet, not against a
+        // customer we hold. It cannot be updated — it does not exist yet.
+        fromSheet: m.id.startsWith(SHEET_ROW_PREFIX)
+      }));
+
+      /** What updating this existing customer from this row would change. */
+      const planUpdate = (target: Loose, matchedOn: unknown) => {
+        const changes = [];
+
+        // An account that already has an owner keeps it. A sheet is a snapshot
+        // of what SPS believed on the day it was exported; a reassignment made
+        // in the CRM since is the more recent fact, and quietly reverting it
+        // would move commission off whoever is actually working the account.
+        if (rep && !target.salesRep) {
+          changes.push({ field: 'salesRep', from: '', to: rep.salesRepName });
+        } else if (rep && target.salesRep && target.salesRepName !== rep.salesRepName) {
+          warnings.push(`Kept existing owner ${target.salesRepName || '(assigned)'}; sheet said ${rep.salesRepName}`);
+        }
+
+        // Branch, unlike owner, is never blank — the schema defaults it to
+        // Seattle — so filling only blanks would change nothing and the upload
+        // could not do the job it is here to do. The sheet wins.
+        if (branch && target.location !== branch) {
+          changes.push({ field: 'location', from: target.location || '', to: branch });
+        }
+
+        const apply = {
+          ...(changes.some(c => c.field === 'salesRep') ? { salesRep: rep.salesRep, salesRepName: rep.salesRepName } : {}),
+          ...(changes.some(c => c.field === 'location') ? { location: branch } : {})
+        };
+
+        // Everything else only fills what the record is missing. Anything a
+        // rep has typed into the CRM since is the more recent fact, same
+        // reasoning as the owner above — the sheet never overwrites it.
+        // Type, level, status and MODA aren't here: the schema defaults every
+        // one of them, so a stored 'Fabricator' can't be told apart from one
+        // nobody ever chose, and "fill if blank" would never fire.
+        const fill = (field: string, path: string, from: unknown, to: unknown) => {
+          if (!isBlankValue(from) || isBlankValue(to)) return;
+          changes.push({ field, from: String(from ?? '').trim(), to });
+          apply[path] = to;
+        };
+        fill('company', 'company', target.company, candidate.company);
+        fill('contactName', 'contactName', target.contactName, candidate.contactName);
+        fill('phone', 'phone', target.phone, candidate.phone);
+        fill('street', 'address.street', target.address?.street, candidate.address.street);
+        fill('city', 'address.city', target.address?.city, candidate.address.city);
+        fill('state', 'address.state', target.address?.state, candidate.address.state);
+        fill('zipCode', 'address.zipCode', target.address?.zipCode, candidate.address.zipCode);
+        fill('quickNote', 'quickNote', target.quickNote, candidate.quickNote);
+
+        // A placeholder (na+…@easystones-client.com) is how an earlier import
+        // said "no address of its own", so it counts as blank too — as long as
+        // the sheet's address isn't someone else's, since the column is unique.
+        if ((!target.email || isPlaceholderEmail(target.email)) && sheetEmail && !takenEmails.has(sheetEmail)) {
+          takenEmails.add(sheetEmail);
+          changes.push({ field: 'email', from: target.email || '', to: sheetEmail });
+          apply.email = sheetEmail;
+        }
+
+        // Imports never geocode inline (see scripts/geocode-customers.ts), but
+        // that script only picks up 'pending' — a record whose blank address
+        // once came back 'failed' would otherwise keep its missing pin forever.
+        if (Object.keys(apply).some(k => k.startsWith('address.'))) {
+          apply['geocode.status'] = 'pending';
+        }
+
+        planned.push({
+          ...base,
+          action: changes.length ? 'update' : 'unchanged',
+          targetId: String(target._id),
+          targetLabel: importLabel(target),
+          matchedOn,
+          changes,
+          apply: changes.length ? apply : null
+        });
+        counts[changes.length ? 'update' : 'unchanged']++;
+      };
+
+      // What the admin decided about this row last time they looked at it.
+      // Only ever a choice among the records this row actually matched — a
+      // decision naming anything else is ignored rather than obeyed, so nothing
+      // the browser sends can direct a write at an unrelated customer.
+      // A remembered decision is always a customer id (never 'create' — see
+      // saveImportMemory in server.ts, which files the id of the record that
+      // 'create' made), so a business settled once is updated on the next
+      // upload instead of being created a second time.
+      const requested = String(decisions[rowNumber] ?? '').trim();
+      const decision = requested || String(decisionsByKey[rowKey] ?? '').trim();
+      const chosen = matches.find(m => m.id === decision && !m.id.startsWith(SHEET_ROW_PREFIX));
+
+      const needsReview = strong.length > 1
+        || (strong.length === 0 && meaningfulWeak.length > 0)
+        || strong.some(m => m.id.startsWith(SHEET_ROW_PREFIX));
+
+      if (needsReview && !requested && chosen) rememberedDecisionsUsed++;
+
+      if (needsReview && !chosen && decision !== 'create') {
+        const repeated = strong.find(m => m.id.startsWith(SHEET_ROW_PREFIX));
+        planned.push({
+          ...base,
+          action: 'review',
+          reason: repeated
+            ? `Row ${repeated.id.slice(SHEET_ROW_PREFIX.length)} of this sheet is the same business`
+            : strong.length > 1
+              ? `Matches ${strong.length} existing customers`
+              : 'Resembles an existing customer, but not closely enough to be sure',
+          matches: describe(matches.slice(0, 6))
+        });
+        counts.review++;
+        continue;
+      }
+
+      if (chosen) {
+        planUpdate(byId.get(chosen.id), chosen.signals);
+        continue;
+      }
+
+      if (!needsReview && strong.length === 1) {
+        planUpdate(byId.get(strong[0].id), strong[0].signals);
+        continue;
+      }
+
+      // A domain-only match didn't force review, but silently dropping the
+      // signal entirely would make this look like a genuinely clean,
+      // unmatched new business when in fact something worth a glance exists.
+      weak.filter(isDomainOnly).forEach(m => {
+        warnings.push(`Shares only an email domain with ${importLabel(byId.get(m.id))} — imported as a separate customer`);
+      });
+
+      // Computed once — claimEmail (inside emailToStore) mutates the taken-email
+      // set as a side effect, so calling it twice would have it fight itself
+      // over the same address and hand back two different placeholders.
+      const finalEmail = emailToStore();
+
+      planned.push({
+        ...base,
+        action: 'create',
+        create: {
+          ...candidate,
+          email: finalEmail,
+          // Unset in the sheet falls back to the address actually being
+          // stored, same as a customer signing up with no marketing address
+          // of their own — never left blank, which the schema does not default.
+          marketingEmail: candidate.marketingEmail || finalEmail,
+          // A blank or unrecognised branch falls through to the schema default
+          // rather than being written as '', which would drop the record out of
+          // every branch filter.
+          ...(branch ? { location: branch } : {}),
+          ...(rep || {}),
+          isVerified: true
+        }
+      });
+      counts.create++;
+
+      // Now findable by the rows below it. Without this the sheet's own repeats
+      // are invisible: each row is compared only against the database, so a
+      // business listed twice is planned as two new customers, and the second
+      // insert dies on whichever unique key the first one just took.
+      const sheetId = `${SHEET_ROW_PREFIX}${rowNumber}`;
+      addToSignalIndex(index, candidate, sheetId);
+      byId.set(sheetId, candidate);
+    } catch (err) {
+      planned.push({ rowNumber, action: 'error', reason: (err as Loose).message, warnings });
+      counts.error++;
+    }
+  }
+
+  // filter(Boolean): a name decided as "leave unassigned" sits in repByKey as
+  // false, and is not someone to suggest.
+  const repNames: string[] = [...new Set<string>([...repByKey.values()].filter(Boolean).map((r: Loose) => r.salesRepName))];
+  const unresolved = (map: Map<string, number>, suggest: (given: string) => string | null) => [...map]
+    .map(([given, rowCount]) => ({ given, rowCount, suggestion: suggest(given) }))
+    .sort((a, b) => b.rowCount - a.rowCount);
+
+  return {
+    headers,
+    mapping,
+    planned,
+    counts,
+    totalRows: rows.length,
+    rememberedDecisionsUsed,
+    unresolvedReps: unresolved(unresolvedReps, (given: string) => suggestRep(given, repNames)),
+    unresolvedBranches: unresolved(unresolvedBranches, () => null)
+  };
+};
+
+/** Rows worth sending to the browser; 'unchanged' travels as a count alone. */
+export const importRowsForClient = (planned: Loose[]) => planned.filter((p: Loose) => p.action !== 'unchanged');

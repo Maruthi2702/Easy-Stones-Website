@@ -9,7 +9,7 @@ import type { Ticket } from '../types';
  * back out the same way Pending already works: drag it onto a truck cell to
  * assign a driver, or onto Pending to leave it driverless. Either move clears
  * the cancelled status server-side (see PATCH /deliveries/:id/assignment in
- * src/routes/deliveries.js) — nothing here has to know that happened, it just
+ * src/routes/deliveries.ts) — nothing here has to know that happened, it just
  * stops appearing in `cancelled` once the cache updates.
  *
  * Unlike Pending, cancelling never clears truckId/date — they're kept as a

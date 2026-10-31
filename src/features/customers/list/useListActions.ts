@@ -148,7 +148,7 @@ export function useBulkActions(d: BulkActionsDeps) {
     };
 
     // Bulk Delete: confirm (BulkDeleteDialog), one request for the whole
-    // selection, then the bar stays up with Undo (src/routes/customerBulkDelete.js
+    // selection, then the bar stays up with Undo (src/routes/customerBulkDelete.ts
     // saves every customer whole before removing it).
     const confirmBulkDelete = async () => {
         const ids = bulkDelete!.rows.map(r => r._id);

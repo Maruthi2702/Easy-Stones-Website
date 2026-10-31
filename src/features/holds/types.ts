@@ -3,7 +3,7 @@ import type { Loose } from '../../types/records';
 import type { HoldLine } from '../../utils/holdView';
 
 /**
- * Cart & Holds shapes as /api/holds sends them (src/holds/router.js). Holds
+ * Cart & Holds shapes as /api/holds sends them (src/holds/router.ts). Holds
  * themselves stay loose (`Hold`, `HoldLine` from holdView) until the server's
  * models are typed.
  */
@@ -12,7 +12,7 @@ export type { HoldLine };
 /** A hold as GET /api/holds/:id (or a list row) sends it; loose apart from what the calls need. */
 export type Hold = Loose & { _id: Id; version?: number };
 
-/** lotGroups' answer (src/holds/holdRules.js): one product's lines, by bundle. */
+/** lotGroups' answer (src/holds/holdRules.ts): one product's lines, by bundle. */
 export type LotGroup<L> = {
   product: string;
   bundles: { bundle: string; lines: L[] }[];
@@ -25,7 +25,7 @@ export type LotGroup<L> = {
 /** A slab's lock: the hold it's on (presentCart / POST /slabs/status). */
 export type SlabLock = { holdId?: Id; holdNumber: number; by?: string; expiresOn?: string; branch?: string };
 
-/** One slab as the cart has it (slabSnapshot in src/holds/holdRules.js). */
+/** One slab as the cart has it (slabSnapshot in src/holds/holdRules.ts). */
 export type SlabSnapshot = {
   slabKey?: string;
   serial?: string;

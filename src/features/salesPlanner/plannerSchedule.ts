@@ -19,7 +19,7 @@ import { authFetch } from '../../api/authFetch';
  * it already has.
  */
 
-/** A calendar entry from /api/schedule (src/routes/schedule.js). */
+/** A calendar entry from /api/schedule (src/routes/schedule.ts). */
 export type PlannerItem = {
   _id: string;
   /** Populated to the customer's name fields, or only its id. */
@@ -64,7 +64,7 @@ const cache: {
 /**
  * Whose calendar a range holds is part of its key (2026-10-31): `viewing` is
  * '' for your own, or the team calendar's query ('&scope=team&reps=…', from
- * the dashboard's People filter — src/utils/teamScope.js). One person's week
+ * the dashboard's People filter — src/utils/teamScope.ts). One person's week
  * and the team's week are different lists.
  */
 const rangeKey = (start: string, end: string, viewing = ''): string => `${viewing}|${start}|${end}`;

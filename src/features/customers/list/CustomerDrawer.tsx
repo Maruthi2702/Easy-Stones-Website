@@ -26,7 +26,7 @@ const todayStr = () => new Date().toLocaleDateString('en-CA');
 
 /**
  * Save this person to the phone's contacts: a link to their .vcf (GET
- * /api/customers/:id/vcard, src/utils/vcard.js). On an iPhone it opens the
+ * /api/customers/:id/vcard, src/utils/vcard.ts). On an iPhone it opens the
  * contact card with Create New Contact; Android and laptops download it.
  * A plain link, not a fetch — the phone has to open the file itself.
  */

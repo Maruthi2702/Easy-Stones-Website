@@ -6,7 +6,7 @@ import type { ScheduleRole } from './types';
 
 /** Each branch's saved driver-column order, kept current, and the Arrange Driver Columns form's open state. */
 export function useColumnOrders({ role, currentUser, locationFilter }: { role: ScheduleRole; currentUser: CurrentUser | null; locationFilter: string }) {
-  // Each branch's column order ({ Seattle: [ids] }; src/utils/deliveryColumns.js).
+  // Each branch's column order ({ Seattle: [ids] }; src/utils/deliveryColumns.ts).
   // Read once, and again whenever someone changes one anywhere. Arrange
   // Drivers View (Users & Roles → Delivery Schedule) sets the branch on screen
   // from Search & filters, below Location; the All Locations board always uses

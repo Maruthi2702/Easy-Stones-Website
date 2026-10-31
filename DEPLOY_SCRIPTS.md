@@ -3,7 +3,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "node server.js",
-    "server:dev": "nodemon server.js"
+    "server": "node server.ts",
+    "server:dev": "nodemon server.ts"
   }
 }

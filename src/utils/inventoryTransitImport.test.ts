@@ -1,10 +1,11 @@
+import type { Loose } from '../types/records.ts';
 import { describe, expect, it } from 'vitest';
 import { utils, write } from 'xlsx';
 import { parseInventoryTransitWorkbook, groupTransitShipments } from './inventoryTransitImport.ts';
 import { runWorkbookParse } from './runWorkbookParse.ts';
 
 const headers = ['Image', 'Product', 'SKU', 'PO#', 'PO Date', 'PO ETA Date', 'Supplier SO#', 'SIPL#', 'Slabs', 'Quantity', 'Units', 'Location', 'Supplier', 'Freight Forwarder', 'Ship Date', 'Port ETA Date', 'ETADate', 'Container#', 'Vessel', 'Customer/Loc/SO Ref.', 'Status'];
-const line = (extra = {}) => ({ Image: 'No Image', Product: 'Carrara Prima Select 3CM', 'PO#': '15364',
+const line = (extra = {}): Loose => ({ Image: 'No Image', Product: 'Carrara Prima Select 3CM', 'PO#': '15364',
   'PO Date': '27-Aug-26', 'Supplier SO#': '5153', 'SIPL#': '15364', Slabs: '31 Slabs',
   Quantity: '2,237.89', Units: 'SF', Location: 'Richmond', Supplier: 'MODA Surfaces Corp',
   'Ship Date': '10/26/26', ETADate: '11/24/26', 'Container#': 'TEMU1379996', Status: 'INTRANSIT', ...extra });

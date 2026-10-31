@@ -7,7 +7,7 @@ import type { CurrentUser, StaffMember } from '../../types/records';
 
 /**
  * The staff and branch lists: the reps (for the edit form's rep picker and the
- * Filter's rep rows), the reps this person may see (src/utils/routePlannerScope.js
+ * Filter's rep rows), the reps this person may see (src/utils/routePlannerScope.ts
  * — the server applies the same rule), and the branch names.
  */
 export function useRoster(currentUser: CurrentUser | null) {

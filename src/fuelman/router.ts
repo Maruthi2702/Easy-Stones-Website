@@ -2,7 +2,7 @@ import express from 'express';
 import type { RequestHandler } from 'express';
 import multer from 'multer';
 import { FUEL_MAN as P } from './permissions.ts';
-import { requireAll } from '../server/http.js';
+import { requireAll } from '../server/http.ts';
 import { access, driverOptions, requireGlobal } from './access.ts';
 import { readFuelManPdf } from './readPdf.ts';
 import type { ParsedReport } from './types.ts';

@@ -42,7 +42,7 @@ export function useDaySheet({ date, location, view, canEdit, setError }: DayShee
   // out so the rule isn't reinvented here.
   const [slabRange, setSlabRange] = useState<SlabRange | null>(null);
   // Transfers the delivery board draws on this day that shipped in an earlier
-  // week — see transfersShippedEarlier in src/routes/dailyReports.js.
+  // week — see transfersShippedEarlier in src/routes/dailyReports.ts.
   const [shippedEarlier, setShippedEarlier] = useState<ShippedEarlierGroup[]>([]);
   // The day's tickets with no branch — counted on no report (NoBranchNote).
   const [noBranchTickets, setNoBranchTickets] = useState(0);

@@ -1,7 +1,7 @@
 /**
  * The SPS import window's own rules (SpsImportModal.tsx): field and match
  * wording, the review tabs, which button each step's footer shows, and the
- * plan's CSV. What an import does is the server's (src/utils/spsImportPlan.js).
+ * plan's CSV. What an import does is the server's (src/utils/spsImportPlan.ts).
  */
 import type { Loose } from '../../../types/records';
 import { FIELD_LABELS, csvCell } from './importFields';

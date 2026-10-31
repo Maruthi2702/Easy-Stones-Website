@@ -1,0 +1,562 @@
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import express from 'express';
+import request from 'supertest';
+import mongoose from 'mongoose';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import createRouter from './router.ts';
+import {
+  PurchasingScope,
+  PurchasingInbound,
+  PurchasingDraft,
+  PurchasingLock,
+  PurchasingPoLink,
+} from './models.ts';
+import InventoryItem from '../models/InventoryItem.ts';
+import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
+import InventorySalesRecord from '../models/InventorySalesRecord.ts';
+import { inInventoryTransaction } from '../services/inventoryTransaction.ts';
+import Location from '../models/Location.ts';
+import { SlabReservation } from '../holds/models.ts';
+let rs, app;
+const clock = new Date('2026-10-24T20:00:00Z');
+const ADMIN = {
+  id: 'buyer1',
+  displayName: 'Buyer',
+  assignedLocations: ['*'],
+  permissions: ['view_inventory_analysis', 'view_purchasing', 'manage_purchasing', 'approve_purchasing'],
+};
+const as = (user) => ({ 'x-user': JSON.stringify(user) });
+const api = (method, path, user = ADMIN) =>
+  request(app)
+    [method]('/api/purchasing' + path)
+    .set(as(user));
+const policy = {
+  product: 'Quartz 3CM',
+  supplier: 'ABC',
+  bundleSlabs: 6,
+  minimumSlabs: 0,
+  sfPerSlab: 1,
+  weightKg: 400,
+  mixGroup: 'same-origin-window',
+  active: true,
+};
+const supply = {
+  po: 'P1',
+  line: '1',
+  product: 'Quartz 3CM',
+  branch: 'Seattle',
+  supplier: 'ABC',
+  ordered: 24,
+  received: 0,
+  cancelled: 0,
+  eta: '2026-12-08',
+  confirmed: true,
+  shipment: '',
+  shipped: 0,
+  shipmentReceived: 0,
+  shipmentEta: '',
+};
+async function setup(over = {}) {
+  const meta = (await api('get', '/metadata')).body;
+  const body = {
+    name: 'Seattle buying',
+    branches: ['Seattle'],
+    cohortId: meta.cohorts[0].id,
+    observedThrough: '2026-10-24',
+    fullSalesCoverage: true,
+    stockSnapshotId: meta.stockSnapshotId,
+    stockCoverageConfirmed: true,
+    freeStockValidated: true,
+    policyConfirmed: true,
+    reviewDays: 7,
+    bufferDays: 21,
+    stockMaxHours: 24,
+    salesMaxDays: 14,
+    aliases: [],
+    policies: [policy],
+    container: { payloadKg: 25000, tareKg: 600, maxSlabs: 60, layoutConfirmed: true, mixingConfirmed: true },
+    ...over,
+  };
+  const res = await api('post', '/scopes').send(body).expect(201);
+  const id = res.body._id;
+  await api('post', `/scopes/${id}/inbound`)
+    .send({ complete: true, rows: [supply] })
+    .expect(201);
+  return { id, body };
+}
+const plan = async (id) => (await api('get', `/scopes/${id}/plan`).expect(200)).body;
+const draftBody = (p) => ({
+  fingerprint: p.fingerprint,
+  lines: [{ key: p.rows[0].key, branch: 'Seattle', quantity: p.rows[0].protective.proposedSlabs }],
+  note: 'Weekly replenishment',
+});
+beforeAll(async () => {
+  rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+  await mongoose.connect(rs.getUri());
+  await Promise.all([
+    PurchasingScope.init(),
+    PurchasingInbound.init(),
+    PurchasingDraft.init(),
+    PurchasingLock.init(),
+    PurchasingPoLink.init(),
+    InventoryItem.init(),
+    InventoryTransitShipment.init(),
+    InventorySalesRecord.init(),
+    Location.init(),
+    SlabReservation.init(),
+  ]);
+  app = express();
+  app.use(express.json());
+  app.use(
+    '/api/purchasing',
+    createRouter({
+      now: () => clock,
+      authenticate: (req, res, next) => {
+        if (!req.headers['x-user']) return res.sendStatus(401);
+        req.user = JSON.parse(req.headers['x-user']);
+        next();
+      },
+    }),
+  );
+}, 180000);
+afterAll(async () => {
+  await mongoose.disconnect();
+  await rs?.stop();
+});
+beforeEach(async () => {
+  await Promise.all([
+    PurchasingScope.deleteMany({}),
+    PurchasingInbound.deleteMany({}),
+    PurchasingDraft.deleteMany({}),
+    PurchasingLock.deleteMany({}),
+    PurchasingPoLink.deleteMany({}),
+    InventoryItem.deleteMany({}),
+    InventoryTransitShipment.deleteMany({}),
+    InventorySalesRecord.deleteMany({}),
+    Location.deleteMany({}),
+    SlabReservation.deleteMany({}),
+  ]);
+  await Location.collection.insertMany([{ name: 'Seattle' }, { name: 'Spokane' }]);
+  await InventoryItem.collection.insertMany(Array.from({ length: 42 }, (_, i) => ({
+    product: 'Quartz 3CM', location: 'Seattle', type: 'SLAB', units: 'SF', instockQty: 1,
+    availableSlabs: 1, availableQuantity: 1, slabStatus: '', remnant: '', serialNumber: `SER${i + 1}`, importedAt: clock,
+  })));
+  await InventorySalesRecord.collection.insertOne({
+    product: 'Quartz 3CM',
+    location: 'Seattle',
+    uom: 'SF',
+    slabsSold: 54,
+    quantitySold: 54,
+    periodStart: new Date('2026-09-25T00:00:00Z'),
+    periodEnd: new Date('2026-10-31T00:00:00Z'),
+    importedAt: clock,
+  });
+});
+describe('purchasing access and input validation', () => {
+  it('requires both view permissions and independent write/approval permissions', async () => {
+    await request(app).get('/api/purchasing/metadata').expect(401);
+    await api('get', '/metadata', { ...ADMIN, permissions: ['view_inventory_analysis'] }).expect(403);
+    const viewer = { ...ADMIN, permissions: ['view_inventory_analysis', 'view_purchasing'] };
+    await api('get', '/metadata', viewer).expect(200);
+    await api('post', '/scopes', viewer).send({}).expect(403);
+    const { id } = await setup();
+    await api('post', `/scopes/${id}/inbound`, viewer).send({ complete: true, rows: [] }).expect(403);
+  });
+  it('does not let a branch user read or alter another scope', async () => {
+    const { id } = await setup();
+    const other = { ...ADMIN, assignedLocations: ['Spokane'] };
+    await api('get', `/scopes/${id}/plan`, other).expect(403);
+    await api('post', `/scopes/${id}/inbound`, other).send({ complete: true, rows: [] }).expect(403);
+    expect((await api('get', '/metadata', other)).body.cohorts).toHaveLength(0);
+  });
+  it('rejects a future observed cutoff and a wrong single-branch scope', async () => {
+    const { id, body } = await setup();
+    await api('put', `/scopes/${id}`)
+      .send({ ...body, observedThrough: '2026-10-31', version: 0 })
+      .expect(400);
+    await api('put', `/scopes/${id}`)
+      .send({ ...body, branches: ['Spokane'], version: 0 })
+      .expect(400);
+  });
+  it('uses inclusive confirmed coverage and ignores the future requested end', async () => {
+    const { id } = await setup();
+    const p = await plan(id);
+    expect(p.blockers).toEqual([]);
+    expect(p.rows[0].protective.proposedSlabs).toBe(150);
+    expect(p.rows[0].baseline.proposedSlabs).toBe(96);
+  });
+  it('reads uploaded in-transit containers in the purchasing plan and scopes them by branch', async () => {
+    const { id } = await setup();
+    await InventoryTransitShipment.create({ poNumber: 'P2', containerNumber: 'CONT2', location: 'Seattle', importedAt: clock,
+      lines: [{ product: 'Quartz 3CM', poNumber: 'P2', containerNumber: 'CONT2', location: 'Seattle', units: 'SF',
+        slabs: 24, quantity: 24, etaDate: new Date('2026-12-08'), status: 'INTRANSIT', supplier: 'ABC' }] });
+    await InventoryTransitShipment.create({ poNumber: 'P3', containerNumber: 'CONT3', location: 'Spokane', importedAt: clock,
+      lines: [{ product: 'Quartz 3CM', poNumber: 'P3', containerNumber: 'CONT3', location: 'Spokane', units: 'SF',
+        slabs: 500, quantity: 500, etaDate: new Date('2026-12-08'), status: 'INTRANSIT', supplier: 'ABC' }] });
+    const p = await plan(id);
+    expect(p.transitLineCount).toBe(1);
+    expect(p.rows[0].transit[0]).toMatchObject({ poNumber: 'P2', containerNumber: 'CONT2', slabs: 24 });
+    expect(p.rows[0].protective).toBeNull();
+    expect(p.rows[0].blockers.join(' ')).toMatch(/unconfirmed/);
+    const line = p.rows[0].transit[0];
+    await api('post', `/scopes/${id}/incoming/${line.shipmentId}/receipt`).send({ date: '2026-12-08', signature: line.sourceSignature }).expect(200);
+    const confirmed = await plan(id);
+    expect(confirmed.rows[0].protective.inbound).toBe(48);
+    expect(confirmed.rows[0].protective.proposedSlabs).toBe(126);
+  });
+  it('keeps unvalidated combined-scope coverage blocked and never splits labels', async () => {
+    await InventorySalesRecord.updateMany({}, { $set: { location: 'Seattle Spokane' } });
+    const { id } = await setup({ branches: ['Seattle', 'Spokane'], fullSalesCoverage: false });
+    const p = await plan(id);
+    expect(p.rows[0].protective).toBeNull();
+    expect(p.blockers.join(' ')).toMatch(/branch scope/);
+  });
+  it('invalidates the stock confirmation when a new import replaces the snapshot', async () => {
+    const { id } = await setup();
+    await InventoryItem.updateMany({}, { $set: { importedAt: new Date('2026-10-24T20:01:00Z') } });
+    const p = await plan(id);
+    expect(p.blockers.join(' ')).toMatch(/exact stock snapshot/);
+    expect(p.rows[0].protective).toBeNull();
+  });
+  it('keeps missing variants visible and does not assume missing policies mean zero stock', async () => {
+    await InventorySalesRecord.collection.insertOne({
+      product: 'Missing 2CM',
+      location: 'Seattle',
+      uom: 'SF',
+      quantitySold: 100,
+      slabsSold: 20,
+      periodStart: new Date('2026-09-25'),
+      periodEnd: new Date('2026-10-31'),
+      importedAt: clock,
+    });
+    const { id } = await setup();
+    const r = (await plan(id)).rows.find((r) => r.product === 'Missing 2CM');
+    expect(r.hasStock).toBe(false);
+    expect(r.readySlabs).toBeNull();
+    expect(r.protective).toBeNull();
+  });
+  it('excludes transit, remnants and app reservations without subtracting SPS holds twice', async () => {
+    const { id } = await setup();
+    await InventoryItem.updateMany(
+      {},
+      { $set: { slabStatus: 'ONHOLD', availableQuantity: 0, availableSlabs: 0 } },
+    );
+    const meta = (await api('get', '/metadata')).body;
+    const scope = await PurchasingScope.findById(id);
+    scope.stockSnapshotId = meta.stockSnapshotId;
+    await scope.save();
+    // One record already excluded by SPS status; app lock is not subtracted again.
+    await SlabReservation.collection.insertOne({
+      slabKey: 'SER1',
+      branch: 'Seattle',
+      holdId: new mongoose.Types.ObjectId(),
+    });
+    const r = (await plan(id)).rows[0];
+    expect(r.readySlabs).toBe(0);
+    expect(r.protective.proposedSlabs).toBe(192);
+  });
+  it('does not replace a valid supply snapshot when shipment totals are invalid', async () => {
+    const { id } = await setup();
+    await api('post', `/scopes/${id}/inbound`)
+      .send({ complete: true, rows: [{ ...supply, received: 30 }] })
+      .expect(400);
+    expect(await PurchasingInbound.countDocuments({ scopeId: id })).toBe(1);
+  });
+  it('blocks unconfirmed incoming ETAs rather than silently generating duplicate buys', async () => {
+    const { id } = await setup();
+    await api('post', `/scopes/${id}/inbound`)
+      .send({ complete: true, rows: [{ ...supply, confirmed: false }] })
+      .expect(201);
+    expect((await plan(id)).rows[0].blockers.join(' ')).toMatch(/unconfirmed/);
+  });
+});
+describe('container draft workflow', () => {
+  it('keeps an unrecognized SPS status out of automatic buying decisions', async () => {
+    await InventoryItem.updateMany({}, { $set: { slabStatus: 'NEW-UNKNOWN-CODE' } });
+    const { id } = await setup();
+    const row = (await plan(id)).rows[0];
+    expect(row.protective).toBeNull();
+    expect(row.blockers.join(' ')).toMatch(/Unknown SPS/);
+  });
+  it('rejects unverified new aliases instead of treating a typo as zero stock', async () => {
+    const { id, body } = await setup();
+    await api('put', `/scopes/${id}`)
+      .send({ ...body, version: 0, aliases: [{ salesProduct: 'Quartz 3CM', stockProduct: 'Typo variant' }] })
+      .expect(400);
+  });
+
+  it('plans from actual usable SF, keeping physical slab counts separate', async () => {
+    await InventoryItem.updateMany({}, { $set: { instockQty: 2, availableQuantity: 2 } });
+    const { id } = await setup();
+    const row = (await plan(id)).rows[0];
+    expect(row.readySlabs).toBe(42);
+    expect(row.protective.ready).toBe(84);
+    expect(row.protective.proposedSlabs).toBe(108);
+  });
+  it('does not infer zero stock across incompatible units', async () => {
+    await InventoryItem.updateMany({}, { $set: { units: 'EA' } });
+    const { id } = await setup();
+    const row = (await plan(id)).rows.find((r) => r.uom === 'SF');
+    expect(row.blockers.join(' ')).toMatch(/UOM do not match/);
+    expect(row.protective).toBeNull();
+  });
+  it('keeps a covered total with an early gap visible as an expedite exception', async () => {
+    const { id } = await setup();
+    await api('post', `/scopes/${id}/inbound`)
+      .send({ complete: true, rows: [{ ...supply, ordered: 1000 }] })
+      .expect(201);
+    const row = (await plan(id)).rows[0];
+    expect(row.protective.proposedSlabs).toBe(0);
+    expect(row.protective.bridgeShortfall).toBeGreaterThan(0);
+    expect(row.action).toBe('Expedite existing supply');
+  });
+  it('requires container confirmation without preventing investigation setup', async () => {
+    const { id } = await setup({
+      container: { payloadKg: 0, tareKg: 0, maxSlabs: 0, layoutConfirmed: false, mixingConfirmed: false },
+    });
+    const p = await plan(id);
+    expect(p.rows[0].protective.proposedSlabs).toBe(150);
+    await api('post', `/scopes/${id}/drafts`).send(draftBody(p)).expect(400);
+    expect(await PurchasingDraft.countDocuments()).toBe(0);
+  });
+  it('cannot attribute an existing incoming PO to a newly created draft', async () => {
+    const { id } = await setup();
+    const p = await plan(id),
+      body = draftBody(p);
+    body.lines[0].quantity = 18;
+    const d = (await api('post', `/scopes/${id}/drafts`).send(body).expect(201)).body;
+    expect(d.inputSnapshot.rows[0].protective.proposedSlabs).toBe(150);
+    await api('post', `/drafts/${d._id}/approve`)
+      .send({ version: 0, note: 'Manual quantity review' })
+      .expect(200);
+    await api('post', `/drafts/${d._id}/link`)
+      .send({ version: 1, note: 'Old PO', poLines: [JSON.stringify(['P1', '1'])] })
+      .expect(400);
+    expect(await PurchasingLock.countDocuments()).toBe(1);
+  });
+  it('serializes two approval attempts using the draft version', async () => {
+    const { id } = await setup();
+    const p = await plan(id),
+      d = (await api('post', `/scopes/${id}/drafts`).send(draftBody(p))).body;
+    const results = await Promise.all([
+      api('post', `/drafts/${d._id}/approve`).send({ version: 0, note: 'First buyer' }),
+      api('post', `/drafts/${d._id}/approve`).send({ version: 0, note: 'Second buyer' }),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+  });
+
+  it('reserves variants atomically against simultaneous buyer drafts', async () => {
+    const { id } = await setup();
+    const p = await plan(id),
+      body = draftBody(p);
+    const results = await Promise.all([
+      api('post', `/scopes/${id}/drafts`).send(body),
+      api('post', `/scopes/${id}/drafts`).send(body),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(await PurchasingDraft.countDocuments()).toBe(1);
+    expect(await PurchasingLock.countDocuments()).toBe(1);
+    expect((await plan(id)).rows[0].draftId).toBeTruthy();
+  });
+  it('refuses stale fingerprints and quantity overrides without a note', async () => {
+    const { id } = await setup();
+    const p = await plan(id);
+    await api('post', `/scopes/${id}/drafts`)
+      .send({ ...draftBody(p), fingerprint: 'stale' })
+      .expect(409);
+    const body = draftBody(p);
+    body.lines[0].quantity = 156;
+    body.note = '';
+    await api('post', `/scopes/${id}/drafts`).send(body).expect(400);
+  });
+  it('checks approval permissions, source freshness and decision versions', async () => {
+    const { id } = await setup();
+    const p = await plan(id);
+    const d = (await api('post', `/scopes/${id}/drafts`).send(draftBody(p)).expect(201)).body;
+    const editor = { ...ADMIN, permissions: ADMIN.permissions.filter((p) => p !== 'approve_purchasing') };
+    await api('post', `/drafts/${d._id}/approve`, editor).send({ version: 0, note: 'ok' }).expect(403);
+    await api('post', `/drafts/${d._id}/approve`).send({ version: 0, note: 'Reviewed' }).expect(200);
+    await api('get', `/drafts/${d._id}/export`).expect(200);
+    await InventoryItem.updateMany({}, { $set: { availableSlabs: 40, availableQuantity: 40 } });
+    await api('get', `/drafts/${d._id}/export`).expect(409);
+    await api('post', `/drafts/${d._id}/cancel`).send({ version: 0, note: 'old version' }).expect(409);
+    await api('post', `/drafts/${d._id}/cancel`)
+      .send({ version: 1, note: 'Refresh changed stock' })
+      .expect(200);
+    expect(await PurchasingLock.countDocuments()).toBe(0);
+  });
+  it('links approved drafts to imported SPS orders before releasing reservations', async () => {
+    const { id } = await setup();
+    const p = await plan(id);
+    let d = (await api('post', `/scopes/${id}/drafts`).send(draftBody(p))).body;
+    d = (await api('post', `/drafts/${d._id}/approve`).send({ version: 0, note: 'Reviewed' })).body;
+    await api('post', `/scopes/${id}/inbound`)
+      .send({ complete: true, rows: [supply, { ...supply, po: 'P2', ordered: 150 }] })
+      .expect(201);
+    await api('post', `/drafts/${d._id}/link`)
+      .send({ version: d.__v, note: 'Placed in SPS', poLines: [JSON.stringify(['P2', '1'])] })
+      .expect(200);
+    expect(await PurchasingLock.countDocuments()).toBe(0);
+    expect(await PurchasingPoLink.countDocuments()).toBe(1);
+    expect((await plan(id)).rows[0].protective.proposedSlabs).toBe(0);
+  });
+});
+
+describe('live stock overview API', () => {
+  it('returns total/allocated/available physical slabs and independent day coverage', async () => {
+    await InventoryItem.deleteMany({});
+    const physical = (serialNumber, slabStatus = '') => ({ product: 'Quartz 3CM', type: 'SLAB', serialNumber,
+      instockQty: 75, availableSlabs: slabStatus ? 0 : 1, availableQuantity: slabStatus ? 0 : 75,
+      slabStatus, remnant: '', units: 'SF', location: 'Seattle', importedAt: clock });
+    await InventoryItem.collection.insertMany([
+      physical('free'), physical('so', 'ONSO'), physical('held', 'ONHOLD'), physical('transfer', 'ONTRANSFER'),
+      { ...physical('outside'), location: 'Spokane' },
+    ]);
+    await SlabReservation.collection.insertOne({ slabKey: 'HELD', branch: 'Seattle', holdId: new mongoose.Types.ObjectId() });
+    await InventorySalesRecord.updateMany({}, { $set: { quantitySold: 150 } });
+    const { id } = await setup({ policies: [], policyConfirmed: false });
+    const result = await plan(id);
+    expect(result.rows[0].stockBreakdown).toEqual({ total: 4, allocated: 2, otherUnavailable: 1, available: 1, availableQuantity: 75, problems: [] });
+    expect(result.rows[0].coverage).toMatchObject({ state: 'known', days: 15, dailyQuantity: 5 });
+    expect(result.rows[0].protective).toBeNull(); // Packing policy blocks buying, not valid stock coverage.
+  });
+});
+
+describe('advisory stock coverage API', () => {
+  it('returns estimated coverage for stale/unconfirmed inputs without allowing a buying draft', async () => {
+    await InventoryItem.deleteMany({});
+    await InventoryItem.collection.insertOne({ product: 'Quartz 3CM', location: 'Seattle', type: 'SLAB',
+      serialNumber: 'only-slab', instockQty: 75, availableSlabs: 1, availableQuantity: 75,
+      slabStatus: '', remnant: '', units: 'SF', importedAt: clock });
+    await InventorySalesRecord.updateMany({}, { $set: { quantitySold: 150 } });
+    const { id } = await setup({ observedThrough: '2026-09-30', fullSalesCoverage: false,
+      stockCoverageConfirmed: false, freeStockValidated: false, policyConfirmed: false, policies: [] });
+    const p = await plan(id);
+    expect(p.rows[0].coverage).toMatchObject({ state: 'estimated', days: 3, dailyQuantity: 25 });
+    expect(p.rows[0].coverage.warnings).toHaveLength(4);
+    expect(p.rows[0].protective).toBeNull();
+    const attempted = await api('post', `/scopes/${id}/drafts`).send({ fingerprint: p.fingerprint,
+      lines: [{ key: p.rows[0].key, branch: 'Seattle', quantity: 6 }], note: 'Estimated cover is not approval evidence' }).expect(409);
+    expect(attempted.body.error).toMatch(/resolve planning inputs/i);
+  });
+});
+
+describe('using the uploaded sales period', () => {
+  it('derives a completed period without a date or confirmation and retains original import timestamps', async () => {
+    const legacyImport = new Date('2026-09-28T20:00:00Z');
+    await InventoryItem.deleteMany({});
+    await InventoryItem.collection.insertOne({ product: 'Quartz 3CM', location: 'Seattle', type: 'SLAB', serialNumber: 'file-slab',
+      instockQty: 75, availableSlabs: 1, availableQuantity: 75, units: 'SF', slabStatus: '', remnant: '', importedAt: clock });
+    await InventorySalesRecord.updateMany({}, { $set: { importedAt: legacyImport, periodEnd: new Date('2026-09-30') } });
+    const meta = (await api('get', '/metadata')).body;
+    const { body } = await setup({ observedThrough: '2026-09-27' });
+    const { observedThrough, ...request } = { ...body, cohortId: meta.cohorts[0].id };
+    const saved = await api('post', '/scopes').send(request).expect(201);
+    expect(saved.body.observedThrough).toBe('2026-09-30');
+    expect(saved.body.salesCoverageConfirmation).toBeNull();
+    const result = await plan(saved.body._id);
+    expect(result.scope.observedThrough).toBe('2026-09-30');
+    expect(result.rows[0].coverage).toMatchObject({ state: 'estimated', dailyQuantity: 9 });
+    expect(result.rows[0].coverage.days).toBeCloseTo(75 / 9);
+    expect(result.blockers.join(' ')).not.toMatch(/after the report was imported|confirm the actual report cutoff/);
+    expect((await InventorySalesRecord.findOne().lean()).importedAt.toISOString()).toBe(legacyImport.toISOString());
+    await api('post', '/scopes').send({ ...request, observedThrough: '2026-11-01' }).expect(400);
+    await api('post', '/scopes').send({ ...request, salesCoverageConfirmation: { through: '2026-09-30' } }).expect(400);
+  });
+});
+
+describe('purchasing review regressions', () => {
+  it('rejects duplicate physical slabs consistently in stock cover and buying', async () => {
+    await InventoryItem.collection.insertOne({ ...(await InventoryItem.findOne().lean()), _id: new mongoose.Types.ObjectId() });
+    const { id } = await setup();
+    const row = (await plan(id)).rows[0];
+    expect(row.stockBreakdown.available).toBeNull();
+    expect(row.readySlabs).toBeNull();
+    expect(row.coverage.state).toBe('unknown');
+    expect(row.protective).toBeNull();
+  });
+  it('excludes samples from both physical totals and buying availability', async () => {
+    await InventoryItem.collection.insertOne({ ...(await InventoryItem.findOne().lean()), _id: new mongoose.Types.ObjectId(), type: 'SAMPLE', serialNumber: 'SAMPLE' });
+    const { id } = await setup();
+    const row = (await plan(id)).rows[0];
+    expect(row.stockBreakdown.available).toBe(42);
+    expect(row.readySlabs).toBe(42);
+    expect(row.protective.ready).toBe(42);
+  });
+  it('keeps a logical report selectable after replacing its source rows and rechecks coverage', async () => {
+    const { id } = await setup();
+    const before = (await api('get', '/metadata')).body.cohorts[0];
+    const old = await InventorySalesRecord.findOne().lean();
+    await inInventoryTransaction(async session => {
+      await InventorySalesRecord.deleteMany({}, { session });
+      await InventorySalesRecord.collection.insertOne({ ...old, _id: new mongoose.Types.ObjectId(), quantitySold: 100 }, { session });
+    });
+    const current = await plan(id);
+    expect(current.cohort.id).toBe(before.id);
+    expect(current.cohort.revision).not.toBe(before.revision);
+    expect(current.rows[0].sold).toBe(100);
+    expect(current.scope.fullSalesCoverage).toBe(false);
+  });
+  it('does not link a raw in-transit PO already present when the draft was calculated', async () => {
+    const { id } = await setup();
+    // A parent with zero remaining slabs still identifies an old SPS order.
+    await InventoryTransitShipment.create({ poNumber: 'OLD', containerNumber: 'CONT', location: 'Seattle', importedAt: clock,
+      lines: [{ product: 'Quartz 3CM', poNumber: 'OLD', containerNumber: 'CONT', location: 'Seattle', units: 'SF', slabs: 0, quantity: 0, etaDate: new Date('2026-12-08'), status: 'INTRANSIT', supplier: 'ABC' }] });
+    // Confirm the usable receipt explicitly.
+    let p = await plan(id), line = p.rows[0].transit[0];
+    await api('post', `/scopes/${id}/incoming/${line.shipmentId}/receipt`).send({ date: '2026-12-08', signature: line.sourceSignature }).expect(200);
+    p = await plan(id);
+    const d = (await api('post', `/scopes/${id}/drafts`).send(draftBody(p)).expect(201)).body;
+    await api('post', `/drafts/${d._id}/approve`).send({ version: 0, note: 'Reviewed' }).expect(200);
+    await api('post', `/scopes/${id}/inbound`).send({ complete: true, rows: [supply, { ...supply, po: 'OLD', ordered: 200 }] }).expect(201);
+    await api('post', `/drafts/${d._id}/link`).send({ version: 1, note: 'Old transit', poLines: [JSON.stringify(['OLD', '1'])] }).expect(409);
+    expect(await PurchasingLock.countDocuments()).toBe(1);
+  });
+  it('serializes a source publication ahead of approval and rejects the stale draft', async () => {
+    const { id } = await setup();
+    const p = await plan(id), d = (await api('post', `/scopes/${id}/drafts`).send(draftBody(p)).expect(201)).body;
+    let release, entered;
+    const ready = new Promise(resolve => { entered = resolve; });
+    const paused = new Promise(resolve => { release = resolve; });
+    const publication = inInventoryTransaction(async session => {
+      await InventoryItem.updateOne({ serialNumber: 'SER1' }, { $set: { slabStatus: 'ONHOLD', availableSlabs: 0, availableQuantity: 0 } }, { session });
+      entered(); await paused;
+    });
+    await ready;
+    const approval = api('post', `/drafts/${d._id}/approve`).send({ version: 0, note: 'Concurrent approval' }).then(response => response);
+    release(); await publication;
+    expect((await approval).status).toBe(409);
+    expect((await PurchasingDraft.findById(d._id).lean()).status).toBe('draft');
+  });
+  it('paginates history so an old active draft remains reachable', async () => {
+    const { id } = await setup();
+    const d = (await api('post', `/scopes/${id}/drafts`).send(draftBody(await plan(id))).expect(201)).body;
+    await PurchasingDraft.collection.insertMany(Array.from({ length: 105 }, (_, index) => ({ scopeId: new mongoose.Types.ObjectId(id), status: 'cancelled', createdAt: new Date(clock.getTime() + index + 1) })));
+    let cursor = '', found = [], pages = 0;
+    do {
+      const response = await api('get', `/scopes/${id}/drafts?paginated=true&limit=50${cursor ? `&cursor=${cursor}` : ''}`).expect(200);
+      found.push(...response.body.items); cursor = response.body.nextCursor; pages++;
+    } while (cursor);
+    expect(pages).toBe(3);
+    expect(found.some(item => item._id === d._id)).toBe(true);
+  });
+});
+
+describe('warehouse view identity', () => {
+  it('does not reuse a legacy empty incoming snapshot after its view changes branches', async () => {
+    await InventorySalesRecord.updateMany({}, { $set: { location: 'Network report' } });
+    const { id, body } = await setup();
+    await PurchasingInbound.updateMany({}, { $unset: { branches: '' } });
+    await api('put', `/scopes/${id}`).send({ ...body, branches: ['Spokane'], stockCoverageConfirmed: false, version: 0 }).expect(200);
+    expect((await api('get', `/scopes/${id}/inbound`).expect(200)).body).toBeNull();
+    expect((await plan(id)).blockers.join(' ')).toMatch(/complete SPS PO/);
+    expect((await PurchasingInbound.findOne().lean()).branches).toEqual(['Seattle']);
+  });
+  it('keeps purchase history attached to its destination when a view is edited', async () => {
+    await InventorySalesRecord.updateMany({}, { $set: { location: 'Network report' } });
+    const { id, body } = await setup();
+    await api('post', `/scopes/${id}/drafts`).send(draftBody(await plan(id))).expect(201);
+    await api('put', `/scopes/${id}`).send({ ...body, branches: ['Spokane'], stockCoverageConfirmed: false, version: 0 }).expect(409);
+    expect((await PurchasingScope.findById(id).lean()).branches).toEqual(['Seattle']);
+  });
+});

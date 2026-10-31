@@ -1,8 +1,8 @@
 import type { ClientSession } from 'mongoose';
-import LocationModel from '../models/Location.js';
-import UserModel from '../models/User.js';
-import RoleModel from '../models/Role.js';
-import { displayNameOf } from '../utils/salesReps.js';
+import LocationModel from '../models/Location.ts';
+import UserModel from '../models/User.ts';
+import RoleModel from '../models/Role.ts';
+import { displayNameOf } from '../utils/salesReps.ts';
 import { HttpError } from './http.ts';
 import type { DriverOption } from './types.ts';
 interface UserAccess { assignedLocations?: string[]; permissions?: string[] }

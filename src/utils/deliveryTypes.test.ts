@@ -1,0 +1,439 @@
+import type { Loose } from '../types/records.ts';
+import { describe, it, expect } from 'vitest';
+import {
+  DELIVERY_TYPES,
+  ticketAccentFor,
+  TICKET_ACCENTS,
+  pendingDeliveryDateLabel,
+  sortPendingByDate,
+  isWillCall,
+  isReturn,
+  isCounterReturn,
+  isCancelledDelivery,
+  isPendingDelivery,
+  columnIdFor,
+  defaultStatusFor,
+  WILL_CALL_COLUMN_ID,
+  isTransferOrigin,
+  applyTransferPerspective,
+  showOnArrivalDay,
+  shortDayLabel,
+  transferShipNote,
+  transferArrivalFor
+} from './deliveryTypes.ts';
+
+const ticket = (over: Loose = {}): Loose => ({ deliveryType: 'jobsite', truckId: 'trk_1', date: '2026-09-18', ...over });
+
+describe('DELIVERY_TYPES', () => {
+  it('matches the Delivery model enum and the server whitelist', () => {
+    expect(DELIVERY_TYPES).toEqual(['jobsite', 'transfer', 'will_call', 'return']);
+  });
+});
+
+describe('type predicates', () => {
+  it('recognises will calls and returns', () => {
+    expect(isWillCall(ticket({ deliveryType: 'will_call', truckId: '' }))).toBe(true);
+    expect(isReturn(ticket({ deliveryType: 'return' }))).toBe(true);
+    expect(isWillCall(ticket())).toBe(false);
+    expect(isReturn(ticket())).toBe(false);
+  });
+
+  it('survives a missing delivery', () => {
+    expect(isWillCall(null)).toBe(false);
+    expect(isReturn(undefined)).toBe(false);
+    expect(isCounterReturn(null)).toBe(false);
+  });
+});
+
+describe('isCounterReturn', () => {
+  it('is a return with a date, no driver, and the customerDropOff flag set', () => {
+    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: '', customerDropOff: true }))).toBe(true);
+  });
+
+  it('is not a return with a date and no driver unless customerDropOff is set — driver just hasn’t been picked yet', () => {
+    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: '' }))).toBe(false);
+  });
+
+  it('is not a return a driver is collecting, even if customerDropOff lingers on the record', () => {
+    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: 'trk_1', customerDropOff: true }))).toBe(false);
+  });
+
+  it('is not a return with no date yet — that one is still Pending', () => {
+    expect(isCounterReturn(ticket({ deliveryType: 'return', truckId: '', date: '', customerDropOff: true }))).toBe(false);
+  });
+
+  it('is not a jobsite with no driver', () => {
+    expect(isCounterReturn(ticket({ truckId: '', customerDropOff: true }))).toBe(false);
+  });
+});
+
+describe('isCancelledDelivery', () => {
+  it('is cancelled when status says so', () => {
+    expect(isCancelledDelivery(ticket({ status: 'cancelled' }))).toBe(true);
+  });
+
+  it('is not cancelled for any other status', () => {
+    expect(isCancelledDelivery(ticket({ status: 'scheduled' }))).toBe(false);
+    expect(isCancelledDelivery(ticket())).toBe(false);
+  });
+
+  it('survives a missing delivery', () => {
+    expect(isCancelledDelivery(null)).toBe(false);
+  });
+});
+
+describe('isPendingDelivery', () => {
+  it('is pending when a jobsite has no driver', () => {
+    expect(isPendingDelivery(ticket({ truckId: '' }))).toBe(true);
+  });
+
+  it('is not pending once a driver is assigned', () => {
+    expect(isPendingDelivery(ticket())).toBe(false);
+  });
+
+  it('is never pending once cancelled, even with no driver — it belongs to Cancelled Orders instead', () => {
+    expect(isPendingDelivery(ticket({ truckId: '', status: 'cancelled' }))).toBe(false);
+  });
+
+  it('never puts a will call in Pending — the customer collects it', () => {
+    expect(isPendingDelivery(ticket({ deliveryType: 'will_call', truckId: '' }))).toBe(false);
+  });
+
+  it('never puts a dated customer drop-off in Pending — it has a day of its own', () => {
+    expect(isPendingDelivery(ticket({ deliveryType: 'return', truckId: '', customerDropOff: true }))).toBe(false);
+  });
+
+  it('keeps a dateless return in Pending, so it cannot go invisible', () => {
+    expect(isPendingDelivery(ticket({ deliveryType: 'return', truckId: '', date: '', customerDropOff: true }))).toBe(true);
+  });
+
+  it('keeps a dated return in Pending until customerDropOff is set — driver just hasn’t been picked yet', () => {
+    expect(isPendingDelivery(ticket({ deliveryType: 'return', truckId: '' }))).toBe(true);
+  });
+
+  it('treats a missing delivery as pending rather than throwing', () => {
+    expect(isPendingDelivery(null)).toBe(true);
+  });
+});
+
+describe('columnIdFor', () => {
+  it('puts a driver-collected return in that driver’s column, not Will Call', () => {
+    expect(columnIdFor(ticket({ deliveryType: 'return', truckId: 'trk_7' }))).toBe('trk_7');
+  });
+
+  it('shares the Will Call column with a customer drop-off — both move without a driver', () => {
+    expect(columnIdFor(ticket({ deliveryType: 'return', truckId: '', customerDropOff: true }))).toBe(WILL_CALL_COLUMN_ID);
+  });
+
+  it('has no column for a dated, driverless return that isn’t flagged as a drop-off — it belongs in Pending', () => {
+    expect(columnIdFor(ticket({ deliveryType: 'return', truckId: '' }))).toBe('');
+  });
+
+  it('puts a will call in the Will Call column even if a truckId lingers on the record', () => {
+    expect(columnIdFor(ticket({ deliveryType: 'will_call', truckId: 'trk_1' }))).toBe(WILL_CALL_COLUMN_ID);
+  });
+
+  it('falls back to the truck for everything else', () => {
+    expect(columnIdFor(ticket())).toBe('trk_1');
+    expect(columnIdFor(ticket({ truckId: '' }))).toBe('');
+  });
+
+  it('has no column once cancelled, even with a truckId still on the record', () => {
+    expect(columnIdFor(ticket({ status: 'cancelled' }))).toBe('');
+  });
+});
+
+describe('board, Pending, and Cancelled Orders are complements', () => {
+  // Every ticket must land in exactly one of the three views. This is the
+  // rule the server's queries have to agree with; when they don't, a ticket
+  // disappears from the app entirely.
+  const cases = [
+    ticket(),
+    ticket({ truckId: '' }),
+    ticket({ deliveryType: 'will_call', truckId: '' }),
+    ticket({ deliveryType: 'return', truckId: 'trk_2' }),
+    ticket({ deliveryType: 'return', truckId: '', customerDropOff: true }),
+    ticket({ deliveryType: 'return', truckId: '' }),
+    ticket({ deliveryType: 'return', truckId: '', date: '' }),
+    ticket({ deliveryType: 'return', truckId: '', date: '', customerDropOff: true }),
+    ticket({ deliveryType: 'transfer', truckId: 'trk_3' }),
+    ticket({ deliveryType: 'transfer', truckId: '' }),
+    // A cancelled ticket that used to be on a truck, keeping the record.
+    ticket({ status: 'cancelled' }),
+    // A cancelled ticket that used to be in Pending, with nothing to keep.
+    ticket({ truckId: '', status: 'cancelled' })
+  ];
+
+  it.each(cases)('places %o in exactly one view', (d) => {
+    const cancelled = isCancelledDelivery(d);
+    const pending = isPendingDelivery(d);
+    // A ticket is on the board when it has a column and a date to draw it on.
+    const onBoard = Boolean(columnIdFor(d)) && Boolean(d.date);
+    expect(cancelled || pending || onBoard).toBe(true);
+    expect(cancelled && pending).toBe(false);
+    expect(cancelled && onBoard).toBe(false);
+    expect(pending && onBoard).toBe(false);
+  });
+});
+
+describe('isTransferOrigin', () => {
+  const seattleTransfer = ticket({ deliveryType: 'transfer', location: 'Seattle', transferDestination: 'Spokane' });
+
+  it('is the origin when the viewer is assigned to the shipping branch', () => {
+    expect(isTransferOrigin(seattleTransfer, ['Seattle'])).toBe(true);
+  });
+
+  it('is not the origin when the viewer is only assigned to the destination branch', () => {
+    expect(isTransferOrigin(seattleTransfer, ['Spokane'])).toBe(false);
+  });
+
+  it('an admin is always the origin', () => {
+    expect(isTransferOrigin(seattleTransfer, ['*'])).toBe(true);
+  });
+
+  it('a ticket with no location on it yet belongs to nobody in particular, so any viewer is treated as its origin', () => {
+    expect(isTransferOrigin(ticket({ deliveryType: 'transfer', location: '' }), ['Spokane'])).toBe(true);
+  });
+});
+
+describe('applyTransferPerspective', () => {
+  const transfer = ticket({
+    deliveryType: 'transfer',
+    location: 'Seattle',
+    transferDestination: 'Spokane',
+    date: '2026-09-15',
+    expectedArrivalDate: '2026-09-18'
+  });
+
+  it('leaves a non-transfer untouched', () => {
+    const jobsite = ticket();
+    expect(applyTransferPerspective(jobsite, ['Spokane'])).toBe(jobsite);
+  });
+
+  it('leaves the ship date alone for the origin branch', () => {
+    expect(applyTransferPerspective(transfer, ['Seattle'])).toBe(transfer);
+  });
+
+  it('leaves the ship date alone for an admin', () => {
+    expect(applyTransferPerspective(transfer, ['*'])).toBe(transfer);
+  });
+
+  it('shows the destination branch the arrival date instead, flagged as an incoming view', () => {
+    const shaped = applyTransferPerspective(transfer, ['Spokane']);
+    expect(shaped.date).toBe('2026-09-18');
+    expect(shaped.isIncomingView).toBe(true);
+    expect(shaped.shipDate).toBe('2026-09-15');
+    expect(shaped.viewedAs).toBe('destination');
+    // The original record is never mutated — callers (the cache, the board)
+    // may still be holding a reference to it elsewhere.
+    expect(transfer.date).toBe('2026-09-15');
+  });
+
+  it('leaves the ship date alone for the destination branch when no arrival date has been set yet', () => {
+    const noArrival = ticket({ deliveryType: 'transfer', location: 'Seattle', date: '2026-09-15' });
+    expect(applyTransferPerspective(noArrival, ['Spokane'])).toBe(noArrival);
+  });
+});
+
+describe('shortDayLabel', () => {
+  it('reads weekday and month/day from the date parts', () => {
+    expect(shortDayLabel('2026-09-25')).toBe('Fri 9/25');
+    expect(shortDayLabel('2026-09-28')).toBe('Mon 9/28');
+  });
+
+  it('is blank for a missing date', () => {
+    expect(shortDayLabel('')).toBe('');
+    expect(shortDayLabel(undefined)).toBe('');
+  });
+});
+
+describe('transferShipNote', () => {
+  const shippedFriday = ticket({
+    deliveryType: 'transfer',
+    location: 'Seattle',
+    transferDestination: 'Spokane',
+    date: '2026-09-25',
+    expectedArrivalDate: '2026-09-28'
+  });
+
+  it('tells the sender when and that it arrives today', () => {
+    expect(transferShipNote(showOnArrivalDay(shippedFriday, 'origin'), '2026-09-28'))
+      .toBe('Shipped Fri 9/25 · arrives today');
+  });
+
+  it('names the arrival day when the sender is looking at a different day', () => {
+    expect(transferShipNote(showOnArrivalDay(shippedFriday, 'origin'), '2026-09-30'))
+      .toBe('Shipped Fri 9/25 · arrives Mon 9/28');
+  });
+
+  it('tells the receiver it is incoming and when it shipped', () => {
+    expect(transferShipNote(showOnArrivalDay(shippedFriday, 'destination'), '2026-09-28'))
+      .toBe('Incoming · shipped Fri 9/25');
+  });
+
+  it('says nothing for a transfer that ships and arrives the same day', () => {
+    const sameDay = { ...shippedFriday, expectedArrivalDate: '2026-09-25' };
+    expect(transferShipNote(showOnArrivalDay(sameDay, 'destination'), '2026-09-25')).toBe('');
+  });
+
+  it('says nothing for a card drawn on its own ship date', () => {
+    expect(transferShipNote(shippedFriday, '2026-09-25')).toBe('');
+  });
+});
+
+describe('defaultStatusFor', () => {
+  it('is scheduled once a driver is assigned', () => {
+    expect(defaultStatusFor(ticket({ status: 'pending' }))).toBe('scheduled');
+  });
+
+  it('is pending while nobody is driving it', () => {
+    expect(defaultStatusFor(ticket({ truckId: '', status: 'pending' }))).toBe('pending');
+  });
+
+  it('calls a will call scheduled — no driver, but a date the customer agreed', () => {
+    expect(defaultStatusFor(ticket({ deliveryType: 'will_call', truckId: '' }))).toBe('scheduled');
+  });
+
+  it('calls a dated customer drop-off scheduled for the same reason', () => {
+    expect(defaultStatusFor(ticket({ deliveryType: 'return', truckId: '', customerDropOff: true }))).toBe('scheduled');
+  });
+
+  it('leaves a dateless return pending', () => {
+    expect(defaultStatusFor(ticket({ deliveryType: 'return', truckId: '', date: '', customerDropOff: true }))).toBe('pending');
+  });
+
+  it('leaves a dated, unflagged return pending too — nobody has picked it up yet', () => {
+    expect(defaultStatusFor(ticket({ deliveryType: 'return', truckId: '' }))).toBe('pending');
+  });
+
+  it('never rewrites what happened on the day', () => {
+    expect(defaultStatusFor(ticket({ truckId: '', status: 'completed' }))).toBe('completed');
+    expect(defaultStatusFor(ticket({ status: 'delayed' }))).toBe('delayed');
+    expect(defaultStatusFor(ticket({ truckId: '', status: 'delayed' }))).toBe('delayed');
+  });
+});
+
+describe('transferArrivalFor', () => {
+  it('defaults a blank arrival to the ship date', () => {
+    expect(transferArrivalFor({ date: '2026-09-28', expectedArrivalDate: '' })).toBe('2026-09-28');
+    expect(transferArrivalFor({ date: '2026-09-28' })).toBe('2026-09-28');
+  });
+
+  it('keeps an arrival on or after the ship date', () => {
+    expect(transferArrivalFor({ date: '2026-09-28', expectedArrivalDate: '2026-09-28' })).toBe('2026-09-28');
+    expect(transferArrivalFor({ date: '2026-09-28', expectedArrivalDate: '2026-10-01' })).toBe('2026-10-01');
+  });
+
+  it('moves an arrival that precedes the ship date up to it', () => {
+    expect(transferArrivalFor({ date: '2026-09-30', expectedArrivalDate: '2026-09-28' })).toBe('2026-09-30');
+  });
+
+  it('leaves a transfer with no ship date alone', () => {
+    expect(transferArrivalFor({ date: '', expectedArrivalDate: '' })).toBe('');
+    expect(transferArrivalFor({ date: '', expectedArrivalDate: '2026-10-01' })).toBe('2026-10-01');
+    expect(transferArrivalFor()).toBe('');
+  });
+});
+
+describe('pendingDeliveryDateLabel', () => {
+  // Wed Oct 7 2026: this week runs Mon Oct 5 – Sun Oct 11, next week Oct 12–18.
+  const wed = '2026-10-07';
+
+  it('shows a compact weekday and date', () => {
+    expect(pendingDeliveryDateLabel('2026-10-09', wed).text).toBe('Fri Oct 9');
+    expect(pendingDeliveryDateLabel('2027-01-01', wed).text).toBe('Fri Jan 1');
+  });
+
+  it('marks anything before today overdue, earlier days of this week included', () => {
+    expect(pendingDeliveryDateLabel('2026-10-05', wed)).toEqual({ text: 'Mon Oct 5', tone: 'overdue' });
+    expect(pendingDeliveryDateLabel('2026-09-30', wed)).toEqual({ text: 'Wed Sep 30', tone: 'overdue' });
+  });
+
+  it('puts today through Sunday in this week', () => {
+    expect(pendingDeliveryDateLabel('2026-10-07', wed)).toEqual({ text: 'Today', tone: 'this-week' });
+    expect(pendingDeliveryDateLabel('2026-10-11', wed).tone).toBe('this-week');
+  });
+
+  it('puts the following Monday–Sunday in next week, and beyond that later', () => {
+    expect(pendingDeliveryDateLabel('2026-10-12', wed).tone).toBe('next-week');
+    expect(pendingDeliveryDateLabel('2026-10-18', wed).tone).toBe('next-week');
+    expect(pendingDeliveryDateLabel('2026-10-19', wed).tone).toBe('later');
+  });
+
+  it('handles a Sunday today (end of the week) and a Monday today', () => {
+    expect(pendingDeliveryDateLabel('2026-10-12', '2026-10-11').tone).toBe('next-week');
+    expect(pendingDeliveryDateLabel('2026-10-18', '2026-10-11').tone).toBe('next-week');
+    expect(pendingDeliveryDateLabel('2026-10-19', '2026-10-11').tone).toBe('later');
+    expect(pendingDeliveryDateLabel('2026-10-11', '2026-10-05').tone).toBe('this-week');
+    expect(pendingDeliveryDateLabel('2026-10-12', '2026-10-05').tone).toBe('next-week');
+  });
+
+  it('crosses month and year ends', () => {
+    expect(pendingDeliveryDateLabel('2027-01-04', '2026-12-31').tone).toBe('next-week');
+    expect(pendingDeliveryDateLabel('2027-01-03', '2026-12-31').tone).toBe('this-week');
+  });
+
+  it('says so when no date has been entered', () => {
+    expect(pendingDeliveryDateLabel('', wed)).toEqual({ text: 'No date', tone: 'none' });
+    expect(pendingDeliveryDateLabel(undefined, wed)).toEqual({ text: 'No date', tone: 'none' });
+    expect(pendingDeliveryDateLabel('10/06/2026', wed)).toEqual({ text: 'No date', tone: 'none' });
+  });
+
+  it('does not judge a date without a today to compare against', () => {
+    expect(pendingDeliveryDateLabel('2020-01-01').tone).toBe('later');
+  });
+});
+
+describe('sortPendingByDate', () => {
+  const ids = (list: Loose[]) => list.map((d: Loose) => d.id);
+
+  it('orders by delivery date, soonest first, with no-date orders last', () => {
+    const list = [
+      { id: 'later', date: '2026-10-20' },
+      { id: 'none', date: '' },
+      { id: 'overdue', date: '2026-10-01' },
+      { id: 'soon', date: '2026-10-06' },
+      { id: 'missing' }
+    ];
+    expect(ids(sortPendingByDate(list))).toEqual(['overdue', 'soon', 'later', 'none', 'missing']);
+  });
+
+  it('puts the order waiting longest first when two are due the same day', () => {
+    const list = [
+      { id: 'newer', date: '2026-10-06', createdAt: '2026-10-02T10:00:00Z' },
+      { id: 'older', date: '2026-10-06', createdAt: '2026-09-28T10:00:00Z' }
+    ];
+    expect(ids(sortPendingByDate(list))).toEqual(['older', 'newer']);
+  });
+
+  it('sorts no-date orders among themselves by how long they have waited', () => {
+    const list = [
+      { id: 'b', date: '', createdAt: '2026-10-02T00:00:00Z' },
+      { id: 'a', date: '', createdAt: '2026-09-20T00:00:00Z' }
+    ];
+    expect(ids(sortPendingByDate(list))).toEqual(['a', 'b']);
+  });
+
+  it('leaves the list it was given untouched', () => {
+    const list = [{ id: 'x', date: '2026-10-09' }, { id: 'y', date: '2026-10-01' }];
+    sortPendingByDate(list);
+    expect(ids(list)).toEqual(['x', 'y']);
+  });
+});
+
+describe('ticketAccentFor', () => {
+  it('colours a card by its kind only, one colour each', () => {
+    expect(ticketAccentFor({ deliveryType: 'jobsite' })).toBe(TICKET_ACCENTS.jobsite);
+    expect(ticketAccentFor({ deliveryType: 'return', truckId: 'drv_brock' })).toBe(TICKET_ACCENTS.return);
+    expect(ticketAccentFor({ deliveryType: 'transfer' })).toBe(TICKET_ACCENTS.transfer);
+    expect(ticketAccentFor({ deliveryType: 'will_call' })).toBe(TICKET_ACCENTS.will_call);
+    expect(new Set(['jobsite', 'return', 'transfer', 'will_call'].map((t) => ticketAccentFor({ deliveryType: t }))).size).toBe(4);
+  });
+
+  it('is the same whichever driver has it, grey when cancelled, gold when the type is missing', () => {
+    expect(ticketAccentFor({ deliveryType: 'jobsite', truckId: 'drv_a' })).toBe(ticketAccentFor({ deliveryType: 'jobsite', truckId: 'drv_b' }));
+    expect(ticketAccentFor({ deliveryType: 'return', status: 'cancelled' })).toBe(TICKET_ACCENTS.cancelled);
+    expect(ticketAccentFor({})).toBe(TICKET_ACCENTS.jobsite);
+    expect(ticketAccentFor(null)).toBe(TICKET_ACCENTS.jobsite);
+  });
+});

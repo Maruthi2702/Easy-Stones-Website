@@ -1,0 +1,259 @@
+import type { Loose } from '../types/records.ts';
+import { beforeAll, afterAll, beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
+import express from 'express';
+import request from 'supertest';
+import mongoose from 'mongoose';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import createScheduleRouter from './schedule.ts';
+import Schedule from '../models/Schedule.ts';
+import User from '../models/User.ts';
+import Customer from '../models/Customer.ts';
+
+let repl, app;
+const owner = new mongoose.Types.ObjectId();
+const other = new mongoose.Types.ObjectId();
+const customer = new mongoose.Types.ObjectId();
+const emit = vi.fn();
+const staff = { id: String(owner), type: 'staff', permissions: ['create_route_plan', 'edit_route_plan'] };
+const as = (user = staff) => ({ 'x-test-user': JSON.stringify(user) });
+const stop = (over: Loose = {}) => ({ userId: owner, customerId: customer, startTime: '2026-10-24T09:00:00.000', source: 'route_planner', ...over });
+const replacement = (over: Loose = {}) => ({ date: '2026-10-24', replace: true, items: [stop({ startTime: '2026-10-24T10:00:00.000' })], ...over });
+const replace = (body = replacement(), user = staff) => request(app).post('/api/schedule/bulk').set(as(user)).send(body);
+const subscription = (user = staff) => request(app).get('/api/calendar/subscription').set(as(user));
+
+beforeAll(async () => {
+  repl = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+  await mongoose.connect(repl.getUri());
+  await Promise.all([Schedule.createCollection(), User.createCollection(), Customer.createCollection()]);
+  app = express(); app.use(express.json());
+  app.use('/api', createScheduleRouter({
+    jwtSecret: 'isolated-calendar-test-secret', emitScheduleUpdate: emit,
+    authenticate: (req: Loose, res: Loose, next: Loose) => {
+      if (!req.headers['x-test-user']) return res.sendStatus(401);
+      req.user = JSON.parse(req.headers['x-test-user']);
+      if (req.user.type !== 'customer') req.userId = req.user.id;
+      next();
+    },
+    requirePermission: (permission: Loose) => (req: Loose, res: Loose, next: Loose) => req.user.permissions.includes(permission) ? next() : res.sendStatus(403)
+  }));
+}, 180000);
+afterAll(async () => { await mongoose.disconnect(); await repl?.stop(); });
+beforeEach(async () => {
+  await Promise.all([Schedule.deleteMany({}), User.deleteMany({}), Customer.deleteMany({})]);
+  await User.collection.insertMany([{ _id: owner, username: 'owner', isActive: true }, { _id: other, username: 'other', isActive: true }]);
+  await Customer.collection.insertOne({ _id: customer, contactName: 'Pat', company: 'Test Company' });
+  emit.mockClear();
+});
+afterEach(() => vi.restoreAllMocks());
+
+describe('private calendar subscriptions', () => {
+  it('refuses the old ID-only URL and invalid tokens', async () => {
+    await Schedule.create(stop({ notes: 'Private notes' }));
+    await request(app).get(`/api/calendar/feed/${owner}.ics`).expect(404);
+    await request(app).get(`/api/calendar/feed/${owner}.ics?token=invalid`).expect(404);
+    await request(app).get('/api/calendar/subscription').expect(401);
+    await subscription({ id: String(customer), type: 'customer', permissions: [] }).expect(403);
+  });
+  it('issues stable links and lets calendar clients read without session cookies', async () => {
+    await Schedule.create(stop({ notes: 'Private notes' }));
+    const links = await Promise.all([subscription(), subscription(), subscription()]);
+    expect(new Set(links.map(res => res.body.path)).size).toBe(1);
+    const res = await request(app).get(links[0].body.path).expect(200);
+    expect(res.text).toContain('Private notes');
+    expect(res.text).toContain('Test Company');
+    expect(await User.findById(owner).lean()).not.toHaveProperty('calendarFeedKey');
+    const another = await subscription({ ...staff, id: String(other) });
+    await request(app).get(another.body.path.replace(String(other), String(owner))).expect(404);
+  });
+  it('rotating the link revokes the previous credential immediately', async () => {
+    const old = (await subscription()).body.path;
+    await request(app).post('/api/calendar/subscription/rotate').expect(401);
+    const rotated = await request(app).post('/api/calendar/subscription/rotate').set(as()).expect(200);
+    expect(rotated.body.path).not.toBe(old);
+    await request(app).get(old).expect(404);
+    await request(app).get(rotated.body.path).expect(200);
+    expect((await subscription()).body.path).toBe(rotated.body.path);
+  });
+  it('disabled and temporary-password accounts cannot serve a feed', async () => {
+    const path = (await subscription()).body.path;
+    await User.updateOne({ _id: owner }, { $set: { isActive: false } });
+    await request(app).get(path).expect(404);
+    await User.updateOne({ _id: owner }, { $set: { isActive: true, mustChangePassword: true } });
+    await request(app).get(path).expect(404);
+    await User.deleteOne({ _id: owner });
+    await request(app).get(path).expect(404);
+  });
+});
+
+describe('atomic route replacement', () => {
+  it('invalid stops leave the previous route intact and emit no update', async () => {
+    const old = await Schedule.create(stop());
+    await replace(replacement({ items: [stop({ activityType: 'invalid' })] })).expect(400);
+    expect(await Schedule.findById(old._id)).not.toBeNull();
+    expect(await Schedule.countDocuments()).toBe(1);
+    expect(emit).not.toHaveBeenCalled();
+  });
+  it('rolls back both deletion and partial inserts when a database write fails', async () => {
+    const old = await Schedule.create(stop());
+    const insert = Schedule.insertMany.bind(Schedule);
+    vi.spyOn(Schedule, 'insertMany').mockImplementationOnce(async (documents: Loose, options: Loose) => {
+      await insert([documents[0]], options);
+      throw new Error('Simulated database write failure');
+    });
+    await replace().expect(500);
+    expect(await Schedule.findById(old._id)).not.toBeNull();
+    expect(await Schedule.countDocuments()).toBe(1);
+    expect(emit).not.toHaveBeenCalled();
+  });
+  it('commits the new route while preserving manual stops and other users', async () => {
+    const old = await Schedule.create(stop());
+    const manual = await Schedule.create(stop({ source: 'manual' }));
+    const otherUser = await Schedule.create(stop({ userId: other }));
+    const res = await replace().expect(201);
+    expect(res.body.replaced).toBe(1);
+    expect(res.body.stops).toHaveLength(1);
+    expect(await Schedule.findById(old._id)).toBeNull();
+    expect(await Schedule.findById(manual._id)).not.toBeNull();
+    expect(await Schedule.findById(otherUser._id)).not.toBeNull();
+    expect(emit).toHaveBeenCalledTimes(1);
+  });
+  it('rejects replacements without edit permission, a date, or matching stop dates', async () => {
+    const old = await Schedule.create(stop());
+    await replace(replacement(), { ...staff, permissions: ['create_route_plan'] }).expect(403);
+    await replace(replacement({ date: '' })).expect(400);
+    await replace(replacement({ date: '2026-10-25' })).expect(400);
+    expect(await Schedule.findById(old._id)).not.toBeNull();
+  });
+  it('also commits new routes without deleting existing entries', async () => {
+    await Schedule.create(stop());
+    await replace(replacement({ replace: false })).expect(201);
+    expect(await Schedule.countDocuments()).toBe(2);
+  });
+});
+
+describe('saving one entry', () => {
+  const body = (over: Loose = {}) => ({ customerId: String(customer), startTime: '2026-10-30T09:00:00.000', endTime: '2026-10-30T09:30:00.000', activityType: 'Call', notes: 'hi', ...over });
+  const create = (over: Loose, user = staff) => request(app).post('/api/schedule').set(as(user)).send(body(over));
+
+  it('saves a good entry and defaults the type', async () => {
+    const res = await create({ activityType: undefined }).expect(201);
+    expect(res.body.activityType).toBe('Visit');
+    expect(res.body.endTime).toBe('2026-10-30T09:30:00.000');
+    expect(emit).toHaveBeenCalledTimes(1);
+  });
+  it('refuses a bad type, times, notes and an unknown customer, and writes nothing', async () => {
+    await create({ activityType: 'Lunch' }).expect(400);
+    await create({ startTime: 'later' }).expect(400);
+    await create({ endTime: '2026-10-30T09:00:00.000' }).expect(400);
+    await create({ notes: 'x'.repeat(2001) }).expect(400);
+    await create({ customerId: String(new mongoose.Types.ObjectId()) }).expect(400);
+    expect(await Schedule.countDocuments()).toBe(0);
+    expect(emit).not.toHaveBeenCalled();
+  });
+  it('answers a repeated send with the entry it already saved', async () => {
+    const _id = String(new mongoose.Types.ObjectId());
+    const first = await create({ _id }).expect(201);
+    const again = await create({ _id }).expect(200);
+    expect(again.body.alreadySaved).toBe(true);
+    expect(again.body._id).toBe(first.body._id);
+    expect(await Schedule.countDocuments()).toBe(1);
+    expect(emit).toHaveBeenCalledTimes(1);
+  });
+  it('books once when the same send arrives twice at the same moment', async () => {
+    const _id = String(new mongoose.Types.ObjectId());
+    const results = await Promise.all([create({ _id }), create({ _id })]);
+    expect(results.map(r => r.status).sort()).toEqual([200, 201]);
+    expect(await Schedule.countDocuments()).toBe(1);
+  });
+  it('will not reuse another person\'s entry id', async () => {
+    const _id = String(new mongoose.Types.ObjectId());
+    await create({ _id }, { ...staff, id: String(other) }).expect(201);
+    await create({ _id }).expect(409);
+    expect(await Schedule.countDocuments()).toBe(1);
+  });
+  it('an edit changes only what may change, and not whose or where it came from', async () => {
+    const saved = await create().expect(201);
+    const res = await request(app).put(`/api/schedule/${saved.body._id}`).set(as())
+      .send({ notes: 'new', userId: String(other), source: 'route_planner' }).expect(200);
+    expect(res.body.notes).toBe('new');
+    const stored = await Schedule.findById(saved.body._id).lean();
+    expect(String(stored.userId)).toBe(String(owner));
+    expect(stored.source).toBe('manual');
+  });
+  it('an edit that puts the start after the stored end is refused', async () => {
+    const saved = await create().expect(201);
+    await request(app).put(`/api/schedule/${saved.body._id}`).set(as()).send({ startTime: '2026-10-30T10:00:00.000' }).expect(400);
+    await request(app).put(`/api/schedule/${saved.body._id}`).set(as())
+      .send({ startTime: '2026-10-30T10:00:00.000', endTime: '2026-10-30T10:30:00.000' }).expect(200);
+  });
+  it('cannot edit someone else\'s entry or a made-up id', async () => {
+    const saved = await create().expect(201);
+    await request(app).put(`/api/schedule/${saved.body._id}`).set(as({ ...staff, id: String(other) })).send({ notes: 'x' }).expect(404);
+    await request(app).put('/api/schedule/not-an-id').set(as()).send({ notes: 'x' }).expect(404);
+  });
+  it('the route planner\'s one-stop add checks times and can be repeated', async () => {
+    const _id = String(new mongoose.Types.ObjectId());
+    const item = { _id, customerId: String(customer), startTime: '2026-10-30T09:30:00.000', endTime: '2026-10-30T10:00:00.000', activityType: 'Visit' };
+    await replace({ date: '2026-10-30', items: [{ ...item, endTime: '2026-10-30T09:00:00.000' }] }).expect(400);
+    await replace({ date: '2026-10-30', items: [item] }).expect(201);
+    const again = await replace({ date: '2026-10-30', items: [item] }).expect(200);
+    expect(again.body.alreadySaved).toBe(true);
+    expect(await Schedule.countDocuments()).toBe(1);
+  });
+});
+
+describe('the calendar feed', () => {
+  it('gives an entry with no end time 30 minutes, the length the planners assume', async () => {
+    await Schedule.create(stop({ startTime: '2026-10-30T09:00:00.000', endTime: undefined }));
+    const link = (await subscription()).body.path;
+    const res = await request(app).get(link).expect(200);
+    const start = res.text.match(/DTSTART[^:]*:(\d{8}T\d{6}Z)/)?.[1];
+    const end = res.text.match(/DTEND[^:]*:(\d{8}T\d{6}Z)/)?.[1];
+    expect(start && end).toBeTruthy();
+    const ms = (t: Loose) => Date.UTC(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8), +t.slice(9, 11), +t.slice(11, 13));
+    expect(ms(end) - ms(start)).toBe(30 * 60000);
+  });
+});
+
+describe('GET /schedule?scope=team — the team calendar (teamScope.js)', () => {
+  const seattleRep = new mongoose.Types.ObjectId();
+  const kentRep = new mongoose.Types.ObjectId();
+  const manager = (perms = ['view_team_calendar']) => ({ id: String(owner), type: 'staff', permissions: perms, assignedLocations: ['Seattle'] });
+  const range = 'start=2026-10-24T00:00:00.000&end=2026-10-24T23:59:59.999';
+  const whose = (res: Loose) => res.body.map((i: Loose) => i.ownerName).sort();
+  beforeEach(async () => {
+    await User.collection.updateOne({ _id: owner }, { $set: { location: 'Seattle', assignedLocations: ['Seattle'], displayName: 'Mo Manager' } });
+    await User.collection.insertMany([
+      { _id: seattleRep, username: 'jesus', displayName: 'Jesus B.', location: 'Seattle', assignedLocations: ['Seattle'], isActive: true },
+      { _id: kentRep, username: 'bart', location: 'Kent', assignedLocations: ['Kent'], isActive: true }
+    ]);
+    await Schedule.create([stop(), stop({ userId: seattleRep }), stop({ userId: kentRep })]);
+  });
+
+  it("sends the manager's own and their reps' entries, each named, never another branch's", async () => {
+    const res = await request(app).get(`/api/schedule?scope=team&${range}`).set(as(manager())).expect(200);
+    expect(whose(res)).toEqual(['Jesus B.', 'Mo Manager']);
+  });
+
+  it('narrows to the reps asked for and never widens', async () => {
+    const res = await request(app).get(`/api/schedule?scope=team&reps=${seattleRep},${kentRep}&${range}`).set(as(manager())).expect(200);
+    expect(whose(res)).toEqual(['Jesus B.']);
+  });
+
+  it('is only their own without the Team calendar switch', async () => {
+    const res = await request(app).get(`/api/schedule?scope=team&${range}`).set(as(manager(['view_branch_visits']))).expect(200);
+    expect(whose(res)).toEqual(['Mo Manager']);
+  });
+
+  it('leaves the plain request as it was: own entries, no names', async () => {
+    const res = await request(app).get(`/api/schedule?${range}`).set(as(manager())).expect(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].ownerName).toBeUndefined();
+  });
+
+  it("still won't let anyone change a teammate's entry", async () => {
+    const theirs = await Schedule.findOne({ userId: seattleRep });
+    await request(app).put(`/api/schedule/${theirs._id}`).set(as(manager())).send({ notes: 'x' }).expect(404);
+    await request(app).delete(`/api/schedule/${theirs._id}`).set(as(manager())).expect(404);
+  });
+});

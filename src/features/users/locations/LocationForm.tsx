@@ -43,7 +43,7 @@ type TextOptions = {
  * the "Add Location Form" canvas (claude.ai/artifact/Bn51i5daUgCyttuncHfJMW).
  *
  * The rules — required fields, formats, unique short name/code, which
- * locations can be an RDC — are src/utils/locationForm.js, which the server
+ * locations can be an RDC — are src/utils/locationForm.ts, which the server
  * runs too. The short name is locked on edit: it's the key on users,
  * check-ins and reports, so renaming would orphan them.
  */

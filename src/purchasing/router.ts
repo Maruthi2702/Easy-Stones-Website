@@ -5,7 +5,7 @@ import { handle, parse } from './serverContracts.ts';
 import express from 'express';
 import { inInventoryTransaction, inInventorySnapshot, inventoryRevision } from '../services/inventoryTransaction.ts';
 import { reportSalesPeriod } from './salesPeriod.ts';
-import { requireAll, HttpError, actorOf } from '../server/http.js';
+import { requireAll, HttpError, actorOf } from '../server/http.ts';
 import { PurchasingScope, PurchasingInbound, PurchasingDraft, PurchasingLock } from './models.ts';
 import { sourceData, getScope, loadInputs } from './data.ts';
 import { buildPlan, stockId } from './buildPlan.ts';

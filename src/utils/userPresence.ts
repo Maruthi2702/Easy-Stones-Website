@@ -1,6 +1,6 @@
 /**
  * Users & Roles' Online column: turns the server's live list (see
- * src/services/presence.js) and a user's saved `lastSeenAt` / `lastLoginAt`
+ * src/services/presence.ts) and a user's saved `lastSeenAt` / `lastLoginAt`
  * into the badge a row shows.
  *
  *   active   — a tab is open and in use
@@ -11,7 +11,7 @@
 
 export const DEVICE_LABELS: Record<string, string> = { phone: 'Phone', tablet: 'Tablet', desktop: 'Computer' };
 
-/** One live entry from the server (src/services/presence.js). */
+/** One live entry from the server (src/services/presence.ts). */
 export type PresenceRow = { userId: string; status: 'active' | 'idle'; device?: string; tabs: number; lastActiveAt?: string | number };
 export type OnlineStatus = { kind: 'active' | 'idle' | 'offline' | 'never'; label: string; detail: string; device: string | null | undefined };
 type SeenUser = { _id: unknown; lastSeenAt?: string; lastLoginAt?: string };

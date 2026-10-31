@@ -52,7 +52,7 @@ export function useMyLocation({ mapRef, isActive, setError }: MyLocationDeps) {
     // is visible, so a screen left in the background isn't reading the GPS.
     //
     // Deliberately setInterval + getCurrentPosition rather than
-    // watchPosition: this app installs as a PWA (see vite.config.js), and
+    // watchPosition: this app installs as a PWA (see vite.config.ts), and
     // Mobile Safari has a long-standing bug where watchPosition quietly
     // stops delivering updates after the screen locks or the app
     // backgrounds even briefly in standalone mode — it fires once and then

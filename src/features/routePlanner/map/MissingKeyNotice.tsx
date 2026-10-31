@@ -16,7 +16,7 @@ const MissingKeyNotice = () => (
                 <p>
                     Add <code>VITE_GOOGLE_MAPS_API_KEY</code> to <code>.env</code> and restart the dev server.
                     The same key (or <code>GOOGLE_GEOCODING_API_KEY</code>) is what gives customers their
-                    coordinates in the first place — see <code>scripts/geocode-customers.js</code>.
+                    coordinates in the first place — see <code>scripts/geocode-customers.ts</code>.
                 </p>
             )}
         </div>

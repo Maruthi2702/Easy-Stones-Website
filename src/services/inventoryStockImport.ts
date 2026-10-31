@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import InventoryItem from '../models/InventoryItem.ts';
 import { InventoryStockImport, InventoryStockBackup, InventoryStockState } from '../models/InventoryStockImport.ts';
 import { prepareInventoryRevision, touchInventoryRevision } from './inventoryTransaction.ts';
-import { withDbRetry } from '../utils/dbRetry.js';
+import { withDbRetry } from '../utils/dbRetry.ts';
 
 export const STOCK_BACKUP_DAYS = 7;
 const BACKUP_CHUNK_SIZE = 500;

@@ -6,7 +6,7 @@
  * only recognised the first, so a PDF stored on Cloudinary would have rendered
  * as a broken <img>. A hosted PDF is recognised by its path ending in .pdf —
  * PDFs are uploaded as Cloudinary raw files named *.pdf for exactly this
- * (processBase64Image in server.js, scripts/migrate-inline-images.js).
+ * (processBase64Image in server.ts, scripts/migrate-inline-images.ts).
  */
 export const isPdfSource = (src: unknown): boolean => {
   if (typeof src !== 'string' || !src) return false;

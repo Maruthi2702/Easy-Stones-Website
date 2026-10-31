@@ -24,9 +24,9 @@ import type { RoleRecord } from '../types';
  * Users & Roles → Add user. Design A from the Add New User canvas, built on
  * the app-wide form template (FORM_TEMPLATE.md, shared/form/). The rules —
  * username suggestion, validation, temporary passwords — are in
- * src/utils/userForm.js with tests; the server re-checks them in
+ * src/utils/userForm.ts with tests; the server re-checks them in
  * POST /api/admin/users and does the first-sign-in / invite part in
- * src/routes/userOnboarding.js.
+ * src/routes/userOnboarding.ts.
  */
 
 export type AddUserFormProps = {

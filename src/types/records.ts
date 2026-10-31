@@ -1,4 +1,4 @@
-import type { Id } from './api';
+import type { Id } from './api.ts';
 
 /**
  * Records as the screens receive them. Loose on purpose for now: the fields
@@ -6,7 +6,7 @@ import type { Id } from './api';
  * through (`[key: string]: unknown`) until each screen that uses it is typed.
  */
 
-/** A customer from /api/customers/dropdown or /list (see src/models/Customer.js). */
+/** A customer from /api/customers/dropdown or /list (see src/models/Customer.ts). */
 export type CustomerRecord = {
   _id: Id;
   company?: string;
@@ -17,7 +17,7 @@ export type CustomerRecord = {
   [key: string]: unknown;
 };
 
-/** A staff member from /api/salesreps (see src/models/User.js). */
+/** A staff member from /api/salesreps (see src/models/User.ts). */
 export type StaffMember = {
   _id?: Id;
   id?: Id;
@@ -30,7 +30,7 @@ export type StaffMember = {
   [key: string]: unknown;
 };
 
-/** A location from /api/admin/locations (see src/models/Location.js). */
+/** A location from /api/admin/locations (see src/models/Location.ts). */
 export type LocationRecord = {
   _id?: Id;
   name: string;
@@ -39,7 +39,7 @@ export type LocationRecord = {
 };
 
 /**
- * A delivery ticket as /api/deliveries sends it (src/routes/deliveries.js
+ * A delivery ticket as /api/deliveries sends it (src/routes/deliveries.ts
  * reshapes the model to `id`, not `_id`). Dates are 'YYYY-MM-DD'.
  */
 export type DeliveryRecord = {

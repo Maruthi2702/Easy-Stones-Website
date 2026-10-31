@@ -17,7 +17,7 @@
  *  - Internal notes: staff only — never printed or emailed to anyone.
  */
 
-import { toCents, formatCents, centsToPlain } from '../accounting/money.js';
+import { toCents, formatCents, centsToPlain } from '../accounting/money.ts';
 
 /** One material row on the sheet, as typed (price as text). */
 export type SheetRow = { material: string; lot: string; details: string; size: string; price: string };
@@ -245,13 +245,13 @@ export const escapeHtml = (value: unknown): string => str(value).replace(/[&<>"'
 
 /**
  * The printable page for a sheet — what's on screen, saved or not.
- * `letterhead` is letterheadFor(location) from src/utils/locationForm.js.
+ * `letterhead` is letterheadFor(location) from src/utils/locationForm.ts.
  * `showPrices` adds the Price / SF column ("Print with prices"). Internal
  * notes are never on it.
  */
 export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, letterhead, showPrices = false }: {
   checkIn?: SheetCheckIn; dateStr?: string; values: SheetValues;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- letterheadFor(location), src/utils/locationForm.js
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- letterheadFor(location), src/utils/locationForm.ts
   letterhead: any; showPrices?: boolean;
 }): string => {
   const salesRep = values.salesRep;

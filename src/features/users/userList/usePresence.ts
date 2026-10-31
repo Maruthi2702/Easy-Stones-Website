@@ -6,7 +6,7 @@ import { presenceById } from '../../../utils/userPresence';
 
 /**
  * Who is online: the list once on open, then pushed by the server as tabs
- * open, close and go idle (src/services/presence.js). The page re-renders
+ * open, close and go idle (src/services/presence.ts). The page re-renders
  * once a minute so the "Last seen 5 min ago" wording keeps up.
  */
 export function usePresence() {

@@ -7,7 +7,7 @@
  *
  * Pure and DOM-free; tested in inventoryLocations.test.js.
  */
-import { locationNames, homeLocationOf } from './locationFilter.js';
+import { locationNames, homeLocationOf } from './locationFilter.ts';
 
 const norm = (s: unknown): string => String(s || '').trim().toLowerCase();
 

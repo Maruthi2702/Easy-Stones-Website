@@ -18,7 +18,7 @@ export const MIN_TRUCK_COL_WIDTH = 290;
 export const MIN_TABLE_WIDTH = 1100;
 
 // The Will Call column (one driverless column for pickups) lives in
-// src/utils/deliveryColumns.js with the rest of the column order rules.
+// src/utils/deliveryColumns.ts with the rest of the column order rules.
 
 // A column nobody drives. The daily truck load is meaningless for it, so it
 // shows a plain count rather than a count against MAX_TRUCK_CAPACITY.
@@ -71,7 +71,7 @@ export const assignmentFor = (trk: BoardColumn, delivery: Partial<Ticket>, dateS
     } else {
       // Dropping a return here, with no driver, is exactly what it means to
       // mark it a customer drop-off rather than a still-undecided return —
-      // see isCounterReturn in src/utils/deliveryTypes.js.
+      // see isCounterReturn in src/utils/deliveryTypes.ts.
       customerDropOff = true;
     }
   } else if (delivery.deliveryType === 'will_call') {

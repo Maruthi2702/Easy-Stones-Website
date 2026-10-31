@@ -77,7 +77,7 @@ export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
             onLocationsChanged();
         });
 
-        // Slabs held, released or carted by anyone (src/holds/router.js):
+        // Slabs held, released or carted by anyone (src/holds/router.ts):
         // the cart and any screen showing slab locks refresh.
         socket.on('slab_reservations_changed', (payload) => {
             cartActions.reservationsChanged(payload?.slabKeys || []);

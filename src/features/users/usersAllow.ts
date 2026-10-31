@@ -3,8 +3,8 @@ import type { CurrentUser } from '../../types/records';
 
 /**
  * What this person may do on the Users & Roles pages, one switch per action
- * (src/utils/usersAccess.js). Team access (a manager) may deactivate,
- * reactivate and unlock their own people (src/utils/teamAccess.js).
+ * (src/utils/usersAccess.ts). Team access (a manager) may deactivate,
+ * reactivate and unlock their own people (src/utils/teamAccess.ts).
  */
 export const usersAllow = (me: CurrentUser | null | undefined, teamMode: boolean) => ({
     addUser: can(me, USERS.ADD), editUser: can(me, USERS.EDIT), resetSignIn: can(me, USERS.RESET_SIGN_IN),

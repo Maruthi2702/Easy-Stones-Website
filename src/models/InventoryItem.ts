@@ -57,7 +57,7 @@ const inventoryItemSchema = new mongoose.Schema({
   collection: 'InventoryItems'
 });
 
-// The one lookup that needs it: Cart & Holds find slabs by serial # (src/holds/router.js
+// The one lookup that needs it: Cart & Holds find slabs by serial # (src/holds/router.ts
 // findSlabs) on every tick of the inventory checkbox. Without this each tick read all ~11k
 // rows, twice. Case-insensitive (the same collation the query asks for) because stock
 // serials aren't consistently capitalised. The write-time cost on a full import is the

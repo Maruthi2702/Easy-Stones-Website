@@ -1,5 +1,5 @@
 /**
- * The SPS import's calls (src/routes/customerSpsImport.js), via authFetch. A
+ * The SPS import's calls (src/routes/customerSpsImport.ts), via authFetch. A
  * refused call throws an Error worded from the server's answer, with the
  * HTTP status, and the parsed answer on `body` when it was JSON.
  */

@@ -17,7 +17,7 @@ const SEARCH_FROM = 8;
  */
 interface InventoryLocationFieldProps {
   company?: string[]; consignment?: string[]; value?: string[];
-  onChange?: (value: string[]) => void; user?: unknown;
+  onChange?: (value: string[]) => void; user?: Parameters<typeof homeLocationOf>[0];
 }
 const InventoryLocationField = ({ company = [], consignment = [], value = [], onChange, user = null }: InventoryLocationFieldProps) => {
   const id = useId();

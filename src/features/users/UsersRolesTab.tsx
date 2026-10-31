@@ -53,7 +53,7 @@ const UsersRolesTab = ({ section = 'users', sidebarToggle, locations = [], fetch
     const subTab = section;
     const { user: me } = useAuth();
     // A manager with team access: sees their own people and can only
-    // deactivate, reactivate and unlock them (src/utils/teamAccess.js).
+    // deactivate, reactivate and unlock them (src/utils/teamAccess.ts).
     const teamMode = hasTeamUserAccess(me);
     // What this person may do on these pages, one switch per action.
     const allow = usersAllow(me, teamMode);

@@ -39,8 +39,8 @@ export function useRoleEditor(roles: RoleRecord[], setRoles: Dispatch<SetStateAc
 
     // Toggle permission checkbox
     // Every change on the card goes through the Customers and Team Files View
-    // rules: their other switches need View (src/utils/customerAccess.js,
-    // src/utils/teamFilesAccess.js).
+    // rules: their other switches need View (src/utils/customerAccess.ts,
+    // src/utils/teamFilesAccess.ts).
     const changePermissions = (change: (prev: string[]) => string[]) => setEditedPermissions(prev => {
         const next = change(prev);
         return withTeamFilesViewRule(prev, withCustomerViewRule(prev, next));

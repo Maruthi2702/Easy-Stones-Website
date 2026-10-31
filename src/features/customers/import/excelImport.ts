@@ -1,7 +1,7 @@
 /**
  * The old "Import from Excel" window's own rules (CustomerImportModal.tsx):
  * its tab names, the upload it posts, how a failure is worded, and the
- * review list's CSV. The plan itself is the server's (src/utils/customerImport.js).
+ * review list's CSV. The plan itself is the server's (src/utils/customerImport.ts).
  */
 import type { Loose } from '../../../types/records';
 import { csvCell } from './importFields';

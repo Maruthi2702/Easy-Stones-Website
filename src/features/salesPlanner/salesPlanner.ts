@@ -13,7 +13,7 @@ import { DEFAULT_VISIT_MINUTES, defaultVisitDate, timeText, type BookedRow } fro
 
 export type ViewMode = 'day' | 'week' | 'month';
 
-/** What a save of the schedule form sends (src/routes/schedule.js checks it again). `_id` is a new entry's own id, so a repeated send books once. */
+/** What a save of the schedule form sends (src/routes/schedule.ts checks it again). `_id` is a new entry's own id, so a repeated send books once. */
 export type ActivitySave = { customerId: string; startTime: string; endTime: string; activityType: string; notes: string; _id?: string };
 
 /** One move in the air, whichever input started it. */
@@ -355,7 +355,7 @@ export const addLabel = (day: Date) =>
 
 /**
  * 'Completed'/'linkedVisitId' only get set once an actual visit is logged
- * against this stop (see the Add Visit handler in server.js) — everything
+ * against this stop (see the Add Visit handler in server.ts) — everything
  * else just sits at the 'Scheduled' default whether or not it happened.
  * A 'Scheduled' stop whose day has already passed reads as missed rather
  * than silently staying indistinguishable from one still coming up.

@@ -16,7 +16,7 @@ import './DeliveryOrderSearch.css';
  *
  * Picking a result calls `onSelect(result, info)`; the parent decides what
  * that means for the viewer's role (jump to its week, open the ticket).
- * Rules for who can search and what matches: src/utils/deliverySearch.js.
+ * Rules for who can search and what matches: src/utils/deliverySearch.ts.
  *
  * `inline` is for when it lives inside the header's Filters panel
  * (LocationFilter): the results list flows under the box at the panel's own
@@ -27,7 +27,7 @@ const DEBOUNCE_MS = 300;
 
 /** What GET /api/deliveries/search answers: up to a page of matches and the full count. */
 type SearchAnswer = { results?: Ticket[]; total?: number; more?: boolean };
-/** Where a result sits for the viewer (describeSearchResult in src/utils/deliverySearch.js). */
+/** Where a result sits for the viewer (describeSearchResult in src/utils/deliverySearch.ts). */
 export type SearchResultInfo = { status: string; label: string; when: string; place?: string; boardDate?: string | null; [key: string]: unknown };
 type Row = { r: Ticket; info: SearchResultInfo };
 

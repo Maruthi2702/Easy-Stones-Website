@@ -1,7 +1,7 @@
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 
-/** The Check-In Log tab's calls (src/routes/checkIn.js). Raw Responses, read by the hook as before. */
+/** The Check-In Log tab's calls (src/routes/checkIn.ts). Raw Responses, read by the hook as before. */
 
 export type CheckInFilters = {
   page: number;

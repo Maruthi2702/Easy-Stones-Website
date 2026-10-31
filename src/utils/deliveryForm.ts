@@ -13,10 +13,10 @@
  * Driver | Status, Stop | Delivery address, then a 3rd-party truck's Carrier
  * name | BOL # | Agreed price (optional), then Packing list and Notes.
  */
-import { formatForDateInput } from './dateUtils.js';
-import { defaultStatusFor, transferArrivalFor, columnIdFor } from './deliveryTypes.js';
-import { nextStopNumber } from './stopGrouping.js';
-import { isThirdPartyTruck } from './deliveryPickup.js';
+import { formatForDateInput } from './dateUtils.ts';
+import { defaultStatusFor, transferArrivalFor, columnIdFor } from './deliveryTypes.ts';
+import { nextStopNumber } from './stopGrouping.ts';
+import { isThirdPartyTruck } from './deliveryPickup.ts';
 import { formatAmount, parseAmount } from './money';
 import type { CustomerOption } from './customerOptions';
 import type { DeliveryRecord, Loose, TruckColumn } from '../types/records';
@@ -162,7 +162,7 @@ export function deliveryToFormValues(
     customerName,
     selectedCustomerId: customerId || customerName,
     // A new ticket: who something new at its branch starts with (startingRepFor
-    // in src/utils/salesReps.js — you if you're a sales rep, else the branch's
+    // in src/utils/salesReps.ts — you if you're a sales rep, else the branch's
     // sales person); without one, you, as before.
     salesRepName: d.salesRepName || startingRep || currentUser?.name || 'Admin',
     soNumber: d.soNumber || d.invoiceNumber || '',

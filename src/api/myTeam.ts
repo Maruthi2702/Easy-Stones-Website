@@ -5,7 +5,7 @@ import { isSalesRep, displayNameOf } from '../utils/salesReps';
 import type { Loose } from '../types/records';
 
 /*
- * The screens' side of src/utils/teamScope.js (by the REP's branch): who is on
+ * The screens' side of src/utils/teamScope.ts (by the REP's branch): who is on
  * the signed-in person's team, for the Edit / Delete buttons on visits and
  * resources (canModifyVisit / canDeleteVisit), and who the dashboard's People
  * filter offers. Built from the shared staff list, so it matches what the

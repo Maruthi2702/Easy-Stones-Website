@@ -61,7 +61,7 @@ const SalesPage = () => {
     // The shared customer list behind every customer dropdown (src/api/customerOptions.js).
     const { records: allCustomersForSelection, options: sharedCustomerOptions, loading: isDropdownLoading } = useCustomerOptions();
 
-    // Side nav pins (src/utils/navPins.js). The first one they can open is
+    // Side nav pins (src/utils/navPins.ts). The first one they can open is
     // their default page, ahead of the role-based order below.
     const { pinnedTabs, pinnedTabsRef, togglePin: togglePinnedTab, makeDefault: makeDefaultTab } = usePinnedTabs(currentUser);
     // The admin-set side nav order (Admin → Side Nav Order). One copy here so

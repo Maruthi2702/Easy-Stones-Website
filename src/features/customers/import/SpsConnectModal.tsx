@@ -5,7 +5,7 @@
  * Three stages in one window: pick the SPS file → a dry-run report (nothing
  * written; how many connect by exact name, how many need a person) → the
  * review of the rest, saved as you go. Every call re-posts the file; the server
- * re-plans against the database each time (src/routes/customerSpsConnect.js).
+ * re-plans against the database each time (src/routes/customerSpsConnect.ts).
  */
 import { useRef, useState } from 'react';
 import { Upload, Check } from 'lucide-react';

@@ -8,7 +8,7 @@
  *   into its title) — parseInventorySalesWorkbook
  *
  * Column headers are matched by keyword rather than exact string, the same
- * approach src/utils/customerImport.js uses, because SPS renames columns
+ * approach src/utils/customerImport.ts uses, because SPS renames columns
  * between exports and nothing here should silently import the wrong field
  * just because a heading changed case or wording.
  */

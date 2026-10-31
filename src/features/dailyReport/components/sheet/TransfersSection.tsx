@@ -4,8 +4,8 @@ import { ArrowLeftRight, ArrowDownToLine, ArrowUpFromLine, Plus, X, AlertTriangl
 import ReportSection from '../ReportSection';
 import { ReportCell } from '../ReportCell';
 import ShippedEarlierNote from '../ShippedEarlierNote';
-import { branchCode } from '../../../../config/branches.js';
-import { manualTransferDirection, manualTransferWarning, transferWarningText, transferLineKey, cleanTransferNumber } from '../../../../utils/transferDirection.js';
+import { branchCode } from '../../../../config/branches.ts';
+import { manualTransferDirection, manualTransferWarning, transferWarningText, transferLineKey, cleanTransferNumber } from '../../../../utils/transferDirection.ts';
 import { ALL, n, splitFromTo, composeFromTo, outOfBand } from '../../reportFigures';
 import type { SheetEditors } from '../../sheetEditing';
 import type { DayTotals, Report, ShippedEarlierGroup, SlabRange } from '../../types';

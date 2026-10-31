@@ -59,7 +59,7 @@ export function usePanels({ mapRef, currentUser, detailsCache, pinById }: Panels
     // ('tools' | 'customers' | 'schedule'), so closeInfo knows what to bring
     // back — left null for a plain pin click on the map, which has nothing
     // to return to.
-    // A pin is slim (src/routes/customerMap.js): phone, email, address, notes… are
+    // A pin is slim (src/routes/customerMap.ts): phone, email, address, notes… are
     // fetched when a customer is opened, and kept for the next time (cleared by
     // load(), since an edit elsewhere changes them).
     const detailsRequest = useRef(0);
@@ -185,7 +185,7 @@ export function usePanels({ mapRef, currentUser, detailsCache, pinById }: Panels
 
     // Opens a scheduled visit's customer from SchedulePanel's day list —
     // the schedule row only carries the populated {contactName, company}
-    // subset (see server.js's /api/schedule populate), not the full pin
+    // subset (see server.ts's /api/schedule populate), not the full pin
     // (coordinates, recency, etc.) showDetails/MapCanvas need, so this looks
     // the real record up in `pins` by id first. Silently no-ops if the
     // customer isn't on the map (no coordinates, or removed since the visit

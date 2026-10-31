@@ -1,7 +1,7 @@
 /**
  * The Sales dashboard's People filter (2026-10-31): whose visits, resources
  * and follow-ups the page shows, for anyone allowed to see more than their own
- * (src/utils/teamScope.js — by the rep's branch). The value is a list of user
+ * (src/utils/teamScope.ts — by the rep's branch). The value is a list of user
  * ids: [] is "My team" (everyone the viewer can see), [their own id] is "Me"
  * — what the page opens on (owner's call) — and anything else is the reps
  * picked. The server narrows by the same list (?reps=) and never widens it.

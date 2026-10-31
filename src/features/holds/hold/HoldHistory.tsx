@@ -1,6 +1,6 @@
 import { historyLabel, changeText, visibleChanges, dateTimeOf } from '../../../utils/holdView';
 
-/** A history entry (HoldHistory in src/holds/models.js). */
+/** A history entry (HoldHistory in src/holds/models.ts). */
 export type HistoryEntry = { _id: string; action: string; by?: { name?: string } | null; at: string; note?: string; [key: string]: unknown };
 
 /** The History tab: every change, newest first. */

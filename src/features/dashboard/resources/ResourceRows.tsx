@@ -23,7 +23,7 @@ export type ResourceRowActions = {
 type RowsProps = ResourceRowActions & { rows: Loose[]; today: string };
 
 // A resource follows the visit rules, its uploader standing in for who logged
-// the visit (resourceAccessArgs in server.js, which checks it again).
+// the visit (resourceAccessArgs in server.ts, which checks it again).
 const accessArgs = (a: ResourceRowActions, r: Loose) => [
     { ...a.currentUser, id: a.currentUserId },
     { createdBy: r.uploadedBy || r.createdBy },

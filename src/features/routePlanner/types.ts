@@ -3,9 +3,9 @@ import type { Loose } from '../../types/records';
 /** A point on the map. */
 export type LatLng = { lat: number; lng: number };
 
-/** The four visit-age buckets (RECENCY_BUCKETS in src/utils/routePlan.js). */
+/** The four visit-age buckets (RECENCY_BUCKETS in src/utils/routePlan.ts). */
 export type RecencyKey = 'never' | 'overdue' | 'due' | 'recent';
-/** How long since the last visit (visitRecency in src/utils/routePlan.js). */
+/** How long since the last visit (visitRecency in src/utils/routePlan.ts). */
 export type Recency = { key: RecencyKey; days: number | null; label: string };
 /** One visit-age bucket as the Filter lists it. */
 export type RecencyBucket = { key: RecencyKey; label: string; minDays: number };
@@ -14,7 +14,7 @@ export type RecencyColors = Record<RecencyKey, string>;
 
 /**
  * A customer as GET /api/customers/map sends it — a slim pin
- * (src/routes/customerMap.js). Opening one adds its contact details; the rest
+ * (src/routes/customerMap.ts). Opening one adds its contact details; the rest
  * is read loosely until the customer record has a real type.
  */
 export type Pin = Loose & {
@@ -32,9 +32,9 @@ export type Pin = Loose & {
 /** A pin with its visit age worked out (what the map, lists and panel read). */
 export type MapPin = Pin & { recency: Recency };
 
-/** One stop on the day being planned (planDay in src/utils/routePlan.js). */
+/** One stop on the day being planned (planDay in src/utils/routePlan.ts). */
 export type DayStop = MapPin & { order: number; startTime: string; endTime: string; milesFromPrevious: number; minutesFromPrevious?: number };
-/** The day's totals (daySummary in src/utils/routePlan.js). */
+/** The day's totals (daySummary in src/utils/routePlan.ts). */
 export type DaySummary = { stops: number; miles: number; drivingMinutes: number; endsAt: string | null };
 
 /** A schedule entry from GET /api/schedule (the customer populated to a name). */

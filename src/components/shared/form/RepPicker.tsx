@@ -10,7 +10,7 @@ import { groupRepOptions } from '../../../utils/salesReps';
  * Location, Add / Edit customer), in the same format as the Customer List's
  * rep filter: a search box, "None" / "Unassigned" first, then reps grouped
  * under their branch with you marked "(you)" (groupRepOptions in
- * src/utils/salesReps.js). Same trigger and placement as FormPicker: floating
+ * src/utils/salesReps.ts). Same trigger and placement as FormPicker: floating
  * over the form on desktop, a bottom sheet on phones.
  *
  * `options` are { value, label, location, id? } — from useSalesRepOptions or

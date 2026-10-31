@@ -24,7 +24,7 @@ export type DayPlanDeps = {
  * The day being planned in the Tools panel: its date, start and minutes per
  * stop, the selection it's built from (a Radius or Lasso draw, "Plan route"
  * from the Customers list, or rows removed one by one), and the stops in
- * driving order with their times (src/utils/routePlan.js).
+ * driving order with their times (src/utils/routePlan.ts).
  */
 export function useDayPlan({ pins, visible, origin, setOrigin, setDrawMode, setShowToolsPanel, preselect }: DayPlanDeps) {
     // Either kind of draw replaces selectedIds outright (see

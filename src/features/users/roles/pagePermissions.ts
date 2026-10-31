@@ -71,7 +71,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
         actions: CUSTOMER_SECTIONS.flatMap((section) => section.keys.map((key) => ({ key, section: section.title, ...CUSTOMER_ACTIONS[key] })))
     },
     {
-        // Checked by src/utils/visitAccess.js, on the server and for which
+        // Checked by src/utils/visitAccess.ts, on the server and for which
         // buttons the screens offer. Resources follow the same switches.
         // "Assigned branches" are the user's Locations.
         id: 'visits',
@@ -94,7 +94,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
     },
     {
         // Check In, the Check-In Log and Selection Sheets share this one card
-        // (2026-10-14): its sections and keys come from src/utils/checkInAccess.js,
+        // (2026-10-14): its sections and keys come from src/utils/checkInAccess.ts,
         // and a new permission for any of those screens goes there.
         id: 'checkins',
         page: 'Check In',
@@ -151,13 +151,13 @@ export const PAGE_PERMISSIONS: PageDef[] = [
         actions: [
             { key: 'view_delivery_schedule', label: 'View', icon: Eye, desc: 'View delivery schedules and routes' },
             { key: 'edit_delivery_schedule', label: 'Edit', icon: Pencil, desc: 'Schedule and edit delivery jobs — opens the full dispatch board (without it, the board is read-only)' },
-            // Decides the screen, not just a button: src/utils/deliveryAccess.js.
+            // Decides the screen, not just a button: src/utils/deliveryAccess.ts.
             { key: 'delivery_driver_view', label: 'Driver view', icon: Truck, desc: 'Show only this user’s own stops, on the driver screen (no order search). Overrides Edit' },
             { key: 'delete_delivery_schedule', label: 'Delete', icon: Trash2, desc: 'Permanently delete delivery jobs (no undo)' },
             // Separate from Delete on purpose: voiding a proof the wrong customer
             // signed is a different level of trust from removing the job itself.
             { key: 'clear_pod_signatures', label: 'Clear POD', icon: Eraser, desc: 'Delete the signed packing list and reset signatures for re-signing' },
-            // src/utils/deliveryAccess.js ARRANGE_COLUMNS; admin only to start.
+            // src/utils/deliveryAccess.ts ARRANGE_COLUMNS; admin only to start.
             { key: 'arrange_delivery_columns', label: 'Arrange Driver Columns', icon: ArrowLeftRight, desc: 'Set the order of the driver columns for their locations' }
         ]
     },
@@ -210,7 +210,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: 'view_inventory_prices', label: 'View Prices', icon: DollarSign, desc: 'See dollar value/cost figures on lots and slabs' }
         ]
     },
-    // Cart & Holds (src/holds/permissions.js, 2026-10-10). Every action is its
+    // Cart & Holds (src/holds/permissions.ts, 2026-10-10). Every action is its
     // own switch; the server checks each one, and which holds someone sees is
     // the three View switches (own / branch / all).
     {
@@ -243,7 +243,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: HOLDS.HISTORY,     label: 'View history',  icon: Clock,      desc: 'See who changed what on a hold, and when' }
         ]
     },
-    // Permits (src/permits/permissions.js, 2026-10-11): admin only to start;
+    // Permits (src/permits/permissions.ts, 2026-10-11): admin only to start;
     // an admin decides here who else sees them.
     {
         id: 'permits',
@@ -257,7 +257,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: PERMITS.REFRESH, label: 'Refresh now', icon: RefreshCw, desc: 'Run the morning pull on demand, and see each source’s run details' }
         ]
     },
-    // Team Files (src/utils/teamFilesAccess.js, 2026-10-30): its own Sales
+    // Team Files (src/utils/teamFilesAccess.ts, 2026-10-30): its own Sales
     // page. Every role with the Dashboard got both once, since the Dashboard
     // used to let anyone upload and delete.
     {
@@ -271,7 +271,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: TEAM_FILES.MANAGE, label: 'Manage', icon: Upload, desc: 'Upload files and links, add folders, rename, move, replace, pin and delete (for everyone)' }
         ]
     },
-    // Accounting (src/accounting/permissions.js, 2026-10-09). Nothing in
+    // Accounting (src/accounting/permissions.ts, 2026-10-09). Nothing in
     // Accounting opens by role name: every action is one of these switches,
     // and the server checks each one plus the person's branches.
     {

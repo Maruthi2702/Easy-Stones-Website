@@ -3,7 +3,7 @@ import { AlertCircle, ArrowUpDown, Check, ChevronUp, ChevronDown } from 'lucide-
 import { orderedSections, navOrderOf, isDefaultNavOrder, moveInList } from '../../../utils/navPins';
 import './NavOrderTab.css';
 
-// What orderedSections gives (src/utils/navPins.js): sections in order, each with its pages.
+// What orderedSections gives (src/utils/navPins.ts): sections in order, each with its pages.
 type NavPage = { id: string; label: string };
 type NavSection = { id: string; label: string; items: NavPage[] };
 /** The saved order (null = the default), as useNavOrder holds it. */

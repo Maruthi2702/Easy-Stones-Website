@@ -3,7 +3,7 @@ import { authFetch } from '../../api/authFetch';
 import { getAuthToken } from '../../api/authToken';
 
 /**
- * Calendar sync's calls (server.js: /api/auth/google/calendar/*,
+ * Calendar sync's calls (server.ts: /api/auth/google/calendar/*,
  * /api/auth/icloud/*). Each returns the raw Response, as the screen read them
  * before the move, so every message and fallback stays the same.
  */
@@ -17,7 +17,7 @@ export const fetchICloudStatus = () => authFetch(`${API_URL}/api/auth/icloud/sta
 
 /**
  * Starts Google's sign-in. The token still travels as a URL parameter (the
- * backend's OAuth `state` round-trip needs it — see server.js's
+ * backend's OAuth `state` round-trip needs it — see server.ts's
  * /api/auth/google/calendar), just no longer from a localStorage copy.
  */
 export const googleLinkUrl = (): string =>

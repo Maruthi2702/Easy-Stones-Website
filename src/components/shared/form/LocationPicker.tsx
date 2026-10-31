@@ -18,7 +18,7 @@ import './FormModal.css';
  * The list: the blank choice ("All locations" on a filter, `noneLabel` on a
  * form that allows none), then the home location marked "· Home", then every
  * other location A–Z, with a search box from LOCATION_SEARCH_FROM choices —
- * orderLocations / matchLocations in src/utils/locationFilter.js. A saved
+ * orderLocations / matchLocations in src/utils/locationFilter.ts. A saved
  * value that's no longer offered stays in the list, so editing an old record
  * never blanks it.
  *

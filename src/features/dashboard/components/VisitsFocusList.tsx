@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ChevronDown, MapPin, Eye, Loader, User } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
-import { formatDate } from '../../../utils/dateUtils';
+import { formatDate, parseAsLocal } from '../../../utils/dateUtils';
 import { splitCustomer } from '../../../components/sales/visitsListHelpers';
 import VisitViewModal from './VisitViewModal';
 import type { VisitDetails } from './VisitViewModal';
@@ -85,8 +85,8 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
                 {visits.map(visit => {
                     const { company, contact } = splitCustomer(visit);
                     const open = openId === visit._id;
-                    const d = new Date(visit.date as string);
-                    const valid = Number.isFinite(d.getTime());
+                    const d = parseAsLocal(visit.date) as Date;
+                    const valid = Boolean(d) && Number.isFinite(d.getTime());
                     const by = showWhoLogged ? String(visit.createdByName || '').trim() : '';
                     return (
                         <li key={visit._id as string} className={open ? 'is-open' : ''}>

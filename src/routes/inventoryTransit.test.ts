@@ -6,7 +6,7 @@ import { inventoryRevision } from '../services/inventoryTransaction.ts';
 import { utils, write } from 'xlsx';
 import InventorySalesRecord from '../models/InventorySalesRecord.ts';
 import { PurchasingScope } from '../purchasing/models.ts';
-import Location from '../models/Location.js';
+import Location from '../models/Location.ts';
 import { sourceData } from '../purchasing/data.ts';
 import { reportIdentity } from '../purchasing/reportIdentity.ts';
 import express from 'express';

@@ -56,7 +56,7 @@ The urgent quantity is a subset of the proposed new buy. The separate early rece
 
 - `src/purchasing/`: schemas, dedicated collections, typed pure planning/reconciliation/container engine, source loading, buyer API and transaction-protected draft workflow.
 - `src/features/purchasing/`: typed API/hook, queue, performance view, source/policy setup, CSV adapters, explanation and receipt timeline, container approval/history views. Imported only through `index.ts`.
-- `server.js`: `/api/purchasing` mount and one-time permission grants. New model indexes join `src/config/indexedModels.ts`.
+- `server.ts`: `/api/purchasing` mount and one-time permission grants. New model indexes join `src/config/indexedModels.ts`.
 - Current stock detail and the existing descriptive velocity view remain available. The validated Purchasing view is separate and works even before stock has been imported, so missing inputs are explainable.
 
 ## Known boundaries and next data-backed work

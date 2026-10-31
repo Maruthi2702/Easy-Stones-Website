@@ -4,7 +4,7 @@ import { queryEntries, type ErrorBody, type Id, type Query, type Versioned } fro
 import { hideParam } from '../holds/holdLetter';
 
 /**
- * Calls to the Cart & Holds API (src/holds/router.js). Each resolves the JSON
+ * Calls to the Cart & Holds API (src/holds/router.ts). Each resolves the JSON
  * body or throws an Error whose message can be shown as is; `status` rides
  * along on it.
  */
@@ -48,7 +48,7 @@ export const swapHoldSlab = (hold: Versioned, from: string, to: string) => call(
 export const setHoldPrices = (hold: Versioned, lines: object[]) => call(`/${hold._id}/prices`, { method: 'PATCH', body: { version: hold.version, lines } });
 export const extendHold = (hold: Versioned, expiresOn: string) => call(`/${hold._id}/extend`, { method: 'POST', body: { version: hold.version, expiresOn } });
 export const releaseHold = (hold: Versioned, reason: string) => call(`/${hold._id}/release`, { method: 'POST', body: { version: hold.version, reason } });
-/** `hide`: the print preview's boxes ({ unitPrice: true, … }, see src/holds/holdLetter.js). */
+/** `hide`: the print preview's boxes ({ unitPrice: true, … }, see src/holds/holdLetter.ts). */
 export const holdPdfUrl = (hold: Versioned, { hide = {} }: { hide?: Record<string, boolean> } = {}): string => {
   const h = hideParam(hide);
   return `${API_URL}/api/holds/${hold._id}/pdf${h ? `?hide=${enc(h)}` : ''}`;

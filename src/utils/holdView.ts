@@ -1,18 +1,18 @@
 /**
  * Holds screens (HoldsTab, HoldPage, HoldForms) — what they show and offer,
  * kept out of the components so holdView.test.js can pin it down. The hold
- * rules themselves (expiry, totals, who sees what) are src/holds/holdRules.js;
+ * rules themselves (expiry, totals, who sees what) are src/holds/holdRules.ts;
  * the server checks every permission again.
  */
-import { HOLDS, can } from '../holds/permissions.js';
+import { HOLDS, can } from '../holds/permissions.ts';
 import {
   addDays, todayIn, daysToExpiry, holdState, priceCentsOf, lineTotalCents, formatDay, GRACE_DAYS, STATE_LABELS
-} from '../holds/holdRules.js';
-import { centsToPlain, formatCents } from '../accounting/money.js';
-import { branchZone } from '../config/branches.js';
+} from '../holds/holdRules.ts';
+import { centsToPlain, formatCents } from '../accounting/money.ts';
+import { branchZone } from '../config/branches.ts';
 import type { Loose } from '../types/records';
 
-/** A hold, a hold line and a cart line as /api/holds sends them (src/holds/models.js). */
+/** A hold, a hold line and a cart line as /api/holds sends them (src/holds/models.ts). */
 export type Hold = Loose;
 export type HoldLine = Loose;
 export type Tone = 'ok' | 'soon' | 'expired' | 'closed';
@@ -97,7 +97,7 @@ export const stateLabel = (state: string | null | undefined): string => (STATE_L
  * The buttons a hold page shows. Released and converted holds are final;
  * an expired one still holds its slabs and can be changed or extended.
  */
-export function holdActions(user: unknown, hold: Hold | null | undefined) {
+export function holdActions(user: import('../types/permissions.ts').PermissionUser, hold: Hold | null | undefined) {
   const open = hold?.status === 'active';
   return {
     edit: open && can(user, HOLDS.EDIT),

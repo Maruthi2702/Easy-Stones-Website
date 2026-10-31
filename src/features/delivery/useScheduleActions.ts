@@ -114,7 +114,7 @@ export function useScheduleActions({ deliveries, pending, cancelled, applyUpdate
 
   // The reverse of the move above: dragging a ticket off the board and onto
   // the Pending list gives its driver back. Pending is defined in
-  // src/utils/deliveryTypes.js, so clearing truckId is (almost) the whole
+  // src/utils/deliveryTypes.ts, so clearing truckId is (almost) the whole
   // change — the week query and the pending query are complements, and the
   // ticket swaps sides on its own.
   //

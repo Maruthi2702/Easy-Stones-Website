@@ -102,6 +102,7 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 describe('purchasing workbench rendering', () => {
   it('keeps buyer notes through background refresh and submits the opened input version', async () => {
@@ -324,6 +325,9 @@ describe('live purchasing stock columns', () => {
 
 describe('coverage repair diagnostics', () => {
   it('shows the actual coverage reasons and opens the existing scope form for an editor', async () => {
+    // This case exercises an unfinished report, regardless of the day CI runs.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-24T12:00:00-07:00'));
     const cutoff = 'Observed sales cutoff 2026-09-30 is after the report was imported on 2026-09-08';
     vi.mocked(purchasingApi.plan).mockResolvedValue({ ...plan, rows: [{ ...plan.rows[0],
       coverage: { state: 'unknown', days: null, dailyQuantity: null, availableQuantity: 75,

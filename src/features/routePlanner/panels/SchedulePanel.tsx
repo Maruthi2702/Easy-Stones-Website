@@ -30,7 +30,7 @@ const lengthOf = (visit: ScheduleRow) => {
 const activityModifier = (type: string | undefined) => ACTIVITY_MODIFIER[type as string] || 'other';
 
 // 'Completed'/linkedVisitId only get set once an Add Visit actually lands
-// against this stop (see server.js's POST /api/customers/:id/visits) —
+// against this stop (see server.ts's POST /api/customers/:id/visits) —
 // otherwise a 'Scheduled' entry whose day has already passed reads as missed
 // rather than staying visually identical to one still coming up.
 const visitFlag = (visit: ScheduleRow) => {
@@ -287,7 +287,7 @@ const SchedulePanel = ({
                                 <div className="rpv2-schedule-card-meta">
                                     {timeLabel(visit.startTime)} · {visit.activityType || 'Visit'}
                                     {/* source 'visit_log' = added by logging a visit
-                                        with nothing scheduled (src/services/visitSchedule.js). */}
+                                        with nothing scheduled (src/services/visitSchedule.ts). */}
                                     {flag === 'done' && (visit.source === 'visit_log' ? (
                                         <span className="rpv2-schedule-flag rpv2-schedule-flag--done" title="Not planned — added when the visit was logged">
                                             <Check size={11} /> Drop-in

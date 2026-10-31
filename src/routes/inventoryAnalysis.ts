@@ -1,6 +1,6 @@
 /**
  * Inventory Analysis — stock levels, aging, and reorder signals from SPS's
- * exports. Moved out of server.js: a self-contained feature with its own
+ * exports. Moved out of server.ts: a self-contained feature with its own
  * models, handed the middleware it needs, same pattern as the deliveries,
  * daily-reports and schedule routers. Mounted at /api/inventory-analysis, so
  * every path below is relative to that.
@@ -14,7 +14,7 @@ import type { Request, RequestHandler } from 'express';
 import type { Multer } from 'multer';
 import type { Model, QueryFilter } from 'mongoose';
 
-// Authentication is supplied by server.js before any handler runs.
+// Authentication is supplied by server.ts before any handler runs.
 declare module 'express-serve-static-core' {
   interface Request {
     user: { id?: string; username?: string; displayName?: string; contactName?: string; assignedLocations?: string[]; permissions: string[] };
@@ -32,7 +32,7 @@ import InventoryItem from '../models/InventoryItem.ts';
 import InventorySalesRecord from '../models/InventorySalesRecord.ts';
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
 import { groupTransitShipments } from '../utils/inventoryTransitImport.ts';
-import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.js';
+import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.ts';
 // Parses run in a worker thread — see runWorkbookParse.ts for why an uploaded
 // file needs that isolation.
 import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
@@ -40,9 +40,9 @@ import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
 
 /**
  * @param {object} deps
- * @param {Function} deps.authenticate - server.js's auth middleware
- * @param {Function} deps.requirePermission - server.js's permission middleware
- * @param {object} deps.uploadMemory - server.js's in-memory multer instance
+ * @param {Function} deps.authenticate - server.ts's auth middleware
+ * @param {Function} deps.requirePermission - server.ts's permission middleware
+ * @param {object} deps.uploadMemory - server.ts's in-memory multer instance
  */
 interface InventoryRouterDependencies {
   authenticate: RequestHandler;

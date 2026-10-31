@@ -4,7 +4,7 @@ import type { LocationRecord } from '../../types/records';
 
 /**
  * Users & Roles' records as GET /api/admin/users and /api/admin/roles send
- * them (src/models/User.js, Role.js). The fields named are the ones these
+ * them (src/models/User.ts, Role.js). The fields named are the ones these
  * screens read; anything else passes through.
  */
 
@@ -65,7 +65,7 @@ export type PageDef = {
 
 /**
  * A location as Users & Roles → Locations reads it (GET /api/admin/locations,
- * the full record for someone who may manage locations; src/models/Location.js).
+ * the full record for someone who may manage locations; src/models/Location.ts).
  */
 export type AdminLocation = LocationRecord & {
     fullName?: string;

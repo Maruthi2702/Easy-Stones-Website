@@ -3,7 +3,7 @@ import { authFetch } from './authFetch';
 import { queryEntries, type ErrorBody, type Query } from '../types/api';
 
 /**
- * Calls to the Permits API (src/permits/router.js). Each resolves the JSON
+ * Calls to the Permits API (src/permits/router.ts). Each resolves the JSON
  * body or throws an Error whose message can be shown as is.
  */
 async function call<T = unknown>(path: string, { method = 'GET', query }: { method?: string; query?: Query } = {}): Promise<T> {

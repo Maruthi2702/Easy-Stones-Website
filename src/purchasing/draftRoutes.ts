@@ -3,7 +3,7 @@ import type { InboundRow, DraftLine } from './types.ts';
 import { handle, parse } from './serverContracts.ts';
 import { inInventoryTransaction, inInventorySnapshot } from '../services/inventoryTransaction.ts';
 import { transitParentIdentity, existingTransitParents } from './purchaseIdentity.ts';
-import { requireAll, HttpError, actorOf } from '../server/http.js';
+import { requireAll, HttpError, actorOf } from '../server/http.ts';
 import { PurchasingDraft, PurchasingLock, PurchasingPoLink } from './models.ts';
 import { getScope, loadInputs } from './data.ts';
 import { buildPlan } from './buildPlan.ts';

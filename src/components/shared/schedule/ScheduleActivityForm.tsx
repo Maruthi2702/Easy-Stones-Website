@@ -20,7 +20,7 @@ import './ScheduleActivityForm.css';
  * differs (a fixed customer or a picker, notes or not); how the day, the start
  * time, the length and the warnings behave does not. The rules are
  * `src/utils/visitSlots.ts` (tested); the saved fields are checked again by the
- * server (`src/utils/scheduleRecord.js`).
+ * server (`src/utils/scheduleRecord.ts`).
  *
  * Data goes down as props, the save comes back through `onSave` — the form
  * never calls the network itself.

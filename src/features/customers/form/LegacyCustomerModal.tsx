@@ -127,7 +127,7 @@ export default function LegacyCustomerModal({
 
     // Possible duplicates of a customer being added: checked against everyone
     // on file by the same rules the import and the duplicate audit use
-    // (src/utils/customerMatch.js, via POST /api/customers/possible-duplicates).
+    // (src/utils/customerMatch.ts, via POST /api/customers/possible-duplicates).
     // Only for a new customer, and only advice — saving is never blocked.
     const [dupMatches, setDupMatches] = useState<{ customer: Loose; signals: string[] }[]>([]);
     const [dupDismissed, setDupDismissed] = useState(false);

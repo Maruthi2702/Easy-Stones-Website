@@ -1,4 +1,4 @@
-import { transferLineKey } from '../../utils/transferDirection.js';
+import { transferLineKey } from '../../utils/transferDirection.ts';
 import type { Report } from './types';
 
 /**

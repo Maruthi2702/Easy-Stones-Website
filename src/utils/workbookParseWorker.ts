@@ -1,3 +1,4 @@
+import type { Loose } from '../types/records.ts';
 /**
  * Runs one untrusted-file parse, in a thread of its own.
  *
@@ -24,7 +25,7 @@
  */
 import { parentPort, workerData } from 'node:worker_threads';
 import { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './inventoryImport.ts';
-import { readCustomerSheet } from './customerImport.js';
+import { readCustomerSheet } from './customerImport.ts';
 import { parseInventoryTransitWorkbook } from './inventoryTransitImport.ts';
 
 const PARSERS = {
@@ -57,5 +58,5 @@ try {
   // thrown Error doesn't survive postMessage's structured clone with its
   // message intact in every Node version, and the caller only ever surfaces
   // error.message to the client anyway.
-  parentPort!.postMessage({ ok: false, error: error instanceof Error ? error.message : String(error) });
+  parentPort!.postMessage({ ok: false, error: error instanceof Error ? (error as Loose).message : String(error) });
 }

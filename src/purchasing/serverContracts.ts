@@ -4,7 +4,7 @@ import type { z } from 'zod';
 import type { Scope, InboundRow, Receipt } from './types.ts';
 import type { PlanningStock, PlanInputs } from './planInputs.ts';
 import type { InventorySale } from '../models/InventorySalesRecord.ts';
-import { handle as legacyHandle, parse as legacyParse } from '../server/http.js';
+import { handle as legacyHandle, parse as legacyParse } from '../server/http.ts';
 export interface PurchasingUser { assignedLocations?: string[]; permissions?: string[] }
 export type ScopeRecord = Omit<Scope, '_id'> & { _id: Types.ObjectId };
 export type StockSource = Omit<PlanningStock, 'importedAt'> & { importedAt?: Date };

@@ -1,6 +1,6 @@
 /**
- * The Daily Work Report as the screen holds it (see src/models/DailyReport.js
- * and GET /api/daily-reports/:date in src/routes/dailyReports.js).
+ * The Daily Work Report as the screen holds it (see src/models/DailyReport.ts
+ * and GET /api/daily-reports/:date in src/routes/dailyReports.ts).
  */
 
 /**

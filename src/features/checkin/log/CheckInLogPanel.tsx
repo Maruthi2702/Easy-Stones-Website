@@ -32,7 +32,7 @@ import { accessibleLocations } from '../../../utils/locationFilter';
 import { useAuth } from '../../../context/AuthContext';
 import {
   canCheckIn, canSeeCheckInQr, canEditCheckInDetails, canDeleteCheckIn, canEditSelectionSheet, canEmailSelectionSheet
-} from '../../../utils/checkInAccess.js';
+} from '../../../utils/checkInAccess.ts';
 import SelectionSheetForm, { SHEET_DRAFT_KEY } from '../selectionSheet/SelectionSheetForm';
 import type { Loose } from '../../../types/records';
 import { momentOf, formatLastUpdated } from './logFormat';
@@ -117,7 +117,7 @@ const CheckInLogPanel = ({
   locations = [],
 }: CheckInLogPanelProps) => {
   const { user } = useAuth();
-  // Users & Roles → Check In (src/utils/checkInAccess.js), the same rules the API checks.
+  // Users & Roles → Check In (src/utils/checkInAccess.ts), the same rules the API checks.
   const hasEditPermission = canEditCheckInDetails(user);
   const hasDeletePermission = canDeleteCheckIn(user);
   const canEditSheet = canEditSelectionSheet(user);

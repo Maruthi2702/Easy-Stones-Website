@@ -3,7 +3,7 @@ import { authFetch } from '../../api/authFetch';
 import type { ActivitySave } from './salesPlanner';
 
 /**
- * The planner's writes to /api/schedule (src/routes/schedule.js). Reads go
+ * The planner's writes to /api/schedule (src/routes/schedule.ts). Reads go
  * through ./plannerSchedule, which caches them. Each call hands back the
  * response as it came; the callers read `ok` and the error body themselves.
  */

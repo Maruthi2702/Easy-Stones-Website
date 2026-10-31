@@ -4,11 +4,11 @@ import { reportIdentity } from './reportIdentity.ts';
 import { createHash } from 'node:crypto';
 import InventoryItem from '../models/InventoryItem.ts';
 import InventorySalesRecord from '../models/InventorySalesRecord.ts';
-import Location from '../models/Location.js';
+import Location from '../models/Location.ts';
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
-import { SlabReservation } from '../holds/models.js';
+import { SlabReservation } from '../holds/models.ts';
 import { PurchasingScope, PurchasingInbound, PurchasingLock } from './models.ts';
-import { HttpError } from '../server/http.js';
+import { HttpError } from '../server/http.ts';
 export const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const allowed = (user: PurchasingUser, branches: string[]) =>
   branches.every(

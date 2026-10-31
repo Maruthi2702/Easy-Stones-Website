@@ -23,7 +23,7 @@ export type CartDrawerProps = { user: CurrentUser | null; onOpenHold?: (holdId: 
 /**
  * The cart (approved design, 2026-10-10): a drawer from the side rail that
  * expands to full width, with the hold checkout inside it. One cart per
- * person, saved on the server (src/holds/router.js); prices are typed at
+ * person, saved on the server (src/holds/router.ts); prices are typed at
  * checkout for now. This file is the drawer: its header, which slabs are
  * ticked, and the footer; the cart's list is CartView, the checkout
  * CheckoutView (+ useCheckout).

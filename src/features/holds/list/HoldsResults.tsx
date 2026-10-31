@@ -12,7 +12,7 @@ const EMPTY: Record<string, [string, string]> = {
   all: ['No holds yet', 'Tick slabs on the Inventory screen, then hold them from the cart.']
 };
 
-/** A hold's totals (holdTotals in src/holds/holdRules.js). */
+/** A hold's totals (holdTotals in src/holds/holdRules.ts). */
 export type HoldTotals = { slabs: number; sfHundredths: number; pricedCents: number; missingPrices: number; totalCents: number | null };
 
 /** A hold's total, or what's priced so far when some slabs have no price. */

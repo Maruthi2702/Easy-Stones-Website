@@ -19,7 +19,7 @@ export type DriverStopProps = {
 export default function DriverStop({ del, copiedId, busyId, onCopy, onStatus, onOpenPod, onViewPod }: DriverStopProps) {
   // The saved stop number, the same one the board and the office's
   // form show: the server keeps each run numbered 1, 2, 3 (see
-  // renumberRuns in src/routes/deliveries.js), and two invoices
+  // renumberRuns in src/routes/deliveries.ts), and two invoices
   // sharing a number are one stop.
   const stopNum = Number(del.routeNumber) || 1;
   const soVal = cleanField(del.soNumber) || cleanField(del.invoiceNumber);

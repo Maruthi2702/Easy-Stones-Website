@@ -1,10 +1,10 @@
 import { formatInstantTime } from '../../../utils/dateUtils';
-import { checkInMoment } from '../../../utils/checkInClock.js';
+import { checkInMoment } from '../../../utils/checkInClock.ts';
 import type { Loose } from '../../../types/records';
 
 /** How the Check-In Log shows one row: its moment on its branch's clock, initials, colours. */
 // A check-in's date, time and "Today" are read on its own branch's clock
-// (checkInMoment, src/utils/checkInClock.js) — the same day the list's month
+// (checkInMoment, src/utils/checkInClock.ts) — the same day the list's month
 // filter, the counts and the Daily Report put it on. A time from a branch in
 // another zone than the viewer's carries its zone ("12:30 AM EDT").
 export const momentOf = (c: Loose) => checkInMoment(c.createdAt || c.date, c.location);

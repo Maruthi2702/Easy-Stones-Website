@@ -70,7 +70,7 @@ export const dueLabel = (value?: string, now: Date = new Date()): Due => {
 
 /**
  * The Follow-ups panel's rows: the server picks and orders them
- * (src/utils/followUpPanel.js); this only words how late or soon each one is.
+ * (src/utils/followUpPanel.ts); this only words how late or soon each one is.
  */
 export type PanelFollowUp = Due & { id: string; customerId: string; company: string; note: string; by: string };
 
