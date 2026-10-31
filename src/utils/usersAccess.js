@@ -60,6 +60,11 @@ export const RESOURCE_TYPES = {
   DELETE: 'delete_resource_types'
 };
 
+// One switch for both lists: every visit-type and resource-type action at once,
+// so an admin can give a role the whole of it in one click. The single actions
+// above stay for a role that should only reorder, say.
+export const TYPE_LISTS_ALL = 'manage_type_lists';
+
 export const AREAS = {
   users: Object.values(USERS),
   roles: Object.values(ROLES),
@@ -70,18 +75,22 @@ export const AREAS = {
 
 const has = (user, perm) => !!user?.permissions?.includes(perm);
 
-/** Whether `user` may do the one action `key` (the master key counts). */
-export const can = (user, key) => has(user, FULL_ACCESS) || has(user, key);
+const TYPE_KEYS = [...Object.values(VISIT_TYPES), ...Object.values(RESOURCE_TYPES)];
+
+/** Whether `user` may do the one action `key` (the master key counts, and the type lists' own). */
+export const can = (user, key) =>
+  has(user, FULL_ACCESS) || has(user, key) || (TYPE_KEYS.includes(key) && has(user, TYPE_LISTS_ALL));
 
 /** Whether `user` holds any action in `area` ('users' | 'roles' | 'locations'): the page opens, the list loads. */
 export const canOpenArea = (user, area) =>
-  has(user, FULL_ACCESS) || (AREAS[area] || []).some((key) => has(user, key));
+  has(user, FULL_ACCESS) || (AREAS[area] || []).some((key) => has(user, key))
+  || ((area === 'visitTypes' || area === 'resourceTypes') && has(user, TYPE_LISTS_ALL));
 
 /** Whether this person can load the Roles list — the Add / Edit user forms need it for their role picker. */
 export const canReadRoles = (user) => canOpenArea(user, 'roles') || canOpenArea(user, 'users');
 
 /** Every key above, for the "does the card have a switch for it" test. */
-export const ALL_USERS_ROLES_KEYS = [...AREAS.users, ...AREAS.roles, ...AREAS.locations, ...AREAS.visitTypes, ...AREAS.resourceTypes, NAV_ORDER];
+export const ALL_USERS_ROLES_KEYS = [...AREAS.users, ...AREAS.roles, ...AREAS.locations, ...AREAS.visitTypes, ...AREAS.resourceTypes, TYPE_LISTS_ALL, NAV_ORDER];
 
 /** The Users & Roles card's switches, in sections: [{ section, actions: [{ key, label, desc }] }]. */
 export const USERS_ROLES_SECTIONS = [
@@ -113,6 +122,12 @@ export const USERS_ROLES_SECTIONS = [
       { key: LOCATIONS.ADD, label: 'Add locations', desc: 'Create a location' },
       { key: LOCATIONS.EDIT, label: 'Edit locations', desc: 'Change a location’s details and defaults' },
       { key: LOCATIONS.DELETE, label: 'Delete locations', desc: 'Delete a location' }
+    ]
+  },
+  {
+    section: 'Visit & resource types',
+    actions: [
+      { key: TYPE_LISTS_ALL, label: 'Manage both type lists', desc: 'Everything below for visit types and resource types, in one switch' }
     ]
   },
   {

@@ -67,7 +67,8 @@ export function loadTypes(kind: TypeListKind, { force = false }: { force?: boole
     const s = stores[kind];
     if (s.inflight && !force) return s.inflight;
     if (s.loaded && !force) return Promise.resolve();
-    const run = (async () => {
+    // Named, then called: `run` is read inside, after it has been assigned.
+    const load = async (): Promise<void> => {
         try {
             const res = await authFetch(`${API_URL}${PATHS[kind]}`);
             if (res.ok) {
@@ -79,7 +80,8 @@ export function loadTypes(kind: TypeListKind, { force = false }: { force?: boole
         } finally {
             if (s.inflight === run) s.inflight = null;
         }
-    })();
+    };
+    const run: Promise<void> = load();
     s.inflight = run;
     return run;
 }

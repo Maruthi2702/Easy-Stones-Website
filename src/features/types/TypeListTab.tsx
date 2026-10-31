@@ -48,7 +48,7 @@ export default function TypeListTab({ kind, currentUser, sidebarToggle }: TypeLi
         if (!can.reorder || busy || from === to) return;
         const next = moveItem(types, from, to);
         if (next === types) return;
-        run(() => typeListApi.reorder(kind, next.map((t) => t._id)), 'Could not save the order');
+        run(() => typeListApi.reorder(kind, next.map((t: TypeRecord) => t._id)), 'Could not save the order');
     };
 
     const menuFor = (t: TypeRecord): RowMenuItem[] => {

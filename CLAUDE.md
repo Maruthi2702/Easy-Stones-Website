@@ -280,8 +280,9 @@ only for a type no record uses and never the 10 built-in visit types. A visit
 type carries `fields` (notes, outcome, follow-up none / optional / always) that
 the form and `cleanVisitFields` follow — `visitFieldsFor(type)` takes the
 record, not a name. Each list has four switches on the Users & Roles card (add,
-edit, reorder, delete; `src/utils/usersAccess.js`), all held by `manage_users`;
-no migration grants them to other roles. `src/services/seedTypeLists.js` fills
+edit, reorder, delete; `src/utils/usersAccess.js`), plus one **Manage both type
+lists** (`manage_type_lists`) that holds all eight; `manage_users` holds them too.
+No migration grants them to other roles. `src/services/seedTypeLists.js` fills
 an EMPTY collection once, from the old lists plus any name old records carry
 (hidden); after that editing it changes nothing. A resource's type is checked against the list on
 add and on a change of type (`resourceTypeRefusal` in server.js): unknown or hidden
