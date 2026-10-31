@@ -143,7 +143,7 @@ const CrossoverSheetModal = ({ isOpen, onClose, onSave, initialData = null, exis
             <label>Match Type <span className="xover-req-star">*</span></label>
             <CustomSelect
               value={matchType}
-              onChange={(e) => setMatchType(e.target.value)}
+              onChange={(e) => setMatchType(String(e.target.value))}
               options={MATCH_TYPE_OPTIONS}
             />
           </div>

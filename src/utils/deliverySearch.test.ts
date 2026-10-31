@@ -31,7 +31,7 @@ describe('buildDeliverySearchFilter', () => {
 
   it("only returns the user's own locations (and transfers heading to them)", () => {
     const f = buildDeliverySearchFilter('acme', ['Seattle', 'Spokane']);
-    expect(f.$and[1]).toEqual({
+    expect((f)!.$and[1]).toEqual({
       $or: [
         { location: { $in: ['Seattle', 'Spokane'] } },
         { deliveryType: 'transfer', transferDestination: { $in: ['Seattle', 'Spokane'] } }
@@ -43,13 +43,13 @@ describe('buildDeliverySearchFilter', () => {
 
   it("doesn't scope an admin ('*')", () => {
     const f = buildDeliverySearchFilter('acme', ['*']);
-    expect(f.$and).toBeUndefined();
-    expect(f.$or).toHaveLength(3);
+    expect((f)!.$and).toBeUndefined();
+    expect((f)!.$or).toHaveLength(3);
   });
 
   it('matches SO#/invoice on the bare number and the name on the raw text', () => {
     const f = buildDeliverySearchFilter('SO#18356', ['*']);
-    const [name, so, inv] = f.$or;
+    const [name, so, inv] = (f)!.$or;
     expect(regexSource(name.customerName)).toBe('SO#18356');
     expect(regexSource(so.soNumber)).toBe('18356');
     expect(regexSource(inv.invoiceNumber)).toBe('18356');
@@ -57,7 +57,7 @@ describe('buildDeliverySearchFilter', () => {
 
   it('escapes regex characters so input is matched literally', () => {
     const f = buildDeliverySearchFilter('A+B (Co.)', ['*']);
-    const re = f.$or[0].customerName;
+    const re = (f)!.$or[0].customerName;
     expect(re.test('a+b (co.) granite')).toBe(true);
     expect(re.test('aab co')).toBe(false);
   });

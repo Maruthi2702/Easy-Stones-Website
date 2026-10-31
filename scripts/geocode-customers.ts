@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 /**
  * Give every customer already on file a point on the map.
  *
@@ -26,8 +27,8 @@ import { isRoutablePrecision } from '../src/utils/routePlan.ts';
 dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env') });
 
 const args = process.argv.slice(2);
-const has = (flag) => args.includes(flag);
-const valueOf = (flag) => { const i = args.indexOf(flag); return i === -1 ? null : args[i + 1]; };
+const has = (flag: string) => args.includes(flag);
+const valueOf = (flag: string) => { const i = args.indexOf(flag); return i === -1 ? null : args[i + 1]; };
 
 const APPLY = has('--apply');
 const REPORT = has('--report');
@@ -40,9 +41,9 @@ const LIMIT = Number(valueOf('--limit')) || Infinity;
 const PAUSE_MS = 120;
 const COST_PER_1000 = 5;
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const nameOf = (c) => c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || String(c._id);
+const nameOf = (c: Loose) => c.company || c.contactName || `${c.firstName || ''} ${c.lastName || ''}`.trim() || String(c._id);
 
 async function main() {
   const uri = process.env.MONGO_URI || process.env.MONGODB_URI;
@@ -52,11 +53,11 @@ async function main() {
   }
 
   await mongoose.connect(uri);
-  const customers = mongoose.connection.db.collection('customers');
+  const customers = mongoose.connection.db!.collection('customers');
 
   if (REPORT) {
     const rows = await customers.find({}, { projection: { 'geocode.status': 1, 'geocode.precision': 1 } }).toArray();
-    const tally = rows.reduce((acc, r) => {
+    const tally = rows.reduce<Record<string, number>>((acc, r) => {
       const key = r.geocode?.status === 'ok' ? `ok / ${r.geocode.precision || 'unknown'}` : (r.geocode?.status || 'pending');
       acc[key] = (acc[key] || 0) + 1;
       return acc;
@@ -110,7 +111,7 @@ async function main() {
     process.exit(1);
   }
 
-  const tally = { rooftop: 0, range: 0, geometric: 0, approximate: 0, failed: 0, pending: 0 };
+  const tally: Record<string, number> = { rooftop: 0, range: 0, geometric: 0, approximate: 0, failed: 0, pending: 0 };
 
   for (const [i, customer] of todo.entries()) {
     const result = await geocodeAddress(customer.address);

@@ -12,7 +12,7 @@ import {
 } from './staffSession.ts';
 
 const SECRET = 'test-secret';
-const user = (over: Loose = {}) => ({ _id: '64b7f0c2a1b2c3d4e5f60718', username: 'rita', ...over });
+const user = (over: Loose = {}): Loose & { _id: string; username: string } => ({ _id: '64b7f0c2a1b2c3d4e5f60718', username: 'rita', ...over });
 
 // Records what a route did to the response's cookies.
 const fakeRes = () => {
@@ -88,7 +88,7 @@ describe('the setup token', () => {
   });
 
   it('carries no id an ordinary check would read', () => {
-    const payload = jwt.decode(signSetupToken(user(), SECRET));
+    const payload = jwt.decode(signSetupToken(user(), SECRET)) as jwt.JwtPayload;
     expect(payload.id).toBeUndefined();
     expect(payload.userId).toBeUndefined();
     expect(payload.sub).toBeUndefined();
@@ -119,7 +119,7 @@ describe('what a sign-in with the right password gets', () => {
 
   it('a temporary password: the setup cookie, scoped to /api/auth, and any session on the browser ended', () => {
     const res = fakeRes();
-    const answer = temporaryPasswordAnswer(res, user(temporaryPasswordFields()), SECRET);
+    const answer = temporaryPasswordAnswer(res, user(temporaryPasswordFields()), SECRET)!;
     expect(answer.expired).toBe(false);
     expect(answer.body).toMatchObject({ success: false, code: 'must-change-password', setup: true });
     expect(res.set[SETUP_COOKIE].opts).toMatchObject({ httpOnly: true, path: SETUP_COOKIE_PATH });
@@ -131,7 +131,7 @@ describe('what a sign-in with the right password gets', () => {
 
   it('an expired temporary password: refused, and no cookie at all', () => {
     const res = fakeRes();
-    const answer = temporaryPasswordAnswer(res, user(temporaryPasswordFields(Date.now() - TEMP_PASSWORD_TTL_MS - 1000)), SECRET);
+    const answer = temporaryPasswordAnswer(res, user(temporaryPasswordFields(Date.now() - TEMP_PASSWORD_TTL_MS - 1000)), SECRET)!;
     expect(answer.expired).toBe(true);
     expect(answer.body.code).toBe('temp-password-expired');
     expect(res.set).toEqual({});

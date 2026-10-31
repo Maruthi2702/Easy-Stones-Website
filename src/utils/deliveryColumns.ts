@@ -48,7 +48,7 @@ const rankOf = (col: Loose) => {
 const byLabel = (a: Loose, b: Loose) => columnLabel(a).localeCompare(columnLabel(b), undefined, { sensitivity: 'base' });
 
 /** Our drivers A–Z, then contract trucks A–Z, then Will Call. */
-export const defaultColumnOrder = (columns: Loose[] = []) =>
+export const defaultColumnOrder = <T extends Loose>(columns: T[] = []) =>
   [...columns].sort((a, b) => rankOf(a) - rankOf(b) || byLabel(a, b));
 
 /**
@@ -61,14 +61,14 @@ export const defaultColumnOrder = (columns: Loose[] = []) =>
  * @param {any[]} [columns]
  * @param {string[] | null} [savedOrder]
  */
-export const orderBoardColumns = (columns: Loose[] = [], savedOrder: string[] | null = null) => {
+export const orderBoardColumns = <T extends Loose>(columns: T[] = [], savedOrder: string[] | null = null) => {
   const byDefault = defaultColumnOrder(columns);
   if (!Array.isArray(savedOrder) || savedOrder.length === 0) return byDefault;
 
   const position = new Map(savedOrder.map((id: unknown, i: number) => [id, i]));
   const ordered = byDefault
     .filter((c) => position.has(c.id))
-    .sort((a, b) => position.get(a.id) - position.get(b.id));
+    .sort((a, b) => position.get(a.id)! - position.get(b.id)!);
 
   byDefault.filter((c) => !position.has(c.id)).forEach((col) => {
     const at = ordered.findIndex((c) => rankOf(c) > rankOf(col));
@@ -89,7 +89,7 @@ export const isDefaultOrder = (columns: Loose[] = [], ids: string[] = []) => {
  * at most MAX_SAVED_COLUMNS. Anything else → null (a 400). An empty list is
  * valid and means "back to the default order".
  */
-export const cleanColumnOrder = (value: Loose) => {
+export const cleanColumnOrder = (value: unknown) => {
   if (!Array.isArray(value) || value.length > MAX_SAVED_COLUMNS) return null;
   const seen = new Set();
   for (const id of value) {
@@ -102,7 +102,7 @@ export const cleanColumnOrder = (value: Loose) => {
 };
 
 /** Move the item at `from` to `to` (both indexes into `list`); a new array. */
-export const moveItem = (list: Loose, from: number, to: number) => {
+export const moveItem = <T>(list: T[], from: number, to: number) => {
   if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return list;
   const next = [...list];
   const [item] = next.splice(from, 1);

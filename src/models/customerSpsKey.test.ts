@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 
 const { default: Customer } = await import('./Customer.ts');
-let mongo: MongoMemoryServer | undefined;
+let mongo!: MongoMemoryServer | undefined;
 
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create();

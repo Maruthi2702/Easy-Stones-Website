@@ -206,7 +206,7 @@ export const sectionOf = (tabId: unknown) => navItem(tabId)?.section || null;
  * desktop: a rail click opens the page itself. Home never does (the pins
  * live there), nor does a section marked keepPanel (Accounting).
  */
-export const isOnePageSection = (section: Loose) =>
+export const isOnePageSection = (section: Loose | null | undefined) =>
   !!section && section.id !== 'home' && !section.keepPanel && section.items.length === 1;
 
 /**

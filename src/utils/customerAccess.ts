@@ -57,7 +57,7 @@ export const CUSTOMER_SECTIONS = Object.freeze([
   { id: 'change', title: 'Change customers', keys: [P.EDIT, P.DELETE] }
 ]);
 
-export const ALL_CUSTOMER_PERMISSIONS = Object.freeze(Object.values(P));
+export const ALL_CUSTOMER_PERMISSIONS: readonly string[] = Object.freeze(Object.values(P));
 
 /**
  * Roles that held `from` before the split get `grant` once, on the next start
@@ -70,11 +70,11 @@ export const CUSTOMER_MIGRATION = Object.freeze([
 /** Granted to Admin only, once, on the next start. */
 export const CUSTOMER_ADMIN_GRANTS = Object.freeze([P.PROFILE, P.EXPORT, P.ADD, P.IMPORT]);
 
-const permsOf = (user: Loose) => (Array.isArray(user?.permissions) ? user.permissions : []);
-const has = (user: Loose, key: string) => permsOf(user).includes(key);
+const permsOf = (user: Loose | null | undefined) => (Array.isArray(user?.permissions) ? user.permissions : []);
+const has = (user: Loose | null | undefined, key: string) => permsOf(user).includes(key);
 
 /** The switches that need View on. */
-export const CUSTOMER_NEEDS_VIEW = Object.freeze(ALL_CUSTOMER_PERMISSIONS.filter((key) => key !== P.VIEW));
+export const CUSTOMER_NEEDS_VIEW: readonly string[] = Object.freeze(ALL_CUSTOMER_PERMISSIONS.filter((key) => key !== P.VIEW));
 
 /**
  * A role's permissions after a change on the card, with the View rule kept:
@@ -83,7 +83,7 @@ export const CUSTOMER_NEEDS_VIEW = Object.freeze(ALL_CUSTOMER_PERMISSIONS.filter
  * change on another card leaves the customer switches as they are, even on a
  * role saved before the rule.
  */
-export const withCustomerViewRule = (before: Loose, after: Loose[]) => {
+export const withCustomerViewRule = (before: string[], after: string[]) => {
   const changed = ALL_CUSTOMER_PERMISSIONS.some((key) => before.includes(key) !== after.includes(key));
   if (!changed) return after;
   const wasOn = before.includes(P.VIEW);
@@ -93,8 +93,8 @@ export const withCustomerViewRule = (before: Loose, after: Loose[]) => {
   return after;
 };
 
-export const canViewCustomers = (user: Loose) => has(user, P.VIEW);
-const withView = (key: string) => (user: Loose) => canViewCustomers(user) && has(user, key);
+export const canViewCustomers = (user: Loose | null | undefined) => has(user, P.VIEW);
+const withView = (key: string) => (user: Loose | null | undefined) => canViewCustomers(user) && has(user, key);
 export const canViewCustomerProfile = withView(P.PROFILE);
 export const canExportCustomers = withView(P.EXPORT);
 export const canAddCustomer = withView(P.ADD);

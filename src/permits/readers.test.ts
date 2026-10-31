@@ -34,8 +34,8 @@ function fakeMbp(permits: Loose[], { cap = 5, statuses = ['Issued', 'Finaled'] }
     if (u.pathname.endsWith('GetPermitStatuses')) return res(statuses.map((s: string) => ({ Value: s })));
     if (u.pathname.endsWith('GetSearchResults')) {
       const body = new URLSearchParams(init.body);
-      const [fm, fd, fy] = body.get('FromDate').split('/');
-      const [tm, td, ty] = body.get('ToDate').split('/');
+      const [fm, fd, fy] = body.get('FromDate')!.split('/');
+      const [tm, td, ty] = body.get('ToDate')!.split('/');
       const from = `${fy}-${fm}-${fd}`;
       const to = `${ty}-${tm}-${td}`;
       const sts = body.getAll('SelectedPermitStatuses');
@@ -52,7 +52,7 @@ function fakeMbp(permits: Loose[], { cap = 5, statuses = ['Issued', 'Finaled'] }
 }
 
 describe('MyBuildingPermit reader', () => {
-  const permits = (days: Loose[]) => days.map((day, i) => ({ day, row: mbpRow(`P${i}`, day) }));
+  const permits = (days: string[]) => days.map((day, i) => ({ day, row: mbpRow(`P${i}`, day) }));
 
   it('reads a week at a time with the session’s cookie and token, every status named', async () => {
     const mbp = fakeMbp(permits(['2026-10-01', '2026-10-03', '2026-10-09']));
@@ -79,7 +79,7 @@ describe('MyBuildingPermit reader', () => {
     const late = (n: unknown, day: string, time: unknown) => ({ PermitNumber: n, PermitType: 'BSF', Address: '1', IssuedDate: `/Date(${Date.parse(`${day}T${time}-07:00`)})/` });
     const mbp = fakeMbp([]);
     const answered = [late('LATE', '2026-10-07', '16:30:00'), late('NEXT', '2026-10-08', '00:00:00')];
-    const fetchImpl = async (url: string, init: unknown) => (url.endsWith('GetSearchResults') ? res(answered) : mbp.fetchImpl(url, init));
+    const fetchImpl = async (url: string, init: Loose) => (url.endsWith('GetSearchResults') ? res(answered) : mbp.fetchImpl(url, init));
     const src = createMbpSource({ client: createMbpClient({ fetchImpl, sleep: noSleep }), jurisId: 5, office: 'KIRKLAND', label: 'Kirkland', stampsTime: true, today: () => '2026-10-07' });
     const r = await src.issuedSince('2026-10-01');
     expect(r.rows.map((x) => x.PermitNumber)).toEqual(['LATE']);
@@ -88,14 +88,14 @@ describe('MyBuildingPermit reader', () => {
   it('stops when an office that stamps midnight starts stamping times', async () => {
     const mbp = fakeMbp([]);
     const timed = { PermitNumber: 'T1', PermitType: 'X', Address: '1', IssuedDate: `/Date(${Date.parse('2026-10-02T16:30:00-07:00')})/` };
-    const fetchImpl = async (url: string, init: unknown) => (url.endsWith('GetSearchResults') ? res([timed]) : mbp.fetchImpl(url, init));
+    const fetchImpl = async (url: string, init: Loose) => (url.endsWith('GetSearchResults') ? res([timed]) : mbp.fetchImpl(url, init));
     const src = createMbpSource({ client: createMbpClient({ fetchImpl, sleep: noSleep }), jurisId: 11, office: 'BURIEN', label: 'Burien', today: () => '2026-10-03' });
     await expect(src.issuedSince('2026-10-01')).rejects.toThrow(/now stamps permits with the time/);
   });
 
   it('stops when a row falls outside the days asked for — a date filter quietly ignored', async () => {
     const mbp = fakeMbp([]);
-    const fetchImpl = async (url: string, init: unknown) => (url.endsWith('GetSearchResults') ? res([mbpRow('X', '2026-08-01')]) : mbp.fetchImpl(url, init));
+    const fetchImpl = async (url: string, init: Loose) => (url.endsWith('GetSearchResults') ? res([mbpRow('X', '2026-08-01')]) : mbp.fetchImpl(url, init));
     const src = createMbpSource({ client: createMbpClient({ fetchImpl, sleep: noSleep }), jurisId: 20, office: 'KING COUNTY', label: 'King County', today: () => '2026-10-03' });
     await expect(src.issuedSince('2026-10-01')).rejects.toThrow(/date filter isn’t working/);
   });
@@ -170,17 +170,17 @@ describe('Seattle reader', () => {
 
 describe('Shoreline reader', () => {
   const PAGE = '<form><input type="hidden" name="__VIEWSTATE" value="abc&amp;def" /><input type="hidden" name="__EVENTVALIDATION" value="x" /><input name="ctl00$cplMain$btnExportToExcel" /></form>';
-  const RESULTS = (n: unknown) => `${PAGE}<table>${'<tr class="rgRow"><td>x</td></tr>'.repeat(n)}</table>`;
-  const csv = (rows: Loose[]) => ['"PERMIT NUMBER","APPLIED DATE","ISSUED DATE","Permit Type","PARCEL","ADDRESS","OWNER NAME","APPLICANT NAME","CONTRACTOR NAME","RECORDID"', ...rows].join('\r\n');
+  const RESULTS = (n: number) => `${PAGE}<table>${'<tr class="rgRow"><td>x</td></tr>'.repeat(n)}</table>`;
+  const csv = (rows: string[]) => ['"PERMIT NUMBER","APPLIED DATE","ISSUED DATE","Permit Type","PARCEL","ADDRESS","OWNER NAME","APPLICANT NAME","CONTRACTOR NAME","RECORDID"', ...rows].join('\r\n');
 
-  function fakeEtrakit(byDay: unknown) {
+  function fakeEtrakit(byDay: Record<string, string[]>) {
     const posts: Loose[] = [];
     const fetchImpl = async (url: string, init: Loose = {}) => {
       if (init.method !== 'POST') return res(PAGE, { type: 'text/html', cookies: ['ASP.NET_SessionId=s1; path=/'] });
       const body = new URLSearchParams(init.body);
       posts.push({ body: Object.fromEntries(body), cookie: init.headers.Cookie });
-      if (body.get('ctl00$cplMain$btnSearch')) return res(RESULTS(Math.min(10, (byDay[body.get('ctl00$cplMain$txtSearchString')] || []).length)), { type: 'text/html' });
-      return res(`\uFEFF${csv(byDay[body.get('ctl00$cplMain$txtSearchString')] || [])}`, { type: 'text/csv; charset=utf-8;' });
+      if (body.get('ctl00$cplMain$btnSearch')) return res(RESULTS(Math.min(10, (byDay[body.get('ctl00$cplMain$txtSearchString')!] || []).length)), { type: 'text/html' });
+      return res(`\uFEFF${csv(byDay[body.get('ctl00$cplMain$txtSearchString')!] || [])}`, { type: 'text/csv; charset=utf-8;' });
     };
     return { fetchImpl, posts };
   }
@@ -252,7 +252,7 @@ describe('Bellevue, the parcels, the county’s spreadsheet and Renton', () => {
   it('finds a parcel’s postal city and ZIP', async () => {
     let where = '';
     const fetchImpl = async (url: string) => {
-      where = new URL(url).searchParams.get('where');
+      where = new URL(url).searchParams.get('where')!;
       return res({ features: [{ attributes: { PIN: '2624089001', POSTALCTYNAME: 'NORTH BEND', ZIP5: '98045' } }] });
     };
     const out = await createKingParcels({ fetchImpl, sleep: noSleep }).lookup(['2624089001', 'not-a-pin']);

@@ -6,7 +6,7 @@ import type { Loose } from '../types/records.ts';
 import { z } from 'zod';
 import { priceCentsOf, MAX_CART_SLABS, MAX_HOLD_SLABS } from './holdRules.ts';
 
-const text = (max: Loose) => z.string().trim().max(max, `Keep it under ${max} characters.`);
+const text = (max: number) => z.string().trim().max(max, `Keep it under ${max} characters.`);
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a date like 2026-10-16.');
 const objectId = z.string().regex(/^[a-f0-9]{24}$/i, 'Not a valid id.');
 const slabKey = z.string().trim().min(1, 'Missing slab.').max(60).transform((s) => s.toUpperCase());

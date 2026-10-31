@@ -28,7 +28,7 @@ const LostSalesTab = ({
   onCreateNew = null,
   isDropdownLoading = false,
   sidebarToggle = null
-}: { currentUser?: Loose | null; customersList?: Loose[]; customerOptions?: Loose[]; locationsList?: string[]; theme?: string; onCreateNew?: (() => void) | null; isDropdownLoading?: boolean; sidebarToggle?: React.ReactNode }) => {
+}: { currentUser?: Loose | null; customersList?: Loose[]; customerOptions?: { value: string; label: string; description?: string; keywords?: string }[]; locationsList?: string[]; theme?: string; onCreateNew?: (() => void) | null; isDropdownLoading?: boolean; sidebarToggle?: React.ReactNode }) => {
   const [lostSales, setLostSales] = useState<Loose[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,7 +147,7 @@ const LostSalesTab = ({
   };
 
   // Helper to extract string safely from any prop (string or object)
-  const getSafeString = (val: unknown, fallback = '') => {
+  const getSafeString = (val: Parameters<typeof getCustomerName>[0], fallback = '') => {
     return getCustomerName(val, fallback);
   };
 
@@ -222,7 +222,7 @@ const LostSalesTab = ({
   }, [filteredRecords]);
 
   const formatCurrency = (val: unknown) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(val || 0));
   };
 
   // The lost-sale date is a calendar date stored at UTC midnight; reading it with
@@ -250,7 +250,7 @@ const LostSalesTab = ({
     return match ? match.label : (reason || 'Other');
   };
 
-  const formatSf = (val: unknown) => (val || 0).toLocaleString('en-US', { maximumFractionDigits: 1 });
+  const formatSf = (val: number | null | undefined) => (val || 0).toLocaleString('en-US', { maximumFractionDigits: 1 });
 
   const formatSlabs = (count: number) => `${count || 0} ${count === 1 ? 'Slab' : 'Slabs'}`;
 
@@ -361,7 +361,7 @@ const LostSalesTab = ({
             <Filter size={14} className="filter-icon" />
             <CustomSelect
               value={selectedReason}
-              onChange={(e) => setSelectedReason(e.target.value)}
+              onChange={(e) => setSelectedReason(String(e.target.value))}
               options={[
                 { value: 'All', label: 'All Reasons' },
                 ...REASON_OPTIONS.map(r => ({ value: r.id, label: r.filterLabel }))
@@ -373,7 +373,7 @@ const LostSalesTab = ({
             <ArrowUpDown size={14} className="filter-icon" />
             <CustomSelect
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              onChange={(e) => setSortBy(String(e.target.value))}
               options={[
                 { value: 'newest', label: 'Newest First' },
                 { value: 'value_desc', label: 'Highest Value ($)' },

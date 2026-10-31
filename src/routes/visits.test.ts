@@ -15,15 +15,15 @@ const { default: User } = await import('../models/User.ts');
 const { default: VisitType } = await import('../models/VisitType.ts');
 const { seedTypeLists } = await import('../services/seedTypeLists.ts');
 
-let mongo;
-let app;
-let customerId;
-let processBase64Image;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
+let customerId!: Loose;
+let processBase64Image!: Loose;
 
 const STAFF = { _id: 'u1', permissions: ['add_visits', 'edit_own_visits'], assignedLocations: ['*'] };
 const send = (method: string, url: string, body: Loose, user = STAFF) =>
   request(app)[method](url).set('x-test-user', JSON.stringify(user)).send(body);
-const visitsNow = async () => (await Customer.findById(customerId).lean()).visits;
+const visitsNow = async () => ((await Customer.findById(customerId).lean()))!.visits;
 const base = (over: Loose = {}) => ({ date: '2026-10-20', purpose: 'Unscheduled in Person Sales Call', notes: 'hi', ...over });
 
 beforeAll(async () => {
@@ -35,9 +35,9 @@ beforeAll(async () => {
   app.set('io', { emit: () => {} });
   const has = (req: Loose, p: Loose) => (req.user.permissions || []).includes(p);
   app.use('/api/customers', createVisitsRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); req.userId = req.user._id; req.authType = 'admin'; next(); },
-    requirePermission: (p: Loose) => (req: Loose, res: Loose, next: Loose) => (has(req, p) ? next() : res.status(403).json({})),
-    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: Loose) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
+    authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); req.userId = req.user._id; req.authType = 'admin'; next(); },
+    requirePermission: (p: string) => (req: Loose, res: Loose, next: () => void) => (has(req, p) ? next() : res.status(403).json({})),
+    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
     processBase64Image,
     getPerformerInfo: async () => ({ id: 'u1', name: 'Rita' }),
     getNowLocalISO: () => '2026-10-23T09:00:00.000',
@@ -220,7 +220,7 @@ describe('POST /visit-attachments', () => {
 });
 
 describe("PUT — Edit branch goes by the rep's branch (teamScope.js)", () => {
-  let mgr, jesus, bart;
+  let mgr!: Loose, jesus!: Loose, bart!: Loose;
   beforeEach(async () => {
     await User.deleteMany({});
     [mgr, jesus, bart] = await User.create([
@@ -233,10 +233,10 @@ describe("PUT — Edit branch goes by the rep's branch (teamScope.js)", () => {
   // A visit logged by `author` on a customer at `customerLocation`.
   const visitBy = async (author: Loose, customerLocation: Loose) => {
     const c = await Customer.findById(customerId);
-    c.location = customerLocation;
-    c.visits.push({ ...base(), createdBy: author._id });
-    await c.save();
-    return String(c.visits[c.visits.length - 1]._id);
+    (c)!.location = customerLocation;
+    (c)!.visits.push({ ...base(), createdBy: author._id });
+    await (c)!.save();
+    return String((c)!.visits[(c)!.visits.length - 1]._id);
   };
 
   it("lets a manager edit their own rep's visit, on another branch's customer too", async () => {

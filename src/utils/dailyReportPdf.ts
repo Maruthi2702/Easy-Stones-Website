@@ -128,12 +128,12 @@ function drawHeader(c: Loose, fonts: Loose, logo: PDFImage | null, { title, meta
 }
 
 /** The five headline figures, boxed and divided. */
-function drawGlance(c: Loose, fonts: Loose, y: number, cells: Loose[]) {
+function drawGlance(c: Loose, fonts: Loose, y: number, cells: { label: string; value: unknown; sub?: string }[]) {
   const h = 46;
   const colW = CONTENT_W / cells.length;
   c.rect(M, y - h, CONTENT_W, h, { borderColor: RULE, borderWidth: 0.6 });
 
-  cells.forEach((cell: Loose, i: number) => {
+  cells.forEach((cell, i: number) => {
     const x = M + colW * i;
     if (i > 0) {
       c.page.drawLine({
@@ -245,9 +245,9 @@ export async function buildDayPdf(report: Loose) {
   const inboundTransfers = transfers.filter((t: Loose) => t.direction === 'in');
   // Outgoing only, same as the glance tile in the tab — the detailed table
   // below lists both directions with their own subtotals.
-  const transferSlabs = outboundTransfers.reduce((s: Loose, t: Loose) => s + Number(t.slabs || 0), 0);
-  const transferCount = outboundTransfers.reduce((s: Loose, t: Loose) => s + Number(t.count || 0), 0);
-  const inboundTransferSlabs = inboundTransfers.reduce((s: Loose, t: Loose) => s + Number(t.slabs || 0), 0);
+  const transferSlabs = outboundTransfers.reduce((s: number, t: Loose) => s + Number(t.slabs || 0), 0);
+  const transferCount = outboundTransfers.reduce((s: number, t: Loose) => s + Number(t.count || 0), 0);
+  const inboundTransferSlabs = inboundTransfers.reduce((s: number, t: Loose) => s + Number(t.slabs || 0), 0);
   const containerSlabs = containers.reduce((s: number, x: Loose) => s + Number(x.slabs || 0), 0);
   const pay = report.payments || {};
   const payCount = paymentCount(pay);
@@ -371,7 +371,7 @@ export async function buildDayPdf(report: Loose) {
   // presence of a name: a reopened day still carries the name of whoever
   // submitted it last, and printing that under a DRAFT badge said two opposite
   // things on one page.
-  const when = (d: Loose) => (d ? ` · ${stamp(new Date(d))}` : '');
+  const when = (d: string | number | Date | null | undefined) => (d ? ` · ${stamp(new Date(d))}` : '');
   const signedOff =
     report.status === 'submitted'
       ? (report.autoSubmitted
@@ -445,7 +445,7 @@ export async function buildMonthPdf({ month, rows, scopeLabel }: Loose) {
   };
 
   /** One row, advancing the cursor exactly once. */
-  const drawRow = (cells: Loose[], { total = false, grand = false }: Loose = {}) => {
+  const drawRow = (cells: unknown[], { total = false, grand = false }: Loose = {}) => {
     if (total || grand) {
       c.rect(M, y - 4, CONTENT_W, ROW_H, { color: grand ? rgb(0.949, 0.933, 0.882) : BAND });
       c.line(M, y + ROW_H - 4, PAGE.w - M, { color: grand ? INK : RULE, thickness: grand ? 1 : 0.5 });

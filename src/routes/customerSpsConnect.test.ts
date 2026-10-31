@@ -14,9 +14,9 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 const { default: createCustomerSpsConnectRouter } = await import('./customerSpsConnect.ts');
 const { default: Customer } = await import('../models/Customer.ts');
 
-let mongo;
-let app;
-let sheet;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
+let sheet!: Loose;
 
 const BOTH = { username: 'krish', permissions: ['view_customers', 'import_customers', 'manage_customers'] };
 const IMPORT_ONLY = { username: 'imp', permissions: ['view_customers', 'import_customers'] };
@@ -31,7 +31,7 @@ const apply = (fields: Loose = {}, user = BOTH) => {
 };
 
 const [A, B, C] = [1, 2, 3].map(() => new mongoose.Types.ObjectId());
-const row = (Name: Loose, Email = '', Phone1 = '') => ({ Name, Email, Phone1 });
+const row = (Name: unknown, Email = '', Phone1 = '') => ({ Name, Email, Phone1 });
 const keyOf = async (id: string) => (await Customer.collection.findOne({ _id: id }))?.sps;
 
 beforeAll(async () => {
@@ -41,7 +41,7 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.use('/api/customers', createCustomerSpsConnectRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
+    authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
     uploadMemory: multer({ storage: multer.memoryStorage() }),
     readSheet: async () => sheet,
     resolveMapping: () => ({ company: 'Name', email: 'Email', phone: 'Phone1' })

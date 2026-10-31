@@ -455,7 +455,7 @@ const PriceListPanel = ({ sidebarToggle }: { sidebarToggle?: React.ReactNode }) 
                                             const sigColIdx = sheetData.findIndex(c => c.collection === 'Signature' || c.collection === 'Signature Collection');
                                             const sigCol = sheetData[sigColIdx];
                                             if (!sigCol) return null;
-                                            const renderedRows = [];
+                                            const renderedRows: React.ReactNode[] = [];
                                             let hasRenderedCollection = false;
 
                                             sigCol.subgroups.forEach((sub, subIdx) => {
@@ -524,7 +524,7 @@ const PriceListPanel = ({ sidebarToggle }: { sidebarToggle?: React.ReactNode }) 
                                             const presColIdx = sheetData.findIndex(c => c.collection === 'Prestige');
                                             const presCol = sheetData[presColIdx];
                                             if (!presCol) return null;
-                                            const renderedRows = [];
+                                            const renderedRows: React.ReactNode[] = [];
                                             let hasRenderedCollection = false;
 
                                             presCol.subgroups.forEach((sub, subIdx) => {
@@ -593,7 +593,7 @@ const PriceListPanel = ({ sidebarToggle }: { sidebarToggle?: React.ReactNode }) 
                                             const luxeColIdx = sheetData.findIndex(c => c.collection === 'Luxe');
                                             const luxeCol = sheetData[luxeColIdx];
                                             if (!luxeCol) return null;
-                                            const renderedRows = [];
+                                            const renderedRows: React.ReactNode[] = [];
                                             let hasRenderedCollection = false;
 
                                             // Render only Subgroup 1 & Subgroup 2 on Page 1
@@ -730,7 +730,7 @@ const PriceListPanel = ({ sidebarToggle }: { sidebarToggle?: React.ReactNode }) 
                                             const luxeColIdx = sheetData.findIndex(c => c.collection === 'Luxe');
                                             const luxeCol = sheetData[luxeColIdx];
                                             if (!luxeCol) return null;
-                                            const renderedRows = [];
+                                            const renderedRows: React.ReactNode[] = [];
                                             let hasRenderedCollection = false;
 
                                             // Render Subgroup 3, 4, and 5 (Subgroups slice from index 2 onwards)
@@ -801,7 +801,7 @@ const PriceListPanel = ({ sidebarToggle }: { sidebarToggle?: React.ReactNode }) 
                                             const thruColIdx = sheetData.findIndex(c => c.collection === 'ThruTeQ');
                                             const thruCol = sheetData[thruColIdx];
                                             if (!thruCol) return null;
-                                            const renderedRows = [];
+                                            const renderedRows: React.ReactNode[] = [];
                                             let hasRenderedCollection = false;
 
                                             thruCol.subgroups.forEach((sub, subIdx) => {

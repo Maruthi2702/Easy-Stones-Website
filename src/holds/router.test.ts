@@ -18,14 +18,14 @@ import InventoryItem from '../models/InventoryItem.ts';
 import Customer from '../models/Customer.ts';
 import { extractPdfTextItems } from '../utils/pdfTextItems.ts';
 
-let rs;
-let app;
-let customerId;
-let otherCustomerId;
+let rs!: Loose;
+let app!: import('express').Express;
+let customerId!: string;
+let otherCustomerId!: string;
 
 const ADMIN = { id: 'u1', displayName: 'Krish', permissions: [...ALL_HOLD_PERMISSIONS], assignedLocations: ['*'], location: 'Seattle' };
 const MARIA = { id: 'u2', displayName: 'Maria', permissions: [...ALL_HOLD_PERMISSIONS], assignedLocations: ['Seattle'], location: 'Seattle' };
-const api = (method: string, url: string, user = ADMIN) => request(app)[method](`/api/holds${url}`).set('x-test-user', JSON.stringify(user));
+const api = (method: 'get' | 'post' | 'put' | 'patch' | 'delete', url: string, user = ADMIN) => request(app)[method](`/api/holds${url}`).set('x-test-user', JSON.stringify(user));
 
 const slab = (serial: string, over: Loose = {}) => ({
   type: 'SLAB', serialNumber: serial, barcodeId: `ES${serial.replace(/\D/g, '')}`, product: 'Taj Mahal 3CM', category: 'Quartzite',
@@ -44,7 +44,7 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.use('/api/holds', createHoldsRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => {
+    authenticate: (req: Loose, res: Loose, next: () => void) => {
       const raw = req.headers['x-test-user'];
       if (!raw) return res.status(401).json({ error: 'Not signed in.' });
       req.user = JSON.parse(raw);
@@ -347,17 +347,17 @@ describe('history and PDF', () => {
     await mongoose.connection.collection('locations').insertOne({ name: 'Seattle', primaryContact: { address: { street: '18 Branch Rd', city: 'Kent', state: 'WA', zipCode: '98032' } } });
     await newHold(['14744-29', '14744-32'], { notes: 'Customer viewing Tuesday.' }).expect(201);
     const h = await load1();
-    const res = await api('get', `/${h._id}/pdf`).buffer(true).parse((r: Loose, cb: Loose) => { const chunks = []; r.on('data', (c: Loose) => chunks.push(c)); r.on('end', () => cb(null, Buffer.concat(chunks))); }).expect(200);
+    const res = await api('get', `/${h._id}/pdf`).buffer(true).parse((r: Loose, cb: (err: Error | null, bytes: Buffer) => void) => { const chunks: Uint8Array[] = []; r.on('data', (c: Uint8Array) => chunks.push(c)); r.on('end', () => cb(null, Buffer.concat(chunks))); }).expect(200);
     expect(res.headers['content-type']).toBe('application/pdf');
     expect(res.body.slice(0, 5).toString()).toBe('%PDF-');
-    const words = async (buf: Loose) => (await extractPdfTextItems(buf)).map((i) => i.str).join(' ');
+    const words = async (buf: Uint8Array) => (await extractPdfTextItems(buf)).map((i) => i.str).join(' ');
     const letter = await words(res.body);
     expect(letter).toContain('Hold Information Letter - Customer');
     expect(letter).toContain('Easy Stones - Seattle');
     expect(letter).toContain('18 Branch Rd'); // the branch's own address
     expect(letter).toContain('$24.50');
     expect(letter).not.toContain('Customer viewing Tuesday'); // internal notes stay internal
-    const bare = await api('get', `/${h._id}/pdf?hide=pricing,inventory`).buffer(true).parse((r: Loose, cb: Loose) => { const chunks = []; r.on('data', (c: Loose) => chunks.push(c)); r.on('end', () => cb(null, Buffer.concat(chunks))); }).expect(200);
+    const bare = await api('get', `/${h._id}/pdf?hide=pricing,inventory`).buffer(true).parse((r: Loose, cb: (err: Error | null, bytes: Buffer) => void) => { const chunks: Uint8Array[] = []; r.on('data', (c: Uint8Array) => chunks.push(c)); r.on('end', () => cb(null, Buffer.concat(chunks))); }).expect(200);
     const bareText = await words(bare.body);
     expect(bareText).not.toContain('$');
     expect(bareText).not.toContain('14744-29');

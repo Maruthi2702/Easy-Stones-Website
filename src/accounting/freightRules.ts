@@ -30,10 +30,10 @@ import type { Loose } from '../types/records.ts';
  */
 import { toCents, sumCents, isValidAmount } from './money.ts';
 
-export const CHARGE_STATUSES = Object.freeze(['draft', 'approved', 'paid', 'void']);
-export const INVOICE_STATUSES = Object.freeze(['draft', 'approved', 'paid', 'void']);
+export const CHARGE_STATUSES = Object.freeze(['draft', 'approved', 'paid', 'void'] as const);
+export const INVOICE_STATUSES = Object.freeze(['draft', 'approved', 'paid', 'void'] as const);
 export const PAYMENT_TERMS = Object.freeze({ PER_DELIVERY: 'per_delivery', PER_INVOICE: 'per_invoice' });
-export const PAYMENT_METHODS = Object.freeze(['check', 'ach', 'card', 'cash', 'other']);
+export const PAYMENT_METHODS = Object.freeze(['check', 'ach', 'card', 'cash', 'other'] as const);
 
 export const STATUS_LABELS = Object.freeze({ draft: 'To approve', approved: 'Approved', paid: 'Paid', void: 'Void' });
 
@@ -46,7 +46,7 @@ const ENTITY_SUFFIX = /\b(incorporated|inc|llc|l\.l\.c|ltd|limited|co|corp|corpo
  * "abc freight" are the same carrier. Typed freely on deliveries, so the
  * carrier list matches on this plus each carrier's aliases.
  */
-export const normalizeCarrierName = (name: string) => String(name || '')
+export const normalizeCarrierName = (name: unknown) => String(name || '')
   .toLowerCase()
   .replace(/&/g, ' and ')
   .replace(ENTITY_SUFFIX, ' ')
@@ -55,7 +55,7 @@ export const normalizeCarrierName = (name: string) => String(name || '')
   .trim();
 
 /** The carrier a typed name belongs to (active ones first), or null. */
-export function matchCarrier(carriers: Loose[] = [], rawName: Loose) {
+export function matchCarrier(carriers: Loose[] = [], rawName: unknown) {
   const key = normalizeCarrierName(rawName);
   if (!key) return null;
   const hits = carriers.filter((c) => [c.name, ...(c.aliases || [])].some((n) => normalizeCarrierName(n) === key));
@@ -65,7 +65,7 @@ export function matchCarrier(carriers: Loose[] = [], rawName: Loose) {
 // ── Deliveries → charges ─────────────────────────────────────────────────
 
 /** Fields a charge takes from its delivery. */
-export const DERIVED_FIELDS = Object.freeze(['soNumber', 'customerName', 'deliveryDate', 'location', 'carrierNameRaw', 'bolNumber', 'amountCents']);
+export const DERIVED_FIELDS = Object.freeze(['soNumber', 'customerName', 'deliveryDate', 'location', 'carrierNameRaw', 'bolNumber', 'amountCents'] as const);
 
 export const FIELD_LABELS = Object.freeze({
   soNumber: 'SO#', customerName: 'Customer', deliveryDate: 'Date', location: 'Branch',
@@ -78,12 +78,12 @@ export const FIELD_LABELS = Object.freeze({
  * 2026-10-09). A will call has no carrier; any other type on a 3rd-party
  * truck — jobsite, transfer, return — does.
  */
-export const qualifiesForCharge = (delivery: Loose, isThirdPartyTruck: Loose) => Boolean(
+export const qualifiesForCharge = (delivery: Loose | null, isThirdPartyTruck: boolean) => Boolean(
   delivery && isThirdPartyTruck && delivery.status === 'completed' && delivery.deliveryType !== 'will_call'
 );
 
 /** Why a delivery no longer creates a charge — shown on the review flag. */
-export function whyNotOwed(delivery: Loose, isThirdPartyTruck: Loose) {
+export function whyNotOwed(delivery: Loose | null, isThirdPartyTruck: boolean) {
   if (!delivery) return 'The delivery was deleted';
   if (delivery.status === 'cancelled') return 'The delivery was cancelled';
   if (delivery.deliveryType === 'will_call') return 'The delivery became a will call';
@@ -107,7 +107,7 @@ export function derivedFromDelivery(delivery: Loose = {}) {
   };
 }
 
-const sameValue = (a: Loose, b: Loose) => (a ?? null) === (b ?? null);
+const sameValue = (a: unknown, b: unknown) => (a ?? null) === (b ?? null);
 
 /**
  * What to do with a delivery's charge after the delivery changed.
@@ -121,7 +121,12 @@ const sameValue = (a: Loose, b: Loose) => (a ?? null) === (b ?? null);
  *   { op: 'update', set, flag?, clearReopened? }
  * where `flag` is a review flag to add ({ code, detail }).
  */
-export function planSync({ charge = null, delivery = null, thirdParty = false, carrierId = null, startDate = '', now = new Date() }: Loose = {}) {
+export type FreightSyncPlan =
+  | { op: 'none'; doc?: never; set?: never; flag?: never; clearReopened?: never }
+  | { op: 'create'; doc: Loose; set?: never; flag?: never; clearReopened?: never }
+  | { op: 'update'; doc?: never; set: Loose; flag?: Loose; clearReopened?: boolean };
+
+export function planSync({ charge = null, delivery = null, thirdParty = false, carrierId = null, startDate = '', now = new Date() }: Loose = {}): FreightSyncPlan {
   const owed = qualifiesForCharge(delivery, thirdParty);
   const derived = delivery ? derivedFromDelivery(delivery) : null;
 
@@ -148,7 +153,7 @@ export function planSync({ charge = null, delivery = null, thirdParty = false, c
   // Void is final; nothing the schedule does brings it back.
   if (charge.status === 'void' || charge.source !== 'delivery') return { op: 'none' };
 
-  const hasOpenFlag = (code: Loose) => (charge.flags || []).some((f: Loose) => f.code === code && !f.resolvedAt);
+  const hasOpenFlag = (code: string) => (charge.flags || []).some((f: Loose) => f.code === code && !f.resolvedAt);
 
   if (!owed) {
     if (hasOpenFlag('delivery_reopened')) return { op: 'none' };
@@ -156,14 +161,14 @@ export function planSync({ charge = null, delivery = null, thirdParty = false, c
   }
 
   const snapshot = charge.sourceSnapshot || {};
-  const changed = DERIVED_FIELDS.filter((f) => !sameValue(snapshot[f], derived[f]));
+  const changed = DERIVED_FIELDS.filter((f) => !sameValue(snapshot[f], derived![f]));
   const reopenedAgain = hasOpenFlag('delivery_reopened');
 
   if (charge.status === 'draft') {
     const handSet = new Set(charge.handSet || []);
-    const set = { sourceSnapshot: derived };
+    const set: Loose = { sourceSnapshot: derived };
     for (const f of DERIVED_FIELDS) {
-      if (!handSet.has(f) && !sameValue(charge[f], derived[f])) set[f] = derived[f];
+      if (!handSet.has(f) && !sameValue(charge[f], derived![f])) set[f] = derived![f];
     }
     if (!handSet.has('carrierId') && carrierId && String(charge.carrierId || '') !== String(carrierId)) set.carrierId = carrierId;
     const moneyChanged = Object.keys(set).length > 1;
@@ -173,7 +178,7 @@ export function planSync({ charge = null, delivery = null, thirdParty = false, c
 
   // Approved or paid: frozen. Record what the delivery now says, and flag it.
   if (!changed.length) return reopenedAgain ? { op: 'update', set: {}, clearReopened: true } : { op: 'none' };
-  const detail = changed.map((f) => `${FIELD_LABELS[f]}: ${display(f, snapshot[f])} → ${display(f, derived[f])}`).join('; ');
+  const detail = changed.map((f) => `${(FIELD_LABELS as Record<string, string>)[f]}: ${display(f, snapshot[f])} → ${display(f, derived![f])}`).join('; ');
   return {
     op: 'update',
     set: { sourceSnapshot: derived },
@@ -182,8 +187,8 @@ export function planSync({ charge = null, delivery = null, thirdParty = false, c
   };
 }
 
-const display = (field: string, v: Loose) => {
-  if (field === 'amountCents') return v === null || v === undefined ? 'no price' : `$${(v / 100).toFixed(2)}`;
+const display = (field: string, v: unknown) => {
+  if (field === 'amountCents') return v === null || v === undefined ? 'no price' : `$${((v as number) / 100).toFixed(2)}`;
   return v ? String(v) : '(blank)';
 };
 
@@ -208,11 +213,11 @@ export function flagProblem(charge: Loose) {
 /** null when allowed, else a sentence saying why not. */
 export function editProblem(charge: Loose) {
   if (!charge) return 'Charge not found.';
-  if (charge.status !== 'draft') return `A ${STATUS_LABELS[charge.status].toLowerCase()} charge can't be edited.`;
+  if (charge.status !== 'draft') return `A ${(STATUS_LABELS as Record<string,string>)[charge.status].toLowerCase()} charge can't be edited.`;
   return null;
 }
 
-export function approveProblem(charge: Loose, carrier: Loose) {
+export function approveProblem(charge: Loose, carrier: Loose | null | undefined) {
   if (!charge) return 'Charge not found.';
   if (charge.status !== 'draft') return 'Only a charge waiting for approval can be approved.';
   const flagged = flagProblem(charge);
@@ -251,7 +256,7 @@ export function payProblem(charge: Loose, { carrier = null, canApprove = false }
 }
 
 /** Paying it also approves it (a draft paid in one step). */
-export const approvesWhenPaid = (record: Loose) => record?.status === 'draft';
+export const approvesWhenPaid = (record?: Loose | null) => record?.status === 'draft';
 
 /**
  * One payment is money to one carrier — a check is written to one payee — so
@@ -275,11 +280,11 @@ export function voidProblem(charge: Loose) {
 // ── Carrier invoices ─────────────────────────────────────────────────────
 
 /** Can these charges go on one invoice for `carrierId`? null or a reason. */
-export function invoiceChargesProblem(charges: Loose[] = [], carrierId: Loose, { invoiceId = null }: Loose = {}) {
+export function invoiceChargesProblem(charges: Loose[] = [], carrierId: unknown, { invoiceId = null }: Loose = {}) {
   if (!charges.length) return 'Pick at least one charge for the invoice.';
   for (const c of charges) {
     if (String(c.carrierId || '') !== String(carrierId)) return `SO# ${c.soNumber || '—'} is for a different carrier.`;
-    if (c.status !== 'draft') return `SO# ${c.soNumber || '—'} is ${STATUS_LABELS[c.status].toLowerCase()} — only charges waiting for approval can go on an invoice.`;
+    if (c.status !== 'draft') return `SO# ${c.soNumber || '—'} is ${(STATUS_LABELS as Record<string,string>)[c.status].toLowerCase()} — only charges waiting for approval can go on an invoice.`;
     if (c.invoiceId && String(c.invoiceId) !== String(invoiceId || '')) return `SO# ${c.soNumber || '—'} is already on another invoice.`;
   }
   return null;

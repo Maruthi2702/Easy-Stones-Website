@@ -7,7 +7,7 @@ const visit = (i: number, extra: Loose = {}): Loose => ({
   name: `Visitor ${i}`, phone: '(206) 555-0100', fabricatorCompany: 'Premier Quartz', location: 'Seattle',
   salesRep: 'Krish', createdAt: new Date(Date.UTC(2026, 9, 8, 18, 0) - i * 3600e3).toISOString(), ...extra
 });
-const pagesOf = async (bytes: unknown) => (await PDFDocument.load(bytes)).getPageCount();
+const pagesOf = async (bytes: Uint8Array) => (await PDFDocument.load(bytes)).getPageCount();
 
 describe('buildCheckInLogPdf', () => {
   it('makes a one-page PDF that says when nothing matches', async () => {

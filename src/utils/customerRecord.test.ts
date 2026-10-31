@@ -43,26 +43,26 @@ describe('newCustomerFields', () => {
             { company: 'Stone Pros', status: 'New Lead', phone: '' },
             { now: 1, random: () => 0.123456789 }
         );
-        expect(fields.contactName).toBe('Stone Pros');
-        expect(fields.email).toMatch(/^sales_1_[a-z0-9]+@temp-customer\.com$/);
-        expect(fields.marketingEmail).toBe('');
-        expect(fields.level).toBe('Level - 3');
-        expect(fields.priceLevel).toBe(3);
-        expect(fields.location).toBe('Seattle');
-        expect(fields.status).toBe('New Lead');
+        expect((fields)!.contactName).toBe('Stone Pros');
+        expect((fields)!.email).toMatch(/^sales_1_[a-z0-9]+@temp-customer\.com$/);
+        expect((fields)!.marketingEmail).toBe('');
+        expect((fields)!.level).toBe('Level - 3');
+        expect((fields)!.priceLevel).toBe(3);
+        expect((fields)!.location).toBe('Seattle');
+        expect((fields)!.status).toBe('New Lead');
     });
 
     it('marketing email follows the email when not given', () => {
-        expect(newCustomerFields({ company: 'A', email: 'a@b.com' }).fields.marketingEmail).toBe('a@b.com');
+        expect((newCustomerFields({ company: 'A', email: 'a@b.com' }).fields)!.marketingEmail).toBe('a@b.com');
     });
 
     it('leaves status to the schema default when not sent', () => {
-        expect('status' in newCustomerFields({ company: 'A' }).fields).toBe(false);
+        expect('status' in (newCustomerFields({ company: 'A' }).fields)!).toBe(false);
     });
 
     it('never carries a password, login or map field from the body', () => {
         const { fields } = newCustomerFields({ company: 'A', password: 'x', isVerified: true, coordinates: { lat: 1, lng: 2 }, salesRepName: 'Me' });
-        for (const k of ['password', 'isVerified', 'coordinates', 'salesRepName']) expect(k in fields).toBe(false);
+        for (const k of ['password', 'isVerified', 'coordinates', 'salesRepName']) expect(k in (fields)!).toBe(false);
     });
 });
 

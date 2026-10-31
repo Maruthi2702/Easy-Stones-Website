@@ -21,9 +21,9 @@ import { geocodeCustomersInBackground } from './customerGeocoding.ts';
  */
 const BATCH = 100;
 const WRITING = new Set(['new', 'update', 'restore', 'keptDeleted']);
-const active = new Set(); // runIds being worked in this process
+const active = new Set<string>(); // runIds being worked in this process
 
-const idOf = (id: string) => new mongoose.Types.ObjectId(String(id));
+const idOf = (id: unknown) => new mongoose.Types.ObjectId(String(id));
 
 /** Save the plan's outcomes as the run's items and mark the run as running. */
 export async function freezePlan(run: Loose, plan: Loose, startedBy = '') {
@@ -61,7 +61,7 @@ export async function freezePlan(run: Loose, plan: Loose, startedBy = '') {
   return items.length;
 }
 
-const bump = (run: Loose, result: Loose) => SpsImportRun.updateOne({ _id: run }, { $inc: { [`results.${result}`]: 1, done: 1 } });
+const bump = (run: string, result: string) => SpsImportRun.updateOne({ _id: run }, { $inc: { [`results.${result}`]: 1, done: 1 } });
 
 /** Write one item. Returns { result, reason?, createdId? }; never throws for a data problem. */
 async function writeItem(item: Loose, runId: string) {
@@ -78,7 +78,7 @@ async function writeItem(item: Loose, runId: string) {
       if (res.upsertedCount) return { result: 'added', createdId: String(raw._id) };
       const there = await Customer.collection.findOne({ 'sps.key': item.key }, { projection: { 'sps.runId': 1 } });
       return there?.sps?.runId === runId
-        ? { result: 'added', createdId: String(there._id) }   // an earlier try of this run already added it
+        ? { result: 'added', createdId: String(there!._id) }   // an earlier try of this run already added it
         : { result: 'unchanged', reason: 'already in Easy Stones' };
     }
 
@@ -110,14 +110,14 @@ async function writeItem(item: Loose, runId: string) {
     }
     return { result: 'unchanged' };
   } catch (err) {
-    const taken = err?.code === 11000;
-    return { result: 'failed', reason: taken ? `${String(err.keyPattern ? Object.keys(err.keyPattern)[0] : 'a unique value')} is already used by another customer` : err.message };
+    const taken = (err as Error & Loose)?.code === 11000;
+    return { result: 'failed', reason: taken ? `${String((err as Error & Loose).keyPattern ? Object.keys((err as Error & Loose).keyPattern)[0] : 'a unique value')} is already used by another customer` : (err as Error).message };
   }
 }
 
 /** Work the run's pending items in batches, then check it. One worker per run. */
-export async function runItems(runId: string) {
-  runId = String(runId);
+export async function runItems(rawRunId: unknown) {
+  const runId = String(rawRunId);
   if (active.has(runId)) return;
   active.add(runId);
   try {
@@ -141,13 +141,13 @@ export async function runItems(runId: string) {
     }
   } catch (err) {
     console.error('SPS import run error:', err);
-    await SpsImportRun.updateOne({ _id: runId }, { $set: { status: 'failed', error: err.message, finishedAt: new Date() } });
+    await SpsImportRun.updateOne({ _id: runId }, { $set: { status: 'failed', error: (err as Error).message, finishedAt: new Date() } });
   } finally {
     active.delete(runId);
   }
 }
 
-const finishRun = async (runId: string, verify: boolean) => {
+const finishRun = async (runId: string, verify: Awaited<ReturnType<typeof checkRun>>) => {
   await SpsImportRun.updateOne({ _id: runId }, { $set: { verify, status: 'done', finishedAt: new Date() } });
   // Added, restored and updated customers are saved 'pending' (no pin); give them one now.
   const written = await SpsImportItem.find({ runId, state: 'done', result: { $in: ['added', 'updated', 'restored'] } }).select('createdId customerId').lean();
@@ -159,8 +159,8 @@ const finishRun = async (runId: string, verify: boolean) => {
  * file up in the database and say which aren't there and why. A run is only
  * green with nothing missing.
  */
-export async function checkRun(runId: string) {
-  runId = String(runId);
+export async function checkRun(rawRunId: unknown) {
+  const runId = String(rawRunId);
   const expected = await SpsImportItem.find({ runId, action: { $in: ['new', 'update', 'unchanged', 'restore'] } }).select('key name rowNumber result reason').lean();
   const present = new Set();
   const keys = expected.map((e) => e.key);
@@ -181,8 +181,8 @@ export async function checkRun(runId: string) {
 }
 
 /** Re-run only the items that failed, then check again. */
-export async function retryFailed(runId: string) {
-  runId = String(runId);
+export async function retryFailed(rawRunId: unknown) {
+  const runId = String(rawRunId);
   const failed = await SpsImportItem.countDocuments({ runId, state: 'failed' });
   if (!failed) return 0;
   await SpsImportItem.updateMany({ runId, state: 'failed' }, { $set: { state: 'pending', result: '', reason: '' } });
@@ -204,10 +204,10 @@ export async function resumeRunningImports() {
  * updated goes back to the values it replaced, what it brought back is
  * deleted again, and a "keep deleted" answer is forgotten.
  */
-export async function undoRun(runId: string, by = '') {
-  runId = String(runId);
+export async function undoRun(rawRunId: unknown, by = '') {
+  const runId = String(rawRunId);
   const items = await SpsImportItem.find({ runId, result: { $in: ['added', 'updated', 'restored', 'keptDeleted'] } }).lean();
-  const out = { removed: 0, reverted: 0, deletedAgain: 0, forgotten: 0, failed: [] };
+  const out = { removed: 0, reverted: 0, deletedAgain: 0, forgotten: 0, failed: [] as { key: string; name: string; reason: string }[] };
   for (const item of items) {
     try {
       if (item.result === 'added' && item.createdId) {
@@ -219,7 +219,7 @@ export async function undoRun(runId: string, by = '') {
         out.deletedAgain++;
       } else if (item.result === 'updated') {
         const set = { ...(item.before || {}) };
-        const unset = Object.fromEntries((item.unset || []).map((p) => [p, '']));
+        const unset = Object.fromEntries((item.unset || []).map((p: string) => [p, '']));
         const update: Loose = {};
         if (Object.keys(set).length) update.$set = set;
         if (Object.keys(unset).length) update.$unset = unset;
@@ -230,7 +230,7 @@ export async function undoRun(runId: string, by = '') {
         out.forgotten++;
       }
     } catch (err) {
-      out.failed.push({ key: item.key, name: item.name, reason: err.message });
+      out.failed.push({ key: item.key, name: item.name, reason: (err as Error).message });
     }
   }
   await SpsImportRun.updateOne({ _id: runId }, { $set: { status: 'undone', undoneAt: new Date(), undoneBy: by } });

@@ -16,9 +16,9 @@ const { default: User } = await import('../models/User.ts');
 const { default: Role } = await import('../models/Role.ts');
 const { createTeamAccess } = await import('../services/teamAccess.ts');
 
-let mongo;
-let app;
-let manager;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
+let manager!: Loose;
 
 const make = (over: Loose) => new User({ password: 'Granite-4821-Ridge', email: 'x@x.com', ...over }).save();
 const as = (user: Loose) => ({ 'x-acting': JSON.stringify(user) });
@@ -26,12 +26,12 @@ const as = (user: Loose) => ({ 'x-acting': JSON.stringify(user) });
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create();
   await mongoose.connect(mongo.getUri());
-  const authenticate = (req: Loose, res: Loose, next: Loose) => {
+  const authenticate = (req: Loose, res: Loose, next: () => void) => {
     if (!req.headers['x-acting']) return res.status(401).json({ error: 'none' });
     req.user = JSON.parse(req.headers['x-acting']);
     next();
   };
-  const requirePermission = (p: Loose) => (req: Loose, res: Loose, next: Loose) => (req.user?.permissions.includes(p) ? next() : res.status(403).json({ message: 'No' }));
+  const requirePermission = (p: string) => (req: Loose, res: Loose, next: () => void) => (req.user?.permissions.includes(p) ? next() : res.status(403).json({ message: 'No' }));
   const { usersAccess, memberAllowed, teamUsers } = createTeamAccess({ Role, User });
   app = express();
   app.use(express.json());
@@ -46,10 +46,10 @@ afterAll(async () => {
   await mongo?.stop();
 });
 
-let rep;
-let spokaneRep;
-let otherManager;
-let teamActor;
+let rep!: Loose;
+let spokaneRep!: Loose;
+let otherManager!: Loose;
+let teamActor!: Loose;
 const adminActor = { id: 'a', role: 'admin', permissions: ['manage_users'], assignedLocations: ['*'] };
 
 beforeEach(async () => {
@@ -90,7 +90,7 @@ describe('the Users list', () => {
 describe('unlocking', () => {
   it('works on someone in scope', async () => {
     await request(app).post(`/api/admin/users/${rep._id}/unlock`).set(as(teamActor)).expect(200);
-    expect((await User.findById(rep._id)).loginAttempts).toBe(0);
+    expect(((await User.findById(rep._id)))!.loginAttempts).toBe(0);
   });
   it('is refused for another location, an unlisted role, and themselves', async () => {
     await request(app).post(`/api/admin/users/${spokaneRep._id}/unlock`).set(as(teamActor)).expect(403);

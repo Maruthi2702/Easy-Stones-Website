@@ -1,3 +1,5 @@
+import type { Loose } from '../src/types/records.ts';
+import type { UploadApiResponse } from 'cloudinary';
 /**
  * Move photos stored inline (base64 inside the customer record) to Cloudinary.
  *
@@ -32,37 +34,37 @@ dotenv.config();
 
 const apply = process.argv.includes('--apply');
 const BACKUP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'merge-backups');
-const FOLDER = { visits: 'visits', resources: 'Resources' };
+const FOLDER: Record<string, string> = { visits: 'visits', resources: 'Resources' };
 
-const isInlineImage = (v) => typeof v === 'string' && v.startsWith('data:image/');
-const isInlinePdf = (v) => typeof v === 'string' && v.startsWith('data:application/pdf');
-const isInlineOther = (v) => typeof v === 'string' && v.startsWith('data:') && !isInlineImage(v) && !isInlinePdf(v);
-const asList = (img) => (Array.isArray(img) ? img : img ? [img] : []);
-const kb = (bytes) => Math.round(bytes / 1024);
+const isInlineImage = (v: string) => typeof v === 'string' && v.startsWith('data:image/');
+const isInlinePdf = (v: string) => typeof v === 'string' && v.startsWith('data:application/pdf');
+const isInlineOther = (v: string) => typeof v === 'string' && v.startsWith('data:') && !isInlineImage(v) && !isInlinePdf(v);
+const asList = (img: string | string[] | null | undefined) => (Array.isArray(img) ? img : img ? [img] : []);
+const kb = (bytes: number) => Math.round(bytes / 1024);
 
-const upload = async (dataUrl, folder) => {
-  const buffer = Buffer.from(dataUrl.split(';base64,').pop(), 'base64');
+const upload = async (dataUrl: string, folder: string) => {
+  const buffer = Buffer.from(dataUrl.split(';base64,').pop()!, 'base64');
   const optimized = await sharp(buffer)
     .resize(1000, 1000, { fit: 'inside', withoutEnlargement: true })
     .webp({ quality: 75, effort: 2 })
     .toBuffer();
   const publicId = `img_migrated_${Date.now()}_${Math.round(Math.random() * 1e9)}`;
-  const result = await new Promise((resolve, reject) => {
+  const result = await new Promise<UploadApiResponse>((resolve, reject) => {
     cloudinary.uploader.upload_stream(
       { folder, public_id: publicId, resource_type: 'image' },
-      (error, res) => (error ? reject(error) : resolve(res))
+      (error, res) => (error ? reject(error) : resolve(res!))
     ).end(optimized);
   });
   return result.secure_url;
 };
 
-const uploadPdf = async (dataUrl, folder) => {
-  const buffer = Buffer.from(dataUrl.split(';base64,').pop(), 'base64');
+const uploadPdf = async (dataUrl: string, folder: string) => {
+  const buffer = Buffer.from(dataUrl.split(';base64,').pop()!, 'base64');
   const publicId = `pdf_migrated_${Date.now()}_${Math.round(Math.random() * 1e9)}.pdf`;
-  const result = await new Promise((resolve, reject) => {
+  const result = await new Promise<UploadApiResponse>((resolve, reject) => {
     cloudinary.uploader.upload_stream(
       { folder, public_id: publicId, resource_type: 'raw' },
-      (error, res) => (error ? reject(error) : resolve(res))
+      (error, res) => (error ? reject(error) : resolve(res!))
     ).end(buffer);
   });
   return result.secure_url;
@@ -78,8 +80,8 @@ const main = async () => {
     api_secret: process.env.CLOUDINARY_API_SECRET
   });
 
-  await mongoose.connect(process.env.MONGO_URI);
-  const col = mongoose.connection.db.collection('customers');
+  await mongoose.connect(process.env.MONGO_URI!);
+  const col = mongoose.connection.db!.collection('customers');
 
   const docs = await col.find(
     { $or: [{ 'visits.image': /^data:/ }, { 'resources.image': /^data:/ }] },
@@ -87,7 +89,7 @@ const main = async () => {
   ).toArray();
 
   // One job per visit/resource entry holding inline data.
-  const jobs = [];
+  const jobs: Loose[] = [];
   for (const doc of docs) {
     for (const kind of ['visits', 'resources']) {
       for (const entry of doc[kind] || []) {
@@ -107,7 +109,7 @@ const main = async () => {
     { $match: { _id: { $in: docs.map((d) => d._id) } } },
     { $project: { s: { $bsonSize: '$$ROOT' } } }
   ]).toArray()).map((r) => [String(r._id), r.s]));
-  const sizeOf = (doc) => sizes.get(String(doc._id)) || 0;
+  const sizeOf = (doc: Loose) => sizes.get(String(doc._id)) || 0;
   console.log(`${docs.length} customers, ${jobs.length} entries, ${jobs.reduce((n, j) => n + j.images.length, 0)} inline photos, ${jobs.reduce((n, j) => n + j.pdfs.length, 0)} inline PDFs.\n`);
   for (const doc of docs) {
     const mine = jobs.filter((j) => String(j.customerId) === String(doc._id));
@@ -147,7 +149,7 @@ const main = async () => {
       moved += res.modifiedCount ? count : 0;
       console.log(`  ${job.kind.slice(0, -1)} ${job.entryId}: ${res.modifiedCount ? `moved ${count}` : 'not changed'}`);
     } catch (err) {
-      console.error(`  ${job.kind.slice(0, -1)} ${job.entryId}: FAILED (${err.message}) — left as it was`);
+      console.error(`  ${job.kind.slice(0, -1)} ${job.entryId}: FAILED (${(err as Error).message}) — left as it was`);
     }
   }
   console.log(`\nMoved ${moved} files (photos and PDFs) to Cloudinary.`);

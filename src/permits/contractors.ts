@@ -32,7 +32,7 @@ export const LNI_TABLES = Object.freeze({
   principals: 'https://data.wa.gov/resource/4xk5-x9j6.json'
 });
 /** The state's own page for a license ("Verify a Contractor"). */
-export const lniVerifyUrl = (license: unknown) => `https://secure.lni.wa.gov/verify/Detail.aspx?LIC=${encodeURIComponent(license)}`;
+export const lniVerifyUrl = (license: unknown) => `https://secure.lni.wa.gov/verify/Detail.aspx?LIC=${encodeURIComponent(license as string)}`;
 const FIELDS = [
   'businessname', 'contractorlicensenumber', 'contractorlicensetypecodedesc', 'address1', 'city', 'state', 'zip', 'phonenumber',
   'licenseexpirationdate', 'specialtycode1desc', 'specialtycode2desc', 'contractorlicensestatus', 'statuscode', 'primaryprincipalname', 'ubi'

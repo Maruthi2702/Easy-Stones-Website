@@ -43,7 +43,7 @@ const customers = (n: number) => (n === 1 ? '1 customer' : `${n} customers`);
 export const deleteTitle = (count: number) => `Delete ${customers(count)}?`;
 
 /** Names for the confirmation: the first few, then "and N more". */
-export const namesToShow = (names: string[] = [], shown = 5) => {
+export const namesToShow = (names: (string | null | undefined)[] = [], shown = 5) => {
   const list = names.map((n) => String(n || '').trim() || 'Unnamed customer');
   return list.length <= shown
     ? { names: list, more: 0 }
@@ -57,5 +57,5 @@ export const deletedMessage = (deleted: number) => `${customers(deleted)} delete
 export const restoredMessage = ({ restored = 0, failed = [] }: Loose = {}) => {
   const back = restored === 1 ? '1 customer restored' : `${restored} customers restored`;
   if (!failed.length) return back;
-  return `${back}; ${customers(failed.length)} couldn’t be — ${failed.map((f) => f.company || f.id).join(', ')}`;
+  return `${back}; ${customers(failed.length)} couldn’t be — ${failed.map((f: Loose) => f.company || f.id).join(', ')}`;
 };

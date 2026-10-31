@@ -1,3 +1,4 @@
+import type { Loose } from './src/types/records.ts';
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -28,14 +29,14 @@ async function ensureIndexes() {
         console.log(`✅ ${name} indexes created successfully`);
       } catch (err) {
         failures++;
-        console.error(`⚠️ ${name} index creation failed: ${err.message}`);
+        console.error(`⚠️ ${name} index creation failed: ${(err as Error).message}`);
       }
     }
 
     console.log('');
     for (const [name, model] of INDEXED_MODELS) {
       const idx = await model.collection.getIndexes();
-      console.log(`📋 ${name} Indexes:`, Object.keys(idx));
+      console.log(`📋 ${name} Indexes:`, Object.keys(idx as object));
     }
 
     await mongoose.disconnect();

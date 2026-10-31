@@ -77,7 +77,7 @@ describe('dataIssues', () => {
 
 describe('savedViewQuery', () => {
   it('scopes "My accounts" to the caller, through the id converter', () => {
-    expect(savedViewQuery('mine', { userId: 'u1', toId: (x) => `oid(${x})` })).toEqual({ salesRep: 'oid(u1)' });
+    expect(savedViewQuery('mine', { userId: 'u1', toId: (x: Loose) => `oid(${x})` })).toEqual({ salesRep: 'oid(u1)' });
   });
   it('matches nothing for "My accounts" without a user, rather than everything', () => {
     expect(savedViewQuery('mine', {})).toEqual({ _id: null });
@@ -107,12 +107,12 @@ describe('addDays', () => {
 describe('letterQuery', () => {
   it('matches the company, or the name when there is no company', () => {
     const q = letterQuery('g');
-    expect(q.$or[0].company.test('GDS Countertops')).toBe(true);
-    expect(q.$or[0].company.test('Absolute')).toBe(false);
+    expect(((q)!.$or[0].company)!.test('GDS Countertops')).toBe(true);
+    expect(((q)!.$or[0].company)!.test('Absolute')).toBe(false);
   });
   it('uses # for names that start with a non-letter', () => {
-    expect(letterQuery('#').$or[0].company.test('1 Stop Interiors')).toBe(true);
-    expect(letterQuery('#').$or[0].company.test('ABI Granite')).toBe(false);
+    expect(((letterQuery('#'))!.$or[0].company)!.test('1 Stop Interiors')).toBe(true);
+    expect(((letterQuery('#'))!.$or[0].company)!.test('ABI Granite')).toBe(false);
   });
   it('ignores anything that is not a single letter or #', () => {
     expect(letterQuery('')).toBeNull();
@@ -131,14 +131,14 @@ describe('scopedFilterOptions', () => {
 
   it('gives admins and directors everything', () => {
     const o = scopedFilterOptions({ user: { id: 'k', permissions: ['view_all_visits'] }, salesReps: reps, locations });
-    expect(o.reps.map(r => r._id)).toEqual(['k', 'v', 's']);
+    expect(o.reps.map((r: Loose) => r._id)).toEqual(['k', 'v', 's']);
     expect(o.locations).toEqual(locations);
   });
   it('gives a manager the reps and locations in their branches', () => {
     const o = scopedFilterOptions({
       user: { id: 'm', permissions: ['view_branch_visits'], assignedLocations: ['Spokane'] }, salesReps: reps, locations
     });
-    expect(o.reps.map(r => r._id)).toEqual(['s']);
+    expect(o.reps.map((r: Loose) => r._id)).toEqual(['s']);
     expect(o.locations).toEqual(['Spokane']);
   });
   it('treats a * branch assignment as all', () => {
@@ -151,7 +151,7 @@ describe('scopedFilterOptions', () => {
     const o = scopedFilterOptions({
       user: { id: 'k', permissions: [], location: 'Seattle' }, salesReps: reps, locations: [{ name: 'Seattle' }, { name: 'Dallas' }]
     });
-    expect(o.reps.map(r => r._id)).toEqual(['k']);
+    expect(o.reps.map((r: Loose) => r._id)).toEqual(['k']);
     expect(o.locations).toEqual(['Seattle']);
   });
 });

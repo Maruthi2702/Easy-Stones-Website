@@ -67,7 +67,7 @@ describe('salesRepNameOptions — every dropdown that saves a rep\'s name', () =
   });
 
   it('carries each rep\'s email (the Selection Sheet emails its rep)', () => {
-    expect(salesRepNameOptions(staff).find((o) => o.value === 'Kim').email).toBe('kim@x.com');
+    expect((salesRepNameOptions(staff).find((o) => o.value === 'Kim'))!.email).toBe('kim@x.com');
   });
 });
 

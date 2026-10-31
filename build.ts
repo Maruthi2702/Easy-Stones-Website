@@ -1,3 +1,4 @@
+import type { Loose } from './src/types/records.ts';
 import { build } from 'esbuild';
 import { copyFileSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';

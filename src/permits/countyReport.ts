@@ -27,7 +27,7 @@ const TIMEOUT_MS = 60000;
 const decode = (s: string) => s.replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').replace(/&#39;/g, '\'').replace(/&quot;/g, '"');
 
 /** Every single-month "Permits Issued" report linked from the archive page. */
-export function parseArchive(html: unknown, pageUrl: unknown) {
+export function parseArchive(html: string, pageUrl: string) {
   const out = [];
   const seen = new Set();
   const re = /<a[^>]+href="(Archive\.aspx\?ADID=\d+)"[^>]*>([\s\S]*?)<\/a>/gi;
@@ -63,7 +63,7 @@ export function createCountyReports({ fetchImpl = globalThis.fetch, archives = R
   }
 
   /** Every permit number in one report. */
-  async function permitNumbers(reportUrl: unknown) {
+  async function permitNumbers(reportUrl: string) {
     const res = await get(reportUrl);
     if (!res.ok) throw new Error(`The county’s report answered ${res.status}`);
     const type = res.headers.get('content-type') || '';

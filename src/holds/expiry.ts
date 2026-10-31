@@ -38,7 +38,7 @@ export function createHoldExpiry({ io = null, log = console }: Loose = {}) {
           noted += 1;
         });
       } catch (err) {
-        log.error?.(`[holds] noting hold ${_id} expired failed:`, err?.message);
+        log.error?.(`[holds] noting hold ${_id} expired failed:`, (err as Error)?.message);
       }
     }
     return noted;
@@ -67,7 +67,7 @@ export function createHoldExpiry({ io = null, log = console }: Loose = {}) {
         });
         if (keys.length) { released += 1; announce(keys); }
       } catch (err) {
-        log.error?.(`[holds] releasing hold ${_id} failed:`, err?.message);
+        log.error?.(`[holds] releasing hold ${_id} failed:`, (err as Error)?.message);
       }
     }
     return released;

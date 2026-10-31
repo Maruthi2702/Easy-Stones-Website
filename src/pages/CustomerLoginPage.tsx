@@ -22,7 +22,7 @@ const CustomerLoginPage = () => {
     const [showPassword, setShowPassword] = useState(false);
     // The panel image is set in CSS so it swaps with the theme without a repaint
     // here; the caption has to follow it. Specs are the catalogue's own.
-    const SLABS = {
+    const SLABS: Record<string, { name: string; spec: string }> = {
         light: { name: 'Calacatta Lincoln', spec: 'Quartz · Polished · 126″ × 63″ · 3cm' },
         dark: { name: 'Nero Marquina', spec: 'Quartz · Polished · 126″ × 63″ · 3cm' }
     };
@@ -261,7 +261,7 @@ const CustomerLoginPage = () => {
                                             type="button"
                                             className="login-eye"
                                             onClick={() => setShowPassword(!showPassword)}
-                                            tabIndex="-1"
+                                            tabIndex={-1}
                                             aria-label={showPassword ? 'Hide password' : 'Show password'}
                                         >
                                             {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}

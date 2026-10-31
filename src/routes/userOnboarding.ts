@@ -1,3 +1,4 @@
+import type { ScalarQuery, ScalarParams } from '../types/server.ts';
 import type { Loose } from '../types/records.ts';
 import type { Request, RequestHandler, Response } from 'express';
 /**
@@ -98,7 +99,7 @@ export const sendInviteEmail = async ({ to, name, username, link, invitedBy, res
     const result = await sendEmail({ to, subject: reset ? 'Choose a new Easy Stones password' : 'Your Easy Stones account', html, defaultSenderName: 'Easy Stones' });
     return result?.success !== false;
   } catch (err) {
-    console.error('Invite email failed:', err?.message || err);
+    console.error('Invite email failed:', (err as Error)?.message || err);
     return false;
   }
 };
@@ -113,7 +114,7 @@ export default function createUserOnboardingRouter({
   const router = express.Router();
 
   router.get('/admin/users/username-available', authenticate, usersAccess('view'), async (req, res) => {
-    const username = String(req.query.username || '').trim().toLowerCase();
+    const username = String((req.query as ScalarQuery).username || '').trim().toLowerCase();
     const problem = usernameProblem(username);
     if (problem) return res.json({ available: false, reason: problem });
     try {
@@ -211,7 +212,7 @@ export default function createUserOnboardingRouter({
 
   router.get('/auth/invite/:token', loginLimiter, async (req, res) => {
     try {
-      const user = await findInvite(req.params.token);
+      const user = await findInvite((req.params as ScalarParams).token);
       if (!user) return res.json({ valid: false });
       res.json({ valid: true, username: user.username, name: String(user.displayName || '').trim() || user.username });
     } catch {
@@ -283,8 +284,8 @@ export default function createUserOnboardingRouter({
   // they stay signed in wherever they already are.
   router.post('/admin/users/:id/unlock', authenticate, usersAccess('unlock_users'), async (req, res) => {
     try {
-      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'User not found' });
-      const user = await User.findById(req.params.id);
+      if (!mongoose.isValidObjectId((req.params as ScalarParams).id)) return res.status(404).json({ message: 'User not found' });
+      const user = await User.findById((req.params as ScalarParams).id);
       if (!user) return res.status(404).json({ message: 'User not found' });
       if (!memberAllowed(req, user)) return res.status(403).json({ message: "You can't change this person's account." });
       clearSignInLock(user);

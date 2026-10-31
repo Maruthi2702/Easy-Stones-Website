@@ -16,13 +16,13 @@ import { ALL_ACCOUNTING_PERMISSIONS, FREIGHT, CARRIERS } from './permissions.ts'
 import Delivery from '../models/Delivery.ts';
 import User from '../models/User.ts';
 
-let rs;
-let app;
-let sync;
+let rs!: Loose;
+let app!: import('express').Express;
+let sync!: Loose;
 
 const ALL = { id: 'u1', displayName: 'Krish', role: 'admin', permissions: [...ALL_ACCOUNTING_PERMISSIONS], assignedLocations: ['*'] };
 const as = (user: Loose) => ({ 'x-test-user': JSON.stringify(user) });
-const api = (method: string, url: string, user = ALL) => request(app)[method](`/api/accounting${url}`).set(as(user));
+const api = (method: 'get' | 'post' | 'put' | 'patch' | 'delete', url: string, user = ALL) => request(app)[method](`/api/accounting${url}`).set(as(user));
 
 const newDelivery = (over: Loose = {}) => Delivery.create({
   id: `del_${Math.random().toString(36).slice(2)}`, customerName: 'Bella Pietra', soNumber: '150352',
@@ -38,7 +38,7 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.use('/api/accounting', createAccountingRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => {
+    authenticate: (req: Loose, res: Loose, next: () => void) => {
       const raw = req.headers['x-test-user'];
       if (!raw) return res.status(401).json({ error: 'Not signed in.' });
       req.user = JSON.parse(raw);
@@ -443,7 +443,7 @@ describe('tabs', () => {
     await Delivery.updateOne({ id: changed.id }, { freightFee: 520 });
     await sync.syncDeliveryIds([changed.id]);
 
-    const so = async (status: number) => (await api('get', `/freight-charges${status ? `?status=${status}` : ''}`).expect(200)).body;
+    const so = async (status: string) => (await api('get', `/freight-charges${status ? `?status=${status}` : ''}`).expect(200)).body;
     const list = (body: Loose) => body.items.map((c: Loose) => c.soNumber).sort();
     const toApprove = await so('');
     expect(list(toApprove)).toEqual(['A1', 'B2']); // the default tab

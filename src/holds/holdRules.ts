@@ -34,18 +34,18 @@ export const STATE_LABELS = Object.freeze({ active: 'Active', expired: 'Expired'
 // ── Slabs ────────────────────────────────────────────────────────────────
 
 /** "  14744-29 " → "14744-29". The key every cart line, hold line and lock uses. */
-export const slabKeyOf = (serial: Loose) => String(serial ?? '').trim().toUpperCase();
+export const slabKeyOf = (serial: unknown) => String(serial ?? '').trim().toUpperCase();
 
 /** Only whole slabs still in stock can be carted or held. */
 export const isHoldableSlab = (item: Loose) => Boolean(item) && item.type === 'SLAB' && Number(item.instockQty) > 0 && Boolean(slabKeyOf(item.serialNumber));
 
 /** Square feet as whole hundredths (55.1 SF → 5510), so money math stays in integers. */
-export const sfHundredthsOf = (qty: Loose) => {
+export const sfHundredthsOf = (qty: unknown) => {
   const n = Number(qty);
   return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
 };
 
-export const formatSf = (hundredths: Loose) => `${(Number(hundredths || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} SF`;
+export const formatSf = (hundredths: unknown) => `${(Number(hundredths || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} SF`;
 
 /** What a hold line keeps of a slab: a snapshot, so a later SPS import never changes a past hold. */
 export const slabSnapshot = (item: Loose = {}) => ({
@@ -94,8 +94,8 @@ export function lotGroups(lines: Loose[] = []) {
 export const priceCentsOf = (value: unknown) => toCents(value);
 
 /** One line's total: SF (hundredths) × price per SF (cents), rounded to the cent. */
-export const lineTotalCents = (sfHundredths: Loose, priceCentsPerSf: Loose) => (
-  Number.isSafeInteger(priceCentsPerSf) ? Math.round((sfHundredths * priceCentsPerSf) / 100) : null
+export const lineTotalCents = (sfHundredths: number, priceCentsPerSf: number | null | undefined) => (
+  Number.isSafeInteger(priceCentsPerSf) ? Math.round((sfHundredths * priceCentsPerSf!) / 100) : null
 );
 
 /** Slabs, SF and total for a set of lines. Total is null while any line has no price. */
@@ -111,7 +111,7 @@ export function holdTotals(lines: Loose[] = []) {
   return { slabs: lines.length, sfHundredths, pricedCents: totalCents, totalCents: missingPrices ? null : totalCents, missingPrices };
 }
 
-export const formatMoney = (cents: Loose) => formatCents(cents);
+export const formatMoney = (cents: unknown) => formatCents(cents);
 
 // ── Dates on the branch clock ────────────────────────────────────────────
 
@@ -123,7 +123,7 @@ export const todayIn = (timeZone: string, now = new Date()) => new Intl.DateTime
 }).format(now);
 
 /** "2026-10-16" → "Oct 16, 2026": a calendar day, never shifted by the reader's time zone. */
-export const formatDay = (isoDay: Loose) => new Date(`${isoDay}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+export const formatDay = (isoDay: string) => new Date(`${isoDay}T12:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
 export function addDays(isoDay: string, days: number) {
   const [y, m, d] = isoDay.split('-').map(Number);
@@ -132,7 +132,7 @@ export function addDays(isoDay: string, days: number) {
 }
 
 /** Whole days from `fromDay` to `toDay` (both "YYYY-MM-DD"). */
-export function daysBetween(fromDay: Loose, toDay: Loose) {
+export function daysBetween(fromDay: string, toDay: string) {
   const toUtc = (s: string) => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d); };
   return Math.round((toUtc(toDay) - toUtc(fromDay)) / 86400000);
 }
@@ -152,7 +152,7 @@ export function zonedMidnight(isoDay: string, timeZone: string) {
 }
 
 /** When a hold expiring on `expiresOn` turns Expired, and when its slabs are released. */
-export function expiryMoments(expiresOn: Loose, branch: string) {
+export function expiryMoments(expiresOn: string, branch: string) {
   const zone = branchZone(branch);
   return {
     expiresAt: zonedMidnight(addDays(expiresOn, 1), zone),
@@ -180,7 +180,7 @@ export const defaultExpiresOn = (branch: string, now = new Date()) => addDays(to
  * Can this expiry date be set? null when fine, else why not. Longer than
  * 7 days from today needs the Extend permission; nothing in the past.
  */
-export function expiryProblem({ expiresOn, branch, canExtend = false, now = new Date() }: { expiresOn: Loose; branch: string; canExtend?: Loose; now?: Loose }) {
+export function expiryProblem({ expiresOn, branch, canExtend = false, now = new Date() }: { expiresOn: string; branch: string; canExtend?: boolean; now?: Date }) {
   if (!ISO_DAY.test(String(expiresOn || ''))) return 'Pick the date the hold runs until.';
   const today = todayIn(branchZone(branch), now);
   const days = daysBetween(today, expiresOn);
@@ -201,7 +201,7 @@ export function branchProblem(branch: string, assignedLocations: string[] = []) 
 
 /** Which "whose holds" choices this person gets: mine / branch / all. */
 export function holdScopesFor(user: Loose) {
-  const scopes = [];
+  const scopes: string[] = [];
   if (can(user, HOLDS.VIEW_OWN) || can(user, HOLDS.VIEW_BRANCH) || can(user, HOLDS.VIEW_ALL)) scopes.push('mine');
   if (can(user, HOLDS.VIEW_BRANCH)) scopes.push('branch');
   if (can(user, HOLDS.VIEW_ALL)) scopes.push('all');
@@ -209,7 +209,7 @@ export function holdScopesFor(user: Loose) {
 }
 
 /** Can this person see this hold at all? */
-export function canSeeHold(user: Loose, hold: Loose) {
+export function canSeeHold(user: Loose | null, hold: Loose | null) {
   if (!user || !hold) return false;
   if (can(user, HOLDS.VIEW_ALL)) return true;
   const assigned = user.assignedLocations || [];
@@ -218,7 +218,7 @@ export function canSeeHold(user: Loose, hold: Loose) {
 }
 
 /** The Mongo filter for a list scope, or null when the person can't use that scope. */
-export function scopeClause(user: Loose, scope: Loose, branch = '') {
+export function scopeClause(user: Loose, scope: string, branch = ''): Loose | null {
   if (!holdScopesFor(user).includes(scope)) return null;
   const assigned = user.assignedLocations || [];
   if (scope === 'mine') return { 'createdBy.id': String(user.id || '') };

@@ -32,17 +32,17 @@ export const TEAM_FILES_MIGRATION = Object.freeze([
   { from: 'view_dashboard', grant: [P.VIEW, P.MANAGE] }
 ]);
 
-const permsOf = (user: Loose) => (Array.isArray(user?.permissions) ? user.permissions : []);
-const has = (user: Loose, key: string) => permsOf(user).includes(key);
+const permsOf = (user: Loose | null | undefined) => (Array.isArray(user?.permissions) ? user.permissions : []);
+const has = (user: Loose | null | undefined, key: string) => permsOf(user).includes(key);
 
-export const canViewTeamFiles = (user: Loose) => has(user, P.VIEW);
-export const canManageTeamFiles = (user: Loose) => canViewTeamFiles(user) && has(user, P.MANAGE);
+export const canViewTeamFiles = (user: Loose | null | undefined) => has(user, P.VIEW);
+export const canManageTeamFiles = (user: Loose | null | undefined) => canViewTeamFiles(user) && has(user, P.MANAGE);
 
 /**
  * A role's permissions after a change on the Team Files card, keeping the
  * View rule: View off takes Manage with it; Manage on turns View on.
  */
-export const withTeamFilesViewRule = (before: Loose, after: Loose[]) => {
+export const withTeamFilesViewRule = (before: string[], after: string[]) => {
   const changed = ALL_TEAM_FILES_PERMISSIONS.some((key) => before.includes(key) !== after.includes(key));
   if (!changed) return after;
   if (before.includes(P.VIEW) && !after.includes(P.VIEW)) return after.filter((key: string) => key !== P.MANAGE);

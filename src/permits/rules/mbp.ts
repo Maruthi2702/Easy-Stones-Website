@@ -68,7 +68,7 @@ export function mbpRule({ id, label, long, county, jurisId, office, city = '', t
     issuedDayOf: (row: Loose) => mbpDay(row.IssuedDate),
     numberOf: (row: Loose) => cleanText(row.PermitNumber),
     detailIdOf: (row: Loose) => cleanText(row.PermitNumber),
-    toPermit: (row: Loose, detail: Loose) => mbpPermit(rule, row, detail),
+    toPermit: (row: Loose, detail?: Loose | null): Loose => mbpPermit(rule, row, detail),
     emptyError: (since: string) => `MyBuildingPermit had no ${long} permits issued since ${since} — its copy of the office’s permits may have stopped updating`,
     detailsError: (n: unknown) => `MyBuildingPermit wouldn’t open any of the ${n} ${label} permits’ details`,
     ...rest

@@ -71,7 +71,7 @@ const BOOLEAN_FIELDS = ['profitCenter', 'warehouse', 'acctSameAsPrimary'];
 export const ADDRESS_FIELDS = ['street', 'suite', 'city', 'state', 'zip'];
 
 const str = (v: unknown) => (v === null || v === undefined ? '' : String(v));
-const trim = (v: Loose) => str(v).trim();
+const trim = (v: unknown) => str(v).trim();
 const numText = (v: unknown) => (v === null || v === undefined || v === '' ? '' : String(v));
 
 export const emptyLocationValues = () => ({
@@ -89,7 +89,7 @@ export const emptyLocationValues = () => ({
 
 /** A Location record (or a request body in the same shape) → form values. */
 export const locationToFormValues = (loc: Loose = {}) => {
-  const pc = loc.primaryContact || {};
+  const pc = loc!.primaryContact || {};
   const pa = pc.address || {};
   const ac = loc.accountingContact || {};
   const aa = ac.address || {};
@@ -207,7 +207,7 @@ const tenDigits = (v: Loose) => stripPhone(trim(v)).length === 10;
  */
 export const validateLocationValues = (v: Loose, { isEdit = false, selfId = null, others = [] }: Loose = {}) => {
   const e: Record<string, string> = {};
-  const rest = others.filter((l) => !selfId || String(l._id) !== String(selfId));
+  const rest: Loose[] = others.filter((l: Loose) => !selfId || String(l._id) !== String(selfId));
   const sameName = (a: unknown, b: unknown) => trim(a).toLowerCase() === trim(b).toLowerCase();
 
   if (!trim(v.fullName)) e.fullName = 'Enter the full name';
@@ -279,7 +279,7 @@ export const parseLocationBody = (body: Loose, { isEdit = false, current = null,
   if (isEdit && current) values.name = str(current.name);
   const errors = validateLocationValues(values, { isEdit, selfId: current?._id, others });
   if (Object.keys(errors).length) return { errors };
-  const record = locationRecordFromValues(values);
+  const record: Partial<ReturnType<typeof locationRecordFromValues>> = locationRecordFromValues(values);
   // An app opened before the Daily Report email list existed doesn't send
   // one; its save must leave the list as it was, not empty it.
   if (body?.dailyReportEmail === undefined) delete record.dailyReportEmail;
@@ -297,7 +297,7 @@ export const addressLines = (address: Loose = {}) =>
   [trim(address.street), trim(address.suite), cityLine(address)].filter(Boolean);
 
 /** Whether a location has enough of an address to print. */
-export const hasPrintableAddress = (loc: Loose) => {
+export const hasPrintableAddress = (loc: Loose | null | undefined) => {
   const a = loc?.primaryContact?.address || {};
   return Boolean(trim(a.street) && (trim(a.city) || trim(a.zipCode)));
 };
@@ -314,9 +314,9 @@ export const DEFAULT_LETTERHEAD = { addressLine: '6012 S 196th St, Kent, WA 9803
  * the user will add it back later. To restore it, set contactLine to
  * [trim(pc.phone), trim(pc.email)].filter(Boolean).join(' · ').
  */
-export const letterheadFor = (loc: Loose) => {
+export const letterheadFor = (loc: Loose | null | undefined) => {
   if (!hasPrintableAddress(loc)) return { ...DEFAULT_LETTERHEAD };
-  const pc = loc.primaryContact || {};
+  const pc = loc!.primaryContact || {};
   return {
     addressLine: addressLines(pc.address).join(', '),
     contactLine: ''

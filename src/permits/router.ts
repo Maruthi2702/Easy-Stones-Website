@@ -58,7 +58,7 @@ export function countiesOf(value: unknown) {
 /** The Mongo filter for the list's filters; `except` leaves one out (for the per-category counts). */
 export function permitFilter(query: Loose = {}, { except = null }: Loose = {}) {
   // Keep source-withdrawn records in storage without offering them as leads.
-  const f = { issuedOn: { $ne: null } };
+  const f: Loose = { issuedOn: { $ne: null } };
   const { source, category, from, to, city, minValue, q } = query;
   const counties = countiesOf(query.counties);
   if (source) {
@@ -102,7 +102,7 @@ export async function licenseClause(license: unknown) {
   const lic = licenseKey(license);
   if (!lic) throw new HttpError(400, 'That isn’t a WA contractor license number.');
   const names = await namesForLicense(lic);
-  const or = [{ contacts: { $elemMatch: { kind: 'contractor', license: lic } } }];
+  const or: Loose[] = [{ contacts: { $elemMatch: { kind: 'contractor', license: lic } } }];
   if (names.length) {
     or.push({ contacts: { $elemMatch: { kind: 'contractor', license: { $exists: false }, company: { $in: names.map((n) => new RegExp(`^${escapeRegex(n)}$`, 'i')) } } } });
   }
@@ -118,7 +118,7 @@ export async function fullFilter(query: Loose = {}, opts: Loose = {}) {
 
 /** Existing customers by email, phone and company / contact name — rebuilt every 10 minutes. */
 function createCustomerIndex(maxAgeMs = CUSTOMER_INDEX_MS) {
-  let built = null;
+  let built: { byEmail: Map<string, Loose>; byPhone: Map<string, Loose>; byName: Map<string, Loose> } | null = null;
   let at = 0;
   return async function index(fresh = false) {
     if (!fresh && built && Date.now() - at < maxAgeMs) return built;
@@ -128,11 +128,11 @@ function createCustomerIndex(maxAgeMs = CUSTOMER_INDEX_MS) {
     const customers = await Customer.find({}, 'company name contactName email phone contacts.name contacts.phone contacts.email').lean();
     for (const c of customers) {
       const ref = { id: String(c._id), name: companyOf(c) };
-      for (const e of [...realEmailsOf(c), ...(c.contacts || []).map((x) => x.email)]) {
+      for (const e of [...realEmailsOf(c), ...(c.contacts || []).map((x: Loose) => x.email)]) {
         const k = emailKey(e);
         if (k && !byEmail.has(k)) byEmail.set(k, ref);
       }
-      for (const p of [c.phone, ...(c.contacts || []).map((x) => x.phone)]) {
+      for (const p of [c.phone, ...(c.contacts || []).map((x: Loose) => x.phone)]) {
         const k = phoneKey(p);
         if (k && !byPhone.has(k)) byPhone.set(k, ref);
       }
@@ -159,7 +159,7 @@ export function matchContacts(contacts: Loose[], { byEmail, byPhone, byName }: L
   });
 }
 
-const present = (p: Loose, index: number, registry: unknown) => ({
+const present = (p: Loose, index: Loose | null, registry: ((contact: Loose) => unknown) | null) => ({
   _id: String(p._id),
   source: p.source,
   permitNumber: p.permitNumber,
@@ -187,7 +187,7 @@ const present = (p: Loose, index: number, registry: unknown) => ({
 });
 
 /** Each contractor contact with what the WA registry says about it, when it knows. */
-function withRegistry(contacts: Loose[], registry: unknown) {
+function withRegistry(contacts: Loose[], registry: ((contact: Loose) => unknown) | null) {
   if (!registry) return contacts;
   return (contacts || []).map((c) => {
     const r = registry(c);
@@ -217,8 +217,8 @@ export const SORTS = Object.freeze({
   value_asc: { _hasValue: -1, valuation: 1, issuedOn: -1, permitNumber: -1 }
 });
 
-function sortedPermits(filter: unknown, sortKey: unknown, { skip = 0, limit = null }: Loose = {}) {
-  const sort = SORTS[sortKey || 'issued_desc'];
+function sortedPermits(filter: Loose, sortKey: string | undefined, { skip = 0, limit = null }: Loose = {}) {
+  const sort = (SORTS as Record<string, Record<string, 1 | -1>>)[sortKey || 'issued_desc'];
   if (!sort) throw new HttpError(400, 'Unknown sort.');
   return Permit.aggregate([
     { $match: filter },
@@ -315,7 +315,7 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
         customerIndex()
       ]);
       const registry = await registryFor(items);
-      const actor = actorOf(req).name;
+      const actor = actorOf(req as Parameters<typeof actorOf>[0]).name;
       const generated = `Generated ${new Intl.DateTimeFormat('en-US', {
         timeZone: 'America/Los_Angeles', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
       }).format(new Date())}${actor ? ` by ${actor}` : ''}`;
@@ -378,7 +378,7 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
   router.post('/refresh', authenticate, requireAll(PERMITS.VIEW, PERMITS.REFRESH), handle(async (req: Loose, res: Loose) => {
     if (!sync) throw new HttpError(503, 'The permit pull isn’t running on this server.');
     if (sync.isRunning()) return res.status(202).json({ running: true, started: false });
-    sync.run({ kind: 'manual', by: actorOf(req).name }).catch(() => {});
+    sync.run({ kind: 'manual', by: actorOf(req as Parameters<typeof actorOf>[0]).name }).catch(() => {});
     return res.status(202).json({ running: true, started: true });
   }, { label: LABEL }));
 

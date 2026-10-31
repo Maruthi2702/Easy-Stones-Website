@@ -96,7 +96,7 @@ const quietSince = new Map();
 export async function fileUnopenedDay(date: string, location: string, now = new Date()) {
   const key = `${location}|${date}`;
   const checked = quietSince.get(key);
-  if (checked && now - checked < QUIET_RECHECK_MS) return null;
+  if (checked && now.getTime() - checked.getTime() < QUIET_RECHECK_MS) return null;
 
   const derived = await deriveFromSystem(date, location);
   if (!hasActivity(derived)) {
@@ -115,7 +115,7 @@ export async function fileUnopenedDay(date: string, location: string, now = new 
   try {
     return await report.save();
   } catch (error) {
-    if (error?.code === 11000) return null;
+    if ((error as Error & Loose)?.code === 11000) return null;
     throw error;
   }
 }
@@ -125,7 +125,7 @@ export async function fileUnopenedDay(date: string, location: string, now = new 
  * timer: `node -e "..."` against a database is the whole test.
  */
 export async function autoSubmitDueDays(now = new Date()) {
-  const submitted = [];
+  const submitted: Loose[] = [];
 
   for (const location of BRANCH_NAMES) {
     const { date } = branchNow(location, now);
@@ -210,7 +210,7 @@ export function startAutoSubmitDailyReports() {
         console.log(`🕚 Auto-submitted ${count} daily report${count === 1 ? '' : 's'} for ${location}`);
       }
     } catch (error) {
-      console.error('🕚 Daily report auto-submit failed:', error.message);
+      console.error('🕚 Daily report auto-submit failed:', (error as Error).message);
     }
   };
 

@@ -62,7 +62,7 @@ export type SalesTabViewsProps = {
     isDropdownLoading: boolean;
     inventoryRefreshSignal: number;
     navOrder: unknown;
-    onSaveNavOrder: (order: unknown) => unknown;
+    onSaveNavOrder: (order: import('../../utils/navPins').NavOrder | null) => unknown;
     canSeeHolds: boolean;
     /** Route Planner: mounted on its first visit and kept (hidden) after. */
     routePlannerOpened: boolean;

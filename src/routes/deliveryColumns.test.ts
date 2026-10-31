@@ -14,8 +14,8 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 const { default: createDeliveriesRouter } = await import('./deliveries.ts');
 const { default: Location } = await import('../models/Location.ts');
 
-let mongo;
-let app;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
 const emit = vi.fn();
 
 const VIEWER = { username: 'sam', permissions: ['view_delivery_schedule'] };
@@ -38,9 +38,9 @@ beforeAll(async () => {
   app.use(express.json());
   app.set('io', { emit, to: () => ({ emit }) });
   app.use('/api', createDeliveriesRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    requirePermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: Loose) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
-    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: Loose) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
+    authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
+    requirePermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
+    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
     getPerformerInfo: async () => ({}),
     processBase64Images: async (x: Loose) => x,
     getNowLocalISO: () => new Date().toISOString()
@@ -77,20 +77,20 @@ describe('PUT /api/delivery-columns/:location', () => {
     const order = ['drv_angel', '__will_call__', 'drv_3rd party - contract'];
     const res = await put('Salt Lake City', { columns: order }).expect(200);
     expect(res.body).toEqual({ location: 'Salt Lake City', columns: order });
-    expect((await Location.findOne({ name: 'Salt Lake City' }).lean()).deliveryColumns).toEqual(order);
+    expect(((await Location.findOne({ name: 'Salt Lake City' }).lean()))!.deliveryColumns).toEqual(order);
     expect(emit).toHaveBeenCalledWith('delivery_columns_update', { location: 'Salt Lake City' });
   });
 
   it('an empty list puts the branch back on the default order', async () => {
     await put('Seattle', { columns: [] }).expect(200);
-    expect((await Location.findOne({ name: 'Seattle' }).lean()).deliveryColumns).toEqual([]);
+    expect(((await Location.findOne({ name: 'Seattle' }).lean()))!.deliveryColumns).toEqual([]);
   });
 
   it('needs Arrange Driver Columns — a dispatcher, viewer or user manager can\'t change it', async () => {
     await put('Seattle', { columns: ['drv_angel'] }, DISPATCHER).expect(403);
     await put('Seattle', { columns: ['drv_angel'] }, VIEWER).expect(403);
     await put('Seattle', { columns: ['drv_angel'] }, USER_MANAGER).expect(403);
-    expect((await Location.findOne({ name: 'Seattle' }).lean()).deliveryColumns).toEqual(['drv_brock', 'drv_angel']);
+    expect(((await Location.findOne({ name: 'Seattle' }).lean()))!.deliveryColumns).toEqual(['drv_brock', 'drv_angel']);
     expect(emit).not.toHaveBeenCalled();
   });
 
@@ -98,14 +98,14 @@ describe('PUT /api/delivery-columns/:location', () => {
     await put('Seattle', { columns: ['drv_angel', 'drv_brock'] }, MANAGER).expect(200);
     const res = await put('Salt Lake City', { columns: ['drv_angel'] }, MANAGER).expect(403);
     expect(res.body.error).toMatch(/your own locations/);
-    expect((await Location.findOne({ name: 'Salt Lake City' }).lean()).deliveryColumns ?? []).toEqual([]);
+    expect(((await Location.findOne({ name: 'Salt Lake City' }).lean()))!.deliveryColumns ?? []).toEqual([]);
   });
 
   it('refuses a bad list and keeps the saved one', async () => {
     for (const columns of [undefined, 'drv_angel', ['drv_angel', 'drv_angel'], ['drv_angel', 7], ['']]) {
       await put('Seattle', { columns }).expect(400);
     }
-    expect((await Location.findOne({ name: 'Seattle' }).lean()).deliveryColumns).toEqual(['drv_brock', 'drv_angel']);
+    expect(((await Location.findOne({ name: 'Seattle' }).lean()))!.deliveryColumns).toEqual(['drv_brock', 'drv_angel']);
   });
 
   it('answers 404 for a branch that doesn\'t exist', async () => {

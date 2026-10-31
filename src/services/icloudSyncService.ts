@@ -13,13 +13,13 @@ const resolveUrl = (baseUrl: string, href: string) => {
   return origin + (href.startsWith('/') ? href : '/' + href);
 };
 
-const makeDavRequest = (url: string, method: string, body: Loose, username: string, password: string, depth = '0', contentType = 'application/xml; charset=utf-8') => {
-  return new Promise((resolve, reject) => {
+const makeDavRequest = (url: string, method: string, body: string, username: string, password: string, depth = '0', contentType = 'application/xml; charset=utf-8') => {
+  return new Promise<string>((resolve, reject) => {
     const urlObj = new URL(url);
     const auth = Buffer.from(`${String(username).trim()}:${String(password).trim()}`).toString('base64');
 
     
-    const options = {
+    const options: https.RequestOptions = {
       hostname: urlObj.hostname,
       port: urlObj.port || 443,
       path: urlObj.pathname + urlObj.search,
@@ -33,7 +33,7 @@ const makeDavRequest = (url: string, method: string, body: Loose, username: stri
     };
 
     if (body) {
-      options.headers['Content-Length'] = Buffer.byteLength(body);
+      (options.headers as Record<string, string | number>)['Content-Length'] = Buffer.byteLength(body);
     }
 
     const req = https.request(options, (res) => {
@@ -42,7 +42,7 @@ const makeDavRequest = (url: string, method: string, body: Loose, username: stri
         data += chunk;
       });
       res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
+        if (res.statusCode! >= 200 && res.statusCode! < 300) {
           resolve(data);
         } else {
           reject(new Error(`iCloud CalDAV server returned status ${res.statusCode}: ${data}`));
@@ -111,7 +111,7 @@ export const discoverICloudCalendars = async (username: string, password: string
   const listRes = await makeDavRequest(calendarHomeUrl, 'PROPFIND', listXml, username, password, '1');
   
   // Parse DAV multi-responses to list calendars
-  const calendars = [];
+  const calendars: Loose[] = [];
   const responses = listRes.split(/<d:response>|<response>/i);
   responses.shift(); // remove header
   
@@ -135,7 +135,7 @@ export const discoverICloudCalendars = async (username: string, password: string
 
 // Inline iCalendar (.ics) text parser
 const parseIcsEvents = (icsText: string) => {
-  const events = [];
+  const events: Loose[] = [];
   const parts = icsText.split('BEGIN:VEVENT');
   parts.shift(); // remove header
   
@@ -166,9 +166,9 @@ const parseIcsEvents = (icsText: string) => {
       if (match) {
         const [_, y, m, d, hh, mm, ss, z] = match;
         if (z) {
-          return new Date(Date.UTC(y, m - 1, d, hh, mm, ss));
+          return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss)));
         }
-        return new Date(y, m - 1, d, hh, mm, ss);
+        return new Date(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss));
       }
       return new Date(dateStr);
     };
@@ -221,7 +221,7 @@ export const syncICloudCalendar = async (userId: string, timeZone: string) => {
 
     // Fetch events in a 120-day window (past 30 days to next 90 days)
     const pad = (n: number) => String(n).padStart(2, '0');
-    const formatCalDate = (d: Loose) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T000000Z`;
+    const formatCalDate = (d: Date) => `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T000000Z`;
 
     const startFilter = new Date();
     startFilter.setDate(startFilter.getDate() - 30);
@@ -306,7 +306,7 @@ export const syncICloudCalendar = async (userId: string, timeZone: string) => {
     // shift every synced event by however many hours separate the server's
     // own zone (UTC in production) from the rep's — they're converted via
     // zonedTimeToUtc first, below, before ever reaching this formatter.
-    const formatIcsDate = (dateVal: string) => {
+    const formatIcsDate = (dateVal: Date | number) => {
       const d = new Date(dateVal);
       return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
     };
@@ -323,9 +323,9 @@ export const syncICloudCalendar = async (userId: string, timeZone: string) => {
       const summary = `${schedule.activityType || 'Visit'} - ${clientName}`;
       const description = `${schedule.notes || ''}\\n\\n[EasyStones ID: ${schedule._id}]`;
       const startUtc = zonedTimeToUtc(schedule.startTime, zone);
-      const endUtc = schedule.endTime ? zonedTimeToUtc(schedule.endTime, zone) : new Date(startUtc.getTime() + 3600000);
-      const startStr = formatIcsDate(startUtc);
-      const endStr = formatIcsDate(endUtc);
+      const endUtc = schedule.endTime ? zonedTimeToUtc(schedule.endTime, zone) : new Date(startUtc!.getTime() + 3600000);
+      const startStr = formatIcsDate(startUtc!);
+      const endStr = formatIcsDate(endUtc!);
 
       // Construct raw VCALENDAR event
       const icsEvent = [

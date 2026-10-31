@@ -2,7 +2,7 @@
 import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
-const lostSaleSchema = new mongoose.Schema<Loose>({
+const lostSaleSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   customerName: {
     type: String,
     required: true,

@@ -2,7 +2,7 @@ import type { Loose } from '../../types/records.ts';
 import React, { useState } from 'react';
 import { X, Palette, Plus, Trash2, Pencil, Check, AlertCircle } from 'lucide-react';
 
-const ManageColorsModal = ({ isOpen, onClose, colors, onAdd, onRename, onDelete }: { isOpen: boolean; onClose: () => void; colors: Loose[]; onAdd: (name: string) => Promise<string | null>; onRename: (id: string, name: string) => Promise<string | null>; onDelete: (id: string) => void }) => {
+const ManageColorsModal = ({ isOpen, onClose, colors, onAdd, onRename, onDelete }: { isOpen: boolean; onClose: () => void; colors: Loose[]; onAdd: (name: string) => Promise<{ success: boolean; message?: string }>; onRename: (id: string, name: string) => Promise<{ success: boolean; message?: string }>; onDelete: (id: string) => void }) => {
   const [newName, setNewName] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');

@@ -19,6 +19,7 @@ import { nextStopNumber } from './stopGrouping.ts';
 import { isThirdPartyTruck } from './deliveryPickup.ts';
 import { formatAmount, parseAmount } from './money';
 import type { CustomerOption } from './customerOptions';
+type CustomerPick = Pick<CustomerOption, 'value' | 'label'> & Partial<CustomerOption>;
 import type { DeliveryRecord, Loose, TruckColumn } from '../types/records';
 
 /** The Delivery form's values (the old DeliveryModal's names — see above). */
@@ -323,7 +324,7 @@ const pickedAddress = (option: Partial<CustomerOption> | null | undefined): stri
  * customer filled in. A jobsite address someone typed, or the packing list's
  * Ship To, is kept: it used to be replaced by the customer's city.
  */
-export function applyCustomerPick(v: DeliveryFormValues, option: CustomerOption | null | undefined, previousOption: CustomerOption | null = null): DeliveryFormValues {
+export function applyCustomerPick(v: DeliveryFormValues, option: CustomerPick | null | undefined, previousOption: CustomerPick | null = null): DeliveryFormValues {
   if (!option) return v;
   const addr = pickedAddress(option);
   const current = trim(v.address);

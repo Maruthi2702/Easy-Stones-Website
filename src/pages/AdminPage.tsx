@@ -1,4 +1,5 @@
 import type { Loose } from '../types/records.ts';
+import type { UserRecord, AccessAction } from '../features/users/types.ts';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, Save, Search, Image as ImageIcon, ArrowLeft, LogOut, Settings, Package, User, Menu, X, Pencil } from 'lucide-react';
@@ -17,7 +18,7 @@ const AdminPage = () => {
   const { logout } = useAuth();
   // Initialize with empty array
   const [products, setProducts] = useState<Loose[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [selectedProductId, setSelectedProductId] = useState<string | number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const [filterCollection, setFilterCollection] = useState('All');
@@ -35,7 +36,7 @@ const AdminPage = () => {
   const [passwordStatus, setPasswordStatus] = useState<Loose | null>(null);
 
   // User Management State
-  const [users, setUsers] = useState<Loose[]>([]);
+  const [users, setUsers] = useState<UserRecord[]>([]);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   // Add / Edit user use the same forms as Sales CRM → Users & Roles
   // (features/users/userForm/), which need the roles and branches.
@@ -104,7 +105,7 @@ const AdminPage = () => {
   }, [activeTab, fetchUsers, users.length]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     // Show immediate preview
@@ -146,11 +147,11 @@ const AdminPage = () => {
   };
 
   const handleInstalledImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     // Create a copy of current installed images or initialize empty array
-    const currentImages = [...(selectedProduct.installedImages || [])];
+    const currentImages = [...(selectedProduct!.installedImages || [])];
 
     // Show immediate preview
     const objectUrl = URL.createObjectURL(file);
@@ -171,7 +172,7 @@ const AdminPage = () => {
 
       if (data.success) {
         // Update with actual server path
-        const updatedImages = [...(selectedProduct.installedImages || [])];
+        const updatedImages = [...(selectedProduct!.installedImages || [])];
         updatedImages[index] = data.filePath;
         handleChange('installedImages', updatedImages);
         // Clean up object URL
@@ -193,7 +194,7 @@ const AdminPage = () => {
       if (type === 'main') {
         handleChange('image', '');
       } else {
-        removeInstalledImage(index);
+        removeInstalledImage(index!);
       }
       return;
     }
@@ -214,7 +215,7 @@ const AdminPage = () => {
         if (type === 'main') {
           handleChange('image', '');
         } else {
-          removeInstalledImage(index);
+          removeInstalledImage(index!);
         }
       } else {
         alert(`Failed to delete image: ${data.error || 'Unknown error'}`);
@@ -228,7 +229,7 @@ const AdminPage = () => {
   // Bundle Management Handlers
   const handleAddBundle = () => {
     if (!selectedProduct) return;
-    const currentBundles = selectedProduct.bundles || [];
+    const currentBundles = selectedProduct!.bundles || [];
     const newBundle = {
       bundleNumber: '',
       location: 'SEATTLE, WA',
@@ -239,20 +240,20 @@ const AdminPage = () => {
 
   const handleRemoveBundle = (index: number) => {
     if (!selectedProduct) return;
-    const currentBundles = [...(selectedProduct.bundles || [])];
+    const currentBundles = [...(selectedProduct!.bundles || [])];
     currentBundles.splice(index, 1);
     handleChange('bundles', currentBundles);
   };
 
   const handleBundleFieldChange = (index: number, field: string, value: unknown) => {
     if (!selectedProduct) return;
-    const currentBundles = [...(selectedProduct.bundles || [])];
+    const currentBundles = [...(selectedProduct!.bundles || [])];
     currentBundles[index] = { ...currentBundles[index], [field]: value };
     handleChange('bundles', currentBundles);
   };
 
   const handleBundleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, bundleIndex: number) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
@@ -267,7 +268,7 @@ const AdminPage = () => {
       const data = await response.json();
 
       if (data.success) {
-        const currentBundles = [...(selectedProduct.bundles || [])];
+        const currentBundles = [...(selectedProduct!.bundles || [])];
         const bundle = { ...currentBundles[bundleIndex] };
         bundle.images = [...(bundle.images || []), data.filePath];
         currentBundles[bundleIndex] = bundle;
@@ -288,7 +289,7 @@ const AdminPage = () => {
 
     if (!window.confirm('Delete this image?')) return;
 
-    const currentBundles = [...(selectedProduct.bundles || [])];
+    const currentBundles = [...(selectedProduct!.bundles || [])];
     const bundle = { ...currentBundles[bundleIndex] };
     const newImages = [...bundle.images];
     newImages.splice(imageIndex, 1);
@@ -339,7 +340,7 @@ const AdminPage = () => {
 
   // Deactivate / reactivate / delete, with the same prompts (and the move to
   // Pending for a driver's upcoming orders) as Users & Roles.
-  const handleChangeAccess = async (user: Loose, action: 'deactivate' | 'reactivate' | 'unlock') => {
+  const handleChangeAccess = async (user: UserRecord, action: AccessAction) => {
     const done = await changeUserAccess(user, action);
     if (!done) return false;
     if (action === 'delete') setUsers(prev => prev.filter(u => u._id !== user._id));
@@ -347,7 +348,7 @@ const AdminPage = () => {
     return true;
   };
 
-  const handleSelectProduct = async (id: string) => {
+  const handleSelectProduct = async (id: string | number) => {
     setSelectedProductId(id);
     setSaveStatus(null);
     setShowMobileDetail(true); // Show detail view on mobile
@@ -396,7 +397,7 @@ const AdminPage = () => {
     setShowMobileDetail(true); // Show detail view on mobile
   };
 
-  const handleDeleteProduct = (id: string) => {
+  const handleDeleteProduct = (id: string | number) => {
     if (window.confirm('Are you sure you want to delete this product? This cannot be undone.')) {
       const newProducts = products.filter(p => p.id !== id);
       setProducts(newProducts);
@@ -424,7 +425,7 @@ const AdminPage = () => {
     if (isChecked) {
       newArray = [...currentArray, value];
     } else {
-      newArray = currentArray.filter(item => item !== value);
+      newArray = currentArray.filter((item: unknown) => item !== value);
     }
 
     handleChange(field, newArray);
@@ -529,7 +530,7 @@ const AdminPage = () => {
 
 
   const removeInstalledImage = (index: number) => {
-    const currentImages = [...(selectedProduct.installedImages || [])];
+    const currentImages = [...(selectedProduct!.installedImages || [])];
     currentImages.splice(index, 1);
     handleChange('installedImages', currentImages);
   };
@@ -541,7 +542,7 @@ const AdminPage = () => {
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    const newUrl = new URL(window.location);
+    const newUrl = new URL(window.location.href);
     newUrl.searchParams.set('tab', tab);
     window.history.replaceState({}, '', newUrl);
     setIsMobileMenuOpen(false);
@@ -975,7 +976,7 @@ const AdminPage = () => {
                       </div>
                     </div>
                     <div className="image-preview" style={{ position: 'relative' }}>
-                      <img src={selectedProduct.image} alt="Preview" onError={(e) => e.target.src = '/images/products/placeholder.jpg'} />
+                      <img src={selectedProduct.image} alt="Preview" onError={(e) => e.currentTarget.src = '/images/products/placeholder.jpg'} />
                       {selectedProduct.image && (
                         <button
                           className="secondary-btn delete-btn-small"
@@ -1005,7 +1006,7 @@ const AdminPage = () => {
               <div className="form-group full-width">
                 <label>Description</label>
                 <textarea
-                  rows="4"
+                  rows={4}
                   value={selectedProduct.description || ''}
                   onChange={(e) => handleChange('description', e.target.value)}
                   placeholder="Enter product description..."
@@ -1079,7 +1080,7 @@ const AdminPage = () => {
                         if (p.id !== selectedProductId) return p;
 
                         // Store as number if valid, otherwise keep the string for typing
-                        const updates = {
+                        const updates: { landingCost: string | number | undefined; priceLevels?: Record<string, number> } = {
                           landingCost: val === '' ? undefined : (isNaN(cost) ? val : cost)
                         };
 
@@ -1141,9 +1142,9 @@ const AdminPage = () => {
                   </button>
                 </div>
 
-                {(selectedProduct.bundles || []).map((bundle, bundleIndex) => (
+                {(selectedProduct!.bundles || []).map((bundle: Loose, bundleIndex: number) => (
                   <div key={bundleIndex} className="bundle-card" style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', mb: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <h4 style={{ margin: 0, color: '#aaa' }}>Bundle {bundleIndex + 1}</h4>
                         <button
@@ -1192,7 +1193,7 @@ const AdminPage = () => {
 
                     <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#ccc' }}>Bundle Images</label>
                     <div className="image-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '8px' }}>
-                      {(bundle.images || []).map((img, imgIndex) => (
+                      {(bundle.images || []).map((img: string, imgIndex: number) => (
                         <div key={imgIndex} style={{ position: 'relative', aspectRatio: '1' }}>
                           <img
                             src={img}
@@ -1238,7 +1239,7 @@ const AdminPage = () => {
                   </div>
                 ))}
 
-                {(selectedProduct.bundles || []).length === 0 && (
+                {(selectedProduct!.bundles || []).length === 0 && (
                   <div style={{ textAlign: 'center', padding: '2rem', color: '#666', fontStyle: 'italic' }}>
                     No bundles added yet. Click "Add Bundle" to start.
                   </div>
@@ -1254,11 +1255,11 @@ const AdminPage = () => {
                       <label>Installed Image {index + 1}</label>
                       <div className="image-input-wrapper">
                         <div className="image-preview">
-                          {selectedProduct.installedImages && selectedProduct.installedImages[index] ? (
+                          {selectedProduct!.installedImages && selectedProduct!.installedImages[index] ? (
                             <img
-                              src={selectedProduct.installedImages[index]}
+                              src={selectedProduct!.installedImages[index]}
                               alt={`Installed ${index + 1}`}
-                              onError={(e) => { e.target.src = '/images/products/placeholder.jpg'; }}
+                              onError={(e) => { e.currentTarget.src = '/images/products/placeholder.jpg'; }}
                             />
                           ) : (
                             <div className="placeholder-icon">
@@ -1278,11 +1279,11 @@ const AdminPage = () => {
                               className="file-input-hidden"
                             />
                           </div>
-                          {selectedProduct.installedImages && selectedProduct.installedImages[index] && (
+                          {selectedProduct!.installedImages && selectedProduct!.installedImages[index] && (
                             <button
                               className="secondary-btn delete-btn-small"
                               type="button"
-                              onClick={() => handleDeleteImage(selectedProduct.installedImages[index], 'installed', index)}
+                              onClick={() => handleDeleteImage(selectedProduct!.installedImages[index], 'installed', index)}
                               style={{ marginTop: '0.5rem', borderColor: '#ef4444', color: '#ef4444' }}
                             >
                               <Trash2 size={14} /> Remove

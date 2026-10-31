@@ -3,7 +3,7 @@ import type { Loose } from '../types/records.ts';
 // for, printed notes always, internal notes never.
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 
-const sendMail = vi.fn(async () => ({}));
+const sendMail = vi.fn<(message: { html: string }) => Promise<unknown>>(async () => ({}));
 vi.mock('nodemailer', () => ({ default: { createTransport: () => ({ sendMail }) } }));
 
 const { sendSelectionSheetEmail } = await import('./emailService.ts');
@@ -16,11 +16,11 @@ const checkIn = {
     { material: 'ABSOLUTE BLACK', lot: '22001', details: '1, 2', size: '126x63', priceCentsPerSf: null }
   ]
 };
-const htmlOf = async (opts: Loose) => {
+const htmlOf = async (opts: { showPrices?: boolean } = {}) => {
   sendMail.mockClear();
   const result = await sendSelectionSheetEmail(checkIn, 'to@example.com', undefined, opts);
   expect(result.success).toBe(true);
-  return sendMail.mock.calls[0][0].html;
+  return sendMail.mock.calls[0]![0].html;
 };
 
 beforeAll(() => {

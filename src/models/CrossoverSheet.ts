@@ -42,7 +42,7 @@ const crossoverEntrySchema = new mongoose.Schema<Loose>({
 // history) — migrated to this shape so the Matrix view's "one row per
 // color" grouping is how the data is actually stored, not just how it's
 // displayed.
-const crossoverSheetSchema = new mongoose.Schema<Loose>({
+const crossoverSheetSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   easyStonesName: {
     type: String,
     required: true,

@@ -1,22 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import { groupStops, applyStopMove, flattenGroups, sameStopOrder, compactStopNumbers, nextStopNumber } from './stopGrouping.ts';
 
-const stops = (...pairs: [string, number][]) => pairs.map(([id, routeNumber]) => ({ id, routeNumber }));
+const stops = (...pairs: [string, number | null][]) => pairs.map(([id, routeNumber]) => ({ id, routeNumber }));
 
 describe('groupStops', () => {
   it('keeps every ticket its own group when none share a stop', () => {
-    expect(groupStops(stops(['a', 1], ['b', 2], ['c', 3]))).toEqual([['a'], ['b'], ['c']]);
+    expect(groupStops((stops(['a', 1], ['b', 2], ['c', 3]))!)).toEqual([['a'], ['b'], ['c']]);
   });
 
   it('groups consecutive tickets that share a routeNumber — the real STONE PROS case', () => {
-    expect(groupStops(stops(['a', 1], ['b', 2], ['c', 2], ['d', 2], ['e', 2])))
+    expect(groupStops((stops(['a', 1], ['b', 2], ['c', 2], ['d', 2], ['e', 2]))!))
       .toEqual([['a'], ['b', 'c', 'd', 'e']]);
   });
 
   it('does not merge two separated runs of the same routeNumber', () => {
     // Same number reused later in the list is a different occasion, not the
     // same stop — grouping is positional, not a bare tally by number.
-    expect(groupStops(stops(['a', 1], ['b', 2], ['c', 1])))
+    expect(groupStops((stops(['a', 1], ['b', 2], ['c', 1]))!))
       .toEqual([['a'], ['b'], ['c']]);
   });
 
@@ -94,19 +94,19 @@ describe('flattenGroups', () => {
 
 describe('sameStopOrder', () => {
   it('is true for identical arrangements', () => {
-    expect(sameStopOrder(stops(['a', 1], ['b', 2]), stops(['a', 1], ['b', 2]))).toBe(true);
+    expect(sameStopOrder((stops(['a', 1], ['b', 2]))!, stops(['a', 1], ['b', 2]))).toBe(true);
   });
 
   it('is false when a routeNumber differs', () => {
-    expect(sameStopOrder(stops(['a', 1], ['b', 2]), stops(['a', 1], ['b', 3]))).toBe(false);
+    expect(sameStopOrder((stops(['a', 1], ['b', 2]))!, stops(['a', 1], ['b', 3]))).toBe(false);
   });
 
   it('is false when the id order differs even with the same numbers', () => {
-    expect(sameStopOrder(stops(['a', 1], ['b', 2]), stops(['b', 1], ['a', 2]))).toBe(false);
+    expect(sameStopOrder((stops(['a', 1], ['b', 2]))!, stops(['b', 1], ['a', 2]))).toBe(false);
   });
 
   it('is false when lengths differ', () => {
-    expect(sameStopOrder(stops(['a', 1]), stops(['a', 1], ['b', 2]))).toBe(false);
+    expect(sameStopOrder((stops(['a', 1]))!, stops(['a', 1], ['b', 2]))).toBe(false);
   });
 });
 
@@ -115,7 +115,7 @@ describe('a full round-trip matches how staff already use shared stops', () => {
     // Reproduces the real shape from the live board: four tickets already
     // sharing routeNumber 2, plus one ticket at 1.
     const before = stops(['x', 1], ['a', 2], ['b', 2], ['c', 2], ['d', 2]);
-    const groups = groupStops(before);
+    const groups = groupStops((before)!);
     expect(groups).toEqual([['x'], ['a', 'b', 'c', 'd']]);
 
     // A new ticket dropped after the STONE PROS stop (not merged into it).
@@ -135,28 +135,28 @@ describe('a full round-trip matches how staff already use shared stops', () => {
 
 describe('compactStopNumbers', () => {
   it('closes the gap a deleted or moved stop leaves (1, 3 → 1, 2)', () => {
-    expect(compactStopNumbers(stops(['a', 1], ['b', 3]))).toEqual([{ id: 'b', routeNumber: 2 }]);
+    expect(compactStopNumbers((stops(['a', 1], ['b', 3]))!)).toEqual([{ id: 'b', routeNumber: 2 }]);
   });
 
   it('starts at 1 when stop 1 has gone', () => {
-    expect(compactStopNumbers(stops(['a', 2], ['b', 5], ['c', 9]))).toEqual(stops(['a', 1], ['b', 2], ['c', 3]));
+    expect(compactStopNumbers((stops(['a', 2], ['b', 5], ['c', 9]))!)).toEqual(stops(['a', 1], ['b', 2], ['c', 3]));
   });
 
   it('keeps tickets that shared a stop sharing one', () => {
-    expect(compactStopNumbers(stops(['a', 1], ['b', 4], ['c', 4], ['d', 7])))
+    expect(compactStopNumbers((stops(['a', 1], ['b', 4], ['c', 4], ['d', 7]))!))
       .toEqual(stops(['b', 2], ['c', 2], ['d', 3]));
   });
 
   it('keeps the order whatever order the tickets come in', () => {
-    expect(compactStopNumbers(stops(['c', 9], ['a', 2], ['b', 5]))).toEqual(stops(['c', 3], ['a', 1], ['b', 2]));
+    expect(compactStopNumbers((stops(['c', 9], ['a', 2], ['b', 5]))!)).toEqual(stops(['c', 3], ['a', 1], ['b', 2]));
   });
 
   it('changes nothing on a run already numbered 1, 2, 3', () => {
-    expect(compactStopNumbers(stops(['a', 1], ['b', 2], ['c', 3]))).toEqual([]);
+    expect(compactStopNumbers((stops(['a', 1], ['b', 2], ['c', 3]))!)).toEqual([]);
   });
 
   it('writes a missing number as the 1 it is read as', () => {
-    expect(compactStopNumbers(stops(['a', null], ['b', 2]))).toEqual([{ id: 'a', routeNumber: 1 }]);
+    expect(compactStopNumbers((stops(['a', null], ['b', 2]))!)).toEqual([{ id: 'a', routeNumber: 1 }]);
   });
 
   it('has nothing to do on an empty run', () => {
@@ -166,7 +166,7 @@ describe('compactStopNumbers', () => {
 
 describe('nextStopNumber', () => {
   it('is one past the last stop', () => {
-    expect(nextStopNumber(stops(['a', 1], ['b', 2], ['c', 2]))).toBe(3);
+    expect(nextStopNumber((stops(['a', 1], ['b', 2], ['c', 2]))!)).toBe(3);
   });
 
   it('is 1 on an empty run', () => {

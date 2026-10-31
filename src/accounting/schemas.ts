@@ -89,7 +89,7 @@ export const versionOnly = z.object({ version }).strict();
 export const carrierCreate = z.object({
   name: text(120).min(1, 'Enter the carrier name.'),
   aliases: z.array(text(120).min(1)).max(20).optional().default([]),
-  paymentTerms: z.enum(Object.values(PAYMENT_TERMS)).default(PAYMENT_TERMS.PER_DELIVERY),
+  paymentTerms: z.enum([PAYMENT_TERMS.PER_DELIVERY, PAYMENT_TERMS.PER_INVOICE]).default(PAYMENT_TERMS.PER_DELIVERY),
   notes: text(1000).optional().default('')
 }).strict();
 
@@ -97,7 +97,7 @@ export const carrierEdit = z.object({
   version,
   name: text(120).min(1, 'Enter the carrier name.').optional(),
   aliases: z.array(text(120).min(1)).max(20).optional(),
-  paymentTerms: z.enum(Object.values(PAYMENT_TERMS)).optional(),
+  paymentTerms: z.enum([PAYMENT_TERMS.PER_DELIVERY, PAYMENT_TERMS.PER_INVOICE]).optional(),
   notes: text(1000).optional()
 }).strict();
 

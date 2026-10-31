@@ -72,7 +72,7 @@ export const planSpsImport = ({
   }
 
   // ── the file's customers: one per distinct SPS name ───────────────────────
-  const sheet = [];
+  const sheet: Loose[] = [];
   const seen = new Set();
   const skipped = { blank: 0, repeated: 0 };
   rows.forEach((row: Loose, i: number) => {
@@ -162,7 +162,7 @@ export const planSpsImport = ({
     const changes = [];
     const apply: Loose = {};
     const before: Loose = {};
-    const unset = [];
+    const unset: string[] = [];
     const set = (path: string, to: unknown) => {
       const was = getPath(target, path);
       if (was === undefined) unset.push(path); else before[path] = was;
@@ -243,7 +243,7 @@ export const planSpsImport = ({
   // ── pass 2: deleted before, look-alikes, new ──────────────────────────────
   const free = unconnected.filter((c: Loose) => !claimed.has(String(c._id)));
   const index = buildSignalIndex(free);
-  const byId = new Map(free.map((c: Loose) => [String(c._id), c]));
+  const byId = new Map<string, Loose>(free.map((c: Loose) => [String(c._id), c]));
 
   const createFor = (r: Loose) => {
     const finalEmail = (() => {
@@ -294,13 +294,13 @@ export const planSpsImport = ({
     const worthAsking = matches.filter((m) => m.score >= STRONG || !isDomainOnly(m));
     if (worthAsking.length) {
       const chosen = worthAsking.find((m) => m.id === answer);
-      if (chosen) { update(r, byId.get(chosen.id), { connect: true, matchedOn: chosen.signals }); continue; }
+      if (chosen) { update(r, byId.get(chosen.id)!, { connect: true, matchedOn: chosen.signals }); continue; }
       if (answer !== ANSWER.NEW && !finalize) {
         outcomes.set(r.key, {
           ...base(r),
           action: 'decision',
           matches: worthAsking.slice(0, 5).map((m) => {
-            const c = byId.get(m.id);
+            const c = byId.get(m.id)!;
             return {
               id: m.id, label: importLabel(c), company: c.company, signals: m.signals, score: m.score,
               contactName: c.contactName || '', phone: c.phone || '', email: c.email || '', city: c.address?.city || '',
@@ -316,7 +316,7 @@ export const planSpsImport = ({
   }
 
   const list = sheet.map((s) => outcomes.get(s.key));
-  const counts = { new: 0, update: 0, unchanged: 0, decision: 0, deleted: 0, restore: 0, keptDeleted: 0 };
+  const counts: Record<string, number> = { new: 0, update: 0, unchanged: 0, decision: 0, deleted: 0, restore: 0, keptDeleted: 0 };
   for (const o of list) counts[o.action]++;
   const repNames = [...new Set([...repByKey.values()].filter(Boolean).map((x) => x.salesRepName))];
   const unresolved = (map: Map<string, number>, suggest: (given: string) => string | null) => [...map]

@@ -1,4 +1,4 @@
-type Stop = { id: string; routeNumber?: number };
+type Stop = { id: string; routeNumber?: number | null };
 type StopGroup = string[];
 /**
  * How the dispatch board's drag-to-reorder decides what counts as "one stop".

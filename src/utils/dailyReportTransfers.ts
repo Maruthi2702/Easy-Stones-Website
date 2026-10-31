@@ -6,7 +6,7 @@ import type { Loose } from '../types/records.ts';
  * groups by origin — same shape, different key, so both go through this one
  * function).
  */
-export const groupTransferTickets = (tickets: Loose[], keyOf: (ticket: Loose) => string) => {
+export const groupTransferTickets = (tickets: Loose[] | null | undefined, keyOf: (ticket: Loose) => string) => {
   const groups = new Map();
   for (const ticket of tickets || []) {
     const key = keyOf(ticket) || 'Unspecified';
@@ -42,7 +42,7 @@ export const boardWeekMonday = (dateStr: string) => {
  * transfer on the day it shipped, so these are exactly the cards that make the
  * board and the report look like they disagree. Grouped by ship date.
  */
-export const arrivalsShippedEarlier = (tickets: Loose[], date: string) => {
+export const arrivalsShippedEarlier = (tickets: Loose[] | null | undefined, date: string) => {
   const monday = boardWeekMonday(date);
   const groups = new Map();
   for (const t of tickets || []) {

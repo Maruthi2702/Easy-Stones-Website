@@ -26,19 +26,19 @@ export const seattleWhere = (since: string) => {
 };
 
 export function createSeattleSource({ dataset = SEATTLE_DATASET, pageOf = seattlePermitPage, fetchImpl = globalThis.fetch, sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)), pauseMs = 250 }: Loose = {}) {
-  const query = (params: unknown) => fetchJson(`${dataset}?${new URLSearchParams(params)}`, {
+  const query = (params: Record<string, string>) => fetchJson(`${dataset}?${new URLSearchParams(params)}`, {
     fetchImpl, sleep, pauseMs, name: 'Seattle',
     errorOf: (data: Loose) => (!Array.isArray(data) ? data?.message || data?.error || 'error' : null)
   });
 
-  async function countWhere(where: unknown) {
+  async function countWhere(where: string) {
     const [row] = await query({ $select: 'count(*) AS n', $where: where });
     const n = Number(row?.n);
     if (!Number.isInteger(n)) throw new Error('Seattle didn’t say how many permits there are');
     return n;
   }
 
-  async function readAll(where: unknown, { select, order }: Loose) {
+  async function readAll(where: string, { select, order }: Loose) {
     const total = await countWhere(where);
     const rows = [];
     let pages = 0;

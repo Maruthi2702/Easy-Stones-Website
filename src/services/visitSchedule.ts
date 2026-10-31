@@ -1,3 +1,4 @@
+import type { Loose } from '../types/records.ts';
 /**
  * Keeps a rep's calendar (Schedule) in step with the visits they log.
  *
@@ -34,7 +35,7 @@ type VisitOptions = {
   customerId: Id;
   visitId: Id;
   visitDate: string;
-  userId: Id;
+  userId: Id | null | undefined;
   purpose?: string;
   startTime?: string;
   emit?: (event: ScheduleEvent) => void;
@@ -140,7 +141,7 @@ export async function unlinkVisitFromSchedule({ visitId, emit = () => {}, sessio
   if (planned.length) {
     await Schedule.updateMany(
       { _id: { $in: planned.map((p) => p._id) } },
-      { $set: { status: 'Scheduled' }, $unset: { linkedVisitId: '' } }, { session }
+      { $set: { status: 'Scheduled' }, $unset: { linkedVisitId: '' } }, { session: session! }
     );
     for (const p of planned) emit({ type: 'upsert', userId: p.userId, id: String(p._id) });
   }

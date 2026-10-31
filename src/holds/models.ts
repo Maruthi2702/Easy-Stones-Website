@@ -102,7 +102,7 @@ holdSchema.index({ requestId: 1 }, { unique: true, partialFilterExpression: { re
 holdSchema.index({ status: 1, branch: 1, createdAt: -1 });
 holdSchema.index({ 'createdBy.id': 1, createdAt: -1 });
 holdSchema.pre('validate', function syncKeys() {
-  this.slabKeys = (this.lines || []).map((l) => l.slabKey);
+  this.slabKeys = (this.lines || []).map((l: Loose) => l.slabKey);
 });
 
 // ── Lock ─────────────────────────────────────────────────────────────────
@@ -136,14 +136,14 @@ const historySchema = new Schema<Loose>({
 historySchema.index({ holdId: 1, at: -1 });
 
 const refuse = function refuse() { throw new Error('Hold history is append-only'); };
-for (const op of ['updateOne', 'updateMany', 'findOneAndUpdate', 'replaceOne', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete']) {
+for (const op of ['updateOne', 'updateMany', 'findOneAndUpdate', 'replaceOne', 'findOneAndReplace', 'deleteOne', 'deleteMany', 'findOneAndDelete'] as const) {
   historySchema.pre(op, refuse);
 }
 historySchema.pre('save', function onlyNew() {
   if (!this.isNew) throw new Error('Hold history is append-only');
 });
 
-const model = (name: string, schema: Loose) => mongoose.models[name] || mongoose.model(name, schema);
+const model = (name: string, schema: mongoose.Schema<Loose>) => mongoose.models[name] || mongoose.model(name, schema);
 
 export const Cart = model('SalesCart', cartSchema);
 export const Hold = model('SalesHold', holdSchema);
@@ -152,7 +152,7 @@ export const Counter = model('SalesCounter', counterSchema);
 export const HoldHistory = model('SalesHoldHistory', historySchema);
 
 /** The next number for `name` (e.g. 'hold'): 1, 2, 3… — inside the caller's transaction. */
-export async function nextNumber(name: string, session: Loose) {
+export async function nextNumber(name: string, session: mongoose.ClientSession) {
   const doc = await Counter.findOneAndUpdate(
     { _id: name },
     { $inc: { seq: 1 } },

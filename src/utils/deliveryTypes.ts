@@ -186,7 +186,7 @@ export const applyTransferPerspective = (delivery: Loose | null | undefined, vie
  * transfer the report forgot. `viewedAs` is which side of the transfer the
  * viewer is on, which changes how that note is worded.
  */
-export const showOnArrivalDay = (delivery: Loose | null | undefined, viewedAs: unknown) => ({
+export const showOnArrivalDay = (delivery: Loose, viewedAs: unknown) => ({
   ...delivery,
   date: delivery.expectedArrivalDate,
   isIncomingView: true,
@@ -212,7 +212,7 @@ export const transferArrivalFor = ({ date, expectedArrivalDate }: Loose = {}) =>
 const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /** 'YYYY-MM-DD' → "Fri 9/25", read from its date parts so no timezone can move it. */
-export const shortDayLabel = (dateStr: string) => {
+export const shortDayLabel = (dateStr: unknown) => {
   const [y, m, d] = String(dateStr || '').slice(0, 10).split('-').map(Number);
   if (!y || !m || !d) return '';
   return `${SHORT_DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${m}/${d}`;
@@ -258,7 +258,7 @@ const ymdToDayNumber = (ymd: unknown) => {
   return Math.round(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86400000);
 };
 
-export const pendingDeliveryDateLabel = (date: string, today = '') => {
+export const pendingDeliveryDateLabel = (date: unknown, today = '') => {
   const day = ymdToDayNumber(date);
   if (day === null) return { text: 'No date', tone: 'none' };
   const [, mo, d] = String(date).split('-').map(Number);
@@ -284,7 +284,7 @@ export const pendingDeliveryDateLabel = (date: string, today = '') => {
  * end. Orders due the same day keep the one waiting longest (created first)
  * ahead. Returns a new array; the list it's given is left alone.
  */
-export const sortPendingByDate = (deliveries: Loose[] = []) => {
+export const sortPendingByDate = <T extends Loose>(deliveries: T[] = []) => {
   const dayOf = (d: Loose) => ymdToDayNumber(d?.date);
   const createdOf = (d: Loose) => {
     const t = new Date(d?.createdAt || 0).getTime();

@@ -27,7 +27,7 @@ const quiet = { log() {}, warn() {}, error() {} };
 const ADMIN = { id: 'u1', displayName: 'Krish', permissions: [...ALL_PERMIT_PERMISSIONS] };
 const VIEWER = { id: 'u2', displayName: 'Maria', permissions: [PERMITS.VIEW] };
 const NOBODY = { id: 'u3', displayName: 'Sam', permissions: [] };
-const api = (method: string, url: string, user = ADMIN) => request(app)[method](`/api/permits${url}`).set('x-test-user', JSON.stringify(user));
+const api = (method: 'get' | 'post' | 'put' | 'patch' | 'delete', url: string, user = ADMIN) => request(app)[method](`/api/permits${url}`).set('x-test-user', JSON.stringify(user));
 
 const wRow = (n: unknown, day: string, type = 'Building (Residential) - SFR - New Construction', status = 'Issued') => ({
   CaseId: `case-${n}`, CaseNumber: n, CaseType: type, CaseWorkclass: '', CaseStatus: status, IssueDate: `${day}T00:00:00`,
@@ -37,7 +37,7 @@ const wDetail = (n: unknown, gc = 'KVF Construction', phone = '3607397535') => (
   PermitNumber: n, Description: `Work for ${n}`, ValuationValue: 300000, SquareFeet: 2400,
   Contacts: [{ ContactTypeName: 'Contractor - GC', GlobalEntityName: gc, FirstName: 'Vlad', LastName: 'K', EmailTo: 'kvf@example.com', Phone: phone }]
 });
-const bRow = (id: string, no: unknown, day: string, type = 'NEW CONSTRUCTION SINGLE FAMILY OR DUPLEX', sub = 'NEW STRUCTURE') => ({
+const bRow = (id: number, no: unknown, day: string, type = 'NEW CONSTRUCTION SINGLE FAMILY OR DUPLEX', sub = 'NEW STRUCTURE') => ({
   OBJECTID: id, PERMIT_NO: no, PermitType: type, PermitSubType: sub, STATUS: 'ISSUED', ISSUED: Date.parse(`${day}T00:00:00Z`),
   SITE_ADDR: '10 OAK ST', DESCRIPTION: 'NEW SFR', JOBVALUE: 450000, CONTRACTOR_NAME: 'Raven Ridge Builders', OWNER_NAME: 'A OWNER', APPLICANT_NAME: 'A OWNER'
 });
@@ -45,7 +45,7 @@ const bRow = (id: string, no: unknown, day: string, type = 'NEW CONSTRUCTION SIN
 const fakeWhatcom = {
   issuedSince: async (since: string) => {
     if (whatcomRows instanceof Error) throw whatcomRows;
-    const rows = whatcomRows.filter((r: Loose) => r.IssueDate.slice(0, 10) >= since);
+    const rows = (whatcomRows as Loose[]).filter((r: Loose) => r.IssueDate.slice(0, 10) >= since);
     return { rows, pages: 1, total: whatcomRows.length };
   },
   details: async (id: string) => {
@@ -58,7 +58,7 @@ const fakeWhatcom = {
 const fakeBellingham = {
   issuedSince: async (since: string) => {
     if (bellinghamRows instanceof Error) throw bellinghamRows;
-    const rows = bellinghamRows.filter((r: Loose) => new Date(r.ISSUED).toISOString().slice(0, 10) >= since);
+    const rows = (bellinghamRows as Loose[]).filter((r: Loose) => new Date(r.ISSUED).toISOString().slice(0, 10) >= since);
     return { rows, pages: 1, total: rows.length };
   }
 };
@@ -77,7 +77,7 @@ beforeAll(async () => {
   app.use('/api/permits', createPermitsRouter({
     sync,
     customerIndexMs: 0,
-    authenticate: (req: Loose, res: Loose, next: unknown) => {
+    authenticate: (req: Loose, res: Loose, next: () => void) => {
       const raw = req.headers['x-test-user'];
       if (!raw) return res.status(401).json({ error: 'Not signed in.' });
       req.user = JSON.parse(raw);
@@ -126,7 +126,7 @@ describe('the morning pull', () => {
   it('then re-reads the last 30 days each morning, updating rather than duplicating', async () => {
     await sync.run();
     clock = new Date('2026-10-12T12:05:00Z');
-    whatcomRows[0] = wRow('SFR2026-00212', '2026-10-06', undefined, 'Final');
+    (whatcomRows as Loose[])[0] = wRow('SFR2026-00212', '2026-10-06', undefined, 'Final');
     const out = await sync.run();
     expect(out.whatcom).toMatchObject({ kind: 'daily', since: '2026-09-12', ok: true, added: 0, updated: 1 });
     expect(await Permit.countDocuments({ permitNumber: 'SFR2026-00212' })).toBe(1);
@@ -147,7 +147,7 @@ describe('the morning pull', () => {
   });
 
   it('keeps the saved contacts when a permit’s details don’t load this time', async () => {
-    whatcomRows.push(wRow('SFR2026-00300', '2026-10-02'));
+    (whatcomRows as Loose[]).push(wRow('SFR2026-00300', '2026-10-02'));
     whatcomDetails['SFR2026-00300'] = wDetail('SFR2026-00300');
     await sync.run();
     clock = new Date('2026-10-12T12:05:00Z');
@@ -213,7 +213,7 @@ describe('the morning pull', () => {
   });
 
   it('saves permits whose details loaded even when some didn’t, and counts the rest', async () => {
-    whatcomRows.push(wRow('SFR2026-00300', '2026-10-02'));
+    (whatcomRows as Loose[]).push(wRow('SFR2026-00300', '2026-10-02'));
     const out = await sync.run();
     expect(out.whatcom).toMatchObject({ ok: true, leads: 3, added: 3, detailErrors: 1 });
     expect((await Permit.findOne({ permitNumber: 'SFR2026-00300' }).lean()).detailsAt).toBeNull();
@@ -233,14 +233,14 @@ describe('the morning pull', () => {
 
 describe('the county report check', () => {
   it('matches a month permit by permit, ignoring report permits that aren’t leads', async () => {
-    whatcomRows.push(wRow('EFR2026-00001', '2026-08-10', 'Building (Commercial) - Eligible Facility Request'));
+    (whatcomRows as Loose[]).push(wRow('EFR2026-00001', '2026-08-10', 'Building (Commercial) - Eligible Facility Request'));
     await sync.run();
     const check = await PermitCheck.findOne({ month: '2026-08' }).lean();
     expect(check).toMatchObject({ ok: true, inReport: 2, matched: 1, missingFromApp: [], notInReport: [], notInCountySearch: [] });
   });
 
   it('lists permits the report has that the app doesn’t, and the other way round', async () => {
-    whatcomRows.push(wRow('SFR2026-00150', '2026-08-20'));
+    (whatcomRows as Loose[]).push(wRow('SFR2026-00150', '2026-08-20'));
     whatcomDetails['SFR2026-00150'] = wDetail('SFR2026-00150');
     report.numbers = ['SFR2026-00100', 'SFR2026-00999'];
     await sync.run();
@@ -274,7 +274,7 @@ describe('the month-so-far check', () => {
   it('refreshes a source-cleared issue date without deleting the permit or hiding a true missing lead', async () => {
     await sync.runSource('bellingham', { kind: 'manual' });
     const saved = await Permit.findOne({ source: 'bellingham' }).lean();
-    const row = { ...bellinghamRows[0], ISSUED: null, STATUS: 'RTI HOLD' };
+    const row: Loose = { ...(bellinghamRows as Loose[])[0], ISSUED: null, STATUS: 'RTI HOLD' };
     const corrected = createPermitSync({ readers: { bellingham: {
       issuedSince: async () => ({ rows: [], pages: 1, total: 0 }),
       findByNumber: async () => row
@@ -295,7 +295,7 @@ describe('the month-so-far check', () => {
 
   it('saves an explicit move to another month and explains it', async () => {
     await sync.runSource('bellingham', { kind: 'manual' });
-    const row = { ...bellinghamRows[0], ISSUED: Date.parse('2026-09-30T00:00:00Z') };
+    const row: Loose = { ...(bellinghamRows as Loose[])[0], ISSUED: Date.parse('2026-09-30T00:00:00Z') };
     const corrected = createPermitSync({ readers: { bellingham: {
       issuedSince: async () => ({ rows: [], pages: 1, total: 0 }), findByNumber: async () => row
     } }, log: quiet, now: () => clock });
@@ -305,7 +305,7 @@ describe('the month-so-far check', () => {
 
   it('keeps the discrepancy when the exact lookup is missing or still says issued this month', async () => {
     await sync.runSource('bellingham', { kind: 'manual' });
-    for (const row of [null, bellinghamRows[0]]) {
+    for (const row of [null, (bellinghamRows as Loose[])[0]]) {
       const corrected = createPermitSync({ readers: { bellingham: {
         issuedSince: async () => ({ rows: [], pages: 1, total: 0 }), findByNumber: async () => row
       } }, log: quiet, now: () => clock });
@@ -318,7 +318,7 @@ describe('the month-so-far check', () => {
     await sync.runSource('bellingham', { kind: 'manual' });
     const corrected = createPermitSync({ readers: { bellingham: {
       issuedSince: async () => ({ rows: [], pages: 1, total: 0 }),
-      findByNumber: async () => ({ ...bellinghamRows[0], PERMIT_NO: 'WRONG', ISSUED: null })
+      findByNumber: async () => ({ ...(bellinghamRows as Loose[])[0], PERMIT_NO: 'WRONG', ISSUED: null })
     } }, log: quiet, now: () => clock });
     expect((await corrected.checkMonthToDate())[0]).toMatchObject({ ok: false, error: expect.stringContaining('wrong permit') });
     expect((await Permit.findOne({ source: 'bellingham' })).issuedOn).toBe('2026-10-01');
@@ -337,8 +337,8 @@ describe('the month-so-far check', () => {
   it('flags a permit the app has that the second search can’t find, and the other way round', async () => {
     await sync.run();
     // The app holds one the county no longer returns, and the county now has one the app hasn't pulled.
-    whatcomRows = whatcomRows.filter((r: Loose) => r.CaseNumber !== 'SFR2026-00212');
-    whatcomRows.push(wRow('SFR2026-00400', '2026-10-10'));
+    whatcomRows = (whatcomRows as Loose[]).filter((r: Loose) => r.CaseNumber !== 'SFR2026-00212');
+    (whatcomRows as Loose[]).push(wRow('SFR2026-00400', '2026-10-10'));
     const [w] = await sync.checkMonthToDate();
     expect(w).toMatchObject({ source: 'whatcom', ok: false, missingFromApp: ['SFR2026-00400'], notFoundAgain: ['SFR2026-00212'] });
   });
@@ -431,9 +431,9 @@ describe('the API', () => {
   });
 
   it('makes the list a PDF for the same filters, only with the Export permission', async () => {
-    const pdf = await api('get', '/export.pdf?source=whatcom').buffer(true).parse((res: Loose, cb: Loose) => {
-      const chunks: unknown[] = [];
-      res.on('data', (c: string) => chunks.push(c));
+    const pdf = await api('get', '/export.pdf?source=whatcom').buffer(true).parse((res: Loose, cb: (error: Error | null, bytes: Buffer) => void) => {
+      const chunks: Uint8Array[] = [];
+      res.on('data', (c: Uint8Array) => chunks.push(c));
       res.on('end', () => cb(null, Buffer.concat(chunks)));
     });
     expect(pdf.status).toBe(200);
@@ -449,10 +449,10 @@ describe('the API', () => {
 
   it('shows each source’s last run, with the run details only for Refresh', async () => {
     const admin = (await api('get', '/meta')).body;
-    expect(admin.sources.map((s: string) => s.id)).toEqual(['whatcom', 'bellingham']);
+    expect(admin.sources.map((s: Loose) => s.id)).toEqual(['whatcom', 'bellingham']);
     expect(admin.sources[1].lastRun.unsortedTypes).toHaveLength(1);
     expect(admin.sources[0].coverageSince).toBe('2026-04-11');
-    expect(admin.checks.find((c: string) => c.method === 'report')).toMatchObject({ month: '2026-08', ok: true });
+    expect(admin.checks.find((c: Loose) => c.method === 'report')).toMatchObject({ month: '2026-08', ok: true });
     expect(admin).toMatchObject({ canRefresh: true, canExport: true, running: false });
     expect(admin.cities).toEqual(['Bellingham', 'Ferndale']);
     const viewer = (await api('get', '/meta', VIEWER)).body;

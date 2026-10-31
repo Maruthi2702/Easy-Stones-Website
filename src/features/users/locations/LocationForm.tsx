@@ -23,6 +23,7 @@ import './LocationForm.css';
 
 type LocationValues = ReturnType<typeof locationToFormValues>;
 type LocationField = keyof LocationValues;
+type LabeledLocationField = Extract<LocationField, keyof typeof FIELD_LABELS>;
 type TextOptions = {
     label?: string;
     required?: boolean;
@@ -109,7 +110,7 @@ export default function LocationForm({ location = null, locations = [], users = 
     const visibleErrors = Object.fromEntries(Object.keys(FIELD_LABELS).filter((k) => allErrors[k]).map((k) => [k, allErrors[k]]));
 
     const dirtyCount = countLocationChanges(values, initial);
-    const addressChanged = ADDRESS_FIELDS.some((k) => String(values[k as LocationField]).trim() !== String(initial[k as LocationField]).trim());
+    const addressChanged = ADDRESS_FIELDS.some((k) => String(values[k as LabeledLocationField]).trim() !== String(initial[k as LabeledLocationField]).trim());
 
     // Any other location can be this one's RDC; the shared location dropdown
     // lists them A–Z after None.
@@ -150,7 +151,7 @@ export default function LocationForm({ location = null, locations = [], users = 
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                if (data.field && FIELD_LABELS[data.field]) {
+                if (data.field && FIELD_LABELS[data.field as keyof typeof FIELD_LABELS]) {
                     setServerErrors({ [data.field]: data.message });
                     setTimeout(() => goToField(data.field), 0);
                 } else {
@@ -170,7 +171,7 @@ export default function LocationForm({ location = null, locations = [], users = 
     // One text field: label, input, error. `name` is the FIELD_LABELS key.
     // index.css title-cases every text input; codes, addresses' state/ZIP,
     // websites and numbers must read exactly as typed.
-    const text = (name: LocationField, { label = FIELD_LABELS[name], required = false, type = 'text', placeholder, inputMode, prefix, suffix, readOnly = false, title, autoCapitalize, asTyped = false }: TextOptions = {}) => {
+    const text = (name: LabeledLocationField, { label = FIELD_LABELS[name], required = false, type = 'text', placeholder, inputMode, prefix, suffix, readOnly = false, title, autoCapitalize, asTyped = false }: TextOptions = {}) => {
         const id = `loc-${name}`;
         const error = shown(name);
         const input = (
@@ -203,7 +204,7 @@ export default function LocationForm({ location = null, locations = [], users = 
             </FormField>
         );
     };
-    const picker = (name: LocationField, options: { value: string; label: string }[], placeholder: string) => {
+    const picker = (name: LabeledLocationField, options: { value: string; label: string }[], placeholder: string) => {
         const id = `loc-${name}`;
         return (
             <FormField name={name} id={id} label={FIELD_LABELS[name]} error={shown(name)}>
@@ -227,7 +228,7 @@ export default function LocationForm({ location = null, locations = [], users = 
     );
     // City / State / ZIP for either address block.
     const cityStateZip = (prefix = '') => {
-        const k = (f: string) => (prefix ? `${prefix}${f[0].toUpperCase()}${f.slice(1)}` : f) as LocationField;
+        const k = (f: string) => (prefix ? `${prefix}${f[0].toUpperCase()}${f.slice(1)}` : f) as LabeledLocationField;
         const required = !prefix;
         return (
             <div className="loc-csz">

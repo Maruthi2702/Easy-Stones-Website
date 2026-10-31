@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 // Checks what the server loads can actually be loaded by Node on Render.
 //
 // Render runs `node server.ts` with no build step, on Node 24 (since

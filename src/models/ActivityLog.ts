@@ -2,7 +2,7 @@
 import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
-const activityLogSchema = new mongoose.Schema<Loose>({
+const activityLogSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
     entityType: {
         type: String,
         required: true,

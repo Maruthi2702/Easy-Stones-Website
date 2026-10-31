@@ -112,7 +112,7 @@ export function useDayPlan({ pins, visible, origin, setOrigin, setDrawMode, setS
             && manualOrderIds.length === placeable.length
             && manualOrderIds.every(id => byId.has(id));
         const ordered = manualIsValid
-            ? manualOrderIds.map(id => byId.get(id))
+            ? manualOrderIds.map(id => byId.get(id)!)
             : orderStops(selectedPins, routeOrigin);
         return planDay(ordered, {
             date: new Date(`${date}T00:00:00`),

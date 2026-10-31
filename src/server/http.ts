@@ -17,6 +17,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import type { ZodType, ZodTypeDef } from 'zod';
 import type { Loose } from '../types/records.ts';
 import type { PermissionUser } from '../types/permissions.ts';
+import type {} from '../types/server.ts';
 
 export class HttpError extends Error {
   status: number;
@@ -90,7 +91,7 @@ export const handle = (fn: (req: Request, res: Response) => unknown, { label = '
   try {
     await fn(req, res);
   } catch (err) {
-    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message, ...err.extra });
+    if (err instanceof HttpError) return res.status((err as Error & Loose).status).json({ error: (err as Error).message, ...(err as Error & Loose).extra });
     if ((err as Loose)?.code === 11000) return res.status(409).json({ error: 'That already exists — reload and check before trying again.' });
     if ((err as Error)?.name === 'VersionError') return res.status(409).json({ error: 'Someone else changed this at the same moment. Reload and try again.' });
     console.error(`[${label}]`, req.method, req.originalUrl, err);

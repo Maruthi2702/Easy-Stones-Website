@@ -1,3 +1,4 @@
+import type { Loose } from '../types/records.ts';
 // Every source's rules (src/permits/rules/), checked against trimmed real
 // records from 2026-10-14: which exact types are leads, what's skipped, what
 // gets reported as a new type, and how each record copies into a permit.
@@ -58,7 +59,7 @@ describe('the sources', () => {
   it('lists all 39 Washington counties', () => {
     expect(STATES[0].name).toBe('Washington');
     expect(COUNTIES).toHaveLength(39);
-    expect(COUNTIES.find((c) => c.name === 'Grays Harbor').id).toBe('grays_harbor');
+    expect(COUNTIES.find((c) => c.name === 'Grays Harbor')!.id).toBe('grays_harbor');
     expect(countyLabel('king')).toBe('King County');
     expect(countyLabel('nowhere')).toBe('');
   });
@@ -196,7 +197,7 @@ describe('King County', () => {
       address: '6400 NORTH FORK RD SE', city: 'Snoqualmie', zip: '98065', parcel: '2624089001', projectName: '(PRO)TRAUT WORKSHOP',
       sourceUrl: 'https://permitsearch.mybuildingpermit.com/PermitDetails/ADDC25-0739/KING%20COUNTY'
     });
-    expect(p.contacts[0]).toMatchObject({ kind: 'contractor', company: 'Carrie Miranda', license: 'BROCKSC921MJ' });
+    expect(p.contacts![0]).toMatchObject({ kind: 'contractor', company: 'Carrie Miranda', license: 'BROCKSC921MJ' });
   });
 
   it('leaves the detail fields unset when the details didn’t load', () => {
@@ -267,7 +268,7 @@ describe('King County', () => {
       source: 'king_county', permitNumber: 'ADDC24-0028', category: 'remodel', type: 'Building/Residential Building/Addition-Improvement',
       address: '10121 420TH AVE SE', city: 'North Bend', zip: '98045', valuation: 344212.8, issuedOn: '2026-09-17', sourceUrl: ''
     });
-    expect(p.contacts.map((c) => [c.kind, c.name])).toEqual([['owner', 'Faruk Behluli'], ['applicant', 'Faruk Behluli']]);
+    expect(p.contacts.map((c: Loose) => [c.kind, c.name])).toEqual([['owner', 'Faruk Behluli'], ['applicant', 'Faruk Behluli']]);
     expect(kingType('Building/New Commercial Construction/Undeveloped/N')).toBe('Building/New Commercial Construction/Undeveloped');
   });
 
@@ -349,7 +350,7 @@ describe('Bellevue', () => {
       source: 'bellevue', category: 'new_home', type: 'Single Family New (BS)', subtype: 'Single Family Residential', city: 'Bellevue',
       zip: '98006', valuation: 512000, sqft: 2400, units: 2, issuedOn: '2026-10-07'
     });
-    expect(p.contacts.map((c) => [c.kind, c.company])).toEqual([['contractor', 'ABC HOMES'], ['owner', 'Holy Cross Housing']]);
+    expect(p.contacts.map((c: Loose) => [c.kind, c.company])).toEqual([['contractor', 'ABC HOMES'], ['owner', 'Holy Cross Housing']]);
     expect(bellevueFill(null)).toEqual({});
   });
 
@@ -375,7 +376,7 @@ describe('Renton and Shoreline', () => {
       { CaseId: 'abc', CaseNumber: 'B26004657', CaseType: 'Building - Commercial', CaseWorkclass: 'COMMERCIAL', IssueDate: '2026-10-14T15:57:04', Address: { City: 'Renton' } },
       { Description: 'TI', ValuationValue: 35105, Contacts: [{ ContactTypeName: 'Contractor', GlobalEntityName: 'Opal Energy', Phone: '8666926725' }] });
     expect(p).toMatchObject({ source: 'renton', category: 'building_other', issuedOn: '2026-10-14', valuation: 35105, sourceUrl: 'https://permitting.rentonwa.gov/#/permit/abc' });
-    expect(p.contacts[0]).toMatchObject({ kind: 'contractor', phone: '8666926725' });
+    expect(p.contacts![0]).toMatchObject({ kind: 'contractor', phone: '8666926725' });
   });
 
   it('copies a Shoreline export row', () => {
@@ -384,7 +385,7 @@ describe('Renton and Shoreline', () => {
       ADDRESS: '17537 15TH AVE NE STE B', 'OWNER NAME': 'COTTON BUILDING LLC', 'APPLICANT NAME': 'VALLE WORKS', 'CONTRACTOR NAME': 'ELKO CONSTRUCTION LLC', RECORDID: 'MS:26'
     });
     expect(p).toMatchObject({ source: 'shoreline', category: 'building_other', issuedOn: '2026-10-13', appliedOn: '2026-04-28', city: 'Shoreline', parcel: '6163900780' });
-    expect(p.contacts.map((c) => c.kind)).toEqual(['contractor', 'owner', 'applicant']);
+    expect(p.contacts.map((c: Loose) => c.kind)).toEqual(['contractor', 'owner', 'applicant']);
     expect(categoryFor('shoreline', 'RESIDENTIAL INTERIOR REMODEL ONLINE')).toBe('remodel');
     expect(categoryFor('shoreline', 'RESIDENTIAL REROOF ONLINE')).toBeNull();
     expect(isUnsortedBuildingType('shoreline', 'ADU-DETACHED')).toBe(true);

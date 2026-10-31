@@ -67,7 +67,7 @@ export const canAddVisit = (user: Loose | null | undefined) => permsOf(user).inc
 
 // Anyone's with the "all" permission; your own with the "own" one; anyone's on
 // your team (teamScope.js: ALL_PEOPLE or a Set of ids) with the "branch" one.
-const mayActOn = (user: Loose | null | undefined, visit: Loose | null | undefined, team: '*' | ReadonlySet<string> | null | undefined, { all, own, branch }: Loose) => {
+const mayActOn = (user: Loose | null | undefined, visit: Loose | null | undefined, team: unknown, { all, own, branch }: Loose) => {
   if (!user || !visit) return false;
   const perms = permsOf(user);
   if (perms.includes(all)) return true;
@@ -92,7 +92,7 @@ export const ANY_DELETE_VISIT_PERMISSIONS = Object.freeze(Object.values(DELETE))
  * Whether `user` may edit `visit` ({ createdBy }), given the user's `team`
  * (teammatesOf in teamScope.js). `user` is { id | _id, permissions }.
  */
-export const canModifyVisit = (user: Loose | null | undefined, visit: Loose | null | undefined, team: '*' | ReadonlySet<string> | null | undefined) => mayActOn(user, visit, team, EDIT);
+export const canModifyVisit = (user: Loose | null | undefined, visit: Loose | null | undefined, team?: unknown) => mayActOn(user, visit, team, EDIT);
 
 /** Whether `user` may delete `visit` — same shape as canModifyVisit, with the delete permissions. */
-export const canDeleteVisit = (user: Loose | null | undefined, visit: Loose | null | undefined, team: '*' | ReadonlySet<string> | null | undefined) => mayActOn(user, visit, team, DELETE);
+export const canDeleteVisit = (user: Loose | null | undefined, visit: Loose | null | undefined, team?: unknown) => mayActOn(user, visit, team, DELETE);

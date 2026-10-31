@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 /**
  * Copy the whole database from the current cluster to a new one.
  *
@@ -32,23 +33,23 @@ const main = async () => {
   if (process.env.TARGET_MONGO_URI === process.env.MONGO_URI) throw new Error('TARGET_MONGO_URI is the same as MONGO_URI — nothing to copy.');
 
   const source = await mongoose.createConnection(process.env.MONGO_URI).asPromise();
-  const dbName = source.db.databaseName;
+  const dbName = source.db!.databaseName;
   const targetConn = await mongoose.createConnection(process.env.TARGET_MONGO_URI).asPromise();
-  const target = targetConn.client.db(dbName);
+  const target = targetConn.getClient().db(dbName);
 
-  const sourceHello = await source.db.admin().command({ hello: 1 });
-  const targetHello = await targetConn.db.admin().command({ hello: 1 });
+  const sourceHello = await source.db!.admin().command({ hello: 1 });
+  const targetHello = await targetConn.db!.admin().command({ hello: 1 });
   console.log(`source: database "${dbName}", region ${sourceHello.tags?.region || 'unknown'}`);
   console.log(`target: database "${dbName}", region ${targetHello.tags?.region || 'unknown'}\n`);
 
-  const collections = (await source.db.listCollections({}, { nameOnly: false }).toArray())
+  const collections = (await source.db!.listCollections({}, { nameOnly: false }).toArray())
     .filter((c) => c.type !== 'view' && !c.name.startsWith('system.'))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const plan = [];
+  const plan: Loose[] = [];
   for (const c of collections) {
-    const count = await source.db.collection(c.name).estimatedDocumentCount();
-    const indexes = (await source.db.collection(c.name).indexes()).filter((i) => i.name !== '_id_');
+    const count = await source.db!.collection(c.name).estimatedDocumentCount();
+    const indexes = (await source.db!.collection(c.name).indexes()).filter((i) => i.name !== '_id_');
     const targetCount = await target.collection(c.name).countDocuments({}, { limit: 1 });
     plan.push({ name: c.name, count, indexes, targetHasDocs: targetCount > 0 });
     console.log(`  ${c.name.padEnd(28)} ${String(count).padStart(6)} docs, ${indexes.length} indexes${targetCount ? '   ⚠ target already has documents' : ''}`);
@@ -69,9 +70,9 @@ const main = async () => {
 
   console.log('\nCopying...');
   for (const p of plan) {
-    const from = source.db.collection(p.name);
+    const from = source.db!.collection(p.name);
     const to = target.collection(p.name);
-    let batch = [];
+    let batch: Loose[] = [];
     let copied = 0;
     for await (const doc of from.find({}, { batchSize: BATCH })) {
       batch.push(doc);
@@ -97,7 +98,7 @@ const main = async () => {
   let ok = true;
   for (const p of plan) {
     const [a, b] = await Promise.all([
-      source.db.collection(p.name).countDocuments(),
+      source.db!.collection(p.name).countDocuments(),
       target.collection(p.name).countDocuments()
     ]);
     if (a !== b) ok = false;

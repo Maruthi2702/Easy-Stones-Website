@@ -60,7 +60,7 @@ const countPairSchema = new mongoose.Schema<Loose>({
   capacity: { type: Number, default: null }
 }, { _id: false });
 
-const dailyReportSchema = new mongoose.Schema<Loose>({
+const dailyReportSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   // 'YYYY-MM-DD'. A calendar date, never an instant — a report belongs to the
   // branch's day, not to whoever happens to open it from another timezone.
   date: { type: String, required: true, index: true },

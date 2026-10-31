@@ -19,9 +19,9 @@ import type { Loose } from '../types/records.ts';
  * MARBLE" and "Martinez granite and marble", which differ only by a double
  * space, and folding them together would lose one. '' for no name.
  */
-export const spsKey = (name: string) => String(name ?? '').trim().toLowerCase();
+export const spsKey = (name: unknown) => String(name ?? '').trim().toLowerCase();
 
-const names = (list: string, max = 50) => list.slice(0, max);
+const names = <T>(list: T[], max = 50) => list.slice(0, max);
 
 /**
  * Is this file safe to import from? `blocking` problems mean nothing should be
@@ -47,7 +47,7 @@ export const checkSheet = ({ rows, mapping, parse = {} }: Loose) => {
 
   const nameColumn = mapping?.company || null;
   const keyed = new Map();
-  const nameless = [];
+  const nameless: number[] = [];
   rows.forEach((row: Loose, i: number) => {
     const rowNumber = i + 2; // row 1 is the header
     const key = nameColumn ? spsKey(row[nameColumn]) : '';
@@ -99,8 +99,8 @@ export const spsCoverage = ({ rows, mapping, existing }: Loose) => {
     if (byName) held.add(byName);
   }
   let total = 0;
-  const absent = [];
-  rows.forEach((row: unknown, i: number) => {
+  const absent: {rowNumber: number; name: string}[] = [];
+  rows.forEach((row: Loose, i: number) => {
     const key = nameColumn ? spsKey(row[nameColumn]) : '';
     if (!key) return;
     total++;

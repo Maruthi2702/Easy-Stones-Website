@@ -1,3 +1,4 @@
+import type { ScalarQuery, ScalarParams } from '../types/server.ts';
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request } from 'express';
 import express from 'express';
@@ -95,7 +96,7 @@ export default function createCustomerMapRouter({ authenticate, requirePermissio
     try {
       const [all, { user, staff }] = await Promise.all([allPins(), scopeFor(req)]);
       const scoped = inScopePins(all, user, staff);
-      const keys = parseRepKeys(req.query.reps);
+      const keys = parseRepKeys((req.query as ScalarQuery).reps);
       res.json(keys ? pinsForReps(scoped, keys) : scoped);
     } catch (error) {
       console.error('Error building customer map:', error);
@@ -116,10 +117,10 @@ export default function createCustomerMapRouter({ authenticate, requirePermissio
   });
 
   router.get('/map/:id', ...gate, async (req, res) => {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ message: 'Not a customer id' });
+    if (!mongoose.Types.ObjectId.isValid((req.params as ScalarParams).id)) return res.status(400).json({ message: 'Not a customer id' });
     try {
       const [customer, { user, staff }] = await Promise.all([
-        Customer.findById(req.params.id)
+        Customer.findById((req.params as ScalarParams).id)
           .select('phone email marketingEmail address level modaDisplay modaBinder quickNote salesRep location')
           .lean(),
         scopeFor(req)

@@ -1,3 +1,4 @@
+import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request, Response, NextFunction } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
@@ -73,7 +74,7 @@ export default function createCustomerBulkDeleteRouter({ authenticate }: { authe
       res.json({ deleted: deletedCount, missing: ids.length - docs.length, batchId });
     } catch (err) {
       console.error('Bulk delete customers error:', err);
-      res.status(500).json({ message: `Could not delete the customers: ${err.message}` });
+      res.status(500).json({ message: `Could not delete the customers: ${(err as Error).message}` });
     }
   });
 
@@ -89,7 +90,7 @@ export default function createCustomerBulkDeleteRouter({ authenticate }: { authe
       try {
         await Customer.collection.insertMany(backups.map((b) => b.customer), { ordered: false });
       } catch (err) {
-        if (!Array.isArray(err.writeErrors) && !err.result) throw err;
+        if (!Array.isArray((err as Error & Loose).writeErrors) && !(err as Error & Loose).result) throw err;
       }
 
       // What's there now is back — restored just now, or never deleted.
@@ -112,7 +113,7 @@ export default function createCustomerBulkDeleteRouter({ authenticate }: { authe
       res.json({ restored: back.length, failed });
     } catch (err) {
       console.error('Undo bulk delete error:', err);
-      res.status(500).json({ message: `Undo failed: ${err.message}` });
+      res.status(500).json({ message: `Undo failed: ${(err as Error).message}` });
     }
   });
 

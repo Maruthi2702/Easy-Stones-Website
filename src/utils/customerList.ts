@@ -31,8 +31,8 @@ export const STATUS_META: Readonly<Record<string, {short: string; tone: string; 
 /** Every stored status, in the order the filter lists them. */
 export const STATUSES = Object.freeze(Object.keys(STATUS_META));
 
-export const statusMeta = (status: string) =>
-  STATUS_META[status] || { short: status || 'No status', tone: 'closed', closed: true };
+export const statusMeta = (status: string | null | undefined) =>
+  STATUS_META[status as string] || { short: status || 'No status', tone: 'closed', closed: true };
 
 // ── Display helpers ──────────────────────────────────────────────────────────
 

@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
  * worked through in batches. `state` is what makes a restart safe: only
  * 'pending' items are picked up again, and every write is idempotent.
  */
-const spsImportItemSchema = new mongoose.Schema<Loose>({
+const spsImportItemSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   runId: { type: String, required: true },
   seq: { type: Number, required: true },
   key: { type: String, required: true },

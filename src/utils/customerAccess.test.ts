@@ -8,7 +8,7 @@ import {
 } from './customerAccess.ts';
 import { PAGE_PERMISSIONS } from '../features/users/index.ts';
 
-const as = (...permissions): Loose => ({ role: 'custom', permissions });
+const as = (...permissions: string[]): Loose => ({ role: 'custom', permissions });
 
 describe('Customers sections', () => {
   it('puts every customer permission in exactly one section', () => {
@@ -22,18 +22,18 @@ describe('the Users & Roles "Customers" card', () => {
   const card = PAGE_PERMISSIONS.find((p) => p.id === 'customers');
 
   it('has every customer switch, section by section', () => {
-    expect(card.actions.map((a) => [a.section, a.key])).toEqual(
+    expect((card)!.actions.map((a) => [a.section, a.key])).toEqual(
       CUSTOMER_SECTIONS.flatMap((s) => s.keys.map((k) => [s.title, k]))
     );
   });
 
   it('gives every switch a distinct label, a description and an icon', () => {
-    for (const a of card.actions) {
+    for (const a of (card)!.actions) {
       expect(a.label, a.key).toBeTruthy();
       expect(a.desc, a.key).toBeTruthy();
       expect(a.icon, a.key).toBeTruthy();
     }
-    expect(new Set(card.actions.map((a) => a.label)).size).toBe(card.actions.length);
+    expect(new Set((card)!.actions.map((a) => a.label)).size).toBe((card)!.actions.length);
   });
 
   it('is the only card with customer switches', () => {
@@ -76,8 +76,8 @@ describe('who may do what', () => {
 });
 
 describe('the card keeps the other switches with View', () => {
-  const on = (before: unknown, key: string) => withCustomerViewRule(before, [...before, key]);
-  const off = (before: Loose[], key: string) => withCustomerViewRule(before, before.filter((k: unknown) => k !== key));
+  const on = (before: string[], key: string) => withCustomerViewRule(before, [...before, key]);
+  const off = (before: string[], key: string) => withCustomerViewRule(before, before.filter((k: unknown) => k !== key));
 
   it('turns View on with any other switch', () => {
     for (const key of CUSTOMER_NEEDS_VIEW) expect(on(['view_dashboard'], key).sort()).toEqual(['view_dashboard', key, P.VIEW].sort());

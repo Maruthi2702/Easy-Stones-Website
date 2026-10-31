@@ -117,7 +117,7 @@ export default function PhoneTabBar({ crmTab, onNavigate, theme, toggleTheme, na
 
     // What the open sheet lists.
     const searching = sheet === MORE && query.trim() !== '';
-    let groups = [];
+    let groups: { id: string; label: string; items: Loose[] }[] = [];
     if (sheet === MORE) groups = searching ? searchPages(user, navOrder, query) : moreGroups(model, navItem);
     else if (sheet) {
         const section = model.bar.find((s) => s.id === sheet);
@@ -231,7 +231,7 @@ export default function PhoneTabBar({ crmTab, onNavigate, theme, toggleTheme, na
                             className={`pt-tab${on ? ' on' : ''}`}
                             aria-current={on && !sheet && !sheetTab ? 'page' : undefined}
                             aria-expanded={sheetTab ? sheet === tab.id : undefined}
-                            onClick={() => (sheetTab ? toggleSheet(tab.id) : go(tab.page))}
+                            onClick={() => (sheetTab ? toggleSheet(tab.id) : go(tab.page!))}
                         >
                             <span className="pt-pill"><tab.Icon size={20} aria-hidden="true" /></span>
                             <span className="pt-label">{tab.label}</span>

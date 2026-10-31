@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { withoutSeparated } from './customerMatch.ts';
 
-const marks = (pairs: unknown) => {
+const marks = (pairs: [string, string][]) => {
   const m = new Map();
   for (const [a, b] of pairs) {
     if (!m.has(a)) m.set(a, new Set());

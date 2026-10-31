@@ -7,7 +7,7 @@ import { BRANCHES, branchDayWindow } from '../config/branches.ts';
 const tag = (zone: unknown): Loose => ({ zone });
 
 // A minimal matcher for the clauses byBranchClock builds, with a real window.
-const matches = (doc: unknown, q: unknown) => Object.entries(q).every(([k, cond]) => {
+const matches = (doc: Loose, q: Loose) => (Object.entries(q) as [string, Loose][]).every(([k, cond]) => {
   if (k === '$or') return cond.some((c: Loose) => matches(doc, c));
   const v = doc[k];
   if (cond && typeof cond === 'object' && !(cond instanceof Date)) {

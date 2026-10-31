@@ -17,7 +17,7 @@ const { default: CustomerDeleteBackup } = await import('../models/CustomerDelete
 const { default: SpsImportRun } = await import('../models/SpsImportRun.ts');
 const { default: SpsImportItem } = await import('../models/SpsImportItem.ts');
 
-let mongo; let app; let sheet; let remembered;
+let mongo!: MongoMemoryServer; let app!: import('express').Express; let sheet!: Loose; let remembered!: Loose;
 const BASE = '/api/customers/sps-import/runs';
 const IMPORTER = { username: 'imp', permissions: ['view_customers', 'import_customers'] };
 const FULL = { username: 'krish', permissions: ['view_customers', 'import_customers', 'manage_customers', 'add_customers', 'delete_customers'] };
@@ -27,8 +27,8 @@ const FILE = Buffer.from('x');
 const upload = (u = IMPORTER) => request(app).post(BASE).set(as(u)).attach('file', FILE, 'sps.xls');
 const plan = (id: string, body: Loose = {}, u = IMPORTER) => request(app).post(`${BASE}/${id}/plan`).set(as(u)).send(body);
 const start = (id: string, u = IMPORTER) => request(app).post(`${BASE}/${id}/start`).set(as(u));
-const row = (Name: Loose, extra: Loose = {}) => ({ Name, 'Sales Person1': '', Email: '', ...extra });
-const wait = async (id: string) => { for (let i = 0; i < 100; i++) { const r = await SpsImportRun.findById(id).lean(); if (r.status !== 'running') return r; await new Promise((s) => setTimeout(s, 30)); } throw new Error('run never finished'); };
+const row = (Name: unknown, extra: Loose = {}) => ({ Name, 'Sales Person1': '', Email: '', ...extra });
+const wait = async (id: string) => { for (let i = 0; i < 100; i++) { const r = await SpsImportRun.findById(id).lean(); if ((r)!.status !== 'running') return r; await new Promise((s) => setTimeout(s, 30)); } throw new Error('run never finished'); };
 const D = new mongoose.Types.ObjectId();
 
 beforeAll(async () => {
@@ -38,7 +38,7 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.use('/api/customers', createRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
+    authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
     uploadMemory: multer({ storage: multer.memoryStorage() }),
     readSheet: async () => sheet,
     resolveMapping: () => ({ company: 'Name', salesRep: 'Sales Person1', email: 'Email' }),
@@ -98,8 +98,8 @@ describe('sps-import', () => {
     const ok = await start(body.run.id);
     expect(ok.status).toBe(200);
     const run = await wait(body.run.id);
-    expect(run.verify.ok).toBe(true);
-    expect(run.results).toMatchObject({ added: 1, keptDeleted: 1 });
+    expect((run)!.verify.ok).toBe(true);
+    expect((run)!.results).toMatchObject({ added: 1, keptDeleted: 1 });
   });
 
   it('enforces Add for bringing a customer back, from what the plan holds', async () => {
@@ -109,7 +109,7 @@ describe('sps-import', () => {
     await plan(body.run.id, { answers: { 'gone co': 'restore' } });
     expect((await start(body.run.id, IMPORTER)).status).toBe(403);
     expect((await start(body.run.id, FULL)).status).toBe(200);
-    expect((await wait(body.run.id)).results.restored).toBe(1);
+    expect(((await wait(body.run.id)))!.results.restored).toBe(1);
   });
 
   it('refuses a second Start while one is running, naming who', async () => {
@@ -126,7 +126,7 @@ describe('sps-import', () => {
     expect((await start(body.run.id)).status).toBe(200);
     expect(remembered).toMatchObject({ repAliases: { 'Stephen Watson': 'u1' } });
     const run = await wait(body.run.id);
-    expect(run.verify).toMatchObject({ ok: true, expected: 2, present: 2 });
+    expect((run)!.verify).toMatchObject({ ok: true, expected: 2, present: 2 });
     expect(await Customer.countDocuments({ 'sps.key': 'zed tile' })).toBe(1);
     expect((await plan(body.run.id)).status).toBe(404);   // started: no more planning
 

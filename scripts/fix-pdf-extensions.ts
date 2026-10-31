@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 /**
  * One-off: give every stored delivery PDF a ".pdf" ending so View opens it.
  *
@@ -17,32 +18,32 @@
  */
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary, type UploadApiResponse } from 'cloudinary';
 import Delivery from '../src/models/Delivery.ts';
 
 dotenv.config();
 
 const APPLY = process.argv.includes('--apply');
 
-const isOldRawUrl = (url) =>
+const isOldRawUrl = (url: string) =>
   /^https:\/\/res\.cloudinary\.com\/[^/]+\/raw\/upload\//.test(url || '') &&
   !/\.pdf(\?.*)?$/i.test(url);
 
 // https://res.cloudinary.com/<cloud>/raw/upload/v123/deliveries/x/ID -> deliveries/x/ID
-const publicIdFromUrl = (url) =>
+const publicIdFromUrl = (url: string) =>
   decodeURIComponent(url.split('/raw/upload/')[1].split('?')[0].replace(/^v\d+\//, ''));
 
-const upload = (buffer, publicId) =>
-  new Promise((resolve, reject) => {
+const upload = (buffer: Buffer, publicId: string) =>
+  new Promise<UploadApiResponse>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       { public_id: publicId, resource_type: 'raw', overwrite: true, invalidate: true },
-      (err, result) => (err ? reject(err) : resolve(result))
+      (err, result) => (err ? reject(err) : resolve(result!))
     );
     stream.end(buffer);
   });
 
 // Returns { url, publicId } for the .pdf copy, or null if it was skipped.
-const moveToPdf = async (label, oldUrl) => {
+const moveToPdf = async (label: string, oldUrl: string) => {
   const res = await fetch(oldUrl);
   if (!res.ok) { console.log(`  ✗ ${label}: download failed (${res.status})`); return null; }
   const buffer = Buffer.from(await res.arrayBuffer());
@@ -67,7 +68,7 @@ const run = async () => {
     api_secret: process.env.CLOUDINARY_API_SECRET,
     secure: true
   });
-  await mongoose.connect(process.env.MONGO_URI);
+  await mongoose.connect(process.env.MONGO_URI!);
 
   const docs = await Delivery.find(
     {
@@ -84,7 +85,7 @@ const run = async () => {
   let todo = 0;
 
   for (const d of docs) {
-    const set = {};
+    const set: Loose = {};
     if (isOldRawUrl(d.packingListUrl)) {
       todo += 1;
       const r = await moveToPdf(`${d.id} packing list`, d.packingListUrl);

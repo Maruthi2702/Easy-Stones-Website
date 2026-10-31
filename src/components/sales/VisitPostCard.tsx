@@ -25,7 +25,7 @@ const VisitPostCard = ({
     handleOpenGallery,
     canModify,
     canDelete
-}: { visit: Loose; currentUser: Loose | null; currentUserId: string; handleReaction: (id: string, reaction: string) => void; activeReactionMessageId: string | null; setActiveReactionMessageId: React.Dispatch<React.SetStateAction<string | null>>; handleEditVisit: (visit: Loose) => void; handleDeleteVisit: (id: string) => void; handleOpenGallery: (images: string[], index: number) => void; canModify?: boolean; canDelete?: boolean }) => {
+}: { visit: Loose; currentUser: Loose | null; currentUserId: string | null; handleReaction: (id: string, reaction: string) => void; activeReactionMessageId: string | null; setActiveReactionMessageId: (id: string | null) => void; handleEditVisit: (visit: Loose) => void; handleDeleteVisit: (id: string) => void; handleOpenGallery: (images: string[], index: number) => void; canModify?: boolean; canDelete?: boolean }) => {
     const isQuickNote = visit.purpose?.toLowerCase().includes('quick note');
     const isMeeting = visit.purpose?.toLowerCase().includes('meeting') || visit.purpose?.toLowerCase().includes('visit');
     const isResource = visit.purpose?.toLowerCase().includes('resource');
@@ -45,7 +45,7 @@ const VisitPostCard = ({
                         <div className="author-details-wrapper">
                             <div className="author-name-row">
                                 <span className="post-author">{visit.createdByName || visit.creatorName || 'Unknown User'}</span>
-                                <CheckCircle2 size={16} className="verified-author-badge" title="Verified User" />
+                                <CheckCircle2 size={16} className="verified-author-badge" aria-label="Verified User" />
                             </div>
                         </div>
                     </div>
@@ -224,16 +224,16 @@ const VisitPostCard = ({
                     <div className="existing-reactions">
                         {visit.reactions && visit.reactions.length > 0 && (
                             Object.entries(
-                                visit.reactions.reduce((acc, r) => {
+                                visit.reactions.reduce((acc: Record<string, { count: number; userIds: string[] }>, r: { type: string; userId: string }) => {
                                     if (!r || !r.type) return acc;
                                     if (!acc[r.type]) acc[r.type] = { count: 0, userIds: [] };
                                     acc[r.type].count++;
                                     acc[r.type].userIds.push(r.userId);
                                     return acc;
-                                }, {})
+                                }, {} as Record<string, { count: number; userIds: string[] }>) as Record<string, { count: number; userIds: string[] }>
                             ).map(([type, data]) => {
                                 const currentUserIdStr = currentUserId?.toString();
-                                const userReacted = currentUserIdStr && data.userIds.map(id => id.toString()).includes(currentUserIdStr);
+                                const userReacted = currentUserIdStr && data.userIds.map((id: string) => id.toString()).includes(currentUserIdStr);
                                 return (
                                     <span
                                         key={type}

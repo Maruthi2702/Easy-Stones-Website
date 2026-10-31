@@ -218,11 +218,11 @@ export function tidyContacts(contacts: Loose[]) {
 /** Bellingham re-issues some old permits only to sign them off; there's no new work in them. */
 export const isFinalOnly = (description: unknown) => /^\s*FINAL[\s-]*ONLY\b/i.test(String(description || ''));
 
-export const money = (v: string) => {
+export const money = (v: unknown) => {
   const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
   return typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
 };
-export const count = (v: string) => {
+export const count = (v: unknown) => {
   const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
   return typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 };

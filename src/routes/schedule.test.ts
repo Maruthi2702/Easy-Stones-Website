@@ -9,7 +9,7 @@ import Schedule from '../models/Schedule.ts';
 import User from '../models/User.ts';
 import Customer from '../models/Customer.ts';
 
-let repl, app;
+let repl!: Loose, app!: import('express').Express;
 const owner = new mongoose.Types.ObjectId();
 const other = new mongoose.Types.ObjectId();
 const customer = new mongoose.Types.ObjectId();
@@ -28,13 +28,13 @@ beforeAll(async () => {
   app = express(); app.use(express.json());
   app.use('/api', createScheduleRouter({
     jwtSecret: 'isolated-calendar-test-secret', emitScheduleUpdate: emit,
-    authenticate: (req: Loose, res: Loose, next: Loose) => {
+    authenticate: (req: Loose, res: Loose, next: () => void) => {
       if (!req.headers['x-test-user']) return res.sendStatus(401);
       req.user = JSON.parse(req.headers['x-test-user']);
       if (req.user.type !== 'customer') req.userId = req.user.id;
       next();
     },
-    requirePermission: (permission: Loose) => (req: Loose, res: Loose, next: Loose) => req.user.permissions.includes(permission) ? next() : res.sendStatus(403)
+    requirePermission: (permission: string) => (req: Loose, res: Loose, next: () => void) => req.user.permissions.includes(permission) ? next() : res.sendStatus(403)
   }));
 }, 180000);
 afterAll(async () => { await mongoose.disconnect(); await repl?.stop(); });
@@ -177,8 +177,8 @@ describe('saving one entry', () => {
       .send({ notes: 'new', userId: String(other), source: 'route_planner' }).expect(200);
     expect(res.body.notes).toBe('new');
     const stored = await Schedule.findById(saved.body._id).lean();
-    expect(String(stored.userId)).toBe(String(owner));
-    expect(stored.source).toBe('manual');
+    expect(String((stored)!.userId)).toBe(String(owner));
+    expect((stored)!.source).toBe('manual');
   });
   it('an edit that puts the start after the stored end is refused', async () => {
     const saved = await create().expect(201);
@@ -211,7 +211,7 @@ describe('the calendar feed', () => {
     const end = res.text.match(/DTEND[^:]*:(\d{8}T\d{6}Z)/)?.[1];
     expect(start && end).toBeTruthy();
     const ms = (t: Loose) => Date.UTC(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8), +t.slice(9, 11), +t.slice(11, 13));
-    expect(ms(end) - ms(start)).toBe(30 * 60000);
+    expect(ms((end)!) - ms((start)!)).toBe(30 * 60000);
   });
 });
 
@@ -253,7 +253,7 @@ describe('GET /schedule?scope=team — the team calendar (teamScope.js)', () => 
 
   it("still won't let anyone change a teammate's entry", async () => {
     const theirs = await Schedule.findOne({ userId: seattleRep });
-    await request(app).put(`/api/schedule/${theirs._id}`).set(as(manager())).send({ notes: 'x' }).expect(404);
-    await request(app).delete(`/api/schedule/${theirs._id}`).set(as(manager())).expect(404);
+    await request(app).put(`/api/schedule/${(theirs)!._id}`).set(as(manager())).send({ notes: 'x' }).expect(404);
+    await request(app).delete(`/api/schedule/${(theirs)!._id}`).set(as(manager())).expect(404);
   });
 });

@@ -29,7 +29,7 @@ const visitSchema = new mongoose.Schema<Loose>({
   updatedAt: String
 });
 
-const customerSchema = new mongoose.Schema<Loose>({
+const customerSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   contactName: {
     type: String,
     required: true

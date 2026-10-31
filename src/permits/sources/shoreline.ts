@@ -27,7 +27,7 @@ const TRIES = 3;
 
 /** Every hidden input on a WebForms page, decoded. */
 export function hiddenFields(html: unknown) {
-  const out = {};
+  const out: Record<string, string> = {};
   for (const m of String(html).matchAll(/<input[^>]*type="hidden"[^>]*>/gi)) {
     const name = m[0].match(/name="([^"]+)"/)?.[1];
     if (!name) continue;
@@ -88,13 +88,13 @@ export function createShorelineSource({ url = SHORELINE_SEARCH, label = 'Shoreli
   };
 
   /** One day's permits: page → search → export. */
-  async function day(d: unknown) {
+  async function day(d: string) {
     const us = `${d.slice(5, 7)}/${d.slice(8, 10)}/${d.slice(0, 4)}`;
     cookies = '';
     const page = await call({});
     if (!page.ok) throw new Error(`${label}’s permit search answered ${page.status}`);
     let html = await page.text();
-    const post = (extra: unknown) => call({
+    const post = (extra: Record<string, string>) => call({
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -127,7 +127,7 @@ export function createShorelineSource({ url = SHORELINE_SEARCH, label = 'Shoreli
     return rows;
   }
 
-  async function dayWithRetry(d: unknown) {
+  async function dayWithRetry(d: string) {
     let last;
     for (let attempt = 1; attempt <= TRIES; attempt++) {
       try {

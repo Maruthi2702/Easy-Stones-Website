@@ -99,7 +99,7 @@ export function useFilterView({
         }));
         return [
             ...(repCounts[UNASSIGNED] ? [{ key: UNASSIGNED, label: 'Unassigned', group: null }] : []),
-            ...groupRepOptions(reps, { you: myId }).flatMap(g => g.options.map(o => ({ key: o.value, label: o.label, group: g.group })))
+            ...groupRepOptions(reps, { you: myId }).flatMap(g => g.options.map((o: { value: string; label: string }) => ({ key: o.value, label: o.label, group: g.group })))
         ];
     }, [scopedReps, repCounts, myId]);
     const scopeLocations = useMemo(() => scopeLocationsOf(currentUser), [currentUser]);

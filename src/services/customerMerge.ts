@@ -27,31 +27,31 @@ export const REFERENCES = [
   { collection: 'deliveries',   field: 'customerId', type: 'string' }
 ];
 
-const oid = (id: string) => new mongoose.Types.ObjectId(String(id));
+const oid = (id: unknown) => new mongoose.Types.ObjectId(String(id));
 
-export const idFilter = (ref: Loose, id: string) => {
+export const idFilter = (ref: Loose, id: unknown) => {
   if (ref.type === 'string') return { [ref.field]: String(id) };
   if (ref.type === 'either') return { [ref.field]: { $in: [oid(id), String(id)] } };
   return { [ref.field]: oid(id) };
 };
-export const idValue = (ref: Loose, id: string) => (ref.type === 'string' ? String(id) : oid(id));
+export const idValue = (ref: Loose, id: unknown) => (ref.type === 'string' ? String(id) : oid(id));
 
 // ── choosing the values ──────────────────────────────────────────────────────
 
 const better = {
   // A real address beats an invented one, and any address beats none.
-  email: (survivor: Loose, loser: Loose) =>
+  email: (survivor: unknown, loser: unknown) =>
     (!survivor || isPlaceholderEmail(survivor)) && loser && !isPlaceholderEmail(loser) ? loser : null,
-  contactName: (survivor: Loose, loser: Loose) => (isFillerName(survivor) && !isFillerName(loser) ? loser : null),
-  company: (survivor: Loose, loser: Loose) => (!companyKey(survivor) && companyKey(loser) ? loser : null),
-  phone: (survivor: Loose, loser: Loose) => (!phoneKey(survivor) && phoneKey(loser) ? loser : null)
+  contactName: (survivor: unknown, loser: unknown) => (isFillerName(survivor) && !isFillerName(loser) ? loser : null),
+  company: (survivor: unknown, loser: unknown) => (!companyKey(survivor) && companyKey(loser) ? loser : null),
+  phone: (survivor: unknown, loser: unknown) => (!phoneKey(survivor) && phoneKey(loser) ? loser : null)
 };
 
 const ADDRESS_PARTS = ['street', 'city', 'state', 'zipCode'];
 
 /** What the survivor should end up holding, and why — computed, not written. */
 export const planFields = (survivor: Loose, losers: Loose[]) => {
-  const changes = [];
+  const changes: string[] = [];
   const set: Loose = {};
 
   for (const [field, pick] of Object.entries(better)) {
@@ -106,13 +106,13 @@ export const planFields = (survivor: Loose, losers: Loose[]) => {
  * Anything on the loser that has nowhere else to go becomes a contact, so a
  * second real person at the business is not thrown away with the record.
  */
-export const contactsFromLosers = (finalEmail: Loose, survivor: Loose, losers: Loose[]) => {
+export const contactsFromLosers = (finalEmail: unknown, survivor: Loose, losers: Loose[]) => {
   const known = new Set([
     String(finalEmail || '').toLowerCase(),
     ...(survivor.contacts || []).map((c: Loose) => String(c.email || '').toLowerCase())
   ].filter(Boolean));
 
-  const extra = [];
+  const extra: Loose[] = [];
   for (const loser of losers) {
     const email = String(loser.email || '').toLowerCase();
     const keepEmail = email && !isPlaceholderEmail(email) && !known.has(email);
@@ -141,7 +141,7 @@ export const contactsFromLosers = (finalEmail: Loose, survivor: Loose, losers: L
  */
 export const snapshotMerge = async (db: Loose, survivor: Loose, losers: Loose[]) => {
   const customers = db.collection('customers');
-  const moved = [];
+  const moved: Loose[] = [];
   for (const loser of losers) {
     for (const ref of REFERENCES) {
       const docs = await db.collection(ref.collection)
@@ -184,7 +184,7 @@ export const executeMerge = async (db: Loose, survivor: Loose, losers: Loose[], 
     const pointingIds = (await customers
       .find({ associatedCustomers: loserOid }, { projection: { _id: 1 } }).toArray())
       .map((d: Loose) => d._id)
-      .filter((id: string) => String(id) !== String(survivorId));
+      .filter((id: unknown) => String(id) !== String(survivorId));
 
     // Two steps: one update cannot $pull and $addToSet the same array.
     await customers.updateMany({ associatedCustomers: loserOid }, { $pull: { associatedCustomers: loserOid } });
@@ -227,7 +227,7 @@ export const undoMerge = async (db: Loose, group: Loose) => {
     await customers.replaceOne({ _id: doc._id }, doc, { upsert: true });
   }
   for (const m of group.moved) {
-    const ids = m.ids.map((id: string) => oid(id));
+    const ids = m.ids.map((id: unknown) => oid(id));
     if (m.collection === 'customers') {
       await customers.updateMany({ _id: { $in: ids } }, { $pull: { associatedCustomers: oid(group.survivorId) } });
       await customers.updateMany({ _id: { $in: ids } }, { $addToSet: { associatedCustomers: oid(m.from) } });
@@ -246,7 +246,7 @@ export const undoMerge = async (db: Loose, group: Loose) => {
 export const markSeparate = async (db: Loose, ids: string[]) => {
   const customers = db.collection('customers');
   for (const id of ids) {
-    const others = ids.filter((o: Loose) => String(o) !== String(id)).map((o: Loose) => oid(o));
+    const others = ids.filter((o: string) => String(o) !== String(id)).map((o: string) => oid(o));
     if (others.length) {
       await customers.updateOne({ _id: oid(id) }, { $addToSet: { notDuplicateOf: { $each: others } } });
     }

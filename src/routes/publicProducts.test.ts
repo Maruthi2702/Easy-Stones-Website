@@ -12,7 +12,7 @@ import Role from '../models/Role.ts';
 import Customer from '../models/Customer.ts';
 import { publicProduct } from '../utils/productView.ts';
 
-let mongo, app;
+let mongo!: MongoMemoryServer, app!: import('express').Express;
 const secret = 'isolated-product-test-secret';
 const customerId = new mongoose.Types.ObjectId();
 const staffId = new mongoose.Types.ObjectId();

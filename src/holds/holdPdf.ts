@@ -10,6 +10,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import type { PDFFont, PDFPage, Color } from 'pdf-lib';
+type DrawOptions = { size?: number; font?: PDFFont; color?: Color };
 import { letterModel } from './holdLetter.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -34,10 +36,10 @@ const SUB = [
   { key: 'slabNumber', label: 'Slab #' },
   { key: 'block', label: 'Block' },
   { key: 'bin', label: 'Bin' }
-];
+] as const;
 const ROW_SIZE = 8.6;
 
-async function loadMark(doc: Loose) {
+async function loadMark(doc: PDFDocument) {
   try {
     return await doc.embedPng(fs.readFileSync(MARK_PATH));
   } catch {
@@ -61,24 +63,24 @@ export async function buildHoldPdf(hold: Loose, { hide = {}, letterhead = {}, no
     italic: await doc.embedFont(StandardFonts.HelveticaOblique)
   };
   const okChars = new Set(fonts.regular.getCharacterSet());
-  const safe = (v: Loose) => [...String(v ?? '').replace(/\s+/g, ' ')].map((ch) => (okChars.has(ch.codePointAt(0)) ? ch : '?')).join('');
+  const safe = (v: unknown) => [...String(v ?? '').replace(/\s+/g, ' ')].map((ch) => (okChars.has(ch.codePointAt(0)!) ? ch : '?')).join('');
   const mark = await loadMark(doc);
-  const pages = [];
-  let page;
+  const pages: PDFPage[] = [];
+  let page!: PDFPage;
   let y = 0;
 
-  const width = (s: Loose, size: Loose, font = fonts.regular) => font.widthOfTextAtSize(safe(s), size);
-  const text = (s: Loose, x: Loose, yy: Loose, { size = 10, font = fonts.regular, color = INK }: Loose = {}) => page.drawText(safe(s), { x, y: yy, size, font, color });
-  const right = (s: Loose, xr: Loose, yy: Loose, o: Loose = {}) => text(s, xr - width(s, o.size || 10, o.font), yy, o);
-  const center = (s: Loose, xc: Loose, yy: Loose, o: Loose = {}) => text(s, xc - width(s, o.size || 10, o.font) / 2, yy, o);
-  const fit = (s: Loose, max: Loose, { size = 10, font = fonts.regular }: Loose = {}) => {
+  const width = (s: unknown, size: number, font = fonts.regular) => font.widthOfTextAtSize(safe(s), size);
+  const text = (s: unknown, x: number, yy: number, { size = 10, font = fonts.regular, color = INK }: DrawOptions = {}) => page.drawText(safe(s), { x, y: yy, size, font, color });
+  const right = (s: unknown, xr: number, yy: number, o: DrawOptions = {}) => text(s, xr - width(s, o.size || 10, o.font), yy, o);
+  const center = (s: unknown, xc: number, yy: number, o: DrawOptions = {}) => text(s, xc - width(s, o.size || 10, o.font) / 2, yy, o);
+  const fit = (s: unknown, max: number, { size = 10, font = fonts.regular }: DrawOptions = {}) => {
     let v = safe(s);
     if (font.widthOfTextAtSize(v, size) <= max) return v;
     while (v.length > 1 && font.widthOfTextAtSize(`${v}…`, size) > max) v = v.slice(0, -1);
     return `${v}…`;
   };
-  const wrap = (s: Loose, max: Loose, { size = 10, font = fonts.regular }: Loose = {}) => {
-    const out = [];
+  const wrap = (s: unknown, max: number, { size = 10, font = fonts.regular }: DrawOptions = {}) => {
+    const out: string[] = [];
     for (const para of String(s || '').split(/\n/)) {
       let ln = '';
       for (const word of para.split(/\s+/).filter(Boolean)) {
@@ -89,9 +91,9 @@ export async function buildHoldPdf(hold: Loose, { hide = {}, letterhead = {}, no
     }
     return out;
   };
-  const hline = (x1: Loose, x2: Loose, yy: Loose, thickness = 0.8, color = LINE) => page.drawLine({ start: { x: x1, y: yy }, end: { x: x2, y: yy }, thickness, color });
-  const vline = (x: Loose, y1: Loose, y2: Loose, thickness = 0.8) => page.drawLine({ start: { x, y: y1 }, end: { x, y: y2 }, thickness, color: LINE });
-  const box = (x: Loose, yTop: Loose, w: Loose, h: Loose) => page.drawRectangle({ x, y: yTop - h, width: w, height: h, borderColor: LINE, borderWidth: 0.8 });
+  const hline = (x1: number, x2: number, yy: number, thickness = 0.8, color = LINE) => page.drawLine({ start: { x: x1, y: yy }, end: { x: x2, y: yy }, thickness, color });
+  const vline = (x: number, y1: number, y2: number, thickness = 0.8) => page.drawLine({ start: { x, y: y1 }, end: { x, y: y2 }, thickness, color: LINE });
+  const box = (x: number, yTop: number, w: number, h: number) => page.drawRectangle({ x, y: yTop - h, width: w, height: h, borderColor: LINE, borderWidth: 0.8 });
 
   const newPage = () => {
     page = doc.addPage([PAGE.w, PAGE.h]);
@@ -124,12 +126,12 @@ export async function buildHoldPdf(hold: Loose, { hide = {}, letterhead = {}, no
   const half = (W - gap) / 2;
   const jobLines = m.job ? wrap(m.job, half - 20, { size: 10.5 }).slice(0, 6) : ['—'];
   const boxH = Math.max(100, 34 + Math.max(m.billTo.length, jobLines.length) * 13 + 10);
-  for (const [i, label, lines] of [[0, 'Bill To:', m.billTo], [1, 'Job / Reference:', jobLines]]) {
+  for (const [i, label, lines] of [[0, 'Bill To:', m.billTo], [1, 'Job / Reference:', jobLines]] as [number, string, string[]][]) {
     const x = M + i * (half + gap);
     box(x, y, half, boxH);
     text(label, x + 10, y - 15, { size: 10.5 });
     hline(x, x + half, y - 22);
-    lines.forEach((ln: Loose, j: Loose) => text(fit(ln, half - 20, { size: 10.5, font: i === 0 && j === 0 ? fonts.bold : fonts.regular }), x + 10, y - 38 - j * 13, { size: 10.5, font: i === 0 && j === 0 ? fonts.bold : fonts.regular }));
+    lines.forEach((ln: unknown, j: number) => text(fit(ln, half - 20, { size: 10.5, font: i === 0 && j === 0 ? fonts.bold : fonts.regular }), x + 10, y - 38 - j * 13, { size: 10.5, font: i === 0 && j === 0 ? fonts.bold : fonts.regular }));
   }
   y -= boxH + 14;
 
@@ -159,7 +161,7 @@ export async function buildHoldPdf(hold: Loose, { hide = {}, letterhead = {}, no
   const avail = descW - 24;
   const used = natural.reduce((a, b) => a + b, 0);
   const widths = natural.map((w) => (used <= avail ? w + (avail - used) / SUB.length : w * (avail / used)));
-  const subX = [];
+  const subX: number[] = [];
   widths.reduce((x, w) => { subX.push(x); return x + w; }, M + 16);
   let tableTop = y;
 
@@ -181,7 +183,7 @@ export async function buildHoldPdf(hold: Loose, { hide = {}, letterhead = {}, no
     for (const x of [xQty, ...(unitW ? [xUnit] : []), ...(extW ? [xExt] : [])]) vline(x, tableTop, bottom);
     y = bottom;
   };
-  const room = (needed: Loose) => {
+  const room = (needed: number) => {
     if (y - needed >= FOOT + 24) return;
     tableClose();
     newPage();

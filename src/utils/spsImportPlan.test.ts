@@ -8,8 +8,8 @@ const STEVE = { salesRep: 'u1', salesRepName: 'Steve Watson' };
 const repByKey = new Map([['stevewatson', STEVE]]);
 const branchByKey = new Map([['seattle', 'Seattle'], ['atlanta', 'Atlanta']]);
 const cust = (id: unknown, company: unknown, extra: Loose = {}): Loose => ({ _id: id, company, email: `${id}@x.com`, ...extra });
-const plan = (o: unknown) => planSpsImport({ mapping, branchByKey, repByKey, customers: [], deleted: [], ...o });
-const one = (p: Loose, key: string) => p.outcomes.find((x: number) => x.key === key);
+const plan = (o: Loose) => planSpsImport({ mapping, branchByKey, repByKey, customers: [], deleted: [], ...o });
+const one = (p: Loose, key: string) => p.outcomes.find((x: Loose) => x.key === key);
 
 describe('planSpsImport', () => {
   it('gives every distinct SPS name exactly one outcome that adds up to the file', () => {
@@ -96,7 +96,7 @@ describe('planSpsImport', () => {
 
   it('ignores a deleted copy that is back, was undone, or came from an import undo', () => {
     const rows = [row('Gone Co')];
-    const mk = (extra: unknown) => [{ customerId: 'd1', customer: { company: 'Gone Co' }, ...extra }];
+    const mk = (extra: Loose) => [{ customerId: 'd1', customer: { company: 'Gone Co' }, ...extra }];
     expect(one(plan({ rows, deleted: mk({ undoneAt: new Date() }) }), 'gone co').action).toBe('new');
     expect(one(plan({ rows, deleted: mk({ source: 'sps-undo' }) }), 'gone co').action).toBe('new');
     expect(one(plan({ rows, deleted: mk({}), customers: [cust('d1', 'Gone Co', { sps: { key: 'gone co' } })] }), 'gone co').action).toBe('unchanged');

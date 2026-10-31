@@ -12,7 +12,7 @@ import mongoose from 'mongoose';
  * `customer` is the raw document as it was (Mixed: it may hold fields the
  * Customer schema no longer defines), so Undo restores it exactly, same _id.
  */
-const customerDeleteBackupSchema = new mongoose.Schema<Loose>({
+const customerDeleteBackupSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   batchId: { type: String, required: true, index: true },
   customerId: { type: mongoose.Schema.Types.ObjectId, required: true },
   customer: { type: mongoose.Schema.Types.Mixed, required: true },

@@ -31,7 +31,7 @@ describe('scopeLocationsOf', () => {
 });
 
 describe('repsInScope', () => {
-  const ids = (user: Loose) => repsInScope(user, staff).map((r) => r._id);
+  const ids = (user: Loose | null) => repsInScope(user, staff).map((r) => r._id);
   it('shows a manager only the reps at their locations — never Spokane', () => {
     expect(ids(manager)).toEqual(['dana', 'marcus', 'alex', 'both']);
   });
@@ -50,7 +50,7 @@ describe('repsInScope', () => {
 });
 
 describe('inScopePins', () => {
-  const ids = (user: Loose) => inScopePins(pins, user, staff).map((p) => p._id);
+  const ids = (user: Loose | null) => inScopePins(pins, user, staff).map((p) => p._id);
   it('never includes another location’s customers or unassigned ones', () => {
     expect(ids(manager)).toEqual([1, 2, 3, 5, 7]);
   });

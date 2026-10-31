@@ -22,10 +22,10 @@ import { isSalesRep } from './salesReps.ts';
 export const UNASSIGNED = 'unassigned';
 
 const lower = (v: unknown) => String(v || '').toLowerCase();
-const idOf = (user: Loose) => String(user?.id ?? user?._id ?? '');
+const idOf = (user: Loose | null | undefined) => String(user?.id ?? user?._id ?? '');
 
 /** `null` = every location; otherwise the locations they work at (can be empty). */
-export const scopeLocationsOf = (user: Loose) => {
+export const scopeLocationsOf = (user: Loose | null | undefined) => {
   if (!user) return [];
   const own = [...(Array.isArray(user.assignedLocations) ? user.assignedLocations : []), user.location].filter(Boolean);
   if (lower(user.role) === 'admin' || own.includes('*')) return null;
@@ -40,7 +40,7 @@ const repLocations = (rep: Loose) =>
  * (isSalesRep) working at one of their locations, plus themselves if they sell.
  * Deactivated reps stay (their customers still need finding), sorted by the caller.
  */
-export const repsInScope = (user: Loose, staff: Loose[] = []) => {
+export const repsInScope = (user: Loose | null | undefined, staff: Loose[] = []) => {
   const locations = scopeLocationsOf(user);
   const me = idOf(user);
   return staff.filter((rep) => {
@@ -59,7 +59,7 @@ export const repKeyOf = (pin: Loose) => (pin?.salesRep ? String(pin.salesRep) : 
  * The customers this person may see: owned by a rep in scope, or owned by
  * nobody and at one of their locations.
  */
-export const inScopePins = (pins: Loose[] = [], user: Loose, staff: Loose[] = []) => {
+export const inScopePins = (pins: Loose[] = [], user: Loose | null | undefined, staff: Loose[] = []) => {
   const locations = scopeLocationsOf(user);
   const allowed = new Set(repsInScope(user, staff).map((r) => String(r._id)));
   return pins.filter((p) => {
@@ -85,7 +85,7 @@ export const repCountsOf = (scoped: Loose[] = []) => {
 };
 
 /** The rep keys a request named — `reps=a,b,unassigned` — or null when it named none (= everyone in scope). */
-export const parseRepKeys = (value: Loose[]) => {
+export const parseRepKeys = (value: unknown) => {
   if (value == null) return null;
   const raw = Array.isArray(value) ? value.join(',') : String(value);
   return raw.split(',').map((s) => s.trim()).filter(Boolean);

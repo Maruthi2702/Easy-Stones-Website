@@ -60,7 +60,7 @@ function documentItems({
     t('Quantity', 413, 480), t('Unit Price', 488, 480)
   );
   let my = 453;
-  materials.forEach((m, mi) => {
+  materials.forEach((m: Loose, mi: number) => {
     const unit = m.unit || 'SF';
     items.push(t(m.name, 27, my), t(`(${m.n})`, 165, my), t(unit === 'SF' ? `${(73.67 * m.n).toFixed(2)} SF` : `${m.n} EA`, 408, my));
     my -= 12;
@@ -74,7 +74,7 @@ function documentItems({
   return items;
 }
 
-const parse = (opts: Loose) => parsePackingList(itemsToLines(documentItems(opts)));
+const parse = (opts: Loose = {}) => parsePackingList(itemsToLines(documentItems(opts)));
 
 describe('itemsToLines', () => {
   it('keeps the side-by-side Bill To and Ship To boxes apart', () => {
@@ -87,7 +87,7 @@ describe('itemsToLines', () => {
   it('puts cells drawn at the same height on one line', () => {
     const lines = itemsToLines(documentItems());
     const header = lines.find(l => l.text.startsWith('Sales Rep'));
-    expect(header.cells.map(c => c.text)).toEqual(['Sales Rep', 'PO #', 'Payment Terms', 'SO#', 'Est. Ship Date', 'Weight', 'Prepared By']);
+    expect((header)!.cells.map(c => c.text)).toEqual(['Sales Rep', 'PO #', 'Payment Terms', 'SO#', 'Est. Ship Date', 'Weight', 'Prepared By']);
   });
 
   it('skips blank items', () => {

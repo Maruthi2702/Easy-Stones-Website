@@ -45,7 +45,7 @@ export function createEnergovSource({ name, tenant, base, modern = false, fetchI
     init: { method, headers: HEADERS, ...(body !== undefined && { body: JSON.stringify(body) }) }
   });
 
-  let template = null;
+  let template: Loose | null = null;
   async function criteria() {
     if (!template) {
       const data = await call('/api/energov/search/criteria');
@@ -56,7 +56,7 @@ export function createEnergovSource({ name, tenant, base, modern = false, fetchI
   }
 
   async function searchPage(page: unknown, keyword = '') {
-    const c = await criteria();
+    const c = (await criteria())!;
     // The site's own permit search: module "All" filtered to permits, newest issued first.
     Object.assign(c, { Keyword: keyword, SearchModule: 1, FilterModule: 2, SortBy: 'IssueDate', SortAscending: false, PageNumber: page, PageSize: PAGE_SIZE });
     Object.assign(c.PermitCriteria, { SortBy: 'IssueDate', SortAscending: false, PageNumber: page, PageSize: PAGE_SIZE });
@@ -121,7 +121,7 @@ export function createEnergovSource({ name, tenant, base, modern = false, fetchI
     return {
       ...data.Result,
       ValuationValue: data.Result.Value,
-      Contacts: (people?.Result || []).map((c: string) => ({
+      Contacts: (people?.Result || []).map((c: Loose) => ({
         ContactTypeName: c.ContactTypeName, GlobalEntityName: c.GlobalEntityName, FirstName: c.FirstName, LastName: c.LastName
       }))
     };

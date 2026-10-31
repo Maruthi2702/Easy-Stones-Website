@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import Pagination from '../../shared/Pagination';
 import { usePagination } from '../../shared/paginationConfig';
 import { API_URL } from '../../../config/api';
-import { permitsMeta, listPermits, exportPermits, refreshPermits } from '../../../api/permits';
+import { permitsMeta, listPermits, exportPermits, refreshPermits, type PermitsMeta, type PermitsPage } from '../../../api/permits';
 import { SOURCES, CATEGORIES, categoryLabel, pacificNow } from '../../../permits/permitRules';
 import {
   DATE_RANGES, DEFAULT_RANGE, rangeFrom, formatDay, formatMoney, sizeLine, sourceStatus, splitChecks, checksAttention,
@@ -18,7 +18,7 @@ import ChecksDialog from './ChecksDialog';
 import ContractorDialog from './ContractorDialog';
 import './Permits.css';
 
-const STATUS_ICON = { ok: CheckCircle2, warn: AlertTriangle, none: AlertTriangle, busy: Loader2 };
+const STATUS_ICON: Record<string, typeof CheckCircle2> = { ok: CheckCircle2, warn: AlertTriangle, none: AlertTriangle, busy: Loader2 };
 
 /** Closes an open popover on a click/tap outside `ref` or Escape (focus goes back to its button). */
 function useDismiss(ref: React.RefObject<HTMLDivElement | null>, open: boolean, close: () => void) {
@@ -54,7 +54,7 @@ const saveCounties = (list: string[]) => {
  * permission again.
  */
 export default function PermitsTab({ sidebarToggle = null, onOpenCustomer = null, onCreateCustomer = null }: { sidebarToggle?: React.ReactNode; onOpenCustomer?: ((id: string) => void) | null; onCreateCustomer?: ((value: Loose) => void) | null }) {
-  const [meta, setMeta] = useState<Loose | null>(null);
+  const [meta, setMeta] = useState<PermitsMeta | null>(null);
   const [counties, setCountiesState] = useState(readCounties);
   const setCounties = (list: string[]) => { setCountiesState(list); saveCounties(list); };
   const [place, setPlace] = useState('');
@@ -68,7 +68,7 @@ export default function PermitsTab({ sidebarToggle = null, onOpenCustomer = null
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
   const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
-  const [data, setData] = useState<Loose | null>(null);
+  const [data, setData] = useState<PermitsPage | null>(null);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [openId, setOpenId] = useState('');

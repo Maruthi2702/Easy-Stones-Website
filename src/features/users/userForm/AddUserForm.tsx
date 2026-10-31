@@ -177,7 +177,7 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
             });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
-                if (data.field && FIELD_LABELS[data.field]) {
+                if (data.field && FIELD_LABELS[data.field as keyof typeof FIELD_LABELS]) {
                     setServerErrors({ [data.field]: data.message });
                     setTimeout(() => goToField(data.field), 0);
                 } else {

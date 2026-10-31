@@ -11,7 +11,7 @@ const noSleep = async () => {};
 const json = (body: unknown, status = 200) => ({ ok: status < 400, status, text: async () => JSON.stringify(body) });
 
 const CRITERIA = { Result: { Keyword: '', SearchModule: 1, PermitCriteria: { PageNumber: 0, PageSize: 0, SortBy: null }, PageNumber: 0, PageSize: 0 } };
-const row = (n: unknown, day: string) => ({ CaseId: `id-${n}`, CaseNumber: `SFR2026-${String(n).padStart(5, '0')}`, CaseType: 'Building (Residential) - SFR - New Construction', IssueDate: day ? `${day}T00:00:00` : null });
+const row = (n: unknown, day: string | null) => ({ CaseId: `id-${n}`, CaseNumber: `SFR2026-${String(n).padStart(5, '0')}`, CaseType: 'Building (Residential) - SFR - New Construction', IssueDate: day ? `${day}T00:00:00` : null });
 
 /** A fake county whose search answers `pages` (arrays of rows) by page number. */
 function fakeCounty(pages: Loose[], { failFirst = 0 }: Loose = {}) {
@@ -43,7 +43,7 @@ describe('Whatcom County reader', () => {
     const r = await src.issuedSince('2026-09-10');
     expect(r.rows.map((x) => x.CaseNumber)).toEqual(['SFR2026-00005', 'SFR2026-00004', 'SFR2026-00003', 'SFR2026-00002']);
     expect(r.pages).toBe(2);
-    const search = county.calls.find((c) => c.url.endsWith('/search/search')).body;
+    const search = county.calls.find((c) => c.url.endsWith('/search/search'))!.body;
     expect(search).toMatchObject({ SearchModule: 1, FilterModule: 2, SortBy: 'IssueDate', SortAscending: false, PageSize: 100 });
     expect(search.PermitCriteria).toMatchObject({ SortBy: 'IssueDate', SortAscending: false, PageNumber: 1, PageSize: 100 });
   });

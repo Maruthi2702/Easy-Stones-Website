@@ -5,8 +5,13 @@ import DailyReport from '../models/DailyReport.ts';
 import Delivery from '../models/Delivery.ts';
 import OfficeCheckIn from '../models/OfficeCheckIn.ts';
 
+// Test doubles implement only the awaited query surface used by deriveFromSystem.
+const deliveryQueries = Delivery as unknown as { find: (filter: Loose) => { lean: () => Promise<Loose[]> } };
+const officeQueries = OfficeCheckIn as unknown as { countDocuments: (filter: Loose) => Promise<number> };
+
+
 // Seattle is on Pacific time; in October that's UTC-7.
-const sea = (local: Loose) => new Date(`${local}-07:00`);
+const sea = (local: string) => new Date(`${local}-07:00`);
 
 describe('isDueForAutoSubmit', () => {
   it('a day nobody reopened: today at 11:59 PM, an earlier day straight away', () => {
@@ -39,13 +44,13 @@ describe('isDueForAutoSubmit', () => {
 
 describe('filing a day nobody opened', () => {
   // Real derive, fake database.
-  let tickets = [];
+  let tickets: Loose[] = [];
   let checkInCount = 0;
   beforeEach(() => {
     tickets = [];
     checkInCount = 0;
-    vi.spyOn(Delivery, 'find').mockImplementation((q) => ({ lean: async () => (q.deliveryType === 'transfer' ? [] : tickets.filter((t) => t.date === q.date)) }));
-    vi.spyOn(OfficeCheckIn, 'countDocuments').mockImplementation(async () => checkInCount);
+    vi.spyOn(deliveryQueries, 'find').mockImplementation((q) => ({ lean: async () => (q.deliveryType === 'transfer' ? [] : tickets.filter((t) => t.date === q.date)) }));
+    vi.spyOn(officeQueries, 'countDocuments').mockImplementation(async () => checkInCount);
   });
   afterEach(() => vi.restoreAllMocks());
 
@@ -70,9 +75,9 @@ describe('filing a day nobody opened', () => {
     const save = vi.spyOn(DailyReport.prototype, 'save');
     const t0 = new Date('2026-09-27T07:00:00Z');
     expect(await fileUnopenedDay('2026-09-26', 'Dallas', t0)).toBe(null);
-    const derives = OfficeCheckIn.countDocuments.mock.calls.length;
+    const derives = vi.mocked(officeQueries.countDocuments).mock.calls.length;
     expect(await fileUnopenedDay('2026-09-26', 'Dallas', new Date(t0.getTime() + 60000))).toBe(null);
-    expect(OfficeCheckIn.countDocuments.mock.calls.length).toBe(derives); // skipped within the hour
+    expect(vi.mocked(officeQueries.countDocuments).mock.calls.length).toBe(derives); // skipped within the hour
     expect(save).not.toHaveBeenCalled();
   });
 

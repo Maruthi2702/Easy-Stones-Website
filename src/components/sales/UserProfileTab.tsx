@@ -122,7 +122,7 @@ const UserProfileTab = ({ sidebarToggle, theme }: { sidebarToggle?: React.ReactN
                             </div>
                             <div className="detail-row">
                                 <span className="detail-label">Email Address</span>
-                                <span className="detail-value">{user?.email || 'N/A'}</span>
+                                <span className="detail-value">{String(user?.email || 'N/A')}</span>
                             </div>
                             <div className="detail-row">
                                 <span className="detail-label">Role</span>

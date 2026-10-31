@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 /**
  * Read-only audit: which customer records are the same business twice?
  *
@@ -24,7 +25,7 @@ dotenv.config();
 
 const OWN_DOMAIN = /@easystones\.com$/i;
 
-const label = (c) =>
+const label = (c: Loose) =>
   `${c.company || '(no company)'} — ${c.contactName || '(no contact)'} — ${c.email || '(no email)'}` +
   `${c.phone ? ` — ${c.phone}` : ''} — ${c.address?.city || 'no city'}` +
   ` — created ${new Date(c.createdAt).toISOString().slice(0, 10)}` +
@@ -48,10 +49,10 @@ mongoose
     console.log(`\nTotal customers: ${live.length}${rows.length !== live.length ? `  (${rows.length - live.length} already merged away)` : ''}`);
     console.log(`Records touched by a duplicate signal: ${groups.reduce((n, g) => n + g.size, 0)}`);
 
-    const show = (g, i) => {
+    const show = (g: ReturnType<typeof groupDuplicates>[number], i: number) => {
       console.log(`\n  ${i + 1}. matched on ${g.signals.join(', ')}  —  ${g.size} records`);
-      g.ids.map(id => byId.get(id))
-        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+      g.ids.map(id => byId.get(id)!)
+        .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
         .forEach(r => console.log(`     · ${label(r)}`));
     };
 
@@ -90,7 +91,7 @@ mongoose
 
     // A single day accounting for most of the records is an import, and imports
     // are where the second copy of an existing customer comes from.
-    const byDay = live.reduce((m, r) => {
+    const byDay = live.reduce<Record<string, number>>((m, r) => {
       const d = new Date(r.createdAt).toISOString().slice(0, 10);
       m[d] = (m[d] || 0) + 1;
       return m;

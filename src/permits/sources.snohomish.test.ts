@@ -14,7 +14,7 @@ import { createEnergovSource } from './sources/energov.ts';
 import { monroePermit, parseMonroeReports, monroeReportRows } from './rules/monroe.ts';
 import { createMonroeSource } from './sources/monroe.ts';
 
-const row = (over: unknown) => ({
+const row = (over: Loose = {}) => ({
   Project_File_Number: '25-102950 RBP', Permit_Description: 'Residential Building Permit', Sub_Type: 'Single Family Residential', Work_Type: 'New',
   Application_Date: '03/06/2025', Issue_Date: '09/01/2026', Status: 'Issued', Folder_Name: 'Corey RBP', Description: 'New 1 bdrm 2nd story SFR',
   Valuation: 245973.96, Dwelling_Units: 1, Total_Bldg_Sq_Ft: null, Site_Address: '11109 86TH ST SE ', Site_City: 'SNOHOMISH', Site_Postal: 98290,
@@ -86,7 +86,7 @@ describe('snohomishPermit', () => {
 });
 
 describe('the archive page', () => {
-  const html = (items: Loose[]) => items.map(([id, t]) => `<table><tr><td><span class="archive"><a href="Archive.aspx?ADID=${id}" target="_blank"><span>${t}  </span></a></span></td></tr></table>`).join('');
+  const html = (items: [number, string][]) => items.map(([id, t]) => `<table><tr><td><span class="archive"><a href="Archive.aspx?ADID=${id}" target="_blank"><span>${t}  </span></a></span></td></tr></table>`).join('');
   const page = html([[7544, 'September 2026 Issued Residential Permits'], [7420, 'February 2026 Residential Issued Permits'], [7398, '2025 Issued Residential Permits'], [1, 'Read me']]);
   it('lists monthly and yearly files, newest first, and skips what names no period', () => {
     expect(parseSnohomishArchive(page)).toEqual([
@@ -118,7 +118,7 @@ describe('the reader', () => {
     XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
     return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
   };
-  const listing = (items: Loose[]) => items.map(([id, t]) => `<a href="Archive.aspx?ADID=${id}"><span>${t}</span></a>`).join('');
+  const listing = (items: [number, string][]) => items.map(([id, t]) => `<a href="Archive.aspx?ADID=${id}"><span>${t}</span></a>`).join('');
   const SHEET = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   const server = ({ res = [], com = [], files = {} }: Loose) => async (url: string) => {
     const u = new URL(url);
@@ -127,7 +127,7 @@ describe('the reader', () => {
       const list = amid === '132' ? res : com;
       return new Response(listing(list), { status: 200, headers: { 'content-type': 'text/html' } });
     }
-    const f = files[u.searchParams.get('ADID')];
+    const f = files[u.searchParams.get('ADID')!];
     if (!f) return new Response('no', { status: 404 });
     return new Response(f.body, { status: 200, headers: { 'content-type': f.type || SHEET } });
   };
@@ -308,7 +308,7 @@ describe('Monroe', () => {
   const HEAD = ['Permit No', 'Permit Class', 'Permit Type', 'Permit Description', 'Proposed Use', 'Tax Lot', 'Address', 'Applicant', 'Contractor Name', 'Contractor Phone', 'Issue Date', 'Permit Status', 'Valuation', 'Balance', 'Total Fees'];
   const line = (over: Loose = {}) => ['26-ADD-0119', 'Building', 'Addition', 'Expands the office', 'Industrial', '00751800000700', '17350 TYE ST', '2812 Architecture', 'New Vision Construction Inc', '(425) 361-5661', '09/29/2026', 'Inspections Complete', '1529392.35', 0, 4847.04]
     .map((v, i) => (over[HEAD[i]] !== undefined ? over[HEAD[i]] : v));
-  const grid = (lines: unknown, period = '9/1/2026 - 9/30/2026') => [['Issued Permits '], [period], HEAD, ...lines];
+  const grid = (lines: unknown[][], period = '9/1/2026 - 9/30/2026') => [['Issued Permits '], [period], HEAD, ...lines];
 
   it('files the city’s building types by their proposed use', () => {
     expect(cat('Building - New Building', 'Single Family Detached')).toBe('new_home');
@@ -352,15 +352,15 @@ describe('Monroe', () => {
     expect(monroePermit(monroeReportRows(grid([line({ Address: 'Parcel: 00834300000100' })])).rows[0]).address).toBe('00834300000100');
   });
   it('reads the months since a day, and stops on a permit from another month or a non-spreadsheet', async () => {
-    const sheet = (rows: Loose[]) => {
+    const sheet = (rows: unknown[][]) => {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(grid(rows)), 'Sheet1');
       return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
     };
     const page = '<a href="/DocumentCenter/View/2/x">Issued Permits Report - September 2026</a><a href="/DocumentCenter/View/1/x">Issued Permits Report - August 2026</a>';
-    const server = (files: unknown) => async (url: string) => {
+    const server = (files: Loose) => async (url: string) => {
       if (url.includes('/1355/')) return new Response(page, { status: 200, headers: { 'content-type': 'text/html' } });
-      const f = files[url.match(/View\/(\d+)/)[1]];
+      const f = files[url.match(/View\/(\d+)/)![1]];
       return new Response(f.body, { status: 200, headers: { 'content-type': f.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } });
     };
     const ok = await createMonroeSource({ fetchImpl: server({ 2: { body: sheet([line(), line({ 'Permit No': '26-B', 'Issue Date': '09/05/2026' })]) }, 1: { body: sheet([line({ 'Issue Date': '08/10/2026' })]) } }) }).issuedSince('2026-09-10');

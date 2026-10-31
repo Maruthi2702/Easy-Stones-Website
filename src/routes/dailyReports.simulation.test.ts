@@ -29,17 +29,17 @@ const matches = (doc: Loose, query: string) => Object.entries(query).every(([key
   return value === cond;
 });
 
-let tickets = [];
-let checkIns = [];
+let tickets: Loose[] = [];
+let checkIns: Loose[] = [];
 let deliveryQueries = 0;
 
 beforeEach(() => {
   deliveryQueries = 0;
-  vi.spyOn(Delivery, 'find').mockImplementation((query) => {
+  vi.spyOn(Delivery, 'find').mockImplementation(((query) => {)!
     deliveryQueries += 1;
-    return { lean: async () => tickets.filter((t) => matches(t, query)) };
+    return { lean: async () => tickets.filter((t) => matches(t, (query)!)) };
   });
-  vi.spyOn(OfficeCheckIn, 'countDocuments').mockImplementation(async (query) => checkIns.filter((c) => matches(c, query)).length);
+  vi.spyOn(OfficeCheckIn, 'countDocuments').mockImplementation(async (query) => checkIns.filter((c) => matches(c, (query)!)).length);
 });
 afterEach(() => vi.restoreAllMocks());
 

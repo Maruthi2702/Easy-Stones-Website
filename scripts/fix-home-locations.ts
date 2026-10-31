@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 /**
  * One-off: give every user a valid home location (User.location), now that
  * every location filter opens on it (src/utils/locationFilter.ts).
@@ -27,12 +28,12 @@ const apply = process.argv.includes('--apply');
 const BACKUP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'merge-backups');
 
 const main = async () => {
-  await mongoose.connect(process.env.MONGO_URI);
-  const col = mongoose.connection.db.collection('users');
+  await mongoose.connect(process.env.MONGO_URI!);
+  const col = mongoose.connection.db!.collection('users');
   const users = await col.find({}, { projection: { username: 1, displayName: 1, role: 1, location: 1, assignedLocations: 1 } }).toArray();
 
-  const fixes = [];
-  const allLocationsWithoutHome = [];
+  const fixes: Loose[] = [];
+  const allLocationsWithoutHome: Loose[] = [];
   for (const u of users) {
     const assigned = Array.isArray(u.assignedLocations) ? u.assignedLocations : [];
     if (homeLocationOf(u)) continue;
@@ -41,7 +42,7 @@ const main = async () => {
     if ((u.location ?? '') !== to) fixes.push({ u, to });
   }
 
-  const name = (u) => `${u.displayName || u.username} (${u.username}, ${u.role || 'no role'})`;
+  const name = (u: Loose) => `${u.displayName || u.username} (${u.username}, ${u.role || 'no role'})`;
   console.log(`${users.length} users, ${fixes.length} to fix:\n`);
   for (const { u, to } of fixes) {
     console.log(`  ${name(u)}  assigned [${(u.assignedLocations || []).join(', ')}]  home "${u.location ?? ''}" → "${to}"`);

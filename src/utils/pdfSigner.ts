@@ -36,7 +36,7 @@ function dataUrlToBytes(dataUrl: string) {
   return bytes;
 }
 
-async function fetchPdfBytes(url: string) {
+async function fetchPdfBytes(url: string | ArrayBuffer | Uint8Array) {
   if (url instanceof ArrayBuffer) return new Uint8Array(url);
   if (url instanceof Uint8Array) return url;
 
@@ -118,9 +118,9 @@ export async function stampSignaturesOnPdfBytes({
   //    falling back to the submission time for records signed before the pads
   //    started timestamping themselves.
   const signedDate = signedAt ? new Date(signedAt) : new Date();
-  const formatStamp = (value: unknown) => {
+  const formatStamp = (value: string | number | Date | null | undefined) => {
     const d = value ? new Date(value) : signedDate;
-    const safe = isNaN(d) ? signedDate : d;
+    const safe = isNaN(d.getTime()) ? signedDate : d;
     const dateStr = safe.toLocaleDateString('en-US', {
       year: 'numeric', month: 'short', day: 'numeric',
     });
@@ -317,5 +317,5 @@ export async function stampSignaturesOnPdfBytes({
  */
 export async function stampSignaturesOnPdf(params: Loose) {
   const signedBytes = await stampSignaturesOnPdfBytes(params);
-  return new Blob([signedBytes], { type: 'application/pdf' });
+  return new Blob([new Uint8Array(signedBytes)], { type: 'application/pdf' });
 }

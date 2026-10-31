@@ -11,7 +11,7 @@ import { cleanText, dayOf, money, count, monthBounds, tidyContacts } from '../co
 import { mbpRule } from './mbp.ts';
 
 /** 'Building/Residential Building/Dwelling-Single/NA' → 'Building/Residential Building/Dwelling-Single'. */
-export const kingType = (type: string) => cleanText(type).replace(/(\s*\/\s*NA?)+$/i, '').replace(/\s*\/\s*/g, '/');
+export const kingType = (type: unknown) => cleanText(type).replace(/(\s*\/\s*NA?)+$/i, '').replace(/\s*\/\s*/g, '/');
 
 const kingCounty = mbpRule({
   id: 'king_county',
@@ -101,17 +101,17 @@ const HEADERS: Record<string, string> = {
  * Fails when the titles aren't there — the county changed its report.
  */
 export function kingReportRows(grid: unknown[][]) {
-  const at = (grid || []).findIndex((r: Loose) => (r || []).some((c: string) => cleanText(c).toUpperCase() === HEADERS.number));
+  const at = (grid || []).findIndex((r: unknown[]) => (r || []).some((c: unknown) => cleanText(c).toUpperCase() === HEADERS.number));
   if (at < 0) throw new Error('The county’s report has no “PERMIT NBR” column — its layout may have changed');
-  const titles = grid[at].map((c: string) => cleanText(c).toUpperCase());
+  const titles = grid[at].map((c: unknown) => cleanText(c).toUpperCase());
   const col = Object.fromEntries(Object.entries(HEADERS).map(([k, title]) => [k, titles.indexOf(title)]));
   for (const k of ['number', 'type', 'issued']) {
     if (col[k] < 0) throw new Error(`The county’s report has no “${HEADERS[k]}” column — its layout may have changed`);
   }
   const cell = (r: unknown[], k: string) => (col[k] < 0 ? null : r[col[k]]);
   return grid.slice(at + 1)
-    .filter((r: Loose) => cleanText(cell(r || [], 'number')))
-    .map((r: Loose) => {
+    .filter((r: unknown[]) => cleanText(cell(r || [], 'number')))
+    .map((r: unknown[]) => {
       const address = cleanText(cell(r, 'address'));
       // '10121 420TH AVE SE, NORTH BEND, WA 98045'
       const parts = address.split(',').map(cleanText);
@@ -203,7 +203,7 @@ export const titleCase = (s: unknown) => cleanText(s).toLowerCase().replace(/\b[
  * month that the report doesn't list at all are `notInReport`; a report lead
  * the app holds under another date is `datesMoved` (fine — the county moved it).
  */
-export function reconcileKingReport({ month, rows, appInMonth, appHas }: Loose) {
+export function reconcileKingReport({ month, rows, appInMonth, appHas }: { month: string; rows: (Loose & { number: string })[]; appInMonth: string[]; appHas: string[] }) {
   const { from, to } = monthBounds(month);
   const numbers = new Set(rows.map((r: Loose) => r.number));
   const has = new Set(appHas);

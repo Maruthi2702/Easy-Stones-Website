@@ -110,7 +110,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }: { curre
   // Patches colorDocs from the mutation's own response instead of
   // refetching the whole crossover sheet after every single save — the
   // response already carries everything needed (see crossoverSheetHelpers.js).
-  const applyColorDocUpdate = (colorDoc: Loose) => {
+  const applyColorDocUpdate = (colorDoc: ColorDoc) => {
     setColorDocs(prev => {
       const next = upsertColorDoc(prev, colorDoc);
       cachedEntries = next;
@@ -118,7 +118,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }: { curre
     });
   };
 
-  const handleSaveEntry = async (payload) => {
+  const handleSaveEntry = async (payload: Loose) => {
     try {
       const isNew = !payload._id;
       const url = isNew
@@ -291,7 +291,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }: { curre
   const handleExportExcel = () => {
     try {
       const list = matrixData.rows.map(row => {
-        const rowData = { 'Easy Stones': row.easyStonesName };
+        const rowData: Record<string, string> = { 'Easy Stones': row.easyStonesName };
         matrixData.distributors.forEach(distributor => {
           const cellEntries = row.cells.get(distributor) || [];
           rowData[distributor] = cellEntries
@@ -410,7 +410,7 @@ const CrossoverSheetTab = ({ currentUser = null, sidebarToggle = null }: { curre
           <Filter size={14} className="xover-filter-icon" />
           <CustomSelect
             value={matchTypeFilter}
-            onChange={(e) => setMatchTypeFilter(e.target.value)}
+            onChange={(e) => setMatchTypeFilter(String(e.target.value))}
             options={[
               { value: 'All', label: 'All Match Types' },
               { value: 'Direct Crossover', label: 'Direct Crossover' },

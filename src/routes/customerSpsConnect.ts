@@ -63,7 +63,7 @@ export default function createCustomerSpsConnectRouter({ authenticate, uploadMem
       });
     } catch (err) {
       console.error('SPS connect preview error:', err);
-      res.status(400).json({ message: `Preview failed: ${err.message}` });
+      res.status(400).json({ message: `Preview failed: ${(err as Error).message}` });
     }
   });
 
@@ -98,18 +98,18 @@ export default function createCustomerSpsConnectRouter({ authenticate, uploadMem
       }));
 
       // ordered:false — one name taken in the meantime must not stop the rest.
-      const failed = [];
+      const failed: Loose[] = [];
       const run = async (ops: Loose) => {
         if (!ops.length) return 0;
         try {
           return (await Customer.collection.bulkWrite(ops, { ordered: false })).modifiedCount;
         } catch (err) {
-          if (!err.writeErrors && !err.result) throw err;
-          for (const e of err.writeErrors || []) {
+          if (!(err as Error & Loose).writeErrors && !(err as Error & Loose).result) throw err;
+          for (const e of (err as Error & Loose).writeErrors || []) {
             const op = ops[e.index ?? e.err?.index];
             failed.push({ customerId: String(op?.updateOne?.filter?._id || ''), reason: e.code === 11000 ? 'another customer took that SPS name first' : (e.errmsg || 'could not be saved') });
           }
-          return err.result?.modifiedCount ?? err.result?.nModified ?? 0;
+          return (err as Error & Loose).result?.modifiedCount ?? (err as Error & Loose).result?.nModified ?? 0;
         }
       };
       const connected = await run(connectOps);
@@ -119,7 +119,7 @@ export default function createCustomerSpsConnectRouter({ authenticate, uploadMem
       res.json({ connected, notInSps: markedNotInSps, failed, rejected: answers.rejected });
     } catch (err) {
       console.error('SPS connect apply error:', err);
-      res.status(500).json({ message: `Could not connect the customers: ${err.message}` });
+      res.status(500).json({ message: `Could not connect the customers: ${(err as Error).message}` });
     }
   });
 

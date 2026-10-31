@@ -135,7 +135,7 @@ export const validateUserEdit = (values: Loose, initial: Loose | null = null) =>
  * left out rather than sent back blank.
  */
 export const userEditFields = (values: Loose, initial: Loose = {}) => {
-    const out = { role: values.role, location: values.location };
+    const out: Loose = { role: values.role, location: values.location };
     const fields = {
         displayName: String(values.displayName || '').trim(),
         email: String(values.email || '').trim(),
@@ -163,7 +163,7 @@ export const userToFormValues = (user: Loose = {}) => {
     };
 };
 
-const SHORT_DATE = { month: 'short', day: 'numeric' };
+const SHORT_DATE: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
 
 /**
  * The edit form's footer line: "Last changed by krish · Oct 3", or "Added
@@ -171,7 +171,7 @@ const SHORT_DATE = { month: 'short', day: 'numeric' };
  * recording it. A different year is shown in full.
  */
 export const lastChangedText = (user: Loose = {}, now = new Date()) => {
-    const fmt = (d: Loose) => {
+    const fmt = (d: string | number | Date) => {
         const date = new Date(d);
         if (Number.isNaN(date.getTime())) return '';
         return date.toLocaleDateString('en-US', date.getFullYear() === now.getFullYear() ? SHORT_DATE : { ...SHORT_DATE, year: 'numeric' });

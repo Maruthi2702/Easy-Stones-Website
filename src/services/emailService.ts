@@ -1,6 +1,8 @@
 import type { Loose } from '../types/records.ts';
 import nodemailer from 'nodemailer';
 import { Resend } from 'resend';
+import type { CreateEmailOptions } from 'resend';
+import type { SendMailOptions } from 'nodemailer';
 import { DEFAULT_LETTERHEAD } from '../utils/locationForm.ts';
 import { formatSheetPrice, formatSlabSize } from '../utils/selectionSheet.ts';
 
@@ -11,7 +13,7 @@ import { formatSheetPrice, formatSlabSize } from '../utils/selectionSheet.ts';
 // broken layout) landing in a staff inbox.
 const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-}[ch]));
+}[ch]!));
 
 // Helper to send general mail using Resend API with SMTP fallback
 /**
@@ -19,16 +21,25 @@ const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (
  * Uint8Array. Resend wants base64, nodemailer wants the Buffer — the two
  * transports are fed accordingly rather than making callers care.
  */
-export async function sendEmail({ to, subject, html, replyTo, defaultSenderName, attachments = [] }: { to: string; subject: Loose; html: string; replyTo: Loose; defaultSenderName: Loose; attachments?: Loose }) {
+type EmailOptions = {
+  to: string | string[];
+  subject: string;
+  html: string;
+  replyTo?: string;
+  defaultSenderName?: string;
+  attachments?: { filename: string; content: Uint8Array }[];
+};
+
+export async function sendEmail({ to, subject, html, replyTo, defaultSenderName, attachments = [] }: EmailOptions) {
   let sent = false;
-  let errorDetails = [];
+  const errorDetails: string[] = [];
 
   // 1. Try Resend
   if (process.env.RESEND_API_KEY) {
     try {
       const resend = new Resend(process.env.RESEND_API_KEY);
       const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-      const payload = {
+      const payload: CreateEmailOptions = {
         from: `${defaultSenderName} <${fromEmail}>`,
         to: Array.isArray(to) ? to : [to],
         subject,
@@ -54,8 +65,8 @@ export async function sendEmail({ to, subject, html, replyTo, defaultSenderName,
         console.log(`✅ Email sent via Resend to ${to}`);
       }
     } catch (err) {
-      console.error(`⚠️ Resend exception sending email to ${to}: ${err.message}`);
-      errorDetails.push(`Resend exception: ${err.message}`);
+      console.error(`⚠️ Resend exception sending email to ${to}: ${(err as Error).message}`);
+      errorDetails.push(`Resend exception: ${(err as Error).message}`);
     }
   } else {
     errorDetails.push('Resend API key missing');
@@ -76,7 +87,7 @@ export async function sendEmail({ to, subject, html, replyTo, defaultSenderName,
           }
         });
 
-        const payload = {
+        const payload: SendMailOptions = {
           from: `"${defaultSenderName}" <${process.env.SMTP_USER}>`,
           to: Array.isArray(to) ? to.join(', ') : to,
           subject,
@@ -96,8 +107,8 @@ export async function sendEmail({ to, subject, html, replyTo, defaultSenderName,
         sent = true;
         console.log(`✅ Email sent via SMTP to ${to}`);
       } catch (smtpError) {
-        console.error(`⚠️ SMTP failed to send email to ${to}: ${smtpError.message}`);
-        errorDetails.push(`SMTP error: ${smtpError.message}`);
+        console.error(`⚠️ SMTP failed to send email to ${to}: ${(smtpError as Error).message}`);
+        errorDetails.push(`SMTP error: ${(smtpError as Error).message}`);
       }
     } else {
       errorDetails.push('SMTP auth details missing');

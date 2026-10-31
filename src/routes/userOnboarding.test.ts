@@ -26,14 +26,14 @@ const {
 } = await import('../services/staffSession.ts');
 
 const SECRET = 'test-secret';
-let mongo;
-let app;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
 
-const authenticate = async (req: Loose, res: Loose, next: Loose) => {
+const authenticate = async (req: Loose, res: Loose, next: () => void) => {
   const token = req.cookies.adminToken || req.cookies.customerToken
     || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
   if (!token) return res.status(401).json({ error: 'none' });
-  let decoded;
+  let decoded!: Loose;
   try {
     decoded = jwt.verify(token, SECRET);
   } catch {
@@ -91,10 +91,10 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.use(cookieParser());
-  const pass = (req: Loose, res: Loose, next: Loose) => next();
+  const pass = (req: Loose, res: Loose, next: () => void) => next();
   app.post('/api/test-login', signIn);
   app.get('/api/protected', authenticate, (req, res) => res.json({ ok: true, username: req.user.username }));
-  const requirePermission = (p: Loose) => (req: Loose, res: Loose, next: Loose) => (req.user?.permissions.includes(p) ? next() : res.status(403).json({ message: 'No' }));
+  const requirePermission = (p: string) => (req: Loose, res: Loose, next: () => void) => (req.user?.permissions.includes(p) ? next() : res.status(403).json({ message: 'No' }));
   app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter: pass, jwtSecret: SECRET }));
 }, 180000);
 
@@ -173,8 +173,8 @@ describe('POST /api/auth/first-password — choosing their own', () => {
     await request(app).get('/api/protected').set('Authorization', `Bearer ${res.body.token}`).expect(200);
 
     const saved = await User.findOne({ username: 'rita' });
-    expect(saved.mustChangePassword).toBe(false);
-    expect(saved.tempPasswordExpiresAt).toBe(null);
+    expect((saved)!.mustChangePassword).toBe(false);
+    expect((saved)!.tempPasswordExpiresAt).toBe(null);
     expect(sessionVersionOf(saved)).toBe(1);
     await login('rita', 'Granite-4821-Ridge').expect(401);
     await login('rita', 'my-own-pass').expect(200);
@@ -194,7 +194,7 @@ describe('POST /api/auth/first-password — choosing their own', () => {
     const setup = cookieFrom(await login(), SETUP_COOKIE);
     expect((await choose(setup, 'abc').expect(400)).body.message).toMatch(/at least 6/);
     expect((await choose(setup, 'Granite-4821-Ridge').expect(400)).body.message).toMatch(/different/);
-    expect((await User.findOne({ username: 'rita' })).mustChangePassword).toBe(true);
+    expect(((await User.findOne({ username: 'rita' })))!.mustChangePassword).toBe(true);
     // The setup session still works for the next try.
     await choose(setup, 'my-own-pass').expect(200);
   });
@@ -240,7 +240,7 @@ describe('POST /api/auth/first-password — choosing their own', () => {
     it('a wrong temporary password is refused and counted', async () => {
       await makeUser();
       await legacy({ username: 'rita', currentPassword: 'guess-guess', newPassword: 'my-own-pass' }).expect(401);
-      expect((await User.findOne({ username: 'rita' })).loginAttempts).toBe(1);
+      expect(((await User.findOne({ username: 'rita' })))!.loginAttempts).toBe(1);
     });
 
     it('an expired temporary password is refused', async () => {
@@ -266,7 +266,7 @@ describe('an emailed invite link', () => {
 
   it('points at /set-password, not the admin pages', () => {
     const req = { get: (h: Loose) => (h === 'origin' ? 'https://app.easystones.com' : undefined) };
-    expect(inviteLinkFor(req, 'abc')).toBe('https://app.easystones.com/set-password?token=abc');
+    expect(inviteLinkFor((req)!, 'abc')).toBe('https://app.easystones.com/set-password?token=abc');
   });
 
   it('says whose it is while it\'s good', async () => {
@@ -368,10 +368,10 @@ describe('an admin reset to a temporary password', () => {
     await protectedWith(before).expect(200);
     // What PUT /api/admin/users/:id does for Sign-in → Temporary password.
     const user = await User.findOne({ username: 'rita' });
-    user.password = 'Basalt-1234-Creek';
+    (user)!.password = 'Basalt-1234-Creek';
     Object.assign(user, temporaryPasswordFields());
-    user.sessionVersion = sessionVersionOf(user) + 1;
-    await user.save();
+    (user)!.sessionVersion = sessionVersionOf(user) + 1;
+    await (user)!.save();
     await protectedWith(before).expect(401);
     expect((await login('rita', 'Basalt-1234-Creek').expect(403)).body.setup).toBe(true);
   });
@@ -408,9 +408,9 @@ describe('POST /api/admin/users/:id/unlock — Edit user → Unlock now', () => 
     const res = await unlock(admin, rita._id).expect(200);
     expect(res.body.user).toMatchObject({ loginAttempts: 0, lockUntil: null, editedBy: 'boss' });
     const saved = await User.findById(rita._id);
-    expect(saved.loginAttempts).toBe(0);
-    expect(saved.lockUntil).toBeUndefined();
-    expect(saved.editedBy).toBe('boss');
+    expect((saved)!.loginAttempts).toBe(0);
+    expect((saved)!.lockUntil).toBeUndefined();
+    expect((saved)!.editedBy).toBe('boss');
     await login('rita', 'own-pass-1').expect(200);
   });
 
@@ -420,9 +420,9 @@ describe('POST /api/admin/users/:id/unlock — Edit user → Unlock now', () => 
     const ritaSession = cookieFrom(await login('rita', 'own-pass-1'), SESSION_COOKIE);
     const rita = await User.findOne({ username: 'rita' });
     for (let i = 0; i < 5; i += 1) await login('rita', 'wrong-pass');
-    await unlock(admin, rita._id).expect(200);
+    await unlock(admin, (rita)!._id).expect(200);
     await protectedWith(ritaSession).expect(200);
-    expect(sessionVersionOf(await User.findById(rita._id))).toBe(0);
+    expect(sessionVersionOf(await User.findById((rita)!._id))).toBe(0);
   });
 
   it('needs Manage users', async () => {

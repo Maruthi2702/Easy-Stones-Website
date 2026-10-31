@@ -65,7 +65,7 @@ export const createTeamAccess = ({ Role, User }: { Role: typeof import('../model
     if (!req.teamScope) return true;
     return canManageMember({
       manager: { id: req.user.id, assignedLocations: req.user.assignedLocations },
-      manageableRoles: req.teamScope.manageableRoles,
+      manageableRoles: req.teamScope!.manageableRoles,
       target
     });
   };
@@ -75,7 +75,7 @@ export const createTeamAccess = ({ Role, User }: { Role: typeof import('../model
    * people entirely at their locations, and only the fields a manager needs.
    */
   const teamUsers = async (req: Request) => {
-    const roles = cleanManageableRoles(req.teamScope.manageableRoles);
+    const roles = cleanManageableRoles(req.teamScope!.manageableRoles);
     const people = await User.find({ role: { $in: roles }, _id: { $ne: req.user.id } })
       .select(TEAM_USER_FIELDS).sort({ createdAt: -1 }).lean();
     return people.filter((p: Loose) => locationsWithin(req.user.assignedLocations, p.assignedLocations));

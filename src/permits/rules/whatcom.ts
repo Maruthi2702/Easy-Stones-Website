@@ -49,7 +49,7 @@ const SKIPPED = typeSet([
  */
 export function energovPermit(rule: Loose, row: Loose, detail: Loose | null = null) {
   const a = row.Address || {};
-  const contacts = detail ? (detail.Contacts || []).map((c: string) => ({
+  const contacts = detail ? (detail.Contacts || []).map((c: Loose) => ({
     role: c.ContactTypeName,
     company: c.GlobalEntityName,
     name: [c.FirstName, c.LastName].map(cleanText).filter(Boolean).join(' '),

@@ -166,9 +166,9 @@ describe('source records', () => {
       sourceUrl: whatcomPermitUrl('b040c9fa-1ee6-4853-b2b5-d0f79638936c')
     });
     expect(p.description).toMatch(/^New, w\/ lu, SFR/);
-    expect(p.contacts[0]).toMatchObject({ kind: 'contractor', role: 'Contractor - GC', company: 'KVF Construction', name: 'Vladimir Kolesnikov', phone: '3607397535', email: 'kvf1616@gmail.com' });
-    expect(p.contacts.map((c) => c.kind)).toEqual(['contractor', 'owner', 'applicant']);
-    expect(p.contacts[2].address).toBe('4340 PACIFIC HWY Unit: 202 Bellingham, WA 98226');
+    expect(p.contacts![0]).toMatchObject({ kind: 'contractor', role: 'Contractor - GC', company: 'KVF Construction', name: 'Vladimir Kolesnikov', phone: '3607397535', email: 'kvf1616@gmail.com' });
+    expect(p.contacts!.map((c) => c.kind)).toEqual(['contractor', 'owner', 'applicant']);
+    expect(p.contacts![2].address).toBe('4340 PACIFIC HWY Unit: 202 Bellingham, WA 98226');
   });
 
   it('leaves detail fields unset when the details didn’t load, so a save keeps the old ones', () => {
@@ -185,7 +185,7 @@ describe('source records', () => {
       type: 'EXISTING SINGLE FAMILY OR DUPLEX', subtype: 'INTERIOR REMODEL', status: 'ISSUED',
       issuedOn: '2026-10-05', address: '1430 GRANT ST', city: 'Bellingham', valuation: 38000, sqft: 1284, units: null, finalOnly: false
     });
-    expect(p.contacts.map((c) => [c.kind, c.company])).toEqual([
+    expect(p.contacts!.map((c) => [c.kind, c.company])).toEqual([
       ['contractor', 'RAVEN RIDGE BUILDERS'], ['owner', 'MELINDA GALBRAITH'], ['applicant', 'RAVEN RIDGE BUILDERS']
     ]);
   });

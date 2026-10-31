@@ -1,3 +1,4 @@
+import type { Loose } from '../types/records.ts';
 import type { RequestHandler } from 'express';
 import express from 'express';
 import User from '../models/User.ts';

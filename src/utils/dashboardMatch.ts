@@ -47,7 +47,7 @@ export const getAggregationRangeMatch = (start: Date | null | undefined, end: Da
   return conds.length > 0 ? { $expr: { $and: conds } } : {};
 };
 
-export const getFollowUpRangeMatch = (start: Date | null | undefined, end: Date | null | undefined, additionalMatch: Loose = {}) => {
+export const getFollowUpRangeMatch = (start: Pick<Date, 'toISOString'> | null | undefined, end: Pick<Date, 'toISOString'> | null | undefined, additionalMatch: Loose = {}) => {
   const startStr = start?.toISOString().split('T')[0];
   const endStr = end?.toISOString().split('T')[0];
   const conds = [];
@@ -112,7 +112,7 @@ export const getFollowUpRangeMatch = (start: Date | null | undefined, end: Date 
   return { $expr: { $and: conds } };
 };
 
-const ymd = (d: Loose) => d?.toISOString().split('T')[0];
+const ymd = (d: Date | null | undefined) => d?.toISOString().split('T')[0];
 
 /**
  * A document-level $match to put before `$unwind: "$<prefix>"`, so only

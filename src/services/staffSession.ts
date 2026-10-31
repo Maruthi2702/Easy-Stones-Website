@@ -20,7 +20,12 @@
  */
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
-import type { CookieOptions, Request, Response } from 'express';
+import type { CookieOptions, Request } from 'express';
+
+type CookieResponse = {
+  cookie: (name: string, value: string, options: CookieOptions) => unknown;
+  clearCookie: (name: string, options: CookieOptions) => unknown;
+};
 
 type SessionAccount = {
   _id?: unknown;
@@ -105,7 +110,7 @@ export const signStaffSession = (user: SessionAccount, secret: string) => jwt.si
  * would otherwise win over the session just issued. Returns the token, for the
  * page's in-memory copy (src/api/authToken.js).
  */
-export const startStaffSession = (res: Response, user: SessionAccount, secret: string) => {
+export const startStaffSession = (res: CookieResponse, user: SessionAccount, secret: string) => {
   const token = signStaffSession(user, secret);
   res.clearCookie(LEGACY_SESSION_COOKIE, cookieBase());
   res.clearCookie(SETUP_COOKIE, { ...cookieBase(), path: SETUP_COOKIE_PATH });
@@ -140,7 +145,7 @@ export const readSetupToken = (req: Partial<Pick<Request, 'cookies'>>, secret: s
  * Signed in with a temporary password: ends whatever session this browser had
  * (it would otherwise be the one the app keeps using) and starts a setup one.
  */
-export const startPasswordSetup = (res: Response, user: SessionAccount, secret: string) => {
+export const startPasswordSetup = (res: CookieResponse, user: SessionAccount, secret: string) => {
   res.clearCookie(SESSION_COOKIE, cookieBase());
   res.clearCookie(LEGACY_SESSION_COOKIE, cookieBase());
   res.cookie(SETUP_COOKIE, signSetupToken(user, secret), {
@@ -150,7 +155,7 @@ export const startPasswordSetup = (res: Response, user: SessionAccount, secret: 
   });
 };
 
-export const clearPasswordSetup = (res: Response) => {
+export const clearPasswordSetup = (res: CookieResponse) => {
   res.clearCookie(SETUP_COOKIE, { ...cookieBase(), path: SETUP_COOKIE_PATH });
 };
 
@@ -160,7 +165,7 @@ export const clearPasswordSetup = (res: Response) => {
  * temporary password still in date, the setup cookie is already set).
  * Called only after the password matched, so it can't probe accounts.
  */
-export const temporaryPasswordAnswer = (res: Response, user: SessionAccount, secret: string) => {
+export const temporaryPasswordAnswer = (res: CookieResponse, user: SessionAccount, secret: string) => {
   if (!user.mustChangePassword) return null;
   if (tempPasswordExpired(user)) {
     return {

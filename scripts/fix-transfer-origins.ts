@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 /**
  * One-off: correct the sending branch on three transfers saved before the
  * server checked it (see POST /api/deliveries in src/routes/deliveries.ts).
@@ -29,8 +30,8 @@ const FIXES = [
 ];
 
 const main = async () => {
-  await mongoose.connect(process.env.MONGO_URI);
-  const col = mongoose.connection.db.collection('deliveries');
+  await mongoose.connect(process.env.MONGO_URI!);
+  const col = mongoose.connection.db!.collection('deliveries');
   const before = await col.find({ id: { $in: FIXES.map((f) => f.id) } }).toArray();
 
   for (const f of FIXES) {

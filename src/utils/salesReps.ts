@@ -12,7 +12,7 @@ import type { Loose } from '../types/records.ts';
 import { prettifyUsername } from './textUtils.ts';
 
 /** A staff account's name everywhere: their Display Name, else a tidied username. */
-export const displayNameOf = (user: Loose) =>
+export const displayNameOf = (user: Loose | null | undefined) =>
     String(user?.displayName || '').trim() || prettifyUsername(user?.username);
 
 /**
@@ -31,10 +31,10 @@ export const SALES_REP_ROLES = ['sales_rep', 'manager', 'director', 'admin'];
 const SERVICE_ACCOUNT_USERNAMES = ['admin'];
 
 /** Can this staff member be named as the owner of a customer account? */
-export const isSalesRep = (user: Loose) =>
+export const isSalesRep = (user: Loose | null | undefined) =>
     Boolean(user?._id) &&
-    SALES_REP_ROLES.includes(String(user.role || '').toLowerCase()) &&
-    !SERVICE_ACCOUNT_USERNAMES.includes(String(user.username || '').toLowerCase());
+    SALES_REP_ROLES.includes(String(user!.role || '').toLowerCase()) &&
+    !SERVICE_ACCOUNT_USERNAMES.includes(String(user!.username || '').toLowerCase());
 
 /**
  * The pickable reps, ordered by branch and then by name — with a dozen-odd staff
@@ -77,7 +77,7 @@ export const toSalesRepList = (payload: Loose) => {
  * branch they're assigned to, or every branch ('*'). No branches (or '*')
  * means anywhere.
  */
-export const worksAtAny = (user: Loose, branches: string[] = []) => {
+export const worksAtAny = (user: Loose | null | undefined, branches: string[] = []) => {
     const want = (Array.isArray(branches) ? branches : [branches]).filter(Boolean);
     if (!want.length || want.includes('*')) return true;
     const theirs = [...(user?.assignedLocations || []), user?.location].filter(Boolean);
@@ -85,7 +85,7 @@ export const worksAtAny = (user: Loose, branches: string[] = []) => {
 };
 
 /** The branches a signed-in person works at, for "reps on my branches". [] = every branch. */
-export const branchesOf = (user: Loose) => {
+export const branchesOf = (user: Loose | null | undefined) => {
     const assigned = user?.assignedLocations || [];
     if (assigned.includes('*')) return [];
     return assigned.length ? assigned : (user?.location ? [user.location] : []);

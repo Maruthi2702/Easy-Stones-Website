@@ -13,9 +13,9 @@ const { default: SpsImportItem } = await import('../models/SpsImportItem.ts');
 const { planSpsImport } = await import('../utils/spsImportPlan.ts');
 const { freezePlan, runItems, undoRun, checkRun, resumeRunningImports } = await import('./spsImportRunner.ts');
 
-let mongo;
+let mongo!: MongoMemoryServer;
 const mapping = { company: 'Name', salesRep: 'Sales Person1', location: 'Parent Location', email: 'Email', phone: 'Phone1' };
-const row = (Name: Loose, extra: Loose = {}) => ({ Name, 'Sales Person1': '', 'Parent Location': '', Email: '', Phone1: '', ...extra });
+const row = (Name: string, extra: Loose = {}) => ({ Name, 'Sales Person1': '', 'Parent Location': '', Email: '', Phone1: '', ...extra });
 const STEVE = { salesRep: new mongoose.Types.ObjectId().toString(), salesRepName: 'Steve Watson' };
 const repByKey = new Map([['stevewatson', STEVE]]);
 const branchByKey = new Map([['seattle', 'Seattle'], ['atlanta', 'Atlanta']]);
@@ -25,7 +25,7 @@ const D = new mongoose.Types.ObjectId();
 
 const load = async () => ({
   customers: await Customer.find({}, 'company contactName email phone address quickNote salesRep salesRepName location sps').lean(),
-  deleted: (await CustomerDeleteBackup.find().lean()).map((d) => ({ ...d, deletedAt: d.createdAt }))
+  deleted: (await CustomerDeleteBackup.find().lean())!.map((d) => ({ ...d, deletedAt: d.createdAt }))
 });
 const newRun = () => SpsImportRun.create({ createdBy: 'krish', fileName: 'x.xls' });
 const start = async (rows: Loose[], answers: Loose = {}) => {
@@ -33,7 +33,7 @@ const start = async (rows: Loose[], answers: Loose = {}) => {
   const plan = planSpsImport({ rows, mapping, branchByKey, repByKey, answers, finalize: true, ...(await load()) });
   await freezePlan(run, plan, 'krish');
   await runItems(run._id);
-  return { run, plan, fresh: await SpsImportRun.findById(run._id).lean() };
+  return { run, plan, fresh: (await SpsImportRun.findById(run._id).lean())! };
 };
 
 beforeAll(async () => {
@@ -49,7 +49,7 @@ beforeEach(async () => {
   ]);
 });
 
-const keys = async () => (await Customer.find({}, 'sps.key').lean()).map((c) => c.sps?.key).filter(Boolean).sort();
+const keys = async () => (await Customer.find({}, 'sps.key').lean())!.map((c) => c.sps?.key).filter(Boolean).sort();
 
 describe('SPS import writer', () => {
   it('adds, updates, and proves every name is there', async () => {
@@ -60,7 +60,7 @@ describe('SPS import writer', () => {
     expect(await keys()).toEqual(['acme stone', 'zed tile']);
     const acme = await Customer.findById(A).lean();
     expect(acme).toMatchObject({ salesRepName: 'Steve Watson', location: 'Atlanta' });
-    const zed = await Customer.findOne({ 'sps.key': 'zed tile' }).lean();
+    const zed = (await Customer.findOne({ 'sps.key': 'zed tile' }).lean())!;
     expect(zed).toMatchObject({ company: 'Zed Tile', email: 'z@zed.com', isVerified: true });
     expect(zed.sps.runId).toBe(String(fresh._id));
   });
@@ -87,7 +87,7 @@ describe('SPS import writer', () => {
     const plan = planSpsImport({ rows: [row('One Co', { Email: '1@x.com' }), row('Two Co', { Email: '2@x.com' })], mapping, branchByKey, repByKey, finalize: true, ...(await load()) });
     await freezePlan(run, plan);
     expect(await resumeRunningImports()).toBe(1);
-    for (let i = 0; i < 50 && (await SpsImportRun.findById(run._id).lean()).status !== 'done'; i++) await new Promise((r) => setTimeout(r, 50));
+    for (let i = 0; i < 50 && (await SpsImportRun.findById(run._id).lean())!.status !== 'done'; i++) await new Promise((r) => setTimeout(r, 50));
     expect(await keys()).toEqual(['acme stone', 'one co', 'two co']);
   });
 
@@ -100,7 +100,7 @@ describe('SPS import writer', () => {
     plan.outcomes[0].create.email = 'clash@x.com';
     await freezePlan(run, plan);
     await runItems(run._id);
-    const fresh = await SpsImportRun.findById(run._id).lean();
+    const fresh = (await SpsImportRun.findById(run._id).lean())!;
     expect(fresh.verify.ok).toBe(false);
     expect(fresh.verify.missing[0]).toMatchObject({ key: 'clash co' });
     expect(fresh.verify.missing[0].reason).toMatch(/email/i);
@@ -115,23 +115,23 @@ describe('SPS import writer', () => {
 
     const { run, fresh } = await start([row('Granite Masters', { 'Sales Person1': 'Steve Watson' })], { 'granite masters': 'restore' });
     expect(fresh.results.restored).toBe(1);
-    const back = await Customer.findById(D).lean();
+    const back = (await Customer.findById(D).lean())!;
     expect(back).toMatchObject({ company: 'Granite Masters', salesRepName: 'Steve Watson' });
     expect(back.visits).toHaveLength(1);
-    expect((await CustomerDeleteBackup.findOne({ batchId: 'b' }).lean()).undoneAt).toBeTruthy();
+    expect((await CustomerDeleteBackup.findOne({ batchId: 'b' }).lean())!.undoneAt).toBeTruthy();
 
     await undoRun(run._id, 'krish');
     expect(await Customer.findById(D)).toBeNull();
-    expect((await CustomerDeleteBackup.findOne({ batchId: 'b' }).lean()).undoneAt).toBeNull();
+    expect((await CustomerDeleteBackup.findOne({ batchId: 'b' }).lean())!.undoneAt).toBeNull();
   });
 
   it('remembers Keep deleted; Undo forgets it', async () => {
     await CustomerDeleteBackup.create({ batchId: 'b', customerId: D, customer: { company: 'Gone Co', email: 'g@g.com' }, source: 'single', deletedBy: 'Krish' });
     const { run } = await start([row('Gone Co')], { 'gone co': 'keep' });
     expect(await Customer.countDocuments({ 'sps.key': 'gone co' })).toBe(0);
-    expect((await CustomerDeleteBackup.findOne({ batchId: 'b' }).lean()).spsKeepDeleted).toBe(true);
+    expect((await CustomerDeleteBackup.findOne({ batchId: 'b' }).lean())!.spsKeepDeleted).toBe(true);
     await undoRun(run._id);
-    expect((await CustomerDeleteBackup.findOne({ batchId: 'b' }).lean()).spsKeepDeleted).toBe(false);
+    expect((await CustomerDeleteBackup.findOne({ batchId: 'b' }).lean())!.spsKeepDeleted).toBe(false);
   });
 
   it('Undo removes what was added (saved first) and puts updates back as they were', async () => {
@@ -139,9 +139,9 @@ describe('SPS import writer', () => {
     const out = await undoRun(run._id, 'krish');
     expect(out).toMatchObject({ removed: 1, reverted: 1, failed: [] });
     expect(await keys()).toEqual(['acme stone']);
-    expect(await Customer.findById(A).lean()).toMatchObject({ salesRepName: 'Old Rep', location: 'Seattle' });
-    const saved = await CustomerDeleteBackup.findOne({ 'customer.company': 'Zed Tile' }).lean();
+    expect(await Customer.findById(A).lean())!.toMatchObject({ salesRepName: 'Old Rep', location: 'Seattle' });
+    const saved = (await CustomerDeleteBackup.findOne({ 'customer.company': 'Zed Tile' }).lean())!;
     expect(saved.source).toBe('sps-undo');
-    expect((await SpsImportRun.findById(run._id).lean()).status).toBe('undone');
+    expect((await SpsImportRun.findById(run._id).lean())!.status).toBe('undone');
   });
 });

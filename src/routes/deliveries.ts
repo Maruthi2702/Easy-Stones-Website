@@ -1,3 +1,4 @@
+import type { ScalarParams, ScalarQuery } from '../types/server.ts';
 import type { Loose } from '../types/records.ts';
 import type { Request, RequestHandler, Response } from 'express';
 import express from 'express';
@@ -99,7 +100,7 @@ const destroyCloudinaryAsset = async (publicId: Loose, resourceType = 'raw') => 
   try {
     await cloudinary.uploader.destroy(publicId, { resource_type: resourceType, invalidate: true });
   } catch (err) {
-    console.warn(`[pod] could not destroy ${publicId}:`, err.message);
+    console.warn(`[pod] could not destroy ${publicId}:`, (err as Error).message);
   }
 };
 
@@ -369,7 +370,7 @@ const writeStopNumbers = (changes: Loose[]) => Delivery.bulkWrite(
 /** Closes up each run given (nulls and repeats skipped); returns the tickets it renumbered. */
 async function renumberRuns(runs: Loose) {
   const seen = new Set();
-  const changes = [];
+  const changes: Loose[] = [];
   for (const run of runs) {
     if (!run?.truckId || !run?.date) continue;
     const key = `${run.truckId}||${run.date}`;
@@ -545,13 +546,13 @@ export default function createDeliveriesRouter({
 
   router.put('/delivery-columns/:location', authenticate, canViewDeliveries, requirePermission(DELIVERY_PERMISSIONS.ARRANGE_COLUMNS), async (req, res) => {
     try {
-      if (!userCanRequestLocation(req, req.params.location)) {
+      if (!userCanRequestLocation(req, (req.params as ScalarParams).location)) {
         return res.status(403).json({ error: 'You can only arrange the columns for your own locations.' });
       }
       const columns = cleanColumnOrder(req.body?.columns);
       if (!columns) return res.status(400).json({ error: 'columns must be a list of column ids' });
       const location = await Location.findOneAndUpdate(
-        { name: req.params.location },
+        { name: (req.params as ScalarParams).location },
         { $set: { deliveryColumns: columns } },
         { new: true, projection: { name: 1, deliveryColumns: 1 } }
       ).lean();
@@ -598,11 +599,11 @@ export default function createDeliveriesRouter({
       // admin, or someone with several assignedLocations) narrow the board to
       // just one at a time instead of every branch they can see mashed
       // together — see the location selector in src/features/delivery/DeliveryScheduleTab.tsx.
-      const { startDate, endDate, pending, cancelled, location: requestedLocation } = req.query;
+      const { startDate, endDate, pending, cancelled, location: requestedLocation } = (req.query as ScalarQuery);
       if (requestedLocation && !userCanRequestLocation(req, requestedLocation)) {
         return res.status(403).json({ error: 'You do not have access to that location' });
       }
-      let baseQuery;
+      let baseQuery!: Loose;
       if (cancelled === 'true') {
         // Cancelled overrides everything else about a ticket's placement — it
         // keeps whatever truckId/date it had (so it can be restored by
@@ -721,7 +722,7 @@ export default function createDeliveriesRouter({
       if (isDeliveryDriver(req.user)) {
         return res.status(403).json({ error: 'Order search is not available for drivers' });
       }
-      const filter = buildDeliverySearchFilter(req.query.q, req.user?.assignedLocations);
+      const filter = buildDeliverySearchFilter((req.query as ScalarQuery).q, req.user?.assignedLocations);
       if (!filter) return res.json({ results: [], total: 0, more: false });
 
       // One extra row tells us whether there are more than SEARCH_SCAN_LIMIT
@@ -744,7 +745,7 @@ export default function createDeliveriesRouter({
 
   router.get('/deliveries/:id', authenticate, canViewDeliveries, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = (req.params as ScalarParams);
       const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id }, req)).lean();
       if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
       res.json(delivery);
@@ -877,7 +878,7 @@ export default function createDeliveriesRouter({
           // own comment for why that's specifically what this app avoids).
           updateData.packingListUrl = existing?.packingListUrl || '';
           updateData.packingListFilename = existing?.packingListFilename || '';
-          console.error('Error storing base64 packing list:', convErr.message);
+          console.error('Error storing base64 packing list:', (convErr as Error).message);
         }
       }
 
@@ -991,7 +992,7 @@ export default function createDeliveriesRouter({
   // the same narrowing a driver's save gets on POST, for the office too.
   router.patch('/deliveries/:id/pod', authenticate, canWriteDeliveries, (req, res) => {
     req.podOnly = true;
-    req.body = { id: req.params.id, pod: req.body?.pod };
+    req.body = { id: (req.params as ScalarParams).id, pod: req.body?.pod };
     return saveDeliveryRoute(req, res);
   });
 
@@ -1014,7 +1015,7 @@ export default function createDeliveriesRouter({
       if (!keys.length || keys.some(key => !['expectedArrivalDate', 'numberOfSlabs'].includes(key))) {
         return res.status(400).json({ error: 'Only expected delivery date and slab count can be changed here.' });
       }
-      const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id: req.params.id, deliveryType: 'transfer' }, req)).lean();
+      const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id: (req.params as ScalarParams).id, deliveryType: 'transfer' }, req)).lean();
       if (!delivery) return res.status(404).json({ error: 'Transfer not found' });
       const changes: Loose = {};
       if (fields.expectedArrivalDate !== undefined) {
@@ -1043,7 +1044,7 @@ export default function createDeliveriesRouter({
 
   router.patch('/deliveries/:id/status', authenticate, canWriteDeliveries, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = (req.params as ScalarParams);
       const { status } = req.body || {};
 
       if (!DELIVERY_STATUSES.includes(status)) {
@@ -1085,7 +1086,7 @@ export default function createDeliveriesRouter({
   // canWriteDeliveries) — a driver's app never calls this.
   router.patch('/deliveries/:id/assignment', authenticate, canManageDeliverySchedule, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = (req.params as ScalarParams);
       let { truckId, deliveryType, date, customerDropOff } = req.body || {};
       // Only meaningful on a driverless return (see isCounterReturn in
       // src/utils/deliveryTypes.ts) — coerced to a plain boolean here so an
@@ -1207,7 +1208,7 @@ export default function createDeliveriesRouter({
         return res.status(400).json({ error: 'Too many deliveries in one reorder' });
       }
 
-      const clean = [];
+      const clean: Loose[] = [];
       for (const u of updates) {
         const id = String(u?.id || '');
         const routeNumber = Number(u?.routeNumber);
@@ -1314,7 +1315,7 @@ export default function createDeliveriesRouter({
   // with '*') may confirm receipt.
   router.patch('/deliveries/:id/receive', authenticate, canManageDeliverySchedule, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = (req.params as ScalarParams);
       const delivery = await Delivery.findOne({ id, deliveryType: 'transfer' });
       if (!delivery) return res.status(404).json({ error: 'Transfer ticket not found' });
 
@@ -1342,7 +1343,7 @@ export default function createDeliveriesRouter({
 
   router.delete('/deliveries/:id', authenticate, canDeleteDeliveries, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = (req.params as ScalarParams);
       // Scoped the same way every other :id route here is (GET/status/
       // assignment) — anyone with delete rights could otherwise delete any
       // branch's delivery by guessing an id.
@@ -1362,7 +1363,7 @@ export default function createDeliveriesRouter({
 
   router.delete('/deliveries/:id/pod', authenticate, canClearPod, async (req, res) => {
     try {
-      const { id } = req.params;
+      const { id } = (req.params as ScalarParams);
       const reason = String(req.body?.reason || '').trim();
       if (reason.length < 4) {
         return res.status(400).json({ error: 'A reason is required to clear an ePOD.' });
@@ -1478,7 +1479,7 @@ export default function createDeliveriesRouter({
         // after READ_LIMIT_MS — a slow or huge PDF then just uploads without
         // the auto-fill instead of holding the form's "Attaching PDF…".
         const READ_LIMIT_MS = 4000;
-        let giveUp;
+        let giveUp!: Loose;
         const readText = Promise.race([
           extractPdfTextItems(req.file.buffer, { deadline: Date.now() + READ_LIMIT_MS })
             .then((items) => {

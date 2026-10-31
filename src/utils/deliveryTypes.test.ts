@@ -220,10 +220,10 @@ describe('applyTransferPerspective', () => {
 
   it('shows the destination branch the arrival date instead, flagged as an incoming view', () => {
     const shaped = applyTransferPerspective(transfer, ['Spokane']);
-    expect(shaped.date).toBe('2026-09-18');
-    expect(shaped.isIncomingView).toBe(true);
-    expect(shaped.shipDate).toBe('2026-09-15');
-    expect(shaped.viewedAs).toBe('destination');
+    expect((shaped)!.date).toBe('2026-09-18');
+    expect((shaped)!.isIncomingView).toBe(true);
+    expect((shaped)!.shipDate).toBe('2026-09-15');
+    expect((shaped)!.viewedAs).toBe('destination');
     // The original record is never mutated — callers (the cache, the board)
     // may still be holding a reference to it elsewhere.
     expect(transfer.date).toBe('2026-09-15');

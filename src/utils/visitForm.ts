@@ -107,6 +107,6 @@ export const visitLastChangedText = (visit: Loose = {}, now = new Date()) => {
  * answer can't add the visit twice.
  */
 export const newVisitId = (now = Date.now(), random = (n: number) => crypto.getRandomValues(new Uint8Array(n))) => {
-    const hex = (bytes: unknown) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    const hex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
     return Math.floor(now / 1000).toString(16).padStart(8, '0').slice(-8) + hex(random(8));
 };

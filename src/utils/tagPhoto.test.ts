@@ -88,22 +88,22 @@ describe('findTagBox', () => {
   it('boxes the barcode and the text beside it, whichever way the bars run', () => {
     const across = { x0: 200, x1: 320, y0: 130, y1: 160 }; // vertical bars, barcode long across x
     const boxA = findTagBox(photoWithBarcode(across), W, H);
-    expect(contains(boxA, across)).toBe(true);
-    expect(boxA.height).toBeGreaterThan(((across.y1 - across.y0) / H) * 100 * 2); // room for the text line
-    expect(boxA.width).toBeLessThan(100);
+    expect(contains(boxA!, across)).toBe(true);
+    expect((boxA)!.height).toBeGreaterThan(((across.y1 - across.y0) / H) * 100 * 2); // room for the text line
+    expect((boxA)!.width).toBeLessThan(100);
 
     const down = { x0: 180, x1: 210, y0: 60, y1: 200 }; // horizontal bars, barcode long down y
     const boxB = findTagBox(photoWithBarcode({ ...down, vertical: false }), W, H);
-    expect(contains(boxB, down)).toBe(true);
-    expect(boxB.width).toBeGreaterThan(((down.x1 - down.x0) / W) * 100 * 2);
+    expect(contains(boxB!, down)).toBe(true);
+    expect((boxB)!.width).toBeGreaterThan(((down.x1 - down.x0) / W) * 100 * 2);
   });
 
   it('isn’t fooled by clutter, and stays inside the photo', () => {
     const near = { x0: 300, x1: 398, y0: 250, y1: 298 };
     const box = findTagBox(photoWithBarcode({ ...near, clutter: true }), W, H);
-    expect(contains(box, near)).toBe(true);
-    expect(box.x + box.width).toBeLessThanOrEqual(100);
-    expect(box.y + box.height).toBeLessThanOrEqual(100);
+    expect(contains(box!, near)).toBe(true);
+    expect((box)!.x + (box)!.width).toBeLessThanOrEqual(100);
+    expect((box)!.y + (box)!.height).toBeLessThanOrEqual(100);
   });
 
   it('finds nothing in a photo without a barcode', () => {
@@ -138,13 +138,13 @@ describe('textBand', () => {
 
   it('finds the printed line under the barcode’s bars, not the slab below the tag', () => {
     const band = textBand(strip(), W, H, { pad: 0, bars: [100, 200], minHeight: 12 });
-    expect(band.top).toBeGreaterThanOrEqual(38);
-    expect(band.top).toBeLessThanOrEqual(40);
-    expect(band.bottom).toBeGreaterThanOrEqual(60);
-    expect(band.bottom).toBeLessThanOrEqual(62);
+    expect((band)!.top).toBeGreaterThanOrEqual(38);
+    expect((band)!.top).toBeLessThanOrEqual(40);
+    expect((band)!.bottom).toBeGreaterThanOrEqual(60);
+    expect((band)!.bottom).toBeLessThanOrEqual(62);
     const padded = textBand(strip(), W, H, { pad: 0.5, bars: [100, 200], minHeight: 12 });
-    expect(padded.top).toBeLessThan(35);
-    expect(padded.bottom).toBeGreaterThan(65);
+    expect((padded)!.top).toBeLessThan(35);
+    expect((padded)!.bottom).toBeGreaterThan(65);
   });
 
   it('steps past bars that the print almost touches', () => {
@@ -152,15 +152,15 @@ describe('textBand', () => {
     // Print starting 2 rows after the bars' fading ends.
     for (let y = 35; y < 40; y++) for (let x = 21; x < 280; x++) if (x % 12 < 2) g[y * W + x] = 30;
     const band = textBand(g, W, H, { pad: 0, bars: [100, 200], minHeight: 12 });
-    expect(band.top).toBeGreaterThanOrEqual(33);
-    expect(band.top).toBeLessThanOrEqual(36);
-    expect(band.bottom).toBeGreaterThanOrEqual(60);
+    expect((band)!.top).toBeGreaterThanOrEqual(33);
+    expect((band)!.top).toBeLessThanOrEqual(36);
+    expect((band)!.bottom).toBeGreaterThanOrEqual(60);
   });
 
   it('counts from the barcode’s side', () => {
     // A strip above the barcode ends at it: the line nearest the bottom.
     const band = textBand(strip({ bars: false }), W, H, { pad: 0, from: 'bottom' });
-    expect(band.top).toBeGreaterThan(120);
+    expect((band)!.top).toBeGreaterThan(120);
   });
 
   it('finds nothing in a blank strip or one with only barcode and shadow', () => {

@@ -28,7 +28,7 @@ describe('quickDates', () => {
 });
 
 describe('firstFreeSlot', () => {
-  const at = (s: Loose, e: unknown): Loose => ({ startTime: `2026-10-27T${s}:00.000`, endTime: `2026-10-27T${e}:00.000` });
+  const at = (s: string, e: string): Loose => ({ startTime: `2026-10-27T${s}:00.000`, endTime: `2026-10-27T${e}:00.000` });
   it('is 9:00 on an empty day', () => expect(firstFreeSlot([])).toBe('09:00'));
   it('starts after what is booked at the start of the day', () => {
     expect(firstFreeSlot([at('09:00', '10:00')])).toBe('10:00');
@@ -54,7 +54,7 @@ describe('firstFreeSlot', () => {
     expect(firstFreeSlot([at('09:00', '16:30')], { minutes: 45 })).toBeNull();
   });
   it('ignores a booking it cannot read', () => {
-    expect(firstFreeSlot([{ startTime: 'tbd' }, null].filter(Boolean))).toBe('09:00');
+    expect(firstFreeSlot([{ startTime: 'tbd' }, null].filter((b): b is { startTime: string } => b !== null))).toBe('09:00');
   });
 });
 
@@ -104,7 +104,7 @@ describe('earliestStart', () => {
 });
 
 describe('what a time collides with', () => {
-  const row = (s: Loose, e: unknown, extra: Loose = {}): Loose => ({ startTime: `2026-10-27T${s}:00.000`, ...(e ? { endTime: `2026-10-27T${e}:00.000` } : {}), ...extra });
+  const row = (s: string, e?: string, extra: Loose = {}): Loose => ({ startTime: `2026-10-27T${s}:00.000`, ...(e ? { endTime: `2026-10-27T${e}:00.000` } : {}), ...extra });
   it('reads a booking’s span, assuming 30 minutes without an end', () => {
     expect(bookedSpan(row('09:00', '09:45'))).toEqual({ start: 540, end: 585, assumed: false });
     expect(bookedSpan(row('09:00'))).toEqual({ start: 540, end: 570, assumed: true });

@@ -48,7 +48,7 @@ describe('needsReview threshold — the review queue on a routine re-import', ()
 
     expect(result.planned).toHaveLength(1);
     expect(result.planned[0].action).toBe('create');
-    expect(result.planned[0].warnings.some(w => w.includes('Shares only an email domain'))).toBe(true);
+    expect(result.planned[0].warnings.some((w: string) => w.includes('Shares only an email domain'))).toBe(true);
   });
 
   it('still stops for a match on company name alone', () => {
@@ -156,7 +156,7 @@ describe('SPS export fields — Retail type, suite numbers, account holds', () =
 
     expect(result.planned[0].create.customerType).toBe('Dealer');
     // A recognised synonym, not an unmapped value — no "not one of ours" warning.
-    expect(result.planned[0].warnings.some(w => w.includes('not one of ours'))).toBe(false);
+    expect(result.planned[0].warnings.some((w: string) => w.includes('not one of ours'))).toBe(false);
   });
 
   it('appends the suite/unit column to the street line rather than dropping it', () => {
@@ -319,7 +319,7 @@ describe('remembered choices from earlier uploads', () => {
 
     const row = result.planned[0];
     expect(result.unresolvedReps).toEqual([]);
-    expect(row.warnings.some(w => w.includes('not a selectable sales rep'))).toBe(false);
+    expect(row.warnings.some((w: string) => w.includes('not a selectable sales rep'))).toBe(false);
     expect(row.create.salesRep).toBeUndefined();
   });
 });

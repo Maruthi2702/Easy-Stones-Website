@@ -20,7 +20,7 @@ export const sqlString = (s: unknown) => `'${String(s).replace(/'/g, "''")}'`;
  * ('OBJECTID', or 'ObjectId' on ArcGIS Online); `name` goes in errors.
  */
 export function createArcgisReader({ layer, name, fields, where, idField = 'OBJECTID', numberField = null, fetchImpl = globalThis.fetch, sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)), pauseMs = 250 }: Loose) {
-  const query = (params: unknown) => fetchJson(`${layer}/query?${new URLSearchParams({ f: 'json', ...params })}`, {
+  const query = (params: Record<string, string>) => fetchJson(`${layer}/query?${new URLSearchParams({ f: 'json', ...params })}`, {
     fetchImpl, sleep, pauseMs, name, errorOf: (data: Loose) => data?.error?.message || (data?.error ? 'error' : null)
   });
 

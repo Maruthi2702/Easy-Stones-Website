@@ -5,7 +5,7 @@ import {
   canViewTeamFiles, canManageTeamFiles, withTeamFilesViewRule
 } from './teamFilesAccess.ts';
 
-const user = (...permissions): Loose => ({ permissions });
+const user = (...permissions: string[]): Loose => ({ permissions });
 
 describe('Team Files permissions', () => {
   it('has the two keys the routes, nav and card read', () => {

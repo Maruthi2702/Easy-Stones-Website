@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import Customer from '../src/models/Customer.ts';

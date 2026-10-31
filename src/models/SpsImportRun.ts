@@ -9,7 +9,7 @@ import mongoose from 'mongoose';
  * the report / Undo have something to read. The per-row work lives in
  * SpsImportItem.
  */
-const spsImportRunSchema = new mongoose.Schema<Loose>({
+const spsImportRunSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   fileName: { type: String, default: '' },
   fingerprint: { type: String, default: '' },
   // The upload itself, until the import starts (then it is dropped: the plan is frozen into the items).

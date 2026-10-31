@@ -174,7 +174,7 @@ export function snohomishFilesSince(files: Loose[], since: string) {
 }
 
 /** Whether a row's issue day belongs to the file it came from (monthly: that month; yearly: that year). */
-export const rowBelongsToFile = (file: Loose, day: string) => Boolean(day) && (file.month ? day.startsWith(file.month) : day.startsWith(file.year));
+export const rowBelongsToFile = (file: Loose, day: string | null) => Boolean(day) && (file.month ? day!.startsWith(file.month) : day!.startsWith(file.year));
 
 export default {
   id: 'snohomish_county',

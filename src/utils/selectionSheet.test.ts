@@ -107,7 +107,7 @@ describe('countSheetChanges', () => {
 describe('sheetPayload', () => {
   it('sends only rows with data, uppercases material, carries the loaded version', () => {
     const v = sheetValuesFromCheckIn(checkIn);
-    v.rows[1] = { material: '', lot: '55555', details: '', size: '' };
+    v.rows[1] = { material: '', lot: '55555', details: '', size: '', price: '' };
     v.rows[0].material = 'calacatta gold';
     const p = sheetPayload(v, '2026-10-04T10:00:00.000Z');
     expect(p.selections).toEqual([
@@ -230,7 +230,7 @@ describe('formatSlabSize — every slab size reads "142 * 79"', () => {
     expect(v.rows[0].size).toBe('126 * 63');
     expect(countSheetChanges({ ...v, rows: [{ ...v.rows[0], size: '126 63' }, ...v.rows.slice(1)] }, v)).toBe(0);
     expect(sheetPayload({ rows: [{ material: 'a', size: '142" x 79"' }] }).selections[0].size).toBe('142 * 79');
-    expect(cleanSelections([{ material: 'A', size: '142x79' }]).selections[0].size).toBe('142 * 79');
+    expect((cleanSelections([{ material: 'A', size: '142x79' }]).selections)![0].size).toBe('142 * 79');
     const html = buildSelectionSheetHtml({ checkIn: {}, values: { rows: [{ material: 'A', size: '142x79' }] }, letterhead: { addressLine: '' } });
     expect(html).toContain('142 * 79');
   });

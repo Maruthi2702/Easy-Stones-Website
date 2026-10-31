@@ -33,7 +33,7 @@ export const splitInventoryLocations = (inventoryLocations: unknown[] = [], bran
  * stock rather than ours and all ~90 consignment sites added together. Only
  * when no Easy Stones location has stock at all does it open on everything ([]).
  */
-export const defaultInventoryLocations = (user: unknown, inventoryLocations: unknown[] = [], branches: unknown[] = []): string[] => {
+export const defaultInventoryLocations = (user: Parameters<typeof homeLocationOf>[0], inventoryLocations: unknown[] = [], branches: unknown[] = []): string[] => {
   const { company } = splitInventoryLocations(inventoryLocations, branches);
   const home = norm(homeLocationOf(user));
   const homeMatch = home && company.find(n => norm(n) === home);

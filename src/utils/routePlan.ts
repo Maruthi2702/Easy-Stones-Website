@@ -19,11 +19,11 @@ import type { Loose } from '../types/records.ts';
 const EARTH_RADIUS_MILES = 3958.8;
 const toRad = (deg: number) => (deg * Math.PI) / 180;
 
-export const hasPoint = (stop: Loose | null | undefined) =>
+export const hasPoint = (stop: Loose | null | undefined): stop is Loose =>
   Number.isFinite(stop?.coordinates?.lat) && Number.isFinite(stop?.coordinates?.lng);
 
 /** Great-circle miles between two { lat, lng } points. */
-export const milesBetween = (a: Loose | null, b: Loose | null) => {
+export const milesBetween = (a: Loose | null | undefined, b: Loose | null | undefined) => {
   if (!a || !b) return Infinity;
   const dLat = toRad(b.lat - a.lat);
   const dLng = toRad(b.lng - a.lng);
@@ -44,7 +44,7 @@ export const withinRadius = (stop: Loose | null | undefined, center: Loose | nul
  * library (see MapCanvas's radius-draw effect for why this screen avoids
  * pulling in extra libraries).
  */
-export const pointInPolygon = (point: Loose, path: Loose[] | null) => {
+export const pointInPolygon = (point: Loose | null, path: Loose[] | null) => {
   if (!point || !Array.isArray(path) || path.length < 3) return false;
   let inside = false;
   for (let i = 0, j = path.length - 1; i < path.length; j = i++) {
@@ -112,7 +112,7 @@ export const visitRecency = (lastVisitAt: unknown, today = new Date()) => {
  * Worst first. Used to decide which pin to draw on top and which stop to keep
  * when a day is trimmed — never-visited outranks everything, then oldest.
  */
-export const byNeglect = (a: Loose | null, b: Loose | null) => {
+export const byNeglect = (a: Loose, b: Loose) => {
   const da = daysSinceVisit(a.lastVisitAt);
   const db = daysSinceVisit(b.lastVisitAt);
   if (da === null && db === null) return 0;
@@ -143,7 +143,7 @@ const routeMiles = (stops: Loose[], origin: Loose | null) => {
  * exactly that. At a dozen stops both are instant, and the result is within a
  * few percent of optimal — far inside the error of using straight lines at all.
  */
-export const orderStops = (stops: Loose[], origin: Loose | null) => {
+export const orderStops = <T extends Loose>(stops: T[], origin: Loose | null) => {
   const placed = stops.filter(hasPoint);
   if (placed.length < 2) return [...placed];
 
@@ -228,7 +228,7 @@ export const DEFAULT_DAY = {
  * reasoning behind them — miles and drive time from the previous stop — so the
  * screen can show why a day runs to 4pm rather than just asserting it.
  */
-export const planDay = (orderedStops: Loose[], options: Loose = {}) => {
+export const planDay = <T extends Loose>(orderedStops: T[], options: Loose = {}) => {
   const {
     date = new Date(),
     startHour = DEFAULT_DAY.startHour,
@@ -243,7 +243,7 @@ export const planDay = (orderedStops: Loose[], options: Loose = {}) => {
 
   let from = origin;
 
-  return orderedStops.map((stop: Loose | null | undefined, index: number) => {
+  return orderedStops.map((stop: T, index: number) => {
     const miles = from ? milesBetween(from, stop.coordinates) : 0;
     const travel = from ? driveMinutes(miles, { speedMph }) : 0;
 

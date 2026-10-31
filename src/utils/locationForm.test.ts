@@ -134,19 +134,19 @@ describe('parseLocationBody (server)', () => {
   it('returns the record for a valid body', () => {
     const { record, errors } = parseLocationBody(locationRecordFromValues(valid()), { others });
     expect(errors).toBeUndefined();
-    expect(record.name).toBe('Portland');
+    expect((record)!.name).toBe('Portland');
   });
 
   it('returns the same errors the form shows', () => {
     const { errors } = parseLocationBody({ name: 'Seattle' }, { others });
-    expect(errors.name).toBe('Seattle already exists');
-    expect(errors.street).toBe('Enter the street address');
+    expect((errors)!.name).toBe('Seattle already exists');
+    expect((errors)!.street).toBe('Enter the street address');
   });
 
   it('never renames a location on edit', () => {
     const body = { ...charlotte, name: 'Renamed' };
     const { record } = parseLocationBody(body, { isEdit: true, current: charlotte, others });
-    expect(record.name).toBe('Charlotte');
+    expect((record)!.name).toBe('Charlotte');
   });
 });
 
@@ -226,6 +226,6 @@ describe('Daily Report email list', () => {
     const { record } = parseLocationBody(oldAppBody, { isEdit: true, current: withList, others });
     expect(record).not.toHaveProperty('dailyReportEmail');
     const { record: fromNewApp } = parseLocationBody({ ...oldAppBody, dailyReportEmail: { userIds: [], extraEmails: [] } }, { isEdit: true, current: withList, others });
-    expect(fromNewApp.dailyReportEmail).toEqual({ userIds: [], extraEmails: [] });
+    expect((fromNewApp)!.dailyReportEmail).toEqual({ userIds: [], extraEmails: [] });
   });
 });

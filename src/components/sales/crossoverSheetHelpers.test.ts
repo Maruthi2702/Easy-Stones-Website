@@ -100,7 +100,7 @@ describe('upsertColorDoc', () => {
     const updated = { _id: 'c2', easyStonesName: 'Crystal', crossovers: [] };
     const next = upsertColorDoc(colorDocs, updated);
     expect(next).toHaveLength(2);
-    expect(next.find(d => d._id === 'c2').crossovers).toHaveLength(0);
+    expect(next.find(d => d._id === 'c2')!.crossovers).toHaveLength(0);
   });
 
   it('appends a new doc when its _id is not already present', () => {

@@ -31,6 +31,7 @@ export type SheetValues = {
   internalNotes: string;
   specialNotes: string;
 };
+export type SheetInput = Omit<Partial<SheetValues>, 'rows'> & { rows?: Partial<SheetRow>[] };
 /** A selection as saved on the check-in (price in whole cents). */
 export type SavedSelection = { material?: string; lot?: string; details?: string; size?: string; priceCentsPerSf?: number | null };
 /** The check-in fields the sheet reads. */
@@ -109,7 +110,7 @@ export const formatSlabSize = (typed: unknown): string => {
 export const formatSheetPrice = (cents: unknown): string => (isPriceCents(cents) ? formatCents(cents) : '—');
 
 /** { [row index]: message } for every price that can't be read. Empty = fine to save. */
-export const sheetPriceErrors = (values: Partial<SheetValues> | null | undefined): Record<number, string> => Object.fromEntries(
+export const sheetPriceErrors = (values: SheetInput | null | undefined): Record<number, string> => Object.fromEntries(
   (values?.rows || [])
     .map((r, i): [number, string | null] => [i, priceCentsOf(r?.price) === undefined ? PRICE_ERROR : null])
     .filter(([, msg]) => msg)
@@ -120,7 +121,7 @@ export const sheetPriceErrors = (values: Partial<SheetValues> | null | undefined
  * (no price anywhere → no "with prices" choice at all) and how many filled
  * rows would print "—".
  */
-export const sheetPriceSummary = (values: Partial<SheetValues> | null | undefined): { materials: number; priced: number; missing: number; any: boolean } => {
+export const sheetPriceSummary = (values: SheetInput | null | undefined): { materials: number; priced: number; missing: number; any: boolean } => {
   const rows = (values?.rows || []).filter(rowHasData);
   const priced = rows.filter((r) => isPriceCents(priceCentsOf(r.price))).length;
   return { materials: rows.length, priced, missing: rows.length - priced, any: priced > 0 };
@@ -150,20 +151,20 @@ export const sheetValuesFromCheckIn = (checkIn: SheetCheckIn = {}): SheetValues 
 
 // What a save would send, normalized so two snapshots compare field by field
 // ("68" and "68.00" are the same price, "126 63" and "126 * 63" the same size).
-const comparableField = (r: SheetRow, k: keyof SheetRow): string => {
+const comparableField = (r: Partial<SheetRow>, k: keyof SheetRow): string => {
   if (k === 'size') return formatSlabSize(r.size);
   if (k !== 'price') return str(r[k]).trim();
   const c = priceCentsOf(r.price);
   return c === undefined ? str(r.price).trim() : str(c);
 };
 const NOTE_FIELDS: (keyof SheetValues)[] = ['salesRep', 'builderName', 'builderPhone', 'internalNotes', 'specialNotes'];
-const comparable = (v: SheetValues): { rows: string[][]; [field: string]: string | string[][] } => ({
+const comparable = (v: SheetInput): { rows: string[][]; [field: string]: string | string[][] } => ({
   ...Object.fromEntries(NOTE_FIELDS.map((k) => [k, str(v[k]).trim()])),
   rows: (v.rows || []).filter(rowHasData).map((r) => ROW_FIELDS.map((k) => comparableField(r, k)))
 });
 
 /** How many fields differ — the number the unsaved-changes check reports. */
-export const countSheetChanges = (values: SheetValues | null | undefined, initial: SheetValues | null | undefined): number => {
+export const countSheetChanges = (values: SheetInput | null | undefined, initial: SheetInput | null | undefined): number => {
   if (!values || !initial) return 0;
   const a = comparable(values);
   const b = comparable(initial);
@@ -180,7 +181,7 @@ export const countSheetChanges = (values: SheetValues | null | undefined, initia
  * go as whole cents; check sheetPriceErrors first (an unreadable one would
  * be sent as no price).
  */
-export const sheetPayload = (values: Partial<SheetValues>, expectedUpdatedAt?: string | null) => ({
+export const sheetPayload = (values: SheetInput, expectedUpdatedAt?: string | null) => ({
   builderName: str(values.builderName),
   builderPhone: str(values.builderPhone),
   salesRep: str(values.salesRep),
@@ -250,7 +251,7 @@ export const escapeHtml = (value: unknown): string => str(value).replace(/[&<>"'
  * notes are never on it.
  */
 export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, letterhead, showPrices = false }: {
-  checkIn?: SheetCheckIn; dateStr?: string; values: SheetValues;
+  checkIn?: SheetCheckIn; dateStr?: string; values: SheetInput;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- letterheadFor(location), src/utils/locationForm.ts
   letterhead: any; showPrices?: boolean;
 }): string => {

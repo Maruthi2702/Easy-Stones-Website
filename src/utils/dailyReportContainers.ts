@@ -8,8 +8,8 @@ import type { Loose } from '../types/records.ts';
  * lines double-counts a single container once per color, and makes an
  * ordinary split shipment's per-color line look like an anomaly on its own.
  */
-export const groupContainers = (containers: unknown) => {
-  const groups = [];
+export const groupContainers = (containers: Loose[] | null | undefined) => {
+  const groups: { poNumber: string; lines: Loose[] }[] = [];
   for (const line of containers || []) {
     const startsNew = Boolean(line.poNumber && String(line.poNumber).trim());
     if (startsNew || groups.length === 0) {
@@ -22,4 +22,4 @@ export const groupContainers = (containers: unknown) => {
 };
 
 export const groupSlabs = (group: Loose) =>
-  group.lines.reduce((s: Loose, l: Loose) => s + (Number(l.slabs) || 0), 0);
+  group.lines.reduce((s: number, l: Loose) => s + (Number(l.slabs) || 0), 0);

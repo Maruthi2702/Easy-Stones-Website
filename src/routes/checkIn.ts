@@ -1,3 +1,4 @@
+import type { ScalarQuery, ScalarParams } from '../types/server.ts';
 import type { Loose } from '../types/records.ts';
 import type { Request, RequestHandler } from 'express';
 import express from 'express';
@@ -91,7 +92,7 @@ const startingRepForCheckIn = async (location: string, creatorId = null) => {
     const rep = startingRepFor({ staff, branch: location, branchReps: { [location]: branchSalesRepOf(loc) }, creator: creatorId ? { id: creatorId } : null });
     return rep ? { salesRep: rep.name, salesRepEmail: rep.email || '' } : {};
   } catch (err) {
-    console.error('⚠️ Could not work out a starting sales rep for a check-in:', err.message);
+    console.error('⚠️ Could not work out a starting sales rep for a check-in:', (err as Error).message);
     return {};
   }
 };
@@ -202,7 +203,7 @@ const checkInListQuery = (userLocations: Loose, { search, month, year, location 
   if (locFilter.forbidden) return { forbidden: true };
   // Location, month and search clauses, ANDed — the month window and the
   // search can each be an $or of their own.
-  const clauses = [];
+  const clauses: Loose[] = [];
   const m = parseInt(month);
   const y = parseInt(year);
   if (m >= 1 && m <= 12 && y > 2000) {
@@ -320,7 +321,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       // their own default location instead of rejected — the check-in still
       // saved, just filed under a branch nobody chose, with no error shown.
       const userLocations = req.user?.assignedLocations || [];
-      let kioskLocation;
+      let kioskLocation!: Loose;
       if (bodyLocation) {
         if (!hasLocationAccess(userLocations, bodyLocation)) {
           return res.status(403).json({ message: 'Access denied to this location' });
@@ -369,7 +370,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         try {
           await sendCheckInAlertEmail(checkIn);
         } catch (err) {
-          console.error('❌ Check-in email dispatch exception:', err.message);
+          console.error('❌ Check-in email dispatch exception:', (err as Error).message);
         }
       })();
 
@@ -472,7 +473,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         try {
           await sendCheckInAlertEmail(checkIn);
         } catch (err) {
-          console.error('❌ Check-in email dispatch exception:', err.message);
+          console.error('❌ Check-in email dispatch exception:', (err as Error).message);
         }
       })();
 
@@ -498,7 +499,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   // Registered ahead of GET /:id so 'lookup' is never read as an id.
   router.get('/lookup', authenticate, requirePermission(P.CHECK_IN), async (req, res) => {
     try {
-      const digits = stripPhone(req.query.phone);
+      const digits = stripPhone((req.query as ScalarQuery).phone);
       if (digits.length < 10) {
         return res.json({ found: false });
       }
@@ -537,7 +538,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
 
   router.get('/', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
     try {
-      const { page, limit, search, month, year, location } = req.query;
+      const { page, limit, search, month, year, location } = (req.query as ScalarQuery);
 
       const userLocations = req.user.assignedLocations || [];
       const built = checkInListQuery(userLocations, { search, month, year, location });
@@ -586,7 +587,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   router.get('/export.pdf', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
     const fail = (status: number, message: string) => res.status(status).type('text/plain; charset=utf-8').send(message);
     try {
-      const { search, month, year, location, download, tz } = req.query;
+      const { search, month, year, location, download, tz } = (req.query as ScalarQuery);
       const built = checkInListQuery(req.user.assignedLocations || [], { search, month, year, location });
       if (built.forbidden) return fail(403, 'You don’t have access to that branch’s check-ins.');
 
@@ -628,7 +629,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       };
 
       const userLocations = req.user.assignedLocations || [];
-      const locFilter = locationFilterFor(userLocations, req.query.location);
+      const locFilter = locationFilterFor(userLocations, (req.query as ScalarQuery).location);
       if (locFilter.forbidden) {
         return res.status(403).json({ message: 'Access denied to this location' });
       }
@@ -653,7 +654,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   // Get specific check-in
   router.get('/:id', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
     try {
-      const checkIn = await OfficeCheckIn.findById(req.params.id);
+      const checkIn = await OfficeCheckIn.findById((req.params as ScalarParams).id);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in not found' });
       }
@@ -701,7 +702,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         location,
         expectedUpdatedAt
       } = req.body;
-      const checkIn = await OfficeCheckIn.findById(req.params.id);
+      const checkIn = await OfficeCheckIn.findById((req.params as ScalarParams).id);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in not found' });
       }
@@ -810,7 +811,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
             console.log(`📡 Automatically sending selection sheet alert to sales rep: ${checkIn.salesRepEmail}`);
             await sendSelectionSheetEmail(checkIn, checkIn.salesRepEmail, await letterheadForCheckIn(checkIn), { showPrices: true });
           } catch (err) {
-            console.error('❌ Failed to auto-send selection sheet email to sales rep:', err.message);
+            console.error('❌ Failed to auto-send selection sheet email to sales rep:', (err as Error).message);
           }
         })();
       }
@@ -835,7 +836,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         return res.status(400).json({ message: 'Recipient email is required' });
       }
 
-      const checkIn = await OfficeCheckIn.findById(req.params.id);
+      const checkIn = await OfficeCheckIn.findById((req.params as ScalarParams).id);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in record not found' });
       }
@@ -864,7 +865,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   // Delete specific check-in
   router.delete('/:id', authenticate, requirePermission(P.DELETE), async (req, res) => {
     try {
-      const checkIn = await OfficeCheckIn.findById(req.params.id);
+      const checkIn = await OfficeCheckIn.findById((req.params as ScalarParams).id);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in not found' });
       }
@@ -872,7 +873,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       if (!hasLocationAccess(userLocations, checkIn.location)) {
         return res.status(403).json({ message: 'Access denied to delete this check-in' });
       }
-      await OfficeCheckIn.findByIdAndDelete(req.params.id);
+      await OfficeCheckIn.findByIdAndDelete((req.params as ScalarParams).id);
       console.log(`🗑️ Office check-in ${checkIn._id} deleted by ${req.user?.displayName || req.user?.username}`);
       emitCheckInUpdate(req, checkIn.location);
 

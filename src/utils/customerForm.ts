@@ -148,7 +148,7 @@ export const validateCustomerValues = (values: Partial<CustomerFormValues> = {})
  * same (or the marketing one is blank); once someone sets a different
  * marketing address it's left alone.
  */
-export const withEmail = (values: CustomerFormValues, email: string): CustomerFormValues => {
+export const withEmail = <T extends Pick<CustomerFormValues, 'email' | 'marketingEmail'>>(values: T, email: string): T => {
     const sync = !values.marketingEmail || values.marketingEmail === values.email;
     return { ...values, email, marketingEmail: sync ? email : values.marketingEmail };
 };

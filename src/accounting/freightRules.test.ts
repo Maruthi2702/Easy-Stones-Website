@@ -18,8 +18,8 @@ describe('carriers', () => {
     expect(normalizeCarrierName('ABC Freight, Inc.')).toBe('abc freight');
     expect(normalizeCarrierName('The A&B Trucking LLC')).toBe('a and b trucking');
     const carriers = [{ _id: 1, name: 'ABC Freight Inc', active: true }, { _id: 2, name: 'Old ABC', aliases: ['abc freight'], active: false }];
-    expect(matchCarrier(carriers, 'abc freight').name).toBe('ABC Freight Inc');
-    expect(matchCarrier([{ _id: 3, name: 'Western', aliases: ['WX Logistics'] }], 'wx logistics')._id).toBe(3);
+    expect(matchCarrier(carriers, 'abc freight')!.name).toBe('ABC Freight Inc');
+    expect(matchCarrier([{ _id: 3, name: 'Western', aliases: ['WX Logistics'] }], 'wx logistics')!._id).toBe(3);
     expect(matchCarrier(carriers, '')).toBeNull();
   });
 });
@@ -56,16 +56,16 @@ describe('planSync', () => {
     expect(plan.set).toMatchObject({ amountCents: 50000, bolNumber: 'BOL-10' });
     const handSet = { ...charge, amountCents: 47500, handSet: ['amountCents'] };
     const plan2 = planSync({ charge: handSet, delivery: delivery({ freightFee: 500 }), thirdParty: true });
-    expect(plan2.set.amountCents).toBeUndefined();
+    expect(plan2.set!.amountCents).toBeUndefined();
     expect(planSync({ charge, delivery: delivery(), thirdParty: true }).op).toBe('none');
   });
 
   it('an approved charge is frozen: a change raises a flag instead', () => {
     const charge = { ...planSync({ delivery: delivery(), thirdParty: true }).doc, status: 'approved' };
     const plan = planSync({ charge, delivery: delivery({ freightFee: 500 }), thirdParty: true });
-    expect(plan.set.amountCents).toBeUndefined();
-    expect(plan.flag.code).toBe('delivery_changed');
-    expect(plan.flag.detail).toContain('$450.00 → $500.00');
+    expect(plan.set!.amountCents).toBeUndefined();
+    expect(plan.flag!.code).toBe('delivery_changed');
+    expect(plan.flag!.detail).toContain('$450.00 → $500.00');
   });
 
   it('flags, never deletes, when a delivery is no longer owed — once', () => {
@@ -130,7 +130,7 @@ describe('what each status allows', () => {
 });
 
 describe('carrier invoices', () => {
-  const c = (over: Loose) => ({ status: 'draft', carrierId: 'w', amountCents: 10000, soNumber: '1', invoiceId: null, ...over });
+  const c = (over: Loose = {}) => ({ status: 'draft', carrierId: 'w', amountCents: 10000, soNumber: '1', invoiceId: null, ...over });
   it('charges must be the carrier’s, waiting for approval, and not on another invoice', () => {
     expect(invoiceChargesProblem([c()], 'w')).toBeNull();
     expect(invoiceChargesProblem([], 'w')).toMatch(/at least one/);

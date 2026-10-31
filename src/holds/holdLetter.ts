@@ -31,9 +31,9 @@ export function parseHide(value: unknown) {
 /** { unitPrice: true } → "unitPrice" (or '' for nothing hidden), in the boxes' order. */
 export const hideParam = (hide: Loose = {}) => HIDE_KEYS.filter((k) => hide[k]).join(',');
 
-const money = (cents: Loose) => (cents === null || cents === undefined ? '—' : formatCents(cents));
-const sfText = (hundredths: Loose) => `${(Number(hundredths || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} SF`;
-const plural = (n: number, one: Loose, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+const money = (cents: unknown) => (cents === null || cents === undefined ? '—' : formatCents(cents));
+const sfText = (hundredths: unknown) => `${(Number(hundredths || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} SF`;
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** "6012 S 196th St, Kent, WA 98032" → ["6012 S 196th St", "Kent, WA 98032"] */
 export function addressLinesOf(addressLine = '') {
@@ -48,10 +48,10 @@ function sharedPriceOf(lines: Loose[]) {
   return prices.length === 1 ? prices[0] : undefined;
 }
 
-const instant = (d: Loose, timeZone: string, opts: Loose) => new Intl.DateTimeFormat('en-US', { timeZone, ...opts }).format(new Date(d));
+const instant = (d: string | Date | number, timeZone: string, opts: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-US', { timeZone, ...opts }).format(new Date(d));
 
 /** Where the hold stands, in a sentence for the customer. */
-function standing(hold: Loose, now: Loose) {
+function standing(hold: Loose, now: Date) {
   const state = hold.state;
   if (state === 'released') return `This hold was released on ${instant(hold.releasedAt, branchZone(hold.branch), { month: 'short', day: 'numeric', year: 'numeric' })}. These slabs are no longer held.`;
   if (state === 'converted') return 'This hold has been converted to a sales order.';
@@ -112,7 +112,7 @@ export function letterModel(hold: Loose, { hide = {}, letterhead = {}, now = new
     number: String(hold.number),
     date: instant(hold.createdAt, zone, { month: 'short', day: 'numeric', year: 'numeric' }),
     printed: `printed on ${instant(now, zone, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}`,
-    state: STATE_LABELS[hold.state] || hold.status || '',
+    state: (STATE_LABELS as Record<string, string>)[hold.state] || hold.status || '',
     billTo: [
       c.name,
       ...String(c.address || '').split('\n'),

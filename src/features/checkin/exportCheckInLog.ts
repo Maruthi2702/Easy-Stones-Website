@@ -46,7 +46,7 @@ export async function exportCheckInLog({ search = '', month = null, year = null,
   const ws = XLSX.utils.json_to_sheet(checkInExportRows(rows));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Check-In Log');
-  XLSX.writeFile(wb, checkInExportFileName(location));
+  XLSX.writeFile(wb, checkInExportFileName(location || ''));
   return { count: rows.length, total, truncated };
 }
 

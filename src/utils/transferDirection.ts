@@ -34,7 +34,7 @@ export function manualTransferDirection(fromTo: unknown, branch: string) {
  * A line is one transfer, with one transfer number ('14956', '149567'). The
  * number as written, without a leading '#', or '' when there isn't one yet.
  */
-export function transferNumberOf(line: Loose) {
+export function transferNumberOf(line: Loose | null | undefined) {
   return String(line?.transferNumber || '').trim().replace(/^#/, '');
 }
 
@@ -46,7 +46,7 @@ export const cleanTransferNumber = (value: unknown) => String(value || '').repla
  * The day sheet doesn't ask for a count (2026-10-15); the month view, its
  * PDF and the CSV total these.
  */
-export function transferCountOf(line: Loose) {
+export function transferCountOf(line: Loose | null | undefined) {
   if (!line) return 0;
   if (line.auto) return 1;
   return (transferNumberOf(line) || String(line.fromTo || '').replace(/—/g, '').trim() || Number(line.slabs) > 0) ? 1 : 0;
@@ -116,7 +116,7 @@ export function upgradeHandSetKeys(keys: string[] = [], lines: Loose[] = []) {
  *    already covers this route and direction, so it may be counted twice
  * Never blocks a save; the report asks, as it does for an odd slab count.
  */
-export function manualTransferWarning(line: Loose, branch: string, lines: Loose[] = []) {
+export function manualTransferWarning(line: Loose | null | undefined, branch: string, lines: Loose[] = []) {
   if (!line || line.auto) return null;
   const number = transferNumberOf(line);
   if (number && lines.some(t => t !== line && transferNumberOf(t) === number)) {
@@ -135,7 +135,7 @@ export function manualTransferWarning(line: Loose, branch: string, lines: Loose[
 }
 
 /** The sentence shown under a line for each warning. */
-export function transferWarningText(warning: Loose, branchName = 'this branch') {
+export function transferWarningText(warning: Loose | null | undefined, branchName = 'this branch') {
   switch (warning?.code) {
     case 'number-on-report': {
       const list = warning.numbers.map((n: number) => `#${n}`).join(', ');

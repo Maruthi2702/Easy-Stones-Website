@@ -1,3 +1,6 @@
+import type { ScalarQuery, ScalarParams } from './src/types/server.ts';
+import type { Loose } from './src/types/records.ts';
+import type { Response, Request, NextFunction } from 'express';
 import dotenv from 'dotenv';
 dotenv.config();
 // Trigger restart for schema update (v2)
@@ -166,7 +169,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Mockup Generation Utility
-const generateMockups = async (slabImageBuffer, baseFilename) => {
+const generateMockups = async (slabImageBuffer: Buffer, baseFilename: string) => {
   const sharp = (await import('sharp')).default;
   const templatesDir = path.join(__dirname, 'public', 'images', 'templates');
 
@@ -175,7 +178,7 @@ const generateMockups = async (slabImageBuffer, baseFilename) => {
     { name: 'bathroom_template.png', suffix: 'installed_2' }
   ];
 
-  const generatedUrls = [];
+  const generatedUrls: Loose[] = [];
 
   for (const template of templates) {
     try {
@@ -218,7 +221,7 @@ const generateMockups = async (slabImageBuffer, baseFilename) => {
 };
 
 // Image Optimization Utility
-const optimizeImage = async (buffer) => {
+const optimizeImage = async (buffer: Buffer) => {
   try {
     const sharp = (await import('sharp')).default;
     return await sharp(buffer)
@@ -235,7 +238,8 @@ const optimizeImage = async (buffer) => {
 };
 
 // Simple Memory Cache for Products (Cache for 10 minutes)
-const memoryCache = {
+type CacheKey = 'products' | 'salesreps' | 'customerDropdown' | 'customerMap';
+const memoryCache: Record<CacheKey, { data: Loose[] | Loose | null; lastFetched: number }> & { TTL: number } = {
   products: { data: null, lastFetched: 0 },
   // The staff directory and the customer dropdown are read on nearly every page
   // load but change rarely. The dropdown in particular is expensive out of all
@@ -249,12 +253,15 @@ const memoryCache = {
   TTL: 10 * 60 * 1000
 };
 
-const cacheHit = (key) =>
+function cacheHit(key: 'customerMap'): Loose | null;
+function cacheHit(key: Exclude<CacheKey, 'customerMap'>): Loose[] | null;
+function cacheHit(key: CacheKey): Loose[] | Loose | null { return
   memoryCache[key].data && (Date.now() - memoryCache[key].lastFetched) < memoryCache.TTL
     ? memoryCache[key].data
     : null;
+}
 
-const cachePut = (key, data) => {
+const cachePut = <T extends Loose[] | Loose>(key: CacheKey, data: T): T => {
   memoryCache[key].data = data;
   memoryCache[key].lastFetched = Date.now();
   return data;
@@ -294,17 +301,17 @@ const bustUserCaches = () => {
 // processBase64Image's image-only check and stay inline in the customer
 // document — 6 of them, up to 269 KB each, by Feb 2026. Without Cloudinary, or
 // if the upload fails, it stays inline as before rather than being lost.
-const processBase64Pdf = async (dataUrl, subDir) => {
+const processBase64Pdf = async (dataUrl: string, subDir: string) => {
   if (!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)) {
     return dataUrl;
   }
   try {
-    const buffer = Buffer.from(dataUrl.split(';base64,').pop(), 'base64');
+    const buffer = Buffer.from(dataUrl.split(';base64,').pop()!, 'base64');
     const publicId = `pdf_${Date.now()}_${Math.round(Math.random() * 1E9)}.pdf`;
-    const result = await new Promise((resolve, reject) => {
+    const result = await new Promise<import('cloudinary').UploadApiResponse>((resolve, reject) => {
       cloudinary.uploader.upload_stream(
         { folder: subDir, public_id: publicId, resource_type: 'raw' },
-        (error, res) => (error ? reject(error) : resolve(res))
+        (error, res) => (error ? reject(error) : resolve(res!))
       ).end(buffer);
     });
     return result.secure_url;
@@ -314,7 +321,7 @@ const processBase64Pdf = async (dataUrl, subDir) => {
   }
 };
 
-const processBase64Image = async (base64String, subDir = 'Visits') => {
+const processBase64Image = async (base64String: string, subDir: string = 'Visits') => {
   if (typeof base64String === 'string' && base64String.startsWith('data:application/pdf')) {
     return processBase64Pdf(base64String, subDir);
   }
@@ -323,7 +330,7 @@ const processBase64Image = async (base64String, subDir = 'Visits') => {
   try {
     const sharp = (await import('sharp')).default;
     const base64Data = base64String.split(';base64,').pop();
-    const buffer = Buffer.from(base64Data, 'base64');
+    const buffer = Buffer.from(base64Data!, 'base64');
 
     // Optimize with sharp before uploading
     const optimizedBuffer = await sharp(buffer)
@@ -334,12 +341,12 @@ const processBase64Image = async (base64String, subDir = 'Visits') => {
     // Upload to Cloudinary if configured (persistent — survives Render restarts)
     if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
       const uniqueSuffix = `${Date.now()}_${Math.round(Math.random() * 1E9)}`;
-      const result = await new Promise((resolve, reject) => {
+      const result = await new Promise<import('cloudinary').UploadApiResponse>((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
           { folder: subDir, public_id: `img_${uniqueSuffix}`, resource_type: 'image' },
           (error, result) => {
             if (error) return reject(error);
-            resolve(result);
+            resolve(result!);
           }
         );
         uploadStream.end(optimizedBuffer);
@@ -384,9 +391,9 @@ const PRESENCE_VIEWERS_ROOM = 'presence-viewers';
 // Like the branch socket joins: a customer token, a deactivated account,
 // a temporary password or an ended session is "nobody". Also says whether this
 // person may see the list (Users & Roles' own permission, manage_users).
-async function resolveSocketStaff(token) {
+async function resolveSocketStaff(token: string) {
   if (!token) return null;
-  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const decoded = (jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload);
   const userId = decoded.userId || decoded.id || decoded.sub;
   if (!userId || decoded.type === 'customer' || !mongoose.isValidObjectId(userId)) return null;
   const user = await User.findById(userId, 'role isActive mustChangePassword sessionVersion').lean();
@@ -399,17 +406,17 @@ async function resolveSocketStaff(token) {
   };
 }
 
-const writeLastSeen = (userId, at) =>
+const writeLastSeen = (userId: string, at: Date) =>
   User.updateOne({ _id: userId }, { $set: { lastSeenAt: at } }).catch(() => {});
 
 // While online, at most every few minutes (presence.dueToSave).
-const savePresenceLastSeen = (userId) => {
+const savePresenceLastSeen = (userId: string) => {
   if (userId && presence.dueToSave(userId)) writeLastSeen(userId, new Date());
 };
 
 // The list changes on every tab opened, closed or used, and by itself as
 // people go idle; one push per second at most, and only to viewers.
-let presenceTimer = null;
+let presenceTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPresenceSent = '';
 function announcePresence() {
   if (presenceTimer) return;
@@ -426,7 +433,7 @@ setInterval(announcePresence, 60 * 1000).unref();
 
 // A tab closed (or signed in as someone else). When it was their last one the
 // moment they last used the app is their "last seen".
-function forgetPresenceTab(socket) {
+function forgetPresenceTab(socket: Loose) {
   const gone = presence.disconnect(socket.id);
   socket.data.presenceUserId = null;
   if (!gone) return;
@@ -440,7 +447,7 @@ io.on('connection', (socket) => {
   }
 
   registerBranchRoomJoins(socket, {
-    resolveStaff: (token) => resolveStaffToken(token, process.env.JWT_SECRET)
+    resolveStaff: (token) => resolveStaffToken(token, process.env.JWT_SECRET!)
   });
 
   // Who is online (Users & Roles). A tab says who it is once per connection
@@ -507,7 +514,7 @@ const SESSION_MS = SESSION_HOURS * 60 * 60 * 1000;
 
 // Neutralise regex metacharacters before interpolating user input into a RegExp.
 // Without this a search for "(" throws, and a crafted pattern can pin the CPU.
-const escapeRegex = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegex = (str: unknown) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Today as 'YYYY-MM-DD' in the business's own zone, whatever zone the server runs in.
 const pacificToday = () =>
@@ -1026,7 +1033,7 @@ async function startServer() {
         const url = process.env.RENDER_EXTERNAL_URL || process.env.FRONTEND_URL || `http://localhost:${PORT}`;
         const healthUrl = `${url}/api/health`;
         fetch(healthUrl)
-          .then(res => console.log(`✅ Keep-alive ping: ${res.status}`))
+          .then((res) => console.log(`✅ Keep-alive ping: ${res.status}`))
           .catch(err => console.error(`❌ Keep-alive failed: ${err.message}`));
       }, keepAliveInterval);
     });
@@ -1102,7 +1109,7 @@ const apiLimiter = rateLimit({
 app.use('/api', apiLimiter);
 
 // Prevent caching for all API routes to ensure fresh data after logout/login
-app.use('/api', (req, res, next) => {
+app.use('/api', (req: Request, res: Response, next: NextFunction) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.set('Pragma', 'no-cache');
   res.set('Expires', '0');
@@ -1113,7 +1120,7 @@ app.use('/api', (req, res, next) => {
 // the collections they are built from. Doing it here rather than in each handler
 // means a new route cannot forget to, and serving a stale dropdown for ten
 // minutes after adding a customer would be worse than the query it saves.
-app.use('/api', (req, res, next) => {
+app.use('/api', (req: Request, res: Response, next: NextFunction) => {
   if (req.method === 'GET' || req.method === 'HEAD') return next();
   // originalUrl, not req.path: inside a mounted middleware req.path is relative
   // to the mount point, and Express has restored req.url by the time 'finish'
@@ -1171,7 +1178,7 @@ app.use('/api/products', createPublicProductsRouter({
  * client so the cached label can never disagree with the account it points at.
  * An empty or unknown id clears both — that is how an account is handed back.
  */
-const resolveSalesRep = async (salesRepId) => {
+const resolveSalesRep = async (salesRepId: string | mongoose.Types.ObjectId | null | undefined) => {
   if (!salesRepId) return { salesRep: null, salesRepName: '' };
 
   if (!mongoose.Types.ObjectId.isValid(salesRepId)) {
@@ -1205,7 +1212,7 @@ const resolveSalesRep = async (salesRepId) => {
  *   req.authType  = 'admin'|'customer'(legacy compat)
  *   req.customerId = id               (for customer routes)
  */
-const authenticate = async (req, res, next) => {
+const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   // 1. Extract token — accept any source
   const token = req.cookies.adminToken
     || req.cookies.customerToken
@@ -1217,9 +1224,9 @@ const authenticate = async (req, res, next) => {
   }
 
   // 2. Verify JWT signature and expiry ONLY — do NOT trust any payload fields for authorisation
-  let decoded;
+  let decoded!: Loose;
   try {
-    decoded = jwt.verify(token, JWT_SECRET);
+    decoded = (jwt.verify(token, JWT_SECRET) as jwt.JwtPayload);
   } catch {
     return res.status(401).json({ error: 'Session expired or invalid. Please log in again.' });
   }
@@ -1252,7 +1259,7 @@ const authenticate = async (req, res, next) => {
     // the role name it returned), which meant two sequential Atlas round trips on
     // EVERY authenticated request. Joining them server-side halves that: same
     // freshness, same result, one trip.
-    const [dbUser] = await User.aggregate([
+    const [dbUser] = await User.aggregate(([
       { $match: { _id: new mongoose.Types.ObjectId(userId) } },
       { $limit: 1 },
       // Role.name is stored trimmed + lower-cased by its schema setters, and
@@ -1287,7 +1294,7 @@ const authenticate = async (req, res, next) => {
           permissions: { $ifNull: [{ $arrayElemAt: ['$_role.permissions', 0] }, []] }
         }
       }
-    ]);
+    ] as mongoose.PipelineStage[]));
 
     if (!dbUser) {
       return res.status(401).json({ error: 'User account not found or has been removed.' });
@@ -1349,7 +1356,7 @@ const authenticate = async (req, res, next) => {
  *   app.get('/api/admin/users', authenticate, requirePermission('manage_users'), handler)
  *   app.post('/api/admin/data', authenticate, requirePermission('manage_customers', 'view_dashboard'), handler)
  */
-const requirePermission = (...permissions) => (req, res, next) => {
+const requirePermission = (...permissions: string[]) => (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Not authenticated. Please log in.' });
   }
@@ -1367,7 +1374,7 @@ const requirePermission = (...permissions) => (req, res, next) => {
 // Routes that hand out a customer's full profile need the Full profile switch.
 const requireCustomerProfile = requirePermission('view_customer_profile');
 
-const requireAnyPermission = (...permissions) => (req, res, next) => {
+const requireAnyPermission = (...permissions: string[]) => (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Not authenticated. Please log in.' });
   }
@@ -1387,7 +1394,7 @@ const requireAnyPermission = (...permissions) => (req, res, next) => {
 // product admin…) used to answer any login — a website customer's or a
 // check-in-only kiosk's included. They now answer staff who can open at least
 // one Sales page (hasSalesPage in src/utils/navPins.ts, the side nav's rules).
-const requireSalesPage = (req, res, next) => {
+const requireSalesPage = (req: Request, res: Response, next: NextFunction) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Not authenticated. Please log in.' });
   }
@@ -1401,8 +1408,8 @@ const requireSalesPage = (req, res, next) => {
 // during the transition. These will be removed in a future cleanup.
 const verifyToken    = authenticate;
 const verifyAnyAuth  = authenticate;
-const checkPermission = (permission) => requirePermission(permission);
-const authorize = (...roles) => (req, res, next) => {
+const checkPermission = (permission: string) => requirePermission(permission);
+const authorize = (...roles: (string | undefined)[]) => (req: Request, res: Response, next: NextFunction) => {
   if (!req.user || !roles.includes(req.user.role)) {
     return res.status(403).json({ error: 'Access denied. Insufficient role.' });
   }
@@ -1416,7 +1423,7 @@ const authorize = (...roles) => (req, res, next) => {
 // to sit right after startServer(), near the top of the file) because
 // verifyToken/authorize don't exist yet at that point in a top-to-bottom
 // script — referencing them there throws at startup, not at request time.
-app.get('/api/debug/config', verifyToken, authorize('admin'), async (req, res) => {
+app.get('/api/debug/config', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
   try {
     const adminCount = await User.countDocuments();
     const dbName = mongoose.connection.name;
@@ -1424,10 +1431,10 @@ app.get('/api/debug/config', verifyToken, authorize('admin'), async (req, res) =
 
     // Check for specific user if provided
     let userCheck = null;
-    if (req.query.username) {
-      const user = await User.findOne({ username: req.query.username.toLowerCase() });
+    if ((req.query as ScalarQuery).username) {
+      const user = await User.findOne({ username: (req.query as ScalarQuery).username.toLowerCase() });
       userCheck = {
-        requested_username: req.query.username,
+        requested_username: (req.query as ScalarQuery).username,
         found: !!user,
         login_attempts: user ? user.loginAttempts : null,
         is_locked: user ? user.isLocked() : null
@@ -1442,14 +1449,14 @@ app.get('/api/debug/config', verifyToken, authorize('admin'), async (req, res) =
       user_check: userCheck
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: (error as Error).message });
   }
 });
 
 
 
 // Enhanced authentication endpoint with bcrypt and JWT
-app.post('/api/auth/login', loginLimiter, async (req, res) => {
+app.post('/api/auth/login', loginLimiter, async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
 
@@ -1559,7 +1566,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 
 // Token exchange - returns the token from the cookie so the frontend can use it in Authorization headers
 // This allows existing sessions to work without re-login
-app.get('/api/auth/token', (req, res) => {
+app.get('/api/auth/token', (req: Request, res: Response) => {
   // Same precedence as authenticate() above (adminToken for the legacy
   // staff login, customerToken for staff/customers via the unified login) —
   // checking only adminToken meant every unified-login staff session 401'd
@@ -1569,7 +1576,7 @@ app.get('/api/auth/token', (req, res) => {
     return res.status(401).json({ error: 'No active session' });
   }
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = (jwt.verify(token, JWT_SECRET) as jwt.JwtPayload);
     res.json({ token, role: decoded.role, username: decoded.username });
   } catch {
     res.status(401).json({ error: 'Session expired' });
@@ -1589,7 +1596,7 @@ app.get('/api/auth/token', (req, res) => {
 // the same rule the Users & Roles form applies as you edit.
 // `requested` is undefined when the request didn't send one, or sent back the
 // value already stored — /admin's form returns every field on every save.
-const resolveHomeLocation = async ({ requested, current, assignedLocations }) => {
+const resolveHomeLocation = async ({ requested, current, assignedLocations }: { requested?: string; current?: string; assignedLocations: string[] }) => {
   const assigned = Array.isArray(assignedLocations) ? assignedLocations : [];
   const loc = typeof requested === 'string' ? requested.trim() : undefined;
   if (loc !== undefined && loc !== (current || '')) {
@@ -1610,12 +1617,12 @@ app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, lo
 
 // Who is online right now — the first load of Users & Roles' Online badges;
 // after that the list is pushed over the socket (presence_update).
-app.get('/api/admin/users/presence', authenticate, usersAccess('view'), (req, res) => {
+app.get('/api/admin/users/presence', authenticate, usersAccess('view'), (req: Request, res: Response) => {
   res.json(presence.snapshot());
 });
 
 // Get all users (manage_users permission needed)
-app.get('/api/admin/users', authenticate, usersAccess('view'), async (req, res) => {
+app.get('/api/admin/users', authenticate, usersAccess('view'), async (req: Request, res: Response) => {
   try {
     if (req.teamScope) {
       return res.json(await teamUsers(req));
@@ -1633,11 +1640,11 @@ app.get('/api/admin/users', authenticate, usersAccess('view'), async (req, res) 
 // the data. Sign-in is either a temporary password (mustChangePassword: they
 // pick their own at first sign-in) or an emailed invite link
 // (src/routes/userOnboarding.ts).
-app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req, res) => {
+app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req: Request, res: Response) => {
   try {
     const { displayName, email, role, location, assignedLocations, joiningDate, signInMethod = 'password', password } = req.body;
     const username = String(req.body.username || '').trim().toLowerCase();
-    const fail = (field, message) => res.status(400).json({ field, message });
+    const fail = (field: string, message: string) => res.status(400).json({ field, message });
 
     if (!String(displayName || '').trim()) return fail('displayName', 'Enter their full name');
     if (!isValidEmail(email)) return fail('email', 'Enter a valid work email');
@@ -1678,7 +1685,7 @@ app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req,
       await newUser.save();
     } catch (err) {
       // Two admins creating the same username at once — the unique index wins.
-      if (err?.code === 11000) return fail('username', 'Someone already has this username');
+      if ((err as Error & Loose)?.code === 11000) return fail('username', 'Someone already has this username');
       throw err;
     }
 
@@ -1688,7 +1695,7 @@ app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req,
     req.app.get('io')?.emit('truck_update');
 
     let inviteSent = null;
-    let inviteLink;
+    let inviteLink: string | undefined;
     if (invite) {
       const link = inviteLinkFor(req, invite.token);
       inviteSent = await sendInviteEmail({
@@ -1724,18 +1731,18 @@ app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req,
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to create user', error: error.message });
+    res.status(500).json({ message: 'Failed to create user', error: (error as Error).message });
   }
 });
 
 // Update user (manage_users permission needed)
-app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (req, res) => {
+app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (req: Request, res: Response) => {
   try {
     const { username, displayName, email, role, password, location, assignedLocations, joiningDate, signInReset } = req.body;
-    const userId = req.params.id;
+    const userId = (req.params as ScalarParams).id;
     // Fields are checked only when sent, so the older /admin screen's partial
     // saves still work; Edit user (features/users/userForm/EditUserForm.tsx) sends them all.
-    const fail = (field, message) => res.status(400).json({ field, message });
+    const fail = (field: string, message: string) => res.status(400).json({ field, message });
 
     const user = await User.findById(userId);
     if (!user) {
@@ -1748,7 +1755,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (
     if (assignedLocations !== undefined && (!Array.isArray(assignedLocations) || assignedLocations.length === 0 || !assignedLocations.every(l => typeof l === 'string' && l))) {
       return fail('assignedLocations', 'Choose at least one location');
     }
-    let nextRole;
+    let nextRole!: Loose;
     if (role !== undefined) {
       nextRole = String(role || '').trim().toLowerCase();
       if (!nextRole || !(await Role.exists({ name: nextRole }))) return fail('role', 'Pick a role');
@@ -1855,7 +1862,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (
     req.app.get('io')?.emit('truck_update');
 
     let inviteSent = null;
-    let inviteLink;
+    let inviteLink: string | undefined;
     if (invite) {
       const link = inviteLinkFor(req, invite.token);
       inviteSent = await sendInviteEmail({
@@ -1892,7 +1899,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (
       }
     });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to update user', error: error.message });
+    res.status(500).json({ message: 'Failed to update user', error: (error as Error).message });
   }
 });
 
@@ -1902,14 +1909,14 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (
 // driver away — deactivating or deleting them — would otherwise leave these
 // on a column nobody is driving.
 const DRIVER_ORDER_PROJECTION = { 'pod.customerSignature': 0, 'pod.driverSignature': 0, 'pod.photos': 0 };
-const upcomingDriverOrders = (user) => Delivery.find({
+const upcomingDriverOrders = (user: Loose) => Delivery.find({
   truckId: `drv_${user.username}`,
   status: { $nin: ['completed', 'cancelled'] },
   $or: [{ date: { $gte: pacificToday() } }, { date: '' }, { date: null }]
 }, '_id').lean();
 
 /** Move orders to Pending (no driver, same date) and tell open boards, branch by branch. */
-const moveOrdersToPending = async (req, orders) => {
+const moveOrdersToPending = async (req: Request, orders: Loose[]) => {
   if (!orders.length) return;
   const ids = orders.map(o => o._id);
   await withDbRetry(() => Delivery.updateMany({ _id: { $in: ids } }, { $set: { truckId: '', status: 'pending' } }));
@@ -1926,7 +1933,7 @@ const moveOrdersToPending = async (req, orders) => {
  * Pending as part of it. Returns true once it's safe to go ahead; otherwise
  * it has already answered 409 with the count.
  */
-const clearDriverHandover = async (req, res, user, verb) => {
+const clearDriverHandover = async (req: Request, res: Response, user: Loose, verb: string) => {
   const upcoming = await upcomingDriverOrders(user);
   if (!upcoming.length) return true;
   if (!req.body?.moveUpcomingToPending) {
@@ -1945,14 +1952,14 @@ const clearDriverHandover = async (req, res, user, verb) => {
 // open session ends on its next request, their calendar feed stops, and a
 // driver drops off the board's columns except on weeks they delivered. Kept,
 // not deleted, so their name stays on the history they made.
-app.patch('/api/admin/users/:id/active', authenticate, usersAccess(USERS.DEACTIVATE), async (req, res) => {
+app.patch('/api/admin/users/:id/active', authenticate, usersAccess(USERS.DEACTIVATE), async (req: Request, res: Response) => {
   try {
     const active = req.body?.active !== false;
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'User not found' });
-    if (!active && String(req.params.id) === String(req.user.id)) {
+    if (!mongoose.Types.ObjectId.isValid((req.params as ScalarParams).id)) return res.status(404).json({ message: 'User not found' });
+    if (!active && String((req.params as ScalarParams).id) === String(req.user.id)) {
       return res.status(400).json({ message: "You can't deactivate your own account." });
     }
-    const user = await User.findById(req.params.id).select('username displayName isActive role assignedLocations').lean();
+    const user = await User.findById((req.params as ScalarParams).id).select('username displayName isActive role assignedLocations').lean();
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (!memberAllowed(req, user)) return res.status(403).json({ message: "You can't change this person's account." });
 
@@ -1970,16 +1977,16 @@ app.patch('/api/admin/users/:id/active', authenticate, usersAccess(USERS.DEACTIV
   }
 });
 
-app.delete('/api/admin/users/:id', authenticate, requireAction(USERS.DELETE), async (req, res) => {
+app.delete('/api/admin/users/:id', authenticate, requireAction(USERS.DELETE), async (req: Request, res: Response) => {
   try {
-    if (String(req.params.id) === String(req.user.id)) {
+    if (String((req.params as ScalarParams).id) === String(req.user.id)) {
       return res.status(400).json({ message: "You can't delete your own account." });
     }
-    const user = mongoose.Types.ObjectId.isValid(req.params.id)
-      ? await User.findById(req.params.id).select('username displayName').lean()
+    const user = mongoose.Types.ObjectId.isValid((req.params as ScalarParams).id)
+      ? await User.findById((req.params as ScalarParams).id).select('username displayName').lean()
       : null;
     if (user && !(await clearDriverHandover(req, res, user, 'delete'))) return;
-    await User.findByIdAndDelete(req.params.id);
+    await User.findByIdAndDelete((req.params as ScalarParams).id);
     bustUserCaches();
     req.app.get('io')?.emit('truck_update');
     res.json({ message: 'User deleted successfully' });
@@ -1993,17 +2000,17 @@ app.delete('/api/admin/users/:id', authenticate, requireAction(USERS.DELETE), as
 // ============================================
 
 // Get all roles (manage_users permission needed)
-app.get('/api/admin/roles', verifyAnyAuth, requireArea('roles', { alsoRoles: true }), async (req, res) => {
+app.get('/api/admin/roles', verifyAnyAuth, requireArea('roles', { alsoRoles: true }), async (req: Request, res: Response) => {
   try {
     const roles = await Role.find().sort({ name: 1 });
     res.json(roles);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch roles', error: error.message });
+    res.status(500).json({ message: 'Failed to fetch roles', error: (error as Error).message });
   }
 });
 
 // Create a new custom role (manage_users permission needed)
-app.post('/api/admin/roles', verifyAnyAuth, requireAction(ROLES.ADD), async (req, res) => {
+app.post('/api/admin/roles', verifyAnyAuth, requireAction(ROLES.ADD), async (req: Request, res: Response) => {
   try {
     const { name, displayName, permissions } = req.body;
     if (!name || !displayName) {
@@ -2027,15 +2034,15 @@ app.post('/api/admin/roles', verifyAnyAuth, requireAction(ROLES.ADD), async (req
     bustUserCaches(); // see the role update route below
     res.status(201).json({ message: 'Role created successfully', role: newRole });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to create role', error: error.message });
+    res.status(500).json({ message: 'Failed to create role', error: (error as Error).message });
   }
 });
 
 // Update role permissions (manage_users permission needed)
-app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), async (req, res) => {
+app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), async (req: Request, res: Response) => {
   try {
     const { permissions, displayName, manageableRoles } = req.body;
-    const roleId = req.params.id;
+    const roleId = (req.params as ScalarParams).id;
 
     const role = await Role.findById(roleId);
     if (!role) {
@@ -2052,14 +2059,14 @@ app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), async 
     bustUserCaches();
     res.json({ message: 'Role updated successfully', role });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to update role', error: error.message });
+    res.status(500).json({ message: 'Failed to update role', error: (error as Error).message });
   }
 });
 
 // Delete custom role (manage_users permission needed)
-app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), async (req, res) => {
+app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), async (req: Request, res: Response) => {
   try {
-    const roleId = req.params.id;
+    const roleId = (req.params as ScalarParams).id;
     const role = await Role.findById(roleId);
     if (!role) {
       return res.status(404).json({ message: 'Role not found' });
@@ -2075,7 +2082,7 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), a
     bustUserCaches();
     res.json({ message: 'Role deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to delete role', error: error.message });
+    res.status(500).json({ message: 'Failed to delete role', error: (error as Error).message });
   }
 });
 
@@ -2089,20 +2096,20 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), a
 // people who can manage locations; this endpoint also answers customer and
 // other staff logins, which get only what prints on a selection sheet and
 // what the filters need (publicLocationFields).
-app.get('/api/admin/locations', verifyAnyAuth, async (req, res) => {
+app.get('/api/admin/locations', verifyAnyAuth, async (req: Request, res: Response) => {
   try {
     const locations = await Location.find().sort({ name: 1 }).lean();
     const full = canOpenArea(req.user, 'locations');
     const staff = req.user?.type !== 'customer';
     res.json(full ? locations : locations.map((l) => publicLocationFields(l, { staff })));
   } catch (error) {
-    res.status(500).json({ message: 'Failed to fetch locations', error: error.message });
+    res.status(500).json({ message: 'Failed to fetch locations', error: (error as Error).message });
   }
 });
 
 // The map pin for a location's primary address — only looked up again when
 // the address changed (geocodePatchFor), and never blocks the save.
-const applyLocationGeocode = async (location) => {
+const applyLocationGeocode = async (location: Loose) => {
   const a = location.primaryContact?.address || {};
   const patch = await geocodePatchFor(
     { street: a.street, city: a.city, state: a.state, zipCode: a.zipCode },
@@ -2117,13 +2124,13 @@ const applyLocationGeocode = async (location) => {
 // body is the whole record; src/utils/locationForm.ts runs the same checks
 // the form does, and answers { field, message } for the first problem so the
 // form can put it under the right field.
-const locationError = (res, errors) => {
+const locationError = (res: Response, errors: Loose) => {
   const [field, message] = Object.entries(errors)[0];
   return res.status(400).json({ field, message, errors });
 };
 
 // Create a new location (manage_users permission needed)
-app.post('/api/admin/locations', verifyAnyAuth, requireAction(LOCATIONS.ADD), async (req, res) => {
+app.post('/api/admin/locations', verifyAnyAuth, requireAction(LOCATIONS.ADD), async (req: Request, res: Response) => {
   try {
     const others = await Location.find({}, { name: 1, shortCode: 1 }).lean();
     const { record, errors } = parseLocationBody(req.body, { others });
@@ -2135,26 +2142,26 @@ app.post('/api/admin/locations', verifyAnyAuth, requireAction(LOCATIONS.ADD), as
       await location.save();
     } catch (err) {
       // Two people adding the same short name at once — the unique index wins.
-      if (err?.code === 11000) return locationError(res, { name: `${record.name} already exists` });
+      if ((err as Error & Loose)?.code === 11000) return locationError(res, { name: `${record.name} already exists` });
       throw err;
     }
 
     req.app.get('io').emit('location_update');
     res.status(201).json(location);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to create location', error: error.message });
+    res.status(500).json({ message: 'Failed to create location', error: (error as Error).message });
   }
 });
 
 // Update a location (manage_users permission needed). Everything but the
 // short name is editable — the name is the key stored on users, check-ins,
 // daily reports, etc., so renaming would orphan those records.
-app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDIT), async (req, res) => {
+app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDIT), async (req: Request, res: Response) => {
   try {
-    if (!mongoose.isValidObjectId(req.params.id)) {
+    if (!mongoose.isValidObjectId((req.params as ScalarParams).id)) {
       return res.status(404).json({ message: 'Location not found' });
     }
-    const location = await Location.findById(req.params.id);
+    const location = await Location.findById((req.params as ScalarParams).id);
     if (!location) {
       return res.status(404).json({ message: 'Location not found' });
     }
@@ -2170,14 +2177,14 @@ app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDI
     req.app.get('io').emit('location_update');
     res.json(location);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to update location', error: error.message });
+    res.status(500).json({ message: 'Failed to update location', error: (error as Error).message });
   }
 });
 
 // Delete a location (manage_users permission needed)
-app.delete('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.DELETE), async (req, res) => {
+app.delete('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.DELETE), async (req: Request, res: Response) => {
   try {
-    const locationId = req.params.id;
+    const locationId = (req.params as ScalarParams).id;
     const location = await Location.findById(locationId);
     if (!location) {
       return res.status(404).json({ message: 'Location not found' });
@@ -2192,13 +2199,13 @@ app.delete('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.DE
     
     res.json({ message: 'Location deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to delete location', error: error.message });
+    res.status(500).json({ message: 'Failed to delete location', error: (error as Error).message });
   }
 });
 
 
 // Logout endpoint
-app.post('/api/auth/logout', (req, res) => {
+app.post('/api/auth/logout', (req: Request, res: Response) => {
   clearPasswordSetup(res);
   res.clearCookie('adminToken', {
     httpOnly: true,
@@ -2209,7 +2216,7 @@ app.post('/api/auth/logout', (req, res) => {
 });
 
 // Verify token endpoint — returns 200 with valid:false when no token (avoids 401 noise on public pages)
-app.get('/api/auth/verify', (req, res) => {
+app.get('/api/auth/verify', (req: Request, res: Response) => {
   const adminToken = req.cookies.adminToken;
   const customerToken = req.cookies.customerToken;
   let authHeaderToken = null;
@@ -2222,7 +2229,7 @@ app.get('/api/auth/verify', (req, res) => {
   const effectiveAdminToken = adminToken || authHeaderToken;
   if (effectiveAdminToken) {
     try {
-      const decoded = jwt.verify(effectiveAdminToken, JWT_SECRET);
+      const decoded = (jwt.verify(effectiveAdminToken, JWT_SECRET) as jwt.JwtPayload);
       if (decoded.userId) {
         return res.json({
           valid: true,
@@ -2240,7 +2247,7 @@ app.get('/api/auth/verify', (req, res) => {
   const effectiveCustomerToken = customerToken || authHeaderToken;
   if (effectiveCustomerToken) {
     try {
-      const decoded = jwt.verify(effectiveCustomerToken, JWT_SECRET);
+      const decoded = (jwt.verify(effectiveCustomerToken, JWT_SECRET) as jwt.JwtPayload);
       if (decoded.type === 'customer' || decoded.type === 'internal') {
         return res.json({
           valid: true,
@@ -2261,7 +2268,7 @@ app.get('/api/auth/verify', (req, res) => {
 });
 
 // Get current user info (for admin/internal users)
-app.get('/api/user/me', authenticate, async (req, res) => {
+app.get('/api/user/me', authenticate, async (req: Request, res: Response) => {
   try {
     if (!req.userId) {
       return res.status(403).json({ message: 'Staff access required' });
@@ -2328,7 +2335,7 @@ app.use('/api/nav-order', createNavOrderRouter({ authenticate, requirePermission
 app.use('/api/geocode', createGeocodeRouter({ authenticate: [authenticate, requireSalesPage] }));
 
 // Contact form endpoint
-app.post('/api/contact', async (req, res) => {
+app.post('/api/contact', async (req: Request, res: Response) => {
   try {
     const { name, company, email, phone, message } = req.body;
 
@@ -2376,7 +2383,7 @@ app.post('/api/contact', async (req, res) => {
 });
 
 // Customer Registration Endpoint
-app.post('/api/customer/register', async (req, res) => {
+app.post('/api/customer/register', async (req: Request, res: Response) => {
   try {
     const { contactName, email, password, phone, company } = req.body;
 
@@ -2428,7 +2435,7 @@ app.post('/api/customer/register', async (req, res) => {
 });
 
 // Customer Login Endpoint
-app.post('/api/customer/login', loginLimiter, async (req, res) => {
+app.post('/api/customer/login', loginLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
@@ -2451,9 +2458,9 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     const loginIdentifier = email ? email.trim().toLowerCase() : '';
     console.log(`[${new Date().toISOString()}] 🔍 DB QUERY START: Finding account for "${loginIdentifier}" (Original: "${email}")`);
     const startQuery = Date.now();
-    let account;
+    let account: Loose | null;
     let accountType = 'customer';
-    let permissions = [];
+    let permissions: string[] = [];
 
     try {
       // Both lists at once, not customers-then-staff: a staff username never
@@ -2594,13 +2601,13 @@ app.post('/api/customer/login', loginLimiter, async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Login error details:', error);
-    console.error('Stack:', error.stack);
-    res.status(500).json({ message: `Login failed: ${error.message}` });
+    console.error('Stack:', (error as Error).stack);
+    res.status(500).json({ message: `Login failed: ${(error as Error).message}` });
   }
 });
 
 // Customer Middleware
-const verifyCustomer = (req, res, next) => {
+const verifyCustomer = (req: Request, res: Response, next: NextFunction) => {
   const token = req.cookies.customerToken;
 
   if (!token) {
@@ -2608,7 +2615,7 @@ const verifyCustomer = (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = (jwt.verify(token, JWT_SECRET) as jwt.JwtPayload);
     if (decoded.type !== 'customer' && decoded.type !== 'internal') {
       return res.status(401).json({ message: 'Invalid token type.' });
     }
@@ -2622,9 +2629,9 @@ const verifyCustomer = (req, res, next) => {
 };
 
 // Get current customer
-app.get('/api/customer/me', verifyCustomer, async (req, res) => {
+app.get('/api/customer/me', verifyCustomer, async (req: Request, res: Response) => {
   try {
-    let account;
+    let account: Loose | null;
     if (req.accountType === 'internal') {
       account = await User.findById(req.customerId).select('-password');
       // The same session rules authenticate applies to staff.
@@ -2639,7 +2646,7 @@ app.get('/api/customer/me', verifyCustomer, async (req, res) => {
       return res.status(404).json({ message: 'Account not found' });
     }
 
-    let permissions = [];
+    let permissions: string[] = [];
     if (req.accountType === 'internal') {
       const dbRole = await Role.findOne({ name: account.role });
       permissions = dbRole?.permissions || [];
@@ -2662,7 +2669,7 @@ app.get('/api/customer/me', verifyCustomer, async (req, res) => {
 
 // Customer Authentication Middleware
 // Customer Logout
-app.post('/api/customer/logout', (req, res) => {
+app.post('/api/customer/logout', (req: Request, res: Response) => {
   res.clearCookie('customerToken', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -2675,8 +2682,8 @@ app.post('/api/customer/logout', (req, res) => {
 // (Moved to top of file)
 
 // Helper: Standardized User Attribution
-const getPerformerInfo = async (req) => {
-  let id = '';
+const getPerformerInfo = async (req: Request) => {
+  let id: string | undefined = '';
   let name = '';
   let role = req.authType;
 
@@ -2695,14 +2702,14 @@ const getPerformerInfo = async (req) => {
 
 // Customer-accessible endpoint: Get all customers (for sales page)
 // Customer-accessible endpoint: Get all customers (for sales page) - Optimized (No images)
-app.get('/api/customers', authenticate, requirePermission('view_customers'), async (req, res) => {
+app.get('/api/customers', authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
+    const page = parseInt(String((req.query as ScalarQuery).page)) || 1;
+    const limit = parseInt(String((req.query as ScalarQuery).limit)) || 50;
     const skip = (page - 1) * limit;
-    const search = req.query.search || '';
+    const search = (req.query as ScalarQuery).search || '';
 
-    let query = {};
+    let query: Loose = {};
     if (search) {
       const safeSearch = escapeRegex(search);
       query = {
@@ -2716,7 +2723,7 @@ app.get('/api/customers', authenticate, requirePermission('view_customers'), asy
 
     const total = await Customer.countDocuments(query);
 
-    const customers = await Customer.aggregate([
+    const customers = await Customer.aggregate(([
       { $match: query },
       {
         $addFields: {
@@ -2734,7 +2741,7 @@ app.get('/api/customers', authenticate, requirePermission('view_customers'), asy
       { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: limit }
-    ]);
+    ] as mongoose.PipelineStage[]));
 
     res.json({
       customers,
@@ -2744,14 +2751,14 @@ app.get('/api/customers', authenticate, requirePermission('view_customers'), asy
     });
   } catch (error) {
     console.error('Error fetching customers:', error);
-    res.status(500).json({ message: 'Failed to fetch customers', error: error.message });
+    res.status(500).json({ message: 'Failed to fetch customers', error: (error as Error).message });
   }
 });
 
 // Get ALL customers for dropdown selection (minimal fields)
 // Every customer dropdown reads this (useCustomerOptions), on many screens, so
 // it answers anyone with a Sales page — not a website customer or a kiosk.
-app.get('/api/customers/dropdown', authenticate, requireSalesPage, async (req, res) => {
+app.get('/api/customers/dropdown', authenticate, requireSalesPage, async (req: Request, res: Response) => {
   try {
     const cached = cacheHit('customerDropdown');
     if (cached) return res.json(cached);
@@ -2768,7 +2775,7 @@ app.get('/api/customers/dropdown', authenticate, requireSalesPage, async (req, r
     res.json(cachePut('customerDropdown', customers));
   } catch (error) {
     console.error('Error fetching customers for dropdown:', error);
-    res.status(500).json({ message: 'Failed to fetch customers', error: error.message });
+    res.status(500).json({ message: 'Failed to fetch customers', error: (error as Error).message });
   }
 });
 
@@ -2782,9 +2789,9 @@ app.use('/api/customers', createCustomerMapRouter({
 }));
 
 // Get dashboard statistics (optimized aggregation)
-app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'), async (req, res) => {
+app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
   try {
-    const { timeRange = '7days', localDate } = req.query;
+    const { timeRange = '7days', localDate } = (req.query as ScalarQuery);
     const now = new Date();
 
     // Determine "Today" based on localDate from client or server now
@@ -2800,8 +2807,8 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
     const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-    let startDate = null;
-    let endDate = null;
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
 
     if (timeRange === '1day') {
       startDate = startOfTargetDay;
@@ -2846,7 +2853,7 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     const visitRangePrefilter = rangePrefilter(startDate, endDate, 'visits');
 
     // Aggregation for Visits Stats (Strictly by Visit Date)
-    const visitStatsQuery = Customer.aggregate([
+    const visitStatsQuery = Customer.aggregate(([
       ...visitPeopleBefore,
       ...(visitRangePrefilter ? [visitRangePrefilter] : []),
       ...slimForUnwind('visits'),
@@ -2888,21 +2895,21 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
           followUp: { $sum: 0 } // Move to separate aggregation
         }
       }
-    ]);
+    ] as mongoose.PipelineStage[]));
 
     // Separate Aggregation for Follow-Up Stats (Strictly by Follow-Up Date)
-    const followUpStatsQuery = Customer.aggregate([
+    const followUpStatsQuery = Customer.aggregate(([
       ...visitPeopleBefore,
       ...slimForUnwind('visits'),
       { $unwind: "$visits" },
       { $match: followUpDateMatchScoped },
       ...visitPeopleAfter,
       { $count: "count" }
-    ]);
+    ] as mongoose.PipelineStage[]));
 
     // Today's Schedule count
 
-    const scheduleCountQuery = Customer.aggregate([
+    const scheduleCountQuery = Customer.aggregate(([
       ...visitPeopleBefore,
       followUpDatePrefilter(todayStr),
       ...slimForUnwind('visits'),
@@ -2925,13 +2932,13 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
         }
       },
       { $count: "count" }
-    ]);
+    ] as mongoose.PipelineStage[]));
 
     // Resources follow the same people as visits: whoever uploaded each one.
     const resourceRange = getAggregationRangeMatch(startDate, endDate, "resources");
     const resourcePrefilter = rangePrefilter(startDate, endDate, 'resources');
     const resourcesOfPeople = peopleMatch(people, 'resources');
-    const resourceStatsQuery = Customer.aggregate([
+    const resourceStatsQuery = Customer.aggregate(([
       ...(resourcesOfPeople ? [peoplePrefilter(people, 'resources', idVariants)] : []),
       ...(resourcePrefilter ? [resourcePrefilter] : []),
       ...slimForUnwind('resources'),
@@ -2939,7 +2946,7 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
       ...(resourcesOfPeople ? [resourcesOfPeople] : []),
       { $match: resourceRange.$expr ? resourceRange : {} },
       { $count: "count" }
-    ]);
+    ] as mongoose.PipelineStage[]));
 
     // Count Unified Leads for current user (any Customer with a status set)
     const leadCountQuery = Customer.countDocuments({ 
@@ -2964,15 +2971,15 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     res.json(result);
   } catch (error) {
     console.error('Error calculating dashboard stats:', error);
-    res.status(500).json({ message: 'Failed to calculate dashboard stats', error: error.message });
+    res.status(500).json({ message: 'Failed to calculate dashboard stats', error: (error as Error).message });
   }
 });
 
 // Get dashboard visits (returns a flat list for all customers in range)
 // The dashboard's visit rows for the caller's scope, range and location; filterType 'followup'
 // swaps the date rule for the follow-up one. Shared by the list and the Follow-ups panel.
-const loadDashboardVisits = async (req, filterType) => {
-    const { timeRange = 'all', localDate } = req.query;
+const loadDashboardVisits = async (req: Request, filterType: string) => {
+    const { timeRange = 'all', localDate } = (req.query as ScalarQuery);
     const now = new Date();
 
     // Determine "Today" based on localDate from client or server now
@@ -2986,8 +2993,8 @@ const loadDashboardVisits = async (req, filterType) => {
     const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
     const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-    let startDate = null;
-    let endDate = null;
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
 
     if (timeRange === '1day') {
       startDate = startOfTargetDay;
@@ -3016,7 +3023,7 @@ const loadDashboardVisits = async (req, filterType) => {
     // Follow-ups have no early filter: getFollowUpRangeMatch also counts an
     // entry whose follow-up fields are missing, so nearly every visit passes.
     const visitPrefilter = filterType === 'followup' ? null : rangePrefilter(startDate, endDate, 'visits');
-    const visits = await Customer.aggregate([
+    const visits = await Customer.aggregate(([
       ...(visitsOfPeople ? [peoplePrefilter(people, 'visits', idVariants)] : []),
       ...(visitPrefilter ? [visitPrefilter] : []),
       ...slimForUnwind('visits'),
@@ -3077,14 +3084,14 @@ const loadDashboardVisits = async (req, filterType) => {
         }
       },
       { $sort: { date: -1, createdAt: -1 } }
-    ]);
+    ] as mongoose.PipelineStage[]));
 
     return visits;
 };
 
-app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard'), async (req, res) => {
+app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
   try {
-    res.json(await loadDashboardVisits(req, req.query.filterType));
+    res.json(await loadDashboardVisits(req, (req.query as ScalarQuery).filterType));
   } catch (error) {
     console.error('Error fetching dashboard visits:', error);
     res.status(500).json({ message: 'Failed to fetch dashboard visits' });
@@ -3093,10 +3100,10 @@ app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard
 
 // The Visits tab's Follow-ups panel: just the few follow-ups worth a glance, picked by
 // src/utils/followUpPanel.ts (due soonest, then recently overdue) — the browser no longer sorts them.
-app.get('/api/dashboard/followups/panel', authenticate, requirePermission('view_dashboard'), async (req, res) => {
+app.get('/api/dashboard/followups/panel', authenticate, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
   try {
     const rows = await loadDashboardVisits(req, 'followup');
-    const today = /^\d{4}-\d{2}-\d{2}$/.test(req.query.localDate || '') ? req.query.localDate : undefined;
+    const today = /^\d{4}-\d{2}-\d{2}$/.test((req.query as ScalarQuery).localDate || '') ? (req.query as ScalarQuery).localDate : undefined;
     res.json(pickPanelFollowUps(rows, today));
   } catch (error) {
     console.error('Error fetching follow-up panel:', error);
@@ -3105,9 +3112,9 @@ app.get('/api/dashboard/followups/panel', authenticate, requirePermission('view_
 });
 
 // Get dashboard resources (returns a flat list for all customers in range)
-app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashboard'), async (req, res) => {
+app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
   try {
-    const { timeRange = 'all', localDate } = req.query;
+    const { timeRange = 'all', localDate } = (req.query as ScalarQuery);
     const now = new Date();
 
     // Determine "Today" based on localDate from client or server now
@@ -3121,8 +3128,8 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
     const startOfTargetDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
     const endOfTargetDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-    let startDate = null;
-    let endDate = null;
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
 
     if (timeRange === '1day') {
       startDate = startOfTargetDay;
@@ -3142,7 +3149,7 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
     const rangeMatch = getAggregationRangeMatch(startDate, endDate, "resources");
 
     const resourcePrefilter = rangePrefilter(startDate, endDate, 'resources');
-    const resources = await Customer.aggregate([
+    const resources = await Customer.aggregate(([
       ...(resourcesOfPeople ? [peoplePrefilter(people, 'resources', idVariants)] : []),
       ...(resourcePrefilter ? [resourcePrefilter] : []),
       ...slimForUnwind('resources', ['city']),
@@ -3203,7 +3210,7 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
         }
       },
       { $sort: { date: -1, createdAt: -1 } }
-    ]);
+    ] as mongoose.PipelineStage[]));
 
     // Who logged each one, by name (the list's "Logged by" and its filter).
     const uploaderIds = [...new Set(resources.map(r => String(r.uploadedBy || '')).filter(id => /^[a-f0-9]{24}$/i.test(id)))];
@@ -3227,14 +3234,14 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
 // authenticates it. An iPhone shows the contact card (Create New Contact)
 // when it's served inline; everything else gets a download, so a laptop
 // browser doesn't just print the text.
-app.get('/api/customers/:id/vcard', authenticate, requirePermission('view_customers'), requireCustomerProfile, async (req, res) => {
+app.get('/api/customers/:id/vcard', authenticate, requirePermission('view_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
   try {
-    if (!/^[a-f0-9]{24}$/i.test(req.params.id)) return res.status(404).json({ message: 'Customer not found' });
-    const customer = await Customer.findById(req.params.id)
+    if (!/^[a-f0-9]{24}$/i.test((req.params as ScalarParams).id)) return res.status(404).json({ message: 'Customer not found' });
+    const customer = await Customer.findById((req.params as ScalarParams).id)
       .select('company contactName name phone email address city location salesRepName customerType contacts')
       .lean();
     if (!customer) return res.status(404).json({ message: 'Customer not found' });
-    const person = vcardPersonFor(customer, String(req.query.contact || 'primary'));
+    const person = vcardPersonFor(customer, String((req.query as ScalarQuery).contact || 'primary'));
     if (!person) return res.status(404).json({ message: 'Contact not found' });
 
     const fileName = vcardFileName(person);
@@ -3258,10 +3265,10 @@ app.use('/api/customers', createCustomerHistoryRouter({ authenticate, requirePer
 // ============================================
 
 // Link customer to a partner (bi-directional association)
-app.post('/api/customers/:customerId/associations', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req, res) => {
+app.post('/api/customers/:customerId/associations', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
   try {
     const { partnerId } = req.body;
-    const { customerId } = req.params;
+    const { customerId } = (req.params as ScalarParams);
 
     if (!partnerId) {
       return res.status(400).json({ message: 'partnerId is required' });
@@ -3290,7 +3297,7 @@ app.post('/api/customers/:customerId/associations', authenticate, requirePermiss
     res.json({ message: 'Association established successfully' });
   } catch (error) {
     console.error('Error establishing association:', error);
-    res.status(500).json({ message: 'Failed to establish association', error: error.message });
+    res.status(500).json({ message: 'Failed to establish association', error: (error as Error).message });
   }
 });
 
@@ -3298,9 +3305,9 @@ app.post('/api/customers/:customerId/associations', authenticate, requirePermiss
 // kept alongside delete_customers, same reasoning as DELETE /api/customers/:id
 // above: the client here has no permission check of its own, so dropping it
 // would silently break this for any role that predates delete_customers.
-app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), requireCustomerProfile, async (req, res) => {
+app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
   try {
-    const { customerId, partnerId } = req.params;
+    const { customerId, partnerId } = (req.params as ScalarParams);
 
     // Bi-directional unlink using $pull
     await Promise.all([
@@ -3311,7 +3318,7 @@ app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, r
     res.json({ message: 'Association removed successfully' });
   } catch (error) {
     console.error('Error removing association:', error);
-    res.status(500).json({ message: 'Failed to remove association', error: error.message });
+    res.status(500).json({ message: 'Failed to remove association', error: (error as Error).message });
   }
 });
 
@@ -3320,9 +3327,9 @@ app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, r
 // ============================================
 
 // Add contact to customer
-app.post('/api/customers/:customerId/contacts', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req, res) => {
+app.post('/api/customers/:customerId/contacts', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
   try {
-    const { customerId } = req.params;
+    const { customerId } = (req.params as ScalarParams);
     const { name, phone, email, role, notes } = req.body;
 
     const newContact = {
@@ -3359,7 +3366,7 @@ app.post('/api/customers/:customerId/contacts', authenticate, requirePermission(
 // The staff directory (names, usernames, emails, roles) — for staff screens
 // only. authenticate also admits customer logins, which used to be handed
 // the whole list.
-app.get('/api/salesreps', authenticate, requireSalesPage, async (req, res) => {
+app.get('/api/salesreps', authenticate, requireSalesPage, async (req: Request, res: Response) => {
   if (req.user?.type === 'customer') {
     return res.status(403).json({ error: 'Access denied.' });
   }
@@ -3399,12 +3406,12 @@ app.get('/api/salesreps', authenticate, requireSalesPage, async (req, res) => {
 });
 
 // Update contact
-app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req, res) => {
+app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
   try {
-    const { customerId, contactId } = req.params;
+    const { customerId, contactId } = (req.params as ScalarParams);
     const fields = req.body;
 
-    const updateData = {};
+    const updateData: Loose = {};
     const { id: updatedBy } = await getPerformerInfo(req);
     updateData[`contacts.$.updatedBy`] = updatedBy;
 
@@ -3436,9 +3443,9 @@ app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requireP
 // Get all dashboard resources (Support folder navigation)
 // The Dashboard's team resources: open to whoever can open the Dashboard
 // (view_dashboard), which is where they're listed, uploaded and changed.
-app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view_dashboard'), async (req, res) => {
+app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
   try {
-    const { parentId } = req.query;
+    const { parentId } = (req.query as ScalarQuery);
     const query = parentId ? { parentId } : { parentId: null };
 
 
@@ -3456,9 +3463,9 @@ app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view
 });
 
 // Get single resource (with full content)
-app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), async (req, res) => {
+app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
   try {
-    const resource = await SalesDashboardResource.findById(req.params.id).populate('uploadedBy', 'username');
+    const resource = await SalesDashboardResource.findById((req.params as ScalarParams).id).populate('uploadedBy', 'username');
     if (!resource) {
       return res.status(404).json({ message: 'Resource not found' });
     }
@@ -3469,7 +3476,7 @@ app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
 });
 
 // Upload a new resource (File, Link, or Folder)
-app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_dashboard'), uploadResources.single('file'), async (req, res) => {
+app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_dashboard'), uploadResources.single('file'), async (req: Request, res: Response) => {
   try {
     const { name, type, content: linkContent, isFolder, parentId, thumbnail } = req.body;
 
@@ -3495,7 +3502,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_d
 
       if (isImage) {
 
-        const result = await uploadToCloudinary(req.file.buffer, 'Resources', `res_${uniqueSuffix}`);
+        const result = await uploadToCloudinary(req.file!.buffer, 'Resources', `res_${uniqueSuffix}`);
         content = result.secure_url;
         contentType = 'image/webp';
       } else {
@@ -3503,7 +3510,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_d
         contentType = req.file.mimetype;
 
         const filePath = path.join(uploadDir, filename);
-        fs.writeFileSync(filePath, req.file.buffer);
+        fs.writeFileSync(filePath, req.file!.buffer);
         content = `/uploads/resources/${filename}`;
       }
     }
@@ -3541,9 +3548,9 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_d
 });
 
 // Update dashboard resource
-app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), uploadResources.single('file'), async (req, res) => {
+app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), uploadResources.single('file'), async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id } = (req.params as ScalarParams);
     const { name, type, content: linkContent, parentId, thumbnail } = req.body;
 
     const resource = await SalesDashboardResource.findById(id);
@@ -3579,7 +3586,7 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
       let filename = ''; // Declare filename here for both branches
       if (isImage) {
 
-        const result = await uploadToCloudinary(req.file.buffer, 'Resources', `res_${uniqueSuffix}`);
+        const result = await uploadToCloudinary(req.file!.buffer, 'Resources', `res_${uniqueSuffix}`);
         resource.content = result.secure_url;
         resource.contentType = 'image/webp';
       } else {
@@ -3587,7 +3594,7 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
         resource.contentType = req.file.mimetype;
 
         const filePath = path.join(uploadDir, filename);
-        fs.writeFileSync(filePath, req.file.buffer);
+        fs.writeFileSync(filePath, req.file!.buffer);
         resource.content = `/uploads/resources/${filename}`;
       }
     } else if (type === 'link' && linkContent) {
@@ -3607,9 +3614,9 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
 });
 
 // Delete dashboard resource (Recursive for folders)
-app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), async (req, res) => {
+app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
   try {
-    const resourceId = req.params.id;
+    const resourceId = (req.params as ScalarParams).id;
     const resource = await SalesDashboardResource.findById(resourceId);
 
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
@@ -3621,7 +3628,7 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermissio
       // For simplicity, we'll just delete direct children or use a recursive function.
       // Let's implement a helper function for recursive delete.
 
-      const deleteFolderContents = async (folderId) => {
+      const deleteFolderContents = async (folderId: unknown) => {
         const children = await SalesDashboardResource.find({ parentId: folderId });
         for (const child of children) {
           if (child.isFolder) {
@@ -3656,7 +3663,7 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermissio
 
 // ============================================
 // GET DISTINCT CITIES (For dropdown checklists)
-app.get(['/api/customers/cities', '/api/partners/cities'], authenticate, requirePermission('view_customers'), async (req, res) => {
+app.get(['/api/customers/cities', '/api/partners/cities'], authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
   try {
     const cities1 = await Customer.distinct('city');
     const cities2 = await Customer.distinct('address.city');
@@ -3674,10 +3681,10 @@ app.get(['/api/customers/cities', '/api/partners/cities'], authenticate, require
 // CUSTOMER LIST (Spreadsheet Data Source with Pagination & Search)
 // The customer list (Customers page). /api/partners is the old address, kept
 // until cached apps have updated.
-app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermission('view_customers'), async (req, res) => {
+app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limitInput = parseInt(req.query.limit);
+    const page = parseInt(String((req.query as ScalarQuery).page)) || 1;
+    const limitInput = parseInt(String((req.query as ScalarQuery).limit));
     // Everyone sees the same list screen, but only Export holders may pull the
     // whole list (limit -1) or more than a page of 100; Full profile holders
     // alone may filter, sort or view by what the profile holds (level, Moda,
@@ -3688,23 +3695,23 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
       return res.status(403).json({ message: 'Exporting the customer list needs the Export permission.' });
     }
     const limit = isNaN(limitInput) ? 50 : (mayExport ? limitInput : Math.min(Math.max(limitInput, 1), 100));
-    const search = req.query.search || '';
-    const filterLevel = mayProfile ? (req.query.level || '') : '';
-    const filterType = req.query.type || '';
-    const filterTypeExclude = req.query.typeExclude || ''; // comma-separated types to exclude
-    const filterCity = req.query.city || '';
-    const filterStatus = req.query.status || '';
-    const filterSalesRep = req.query.salesRep || '';
-    const filterLocation = req.query.location || '';
-    const filterView = mayProfile && isSavedView(req.query.view) ? req.query.view : '';
-    const filterLetter = req.query.letter || '';
-    const filterModa = mayProfile ? (req.query.moda || '') : '';
+    const search = (req.query as ScalarQuery).search || '';
+    const filterLevel = mayProfile ? ((req.query as ScalarQuery).level || '') : '';
+    const filterType = (req.query as ScalarQuery).type || '';
+    const filterTypeExclude = (req.query as ScalarQuery).typeExclude || ''; // comma-separated types to exclude
+    const filterCity = (req.query as ScalarQuery).city || '';
+    const filterStatus = (req.query as ScalarQuery).status || '';
+    const filterSalesRep = (req.query as ScalarQuery).salesRep || '';
+    const filterLocation = (req.query as ScalarQuery).location || '';
+    const filterView = mayProfile && isSavedView((req.query as ScalarQuery).view) ? (req.query as ScalarQuery).view : '';
+    const filterLetter = (req.query as ScalarQuery).letter || '';
+    const filterModa = mayProfile ? ((req.query as ScalarQuery).moda || '') : '';
     const skip = (page - 1) * limit;
 
-    let query = {};
+    let query: Loose = {};
 
     // Build filter conditions
-    const filterConditions = [];
+    const filterConditions: Loose[] = [];
 
     if (search) {
       const safeSearch = escapeRegex(search);
@@ -3740,7 +3747,7 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
     // Moda Resources: display = 'Yes'/'No', binders = a count stored as a string.
     if (filterModa) {
       const wanted = filterModa.split(',').map(m => m.trim());
-      const modaOrs = [];
+      const modaOrs: Loose[] = [];
       if (wanted.includes('display')) modaOrs.push({ modaDisplay: 'Yes' });
       if (wanted.includes('noDisplay')) modaOrs.push({ modaDisplay: { $ne: 'Yes' } });
       if (wanted.includes('binders')) modaOrs.push({ modaBinder: { $nin: [null, '', '0'] } });
@@ -3764,8 +3771,8 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
     if (filterType) {
       const types = filterType.split(',').map(t => t.trim()).filter(Boolean);
       if (types.length > 0) {
-        const orConditions = [];
-        const nonFabricatorTypes = [];
+        const orConditions: Loose[] = [];
+        const nonFabricatorTypes: Loose[] = [];
         let hasFabricator = false;
 
         types.forEach(t => {
@@ -3817,7 +3824,7 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
     if (filterCity) {
       const cities = filterCity.split(',').map(c => c.trim()).filter(Boolean);
       if (cities.length > 0) {
-        const cityOrs = [];
+        const cityOrs: Loose[] = [];
         cities.forEach(c => {
           cityOrs.push(
             { city: { $regex: c, $options: 'i' } },
@@ -3838,7 +3845,7 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
         .filter(r => mongoose.Types.ObjectId.isValid(r))
         .map(r => new mongoose.Types.ObjectId(r));
 
-      const repOrs = [];
+      const repOrs: Loose[] = [];
       if (repIds.length > 0) repOrs.push({ salesRep: { $in: repIds } });
       if (wantsUnassigned) repOrs.push({ salesRep: { $in: [null] } });
 
@@ -3865,12 +3872,12 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
       query = filterConditions.length === 1 ? filterConditions[0] : { $and: filterConditions };
     }
 
-    const sortBy = mayProfile ? (req.query.sortBy || 'level') : (req.query.sortBy === 'level' || !req.query.sortBy ? 'company' : req.query.sortBy);
-    const sortOrder = req.query.sortOrder === 'desc' ? -1 : 1;
+    const sortBy = mayProfile ? ((req.query as ScalarQuery).sortBy || 'level') : ((req.query as ScalarQuery).sortBy === 'level' || !(req.query as ScalarQuery).sortBy ? 'company' : (req.query as ScalarQuery).sortBy);
+    const sortOrder = (req.query as ScalarQuery).sortOrder === 'desc' ? -1 : 1;
 
     // Build the dynamic sort stage. Low-priority statuses always float to the bottom,
     // and we sort by the chosen sortBy field within those groupings.
-    const sortStage = { sortPriority: 1 };
+    const sortStage: Record<string, 1 | -1> = { sortPriority: 1 };
     if (sortBy === 'company') {
       sortStage.normalizedCompany = sortOrder;
     } else if (sortBy === 'level') {
@@ -3949,9 +3956,9 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
     const countContacts = { $addFields: { contactsCount: { $size: { $ifNull: ['$contacts', []] } } } };
 
     const customers = await Customer.aggregate(
-      limit === -1
+      (limit === -1
         ? [{ $match: query }, sortFields, { $sort: sortStage }, countContacts, hideHeavyFields]
-        : [{ $match: query }, sortFields, { $sort: sortStage }, { $skip: skip }, { $limit: limit }, countContacts, hideHeavyFields]
+        : [{ $match: query }, sortFields, { $sort: sortStage }, { $skip: skip }, { $limit: limit }, countContacts, hideHeavyFields] as mongoose.PipelineStage[])
     );
 
     res.json({
@@ -3968,7 +3975,7 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
 
 // The Fabricators / Partners tab, as a query. Same rule as the type/typeExclude
 // handling in GET /api/partners: a record with no type is a Fabricator.
-const partnersTabQuery = (tab) => (tab === 'partners'
+const partnersTabQuery = (tab: string) => (tab === 'partners'
   ? {
     $and: [
       { customerType: { $exists: true } },
@@ -3987,11 +3994,11 @@ const partnersTabQuery = (tab) => (tab === 'partners'
   });
 
 // Counts for the customer list's saved views, within one tab.
-app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticate, requirePermission('view_customers'), async (req, res) => {
+app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
   try {
     // Saved views read the profile (follow-ups, levels), so they're Full profile's.
     if (!canViewCustomerProfile(req.user)) return res.json({});
-    const base = partnersTabQuery(req.query.tab);
+    const base = partnersTabQuery((req.query as ScalarQuery).tab);
     const opts = {
       userId: req.userId,
       today: pacificToday(),
@@ -4029,7 +4036,7 @@ app.use('/api/customers', createCustomerSpsImportRouter({
 
 // Bulk "Assign rep" / "Set status" from the customer list's selection bar.
 // Only these two fields, so a selection can't be used to rewrite anything else.
-app.patch(['/api/customers/bulk', '/api/partners/bulk'], authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.patch(['/api/customers/bulk', '/api/partners/bulk'], authenticate, requirePermission('manage_customers'), async (req: Request, res: Response) => {
   try {
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
     const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
@@ -4040,7 +4047,7 @@ app.patch(['/api/customers/bulk', '/api/partners/bulk'], authenticate, requirePe
       return res.status(400).json({ message: 'Too many customers in one change (500 max)' });
     }
 
-    const update = {};
+    const update: Loose = {};
     if (req.body.status !== undefined) {
       if (!STATUSES.includes(req.body.status)) {
         return res.status(400).json({ message: 'Unknown status' });
@@ -4074,7 +4081,7 @@ app.patch(['/api/customers/bulk', '/api/partners/bulk'], authenticate, requirePe
 // Possible duplicates of a customer being added (or edited), by the same
 // signals the import and the duplicate audit use. Returns the strong matches
 // only — a shared email domain alone isn't worth interrupting someone for.
-app.post(['/api/customers/possible-duplicates', '/api/partners/possible-duplicates'], authenticate, requirePermission('view_customers'), async (req, res) => {
+app.post(['/api/customers/possible-duplicates', '/api/partners/possible-duplicates'], authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
   try {
     const probe = {
       company: String(req.body?.company || ''),
@@ -4115,7 +4122,7 @@ app.post(['/api/customers/possible-duplicates', '/api/partners/possible-duplicat
 // old addresses of the two creates this replaced, kept until cached apps have
 // updated. The fields allowed and their defaults are in customerRecord.js;
 // the rep's name and the map point are derived here, never taken from the body.
-app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authenticate, requirePermission('view_customers', 'add_customers'), async (req, res) => {
+app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authenticate, requirePermission('view_customers', 'add_customers'), async (req: Request, res: Response) => {
   try {
     const { fields, error } = newCustomerFields(req.body);
     if (error) return res.status(400).json({ message: error });
@@ -4133,23 +4140,23 @@ app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authentica
           status: 'ok',
           precision: Object.values(GEOCODE_PRECISION).includes(req.body.precision) ? req.body.precision : GEOCODE_PRECISION.APPROXIMATE,
           formattedAddress: '',
-          addressKey: addressKeyOf(fields.address),
+          addressKey: addressKeyOf(fields!.address),
           updatedAt: new Date(),
           error: ''
         }
       }
-      : await geocodeAddress(fields.address);
+      : await geocodeAddress(fields!.address);
 
     const newCustomer = new Customer({ ...fields, ...rep, ...geo, createdBy: req.userId });
     await newCustomer.save();
     req.app.get('io').emit('customer_update');
     res.status(201).json(await customerHistoryResponse(req, newCustomer));
   } catch (error) {
-    if (error.code === 11000) {
+    if ((error as Error & Loose).code === 11000) {
       return res.status(400).json({ message: 'A customer with this email already exists.' });
     }
     console.error('Error creating customer:', error);
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ message: (error as Error).message });
   }
 });
 
@@ -4157,7 +4164,7 @@ app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authentica
 // address. Password, login state, the map point and the rep's name are never
 // taken from the body (customerUpdateFields) — findByIdAndUpdate skips the
 // schema's bcrypt hook, so a password sent here used to be stored as typed.
-app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermission('manage_customers'), async (req: Request, res: Response) => {
   try {
     const allUpdates = customerUpdateFields(req.body);
     // Without Full profile an edit can only change the basic card: a form that
@@ -4176,7 +4183,7 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
     // a nested object wholesale and a city-only edit would otherwise drop the
     // street; and the key the stored point came from, because re-geocoding is
     // only worth paying for when the address actually moved.
-    const existing = await Customer.findById(req.params.id).select('address geocode').lean();
+    const existing = await Customer.findById((req.params as ScalarParams).id).select('address geocode').lean();
     if (!existing) {
       return res.status(404).json({ message: 'Customer not found' });
     }
@@ -4196,7 +4203,7 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
     }
 
     const updatedCustomer = await Customer.findByIdAndUpdate(
-      req.params.id,
+      (req.params as ScalarParams).id,
       updateData,
       { new: true, runValidators: true }
     );
@@ -4209,19 +4216,19 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
     res.json(await customerHistoryResponse(req, updatedCustomer));
   } catch (error) {
     console.error('Error updating unified lead:', error);
-    res.status(400).json({ message: error.message });
+    res.status(400).json({ message: (error as Error).message });
   }
 });
 
 // Delete a lead (Customer) — the Delete switch only (canDeleteCustomers in
 // customerAccess.js, which the screens use too); Edit no longer implies it.
-app.delete(['/api/customers/:id', '/api/partners/:id'], authenticate, (req, res, next) => (
+app.delete(['/api/customers/:id', '/api/partners/:id'], authenticate, (req: Request, res: Response, next: NextFunction) => (
   canDeleteCustomers(req.user) ? next() : res.status(403).json({ error: 'Access denied. Your role cannot delete customers.' })
-), async (req, res) => {
+), async (req: Request, res: Response) => {
   try {
     // Saved whole before it goes (customerdeletebackups), so the SPS import
     // can say who deleted it and when and offer to bring it back.
-    const saved = await backupAndDeleteCustomer(req.params.id, req.user?.username || req.user?.name || '');
+    const saved = await backupAndDeleteCustomer((req.params as ScalarParams).id, req.user?.username || req.user?.name || '');
     if (!saved) {
       return res.status(404).json({ message: 'Customer not found' });
     }
@@ -4253,7 +4260,7 @@ const getNowLocalISO = () => {
   });
 
   const parts = formatter.formatToParts(now);
-  const getPart = (type) => parts.find(p => p.type === type).value;
+  const getPart = (type: Intl.DateTimeFormatPartTypes) => parts.find(p => p.type === type)!.value;
 
   return `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour')}:${getPart('minute')}:${getPart('second')}.${String(now.getMilliseconds()).padStart(3, '0')}`;
 };
@@ -4265,14 +4272,14 @@ const getNowLocalISO = () => {
 app.use('/api/customers', createVisitsRouter({
   authenticate, requirePermission, requireAnyPermission,
   processBase64Image, getPerformerInfo, getNowLocalISO,
-  emitScheduleUpdate: (...args) => emitScheduleUpdate(...args)
+  emitScheduleUpdate: (...args: Parameters<typeof emitScheduleUpdate>) => emitScheduleUpdate(...args)
 }));
 
 // Delete visit
 // Delete visit
-app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAnyPermission(...ANY_DELETE_VISIT_PERMISSIONS), async (req, res) => {
+app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAnyPermission(...ANY_DELETE_VISIT_PERMISSIONS), async (req: Request, res: Response) => {
   try {
-    const { customerId, visitId } = req.params;
+    const { customerId, visitId } = (req.params as ScalarParams);
 
     // Get performer information
     // Get performer information
@@ -4325,7 +4332,7 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAn
       console.error('Failed to log visit deletion:', logError);
     }
   } catch (error) {
-    if (error instanceof PlacementConflict) return res.status(error.status).json({ message: error.message });
+    if (error instanceof PlacementConflict) return res.status((error as Error & Loose).status).json({ message: (error as Error).message });
     console.error('Delete visit error:', error);
     res.status(500).json({ message: 'Failed to delete visit' });
   }
@@ -4367,7 +4374,7 @@ app.use('/api', createDeliveriesRouter({
   // handler — would hit the temporal dead zone before it's initialized. This
   // arrow function only reads it when actually called, by which point the
   // whole module has finished loading.
-  processBase64Images: (...args) => processBase64Images(...args),
+  processBase64Images: (...args: Parameters<typeof processBase64Images>) => processBase64Images(...args),
   getNowLocalISO
 }));
 
@@ -4396,7 +4403,7 @@ const reconcileFreight = async () => {
     const r = await freightSync.reconcile();
     if (r.create || r.update || r.error) console.log('[accounting] freight catch-up:', r);
   } catch (err) {
-    console.error('[accounting] freight catch-up failed:', err?.message || err);
+    console.error('[accounting] freight catch-up failed:', (err as Error)?.message || err);
   } finally {
     freightReconcileRunning = false;
   }
@@ -4406,7 +4413,7 @@ const reconcileFreight = async () => {
 // reserve slabs for a customer. Every route checks its own Users & Roles
 // permission; one active hold per slab is enforced by a unique index.
 app.use('/api/holds', createHoldsRouter({ authenticate }));
-const holdExpiry = createHoldExpiry({ io: { emit: (...args) => app.get('io')?.emit(...args) } });
+const holdExpiry = createHoldExpiry({ io: { emit: (...args: [string, ...unknown[]]) => app.get('io')?.emit(...args) } });
 let holdExpiryRunning = false;
 const runHoldExpiry = async () => {
   if (holdExpiryRunning) return;
@@ -4415,7 +4422,7 @@ const runHoldExpiry = async () => {
     const r = await holdExpiry.run();
     if (r.noted || r.released) console.log('[holds] expiry:', r);
   } catch (err) {
-    console.error('[holds] expiry run failed:', err?.message || err);
+    console.error('[holds] expiry run failed:', (err as Error)?.message || err);
   } finally {
     holdExpiryRunning = false;
   }
@@ -4436,9 +4443,9 @@ const permitSync = createPermitSync({
 app.use('/api/permits', createPermitsRouter({ authenticate, sync: permitSync, contractors: contractorRegistry }));
 
 // Toggle reaction on visit
-app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requirePermission('view_customers'), async (req, res) => {
+app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
   try {
-    const { customerId, visitId } = req.params;
+    const { customerId, visitId } = (req.params as ScalarParams);
     const { type } = req.body;
 
     // Get user info from auth middleware
@@ -4520,8 +4527,8 @@ app.use('/api/customers', createCustomerResourcesRouter({
   authenticate, requirePermission, requireAnyPermission,
   getPerformerInfo: (...args) => getPerformerInfo(...args),
   getNowLocalISO: () => getNowLocalISO(),
-  processBase64Images: (...args) => processBase64Images(...args),
-  emitScheduleUpdate: (...args) => emitScheduleUpdate(...args)
+  processBase64Images: (...args: Parameters<typeof processBase64Images>) => processBase64Images(...args),
+  emitScheduleUpdate: (...args: Parameters<typeof emitScheduleUpdate>) => emitScheduleUpdate(...args)
 }));
 
 // ============================================
@@ -4570,11 +4577,11 @@ const loadImportReferenceData = async () => {
  * this upload's own answers folded in (see planCustomerImport's comments, which
  * this was lifted from so the SPS import reads names the very same way).
  */
-const buildImportReference = async ({ repAliases = {}, branchAliases = {} } = {}) => {
+const buildImportReference = async ({ repAliases = {}, branchAliases = {} }: { repAliases?: Loose; branchAliases?: Loose } = {}) => {
   const reference = await loadImportReferenceData();
   const memory = await ImportMemory.findOne({ kind: 'customer' }).lean();
   // A lean() Map field can come back as either, depending on the driver.
-  const asObject = (m) => (m instanceof Map ? Object.fromEntries(m) : (m || {}));
+  const asObject = (m: Loose | Map<string, unknown> | null | undefined) => (m instanceof Map ? Object.fromEntries(m) : (m || {}));
   const savedReps = asObject(memory?.repAliases);
   const savedBranches = asObject(memory?.branchAliases);
 
@@ -4594,7 +4601,7 @@ const buildImportReference = async ({ repAliases = {}, branchAliases = {} } = {}
   // upload's own answers go in after and override both. false / '' are the
   // "decided: nobody" answers buildImportPlan stops asking about.
   const repById = new Map([...reference.repByKey.values()].map(r => [String(r.salesRep), r]));
-  const resolveRep = (userId) => (userId === '' || userId === IMPORT_UNASSIGNED ? false : repById.get(String(userId)));
+  const resolveRep = (userId: unknown) => (userId === '' || userId === IMPORT_UNASSIGNED ? false : repById.get(String(userId)));
   for (const [key, userId] of Object.entries(savedReps)) {
     if (reference.repByKey.has(key)) continue;
     const rep = resolveRep(userId);
@@ -4606,7 +4613,7 @@ const buildImportReference = async ({ repAliases = {}, branchAliases = {} } = {}
   }
 
   const branches = [...new Set(reference.branchByKey.values())];
-  const resolveBranch = (branch) => (branch === '' || branch === IMPORT_DEFAULT_BRANCH ? '' : (branches.includes(branch) ? branch : undefined));
+  const resolveBranch = (branch: unknown) => (branch === '' || branch === IMPORT_DEFAULT_BRANCH ? '' : (branches.includes(branch) ? branch : undefined));
   for (const [key, branch] of Object.entries(savedBranches)) {
     if (reference.branchByKey.has(key)) continue;
     const resolved = resolveBranch(branch);
@@ -4629,11 +4636,11 @@ const buildImportReference = async ({ repAliases = {}, branchAliases = {} } = {}
  * two calls is still matched, and nothing the client edits can decide which
  * record gets written.
  */
-const planCustomerImport = async (req) => {
+const planCustomerImport = async (req: Request) => {
   // An absent field parses to {}, which every consumer reads as "nothing was
   // overridden" — the same answer as not asking.
-  const parse = (field) => (req.body[field] ? JSON.parse(req.body[field]) : {});
-  const { headers, rows, parse: parsed } = await runWorkbookParse('customer', req.file.buffer);
+  const parse = (field: string) => (req.body[field] ? JSON.parse(req.body[field]) : {});
+  const { headers, rows, parse: parsed } = await runWorkbookParse('customer', req.file!.buffer);
   const mapping = resolveImportMapping(headers, parse('mapping'));
   const { reference, memory, asObject, savedReps, savedBranches, realRepKeys, realBranchKeys, repById, branches } =
     await buildImportReference({ repAliases: parse('repAliases'), branchAliases: parse('branchAliases') });
@@ -4646,8 +4653,8 @@ const planCustomerImport = async (req) => {
 
   // How many of this sheet's names were answered from memory, for the
   // preview's "using saved choices" line.
-  const sheetKeys = (field) => new Set(rows.map(r => importNormalize(mapping[field] ? r[mapping[field]] : '')).filter(Boolean));
-  const countRemembered = (field, realKeys, saved) =>
+  const sheetKeys = (field: string) => new Set(rows.map(r => importNormalize(mapping[field] ? r[mapping[field]] : '')).filter(Boolean));
+  const countRemembered = (field: string, realKeys: Set<string>, saved: Record<string, unknown>) =>
     [...sheetKeys(field)].filter(k => !realKeys.has(k) && Object.prototype.hasOwnProperty.call(saved, k)).length;
 
   // Step 2 of the SPS import redesign: is the file readable in full, and how
@@ -4682,10 +4689,10 @@ const planCustomerImport = async (req) => {
  * plan actually honoured are filed — one naming a record the row didn't match
  * was ignored by buildImportPlan, and is ignored here too.
  */
-const saveImportMemory = async (req, plan, createdByRow) => {
-  const parse = (field) => (req.body[field] ? JSON.parse(req.body[field]) : {});
+const saveImportMemory = async (req: Request, plan: Loose, createdByRow: Loose) => {
+  const parse = (field: string) => (req.body[field] ? JSON.parse(req.body[field]) : {});
   const repIds = new Set(plan.reps.map(r => String(r._id)));
-  const set = {};
+  const set: Loose = {};
 
   for (const [given, userId] of Object.entries(parse('repAliases'))) {
     const key = importNormalize(given);
@@ -4723,8 +4730,8 @@ const saveImportMemory = async (req, plan, createdByRow) => {
  * the way saveImportMemory files the old import's, so the next upload (of
  * either import) doesn't ask again.
  */
-const rememberImportAliases = async ({ repAliases = {}, branchAliases = {}, repIds, branches, by = '' }) => {
-  const set = {};
+const rememberImportAliases = async ({ repAliases = {}, branchAliases = {}, repIds, branches, by = '' }: { repAliases?: Loose; branchAliases?: Loose; repIds: Loose; branches: string[]; by?: string }) => {
+  const set: Loose = {};
   for (const [given, userId] of Object.entries(repAliases)) {
     const key = importNormalize(given);
     if (!key) continue;
@@ -4747,11 +4754,11 @@ const rememberImportAliases = async ({ repAliases = {}, branchAliases = {}, repI
  * can act on them. Only groups where two independent signals agree; below that
  * a group is a question, not a finding, and the list stops being worth reading.
  */
-const existingDuplicateReport = (existing) => {
-  const byId = new Map(existing.map(c => [String(c._id), c]));
+const existingDuplicateReport = (existing: Loose[]) => {
+  const byId = new Map<string, Loose>(existing.map(c => [String(c._id), c]));
   // Pairs someone already said are separate accounts drop out, so a group
   // only shows what's still undecided.
-  const separatedFrom = new Map(existing.map(c => [String(c._id), new Set((c.notDuplicateOf || []).map(String))]));
+  const separatedFrom = new Map(existing.map(c => [String(c._id), new Set<string>((c.notDuplicateOf || []).map(String))]));
   return groupDuplicates(existing)
     .filter(g => g.score >= STRONG)
     .map(g => ({ ...g, ids: withoutSeparated(g.ids, separatedFrom) }))
@@ -4763,8 +4770,8 @@ const existingDuplicateReport = (existing) => {
       // Oldest first: that's the record the team has most likely been using,
       // so it's the screen's default "keep" — same tie-break the merge script uses.
       members: g.ids
-        .map(id => byId.get(id))
-        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+        .map(id => byId.get(id)!)
+        .sort((a, b) => new Date(a!.createdAt).getTime() - new Date(b!.createdAt).getTime())
         .map(c => ({
           id: String(c._id),
           label: importLabel(c),
@@ -4789,12 +4796,12 @@ const existingDuplicateReport = (existing) => {
  * Everything touched is snapshotted to customermergebackups first, and the
  * response carries its id for the Undo button.
  */
-app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/resolve'], verifyToken, requirePermission('manage_customers'), async (req, res) => {
+app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/resolve'], verifyToken, requirePermission('manage_customers'), async (req: Request, res: Response) => {
   try {
     const { keepId, actions } = req.body || {};
-    const entries = Object.entries(actions || {});
+    const entries = Object.entries(actions || {}) as [string, string][];
     const VALID = ['merge', 'delete', 'separate'];
-    if (!keepId || !entries.length || entries.some(([id, a]) => !VALID.includes(a) || id === keepId)) {
+    if (!keepId || !entries.length || entries.some(([id, a]) => !VALID.includes(a as string) || id === keepId)) {
       return res.status(400).json({ message: 'Choose a record to keep, and merge, delete or keep separate for each of the others.' });
     }
     // Removing a customer — by merge or by delete — is what delete_customers
@@ -4804,7 +4811,7 @@ app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/
       return res.status(403).json({ message: 'Merging or deleting a customer needs the delete_customers permission.' });
     }
 
-    const db = mongoose.connection.db;
+    const db = mongoose.connection.db!;
     const ids = [keepId, ...entries.map(([id]) => id)];
     if (!ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
       return res.status(400).json({ message: 'Unknown customer id' });
@@ -4817,12 +4824,12 @@ app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/
       return res.status(409).json({ message: 'One of these customers no longer exists — refresh the preview.' });
     }
 
-    const survivor = byId.get(keepId);
-    const merging = entries.filter(([, a]) => a === 'merge').map(([id]) => byId.get(id));
-    const deleting = entries.filter(([, a]) => a === 'delete').map(([id]) => byId.get(id));
+    const survivor = byId.get(keepId)!;
+    const merging = entries.filter(([, a]) => a === 'merge').map(([id]) => byId.get(id)!);
+    const deleting = entries.filter(([, a]) => a === 'delete').map(([id]) => byId.get(id)!);
     const separate = entries.filter(([, a]) => a === 'separate').map(([id]) => id);
     const who = req.user?.username || '';
-    const undoIds = [];
+    const undoIds: string[] = [];
 
     // Delete runs first and the merge snapshots after it, so an undo of the
     // merge restores the survivor as it was after the delete — the two undo
@@ -4834,7 +4841,7 @@ app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/
       undoIds.push(String(backup._id));
     }
     if (merging.length) {
-      const current = await db.collection('customers').findOne({ _id: survivor._id });
+      const current = (await db.collection('customers').findOne({ _id: survivor._id }))!;
       const { set } = planFields(current, merging);
       const newContacts = contactsFromLosers(set.email ?? current.email, current, merging);
       const snap = await snapshotMerge(db, current, merging);
@@ -4856,13 +4863,13 @@ app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/
     });
   } catch (error) {
     console.error('Resolve duplicate customers error:', error);
-    res.status(500).json({ message: `Could not resolve these duplicates: ${error.message}` });
+    res.status(500).json({ message: `Could not resolve these duplicates: ${(error as Error).message}` });
   }
 });
 
 // Put back what one resolve removed. Undone newest first, so a merge that
 // followed a delete in the same click is reversed before the delete is.
-app.post(['/api/customers/duplicates/undo', '/api/admin/customers/duplicates/undo'], verifyToken, requirePermission('manage_customers', 'delete_customers'), async (req, res) => {
+app.post(['/api/customers/duplicates/undo', '/api/admin/customers/duplicates/undo'], verifyToken, requirePermission('manage_customers', 'delete_customers'), async (req: Request, res: Response) => {
   try {
     const ids = Array.isArray(req.body?.undoIds) ? req.body.undoIds : [];
     if (!ids.length || !ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
@@ -4873,7 +4880,7 @@ app.post(['/api/customers/duplicates/undo', '/api/admin/customers/duplicates/und
     if (backups.length !== ids.length) {
       return res.status(409).json({ message: 'This has already been undone.' });
     }
-    const db = mongoose.connection.db;
+    const db = mongoose.connection.db!;
     for (const b of backups) {
       await undoMerge(db, b.group);
       b.undoneAt = new Date();
@@ -4883,12 +4890,12 @@ app.post(['/api/customers/duplicates/undo', '/api/admin/customers/duplicates/und
     res.json({ success: true, restored: backups.reduce((n, b) => n + (b.group.losers?.length || 0), 0) });
   } catch (error) {
     console.error('Undo duplicate resolve error:', error);
-    res.status(500).json({ message: `Undo failed: ${error.message}` });
+    res.status(500).json({ message: `Undo failed: ${(error as Error).message}` });
   }
 });
 
 // Preview an import: parse, match, and report what would happen. Writes nothing.
-app.post(['/api/customers/import/preview', '/api/admin/customers/import/preview'], verifyToken, requirePermission('view_customers', 'import_customers'), uploadMemory.single('file'), async (req, res) => {
+app.post(['/api/customers/import/preview', '/api/admin/customers/import/preview'], verifyToken, requirePermission('view_customers', 'import_customers'), uploadMemory.single('file'), async (req: Request, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
@@ -4912,20 +4919,20 @@ app.post(['/api/customers/import/preview', '/api/admin/customers/import/preview'
     });
   } catch (error) {
     console.error('Customer import preview error:', error);
-    res.status(400).json({ message: `Preview failed: ${error.message}` });
+    res.status(400).json({ message: `Preview failed: ${(error as Error).message}` });
   }
 });
 
 // Forget every remembered rep mapping, branch mapping and review decision —
 // the way back from one that turned out wrong, since a remembered answer
 // stops being asked about and so has no dropdown left to change it in.
-app.delete(['/api/customers/import/memory', '/api/admin/customers/import/memory'], verifyToken, requirePermission('view_customers', 'import_customers'), async (req, res) => {
+app.delete(['/api/customers/import/memory', '/api/admin/customers/import/memory'], verifyToken, requirePermission('view_customers', 'import_customers'), async (req: Request, res: Response) => {
   try {
     await ImportMemory.deleteOne({ kind: 'customer' });
     res.json({ success: true });
   } catch (error) {
     console.error('Customer import memory reset error:', error);
-    res.status(500).json({ message: `Could not forget saved choices: ${error.message}` });
+    res.status(500).json({ message: `Could not forget saved choices: ${(error as Error).message}` });
   }
 });
 
@@ -4937,7 +4944,7 @@ const IMPORT_WRITE_BATCH = 500;
  * whole point of flagging them. The Import switch covers both the new rows and
  * the updates to matched ones (owner's call, 2026-10-17); Edit isn't needed.
  */
-app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], verifyToken, requirePermission('view_customers', 'import_customers'), uploadMemory.single('file'), async (req, res) => {
+app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], verifyToken, requirePermission('view_customers', 'import_customers'), uploadMemory.single('file'), async (req: Request, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
 
@@ -4947,11 +4954,11 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
     if (!plan.fileCheck.ok) {
       return res.status(422).json({ message: plan.fileCheck.blocking.map(b => b.message).join(' ') });
     }
-    const results = { created: 0, updated: 0, skipped: 0, errors: [] };
+    const results = { created: 0, updated: 0, skipped: 0, errors: [] as string[] };
     // rowNumber → new customer id, so a "create it" review decision can be
     // remembered as the record it made (see saveImportMemory).
-    const createdByRow = new Map();
-    const rowError = (row, message) => results.errors.push(`Row ${row.rowNumber} (${row.label || ''}): ${message}`);
+    const createdByRow = new Map<number, string>();
+    const rowError = (row: Loose, message: string) => results.errors.push(`Row ${row.rowNumber} (${row.label || ''}): ${message}`);
 
     // Written in batches, not one customer at a time. Each row used to cost
     // two bcrypt hashes (~0.1s of CPU apiece, stalling every other request on
@@ -4968,8 +4975,8 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
     results.skipped = plan.planned.length - creates.length - updates.length;
 
     if (creates.length) {
-      const docs = [];
-      const docRows = [];
+      const docs: Loose[] = [];
+      const docRows: Loose[] = [];
       for (const row of creates) {
         const doc = new Customer({ ...row.create });
         const invalid = doc.validateSync();
@@ -5005,7 +5012,7 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
           // A dropped connection (a bulk write error listing no rows) fails
           // the whole batch — throw, so withDbRetry resends it.
           if (!hasRowErrorsOnly(err)) throw err;
-          for (const we of err.writeErrors) failed.set(we.index ?? we.err?.index, we.errmsg || we.err?.errmsg || 'Could not be saved');
+          for (const we of (err as Error & Loose).writeErrors) failed.set(we.index ?? we.err?.index, we.errmsg || we.err?.errmsg || 'Could not be saved');
         }
       });
       batch.forEach((row, i) => {
@@ -5025,7 +5032,7 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
       await saveImportMemory(req, plan, createdByRow);
     } catch (err) {
       console.error('Customer import memory save error:', err);
-      results.errors.push(`Your rep mappings and review decisions could not be saved for next time: ${err.message}`);
+      results.errors.push(`Your rep mappings and review decisions could not be saved for next time: ${(err as Error).message}`);
     }
 
     res.json({
@@ -5039,7 +5046,7 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
     });
   } catch (error) {
     console.error('Customer import apply error:', error);
-    res.status(400).json({ message: `Import failed: ${error.message}` });
+    res.status(400).json({ message: `Import failed: ${(error as Error).message}` });
   }
 });
 
@@ -5049,21 +5056,21 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
 // real ERP's markup. Wiring the reviewed rows into Customer/Product/sales
 // writes is follow-up work, same shape as /api/admin/customers/import/apply
 // above.
-app.post('/api/admin/erp-import/:type', authenticate, requirePermission('manage_customers'), async (req, res) => {
+app.post('/api/admin/erp-import/:type', authenticate, requirePermission('manage_customers'), async (req: Request, res: Response) => {
   const scrapers = {
     customers: scrapeErpCustomers,
     inventory: scrapeErpInventory,
     sales: scrapeErpSales
   };
-  const scrape = scrapers[req.params.type];
-  if (!scrape) return res.status(400).json({ message: `Unknown import type: ${req.params.type}` });
+  const scrape = scrapers[(req.params as ScalarParams).type];
+  if (!scrape) return res.status(400).json({ message: `Unknown import type: ${(req.params as ScalarParams).type}` });
 
   try {
     const rows = await scrape();
     res.json({ success: true, count: rows.length, rows });
   } catch (error) {
     console.error('ERP import error:', error);
-    res.status(500).json({ message: `ERP import failed: ${error.message}` });
+    res.status(500).json({ message: `ERP import failed: ${(error as Error).message}` });
   }
 });
 
@@ -5084,7 +5091,7 @@ app.use('/api/inventory-analysis', createInventoryAnalysisRouter({
 // ============================================
 
 // Admin: Get lightweight product list (names only)
-app.get('/api/admin/products/list', verifyToken, requireSalesPage, async (req, res) => {
+app.get('/api/admin/products/list', verifyToken, requireSalesPage, async (req: Request, res: Response) => {
   try {
     const products = await Product.find()
       .select('id name category collection availability image') // Include image for sidebar thumbnails
@@ -5098,9 +5105,9 @@ app.get('/api/admin/products/list', verifyToken, requireSalesPage, async (req, r
 });
 
 // Admin: Get full product details by ID
-app.get('/api/admin/products/:id', verifyToken, authorize('admin'), async (req, res) => {
+app.get('/api/admin/products/:id', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
   try {
-    const product = await Product.findOne({ id: parseInt(req.params.id) });
+    const product = await Product.findOne({ id: parseInt(String((req.params as ScalarParams).id)) });
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
@@ -5118,14 +5125,14 @@ app.get('/api/admin/products/:id', verifyToken, authorize('admin'), async (req, 
 // customer field) uses findByIdAndUpdate and would store a plaintext password.
 // Password reset. Its own route (and permission) so the ordinary edit route
 // never writes a password; customer.save() runs the schema's bcrypt hook.
-app.put(['/api/customers/:id/password', '/api/admin/customers/:id'], verifyToken, requirePermission('manage_customer_accounts'), async (req, res) => {
+app.put(['/api/customers/:id/password', '/api/admin/customers/:id'], verifyToken, requirePermission('manage_customer_accounts'), async (req: Request, res: Response) => {
   try {
     const { password } = req.body;
     if (!password || !password.trim()) {
       return res.status(400).json({ message: 'Password is required' });
     }
 
-    const customer = await Customer.findById(req.params.id);
+    const customer = await Customer.findById((req.params as ScalarParams).id);
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
@@ -5141,13 +5148,13 @@ app.put(['/api/customers/:id/password', '/api/admin/customers/:id'], verifyToken
     });
   } catch (error) {
     console.error('Reset customer password error:', error);
-    res.status(500).json({ message: `Failed to reset password: ${error.message}` });
+    res.status(500).json({ message: `Failed to reset password: ${(error as Error).message}` });
   }
 });
 
 // Update customer quick note — the box on the customer's details, which
 // opens for view_customers (GET /api/customers/:id), so saving needs the same.
-app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('view_customers'), requireCustomerProfile, async (req, res) => {
+app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('view_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
   try {
     const { quickNote } = req.body;
 
@@ -5157,7 +5164,7 @@ app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('vie
     }
 
     const customer = await Customer.findByIdAndUpdate(
-      req.params.id,
+      (req.params as ScalarParams).id,
       { quickNote },
       { new: true }
     );
@@ -5178,24 +5185,24 @@ app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('vie
 // Lost sales are scoped to the branches a person is assigned ('*' = all), like
 // the rest of the location filters. A record with no location is shown to
 // everyone rather than to no one, the same call the delivery board makes.
-const lostSaleLocationQuery = (user) => {
+const lostSaleLocationQuery = (user: Loose) => {
   const assigned = user?.assignedLocations || [];
   if (assigned.includes('*')) return {};
   return { $or: [{ location: { $in: [...assigned, ''] } }, { location: null }, { location: { $exists: false } }] };
 };
-const canAccessLostSaleLocation = (user, location) => {
+const canAccessLostSaleLocation = (user: Loose, location: string) => {
   const assigned = user?.assignedLocations || [];
   return assigned.includes('*') || !location || assigned.includes(location);
 };
 
 // Users & Roles → Lost Sales, by the screen's own rules (lostSaleAccess.js).
 // These routes used to answer any login, a customer's or a kiosk's included.
-const allowLostSales = (may) => (req, res, next) => (
+const allowLostSales = (may: (user: Loose) => boolean) => (req: Request, res: Response, next: NextFunction) => (
   req.user?.type !== 'customer' && may(req.user) ? next() : res.status(403).json({ error: 'Access denied.' })
 );
 
 // GET /api/lost-sales: Fetch the lost sales for the branches this person may see
-app.get('/api/lost-sales', verifyAnyAuth, allowLostSales(canViewLostSales), async (req, res) => {
+app.get('/api/lost-sales', verifyAnyAuth, allowLostSales(canViewLostSales), async (req: Request, res: Response) => {
   try {
     const list = await LostSale.find(lostSaleLocationQuery(req.user)).sort({ date: -1, createdAt: -1 }).lean();
     res.json(list);
@@ -5206,7 +5213,7 @@ app.get('/api/lost-sales', verifyAnyAuth, allowLostSales(canViewLostSales), asyn
 });
 
 // POST /api/lost-sales: Create a lost sale entry
-app.post('/api/lost-sales', verifyAnyAuth, allowLostSales(canEditLostSales), async (req, res) => {
+app.post('/api/lost-sales', verifyAnyAuth, allowLostSales(canEditLostSales), async (req: Request, res: Response) => {
   try {
     const data = req.body;
     const slabsCount = Number(data.slabsCount) || 1;
@@ -5247,12 +5254,12 @@ app.post('/api/lost-sales', verifyAnyAuth, allowLostSales(canEditLostSales), asy
     res.status(201).json(lostSale);
   } catch (error) {
     console.error('Error creating lost sale:', error);
-    res.status(500).json({ message: 'Failed to create lost sale record', error: error.message });
+    res.status(500).json({ message: 'Failed to create lost sale record', error: (error as Error).message });
   }
 });
 
 // PUT /api/lost-sales/:id: Update a lost sale entry
-app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), async (req, res) => {
+app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), async (req: Request, res: Response) => {
   try {
     const data = req.body;
     const slabsCount = Number(data.slabsCount) || 1;
@@ -5261,7 +5268,7 @@ app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), 
     const totalSf = data.totalSf ? Number(data.totalSf) : (slabsCount * sfPerSlab);
     const totalLostValue = data.totalLostValue ? Number(data.totalLostValue) : (totalSf * pricePerSf);
 
-    const updateObj = {
+    const updateObj: Loose = {
       customerName: data.customerName,
       productName: data.productName,
       lengthInches: Number(data.lengthInches) || 0,
@@ -5287,7 +5294,7 @@ app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), 
     // `reason` outside the schema enum that POST would have rejected.
     // Only a record this person can see — one at another branch reads as missing.
     const updated = await LostSale.findOneAndUpdate(
-      { _id: req.params.id, ...lostSaleLocationQuery(req.user) },
+      { _id: (req.params as ScalarParams).id, ...lostSaleLocationQuery(req.user) },
       updateObj,
       { new: true, runValidators: true }
     );
@@ -5300,14 +5307,14 @@ app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), 
     res.json(updated);
   } catch (error) {
     console.error('Error updating lost sale:', error);
-    res.status(500).json({ message: 'Failed to update lost sale record', error: error.message });
+    res.status(500).json({ message: 'Failed to update lost sale record', error: (error as Error).message });
   }
 });
 
 // DELETE /api/lost-sales/:id: Delete a lost sale entry
-app.delete('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canDeleteLostSales), async (req, res) => {
+app.delete('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canDeleteLostSales), async (req: Request, res: Response) => {
   try {
-    const deleted = await LostSale.findOneAndDelete({ _id: req.params.id, ...lostSaleLocationQuery(req.user) });
+    const deleted = await LostSale.findOneAndDelete({ _id: (req.params as ScalarParams).id, ...lostSaleLocationQuery(req.user) });
     if (!deleted) {
       return res.status(404).json({ message: 'Lost sale record not found' });
     }
@@ -5325,7 +5332,7 @@ app.delete('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canDeleteLostSal
 // distributor color isn't available.
 
 // GET /api/crossover-sheet: Fetch all crossover entries
-app.get('/api/crossover-sheet', authenticate, requirePermission('view_crossover_sheet'), async (req, res) => {
+app.get('/api/crossover-sheet', authenticate, requirePermission('view_crossover_sheet'), async (req: Request, res: Response) => {
   try {
     const list = await CrossoverSheet.find().sort({ easyStonesName: 1 }).lean();
     res.json(list);
@@ -5342,7 +5349,7 @@ app.get('/api/crossover-sheet', authenticate, requirePermission('view_crossover_
 // custom name. Without this, "enigma" vs "Enigma" would silently fork
 // into two documents for the same real color — the exact failure mode
 // that motivated moving this list into the database in the first place.
-async function resolveCanonicalEasyStonesName(rawName, session) {
+async function resolveCanonicalEasyStonesName(rawName: string, session: mongoose.ClientSession | null = null) {
   const regex = { $regex: `^${escapeRegex(rawName)}$`, $options: 'i' };
   let existingQuery = CrossoverSheet.findOne({ easyStonesName: regex }, { easyStonesName: 1 });
   if (session) existingQuery = existingQuery.session(session);
@@ -5358,7 +5365,7 @@ async function resolveCanonicalEasyStonesName(rawName, session) {
 // twice as duplicate chips in one matrix cell. `excludeId` skips the
 // subdocument being edited in place, so saving it unchanged isn't flagged
 // as a duplicate of itself.
-function hasDuplicateMapping(crossovers, distributorName, distributorColorName, excludeId) {
+function hasDuplicateMapping(crossovers: Loose[], distributorName: string, distributorColorName: string, excludeId?: string | mongoose.Types.ObjectId | null) {
   const dName = distributorName.toLowerCase();
   const dColor = distributorColorName.toLowerCase();
   return (crossovers || []).some(c =>
@@ -5376,7 +5383,7 @@ function hasDuplicateMapping(crossovers, distributorName, distributorColorName, 
 // check-then-act — an acceptable gap at this app's scale, since it only
 // matters if two people add the exact same mapping within milliseconds of
 // each other.)
-app.post('/api/crossover-sheet', authenticate, requirePermission('add_crossover_sheet'), async (req, res) => {
+app.post('/api/crossover-sheet', authenticate, requirePermission('add_crossover_sheet'), async (req: Request, res: Response) => {
   try {
     const rawName = (req.body.easyStonesName || '').trim();
     const distributorName = (req.body.distributorName || '').trim();
@@ -5411,7 +5418,7 @@ app.post('/api/crossover-sheet', authenticate, requirePermission('add_crossover_
     res.status(201).json(colorDoc);
   } catch (error) {
     console.error('Error creating crossover entry:', error);
-    res.status(500).json({ message: 'Failed to create crossover entry', error: error.message });
+    res.status(500).json({ message: 'Failed to create crossover entry', error: (error as Error).message });
   }
 });
 
@@ -5422,8 +5429,8 @@ app.post('/api/crossover-sheet', authenticate, requirePermission('add_crossover_
 // document if that was its last mapping) — done in a transaction so a
 // failure partway through can't delete the mapping from one document
 // without it landing in the other.
-app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('edit_crossover_sheet'), async (req, res) => {
-  const { colorId, crossoverId } = req.params;
+app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('edit_crossover_sheet'), async (req: Request, res: Response) => {
+  const { colorId, crossoverId } = (req.params as ScalarParams);
   const rawNewName = (req.body.easyStonesName || '').trim();
   const fields = {
     distributorName: (req.body.distributorName || '').trim(),
@@ -5448,7 +5455,7 @@ app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermi
       : colorDoc.easyStonesName;
     const moved = newEasyStonesName !== colorDoc.easyStonesName;
 
-    let colorDocResult;
+    let colorDocResult!: Loose;
     if (moved) {
       const destDoc = await CrossoverSheet.findOne({ easyStonesName: newEasyStonesName }).session(session);
       if (hasDuplicateMapping(destDoc?.crossovers, fields.distributorName, fields.distributorColorName)) {
@@ -5488,7 +5495,7 @@ app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermi
   } catch (error) {
     await session.abortTransaction().catch(() => {});
     console.error('Error updating crossover entry:', error);
-    res.status(500).json({ message: 'Failed to update crossover entry', error: error.message });
+    res.status(500).json({ message: 'Failed to update crossover entry', error: (error as Error).message });
   } finally {
     session.endSession();
   }
@@ -5498,9 +5505,9 @@ app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermi
 // mapping. Deletes the color's document too if that was its last mapping —
 // an empty color document isn't needed for the matrix's empty-row seeding,
 // that comes from the separate EasyStonesColor catalog now.
-app.delete('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('delete_crossover_sheet'), async (req, res) => {
+app.delete('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('delete_crossover_sheet'), async (req: Request, res: Response) => {
   try {
-    const { colorId, crossoverId } = req.params;
+    const { colorId, crossoverId } = (req.params as ScalarParams);
     const colorDoc = await CrossoverSheet.findById(colorId);
     const entry = colorDoc?.crossovers.id(crossoverId);
     if (!colorDoc || !entry) {
@@ -5524,7 +5531,7 @@ app.delete('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePe
 
 // GET /api/easy-stones-colors: List the Easy Stones color catalog used to
 // seed the Crossover Sheet matrix. Same audience as the sheet itself.
-app.get('/api/easy-stones-colors', authenticate, requirePermission('view_crossover_sheet'), async (req, res) => {
+app.get('/api/easy-stones-colors', authenticate, requirePermission('view_crossover_sheet'), async (req: Request, res: Response) => {
   try {
     const colors = await EasyStonesColor.find().sort({ order: 1 }).lean();
     res.json(colors);
@@ -5538,7 +5545,7 @@ app.get('/api/easy-stones-colors', authenticate, requirePermission('view_crossov
 // dedicated permission (not a hardcoded admin/director role check) since
 // this list is shared across every rep's Crossover Sheet, not a per-entry
 // edit — see the 'manage_easy_stones_colors' grant in the role seed above.
-app.post('/api/easy-stones-colors', authenticate, requirePermission('manage_easy_stones_colors'), async (req, res) => {
+app.post('/api/easy-stones-colors', authenticate, requirePermission('manage_easy_stones_colors'), async (req: Request, res: Response) => {
   try {
     const name = (req.body.name || '').trim();
     if (!name) {
@@ -5556,14 +5563,14 @@ app.post('/api/easy-stones-colors', authenticate, requirePermission('manage_easy
     res.status(201).json(color);
   } catch (error) {
     console.error('Error adding Easy Stones color:', error);
-    res.status(500).json({ message: 'Failed to add color', error: error.message });
+    res.status(500).json({ message: 'Failed to add color', error: (error as Error).message });
   }
 });
 
 // PUT /api/easy-stones-colors/:id: Rename a catalog color. Renaming does not
 // touch existing Crossover Sheet entries pointing at the old name — see the
 // note on the frontend's manage-colors modal before assuming otherwise.
-app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), async (req, res) => {
+app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), async (req: Request, res: Response) => {
   try {
     const name = (req.body.name || '').trim();
     if (!name) {
@@ -5571,7 +5578,7 @@ app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_e
     }
 
     const updated = await EasyStonesColor.findByIdAndUpdate(
-      req.params.id,
+      (req.params as ScalarParams).id,
       { name },
       { new: true, runValidators: true }
     );
@@ -5582,7 +5589,7 @@ app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_e
     res.json(updated);
   } catch (error) {
     console.error('Error renaming Easy Stones color:', error);
-    res.status(500).json({ message: 'Failed to rename color', error: error.message });
+    res.status(500).json({ message: 'Failed to rename color', error: (error as Error).message });
   }
 });
 
@@ -5590,9 +5597,9 @@ app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_e
 // only stops it being auto-seeded as an empty matrix row — any Crossover
 // Sheet entries already pointing at its name are left as-is (they'll sort to
 // the bottom as "not in the catalog," same as a misspelled name today).
-app.delete('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), async (req, res) => {
+app.delete('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), async (req: Request, res: Response) => {
   try {
-    const deleted = await EasyStonesColor.findByIdAndDelete(req.params.id);
+    const deleted = await EasyStonesColor.findByIdAndDelete((req.params as ScalarParams).id);
     if (!deleted) {
       return res.status(404).json({ message: 'Color not found' });
     }
@@ -5605,11 +5612,11 @@ app.delete('/api/easy-stones-colors/:id', authenticate, requirePermission('manag
 });
 
 // Admin: Update customer status
-app.patch(['/api/customers/:id/active', '/api/admin/customers/:id/status'], verifyToken, requirePermission('manage_customer_accounts'), async (req, res) => {
+app.patch(['/api/customers/:id/active', '/api/admin/customers/:id/status'], verifyToken, requirePermission('manage_customer_accounts'), async (req: Request, res: Response) => {
   try {
     const { isActive } = req.body;
     const customer = await Customer.findByIdAndUpdate(
-      req.params.id,
+      (req.params as ScalarParams).id,
       { isActive },
       { new: true }
     );
@@ -5638,11 +5645,11 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 // Helper to upload buffer to Cloudinary
-const uploadToCloudinary = async (buffer, folder, filename) => {
+const uploadToCloudinary = async (buffer: Buffer, folder: string, filename?: string) => {
   // Optimize before uploading to save credits
   const optimizedBuffer = await optimizeImage(buffer);
 
-  return new Promise((resolve, reject) => {
+  return new Promise<import('cloudinary').UploadApiResponse>((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: folder,
@@ -5651,7 +5658,7 @@ const uploadToCloudinary = async (buffer, folder, filename) => {
       },
       (error, result) => {
         if (error) return reject(error);
-        resolve(result);
+        resolve(result!);
       }
     );
     uploadStream.end(optimizedBuffer);
@@ -5659,7 +5666,7 @@ const uploadToCloudinary = async (buffer, folder, filename) => {
 };
 
 // Helper to process an array of images (base64 or URLs) and upload new base64 to Cloudinary
-const processBase64Images = async (imagesArray, folder) => {
+const processBase64Images = async (imagesArray: unknown, folder: string) => {
   if (!imagesArray || !Array.isArray(imagesArray)) return [];
 
   const processedImages = await Promise.all(imagesArray.map(async (img, index) => {
@@ -5672,7 +5679,7 @@ const processBase64Images = async (imagesArray, folder) => {
     if (img.startsWith('data:')) {
       try {
         const base64Data = img.split(',')[1];
-        const buffer = Buffer.from(base64Data, 'base64');
+        const buffer = Buffer.from(base64Data!, 'base64');
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         const result = await uploadToCloudinary(buffer, folder, `client_res_${uniqueSuffix}_${index}`);
         return result.secure_url;
@@ -5694,7 +5701,7 @@ const processBase64Images = async (imagesArray, folder) => {
 // request never gets this far into parsing/buffering a file at all, not just
 // rejected after the work is already done. Was reachable with no auth
 // whatsoever, letting anyone push files to this app's Cloudinary account.
-app.post('/api/upload', verifyToken, requireSalesPage, upload.single('image'), async (req, res) => {
+app.post('/api/upload', verifyToken, requireSalesPage, upload.single('image'), async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -5711,7 +5718,7 @@ app.post('/api/upload', verifyToken, requireSalesPage, upload.single('image'), a
     // 1. Upload Main Image
     console.log('☁️ Uploading main image to Cloudinary...');
     const mainImageResult = await uploadToCloudinary(
-      req.file.buffer,
+      req.file!.buffer,
       'products/main',
       filename
     );
@@ -5720,9 +5727,9 @@ app.post('/api/upload', verifyToken, requireSalesPage, upload.single('image'), a
     // 2. Generate and Upload Mockups
     // We pass the buffer directly to generateMockups
     console.log('🎨 Generating and uploading mockups...');
-    let installedImages = [];
+    let installedImages: string[] = [];
     try {
-      installedImages = await generateMockups(req.file.buffer, filename);
+      installedImages = await generateMockups(req.file!.buffer, filename);
     } catch (mockupError) {
       console.error('⚠️ Mockup generation failed (non-fatal):', mockupError);
       // Continue without mockups
@@ -5738,14 +5745,14 @@ app.post('/api/upload', verifyToken, requireSalesPage, upload.single('image'), a
     bustProductCache();
   } catch (error) {
     console.error('❌ Error uploading file:', error);
-    res.status(500).json({ error: 'Failed to upload file', details: error.message });
+    res.status(500).json({ error: 'Failed to upload file', details: (error as Error).message });
   }
 });
 
 // API endpoint to delete image from Cloudinary
 // Was reachable with no auth at all — anyone who knew or guessed a Cloudinary
 // URL on this account could delete it, no ownership check, nothing.
-app.post('/api/upload/delete', verifyToken, requireSalesPage, async (req, res) => {
+app.post('/api/upload/delete', verifyToken, requireSalesPage, async (req: Request, res: Response) => {
   try {
     const { imageUrl } = req.body;
 
@@ -5786,7 +5793,7 @@ app.post('/api/upload/delete', verifyToken, requireSalesPage, async (req, res) =
     }
   } catch (error) {
     console.error('Delete image error:', error);
-    res.status(500).json({ error: 'Failed to delete image', details: error.message });
+    res.status(500).json({ error: 'Failed to delete image', details: (error as Error).message });
   }
 });
 
@@ -5806,7 +5813,7 @@ if (process.env.CLOUDINARY_CLOUD_NAME) {
 // Was reachable with no auth at all: a single unauthenticated POST could
 // upsert the entire live product catalog — every price, every description —
 // since this does a bulk upsert on whatever array the request body sends.
-app.post('/api/products/save', verifyToken, requireSalesPage, async (req, res) => {
+app.post('/api/products/save', verifyToken, requireSalesPage, async (req: Request, res: Response) => {
   try {
     const { products } = req.body;
 
@@ -5846,7 +5853,7 @@ app.post('/api/products/save', verifyToken, requireSalesPage, async (req, res) =
     res.json({ success: true, message: 'Products saved successfully' });
   } catch (error) {
     console.error('❌ Error saving products:', error);
-    res.status(500).json({ error: 'Failed to save products', details: error.message });
+    res.status(500).json({ error: 'Failed to save products', details: (error as Error).message });
   }
 });
 
@@ -5856,7 +5863,7 @@ app.post('/api/products/save', verifyToken, requireSalesPage, async (req, res) =
 // on the internet could trigger, walking and rewriting every Product document.
 // Gated to admin rather than any authenticated user, same bar as the other
 // one-off/introspection routes in this file (see /api/sales-resources).
-app.post('/api/migrate-collection', verifyToken, authorize('admin'), async (req, res) => {
+app.post('/api/migrate-collection', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
   try {
     const products = await Product.find({});
     let updated = 0;
@@ -5875,7 +5882,7 @@ app.post('/api/migrate-collection', verifyToken, authorize('admin'), async (req,
     bustProductCache(); // Bust cache after migration
   } catch (error) {
     console.error('❌ Error during migration:', error);
-    res.status(500).json({ error: 'Migration failed', details: error.message });
+    res.status(500).json({ error: 'Migration failed', details: (error as Error).message });
   }
 });
 
@@ -5892,7 +5899,7 @@ app.post('/api/migrate-collection', verifyToken, authorize('admin'), async (req,
 
 // Get all sales resources
 // Get all sales resources
-app.get('/api/sales-resources', verifyToken, authorize('admin'), async (req, res) => {
+app.get('/api/sales-resources', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
   try {
     const resources = await SalesResource.find().sort({ createdAt: -1 });
     res.json(resources);
@@ -5904,7 +5911,7 @@ app.get('/api/sales-resources', verifyToken, authorize('admin'), async (req, res
 
 // Create a new sales resource
 // Create a new sales resource
-app.post('/api/sales-resources', verifyToken, authorize('admin'), async (req, res) => {
+app.post('/api/sales-resources', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
   try {
     const { name, type, content, contentType } = req.body;
 
@@ -5926,9 +5933,9 @@ app.post('/api/sales-resources', verifyToken, authorize('admin'), async (req, re
 });
 
 // Delete a sales resource
-app.delete('/api/sales-resources/:id', verifyToken, authorize('admin'), async (req, res) => {
+app.delete('/api/sales-resources/:id', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id } = (req.params as ScalarParams);
     await SalesResource.findByIdAndDelete(id);
     req.app.get('io').emit('resource_update');
     res.json({ message: 'Resource deleted successfully' });
@@ -5940,17 +5947,17 @@ app.delete('/api/sales-resources/:id', verifyToken, authorize('admin'), async (r
 
 
 // Health check endpoint
-app.get('/api/health', async (req, res) => {
+app.get('/api/health', async (req: Request, res: Response) => {
   const dbStatusMap = ['disconnected', 'connected', 'connecting', 'disconnecting'];
 
   let dbPing = 'failed';
   try {
     if (mongoose.connection.readyState === 1) {
-      await mongoose.connection.db.admin().ping();
+      await mongoose.connection.db!.admin().ping();
       dbPing = 'success';
     }
   } catch (err) {
-    dbPing = `error: ${err.message}`;
+    dbPing = `error: ${(err as Error).message}`;
   }
 
   res.json({
@@ -5966,7 +5973,7 @@ app.get('/api/health', async (req, res) => {
 // with index.html, so the caller's res.json() failed on "Unexpected token '<'"
 // — which says nothing about the actual problem (a typo, or a server running
 // code older than the client). Answer as the API, not as the app.
-app.use('/api', (req, res) => {
+app.use('/api', (req: Request, res: Response) => {
   res.status(404).json({
     error: `No such endpoint: ${req.method} ${req.originalUrl}`,
     hint: 'If this endpoint is new, the running server may predate it — restart it.'
@@ -5998,7 +6005,7 @@ if (fs.existsSync(distPath)) {
     maxAge: '1y',
     immutable: true,
     index: false, // Don't serve index.html with long cache
-    setHeaders: (res, filePath) => {
+    setHeaders: (res: Response, filePath) => {
       const name = '/' + path.basename(filePath);
       if (NEVER_CACHE.has(name)) {
         res.setHeader('Cache-Control', 'no-cache, must-revalidate');
@@ -6013,14 +6020,14 @@ if (fs.existsSync(distPath)) {
   // a valid JavaScript MIME type" and the app's error screen (2026-10-07);
   // a plain 404 fails the import cleanly, and lazyRetry reloads into the
   // current build.
-  app.use((req, res, next) => {
+  app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.method === 'GET' && (req.path.startsWith('/assets/') || /\.(js|mjs|css|map|json|webmanifest|png|jpe?g|gif|svg|webp|ico|woff2?|ttf)$/i.test(req.path))) {
       return res.status(404).set('Cache-Control', 'no-store').type('text/plain').send('Not found');
     }
     next();
   });
 
-  app.get(/(.*)/, (req, res) => {
+  app.get(/(.*)/, (req: Request, res: Response) => {
     // Send index.html with NO CACHE so users always get the latest version of the app
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     res.sendFile(path.join(distPath, 'index.html'));

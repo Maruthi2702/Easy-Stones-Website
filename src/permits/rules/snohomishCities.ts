@@ -10,7 +10,7 @@ import type { Loose } from '../../types/records.ts';
  */
 import { mbpRule } from './mbp.ts';
 
-const city = (name: string, rest: unknown) => mbpRule({ label: name, long: `City of ${name}`, county: 'snohomish', office: name.toUpperCase(), city: name, ...rest });
+const city = (name: string, rest: Loose) => mbpRule({ label: name, long: `City of ${name}`, county: 'snohomish', office: name.toUpperCase(), city: name, ...rest });
 
 // Edmonds writes "<kind>-<work>-<action>", cut off at 50 characters.
 export const edmonds = city('Edmonds', {

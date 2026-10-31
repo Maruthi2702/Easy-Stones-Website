@@ -92,7 +92,7 @@ const ContactPage = () => {
                             width="100%"
                             height="300"
                             style={{ border: 0, borderRadius: '12px' }}
-                            allowFullScreen=""
+                            allowFullScreen
                             loading="lazy"
                             referrerPolicy="no-referrer-when-downgrade"
                             title="Easy Stones Location"
@@ -156,7 +156,7 @@ const ContactPage = () => {
                             placeholder="How can we help you?"
                             value={formData.message}
                             onChange={handleChange}
-                            rows="6"
+                            rows={6}
                             required
                         ></textarea>
 

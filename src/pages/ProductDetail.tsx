@@ -271,7 +271,7 @@ const ProductDetail = () => {
                       gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
                       gap: '2.5rem'
                     }}>
-                      {product.bundles.map((bundle, bIndex) => (
+                      {product.bundles.map((bundle: Loose, bIndex: number) => (
                         <div key={bIndex} className="bundle-card">
                           <img
                             src={getLocalImagePath(bundle.images?.[0])}

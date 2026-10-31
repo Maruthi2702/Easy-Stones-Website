@@ -7,12 +7,12 @@ import './NavOrderTab.css';
 type NavPage = { id: string; label: string };
 type NavSection = { id: string; label: string; items: NavPage[] };
 /** The saved order (null = the default), as useNavOrder holds it. */
-export type NavOrder = unknown;
+export type NavOrder = import('../../../utils/navPins').NavOrder | null;
 
 export type NavOrderTabProps = {
     order: NavOrder;
     /** Saves for everyone; throws with the reason to show. */
-    onSave: (order: NavOrder | null) => Promise<unknown>;
+    onSave: (order: NavOrder | null) => unknown;
     sidebarToggle?: React.ReactNode;
 };
 

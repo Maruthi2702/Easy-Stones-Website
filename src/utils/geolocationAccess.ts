@@ -31,7 +31,7 @@ export const readLastPosition = (): LatLng | null => {
 };
 
 /** A fix succeeded: remember where, and that location works here. */
-export const rememberPosition = ({ lat, lng }: LatLng): void => {
+export const rememberPosition = ({ lat, lng }: { lat: unknown; lng: unknown }): void => {
   if (!isPoint({ lat, lng })) return;
   write(LAST_KEY, JSON.stringify({ lat, lng }));
   write(OK_KEY, '1');

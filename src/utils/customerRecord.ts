@@ -46,7 +46,7 @@ export const addressFrom = (body: Loose = {}) => ({
  * result with its coordinates), checked because it never went through the
  * geocoder. null when missing or out of range — the address is geocoded then.
  */
-export const suppliedPoint = (coordinates: Loose) => {
+export const suppliedPoint = (coordinates: Loose | null | undefined) => {
     const lat = Number(coordinates?.lat);
     const lng = Number(coordinates?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
@@ -68,7 +68,7 @@ export const newCustomerFields = (body: Loose = {}, { now, random }: Loose = {})
     if (!company) return { error: 'Company name is required' };
     const realEmail = str(body.email).toLowerCase();
     const level = str(body.level) || 'Level - 3';
-    const fields = {
+    const fields: Loose = {
         company,
         // contactName is required by the schema; the company stands in, as the
         // Add customer route always did, rather than a made-up "Unknown".

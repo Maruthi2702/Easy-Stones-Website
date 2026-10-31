@@ -63,7 +63,7 @@ export function createSnohomishCountySource({ fetchImpl = globalThis.fetch }: Lo
         throw new Error(`Snohomish County’s “${file.title}” has permit ${r.Project_File_Number} issued ${r.Issue_Date || 'on no date'} — stopped so nothing is missed`);
       }
     }
-    return rows.map((r) => ({ ...r, _report: report.id }));
+    return rows.map((r): Loose => ({ ...r, _report: report.id }));
   }
 
   /** Every permit in the reports issued on or after `since`, as report rows. */

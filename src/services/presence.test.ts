@@ -21,9 +21,9 @@ describe('createPresence', () => {
     p.connect('b', 'u1', 'desktop', 0);
     expect(p.snapshot(0)).toHaveLength(1);
     expect(p.snapshot(0)[0].tabs).toBe(2);
-    expect(p.disconnect('a').offline).toBe(false);
+    expect(p.disconnect('a')!.offline).toBe(false);
     expect(p.snapshot(0)).toHaveLength(1);
-    expect(p.disconnect('b').offline).toBe(true);
+    expect(p.disconnect('b')!.offline).toBe(true);
     expect(p.snapshot(0)).toEqual([]);
   });
 

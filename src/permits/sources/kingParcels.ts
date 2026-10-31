@@ -15,8 +15,8 @@ export const KING_PARCELS_LAYER = 'https://gismaps.kingcounty.gov/arcgis/rest/se
 
 export function createKingParcels({ layer = KING_PARCELS_LAYER, fetchImpl = globalThis.fetch, sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms)), pauseMs = 250 }: Loose = {}) {
   /** PIN → { city, zip } for the parcels found (ten-digit PINs; anything else is skipped). */
-  async function lookup(pins: unknown) {
-    const wanted = [...new Set((pins || []).map(cleanText).filter((p: Loose) => /^\d{10}$/.test(p)))];
+  async function lookup(pins: readonly unknown[]) {
+    const wanted = [...new Set((pins || []).map(cleanText).filter((p: string) => /^\d{10}$/.test(p)))];
     const out = new Map();
     if (!wanted.length) return out;
     const data = await fetchJson(`${layer}/query?${new URLSearchParams({

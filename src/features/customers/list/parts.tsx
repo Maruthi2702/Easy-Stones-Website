@@ -11,7 +11,7 @@ export type FilterOption = { value: string; label: string; dot?: string; icon?: 
 export type FilterGroup = { group: string | null; options: FilterOption[] };
 
 export const StatusDot = ({ status }: { status?: string }) => {
-  const m = statusMeta(status);
+  const m = statusMeta(status || '');
   return (
     <span className={`cl-sd${m.closed ? ' closed' : ''}`} title={status || 'No status'}>
       <span className={`cl-dot ${m.tone}`} aria-hidden="true" />

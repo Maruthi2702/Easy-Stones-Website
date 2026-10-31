@@ -14,7 +14,7 @@ import mongoose from 'mongoose';
  * src/utils/customerImport.ts): letters, digits and '|' only, which is what
  * makes them safe as Mongo map keys.
  */
-const importMemorySchema = new mongoose.Schema<Loose>({
+const importMemorySchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   kind: { type: String, required: true, unique: true },
   // normalized sheet rep name → User _id, or '' for "leave unassigned"
   repAliases: { type: Map, of: String, default: {} },

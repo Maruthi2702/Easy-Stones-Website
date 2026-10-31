@@ -7,19 +7,35 @@ export type StaffPrincipal = {
   username?: string;
   displayName?: string;
   contactName?: string;
+  name?: string;
+  email?: string;
+  type?: string;
   role?: string;
   location?: string;
   assignedLocations?: string[];
   permissions: string[];
+  [key: string]: unknown;
 };
 
 export type PermissionMiddleware = (permission: string) => RequestHandler;
 export type AnyPermissionMiddleware = (...permissions: string[]) => RequestHandler;
 export type PublishEvent = (event: string, payload?: unknown) => void;
 
+// Legacy controllers support scalar query/path values. Keep that existing
+// contract explicit while routes move to schema-validated request types.
+export type ScalarQuery = Record<string, string | undefined>;
+export type ScalarParams = Record<string, string>;
+
 declare module 'express-serve-static-core' {
   interface Request {
+    user: StaffPrincipal;
     userId?: string;
+    customerId?: string;
+    authType?: 'admin' | 'customer';
+    accountType?: string;
+    userRole?: string;
+    authUserDoc?: Loose;
+    tokenClaims?: import('jsonwebtoken').JwtPayload;
     teamScope?: { manageableRoles: string[] } | null;
     /** Multipart/SPS request details are validated by the owning route. */
     importContext?: Loose;

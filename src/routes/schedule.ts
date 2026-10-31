@@ -1,3 +1,4 @@
+import type { ScalarQuery, ScalarParams } from '../types/server.ts';
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request, Response } from 'express';
 /**
@@ -39,7 +40,7 @@ export const createScheduleEmitter = (io: Loose) => (payload: Loose) => {
   try {
     io.emit('schedule_update', { ...payload, userId: String(payload.userId) });
   } catch (err) {
-    console.warn('[schedule] broadcast failed:', err.message);
+    console.warn('[schedule] broadcast failed:', (err as Error).message);
   }
 };
 
@@ -86,7 +87,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       res.json({ success: true, checked: pending.length, linked });
     } catch (error) {
       console.error('Schedule backfill error:', error);
-      res.status(500).json({ message: `Backfill failed: ${error.message}` });
+      res.status(500).json({ message: `Backfill failed: ${(error as Error).message}` });
     }
   });
 
@@ -100,11 +101,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
 
     try {
       const userId = req.userId || req.customerId;
-      const { start, end } = req.query;
+      const { start, end } = (req.query as ScalarQuery);
 
       let query = { userId };
       let nameOf = null;
-      if (req.query.scope === 'team' && req.userId && req.user?.type !== 'customer') {
+      if ((req.query as ScalarQuery).scope === 'team' && req.userId && req.user?.type !== 'customer') {
         const team = await calendarPeopleOf(req);
         nameOf = team.nameOf;
         query = team.people === ALL_PEOPLE ? {} : { userId: { $in: [...team.people].flatMap(idVariants) } };
@@ -166,7 +167,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         await created.save();
       } catch (saveError) {
         // Two identical sends racing: the other one won, so answer with its entry.
-        if (saveError?.code === 11000 && wantedId !== undefined && await alreadySaved()) return;
+        if ((saveError as Error & Loose)?.code === 11000 && wantedId !== undefined && await alreadySaved()) return;
         throw saveError;
       }
 
@@ -225,7 +226,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       }
       // Real times, the end after the start, a known type — the same rules as a
       // single entry. Cleaned here so what's stored is only what was checked.
-      const cleaned = [];
+      const cleaned: Loose[] = [];
       for (const item of items) {
         const result = cleanScheduleFields(item);
         if (result.error) return res.status(400).json({ message: result.error });
@@ -270,7 +271,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       }
 
       let replaced = 0;
-      let created;
+      let created!: Loose;
       await mongoose.connection.transaction(async session => {
         replaced = 0; // A transient transaction failure may retry this callback.
         if (replace) {
@@ -296,10 +297,10 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       res.status(201).json({ stops: populated, replaced });
     } catch (error) {
       console.error('Bulk schedule error:', error);
-      if (error.name === 'ValidationError' || error.name === 'CastError') {
-        return res.status(400).json({ message: 'Invalid route stops', error: error.message });
+      if ((error as Error).name === 'ValidationError' || (error as Error).name === 'CastError') {
+        return res.status(400).json({ message: 'Invalid route stops', error: (error as Error).message });
       }
-      res.status(500).json({ message: 'Failed to schedule the route', error: error.message });
+      res.status(500).json({ message: 'Failed to schedule the route', error: (error as Error).message });
     }
   });
 
@@ -313,7 +314,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.delete('/schedule/route', authenticate, requirePermission('delete_route_plan'), async (req, res) => {
     try {
       const userId = req.userId;
-      const { date } = req.query;
+      const { date } = (req.query as ScalarQuery);
 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) {
         return res.status(400).json({ message: 'A date (YYYY-MM-DD) is required' });
@@ -330,7 +331,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       res.json({ deleted: deletedCount, date });
     } catch (error) {
       console.error('Clear route error:', error);
-      res.status(500).json({ message: 'Failed to clear the planned day', error: error.message });
+      res.status(500).json({ message: 'Failed to clear the planned day', error: (error as Error).message });
     }
   });
 
@@ -340,7 +341,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.put('/schedule/:id', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
-      const { id } = req.params;
+      const { id } = (req.params as ScalarParams);
       if (!isObjectId(id)) return res.status(404).json({ message: 'Schedule item not found' });
 
       const existing = await Schedule.findOne({ _id: id, userId }).lean();
@@ -375,7 +376,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.delete('/schedule/:id', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
-      const { id } = req.params;
+      const { id } = (req.params as ScalarParams);
 
       const result = await Schedule.deleteOne({ _id: id, userId });
 
@@ -417,7 +418,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   // Read-only feed for calendar clients, using its own revocable credential.
   router.get('/calendar/feed/:userId.ics', async (req, res) => {
     try {
-      const { userId } = req.params;
+      const { userId } = (req.params as ScalarParams);
 
       // Validate ObjectId
       if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -428,7 +429,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       // (Users & Roles); so does one for an account that no longer exists.
       const owner = await User.findById(userId).select('isActive mustChangePassword +calendarFeedKey').lean();
       if (!owner || owner.isActive === false || owner.mustChangePassword
-          || !validCalendarFeedToken(req.query.token, userId, owner.calendarFeedKey, JWT_SECRET)) {
+          || !validCalendarFeedToken((req.query as ScalarQuery).token, userId, owner.calendarFeedKey, JWT_SECRET)) {
         return res.status(404).send('Calendar not found');
       }
 
@@ -752,12 +753,12 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   // Route: Initiate Google OAuth Redirection for Calendar Sync
   router.get('/auth/google/calendar', async (req, res) => {
     try {
-      const { token } = req.query;
+      const { token } = (req.query as ScalarQuery);
       if (!token) {
         return res.status(401).send('Authentication token is required');
       }
 
-      let decoded;
+      let decoded!: Loose;
       try {
         decoded = jwt.verify(token, JWT_SECRET);
       } catch {
@@ -799,7 +800,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   // Route: Google OAuth Redirect callback to parse code and save user tokens
   router.get('/auth/google/calendar/callback', async (req, res) => {
     try {
-      const { code, state, error } = req.query;
+      const { code, state, error } = (req.query as ScalarQuery);
 
       if (error) {
         console.error('Google OAuth callback error:', error);
@@ -810,7 +811,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         return res.status(400).send('Missing authorization code or state');
       }
 
-      let decoded;
+      let decoded!: Loose;
       try {
         decoded = jwt.verify(state, JWT_SECRET);
       } catch {
@@ -903,7 +904,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.post('/auth/google/calendar/sync', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
-      await syncGoogleCalendar(userId, req.query.tz);
+      await syncGoogleCalendar(userId, (req.query as ScalarQuery).tz);
       res.json({ success: true, message: 'Google Calendar synchronized successfully' });
     } catch (error) {
       console.error('Google calendar sync trigger error:', error);
@@ -974,7 +975,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       }
     } catch (error) {
       console.error('iCloud calendar connection error:', error);
-      res.status(500).json({ message: error.message || 'Failed to connect to iCloud' });
+      res.status(500).json({ message: (error as Error).message || 'Failed to connect to iCloud' });
     }
   });
 
@@ -1002,7 +1003,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.post('/auth/icloud/sync', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
-      if (await syncICloudCalendar(userId, req.query.tz)) {
+      if (await syncICloudCalendar(userId, (req.query as ScalarQuery).tz)) {
         emitScheduleUpdate({ type: 'sync', userId });
       }
       res.json({ success: true, message: 'iCloud Calendar synchronized successfully' });

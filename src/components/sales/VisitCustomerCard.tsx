@@ -15,7 +15,7 @@ import '../../features/customers/list/CustomerList.css';
  * drawer fetches the full one itself when `canProfile`). "Open profile" goes
  * to the full profile page.
  */
-const VisitCustomerCard = ({ visit, canProfile, onClose, onOpenProfile }: { visit: Loose; canProfile: boolean; onClose: () => void; onOpenProfile: (id: string) => void }) => {
+const VisitCustomerCard = ({ visit, canProfile, onClose, onOpenProfile }: { visit: Loose; canProfile: boolean; onClose: () => void; onOpenProfile: (customer: Loose) => void }) => {
   const id = visit?.customerId;
   const [basic, setBasic] = useState<Loose | null>(null);
 
@@ -40,6 +40,8 @@ const VisitCustomerCard = ({ visit, canProfile, onClose, onOpenProfile }: { visi
       onClose={onClose}
       onOpenProfile={onOpenProfile}
       canProfile={canProfile}
+      onEdit={() => {}}
+      onDelete={() => {}}
       canEdit={false}
       canDelete={false}
       onStatusChange={async () => false}

@@ -49,7 +49,7 @@ const HomeRedirect = () => {
 
   // If user is from admin database (admin, director, manager, sales_rep), 
   // redirect to sales page as home
-  const isAdminUser = user && ['admin', 'director', 'manager', 'sales_rep'].includes(user.role);
+  const isAdminUser = user && ['admin', 'director', 'manager', 'sales_rep'].includes(user.role || '');
 
   if (isAdminUser) {
     return <Navigate to="/sales" replace />;
@@ -84,7 +84,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (passwordSetup) return <ChoosePasswordPage />;
 
   // Check if we have a user and they are from the admin database
-  const isAuthorized = user && (user.type === 'internal' || ['admin', 'director', 'manager', 'sales_rep', 'csr', 'kiosk'].includes(user.role));
+  const isAuthorized = user && (user.type === 'internal' || ['admin', 'director', 'manager', 'sales_rep', 'csr', 'kiosk'].includes(user.role || ''));
 
   if (isAuthorized) return children;
 

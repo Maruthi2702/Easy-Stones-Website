@@ -19,9 +19,9 @@ const { default: createTeamFilesRouter, createLegacyTeamFilesRouter } = await im
 const { default: SalesDashboardResource } = await import('../models/SalesDashboardResource.ts');
 const { default: User } = await import('../models/User.ts');
 
-let mongo;
-let app;
-let publicDir;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
+let publicDir!: Loose;
 const emit = vi.fn();
 const uploadToCloudinary = vi.fn(async () => ({ secure_url: 'https://res.cloudinary.com/demo/res_1.webp' }));
 
@@ -50,7 +50,7 @@ beforeAll(async () => {
   await SalesDashboardResource.syncIndexes();
   publicDir = fs.mkdtempSync(path.join(os.tmpdir(), 'team-files-'));
   const deps = {
-    authenticate: (req: Loose, res: Loose, next: Loose) => {
+    authenticate: (req: Loose, res: Loose, next: () => void) => {
       req.user = JSON.parse(req.headers['x-test-user'] || '{}');
       req.userId = req.user._id;
       next();
@@ -222,8 +222,8 @@ describe('rename, move and replace', () => {
     const res = await request(app).patch(api(`/${LIST}`)).set(as(MANAGER)).send({ name: 'NW price list' }).expect(200);
     expect(res.body).toMatchObject({ name: 'NW price list', uploadedByName: 'Dana W', updatedByName: 'Krish' });
     const saved = await SalesDashboardResource.findById(LIST).lean();
-    expect(String(saved.uploadedBy)).toBe(String(DANA));
-    expect(String(saved.updatedBy)).toBe(String(KRISH));
+    expect(String((saved)!.uploadedBy)).toBe(String(DANA));
+    expect(String((saved)!.updatedBy)).toBe(String(KRISH));
   });
 
   it('moves a folder, but never into itself or its own subfolders', async () => {
@@ -238,7 +238,7 @@ describe('rename, move and replace', () => {
   });
 
   it('replaces a file and removes the old one from disk', async () => {
-    const before = (await SalesDashboardResource.findById(LIST).lean()).content;
+    const before = ((await SalesDashboardResource.findById(LIST).lean()))!.content;
     const res = await request(app).put(api(`/${LIST}`)).set(as(MANAGER))
       .attach('file', Buffer.from('%PDF new one'), { filename: 'list v2.pdf', contentType: 'application/pdf' }).expect(200);
     expect(res.body.size).toBe(12);
@@ -255,7 +255,7 @@ describe('rename, move and replace', () => {
 
 describe('delete', () => {
   it('counts what a folder delete takes, then takes it all, disk files included', async () => {
-    const listContent = (await SalesDashboardResource.findById(LIST).lean()).content;
+    const listContent = ((await SalesDashboardResource.findById(LIST).lean()))!.content;
     const summary = await request(app).get(api(`/${PRICE}/delete-summary`)).set(as(MANAGER)).expect(200);
     expect(summary.body).toEqual({ folders: 2, files: 2 });
     const res = await request(app).delete(api(`/${PRICE}`)).set(as(MANAGER)).expect(200);
@@ -291,7 +291,7 @@ describe('the old Dashboard routes', () => {
 
     await request(app).put(`/api/sales-dashboard/resources/${OLD}`).set(as(MANAGER))
       .field('name', 'Brochure').field('type', 'link').field('content', 'https://modaquartz.com/b').expect(200);
-    expect((await SalesDashboardResource.findById(OLD).lean()).name).toBe('Brochure');
+    expect(((await SalesDashboardResource.findById(OLD).lean()))!.name).toBe('Brochure');
 
     await request(app).delete(`/api/sales-dashboard/resources/${PRICE}`).set(as(MANAGER)).expect(200);
     expect(await SalesDashboardResource.countDocuments({ parentId: PRICE })).toBe(0);

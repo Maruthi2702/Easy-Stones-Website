@@ -27,13 +27,13 @@ let kingRows: Loose[] | Error;
 let detailCalls: string[];
 let burienRows: Loose[] | Error;
 const fakeKing = {
-  issuedSince: async (since: string) => ({ rows: kingRows.filter((r: Loose) => r.day >= since).map((r: Loose) => r.row), pages: 1, total: kingRows.length }),
-  details: async (n: unknown) => {
+  issuedSince: async (since: string) => ({ rows: (kingRows as Loose[]).filter((r: Loose) => r.day >= since).map((r: Loose) => r.row), pages: 1, total: (kingRows as Loose[]).length }),
+  details: async (n: string) => {
     detailCalls.push(n);
     return { people: [{ Name: 'ABC Homes', ContractorLicNum: 'ABCHOHL123AB', Type: 'Contractor' }], parcel: '1593001020', projectName: `P ${n}`, place: { city: 'North Bend', zip: '98045' } };
   }
 };
-const fakeBurien = { issuedSince: async () => ({ rows: burienRows, pages: 1, total: burienRows.length }), details: async () => ({ people: [{ Name: 'V N CONSTRUCTION LLC', Type: 'Contractor' }], parcel: '', projectName: '' }) };
+const fakeBurien = { issuedSince: async () => ({ rows: burienRows, pages: 1, total: (burienRows as Loose[]).length }), details: async () => ({ people: [{ Name: 'V N CONSTRUCTION LLC', Type: 'Contractor' }], parcel: '', projectName: '' }) };
 const fakeWhatcom = {
   issuedSince: async () => ({ rows: [{ CaseId: 'c1', CaseNumber: 'SFR2026-00212', CaseType: 'Building (Residential) - SFR - New Construction', IssueDate: '2026-10-06T00:00:00', Address: { City: 'Ferndale' } }], pages: 1, total: 1 }),
   details: async () => ({ PermitNumber: 'SFR2026-00212', Contacts: [] })
@@ -104,7 +104,7 @@ describe('any source, pulled the same way', () => {
   it('pulls only the sources it has readers for', async () => {
     const out = await makeSync().run();
     expect(Object.keys(out).filter((k) => !['reports', 'kingReports', 'monthToDate', 'contractors'].includes(k))).toEqual(['king_county', 'burien']);
-    expect(out.monthToDate.map((c: string) => c.source)).toEqual(['king_county', 'burien']);
+    expect(out.monthToDate.map((c: Loose) => c.source)).toEqual(['king_county', 'burien']);
   });
 });
 
@@ -158,7 +158,7 @@ describe('the WA contractor registry', () => {
   const lni = (rows: Loose[]) => {
     const calls: string[] = [];
     const fetchImpl = async (url: string) => {
-      const where = new URL(url).searchParams.get('$where');
+      const where = new URL(url).searchParams.get('$where')!;
       calls.push(where);
       const hit = rows.filter((r: Loose) => where.includes(`'${r.contractorlicensenumber}'`) || where.includes(`'${registryName(r.businessname)}'`));
       return { ok: true, status: 200, text: async () => JSON.stringify(hit) };
@@ -195,7 +195,7 @@ describe('the WA contractor registry', () => {
     expect(reg.calls).toEqual([]);
 
     const app = express();
-    app.use('/api/permits', createPermitsRouter({ sync, customerIndexMs: 0, authenticate: (req: Loose, res: unknown, next: unknown) => { req.user = ADMIN; next(); } }));
+    app.use('/api/permits', createPermitsRouter({ sync, customerIndexMs: 0, authenticate: (req: Loose, res: unknown, next: () => void) => { req.user = ADMIN; next(); } }));
     const r = await request(app).get('/api/permits?limit=100');
     const by = Object.fromEntries(r.body.items.map((p: Loose) => [p.permitNumber, p.contacts[0]]));
     expect(by['SFR26-0009'].registry).toMatchObject({ matchedBy: 'license', license: 'ABCHOHL123AB', businessName: 'ABC HOMES LLC', phone: '4255550100', status: 'ACTIVE' });
@@ -223,7 +223,7 @@ describe('the API’s counties', () => {
     const sync = createPermitSync({ readers: { king_county: fakeKing, burien: fakeBurien, whatcom: fakeWhatcom }, log: quiet, now: () => clock });
     await sync.run();
     app = express();
-    app.use('/api/permits', createPermitsRouter({ sync, customerIndexMs: 0, authenticate: (req: Loose, res: unknown, next: unknown) => { req.user = ADMIN; next(); } }));
+    app.use('/api/permits', createPermitsRouter({ sync, customerIndexMs: 0, authenticate: (req: Loose, res: unknown, next: () => void) => { req.user = ADMIN; next(); } }));
   });
   const get = (url: string) => request(app).get(`/api/permits${url}`);
 
@@ -240,7 +240,7 @@ describe('the API’s counties', () => {
 
   it('lists the sources it pulls and each city’s county', async () => {
     const meta = (await get('/meta')).body;
-    expect(meta.sources.map((s: string) => s.id)).toEqual(['king_county', 'burien', 'whatcom']);
+    expect(meta.sources.map((s: Loose) => s.id)).toEqual(['king_county', 'burien', 'whatcom']);
     expect(meta.sources[0]).toMatchObject({ county: 'king', countyLabel: 'King County', kind: 'county' });
     expect(meta.cityCounties).toEqual({ Burien: ['king'], Ferndale: ['whatcom'], 'North Bend': ['king'] });
   });
@@ -274,7 +274,7 @@ describe('a contractor’s pop-up and their permits', () => {
     // Burien's permit names "V N CONSTRUCTION LLC" without a license; the registry matched that name to a license.
     await ContractorName.create({ name: 'V N CONSTRUCTION LLC', license: 'ABCHOHL123AB', candidates: 1, checkedAt: clock });
     app = express();
-    app.use('/api/permits', createPermitsRouter({ sync, contractors: registry, customerIndexMs: 0, authenticate: (req: Loose, res: unknown, next: unknown) => { req.user = ADMIN; next(); } }));
+    app.use('/api/permits', createPermitsRouter({ sync, contractors: registry, customerIndexMs: 0, authenticate: (req: Loose, res: unknown, next: () => void) => { req.user = ADMIN; next(); } }));
   };
   const get = (url: string) => request(app).get(`/api/permits${url}`);
 
@@ -329,7 +329,7 @@ describe('a contractor’s pop-up and their permits', () => {
     await get('/contractor/ABCHOHL123AB');
     const down = createContractorRegistry({ fetchImpl: fakeRegistry({ down: true }), sleep: async () => {}, now: () => clock, log: quiet });
     const app2 = express();
-    app2.use('/api/permits', createPermitsRouter({ contractors: down, customerIndexMs: 0, authenticate: (req: Loose, res: unknown, next: unknown) => { req.user = ADMIN; next(); } }));
+    app2.use('/api/permits', createPermitsRouter({ contractors: down, customerIndexMs: 0, authenticate: (req: Loose, res: unknown, next: () => void) => { req.user = ADMIN; next(); } }));
     const r = await request(app2).get('/api/permits/contractor/ABCHOHL123AB');
     expect(r.body).toMatchObject({ found: true, stale: true, businessName: 'ABC HOMES LLC', insurance: [] });
     expect((await request(app2).get('/api/permits/contractor/NEVERSN111AA')).status).toBe(502);

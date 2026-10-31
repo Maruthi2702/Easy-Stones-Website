@@ -60,7 +60,7 @@ describe('Skagit County', () => {
       sourceUrl: 'https://skagitcountywa-energovweb.tylerhost.net/apps/selfservice#/permit/abc'
     });
     expect(p.contacts).toEqual(expect.arrayContaining([expect.objectContaining({ name: 'Lester Francis', phone: expect.stringContaining('333-3371'), email: 'valconlf@hotmail.com' })]));
-    expect(p.contacts.find((c: string) => c.name === 'Jordan Small').phone).toBe('');
+    expect(p.contacts.find((c: Loose) => c.name === 'Jordan Small').phone).toBe('');
   });
 });
 

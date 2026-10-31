@@ -1,12 +1,13 @@
+import type { Loose } from '../src/types/records.ts';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import Admin from '../src/models/Admin.js';
+import Admin from './legacyAdmin.ts';
 
 dotenv.config();
 
 async function checkAdmin() {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    await mongoose.connect(process.env.MONGO_URI!);
     console.log('✅ Connected to MongoDB');
 
     const admins = await Admin.find({});

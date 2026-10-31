@@ -8,10 +8,10 @@ import type { Loose } from '../types/records.ts';
  * missed here (a crash, a write path that doesn't call this) is caught by the
  * regular reconcile run (src/accounting/sync.ts).
  */
-let handler = null;
+let handler: ((ids: string[]) => unknown) | null = null;
 
 /** server.ts registers the sync once it's ready. */
-export const setDeliveriesChangedHandler = (fn: Loose) => { handler = typeof fn === 'function' ? fn : null; };
+export const setDeliveriesChangedHandler = (fn: ((ids: string[]) => unknown) | null) => { handler = typeof fn === 'function' ? fn : null; };
 
 /** Call after any delivery write with the delivery `id`s (not _id) it touched. */
 export function deliveriesChanged(ids: string[]) {
@@ -19,6 +19,6 @@ export function deliveriesChanged(ids: string[]) {
   const list = [...new Set((Array.isArray(ids) ? ids : [ids]).filter(Boolean).map(String))];
   if (!list.length) return;
   Promise.resolve()
-    .then(() => handler(list))
+    .then(() => handler!(list))
     .catch((err) => console.error('[accounting] freight sync after delivery change failed:', err));
 }

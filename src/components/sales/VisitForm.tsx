@@ -55,7 +55,7 @@ export default function VisitForm({
     onCreateCustomer,
     canDelete = false,
     onDelete
-}: { isEdit: boolean; visit?: Loose | null; values: Loose; setValues: React.Dispatch<React.SetStateAction<Loose>>; initial: Loose; followUpOn: boolean; onFollowUpChange: (on: boolean) => void; customerOptions?: Loose[]; customersLoading?: boolean; customerLabel?: string; saving: boolean; onSave: (value: Loose) => void; onClose: () => void; onUpload: React.ChangeEventHandler<HTMLInputElement>; uploading?: boolean; onRemoveImage: (index: number) => void; onCreateCustomer?: (() => void) | null; canDelete?: boolean; onDelete?: (() => void) | null }) {
+}: { isEdit: boolean; visit?: Loose | null; values: Loose; setValues: React.Dispatch<React.SetStateAction<Loose>>; initial: Loose; followUpOn: boolean; onFollowUpChange: (on: boolean) => void; customerOptions?: { value: string; label: string; description?: string; keywords?: string }[]; customersLoading?: boolean; customerLabel?: string; saving: boolean; onSave: (value: Loose) => void; onClose: () => void; onUpload: React.ChangeEventHandler<HTMLInputElement>; uploading?: boolean; onRemoveImage: (index: number) => void; onCreateCustomer?: (() => void) | null; canDelete?: boolean; onDelete?: (() => void) | null }) {
     const [touched, touchField, markTouched] = useTouched();
     const [submitted, setSubmitted] = useState(false);
 
@@ -114,7 +114,7 @@ export default function VisitForm({
             className="fm-btn fm-btn-text-danger"
             disabled={saving || dirtyCount > 0}
             title={dirtyCount > 0 ? 'Save or discard your changes first' : 'Delete this visit'}
-            onClick={onDelete}
+            onClick={onDelete || undefined}
         >
             <Trash2 size={16} aria-hidden="true" />
             Delete visit
@@ -150,7 +150,7 @@ export default function VisitForm({
                         selectedLabel={customerLabel}
                         placeholder="Search customers"
                         sheetTitle="Customer"
-                        onCreateNew={onCreateCustomer}
+                        onCreateNew={onCreateCustomer || undefined}
                         createNewLabel="New customer"
                         error={shown('customerId')}
                     />

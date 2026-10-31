@@ -2,7 +2,7 @@
 import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
-const contactSchema = new mongoose.Schema<Loose>({
+const contactSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   name: { type: String, required: true },
   company: { type: String },
   email: { type: String, required: true },

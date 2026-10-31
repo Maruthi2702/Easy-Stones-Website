@@ -16,7 +16,7 @@ import type { Loose } from '../../types/records.ts';
  */
 import { mbpRule } from './mbp.ts';
 
-const city = (name: string, rest: unknown) => mbpRule({ label: name, long: `City of ${name}`, county: 'king', office: name.toUpperCase(), city: name, ...rest });
+const city = (name: string, rest: Loose) => mbpRule({ label: name, long: `City of ${name}`, county: 'king', office: name.toUpperCase(), city: name, ...rest });
 
 export const auburn = city('Auburn', {
   id: 'auburn',

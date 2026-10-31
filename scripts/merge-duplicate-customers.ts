@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 /**
  * Merge customer records that are the same business twice.
  *
@@ -39,8 +40,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BACKUP_DIR = path.join(HERE, 'merge-backups');
 
 const args = process.argv.slice(2);
-const has = (flag) => args.includes(flag);
-const valueOf = (flag) => { const i = args.indexOf(flag); return i === -1 ? null : args[i + 1]; };
+const has = (flag: string) => args.includes(flag);
+const valueOf = (flag: string) => { const i = args.indexOf(flag); return i === -1 ? null : args[i + 1]; };
 
 const APPLY = has('--apply');
 const INCLUDE_WEAK = has('--include-weak');
@@ -55,8 +56,8 @@ const UNDO = valueOf('--undo');
  * and deliveries against it keeps its id; the other record's *values* may still
  * be better, and get copied over below.
  */
-const weigh = async (db, row) => {
-  const counts = {};
+const weigh = async (db: mongoose.mongo.Db, row: Loose) => {
+  const counts: Record<string, number> = {};
   for (const ref of REFERENCES) {
     counts[ref.collection] = await db.collection(ref.collection).countDocuments(idFilter(ref, row._id));
   }
@@ -69,18 +70,18 @@ const weigh = async (db, row) => {
   return { counts, total };
 };
 
-const describeHistory = (w) =>
+const describeHistory = (w: Awaited<ReturnType<typeof weigh>>) =>
   Object.entries(w.counts).filter(([, v]) => v > 0).map(([k, v]) => `${k} ${v}`).join(', ') || 'no history';
 
 // ── the plan ─────────────────────────────────────────────────────────────────
 
-const buildPlan = async (db) => {
+const buildPlan = async (db: mongoose.mongo.Db) => {
   const rows = await db.collection('customers').find({}).toArray();
   const byId = new Map(rows.map(r => [String(r._id), r]));
 
   // Customers someone marked as separate accounts on the import screen are
   // taken out of their group, so this never merges what a person said apart.
-  const separatedFrom = new Map(rows.map(r => [String(r._id), new Set((r.notDuplicateOf || []).map(String))]));
+  const separatedFrom = new Map(rows.map(r => [String(r._id), new Set<string>((r.notDuplicateOf || []).map(String))]));
   let groups = groupDuplicates(rows)
     .filter(g => (INCLUDE_WEAK ? true : g.score >= STRONG))
     .map(g => ({ ...g, ids: withoutSeparated(g.ids, separatedFrom) }))
@@ -90,25 +91,25 @@ const buildPlan = async (db) => {
     groups = groups.filter(g => g.ids.some(id => String(byId.get(id)?.company || '').toLowerCase().includes(needle)));
   }
 
-  const plan = [];
+  const plan: Loose[] = [];
   for (const group of groups) {
-    const members = group.ids.map(id => byId.get(id)).filter(Boolean);
+    const members = group.ids.map(id => byId.get(id)!).filter(Boolean);
     if (members.length < 2) continue;
 
-    const weighed = [];
+    const weighed: Loose[] = [];
     for (const m of members) weighed.push({ row: m, weight: await weigh(db, m) });
 
     // Most history wins; a tie goes to the older record, which is the one the
     // team has been using.
     weighed.sort((a, b) => b.weight.total - a.weight.total ||
-      new Date(a.row.createdAt) - new Date(b.row.createdAt));
+      new Date(a.row.createdAt).getTime() - new Date(b.row.createdAt).getTime());
 
     const survivor = weighed[0].row;
     const losers = weighed.slice(1).map(w => w.row);
     const { set, changes } = planFields(survivor, losers);
     const newContacts = contactsFromLosers(set.email ?? survivor.email, survivor, losers);
 
-    const moves = [];
+    const moves: Loose[] = [];
     for (const loser of losers) {
       for (const ref of REFERENCES) {
         const n = await db.collection(ref.collection).countDocuments(idFilter(ref, loser._id));
@@ -124,7 +125,7 @@ const buildPlan = async (db) => {
   return plan;
 };
 
-const printPlan = (plan) => {
+const printPlan = (plan: Loose[]) => {
   if (!plan.length) {
     console.log('\nNothing to merge.');
     return;
@@ -139,14 +140,14 @@ const printPlan = (plan) => {
     }
     if (p.changes.length) {
       console.log('   fields filled in on the kept record:');
-      p.changes.forEach(c => console.log(`     · ${c}`));
+      p.changes.forEach((c: string) => console.log(`     · ${c}`));
     }
     if (p.newContacts.length) {
-      console.log(`   kept as contacts: ${p.newContacts.map(c => c.name || c.email).join(', ')}`);
+      console.log(`   kept as contacts: ${p.newContacts.map((c: Loose) => c.name || c.email).join(', ')}`);
     }
     if (p.moves.length) {
       console.log('   history moved across:');
-      p.moves.forEach(m => console.log(`     · ${m.count} ${m.collection}.${m.field}`));
+      p.moves.forEach((m: Loose) => console.log(`     · ${m.count} ${m.collection}.${m.field}`));
     } else {
       console.log('   history moved across: none — the removed record has no history');
     }
@@ -163,7 +164,7 @@ const printPlan = (plan) => {
  * name, which is enough to put them back — schedules and activity logs store
  * only the id, so those can be reported but not repaired.
  */
-const buildOrphanPlan = async (db) => {
+const buildOrphanPlan = async (db: mongoose.mongo.Db) => {
   const customers = await db.collection('customers').find({}, { projection: { company: 1 } }).toArray();
   const liveIds = new Set(customers.map(c => String(c._id)));
 
@@ -175,8 +176,8 @@ const buildOrphanPlan = async (db) => {
     byName.get(k).push(c);
   }
 
-  const repairable = [];
-  const unresolved = [];
+  const repairable: Loose[] = [];
+  const unresolved: Loose[] = [];
 
   for (const ref of REFERENCES) {
     const rows = await db.collection(ref.collection)
@@ -213,7 +214,7 @@ const buildOrphanPlan = async (db) => {
   return { repairable, unresolved };
 };
 
-const printOrphans = ({ repairable, unresolved }) => {
+const printOrphans = ({ repairable, unresolved }: { repairable: Loose[]; unresolved: Loose[] }) => {
   console.log(`\n${'='.repeat(74)}`);
   console.log('HISTORY POINTING AT A DELETED CUSTOMER');
   console.log('='.repeat(74));
@@ -234,7 +235,7 @@ const printOrphans = ({ repairable, unresolved }) => {
   }
 };
 
-const applyOrphanFixes = async (db, repairable) => {
+const applyOrphanFixes = async (db: mongoose.mongo.Db, repairable: Loose[]) => {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
   const file = path.join(BACKUP_DIR, `orphans-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
   fs.writeFileSync(file, JSON.stringify({ createdAt: new Date().toISOString(), orphans: repairable }, null, 2));
@@ -252,13 +253,13 @@ const applyOrphanFixes = async (db, repairable) => {
 
 // ── writing ──────────────────────────────────────────────────────────────────
 
-const applyPlan = async (db, plan) => {
+const applyPlan = async (db: mongoose.mongo.Db, plan: Loose[]) => {
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = path.join(BACKUP_DIR, `merge-${stamp}.json`);
 
   // Every group's snapshot is written before any group is touched.
-  const backup = { createdAt: new Date().toISOString(), groups: [] };
+  const backup = { createdAt: new Date().toISOString(), groups: [] as Loose[] };
   for (const p of plan) {
     const snap = await snapshotMerge(db, p.survivor, p.losers);
     backup.groups.push({ ...snap, addedContacts: p.newContacts.length });
@@ -274,7 +275,7 @@ const applyPlan = async (db, plan) => {
   console.log(`\nDone. To reverse: node scripts/merge-duplicate-customers.ts --undo ${backupPath}`);
 };
 
-const undo = async (db, file) => {
+const undo = async (db: mongoose.mongo.Db, file: string) => {
   const backup = JSON.parse(fs.readFileSync(file, 'utf8'));
 
   for (const o of backup.orphans || []) {
@@ -297,7 +298,7 @@ const undo = async (db, file) => {
 mongoose
   .connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones')
   .then(async () => {
-    const db = mongoose.connection.db;
+    const db = mongoose.connection.db!;
 
     if (UNDO) {
       await undo(db, UNDO);

@@ -11,12 +11,13 @@ vi.mock('../services/emailService.ts', () => ({
   sendEmail: vi.fn(async () => ({ success: true }))
 }));
 
-const { sendEmail } = await import('../services/emailService.ts');
+const { sendEmail: actualSendEmail } = await import('../services/emailService.ts');
+const sendEmail = vi.mocked(actualSendEmail);
 const { notifyDailyReportSubmission, seedSeattleRecipients } = await import('./dailyReportSubmissionEmail.ts');
 const { default: Location } = await import('../models/Location.ts');
 const { default: User } = await import('../models/User.ts');
 
-let mongo;
+let mongo: MongoMemoryServer;
 const report = (location: string): Loose => ({
   date: '2026-10-15', location, status: 'submitted', submittedBy: 'Krish',
   visitors: { homeowners: 1 }, deliveries: {}, pickups: {}, transfers: [], containers: [],
@@ -55,8 +56,8 @@ describe('daily report email', () => {
     const mail = sendEmail.mock.calls[0][0];
     expect(mail.to).toEqual(['sree@easystones.com', 'owner@example.com']);
     expect(mail.subject).toBe('Daily Work Report — Kent, 2026-10-15');
-    expect(mail.attachments[0].filename).toMatch(/\.pdf$/);
-    expect(mail.attachments[0].content.subarray(0, 4).toString()).toBe('%PDF');
+    expect((mail.attachments)![0].filename).toMatch(/\.pdf$/);
+    expect((mail.attachments)![0].content.subarray(0, 4).toString()).toBe('%PDF');
   });
 
   it('follows a user’s new email address', async () => {
@@ -89,8 +90,8 @@ describe('Seattle’s one-time copy of the old list', () => {
     const sree = await user('sree', 'sree@easystones.com');
     await oldSeattle();
     const seeded = await seedSeattleRecipients();
-    expect(seeded.userIds).toEqual([String(sree._id)]);
-    expect(seeded.extraEmails).toEqual(['jeremy@easystones.com', 'vish@easystones.com', 'krish@easystones.com']);
+    expect((seeded)!.userIds).toEqual([String(sree._id)]);
+    expect((seeded)!.extraEmails).toEqual(['jeremy@easystones.com', 'vish@easystones.com', 'krish@easystones.com']);
     await notifyDailyReportSubmission(report('Seattle'));
     expect([...sendEmail.mock.calls[0][0].to].sort()).toEqual([
       'jeremy@easystones.com', 'krish@easystones.com', 'sree@easystones.com', 'vish@easystones.com'
@@ -103,12 +104,12 @@ describe('Seattle’s one-time copy of the old list', () => {
     await Location.updateOne({ name: 'Seattle' }, { dailyReportEmail: { userIds: [], extraEmails: [] } });
     expect(await seedSeattleRecipients()).toBeNull();
     const seattle = await Location.findOne({ name: 'Seattle' }).lean();
-    expect(seattle.dailyReportEmail).toEqual({ userIds: [], extraEmails: [] });
+    expect((seattle)!.dailyReportEmail).toEqual({ userIds: [], extraEmails: [] });
   });
 
   it('leaves other locations alone', async () => {
     await Location.collection.insertOne({ name: 'Kent' });
     expect(await seedSeattleRecipients()).toBeNull();
-    expect((await Location.collection.findOne({ name: 'Kent' })).dailyReportEmail).toBeUndefined();
+    expect(((await Location.collection.findOne({ name: 'Kent' })))!.dailyReportEmail).toBeUndefined();
   });
 });

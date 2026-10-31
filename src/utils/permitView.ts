@@ -34,7 +34,7 @@ export const DEFAULT_SORT = 'issued_desc';
  * ticked means every county. A state's box is 'all' when every covered county
  * is ticked, 'some' when part of them are, else 'none'.
  */
-export function countyTree(selected: Loose[] = [], coveredIds = COVERED_COUNTY_IDS) {
+export function countyTree(selected: string[] = [], coveredIds = COVERED_COUNTY_IDS) {
   const picked = new Set(selected);
   return STATES.map((state) => {
     const counties = state.counties.map((c) => ({ ...c, covered: coveredIds.includes(c.id), checked: picked.has(c.id) }));
@@ -45,14 +45,14 @@ export function countyTree(selected: Loose[] = [], coveredIds = COVERED_COUNTY_I
 }
 
 /** Ticking or unticking one county; the list stays in the states' A–Z order. */
-export function toggleCounty(selected: Loose[] = [], id: unknown) {
+export function toggleCounty(selected: string[] = [], id: string) {
   const next = new Set(selected);
   if (next.has(id)) next.delete(id); else next.add(id);
   return STATES.flatMap((s) => s.counties.map((c) => c.id)).filter((c) => next.has(c));
 }
 
 /** A state's box: every covered county ticked, or (when they all were) none. */
-export function toggleState(selected: Loose[] = [], stateId: unknown, coveredIds = COVERED_COUNTY_IDS) {
+export function toggleState(selected: string[] = [], stateId: string, coveredIds = COVERED_COUNTY_IDS) {
   const state = STATES.find((s) => s.id === stateId);
   if (!state) return selected;
   const ids = state.counties.map((c) => c.id).filter((id) => coveredIds.includes(id));
@@ -62,7 +62,7 @@ export function toggleState(selected: Loose[] = [], stateId: unknown, coveredIds
 }
 
 /** 'All counties', 'King County', 'King and Whatcom counties', 'King, Pierce and Whatcom counties'. */
-export function countySummary(selected: Loose[] = []) {
+export function countySummary(selected: string[] = []) {
   const names = selected.map(countyName).filter(Boolean);
   if (!names.length) return 'All counties';
   if (names.length === 1) return countyLabel(selected[0]);
@@ -80,8 +80,8 @@ export const cleanCounties = (value: unknown) => (Array.isArray(value) ? value :
  * (`cityCounties`: each city's counties, from the API) are offered;
  * `sourceIds` are the sources the server pulls.
  */
-export function placeGroups(cities: Loose[] = [], { counties = [], cityCounties = {}, sourceIds = SOURCE_IDS }: Loose = {}) {
-  const inCounties = (county: unknown) => !counties.length || counties.includes(county);
+export function placeGroups(cities: string[] = [], { counties = [], cityCounties = {}, sourceIds = SOURCE_IDS }: { counties?: string[]; cityCounties?: Record<string, string[]>; sourceIds?: readonly string[] } = {}) {
+  const inCounties = (county: string) => !counties.length || counties.includes(county);
   return [
     { label: 'Issued by', options: sourceIds.filter((id) => SOURCES[id] && inCounties(SOURCES[id].county)).map((id) => ({ value: `source:${id}`, label: SOURCES[id].long })) },
     {
@@ -106,12 +106,12 @@ export function placeQuery(value = '') {
 }
 
 /** Clicking a column: highest / newest first, then the other way on the next click. */
-export function nextSort(current: unknown, column: unknown) {
+export function nextSort(current: string, column: string) {
   return current === `${column}_desc` ? `${column}_asc` : `${column}_desc`;
 }
 
 /** 'descending' / 'ascending' / 'none' for a column header's aria-sort. */
-export function ariaSort(current: unknown, column: unknown) {
+export function ariaSort(current: string, column: string) {
   if (current === `${column}_desc`) return 'descending';
   if (current === `${column}_asc`) return 'ascending';
   return 'none';
@@ -119,7 +119,7 @@ export function ariaSort(current: unknown, column: unknown) {
 
 /** The first issue date a range includes, on the Pacific calendar ('' for All dates). */
 export function rangeFrom(rangeId: unknown, at = new Date()) {
-  const r = DATE_RANGES.find((d) => d.id === rangeId) || DATE_RANGES.find((d) => d.id === DEFAULT_RANGE);
+  const r = DATE_RANGES.find((d) => d.id === rangeId) || DATE_RANGES.find((d) => d.id === DEFAULT_RANGE)!;
   return r.days ? shiftDay(pacificNow(at).day, -(r.days - 1)) : '';
 }
 
@@ -127,7 +127,7 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const LONG_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 /** 'Oct 9, 2026' from 'YYYY-MM-DD'. */
-export function formatDay(day: string) {
+export function formatDay(day: string | null | undefined) {
   if (!day) return '';
   const [y, m, d] = day.split('-').map(Number);
   return `${MONTHS[m - 1]} ${d}, ${y}`;
@@ -139,7 +139,7 @@ export function formatMonth(month: unknown) {
   return m ? `${LONG_MONTHS[m - 1]} ${y}` : '';
 }
 
-export function formatMoney(value: Loose) {
+export function formatMoney(value: number | null | undefined) {
   if (value === null || value === undefined) return '';
   return value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: value % 1 ? 2 : 0, maximumFractionDigits: 2 });
 }
@@ -152,7 +152,7 @@ export function sizeLine(p: Loose) {
 }
 
 /** When something happened, in Pacific time: 'today 5:04 AM', 'yesterday 5:02 AM', 'Oct 8, 5:03 AM'. */
-export function whenLine(at: unknown, now = new Date()) {
+export function whenLine(at: string | number | Date | null | undefined, now = new Date()) {
   if (!at) return '';
   const date = new Date(at);
   const time = date.toLocaleTimeString('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: '2-digit' });
@@ -180,7 +180,7 @@ export function sourceStatus(source: Loose, now = new Date()) {
     const kept = lastOk ? ` Showing what was saved ${whenLine(lastOk.finishedAt, now)}.` : ' Nothing has been saved from it yet.';
     return { tone: 'warn', text: `${source.label}: the last pull failed ${whenLine(lastRun.finishedAt, now)} — ${lastRun.error || 'no reason given'}.${kept}`, through };
   }
-  const hours = (now - new Date(lastRun.finishedAt)) / 3600000;
+  const hours = (now.getTime() - new Date(lastRun.finishedAt).getTime()) / 3600000;
   if (hours > STALE_HOURS) return { tone: 'warn', text: `${source.label}: last updated ${whenLine(lastRun.finishedAt, now)} — the morning pull hasn’t run since`, through };
   const partial = lastRun.detailErrors ? ` (${lastRun.detailErrors} permit${lastRun.detailErrors === 1 ? '' : 's'} without contacts this time)` : '';
   return { tone: lastRun.detailErrors ? 'warn' : 'ok', text: `${source.label}: updated ${whenLine(lastRun.finishedAt, now)}${partial}`, through };
@@ -195,8 +195,8 @@ export function splitChecks(checks: Loose[], at = new Date()) {
   const order = (c: Loose) => Object.keys(SOURCES).indexOf(c.source);
   const current = checks.filter((c: Loose) => c.method === 'search' && c.month === month).sort((a: Loose, b: Loose) => order(a) - order(b));
   // The newest report check of each source that has them (Whatcom County, King County).
-  const reports = [];
-  for (const c of checks.filter((x: number) => x.method !== 'search').sort((a: Loose, b: Loose) => b.month.localeCompare(a.month))) {
+  const reports: Loose[] = [];
+  for (const c of checks.filter((x: Loose) => x.method !== 'search').sort((a: Loose, b: Loose) => b.month.localeCompare(a.month))) {
     if (!reports.some((r) => r.source === c.source)) reports.push(c);
   }
   const top = [...current, ...reports.sort((a, b) => order(a) - order(b))];
@@ -280,13 +280,13 @@ export function leadContact(permit: Loose) {
 }
 
 /** Who a contact is: the source's name for them, else the registry's (a contractor known only by license). */
-export const contactTitle = (c: Loose) => c?.company || c?.name || c?.registry?.businessName || (c?.license ? `License ${c.license}` : '');
+export const contactTitle = (c: Loose | null | undefined) => c?.company || c?.name || c?.registry?.businessName || (c?.license ? `License ${c.license}` : '');
 
 /**
  * The number to call: the source's own, else the one the WA contractor
  * registry has for that license (`fromRegistry` says which, for the label).
  */
-export function contactPhone(c: Loose) {
+export function contactPhone(c: Loose | null | undefined) {
   if (c?.phone) return { phone: c.phone, fromRegistry: false };
   if (c?.registry?.phone) return { phone: c.registry.phone, fromRegistry: true };
   return { phone: '', fromRegistry: false };
@@ -311,7 +311,7 @@ const isPast = (day: string, today: string) => Boolean(day) && day < today;
  * The license's standing for the pop-up's headline: 'ok' only when the state
  * says ACTIVE and it hasn't passed its expiry date.
  */
-export function licenseStanding(profile: Loose, today = pacificNow().day) {
+export function licenseStanding(profile: Loose | null | undefined, today = pacificNow().day) {
   if (!profile?.found) return { tone: 'warn', text: 'Not in the state’s contractor registry' };
   const status = String(profile.status || '').toUpperCase();
   if (status && status !== 'ACTIVE') return { tone: 'warn', text: `License ${status.toLowerCase()}` };
@@ -326,7 +326,7 @@ export function inForce(list: Loose[] = [], today = pacificNow().day) {
 }
 
 /** '$1,000,000 · Alaska National Insurance Co · to Mar 31, 2027' */
-export function coverageLine(x: number) {
+export function coverageLine(x: Loose) {
   const until = x.untilCanceled ? 'until canceled' : x.expiresOn ? `to ${formatDay(x.expiresOn)}` : '';
   return [formatMoney(x.amount), x.company, until].filter(Boolean).join(' · ');
 }
@@ -358,7 +358,7 @@ export const personName = (s: unknown) => {
  * contractor gave on a permit, when one did (the registry has none).
  * Everything stays editable in the form.
  */
-export function customerPrefillFor(profile: Loose) {
+export function customerPrefillFor(profile: Loose | null | undefined) {
   if (!profile?.found) return null;
   const notes = [
     `WA contractor license ${profile.license}${profile.status ? ` (${profile.status.toLowerCase()}${profile.expiresOn ? `, expires ${formatDay(profile.expiresOn)}` : ''})` : ''}`,
@@ -384,13 +384,13 @@ export function customerPrefillFor(profile: Loose) {
 export const contactLicense = (c: Loose) => (c?.kind === 'contractor' ? c.license || c.registry?.license || '' : '');
 
 /** 'Active · General · license BROCKSC921MJ' — the registry's line for a contractor. */
-export function registryLine(r: Loose) {
+export function registryLine(r: Loose | null | undefined) {
   if (!r) return '';
   const status = r.status ? r.status.charAt(0) + r.status.slice(1).toLowerCase() : '';
   return [status, r.specialty ? r.specialty.charAt(0) + r.specialty.slice(1).toLowerCase() : '', r.license ? `license ${r.license}` : ''].filter(Boolean).join(' · ');
 }
 /** The person, when it isn't just the company repeated. */
-export const contactPerson = (c: Loose) => (c?.name && c.name.toUpperCase() !== String(c.company || '').toUpperCase() ? c.name : '');
+export const contactPerson = (c: Loose | null | undefined) => (c?.name && c.name.toUpperCase() !== String(c.company || '').toUpperCase() ? c.name : '');
 
 /** The first existing customer any of the permit's contacts already is. */
 export const customerOf = (permit: Loose) => (permit.contacts || []).find((c: Loose) => c.customer)?.customer || null;

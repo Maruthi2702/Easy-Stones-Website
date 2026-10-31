@@ -2,7 +2,7 @@
 import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
-const deliverySchema = new mongoose.Schema<Loose>({
+const deliverySchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   id: { type: String, required: true, unique: true, index: true },
   customerId: { type: String, default: null, index: true },
   truckId: { type: String, default: '', index: true },

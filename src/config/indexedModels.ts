@@ -55,8 +55,13 @@ import { Cart, Hold, SlabReservation, Counter, HoldHistory } from '../holds/mode
 
 import { PurchasingScope, PurchasingInbound, PurchasingDraft, PurchasingLock, PurchasingPoLink } from '../purchasing/models.ts';
 
-export const INDEXED_MODELS = [
-  ...FUEL_MODELS.map(model => [model.modelName, model]),
+type IndexedModel = {
+  createIndexes: () => Promise<unknown>;
+  collection: { getIndexes: () => Promise<unknown> };
+};
+
+export const INDEXED_MODELS: readonly (readonly [string, IndexedModel])[] = [
+  ...FUEL_MODELS.map(model => [model.modelName, model] as const),
   ['PurchasingScope', PurchasingScope], ['PurchasingInbound', PurchasingInbound],
   ['PurchasingDraft', PurchasingDraft], ['PurchasingLock', PurchasingLock], ['PurchasingPoLink', PurchasingPoLink],
   ['Customer', Customer],

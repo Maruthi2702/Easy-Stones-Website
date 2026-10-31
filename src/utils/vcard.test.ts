@@ -10,7 +10,7 @@ const seattleGranite = {
 
 describe('the primary contact', () => {
     it('is named "Name @ Company - Type" in one field, with every real email and the work address', () => {
-        const card = buildVCard(vcardPersonFor(seattleGranite, 'primary'));
+        const card = buildVCard((vcardPersonFor(seattleGranite, 'primary'))!);
         expect(card).toBe([
             'BEGIN:VCARD',
             'VERSION:3.0',
@@ -27,26 +27,26 @@ describe('the primary contact', () => {
     });
 
     it('a customer with no person is "Company - Type"; no type set reads as Fabricator', () => {
-        const card = buildVCard(vcardPersonFor({ company: 'Acme Stone', contactName: 'Acme Stone', phone: '1' }));
+        const card = buildVCard((vcardPersonFor({ company: 'Acme Stone', contactName: 'Acme Stone', phone: '1' }))!);
         expect(card).toContain('N:;Acme Stone - Fabricator;;;');
         expect(card).toContain('FN:Acme Stone - Fabricator');
         expect(card).not.toContain('ORG:');
     });
 
     it('escapes the comma in a company name like "Backcountry Counters, LLC"', () => {
-        const card = buildVCard(vcardPersonFor({ company: 'Backcountry Counters, LLC', contactName: 'Kyle Sears', customerType: 'Fabricator' }));
+        const card = buildVCard((vcardPersonFor({ company: 'Backcountry Counters, LLC', contactName: 'Kyle Sears', customerType: 'Fabricator' }))!);
         expect(card).toContain('N:;Kyle Sears @ Backcountry Counters\\, LLC - Fabricator;;;');
     });
 
     it('leaves placeholder emails out', () => {
         const p = vcardPersonFor({ company: 'A', email: 'sales_1_abc@temp-customer.com' });
-        expect(p.emails).toEqual([]);
+        expect((p)!.emails).toEqual([]);
     });
 });
 
 describe('a saved contact', () => {
     it('uses their own phone and email, role as title, and keeps their notes', () => {
-        const card = buildVCard(vcardPersonFor(seattleGranite, 'k2'));
+        const card = buildVCard((vcardPersonFor(seattleGranite, 'k2'))!);
         expect(card).toContain('FN:Stan @ Seattle Granite - Fabricator');
         expect(card).toContain('TITLE:Manager');
         expect(card).not.toContain('ORG:');

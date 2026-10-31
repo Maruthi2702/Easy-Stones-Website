@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 /**
  * Give every transfer an expected arrival date it can be seen by.
  *
@@ -38,14 +39,14 @@ const fixEarly = process.argv.includes('--fix-early');
 const BACKUP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'merge-backups');
 
 const main = async () => {
-  await mongoose.connect(process.env.MONGO_URI);
+  await mongoose.connect(process.env.MONGO_URI!);
 
   const transfers = await Delivery.find(
     { deliveryType: 'transfer' },
     { id: 1, date: 1, expectedArrivalDate: 1, location: 1, transferDestination: 1, status: 1 }
   ).lean();
 
-  const route = (t) => `${t.id}  ${t.location || '(none)'} → ${t.transferDestination || '(none)'}`;
+  const route = (t: Loose) => `${t.id}  ${t.location || '(none)'} → ${t.transferDestination || '(none)'}`;
 
   const changes = transfers
     .filter((t) => t.date && !t.expectedArrivalDate)

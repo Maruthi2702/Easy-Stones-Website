@@ -55,7 +55,7 @@ export function bellevueCategory(code: string, subtype = '') {
  * fields MyBuildingPermit doesn't have, plus the owner (people there are the
  * contractor and applicant).
  */
-export function bellevueFill(record: Loose) {
+export function bellevueFill(record: Loose | null) {
   if (!record) return {};
   return {
     subtype: cleanText(record.SUBTYPE),
@@ -86,7 +86,7 @@ const bellevue = mbpRule({
 
 bellevue.categoryFor = (code: string, subtype = '') => bellevueCategory(code, subtype);
 bellevue.isUnsorted = (code: string) => /^B[A-Z]$/.test(key(code)) && !bellevueCategory(code) && !SKIPPED_SET.has(key(code));
-bellevue.toPermit = (row: Loose, detail: Loose) => {
+bellevue.toPermit = (row: Loose, detail?: Loose | null) => {
   const p = mbpPermit(bellevue, row, detail);
   if (!detail?.record) {
     // A big project's category comes from the city's record (apartments or

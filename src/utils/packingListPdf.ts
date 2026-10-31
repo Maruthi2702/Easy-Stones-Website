@@ -98,7 +98,7 @@ function addressFrom(lines: string[]) {
 // sitting nearest beneath it, so a blank PO # doesn't shift SO# into its
 // place. A long value (a PO # like "JOB # Retail.Lieske…") wraps the row onto
 // several lines, so everything down to the item table is read.
-function headerValues(lines: string[], headerIdx: number) {
+function headerValues(lines: PrintedLine[], headerIdx: number) {
   const out: Loose = {};
   const headers = lines[headerIdx].cells;
   for (let i = headerIdx + 1; i < lines.length && i <= headerIdx + 6; i++) {
@@ -129,7 +129,7 @@ const DOCUMENT_TITLES = [
   { re: /^invoice$/i, label: 'Invoice' }
 ];
 
-function documentTitle(lines: string[][]) {
+function documentTitle(lines: PrintedLine[]) {
   for (const l of lines) {
     // A partial shipment is numbered "137611/2".
     const m = l.text.match(/^([A-Za-z ]+?)\s*#\s*:?\s*(\d{3,}(?:[/-]\d+)?)$/);
@@ -145,9 +145,9 @@ function documentTitle(lines: string[][]) {
 // driver actually loads, so those rows are counted. A material with no slab
 // rows under it yet (not picked) counts its "(n)" instead — but only when it's
 // sold by the square foot, so a sink or a bottle of sealer isn't a slab.
-function countSlabs(lines: string[][]) {
+function countSlabs(lines: PrintedLine[]) {
   let total = 0;
-  let block = null;
+  let block: { n: number; bySqFt: boolean; rows: number } | null = null;
   const close = () => {
     if (block) total += block.rows || (block.bySqFt ? block.n : 0);
     block = null;
@@ -156,7 +156,7 @@ function countSlabs(lines: string[][]) {
     const countCell = l.cells.find((c: Loose) => ITEM_COUNT_CELL.test(c.text));
     if (countCell && !DIMENSION_ROW.test(l.text)) {
       close();
-      block = { n: Number(countCell.text.match(ITEM_COUNT_CELL)[1]), bySqFt: /\bSF\b/.test(l.text), rows: 0 };
+      block = { n: Number(countCell.text.match(ITEM_COUNT_CELL)![1]), bySqFt: /\bSF\b/.test(l.text), rows: 0 };
     } else if (DIMENSION_ROW.test(l.text)) {
       if (block) block.rows += 1;
       else total += 1;
@@ -172,7 +172,7 @@ function countSlabs(lines: string[][]) {
  * Anything not found comes back as '' (or null for the slab count) rather
  * than a guess.
  */
-export function parsePackingList(lines: string[][] = []) {
+export function parsePackingList(lines: PrintedLine[] = []) {
   const joined = lines.map(l => l.text).join('\n');
 
   const { documentType, documentNumber } = documentTitle(lines);
@@ -251,8 +251,8 @@ export function matchCustomerOption(name: string, options: Loose[] = []) {
  */
 export function planPackingListAutofill(current: Loose = {}, parsed: Loose = {}, customerOptions: Loose[] = []) {
   const updates: Loose = {};
-  const filled = [];
-  const kept = [];
+  const filled: string[] = [];
+  const kept: {field: string; current: string; pdf: string}[] = [];
   const type = current.deliveryType || 'jobsite';
   const isTransfer = type === 'transfer';
   const isWillCall = type === 'will_call';
@@ -287,7 +287,7 @@ export function planPackingListAutofill(current: Loose = {}, parsed: Loose = {},
   // matches one customer exactly, so it links to their record (and brings
   // their sales rep, like choosing them by hand); otherwise typed in as a
   // custom name, the same as someone typing it.
-  let matched = null;
+  let matched: Loose | null = null;
   if (!isTransfer && parsed.billToName) {
     matched = matchCustomerOption(parsed.billToName, customerOptions);
     const shownName = matched ? matched.label : parsed.billToName;

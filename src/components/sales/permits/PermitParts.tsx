@@ -12,7 +12,7 @@ import {
  */
 
 /** A column header that sorts the list: first click highest / newest first, next click the other way. */
-export function SortHeader({ column, label, sort, onSort, className = '' }: { column: string; label: string; sort: Loose; onSort: (sort: Loose) => void; className?: string }) {
+export function SortHeader({ column, label, sort, onSort, className = '' }: { column: string; label: string; sort: string; onSort: (sort: string) => void; className?: string }) {
   const state = ariaSort(sort, column);
   const Icon = state === 'descending' ? ArrowDown : state === 'ascending' ? ArrowUp : ArrowUpDown;
   return (
@@ -40,7 +40,7 @@ function ContactLinks({ contact }: { contact: Loose }) {
 }
 
 /** A contact's name — for a licensed contractor, a button that opens their pop-up. */
-function ContactName({ contact, onContractor }: { contact: Loose; onContractor: (license: string) => void }) {
+function ContactName({ contact, onContractor }: { contact: Loose; onContractor: ((license: string) => void) | null }) {
   const license = contactLicense(contact);
   if (!license || !onContractor) return contactTitle(contact);
   return (
@@ -133,7 +133,7 @@ export function PermitDetail({ permit, onContractor = null }: { permit: Loose; o
         ) : null}
       </div>
       <div className="pm-detail-contacts">
-        {(permit.contacts || []).length ? permit.contacts.map((c, i) => (
+        {(permit.contacts || []).length ? permit.contacts.map((c: Loose, i: number) => (
           <div key={i} className="pm-contact">
             <span className="pm-role-label">{c.role}</span>
             <span className="pm-name"><ContactName contact={c} onContractor={onContractor} /></span>

@@ -14,24 +14,24 @@ export const PAYMENT_METHODS = [
   { key: 'check', label: 'Check' }
 ];
 
-const orNull = (v: Loose) => (v === undefined || v === '' ? null : v);
+const orNull = (v: number | '' | null | undefined) => (v === undefined || v === '' ? null : v);
 
 /** Every method present, as { count, amount } — missing ones (older reports) null. */
-export const withAllPaymentMethods = (payments: unknown) => Object.fromEntries(
+export const withAllPaymentMethods = (payments: Loose | null | undefined) => Object.fromEntries(
   PAYMENT_METHODS.map(({ key }) => [key, {
     count: orNull(payments?.[key]?.count ?? null),
     amount: orNull(payments?.[key]?.amount ?? null)
   }])
 );
 
-const sumOf = (payments: unknown, field: string) =>
+const sumOf = (payments: Loose | null | undefined, field: string) =>
   PAYMENT_METHODS.reduce((s, { key }) => s + (Number(payments?.[key]?.[field]) || 0), 0);
 
-export const paymentCount = (payments: unknown) => sumOf(payments, 'count');
-export const paymentAmount = (payments: unknown) => sumOf(payments, 'amount');
+export const paymentCount = (payments: Loose | null | undefined) => sumOf(payments, 'count');
+export const paymentAmount = (payments: Loose | null | undefined) => sumOf(payments, 'amount');
 
 /** Somebody entered a figure — a 0 included ("nothing taken" is an answer). */
-export const paymentsSaid = (payments: unknown) => PAYMENT_METHODS.some(({ key }) =>
+export const paymentsSaid = (payments: Loose | null | undefined) => PAYMENT_METHODS.some(({ key }) =>
   ['count', 'amount'].some(f => orNull(payments?.[key]?.[f] ?? null) !== null));
 
 /** "Nothing taken today": every method 0. */

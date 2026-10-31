@@ -9,7 +9,7 @@ const permit = (i: number, extra: Loose = {}) => ({
   description: 'Construct a new two-story single family residence with attached garage, covered porch and a detached shop building',
   contacts: [{ kind: 'contractor', company: 'KVF Construction', name: 'Vlad K', phone: '3607397535' }], ...extra
 });
-const pagesOf = async (bytes: unknown) => (await PDFDocument.load(bytes)).getPageCount();
+const pagesOf = async (bytes: Uint8Array) => (await PDFDocument.load(bytes)).getPageCount();
 
 describe('buildPermitsPdf', () => {
   it('makes a one-page PDF that says when nothing matches', async () => {

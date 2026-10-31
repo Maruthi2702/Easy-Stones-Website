@@ -34,7 +34,7 @@ describe('manualTransferWarning', () => {
   const ticketA = { fromTo: 'SPO — SEA', direction: 'in', auto: true, transferNumber: '14956' };
   const ticketB = { fromTo: 'SPO — SEA', direction: 'in', auto: true, transferNumber: '149567' };
   const ticketOut = { fromTo: 'SEA — SLC', direction: 'out', auto: true, transferNumber: '19001' };
-  const code = (...args) => manualTransferWarning(...args)?.code ?? null;
+  const code = (...args: Parameters<typeof manualTransferWarning>) => manualTransferWarning(...args)?.code ?? null;
 
   it('flags a transfer number already on the report, from a ticket or typed on another line', () => {
     expect(manualTransferWarning({ fromTo: 'SPO — SEA', transferNumber: '149567' }, 'SEA', [ticketA, ticketB]))
@@ -90,7 +90,7 @@ describe('one transfer, one number, one line', () => {
 });
 
 describe('transferLineKey and carrying typed slabs over', () => {
-  const t = (fromTo: unknown, transferNumber: unknown, slabs: unknown, extra: Loose = {}): Loose => ({ fromTo, transferNumber, slabs, auto: true, direction: 'out', ...extra });
+  const t = (fromTo: unknown, transferNumber: unknown, slabs?: unknown, extra: Loose = {}): Loose => ({ fromTo, transferNumber, slabs, auto: true, direction: 'out', ...extra });
 
   it('tells two transfers on one route apart, by number or else ticket id', () => {
     expect(transferLineKey(t('SEA — SLC', '14956'))).toBe('out:SEA — SLC#14956');

@@ -1,19 +1,17 @@
 import { DELIVERY_PERMISSIONS } from '../utils/deliveryAccess.ts';
 import { CHECKIN_PERMISSIONS } from '../utils/checkInAccess.ts';
 
-type JoinPayload = { token?: string } | null | undefined;
+type JoinPayload = { token?: string | null } | null | undefined;
 type JoinReply = (result: { ok: boolean }) => void;
-type BranchSocket = {
+export type BranchSocket = {
   rooms: Set<string>;
   connected: boolean;
   on: (event: string, listener: (payload: JoinPayload, ack?: JoinReply) => void) => unknown;
   join: (room: string) => unknown;
   leave: (room: string) => unknown;
 };
-type ResolveStaff = (token: string | undefined) => Promise<{
-  permissions: readonly string[];
-  assignedLocations?: readonly string[];
-} | null>;
+type BranchStaff = { permissions: readonly string[]; assignedLocations?: readonly string[] };
+type ResolveStaff = (token: string | null | undefined) => BranchStaff | null | Promise<BranchStaff | null>;
 
 // Room membership must enforce the same feature switch as its HTTP reads.
 // Clear old rooms even on logout or a refused join; sequence async lookups so

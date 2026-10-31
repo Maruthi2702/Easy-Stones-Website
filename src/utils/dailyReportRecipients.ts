@@ -38,8 +38,8 @@ export const splitEmails = (text: unknown) =>
 
 /** Typed addresses → { emails (lower-case, no repeats), bad (what isn't an email) }. */
 export const parseEmailList = (text: unknown) => {
-  const emails = [];
-  const bad = [];
+  const emails: string[] = [];
+  const bad: string[] = [];
   for (const part of splitEmails(text)) {
     if (!isEmail(part)) bad.push(part);
     else if (!emails.includes(part.toLowerCase())) emails.push(part.toLowerCase());
@@ -48,7 +48,7 @@ export const parseEmailList = (text: unknown) => {
 };
 
 /** User ids as stored: strings, real ids only, no repeats. */
-export const cleanUserIds = (ids: string[]) =>
+export const cleanUserIds = (ids: unknown) =>
   [...new Set((Array.isArray(ids) ? ids : []).map((id) => String(id || '').trim()).filter((id) => ID_RE.test(id)))];
 
 /**
@@ -57,9 +57,9 @@ export const cleanUserIds = (ids: string[]) =>
  * `users` are the listed users as loaded ({ _id, email, isActive }); ids
  * with no user (deleted) are skipped.
  */
-export const recipientEmails = (setting: Loose, users: Loose[] = []) => {
+export const recipientEmails = (setting: Loose | null | undefined, users: Loose[] = []) => {
   const byId = new Map(users.map((u) => [String(u._id), u]));
-  const out = [];
+  const out: string[] = [];
   const add = (e: unknown) => {
     const email = String(e || '').trim().toLowerCase();
     if (isEmail(email) && !out.includes(email)) out.push(email);
@@ -76,7 +76,7 @@ export const recipientEmails = (setting: Loose, users: Loose[] = []) => {
  * Why a listed user won't get the email, or '' if they will — shown beside
  * their name on the form.
  */
-export const userRecipientProblem = (user: Loose) => {
+export const userRecipientProblem = (user: Loose | null | undefined) => {
   if (!user) return 'no longer a user';
   if (user.isActive === false) return 'deactivated — not sent';
   if (!isEmail(user.email)) return 'no email on file';
@@ -87,9 +87,9 @@ export const userRecipientProblem = (user: Loose) => {
  * Seattle's one-time copy: the old addresses that belong to a user become
  * that user (so their email can change later), the rest stay typed.
  */
-export const seedFromAddresses = (addresses: string[] | null | undefined, users: Loose[] = []) => {
-  const userIds = [];
-  const extraEmails = [];
+export const seedFromAddresses = (addresses: string[], users: Loose[] = []) => {
+  const userIds: string[] = [];
+  const extraEmails: string[] = [];
   for (const a of addresses) {
     const email = a.toLowerCase();
     const u = users.find((x) => String(x.email || '').toLowerCase() === email && x.isActive !== false);

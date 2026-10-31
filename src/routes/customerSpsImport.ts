@@ -1,3 +1,4 @@
+import type { ScalarParams, ScalarQuery } from '../types/server.ts';
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request, Response, NextFunction } from 'express';
 import express from 'express';
@@ -123,7 +124,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
       res.json({ run: summary(run), fileCheck, headers, mapping, fields });
     } catch (err) {
       console.error('SPS import upload error:', err);
-      bad(res, 400, `Could not read the file: ${err.message}`);
+      bad(res, 400, `Could not read the file: ${(err as Error).message}`);
     }
   });
 
@@ -139,14 +140,14 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   });
 
   router.get(`${BASE}/:id`, authenticate, mayImport, async (req, res) => {
-    const run = await SpsImportRun.findById(req.params.id).lean().catch(() => null);
+    const run = await SpsImportRun.findById((req.params as ScalarParams).id).lean().catch(() => null);
     if (!run) return bad(res, 404, 'No such import.');
     const failed = await SpsImportItem.find({ runId: String(run._id), state: 'failed' }).select('name rowNumber reason').limit(100).lean();
     res.json({ run: summary(run), failed });
   });
 
   router.delete(`${BASE}/:id`, authenticate, mayImport, async (req, res) => {
-    const run = await SpsImportRun.findOne({ _id: req.params.id, status: 'draft' }).catch(() => null);
+    const run = await SpsImportRun.findOne({ _id: (req.params as ScalarParams).id, status: 'draft' }).catch(() => null);
     if (!run) return bad(res, 404, 'No such draft import.');
     await SpsImportRun.deleteOne({ _id: run._id });
     res.json({ ok: true });
@@ -155,7 +156,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   // ── plan: save the answers, return what the import would do ───────────────
   router.post(`${BASE}/:id/plan`, authenticate, mayImport, express.json({ limit: '5mb' }), async (req, res) => {
     try {
-      const run = await SpsImportRun.findOne({ _id: req.params.id, status: 'draft' });
+      const run = await SpsImportRun.findOne({ _id: (req.params as ScalarParams).id, status: 'draft' });
       if (!run) return bad(res, 404, 'No such draft import — it may have started or been discarded.');
       const set: Loose = {};
       for (const f of ['mapping', 'repAliases', 'branchAliases', 'answers']) {
@@ -178,7 +179,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
       });
     } catch (err) {
       console.error('SPS import plan error:', err);
-      bad(res, 400, `Could not plan the import: ${err.message}`);
+      bad(res, 400, `Could not plan the import: ${(err as Error).message}`);
     }
   });
 
@@ -189,7 +190,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
       if (busy) {
         return bad(res, 409, `${ownerOf(busy)} is importing right now (${busy.done} of ${busy.total}). Try again when it’s finished.`);
       }
-      const run = await SpsImportRun.findOne({ _id: req.params.id, status: 'draft' });
+      const run = await SpsImportRun.findOne({ _id: (req.params as ScalarParams).id, status: 'draft' });
       if (!run) return bad(res, 404, 'No such draft import — it may have started already.');
       const out = await computePlan(run.toObject(), { finalize: true });
       if (!out.plan) return bad(res, 422, out.fileCheck.blocking.map((b) => b.message).join(' '), { fileCheck: out.fileCheck });
@@ -211,12 +212,12 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
       res.json({ run: summary(await SpsImportRun.findById(run._id).lean()) });
     } catch (err) {
       console.error('SPS import start error:', err);
-      bad(res, 500, `Could not start the import: ${err.message}`);
+      bad(res, 500, `Could not start the import: ${(err as Error).message}`);
     }
   });
 
   router.post(`${BASE}/:id/retry`, authenticate, mayImport, async (req, res) => {
-    const run = await SpsImportRun.findOne({ _id: req.params.id, status: { $in: ['done', 'failed'] } }).catch(() => null);
+    const run = await SpsImportRun.findOne({ _id: (req.params as ScalarParams).id, status: { $in: ['done', 'failed'] } }).catch(() => null);
     if (!run) return bad(res, 404, 'Nothing to retry.');
     const n = await retryFailed(run._id);
     res.json({ retrying: n });
@@ -224,7 +225,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
 
   router.post(`${BASE}/:id/undo`, authenticate, mayImport, async (req, res) => {
     if (!canDeleteCustomers(req.user)) return bad(res, 403, 'Undoing an import needs the Delete customer switch.');
-    const run = await SpsImportRun.findOne({ _id: req.params.id, status: { $in: ['done', 'failed'] } }).catch(() => null);
+    const run = await SpsImportRun.findOne({ _id: (req.params as ScalarParams).id, status: { $in: ['done', 'failed'] } }).catch(() => null);
     if (!run) return bad(res, 404, 'This import can’t be undone (it isn’t finished, or already was).');
     try {
       const out = await undoRun(run._id, who(req));
@@ -232,7 +233,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
       res.json(out);
     } catch (err) {
       console.error('SPS import undo error:', err);
-      bad(res, 500, `Could not undo the import: ${err.message}`);
+      bad(res, 500, `Could not undo the import: ${(err as Error).message}`);
     }
   });
 
@@ -242,7 +243,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   router.get(`${BASE}/:id/report.csv`, authenticate, mayImport, async (req, res) => {
-    const run = await SpsImportRun.findById(req.params.id).lean().catch(() => null);
+    const run = await SpsImportRun.findById((req.params as ScalarParams).id).lean().catch(() => null);
     if (!run) return bad(res, 404, 'No such import.');
     const items = await SpsImportItem.find({ runId: String(run._id) }).sort({ seq: 1 }).lean();
     const lines = [['Row', 'SPS customer', 'What happened', 'Easy Stones customer id', 'Changes', 'Note'].map(csvCell).join(',')];
@@ -262,12 +263,12 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
 
   const RESULTS = ['added', 'updated', 'restored', 'keptDeleted', 'unchanged', 'failed'];
   router.get(`${BASE}/:id/items`, authenticate, mayImport, async (req, res) => {
-    const run = await SpsImportRun.findById(req.params.id).select('_id').lean().catch(() => null);
+    const run = await SpsImportRun.findById((req.params as ScalarParams).id).select('_id').lean().catch(() => null);
     if (!run) return bad(res, 404, 'No such import.');
-    const result = String(req.query.result || '');
+    const result = String((req.query as ScalarQuery).result || '');
     if (result && !RESULTS.includes(result)) return bad(res, 400, 'Unknown result.');
-    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
-    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number((req.query as ScalarQuery).limit) || 50));
+    const page = Math.max(1, Number((req.query as ScalarQuery).page) || 1);
     const filter = { runId: String(run._id), ...(result ? { result } : { result: { $ne: '' } }) };
     const [total, items] = await Promise.all([
       SpsImportItem.countDocuments(filter),
@@ -287,8 +288,8 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   });
 
   router.get(`${BASE}/:id/customers`, authenticate, mayImport, async (req, res) => {
-    const results = req.query.outcome === 'added' ? ['added', 'restored'] : req.query.outcome === 'updated' ? ['updated'] : ['added', 'restored', 'updated'];
-    const items = await SpsImportItem.find({ runId: req.params.id, result: { $in: results } }).select('createdId customerId').lean();
+    const results = (req.query as ScalarQuery).outcome === 'added' ? ['added', 'restored'] : (req.query as ScalarQuery).outcome === 'updated' ? ['updated'] : ['added', 'restored', 'updated'];
+    const items = await SpsImportItem.find({ runId: (req.params as ScalarParams).id, result: { $in: results } }).select('createdId customerId').lean();
     res.json({ ids: items.map((i) => i.createdId || i.customerId).filter(Boolean) });
   });
 

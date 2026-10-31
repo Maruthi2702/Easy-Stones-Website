@@ -41,8 +41,8 @@ describe('nav visibility', () => {
     expect(isOnePageSection(one('admin'))).toBe(true);
     expect(isOnePageSection(one('home'))).toBe(false);
     const accounting = railSections({ permissions: ['view_freight_charges'] }).find((s) => s.id === 'accounting');
-    expect(accounting.items.map((i) => i.id)).toEqual(['freight']);
-    expect(isOnePageSection(accounting)).toBe(false);
+    expect((accounting)!.items.map((i) => i.id)).toEqual(['freight']);
+    expect(isOnePageSection((accounting)!)).toBe(false);
     expect(isOnePageSection({ id: 'admin', items: [{ id: 'users' }, { id: 'nav_order' }] })).toBe(false);
   });
 
@@ -99,7 +99,7 @@ describe('pin edits', () => {
 });
 
 describe('admin nav order', () => {
-  const ids = (sections: Loose[]) => sections.map((s: Loose) => [s.id, s.items.map((i: number) => i.id)]);
+  const ids = (sections: Loose[]) => sections.map((s: Loose) => [s.id, s.items.map((i: Loose) => i.id)]);
 
   it('keeps only known ids, each page under its own section, once', () => {
     expect(sanitizeNavOrder({
@@ -178,7 +178,7 @@ describe('hasSalesPage — who the shared server lists answer', () => {
 });
 
 describe('Live Inventory — a link, not a page', () => {
-  const ids = (user: Loose) => visibleSections(user).flatMap((s) => s.items.map((i) => i.id));
+  const ids = (user: Loose | null) => visibleSections(user).flatMap((s) => s.items.map((i) => i.id));
   it('sits beside the other Products pages, for whoever sees one', () => {
     expect(ids({ role: 'x', permissions: ['view_pricelist'] })).toEqual(['pricelist', 'live_inventory']);
   });

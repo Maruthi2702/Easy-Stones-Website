@@ -12,7 +12,7 @@ const products = [
   { name: 'Taj Mahal', bundles: [{ bundleNumber: 'A2207' }, { bundleNumber: '77010' }, { bundleNumber: '77012' }] },
 ];
 
-const fields = (r: Loose) => r && { lot: r.lot, slab: r.slab, size: r.size, material: r.material };
+const fields = (r: ReturnType<typeof readStoneLabel>) => r && { lot: r!.lot, slab: r!.slab, size: r!.size, material: r!.material };
 
 describe('readStoneLabel — tag layouts', () => {
   it('reads a one-line tag', () => {
@@ -27,8 +27,8 @@ describe('readStoneLabel — tag layouts', () => {
 
   it('survives OCR reading the bundle "/" as a 1 (real Tesseract output)', () => {
     const r = readStoneLabel('13845 - 7\n\n(7113845)\n\n126 x 63\nCALACATTA GOLD', products);
-    expect(r.slab).toBe('7');
-    expect(r.lot).toBe('13845');
+    expect((r)!.slab).toBe('7');
+    expect((r)!.lot).toBe('13845');
   });
 
   it('takes the slab from the bundle when the tag has no "lot - slab" pair', () => {
@@ -42,14 +42,14 @@ describe('readStoneLabel — tag layouts', () => {
   });
 
   it('accepts inch marks and decimals in the size', () => {
-    expect(readStoneLabel('13845 - 7 126" x 63" CALACATTA GOLD', products).size).toBe('126 x 63');
-    expect(readStoneLabel('13845-7\n126.5 x 63.5\nCALACATTA GOLD', products).size).toBe('126.5 x 63.5');
-    expect(readStoneLabel('13845-7\n126.5 x 63.5\nCALACATTA GOLD', products).slab).toBe('7');
+    expect((readStoneLabel('13845 - 7 126" x 63" CALACATTA GOLD', products))!.size).toBe('126 x 63');
+    expect((readStoneLabel('13845-7\n126.5 x 63.5\nCALACATTA GOLD', products))!.size).toBe('126.5 x 63.5');
+    expect((readStoneLabel('13845-7\n126.5 x 63.5\nCALACATTA GOLD', products))!.slab).toBe('7');
   });
 
   it('ignores thickness so "3 cm" is not taken as a slab number', () => {
     const r = readStoneLabel('LOT 13845\n126 x 63 3 CM\nCALACATTA GOLD', products);
-    expect(r.slab).toBe('');
+    expect((r)!.slab).toBe('');
   });
 
   it('does not turn plain words into numbers ("lot" is not 107)', () => {
@@ -58,21 +58,21 @@ describe('readStoneLabel — tag layouts', () => {
   });
 
   it('fixes digit look-alikes inside numbers ("1384S" → 13845)', () => {
-    expect(readStoneLabel('1384S - 7\n126 x 63\nCALACATTA GOLD', products).lot).toBe('13845');
+    expect((readStoneLabel('1384S - 7\n126 x 63\nCALACATTA GOLD', products))!.lot).toBe('13845');
   });
 
   it('keeps letters that are part of a lot number', () => {
-    expect(readStoneLabel('LOT A2207\n126 x 63\nTAJ MAHAL', products).lot).toBe('A2207');
+    expect((readStoneLabel('LOT A2207\n126 x 63\nTAJ MAHAL', products))!.lot).toBe('A2207');
   });
 
   it('snaps a misspelled material to the catalog name', () => {
-    expect(readStoneLabel('13845 - 7\n126 x 63\nCALACATA G0LD', products).material).toBe('CALACATTA GOLD');
+    expect((readStoneLabel('13845 - 7\n126 x 63\nCALACATA G0LD', products))!.material).toBe('CALACATTA GOLD');
   });
 
   it('keeps a material that is not in the catalog as read', () => {
     const r = readStoneLabel('13845 - 7 126 x 63 STATUARIO VENATO', products);
-    expect(r.material).toBe('STATUARIO VENATO');
-    expect(r.product).toBeNull();
+    expect((r)!.material).toBe('STATUARIO VENATO');
+    expect((r)!.product).toBeNull();
   });
 });
 
@@ -92,7 +92,7 @@ describe('readStoneLabel — rejects what is not a tag', () => {
 
 describe('matchProduct', () => {
   it('prefers the longest whole-word name ("Ice White", not "Ice")', () => {
-    expect(matchProduct('ICE WHITE 3CM', products).name).toBe('Ice White');
+    expect((matchProduct('ICE WHITE 3CM', products))!.name).toBe('Ice White');
   });
   it('never matches an empty name', () => {
     expect(matchProduct('', products)).toBeNull();
@@ -100,11 +100,11 @@ describe('matchProduct', () => {
 });
 
 describe('resolveLabelRead — checking against stock', () => {
-  const read = (over: unknown): Loose => ({ lot: '', slab: '7', size: '', material: '', product: null, bundleLot: '', ...over });
+  const read = (over: Partial<NonNullable<ReturnType<typeof readStoneLabel>>>): NonNullable<ReturnType<typeof readStoneLabel>> => ({ lot: '', slab: '7', size: '', material: '', product: null, bundleLot: '', ...over });
 
   it('leaves the lot alone when no product was matched', () => {
     const r = resolveLabelRead(read({ lot: '13847', material: '' }), products);
-    expect(r.lot).toBe('13847');
+    expect(r!.lot).toBe('13847');
     expect(r.notes).toEqual([]);
   });
 
@@ -119,35 +119,35 @@ describe('resolveLabelRead — checking against stock', () => {
 
   it('corrects a single one-digit slip to the stock lot and says so', () => {
     const r = resolveLabelRead(read({ lot: '13945', material: 'CALACATTA GOLD', product: products[1] }), products);
-    expect(r.lot).toBe('13845');
+    expect(r!.lot).toBe('13845');
     expect(r.notes[0]).toMatch(/matched to stock lot 13845/);
   });
 
   it('does not guess between two equally close stock lots', () => {
     const r = resolveLabelRead(read({ lot: '77011', material: 'TAJ MAHAL', product: products[4] }), products);
-    expect(r.lot).toBe('77011');
+    expect(r!.lot).toBe('77011');
     expect(r.notes[0]).toMatch(/isn't in stock/);
   });
 
   it('uses the bundle lot when it is the one that is in stock', () => {
     const r = resolveLabelRead(read({ lot: '19845', bundleLot: '13845', product: products[1], material: 'CALACATTA GOLD' }), products);
-    expect(r.lot).toBe('13845');
+    expect(r!.lot).toBe('13845');
   });
 
   it('flags two different lots on a tag with no stock to check against', () => {
     const r = resolveLabelRead(read({ lot: '19845', bundleLot: '13845', material: 'STATUARIO' }), products);
-    expect(r.lot).toBe('19845');
+    expect(r!.lot).toBe('19845');
     expect(r.notes[0]).toMatch(/two lot numbers/);
   });
 
   it('keeps lot letters and the stock spelling', () => {
     const r = resolveLabelRead(read({ lot: 'a2207', product: products[4], material: 'TAJ MAHAL' }), products);
-    expect(r.lot).toBe('A2207');
+    expect(r!.lot).toBe('A2207');
   });
 
   it('formats the size the way the product lists it', () => {
     const r = resolveLabelRead(read({ size: '126 x 63', product: products[1], material: 'CALACATTA GOLD' }), products);
-    expect(r.size).toBe('126x63');
+    expect(r!.size).toBe('126x63');
   });
 });
 
@@ -171,9 +171,9 @@ describe('choosing a rotation', () => {
     const angled = readStoneLabel('BO [TTT\n14180 - 3/ (1/14180) / 142x79 / Enjgma SJ MABCM\n" Cd — UT', []);
     expect(angled).toMatchObject({ lot: '14180', slab: '3', bundleLot: '14180', size: '142 x 79' });
     expect(isUsableRead(angled, 49)).toBe(true);
-    expect(isUsableRead({ ...angled, bundleLot: '14108' }, 49)).toBe(false);
-    expect(isUsableRead({ ...angled, size: '' }, 49)).toBe(false);
-    expect(isUsableRead({ ...angled, lot: '418', bundleLot: '418' }, 49)).toBe(false);
+    expect(isUsableRead({ ...angled!, bundleLot: '14108' }, 49)).toBe(false);
+    expect(isUsableRead({ ...angled!, size: '' }, 49)).toBe(false);
+    expect(isUsableRead({ ...angled!, lot: '418', bundleLot: '418' }, 49)).toBe(false);
   });
 
   it('stops early only on a confident, complete read', () => {

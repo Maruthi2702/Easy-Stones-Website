@@ -14,8 +14,8 @@ const { default: createCustomerBulkDeleteRouter, backupAndDeleteCustomer } = awa
 const { default: Customer } = await import('../models/Customer.ts');
 const { default: CustomerDeleteBackup } = await import('../models/CustomerDeleteBackup.ts');
 
-let mongo;
-let app;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
 const emit = vi.fn();
 
 const DELETER = { username: 'krish', permissions: ['view_customers', 'delete_customers'] };
@@ -38,7 +38,7 @@ beforeAll(async () => {
   app.use(express.json());
   app.set('io', { emit });
   app.use('/api/customers', createCustomerBulkDeleteRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); }
+    authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); }
   }));
 }, 180000);
 
@@ -81,9 +81,9 @@ describe('POST /api/customers/bulk-delete', () => {
     const saved = await CustomerDeleteBackup.find({ batchId: res.body.batchId }).lean();
     expect(saved).toHaveLength(2);
     const acme = saved.find((b) => String(b.customerId) === String(A));
-    expect(acme.deletedBy).toBe('krish');
-    expect(acme.customer.visits[0].notes).toBe('Looked at quartz');
-    expect(acme.customer.extra).toEqual({ kept: true });
+    expect((acme)!.deletedBy).toBe('krish');
+    expect((acme)!.customer.visits[0].notes).toBe('Looked at quartz');
+    expect((acme)!.customer.extra).toEqual({ kept: true });
     expect(emit).toHaveBeenCalledWith('customer_update');
   });
 
@@ -102,9 +102,9 @@ describe('POST /api/customers/bulk-delete/undo', () => {
     expect(res.body).toEqual({ restored: 2, failed: [] });
 
     const acme = await Customer.collection.findOne({ _id: A });
-    expect(acme.company).toBe('Acme Stone');
-    expect(acme.visits[0].date).toEqual(visitDate);
-    expect(acme.extra).toEqual({ kept: true });
+    expect((acme)!.company).toBe('Acme Stone');
+    expect((acme)!.visits[0].date).toEqual(visitDate);
+    expect((acme)!.extra).toEqual({ kept: true });
     expect(await Customer.collection.countDocuments()).toBe(3);
 
     const saved = await CustomerDeleteBackup.find({ batchId: body.batchId }).lean();
@@ -126,7 +126,7 @@ describe('POST /api/customers/bulk-delete/undo', () => {
     expect(await Customer.collection.findOne({ _id: B })).toBeTruthy();
     // The one that failed stays saved and can be tried again once the clash is fixed.
     const left = await CustomerDeleteBackup.findOne({ customerId: A }).lean();
-    expect(left.undoneAt).toBeNull();
+    expect((left)!.undoneAt).toBeNull();
   });
 
   it('skips a customer that is somehow still there instead of failing', async () => {
@@ -150,9 +150,9 @@ describe('backupAndDeleteCustomer (the single Delete)', () => {
     expect(await Customer.collection.findOne({ _id: A })).toBeNull();
     const saved = await CustomerDeleteBackup.findOne({ customerId: A }).lean();
     expect(saved).toMatchObject({ source: 'single', deletedBy: 'krish', batchId });
-    expect(saved.customer.visits[0].notes).toBe('Looked at quartz');
+    expect((saved)!.customer.visits[0].notes).toBe('Looked at quartz');
     // …and the same Undo brings it back.
-    await undo(batchId).expect(200);
+    await undo((batchId)!).expect(200);
     expect(await Customer.collection.findOne({ _id: A })).toBeTruthy();
   });
 

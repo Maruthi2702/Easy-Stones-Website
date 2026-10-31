@@ -91,7 +91,7 @@ export const customerOption = (c: AnyCustomer = {}): CustomerOption => {
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true });
 
 /** Records → options: one per id, sorted A–Z by name (case-insensitive, 2 before 10). */
-export const toCustomerOptions = (records: AnyCustomer[] | null = []): CustomerOption[] => {
+export const toCustomerOptions = (records: (AnyCustomer | null | undefined)[] | null = []): CustomerOption[] => {
     const seen = new Set<string>();
     const out: CustomerOption[] = [];
     for (const c of records || []) {

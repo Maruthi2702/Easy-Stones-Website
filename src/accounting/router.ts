@@ -18,6 +18,7 @@ import type { Request, Response, NextFunction } from 'express';
  */
 import express from 'express';
 import mongoose from 'mongoose';
+import type { ZodType } from 'zod';
 import { FREIGHT, CARRIERS, can } from './permissions.ts';
 import { Carrier, FreightCharge, CarrierInvoice, AccountingAudit, Payment } from './models.ts';
 import {
@@ -30,9 +31,12 @@ import { sumCents } from './money.ts';
 import * as S from './schemas.ts';
 
 const EXPORT_MAX_ROWS = 5000;
-const escapeRegex = (s: Loose) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegex = (s: unknown) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 class HttpError extends Error {
+  status: number;
+  extra: Record<string, unknown>;
+
   constructor(status: number, message: string, extra: Loose = {}) { super(message); this.status = status; this.extra = extra; }
 }
 
@@ -51,17 +55,17 @@ const requireAll = (...perms: string[]) => (req: Request, res: Response, next: N
   return res.status(403).json({ error: 'Your role doesn’t have access to this. Ask an admin to turn it on under Users & Roles.' });
 };
 
-const parse = (schema: Loose, data: Loose) => {
+const parse = (schema: ZodType<Loose>, data: unknown) => {
   const r = schema.safeParse(data ?? {});
   if (!r.success) throw new HttpError(400, S.firstIssue(r.error));
   return r.data;
 };
 
 /** Runs `fn(session)` as one transaction: all of it lands, or none of it. */
-async function inTransaction(fn: Loose) {
+async function inTransaction<T>(fn: (session: mongoose.ClientSession) => Promise<T>): Promise<T> {
   const session = await mongoose.startSession();
   try {
-    let out;
+    let out!: T;
     await session.withTransaction(async () => { out = await fn(session); });
     return out;
   } finally {
@@ -69,18 +73,18 @@ async function inTransaction(fn: Loose) {
   }
 }
 
-const history = (session: Loose, entries: Loose[]) => AccountingAudit.create(entries, { session, ordered: true });
+const history = (session: mongoose.ClientSession, entries: Loose[]) => AccountingAudit.create(entries, { session, ordered: true });
 
 const diff = (doc: Loose, set: Loose) => Object.entries(set)
   .filter(([f, v]) => String(doc[f] ?? '') !== String(v ?? ''))
   .map(([f, v]) => ({ field: f, from: doc[f] ?? null, to: v ?? null }));
 
-const checkVersion = (doc: Loose, version: Loose, what = 'This charge') => {
+const checkVersion = (doc: Loose, version: unknown, what = 'This charge') => {
   if (doc.__v !== version) throw new HttpError(409, `${what} was changed by someone else. Reload to see the latest, then try again.`);
 };
 
 /** The charge if it exists and is in one of the person's branches. */
-async function chargeFor(req: Request, id: string, session = null) {
+async function chargeFor(req: Request, id: unknown, session: mongoose.ClientSession | null = null) {
   if (!mongoose.isValidObjectId(id)) throw new HttpError(404, 'Charge not found.');
   const q = FreightCharge.findById(id);
   if (session) q.session(session);
@@ -89,23 +93,23 @@ async function chargeFor(req: Request, id: string, session = null) {
   return doc;
 }
 
-async function invoiceFor(req: Request, id: string, session = null) {
+async function invoiceFor(req: Request, id: unknown, session: mongoose.ClientSession | null = null) {
   if (!mongoose.isValidObjectId(id)) throw new HttpError(404, 'Invoice not found.');
   const q = CarrierInvoice.findById(id);
   if (session) q.session(session);
   const doc = await q;
-  const mine = doc && (doc.locations || []).every((l: Loose) => canSeeBranch(branchesOf(req), l));
+  const mine = doc && (doc.locations || []).every((l: string) => canSeeBranch(branchesOf(req), l));
   if (!mine) throw new HttpError(404, 'Invoice not found.');
   return doc;
 }
 
-const handle = (fn: Loose) => async (req: Request, res: Response) => {
+const handle = (fn: (req: Request, res: Response) => unknown) => async (req: Request, res: Response) => {
   try {
     await fn(req, res);
   } catch (err) {
-    if (err instanceof HttpError) return res.status(err.status).json({ error: err.message, ...err.extra });
-    if (err?.code === 11000) return res.status(409).json({ error: 'That already exists — check for a duplicate.' });
-    if (err?.name === 'VersionError') return res.status(409).json({ error: 'Someone else changed this at the same moment. Reload and try again.' });
+    if (err instanceof HttpError) return res.status((err as Error & Loose).status).json({ error: (err as Error).message, ...(err as Error & Loose).extra });
+    if ((err as Error & Loose)?.code === 11000) return res.status(409).json({ error: 'That already exists — check for a duplicate.' });
+    if ((err as Error)?.name === 'VersionError') return res.status(409).json({ error: 'Someone else changed this at the same moment. Reload and try again.' });
     console.error('[accounting]', req.method, req.originalUrl, err);
     return res.status(500).json({ error: 'Something went wrong on our side. Nothing was changed.' });
   }
@@ -123,7 +127,7 @@ const present = (charge: Loose, carriersById: Loose) => {
   };
 };
 
-const carriersMap = async (ids = null) => {
+const carriersMap = async (ids: readonly unknown[] | null = null) => {
   const q = ids ? { _id: { $in: ids } } : {};
   const list = await Carrier.find(q).lean();
   return new Map(list.map((c) => [String(c._id), c]));
@@ -134,8 +138,8 @@ const carriersMap = async (ids = null) => {
  * (one step), then mark it paid. Returns the history lines to write — two
  * for a one-step payment, so the approval is on the record as its own line.
  */
-function markPaid(doc: Loose, body: Loose, by: Loose, now: Loose, paymentId: Loose, entityType: Loose, chargeNote = '') {
-  const lines = [];
+function markPaid(doc: Loose, body: Loose, by: Loose, now: Date, paymentId: string, entityType: string, chargeNote = '') {
+  const lines: Loose[] = [];
   const base = { entityType, entityId: String(doc._id), by, at: now, paymentId };
   if (approvesWhenPaid(doc)) {
     doc.status = 'approved';
@@ -153,13 +157,13 @@ function markPaid(doc: Loose, body: Loose, by: Loose, now: Loose, paymentId: Loo
 }
 
 /** The payment an earlier copy of this same request already recorded. */
-const priorPayment = async (requestId: Loose, session: Loose) => (requestId
+const priorPayment = async (requestId: string | undefined, session: mongoose.ClientSession) => (requestId
   ? Payment.findOne({ requestId }).session(session).lean()
   : null);
 
 /** The answer to a repeated request: what the first one paid, as it is now. */
 async function replayed(req: Request, payment: Loose) {
-  if (!(payment.locations || []).every((l: Loose) => canSeeBranch(branchesOf(req), l))) throw new HttpError(404, 'Payment not found.');
+  if (!(payment.locations || []).every((l: string) => canSeeBranch(branchesOf(req), l))) throw new HttpError(404, 'Payment not found.');
   const [charges, carriers] = await Promise.all([
     FreightCharge.find({ _id: { $in: payment.chargeIds } }).lean(),
     carriersMap()
@@ -174,7 +178,7 @@ const NEEDS_REVIEW = Object.freeze({ flags: { $elemMatch: { resolvedAt: null } }
 function chargeFilter(req: Request, q: Loose, { ignoreStatus = false }: Loose = {}) {
   const branch = branchClause(branchesOf(req), q.location);
   if (!branch) throw new HttpError(403, 'You don’t have access to that branch.');
-  const clauses = [branch];
+  const clauses: Loose[] = [branch];
   if (!ignoreStatus) {
     if (['draft', 'approved', 'paid', 'void'].includes(q.status)) clauses.push({ status: q.status });
     if (q.status === 'flagged') clauses.push(NEEDS_REVIEW);
@@ -258,7 +262,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     if (!carrier) throw new HttpError(400, 'That carrier doesn’t exist.');
     if (!carrier.active) throw new HttpError(400, `${carrier.name} is deactivated.`);
     const by = actor(req);
-    const created = await inTransaction(async (session: Loose) => {
+    const created = await inTransaction(async (session: mongoose.ClientSession) => {
       const [doc] = await FreightCharge.create([{
         source: 'manual', location: body.location, deliveryDate: body.deliveryDate, carrierId: carrier._id,
         amountCents: body.amount, description: body.description, soNumber: body.soNumber,
@@ -274,7 +278,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
   router.patch('/freight-charges/:id', requireAll(FREIGHT.VIEW, FREIGHT.EDIT), handle(async (req: Request, res: Response) => {
     const body = parse(S.chargeEdit, req.body);
     const by = actor(req);
-    const saved = await inTransaction(async (session: Loose) => {
+    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
       const doc = await chargeFor(req, req.params.id, session);
       checkVersion(doc, body.version);
       const problem = editProblem(doc);
@@ -311,11 +315,11 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
    * Approve / unapprove / pay several charges at once — all of them or none:
    * one charge that can't move stops the whole batch, with the reason.
    */
-  const bulk = ({ schema, problemFor, apply, action, note }: { schema: Loose; problemFor: Loose; apply: Loose; action: Loose; note: Loose }) => handle(async (req: Request, res: Response) => {
+  const bulk = ({ schema, problemFor, apply, action, note }: { schema: ZodType<Loose>; problemFor: (doc: Loose, carrier: Loose | undefined) => string | null; apply: (doc: Loose, body: Loose, by: Loose) => void; action: string; note?: (body: Loose) => string }) => handle(async (req: Request, res: Response) => {
     const body = parse(schema, req.body);
     const by = actor(req);
-    const done = await inTransaction(async (session: Loose) => {
-      const docs = [];
+    const done = await inTransaction(async (session: mongoose.ClientSession) => {
+      const docs: Loose[] = [];
       for (const item of body.items) {
         const doc = await chargeFor(req, item.id, session);
         checkVersion(doc, item.version, `SO# ${doc.soNumber || '—'}`);
@@ -329,7 +333,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
         const first = problems[0];
         throw new HttpError(400, `${first.soNumber ? `SO# ${first.soNumber}: ` : ''}${first.problem}`, { problems });
       }
-      const entries = [];
+      const entries: Loose[] = [];
       for (const doc of docs) {
         const before = { status: doc.status };
         apply(doc, body, by);
@@ -346,7 +350,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
 
   router.post('/freight-charges/approve', requireAll(FREIGHT.VIEW, FREIGHT.APPROVE), bulk({
     schema: S.bulkItems,
-    problemFor: (d: Loose, carrier: Loose) => approveProblem(d, carrier),
+    problemFor: (d: Loose, carrier: Loose | undefined) => approveProblem(d, carrier),
     apply: (d: Loose, _b: Loose, by: Loose) => { d.status = 'approved'; d.approvedAt = new Date(); d.approvedBy = by; },
     action: 'approved'
   }));
@@ -368,10 +372,10 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const body = parse(S.bulkPay, req.body);
     const by = actor(req);
     const canApprove = can(req.user, FREIGHT.APPROVE);
-    const out = await inTransaction(async (session: Loose) => {
+    const out = await inTransaction(async (session: mongoose.ClientSession) => {
       const prior = await priorPayment(body.requestId, session);
       if (prior) return { prior };
-      const docs = [];
+      const docs: Loose[] = [];
       for (const item of body.items) {
         const doc = await chargeFor(req, item.id, session);
         checkVersion(doc, item.version, `SO# ${doc.soNumber || '—'}`);
@@ -389,7 +393,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       }
       const now = new Date();
       const paymentId = newPaymentId(now);
-      const entries = [];
+      const entries: Loose[] = [];
       const oneStep = docs.some(approvesWhenPaid);
       for (const doc of docs) {
         entries.push(...markPaid(doc, body, by, now, paymentId, 'charge'));
@@ -407,13 +411,13 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     });
     if (out.prior) return res.json(await replayed(req, out.prior));
     const carriers = await carriersMap();
-    res.json({ items: out.docs.map((d: Loose) => present(d, carriers)), payment: out.payment.toObject() });
+    res.json({ items: out.docs!.map((d: Loose) => present(d, carriers)), payment: out.payment.toObject() });
   }));
 
   router.post('/freight-charges/:id/void', requireAll(FREIGHT.VIEW, FREIGHT.VOID), handle(async (req: Request, res: Response) => {
     const body = parse(S.voidBody, req.body);
     const by = actor(req);
-    const saved = await inTransaction(async (session: Loose) => {
+    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
       const doc = await chargeFor(req, req.params.id, session);
       checkVersion(doc, body.version);
       const problem = voidProblem(doc);
@@ -435,7 +439,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
   router.post('/freight-charges/:id/resolve-flags', requireAll(FREIGHT.VIEW, FREIGHT.EDIT), handle(async (req: Request, res: Response) => {
     const body = parse(S.versionOnly, req.body);
     const by = actor(req);
-    const saved = await inTransaction(async (session: Loose) => {
+    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
       const doc = await chargeFor(req, req.params.id, session);
       checkVersion(doc, body.version);
       const open = doc.flags.filter((f: Loose) => !f.resolvedAt);
@@ -457,7 +461,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const id = S.paymentIdParam.safeParse(req.params.paymentId);
     if (!id.success) throw new HttpError(404, 'Payment not found.');
     const payment = await Payment.findOne({ paymentId: id.data }).lean();
-    if (!payment || !(payment.locations || []).every((l: Loose) => canSeeBranch(branchesOf(req), l))) throw new HttpError(404, 'Payment not found.');
+    if (!payment || !(payment.locations || []).every((l: string) => canSeeBranch(branchesOf(req), l))) throw new HttpError(404, 'Payment not found.');
     const [charges, carriers, invoice] = await Promise.all([
       FreightCharge.find({ _id: { $in: payment.chargeIds } }).sort({ deliveryDate: 1 }).lean(),
       carriersMap(),
@@ -479,7 +483,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     res.json(list.map((c) => ({ ...c, version: c.__v })));
   }));
 
-  const carrierAliasesClash = async (names: string[], exceptId = null, session = null) => {
+  const carrierAliasesClash = async (names: string[], exceptId: unknown = null, session: mongoose.ClientSession | null = null) => {
     const keys = names.map(normalizeCarrierName).filter(Boolean);
     const q = Carrier.find(exceptId ? { _id: { $ne: exceptId } } : {}, 'name nameKey aliases');
     if (session) q.session(session);
@@ -499,7 +503,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     if (!nameKey) throw new HttpError(400, 'Enter the carrier name.');
     const clash = await carrierAliasesClash([body.name, ...body.aliases]);
     if (clash) throw new HttpError(409, `That name is already used by ${clash}.`);
-    const created = await inTransaction(async (session: Loose) => {
+    const created = await inTransaction(async (session: mongoose.ClientSession) => {
       const [doc] = await Carrier.create([{ ...body, nameKey, createdBy: by, updatedBy: by }], { session });
       await history(session, [{ entityType: 'carrier', entityId: String(doc._id), action: 'created', by, note: `${doc.name} (${doc.paymentTerms === 'per_invoice' ? 'paid per invoice' : 'paid per delivery'})` }]);
       return doc;
@@ -512,7 +516,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const body = parse(S.carrierEdit, req.body);
     if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Carrier not found.');
     const by = actor(req);
-    const saved = await inTransaction(async (session: Loose) => {
+    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
       const doc = await Carrier.findById(req.params.id).session(session);
       if (!doc) throw new HttpError(404, 'Carrier not found.');
       checkVersion(doc, body.version, 'This carrier');
@@ -539,7 +543,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const body = parse(S.versionOnly, req.body);
     if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Carrier not found.');
     const by = actor(req);
-    const saved = await inTransaction(async (session: Loose) => {
+    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
       const doc = await Carrier.findById(req.params.id).session(session);
       if (!doc) throw new HttpError(404, 'Carrier not found.');
       checkVersion(doc, body.version, 'This carrier');
@@ -557,7 +561,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
 
   // ── Carrier invoices ───────────────────────────────────────────────────
 
-  const presentInvoice = (inv: Loose, carriers: Loose, charges = null) => {
+  const presentInvoice = (inv: Loose, carriers: Loose, charges: Loose[] | null = null) => {
     const o = inv.toObject ? inv.toObject() : inv;
     const carrier = carriers.get(String(o.carrierId));
     return {
@@ -568,8 +572,8 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
   };
 
   /** Load and check charges for an invoice; returns the docs. */
-  async function invoiceCharges(req: Request, ids: string[], carrierId: Loose, invoiceId: Loose, session: Loose) {
-    const docs = [];
+  async function invoiceCharges(req: Request, ids: string[], carrierId: unknown, invoiceId: unknown, session: mongoose.ClientSession) {
+    const docs: Loose[] = [];
     for (const id of [...new Set(ids)]) docs.push(await chargeFor(req, id, session));
     const problem = invoiceChargesProblem(docs, carrierId, { invoiceId });
     if (problem) throw new HttpError(400, problem);
@@ -604,7 +608,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const carrier = await Carrier.findById(body.carrierId).lean();
     if (!carrier) throw new HttpError(400, 'That carrier doesn’t exist.');
     const by = actor(req);
-    const created = await inTransaction(async (session: Loose) => {
+    const created = await inTransaction(async (session: mongoose.ClientSession) => {
       const charges = await invoiceCharges(req, body.chargeIds, carrier._id, null, session);
       const [inv] = await CarrierInvoice.create([{
         carrierId: carrier._id, invoiceNumber: body.invoiceNumber, invoiceDate: body.invoiceDate,
@@ -624,17 +628,17 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
   router.patch('/carrier-invoices/:id', requireAll(FREIGHT.VIEW, FREIGHT.EDIT), handle(async (req: Request, res: Response) => {
     const body = parse(S.invoiceEdit, req.body);
     const by = actor(req);
-    const saved = await inTransaction(async (session: Loose) => {
+    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
       const inv = await invoiceFor(req, req.params.id, session);
       checkVersion(inv, body.version, 'This invoice');
-      if (inv.status !== 'draft') throw new HttpError(400, `A ${STATUS_LABELS[inv.status].toLowerCase()} invoice can't be edited.`);
+      if (inv.status !== 'draft') throw new HttpError(400, `A ${(STATUS_LABELS as Record<string,string>)[inv.status].toLowerCase()} invoice can't be edited.`);
       const set: Loose = {};
       if (body.invoiceNumber !== undefined) set.invoiceNumber = body.invoiceNumber;
       if (body.invoiceDate !== undefined) set.invoiceDate = body.invoiceDate;
       if (body.total !== undefined) set.totalCents = body.total;
       if (body.notes !== undefined) set.notes = body.notes;
       const changes = diff(inv, set);
-      const entries = [];
+      const entries: Loose[] = [];
       if (body.chargeIds) {
         const next = await invoiceCharges(req, body.chargeIds, inv.carrierId, inv._id, session);
         const nextIds = new Set(next.map((c) => String(c._id)));
@@ -664,10 +668,10 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
   }));
 
   /** Move an invoice and all its charges together. */
-  const invoiceStep = ({ schema, problem, invoiceTo, chargeTo, action, note }: { schema: Loose; problem: Loose; invoiceTo: Loose; chargeTo: Loose; action: Loose; note: Loose }) => handle(async (req: Request, res: Response) => {
+  const invoiceStep = ({ schema, problem, invoiceTo, chargeTo, action, note }: { schema: ZodType<Loose>; problem: (inv: Loose, charges: Loose[], body: Loose) => string | null; invoiceTo: (inv: Loose, body: Loose, by: Loose) => void; chargeTo: (charge: Loose, body: Loose, by: Loose, inv: Loose) => void; action: string; note?: (body: Loose) => string }) => handle(async (req: Request, res: Response) => {
     const body = parse(schema, req.body);
     const by = actor(req);
-    const saved = await inTransaction(async (session: Loose) => {
+    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
       const inv = await invoiceFor(req, req.params.id, session);
       checkVersion(inv, body.version, 'This invoice');
       const charges = await FreightCharge.find({ _id: { $in: inv.chargeIds } }).session(session);
@@ -693,7 +697,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
 
   router.post('/carrier-invoices/:id/approve', requireAll(FREIGHT.VIEW, FREIGHT.APPROVE), invoiceStep({
     schema: S.versionOnly,
-    problem: (inv: Loose, charges: Loose) => invoiceApproveProblem(inv, charges),
+    problem: (inv: Loose, charges: Loose[]) => invoiceApproveProblem(inv, charges),
     invoiceTo: (inv: Loose, _b: Loose, by: Loose) => { inv.status = 'approved'; inv.approvedAt = new Date(); inv.approvedBy = by; },
     chargeTo: (c: Loose, _b: Loose, by: Loose) => { c.status = 'approved'; c.approvedAt = new Date(); c.approvedBy = by; },
     action: 'approved'
@@ -713,7 +717,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const body = parse(S.invoicePay, req.body);
     const by = actor(req);
     const canApprove = can(req.user, FREIGHT.APPROVE);
-    const out = await inTransaction(async (session: Loose) => {
+    const out = await inTransaction(async (session: mongoose.ClientSession) => {
       const prior = await priorPayment(body.requestId, session);
       if (prior) return { prior };
       const inv = await invoiceFor(req, req.params.id, session);

@@ -39,17 +39,17 @@ const LostSaleModal = ({
   locationsList = ['Seattle', 'Spokane', 'Salt Lake City'],
   onCreateNew = null,
   isDropdownLoading = false
-}: { isOpen: boolean; onClose: () => void; onSave: (value: Loose) => void; initialData?: Loose | null; customersList?: Loose[]; customerOptions?: Loose[]; currentUser?: Loose | null; locationsList?: string[]; onCreateNew?: (() => void) | null; isDropdownLoading?: boolean }) => {
+}: { isOpen: boolean; onClose: () => void; onSave: (value: Loose) => void; initialData?: Loose | null; customersList?: Loose[]; customerOptions?: { value: string; label: string; description?: string; keywords?: string }[]; currentUser?: Loose | null; locationsList?: (string | { name?: string; locationName?: string })[]; onCreateNew?: (() => void) | null; isDropdownLoading?: boolean }) => {
   const [customerName, setCustomerName] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
 
   const [productName, setProductName] = useState('');
   const [isCustomProduct, setIsCustomProduct] = useState(false);
 
-  const [lengthInches, setLengthInches] = useState(126);
-  const [widthInches, setWidthInches] = useState(63);
-  const [slabsCount, setSlabsCount] = useState(1);
-  const [pricePerSf, setPricePerSf] = useState(12.5);
+  const [lengthInches, setLengthInches] = useState<string | number>(126);
+  const [widthInches, setWidthInches] = useState<string | number>(63);
+  const [slabsCount, setSlabsCount] = useState<string | number>(1);
+  const [pricePerSf, setPricePerSf] = useState<string | number>(12.5);
 
   const [reason, setReason] = useState('Out of Stock');
   const [location, setLocation] = useState('Seattle');
@@ -129,10 +129,10 @@ const LostSaleModal = ({
   }, [initialData, isOpen, locationOptions, resetForm]);
 
   // Live Calculations
-  const l = parseFloat(lengthInches) || 0;
-  const w = parseFloat(widthInches) || 0;
-  const count = parseInt(slabsCount, 10) || 0;
-  const price = parseFloat(pricePerSf) || 0;
+  const l = parseFloat(String(lengthInches)) || 0;
+  const w = parseFloat(String(widthInches)) || 0;
+  const count = parseInt(String(slabsCount), 10) || 0;
+  const price = parseFloat(String(pricePerSf)) || 0;
 
   const sfPerSlab = (l * w) / 144;
   const totalSf = sfPerSlab * count;
@@ -234,7 +234,7 @@ const LostSaleModal = ({
                   if (foundOpt) setCustomerName(foundOpt.label);
                 }}
                 placeholder="Select a Customer..."
-                onCreateNew={onCreateNew}
+                onCreateNew={onCreateNew || undefined}
                 createNewLabel="New Customer"
                 isLoading={isDropdownLoading}
               />
@@ -261,7 +261,7 @@ const LostSaleModal = ({
               </label>
               {!isCustomProduct ? (
                 <SearchableSelect
-                  options={DEFAULT_PRODUCTS}
+                  options={DEFAULT_PRODUCTS.map(value => ({ value, label: value }))}
                   value={productName}
                   onChange={(val) => setProductName(val)}
                   placeholder="Select Product..."
@@ -386,7 +386,7 @@ const LostSaleModal = ({
               </label>
               <CustomSelect
                 value={reason}
-                onChange={(e) => setReason(e.target.value)}
+                onChange={(e) => setReason(String(e.target.value))}
                 options={REASON_OPTIONS.map(r => ({ value: r.id, label: r.label }))}
               />
             </div>

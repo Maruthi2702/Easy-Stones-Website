@@ -8,14 +8,16 @@ import {
   customerOptionFromRecord, fieldLabelsFor, reportDaysFor, reportDaysTouched, submittedDayLabel, ticketReportValues, reportDaysForMove
 } from './deliveryForm';
 
+import type { TruckColumn } from '../types/records.ts';
+
 const TRUCKS = [
   { id: 'trk_3rd_party', name: '3rd Party' },
   { id: 'mike', driver: 'Mike Torres' },
   { id: 'dave', driver: 'Dave Kim' },
   { id: 'old', driver: 'Sam Old', inactive: true }
-];
+] .map(t => ({ name: '', driver: '', color: '', ...t })) as TruckColumn[];
 
-const form = (over: Loose = {}): Loose => ({
+const form = (over: Partial<ReturnType<typeof deliveryToFormValues>> = {}) => ({
   ...deliveryToFormValues({ truckId: 'mike', date: '2026-10-06' }, { todayStr: '2026-10-05' }),
   customerName: 'Cascade', selectedCustomerId: 'c1',
   ...over

@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { phoneNavModel, litTab, moreGroups, highlightParts, searchPages, opensDirectly, MORE } from './phoneNav';
 import { navItem } from './navPins.ts';
 
-const user = (...permissions): Loose => ({ role: 'sales_rep', permissions });
+const user = (...permissions: string[]): Loose => ({ role: 'sales_rep', permissions });
 const full = user(
     'view_dashboard', 'view_customers', 'view_route_planner', 'view_delivery_schedule', 'view_daily_report',
     'view_pricelist', 'view_inventory_analysis', 'view_freight_charges'
@@ -13,7 +13,7 @@ const ids = (sections: Loose[]) => sections.map((s: Loose) => s.id);
 describe('what sits on the bar', () => {
     it('is Dashboard, the first two modules, and the rest under More', () => {
         const m = phoneNavModel(full);
-        expect(m.dashboard.id).toBe('dashboard');
+        expect((m.dashboard)!.id).toBe('dashboard');
         expect(ids(m.bar)).toEqual(['sales', 'operations']);
         expect(ids(m.more)).toEqual(['products', 'accounting']);
     });
@@ -43,8 +43,8 @@ describe('what sits on the bar', () => {
     });
     it('opens a one-page module directly', () => {
         const m = phoneNavModel(user('view_dashboard', 'view_daily_report', 'view_customers'));
-        expect(opensDirectly(m.bar.find((s) => s.id === 'operations'))).toBe(true);
-        expect(opensDirectly(phoneNavModel(full).bar.find((s) => s.id === 'sales'))).toBe(false);
+        expect(opensDirectly((m.bar.find((s) => s.id === 'operations'))!)).toBe(true);
+        expect(opensDirectly((phoneNavModel(full).bar.find((s) => s.id === 'sales'))!)).toBe(false);
     });
 });
 

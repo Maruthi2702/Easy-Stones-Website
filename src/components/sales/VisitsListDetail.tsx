@@ -145,7 +145,7 @@ const VisitsListDetail = ({ visits = [], dataVersion, loading = false, busyVisit
             </ul>
 
             {selected && (
-                <section className="vld-detail" aria-label={`Visit to ${sel.company}`}>
+                <section className="vld-detail" aria-label={`Visit to ${sel!.company}`}>
                     <button type="button" className="vld-back" onClick={() => setMobileOpen(false)}>
                         <ChevronLeft size={20} aria-hidden="true" /> Visits
                     </button>
@@ -153,10 +153,10 @@ const VisitsListDetail = ({ visits = [], dataVersion, loading = false, busyVisit
                     <div className="vld-head">
                         <div className="vld-head-text">
                             <button type="button" className="vld-company" onClick={() => onOpenCustomer?.(selected)}>
-                                {sel.company}
+                                {sel!.company}
                             </button>
                             <span className="vld-sub">
-                                {sel.contact ? `${sel.contact} · ` : ''}
+                                {sel!.contact ? `${sel!.contact} · ` : ''}
                                 {formatDate(selected.date, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
                             </span>
                         </div>
@@ -221,16 +221,16 @@ const VisitsListDetail = ({ visits = [], dataVersion, loading = false, busyVisit
                         <div className="vld-block">
                             <h3>Comments</h3>
                             <div className="vld-comments">
-                                {photoState.managerComment && (
+                                {photoState!.managerComment && (
                                     <div className="vld-comment vld-comment--manager">
                                         <span className="vld-comment-who">Manager</span>
-                                        <p>{photoState.managerComment}</p>
+                                        <p>{photoState!.managerComment}</p>
                                     </div>
                                 )}
-                                {photoState.headquartersComment && (
+                                {photoState!.headquartersComment && (
                                     <div className="vld-comment vld-comment--hq">
                                         <span className="vld-comment-who">HQ</span>
-                                        <p>{photoState.headquartersComment}</p>
+                                        <p>{photoState!.headquartersComment}</p>
                                     </div>
                                 )}
                             </div>
@@ -246,7 +246,7 @@ const VisitsListDetail = ({ visits = [], dataVersion, loading = false, busyVisit
                         {photoState?.status === 'done' && photoState.images.length === 0 && <span className="vld-muted">No photos.</span>}
                         {photoState?.status === 'done' && photoState.images.length > 0 && (
                             <div className="vld-photos">
-                                {photoState.images.map((img, idx) => (
+                                {photoState.images.map((img: string, idx: number) => (
                                     <button
                                         type="button"
                                         key={idx}

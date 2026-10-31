@@ -1,6 +1,7 @@
+import type { Loose } from '../src/types/records.ts';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import Admin from '../src/models/Admin.js';
+import Admin from './legacyAdmin.ts';
 import readline from 'readline';
 
 dotenv.config();
@@ -33,7 +34,7 @@ async function setupAdmin() {
       await promptForCredentials();
     }
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('❌ Error:', (error as Error).message);
     process.exit(1);
   }
 }
@@ -66,7 +67,7 @@ async function promptForCredentials() {
           
           process.exit(0);
         } catch (error) {
-          console.error('❌ Error creating admin:', error.message);
+          console.error('❌ Error creating admin:', (error as Error).message);
           process.exit(1);
         }
       });

@@ -2,7 +2,7 @@
 import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
-const scheduleSchema = new mongoose.Schema<Loose>({
+const scheduleSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   userId: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 

@@ -52,7 +52,7 @@ const SIZE = 8.4;
 const makeSafe = (font: PDFFont) => {
   const ok = new Set(font.getCharacterSet());
   return (value: unknown) => [...String(value ?? '').replace(/\s+/g, ' ')]
-    .map((ch) => (ok.has(ch.codePointAt(0)) ? ch : '?'))
+    .map((ch) => (ok.has(ch.codePointAt(0)!) ? ch : '?'))
     .join('');
 };
 
@@ -151,7 +151,7 @@ export async function buildCheckInLogPdf({ list = [], total = list.length, scope
     if (i % 2 === 1) page.drawRectangle({ x: M, y: y - 5, width: CONTENT_W, height: ROW_H, color: BAND });
     let x = M;
     for (const col of COLS) {
-      const value = row[col.key];
+      const value = row[col.key as keyof typeof row];
       if (value) {
         const font = col.key === 'Name' ? fonts.bold : fonts.regular;
         text(fit(value, col.width - 8, { font }), x + 4, y, { font });

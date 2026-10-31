@@ -13,7 +13,7 @@ const staff = [
   { _id: 'mgr', location: 'Seattle', assignedLocations: ['Seattle'] }
 ];
 const mgr = { id: 'mgr', permissions: ['view_branch_visits'], assignedLocations: ['Seattle'] };
-const ids = (team: unknown) => (team === ALL_PEOPLE ? team : [...team].sort());
+const ids = (team: string | ReadonlySet<string>) => (team === ALL_PEOPLE ? team : [...(team as ReadonlySet<string>)].sort());
 
 describe('where people work', () => {
   it("reads the viewer's assigned locations, '*' as everyone", () => {

@@ -17,7 +17,7 @@ const addressSchema = new mongoose.Schema<Loose>({
 // src/utils/locationForm.ts. Locations created before those fields existed
 // simply have them empty — the selection sheet then prints the Kent address
 // (DEFAULT_LETTERHEAD) until someone adds theirs.
-const locationSchema = new mongoose.Schema<Loose>({
+const locationSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   // The short name ("Charlotte") — the key stored on users' assignedLocations,
   // check-ins, daily reports and more, so it is never renamed.
   name: {

@@ -20,9 +20,9 @@ const { default: OfficeCheckIn } = await import('../models/OfficeCheckIn.ts');
 const { default: User } = await import('../models/User.ts');
 const { default: Location } = await import('../models/Location.ts');
 
-let mongo;
-let app;
-let id;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
+let id!: Loose;
 
 const STAFF = { username: 'krish', permissions: ['create_checkins', 'view_checkins', 'manage_checkins', 'edit_selection_sheets', 'send_checkin_email'], assignedLocations: ['*'] };
 const put = (body: Loose, user = STAFF) => request(app).put(`/api/checkin/${id}`).set('x-test-user', JSON.stringify(user)).send(body);
@@ -38,8 +38,8 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.use('/api/checkin', createCheckInRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    requirePermission: (p: Loose) => (req: Loose, res: Loose, next: Loose) => ((req.user.permissions || []).includes(p) ? next() : res.status(403).json({}))
+    authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
+    requirePermission: (p: string) => (req: Loose, res: Loose, next: () => void) => ((req.user.permissions || []).includes(p) ? next() : res.status(403).json({}))
   }));
 }, 180000);
 
@@ -66,13 +66,13 @@ describe('PUT /api/checkin/:id — the selection sheet', () => {
     expect(res.body.data.selections[0].priceCentsPerSf).toBe(6800);
     expect(res.body.data.internalNotes).toBe('Builder pricing');
     const saved = await OfficeCheckIn.findById(id).lean();
-    expect(saved.selections[0].priceCentsPerSf).toBe(6800);
-    expect(saved.internalNotes).toBe('Builder pricing');
+    expect((saved)!.selections[0].priceCentsPerSf).toBe(6800);
+    expect((saved)!.internalNotes).toBe('Builder pricing');
   });
 
   it('a material with no price is stored as none', async () => {
     await put({ selections: [row({ priceCentsPerSf: null })] }).expect(200);
-    expect((await OfficeCheckIn.findById(id).lean()).selections[0].priceCentsPerSf).toBe(null);
+    expect(((await OfficeCheckIn.findById(id).lean()))!.selections[0].priceCentsPerSf).toBe(null);
   });
 
   it('refuses a price that isn\'t positive whole cents, and saves nothing', async () => {
@@ -80,7 +80,7 @@ describe('PUT /api/checkin/:id — the selection sheet', () => {
       const res = await put({ selections: [row({ priceCentsPerSf: bad })] }).expect(400);
       expect(res.body.message).toMatch(/price/i);
     }
-    expect((await OfficeCheckIn.findById(id).lean()).selections[0].priceCentsPerSf).toBeUndefined();
+    expect(((await OfficeCheckIn.findById(id).lean()))!.selections[0].priceCentsPerSf).toBeUndefined();
   });
 
   it('emails the rep, with prices, when a price is added', async () => {
@@ -99,8 +99,8 @@ describe('PUT /api/checkin/:id — the selection sheet', () => {
     await settle();
     expect(repEmails()).toHaveLength(0);
     const saved = await OfficeCheckIn.findById(id).lean();
-    expect(saved.internalNotes).toBe('Staff only');
-    expect(saved.sheetEditedBy).toBe('krish');
+    expect((saved)!.internalNotes).toBe('Staff only');
+    expect((saved)!.sheetEditedBy).toBe('krish');
   });
 
   it('emails the rep again when the printed notes or a price change, not on a re-save of the same sheet', async () => {
@@ -155,7 +155,7 @@ describe.runIf(NEW_VISITS_START_WITH_REP)('a new check-in\'s sales rep', () => {
       { name: 'Tacoma' }
     ]);
   });
-  const userId = async (username: string) => String((await User.collection.findOne({ username }))._id);
+  const userId = async (username: string) => String(((await User.collection.findOne({ username })))!._id);
   const logVisit = async (location: string, username: string) => {
     const user = { ...STAFF, id: await userId(username), username };
     return request(app).post('/api/checkin').set('x-test-user', JSON.stringify(user)).send({ ...visitor, location }).expect(201);
@@ -193,7 +193,7 @@ describe.runIf(!NEW_VISITS_START_WITH_REP)('a new check-in while starting reps a
   });
 
   it('starts with no rep, even logged by a manager at a branch with a sales person', async () => {
-    const id = String((await User.collection.findOne({ username: 'jeremy' }))._id);
+    const id = String(((await User.collection.findOne({ username: 'jeremy' })))!._id);
     const res = await request(app).post('/api/checkin').set('x-test-user', JSON.stringify({ ...STAFF, id, username: 'jeremy' }))
       .send({ ...visitor, location: 'Spokane' }).expect(201);
     expect(res.body.data.salesRep || '').toBe('');
@@ -228,16 +228,16 @@ describe('Check In permissions on the routes', () => {
 
   it('editing the sheet needs "Edit sheets"; Edit details alone is refused and saves nothing', async () => {
     await put({ specialNotes: 'Changed' }, only('manage_checkins')).expect(403);
-    expect((await OfficeCheckIn.findById(id).lean()).specialNotes).toBe('Old notes');
+    expect(((await OfficeCheckIn.findById(id).lean()))!.specialNotes).toBe('Old notes');
     await put({ specialNotes: 'Changed' }, only('edit_selection_sheets')).expect(200);
-    expect((await OfficeCheckIn.findById(id).lean()).specialNotes).toBe('Changed');
+    expect(((await OfficeCheckIn.findById(id).lean()))!.specialNotes).toBe('Changed');
   });
 
   it('editing visitor details needs "Edit details"; Edit sheets alone is refused', async () => {
     await put({ name: 'Renamed' }, only('edit_selection_sheets')).expect(403);
-    expect((await OfficeCheckIn.findById(id).lean()).name).toBe('Pat Visitor');
+    expect(((await OfficeCheckIn.findById(id).lean()))!.name).toBe('Pat Visitor');
     await put({ name: 'Renamed' }, only('manage_checkins')).expect(200);
-    expect((await OfficeCheckIn.findById(id).lean()).name).toBe('Renamed');
+    expect(((await OfficeCheckIn.findById(id).lean()))!.name).toBe('Renamed');
   });
 
   it('View alone edits nothing', async () => {

@@ -148,7 +148,7 @@ export async function downloadPdf(url: string, filename: unknown) {
 
     const a = document.createElement('a');
     a.href = objectUrl;
-    a.download = filename;
+    a.download = filename as string;
     document.body.appendChild(a);
     a.click();
     a.remove();

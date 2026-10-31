@@ -8,7 +8,7 @@ const make = (over: Loose = {}): Loose => ({ customerId: id, startTime: '2026-10
 describe('localMinutes', () => {
   it('reads the stored local shapes', () => {
     expect(localMinutes('2026-10-30T09:00:00.000')).toBe(localMinutes('2026-10-30T09:00'));
-    expect(localMinutes('2026-10-30T09:30') - localMinutes('2026-10-30T09:00')).toBe(30);
+    expect((localMinutes('2026-10-30T09:30'))! - (localMinutes('2026-10-30T09:00'))!).toBe(30);
   });
   it('refuses things that are not a real day or time', () => {
     for (const bad of ['tbd', '', '2026-02-30T09:00', '2026-10-30T25:00', '2026-10-30T09:61', '2026-10-30', '2026-10-30T09:00:00-07:00', null]) {
@@ -38,7 +38,7 @@ describe('cleanScheduleFields: creating', () => {
   it('needs the end after the start', () => {
     expect(cleanScheduleFields(make({ endTime: '2026-10-30T09:00:00.000' })).error).toMatch(/after/i);
     expect(cleanScheduleFields(make({ endTime: '2026-10-30T08:30:00.000' })).error).toMatch(/after/i);
-    expect(cleanScheduleFields(make({ endTime: '2026-10-30T09:30:00.000' })).fields.endTime).toBe('2026-10-30T09:30:00.000');
+    expect((cleanScheduleFields(make({ endTime: '2026-10-30T09:30:00.000' })).fields)!.endTime).toBe('2026-10-30T09:30:00.000');
   });
   it('never copies what a write may not set', () => {
     const { fields } = cleanScheduleFields(make({ userId: 'x', source: 'route_planner', linkedVisitId: id, status: 'Completed' }));

@@ -1,19 +1,16 @@
 import type { Loose } from '../types/records.ts';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('../models/Schedule.ts', () => ({
-  default: {
-    findOneAndUpdate: vi.fn(),
-    create: vi.fn(),
-    findOneAndDelete: vi.fn(),
-    find: vi.fn(),
-    updateMany: vi.fn()
-  }
+const { Schedule, User } = vi.hoisted(() => ({
+  Schedule: {
+    findOneAndUpdate: vi.fn(), create: vi.fn(), findOneAndDelete: vi.fn(),
+    find: vi.fn(), updateMany: vi.fn()
+  },
+  User: { findById: vi.fn() }
 }));
-vi.mock('../models/User.ts', () => ({ default: { findById: vi.fn() } }));
+vi.mock('../models/Schedule.ts', () => ({ default: Schedule }));
+vi.mock('../models/User.ts', () => ({ default: User }));
 
-const { default: Schedule } = await import('../models/Schedule.ts');
-const { default: User } = await import('../models/User.ts');
 const {
   dropInStartTime, addMinutesToLocal, activityTypeForVisit,
   linkVisitToSchedule, unlinkVisitFromSchedule, moveVisitOnSchedule,

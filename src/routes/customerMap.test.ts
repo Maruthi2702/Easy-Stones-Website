@@ -15,8 +15,8 @@ const { default: createCustomerMapRouter } = await import('./customerMap.ts');
 const { default: Customer } = await import('../models/Customer.ts');
 const { default: User } = await import('../models/User.ts');
 
-let mongo;
-let app;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
 let store = null;
 const cache = { get: vi.fn(() => store), put: vi.fn((pins) => { store = pins; return pins; }) };
 
@@ -37,7 +37,7 @@ const ADMIN = { id: 'adm', role: 'admin', permissions: ['view_route_planner'], a
 const MANAGER = { id: 'mgr', role: 'manager', permissions: ['view_route_planner'], assignedLocations: ['Kent', 'Seattle'], location: 'Kent' };
 const NO_PERM = { id: 'np', role: 'manager', permissions: [], assignedLocations: ['Kent'] };
 const as = (user: Loose) => ({ 'x-test-user': JSON.stringify(user) });
-const get = (path: Loose, user = MANAGER) => request(app).get(`/api/customers${path}`).set(as(user));
+const get = (path: string, user = MANAGER) => request(app).get(`/api/customers${path}`).set(as(user));
 const companies = (res: Loose) => res.body.map((p: Loose) => p.company).sort();
 
 beforeAll(async () => {
@@ -46,8 +46,8 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.use('/api/customers', createCustomerMapRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    requirePermission: (p: Loose) => (req: Loose, res: Loose, next: Loose) => ((req.user.permissions || []).includes(p) ? next() : res.status(403).json({})),
+    authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
+    requirePermission: (p: string) => (req: Loose, res: Loose, next: () => void) => ((req.user.permissions || []).includes(p) ? next() : res.status(403).json({})),
     cache
   }));
 }, 180000);

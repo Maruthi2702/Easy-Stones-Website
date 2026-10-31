@@ -271,7 +271,7 @@ describe('handSetFigures — a correction typed earlier survives a reload and Su
     expect(report.pickups.capacity).toBe(4);
     // The next save (e.g. the one right before Submit) with the sheet's
     // touched sets seeded from handSet — nothing typed this visit.
-    const body = buildDraftPayload(report, new Set(handSet.capacity), new Set(handSet.transferSlabs));
+    const body = buildDraftPayload((report)!, new Set(handSet.capacity), new Set(handSet.transferSlabs));
     expect(body.deliveries.capacity).toBe(25);
     expect(body.pickups.capacity).toBe(null);
     expect(body.transfers).toHaveLength(1);
@@ -289,9 +289,9 @@ describe('claimSubmission — one sign-off per day', () => {
   // A stand-in for the stored day: findOneAndUpdate only matches while it's a draft.
   const fakeStore = () => {
     const doc = { _id: 'r1', status: 'draft' };
-    vi.spyOn(DailyReport, 'findOneAndUpdate').mockImplementation(async (filter, update) => {
-      if (filter._id !== doc._id || doc.status !== filter.status) return null;
-      Object.assign(doc, update.$set);
+    vi.spyOn(DailyReport, 'findOneAndUpdate').mockImplementation((async (filter, update) => {)!
+      if ((filter)!._id !== doc._id || doc.status !== (filter)!.status) return null;
+      Object.assign(doc, (update)!.$set);
       return { ...doc, toObject: () => ({ ...doc }) };
     });
     return doc;
@@ -344,7 +344,7 @@ describe('withDraftsDerived — exports read drafts with today\'s figures', () =
 
   it('re-derives drafts (one delivery query per date) and leaves submitted days as signed off', async () => {
     const tickets = [{ deliveryType: 'jobsite', location: 'Seattle', numberOfSlabs: 12 }, { deliveryType: 'jobsite', location: 'Seattle', numberOfSlabs: 8 }];
-    const find = vi.spyOn(Delivery, 'find').mockImplementation((query) => ({ lean: async () => (query.deliveryType === 'transfer' ? [] : tickets) }));
+    const find = vi.spyOn(Delivery, 'find').mockImplementation((query) => ({ lean: async () => ((query)!.deliveryType === 'transfer' ? [] : tickets) }));
     vi.spyOn(OfficeCheckIn, 'countDocuments').mockResolvedValue(9);
     const draft = { date: '2026-10-05', location: 'Seattle', status: 'draft', visitors: { homeowners: 2 }, deliveries: { assigned: 1, capacity: null }, pickups: { assigned: 0, capacity: null }, transfers: [] };
     const draft2 = { ...draft, location: 'Kent' };
@@ -356,7 +356,7 @@ describe('withDraftsDerived — exports read drafts with today\'s figures', () =
     expect(s).toBe(signed);
     expect(s.deliveries.capacity).toBe(5);
     // Two drafts on the same date: the all-branch delivery query runs once.
-    expect(find.mock.calls.filter(([q]) => q.deliveryType !== 'transfer')).toHaveLength(1);
+    expect(find.mock.calls.filter(([q]) => (q)!.deliveryType !== 'transfer')).toHaveLength(1);
   });
 });
 
@@ -367,9 +367,9 @@ describe('deriveFromSystem — Homeowners counted in the branch\'s own day', () 
     vi.spyOn(Delivery, 'find').mockImplementation(() => ({ lean: async () => [] }));
     const count = vi.spyOn(OfficeCheckIn, 'countDocuments').mockResolvedValue(0);
     await deriveFromSystem('2026-07-01', 'Seattle');
-    expect(count.mock.calls[0][0].createdAt).toEqual({ $gte: new Date('2026-07-01T07:00:00Z'), $lt: new Date('2026-07-02T07:00:00Z') });
+    expect((count.mock.calls[0][0])!.createdAt).toEqual({ $gte: new Date('2026-07-01T07:00:00Z'), $lt: new Date('2026-07-02T07:00:00Z') });
     // A winter day is measured on winter time, whenever it's worked out.
     await deriveFromSystem('2026-12-01', 'Seattle');
-    expect(count.mock.calls[1][0].createdAt.$gte).toEqual(new Date('2026-12-01T08:00:00Z'));
+    expect((count.mock.calls[1][0])!.createdAt.$gte).toEqual(new Date('2026-12-01T08:00:00Z'));
   });
 });

@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 /**
  * One-off: give a branch to the old tickets saved before deliveries recorded
  * one (Jul 27 – Aug 10, 2026).
@@ -33,8 +34,8 @@ const BACKUP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'merg
 const NO_BRANCH = { $or: [{ location: '' }, { location: null }, { location: { $exists: false } }] };
 
 const main = async () => {
-  await mongoose.connect(process.env.MONGO_URI);
-  const db = mongoose.connection.db;
+  await mongoose.connect(process.env.MONGO_URI!);
+  const db = mongoose.connection.db!;
   const col = db.collection('deliveries');
 
   const tickets = await col.find(NO_BRANCH).toArray();
@@ -42,11 +43,11 @@ const main = async () => {
 
   // A driver column is `drv_<username>`; their branch is their one assigned
   // location (or home location). Anyone on '*' or several branches can't say.
-  const branchOfDriver = (truckId) => {
+  const branchOfDriver = (truckId: string) => {
     if (!String(truckId || '').startsWith('drv_')) return null;
     const user = users.find((u) => `drv_${u.username}` === truckId);
     if (!user) return null;
-    const assigned = (user.assignedLocations || []).filter((l) => l && l !== '*');
+    const assigned = (user.assignedLocations || []).filter((l: string) => l && l !== '*');
     if ((user.assignedLocations || []).includes('*')) return null;
     if (assigned.length === 1) return assigned[0];
     if (!assigned.length && user.location && user.location !== '*') return user.location;
@@ -57,7 +58,7 @@ const main = async () => {
   const fixable = plan.filter((p) => p.to);
   const left = plan.filter((p) => !p.to);
 
-  const byBranch = fixable.reduce((acc, p) => ({ ...acc, [p.to]: (acc[p.to] || 0) + 1 }), {});
+  const byBranch = fixable.reduce<Record<string, number>>((acc, p) => ({ ...acc, [p.to]: (acc[p.to] || 0) + 1 }), {});
   console.log(`${tickets.length} tickets with no branch.`);
   console.log(`  Would set the branch on ${fixable.length}: ${Object.entries(byBranch).map(([b, n]) => `${b} ${n}`).join(', ') || 'none'}`);
   const dates = [...new Set(fixable.map((p) => p.t.date))].sort();

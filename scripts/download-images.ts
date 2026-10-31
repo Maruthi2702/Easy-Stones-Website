@@ -1,3 +1,4 @@
+import type { Loose } from '../src/types/records.ts';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -10,7 +11,7 @@ const outputDir = path.resolve(__dirname, '../public/images');
 
 await mkdir(outputDir, { recursive: true });
 
-const downloadImage = async (url, destination) => {
+const downloadImage = async (url: string, destination: string) => {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`);
@@ -34,7 +35,7 @@ for (const product of products) {
   try {
     await downloadImage(product.image, destination);
   } catch (error) {
-    console.error(`❌ ${error.message}`);
+    console.error(`❌ ${(error as Error).message}`);
   }
 }
 

@@ -12,7 +12,7 @@ import type { Loose } from '../types/records.ts';
  */
 
 /** Google's location_type, in our own words. See Customer.geocode.precision. */
-export const GEOCODE_PRECISION = {
+export const GEOCODE_PRECISION: Readonly<Record<string, string>> = {
   ROOFTOP: 'rooftop',
   RANGE_INTERPOLATED: 'range',
   GEOMETRIC_CENTER: 'geometric',
@@ -121,7 +121,7 @@ export const geocodeAddress = async (address: Loose) => {
  * The geocode fields to write alongside an address, or null when the point we
  * already hold was derived from this very address and so still stands.
  */
-export const geocodePatchFor = async (address: unknown, storedKey = '') => {
+export const geocodePatchFor = async (address: Parameters<typeof geocodeAddress>[0], storedKey = '') => {
   const query = addressKeyOf(address);
   if (query && query === storedKey) return null;
   return geocodeAddress(address);

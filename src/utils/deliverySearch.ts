@@ -45,7 +45,7 @@ export const normalizeSearchTerm = (raw: unknown) => {
  * Mongo filter for a search, or null when there's nothing to run: the text is
  * too short, or the user has no locations assigned (so no orders are theirs).
  */
-export const buildDeliverySearchFilter = (raw: unknown, assignedLocations: string[] = []) => {
+export const buildDeliverySearchFilter = (raw: unknown, assignedLocations: string[] = []): Loose | null => {
   const { text, orderNumber } = normalizeSearchTerm(raw);
   if (text.length < SEARCH_MIN_CHARS) return null;
 

@@ -3,7 +3,7 @@ import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-const userSchema = new mongoose.Schema<Loose>({
+const userSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   // Login identifier. Forced lower-case so signing in is not case-sensitive —
   // which is exactly why it is a poor thing to show people. Use displayName.
   username: {

@@ -17,7 +17,8 @@ import InventorySalesRecord from '../models/InventorySalesRecord.ts';
 import { inInventoryTransaction } from '../services/inventoryTransaction.ts';
 import Location from '../models/Location.ts';
 import { SlabReservation } from '../holds/models.ts';
-let rs, app;
+let rs: MongoMemoryReplSet;
+let app: express.Express;
 const clock = new Date('2026-10-24T20:00:00Z');
 const ADMIN = {
   id: 'buyer1',
@@ -25,8 +26,8 @@ const ADMIN = {
   assignedLocations: ['*'],
   permissions: ['view_inventory_analysis', 'view_purchasing', 'manage_purchasing', 'approve_purchasing'],
 };
-const as = (user) => ({ 'x-user': JSON.stringify(user) });
-const api = (method, path, user = ADMIN) =>
+const as = (user: unknown) => ({ 'x-user': JSON.stringify(user) });
+const api = (method: 'get' | 'post' | 'put' | 'patch' | 'delete', path: string, user = ADMIN) =>
   request(app)
     [method]('/api/purchasing' + path)
     .set(as(user));

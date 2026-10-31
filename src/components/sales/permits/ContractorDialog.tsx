@@ -77,7 +77,7 @@ function CopyLicense({ license }: { license: string }) {
  * "Create customer", which opens the Add customer form filled in from the
  * registry (onCreateCustomer(values) — absent for people who can't add one).
  */
-export default function ContractorDialog({ license, onClose, onShowPermits = null, onLoaded = null, onOpenCustomer = null, onCreateCustomer = null }: { license: string; onClose: () => void; onShowPermits?: ((license: string, name: string) => void) | null; onLoaded?: ((data: Loose) => void) | null; onOpenCustomer?: ((id: string) => void) | null; onCreateCustomer?: ((value: Loose) => void) | null }) {
+export default function ContractorDialog({ license, onClose, onShowPermits = null, onLoaded = null, onOpenCustomer = null, onCreateCustomer = null }: { license: string; onClose: () => void; onShowPermits?: ((license: string, name: string) => void) | null; onLoaded?: ((license: string, name: string) => void) | null; onOpenCustomer?: ((id: string) => void) | null; onCreateCustomer?: ((value: Loose) => void) | null }) {
   const [state, setState] = useState<Loose>({ loading: true, data: null, error: '' });
   // What's looked up: starts as the license opened with; the not-found screen
   // lets a typo be fixed without closing. `attempt` re-runs the same lookup.
@@ -102,7 +102,7 @@ export default function ContractorDialog({ license, onClose, onShowPermits = nul
 
   const { loading, data: d, error } = state;
   const standing = d ? licenseStanding(d) : null;
-  const current = d ? (d.principals || []).filter((p) => !p.until) : [];
+  const current = d ? (d.principals || []).filter((p: Loose) => !p.until) : [];
   const retry = () => setAttempt((n) => n + 1);
   const lookUpTyped = () => {
     const next = typed.trim().toUpperCase();
@@ -114,7 +114,7 @@ export default function ContractorDialog({ license, onClose, onShowPermits = nul
   let primary = null;
   if (d?.found) {
     if (d.customer && onOpenCustomer) primary = { label: 'Open customer profile', run: () => onOpenCustomer(d.customer.id) };
-    else if (!d.customer && onCreateCustomer) primary = { label: 'Create customer', run: () => onCreateCustomer(customerPrefillFor(d)) };
+    else if (!d.customer && onCreateCustomer) primary = { label: 'Create customer', run: () => onCreateCustomer(customerPrefillFor(d)!) };
   }
   const onSubmit = () => {
     if (primary) primary.run();
@@ -225,10 +225,10 @@ export default function ContractorDialog({ license, onClose, onShowPermits = nul
             {d.permits.total ? (
               <>
                 <div className="pm-ct-chips">
-                  {d.permits.byCategory.map((c) => <span key={c.category} className="pm-ct-chip">{c.label || categoryLabel(c.category)} <b>{c.count}</b></span>)}
+                  {d.permits.byCategory.map((c: Loose) => <span key={c.category} className="pm-ct-chip">{c.label || categoryLabel(c.category)} <b>{c.count}</b></span>)}
                 </div>
                 <ul className="pm-ct-permits">
-                  {d.permits.recent.map((p) => (
+                  {d.permits.recent.map((p: Loose) => (
                     <li key={p._id}>
                       <span className="pm-ct-when">{formatDay(p.issuedOn)}</span>
                       <span className="pm-ct-what">
@@ -249,15 +249,15 @@ export default function ContractorDialog({ license, onClose, onShowPermits = nul
             <Field label="Insurance"><Coverage list={d.insurance || []} none="No insurance on file with the state." /></Field>
             <Field label="Bond"><Coverage list={d.bonds || []} none="No bond on file with the state." /></Field>
             <Field label="Principals" wide>
-              {current.length ? <span>{current.map((p) => personName(p.name)).join(' · ')}</span> : <span className="pm-ct-none">None listed.</span>}
+              {current.length ? <span>{current.map((p: Loose) => personName(p.name)).join(' · ')}</span> : <span className="pm-ct-none">None listed.</span>}
             </Field>
           </section>
         ) : null}
 
         {d?.found ? (
-          <div className={`pm-ct-standing ${standing.tone}`}>
-            {standing.tone === 'ok' ? <CheckCircle2 size={18} aria-hidden="true" /> : <AlertTriangle size={18} aria-hidden="true" />}
-            <span className="pm-ct-standing-text">{standing.text}</span>
+          <div className={`pm-ct-standing ${standing!.tone}`}>
+            {standing!.tone === 'ok' ? <CheckCircle2 size={18} aria-hidden="true" /> : <AlertTriangle size={18} aria-hidden="true" />}
+            <span className="pm-ct-standing-text">{standing!.text}</span>
             <span className="pm-ct-standing-lic"><span>WA license</span><CopyLicense license={d.license} /></span>
           </div>
         ) : null}

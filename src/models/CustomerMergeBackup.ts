@@ -14,7 +14,7 @@ import mongoose from 'mongoose';
  * whole customer documents as they were, including fields the Customer schema
  * may no longer define.
  */
-const customerMergeBackupSchema = new mongoose.Schema<Loose>({
+const customerMergeBackupSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   group: { type: mongoose.Schema.Types.Mixed, required: true },
   // 'merge' | 'delete' — for the record, and for the Undo message
   action: { type: String, default: '' },

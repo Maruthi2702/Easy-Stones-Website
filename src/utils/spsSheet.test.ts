@@ -3,7 +3,7 @@ import { spsKey, checkSheet, spsCoverage } from './spsSheet.ts';
 import { readCustomerSheet } from './customerImport.ts';
 
 const mapping = { company: 'Name' };
-const rowsOf = (...names) => names.map((Name) => ({ Name }));
+const rowsOf = (...names: string[]) => names.map((Name) => ({ Name }));
 
 const html = (rowsHtml: unknown) => Buffer.from(`<html><body><table><tr><td>Customers</td><td>Export</td></tr>
 <tr><th>Name</th><th>Email</th><th>Phone1</th></tr>${rowsHtml}</table></body></html>`);

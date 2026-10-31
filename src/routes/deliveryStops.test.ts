@@ -14,8 +14,8 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 const { default: createDeliveriesRouter, renumberAllRuns } = await import('./deliveries.ts');
 const { default: Delivery } = await import('../models/Delivery.ts');
 
-let mongo;
-let app;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
 const emit = vi.fn();
 
 const ADMIN = {
@@ -50,9 +50,9 @@ beforeAll(async () => {
   app.use(express.json({ limit: '5mb' }));
   app.set('io', { emit, to: () => ({ emit }) });
   app.use('/api', createDeliveriesRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    requirePermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: Loose) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
-    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: Loose) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
+    authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
+    requirePermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
+    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
     getPerformerInfo: async () => ({}),
     processBase64Images: async (x: Loose) => x,
     getNowLocalISO: () => new Date().toISOString()

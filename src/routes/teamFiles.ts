@@ -1,3 +1,4 @@
+import type { ScalarParams, ScalarQuery } from '../types/server.ts';
 import type { Loose } from '../types/records.ts';
 import type { Request, Response, NextFunction } from 'express';
 import express from 'express';
@@ -71,8 +72,8 @@ const fileCounts = async (parentIds: Loose) => {
 
 /** Everything under a folder: its folders' ids and its files (for the summary, and to remove disk files). */
 const subtreeOf = async (folderId: Loose) => {
-  const folders = [];
-  const files = [];
+  const folders: Loose[] = [];
+  const files: Loose[] = [];
   let frontier = [new mongoose.Types.ObjectId(folderId)];
   const seen = new Set([String(folderId)]);
   while (frontier.length) {
@@ -160,15 +161,15 @@ export default function createTeamFilesRouter(deps: Loose) {
   const manage = [authenticate, requireManage];
 
   const findItem = async (req: Request, res: Response) => {
-    if (!isId(req.params.id)) { res.status(404).json({ message: 'That file or folder no longer exists.' }); return null; }
-    const item = await SalesDashboardResource.findById(req.params.id);
+    if (!isId((req.params as ScalarParams).id)) { res.status(404).json({ message: 'That file or folder no longer exists.' }); return null; }
+    const item = await SalesDashboardResource.findById((req.params as ScalarParams).id);
     if (!item) { res.status(404).json({ message: 'That file or folder no longer exists.' }); return null; }
     return item;
   };
 
   router.get('/', ...view, async (req, res) => {
     try {
-      const folderId = req.query.folder && req.query.folder !== 'root' ? String(req.query.folder) : null;
+      const folderId = (req.query as ScalarQuery).folder && (req.query as ScalarQuery).folder !== 'root' ? String((req.query as ScalarQuery).folder) : null;
       const folders = await allFolders();
       const trail = pathTo(folderId, folders);
       if (folderId && !trail) return res.status(404).json({ message: 'That folder was deleted or moved.', folderGone: true });
@@ -202,7 +203,7 @@ export default function createTeamFilesRouter(deps: Loose) {
   });
 
   router.get('/search', ...view, async (req, res) => {
-    const pattern = searchPattern(String(req.query.q || ''));
+    const pattern = searchPattern(String((req.query as ScalarQuery).q || ''));
     if (!pattern) return res.json({ items: [], total: 0 });
     try {
       const query = { isFolder: { $ne: true }, name: { $regex: pattern, $options: 'i' } };
@@ -433,7 +434,7 @@ export function createLegacyTeamFilesRouter(deps: Loose) {
 
   router.get('/resources', ...view, async (req, res) => {
     try {
-      const { parentId } = req.query;
+      const { parentId } = (req.query as ScalarQuery);
       if (parentId && !isId(String(parentId))) return res.json([]);
       const items = await SalesDashboardResource.find({ parentId: parentId || null })
         .select('-content').populate(legacyPopulate).sort({ isFolder: -1, createdAt: -1 });
@@ -446,8 +447,8 @@ export function createLegacyTeamFilesRouter(deps: Loose) {
 
   router.get('/resources/:id', ...view, async (req, res) => {
     try {
-      if (!isId(req.params.id)) return res.status(404).json({ message: 'Resource not found' });
-      const item = await SalesDashboardResource.findById(req.params.id).populate(legacyPopulate);
+      if (!isId((req.params as ScalarParams).id)) return res.status(404).json({ message: 'Resource not found' });
+      const item = await SalesDashboardResource.findById((req.params as ScalarParams).id).populate(legacyPopulate);
       if (!item) return res.status(404).json({ message: 'Resource not found' });
       res.json(item);
     } catch {
@@ -461,7 +462,7 @@ export function createLegacyTeamFilesRouter(deps: Loose) {
       const folder = isFolder === 'true' || isFolder === true;
       const parentId = await core.parentFrom(req.body.parentId);
       if (parentId === false) return res.status(400).json({ message: 'That folder no longer exists.' });
-      let stored;
+      let stored!: Loose;
       if (folder) {
         const problem = checkFolderName(name);
         if (problem) return res.status(400).json({ message: problem });
@@ -495,8 +496,8 @@ export function createLegacyTeamFilesRouter(deps: Loose) {
 
   router.put('/resources/:id', ...manage, upload, async (req, res) => {
     try {
-      if (!isId(req.params.id)) return res.status(404).json({ message: 'Resource not found' });
-      const item = await SalesDashboardResource.findById(req.params.id);
+      if (!isId((req.params as ScalarParams).id)) return res.status(404).json({ message: 'Resource not found' });
+      const item = await SalesDashboardResource.findById((req.params as ScalarParams).id);
       if (!item) return res.status(404).json({ message: 'Resource not found' });
       const { name, type, content: linkContent, thumbnail } = req.body;
       const old = item.content;
@@ -524,8 +525,8 @@ export function createLegacyTeamFilesRouter(deps: Loose) {
 
   router.delete('/resources/:id', ...manage, async (req, res) => {
     try {
-      if (!isId(req.params.id)) return res.status(404).json({ message: 'Resource not found' });
-      const item = await SalesDashboardResource.findById(req.params.id);
+      if (!isId((req.params as ScalarParams).id)) return res.status(404).json({ message: 'Resource not found' });
+      const item = await SalesDashboardResource.findById((req.params as ScalarParams).id);
       if (!item) return res.status(404).json({ message: 'Resource not found' });
       await core.deleteItem(item);
       core.emit(req);

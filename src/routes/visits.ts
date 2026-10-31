@@ -1,3 +1,4 @@
+import type { ScalarParams } from '../types/server.ts';
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler } from 'express';
 import express from 'express';
@@ -73,7 +74,7 @@ export default function createVisitsRouter({
 
   router.post('/:customerId/visits', authenticate, requirePermission('add_visits'), async (req, res) => {
     try {
-      const { customerId } = req.params;
+      const { customerId } = (req.params as ScalarParams);
       const { date, purpose, notes, outcome, managerComment, headquartersComment, image } = req.body;
 
       // Only a real YYYY-MM-DD date is stored — these feed date-range queries and
@@ -183,13 +184,13 @@ export default function createVisitsRouter({
       }
     } catch (error) {
       console.error('Add visit error:', error);
-      if (!res.headersSent) res.status(500).json({ message: 'Failed to add visit: ' + error.message });
+      if (!res.headersSent) res.status(500).json({ message: 'Failed to add visit: ' + (error as Error).message });
     }
   });
 
   router.put('/:customerId/visits/:visitId', authenticate, requireAnyPermission(...ANY_EDIT_VISIT_PERMISSIONS), async (req, res) => {
     try {
-      const { customerId, visitId } = req.params;
+      const { customerId, visitId } = (req.params as ScalarParams);
       const { date, purpose, notes, outcome, managerComment, headquartersComment, image } = req.body;
 
       const updateData: Loose = {};
@@ -198,7 +199,7 @@ export default function createVisitsRouter({
         if (!processedDate) return res.status(400).json({ message: 'Visit date must be a date (YYYY-MM-DD)' });
         updateData['visits.$.date'] = processedDate;
       }
-      let followUpDate;
+      let followUpDate!: Loose;
       if (req.body.followUpDate !== undefined) {
         followUpDate = normalizeOptionalDate(req.body.followUpDate);
         if (followUpDate === null) return res.status(400).json({ message: 'Follow-up date must be a date (YYYY-MM-DD)' });

@@ -18,7 +18,7 @@ const hold = (over: Loose = {}): Loose => {
     createdAt: '2026-10-09T17:00:00Z', lines: [], ...over
   };
 };
-const user = (...perms): Loose => ({ permissions: perms });
+const user = (...perms: string[]): Loose => ({ permissions: perms });
 
 describe('tabs', () => {
   it('are Active, Expiring soon, Expired, Released, All — Converted waits for Sales Orders', () => {

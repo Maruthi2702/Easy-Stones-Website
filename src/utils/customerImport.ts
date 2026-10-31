@@ -40,7 +40,7 @@ const SHEET_ROW_PREFIX = 'sheet:';
  * matched and the admin can reassign any column before anything is written,
  * because the next export will name its columns something else again.
  */
-export const IMPORT_COLUMNS = [
+export const IMPORT_COLUMNS: readonly (readonly [string, readonly string[]])[] = [
   ['salesRep', ['sales rep', 'salesrep', 'sales person', 'salesperson', 'account manager', 'account owner', 'assigned to', 'rep']],
   ['location', ['easy stones location', 'es location', 'branch', 'location', 'store', 'office']],
   // Ahead of the plain 'email' field below for the same reason 'Sales Person1'
@@ -109,7 +109,7 @@ export const importRowKey = (candidate: Loose = {}) => [
  * field alone"; a field the override omits is auto-detected. Explicit choices
  * are claimed up front so detection cannot take a column the admin assigned.
  */
-export const resolveImportMapping = (headers: Loose[], override: Loose = {}) => {
+export const resolveImportMapping = (headers: string[], override: Loose = {}) => {
   const mapping: Record<string, string | null> = {};
   const claimed = new Set();
 
@@ -140,14 +140,14 @@ export const resolveImportMapping = (headers: Loose[], override: Loose = {}) => 
 // RegExps per row before.
 const TH_CELLS = /<th[^>]*>([\s\S]*?)<\/th>/gi;
 const TD_CELLS = /<td[^>]*>([\s\S]*?)<\/td>/gi;
-const ENTITIES = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+const ENTITIES: Record<string, string> = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
 
 /**
  * Text inside a cell. Entities are decoded in one pass, so "&amp;lt;" reads
  * "&lt;" — decoding &amp; first, as this used to, turned it into "<". Numeric
  * entities (&#39;, &#x27;) are read too.
  */
-const stripTags = (s: Loose) => s
+const stripTags = (s: string) => s
   .replace(/<br\s*\/?>/gi, ' ')
   .replace(/<[^>]*>/g, '')
   .replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (whole: string, dec: string, hex: string, name: string) => {
@@ -185,7 +185,7 @@ const parseHtmlWorkbook = (text: string) => {
         ? { type: 'header', cells: th }
         : td.length ? { type: 'data', cells: td } : null;
     })
-    .filter(Boolean);
+    .filter((r): r is NonNullable<typeof r> => r !== null);
 
   const headerRow = rows
     .filter(r => r.type === 'header')
@@ -563,7 +563,7 @@ export const buildImportPlan = ({
           changes.push({ field: 'location', from: target.location || '', to: branch });
         }
 
-        const apply = {
+        const apply: Loose = {
           ...(changes.some(c => c.field === 'salesRep') ? { salesRep: rep.salesRep, salesRepName: rep.salesRepName } : {}),
           ...(changes.some(c => c.field === 'location') ? { location: branch } : {})
         };
@@ -651,12 +651,12 @@ export const buildImportPlan = ({
       }
 
       if (chosen) {
-        planUpdate(byId.get(chosen.id), chosen.signals);
+        planUpdate(byId.get(chosen.id)!, chosen.signals);
         continue;
       }
 
       if (!needsReview && strong.length === 1) {
-        planUpdate(byId.get(strong[0].id), strong[0].signals);
+        planUpdate(byId.get(strong[0].id)!, strong[0].signals);
         continue;
       }
 

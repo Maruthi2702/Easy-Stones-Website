@@ -2,39 +2,40 @@ import type { Loose } from '../types/records.ts';
 import { beforeAll, afterAll, beforeEach, afterEach, describe, it, expect } from 'vitest';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
-import { io as connect } from 'socket.io-client';
+import { io as connect, type Socket as ClientSocket } from 'socket.io-client';
+import type { AddressInfo } from 'node:net';
 import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import User from '../models/User.ts';
 import Role from '../models/Role.ts';
 import { resolveStaffToken } from './staffIdentity.ts';
-import { registerBranchRoomJoins } from './socketAccess.ts';
+import { registerBranchRoomJoins, type BranchSocket } from './socketAccess.ts';
 
-let mongo, server, io, url;
-const clients = [];
+let mongo!: MongoMemoryServer, server!: ReturnType<typeof createServer>, io!: Server, url!: string;
+const clients: ClientSocket[] = [];
 const secret = 'isolated-socket-test-secret';
 const id = new mongoose.Types.ObjectId();
 const token = (claims: Loose = {}, options: Loose = {}) => jwt.sign({ id: String(id), type: 'internal', sv: 2, ...claims }, secret, { expiresIn: '1h', ...options });
 async function client() {
   const socket = connect(url, { transports: ['websocket'], forceNew: true });
   clients.push(socket);
-  await new Promise((resolve, reject) => { socket.once('connect', resolve); socket.once('connect_error', reject); });
+  await new Promise<void>((resolve, reject) => { socket.once('connect', () => resolve()); socket.once('connect_error', reject); });
   return socket;
 }
-const join = (socket: Loose, session = token(), event = 'join_delivery_rooms') => socket.timeout(2000).emitWithAck(event, { token: session });
-const rooms = (socket: Loose) => [...io.sockets.sockets.get(socket.id).rooms].filter(room => room.includes('-location:'));
+const join = (socket: ClientSocket, session: string | null = token(), event = 'join_delivery_rooms') => socket.timeout(2000).emitWithAck(event, { token: session });
+const rooms = (socket: ClientSocket) => [...io.sockets.sockets.get(socket.id!)!.rooms].filter(room => room.includes('-location:'));
 
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create();
   await mongoose.connect(mongo.getUri());
   server = createServer(); io = new Server(server);
-  io.on('connection', socket => registerBranchRoomJoins(socket, { resolveStaff: (session: Loose) => resolveStaffToken(session, secret) }));
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  url = `http://127.0.0.1:${server.address().port}`;
+  io.on('connection', socket => registerBranchRoomJoins(socket, { resolveStaff: (session) => resolveStaffToken(session, secret) }));
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', () => resolve()));
+  url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 }, 180000);
 afterAll(async () => {
-  await new Promise(resolve => io.close(resolve));
+  await new Promise<void>(resolve => io.close(() => resolve()));
   await mongoose.disconnect(); await mongo?.stop();
 });
 beforeEach(async () => {
@@ -93,14 +94,14 @@ describe('branch socket authorization', () => {
     expect(rooms(socket)).toEqual([]);
   });
   it('a late authorization response cannot restore an old account’s rooms', async () => {
-    const handlers = new Map();
-    const socket = { connected: true, rooms: new Set(), on: (event: string, fn: Loose) => handlers.set(event, fn),
-      join: (room: Loose) => socket.rooms.add(room), leave: (room: Loose) => socket.rooms.delete(room) };
-    let resolveOld;
-    registerBranchRoomJoins(socket, { resolveStaff: (session: Loose) => session === 'old'
-      ? new Promise(resolve => { resolveOld = resolve; }) : null });
-    const oldJoin = handlers.get('join_delivery_rooms')({ token: 'old' });
-    await handlers.get('join_delivery_rooms')({ token: null });
+    const handlers = new Map<string, Parameters<BranchSocket['on']>[1]>();
+    const socket = { connected: true, rooms: new Set<string>(), on: (event: string, fn: Parameters<BranchSocket['on']>[1]) => handlers.set(event, fn),
+      join: (room: string) => socket.rooms.add(room), leave: (room: string) => socket.rooms.delete(room) };
+    let resolveOld!: (value: { permissions: string[]; assignedLocations: string[] }) => void;
+    registerBranchRoomJoins(socket, { resolveStaff: (session) => session === 'old'
+      ? new Promise<{ permissions: string[]; assignedLocations: string[] }>(resolve => { resolveOld = resolve; }) : null });
+    const oldJoin = handlers.get('join_delivery_rooms')!({ token: 'old' });
+    await handlers.get('join_delivery_rooms')!({ token: null });
     resolveOld({ permissions: ['view_delivery_schedule'], assignedLocations: ['Seattle'] });
     await oldJoin;
     expect([...socket.rooms]).toEqual([]);

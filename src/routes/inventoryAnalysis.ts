@@ -14,12 +14,8 @@ import type { Request, RequestHandler } from 'express';
 import type { Multer } from 'multer';
 import type { Model, QueryFilter } from 'mongoose';
 
-// Authentication is supplied by server.ts before any handler runs.
-declare module 'express-serve-static-core' {
-  interface Request {
-    user: { id?: string; username?: string; displayName?: string; contactName?: string; assignedLocations?: string[]; permissions: string[] };
-  }
-}
+// Authentication request fields are declared centrally in src/types/server.ts.
+import type {} from '../types/server.ts';
 import mongoose from 'mongoose';
 import { randomUUID, createHash } from 'crypto';
 import { inInventoryTransaction } from '../services/inventoryTransaction.ts';

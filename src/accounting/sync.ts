@@ -24,7 +24,7 @@ const DELIVERY_FIELDS = 'id status deliveryType truckId date soNumber customerNa
 const TRUCK_CACHE_MS = 60 * 1000;
 
 export function createFreightSync({ Delivery, User, startDate = '', log = console }: Loose = {}) {
-  let truckCache = { at: 0, ids: null };
+  let truckCache: { at: number; ids: Set<string> | null } = { at: 0, ids: null };
 
   /**
    * Every truck id the 3rd-party column can have: the built-in row, and each
@@ -48,7 +48,7 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
    * it doesn't know (a driver account added in the last minute) is looked up
    * directly, so a brand-new carrier account isn't missed until the next run.
    */
-  async function isThirdPartyTruck(truckId: Loose, ctx: Loose) {
+  async function isThirdPartyTruck(truckId: unknown, ctx: Loose) {
     const id = String(truckId || '');
     if (!id) return false;
     if (ctx.truckIds.has(id)) return true;
@@ -60,7 +60,7 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
     return yes;
   }
 
-  async function syncOne(deliveryId: Loose, ctx: Loose) {
+  async function syncOne(deliveryId: unknown, ctx: Loose) {
     const [delivery, charge] = await Promise.all([
       Delivery.findOne({ id: deliveryId }, DELIVERY_FIELDS).lean(),
       FreightCharge.findOne({ deliveryId })
@@ -90,7 +90,7 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
           return;
         }
         const doc = await FreightCharge.findById(charge._id).session(session);
-        const changes = [];
+        const changes: Loose[] = [];
         for (const [field, value] of Object.entries(plan.set)) {
           if (field !== 'sourceSnapshot') changes.push({ field, from: doc[field] ?? null, to: value ?? null });
           doc[field] = value;
@@ -101,7 +101,7 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
         if (plan.flag) doc.flags.push(plan.flag);
         doc.updatedBy = SYSTEM;
         await doc.save({ session });
-        const notes = [];
+        const notes: string[] = [];
         if (plan.flag) notes.push(`Flagged for review: ${plan.flag.detail}`);
         if (plan.clearReopened) notes.push('The delivery is completed on the 3rd-party truck again');
         if (changes.length || notes.length) {
@@ -134,7 +134,7 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
         // racing this one: the second attempt sees the other's result.
         try { results[id] = await syncOne(id, ctx); } catch (err2) {
           results[id] = 'error';
-          log.error?.(`[accounting] freight sync for delivery ${id} failed:`, err2?.message || err?.message);
+          log.error?.(`[accounting] freight sync for delivery ${id} failed:`, (err2 as Error)?.message || (err as Error)?.message);
         }
       }
     }
@@ -144,13 +144,13 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
   /** Everything that should have a charge, and every charge that should be checked. */
   async function reconcile() {
     const truckIds = await thirdPartyTruckIds();
-    const query = { status: 'completed', truckId: { $in: [...truckIds] }, deliveryType: { $ne: 'will_call' } };
+    const query: Loose = { status: 'completed', truckId: { $in: [...truckIds] }, deliveryType: { $ne: 'will_call' } };
     if (startDate) query.date = { $gte: startDate };
     const [owed, open] = await Promise.all([
       Delivery.find(query, 'id').lean(),
       FreightCharge.find({ source: 'delivery', status: { $ne: 'void' } }, 'deliveryId').lean()
     ]);
-    const ids = new Set([...owed.map((d: Loose) => d.id), ...open.map((c: Loose) => c.deliveryId)].filter(Boolean));
+    const ids = new Set<string>([...owed.map((d: Loose) => d.id), ...open.map((c: Loose) => c.deliveryId)].filter(Boolean));
     const results = await syncDeliveryIds([...ids]);
     const counts = Object.values(results).reduce((acc, r) => ({ ...acc, [r]: (acc[r] || 0) + 1 }), {});
     return { checked: ids.size, ...counts };
@@ -180,7 +180,7 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
           matched += 1;
         });
       } catch (err) {
-        log.error?.(`[accounting] matching carrier for charge ${charge._id} failed:`, err?.message);
+        log.error?.(`[accounting] matching carrier for charge ${charge._id} failed:`, (err as Error)?.message);
       } finally {
         await session.endSession();
       }

@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { X, AlertTriangle, Loader2, CheckCircle2 } from 'lucide-react';
 import { checkStatus, reportDifferences } from '../../../utils/permitView';
 
-const STATUS_ICON = { ok: CheckCircle2, warn: AlertTriangle, none: AlertTriangle, busy: Loader2 };
+const STATUS_ICON: Record<string, typeof CheckCircle2> = { ok: CheckCircle2, warn: AlertTriangle, none: AlertTriangle, busy: Loader2 };
 
 /** One accuracy check: its line, then what differed and the county's report, if any. */
 function CheckItem({ check }: { check: Loose }) {
@@ -67,7 +67,7 @@ export default function ChecksDialog({ statuses, topChecks, olderChecks, onClose
                     <div className="pm-dlg-body">
                       <span className="pm-dlg-line">{s.text}{s.through || ''}</span>
                       {s.unsorted.length ? (
-                        <span className="pm-dlg-warn">New building types not sorted yet: {s.unsorted.map((u) => `${u.type} (${u.count})`).join(', ')}.</span>
+                        <span className="pm-dlg-warn">New building types not sorted yet: {s.unsorted.map((u: Loose) => `${u.type} (${u.count})`).join(', ')}.</span>
                       ) : null}
                     </div>
                   </li>

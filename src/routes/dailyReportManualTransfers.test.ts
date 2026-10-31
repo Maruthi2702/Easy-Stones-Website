@@ -14,8 +14,8 @@ const { default: createDailyReportsRouter } = await import('./dailyReports.ts');
 const { default: DailyReport } = await import('../models/DailyReport.ts');
 const { default: Delivery } = await import('../models/Delivery.ts');
 
-let mongo;
-let app;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
 const EDITOR = { username: 'dee', permissions: ['view_daily_report', 'edit_daily_report'], assignedLocations: ['Seattle'] };
 
 beforeAll(async () => {
@@ -24,8 +24,8 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.use('/api/daily-reports', createDailyReportsRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    requirePermission: (p: Loose) => (req: Loose, res: Loose, next: Loose) => ((req.user.permissions || []).includes(p) ? next() : res.status(403).json({})),
+    authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
+    requirePermission: (p: string) => (req: Loose, res: Loose, next: () => void) => ((req.user.permissions || []).includes(p) ? next() : res.status(403).json({})),
     logActivity: async () => {}
   }));
 }, 180000);

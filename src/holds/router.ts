@@ -22,6 +22,7 @@ import { inInventoryTransaction as inTransaction } from '../services/inventoryTr
  */
 import express from 'express';
 import mongoose from 'mongoose';
+import type { ZodType } from 'zod';
 import InventoryItem from '../models/InventoryItem.ts';
 import Customer from '../models/Customer.ts';
 import Location from '../models/Location.ts';
@@ -73,20 +74,20 @@ async function findSlabs(keys: string[]) {
 }
 
 /** The one slab a scanned barcode or typed serial # points at. */
-async function findByCode(code: Loose) {
+async function findByCode(code: unknown) {
   const value = String(code || '').trim();
   const byBarcode = await InventoryItem.findOne({ barcodeId: { $regex: `^${escapeRegex(value)}$`, $options: 'i' } }, SLAB_FIELDS).lean();
   if (byBarcode) return byBarcode;
   return (await findSlabs([value])).get(slabKeyOf(value)) || null;
 }
 
-const reservationsFor = async (keys: string[], session = null) => {
+const reservationsFor = async (keys: string[], session: mongoose.ClientSession | null = null) => {
   const q = SlabReservation.find({ slabKey: { $in: keys } }).lean();
   if (session) q.session(session);
   return new Map((await q).map((r) => [r.slabKey, r]));
 };
 
-const announce = (req: Request, slabKeys: Loose) => {
+const announce = (req: Request, slabKeys: string[]) => {
   const keys = [...new Set(slabKeys)].filter(Boolean);
   if (keys.length) req.app.get('io')?.emit('slab_reservations_changed', { slabKeys: keys });
 };
@@ -95,7 +96,7 @@ const lockedReason = (r: Loose) => `On Hold #${r.holdNumber}${r.by?.name ? ` (${
 
 // ── Customers ────────────────────────────────────────────────────────────
 
-async function customerSnapshot(customerId: string, session = null) {
+async function customerSnapshot(customerId: string, session: mongoose.ClientSession | null = null) {
   const q = Customer.findById(customerId).lean();
   if (session) q.session(session);
   const c = await q;
@@ -114,11 +115,11 @@ async function customerSnapshot(customerId: string, session = null) {
 
 // ── Holds ────────────────────────────────────────────────────────────────
 
-const historyEntry = (hold: Loose, action: Loose, by: Loose, extra: Loose = {}) => ({ holdId: hold._id, holdNumber: hold.number, action, by, ...extra });
-const writeHistory = (session: Loose, entries: Loose[]) => HoldHistory.create(entries, { session, ordered: true });
+const historyEntry = (hold: Loose, action: string, by: Loose, extra: Loose = {}) => ({ holdId: hold._id, holdNumber: hold.number, action, by, ...extra });
+const writeHistory = (session: mongoose.ClientSession, entries: Loose[]) => HoldHistory.create(entries, { session, ordered: true });
 
 /** The hold, if it exists and this person may see it — otherwise 404. */
-async function holdFor(req: Request, id: string, session = null) {
+async function holdFor(req: Request, id: unknown, session: mongoose.ClientSession | null = null) {
   if (!mongoose.isValidObjectId(id)) throw new HttpError(404, 'Hold not found.');
   const q = Hold.findById(id);
   if (session) q.session(session);
@@ -143,7 +144,7 @@ const present = (hold: Loose, now = new Date()) => {
   };
 };
 
-const listRow = (h: Loose, now: Loose) => {
+const listRow = (h: Loose, now: Date) => {
   const products = new Map();
   for (const l of h.lines) products.set(l.product, (products.get(l.product) || 0) + 1);
   return {
@@ -157,7 +158,7 @@ const listRow = (h: Loose, now: Loose) => {
 };
 
 /** Lock every slab of `lines` for `hold`; a clash names the slab and the hold that has it. */
-async function lockSlabs(hold: Loose, lines: Loose[], by: Loose, session: Loose) {
+async function lockSlabs(hold: Loose, lines: Loose[], by: Loose, session: mongoose.ClientSession) {
   if (!lines.length) return;
   try {
     await SlabReservation.insertMany(lines.map((l: Loose) => ({
@@ -165,17 +166,17 @@ async function lockSlabs(hold: Loose, lines: Loose[], by: Loose, session: Loose)
       branch: hold.branch, by, expiresOn: hold.expiresOn
     })), { session, ordered: true });
   } catch (err) {
-    if (err?.code !== 11000) throw err;
+    if ((err as Error & Loose)?.code !== 11000) throw err;
     const taken = await SlabReservation.find({ slabKey: { $in: lines.map((l: Loose) => l.slabKey) } }).lean();
     const other = taken.find((r) => String(r.holdId) !== String(hold._id));
     throw new HttpError(409, other ? `${other.slabKey} was just put on Hold #${other.holdNumber}. Remove it and try again.` : 'One of these slabs was just held by someone else.', { taken: taken.map((r) => r.slabKey) });
   }
 }
 
-const unlockSlabs = (holdId: Loose, slabKeys: Loose, session: Loose) => SlabReservation.deleteMany({ holdId, slabKey: { $in: slabKeys } }, { session });
+const unlockSlabs = (holdId: unknown, slabKeys: string[], session: mongoose.ClientSession) => SlabReservation.deleteMany({ holdId, slabKey: { $in: slabKeys } }, { session });
 
 /** Check new slabs before they go on a hold: in stock, whole slabs, not held elsewhere. */
-async function holdableLines(requested: Loose, holdId = null) {
+async function holdableLines(requested: Loose[], holdId: unknown = null) {
   const slabs = await findSlabs(requested.map((l: Loose) => l.slabKey));
   const locks = await reservationsFor(requested.map((l: Loose) => l.slabKey));
   return requested.map((l: Loose) => {
@@ -189,7 +190,7 @@ async function holdableLines(requested: Loose, holdId = null) {
 }
 
 /** List filter for a status tab. Expiring = still active, ends within 3 days. */
-function statusClause(status: number, now: Date) {
+function statusClause(status: string, now: Date) {
   switch (status) {
     case 'active': return { status: 'active', expiresAt: { $gt: now } };
     case 'expiring': return { status: 'active', expiresAt: { $gt: now, $lte: new Date(now.getTime() + 3 * DAY_MS) } };
@@ -203,7 +204,7 @@ function statusClause(status: number, now: Date) {
 export default function createHoldsRouter({ authenticate }: { authenticate: RequestHandler }) {
   const router = express.Router();
   router.use(authenticate);
-  const h = (fn: Loose) => handle(fn, { label: LABEL });
+  const h = (fn: Parameters<typeof handle>[0]) => handle(fn, { label: LABEL });
 
   // ── Cart ───────────────────────────────────────────────────────────────
 
@@ -265,8 +266,8 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     ]);
     const already = new Set((cart?.lines || []).map((l: Loose) => l.slabKey));
     let room = MAX_CART_SLABS - already.size;
-    const skipped = [];
-    const wanted = [];
+    const skipped: Loose[] = [];
+    const wanted: Loose[] = [];
     for (const key of [...new Set(keys)]) {
       const item = slabs.get(key);
       if (already.has(key)) { skipped.push({ slabKey: key, reason: 'Already in your cart' }); continue; }
@@ -278,7 +279,7 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
       room -= 1;
     }
 
-    let added = [];
+    let added: string[] = [];
     if (wanted.length) {
       const all = await Cart.updateOne(
         { userId, 'lines.slabKey': { $nin: wanted.map((w) => w.key) } },
@@ -407,7 +408,7 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     if (q.search) {
       const term = q.search.trim();
       const rx = new RegExp(escapeRegex(term), 'i');
-      const or = [{ 'customer.name': rx }, { job: rx }, { slabKeys: term.toUpperCase() }];
+      const or: Loose[] = [{ 'customer.name': rx }, { job: rx }, { slabKeys: term.toUpperCase() }];
       if (/^\d+$/.test(term)) or.push({ number: Number(term) });
       narrow.push({ $or: or });
     }
@@ -480,12 +481,12 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
       })]);
       return hold;
     });
-    let created;
+    let created!: Loose;
     try {
       created = await create();
     } catch (err) {
       // Two taps at the same instant: the second finds the first one's hold.
-      if (err?.code === 11000 && err?.keyPattern?.requestId) {
+      if ((err as Error & Loose)?.code === 11000 && (err as Error & Loose)?.keyPattern?.requestId) {
         const first = await Hold.findOne({ requestId: body.requestId });
         if (first && canSeeHold(req.user, first)) return res.status(200).json(present(first));
       }
@@ -501,10 +502,10 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
   }));
 
   /** Load, check and save a hold in one transaction; `change` mutates it and returns history entries. */
-  const changeHold = (permission: Loose, schema: Loose, change: Loose) => [requireAll(permission), h(async (req: Request, res: Response) => {
+  const changeHold = (permission: string, schema: ZodType<Loose>, change: (context: { hold: Loose; body: Loose; by: ReturnType<typeof actorOf>; session: mongoose.ClientSession; req: Request; touched: string[] }) => Loose[] | Promise<Loose[]>) => [requireAll(permission), h(async (req: Request, res: Response) => {
     const body = parse(schema, req.body);
     const by = actorOf(req);
-    const touched = [];
+    const touched: string[] = [];
     const saved = await inTransaction(async (session) => {
       const hold = await holdFor(req, req.params.id, session);
       checkVersion(hold, body.version, `Hold #${hold.number}`);
@@ -520,8 +521,8 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     res.json(present(saved));
   })];
 
-  router.patch('/:id/details', ...changeHold(HOLDS.EDIT, S.holdDetails, async ({ hold, body, session }: { hold: Loose; body: Loose; session: Loose }) => {
-    const changes = [];
+  router.patch('/:id/details', ...changeHold(HOLDS.EDIT, S.holdDetails, async ({ hold, body, session }: { hold: Loose; body: Loose; session: mongoose.ClientSession }) => {
+    const changes: Loose[] = [];
     const set = (field: string, value: unknown) => {
       if (value === undefined || String(hold[field] ?? '') === String(value ?? '')) return;
       changes.push({ field, from: hold[field] ?? null, to: value });
@@ -545,7 +546,7 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     return changes.length ? [{ action: 'edited', changes }] : [];
   }));
 
-  router.post('/:id/slabs', ...changeHold(HOLDS.SLABS, S.holdSlabs, async ({ hold, body, by, session, touched, req }: { hold: Loose; body: Loose; by: Loose; session: Loose; touched: Loose; req: Request }) => {
+  router.post('/:id/slabs', ...changeHold(HOLDS.SLABS, S.holdSlabs, async ({ hold, body, by, session, touched, req }: { hold: Loose; body: Loose; by: Loose; session: mongoose.ClientSession; touched: Loose; req: Request }) => {
     const current = new Set(hold.lines.map((l: Loose) => l.slabKey));
     for (const key of body.remove) if (!current.has(key)) throw new HttpError(400, `${key} isn’t on this hold.`);
     const adding = body.add.filter((l: Loose) => !current.has(l.slabKey));
@@ -558,13 +559,13 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     touched.push(...body.remove, ...newLines.map((l: Loose) => l.slabKey));
     // Added from the cart, as on create: they leave it once they're held.
     if (newLines.length) await Cart.updateOne({ userId: userIdOf(req) }, { $pull: { lines: { slabKey: { $in: newLines.map((l: Loose) => l.slabKey) } } } }, { session });
-    const entries = [];
+    const entries: Loose[] = [];
     if (newLines.length) entries.push({ action: 'slabs_added', note: newLines.map((l: Loose) => l.slabKey).join(', ') });
     if (body.remove.length) entries.push({ action: 'slabs_removed', note: body.remove.join(', ') });
     return entries;
   }));
 
-  router.post('/:id/swap', ...changeHold(HOLDS.SLABS, S.holdSwap, async ({ hold, body, by, session, touched }: { hold: Loose; body: Loose; by: Loose; session: Loose; touched: Loose }) => {
+  router.post('/:id/swap', ...changeHold(HOLDS.SLABS, S.holdSwap, async ({ hold, body, by, session, touched }: { hold: Loose; body: Loose; by: Loose; session: mongoose.ClientSession; touched: Loose }) => {
     const index = hold.lines.findIndex((l: Loose) => l.slabKey === body.from);
     if (index < 0) throw new HttpError(400, `${body.from} isn’t on this hold.`);
     if (hold.lines.some((l: Loose) => l.slabKey === body.to)) throw new HttpError(400, `${body.to} is already on this hold.`);
@@ -578,7 +579,7 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
   }));
 
   router.patch('/:id/prices', ...changeHold(HOLDS.PRICES, S.holdPrices, async ({ hold, body }: { hold: Loose; body: Loose }) => {
-    const changes = [];
+    const changes: Loose[] = [];
     for (const p of body.lines) {
       const line = hold.lines.find((l: Loose) => l.slabKey === p.slabKey);
       if (!line) throw new HttpError(400, `${p.slabKey} isn’t on this hold.`);
@@ -590,7 +591,7 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     return changes.length ? [{ action: 'prices_changed', changes }] : [];
   }));
 
-  router.post('/:id/extend', ...changeHold(HOLDS.EXTEND, S.holdExtend, async ({ hold, body, session }: { hold: Loose; body: Loose; session: Loose }) => {
+  router.post('/:id/extend', ...changeHold(HOLDS.EXTEND, S.holdExtend, async ({ hold, body, session }: { hold: Loose; body: Loose; session: mongoose.ClientSession }) => {
     if (body.expiresOn === hold.expiresOn) return [];
     const why = expiryProblem({ expiresOn: body.expiresOn, branch: hold.branch, canExtend: true });
     if (why) throw new HttpError(400, why);
@@ -604,7 +605,7 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     return [{ action: 'extended', changes: [{ field: 'expiresOn', from, to: body.expiresOn }] }];
   }));
 
-  router.post('/:id/release', ...changeHold(HOLDS.RELEASE, S.holdRelease, async ({ hold, body, by, session, touched }: { hold: Loose; body: Loose; by: Loose; session: Loose; touched: Loose }) => {
+  router.post('/:id/release', ...changeHold(HOLDS.RELEASE, S.holdRelease, async ({ hold, body, by, session, touched }: { hold: Loose; body: Loose; by: Loose; session: mongoose.ClientSession; touched: Loose }) => {
     hold.status = 'released';
     hold.releasedAt = new Date();
     hold.releasedBy = by;

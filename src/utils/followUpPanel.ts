@@ -16,7 +16,7 @@ export const FOLLOW_UP_PANEL_LIMIT = 6;
 const DAY = /^(\d{4})-(\d{2})-(\d{2})/;
 
 /** The YYYY-MM-DD a saved value names, or '' (strings keep their date part; a Date is read by its UTC parts). */
-export const dayOf = (value: Loose) => {
+export const dayOf = (value: unknown) => {
   if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.toISOString().slice(0, 10) : '';
   const m = DAY.exec(String(value || ''));
   return m ? `${m[1]}-${m[2]}-${m[3]}` : '';

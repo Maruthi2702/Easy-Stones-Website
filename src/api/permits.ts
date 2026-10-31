@@ -1,6 +1,22 @@
 import { API_URL } from '../config/api';
 import { authFetch } from './authFetch';
 import { queryEntries, type ErrorBody, type Query } from '../types/api';
+import type { Loose } from '../types/records.ts';
+
+export type PermitsMeta = {
+  sources: Loose[];
+  checks: Loose[];
+  cities: string[];
+  cityCounties: Record<string, string[]>;
+  canExport: boolean;
+  canRefresh: boolean;
+  running: boolean;
+};
+export type PermitsPage = {
+  items: Loose[];
+  counts: Record<string, number>;
+  total: number;
+};
 
 /**
  * Calls to the Permits API (src/permits/router.ts). Each resolves the JSON
@@ -19,8 +35,8 @@ async function call<T = unknown>(path: string, { method = 'GET', query }: { meth
   return data as T;
 }
 
-export const permitsMeta = () => call('/meta');
-export const listPermits = (query: Query) => call('', { query });
-export const exportPermits = (query: Query) => call('/export', { query });
-export const refreshPermits = () => call('/refresh', { method: 'POST' });
-export const permitContractor = (license: string) => call(`/contractor/${encodeURIComponent(license)}`);
+export const permitsMeta = () => call<PermitsMeta>('/meta');
+export const listPermits = (query: Query) => call<PermitsPage>('', { query });
+export const exportPermits = (query: Query) => call<Pick<PermitsPage, 'items' | 'total'>>('/export', { query });
+export const refreshPermits = () => call<{ started: boolean }>('/refresh', { method: 'POST' });
+export const permitContractor = (license: string) => call<Loose>(`/contractor/${encodeURIComponent(license)}`);

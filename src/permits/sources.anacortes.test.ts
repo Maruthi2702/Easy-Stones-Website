@@ -71,7 +71,7 @@ describe('Anacortes rows', () => {
     const rows = anacortesRows(parseCsv(csv([row('10/21/2026', 'BLD-2026-0155', 'RESIDENTIAL SINGLE FAMILY  BUILDING 15903 YOKEKO DRIVE', 'KREIDER CONSTRUCTION INC', '1,398,000.50')])));
     const p = anacortesPermit(rows[0]);
     expect(p).toMatchObject({ source: 'anacortes', permitNumber: 'BLD-2026-0155', category: 'new_home', issuedOn: '2026-10-21', address: '15903 YOKEKO DRIVE', city: 'Anacortes', status: 'Issued', valuation: 1398000.5, parcel: 'P1' });
-    expect(p.contacts.map((c: string) => [c.kind, c.company || c.name])).toEqual([['contractor', 'KREIDER CONSTRUCTION INC'], ['applicant', 'Steven Gilbert']]);
+    expect(p.contacts.map((c) => [c.kind, c.company || c.name])).toEqual([['contractor', 'KREIDER CONSTRUCTION INC'], ['applicant', 'Steven Gilbert']]);
   });
 
   it('leaves out the title, blank and total lines, and a permit shown twice', () => {
@@ -92,7 +92,7 @@ describe('Anacortes reader', () => {
 
   /** The portal and report server as far as the reader uses them. */
   function server({ csv, status = [{ phase: 3, percent: 50 }, { phase: 4, percent: 100 }], refuse = null, exportType = 'application/csv' }: Loose = {}) {
-    const calls: unknown[][] = [];
+    const calls: [string, ...unknown[]][] = [];
     const fetchImpl = async (url: string, init: Loose = {}) => {
       const u = new URL(url);
       calls.push([init.method || 'GET', u.pathname + (u.search.startsWith('?reportId') ? '?reportId' : ''), init.headers?.Cookie || '']);
@@ -108,7 +108,7 @@ describe('Anacortes reader', () => {
       if (u.pathname.startsWith('/exago/wrajax/')) {
         const method = u.pathname.replace('/exago/wrajax/', '').replace('.ashx', '');
         const args = JSON.parse(init.body).args;
-        calls.push([method, args.map((a: Loose) => a.value).filter((v: Loose) => typeof v === 'string' && v.length < 120)]);
+        calls.push([method, args.map((a: Loose) => a.value).filter((v: unknown) => typeof v === 'string' && v.length < 120)]);
         if (refuse === method) return json({ value: 'Error', isError: true, messageText: 'boom' });
         if (method === 'Client.BaseExecuteCtrl.LoadCallback') return json({ value: { Data: { ReportData: 'STATE' } } });
         if (method === 'Callbacks.Execute.StartExecute') return json({ value: { ExecutionId: 'EID' } });
@@ -127,14 +127,14 @@ describe('Anacortes reader', () => {
     const { rows, total } = await make(s).issuedSince('2026-10-01');
     expect(rows.map((r) => [r.number, r.issuedOn, r.type])).toEqual([['BLD-1', '2026-10-21', 'FENCE'], ['BLD-2', '2026-10-22', 'COTTAGE UNIT']]);
     expect(total).toBe(2);
-    const names = s.calls.filter((c: string) => c[0].includes('.') && !c[0].startsWith('/')).map((c: string) => c[0]);
+    const names = s.calls.filter((c) => c[0].includes('.') && !c[0].startsWith('/')).map((c) => c[0]);
     expect(names).toEqual(['Client.BaseExecuteCtrl.LoadCallback', 'Callbacks.Execute.StartExecute', 'Callbacks.Execute.GetStatus', 'Callbacks.Execute.GetStatus', 'Callbacks.Execute.TransmitExecution']);
-    const start = s.calls.find((c: string) => c[0] === 'Callbacks.Execute.StartExecute')[1];
+    const start = s.calls.find((c) => c[0] === 'Callbacks.Execute.StartExecute')![1];
     expect(start).toContain(dateFilter('2026-10-01', '2026-10-23'));
     expect(start).toContain('STATE');
     // The report server's session cookie is sent back to it, not the portal's.
-    expect(s.calls.find((c: string) => c[0] === 'POST' && c[1] === '/Public/ReportsView/ViewReport?reportId')[2]).toContain('portal');
-    expect(s.calls.find((c: string) => c[1] === '/exago/ExecuteExport.aspx')[2]).toContain('exago');
+    expect(s.calls.find((c) => c[0] === 'POST' && c[1] === '/Public/ReportsView/ViewReport?reportId')![2]).toContain('portal');
+    expect(s.calls.find((c) => c[1] === '/exago/ExecuteExport.aspx')![2]).toContain('exago');
   });
 
   it('treats a report with no rows as an empty window', async () => {

@@ -165,7 +165,7 @@ const refuse = function refuse() {
 };
 for (const schema of [auditSchema, paymentRecordSchema]) {
   for (const op of ['updateOne', 'updateMany', 'findOneAndUpdate', 'replaceOne', 'findOneAndReplace',
-    'deleteOne', 'deleteMany', 'findOneAndDelete']) {
+    'deleteOne', 'deleteMany', 'findOneAndDelete'] as const) {
     schema.pre(op, refuse);
   }
   schema.pre('save', function onlyNew() {
@@ -173,7 +173,7 @@ for (const schema of [auditSchema, paymentRecordSchema]) {
   });
 }
 
-const model = (name: string, schema: Loose) => mongoose.models[name] || mongoose.model(name, schema);
+const model = (name: string, schema: mongoose.Schema<Loose>) => mongoose.models[name] || mongoose.model(name, schema);
 
 export const Carrier = model('AcctCarrier', carrierSchema);
 export const FreightCharge = model('AcctFreightCharge', chargeSchema);

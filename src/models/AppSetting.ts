@@ -7,7 +7,7 @@ import mongoose from 'mongoose';
  * The first is 'navOrder' — the side nav's admin-set order
  * (src/routes/navOrder.ts, src/utils/navPins.ts).
  */
-const appSettingSchema = new mongoose.Schema<Loose>({
+const appSettingSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
   key: {
     type: String,
     required: true,

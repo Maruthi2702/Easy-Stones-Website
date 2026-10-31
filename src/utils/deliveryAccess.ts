@@ -28,13 +28,13 @@ export const DELIVERY_PERMISSIONS = Object.freeze({
   ARRANGE_COLUMNS: 'arrange_delivery_columns'
 });
 
-const permsOf = (user: Loose) => (Array.isArray(user?.permissions) ? user.permissions : []);
+const permsOf = (user: Loose | null | undefined) => (Array.isArray(user?.permissions) ? user.permissions : []);
 
-export const isDeliveryDriver = (user: Loose) => permsOf(user).includes(DELIVERY_PERMISSIONS.DRIVER_VIEW);
+export const isDeliveryDriver = (user: Loose | null | undefined) => permsOf(user).includes(DELIVERY_PERMISSIONS.DRIVER_VIEW);
 
-export const canArrangeDeliveryColumns = (user: Loose) => permsOf(user).includes(DELIVERY_PERMISSIONS.ARRANGE_COLUMNS);
+export const canArrangeDeliveryColumns = (user: Loose | null | undefined) => permsOf(user).includes(DELIVERY_PERMISSIONS.ARRANGE_COLUMNS);
 
-export const deliveryViewMode = (user: Loose) => {
+export const deliveryViewMode = (user: Loose | null | undefined) => {
   if (isDeliveryDriver(user)) return 'driver';
   if (permsOf(user).includes(DELIVERY_PERMISSIONS.EDIT)) return 'office';
   return 'sales';

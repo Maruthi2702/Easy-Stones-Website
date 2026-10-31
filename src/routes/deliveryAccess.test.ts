@@ -17,10 +17,10 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 const { default: createDeliveriesRouter, deliveryRoomsFor } = await import('./deliveries.ts');
 const { default: Delivery } = await import('../models/Delivery.ts');
 
-let mongo;
-let app;
+let mongo!: MongoMemoryServer;
+let app!: import('express').Express;
 const emit = vi.fn();
-const roomsEmittedTo = [];
+const roomsEmittedTo: Loose[] = [];
 let openRooms = ['delivery-location:Seattle', 'delivery-location:Spokane', 'delivery-location:*', 'some-socket-id'];
 
 const VIEW_ONLY = { username: 'sam', role: 'sales_rep', permissions: ['view_delivery_schedule'], assignedLocations: ['Seattle'] };
@@ -46,9 +46,9 @@ beforeAll(async () => {
     sockets: { adapter: { rooms: { keys: () => openRooms[Symbol.iterator]() } } }
   });
   app.use('/api', createDeliveriesRouter({
-    authenticate: (req: Loose, res: Loose, next: Loose) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    requirePermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: Loose) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
-    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: Loose) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
+    authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
+    requirePermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
+    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
     getPerformerInfo: async () => ({}),
     processBase64Images: async (x: Loose) => x,
     getNowLocalISO: () => new Date().toISOString()
@@ -202,12 +202,12 @@ describe('O6 — reorder isn\'t refused over tickets the board doesn\'t show', (
 describe('O5 — a ticket with no branch reaches every open branch room', () => {
   it('lists every joined branch room for it, and only its own branch\'s for a branch ticket', () => {
     const io = { sockets: { adapter: { rooms: { keys: () => openRooms[Symbol.iterator]() } } } };
-    const branchless = deliveryRoomsFor({ location: '' }, io);
+    const branchless = deliveryRoomsFor({ location: '' }, (io)!);
     expect(branchless).toEqual(expect.arrayContaining(['delivery-location:*', 'delivery-location:Seattle', 'delivery-location:Spokane']));
     expect(branchless).not.toContain('some-socket-id');
-    expect(deliveryRoomsFor({}, io)).toEqual(expect.arrayContaining(['delivery-location:Spokane']));
-    expect(deliveryRoomsFor({ location: '*' }, io)).toEqual(expect.arrayContaining(['delivery-location:Seattle']));
-    expect(deliveryRoomsFor({ location: 'Seattle' }, io)).toEqual(['delivery-location:*', 'delivery-location:Seattle']);
+    expect(deliveryRoomsFor({}, (io)!)).toEqual(expect.arrayContaining(['delivery-location:Spokane']));
+    expect(deliveryRoomsFor({ location: '*' }, (io)!)).toEqual(expect.arrayContaining(['delivery-location:Seattle']));
+    expect(deliveryRoomsFor({ location: 'Seattle' }, (io)!)).toEqual(['delivery-location:*', 'delivery-location:Seattle']);
     // no server to ask: the all-branches room alone, as before
     expect(deliveryRoomsFor({ location: '' })).toEqual(['delivery-location:*']);
   });
