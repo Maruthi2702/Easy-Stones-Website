@@ -1,7 +1,7 @@
 import { Download, Menu } from 'lucide-react';
 import LocationFilter from '../../components/shared/LocationFilter';
 import RowMenu from '../../components/shared/RowMenu';
-import { DashboardRange } from './components/DashboardStats';
+import { DashboardRange, RangeFilterGroup } from './components/DashboardStats';
 import PeopleField from './components/PeopleField';
 import { VisitsViewSwitch } from './components/RepBreakdownTable';
 import type { PeopleFilter } from './components/PeopleField';
@@ -39,6 +39,11 @@ export default function DashboardHeader({
     activeTab: activeDashboardTab, timeRange, rangeFrom = '', rangeTo = '', onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, visitsView = null, showPeopleOnCalendar = false,
     showMenuButton, onOpenSidebar, onExportVisits, onOpenCalendarSync, canAddVisits, onAddResource, onAddVisit
 }: DashboardHeaderProps) {
+    const rangeActive = timeRange === 'all' || timeRange === 'custom';
+    const rangeGroup = <RangeFilterGroup value={timeRange} from={rangeFrom} to={rangeTo} onChange={onTimeRangeChange} />;
+    // Every tab gets the one Filters button (All time / Custom live in it); the
+    // Visits and Calendar tabs add View / People / Location to the same panel.
+    const ownFilter = activeDashboardTab === 'visits' || (activeDashboardTab === 'planner' && people && showPeopleOnCalendar);
     return (
         <div className="dashboard-header-v2">
             <div className="dashboard-header-content">
@@ -63,6 +68,11 @@ export default function DashboardHeader({
                 <div className="dashboard-actions">
                     {/* One range for every tab; Follow-ups reads it by due date. */}
                     <DashboardRange value={timeRange} from={rangeFrom} to={rangeTo} onChange={onTimeRangeChange} />
+                    {!ownFilter && (
+                        <LocationFilter options={[]} value="" onChange={() => {}} user={currentUser} active={rangeActive}>
+                            {rangeGroup}
+                        </LocationFilter>
+                    )}
                     {activeDashboardTab === 'visits' && (
                         <>
                             <LocationFilter
@@ -70,9 +80,10 @@ export default function DashboardHeader({
                                 value={location}
                                 onChange={onLocationChange}
                                 user={currentUser}
-                                active={Boolean(people?.active)}
+                                active={Boolean(people?.active) || rangeActive}
                                 onClear={people?.onReset}
                             >
+                                {rangeGroup}
                                 {visitsView && (
                                     <div className="lf-group" role="group" aria-label="Show visits as">
                                         <span className="lf-group-label">View</span>
@@ -93,9 +104,10 @@ export default function DashboardHeader({
                             value={location}
                             onChange={onLocationChange}
                             user={currentUser}
-                            active={Boolean(people.active)}
+                            active={Boolean(people.active) || rangeActive}
                             onClear={people.onReset}
                         >
+                            {rangeGroup}
                             <PeopleField {...people} />
                         </LocationFilter>
                     )}

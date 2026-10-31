@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { UserPlus, FolderPlus, Clock, Calendar, ChevronDown } from 'lucide-react';
 import { RANGES, rangeFooter, rangeLabel } from '../dashboardFocus';
 import { DatePicker } from '../../../components/shared/calendar/Calendar';
@@ -34,43 +34,44 @@ function CustomDays({ from, to, onApply }: { from: string; to: string; onApply: 
     );
 }
 
+/** What the segmented bar offers; All time and Custom are in the Filters panel (RangeFilterGroup). */
+const BAR_RANGES = RANGES.filter(r => r.id !== 'all' && r.id !== 'custom');
+
+/** The Filters panel's time-range part: All time, or Custom From / To. */
+export const RangeFilterGroup = ({ value, from = '', to = '', onChange }: DashboardRangeProps) => {
+    // Custom only reveals its days; nothing changes until Apply.
+    const [customOpen, setCustomOpen] = useState(value === 'custom');
+    return (
+        <div className="lf-group" role="group" aria-label="More time ranges">
+            <span className="lf-group-label">Time range</span>
+            <div className="dfx-range-more">
+                <button type="button" aria-pressed={value === 'all'} className={value === 'all' ? 'is-on' : ''} onClick={() => { setCustomOpen(false); onChange('all'); }}>All time</button>
+                <button type="button" aria-pressed={value === 'custom'} aria-expanded={customOpen} className={value === 'custom' ? 'is-on' : ''} onClick={() => setCustomOpen(o => !o)}>Custom</button>
+            </div>
+            {customOpen && <CustomDays key={`${from}|${to}`} from={from} to={to} onApply={(a, b) => onChange('custom', a, b)} />}
+        </div>
+    );
+};
+
 export const DashboardRange = ({ value, from = '', to = '', onChange }: DashboardRangeProps) => {
     const [open, setOpen] = useState(false);
-    const [customOpen, setCustomOpen] = useState(false);
     const [sheetCustom, setSheetCustom] = useState(false);
-    const wrapRef = useRef<HTMLDivElement>(null);
     const label = rangeLabel(value, from, to);
-
-    // The Custom box closes on a click outside it (its calendars float inside it) or Escape.
-    useEffect(() => {
-        if (!customOpen) return undefined;
-        const onDown = (e: Event) => { if (!wrapRef.current?.contains(e.target as Node)) setCustomOpen(false); };
-        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) setCustomOpen(false); };
-        document.addEventListener('mousedown', onDown);
-        document.addEventListener('keydown', onKey);
-        return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-    }, [customOpen]);
 
     return (
         <>
-            <div className="dfx-range-wrap" ref={wrapRef}>
-                <div className="dfx-range" role="group" aria-label="Time range">
-                    {RANGES.map(r => (
-                        <button
-                            key={r.id}
-                            type="button"
-                            aria-pressed={value === r.id}
-                            aria-expanded={r.id === 'custom' ? customOpen : undefined}
-                            className={value === r.id ? 'is-on' : ''}
-                            onClick={() => (r.id === 'custom' ? setCustomOpen((o) => !o) : (setCustomOpen(false), onChange(r.id)))}
-                        >{r.id === 'custom' && value === 'custom' ? label : r.short}</button>
-                    ))}
-                </div>
-                {customOpen && (
-                    <div className="dfx-custom-pop" role="dialog" aria-label="Custom range">
-                        <CustomDays from={from} to={to} onApply={(a, b) => { onChange('custom', a, b); setCustomOpen(false); }} />
-                    </div>
-                )}
+            <div className="dfx-range" role="group" aria-label="Time range">
+                {BAR_RANGES.map(r => (
+                    <button
+                        key={r.id}
+                        type="button"
+                        aria-pressed={value === r.id}
+                        className={value === r.id ? 'is-on' : ''}
+                        onClick={() => onChange(r.id)}
+                    >{r.short}</button>
+                ))}
+                {/* All and Custom live in the Filters panel; the bar just says one is on. */}
+                {!BAR_RANGES.some(r => r.id === value) && <span className="dfx-range-now is-on">{label}</span>}
             </div>
             <button
                 type="button"
