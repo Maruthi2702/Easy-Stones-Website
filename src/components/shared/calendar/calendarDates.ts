@@ -77,6 +77,13 @@ export const shiftDay = (iso: string, days: number): string => {
 };
 export const addDays = shiftDay;
 
+/** The next given weekday after a day (0 = Sunday … 6 = Saturday) — never the day itself. */
+export const nextWeekday = (iso: string, weekday: number): string => {
+    const d = toDate(iso);
+    if (!d) return iso;
+    return shiftDay(iso, ((weekday - d.getDay() + 7) % 7) || 7);
+};
+
 /**
  * A day moved by whole months, keeping the day number where it can — clamped,
  * because 31 January a month on is the 28th, not the 3rd of March, which is

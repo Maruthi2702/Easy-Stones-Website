@@ -17,7 +17,7 @@ const { seedTypeLists } = await import('../services/seedTypeLists.ts');
 
 let mongo;
 let app;
-let customerId;
+let customerId: string;
 let processBase64Image;
 
 const STAFF = { _id: 'u1', permissions: ['add_visits', 'edit_own_visits'], assignedLocations: ['*'] };
@@ -257,5 +257,64 @@ describe("PUT — Edit branch goes by the rep's branch (teamScope.js)", () => {
     const id = await visitBy(bart, 'Kent');
     const res = await send('put', `/api/customers/${customerId}/visits/${id}`, { notes: 'ok' }, { ...manager(), assignedLocations: ['*'] });
     expect(res.status).toBe(200);
+  });
+});
+
+describe('PATCH /:customerId/visits/:visitId/follow-up', () => {
+  const add = async (over: Loose = {}) => (await send('post', `/api/customers/${customerId}/visits`, base(over))).body.visit;
+  const patch = (id: unknown, body: Loose, user: Loose = STAFF) => send('patch', `/api/customers/${customerId}/visits/${id}/follow-up`, body, user as typeof STAFF);
+
+  it('ticks it done on the screen’s day, by whom, with what happened — and reopens it', async () => {
+    const v = await add({ followUp: 'call back', followUpDate: '2026-10-24' });
+    const res = await patch(v._id, { action: 'done', today: '2026-10-22', outcome: 'Sent the quote' });
+    expect(res.status).toBe(200);
+    expect(res.body.visit).toMatchObject({
+      followUpDoneAt: '2026-10-23T09:00:00.000', followUpDoneOn: '2026-10-22', followUpDoneBy: 'u1', followUpDoneByName: 'Rita', followUpOutcome: 'Sent the quote'
+    });
+    const back = await patch(v._id, { action: 'reopen' });
+    expect(back.body.visit.followUpDoneAt).toBe('');
+    expect(back.body.visit.followUpOutcome).toBe('');
+    expect((await visitsNow())[0].followUp).toBe('call back');
+  });
+
+  it('snoozes it to a later day and adds what happened only once done', async () => {
+    const v = await add({ followUp: 'call back', followUpDate: '2026-10-20' });
+    expect((await patch(v._id, { action: 'note', outcome: 'x' })).status).toBe(400);
+    const res = await patch(v._id, { action: 'snooze', until: '2026-11-02' });
+    expect(res.status).toBe(200);
+    expect(res.body.visit.followUpDate).toBe('2026-11-02');
+    expect((await patch(v._id, { action: 'snooze', until: '2026-10-01' })).status).toBe(400);
+  });
+
+  it('refuses a visit with no follow-up, an unknown action, and a missing visit', async () => {
+    const v = await add();
+    expect((await patch(v._id, { action: 'done' })).status).toBe(400);
+    const w = await add({ followUp: 'call back' });
+    expect((await patch(w._id, { action: 'archive' })).status).toBe(400);
+    expect((await patch(new mongoose.Types.ObjectId(), { action: 'done' })).status).toBe(404);
+    expect((await patch('nope', { action: 'done' })).status).toBe(404);
+  });
+
+  it("refuses someone else's follow-up without the permission, and anyone with no edit switch at all", async () => {
+    const v = await add({ followUp: 'call back' });
+    expect((await patch(v._id, { action: 'done' }, { _id: 'u2', permissions: ['edit_own_visits'], assignedLocations: ['*'] })).status).toBe(403);
+    expect((await patch(v._id, { action: 'done' }, { _id: 'u1', permissions: ['view_dashboard'], assignedLocations: ['*'] })).status).toBe(403);
+    expect((await patch(v._id, { action: 'done' }, { _id: 'u3', permissions: ['edit_all_visits'], assignedLocations: ['*'] })).status).toBe(200);
+  });
+});
+
+describe('PATCH …/follow-up keeps the record', () => {
+  it('adds a line for every tick, reopen and snooze, oldest first, and never drops one', async () => {
+    const v = (await send('post', `/api/customers/${customerId}/visits`, base({ followUp: 'call back', followUpDate: '2026-10-24' }))).body.visit;
+    const patch = (body: Loose) => send('patch', `/api/customers/${customerId}/visits/${v._id}/follow-up`, { today: '2026-10-23', ...body });
+    await patch({ action: 'snooze', until: '2026-11-02' });
+    await patch({ action: 'done' });
+    await patch({ action: 'note', outcome: 'Sent it' });
+    await patch({ action: 'reopen' });
+    const res = await patch({ action: 'snooze', until: '2026-11-09' });
+    expect(res.body.visit.followUpHistory.map((e: Loose) => e.action)).toEqual(['snooze', 'done', 'reopen', 'snooze']);
+    expect(res.body.visit.followUpHistory[0]).toMatchObject({ from: '2026-10-24', to: '2026-11-02', by: 'u1', byName: 'Rita', on: '2026-10-23' });
+    expect(res.body.visit.followUpHistory[3]).toMatchObject({ from: '2026-11-02', to: '2026-11-09' });
+    expect(res.body.visit.followUpDate).toBe('2026-11-09');
   });
 });

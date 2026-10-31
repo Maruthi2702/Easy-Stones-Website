@@ -10,12 +10,15 @@ import { teamOfRequest } from '../services/teamDirectory.ts';
 import VisitType from '../models/VisitType.ts';
 import { cleanVisitFields } from '../utils/visitForm.ts';
 import { linkVisitToSchedule, moveVisitOnSchedule } from '../services/visitSchedule.ts';
+import { followUpUpdate } from '../utils/followUpList.ts';
 
 /**
  * Saving a visit (moved out of server.ts 2026-10-23):
  *
  *   POST /api/customers/:customerId/visits            add   → 201 { visit }
  *   PUT  /api/customers/:customerId/visits/:visitId   edit  → 200 { visit }
+ *   PATCH /api/customers/:customerId/visits/:visitId/follow-up
+ *        { action: done|reopen|snooze|note, today?, until?, outcome? } → 200 { visit }
  *   POST /api/customers/visit-attachments  { data }         → { url }
  *
  * The rules are decided here, not on the form: the visit types are the form's
@@ -282,6 +285,55 @@ export default function createVisitsRouter({
     } catch (error) {
       console.error('Update visit error:', error);
       if (!res.headersSent) res.status(500).json({ message: 'Failed to update visit' });
+    }
+  });
+
+  // Dashboard → Follow-ups: tick a visit's follow-up done, reopen it, snooze it
+  // to another day, or add what happened to a done one. Who may: whoever may
+  // edit the visit (canModifyVisit). What it writes: followUpUpdate in
+  // src/utils/followUpList.ts, plus a line in the visit's followUpHistory for a
+  // snooze, tick or reopen. Answers with the stored visit.
+  router.patch('/:customerId/visits/:visitId/follow-up', authenticate, requireAnyPermission(...ANY_EDIT_VISIT_PERMISSIONS), async (req, res) => {
+    try {
+      const customerId = String(req.params.customerId);
+      const visitId = String(req.params.visitId);
+      if (!mongoose.isValidObjectId(customerId) || !mongoose.isValidObjectId(visitId)) {
+        return res.status(404).json({ message: 'Customer or visit not found' });
+      }
+      const before = await visitOf(customerId, visitId);
+      if (before && !canModifyVisit({ id: req.userId, permissions: req.user?.permissions }, before, await teamOfRequest(req))) {
+        return res.status(403).json({ message: "You don't have permission to change this follow-up. You can change follow-ups on visits you logged; anything else needs a Visits permission under Users & Roles." });
+      }
+      const { id: userId, name: userName } = await (getPerformerInfo as (r: unknown) => Promise<{ id?: string; name?: string }>)(req);
+      const now = (getNowLocalISO as () => string)();
+      const today = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.today || '')) ? req.body.today : now.slice(0, 10);
+      const update = followUpUpdate(before, req.body || {}, { now, today, userId: String(userId || ''), userName: userName || '' });
+      if (!update.ok) return res.status(update.status).json({ message: update.message });
+
+      const set = Object.fromEntries(Object.entries(update.set).map(([k, v]) => [`visits.$.${k}`, v]));
+      const write = update.event ? { $set: set, $push: { 'visits.$.followUpHistory': update.event } } : { $set: set };
+      const result = await Customer.updateOne({ _id: customerId, 'visits._id': visitId }, write);
+      if (result.matchedCount === 0) return res.status(404).json({ message: 'Customer or visit not found' });
+      res.json({ visit: await visitOf(customerId, visitId) });
+
+      try {
+        await ActivityLog.create({
+          entityType: 'Visit',
+          entityId: visitId,
+          customerId,
+          action: 'UPDATE',
+          performedBy: userId,
+          performedByName: userName,
+          performedByRole: (req as Loose).authType,
+          timestamp: now,
+          details: { followUp: req.body.action, ...(req.body.action === 'snooze' ? { until: update.set.followUpDate } : {}) }
+        });
+      } catch (logError) {
+        console.error('Failed to log follow-up change:', logError);
+      }
+    } catch (error) {
+      console.error('Follow-up change error:', error);
+      if (!res.headersSent) res.status(500).json({ message: 'Failed to change the follow-up' });
     }
   });
 

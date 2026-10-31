@@ -11,6 +11,17 @@ const visitSchema = new mongoose.Schema<Loose>({
   outcome: String,
   followUp: String,
   followUpDate: String,
+  // Ticked done on Dashboard → Follow-ups (src/utils/followUpList.ts): when,
+  // the day on the ticker's clock, who, and what happened. Blank = pending.
+  followUpDoneAt: String,
+  followUpDoneOn: String,
+  followUpDoneBy: String,
+  followUpDoneByName: String,
+  followUpOutcome: String,
+  // Every snooze (from → to), tick and reopen, oldest first — kept, never trimmed.
+  followUpHistory: [{
+    _id: false, action: String, at: String, on: String, by: String, byName: String, from: String, to: String
+  }],
   managerComment: String,
   headquartersComment: String,
   image: mongoose.Schema.Types.Mixed,  // Use Mixed to support both legacy Strings and new Arrays

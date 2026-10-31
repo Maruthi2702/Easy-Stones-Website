@@ -8,7 +8,7 @@ import type { Loose } from '../types/records.ts';
  *
  * Due today or later first (soonest), then the recently overdue (most recent
  * first). Overdue for more than STALE_FOLLOW_UP_DAYS stays off the panel (the
- * Follow-ups tab still lists it).
+ * Follow-ups tab still lists it). One ticked done (followUpDoneAt) is off it.
  */
 export const STALE_FOLLOW_UP_DAYS = 30;
 export const FOLLOW_UP_PANEL_LIMIT = 6;
@@ -31,7 +31,7 @@ const dayNumber = (day: string) => {
 export const pickPanelFollowUps = (rows: Loose[] = [], today: string, limit = FOLLOW_UP_PANEL_LIMIT) => {
   const todayN = dayNumber(dayOf(today) || dayOf(new Date()));
   return rows
-    .filter((v) => v && (v.nextAction || v.followUp || v.followUpDate))
+    .filter((v) => v && (v.nextAction || v.followUp || v.followUpDate) && !v.followUpDoneAt)
     .map((v) => ({ v, due: dayOf(v.followUpDate) || dayOf(v.date) }))
     .filter(({ due }) => due)
     .map(({ v, due }) => ({ v, due, days: dayNumber(due) - todayN }))

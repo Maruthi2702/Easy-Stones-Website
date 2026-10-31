@@ -1,4 +1,5 @@
 import { parseAsLocal } from '../../utils/dateUtils';
+import { MONTH_SHORT } from '../../components/shared/calendar/calendarDates';
 import type { Loose } from '../../types/records';
 
 /**
@@ -9,18 +10,36 @@ import type { Loose } from '../../types/records';
 
 export type Range = { id: string; short: string; label: string };
 
+// The one time range for the whole dashboard (every tab and tile; Follow-ups
+// reads it by due date). Custom is `from`–`to`, YYYY-MM-DD.
 export const RANGES: Range[] = [
   { id: '1day', short: 'Today', label: 'Today' },
   { id: '7days', short: '7 days', label: 'Last 7 days' },
   { id: '30days', short: '30 days', label: 'Last 30 days' },
+  { id: '90days', short: '90 days', label: 'Last 90 days' },
   { id: 'year', short: 'YTD', label: 'Year to date' },
-  { id: 'all', short: 'All', label: 'All time' }
+  { id: 'all', short: 'All', label: 'All time' },
+  { id: 'custom', short: 'Custom', label: 'Custom' }
 ];
 
+/** "Oct 1 – Oct 31" for a custom range (an open end reads "…"). */
+export const customRangeText = (from = '', to = ''): string => {
+  const day = (iso: string) => (iso ? `${MONTH_SHORT[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}` : '…');
+  return `${day(from)} – ${day(to)}`;
+};
+
+/** The range's name: the RANGES label, or a custom range's days. */
+export const rangeLabel = (id: string, from = '', to = ''): string =>
+  (id === 'custom' ? customRangeText(from, to) : (RANGES.find((r) => r.id === id) || RANGES[0]).label);
+
 // What the stat cards print under their number (the old wording, kept).
-export const rangeFooter = (id: string): string => (({
-  '1day': 'Today', '7days': 'Last 7 days', '30days': 'Last 30 days', year: 'Year-to-date', all: 'All time'
-} as Record<string, string>)[id] || '');
+export const rangeFooter = (id: string, from = '', to = ''): string => (id === 'custom' ? customRangeText(from, to) : (({
+  '1day': 'Today', '7days': 'Last 7 days', '30days': 'Last 30 days', '90days': 'Last 90 days', year: 'Year-to-date', all: 'All time'
+} as Record<string, string>)[id] || ''));
+
+/** The query a dashboard fetch sends for the range: `timeRange=…` (and `&from=…&to=…` for Custom). */
+export const rangeQuery = (id: string, from = '', to = ''): string =>
+  `timeRange=${encodeURIComponent(id)}${id === 'custom' ? `${from ? `&from=${from}` : ''}${to ? `&to=${to}` : ''}` : ''}`;
 
 export const STOP_COLORS: Record<string, string> = { Visit: '#16a34a', Call: '#2563eb', 'Drop-off': '#ca8a04', Other: '#64748b' };
 
