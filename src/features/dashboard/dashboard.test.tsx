@@ -15,6 +15,7 @@ vi.mock('../../api/authFetch', () => ({
 
 const { FollowUpsPanel } = await import('./followUps');
 const { VisitsPanel } = await import('./visits');
+const { VisitsViewSwitch } = await import('./components/RepBreakdownTable');
 const { ResourcesPanel } = await import('./resources');
 const { default: TeamFilesList } = await import('../teamFiles/components/TeamFilesList');
 
@@ -107,10 +108,13 @@ describe('Sales Visits → By rep', () => {
     />
   );
 
-  it('the switch asks for the By rep view', () => {
+  it('the switch (in the Filters panel) asks for the By rep view, and the card no longer holds it', () => {
     const onViewChange = vi.fn();
-    render(panel({ onViewChange }));
+    const { unmount } = render(panel({}));
     expect(screen.getByText('Stone River')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'By rep' })).toBeNull();
+    unmount();
+    render(<VisitsViewSwitch value="list" onChange={onViewChange} />);
     fireEvent.click(screen.getByRole('button', { name: 'By rep' }));
     expect(onViewChange).toHaveBeenCalledWith('byRep');
   });
