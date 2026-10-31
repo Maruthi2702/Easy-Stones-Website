@@ -49,6 +49,32 @@ SPS availability rules, strict import validation, complete/partial transit
 reconciliation, shared demand/UOM calculations, receipt confidence, slab
 pagination, request freshness and the remaining TypeScript migration.
 
+## OCR upgrade — slab tags and receipts (2026-10-31)
+
+Open enhancement requested by the owner; no OCR engine has been replaced.
+
+- [ ] Evaluate alternatives to Tesseract.js for slab-tag text. Keep ZXing for
+      barcodes and the existing inventory checks for material, lot, slab number
+      and dimensions. Compare the official browser package
+      [`@paddleocr/paddleocr-js`](https://github.com/PaddlePaddle/PaddleOCR/blob/main/paddleocr-js/packages/core/README.md)
+      and self-hosted PaddleOCR against the current scanner.
+- [ ] Design a separate receipt extraction path. The current tag scanner
+      (`src/features/checkin/selectionSheet/readTagPhoto.ts`, `scanTag.ts`)
+      crops text near a barcode and uses a single-line character whitelist
+      that excludes currency symbols and commas. It is not a general receipt
+      parser. Evaluate [Azure Document Intelligence receipts](https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/prebuilt/receipt?view=doc-intel-4.0.0),
+      [AWS Textract AnalyzeExpense](https://docs.aws.amazon.com/textract/latest/dg/invoices-receipts.html)
+      and [Google Document AI Expense Parser](https://docs.cloud.google.com/document-ai/docs/processors-list#expense_parser).
+      Managed extraction should run through the backend.
+- [ ] Benchmark 30–50 representative tag and receipt photos before choosing
+      an engine: exact lot/slab and total accuracy, processing time, phone
+      memory use and operating cost. Candidate accuracy on our photos is
+      not yet established.
+- [ ] Show extracted fields beside the source image, flag uncertain values
+      and allow correction before saving. For receipts, distinguish subtotal,
+      tax, tip, discount and final total; retain currency and validate amounts
+      with decimal-safe calculations.
+
 ## Transfers & Daily Report
 
 Found in a read-only review on 2026-09-29. Nothing below has been changed yet.
