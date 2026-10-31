@@ -5,20 +5,24 @@
  *
  *   add_visits           → log visits and add resources
  *
- *   view_all_visits      → every branch's visits on the dashboard
- *   view_branch_visits   → every rep's visits on customers in the person's
- *                          assigned branches ('*' = all)
+ *   view_all_visits      → everyone's visits on the dashboard
+ *   view_branch_visits   → the visits of everyone working at the person's
+ *                          assigned locations ('*' = all) — by the REP's
+ *                          branch, not the customer's (2026-10-31)
  *   neither              → only the visits they logged themselves
  *
  *   edit_own_visits      → edit visits they logged themselves
- *   edit_branch_visits   → edit anyone's, on customers in their branches
+ *   edit_branch_visits   → edit visits logged by anyone at their locations
  *   edit_all_visits      → edit anyone's
  *   delete_own_visits    → delete visits they logged themselves
- *   delete_branch_visits → delete anyone's, on customers in their branches
+ *   delete_branch_visits → delete visits logged by anyone at their locations
  *   delete_all_visits    → delete anyone's
  *
+ * "Anyone at their locations" is the person's team, from teammatesOf in
+ * teamScope.js (ALL_PEOPLE or a Set of user ids), passed in as `team`.
+ *
  * The server enforces all of it (requirePermission/requireAnyPermission on the
- * visit and resource routes, dashboardScope in dashboardMatch.js for viewing,
+ * visit and resource routes, visiblePeople in teamScope.js for viewing,
  * canModifyVisit on PUT and canDeleteVisit on DELETE); the dashboard and
  * customer page call the same functions to decide what to show and which
  * buttons to offer, so the two can't drift apart.
@@ -59,16 +63,16 @@ export const visitViewScope = (user) => {
 export const canAddVisit = (user) => permsOf(user).includes(VISIT_PERMISSIONS.ADD);
 
 // Anyone's with the "all" permission; your own with the "own" one; anyone's on
-// a customer in your assigned branches ('*' = all) with the "branch" one.
-const mayActOn = (user, visit, customerLocation, { all, own, branch }) => {
+// your team (teamScope.js: ALL_PEOPLE or a Set of ids) with the "branch" one.
+const mayActOn = (user, visit, team, { all, own, branch }) => {
   if (!user || !visit) return false;
   const perms = permsOf(user);
   if (perms.includes(all)) return true;
   const userId = String(user.id ?? user._id ?? '');
-  if (perms.includes(own) && userId && visit.createdBy && String(visit.createdBy) === userId) return true;
+  const author = visit.createdBy ? String(visit.createdBy) : '';
+  if (perms.includes(own) && userId && author === userId) return true;
   if (perms.includes(branch)) {
-    const locations = locationsOf(user);
-    return locations.includes('*') || (Boolean(customerLocation) && locations.includes(customerLocation));
+    return team === '*' || (Boolean(author) && team instanceof Set && team.has(author));
   }
   return false;
 };
@@ -82,10 +86,10 @@ export const ANY_EDIT_VISIT_PERMISSIONS = Object.freeze(Object.values(EDIT));
 export const ANY_DELETE_VISIT_PERMISSIONS = Object.freeze(Object.values(DELETE));
 
 /**
- * Whether `user` may edit `visit`, on a customer at `customerLocation`.
- * `user` is { id | _id, permissions, assignedLocations }.
+ * Whether `user` may edit `visit` ({ createdBy }), given the user's `team`
+ * (teammatesOf in teamScope.js). `user` is { id | _id, permissions }.
  */
-export const canModifyVisit = (user, visit, customerLocation) => mayActOn(user, visit, customerLocation, EDIT);
+export const canModifyVisit = (user, visit, team) => mayActOn(user, visit, team, EDIT);
 
 /** Whether `user` may delete `visit` — same shape as canModifyVisit, with the delete permissions. */
-export const canDeleteVisit = (user, visit, customerLocation) => mayActOn(user, visit, customerLocation, DELETE);
+export const canDeleteVisit = (user, visit, team) => mayActOn(user, visit, team, DELETE);

@@ -5,14 +5,18 @@ import { activityColor, addLabel, customerName, dayKey, isSameDay, timeLabel, vi
 
 export type MonthGridProps = {
     weeks: Date[][]; currentDate: Date; today: Date; itemsFor: (day: Date) => PlannerItem[]; move: StopMove;
-    onAdd: (day: Date) => void;
+    onAdd?: (day: Date) => void;
     onEdit: (item: PlannerItem) => void;
+    /** Whether a stop is yours to change; someone else's opens its day instead. */
+    editable?: (item: PlannerItem) => boolean;
+    /** More than you is on screen: each stop's tooltip says whose it is. */
+    showOwner?: boolean;
     /** "+N more": show that day in the Day view. */
     onShowDay: (day: Date) => void;
 };
 
 /** The Month view: a cell per day, its first three stops, "+N more" for the rest. */
-export default function MonthGrid({ weeks, currentDate, today, itemsFor, move, onAdd, onEdit, onShowDay }: MonthGridProps) {
+export default function MonthGrid({ weeks, currentDate, today, itemsFor, move, onAdd, onEdit, editable, showOwner = false, onShowDay }: MonthGridProps) {
     return (
         <div className="pl-month">
             <div className="pl-dowrow" aria-hidden="true">
@@ -34,6 +38,7 @@ export default function MonthGrid({ weeks, currentDate, today, itemsFor, move, o
                                 >
                                     <div className="pl-cellhead">
                                         <span className="pl-cnum">{day.getDate()}</span>
+                                        {onAdd && (
                                         <button
                                             type="button"
                                             className="pl-celladd"
@@ -43,17 +48,21 @@ export default function MonthGrid({ weeks, currentDate, today, itemsFor, move, o
                                         >
                                             <Plus size={12} />
                                         </button>
+                                        )}
                                     </div>
                                     {shown.map(item => {
                                         const flag = visitFlag(item);
+                                        const mine = editable ? editable(item) : true;
+                                        const drag = move.dragProps(item);
+                                        const owner = showOwner && item.ownerName ? ` · ${item.ownerName}` : '';
                                         return (
                                             <button
                                                 key={item._id}
                                                 type="button"
                                                 className={`pl-ev${move.itemState(item)}${flag ? ` is-${flag}` : ''}`}
-                                                onClick={() => onEdit(item)}
-                                                title={`${timeLabel(item.startTime)} · ${customerName(item)}${flag === 'done' ? ' · Visited' : flag === 'missed' ? ' · Missed' : ''} — drag to another day, or press Space to move it with the arrow keys`}
-                                                {...move.dragProps(item)}
+                                                onClick={() => (mine ? onEdit(item) : onShowDay(day))}
+                                                title={`${timeLabel(item.startTime)} · ${customerName(item)}${owner}${flag === 'done' ? ' · Visited' : flag === 'missed' ? ' · Missed' : ''}${'draggable' in drag ? ' — drag to another day, or press Space to move it with the arrow keys' : ''}`}
+                                                {...drag}
                                             >
                                                 <span
                                                     className="pl-typedot"

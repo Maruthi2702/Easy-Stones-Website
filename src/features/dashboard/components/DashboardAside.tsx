@@ -16,13 +16,15 @@ export type DashboardAsideProps = {
     customerName: (schedule: Loose) => string;
     /** GET /api/dashboard/followups/panel's rows. */
     followUps: Loose[];
+    /** More than the viewer is in view (the People filter): each follow-up says whose it is. */
+    showWhoLogged?: boolean;
     followUpCount: number;
     onOpenPlanner: () => void;
     onOpenFollowUps: () => void;
     onOpenCustomer?: (row: PanelFollowUp) => void;
 };
 
-const DashboardAside = ({ schedules, customerName, followUps, followUpCount, onOpenPlanner, onOpenFollowUps, onOpenCustomer }: DashboardAsideProps) => {
+const DashboardAside = ({ schedules, customerName, followUps, showWhoLogged = false, followUpCount, onOpenPlanner, onOpenFollowUps, onOpenCustomer }: DashboardAsideProps) => {
     const now = new Date();
     const stops = todayStops(schedules, customerName, now);
     const rows = panelFollowUps(followUps, now);
@@ -42,7 +44,7 @@ const DashboardAside = ({ schedules, customerName, followUps, followUpCount, onO
                                     <span className="dfx-stop-bar" style={{ background: s.color }} aria-hidden="true" />
                                     <span className="dfx-stop-text">
                                         <span>{s.company}</span>
-                                        <span>{s.type}{s.detail ? ` · ${s.detail}` : ''}</span>
+                                        <span>{showWhoLogged && s.owner ? `${s.owner} · ` : ''}{s.type}{s.detail ? ` · ${s.detail}` : ''}</span>
                                     </span>
                                 </li>
                             ))}
@@ -69,7 +71,7 @@ const DashboardAside = ({ schedules, customerName, followUps, followUpCount, onO
                         <span className={`dfx-dot dfx-dot--${f.tone}`} aria-hidden="true" />
                         <span className="dfx-fu-text">
                             <span>{f.company}</span>
-                            <span>{f.note}</span>
+                            <span>{showWhoLogged && f.by ? (f.note ? `${f.by} · ${f.note}` : f.by) : f.note}</span>
                         </span>
                         <span className={`dfx-due dfx-due--${f.tone}`}>{f.text}</span>
                     </button>

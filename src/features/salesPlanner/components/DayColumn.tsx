@@ -17,7 +17,8 @@ const Skeleton = ({ count }: { count: number }) => (
 
 export type DayColumnProps = {
     day: Date; items: PlannerItem[]; today: Date; loading: boolean; compact?: boolean;
-    onAdd: (day: Date) => void;
+    /** Absent on a team calendar you aren't in: no + buttons. */
+    onAdd?: (day: Date) => void;
 } & CardActions;
 
 /** One weekday (or the Day view's one day): its head with the + button, then its stops. */
@@ -33,6 +34,7 @@ export default function DayColumn({ day, items, today, loading, compact = false,
                 <span className="pl-headright">
                     {isToday && <span className="pl-todaytag">Today</span>}
                     <span className="pl-dnum">{day.getDate()}</span>
+                    {onAdd && (
                     <button
                         type="button"
                         className="pl-addday"
@@ -42,6 +44,7 @@ export default function DayColumn({ day, items, today, loading, compact = false,
                     >
                         <Plus size={14} />
                     </button>
+                    )}
                 </span>
             </div>
             <div className="pl-colbody">
@@ -49,12 +52,12 @@ export default function DayColumn({ day, items, today, loading, compact = false,
                     ? <Skeleton count={compact ? 1 : 2} />
                     : items.length > 0
                         ? <DayStops day={day} items={items} {...actions} />
-                        : (
+                        : onAdd ? (
                             <button type="button" className="pl-empty" onClick={() => onAdd(day)} title={addLabel(day)}>
                                 <Plus size={14} />
                                 <span>Add a stop</span>
                             </button>
-                        )}
+                        ) : <div className="pl-empty pl-empty--quiet">No stops</div>}
             </div>
         </div>
     );

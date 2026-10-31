@@ -8,6 +8,7 @@ import VisitModalJs from '../../components/sales/VisitModal';
 import AddCustomerModalJs from '../customers/form/AddCustomerModal';
 import { canViewCustomerProfile } from '../../utils/customerAccess';
 import { canDeleteVisit, canModifyVisit } from '../../utils/visitAccess';
+import { useMyTeam } from '../../api/myTeam';
 import { CalendarSyncModal } from '../calendarSync';
 import type { CalendarSync } from '../calendarSync';
 import { CheckInDetailModal } from '../checkin';
@@ -73,11 +74,12 @@ export default function SalesModals(p: SalesModalsProps) {
     // A resource follows the visit rules, its uploader standing in for who logged
     // the visit (as the server checks it, resourceAccessArgs in server.js).
     const editingResource = resources.editingResource;
+    // The "branch" switches go by the uploader's / logger's branch (useMyTeam).
+    const team = useMyTeam(currentUser, currentUserId);
     const resourceAccess = [
         { ...currentUser, id: currentUserId },
         { createdBy: editingResource?.uploadedBy || editingResource?.createdBy },
-        editingResource?.customerLocation
-            || (selectedCustomer?._id === editingResource?.customerId ? selectedCustomer?.location : undefined)
+        team
     ] as const;
     const canEditResource = Boolean(editingResource?._id) && canModifyVisit(...resourceAccess);
     const canDeleteResource = Boolean(editingResource?._id) && canDeleteVisit(...resourceAccess);
@@ -136,11 +138,7 @@ export default function SalesModals(p: SalesModalsProps) {
                 onCreateNew={p.onCreateNew}
                 suspended={p.addCustomer.show}
                 // Users & Roles → Visits → Delete own / branch / all (visitAccess.js).
-                canDelete={Boolean(editingVisit?._id) && canDeleteVisit(
-                    { ...currentUser, id: currentUserId },
-                    editingVisit,
-                    editingVisit?.location || (selectedCustomer?._id === editingVisit?.customerId ? selectedCustomer?.location : undefined)
-                )}
+                canDelete={Boolean(editingVisit?._id) && canDeleteVisit({ ...currentUser, id: currentUserId }, editingVisit, team)}
                 // The form closes first: the delete check is a page modal and
                 // would otherwise open underneath it.
                 onDelete={() => {

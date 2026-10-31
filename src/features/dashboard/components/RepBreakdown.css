@@ -1,0 +1,36 @@
+/* Sales Visits → By rep (RepBreakdownTable.tsx), on the Focus board's tokens
+   (DashboardFocus.css). Phone = under 640px. */
+
+.drb-switch { display: inline-flex; flex-shrink: 0; padding: 3px; border-radius: 10px; background: var(--dfx-soft); border: 1px solid var(--border-color); }
+.drb-switch button { height: 32px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.drb-switch button.is-on { background: var(--bg-card); color: var(--text-primary); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+
+.drb-wrap { border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }
+.drb-table { width: 100%; border-collapse: collapse; color: var(--text-primary); font-size: 14px; }
+.drb-table th, .drb-table td { padding: 12px 20px; border-bottom: 1px solid var(--border-color); text-align: left; font-weight: 400; }
+.drb-table thead th { padding-top: 10px; padding-bottom: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); background: var(--dfx-soft); }
+.drb-table tbody tr.is-pickable { cursor: pointer; }
+.drb-table tbody tr.is-pickable:hover { background: var(--dfx-hover); }
+.drb-table tfoot th, .drb-table tfoot td { border-bottom: 0; font-weight: 700; background: var(--dfx-soft); }
+.drb-table .drb-num { width: 1%; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }
+.drb-table .drb-num.is-zero { color: var(--text-muted); font-weight: 400; }
+.drb-table .drb-num.is-late { color: #f87171; }
+.light-theme-active .drb-table .drb-num.is-late { color: #b91c1c; }
+
+.drb-name { display: block; padding: 0; border: 0; background: none; color: var(--dfx-gold-text); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.drb-name:hover { text-decoration: underline; }
+.drb-name--plain { color: var(--text-secondary); font-style: italic; cursor: default; }
+.drb-name--plain:hover { text-decoration: none; }
+.drb-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--text-secondary); }
+.drb-short { display: none; }
+
+@media (max-width: 639px) {
+  .drb-table { font-size: 13.5px; }
+  .drb-table th, .drb-table td { padding: 11px 5px; }
+  .drb-table thead th { font-size: 10px; letter-spacing: 0.03em; }
+  .drb-table th:first-child, .drb-table td:first-child { padding-left: 12px; }
+  .drb-table th:last-child, .drb-table td:last-child { padding-right: 12px; }
+  .drb-long { display: none; }
+  .drb-short { display: inline; }
+  .drb-name { min-height: 24px; }
+}

@@ -213,3 +213,46 @@ describe('the calendar feed', () => {
     expect(ms(end) - ms(start)).toBe(30 * 60000);
   });
 });
+
+describe('GET /schedule?scope=team — the team calendar (teamScope.js)', () => {
+  const seattleRep = new mongoose.Types.ObjectId();
+  const kentRep = new mongoose.Types.ObjectId();
+  const manager = (perms = ['view_team_calendar']) => ({ id: String(owner), type: 'staff', permissions: perms, assignedLocations: ['Seattle'] });
+  const range = 'start=2026-10-24T00:00:00.000&end=2026-10-24T23:59:59.999';
+  const whose = (res) => res.body.map((i) => i.ownerName).sort();
+  beforeEach(async () => {
+    await User.collection.updateOne({ _id: owner }, { $set: { location: 'Seattle', assignedLocations: ['Seattle'], displayName: 'Mo Manager' } });
+    await User.collection.insertMany([
+      { _id: seattleRep, username: 'jesus', displayName: 'Jesus B.', location: 'Seattle', assignedLocations: ['Seattle'], isActive: true },
+      { _id: kentRep, username: 'bart', location: 'Kent', assignedLocations: ['Kent'], isActive: true }
+    ]);
+    await Schedule.create([stop(), stop({ userId: seattleRep }), stop({ userId: kentRep })]);
+  });
+
+  it("sends the manager's own and their reps' entries, each named, never another branch's", async () => {
+    const res = await request(app).get(`/api/schedule?scope=team&${range}`).set(as(manager())).expect(200);
+    expect(whose(res)).toEqual(['Jesus B.', 'Mo Manager']);
+  });
+
+  it('narrows to the reps asked for and never widens', async () => {
+    const res = await request(app).get(`/api/schedule?scope=team&reps=${seattleRep},${kentRep}&${range}`).set(as(manager())).expect(200);
+    expect(whose(res)).toEqual(['Jesus B.']);
+  });
+
+  it('is only their own without the Team calendar switch', async () => {
+    const res = await request(app).get(`/api/schedule?scope=team&${range}`).set(as(manager(['view_branch_visits']))).expect(200);
+    expect(whose(res)).toEqual(['Mo Manager']);
+  });
+
+  it('leaves the plain request as it was: own entries, no names', async () => {
+    const res = await request(app).get(`/api/schedule?${range}`).set(as(manager())).expect(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].ownerName).toBeUndefined();
+  });
+
+  it("still won't let anyone change a teammate's entry", async () => {
+    const theirs = await Schedule.findOne({ userId: seattleRep });
+    await request(app).put(`/api/schedule/${theirs._id}`).set(as(manager())).send({ notes: 'x' }).expect(404);
+    await request(app).delete(`/api/schedule/${theirs._id}`).set(as(manager())).expect(404);
+  });
+});

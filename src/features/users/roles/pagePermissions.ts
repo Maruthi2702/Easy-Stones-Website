@@ -8,7 +8,7 @@ import { PERMITS } from '../../../permits/permissions';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CheckCheck, Download, FolderOpen, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert
+    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
@@ -81,13 +81,14 @@ export const PAGE_PERMISSIONS: PageDef[] = [
         color: '#5b9aa0',
         actions: [
             { key: 'add_visits',           label: 'Add',           icon: Plus,   desc: 'Log visits and add resources' },
-            { key: 'view_branch_visits',   label: 'View branch',   icon: MapPin, desc: "See everyone's visits and resources for customers in the user's assigned branches (everyone sees their own)" },
+            { key: 'view_branch_visits',   label: 'View branch',   icon: MapPin, desc: "See the visits and resources of everyone working at the user's assigned locations (everyone sees their own)" },
             { key: 'view_all_visits',      label: 'View all',      icon: Eye,    desc: "See every branch's visits and resources on the dashboard" },
+            { key: 'view_team_calendar',   label: 'Team calendar', icon: CalendarDays, desc: "See the calendars of everyone working at the user's assigned locations, read only (everyone sees their own)" },
             { key: 'edit_own_visits',      label: 'Edit own',      icon: Pencil, desc: 'Edit visits and resources the user logged themselves' },
-            { key: 'edit_branch_visits',   label: 'Edit branch',   icon: Edit2,  desc: "Edit anyone's visits and resources on customers in the user's assigned branches" },
+            { key: 'edit_branch_visits',   label: 'Edit branch',   icon: Edit2,  desc: "Edit visits and resources logged by anyone working at the user's assigned locations" },
             { key: 'edit_all_visits',      label: 'Edit all',      icon: FileCog, desc: "Edit anyone's visits and resources" },
             { key: 'delete_own_visits',    label: 'Delete own',    icon: Eraser, desc: 'Delete visits and resources the user logged themselves' },
-            { key: 'delete_branch_visits', label: 'Delete branch', icon: Trash2, desc: "Delete anyone's visits and resources on customers in the user's assigned branches" },
+            { key: 'delete_branch_visits', label: 'Delete branch', icon: Trash2, desc: "Delete visits and resources logged by anyone working at the user's assigned locations" },
             { key: 'delete_all_visits',    label: 'Delete all',    icon: Trash2, desc: "Delete anyone's visits and resources" }
         ]
     },

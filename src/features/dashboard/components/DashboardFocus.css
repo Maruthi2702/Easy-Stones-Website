@@ -53,6 +53,8 @@ body.light-theme-active, .light-theme-active { --dfx-gold-text: #7a5c0b; --dfx-s
 .dfx-phone-only { display: none; }
 .dfx-pill { flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: var(--dfx-soft); color: var(--text-primary); font-size: 12px; font-weight: 600; }
 .dfx-pill svg { color: var(--dfx-gold-text); }
+/* Who logged the visit, when more than the viewer is in view (the People filter). */
+.dfx-pill--rep { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dfx-chev { flex-shrink: 0; color: var(--text-secondary); transition: transform 0.15s; }
 .is-open > .dfx-row .dfx-chev { transform: rotate(180deg); }
 .dfx-open { padding: 2px 20px 20px 82px; display: flex; flex-direction: column; gap: 14px; }

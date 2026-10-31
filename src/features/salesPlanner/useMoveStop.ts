@@ -57,6 +57,12 @@ const slotAtPoint = (dayEl: Element, y: number): number | null => {
 type MoveInputs = Pick<SalesPlannerData, 'itemsFor' | 'range' | 'setCurrentDate' | 'scheduleItems'> & {
     edge: Pick<EdgeFlip, 'startEdge' | 'stopEdge' | 'edgeAssist'>;
     onScheduleChange?: () => void;
+    /**
+     * False while the planner shows anyone's calendar but yours alone (the
+     * team calendar): a move is placed among the day's other stops, and
+     * there they'd be other people's. Cards and days then take no drag.
+     */
+    enabled?: boolean;
 };
 
 /**
@@ -64,7 +70,7 @@ type MoveInputs = Pick<SalesPlannerData, 'itemsFor' | 'range' | 'setCurrentDate'
  * aimed, the save (drawn at once, put back if the server refuses), and the
  * props that make cards draggable and days drop targets.
  */
-export default function useMoveStop({ itemsFor, range, setCurrentDate, scheduleItems, edge, onScheduleChange }: MoveInputs) {
+export default function useMoveStop({ itemsFor, range, setCurrentDate, scheduleItems, edge, onScheduleChange, enabled = true }: MoveInputs) {
     const { startEdge, stopEdge, edgeAssist } = edge;
     // One drag, whichever input started it: a mouse, a finger, or the keyboard.
     // { item, source: 'mouse'|'touch'|'keyboard', dayKey, index }
@@ -422,7 +428,9 @@ export default function useMoveStop({ itemsFor, range, setCurrentDate, scheduleI
         return self === -1 || (gap !== self && gap !== self + 1);
     };
 
-    const dragProps = (item: PlannerItem) => ({
+    // With moving off (`enabled`) a card is plain: no drag, no keyboard grab,
+    // so no day ever becomes a drop target either.
+    const dragProps = (item: PlannerItem) => (!enabled ? {} : {
         draggable: true,
         onDragStart: handleDragStart(item),
         onDragEnd: endDrag,

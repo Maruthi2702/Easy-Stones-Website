@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Download, Search, X } from 'lucide-react';
 import LocationFilter from '../../../components/shared/LocationFilter';
+import { useMyTeam } from '../../../api/myTeam';
+import PeopleField from '../components/PeopleField';
+import type { PeopleFilter } from '../components/PeopleField';
 import Pagination from '../../../components/shared/Pagination';
 import RowMenu from '../../../components/shared/RowMenu';
 import useIsPhone from '../../../components/shared/form/useIsPhone';
@@ -15,7 +18,7 @@ import {
 import type { ResourceFilters } from './resourceList';
 import './ResourcesPanel.css';
 
-export type ResourcesPanelProps = ResourceRowActions & {
+export type ResourcesPanelProps = Omit<ResourceRowActions, 'team'> & {
     /** The period's resources that match the search, newest first. */
     rows: Loose[];
     tableLoading: boolean;
@@ -28,6 +31,8 @@ export type ResourcesPanelProps = ResourceRowActions & {
     locationOptions: string[];
     location: string;
     onLocationChange: (value: string) => void;
+    /** The People filter (dashboardPeople.ts); null when they only see their own. */
+    people: PeopleFilter | null;
     /** Excel of what's on screen (filters and search applied). */
     onExportView: (rows: Loose[]) => void;
     /** Excel of every resource the login can see, all dates. */
@@ -44,6 +49,7 @@ export type ResourcesPanelProps = ResourceRowActions & {
  * resource. Team Files is its own Sales page now (src/features/teamFiles/).
  */
 export default function ResourcesPanel(p: ResourcesPanelProps) {
+    const team = useMyTeam(p.currentUser, p.currentUserId);
     const { rows, page, rowsPerPage, onPageChange } = p;
     const isPhone = useIsPhone();
     const [filters, setFilters] = useState<ResourceFilters>(NO_RESOURCE_FILTERS);
@@ -83,6 +89,7 @@ export default function ResourcesPanel(p: ResourcesPanelProps) {
     const actions: ResourceRowActions = {
         currentUser: p.currentUser,
         currentUserId: p.currentUserId,
+        team,
         loadingResourceId: p.loadingResourceId,
         onViewResource: p.onViewResource,
         onEditResource: p.onEditResource,
@@ -115,11 +122,12 @@ export default function ResourcesPanel(p: ResourcesPanelProps) {
                         value={p.location}
                         onChange={p.onLocationChange}
                         user={p.currentUser}
-                        active={ticked > 0}
-                        onClear={() => update(NO_RESOURCE_FILTERS)}
+                        active={ticked > 0 || Boolean(p.people?.active)}
+                        onClear={() => { update(NO_RESOURCE_FILTERS); p.people?.onReset(); }}
                         wide
                     >
                         <>
+                            {p.people && <PeopleField {...p.people} />}
                             {types.length > 0 && (
                                 <div className="lf-group" role="group" aria-labelledby="rs-f-types">
                                     <span className="lf-group-label" id="rs-f-types">Resource type</span>
@@ -139,7 +147,8 @@ export default function ResourcesPanel(p: ResourcesPanelProps) {
                                     ))}
                                 </div>
                             )}
-                            {loggers.length > 1 && (
+                            {/* The People field above replaces it for anyone who has one. */}
+                            {!p.people && loggers.length > 1 && (
                                 <div className="lf-group" role="group" aria-labelledby="rs-f-by">
                                     <span className="lf-group-label" id="rs-f-by">Logged by</span>
                                     <div className="lf-checks">

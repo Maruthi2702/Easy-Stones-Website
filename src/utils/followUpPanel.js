@@ -47,6 +47,7 @@ export const pickPanelFollowUps = (rows = [], today, limit = FOLLOW_UP_PANEL_LIM
       customerId: v.customerId,
       company: v.company || v.customerName || 'Unknown customer',
       note: String(v.followUp || v.nextAction || '').trim(),
+      by: String(v.createdByName || '').trim(),
       dueDate: due
     }));
 };

@@ -2397,3 +2397,10 @@ body.light-theme-active .searchable-select-option[style*="rgba(255, 255, 255, 0.
 
 
 
+
+/* "· Showing My team" after the date (the People filter, dashboardPeople.ts):
+   undo the separator rule above, which dims and spaces every span. */
+.dashboard-breadcrumbs .dashboard-people-summary {
+    margin: 0;
+    opacity: 1;
+}

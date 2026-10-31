@@ -6,7 +6,7 @@ import type { CardActions } from './PlannerCard';
 
 export type WeekendRailProps = {
     days: Date[]; itemsFor: (day: Date) => PlannerItem[]; today: Date; quiet: boolean; hasToday: boolean;
-    onAdd: (day: Date) => void;
+    onAdd?: (day: Date) => void;
 } & CardActions;
 
 /** Saturday and Sunday in a slim rail beside the week (see SalesPlannerTab). */
@@ -28,6 +28,7 @@ export default function WeekendRail({ days, itemsFor, today, quiet, hasToday, on
                             <span className="pl-headright">
                                 {isToday && <span className="pl-todaytag">Today</span>}
                                 <span className="pl-rail-dnum">{day.getDate()}</span>
+                                {onAdd && (
                                 <button
                                     type="button"
                                     className="pl-addday"
@@ -37,6 +38,7 @@ export default function WeekendRail({ days, itemsFor, today, quiet, hasToday, on
                                 >
                                     <Plus size={13} />
                                 </button>
+                                )}
                             </span>
                         </div>
                         {items.length > 0 && (

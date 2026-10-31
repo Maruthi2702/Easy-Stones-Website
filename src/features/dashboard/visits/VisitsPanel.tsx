@@ -1,8 +1,11 @@
 import { Search } from 'lucide-react';
 import Pagination from '../../../components/shared/Pagination';
 import { canModifyVisit, canDeleteVisit } from '../../../utils/visitAccess';
+import { useMyTeam } from '../../../api/myTeam';
 import DashboardAside from '../components/DashboardAside';
 import VisitsFocusList from '../components/VisitsFocusList';
+import RepBreakdownTable, { VisitsViewSwitch } from '../components/RepBreakdownTable';
+import type { RepRow } from '../repBreakdown';
 import type { Loose } from '../../../types/records';
 
 export type VisitsPanelProps = {
@@ -26,6 +29,10 @@ export type VisitsPanelProps = {
     schedules: Loose[];
     followUpPanel: Loose[];
     followUpCount: number;
+    /** More than the viewer is in view (the People filter): rows say who logged them. */
+    showWhoLogged: boolean;
+    /** "List | By rep": null hides the switch (they only see their own). */
+    byRep: { view: 'list' | 'byRep'; onViewChange: (v: 'list' | 'byRep') => void; rows: RepRow[]; showToday?: boolean; onPick: (id: string) => void } | null;
     onOpenTab: (tab: 'planner' | 'followups') => void;
     onOpenVisitCard: (visit: Loose) => void;
     onEditVisit: (visit: Loose) => void;
@@ -38,15 +45,19 @@ export type VisitsPanelProps = {
 /** Dashboard → Sales Visits: the Focus board (visit list with pager) and its Today / Follow-ups panels. */
 export default function VisitsPanel({
     pagedVisits, totalCount, searchTerm, onSearchChange, page, rowsPerPage, onPageChange, onRowsPerPageChange, tableLoading, busyVisitId,
-    currentUser, currentUserId, customers, schedules, followUpPanel, followUpCount, onOpenTab, onOpenVisitCard, onEditVisit, onDeleteVisit,
+    currentUser, currentUserId, customers, schedules, followUpPanel, followUpCount, showWhoLogged, byRep, onOpenTab, onOpenVisitCard, onEditVisit, onDeleteVisit,
     onOpenGallery, onOpenCustomer
 }: VisitsPanelProps) {
+    const team = useMyTeam(currentUser, currentUserId);
+    const showingByRep = byRep?.view === 'byRep';
     return (
         <div className="dfx-board">
         <div className="visits-table-section">
             <div className="section-header">
                 <h2>Sales Visits</h2>
                 <div className="table-controls">
+                    {byRep && <VisitsViewSwitch value={byRep.view} onChange={byRep.onViewChange} />}
+                    {!showingByRep && (
                     <div className="table-search">
                          <Search className="search-icon" size={18} />
                          <input
@@ -56,14 +67,21 @@ export default function VisitsPanel({
                             onChange={(e) => onSearchChange(e.target.value)}
                         />
                     </div>
+                    )}
                 </div>
             </div>
 
+            {showingByRep && byRep ? (
+                <RepBreakdownTable rows={byRep.rows} loading={tableLoading} showToday={byRep.showToday} onPick={byRep.onPick} />
+            ) : (
+            <>
+
             <VisitsFocusList
                 visits={pagedVisits}
-                canModify={(visit) => canModifyVisit({ ...currentUser, id: currentUserId }, visit, visit.location)}
-                canDelete={(visit) => canDeleteVisit({ ...currentUser, id: currentUserId }, visit, visit.location)}
+                canModify={(visit) => canModifyVisit({ ...currentUser, id: currentUserId }, visit, team)}
+                canDelete={(visit) => canDeleteVisit({ ...currentUser, id: currentUserId }, visit, team)}
                 canOpenCustomer={currentUser?.permissions?.includes('view_customers')}
+                showWhoLogged={showWhoLogged}
                 loading={tableLoading}
                 busyVisitId={busyVisitId}
                 onOpenCustomer={onOpenVisitCard}
@@ -81,6 +99,8 @@ export default function VisitsPanel({
                  onRowsPerPageChange={onRowsPerPageChange}
                  totalCount={totalCount}
              />
+            </>
+            )}
         </div>
         <DashboardAside
             schedules={schedules}
@@ -91,6 +111,7 @@ export default function VisitsPanel({
                 return src.company || src.contactName || '';
             }}
             followUps={followUpPanel}
+            showWhoLogged={showWhoLogged}
             followUpCount={followUpCount}
             onOpenPlanner={() => onOpenTab('planner')}
             onOpenFollowUps={() => onOpenTab('followups')}

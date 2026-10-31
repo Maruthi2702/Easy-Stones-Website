@@ -6,6 +6,8 @@ import { VisitsPanel } from './visits';
 import { FollowUpsPanel } from './followUps';
 import { ResourcesPanel } from './resources';
 import type { DashboardData } from './useDashboardData';
+import type { PeopleFilter } from './components/PeopleField';
+import { isJustMe, peopleSummary } from './dashboardPeople';
 import type { Loose } from '../../types/records';
 
 export type DashboardPageProps = {
@@ -58,6 +60,18 @@ export default function DashboardPage({
     onSelectCustomer, renderLeads
 }: DashboardPageProps) {
     const tab = data.activeDashboardTab;
+    // The People filter, the same in the header (Sales Visits), Follow-up and Resources.
+    const me = String(currentUserId || '');
+    const people: PeopleFilter | null = data.canPickPeople ? {
+        options: data.peopleOptions,
+        value: data.dashboardPeople,
+        me,
+        onChange: data.setDashboardPeople,
+        onToggle: data.toggleDashboardPerson,
+        active: !isJustMe(data.dashboardPeople, me),
+        onReset: data.resetDashboardPeople,
+        summary: peopleSummary(data.dashboardPeople, me, (id) => data.peopleOptions.find((o) => o.value === id)?.label)
+    } : null;
     return (
         <ErrorBoundary key="dashboard-view">
             <div className="sales-dashboard-v2">
@@ -75,6 +89,8 @@ export default function DashboardPage({
                         location={data.dashboardLocation}
                         onLocationChange={data.handleDashboardLocationChange}
                         currentUser={currentUser}
+                        people={people}
+                        showPeopleOnCalendar={data.teamCalendar}
                         showMenuButton={showMenuButton}
                         onOpenSidebar={onOpenSidebar}
                         onExportVisits={() => data.handleExportVisits()}
@@ -102,6 +118,9 @@ export default function DashboardPage({
                             fallback={fallback}
                             onSelectCustomer={onSelectCustomer}
                             onScheduleChange={data.fetchSchedules}
+                            viewing={data.calendarViewing}
+                            includesMe={data.calendarIncludesMe}
+                            justMe={!data.calendarViewing}
                         />
                     )}
 
@@ -123,6 +142,14 @@ export default function DashboardPage({
                             schedules={data.allSchedules}
                             followUpPanel={data.followUpPanel}
                             followUpCount={data.stats.followUp}
+                            showWhoLogged={data.showWhoLogged}
+                            byRep={data.canPickPeople ? {
+                                view: data.visitsView,
+                                onViewChange: data.setVisitsView,
+                                rows: data.repRows,
+                                showToday: data.teamCalendar,
+                                onPick: data.showRepWork
+                            } : null}
                             onOpenTab={data.setActiveDashboardTab}
                             onOpenVisitCard={onOpenVisitCard}
                             onEditVisit={onEditVisit}
@@ -144,6 +171,7 @@ export default function DashboardPage({
                             location={data.dashboardLocation}
                             onLocationChange={data.handleDashboardLocationChange}
                             currentUser={currentUser}
+                            people={people}
                             searchTerm={data.dashboardSearchTerm}
                             onSearchChange={data.setDashboardSearchTerm}
                             page={data.currentFollowUpPage}
@@ -151,6 +179,7 @@ export default function DashboardPage({
                             onPageChange={data.setCurrentFollowUpPage}
                             onRowsPerPageChange={data.handleVisitsPerPageChange}
                             tableLoading={data.dashboardTableLoading}
+                            showWhoLogged={data.showWhoLogged}
                             onExport={() => data.handleExportVisits(data.memoizedFilteredVisits.filter((v: Loose) => v && (v.nextAction || v.followUp)))}
                             onOpenPlanner={() => data.setActiveDashboardTab('planner')}
                             onViewVisit={onViewVisit}
@@ -174,6 +203,7 @@ export default function DashboardPage({
                             locationOptions={data.dashboardLocationOptions}
                             location={data.dashboardLocation}
                             onLocationChange={data.handleDashboardLocationChange}
+                            people={people}
                             currentUser={currentUser}
                             currentUserId={currentUserId}
                             loadingResourceId={loadingResourceId}

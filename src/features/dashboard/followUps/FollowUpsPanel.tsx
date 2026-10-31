@@ -1,5 +1,7 @@
 import { Calendar, Download, Eye, Pencil, Search } from 'lucide-react';
 import LocationFilter from '../../../components/shared/LocationFilter';
+import PeopleField from '../components/PeopleField';
+import type { PeopleFilter } from '../components/PeopleField';
 import Pagination from '../../../components/shared/Pagination';
 import { formatDate } from '../../../utils/dateUtils';
 import { dashboardLoadingRow } from '../components/dashboardLoadingRow';
@@ -15,6 +17,8 @@ export type FollowUpsPanelProps = {
     location: string;
     onLocationChange: (value: string) => void;
     currentUser: Loose | null;
+    /** The People filter (dashboardPeople.ts); null when they only see their own. */
+    people: PeopleFilter | null;
     searchTerm: string;
     onSearchChange: (value: string) => void;
     page: number;
@@ -22,6 +26,8 @@ export type FollowUpsPanelProps = {
     onPageChange: (page: number) => void;
     onRowsPerPageChange: (rows: number) => void;
     tableLoading: boolean;
+    /** More than the viewer is in view (the People filter): a Rep column says whose each one is. */
+    showWhoLogged?: boolean;
     onExport: () => void;
     onOpenPlanner: () => void;
     onViewVisit: (visit: Loose) => void;
@@ -32,8 +38,8 @@ export type FollowUpsPanelProps = {
 
 /** Dashboard → Follow-up: the follow-up notes and planner stops, filtered and paged. */
 export default function FollowUpsPanel({
-    rows, filter, onFilterChange, locationOptions, location, onLocationChange, currentUser, searchTerm, onSearchChange, page, rowsPerPage,
-    onPageChange, onRowsPerPageChange, tableLoading, onExport, onOpenPlanner, onViewVisit, onEditVisit, onOpenCustomer
+    rows, filter, onFilterChange, locationOptions, location, onLocationChange, currentUser, people, searchTerm, onSearchChange, page, rowsPerPage,
+    onPageChange, onRowsPerPageChange, tableLoading, showWhoLogged = false, onExport, onOpenPlanner, onViewVisit, onEditVisit, onOpenCustomer
 }: FollowUpsPanelProps) {
     return (
         <div className="visits-table-section">
@@ -65,7 +71,11 @@ export default function FollowUpsPanel({
                         value={location}
                         onChange={onLocationChange}
                         user={currentUser}
-                    />
+                        active={Boolean(people?.active)}
+                        onClear={people?.onReset}
+                    >
+                        {people ? <PeopleField {...people} /> : null}
+                    </LocationFilter>
                     <button className="export-btn" onClick={() => {
                         onExport();
                     }}>
@@ -90,6 +100,7 @@ export default function FollowUpsPanel({
                             <th className="mobile-hide">Date</th>
                             <th>Customer</th>
                             <th>Action Item / Note</th>
+                            {showWhoLogged && <th className="mobile-hide">Rep</th>}
                             <th className="mobile-hide">Source</th>
                             <th>Action</th>
                         </tr>
@@ -97,14 +108,15 @@ export default function FollowUpsPanel({
                     <tbody>
                         {(() => {
                             const followups = rows;
+                            const cols = showWhoLogged ? 6 : 5;
 
                             if (followups.length === 0 && tableLoading) {
-                                return dashboardLoadingRow(5);
+                                return dashboardLoadingRow(cols);
                             }
                             if (followups.length === 0) {
                                 return (
                                     <tr>
-                                        <td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>
+                                        <td colSpan={cols} style={{ textAlign: 'center', padding: '2rem' }}>
                                             {filter === 'nextWeek' ? 'No follow-ups scheduled for next week' : 'No follow-up notes found'}
                                         </td>
                                     </tr>
@@ -132,6 +144,7 @@ export default function FollowUpsPanel({
                                             {item.displayNote}
                                         </div>
                                     </td>
+                                    {showWhoLogged && <td className="mobile-hide">{item.createdByName || '—'}</td>}
                                     <td className="mobile-hide">
                                         <span className={`status-badge ${item.source === 'Planner' ? 'completed' : 'pending'}`}>
                                             {item.source}

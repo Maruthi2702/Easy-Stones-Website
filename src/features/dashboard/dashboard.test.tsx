@@ -19,7 +19,7 @@ describe('Follow-ups tab', () => {
     rows: [{ _id: 'f1', displayDate: '2026-10-20', customerId: 'c1', customerName: 'Pacific Granite', displayNote: 'Send quote', source: 'Visit' }],
     filter: 'all' as const, onFilterChange: noop, locationOptions: [], location: '', onLocationChange: noop, currentUser: null,
     searchTerm: '', onSearchChange: noop, page: 1, rowsPerPage: 50, onPageChange: noop, onRowsPerPageChange: noop, tableLoading: false,
-    onExport: noop, onOpenPlanner: noop, onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop
+    onExport: noop, onOpenPlanner: noop, onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop, people: null
   };
   it('lists a follow-up and opens its customer', () => {
     const onOpenCustomer = vi.fn();
@@ -42,6 +42,87 @@ describe('Follow-ups tab', () => {
   });
 });
 
+describe('People filter (manager view)', () => {
+  const rows = [{ _id: 'f1', displayDate: '2026-10-20', customerId: 'c1', customerName: 'Pacific Granite', displayNote: 'Send quote', source: 'Visit', createdByName: 'Jesus B.' }];
+  const base = {
+    rows, filter: 'all' as const, onFilterChange: noop, locationOptions: [], location: '', onLocationChange: noop, currentUser: null,
+    searchTerm: '', onSearchChange: noop, page: 1, rowsPerPage: 50, onPageChange: noop, onRowsPerPageChange: noop, tableLoading: false,
+    onExport: noop, onOpenPlanner: noop, onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop
+  };
+  const people = (over = {}) => ({
+    options: [
+      { value: 'me1', id: 'me1', label: 'Krish', location: 'Seattle', inactive: false },
+      { value: 'j', id: 'j', label: 'Jesus B.', location: 'Seattle', inactive: false },
+      { value: 'b', id: 'b', label: 'Bart A.', location: 'Kent', inactive: true }
+    ],
+    value: ['me1'], me: 'me1', onChange: vi.fn(), onToggle: vi.fn(), active: false, onReset: vi.fn(), summary: 'Me', ...over
+  });
+
+  it('offers Me, My team and the reps by branch, and passes picks back', () => {
+    const p = people();
+    render(<FollowUpsPanel {...base} people={p} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    expect(screen.getByText('People')).toBeTruthy();
+    expect(screen.getByText('Krish (you)')).toBeTruthy();
+    expect(screen.getByText('Kent')).toBeTruthy();
+    expect(screen.getByText(/inactive/)).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('My team'));
+    expect(p.onChange).toHaveBeenCalledWith([]);
+    fireEvent.click(screen.getByLabelText('Jesus B.'));
+    expect(p.onToggle).toHaveBeenCalledWith('j');
+    fireEvent.click(screen.getByText('Clear Filter'));
+    expect(p.onReset).toHaveBeenCalled();
+  });
+
+  it('shows a Rep column only when more than the viewer is in view', () => {
+    const { rerender } = render(<FollowUpsPanel {...base} people={people()} />);
+    expect(screen.queryByText('Rep')).toBeNull();
+    rerender(<FollowUpsPanel {...base} people={people({ value: [] })} showWhoLogged />);
+    expect(screen.getByText('Rep')).toBeTruthy();
+    expect(screen.getByText('Jesus B.')).toBeTruthy();
+  });
+});
+
+describe('Sales Visits → By rep', () => {
+  const rows = [
+    { id: 'j', name: 'Jesus B.', branch: 'Seattle', you: false, inactive: false, visits: 5, resources: 1, followUps: 3, late: 2, todayStops: 2 },
+    { id: 'me1', name: 'Krish', branch: 'Seattle', you: true, inactive: false, visits: 1, resources: 0, followUps: 0, late: 0, todayStops: 0 },
+    { id: '', name: 'Not recorded', branch: '', you: false, inactive: false, visits: 1, resources: 0, followUps: 0, late: 0, todayStops: 0 }
+  ];
+  const panel = (byRep: Record<string, unknown>) => (
+    <VisitsPanel
+      pagedVisits={[{ _id: 'v1', date: '2026-10-20', company: 'Stone River', contactName: 'Max', customerId: 'c2', location: 'Seattle' }]}
+      totalCount={1} searchTerm="" onSearchChange={noop} page={1} rowsPerPage={50} onPageChange={noop} onRowsPerPageChange={noop}
+      tableLoading={false} busyVisitId={null} currentUser={{ permissions: [] }} currentUserId="me1" customers={[]} schedules={[]}
+      followUpPanel={[]} followUpCount={0} showWhoLogged
+      byRep={{ view: 'list', onViewChange: noop, rows, onPick: noop, ...byRep }}
+      onOpenTab={noop} onOpenVisitCard={noop} onEditVisit={noop} onDeleteVisit={noop} onOpenGallery={noop} onOpenCustomer={noop}
+    />
+  );
+
+  it('the switch asks for the By rep view', () => {
+    const onViewChange = vi.fn();
+    render(panel({ onViewChange }));
+    expect(screen.getByText('Stone River')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'By rep' }));
+    expect(onViewChange).toHaveBeenCalledWith('byRep');
+  });
+
+  it('shows a row per person with a total, and a row opens their work', () => {
+    const onPick = vi.fn();
+    const { container } = render(panel({ view: 'byRep', onPick }));
+    expect(screen.queryByText('Stone River')).toBeNull();
+    expect(screen.queryByPlaceholderText('Search visits...')).toBeNull();
+    expect(screen.getByText('Krish (you)')).toBeTruthy();
+    expect([...container.querySelectorAll('tfoot td')].map((td) => td.textContent)).toEqual(['7', '1', '3', '2']);
+    fireEvent.click(screen.getByText('Jesus B.'));
+    expect(onPick).toHaveBeenCalledWith('j');
+    onPick.mockClear();
+    fireEvent.click(screen.getByText('Not recorded'));
+    expect(onPick).not.toHaveBeenCalled();
+  });
+});
+
 describe('Sales Visits tab', () => {
   it('shows the visit list with its Today and Follow-ups panels', () => {
     render(
@@ -49,7 +130,7 @@ describe('Sales Visits tab', () => {
         pagedVisits={[{ _id: 'v1', date: '2026-10-20', company: 'Stone River', contactName: 'Max', customerId: 'c2', location: 'Seattle' }]}
         totalCount={1} searchTerm="" onSearchChange={noop} page={1} rowsPerPage={50} onPageChange={noop} onRowsPerPageChange={noop}
         tableLoading={false} busyVisitId={null} currentUser={{ permissions: ['view_customers'] }} currentUserId="u1" customers={[]} schedules={[]}
-        followUpPanel={[]} followUpCount={0} onOpenTab={noop} onOpenVisitCard={noop} onEditVisit={noop} onDeleteVisit={noop}
+        followUpPanel={[]} followUpCount={0} showWhoLogged={false} byRep={null} onOpenTab={noop} onOpenVisitCard={noop} onEditVisit={noop} onDeleteVisit={noop}
         onOpenGallery={noop} onOpenCustomer={noop}
       />
     );
@@ -62,7 +143,7 @@ describe('Sales Visits tab', () => {
 describe('Resources tab', () => {
   const panel = (over: Record<string, unknown> = {}) => ({
     rows: [] as Record<string, unknown>[], tableLoading: false, page: 1, rowsPerPage: 50, onPageChange: noop, onRowsPerPageChange: noop,
-    searchTerm: '', onSearchChange: noop, locationOptions: [], location: '', onLocationChange: noop,
+    searchTerm: '', onSearchChange: noop, locationOptions: [], location: '', onLocationChange: noop, people: null,
     currentUser: { permissions: ['edit_own_visits'] }, currentUserId: 'u1', loadingResourceId: null,
     onViewResource: noop, onEditResource: noop, onDeleteResource: noop, onExportView: noop, onExportAll: noop,
     ...over

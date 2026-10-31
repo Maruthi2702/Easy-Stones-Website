@@ -167,7 +167,6 @@ export default function CustomerProfile(p: CustomerProfileProps) {
                         <VisitsTab
                             visits={customer.visits || []}
                             loading={p.historyLoading}
-                            customerLocation={customer.location}
                             currentUser={currentUser}
                             currentUserId={currentUserId}
                             canAddVisits={p.canAddVisits}
@@ -185,7 +184,6 @@ export default function CustomerProfile(p: CustomerProfileProps) {
                         <ResourcesTab
                             resources={customer.resources || []}
                             customers={p.customers}
-                            customerLocation={customer.location}
                             currentUser={currentUser}
                             currentUserId={currentUserId}
                             loadingResourceId={p.loadingResourceId}

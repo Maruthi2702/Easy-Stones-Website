@@ -3,6 +3,7 @@ import { AlertCircle } from 'lucide-react';
 import { toCustomerOptions, type CustomerOption } from '../../utils/customerOptions';
 import type { Loose } from '../../types/records';
 import useSalesPlannerData from './useSalesPlannerData';
+import type { PlannerItem } from './plannerSchedule';
 import useActivityEditor from './useActivityEditor';
 import useEdgeFlip from './useEdgeFlip';
 import useMoveStop from './useMoveStop';
@@ -45,15 +46,34 @@ export type SalesPlannerTabProps = {
     customerSelection?: Loose[]; customerOptions?: Loose[];
     onSelectCustomer?: (customer: Loose) => void; onScheduleChange?: () => void;
     isDropdownLoading?: boolean; currentUserId?: string | null;
+    /**
+     * The team calendar (the dashboard's People filter, src/utils/teamScope.js):
+     * `viewing` is '' for your own calendar or the query for whose to show;
+     * `includesMe` whether yours is among them (Add needs it); `justMe`
+     * whether it's yours alone (moving a stop needs it). Others' stops are
+     * read only and say whose they are.
+     */
+    viewing?: string; includesMe?: boolean; justMe?: boolean;
 };
 
-const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onScheduleChange, isDropdownLoading, currentUserId = null }: SalesPlannerTabProps) => {
-    const data = useSalesPlannerData(currentUserId);
+const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onScheduleChange, isDropdownLoading, currentUserId = null, viewing = '', includesMe = true, justMe = true }: SalesPlannerTabProps) => {
+    const data = useSalesPlannerData(currentUserId, viewing);
     const { currentDate, setCurrentDate, viewMode, setViewMode, today, itemsFor, weekdays, weekendDays, monthWeeks, todayCount, loading, loadError, refresh, stepPeriod } = data;
     const editor = useActivityEditor(onScheduleChange);
     const edge = useEdgeFlip(stepPeriod);
     const { edgeDir, scrollRef } = edge;
-    const move = useMoveStop({ ...data, edge, onScheduleChange });
+    const move = useMoveStop({ ...data, edge, onScheduleChange, enabled: justMe });
+    const me = String(currentUserId || '');
+    // A stop with no userId is from the plain (own) request: yours.
+    const isMine = (item: PlannerItem) => !item.userId || String(item.userId) === me;
+    const showOwner = !justMe;
+    // The schedule form checks a time against your day only, never the team's.
+    const ownItemsFor = useMemo(
+        () => (justMe ? itemsFor : (day: Date) => itemsFor(day).filter(isMine)),
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- isMine reads `me`
+        [itemsFor, justMe, me]
+    );
+    const onAdd = includesMe ? editor.openAdd : undefined;
     const { drag, ghostRef, announcement, moveError, clearMoveError } = move;
 
     const effectiveCustomerOptions = useMemo(() => {
@@ -68,8 +88,8 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     const weekendHasToday = weekendDays.some(d => isSameDay(d, today));
     const weekendQuiet = weekendItemCount === 0 && !weekendHasToday;
 
-    const cardActions = { move, onSelectCustomer, onEdit: editor.openEdit, onDelete: editor.handleDelete };
-    const dayProps = { today, loading, onAdd: editor.openAdd, ...cardActions };
+    const cardActions = { move, onSelectCustomer, onEdit: editor.openEdit, onDelete: editor.handleDelete, editable: isMine, showOwner };
+    const dayProps = { today, loading, onAdd, ...cardActions };
 
     return (
         <div className="pl-wrap">
@@ -88,7 +108,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 onToday={() => setCurrentDate(new Date())}
                 onViewMode={setViewMode}
                 onDate={setCurrentDate}
-                onNew={() => editor.openAdd(null)}
+                onNew={includesMe ? () => editor.openAdd(null) : undefined}
             />
 
             {loadError && (
@@ -132,8 +152,10 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                         today={today}
                         itemsFor={itemsFor}
                         move={move}
-                        onAdd={editor.openAdd}
+                        onAdd={onAdd}
                         onEdit={editor.openEdit}
+                        editable={isMine}
+                        showOwner={showOwner}
                         onShowDay={(day) => { setCurrentDate(new Date(day)); setViewMode('day'); }}
                     />
                 )}
@@ -166,7 +188,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
             </div>
 
             {editor.showAddModal && (
-                <ActivityDialog editor={editor} customerOptions={effectiveCustomerOptions} isDropdownLoading={isDropdownLoading} itemsFor={itemsFor} />
+                <ActivityDialog editor={editor} customerOptions={effectiveCustomerOptions} isDropdownLoading={isDropdownLoading} itemsFor={ownItemsFor} />
             )}
 
             {editor.showDeleteModal && (

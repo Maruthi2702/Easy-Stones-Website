@@ -10,6 +10,7 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 
 const { default: createVisitsRouter } = await import('./visits.js');
 const { default: Customer } = await import('../models/Customer.js');
+const { default: User } = await import('../models/User.js');
 
 let mongo;
 let app;
@@ -191,5 +192,46 @@ describe('POST /visit-attachments', () => {
   it('takes a PDF too', async () => {
     const res = await send('post', '/api/customers/visit-attachments', { data: 'data:application/pdf;base64,AA' });
     expect(res.body.url).toBe('https://cdn.example/x.pdf');
+  });
+});
+
+describe("PUT — Edit branch goes by the rep's branch (teamScope.js)", () => {
+  let mgr, jesus, bart;
+  beforeEach(async () => {
+    await User.deleteMany({});
+    [mgr, jesus, bart] = await User.create([
+      { username: 'mgr', password: 'secret-1', email: 'mgr@x.com', location: 'Seattle', assignedLocations: ['Seattle'] },
+      { username: 'jesus', password: 'secret-1', email: 'jesus@x.com', location: 'Seattle', assignedLocations: ['Seattle'] },
+      { username: 'bart', password: 'secret-1', email: 'bart@x.com', location: 'Kent', assignedLocations: ['Kent'] }
+    ]);
+  });
+  const manager = () => ({ _id: String(mgr._id), permissions: ['edit_branch_visits'], assignedLocations: ['Seattle'] });
+  // A visit logged by `author` on a customer at `customerLocation`.
+  const visitBy = async (author, customerLocation) => {
+    const c = await Customer.findById(customerId);
+    c.location = customerLocation;
+    c.visits.push({ ...base(), createdBy: author._id });
+    await c.save();
+    return String(c.visits[c.visits.length - 1]._id);
+  };
+
+  it("lets a manager edit their own rep's visit, on another branch's customer too", async () => {
+    const id = await visitBy(jesus, 'Kent');
+    const res = await send('put', `/api/customers/${customerId}/visits/${id}`, { notes: 'checked' }, manager());
+    expect(res.status).toBe(200);
+    expect(res.body.visit.notes).toBe('checked');
+  });
+
+  it("refuses another branch's rep's visit, even on the manager's branch's customer", async () => {
+    const id = await visitBy(bart, 'Seattle');
+    const res = await send('put', `/api/customers/${customerId}/visits/${id}`, { notes: 'nope' }, manager());
+    expect(res.status).toBe(403);
+    expect((await visitsNow())[0].notes).toBe('hi');
+  });
+
+  it('lets an all-locations manager edit anyone\'s', async () => {
+    const id = await visitBy(bart, 'Kent');
+    const res = await send('put', `/api/customers/${customerId}/visits/${id}`, { notes: 'ok' }, { ...manager(), assignedLocations: ['*'] });
+    expect(res.status).toBe(200);
   });
 });

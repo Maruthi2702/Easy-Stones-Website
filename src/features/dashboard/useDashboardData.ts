@@ -6,6 +6,10 @@ import { DEFAULT_ROWS_PER_PAGE } from '../../components/shared/paginationConfig'
 import { useLocationFilter } from '../../components/shared/useLocationFilter';
 import { splitCustomer } from '../../components/sales/visitsListHelpers';
 import { canAddVisit, visitViewScope } from '../../utils/visitAccess.js';
+import { usePeopleOptions } from '../../api/myTeam';
+import { peopleDefault, repsParam, includesPerson, parseStoredPeople, showsWhoLogged, togglePerson, isJustMe, MY_TEAM } from './dashboardPeople';
+import { repBreakdown } from './repBreakdown';
+import { canSeeTeamCalendar } from '../../utils/teamScope.js';
 import { resourceExportRows } from './resources/resourceList';
 import type { Loose } from '../../types/records';
 
@@ -46,7 +50,38 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         return [];
     }, [locations, currentUser]);
     const [dashboardLocation, setDashboardLocation] = useLocationFilter('salesDashboard', currentUser, dashboardLocationOptions);
-    const dashboardLocationParam = dashboardLocation ? `&location=${encodeURIComponent(dashboardLocation)}` : '';
+    // The People filter (dashboardPeople.ts): whose work the page shows, for
+    // anyone who can see more than their own. Opens on Me; a different pick is
+    // remembered for the session, like the location. The location narrows by
+    // where the people work (teamScope.js — by the rep's branch).
+    const me = String(currentUserId || '');
+    const canPickPeople = visitViewScope(currentUser).kind !== 'own';
+    const peopleOptions = usePeopleOptions(currentUser, currentUserId);
+    const peopleKey = `salesDashboard.people.${me}`;
+    const readPeople = (key: string): string[] | null => {
+        try { return parseStoredPeople(sessionStorage.getItem(key)); } catch { return null; }
+    };
+    const [pickedPeople, setPickedPeople] = useState<string[] | null>(() => (me ? readPeople(peopleKey) : null));
+    // Read again when the signed-in person changes (adjusting state in render, not an effect, so the first fetch already has it).
+    const [peopleFor, setPeopleFor] = useState(me);
+    if (peopleFor !== me) {
+        setPeopleFor(me);
+        setPickedPeople(me ? readPeople(peopleKey) : null);
+    }
+    const dashboardPeople = canPickPeople ? (pickedPeople ?? peopleDefault(me)) : peopleDefault(me);
+    const peopleParam = canPickPeople ? repsParam(dashboardPeople) : '';
+    const dashboardLocationParam = (dashboardLocation ? `&location=${encodeURIComponent(dashboardLocation)}` : '') + peopleParam;
+    // The calendar follows the same filter for anyone with Users & Roles →
+    // Visits → Team calendar (teamScope.js): '' while it's just them (their own
+    // calendar, as before), else the team calendar's query for
+    // /api/schedule?scope=team. Others' stops are read only.
+    const teamCalendar = canPickPeople && canSeeTeamCalendar(currentUser);
+    const calendarViewing = teamCalendar && !isJustMe(dashboardPeople, me)
+        ? `&scope=team${repsParam(dashboardPeople)}${dashboardLocation ? `&location=${encodeURIComponent(dashboardLocation)}` : ''}`
+        : '';
+    const myLocations = peopleOptions.find((o) => o.value === me)?.locations;
+    const calendarIncludesMe = !calendarViewing || (includesPerson(dashboardPeople, me)
+        && (!dashboardLocation || !myLocations || myLocations.includes(dashboardLocation)));
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
 
     const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
@@ -156,7 +191,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
             end.setMonth(now.getMonth() + 1);
 
             // Use getLocalISOString to avoid UTC conversion logic
-            const response = await authFetch(`${API_URL}/api/schedule?start=${getLocalISOString(start)}&end=${getLocalISOString(end)}`);
+            const response = await authFetch(`${API_URL}/api/schedule?start=${getLocalISOString(start)}&end=${getLocalISOString(end)}${calendarViewing}`);
             if (response.ok) {
                 const data = await response.json();
                 setAllSchedules(data);
@@ -176,7 +211,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         } catch (error) {
             console.error('Error fetching schedules:', error);
         }
-    }, []);
+    }, [calendarViewing]);
 
     useEffect(() => {
         fetchSchedules();
@@ -460,6 +495,44 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         setCurrentResourcesPage(1);
     };
 
+    // The People filter shares the same rule: any change starts every list on page 1.
+    const setDashboardPeople = (people: string[]) => {
+        setPickedPeople(people);
+        try { sessionStorage.setItem(peopleKey, JSON.stringify(people)); } catch { /* private mode: not remembered */ }
+        setCurrentVisitsPage(1);
+        setCurrentFollowUpPage(1);
+        setCurrentResourcesPage(1);
+    };
+    const toggleDashboardPerson = (id: string) => setDashboardPeople(togglePerson(dashboardPeople, id, me));
+
+    // Sales Visits → "List | By rep" (repBreakdown.ts), for anyone with the
+    // People filter. By rep counts the lists already loaded, so its totals are
+    // the tiles'. Opening it on Me widens to My team (one row says nothing);
+    // a rep's row opens their work in the list.
+    const [visitsView, setVisitsViewRaw] = useState<'list' | 'byRep'>('list');
+    const setVisitsView = (view: 'list' | 'byRep') => {
+        if (view === 'byRep' && isJustMe(dashboardPeople, me)) setDashboardPeople(MY_TEAM);
+        setVisitsViewRaw(view);
+    };
+    const showRepWork = (id: string) => {
+        setDashboardPeople([id]);
+        setVisitsViewRaw('list');
+    };
+    const peopleValueKey = dashboardPeople.join(',');
+    const repRows = React.useMemo(() => (canPickPeople ? repBreakdown({
+        visits: dashboardVisits,
+        resources: dashboardResources,
+        followUps: dashboardFollowups,
+        schedules: teamCalendar ? allSchedules : [],
+        people: peopleOptions,
+        selection: dashboardPeople,
+        location: dashboardLocation || '',
+        me,
+        today: new Date().toLocaleDateString('en-CA')
+    }) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dashboardPeople is rebuilt each render; its key is what changes
+    [canPickPeople, dashboardVisits, dashboardResources, dashboardFollowups, teamCalendar, allSchedules, peopleOptions, peopleValueKey, dashboardLocation, me]);
+
     // The dashboard's Sales Visits list is its own copy (fetchDashboardData), so a
     // saved visit is put in it too, tagged _saving until the server confirms.
     // `insert` false only updates a row that is already there (an edit).
@@ -468,7 +541,8 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         setDashboardVisits((prev: Loose[]) => {
             const has = prev.some(v => v._id === visit._id);
             if (has) return prev.map(v => (v._id === visit._id ? { ...v, ...visit } : v));
-            return insert ? [visit, ...prev] : prev;
+            // A new visit is the viewer's own: only shown when they're in view.
+            return insert && includesPerson(dashboardPeople, String(visit.createdBy || me)) ? [visit, ...prev] : prev;
         });
     };
     const removeDashboardVisit = (visitId: string) => setDashboardVisits(prev => prev.filter(v => v._id !== visitId));
@@ -528,6 +602,21 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         setDashboardTimeRange,
         dashboardLocationOptions,
         dashboardLocation,
+        canPickPeople,
+        peopleOptions,
+        dashboardPeople,
+        setDashboardPeople,
+        toggleDashboardPerson,
+        showWhoLogged: canPickPeople && showsWhoLogged(dashboardPeople, me),
+        resetDashboardPeople: () => setDashboardPeople(peopleDefault(me)),
+        showMyTeam: () => setDashboardPeople(MY_TEAM),
+        visitsView: canPickPeople ? visitsView : 'list' as const,
+        setVisitsView,
+        showRepWork,
+        repRows,
+        teamCalendar,
+        calendarViewing,
+        calendarIncludesMe,
         dashboardSearchTerm,
         setDashboardSearchTerm,
         activeDashboardTab,

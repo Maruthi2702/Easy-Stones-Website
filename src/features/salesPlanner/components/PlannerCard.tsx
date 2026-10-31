@@ -10,6 +10,10 @@ export type CardActions = {
     onSelectCustomer?: (customer: Loose) => void;
     onEdit: (item: PlannerItem) => void;
     onDelete: (id: string) => void;
+    /** Whether this stop is yours to change (the team calendar shows others', read only). */
+    editable?: (item: PlannerItem) => boolean;
+    /** More than you is on screen: each stop says whose calendar it's on. */
+    showOwner?: boolean;
 };
 
 /**
@@ -18,16 +22,20 @@ export type CardActions = {
  * the pencil and bin collapse into one "⋯" that opens Edit / Delete under the
  * card, so a long name keeps its width and every button is a full touch target.
  */
-export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDelete }: { item: PlannerItem } & CardActions) {
+export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDelete, editable, showOwner = false }: { item: PlannerItem } & CardActions) {
     const flag = visitFlag(item);
+    const canChange = editable ? editable(item) : true;
+    const owner = showOwner ? String(item.ownerName || '').trim() : '';
+    const drag = move.dragProps(item);
+    const movable = 'draggable' in drag;
     const [open, setOpen] = useState(false);
     const { clock, period } = timeParts(item.startTime);
     const length = lengthOf(item);
     return (
         <div
-            className={`pl-item pl-item--${activityModifier(item.activityType)}${move.itemState(item)}${flag ? ` is-${flag}` : ''}${open ? ' is-open' : ''}`}
-            title={`${customerName(item)} — drag to another day, or press Space to move it with the arrow keys`}
-            {...move.dragProps(item)}
+            className={`pl-item pl-item--${activityModifier(item.activityType)}${move.itemState(item)}${flag ? ` is-${flag}` : ''}${open ? ' is-open' : ''}${canChange ? '' : ' is-readonly'}`}
+            title={movable ? `${customerName(item)} — drag to another day, or press Space to move it with the arrow keys` : `${customerName(item)}${owner ? ` — ${owner}'s calendar` : ''}`}
+            {...drag}
         >
             <div className="pl-time">
                 <span className="pl-time-clock">{clock}</span>
@@ -47,6 +55,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                 >
                     {customerName(item)}
                 </button>
+                {canChange && (
                 <div className="pl-acts">
                     <button type="button" className="pl-act" onClick={() => onEdit(item)} aria-label="Edit activity">
                         <Edit2 size={13} />
@@ -55,6 +64,8 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                         <Trash2 size={13} />
                     </button>
                 </div>
+                )}
+                {canChange && (
                 <button
                     type="button"
                     className="pl-kebab"
@@ -64,8 +75,10 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                 >
                     <Ellipsis size={20} />
                 </button>
+                )}
             </div>
             <div className="pl-meta">
+                {owner && <span className="pl-owner">{owner} · </span>}
                 <span className="pl-meta-time">{timeLabel(item.startTime)} · </span>{item.activityType || 'Visit'}{length && ` · ${length}`}
                 {/* source 'visit_log' = added by logging a visit with
                     nothing scheduled (src/services/visitSchedule.js). */}
@@ -81,6 +94,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                 )}
             </div>
             {item.notes && <div className="pl-note" title={item.notes}>{item.notes}</div>}
+            {canChange && (
             <div className="pl-drawer">
                 <button type="button" className="pl-drawer-btn" onClick={() => { setOpen(false); onEdit(item); }}>
                     <Edit2 size={16} /> Edit
@@ -89,6 +103,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                     <Trash2 size={16} /> Delete
                 </button>
             </div>
+            )}
         </div>
     );
 }

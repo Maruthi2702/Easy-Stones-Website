@@ -24,24 +24,25 @@ const lastView: { date: number | null; mode: ViewMode | null } = { date: null, m
 const defaultMode = (): ViewMode =>
     typeof window !== 'undefined' && window.innerWidth < 640 ? 'day' : 'week';
 
-const cachedItemsForLastView = () => {
+const cachedItemsForLastView = (viewing: string) => {
     const date = lastView.date ? new Date(lastView.date) : new Date();
     const r = rangeFor(date, lastView.mode ?? defaultMode());
-    return getCachedPlannerRange(dayKey(r.start), dayKey(r.end));
+    return getCachedPlannerRange(dayKey(r.start), dayKey(r.end), viewing);
 };
 
 /**
  * The planner's data: which day and view are on screen, the schedule for the
  * span they fetch (from ./plannerSchedule's cache, revalidated behind it), and
- * that schedule grouped by day.
+ * that schedule grouped by day. `viewing` is whose calendar ('' = your own, or
+ * the team calendar's query — plannerSchedule's rangeKey).
  */
-export default function useSalesPlannerData(currentUserId: string | null) {
+export default function useSalesPlannerData(currentUserId: string | null, viewing = '') {
     const [currentDate, setCurrentDate] = useState(() => (lastView.date ? new Date(lastView.date) : new Date()));
     const [viewMode, setViewMode] = useState<ViewMode>(() => lastView.mode ?? defaultMode());
     // Anything already fetched this session paints in the first frame — a tab
     // switch should not cost a round trip before the week reappears.
-    const [scheduleItems, setScheduleItems] = useState<PlannerItem[]>(() => cachedItemsForLastView() || []);
-    const [loading, setLoading] = useState(() => cachedItemsForLastView() === null);
+    const [scheduleItems, setScheduleItems] = useState<PlannerItem[]>(() => cachedItemsForLastView(viewing) || []);
+    const [loading, setLoading] = useState(() => cachedItemsForLastView(viewing) === null);
     const [loadError, setLoadError] = useState<string | null>(null);
     const [refreshKey, setRefreshKey] = useState(0);
 
@@ -72,7 +73,7 @@ export default function useSalesPlannerData(currentUserId: string | null) {
      */
     useEffect(() => {
         let alive = true;
-        const cached = getCachedPlannerRange(rangeStartKey, rangeEndKey);
+        const cached = getCachedPlannerRange(rangeStartKey, rangeEndKey, viewing);
 
         if (cached) {
             // eslint-disable-next-line react-hooks/set-state-in-effect -- as it was before the split (the rule now sees it)
@@ -84,7 +85,7 @@ export default function useSalesPlannerData(currentUserId: string | null) {
             setLoadError(null);
         }
 
-        loadPlannerRange(rangeStartKey, rangeEndKey)
+        loadPlannerRange(rangeStartKey, rangeEndKey, viewing)
             .then(items => {
                 if (!alive) return;
                 setScheduleItems(items);
@@ -103,21 +104,21 @@ export default function useSalesPlannerData(currentUserId: string | null) {
             });
 
         return () => { alive = false; };
-    }, [rangeStartKey, rangeEndKey, refreshKey]);
+    }, [rangeStartKey, rangeEndKey, viewing, refreshKey]);
 
     /**
      * Someone else's edit — the same user on a phone, a second browser, a
      * calendar sync — arrives here without anyone pressing anything.
      */
     useEffect(() => {
-        const key = plannerRangeKey(rangeStartKey, rangeEndKey);
+        const key = plannerRangeKey(rangeStartKey, rangeEndKey, viewing);
         return subscribePlannerSchedule((updatedKey, items) => {
             if (updatedKey !== key) return;
             setScheduleItems(items);
             setLoadError(null);
             setLoading(false);
         });
-    }, [rangeStartKey, rangeEndKey]);
+    }, [rangeStartKey, rangeEndKey, viewing]);
 
     const refresh = useCallback(() => setRefreshKey(k => k + 1), []);
 

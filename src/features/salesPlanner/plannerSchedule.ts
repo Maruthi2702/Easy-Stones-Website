@@ -31,6 +31,10 @@ export type PlannerItem = {
   status?: string;
   notes?: string;
   source?: string;
+  /** Whose calendar it's on (the user's id). */
+  userId?: string;
+  /** Their name — only on the team calendar (?scope=team). */
+  ownerName?: string;
   [key: string]: unknown;
 };
 type PlannerListener = (key: string, items: PlannerItem[]) => void;
@@ -39,7 +43,7 @@ const cache: {
   ranges: Map<string, PlannerItem[]>;
   inflight: Map<string, Promise<PlannerItem[]>>;
   activeKey: string | null;
-  activeRange: { start: string; end: string } | null;
+  activeRange: { start: string; end: string; viewing: string } | null;
   listeners: Set<PlannerListener>;
   socket: Socket | null;
   userId: string | null;
@@ -57,7 +61,13 @@ const cache: {
   revalidateTimer: null
 };
 
-const rangeKey = (start: string, end: string): string => `${start}|${end}`;
+/**
+ * Whose calendar a range holds is part of its key (2026-10-31): `viewing` is
+ * '' for your own, or the team calendar's query ('&scope=team&reps=…', from
+ * the dashboard's People filter — src/utils/teamScope.js). One person's week
+ * and the team's week are different lists.
+ */
+const rangeKey = (start: string, end: string, viewing = ''): string => `${viewing}|${start}|${end}`;
 
 /** Same contents means the same array, so React can skip the re-render. */
 const sameItems = (a: PlannerItem[] | undefined, b: PlannerItem[]): boolean => Boolean(a) && Boolean(b) && JSON.stringify(a) === JSON.stringify(b);
@@ -69,15 +79,16 @@ const sameItems = (a: PlannerItem[] | undefined, b: PlannerItem[]): boolean => B
  * that never appears.
  */
 const isForCurrentUser = (payload: { userId?: unknown } | null | undefined): boolean =>
-  !payload?.userId || !cache.userId || String(payload.userId) === cache.userId;
+  // A team calendar on screen holds other people's entries too: any change may be in it.
+  Boolean(cache.activeRange?.viewing) || !payload?.userId || !cache.userId || String(payload.userId) === cache.userId;
 
 export function setPlannerUser(userId: unknown): void {
   cache.userId = userId ? String(userId) : null;
 }
 
 /** What we can paint right now, before any network call. */
-export function getCachedPlannerRange(start: string, end: string): PlannerItem[] | null {
-  return cache.ranges.get(rangeKey(start, end)) || null;
+export function getCachedPlannerRange(start: string, end: string, viewing = ''): PlannerItem[] | null {
+  return cache.ranges.get(rangeKey(start, end, viewing)) || null;
 }
 
 function notify(key: string): void {
@@ -91,9 +102,9 @@ function notify(key: string): void {
   });
 }
 
-async function fetchRange(start: string, end: string): Promise<PlannerItem[]> {
+async function fetchRange(start: string, end: string, viewing: string): Promise<PlannerItem[]> {
   const res = await authFetch(
-    `${API_URL}/api/schedule?start=${start}T00:00:00.000&end=${end}T23:59:59.999`
+    `${API_URL}/api/schedule?start=${start}T00:00:00.000&end=${end}T23:59:59.999${viewing}`
   );
   if (!res.ok) throw new Error('Could not load the schedule.');
   const data = await res.json();
@@ -105,12 +116,12 @@ async function fetchRange(start: string, end: string): Promise<PlannerItem[]> {
  * request — the mount effect and a socket event landing together should not
  * make the same call twice.
  */
-function loadRange(start: string, end: string): Promise<PlannerItem[]> {
-  const key = rangeKey(start, end);
+function loadRange(start: string, end: string, viewing = ''): Promise<PlannerItem[]> {
+  const key = rangeKey(start, end, viewing);
   const existing = cache.inflight.get(key);
   if (existing) return existing;
 
-  const request = fetchRange(start, end)
+  const request = fetchRange(start, end, viewing)
     .then(items => {
       const previous = cache.ranges.get(key);
       if (previous && sameItems(previous, items)) return previous;
@@ -131,11 +142,11 @@ function loadRange(start: string, end: string): Promise<PlannerItem[]> {
  * already painted from the cache can ignore the result and let the subscription
  * deliver the difference.
  */
-export function loadPlannerRange(start: string, end: string): Promise<PlannerItem[]> {
-  cache.activeKey = rangeKey(start, end);
-  cache.activeRange = { start, end };
+export function loadPlannerRange(start: string, end: string, viewing = ''): Promise<PlannerItem[]> {
+  cache.activeKey = rangeKey(start, end, viewing);
+  cache.activeRange = { start, end, viewing };
   cache.lastRevalidate = Date.now();
-  return loadRange(start, end);
+  return loadRange(start, end, viewing);
 }
 
 /**
@@ -198,7 +209,7 @@ function revalidateActive({ force = false }: { force?: boolean } = {}): void {
   if (!force && (cache.listeners.size === 0 || document.hidden)) return;
 
   cache.lastRevalidate = Date.now();
-  loadRange(cache.activeRange.start, cache.activeRange.end).catch(() => {});
+  loadRange(cache.activeRange.start, cache.activeRange.end, cache.activeRange.viewing).catch(() => {});
 }
 
 /**

@@ -118,3 +118,15 @@ export function useStartingRep(creator: { _id?: string; id?: string } | null | u
     const repFor = useMemo(() => (branch: string) => startingRepFor({ staff, branch, branchReps, creator: creatorId ? { id: creatorId } : null }), [staff, branchReps, creatorId]);
     return { repFor, ready };
 }
+
+/** The whole staff list (/api/salesreps), loaded once and shared; [] until it's in. */
+export function useStaffList(): StaffMember[] {
+    const [, rerender] = useState(0);
+    useEffect(() => {
+        const fn = () => rerender((n) => n + 1);
+        listeners.add(fn);
+        loadStaff();
+        return () => { listeners.delete(fn); };
+    }, []);
+    return staff;
+}

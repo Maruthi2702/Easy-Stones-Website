@@ -9,7 +9,6 @@
  * slimForUnwind are new: they run before $unwind so a rollup stops unpacking
  * every visit of every customer on every request.
  */
-import { visitViewScope } from './visitAccess.js';
 
 export const getAggregationDateRef = (prefix) => ({
   $cond: [
@@ -150,35 +149,29 @@ export const slimForUnwind = (prefix, extra = []) => [
 ];
 
 /**
- * Whose visits and resources a person's dashboard shows, from the permissions
- * on their role (visitViewScope in visitAccess.js — Users & Roles → Visits):
- *   view_all_visits     → everything, every branch
- *   view_branch_visits  → every rep's entries, for customers in the person's
- *                         assigned branches ('*' = all)
- *   neither             → only the entries they logged themselves
- * Returns { kind: 'all' } | { kind: 'branches', locations } | { kind: 'own', userId }.
+ * Whose entries a dashboard rollup keeps: `people` is visiblePeople /
+ * narrowPeople from teamScope.js (by the REP's branch) — ALL_PEOPLE ('*') or a
+ * Set of user ids. A visit belongs to whoever logged it (`createdBy`); a
+ * resource to whoever uploaded it (`uploadedBy`, else `createdBy`), the same
+ * person canModifyVisit checks.
  */
-export const dashboardScope = ({ permissions, userId, assignedLocations } = {}) => {
-  const scope = visitViewScope({ permissions, assignedLocations });
-  return scope.kind === 'own' ? { kind: 'own', userId: String(userId ?? '') } : scope;
-};
+const authorOf = (prefix) => (prefix === 'resources'
+  ? { $toString: { $ifNull: ['$resources.uploadedBy', '$resources.createdBy'] } }
+  : { $toString: `$${prefix}.createdBy` });
 
-/** A first-stage $match limiting customers to a manager's branches; null for any other scope. */
-export const scopeBranchPrefilter = (scope) =>
-  (scope?.kind === 'branches' ? { $match: { location: { $in: scope.locations } } } : null);
-
-/** The additionalMatch for getAggregationRangeMatch/getFollowUpRangeMatch: own visits only, or nothing. */
-export const scopeVisitUserMatch = (scope) =>
-  (scope?.kind === 'own' ? { 'visits.createdBy': scope.userId } : {});
+/** A $match for after `$unwind: "$<prefix>"` keeping only `people`'s entries; null for everyone. */
+export const peopleMatch = (people, prefix) =>
+  (people === '*' ? null : { $match: { $expr: { $in: [authorOf(prefix), [...people]] } } });
 
 /**
- * Narrow a dashboardScope to one branch picked in the dashboard's location
- * filter. Never widens: a manager asking for a branch outside their own gets
- * nothing, and an "own" scope (who only ever sees what they logged) ignores it.
+ * A document-level $match for before the unwind: only customers holding an
+ * entry by one of `people`. `idVariants` turns an id into every form it may be
+ * stored in (string and ObjectId) — the exact check is peopleMatch's. Null for
+ * everyone.
  */
-export const narrowScopeToLocation = (scope, location) => {
-  const loc = typeof location === 'string' ? location.trim() : '';
-  if (!loc || loc === '*' || !scope || scope.kind === 'own') return scope;
-  if (scope.kind === 'all') return { kind: 'branches', locations: [loc] };
-  return { kind: 'branches', locations: scope.locations.includes(loc) ? [loc] : [] };
+export const peoplePrefilter = (people, prefix, idVariants = (id) => [id]) => {
+  if (people === '*') return null;
+  const values = [...people].flatMap(idVariants);
+  const fields = prefix === 'resources' ? ['uploadedBy', 'createdBy'] : ['createdBy'];
+  return { $match: { $or: fields.map((f) => ({ [`${prefix}.${f}`]: { $in: values } })) } };
 };

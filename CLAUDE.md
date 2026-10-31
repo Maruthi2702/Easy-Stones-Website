@@ -113,6 +113,42 @@ request): `NEW_VISITS_START_WITH_REP = false` in `src/routes/checkIn.js`, so
 new visits and their Selection Sheets start with None until it's set back
 to `true`; customers and deliveries still use the rule.
 
+## Team view: whose work a manager sees, by the rep's branch (2026-10-31)
+
+Visits, resources, follow-ups and calendars go by **where the
+rep works**, not where the customer is (owner's call): `src/utils/teamScope.js`
+(tested). A person's team is everyone whose location / assigned locations
+include one of their assigned locations, deactivated people included, plus
+themselves; someone assigned `'*'` is on no branch's team. Users & Roles →
+Visits: View all → everyone, View branch → their team, neither → their own;
+Edit / Delete branch → visits and resources **logged by** their team
+(`canModifyVisit(user, visit, team)` — the third argument is the team, not a
+customer location). The server reads the staff list per request
+(`src/services/teamDirectory.js`); screens use `useMyTeam` /
+`usePeopleOptions` (`src/api/myTeam.ts`). The Sales dashboard's Filters panel
+has a **People** field (Me / My team / reps by branch, `PeopleField.tsx`,
+value rules in `dashboardPeople.ts`, tested): it opens on **Me** (owner's
+call), a pick is remembered for the session, and `?reps=` / `?location=` can
+only narrow (`narrowPeople`). The location filter now means people working
+there. Rows say who logged them once more than you is in view. Sales Visits
+has a **List | By rep** switch (`RepBreakdownTable.tsx`, rules in
+`repBreakdown.ts`, tested): visits, resources, follow-ups and late per person,
+counted from the lists already loaded so the Total row matches the tiles;
+every active rep in view gets a row, zeros included; opening it on Me widens
+to My team, and a rep's row shows their work in the list. **Team calendar**:
+Users & Roles → Visits → Team calendar (`view_team_calendar`; given once to
+every role holding View branch or View all, `ACTION_MIGRATIONS`) lets the
+Calendar tab, the Calendar tile, the Today panel and By rep's Today column
+follow the People filter — `GET /api/schedule?scope=team&reps=…&location=…`
+(`calendarPeople`, tested in `schedule.test.js`; each entry carries
+`ownerName`; without `scope` the route is unchanged). Others' stops are read
+only (PUT / DELETE still match your own id): no pencil, bin or ⋯; Add only
+when you're in view; dragging only on your calendar alone (`useMoveStop`'s
+`enabled` — a move is placed among the day's stops). The planner's cache keys
+each range by whose calendar it holds (`plannerSchedule.ts`'s `rangeKey`), and
+the schedule form's clash check reads your own day only. A new screen that
+shows or edits visits or calendars uses these, never the customer's branch.
+
 ## Locations: one dropdown, one order (2026-10-17)
 
 Every single-choice location field and filter is

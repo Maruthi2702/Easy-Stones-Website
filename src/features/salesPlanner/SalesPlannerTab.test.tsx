@@ -170,3 +170,36 @@ describe('Sales Planner', () => {
         await view('Today');
     });
 });
+
+describe('Sales Planner — the team calendar (teamScope.js)', () => {
+    const team = [
+        { _id: 't1', userId: 'u1', ownerName: 'Krish', customerId: { _id: 'c1', company: 'Pacific Granite' }, startTime: iso(0, '09:00'), activityType: 'Visit', status: 'Scheduled' },
+        { _id: 't2', userId: 'u2', ownerName: 'Jesus B.', customerId: { _id: 'c2', company: 'Stone River' }, startTime: iso(0, '10:00'), activityType: 'Call', status: 'Scheduled' }
+    ];
+    const card = (name: string) => screen.getByText(name).closest('.pl-item') as HTMLElement;
+
+    it("asks for the team, names whose each stop is, and leaves others' read only", async () => {
+        schedule = team;
+        await open({ viewing: '&scope=team', includesMe: true, justMe: false });
+        expect(calls[0].url).toMatch(/&scope=team$/);
+        expect(card('Stone River').textContent).toContain('Jesus B.');
+        expect(card('Stone River').querySelector('[aria-label="Edit activity"]')).toBeNull();
+        expect(card('Pacific Granite').querySelector('[aria-label="Edit activity"]')).not.toBeNull();
+        // Moving needs your calendar alone.
+        expect(card('Pacific Granite').getAttribute('draggable')).toBeNull();
+        expect(screen.getByLabelText('Schedule activity')).toBeTruthy();
+    });
+
+    it("offers no Add on a calendar you aren't in", async () => {
+        schedule = [team[1]];
+        await open({ viewing: '&scope=team&reps=u2', includesMe: false, justMe: false });
+        expect(screen.queryByLabelText('Schedule activity')).toBeNull();
+        expect(document.querySelector('.pl-addday')).toBeNull();
+    });
+
+    it('is your own, movable calendar as before without it', async () => {
+        await open();
+        expect(card('Pacific Granite').getAttribute('draggable')).toBe('true');
+        expect(card('Pacific Granite').textContent).not.toContain('Krish');
+    });
+});

@@ -11,6 +11,8 @@ import {
 export type ResourceRowActions = {
     currentUser: Loose | null;
     currentUserId: string | null;
+    /** Who is on the viewer's team, for the "branch" switches (useMyTeam). */
+    team: '*' | Set<string>;
     /** The resource being opened (its row waits). */
     loadingResourceId: string | null;
     onViewResource: (resource: Loose) => void;
@@ -25,7 +27,7 @@ type RowsProps = ResourceRowActions & { rows: Loose[]; today: string };
 const accessArgs = (a: ResourceRowActions, r: Loose) => [
     { ...a.currentUser, id: a.currentUserId },
     { createdBy: r.uploadedBy || r.createdBy },
-    r.customerLocation
+    a.team
 ] as const;
 
 const rowMenuItems = (a: ResourceRowActions, r: Loose): RowMenuItem[] => {

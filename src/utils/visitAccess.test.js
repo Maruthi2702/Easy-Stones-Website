@@ -33,17 +33,17 @@ describe('canModifyVisit', () => {
     expect(canModifyVisit({ id: 'rep2', permissions: [] }, { _id: 'v2' }, 'Seattle')).toBe(false);
   });
 
-  it("limits edit_branch_visits to their branches' customers", () => {
-    const mgr = { id: 'm', permissions: [P.EDIT_BRANCH], assignedLocations: ['Seattle', 'Spokane'] };
-    expect(canModifyVisit(mgr, visit, 'Seattle')).toBe(true);
-    expect(canModifyVisit(mgr, visit, 'Dallas')).toBe(false);
-    expect(canModifyVisit(mgr, visit, '')).toBe(false);
-    expect(canModifyVisit({ ...mgr, assignedLocations: ['*'] }, visit, 'Dallas')).toBe(true);
-    expect(canModifyVisit({ ...mgr, assignedLocations: undefined }, visit, 'Seattle')).toBe(false);
+  it('limits edit_branch_visits to visits logged by their team (the rep\'s branch)', () => {
+    const mgr = { id: 'm', permissions: [P.EDIT_BRANCH] };
+    expect(canModifyVisit(mgr, visit, new Set(['m', 'rep1']))).toBe(true);
+    expect(canModifyVisit(mgr, visit, new Set(['m', 'rep2']))).toBe(false);
+    expect(canModifyVisit(mgr, visit, '*')).toBe(true);
+    expect(canModifyVisit(mgr, visit, undefined)).toBe(false);
+    expect(canModifyVisit(mgr, { _id: 'v2' }, new Set(['m']))).toBe(false);
   });
 
-  it('does not let branch assignments alone grant editing', () => {
-    expect(canModifyVisit({ id: 'm', permissions: [], assignedLocations: ['*'] }, visit, 'Seattle')).toBe(false);
+  it('does not let a team alone grant editing', () => {
+    expect(canModifyVisit({ id: 'm', permissions: [] }, visit, '*')).toBe(false);
   });
 
   it('denies when there is no user or visit', () => {
@@ -60,15 +60,15 @@ describe('canDeleteVisit', () => {
   it('keeps edit and delete separate', () => {
     expect(canDeleteVisit({ id: 'x', permissions: [P.EDIT_ALL] }, visit, 'Dallas')).toBe(false);
     expect(canModifyVisit({ id: 'x', permissions: [P.DELETE_ALL] }, visit, 'Dallas')).toBe(false);
-    const mgr = { id: 'm', permissions: [P.EDIT_BRANCH], assignedLocations: ['Seattle'] };
-    expect(canDeleteVisit(mgr, visit, 'Seattle')).toBe(false);
+    const mgr = { id: 'm', permissions: [P.EDIT_BRANCH] };
+    expect(canDeleteVisit(mgr, visit, new Set(['rep1']))).toBe(false);
   });
 
-  it("limits delete_branch_visits to their branches' customers", () => {
-    const mgr = { id: 'm', permissions: [P.DELETE_BRANCH], assignedLocations: ['Seattle'] };
-    expect(canDeleteVisit(mgr, visit, 'Seattle')).toBe(true);
-    expect(canDeleteVisit(mgr, visit, 'Dallas')).toBe(false);
-    expect(canDeleteVisit({ ...mgr, assignedLocations: ['*'] }, visit, 'Dallas')).toBe(true);
+  it('limits delete_branch_visits to visits logged by their team', () => {
+    const mgr = { id: 'm', permissions: [P.DELETE_BRANCH] };
+    expect(canDeleteVisit(mgr, visit, new Set(['rep1']))).toBe(true);
+    expect(canDeleteVisit(mgr, visit, new Set(['rep2']))).toBe(false);
+    expect(canDeleteVisit(mgr, visit, '*')).toBe(true);
   });
 
   it('lets whoever logged a visit delete it only with delete_own_visits', () => {

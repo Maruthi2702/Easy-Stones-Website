@@ -4,6 +4,7 @@ import Customer from '../models/Customer.js';
 import ActivityLog from '../models/ActivityLog.js';
 import { normalizeVisitDate, normalizeOptionalDate } from '../utils/visitDates.js';
 import { canModifyVisit, ANY_EDIT_VISIT_PERMISSIONS } from '../utils/visitAccess.js';
+import { teamOfRequest } from '../services/teamDirectory.js';
 import { cleanVisitFields, isVisitType } from '../utils/visitForm.js';
 import { linkVisitToSchedule, moveVisitOnSchedule } from '../services/visitSchedule.js';
 
@@ -207,7 +208,7 @@ export default function createVisitsRouter({
       ).lean();
       const before = existing?.visits?.[0];
       if (!before) return res.status(404).json({ message: 'Customer or visit not found' });
-      if (!canModifyVisit({ id: req.userId, permissions: req.user?.permissions, assignedLocations: req.user?.assignedLocations }, before, existing.location)) {
+      if (!canModifyVisit({ id: req.userId, permissions: req.user?.permissions }, before, await teamOfRequest(req))) {
         return res.status(403).json({ message: "You don't have permission to edit this visit. You can edit visits you logged; anything else needs a Visits permission under Users & Roles." });
       }
       // A type that has since left the list stays valid on the visit that has it.

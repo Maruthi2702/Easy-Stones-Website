@@ -2,6 +2,8 @@ import { Download, Menu } from 'lucide-react';
 import LocationFilter from '../../components/shared/LocationFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import { DashboardRange } from './components/DashboardStats';
+import PeopleField from './components/PeopleField';
+import type { PeopleFilter } from './components/PeopleField';
 import type { Loose } from '../../types/records';
 
 export type DashboardHeaderProps = {
@@ -12,6 +14,10 @@ export type DashboardHeaderProps = {
     location: string;
     onLocationChange: (value: string) => void;
     currentUser: Loose | null;
+    /** The People filter, for anyone who can see more than their own; null otherwise. */
+    people: PeopleFilter | null;
+    /** The Calendar tab follows it too (Users & Roles → Visits → Team calendar). */
+    showPeopleOnCalendar?: boolean;
     /** The menu button shows when the side nav is closed or on a phone. */
     showMenuButton: boolean;
     onOpenSidebar: () => void;
@@ -24,7 +30,7 @@ export type DashboardHeaderProps = {
 
 /** The Dashboard's title, date and actions (time range, branch, export, calendar sync, add). */
 export default function DashboardHeader({
-    activeTab: activeDashboardTab, timeRange, onTimeRangeChange, locationOptions, location, onLocationChange, currentUser,
+    activeTab: activeDashboardTab, timeRange, onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, showPeopleOnCalendar = false,
     showMenuButton, onOpenSidebar, onExportVisits, onOpenCalendarSync, canAddVisits, onAddResource, onAddVisit
 }: DashboardHeaderProps) {
     return (
@@ -44,6 +50,7 @@ export default function DashboardHeader({
                         <h1>Dashboard</h1>
                         <div className="dashboard-breadcrumbs">
                             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                            {people && <span className="dashboard-people-summary"> · Showing {people.summary}</span>}
                         </div>
                     </div>
                 </div>
@@ -56,12 +63,28 @@ export default function DashboardHeader({
                                 value={location}
                                 onChange={onLocationChange}
                                 user={currentUser}
-                            />
+                                active={Boolean(people?.active)}
+                                onClear={people?.onReset}
+                            >
+                                {people ? <PeopleField {...people} /> : null}
+                            </LocationFilter>
                             <RowMenu
                                 label="More"
                                 items={[{ key: 'export', label: 'Export to Excel', icon: Download, onClick: () => onExportVisits() }]}
                             />
                         </>
+                    )}
+                    {activeDashboardTab === 'planner' && people && showPeopleOnCalendar && (
+                        <LocationFilter
+                            options={locationOptions}
+                            value={location}
+                            onChange={onLocationChange}
+                            user={currentUser}
+                            active={Boolean(people.active)}
+                            onClear={people.onReset}
+                        >
+                            <PeopleField {...people} />
+                        </LocationFilter>
                     )}
                     {activeDashboardTab === 'planner' && (
                         <button 

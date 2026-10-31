@@ -15,7 +15,8 @@ export type PlannerToolbarProps = {
     onPrev: () => void; onNext: () => void; onToday: () => void;
     onViewMode: (mode: ViewMode) => void;
     onDate: (date: Date) => void;
-    onNew: () => void;
+    /** Absent on a team calendar you aren't in: no Schedule Activity button. */
+    onNew?: () => void;
 };
 
 /** Back / Day·Week·Month / forward, Today, the title's calendar, today's count, and Schedule Activity. */
@@ -104,9 +105,11 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
             </div>
 
             {/* On a phone this is the round + at the bottom right (SalesPage.css). */}
+            {onNew && (
             <button className="pl-new" type="button" onClick={onNew} aria-label="Schedule activity">
                 <Plus size={18} /> <span className="pl-new-label">Schedule Activity</span>
             </button>
+            )}
         </div>
     );
 }

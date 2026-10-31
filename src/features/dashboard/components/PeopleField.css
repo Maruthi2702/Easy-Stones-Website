@@ -1,0 +1,64 @@
+/* The Sales dashboard's People field (PeopleField.tsx), inside the shared
+   Filters panel (LocationFilter.css); dark first, light below. */
+.dp-checks {
+  max-height: 300px;
+}
+
+.dp-search {
+  margin: 0.35rem 0 0.15rem;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  background-color: #27272a;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+}
+
+.dp-search:focus {
+  border-color: #d4af37;
+}
+
+.dp-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dp-branch-name {
+  padding: 0.55rem 0.5rem 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #9ca3af;
+}
+
+.dp-inactive {
+  font-style: normal;
+  color: #9ca3af;
+}
+
+.dp-none {
+  padding: 0.45rem 0.5rem;
+  font-size: 0.82rem;
+  color: #9ca3af;
+}
+
+.light-theme-active .dp-search,
+.light-theme .dp-search {
+  background-color: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  color: #0f172a;
+}
+
+.light-theme-active .dp-branch-name,
+.light-theme .dp-branch-name,
+.light-theme-active .dp-inactive,
+.light-theme .dp-inactive,
+.light-theme-active .dp-none,
+.light-theme .dp-none {
+  color: #64748b;
+}

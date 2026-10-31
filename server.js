@@ -135,8 +135,9 @@ import { canModifyVisit, canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_
 import { homeLocationOf, homeLocationProblem, fallbackHomeLocation } from './src/utils/locationFilter.js';
 import {
   getAggregationRangeMatch, getFollowUpRangeMatch, rangePrefilter, followUpDatePrefilter, slimForUnwind,
-  dashboardScope, scopeBranchPrefilter, scopeVisitUserMatch, narrowScopeToLocation
+  peopleMatch, peoplePrefilter
 } from './src/utils/dashboardMatch.js';
+import { dashboardPeopleOf, teamOfRequest, idVariants } from './src/services/teamDirectory.js';
 import { pickPanelFollowUps } from './src/utils/followUpPanel.js';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.js';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.ts';
@@ -731,7 +732,7 @@ async function startServer() {
             'view_inventory_analysis', 'import_inventory_analysis',
             'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures',
             'add_visits', 'edit_own_visits', 'delete_own_visits',
-            'view_branch_visits', 'edit_branch_visits', 'delete_branch_visits'
+            'view_branch_visits', 'edit_branch_visits', 'delete_branch_visits', 'view_team_calendar'
           ],
           isSystem: true
         },
@@ -911,6 +912,10 @@ async function startServer() {
       const ACTION_MIGRATIONS = [
         { from: 'manage_customers', grant: ['add_visits', 'edit_own_visits', 'delete_own_visits'] },
         { from: 'delete_customers', grant: ['delete_own_visits'] },
+        // Team calendar (2026-10-31, src/utils/teamScope.js): every role that
+        // sees others' visits gets to see their calendars too, once.
+        { from: 'view_branch_visits', grant: ['view_team_calendar'] },
+        { from: 'view_all_visits', grant: ['view_team_calendar'] },
         ...CHECKIN_MIGRATION,
         // Customers (2026-10-17): add and import split from manage_customers.
         ...CUSTOMER_MIGRATION
@@ -2776,20 +2781,15 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     }
 
     const userId = req.authType === 'admin' ? req.userId : req.customerId;
-    // view_all_visits: everything. view_branch_visits: every rep's visits, for
-    // customers in their assigned branches. Neither: what they logged. Set per
-    // role under Users & Roles → Visits; see dashboardScope in
-    // src/utils/dashboardMatch.js.
-    // ?location= is the dashboard's location filter, so the tiles count what
-    // the list below them shows; it can only narrow.
-    const scope = narrowScopeToLocation(
-      dashboardScope({ permissions: req.user?.permissions, userId, assignedLocations: req.user?.assignedLocations }),
-      req.query.location
-    );
-    const branchPrefilter = scopeBranchPrefilter(scope);
-    const branchStage = branchPrefilter ? [branchPrefilter] : [];
-    const userMatchObj = scopeVisitUserMatch(scope);
-    const visitDateMatch = getAggregationRangeMatch(startDate, endDate, "visits", userMatchObj);
+    // Whose entries count, by the REP's branch (src/utils/teamScope.js): View
+    // all → everyone's; View branch → everyone working at their locations';
+    // neither → what they logged. ?reps= (the People filter) and ?location=
+    // can only narrow, so the tiles count what the lists below them show.
+    const people = await dashboardPeopleOf(req);
+    const visitsOfPeople = peopleMatch(people, 'visits');
+    const visitPeopleBefore = visitsOfPeople ? [peoplePrefilter(people, 'visits', idVariants)] : [];
+    const visitPeopleAfter = visitsOfPeople ? [visitsOfPeople] : [];
+    const visitDateMatch = getAggregationRangeMatch(startDate, endDate, "visits");
 
     // Crucial: Pass the exact same string arguments as the visits endpoint to trigger the "Today + Future" logic
     let followUpStartStr = startDate ? startDate.toISOString().split('T')[0] : null;
@@ -2804,7 +2804,7 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
     const mockStartDate = followUpStartStr ? { toISOString: () => followUpStartStr + 'T' } : null;
     const mockEndDate = followUpEndStr ? { toISOString: () => followUpEndStr + 'T' } : null;
 
-    const followUpDateMatchScoped = getFollowUpRangeMatch(mockStartDate, mockEndDate, userMatchObj);
+    const followUpDateMatchScoped = getFollowUpRangeMatch(mockStartDate, mockEndDate);
 
     // The five rollups below are independent, so they run at once (Promise.all
     // further down) rather than one after another. Each filters and slims
@@ -2813,11 +2813,12 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
 
     // Aggregation for Visits Stats (Strictly by Visit Date)
     const visitStatsQuery = Customer.aggregate([
-      ...branchStage,
+      ...visitPeopleBefore,
       ...(visitRangePrefilter ? [visitRangePrefilter] : []),
       ...slimForUnwind('visits'),
       { $unwind: "$visits" },
       { $match: visitDateMatch },
+      ...visitPeopleAfter,
       {
         $group: {
           _id: null,
@@ -2857,23 +2858,24 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
 
     // Separate Aggregation for Follow-Up Stats (Strictly by Follow-Up Date)
     const followUpStatsQuery = Customer.aggregate([
-      ...branchStage,
+      ...visitPeopleBefore,
       ...slimForUnwind('visits'),
       { $unwind: "$visits" },
       { $match: followUpDateMatchScoped },
+      ...visitPeopleAfter,
       { $count: "count" }
     ]);
 
     // Today's Schedule count
 
     const scheduleCountQuery = Customer.aggregate([
-      ...branchStage,
+      ...visitPeopleBefore,
       followUpDatePrefilter(todayStr),
       ...slimForUnwind('visits'),
       { $unwind: "$visits" },
+      ...visitPeopleAfter,
       {
         $match: {
-          ...userMatchObj,
           $expr: {
             $eq: [
               {
@@ -2891,32 +2893,17 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
       { $count: "count" }
     ]);
 
-    // Resources follow the same scope as visits: only "own" narrows to what
-    // this person uploaded (it used to apply to everyone, admins included).
+    // Resources follow the same people as visits: whoever uploaded each one.
     const resourceRange = getAggregationRangeMatch(startDate, endDate, "resources");
     const resourcePrefilter = rangePrefilter(startDate, endDate, 'resources');
+    const resourcesOfPeople = peopleMatch(people, 'resources');
     const resourceStatsQuery = Customer.aggregate([
-      ...branchStage,
+      ...(resourcesOfPeople ? [peoplePrefilter(people, 'resources', idVariants)] : []),
       ...(resourcePrefilter ? [resourcePrefilter] : []),
       ...slimForUnwind('resources'),
       { $unwind: "$resources" },
-      {
-        $match: {
-          $expr: {
-            $and: [
-              scope.kind === 'own'
-                ? {
-                    $or: [
-                      { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
-                      { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
-                    ]
-                  }
-                : { $literal: true },
-              (resourceRange.$expr || { $literal: true })
-            ]
-          }
-        }
-      },
+      ...(resourcesOfPeople ? [resourcesOfPeople] : []),
+      { $match: resourceRange.$expr ? resourceRange : {} },
       { $count: "count" }
     ]);
 
@@ -2979,35 +2966,29 @@ const loadDashboardVisits = async (req, filterType) => {
       startDate = new Date(now.getFullYear(), 0, 1);
     }
 
-    const userId = req.authType === 'admin' ? req.userId : req.customerId;
-    // view_all_visits: everything. view_branch_visits: every rep's visits, for
-    // customers in their assigned branches. Neither: what they logged. Set per
-    // role under Users & Roles → Visits; see dashboardScope in
-    // src/utils/dashboardMatch.js.
-    // ?location= is the dashboard's location filter; it can only narrow.
-    const scope = narrowScopeToLocation(
-      dashboardScope({ permissions: req.user?.permissions, userId, assignedLocations: req.user?.assignedLocations }),
-      req.query.location
-    );
-    const branchPrefilter = scopeBranchPrefilter(scope);
-    const branchStage = branchPrefilter ? [branchPrefilter] : [];
-    const userMatchObj = scopeVisitUserMatch(scope);
+    // Whose visits, by the REP's branch (src/utils/teamScope.js): View all →
+    // everyone's; View branch → everyone working at their locations'; neither
+    // → what they logged. ?reps= (the People filter) and ?location= can only
+    // narrow.
+    const people = await dashboardPeopleOf(req);
+    const visitsOfPeople = peopleMatch(people, 'visits');
 
     // Handle fallback logic for matching
     const dateMatch = filterType === 'followup'
-      ? getFollowUpRangeMatch(startDate, endDate, userMatchObj)
-      : getAggregationRangeMatch(startDate, endDate, "visits", userMatchObj);
+      ? getFollowUpRangeMatch(startDate, endDate)
+      : getAggregationRangeMatch(startDate, endDate, "visits");
 
     // Filter and slim customers before $unwind (src/utils/dashboardMatch.js).
     // Follow-ups have no early filter: getFollowUpRangeMatch also counts an
     // entry whose follow-up fields are missing, so nearly every visit passes.
     const visitPrefilter = filterType === 'followup' ? null : rangePrefilter(startDate, endDate, 'visits');
     const visits = await Customer.aggregate([
-      ...branchStage,
+      ...(visitsOfPeople ? [peoplePrefilter(people, 'visits', idVariants)] : []),
       ...(visitPrefilter ? [visitPrefilter] : []),
       ...slimForUnwind('visits'),
       { $unwind: "$visits" },
       { $match: dateMatch },
+      ...(visitsOfPeople ? [visitsOfPeople] : []),
       {
         $project: {
           _id: "$visits._id",
@@ -3120,43 +3101,20 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
       startDate = new Date(now.getFullYear(), 0, 1);
     }
 
-    const userId = req.authType === 'admin' ? req.userId : req.customerId;
-    // Same scope as the visits list (dashboardScope): view_all_visits sees every
-    // resource, view_branch_visits their branches', anyone else only what they
-    // uploaded.
-    // This used to narrow everyone — admins included — to their own uploads.
-    // ?location= is the dashboard's location filter; it can only narrow.
-    const scope = narrowScopeToLocation(
-      dashboardScope({ permissions: req.user?.permissions, userId, assignedLocations: req.user?.assignedLocations }),
-      req.query.location
-    );
-    const branchPrefilter = scopeBranchPrefilter(scope);
-
+    // The same people as the visits list (src/utils/teamScope.js), by
+    // whoever uploaded each resource; ?reps= and ?location= can only narrow.
+    const people = await dashboardPeopleOf(req);
+    const resourcesOfPeople = peopleMatch(people, 'resources');
     const rangeMatch = getAggregationRangeMatch(startDate, endDate, "resources");
-
-    const resourceMatchStage = {
-      $expr: {
-        $and: [
-          scope.kind === 'own'
-            ? {
-                $or: [
-                  { $eq: [{ $toString: "$resources.uploadedBy" }, userId.toString()] },
-                  { $eq: [{ $toString: "$resources.createdBy" }, userId.toString()] }
-                ]
-              }
-            : { $literal: true },
-          (rangeMatch.$expr || { $literal: true })
-        ]
-      }
-    };
 
     const resourcePrefilter = rangePrefilter(startDate, endDate, 'resources');
     const resources = await Customer.aggregate([
-      ...(branchPrefilter ? [branchPrefilter] : []),
+      ...(resourcesOfPeople ? [peoplePrefilter(people, 'resources', idVariants)] : []),
       ...(resourcePrefilter ? [resourcePrefilter] : []),
       ...slimForUnwind('resources', ['city']),
       { $unwind: "$resources" },
-      { $match: resourceMatchStage },
+      ...(resourcesOfPeople ? [resourcesOfPeople] : []),
+      { $match: rangeMatch.$expr ? rangeMatch : {} },
       {
         $project: {
           _id: "$resources._id",
@@ -4409,7 +4367,7 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAn
 
     const visit = customer.visits ? customer.visits.id(visitId) : null;
     // Delete has its own permissions (src/utils/visitAccess.js).
-    if (visit && !canDeleteVisit({ id: req.userId, permissions: req.user?.permissions, assignedLocations: req.user?.assignedLocations }, visit, customer.location)) {
+    if (visit && !canDeleteVisit({ id: req.userId, permissions: req.user?.permissions }, visit, await teamOfRequest(req))) {
       return res.status(403).json({ message: "You don't have permission to delete this visit. You can delete visits you logged; anything else needs a Visits permission under Users & Roles." });
     }
     const isResourcePlacement = visit && visit.purpose && visit.purpose.toLowerCase().includes('resource placement');
@@ -4747,13 +4705,15 @@ app.post('/api/customers/:customerId/resources', authenticate, requirePermission
 
 // Update resource
 // A resource follows the visit rules (canModifyVisit / canDeleteVisit), with
-// whoever uploaded it standing in for whoever logged the visit.
-const resourceAccessArgs = (req, resource) => [
-  { id: req.userId, permissions: req.user?.permissions, assignedLocations: req.user?.assignedLocations },
-  { createdBy: resource.uploadedBy || resource.createdBy }
+// whoever uploaded it standing in for whoever logged the visit, and the
+// person's team (by the rep's branch — teamScope.js) for the "branch" switches.
+const resourceAccessArgs = async (req, resource) => [
+  { id: req.userId, permissions: req.user?.permissions },
+  { createdBy: resource.uploadedBy || resource.createdBy },
+  await teamOfRequest(req)
 ];
-const canModifyResource = (req, resource, customerLocation) => canModifyVisit(...resourceAccessArgs(req, resource), customerLocation);
-const canDeleteResource = (req, resource, customerLocation) => canDeleteVisit(...resourceAccessArgs(req, resource), customerLocation);
+const canModifyResource = async (req, resource) => canModifyVisit(...await resourceAccessArgs(req, resource));
+const canDeleteResource = async (req, resource) => canDeleteVisit(...await resourceAccessArgs(req, resource));
 
 app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requireAnyPermission(...ANY_EDIT_VISIT_PERMISSIONS), async (req, res) => {
   try {
@@ -4786,7 +4746,7 @@ app.put('/api/customers/:customerId/resources/:resourceId', authenticate, requir
     // Same rule as visits (src/utils/visitAccess.js), checked against the
     // customer the resource is on now — a move used to skip this entirely.
     const current = existingResource || moving;
-    if (current && !canModifyResource(req, current, (existingResource ? customer : source).location)) {
+    if (current && !(await canModifyResource(req, current))) {
       return res.status(403).json({ message: "You don't have permission to edit this resource. You can edit resources you uploaded; anything else needs a Visits permission under Users & Roles." });
     }
 
@@ -4912,7 +4872,7 @@ app.delete('/api/customers/:customerId/resources/:resourceId', authenticate, req
 
     const resource = customer.resources ? customer.resources.id(resourceId) : null;
     const titleToMatch = resource ? (resource.title || resource.resourceType) : '';
-    if (resource && !canDeleteResource(req, resource, customer.location)) {
+    if (resource && !(await canDeleteResource(req, resource))) {
       return res.status(403).json({ message: "You don't have permission to delete this resource. You can delete resources you uploaded; anything else needs a Visits permission under Users & Roles." });
     }
 

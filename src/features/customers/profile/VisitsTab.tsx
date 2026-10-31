@@ -1,6 +1,7 @@
 import { Clock } from 'lucide-react';
 import VisitPostCard from '../../../components/sales/VisitPostCard';
 import { canModifyVisit, canDeleteVisit } from '../../../utils/visitAccess';
+import { useMyTeam } from '../../../api/myTeam';
 import Pagination from '../../../components/shared/Pagination';
 import { usePagination, pageCount } from '../../../components/shared/paginationConfig';
 import { TabEmpty, TabSkeleton } from './TabStates';
@@ -11,7 +12,6 @@ export type VisitsTabProps = {
     visits: Loose[];
     /** Their history is still on its way. */
     loading: boolean;
-    customerLocation?: string;
     currentUser: Loose | null;
     currentUserId: string | null;
     canAddVisits: boolean;
@@ -31,9 +31,10 @@ export type VisitsTabProps = {
  * Add visit button is the header's (2026-10-29); the empty tab holds its own.
  */
 export default function VisitsTab({
-    visits, loading, customerLocation, currentUser, currentUserId, canAddVisits, onAddVisit, onReaction,
+    visits, loading, currentUser, currentUserId, canAddVisits, onAddVisit, onReaction,
     onEditVisit, onDeleteVisit, onOpenGallery, activeReactionMessageId, setActiveReactionMessageId
 }: VisitsTabProps) {
+    const team = useMyTeam(currentUser, currentUserId);
     const paging = usePagination();
     const newestFirst = [...visits].reverse();
     const totalPages = pageCount(newestFirst.length, paging.rowsPerPage);
@@ -60,8 +61,8 @@ export default function VisitsTab({
                                     handleEditVisit={onEditVisit}
                                     handleDeleteVisit={onDeleteVisit}
                                     handleOpenGallery={onOpenGallery}
-                                    canModify={canModifyVisit({ ...currentUser, id: currentUserId }, visit, customerLocation)}
-                                    canDelete={canDeleteVisit({ ...currentUser, id: currentUserId }, visit, customerLocation)}
+                                    canModify={canModifyVisit({ ...currentUser, id: currentUserId }, visit, team)}
+                                    canDelete={canDeleteVisit({ ...currentUser, id: currentUserId }, visit, team)}
                                 />
                             ))
                         ) : (

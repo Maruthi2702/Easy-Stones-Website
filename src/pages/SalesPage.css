@@ -5505,6 +5505,24 @@ body.light-theme-active .pl-ev-flag--done { color: #16a34a; }
   color: var(--pl-gold);
 }
 
+/* The team calendar (the dashboard's People filter): a day you can't add to
+   says so plainly, a stop says whose calendar it's on, and someone else's
+   stop is read only (no pencil, bin or ⋯; it can't be dragged). */
+.pl-empty--quiet,
+.pl-empty--quiet:hover {
+  cursor: default;
+  border-color: var(--pl-dash);
+  background: transparent;
+  color: var(--pl-text-3);
+}
+
+.pl-owner {
+  font-weight: 700;
+  color: var(--pl-text);
+}
+
+.pl-item.is-readonly { cursor: default; }
+
 /* ── loading ── */
 .pl-skcard {
   border-radius: 10px;

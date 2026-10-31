@@ -18,6 +18,8 @@ import User from '../models/User.js';
 import { calendarFeedToken, validCalendarFeedToken } from '../services/calendarFeed.js';
 import { zonedTimeToUtc } from '../utils/dateUtils.js';
 import { cleanScheduleFields, isObjectId, DEFAULT_VISIT_MINUTES } from '../utils/scheduleRecord.js';
+import { calendarPeopleOf, idVariants } from '../services/teamDirectory.js';
+import { ALL_PEOPLE } from '../utils/teamScope.js';
 import { discoverICloudCalendars, syncICloudCalendar } from '../services/icloudSyncService.js';
 
 /**
@@ -86,7 +88,12 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
     }
   });
 
-  // Get user's schedule
+  // Get user's schedule. ?scope=team (staff only) is the team calendar
+  // (src/utils/teamScope.js, 2026-10-31): the entries of everyone whose
+  // calendar this person may see — their own, plus their teammates' with
+  // Users & Roles → Visits → Team calendar — narrowed by ?reps= (the
+  // dashboard's People filter) and ?location=, each with `ownerName`. Read
+  // only: PUT and DELETE below still match on the signed-in user's id.
   router.get('/schedule', verifyAnyAuth, async (req, res) => {
 
     try {
@@ -94,6 +101,12 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       const { start, end } = req.query;
 
       let query = { userId };
+      let nameOf = null;
+      if (req.query.scope === 'team' && req.userId && req.user?.type !== 'customer') {
+        const team = await calendarPeopleOf(req);
+        nameOf = team.nameOf;
+        query = team.people === ALL_PEOPLE ? {} : { userId: { $in: [...team.people].flatMap(idVariants) } };
+      }
 
       if (start && end) {
         query.startTime = { $gte: start, $lte: end };
@@ -103,7 +116,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         .populate('customerId', 'contactName company')
         .sort({ startTime: 1 });
 
-      res.json(schedule);
+      if (!nameOf) return res.json(schedule);
+      res.json(schedule.map((item) => {
+        const doc = item.toObject();
+        return { ...doc, ownerName: nameOf.get(String(doc.userId)) || '' };
+      }));
     } catch (error) {
       console.error('Fetch schedule error:', error);
       res.status(500).json({ message: 'Failed to fetch schedule' });

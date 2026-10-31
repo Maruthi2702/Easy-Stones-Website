@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, MapPin, Eye, Loader } from 'lucide-react';
+import { ChevronDown, MapPin, Eye, Loader, User } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { formatDate } from '../../../utils/dateUtils';
@@ -26,13 +26,15 @@ export type VisitsFocusListProps = {
     canModify?: (visit: Loose) => boolean;
     canDelete?: (visit: Loose) => boolean;
     canOpenCustomer?: boolean;
+    /** More than the viewer is in view (the People filter): each row says who logged it. */
+    showWhoLogged?: boolean;
     onOpenCustomer?: (visit: Loose) => void;
     onEdit?: (visit: Loose) => void;
     onDelete?: (visit: Loose) => void;
     onOpenGallery?: (images: string[], index: number) => void;
 };
 
-const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, canModify, canDelete, canOpenCustomer = true, onOpenCustomer, onEdit, onDelete, onOpenGallery }: VisitsFocusListProps) => {
+const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, canModify, canDelete, canOpenCustomer = true, showWhoLogged = false, onOpenCustomer, onEdit, onDelete, onOpenGallery }: VisitsFocusListProps) => {
     const [openId, setOpenId] = useState<string | null>(null);
     const [viewing, setViewing] = useState<Loose | null>(null);
     // The opened visit's photos and comments; cleared on every open so an edit
@@ -85,6 +87,7 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
                     const open = openId === visit._id;
                     const d = new Date(visit.date as string);
                     const valid = Number.isFinite(d.getTime());
+                    const by = showWhoLogged ? String(visit.createdByName || '').trim() : '';
                     return (
                         <li key={visit._id as string} className={open ? 'is-open' : ''}>
                             <div className="dfx-row" onClick={() => setOpenId(open ? null : (visit._id as string))}>
@@ -101,9 +104,10 @@ const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, can
                                     ) : (
                                         <span className="dfx-row-company">{company}</span>
                                     )}
-                                    <span className="dfx-row-contact">{contact || ' '}{Boolean(visit.location) && <span className="dfx-phone-only"> · {visit.location as string}</span>}</span>
+                                    <span className="dfx-row-contact">{contact || ' '}{Boolean(visit.location) && <span className="dfx-phone-only"> · {visit.location as string}</span>}{Boolean(by) && <span className="dfx-phone-only"> · by {by}</span>}</span>
                                 </span>
                                 {Boolean(visit._saving) && <span className="dfx-saving" role="status"><Loader size={12} className="animate-spin" aria-hidden="true" />Saving…</span>}
+                                {Boolean(by) && <span className="dfx-pill dfx-pill--rep" title={`Logged by ${by}`}><User size={11} aria-hidden="true" />{by}</span>}
                                 {Boolean(visit.location) && <span className="dfx-pill"><MapPin size={11} aria-hidden="true" />{visit.location as string}</span>}
                                 <button
                                     type="button" className="dfx-chev-btn" aria-expanded={open}

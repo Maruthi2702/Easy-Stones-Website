@@ -27,7 +27,7 @@ export const STOP_COLORS: Record<string, string> = { Visit: '#16a34a', Call: '#2
 const startOfDay = (d: Date | number | string) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 
 /** One row of the Today panel. */
-export type TodayStop = { id: string; customerId: string; time: string; type: string; color: string; company: string; detail: string };
+export type TodayStop = { id: string; customerId: string; time: string; type: string; color: string; company: string; detail: string; owner: string };
 
 /** Today's calendar entries, earliest first, as { id, time, type, color, company, detail }. */
 export const todayStops = (schedules: Loose[] = [], customerName: (schedule: Loose) => string = () => '', now: Date = new Date()): TodayStop[] => {
@@ -47,7 +47,9 @@ export const todayStops = (schedules: Loose[] = [], customerName: (schedule: Loo
         type,
         color: STOP_COLORS[type],
         company: customerName(s) || 'Unknown customer',
-        detail: (s.notes || '').trim()
+        detail: (s.notes || '').trim(),
+        // Whose calendar — only the team calendar sends it (ownerName).
+        owner: String(s.ownerName || '').trim()
       };
     });
 };
@@ -70,12 +72,13 @@ export const dueLabel = (value?: string, now: Date = new Date()): Due => {
  * The Follow-ups panel's rows: the server picks and orders them
  * (src/utils/followUpPanel.js); this only words how late or soon each one is.
  */
-export type PanelFollowUp = Due & { id: string; customerId: string; company: string; note: string };
+export type PanelFollowUp = Due & { id: string; customerId: string; company: string; note: string; by: string };
 
 export const panelFollowUps = (rows: Loose[] = [], now: Date = new Date()): PanelFollowUp[] => rows.map((r) => ({
   id: r.id,
   customerId: r.customerId,
   company: r.company,
   note: r.note,
+  by: r.by || '',
   ...dueLabel(r.dueDate, now)
 }));

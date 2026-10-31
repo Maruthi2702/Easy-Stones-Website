@@ -2,6 +2,7 @@ import React from 'react';
 import { Eye, FileText, Folder, Loader } from 'lucide-react';
 import { formatDate } from '../../../utils/dateUtils';
 import { canModifyVisit, canDeleteVisit } from '../../../utils/visitAccess';
+import { useMyTeam } from '../../../api/myTeam';
 import { isPdfSource } from '../../../utils/attachments';
 import { openPdfInline } from '../../../utils/packingList';
 import Pagination from '../../../components/shared/Pagination';
@@ -14,7 +15,6 @@ export type ResourcesTabProps = {
     resources: Loose[];
     /** The Customers tab's first page — a resource's client name. */
     customers: Loose[];
-    customerLocation?: string;
     currentUser: Loose | null;
     currentUserId: string | null;
     /** The resource being opened (its buttons wait). */
@@ -36,9 +36,10 @@ export type ResourcesTabProps = {
  * (2026-10-29); the empty tab holds its own. A row's Edit and Delete are in its ⋯.
  */
 export default function ResourcesTab({
-    resources, customers, customerLocation, currentUser, currentUserId, loadingResourceId, canAddVisits, onAddResource, onViewResource,
+    resources, customers, currentUser, currentUserId, loadingResourceId, canAddVisits, onAddResource, onViewResource,
     onEditResource, onDeleteResource, onOpenGallery, expandedResourceId, setExpandedResourceId
 }: ResourcesTabProps) {
+    const team = useMyTeam(currentUser, currentUserId);
     const paging = usePagination();
     const totalPages = pageCount(resources.length, paging.rowsPerPage);
     const page = Math.min(paging.currentPage, totalPages);
@@ -97,8 +98,8 @@ export default function ResourcesTab({
                                                 </button>
                                                 <RowMenu
                                                     noun="resource"
-                                                    onEdit={canModifyVisit({ ...currentUser, id: currentUserId }, { createdBy: resource.uploadedBy || resource.createdBy }, customerLocation) ? () => onEditResource(resource) : undefined}
-                                                    onDelete={canDeleteVisit({ ...currentUser, id: currentUserId }, { createdBy: resource.uploadedBy || resource.createdBy }, customerLocation) ? () => onDeleteResource(resource._id, resource.customerId) : undefined}
+                                                    onEdit={canModifyVisit({ ...currentUser, id: currentUserId }, { createdBy: resource.uploadedBy || resource.createdBy }, team) ? () => onEditResource(resource) : undefined}
+                                                    onDelete={canDeleteVisit({ ...currentUser, id: currentUserId }, { createdBy: resource.uploadedBy || resource.createdBy }, team) ? () => onDeleteResource(resource._id, resource.customerId) : undefined}
                                                 />
                                                 {resource.url && (
                                                     <a href={resource.url} target="_blank" rel="noopener noreferrer" className="icon-btn link" onClick={(e) => e.stopPropagation()} title="Open Link">
