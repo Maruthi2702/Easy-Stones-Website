@@ -723,6 +723,29 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   dates are midnight UTC, read as UTC (Pierce County's are real times, read as
   Pacific). About 7 new homes a week. No terms of use found on the layer beyond the
   city's open-data disclaimer.
+  **Lakewood** (2026-11-01, on `feat/lakewood-permits`): the city's public permit
+  portal is a Clariti / OnCamino Public Portal (`lakewood_wa.claritilaunch.com`)
+  whose pages call a **public GraphQL API with no login**
+  (`api.app.oncamino.com/api/v1/graphql`, organization id 450; `rules/lakewood.ts`,
+  `sources/lakewood.ts`). The reader asks for the ids of every type under
+  "Building Applications", reads the list **newest change first** (checked as it's
+  read — out of order stops the run), and takes each issued/finaled/closed lead's
+  **issue day from its status history** (the list has none); a permit issued before
+  the window is dropped. A permit's page adds description, applicant, owner and
+  contractor names (no phone or email), units, parcel and expiry; **no project
+  value** is published (the "Building Valuation Fee" is a fee). Leads: Single
+  Family New Construction → New home, ADU → ADU, Major/Minor Remodel → Remodel,
+  Major/Minor Tenant Improvement → Commercial remodel, "Commercial Building" →
+  Other building (broad). Skipped by exact name: trades, re-roofs, windows, water
+  heaters, signs, gates, accessory structures, manufactured homes, adult family
+  homes, demolitions, solar, walls, pools, change of use. ~30 leads a month; a
+  month-so-far check is a second read of the same portal. This is an undocumented
+  API behind the portal's own pages: if the city or Clariti changes it, the run
+  fails loudly and the query strings in `sources/lakewood.ts` are the first place to
+  look. **Puyallup not built** (checked 2026-11-01): its portal
+  (`permits.puyallupwa.gov`, CityView) answers scripts with a Cloudflare 403, and
+  the city's ArcGIS `PermitToParcelJoin` layer stops at an issue date of 2023-10-12.
+  Ask the permit center (253-864-4165) for a feed or recheck.
 - **Kitsap** (2026-10-22, on `main` 2026-11-01): the county's
   Department of Community Development layer behind its Permit Explorer map
   (`rules/kitsapCounty.ts`, the shared ArcGIS reader). Unincorporated land and its

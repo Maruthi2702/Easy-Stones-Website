@@ -40,7 +40,7 @@ describe('the sources', () => {
       'king_county', 'auburn', 'bellevue', 'burien', 'issaquah', 'kenmore', 'kirkland', 'mercer_island', 'renton', 'sammamish', 'seattle', 'shoreline', 'snoqualmie',
       'clark_county',
       'kitsap_county',
-      'pierce_county', 'tacoma',
+      'pierce_county', 'lakewood', 'tacoma',
       'skagit_county', 'anacortes',
       'snohomish_county', 'edmonds', 'marysville', 'monroe', 'snohomish_city',
       'whatcom', 'bellingham'

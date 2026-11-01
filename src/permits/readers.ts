@@ -15,6 +15,7 @@ import { createMonroeSource } from './sources/monroe.ts';
 import { createPierceCountySource } from './sources/pierceCounty.ts';
 import { createKitsapCountySource } from './sources/kitsapCounty.ts';
 import { createClarkCountySource } from './sources/clarkCounty.ts';
+import { createLakewoodSource } from './sources/lakewood.ts';
 import { createTacomaSource } from './sources/tacoma.ts';
 import { createBellinghamSource } from './sources/bellingham.ts';
 import { createSeattleSource } from './sources/seattle.ts';
@@ -45,6 +46,7 @@ export function createPermitReaders() {
     clark_county: createClarkCountySource(),
     kitsap_county: createKitsapCountySource(),
     pierce_county: createPierceCountySource(),
+    lakewood: createLakewoodSource(),
     tacoma: createTacomaSource(),
     skagit_county: createEnergovSource({ name: 'Skagit County', tenant: SKAGIT_TENANT, base: SKAGIT_PORTAL }),
     anacortes: createAnacortesSource(),

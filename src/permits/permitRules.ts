@@ -36,6 +36,7 @@ import { COUNTIES, countyLabel } from './places.ts';
 import whatcom, { WHATCOM_PORTAL, whatcomPermitUrl, energovPermit } from './rules/whatcom.ts';
 import skagitCounty from './rules/skagitCounty.ts';
 import pierceCounty from './rules/pierceCounty.ts';
+import lakewood from './rules/lakewood.ts';
 import tacoma from './rules/tacoma.ts';
 import kitsapCounty from './rules/kitsapCounty.ts';
 import clarkCounty from './rules/clarkCounty.ts';
@@ -64,7 +65,7 @@ export const RULES: Readonly<Record<string, Loose>> = Object.freeze(Object.fromE
   kingCounty, auburn, bellevue, burien, issaquah, kenmore, kirkland, mercerIsland, renton, sammamish, seattle, shoreline, snoqualmie,
   clarkCounty,
   kitsapCounty,
-  pierceCounty, tacoma,
+  pierceCounty, lakewood, tacoma,
   skagitCounty, anacortes,
   snohomishCounty, edmonds, marysville, monroe, snohomishCity,
   whatcom, bellingham
