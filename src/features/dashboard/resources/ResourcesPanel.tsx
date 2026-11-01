@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Download } from 'lucide-react';
 import LocationFilter from '../../../components/shared/LocationFilter';
 import { useMyTeam } from '../../../api/myTeam';
-import { useResourceTypes } from '../../../api/typeLists';
+import { useResourceFamilies, useResourceTypes } from '../../../api/typeLists';
 import PeopleField from '../components/PeopleField';
 import DashboardSearch from '../components/DashboardSearch';
 import type { PeopleFilter } from '../components/PeopleField';
@@ -66,8 +66,9 @@ export default function ResourcesPanel(p: ResourcesPanelProps) {
     const today = formatForDateInput(new Date());
 
     const resourceTypes = useResourceTypes();
-    const info = useMemo(() => typeInfoFrom(resourceTypes.types), [resourceTypes.types]);
-    const types = useMemo(() => typeFacets(rows, info), [rows, info]);
+    const families = useResourceFamilies().types;
+    const info = useMemo(() => typeInfoFrom(resourceTypes.types, families), [resourceTypes.types, families]);
+    const types = useMemo(() => typeFacets(rows, info, families), [rows, info, families]);
     const loggers = useMemo(() => loggerFacets(rows), [rows]);
     const filtered = useMemo(() => applyResourceFilters(rows, filters), [rows, filters]);
     const paged = filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage);

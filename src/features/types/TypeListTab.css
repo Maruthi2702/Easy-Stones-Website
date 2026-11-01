@@ -1,5 +1,5 @@
 /*
- * Admin → Visit Types / Resource Types (TypeListTab.tsx). Colours match the
+ * Admin → Visit Types / Resource Types and its Families (TypeListTab.tsx). Colours match the
  * form template's tokens (shared/form/FormModal.css) like the other admin
  * screens; dark by default, body.light-theme-active switches them.
  */
@@ -47,6 +47,12 @@ body.light-theme-active .tl-page {
     gap: 14px;
 }
 
+.tl-main,
+.tl-section { display: flex; flex-direction: column; gap: 14px; }
+
+/* Resource Types' Families, under its list. */
+.tl-section { margin-top: 18px; padding-top: 26px; border-top: 1px solid var(--tl-bd2); }
+
 .tl-header { display: flex; align-items: center; gap: 12px; }
 
 .tl-header-icon {
@@ -62,6 +68,7 @@ body.light-theme-active .tl-page {
 }
 
 .tl-title { margin: 0; flex: 1; font-size: 22px; font-weight: 700; letter-spacing: -0.01em; }
+.tl-title-sub { font-size: 18px; }
 
 .tl-hint { margin: 0; font-size: 13px; color: var(--tl-mut); }
 

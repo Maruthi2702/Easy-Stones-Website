@@ -143,10 +143,10 @@ export const USERS_ROLES_SECTIONS = [
   {
     section: 'Resource types',
     actions: [
-      { key: RESOURCE_TYPES.ADD, label: 'Add resource types', desc: 'Add a type to the Add resource list' },
-      { key: RESOURCE_TYPES.EDIT, label: 'Edit resource types', desc: 'Rename a type, change its family, hide or show it' },
-      { key: RESOURCE_TYPES.REORDER, label: 'Reorder resource types', desc: 'Set the order everyone sees in the list' },
-      { key: RESOURCE_TYPES.DELETE, label: 'Delete resource types', desc: 'Delete a type no resource uses' }
+      { key: RESOURCE_TYPES.ADD, label: 'Add resource types', desc: 'Add a type to the Add resource list, or a family' },
+      { key: RESOURCE_TYPES.EDIT, label: 'Edit resource types', desc: 'Rename a type or family, change a type\'s family, hide or show them' },
+      { key: RESOURCE_TYPES.REORDER, label: 'Reorder resource types', desc: 'Set the order everyone sees in the list and the families' },
+      { key: RESOURCE_TYPES.DELETE, label: 'Delete resource types', desc: 'Delete a type or a family, moving what uses it' }
     ]
   },
   {

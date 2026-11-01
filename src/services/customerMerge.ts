@@ -14,6 +14,7 @@ import type { Loose } from '../types/records.ts';
  */
 import mongoose from 'mongoose';
 import { companyKey, phoneKey, isPlaceholderEmail, isFillerName } from '../utils/customerMatch.ts';
+import { familyLookup, earlierCount, modaFields } from '../utils/modaTotals.ts';
 
 /**
  * Where a customer id can be referenced. `deliveries` is the trap: it stores the
@@ -215,6 +216,15 @@ export const executeMerge = async (db: Loose, survivor: Loose, losers: Loose[], 
   if (extraAssoc.length) update.$addToSet = { associatedCustomers: { $each: extraAssoc } };
 
   if (Object.keys(update).length) await customers.updateOne({ _id: survivorId }, update);
+
+  // The losers' towers and binders now count on the survivor (src/utils/modaTotals.ts),
+  // on top of what the survivor had counted before (the losers' typed counts go, as always).
+  if (extraResources.length) {
+    const familyOf = familyLookup(await db.collection('resourcetypes').find({}, { projection: { name: 1, family: 1 } }).toArray());
+    const merged = await customers.findOne({ _id: survivorId }, { projection: { resources: 1 } });
+    const earlier = earlierCount(survivor, survivor.resources || [], familyOf);
+    await customers.updateOne({ _id: survivorId }, { $set: modaFields(earlier, merged?.resources || [], familyOf) });
+  }
 };
 
 /** Put one snapshotMerge result back: removed records, their references, the survivor's old values. */

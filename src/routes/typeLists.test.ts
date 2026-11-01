@@ -1,4 +1,4 @@
-// The Visit Types / Resource Types routes and their first-start seed
+// The Visit Types / Resource Types / resource families routes and their first-start seed
 // (src/routes/typeLists.ts, src/services/seedTypeLists.ts), on an in-memory MongoDB.
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import express from 'express';
@@ -11,10 +11,12 @@ import type { Loose } from '../types/records.ts';
 const { default: createTypeListRouter } = await import('./typeLists.ts');
 const { default: VisitType } = await import('../models/VisitType.ts');
 const { default: ResourceType } = await import('../models/ResourceType.ts');
+const { default: ResourceFamily } = await import('../models/ResourceFamily.ts');
 const { default: Customer } = await import('../models/Customer.ts');
 const { default: Schedule } = await import('../models/Schedule.ts');
 const { seedTypeLists } = await import('../services/seedTypeLists.ts');
-const { countVisitTypeUses, countResourceTypeUses, replaceVisitType, replaceResourceType } = await import('../services/typeReplacement.ts');
+const { countVisitTypeUses, countResourceTypeUses, replaceVisitType, replaceResourceType, countFamilyUses, replaceFamily } = await import('../services/typeReplacement.ts');
+const { recountForFamilyChange } = await import('../services/modaCount.ts');
 
 let mongo: MongoMemoryReplSet;
 let app: express.Express;
@@ -27,7 +29,7 @@ beforeAll(async () => {
   // A replica set: a delete that moves records runs in a transaction.
   mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(mongo.getUri());
-  await Promise.all([Customer.createCollection(), Schedule.createCollection(), VisitType.createCollection(), ResourceType.createCollection()]);
+  await Promise.all([Customer.createCollection(), Schedule.createCollection(), VisitType.createCollection(), ResourceType.createCollection(), ResourceFamily.createCollection()]);
   app = express();
   app.use(express.json());
   type TestRequest = Request & { user?: Loose; userId?: string };
@@ -39,7 +41,12 @@ beforeAll(async () => {
   }));
   app.use('/api/resource-types', createTypeListRouter({
     kind: 'resource', Model: ResourceType, actions: ACTIONS('resource_types'), authenticate, requireAction,
-    countUses: countResourceTypeUses, replaceUses: replaceResourceType
+    countUses: countResourceTypeUses, replaceUses: replaceResourceType, onFamilyChange: recountForFamilyChange,
+    families: () => ResourceFamily.find({}).select('name active').lean() as Promise<{ name: string; active?: boolean }[]>
+  }));
+  app.use('/api/resource-families', createTypeListRouter({
+    kind: 'family', Model: ResourceFamily, actions: ACTIONS('resource_types'), authenticate, requireAction,
+    countUses: countFamilyUses, replaceUses: replaceFamily
   }));
 }, 180000);
 
@@ -53,6 +60,7 @@ beforeEach(async () => {
   await Schedule.deleteMany({});
   await VisitType.deleteMany({});
   await ResourceType.deleteMany({});
+  await ResourceFamily.deleteMany({});
   await seedTypeLists();
 });
 
@@ -278,5 +286,96 @@ describe('delete', () => {
   it('never deletes a built-in visit type', async () => {
     const [first] = await list('/api/visit-types');
     expect((await send('delete', `/api/visit-types/${first._id}`)).status).toBe(409);
+  });
+});
+
+describe('Moda Display and Binders (src/utils/modaTotals.ts)', () => {
+  const setup = async () => {
+    const [kit, tower] = await ResourceType.create([
+      { name: 'Binder kit', label: 'Binder kit', order: 50, family: 'other' },
+      { name: 'Tower 2026', label: 'Tower 2026', order: 51, family: 'tower' }
+    ]);
+    const customer = await Customer.create({
+      company: 'Five Star', contactName: 'Derek', email: 'fs@example.invalid', modaDisplay: 'No', modaBinder: '6',
+      resources: [{ title: 'Binder kit', resourceType: 'Binder kit', qty: 3, status: 'Active', date: '2026-10-01' }]
+    });
+    return { kit, tower, customer };
+  };
+  const moda = async (id: unknown) => { const c = await Customer.findById(id).lean() as Loose; return { display: c.modaDisplay, binders: c.modaBinder }; };
+
+  it('moving a type into Sample binders adds its resources to every customer holding it', async () => {
+    const { kit, customer } = await setup();
+    const res = await send('put', `/api/resource-types/${kit._id}`, { family: 'binder' });
+    expect(res.status).toBe(200);
+    expect(res.body.recounted).toBe(1);
+    expect(await moda(customer._id)).toEqual({ display: 'No', binders: '9' });
+    // And back out again.
+    await send('put', `/api/resource-types/${kit._id}`, { family: 'samples' });
+    expect(await moda(customer._id)).toEqual({ display: 'No', binders: '6' });
+  });
+  it('a family change that touches neither Display nor Binders recounts nobody', async () => {
+    const { kit } = await setup();
+    expect((await send('put', `/api/resource-types/${kit._id}`, { family: 'samples' })).body.recounted).toBe(0);
+  });
+  it('deleting a type and moving its resources into a Display tower type turns Display on', async () => {
+    const { kit, tower, customer } = await setup();
+    const res = await send('delete', `/api/resource-types/${kit._id}`, { replaceWith: String(tower._id) });
+    expect(res.status).toBe(200);
+    expect(await moda(customer._id)).toEqual({ display: 'Yes', binders: '6' });
+  });
+});
+
+describe('resource families', () => {
+  const familyId = async (name: string) => String((await ResourceFamily.findOne({ name }).lean() as Loose)._id);
+
+  it('start as the five built-in ones, in order, once', async () => {
+    const families = await list('/api/resource-families');
+    expect(families.map((f: Loose) => [f.name, f.label, f.system])).toEqual([
+      ['tower', 'Display towers', true], ['tabletop', 'Tabletop displays', true], ['binder', 'Sample binders', true],
+      ['samples', 'Samples', true], ['other', 'Other', true]
+    ]);
+    await send('put', `/api/resource-families/${families[0]._id}`, { label: 'Towers' });
+    await seedTypeLists();
+    expect((await list('/api/resource-families')).map((f: Loose) => f.label)).toEqual(['Towers', 'Tabletop displays', 'Sample binders', 'Samples', 'Other']);
+  });
+
+  it('a manager adds one at the bottom and puts a type in it; an unknown or hidden family is refused', async () => {
+    const res = await send('post', '/api/resource-families', { label: 'Slab samples' });
+    expect(res.status).toBe(201);
+    expect(res.body.type).toMatchObject({ name: 'Slab samples', label: 'Slab samples', order: 5, system: false });
+    expect((await send('post', '/api/resource-families', { label: 'slab  SAMPLES' })).body.message).toBe('There is already a family with that name.');
+    expect((await send('post', '/api/resource-families', { label: 'Slabs' }, ['edit_resource_types'])).status).toBe(403);
+
+    const added = await send('post', '/api/resource-types', { label: 'Quartz slab', family: 'Slab samples' });
+    expect(added.body.type.family).toBe('Slab samples');
+    expect((await send('post', '/api/resource-types', { label: 'Granite slab', family: 'banana' })).body.message).toBe('Choose a family.');
+
+    // Hidden: no new type goes in it, the one already there can stay.
+    await send('put', `/api/resource-families/${res.body.type._id}`, { active: false });
+    expect((await send('post', '/api/resource-types', { label: 'Granite slab', family: 'Slab samples' })).body.message).toBe('Choose a family.');
+    expect((await send('put', `/api/resource-types/${added.body.type._id}`, { label: 'Quartz slabs', family: 'Slab samples' })).status).toBe(200);
+  });
+
+  it('a built-in family is never deleted', async () => {
+    const res = await send('delete', `/api/resource-families/${await familyId('binder')}`);
+    expect(res.status).toBe(409);
+    expect(await ResourceFamily.countDocuments({ name: 'binder' })).toBe(1);
+  });
+
+  it('deleting one with types moves them to the family chosen, recounting Moda binders', async () => {
+    const family = (await send('post', '/api/resource-families', { label: 'Kits' })).body.type;
+    await send('post', '/api/resource-types', { label: 'Binder kit', family: 'Kits' });
+    const customer = await Customer.create({
+      company: 'Five Star', contactName: 'Derek', email: 'fs2@example.invalid', modaDisplay: 'No', modaBinder: '6',
+      resources: [{ title: 'Binder kit', resourceType: 'Binder kit', qty: 3, status: 'Active', date: '2026-10-01' }]
+    });
+    expect((await send('get', `/api/resource-families/${family._id}/uses`)).body.uses).toBe(1);
+    expect((await send('delete', `/api/resource-families/${family._id}`)).status).toBe(409);
+
+    const res = await send('delete', `/api/resource-families/${family._id}`, { replaceWith: await familyId('binder') });
+    expect(res.body).toMatchObject({ ok: true, moved: 1, movedTo: 'Sample binders' });
+    expect((await ResourceType.findOne({ name: 'Binder kit' }).lean() as Loose).family).toBe('binder');
+    expect((await Customer.findById(customer._id).lean() as Loose).modaBinder).toBe('9');
+    expect(await ResourceFamily.countDocuments({ name: 'Kits' })).toBe(0);
   });
 });

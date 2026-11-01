@@ -74,6 +74,7 @@ export default function ResourceModal(p: ResourceModalProps) {
     return (
         <ResourceForm
             isEdit={isEdit}
+            resourceId={isEdit ? String(p.record?._id) : undefined}
             values={resourceValuesFrom(p.form, today)}
             initial={session.initial}
             onChange={(patch) => p.setForm((prev) => ({ ...prev, ...patch }))}

@@ -9,6 +9,16 @@ const types = [
     { _id: 'c', name: 'Formal Presentation', label: 'Formal presentation', order: 2, active: true, system: true, fields: { notes: true, outcome: true, followUp: 'always' } }
 ];
 
+const families = [
+    { _id: 'f1', name: 'tower', label: 'Display towers', order: 0, active: true, system: true },
+    { _id: 'f2', name: 'Slab samples', label: 'Slab samples', order: 1, active: true, system: false },
+    { _id: 'f3', name: 'other', label: 'Other', order: 2, active: true, system: true }
+];
+const resourceTypes = [
+    { _id: 'r1', name: 'Moda Tower', label: 'Moda Tower', order: 0, active: true, system: false, family: 'tower' },
+    { _id: 'r2', name: 'Quartz slab', label: 'Quartz slab', order: 1, active: true, system: false, family: 'Slab samples' }
+];
+
 const calls: { url: string; method: string; body?: unknown }[] = [];
 vi.mock('../../api/authFetch', () => ({
     authFetch: vi.fn(async (url: string, init: { method?: string; body?: string } = {}) => {
@@ -19,6 +29,8 @@ vi.mock('../../api/authFetch', () => ({
             const ids: string[] = JSON.parse(init.body as string).ids;
             return { ok: true, json: async () => ({ types: ids.map((id, order) => ({ ...types.find((t) => t._id === id), order })) }) };
         }
+        if (url.endsWith('/api/resource-families')) return { ok: true, json: async () => ({ types: families }) };
+        if (url.endsWith('/api/resource-types')) return { ok: true, json: async () => ({ types: resourceTypes }) };
         return { ok: true, json: async () => ({ types }) };
     })
 }));
@@ -79,5 +91,21 @@ describe('TypeListTab', () => {
         const del = calls.find((c) => c.method === 'DELETE');
         expect(del?.url).toMatch(/\/api\/visit-types\/b$/);
         expect(del?.body).toEqual({ replaceWith: 'c' });
+    });
+
+    it('Resource Types lists its Families underneath, each type naming its family', async () => {
+        render(<TypeListTab kind="resource" currentUser={{ permissions: ['add_resource_types', 'delete_resource_types'] }} />);
+        const section = await screen.findByRole('region', { name: 'Families' });
+        await waitFor(() => expect(section.textContent).toContain('Slab samples'));
+        expect(section.textContent).toContain('1 resource type');
+        expect(screen.getByRole('heading', { level: 2, name: 'Families' })).toBeTruthy();
+        // Two Add buttons: one per list.
+        expect(screen.getAllByRole('button', { name: /^Add$/ })).toHaveLength(2);
+        const main = screen.getByRole('region', { name: 'Resource Types' });
+        await waitFor(() => expect(main.textContent).toContain('Quartz slab'));
+        expect(main.textContent).toContain('Slab samples');
+        // Built-in families have no Delete; one a manager added does.
+        expect(screen.queryByRole('button', { name: 'Display towers actions' })).toBeNull();
+        expect(screen.getByRole('button', { name: 'Slab samples actions' })).toBeTruthy();
     });
 });

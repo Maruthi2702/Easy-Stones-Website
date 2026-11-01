@@ -121,3 +121,20 @@
     .rf-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .rf-photos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* What saving changes on the customer's Moda Resources tiles (Display towers,
+   Sample binders — src/utils/modaTotals.ts). */
+.rf-moda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    padding: 10px 14px;
+    border: 1px dashed var(--fm-gold-bd);
+    border-radius: 10px;
+    background: var(--fm-gold-soft);
+    color: var(--fm-tx);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+}
+.rf-moda-from { color: var(--fm-mut); }
+.rf-moda-on { color: var(--fm-ok); }

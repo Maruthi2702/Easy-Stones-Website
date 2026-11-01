@@ -32,7 +32,10 @@ beforeEach(async () => {
   await mongoose.connection.db!.command({ collMod: 'customers', validator: {} });
   await Promise.all([Customer.deleteMany({}), User.deleteMany({}), Schedule.deleteMany({}), ResourceType.deleteMany({})]); emit.mockClear();
   // Resource types come from the database (Admin → Resource Types).
-  await ResourceType.create([{ name: 'Same type', label: 'Same type', order: 0 }, { name: 'Hidden type', label: 'Hidden type', order: 1, active: false }]);
+  await ResourceType.create([
+    { name: 'Same type', label: 'Same type', order: 0 }, { name: 'Hidden type', label: 'Hidden type', order: 1, active: false },
+    { name: 'Tower', label: 'Moda Tower', order: 2, family: 'tower' }, { name: 'Binder', label: 'Binder NW', order: 3, family: 'binder' }
+  ]);
   await User.collection.insertMany([{ _id: me, username: 'rep', assignedLocations: ['Seattle'] }, { _id: other, username: 'other', assignedLocations: ['Spokane'] }]);
   await Customer.create([{ _id: source, company: 'Source', contactName: 'Pat', email: 'source@example.invalid' }, { _id: destination, company: 'Destination', contactName: 'Lee', email: 'destination@example.invalid' }]);
 });
@@ -120,5 +123,54 @@ describe('legacy history', () => {
     await request(app).delete(`/api/customers/${source}/resources/${rid}`).expect(409);
     await request(app).put(`/api/customers/${source}/resources/${rid}`).send({ notes: 'Do not guess' }).expect(409);
     const c = await doc(); expect(c.resources).toHaveLength(1); expect(c.visits).toHaveLength(2); expect(c.resources[0].notes).toBe('Original');
+  });
+});
+
+describe('Moda Display and Binders follow the resources (src/utils/modaTotals.ts)', () => {
+  const put = (id: string, body: object, to = source) => request(app).put(`/api/customers/${to}/resources/${id}`).send(body);
+  const moda = async (id = source) => { const c = await doc(id); return { display: c.modaDisplay, binders: c.modaBinder, earlier: c.modaEarlier }; };
+  beforeEach(async () => { await Customer.updateOne({ _id: source }, { $set: { modaDisplay: 'No', modaBinder: '6' } }); });
+
+  it('adding binders adds their Qty to what was typed before, and a tower turns Display on', async () => {
+    await add('Binders', { resourceType: 'Binder', qty: 3 }).expect(201);
+    expect(await moda()).toEqual({ display: 'No', binders: '9', earlier: { display: false, binders: 6 } });
+    await add('Tower', { resourceType: 'Tower' }).expect(201);
+    expect((await moda()).display).toBe('Yes');
+    await add('Other', { qty: 5 }).expect(201);
+    expect((await moda()).binders).toBe('9');
+  });
+  it('an edited Qty, an archived binder and a deleted tower all recount', async () => {
+    const binder = (await add('Binders', { resourceType: 'Binder', qty: 3 }).expect(201)).body.resource._id;
+    const tower = (await add('Tower', { resourceType: 'Tower' }).expect(201)).body.resource._id;
+    await put(binder, { qty: 2 }).expect(200);
+    expect((await moda()).binders).toBe('8');
+    await put(binder, { status: 'Archived' }).expect(200);
+    expect((await moda()).binders).toBe('6');
+    await request(app).delete(`/api/customers/${source}/resources/${tower}`).expect(200);
+    expect((await moda()).display).toBe('No');
+  });
+  it('a type change moves the Qty from Binders to Display', async () => {
+    const id = (await add('Binders', { resourceType: 'Binder', qty: 3 }).expect(201)).body.resource._id;
+    await put(id, { resourceType: 'Tower' }).expect(200);
+    expect(await moda()).toMatchObject({ display: 'Yes', binders: '6' });
+  });
+  it('moving binders to another customer takes them off one count and onto the other', async () => {
+    const id = (await add('Binders', { resourceType: 'Binder', qty: 3 }).expect(201)).body.resource._id;
+    await put(id, { notes: 'moved' }, destination).expect(200);
+    expect((await moda()).binders).toBe('6');
+    expect((await moda(destination)).binders).toBe('3');
+  });
+  it('a customer whose typed count already includes logged binders keeps its number', async () => {
+    await Customer.updateOne({ _id: source }, { $push: { resources: { title: 'Old binder', resourceType: 'Binder', qty: 2, uploadedBy: String(me), date: '2026-10-01' } } });
+    await add('One more', { resourceType: 'Binder', qty: 1 }).expect(201);
+    expect(await moda()).toEqual({ display: 'No', binders: '7', earlier: { display: false, binders: 4 } });
+  });
+  it('GET /:id/moda sends the totals, the earlier count and the resources behind them', async () => {
+    await add('Binders', { resourceType: 'Binder', qty: 3, date: '2026-11-01' }).expect(201);
+    await add('Tower', { resourceType: 'Tower', date: '2026-10-30', status: 'Inactive' }).expect(201);
+    const res = await request(app).get(`/api/customers/${source}/moda`).expect(200);
+    expect(res.body).toMatchObject({ display: false, binders: 9, earlier: { display: false, binders: 6 } });
+    expect(res.body.items.map((i: any) => [i.kind, i.qty, i.status])).toEqual([['binders', 3, 'Active'], ['display', 1, 'Inactive']]);
+    await request(app).get(`/api/customers/${source}/moda`).set({ 'x-user': JSON.stringify({ ...actor, permissions: [] }) }).expect(403);
   });
 });

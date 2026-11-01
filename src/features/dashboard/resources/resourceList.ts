@@ -1,5 +1,6 @@
 import { resourceQty } from '../../../utils/resourceForm';
 import type { Loose } from '../../../types/records';
+import { STARTING_RESOURCE_FAMILIES, OTHER_FAMILY } from '../../../utils/typeLists';
 
 /*
  * Dashboard → Resources (Option A on the claude.ai artifact "Resources
@@ -7,42 +8,45 @@ import type { Loose } from '../../../types/records';
  * choices and counts, the phone's week headings, and the Excel rows.
  */
 
-export type ResourceFamily = 'tower' | 'tabletop' | 'binder' | 'samples' | 'other';
+/** A family as the list reads it (Admin → Resource Types → Families, from the database). */
+export type FamilyLike = { name: string; label: string; order?: number };
 
-/** In the order the Filters panel lists them. */
-export const FAMILY_ORDER: ResourceFamily[] = ['tower', 'tabletop', 'binder', 'samples', 'other'];
+/** The families in the managers' order; the starting five until the list has loaded. */
+export const familiesOrStarting = (families: readonly FamilyLike[] = []): FamilyLike[] =>
+    families.length ? [...families].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : [...STARTING_RESOURCE_FAMILIES];
 
-export const FAMILY_LABELS: Record<ResourceFamily, string> = {
-    tower: 'Display towers',
-    tabletop: 'Tabletop displays',
-    binder: 'Sample binders',
-    samples: 'Samples',
-    other: 'Other'
-};
+const STARTING_BY_NAME = new Map(STARTING_RESOURCE_FAMILIES.map((f) => [f.name, f]));
 
-/** The short tag on a phone card's tile. */
-export const FAMILY_TAGS: Record<ResourceFamily, string> = {
-    tower: 'TWR',
-    tabletop: 'TBL',
-    binder: 'BND',
-    samples: 'SMP',
-    other: 'OTH'
+/** The colour class's family: the five built in have their own colour, a family a manager added shows as Other. */
+export const familyColour = (family: string): string => (STARTING_BY_NAME.has(family) ? family : OTHER_FAMILY);
+
+/** The short tag on a phone card's tile: the built-in one, else the first three letters of the family's name. */
+export const familyTag = (family: string, families: readonly FamilyLike[] = []): string => {
+    const builtIn = STARTING_BY_NAME.get(family);
+    if (builtIn) return builtIn.tag;
+    const label = families.find((f) => f.name === family)?.label || family;
+    return label.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase() || STARTING_BY_NAME.get(OTHER_FAMILY)!.tag;
 };
 
 /** What the list knows about a type: its family and the label staff read. */
-export type TypeInfo = (type: unknown) => { family: ResourceFamily; label: string; order: number };
+export type TypeInfo = (type: unknown) => { family: string; label: string; order: number };
 
 /**
  * Lookup over the Resource Types list (Admin → Resource Types, from the
  * database): the family a manager chose and the current label. A name that is
- * not in the list (a very old resource) is Other and shows as stored.
+ * not in the list (a very old resource), or a family no longer on the families
+ * list, is Other; an unknown name shows as stored.
  */
-export const typeInfoFrom = (list: { name: string; label: string; order?: number; family?: ResourceFamily }[]): TypeInfo => {
+export const typeInfoFrom = (
+    list: { name: string; label: string; order?: number; family?: string }[],
+    families: readonly FamilyLike[] = []
+): TypeInfo => {
     const byName = new Map(list.map((t) => [t.name, t]));
+    const known = new Set(familiesOrStarting(families).map((f) => f.name));
     return (type) => {
         const name = String(type ?? '');
         const t = byName.get(name);
-        return { family: t?.family && FAMILY_LABELS[t.family] ? t.family : 'other', label: t?.label || name, order: t?.order ?? Number.MAX_SAFE_INTEGER };
+        return { family: t?.family && known.has(t.family) ? t.family : OTHER_FAMILY, label: t?.label || name, order: t?.order ?? Number.MAX_SAFE_INTEGER };
     };
 };
 
@@ -81,19 +85,22 @@ export const applyResourceFilters = (rows: Loose[], f: ResourceFilters): Loose[]
     (f.types.length === 0 || f.types.includes(typeOf(r))) &&
     (f.loggedBy.length === 0 || f.loggedBy.includes(loggedByOf(r))));
 
-export type TypeFacet = { family: ResourceFamily; label: string; types: { type: string; label: string; count: number }[] };
+export type TypeFacet = { family: string; label: string; types: { type: string; label: string; count: number }[] };
 
-/** The types in the rows, grouped by family (families in FAMILY_ORDER, types in the managers' order), each with its count. */
-export const typeFacets = (rows: Loose[], info: TypeInfo): TypeFacet[] => {
+/** The types in the rows, grouped by family (families and types in the managers' order), each with its count. */
+export const typeFacets = (rows: Loose[], info: TypeInfo, families: readonly FamilyLike[] = []): TypeFacet[] => {
     const counts = new Map<string, number>();
     rows.forEach((r) => {
         const t = typeOf(r);
         if (t) counts.set(t, (counts.get(t) || 0) + 1);
     });
-    return FAMILY_ORDER
-        .map((family) => ({
+    const list = familiesOrStarting(families);
+    // Other is always a group, so a type whose family is gone still has one.
+    if (!list.some((f) => f.name === OTHER_FAMILY)) list.push(STARTING_BY_NAME.get(OTHER_FAMILY)!);
+    return list
+        .map(({ name: family, label }) => ({
             family,
-            label: FAMILY_LABELS[family],
+            label,
             types: [...counts.entries()]
                 .filter(([t]) => info(t).family === family)
                 .map(([type, count]) => ({ type, label: info(type).label, count }))

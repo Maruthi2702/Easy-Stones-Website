@@ -4,15 +4,17 @@ import { authFetch } from './authFetch';
 import { activeTypes } from '../utils/typeLists';
 
 /*
- * The two admin-managed lists, Visit Types and Resource Types — the one source
- * behind every visit-type and resource-type dropdown, filter and rule. Both
- * live in the database (src/routes/typeLists.ts); nothing in the app names a
- * type. Each is loaded once per page load and shared, and the admin screens'
- * saves replace it at once so the forms show a change without a reload.
+ * The admin-managed lists, Visit Types, Resource Types and the resource
+ * families — the one source behind every visit-type and resource-type
+ * dropdown, filter and rule. All live in the database (src/routes/typeLists.ts);
+ * nothing in the app names a type. Each is loaded once per page load and
+ * shared, and the admin screens' saves replace it at once so the forms show a
+ * change without a reload.
  */
 
 export type VisitFields = { notes: boolean; outcome: boolean; followUp: 'none' | 'optional' | 'always' };
-export type ResourceFamily = 'tower' | 'tabletop' | 'binder' | 'samples' | 'other';
+/** A resource family's stored `name` (Admin → Resource Types → Families). */
+export type ResourceFamily = string;
 
 export type TypeRecord = {
     _id: string;
@@ -30,9 +32,9 @@ export type TypeRecord = {
 
 export type TypeInput = { label?: string; active?: boolean; fields?: VisitFields; family?: ResourceFamily };
 
-export type TypeListKind = 'visit' | 'resource';
+export type TypeListKind = 'visit' | 'resource' | 'family';
 
-const PATHS: Record<TypeListKind, string> = { visit: '/api/visit-types', resource: '/api/resource-types' };
+const PATHS: Record<TypeListKind, string> = { visit: '/api/visit-types', resource: '/api/resource-types', family: '/api/resource-families' };
 
 type Store = {
     types: TypeRecord[];
@@ -43,7 +45,8 @@ type Store = {
 
 const stores: Record<TypeListKind, Store> = {
     visit: { types: [], loaded: false, inflight: null, listeners: new Set() },
-    resource: { types: [], loaded: false, inflight: null, listeners: new Set() }
+    resource: { types: [], loaded: false, inflight: null, listeners: new Set() },
+    family: { types: [], loaded: false, inflight: null, listeners: new Set() }
 };
 
 const publish = (kind: TypeListKind, types: TypeRecord[]) => {
@@ -86,9 +89,9 @@ export function loadTypes(kind: TypeListKind, { force = false }: { force?: boole
     return run;
 }
 
-/** Forget both lists (a logout): the next login loads its own. */
+/** Forget the lists (a logout): the next login loads its own. */
 export function clearTypeLists(): void {
-    (['visit', 'resource'] as TypeListKind[]).forEach((kind) => {
+    (['visit', 'resource', 'family'] as TypeListKind[]).forEach((kind) => {
         const s = stores[kind];
         s.types = [];
         s.loaded = false;
@@ -169,6 +172,8 @@ export function useTypeList(kind: TypeListKind) {
 
 export const useVisitTypes = () => useTypeList('visit');
 export const useResourceTypes = () => useTypeList('resource');
+/** The resource families, in the managers' order (`types` here are families). */
+export const useResourceFamilies = () => useTypeList('family');
 
 /**
  * Dropdown options from a list: the active types in order, plus the value a

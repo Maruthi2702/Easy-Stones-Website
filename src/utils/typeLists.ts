@@ -1,12 +1,12 @@
 /*
- * Rules for the two admin-managed lists, Visit Types and Resource Types
- * (src/routes/typeLists.ts, src/features/types/). Shared by the server and the
- * screens. The lists themselves live in the database — nothing here names a
- * type.
+ * Rules for the admin-managed lists, Visit Types, Resource Types and the
+ * resource families (src/routes/typeLists.ts, src/features/types/). Shared by
+ * the server and the screens. The lists themselves live in the database —
+ * nothing here names a type, and the families named here only start the list.
  */
 
 export type FollowUpMode = 'none' | 'optional' | 'always';
-export type TypeKind = 'visit' | 'resource';
+export type TypeKind = 'visit' | 'resource' | 'family';
 export type VisitTypeFields = { notes: boolean; outcome: boolean; followUp: FollowUpMode };
 /** A type as the lists and the validators see it (the server's record or the API's). */
 export type TypeLike = {
@@ -19,7 +19,19 @@ export type TypeLike = {
 };
 
 export const FOLLOW_UP_MODES: FollowUpMode[] = ['none', 'optional', 'always'];
-export const RESOURCE_FAMILIES = ['tower', 'tabletop', 'binder', 'samples', 'other'];
+/**
+ * The families the list starts with (built in: renamed, reordered, hidden, never
+ * deleted). `tower` and `binder` are what the Moda Display / Binders counts read
+ * (src/utils/modaTotals.ts); `other` is where a type with no known family goes.
+ */
+export const STARTING_RESOURCE_FAMILIES: readonly { name: string; label: string; tag: string }[] = [
+  { name: 'tower', label: 'Display towers', tag: 'TWR' },
+  { name: 'tabletop', label: 'Tabletop displays', tag: 'TBL' },
+  { name: 'binder', label: 'Sample binders', tag: 'BND' },
+  { name: 'samples', label: 'Samples', tag: 'SMP' },
+  { name: 'other', label: 'Other', tag: 'OTH' }
+];
+export const OTHER_FAMILY = 'other';
 export const NAME_MAX = 120;
 
 /** What a type with no settings (a legacy value on an old visit) uses: everything, follow-up behind a toggle. */
@@ -43,15 +55,17 @@ export const activeTypes = <T extends TypeLike>(types: T[] = []): T[] =>
   [...types].filter((t) => t && t.active !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
 /**
- * What an Add / Edit body may carry. `kind` is 'visit' or 'resource'. Returns
- * `{ error }` or `{ value }` (only the keys that were sent, cleaned).
- * `others` are the other types, for the duplicate check.
+ * What an Add / Edit body may carry. `kind` is 'visit', 'resource' or 'family'.
+ * Returns `{ error }` or `{ value }` (only the keys that were sent, cleaned).
+ * `others` are the other records, for the duplicate check; `families` the
+ * family names a resource type may be put in.
  */
 export type TypeBodyValue = { label?: string; active?: boolean; fields?: VisitTypeFields; family?: string };
 export const validateTypeBody = (
   kind: TypeKind,
   body: Record<string, unknown> = {},
-  others: TypeLike[] = []
+  others: TypeLike[] = [],
+  families: readonly string[] = STARTING_RESOURCE_FAMILIES.map((f) => f.name)
 ): { error: string; value?: undefined } | { error?: undefined; value: TypeBodyValue } => {
   const value: TypeBodyValue = {};
   if (body.name !== undefined || body.label !== undefined) {
@@ -59,14 +73,14 @@ export const validateTypeBody = (
     if (!label) return { error: 'Enter a name.' };
     if (label.length > NAME_MAX) return { error: `A name can be at most ${NAME_MAX} characters.` };
     if (others.some((o) => nameKey(o.name) === nameKey(label) || nameKey(o.label) === nameKey(label))) {
-      return { error: 'There is already a type with that name.' };
+      return { error: `There is already a ${kind === 'family' ? 'family' : 'type'} with that name.` };
     }
     value.label = label;
   }
   if (body.active !== undefined) value.active = Boolean(body.active);
   if (kind === 'visit' && body.fields !== undefined) value.fields = normalizeVisitFields(body.fields as Partial<VisitTypeFields> | null);
   if (kind === 'resource' && body.family !== undefined) {
-    if (!RESOURCE_FAMILIES.includes(String(body.family))) return { error: 'Choose a family.' };
+    if (!families.includes(String(body.family))) return { error: 'Choose a family.' };
     value.family = String(body.family);
   }
   return { value };

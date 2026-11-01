@@ -10,6 +10,9 @@ import { normalizeVisitDate } from '../utils/visitDates.ts';
 import { parseResourceQty, RESOURCE_QTY_MAX } from '../utils/resourceForm.ts';
 import { placementVisit, PlacementConflict } from '../services/resourcePlacement.ts';
 import { linkVisitToSchedule, moveVisitOnSchedule, unlinkVisitFromSchedule } from '../services/visitSchedule.ts';
+import { loadFamilies, resourcesOf, recountModa } from '../services/modaCount.ts';
+import { modaSummary } from '../utils/modaTotals.ts';
+import { canViewCustomerProfile } from '../utils/customerAccess.ts';
 import type { Loose } from '../types/records.ts';
 
 type StaffRequest = Request & { user?: Loose; userId?: string; authType?: string };
@@ -71,6 +74,25 @@ export default function createCustomerResourcesRouter(deps: Deps) {
     return fields;
   };
 
+  // The profile's Moda Resources tiles and breakdown, and what the Add / Edit
+  // resource form needs to show the change a save makes (src/utils/modaTotals.ts).
+  // Counted from every resource, whoever logged it, like the stored totals.
+  router.get('/:customerId/moda', authenticate, async (req: StaffRequest, res) => {
+    try {
+      const permissions: string[] = req.user?.permissions || [];
+      const allowed = canViewCustomerProfile(req.user) || ['add_visits', ...ANY_EDIT_VISIT_PERMISSIONS].some(key => permissions.includes(key));
+      if (!allowed) return res.status(403).json({ message: 'You do not have access to this customer.' });
+      if (!mongoose.isValidObjectId(req.params.customerId)) return res.status(404).json({ message: 'Customer not found' });
+      const customer = await Customer.findById(req.params.customerId)
+        .select('modaDisplay modaBinder modaEarlier resources._id resources.resourceType resources.title resources.qty resources.status resources.date').lean();
+      if (!customer) return res.status(404).json({ message: 'Customer not found' });
+      res.json(modaSummary(customer as Loose, (customer as Loose).resources, await loadFamilies()));
+    } catch (error) {
+      console.error('Moda summary failed:', error);
+      res.status(500).json({ message: 'Could not load the Moda counts.' });
+    }
+  });
+
   router.post('/:customerId/resources', authenticate, requirePermission('add_visits'), async (req: StaffRequest, res) => {
     try {
       const fields = await fieldsOf(req.body, true);
@@ -90,8 +112,10 @@ export default function createCustomerResourcesRouter(deps: Deps) {
           image: resource.image, createdBy: performer.id, createdByName: performer.name,
           customerContactName: nameOf(customer), createdAt, followUp: '', followUpDate: ''
         };
+        const before = resourcesOf(customer);
         customer.resources.push(resource);
         customer.visits.push(visit);
+        recountModa(customer, before, await loadFamilies(session));
         await customer.save({ session });
         const events: Loose[] = [];
         await linkVisitToSchedule({ customerId: customer._id as mongoose.Types.ObjectId, visitId, visitDate: fields.date,
@@ -132,10 +156,14 @@ export default function createCustomerResourcesRouter(deps: Deps) {
           image: carried.image, customerContactName: nameOf(target)
         } : null;
         if (visit) carried.visitId = visit._id;
+        const sourceBefore = resourcesOf(source), targetBefore = resourcesOf(target);
         source.resources.pull({ _id: resource._id });
         if (visit) source.visits.pull({ _id: visit._id });
         target.resources.push(carried);
         if (carriedVisit) target.visits.push(carriedVisit);
+        const families = await loadFamilies(session);
+        if (moving) recountModa(source, sourceBefore, families);
+        recountModa(target, targetBefore, families);
         // Even when the second save fails, neither removal is published.
         if (moving) await source.save({ session });
         await target.save({ session });
@@ -169,8 +197,10 @@ export default function createCustomerResourcesRouter(deps: Deps) {
         if (!canDeleteVisit(actorOf(req), ownerOf(resource), team)) throw new ResourceError(403, 'You do not have permission to delete this resource.');
         const visit = placementVisit(customer, resource);
         if (visit && !canDeleteVisit(actorOf(req), visit, team)) throw new ResourceError(403, 'You do not have permission to delete the linked placement visit.');
+        const before = resourcesOf(customer);
         customer.resources.pull({ _id: resource._id });
         if (visit) customer.visits.pull({ _id: visit._id });
+        recountModa(customer, before, await loadFamilies(session));
         await customer.save({ session });
         const events: Loose[] = [];
         if (visit) await unlinkVisitFromSchedule({ visitId: visit._id, session, emit: (event: Loose) => { events.push(event); } });

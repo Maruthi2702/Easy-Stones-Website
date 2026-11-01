@@ -1,23 +1,25 @@
 import { useEffect, useState } from 'react';
-import { AlertCircle, ArrowUpToLine, ChevronDown, ChevronUp, Eye, EyeOff, GripVertical, ListOrdered, Package, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, ArrowUpToLine, ChevronDown, ChevronUp, Eye, EyeOff, FolderTree, GripVertical, ListOrdered, Package, Pencil, Plus, Trash2 } from 'lucide-react';
 import RowMenu from '../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../components/shared/RowMenu';
 import FormModal from '../../components/shared/form/FormModal';
 import { FormField, FormPicker } from '../../components/shared/form/FormControls';
-import { typeListApi, useTypeList } from '../../api/typeLists';
+import { loadTypes, typeListApi, useTypeList } from '../../api/typeLists';
 import type { TypeListKind, TypeRecord } from '../../api/typeLists';
 import { moveItem } from '../../utils/typeLists';
 import type { Loose } from '../../types/records';
 import TypeForm from './TypeForm';
-import { COPY, typeListAccess, typeSummary } from './typeListView';
+import { COPY, recordCount, typeListAccess, typeSummary } from './typeListView';
 import './TypeListTab.css';
 
 /*
  * Admin → Visit Types / Resource Types: the list the Add visit / Add resource
  * form offers, in the order managers set it. Dragging (or ↑ ↓ / To top) saves
  * at once for everyone; hiding takes a type out of the dropdown without losing
- * it on the records that have it; delete is only for a type nothing uses.
- * The list is the database's (src/api/typeLists.ts).
+ * it on the records that have it; a type records use is deleted by moving
+ * them to another. Resource Types also lists its Families underneath, managed
+ * the same way with the Resource Types switches. The lists are the database's
+ * (src/api/typeLists.ts).
  */
 
 export type TypeListTabProps = {
@@ -27,9 +29,24 @@ export type TypeListTabProps = {
 };
 
 export default function TypeListTab({ kind, currentUser, sidebarToggle }: TypeListTabProps) {
+    return (
+        <div className="tl-page">
+            <div className="tl-inner">
+                <TypeListSection kind={kind} currentUser={currentUser} sidebarToggle={sidebarToggle} />
+                {kind === 'resource' && <TypeListSection kind="family" currentUser={currentUser} />}
+            </div>
+        </div>
+    );
+}
+
+/** One list: the page's own (with the page title) or its Families (a section heading). */
+function TypeListSection({ kind, currentUser, sidebarToggle }: TypeListTabProps) {
     const copy = COPY[kind];
     const can = typeListAccess(currentUser, kind);
     const { types, loaded, refresh } = useTypeList(kind);
+    // A resource type's row names its family; a family's row counts its types.
+    const related = useTypeList(kind === 'resource' ? 'family' : 'resource').types;
+    const isSection = kind === 'family';
     const [form, setForm] = useState<{ type: TypeRecord | null } | null>(null);
     const [deleting, setDeleting] = useState<TypeRecord | null>(null);
     const [error, setError] = useState('');
@@ -70,68 +87,67 @@ export default function TypeListTab({ kind, currentUser, sidebarToggle }: TypeLi
         return items;
     };
 
-    const Icon = kind === 'visit' ? ListOrdered : Package;
+    const Icon = kind === 'visit' ? ListOrdered : kind === 'family' ? FolderTree : Package;
+    const Heading = isSection ? 'h2' : 'h1';
 
     return (
-        <div className="tl-page">
-            <div className="tl-inner">
-                <header className="tl-header">
-                    {sidebarToggle}
-                    <span className="tl-header-icon" aria-hidden="true"><Icon size={18} /></span>
-                    <h1 className="tl-title">{copy.title}</h1>
-                    {can.add && (
-                        <button type="button" className="tl-btn tl-btn-primary" onClick={() => setForm({ type: null })}>
-                            <Plus size={16} aria-hidden="true" /> Add
-                        </button>
-                    )}
-                </header>
-
-                <p className="tl-hint">
-                    {can.reorder ? 'Drag to reorder, or use the arrows. ' : ''}
-                    This is the order everyone sees in {copy.where}, so put the ones used most at the top.
-                </p>
-
-                {error && <div className="tl-error" role="alert"><AlertCircle size={14} aria-hidden="true" />{error}</div>}
-
-                {!loaded ? (
-                    <div className="tl-empty">Loading…</div>
-                ) : types.length === 0 ? (
-                    <div className="tl-empty">No {copy.nouns} yet.{can.add ? ' Use Add to create the first.' : ''}</div>
-                ) : (
-                    <ol className="tl-list" aria-label={copy.title}>
-                        {types.map((t, index) => (
-                            <li
-                                key={t._id}
-                                className={`tl-row${t.active ? '' : ' is-hidden'}${dragOver === index && dragFrom !== null && dragFrom !== index ? ' is-over' : ''}${dragFrom === index ? ' is-dragging' : ''}`}
-                                draggable={can.reorder && !busy}
-                                onDragStart={(e) => { setDragFrom(index); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', t._id); }}
-                                onDragOver={(e) => { if (dragFrom === null) return; e.preventDefault(); setDragOver(index); }}
-                                onDrop={(e) => { e.preventDefault(); if (dragFrom !== null) moveTo(dragFrom, index); setDragFrom(null); setDragOver(null); }}
-                                onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
-                            >
-                                {can.reorder && <span className="tl-grip" aria-hidden="true"><GripVertical size={18} /></span>}
-                                <span className="tl-num" aria-hidden="true">{index + 1}</span>
-                                <span className="tl-text">
-                                    <span className="tl-name">
-                                        {t.label}
-                                        {t.system && <span className="tl-badge">Built in</span>}
-                                        {!t.active && <span className="tl-badge tl-badge-off">Hidden</span>}
-                                    </span>
-                                    <span className="tl-sub">{typeSummary(kind, t)}</span>
-                                </span>
-                                {can.reorder && (
-                                    <span className="tl-moves">
-                                        <button type="button" className="tl-icon" onClick={() => moveTo(index, 0)} disabled={busy || index === 0} aria-label={`Move ${t.label} to the top`} title="Move to top"><ArrowUpToLine size={16} /></button>
-                                        <button type="button" className="tl-icon" onClick={() => moveTo(index, index - 1)} disabled={busy || index === 0} aria-label={`Move ${t.label} up`} title="Move up"><ChevronUp size={18} /></button>
-                                        <button type="button" className="tl-icon" onClick={() => moveTo(index, index + 1)} disabled={busy || index === types.length - 1} aria-label={`Move ${t.label} down`} title="Move down"><ChevronDown size={18} /></button>
-                                    </span>
-                                )}
-                                {menuFor(t).length > 0 && <RowMenu label={`${t.label} actions`} items={menuFor(t)} />}
-                            </li>
-                        ))}
-                    </ol>
+        <section className={isSection ? 'tl-section' : 'tl-main'} aria-label={copy.title}>
+            <header className="tl-header">
+                {sidebarToggle}
+                <span className="tl-header-icon" aria-hidden="true"><Icon size={18} /></span>
+                <Heading className={isSection ? 'tl-title tl-title-sub' : 'tl-title'}>{copy.title}</Heading>
+                {can.add && (
+                    <button type="button" className="tl-btn tl-btn-primary" onClick={() => setForm({ type: null })}>
+                        <Plus size={16} aria-hidden="true" /> Add
+                    </button>
                 )}
-            </div>
+            </header>
+
+            <p className="tl-hint">
+                {can.reorder ? 'Drag to reorder, or use the arrows. ' : ''}
+                This is the order everyone sees in {copy.where}, so put the ones used most at the top.
+            </p>
+
+            {error && <div className="tl-error" role="alert"><AlertCircle size={14} aria-hidden="true" />{error}</div>}
+
+            {!loaded ? (
+                <div className="tl-empty">Loading…</div>
+            ) : types.length === 0 ? (
+                <div className="tl-empty">No {copy.nouns} yet.{can.add ? ' Use Add to create the first.' : ''}</div>
+            ) : (
+                <ol className="tl-list" aria-label={copy.title}>
+                    {types.map((t, index) => (
+                        <li
+                            key={t._id}
+                            className={`tl-row${t.active ? '' : ' is-hidden'}${dragOver === index && dragFrom !== null && dragFrom !== index ? ' is-over' : ''}${dragFrom === index ? ' is-dragging' : ''}`}
+                            draggable={can.reorder && !busy}
+                            onDragStart={(e) => { setDragFrom(index); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', t._id); }}
+                            onDragOver={(e) => { if (dragFrom === null) return; e.preventDefault(); setDragOver(index); }}
+                            onDrop={(e) => { e.preventDefault(); if (dragFrom !== null) moveTo(dragFrom, index); setDragFrom(null); setDragOver(null); }}
+                            onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
+                        >
+                            {can.reorder && <span className="tl-grip" aria-hidden="true"><GripVertical size={18} /></span>}
+                            <span className="tl-num" aria-hidden="true">{index + 1}</span>
+                            <span className="tl-text">
+                                <span className="tl-name">
+                                    {t.label}
+                                    {t.system && <span className="tl-badge">Built in</span>}
+                                    {!t.active && <span className="tl-badge tl-badge-off">Hidden</span>}
+                                </span>
+                                <span className="tl-sub">{typeSummary(kind, t, related)}</span>
+                            </span>
+                            {can.reorder && (
+                                <span className="tl-moves">
+                                    <button type="button" className="tl-icon" onClick={() => moveTo(index, 0)} disabled={busy || index === 0} aria-label={`Move ${t.label} to the top`} title="Move to top"><ArrowUpToLine size={16} /></button>
+                                    <button type="button" className="tl-icon" onClick={() => moveTo(index, index - 1)} disabled={busy || index === 0} aria-label={`Move ${t.label} up`} title="Move up"><ChevronUp size={18} /></button>
+                                    <button type="button" className="tl-icon" onClick={() => moveTo(index, index + 1)} disabled={busy || index === types.length - 1} aria-label={`Move ${t.label} down`} title="Move down"><ChevronDown size={18} /></button>
+                                </span>
+                            )}
+                            {menuFor(t).length > 0 && <RowMenu label={`${t.label} actions`} items={menuFor(t)} />}
+                        </li>
+                    ))}
+                </ol>
+            )}
 
             {form && (
                 <TypeForm
@@ -148,10 +164,14 @@ export default function TypeListTab({ kind, currentUser, sidebarToggle }: TypeLi
                     type={deleting}
                     others={types.filter((t) => t.active && t._id !== deleting._id)}
                     onClose={() => setDeleting(null)}
-                    onDelete={(replaceWith) => typeListApi.remove(kind, deleting._id, replaceWith)}
+                    onDelete={async (replaceWith) => {
+                        await typeListApi.remove(kind, deleting._id, replaceWith);
+                        // Its types moved family: reload them so their rows say where.
+                        if (kind === 'family') await loadTypes('resource', { force: true });
+                    }}
                 />
             )}
-        </div>
+        </section>
     );
 }
 
@@ -182,7 +202,6 @@ function DeleteTypeDialog({ kind, type, others, onClose, onDelete }: {
         setError('');
         try { await onDelete(moving ? replaceWith : undefined); onClose(); } catch (err) { setError((err as Error).message || 'Could not delete'); } finally { setSaving(false); }
     };
-    const records = (n: number) => `${n} ${kind === 'visit' ? (n === 1 ? 'visit' : 'visits') : (n === 1 ? 'resource' : 'resources')}`;
     return (
         <FormModal
             title={`Delete ${copy.noun}`}
@@ -202,7 +221,9 @@ function DeleteTypeDialog({ kind, type, others, onClose, onDelete }: {
             {moving && (
                 <>
                     <p className="tl-confirm">
-                        <strong>{type.label}</strong> is on {records(uses as number)}. Choose the type they become, then it's deleted. To keep them as they are, hide it instead.
+                        {kind === 'family'
+                            ? <><strong>{type.label}</strong> holds {recordCount(kind, uses as number)}. Choose the family they move to, then it's deleted. To keep it, hide it instead.</>
+                            : <><strong>{type.label}</strong> is on {recordCount(kind, uses as number)}. Choose the type they become, then it's deleted. To keep them as they are, hide it instead.</>}
                     </p>
                     {others.length === 0 ? (
                         <p className="tl-confirm">There is no other shown {copy.noun} to move them to.</p>

@@ -1,13 +1,13 @@
 import { useMemo } from 'react';
 import { Eye, Loader, Pencil, Trash2 } from 'lucide-react';
-import { useResourceTypes } from '../../../api/typeLists';
+import { useResourceFamilies, useResourceTypes } from '../../../api/typeLists';
 import RowMenu from '../../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import { canDeleteVisit, canModifyVisit } from '../../../utils/visitAccess';
 import { resourceQty } from '../../../utils/resourceForm';
 import type { Loose } from '../../../types/records';
 import {
-    FAMILY_TAGS, customerParts, groupByWeek, loggedByOf, resourceDay, shortDay, typeInfoFrom, typeOf
+    familyColour, familyTag, customerParts, groupByWeek, loggedByOf, resourceDay, shortDay, typeInfoFrom, typeOf
 } from './resourceList';
 
 export type ResourceRowActions = {
@@ -44,12 +44,13 @@ const rowMenuItems = (a: ResourceRowActions, r: Loose): RowMenuItem[] => {
 /** The Resource Types list as a lookup: family and label for a stored type name. */
 const useTypeInfo = () => {
     const { types } = useResourceTypes();
-    return useMemo(() => typeInfoFrom(types), [types]);
+    const families = useResourceFamilies().types;
+    return useMemo(() => typeInfoFrom(types, families), [types, families]);
 };
 
 const TypeChip = ({ type }: { type: string }) => {
     const { family, label } = useTypeInfo()(type);
-    return <span className={`rs-type rs-type--${family}`}><i aria-hidden="true" />{type ? label : '—'}</span>;
+    return <span className={`rs-type rs-type--${familyColour(family)}`}><i aria-hidden="true" />{type ? label : '—'}</span>;
 };
 
 /** Desktop and tablet: one row per resource; a click (or Enter) opens it. */
@@ -110,6 +111,7 @@ export function ResourceTable({ rows, today, ...a }: RowsProps) {
 /** Phones: cards under week headings; the whole card opens the resource (Edit / Delete are inside it). */
 export function ResourceCards({ rows, today, ...a }: RowsProps) {
     const info = useTypeInfo();
+    const families = useResourceFamilies().types;
     return (
         <div className="rs-cards">
             {groupByWeek(rows, today).map((group) => (
@@ -123,7 +125,7 @@ export function ResourceCards({ rows, today, ...a }: RowsProps) {
                         const busy = a.loadingResourceId === r._id;
                         return (
                             <button key={r._id} type="button" className="rs-card" disabled={busy} onClick={() => a.onViewResource(r)}>
-                                <span className={`rs-tile rs-type--${family}`} aria-hidden="true">{FAMILY_TAGS[family]}</span>
+                                <span className={`rs-tile rs-type--${familyColour(family)}`} aria-hidden="true">{familyTag(family, families)}</span>
                                 <span className="rs-card-text">
                                     <strong>{company || '—'}</strong>
                                     <span>{type ? typeLabel : '—'}</span>
