@@ -1,0 +1,38 @@
+/* RepFilterPicker (the multi-choice sales rep dropdown). The trigger, list,
+   search box, branch headings and checkboxes are the form template's
+   (FormModal.css, through .fm-tokens, so dark/light follow the app); this
+   adds the label, All / None, the count on each row and the Customer List
+   rep filter's row height. */
+.rfp-field { display: flex; flex-direction: column; gap: 6px; }
+.rfp-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fm-mut, #898781);
+}
+.rfp .rfp-opt { min-height: 38px; padding: 6px 12px; }
+.rfp-opt-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rfp-count {
+    flex: none;
+    margin-left: auto;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--fm-mut);
+    font-variant-numeric: tabular-nums;
+}
+.rfp-actions { display: flex; justify-content: flex-end; gap: 4px; padding: 0 4px 2px; }
+.rfp-link {
+    border: 0;
+    background: transparent;
+    padding: 4px 8px;
+    border-radius: 7px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--fm-gold-tx);
+    cursor: pointer;
+}
+.rfp-link:hover { background: var(--fm-hover); }
+.rfp-note { border-top: 1px solid var(--fm-bd2); margin-top: 4px; }
+.fm-sheet .rfp-opt { min-height: 48px; }

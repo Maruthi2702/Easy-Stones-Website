@@ -47,7 +47,7 @@ export default function PeopleField({ options, value, me, onChange, onToggle }: 
     const triggerRef = useRef<HTMLButtonElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
-    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef, (a) => clipParentOf(a));
+    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef, clipParentOf);
     const sheet = isPhone || pos.placement === 'sheet';
 
     const groups = useMemo(() => groupRepOptions(options, { you: me, query }), [options, me, query]);

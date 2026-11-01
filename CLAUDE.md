@@ -98,8 +98,14 @@ filter's format, the user's call 2026-10-10): a search box, None /
 Unassigned first, then reps under a heading for their branch (branches and
 names A–Z, "Other" last) with you marked "(you)" — `groupRepOptions`. On a
 form that's `src/components/shared/form/RepPicker.tsx` (not FormPicker);
-the Customer List filter and the Route Planner's rep filter render the same
-groups. A new rep dropdown or filter uses these.
+the Customer List filter renders the same groups. A filter that ticks
+**several** reps is `src/components/shared/form/RepFilterPicker.tsx`
+(2026-11-01): the closed field says who is ticked ("All reps", a name,
+"8 of 14 reps"); its list has search, optional All / None, `extras` rows
+before the reps (Unassigned, Me, My team), the branch groups with an optional
+count per rep, and a `note` line; it floats in its container (never portaled)
+and is a bottom sheet on phones unless `phoneSheet={false}`. The Route
+Planner's Filter uses it. A new rep dropdown or filter uses these.
 
 Something **new** at a branch starts with a rep by one rule too,
 `startingRepFor`: the person creating it if they're a sales rep, else that
