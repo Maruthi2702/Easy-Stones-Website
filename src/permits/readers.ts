@@ -16,6 +16,7 @@ import { createPierceCountySource } from './sources/pierceCounty.ts';
 import { createKitsapCountySource } from './sources/kitsapCounty.ts';
 import { createClarkCountySource } from './sources/clarkCounty.ts';
 import { createLakewoodSource } from './sources/lakewood.ts';
+import { createYakimaSource } from './sources/yakima.ts';
 import { RICHLAND_PORTAL, RICHLAND_TENANT } from './rules/richland.ts';
 import { KENNEWICK_PORTAL, KENNEWICK_TENANT } from './rules/kennewick.ts';
 import { PASCO_SEARCH, PASCO_COLUMNS } from './rules/pasco.ts';
@@ -61,6 +62,7 @@ export function createPermitReaders() {
     monroe: createMonroeSource(),
     snohomish_city: createEnergovSource({ name: 'City of Snohomish', tenant: SNOHOMISH_CITY_TENANT, base: SNOHOMISH_CITY_PORTAL, modern: true }),
     whatcom: createWhatcomSource(),
-    bellingham: createBellinghamSource()
+    bellingham: createBellinghamSource(),
+    yakima: createYakimaSource()
   };
 }

@@ -760,12 +760,20 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   not companies. **Not covered:** Benton County outside cities (the only layer,
   `BuildingPermitsAll`, is the assessor's table — issue dates run to the year
   2107 and it was last changed 2022), West Richland, Franklin County outside
-  Pasco, and every Yakima County office — the county uses Accela
-  (`aca-prod.accela.com/YAKIMACO`) and posts weekly "Building Permits Issued"
-  PDFs; the City of Yakima's SmartGov Community portal
-  (`ci-yakima-wa.smartgovcommunity.com`) lists reports such as "Building Permits
-  Issued - Previous Month" and "Issued Permits for New Buildings", which could be
-  read the way Anacortes' report is. None of those has been read yet.
+  Pasco, and **Yakima County** (Accela, `aca-prod.accela.com/YAKIMACO`, plus
+  weekly "Building Permits Issued" PDFs — not read yet).
+- **Yakima** (the city; 2026-11-01, on `feat/yakima-permits`): the city's SmartGov
+  Community portal (`ci-yakima-wa.smartgovcommunity.com`) publishes the public
+  Exago report **Issued Permits for New Buildings** (`rules/yakima.ts`,
+  `sources/yakima.ts`). Its runner was lifted out of the Anacortes reader into
+  `sources/smartgovReport.ts` (`createExagoRunner`, same browserless steps; both
+  cities use it, Anacortes' tests unchanged). **New buildings only** — new homes
+  (single family, master plan), duplexes and multifamily, new commercial — with
+  the applicant's name and the description; no remodels, no value, no contractor,
+  no phone or email. About 17 a month. The city's other report, "Building
+  Permits Issued - Previous Month", refuses CSV and is one fixed month, so it
+  isn't read; the city could publish a wider report like Anacortes' "with
+  Valuation". If the city changes a column the run fails loudly.
 - **Kitsap** (2026-10-22, on `main` 2026-11-01): the county's
   Department of Community Development layer behind its Permit Explorer map
   (`rules/kitsapCounty.ts`, the shared ArcGIS reader). Unincorporated land and its

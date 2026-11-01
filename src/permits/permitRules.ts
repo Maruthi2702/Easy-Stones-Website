@@ -40,6 +40,7 @@ import lakewood from './rules/lakewood.ts';
 import kennewick from './rules/kennewick.ts';
 import richland from './rules/richland.ts';
 import pasco from './rules/pasco.ts';
+import yakima from './rules/yakima.ts';
 import tacoma from './rules/tacoma.ts';
 import kitsapCounty from './rules/kitsapCounty.ts';
 import clarkCounty from './rules/clarkCounty.ts';
@@ -73,7 +74,8 @@ export const RULES: Readonly<Record<string, Loose>> = Object.freeze(Object.fromE
   pierceCounty, lakewood, tacoma,
   skagitCounty, anacortes,
   snohomishCounty, edmonds, marysville, monroe, snohomishCity,
-  whatcom, bellingham
+  whatcom, bellingham,
+  yakima
 ].map((r: Loose) => [r.id, r])));
 
 /** What the screen and API show about each source (no functions — safe to send as JSON). */

@@ -45,14 +45,15 @@ describe('the sources', () => {
       'pierce_county', 'lakewood', 'tacoma',
       'skagit_county', 'anacortes',
       'snohomish_county', 'edmonds', 'marysville', 'monroe', 'snohomish_city',
-      'whatcom', 'bellingham'
+      'whatcom', 'bellingham',
+      'yakima'
     ]);
     expect(SOURCES.king_county.kind).toBe('county');
     expect(SOURCES.seattle.kind).toBe('city');
   });
 
   it('knows which counties are covered and which sources are in them', () => {
-    expect(COVERED_COUNTY_IDS).toEqual(['benton', 'clark', 'franklin', 'king', 'kitsap', 'pierce', 'skagit', 'snohomish', 'whatcom']);
+    expect(COVERED_COUNTY_IDS).toEqual(['benton', 'clark', 'franklin', 'king', 'kitsap', 'pierce', 'skagit', 'snohomish', 'whatcom', 'yakima']);
     expect(sourcesInCounties(['snohomish'])).toEqual(['snohomish_county', 'edmonds', 'marysville', 'monroe', 'snohomish_city']);
     expect(sourcesInCounties(['whatcom'])).toEqual(['whatcom', 'bellingham']);
     expect(sourcesInCounties(['king'])).toHaveLength(13);
