@@ -2877,10 +2877,15 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
       }
     ] as mongoose.PipelineStage[]));
 
-    // The Follow-up tile counts what Dashboard → Follow-ups lists as pending for this
-    // range: due in it, plus every one still overdue (src/utils/followUpList.ts).
+    // The Follow-up tile counts what Dashboard → Follow-ups lists for this range
+    // (src/utils/followUpList.ts): `followUp` is the pending ones, `followUpCounts`
+    // every status / due bucket, so the tile follows the tab's Status filter.
     const followUpStatsQuery = loadDashboardVisits(req, 'followup', { timeRange: 'all' })
-      .then((all) => [{ count: withStatus(followUpsInView(all, followUpRangeOf(req), followUpTodayOf(req)), 'pending').length }]);
+      .then((all) => {
+        const today = followUpTodayOf(req);
+        const inView = followUpsInView(all, followUpRangeOf(req), today);
+        return [{ count: withStatus(inView, 'pending').length, counts: followUpCounts(inView, today) }];
+      });
     // Ticked done → not counted in today's follow-ups below either (blank or missing = pending).
     const followUpPending = { $match: { 'visits.followUpDoneAt': { $in: [null, ''] } } };
 
@@ -2941,6 +2946,7 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
       keyVisits: visitStats[0]?.keyVisits || 0,
       bids: visitStats[0]?.bids || 0,
       followUp: followUpStats[0]?.count || 0,
+      followUpCounts: followUpStats[0]?.counts || null,
       resources: resourceStats[0]?.count || 0,
       leads: leadCount,
       todayScheduleCount: scheduleCount[0]?.count || 0

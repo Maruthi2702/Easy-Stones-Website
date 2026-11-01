@@ -1,4 +1,5 @@
 import { dayOf } from '../../utils/followUpPanel.ts';
+import { isFollowUpDone } from '../../utils/followUpList.ts';
 import type { PersonOption } from '../../api/myTeam';
 import type { Loose } from '../../types/records';
 
@@ -84,7 +85,8 @@ export function repBreakdown({ visits, resources, followUps, schedules = [], peo
         const row = rowFor(idOf(f?.createdBy), String(f?.createdByName || ''));
         row.followUps++;
         const due = dayOf(f?.followUpDate);
-        if (due && today && due < today) row.late++;
+        // Late = still open past its day; a ticked one is never late.
+        if (due && today && due < today && !isFollowUpDone(f)) row.late++;
     }
     // Today's stops: an entry starting today ('YYYY-MM-DDTHH:mm…', local), not cancelled.
     for (const s of schedules) {

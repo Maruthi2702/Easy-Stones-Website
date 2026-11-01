@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { todayISO } from '../../../components/shared/calendar/calendarDates';
-import {
-    DEFAULT_FOLLOW_UP_FILTERS, groupFollowUps, searchFollowUps, shortDay, sortFollowUps, withDue, withStatus
-} from '../../../utils/followUpList';
+import { groupFollowUps, searchFollowUps, shortDay, sortFollowUps, withFilters } from '../../../utils/followUpList';
 import type { FollowUpCounts, FollowUpFilters, FollowUpRangeQuery, FollowUpRow } from '../../../utils/followUpList';
 import { changeFollowUp, fetchFollowUps } from './followUpsApi';
 
@@ -25,8 +23,9 @@ export type FollowUpNotice = { id: number; text: string; kind: 'ok' | 'error' };
 export type FollowUpUndo = { id: number; row: FollowUpRow };
 
 /**
- * Dashboard → Follow-ups' data: the page's own filters (Status, Due) and
- * search, the list for the dashboard's time range (by due date — `range`) and
+ * Dashboard → Follow-ups' data: the page's filters (Status, Due — held by the
+ * dashboard, so the Follow-up tile counts the same list and they're kept across
+ * tabs) and search, the list for the dashboard's time range (by due date — `range`) and
  * its People / location (`scope`), and the tick /
  * undo / reopen / snooze / note
  * actions. A change shows at once and the server's answer replaces it; a
@@ -34,8 +33,10 @@ export type FollowUpUndo = { id: number; row: FollowUpRow };
  * again quietly so the counts catch up. `refreshKey` changes when the
  * dashboard reloads (a visit saved elsewhere).
  */
-export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, onChanged, viewerName }: {
+export function useFollowUps({ scope, range: rangeQ, filters, onFiltersChange, refreshKey, onPageChange, onChanged, viewerName }: {
     scope: string;
+    filters: FollowUpFilters;
+    onFiltersChange: (next: FollowUpFilters) => void;
     range: FollowUpRangeQuery;
     refreshKey: number;
     /** Back to page 1 on a filter or search change. */
@@ -45,7 +46,6 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
     viewerName: string;
 }) {
     const today = todayISO();
-    const [filters, setFiltersRaw] = useState<FollowUpFilters>(DEFAULT_FOLLOW_UP_FILTERS);
     const [search, setSearchRaw] = useState('');
     const queryKey = `${scope}|${filters.status}|${rangeQ.range}|${rangeQ.from}|${rangeQ.to}|${today}`;
     const seed = cache.get(queryKey);
@@ -100,20 +100,17 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
         onPageChange(1);
     }, [rangeKey, onPageChange]);
 
-    const setFilters = (next: FollowUpFilters) => { setFiltersRaw(next); onPageChange(1); };
+    const setFilters = (next: FollowUpFilters) => { onFiltersChange(next); onPageChange(1); };
     const setSearch = (value: string) => { setSearchRaw(value); onPageChange(1); };
 
     // What's on screen: the server's rows with this screen's changes, then Due and search.
-    const visible = useMemo(() => {
-        const shown = withStatus(rows, filters.status);
-        return sortFollowUps(searchFollowUps(withDue(shown, filters.status === 'pending' ? filters.due : 'all', today), search), filters.status, today);
-    }, [rows, filters.status, filters.due, search, today]);
+    const visible = useMemo(
+        () => sortFollowUps(searchFollowUps(withFilters(rows, filters, today), search), filters.status, today),
+        [rows, filters, search, today]
+    );
     const groups = useMemo(() => groupFollowUps(visible, filters.status, today), [visible, filters.status, today]);
     // How many the filters leave before the search: the search box's "2 of 17".
-    const unsearchedCount = useMemo(
-        () => withDue(withStatus(rows, filters.status), filters.status === 'pending' ? filters.due : 'all', today).length,
-        [rows, filters.status, filters.due, today]
-    );
+    const unsearchedCount = useMemo(() => withFilters(rows, filters, today).length, [rows, filters, today]);
 
     const patchRow = (id: unknown, fields: Partial<FollowUpRow>) =>
         setRows((prev) => prev.map((r) => (r._id === id ? { ...r, ...fields } : r)));

@@ -197,6 +197,27 @@ export const followUpCounts = (rows: FollowUpRow[], today: string): FollowUpCoun
     return c;
 };
 
+/**
+ * How many the list holds under the page's Status / Due (before search): the
+ * Follow-up tile's number, so it matches what the tab shows (owner, 2026-11-01).
+ */
+export const countForFilters = (c: FollowUpCounts, f: FollowUpFilters): number => {
+    if (f.status === 'all') return c.all;
+    if (f.status === 'done') return c.done;
+    return f.due === 'all' ? c.pending : c[f.due];
+};
+
+/** What the tile says it counts: '' for All, else "Pending", "Done", "Overdue"… */
+export const filtersWord = (f: FollowUpFilters): string => {
+    if (f.status === 'all') return '';
+    if (f.status === 'done' || f.due === 'all') return f.status === 'done' ? 'Done' : 'Pending';
+    return DUE_BUCKETS.find((b) => b.value === f.due)?.label || 'Pending';
+};
+
+/** The page's Status / Due as rows: withStatus, then Due when it's Pending. */
+export const withFilters = (rows: FollowUpRow[], f: FollowUpFilters, today: string): FollowUpRow[] =>
+    withDue(withStatus(rows, f.status), f.status === 'pending' ? f.due : 'all', today);
+
 /** Ticked done this week (Monday first, as the calendar). */
 export const doneThisWeek = (rows: FollowUpRow[], today: string): number => {
     const week = weekBounds(today);

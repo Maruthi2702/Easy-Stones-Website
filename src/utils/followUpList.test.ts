@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest';
 import {
     DEFAULT_FOLLOW_UP_FILTERS, dueDayOf, followUpState, dueBucketOf, doneOnTime, rangeBounds, followUpsInView, withStatus, withDue,
     followUpCounts, doneThisWeek, searchFollowUps, sortFollowUps, groupFollowUps, pageOfGroups, shortDay, whenText, snoozeChoices,
-    followUpTags, withoutTag, followUpExportRows, followUpUpdate, snoozesOf, firstDueOf, snoozeText
+    followUpTags, withoutTag, followUpExportRows, followUpUpdate, snoozesOf, firstDueOf, snoozeText,
+    countForFilters, withFilters, filtersWord
 } from './followUpList';
-import type { FollowUpRow } from './followUpList';
+import type { FollowUpFilters, FollowUpRow } from './followUpList';
 
 // Saturday; this week (Monday first) is Oct 26 – Nov 1, last week Oct 19 – 25.
 const TODAY = '2026-10-31';
@@ -228,5 +229,34 @@ describe('what a tick, reopen, snooze or note writes', () => {
         expect(followUpUpdate(null, { action: 'done' }, ctx)).toMatchObject({ ok: false, status: 404 });
         expect(followUpUpdate(fu(), { action: 'archive' }, ctx)).toMatchObject({ ok: false, status: 400 });
         expect(followUpUpdate(fu(), { action: 'done', outcome: 'x'.repeat(1001) }, ctx)).toMatchObject({ ok: false, status: 400 });
+    });
+});
+
+describe('the Follow-up tile follows the Status / Due filter', () => {
+    const rows = [
+        done('2026-10-20', { followUpDate: '2026-10-18' }),
+        done('2026-10-21', { followUpDate: '2026-10-19' }),
+        fu({ followUpDate: '2026-10-28' }), // overdue
+        fu({ followUpDate: TODAY }), // today
+        fu({ followUpDate: '2026-11-03' }) // next 7
+    ];
+    const counts = followUpCounts(rows, TODAY);
+    const cases: [FollowUpFilters, number, string][] = [
+        [{ status: 'all', due: 'all' }, 5, ''],
+        [{ status: 'done', due: 'all' }, 2, 'Done'],
+        [{ status: 'pending', due: 'all' }, 3, 'Pending'],
+        [{ status: 'pending', due: 'overdue' }, 1, 'Overdue'],
+        [{ status: 'pending', due: 'next7' }, 1, 'Next 7 days'],
+        [{ status: 'pending', due: 'later' }, 0, 'Later']
+    ];
+    it.each(cases)('%o → %i', (f, n, word) => {
+        expect(countForFilters(counts, f)).toBe(n);
+        expect(withFilters(rows, f, TODAY)).toHaveLength(n); // the tile and the list agree
+        expect(filtersWord(f)).toBe(word);
+    });
+    it('every one ticked: All counts them, Pending is 0', () => {
+        const allDone = followUpCounts([done('2026-10-31'), done('2026-10-31')], TODAY);
+        expect(countForFilters(allDone, DEFAULT_FOLLOW_UP_FILTERS)).toBe(2);
+        expect(countForFilters(allDone, { status: 'pending', due: 'all' })).toBe(0);
     });
 });

@@ -12,8 +12,8 @@ import { repBreakdown } from './repBreakdown';
 import { canSeeTeamCalendar } from '../../utils/teamScope.ts';
 import { resourceExportRows } from './resources/resourceList';
 import { rangeQuery } from './dashboardFocus';
-import { followUpsInView, withStatus } from '../../utils/followUpList';
-import type { FollowUpRange } from '../../utils/followUpList';
+import { DEFAULT_FOLLOW_UP_FILTERS, followUpsInView, withFilters } from '../../utils/followUpList';
+import type { FollowUpFilters, FollowUpRange } from '../../utils/followUpList';
 import { todayISO } from '../../components/shared/calendar/calendarDates';
 import type { Loose } from '../../types/records';
 
@@ -106,6 +106,9 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     const [dashboardFollowups, setDashboardFollowups] = React.useState<Loose[]>([]);
     // The Visits tab's Follow-ups panel: the few rows the server picked (own request, so it never holds the table up).
     const [followUpPanel, setFollowUpPanel] = React.useState<Loose[]>([]);
+    // Dashboard → Follow-ups' Status / Due, kept here so the Follow-up tile and By
+    // rep count what the tab lists (owner, 2026-11-01) and a pick outlives a tab switch.
+    const [followUpFilters, setFollowUpFilters] = useState<FollowUpFilters>(DEFAULT_FOLLOW_UP_FILTERS);
     const followUpPanelReqRef = React.useRef(0);
     const [dashboardDataLoading, setDashboardDataLoading] = React.useState(false);
     // False until the first fetchDashboardData finishes. dashboardDataLoading
@@ -463,8 +466,8 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
     const repRows = React.useMemo(() => (canPickPeople ? repBreakdown({
         visits: dashboardVisits,
         resources: dashboardResources,
-        // What Dashboard → Follow-ups lists as pending for the range: due in it, plus still overdue.
-        followUps: withStatus(followUpsInView(dashboardFollowups, { range: dashboardTimeRange as FollowUpRange, from: rangeFrom, to: rangeTo }, todayISO()), 'pending'),
+        // What Dashboard → Follow-ups lists for the range (by due date) under its Status / Due.
+        followUps: withFilters(followUpsInView(dashboardFollowups, { range: dashboardTimeRange as FollowUpRange, from: rangeFrom, to: rangeTo }, todayISO()), followUpFilters, todayISO()),
         schedules: teamCalendar ? allSchedules : [],
         people: peopleOptions,
         selection: dashboardPeople,
@@ -473,7 +476,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         today: new Date().toLocaleDateString('en-CA')
     }) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dashboardPeople is rebuilt each render; its key is what changes
-    [canPickPeople, dashboardVisits, dashboardResources, dashboardFollowups, dashboardTimeRange, rangeFrom, rangeTo, teamCalendar, allSchedules, peopleOptions, peopleValueKey, dashboardLocation, me]);
+    [canPickPeople, dashboardVisits, dashboardResources, dashboardFollowups, followUpFilters, dashboardTimeRange, rangeFrom, rangeTo, teamCalendar, allSchedules, peopleOptions, peopleValueKey, dashboardLocation, me]);
 
     // The dashboard's Sales Visits list is its own copy (fetchDashboardData), so a
     // saved visit is put in it too, tagged _saving until the server confirms.
@@ -573,6 +576,8 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
         stats,
         statsLoading,
         followUpPanel,
+        followUpFilters,
+        setFollowUpFilters,
         allSchedules,
         fetchDashboardStats,
         fetchDashboardData,

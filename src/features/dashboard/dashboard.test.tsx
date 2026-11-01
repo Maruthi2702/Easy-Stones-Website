@@ -2,6 +2,10 @@
 // The Dashboard's tab modules render from props and report changes through callbacks.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { useState } from 'react';
+import type { ComponentProps } from 'react';
+import { DEFAULT_FOLLOW_UP_FILTERS } from '../../utils/followUpList';
+import type { FollowUpFilters } from '../../utils/followUpList';
 
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { permissions: [] }, loading: false }) }));
 // Resource types come from the database (Admin → Resource Types); the Resources tab reads them for family and label.
@@ -24,7 +28,13 @@ vi.mock('../../api/authFetch', () => ({
   }
 }));
 
-const { FollowUpsPanel } = await import('./followUps');
+const { FollowUpsPanel: FollowUpsPanelOnly } = await import('./followUps');
+// The dashboard holds the tab's Status / Due (the tile counts by them); here a wrapper does.
+type PanelProps = ComponentProps<typeof FollowUpsPanelOnly>;
+const FollowUpsPanel = (p: Omit<PanelProps, 'filters' | 'onFiltersChange'>) => {
+  const [filters, setFilters] = useState<FollowUpFilters>(DEFAULT_FOLLOW_UP_FILTERS);
+  return <FollowUpsPanelOnly {...p} filters={filters} onFiltersChange={setFilters} />;
+};
 const { clearFollowUpCache } = await import('./followUps/useFollowUps');
 const { VisitsPanel } = await import('./visits');
 const { VisitsViewSwitch } = await import('./components/RepBreakdownTable');

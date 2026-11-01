@@ -27,6 +27,14 @@ describe('repBreakdown', () => {
         expect(rows[1].you).toBe(true);
     });
 
+    it('counts ticked follow-ups it is given, but never as late', () => {
+        const rows = repBreakdown({
+            ...base, selection: ['j'], visits: [], resources: [],
+            followUps: [{ createdBy: 'j', followUpDate: '2026-10-20', followUpDoneAt: '2026-10-21T10:00:00.000' }, { createdBy: 'j', followUpDate: '2026-10-22' }]
+        });
+        expect(rows[0]).toMatchObject({ followUps: 2, late: 1 });
+    });
+
     it('gives every active rep in view a row, and a deactivated one only with activity', () => {
         expect(repBreakdown({ ...base, visits: [], resources: [], followUps: [] }).map((r) => r.id)).toEqual(['d', 'j', 'me', 'q']);
         const rows = repBreakdown({ ...base, visits: [{ createdBy: 'old' }], resources: [], followUps: [] });

@@ -131,6 +131,7 @@ export default function DashboardPage({
                         activeDashboardTab={tab}
                         setActiveDashboardTab={data.setActiveDashboardTab}
                         todayScheduleCount={data.todayScheduleCount}
+                        followUpFilters={data.followUpFilters}
                     />
 
                     {tab === 'planner' && (
@@ -190,6 +191,8 @@ export default function DashboardPage({
                         <FollowUpsPanel
                             scope={data.dashboardScope}
                             range={{ range: data.dashboardTimeRange as FollowUpRange, from: data.rangeFrom, to: data.rangeTo }}
+                            filters={data.followUpFilters}
+                            onFiltersChange={data.setFollowUpFilters}
                             refreshKey={data.dashboardDataVersion}
                             onChanged={() => { data.fetchDashboardStats(); }}
                             page={data.currentFollowUpPage}

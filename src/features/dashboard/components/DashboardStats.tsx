@@ -4,6 +4,8 @@ import { RANGES, rangeFooter, rangeLabel } from '../dashboardFocus';
 import { DatePicker } from '../../../components/shared/calendar/Calendar';
 import '../../../components/shared/form/FormModal.css';
 import type { Loose } from '../../../types/records';
+import { DEFAULT_FOLLOW_UP_FILTERS, countForFilters, filtersWord } from '../../../utils/followUpList';
+import type { FollowUpFilters } from '../../../utils/followUpList';
 import './DashboardFocus.css';
 
 /**
@@ -121,6 +123,8 @@ export type DashboardStatsProps = {
     activeDashboardTab: string;
     setActiveDashboardTab: (tab: string) => void;
     todayScheduleCount: number;
+    /** Dashboard → Follow-ups' Status / Due: the Follow-up tile counts what that list holds. */
+    followUpFilters?: FollowUpFilters;
 };
 
 const DashboardStats = ({
@@ -131,13 +135,17 @@ const DashboardStats = ({
     rangeTo = '',
     activeDashboardTab,
     setActiveDashboardTab,
-    todayScheduleCount
+    todayScheduleCount,
+    followUpFilters = DEFAULT_FOLLOW_UP_FILTERS
 }: DashboardStatsProps) => {
     const footer = rangeFooter(dashboardTimeRange, rangeFrom, rangeTo);
+    // An older server sends only the pending count.
+    const followUpValue = stats.followUpCounts ? countForFilters(stats.followUpCounts, followUpFilters) : stats.followUp;
+    const followUpWord = filtersWord(followUpFilters);
     const cards: { id: string; title: string; short?: string; Icon: typeof UserPlus; value: unknown; footer: string }[] = [
         { id: 'visits', title: 'SALES VISITS', Icon: UserPlus, value: stats.visits, footer },
         { id: 'resources', title: 'RESOURCES', short: 'RESOURCES', Icon: FolderPlus, value: stats.resources, footer },
-        { id: 'followups', title: 'FOLLOW-UP', Icon: Clock, value: stats.followUp, footer },
+        { id: 'followups', title: 'FOLLOW-UP', Icon: Clock, value: followUpValue, footer: followUpWord ? `${followUpWord} · ${footer}` : footer },
         { id: 'planner', title: 'CALENDAR', Icon: Calendar, value: todayScheduleCount, footer: 'Today' }
     ];
     return (

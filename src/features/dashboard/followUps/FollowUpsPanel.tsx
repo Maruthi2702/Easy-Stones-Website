@@ -12,7 +12,7 @@ import { ALL_LOCATIONS } from '../../../utils/locationFilter';
 import {
     DEFAULT_FOLLOW_UP_FILTERS, DUE_BUCKETS, FOLLOW_UP_STATUSES, followUpExportRows, followUpNote, followUpTags, pageOfGroups
 } from '../../../utils/followUpList';
-import type { DueBucket, FollowUpRangeQuery, FollowUpRow, FollowUpStatus } from '../../../utils/followUpList';
+import type { DueBucket, FollowUpFilters, FollowUpRangeQuery, FollowUpRow, FollowUpStatus } from '../../../utils/followUpList';
 import PeopleField from '../components/PeopleField';
 import DashboardSearch from '../components/DashboardSearch';
 import type { PeopleFilter } from '../components/PeopleField';
@@ -29,6 +29,9 @@ export type FollowUpsPanelProps = {
     scope: string;
     /** The dashboard's time range (its header): read by due date (Today = today and later). */
     range: FollowUpRangeQuery;
+    /** Status / Due: the dashboard holds them, so the Follow-up tile counts what's listed. */
+    filters: FollowUpFilters;
+    onFiltersChange: (next: FollowUpFilters) => void;
     /** After a saved tick / reopen / snooze / note (the dashboard re-reads its tiles). */
     onChanged?: () => void;
     /** Changes when the dashboard reloads its lists (a visit saved elsewhere). */
@@ -71,7 +74,7 @@ const UNDO_MS = 8000;
  */
 export default function FollowUpsPanel(p: FollowUpsPanelProps) {
     const viewerName = String(p.currentUser?.displayName || p.currentUser?.username || 'You');
-    const fu = useFollowUps({ scope: p.scope, range: p.range, refreshKey: p.refreshKey, onPageChange: p.onPageChange, onChanged: p.onChanged, viewerName });
+    const fu = useFollowUps({ scope: p.scope, range: p.range, filters: p.filters, onFiltersChange: p.onFiltersChange, refreshKey: p.refreshKey, onPageChange: p.onPageChange, onChanged: p.onChanged, viewerName });
     const { filters, today, summary } = fu;
     const team = useMyTeam(p.currentUser, p.currentUserId);
     const isPhone = useIsPhone();

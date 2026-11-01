@@ -174,7 +174,12 @@ overdue one drops off, nothing upcoming shows; **Custom** = due in its days;
 **All** = every one. Done and pending are listed together (Status opens on
 **All**; done ones show ticked), today and upcoming soonest first, then the past
 newest first. No totals tiles (removed 2026-11-01). The Follow-up tile and By
-rep count the pending ones in that same list.
+rep's Follow-ups column count **what that list holds under its Status / Due**
+(owner, 2026-11-01: All = 31 when all 31 are ticked; the tile's footer says
+"Pending · …" / "Done · …" when it isn't All). The dashboard holds Status / Due
+(`followUpFilters` in `useDashboardData`, kept across tabs for the session),
+`/api/dashboard/stats` sends `followUpCounts`, and `countForFilters` picks the
+number; By rep's Late is never a ticked one.
 
 Every rule is `src/utils/followUpList.ts` (tested), shared by the server and
 the screen. `GET /api/dashboard/followups?timeRange=…&status=…` (server.ts:
@@ -185,7 +190,7 @@ tested; whoever may edit the visit, `canModifyVisit`). The screen is
 days / Later, then Earlier this week / Last week / by month (Pending alone:
 Overdue / Today / Next 7 days / Later); Snooze moves the due day; the Filters panel holds
 People, **Status** (Pending / Done / All) and **Due**. Done ones are off the
-Follow-up tile, the Visits tab's panel (`followUpPanel.ts`) and By rep.
+Visits tab's panel (`followUpPanel.ts`) and its count.
 Calendar stops are no longer listed here (the Calendar tab shows them).
 
 ## Dashboard: one header, one +, one search box (2026-11-01, on `feat/dashboard-one-header`)
