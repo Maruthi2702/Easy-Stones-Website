@@ -50,6 +50,12 @@
 .sa-remove:disabled { opacity: 0.5; cursor: default; }
 
 @media (max-width: 639px) {
+    /* The form is shorter than a phone's screen, so its body had nothing to
+       scroll and a drag bounced the whole page on iPhones — the form shook
+       and a strip showed under its footer. A pixel taller than the body
+       keeps every drag inside it (overscroll-behavior: contain), like the
+       longer Add visit form. */
+    .fm-fieldset:has(> .sa-form) { min-height: calc(100% + 1px); }
     .sa-type .fm-seg-btn { flex-direction: column; gap: 3px; height: 56px; font-size: 12.5px; }
     .sa-length .fm-seg-btn { font-size: 13.5px; }
     .sa-long { display: none; }
