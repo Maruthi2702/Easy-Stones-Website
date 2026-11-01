@@ -746,6 +746,26 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   (`permits.puyallupwa.gov`, CityView) answers scripts with a Cloudflare 403, and
   the city's ArcGIS `PermitToParcelJoin` layer stops at an issue date of 2023-10-12.
   Ask the permit center (253-864-4165) for a feed or recheck.
+- **Benton and Franklin (the Tri-Cities)** (2026-11-01, on `feat/benton-franklin-permits`):
+  **Richland** (`rules/richland.ts`, tenant `RichlandWAProd`) and **Kennewick**
+  (`rules/kennewick.ts`, tenant `EnerGov_Prod`) are Tyler EnerGov, the Renton /
+  Skagit reader, with valuation, square feet and contacts with phone and email
+  (about 30 and 50 leads a month). Kennewick's "Alteration/Addition" types don't
+  say which, so they're Other building; adult family homes, foundation-only,
+  decks and outbuildings are skipped. **Pasco** (`rules/pasco.ts`) is eTRAKiT
+  hosted by CentralSquare (`pas.csqrcloud.com/community-etrakit`, the old
+  `egov-pasco.com` redirects there): Shoreline's reader with Pasco's export
+  columns, names only, a day at a time (about 20 leads a fortnight, ~25 s). The
+  form's "OWNER BUILDER" / "NONE" / "INFORMATION PROVIDED AT A LATER DATE" are
+  not companies. **Not covered:** Benton County outside cities (the only layer,
+  `BuildingPermitsAll`, is the assessor's table — issue dates run to the year
+  2107 and it was last changed 2022), West Richland, Franklin County outside
+  Pasco, and every Yakima County office — the county uses Accela
+  (`aca-prod.accela.com/YAKIMACO`) and posts weekly "Building Permits Issued"
+  PDFs; the City of Yakima's SmartGov Community portal
+  (`ci-yakima-wa.smartgovcommunity.com`) lists reports such as "Building Permits
+  Issued - Previous Month" and "Issued Permits for New Buildings", which could be
+  read the way Anacortes' report is. None of those has been read yet.
 - **Kitsap** (2026-10-22, on `main` 2026-11-01): the county's
   Department of Community Development layer behind its Permit Explorer map
   (`rules/kitsapCounty.ts`, the shared ArcGIS reader). Unincorporated land and its
