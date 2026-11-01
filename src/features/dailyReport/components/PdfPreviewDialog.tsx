@@ -17,12 +17,17 @@ const PdfPreviewDialog = ({ open, onClose, url, title, filename }: { open: boole
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [source, setSource] = useState({ open, url });
+  if (source.open !== open || source.url !== url) {
+    setSource({ open, url });
+    setBlobUrl(null);
+    setError(null);
+  }
+
   useEffect(() => {
     if (!open || !url) return undefined;
     let cancelled = false;
     let objectUrl: string | null = null;
-    setBlobUrl(null);
-    setError(null);
 
     authFetch(url)
       .then(async (res) => {

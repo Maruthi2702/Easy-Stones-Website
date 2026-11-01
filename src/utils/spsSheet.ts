@@ -41,12 +41,12 @@ export const checkSheet = ({ rows, mapping, parse = {} }: Loose) => {
     blocking.push({
       code: 'unreadable-rows',
       message: `${malformed.length} row${malformed.length === 1 ? '' : 's'} couldn't be read — their cells don't line up with the column headings. Download the file from SPS again.`,
-      rows: names(malformed.map((m: Loose) => m.position))
+      rows: names<number>(malformed.map((m: Loose) => m.position))
     });
   }
 
   const nameColumn = mapping?.company || null;
-  const keyed = new Map();
+  const keyed = new Map<string, number[]>();
   const nameless: number[] = [];
   rows.forEach((row: Loose, i: number) => {
     const rowNumber = i + 2; // row 1 is the header

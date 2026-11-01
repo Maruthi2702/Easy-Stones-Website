@@ -60,7 +60,7 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
     return yes;
   }
 
-  async function syncOne(deliveryId: unknown, ctx: Loose) {
+  async function syncOne(deliveryId: string, ctx: Loose) {
     const [delivery, charge] = await Promise.all([
       Delivery.findOne({ id: deliveryId }, DELIVERY_FIELDS).lean(),
       FreightCharge.findOne({ deliveryId })
@@ -85,15 +85,17 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
           await AccountingAudit.create([{
             entityType: 'charge', entityId: String(created._id), action: 'created', by: SYSTEM,
             note: `From delivery SO# ${created.soNumber || '—'} (completed on the 3rd-party truck)`,
-            changes: DERIVED_FIELDS.map((f) => ({ field: f, from: null, to: created[f] ?? null })).filter((c) => c.to !== null && c.to !== '')
+            changes: DERIVED_FIELDS.map((f) => ({ field: f, from: null, to: created.get(f) ?? null })).filter((c) => c.to !== null && c.to !== '')
           }], { session });
           return;
         }
+        if (!charge) throw new Error('Freight charge was missing while applying a delivery update');
         const doc = await FreightCharge.findById(charge._id).session(session);
+        if (!doc) throw new Error('Freight charge was removed while applying a delivery update');
         const changes: Loose[] = [];
         for (const [field, value] of Object.entries(plan.set)) {
-          if (field !== 'sourceSnapshot') changes.push({ field, from: doc[field] ?? null, to: value ?? null });
-          doc[field] = value;
+          if (field !== 'sourceSnapshot') changes.push({ field, from: doc.get(field) ?? null, to: value ?? null });
+          doc.set(field, value);
         }
         if (plan.clearReopened) {
           for (const f of doc.flags) if (f.code === 'delivery_reopened' && !f.resolvedAt) { f.resolvedAt = new Date(); f.resolvedBy = SYSTEM; }
@@ -167,7 +169,9 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
       const session = await mongoose.startSession();
       try {
         await session.withTransaction(async () => {
-          const doc = await FreightCharge.findById(charge._id).session(session);
+          if (!charge) throw new Error('Freight charge was missing while applying a delivery update');
+        const doc = await FreightCharge.findById(charge._id).session(session);
+        if (!doc) throw new Error('Freight charge was removed while applying a delivery update');
           if (!doc || doc.carrierId || doc.status !== 'draft') return;
           doc.carrierId = carrier._id;
           doc.updatedBy = by;

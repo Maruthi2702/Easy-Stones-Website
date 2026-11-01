@@ -1,4 +1,4 @@
-import type { Product } from '../context/ProductContext.tsx';
+import type { Product } from '../context/ProductContext.ts';
 import React, { useMemo, useState } from 'react';
 import { Search, Filter, X } from 'lucide-react';
 import ProductCard from './ProductCard';

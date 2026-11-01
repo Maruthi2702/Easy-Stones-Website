@@ -13,10 +13,11 @@ import express from 'express';
 import type { Request, RequestHandler } from 'express';
 import type { Multer } from 'multer';
 import type { Model, QueryFilter } from 'mongoose';
+import type { InventoryStockItem } from '../models/InventoryItem.ts';
+import type { parseInventorySalesWorkbook } from '../utils/inventoryImport.ts';
 
 // Authentication request fields are declared centrally in src/types/server.ts.
 import type {} from '../types/server.ts';
-import mongoose from 'mongoose';
 import { randomUUID, createHash } from 'crypto';
 import { inInventoryTransaction } from '../services/inventoryTransaction.ts';
 import { publishTransitReport } from '../services/inventoryTransitImport.ts';
@@ -32,6 +33,7 @@ import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.ts';
 // Parses run in a worker thread — see runWorkbookParse.ts for why an uploaded
 // file needs that isolation.
 import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
+import type { WorkbookParseResults } from '../utils/runWorkbookParse.ts';
 // Big writes go in batches that survive a dropped database connection.
 
 /**
@@ -68,7 +70,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   // Shared by /summary and /items so the two never drift apart on what a
   // given search/category/location/status combination actually matches.
   const buildInventoryItemQuery = ({ search = '', category = '', location = '', status = '', product = '' } = {}) => {
-    const query: QueryFilter<Record<string, any>> = {};
+    const query: QueryFilter<InventoryStockItem> = {};
     if (product) query.product = product;
     if (category) query.category = category;
     const locationMatch = inventoryLocationMatch(location);
@@ -230,7 +232,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       ]);
 
       const canViewPrices = req.user.permissions.includes('view_inventory_prices');
-      const groups = (result?.data || []).map((g: Record<string, any>) => {
+      const groups = (result?.data || []).map((g: { _id: string; category: string; units: string; slabCount: number; totalOnHand: number; totalAvailable: number; totalAssetValue: number; locations: string[]; oldestReceivedDate: Date | null; statuses: string[] }) => {
         // Keys must cover every bucket SLAB_STATUS_BUCKET can return, or that
         // bucket's ++ would land on undefined and ship NaN to the UI.
         const statusCounts: Record<string, number> = { available: 0, hold: 0, so: 0, pickticket: 0, packinglist: 0, transfer: 0, other: 0 };
@@ -339,9 +341,11 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   // for PARSED_UPLOAD_TTL; an expired or unknown id answers 410 and the browser
   // sends the file again (after a restart, say).
   const PARSED_UPLOAD_TTL = 10 * 60 * 1000;
-  const parsedUploads = new Map(); // id → { kind, userId, parsed, at }
+  type ImportKind = Exclude<keyof WorkbookParseResults, 'customer'>;
+  type ParsedImport<K extends ImportKind> = WorkbookParseResults[K] & { sourceFilename?: string; sourceHash?: string };
+  const parsedUploads = new Map<string, { kind: ImportKind; userId: string; parsed: ParsedImport<ImportKind>; at: number }>();
 
-  const rememberParsedUpload = (kind: string, userId: string, parsed: any) => {
+  const rememberParsedUpload = <K extends ImportKind>(kind: K, userId: string, parsed: ParsedImport<K>) => {
     const now = Date.now();
     for (const [id, entry] of parsedUploads) {
       if (now - entry.at > PARSED_UPLOAD_TTL || (entry.kind === kind && entry.userId === userId)) parsedUploads.delete(id);
@@ -351,15 +355,16 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
     return id;
   };
 
-  const takeParsedUpload = (id: unknown, kind: string, userId: string) => {
+  const takeParsedUpload = <K extends ImportKind>(id: unknown, kind: K, userId: string): ParsedImport<K> | null => {
     const entry = id ? parsedUploads.get(String(id)) : null;
     if (!entry || entry.kind !== kind || entry.userId !== userId || Date.now() - entry.at > PARSED_UPLOAD_TTL) return null;
     parsedUploads.delete(String(id));
-    return entry.parsed;
+    // The kind checked above is the same key paired with this parser result on insertion.
+    return entry.parsed as ParsedImport<K>;
   };
 
   /** The parsed import for an apply: the previewed one by uploadId, else the uploaded file. */
-  const parsedImportFor = async (req: Request, kind: Parameters<typeof runWorkbookParse>[0]) => {
+  const parsedImportFor = async <K extends ImportKind>(req: Request, kind: K): Promise<ParsedImport<K> | null> => {
     const kept = takeParsedUpload(req.body?.uploadId, kind, String(req.user?.id || ''));
     if (kept) return kept;
     if (!req.file) return null;
@@ -510,13 +515,13 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
         const previous = await InventorySalesRecord.find({ location, periodStart, periodEnd }).session(session).sort({ _id: 1 }).lean();
         if (previous.length) {
           const oldAt = previous.map(r => r.importedAt?.toISOString()).filter(Boolean).sort().at(-1) || '';
-          const identity = reportIdentity(location, periodStart.toISOString().slice(0, 10), periodEnd.toISOString().slice(0, 10), oldAt, previous as any);
+          const identity = reportIdentity(location, periodStart.toISOString().slice(0, 10), periodEnd.toISOString().slice(0, 10), oldAt, previous);
           // Backfill legacy references before replacing their source row IDs.
           await PurchasingScope.updateMany({ cohortId: identity.legacyId }, { $set: { cohortId: identity.id }, $inc: { __v: 1 } }, { session });
         }
         await InventorySalesRecord.deleteMany({ location, periodStart, periodEnd }, { session });
         for (let start = 0; start < rows.length; start += 1000) {
-          await InventorySalesRecord.insertMany(rows.slice(start, start + 1000).map((r: Record<string, any>) => ({ ...r,
+          await InventorySalesRecord.insertMany(rows.slice(start, start + 1000).map((r: ReturnType<typeof parseInventorySalesWorkbook>['rows'][number]) => ({ ...r,
             location, periodStart, periodEnd, importedAt, importedByName, importedById })), { session, ordered: true });
         }
       });

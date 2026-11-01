@@ -1,10 +1,8 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
 // Street / suite / city / state / ZIP — zipCode, not zip, to match Customer
 // and src/utils/geocode.ts's addressKeyOf.
-const addressSchema = new mongoose.Schema<Loose>({
+const addressSchema = new mongoose.Schema({
   street: { type: String, trim: true, default: '' },
   suite: { type: String, trim: true, default: '' },
   city: { type: String, trim: true, default: '' },
@@ -17,7 +15,7 @@ const addressSchema = new mongoose.Schema<Loose>({
 // src/utils/locationForm.ts. Locations created before those fields existed
 // simply have them empty — the selection sheet then prints the Kent address
 // (DEFAULT_LETTERHEAD) until someone adds theirs.
-const locationSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+const locationSchema = new mongoose.Schema({
   // The short name ("Charlotte") — the key stored on users' assignedLocations,
   // check-ins, daily reports and more, so it is never renamed.
   name: {

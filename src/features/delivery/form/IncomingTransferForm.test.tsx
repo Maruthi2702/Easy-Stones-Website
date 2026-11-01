@@ -1,9 +1,10 @@
+import type { ReactNode, FormEventHandler } from 'react';
 // @vitest-environment jsdom
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import IncomingTransferForm from './IncomingTransferForm';
-vi.mock('../../../components/shared/calendar/Calendar', () => ({ DatePicker: ({ id, value, onChange }: any) => <input id={id} value={value} onChange={e => onChange(e.target.value)} /> }));
-vi.mock('../../../components/shared/form/FormModal', () => ({ default: ({ children, onSubmit, submitDisabled }: any) => <form onSubmit={onSubmit}>{children}<button disabled={submitDisabled}>Save changes</button></form> }));
+vi.mock('../../../components/shared/calendar/Calendar', () => ({ DatePicker: ({ id, value, onChange }: { id?: string; value: string; onChange: (value: string) => void }) => <input id={id} value={value} onChange={e => onChange(e.target.value)} /> }));
+vi.mock('../../../components/shared/form/FormModal', () => ({ default: ({ children, onSubmit, submitDisabled }: { children: ReactNode; onSubmit: FormEventHandler<HTMLFormElement>; submitDisabled?: boolean }) => <form onSubmit={onSubmit}>{children}<button disabled={submitDisabled}>Save changes</button></form> }));
 afterEach(cleanup);
 const ticket = { id: 't1', deliveryType: 'transfer', location: 'Spokane', transferDestination: 'Seattle', date: '2026-10-31', expectedArrivalDate: '2026-11-02', numberOfSlabs: 3, customerName: 'Example' };
 describe('receiving transfer form', () => {

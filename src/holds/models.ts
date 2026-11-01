@@ -1,4 +1,3 @@
-import type { Loose } from '../types/records.ts';
 /**
  * Cart & Holds records (2026-10-10), in their own collections and reached only
  * through src/holds/.
@@ -22,22 +21,22 @@ import { HOLD_STATUSES } from './holdRules.ts';
 const { Schema } = mongoose;
 
 const person = { _id: false, id: { type: String, default: '' }, name: { type: String, default: '' } };
-const wholeNumber = (field: string) => ({ validator: (v: Loose) => v === null || v === undefined || Number.isSafeInteger(v), message: `${field} must be a whole number` });
+const wholeNumber = (field: string) => ({ validator: (v: unknown) => v === null || v === undefined || Number.isSafeInteger(v), message: `${field} must be a whole number` });
 
 // ── Cart ─────────────────────────────────────────────────────────────────
-const cartLineSchema = new Schema<Loose>({
+const cartLineSchema = new Schema({
   slabKey: { type: String, required: true },
   product: { type: String, default: '' },
   note: { type: String, default: '', maxlength: 300 },
   addedAt: { type: Date, default: Date.now }
 }, { _id: false });
 
-const cartSchema = new Schema<Loose>({
+const cartSchema = new Schema({
   userId: { type: String, required: true, unique: true },
   // Shown to others as "Maria has it in her cart".
   userName: { type: String, default: '' },
   customer: {
-    type: new Schema<Loose>({ id: { type: String, default: '' }, name: { type: String, default: '' } }, { _id: false }),
+    type: new Schema({ id: { type: String, default: '' }, name: { type: String, default: '' } }, { _id: false }),
     default: null
   },
   lines: { type: [cartLineSchema], default: [] }
@@ -46,7 +45,7 @@ const cartSchema = new Schema<Loose>({
 cartSchema.index({ 'lines.slabKey': 1 });
 
 // ── Hold ─────────────────────────────────────────────────────────────────
-const holdLineSchema = new Schema<Loose>({
+const holdLineSchema = new Schema({
   slabKey: { type: String, required: true },
   serial: { type: String, default: '' },
   barcode: { type: String, default: '' },
@@ -63,7 +62,7 @@ const holdLineSchema = new Schema<Loose>({
   note: { type: String, default: '', maxlength: 300 }
 }, { _id: false });
 
-const customerSnapshot = new Schema<Loose>({
+const customerSnapshot = new Schema({
   id: { type: String, default: '' },
   name: { type: String, default: '' },
   contact: { type: String, default: '' },
@@ -72,7 +71,7 @@ const customerSnapshot = new Schema<Loose>({
   address: { type: String, default: '' }
 }, { _id: false });
 
-const holdSchema = new Schema<Loose>({
+const holdSchema = new Schema({
   number: { type: Number, required: true, unique: true },
   status: { type: String, enum: HOLD_STATUSES, default: 'active', index: true },
   branch: { type: String, required: true, index: true },
@@ -102,11 +101,11 @@ holdSchema.index({ requestId: 1 }, { unique: true, partialFilterExpression: { re
 holdSchema.index({ status: 1, branch: 1, createdAt: -1 });
 holdSchema.index({ 'createdBy.id': 1, createdAt: -1 });
 holdSchema.pre('validate', function syncKeys() {
-  this.slabKeys = (this.lines || []).map((l: Loose) => l.slabKey);
+  this.slabKeys = (this.lines || []).map((l) => l.slabKey);
 });
 
 // ── Lock ─────────────────────────────────────────────────────────────────
-const reservationSchema = new Schema<Loose>({
+const reservationSchema = new Schema({
   slabKey: { type: String, required: true, unique: true },
   holdId: { type: Schema.Types.ObjectId, required: true, index: true },
   holdNumber: { type: Number, required: true },
@@ -117,19 +116,21 @@ const reservationSchema = new Schema<Loose>({
 }, { timestamps: true, collection: 'sales_slab_reservations' });
 
 // ── Numbers ──────────────────────────────────────────────────────────────
-const counterSchema = new Schema<Loose>({
+const counterSchema = new Schema({
   _id: { type: String, required: true },
   seq: { type: Number, default: 0 }
 }, { collection: 'sales_counters', versionKey: false });
 
 // ── History (append-only) ────────────────────────────────────────────────
-const historySchema = new Schema<Loose>({
+const historySchema = new Schema({
   holdId: { type: Schema.Types.ObjectId, required: true },
   holdNumber: { type: Number, required: true },
   action: { type: String, required: true },
   by: { type: person, default: () => ({}) },
   at: { type: Date, default: Date.now },
-  changes: [{ _id: false, field: String, from: Schema.Types.Mixed, to: Schema.Types.Mixed }],
+  changes: [new Schema<{ field?: string | null; from?: unknown; to?: unknown }>({
+    field: String, from: Schema.Types.Mixed, to: Schema.Types.Mixed
+  }, { _id: false })],
   note: { type: String, default: '' }
 }, { collection: 'sales_hold_history', versionKey: false });
 
@@ -143,13 +144,14 @@ historySchema.pre('save', function onlyNew() {
   if (!this.isNew) throw new Error('Hold history is append-only');
 });
 
-const model = (name: string, schema: mongoose.Schema<Loose>) => mongoose.models[name] || mongoose.model(name, schema);
 
-export const Cart = model('SalesCart', cartSchema);
-export const Hold = model('SalesHold', holdSchema);
-export const SlabReservation = model('SalesSlabReservation', reservationSchema);
-export const Counter = model('SalesCounter', counterSchema);
-export const HoldHistory = model('SalesHoldHistory', historySchema);
+export const Cart: mongoose.Model<mongoose.InferSchemaType<typeof cartSchema>> = (mongoose.models.SalesCart as mongoose.Model<mongoose.InferSchemaType<typeof cartSchema>> | undefined) || mongoose.model('SalesCart', cartSchema);
+export const Hold: mongoose.Model<mongoose.InferSchemaType<typeof holdSchema>> = (mongoose.models.SalesHold as mongoose.Model<mongoose.InferSchemaType<typeof holdSchema>> | undefined) || mongoose.model('SalesHold', holdSchema);
+export const SlabReservation: mongoose.Model<mongoose.InferSchemaType<typeof reservationSchema>> = (mongoose.models.SalesSlabReservation as mongoose.Model<mongoose.InferSchemaType<typeof reservationSchema>> | undefined) || mongoose.model('SalesSlabReservation', reservationSchema);
+const createCounter = () => mongoose.model('SalesCounter', counterSchema);
+export const Counter = (mongoose.models.SalesCounter as ReturnType<typeof createCounter> | undefined) || createCounter();
+const createHoldHistory = () => mongoose.model('SalesHoldHistory', historySchema);
+export const HoldHistory = (mongoose.models.SalesHoldHistory as ReturnType<typeof createHoldHistory> | undefined) || createHoldHistory();
 
 /** The next number for `name` (e.g. 'hold'): 1, 2, 3… — inside the caller's transaction. */
 export async function nextNumber(name: string, session: mongoose.ClientSession) {
@@ -158,5 +160,6 @@ export async function nextNumber(name: string, session: mongoose.ClientSession) 
     { $inc: { seq: 1 } },
     { upsert: true, returnDocument: 'after', session }
   );
+  if (!doc) throw new Error(`Could not allocate the next ${name} number`);
   return doc.seq;
 }

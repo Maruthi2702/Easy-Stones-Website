@@ -1,4 +1,3 @@
-import type { Loose } from '../types/records.ts';
 /**
  * Accounting's records (2026-10-09). Their own collections (acct_*), so
  * nothing else in the app writes them by accident, and every one of them is
@@ -15,9 +14,9 @@ import { newTxnId } from './ids.ts';
 const { Schema } = mongoose;
 
 const person = { id: { type: String, default: '' }, name: { type: String, default: '' } };
-const cents = { type: Number, default: null, validate: { validator: (v: Loose) => v === null || Number.isSafeInteger(v), message: 'Amounts are whole cents' } };
+const cents = { type: Number, default: null, validate: { validator: (v: unknown) => v === null || Number.isSafeInteger(v), message: 'Amounts are whole cents' } };
 
-const paymentSchema = new Schema<Loose>({
+const paymentSchema = new Schema({
   // The payment (acct_payments) this was paid by: PAY-YYYYMMDD-XXXXXXXX.
   paymentId: { type: String, default: '' },
   paidOn: { type: String, default: '' },          // YYYY-MM-DD the money went out
@@ -28,7 +27,7 @@ const paymentSchema = new Schema<Loose>({
 }, { _id: false });
 
 // ── Carrier ──────────────────────────────────────────────────────────────
-const carrierSchema = new Schema<Loose>({
+const carrierSchema = new Schema({
   name: { type: String, required: true, trim: true },
   // normalizeCarrierName(name) — unique, so "ABC Freight Inc" can't be added twice.
   nameKey: { type: String, required: true, unique: true },
@@ -41,7 +40,7 @@ const carrierSchema = new Schema<Loose>({
 }, { timestamps: true, optimisticConcurrency: true, collection: 'acct_carriers' });
 
 // ── Freight charge ───────────────────────────────────────────────────────
-const flagSchema = new Schema<Loose>({
+const flagSchema = new Schema({
   code: { type: String, enum: ['delivery_reopened', 'delivery_changed'], required: true },
   detail: { type: String, default: '' },
   at: { type: Date, default: Date.now },
@@ -54,7 +53,7 @@ const derivedSnapshot = {
   carrierNameRaw: String, bolNumber: String, amountCents: Number
 };
 
-const chargeSchema = new Schema<Loose>({
+const chargeSchema = new Schema({
   source: { type: String, enum: ['delivery', 'manual'], required: true },
   // One charge per delivery. Sparse: hand-added charges have none.
   deliveryId: { type: String, default: undefined },
@@ -89,7 +88,7 @@ chargeSchema.index({ deliveryId: 1 }, { unique: true, partialFilterExpression: {
 chargeSchema.index({ location: 1, status: 1, deliveryDate: -1 });
 
 // ── Carrier invoice ──────────────────────────────────────────────────────
-const invoiceSchema = new Schema<Loose>({
+const invoiceSchema = new Schema({
   carrierId: { type: Schema.Types.ObjectId, ref: 'AcctCarrier', required: true, index: true },
   invoiceNumber: { type: String, required: true, trim: true },
   invoiceDate: { type: String, default: '' },
@@ -113,7 +112,7 @@ const invoiceSchema = new Schema<Loose>({
 invoiceSchema.index({ carrierId: 1, invoiceNumber: 1 }, { unique: true });
 
 // ── History (append-only) ────────────────────────────────────────────────
-const auditSchema = new Schema<Loose>({
+const auditSchema = new Schema({
   // Every entry's own ID (TX-YYYYMMDD-XXXXXXXX, ids.js), set when it's written.
   txnId: { type: String, required: true, unique: true, default: () => newTxnId() },
   // The payment it belongs to, on 'approved' / 'paid' lines written by a payment.
@@ -123,7 +122,9 @@ const auditSchema = new Schema<Loose>({
   action: { type: String, required: true },
   by: person,
   at: { type: Date, default: Date.now },
-  changes: [{ _id: false, field: String, from: Schema.Types.Mixed, to: Schema.Types.Mixed }],
+  changes: [new Schema<{ field?: string | null; from?: unknown; to?: unknown }>({
+    field: String, from: Schema.Types.Mixed, to: Schema.Types.Mixed
+  }, { _id: false })],
   note: { type: String, default: '' }
 }, { collection: 'acct_audit', versionKey: false });
 
@@ -138,7 +139,7 @@ auditSchema.index({ paymentId: 1 }, { partialFilterExpression: { paymentId: { $g
 // `requestId` is the browser's ID for that one click: the same request sent
 // twice (a double-click, a retry after a dropped connection) finds this row
 // and returns it instead of paying again.
-const paymentRecordSchema = new Schema<Loose>({
+const paymentRecordSchema = new Schema({
   paymentId: { type: String, required: true, unique: true },
   requestId: { type: String, default: undefined },
   kind: { type: String, enum: ['charges', 'invoice'], required: true },
@@ -173,10 +174,11 @@ for (const schema of [auditSchema, paymentRecordSchema]) {
   });
 }
 
-const model = (name: string, schema: mongoose.Schema<Loose>) => mongoose.models[name] || mongoose.model(name, schema);
 
-export const Carrier = model('AcctCarrier', carrierSchema);
-export const FreightCharge = model('AcctFreightCharge', chargeSchema);
-export const CarrierInvoice = model('AcctCarrierInvoice', invoiceSchema);
-export const AccountingAudit = model('AcctAudit', auditSchema);
-export const Payment = model('AcctPayment', paymentRecordSchema);
+export const Carrier: mongoose.Model<mongoose.InferSchemaType<typeof carrierSchema>> = (mongoose.models.AcctCarrier as mongoose.Model<mongoose.InferSchemaType<typeof carrierSchema>> | undefined) || mongoose.model('AcctCarrier', carrierSchema);
+export const FreightCharge: mongoose.Model<mongoose.InferSchemaType<typeof chargeSchema>> = (mongoose.models.AcctFreightCharge as mongoose.Model<mongoose.InferSchemaType<typeof chargeSchema>> | undefined) || mongoose.model('AcctFreightCharge', chargeSchema);
+export const CarrierInvoice: mongoose.Model<mongoose.InferSchemaType<typeof invoiceSchema>> = (mongoose.models.AcctCarrierInvoice as mongoose.Model<mongoose.InferSchemaType<typeof invoiceSchema>> | undefined) || mongoose.model('AcctCarrierInvoice', invoiceSchema);
+const createAccountingAudit = () => mongoose.model('AcctAudit', auditSchema);
+export const AccountingAudit = (mongoose.models.AcctAudit as ReturnType<typeof createAccountingAudit> | undefined) || createAccountingAudit();
+const createPayment = () => mongoose.model('AcctPayment', paymentRecordSchema);
+export const Payment = (mongoose.models.AcctPayment as ReturnType<typeof createPayment> | undefined) || createPayment();

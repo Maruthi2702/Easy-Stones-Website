@@ -1,4 +1,4 @@
-import type { ScalarQuery, ScalarParams } from '../types/server.ts';
+import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import type { Loose } from '../types/records.ts';
 import type { Request, RequestHandler } from 'express';
 import express from 'express';
@@ -331,7 +331,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         // Their home location (Users & Roles), the same branch the check-in
         // page opens on. It used to be the first assigned branch, so a CSR
         // based in Dallas who also covers Seattle filed visitors under Seattle.
-        kioskLocation = homeLocationOf({ location: req.authUserDoc?.location, assignedLocations: userLocations })
+        kioskLocation = homeLocationOf({ location: req.authUserDoc?.location ?? undefined, assignedLocations: userLocations })
           || userLocations.find(l => l !== '*')
           || 'Seattle';
       }
@@ -497,9 +497,10 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   // than gated behind view_checkins, since this is part of filling the form
   // out, not the check-in log/report those permissions guard.
   // Registered ahead of GET /:id so 'lookup' is never read as an id.
-  router.get('/lookup', authenticate, requirePermission(P.CHECK_IN), async (req, res) => {
+  router.get('/lookup', authenticate, requirePermission(P.CHECK_IN), validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
-      const digits = stripPhone((req.query as ScalarQuery).phone);
+      const digits = stripPhone(requestQuery.phone);
       if (digits.length < 10) {
         return res.json({ found: false });
       }
@@ -536,9 +537,10 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
     }
   });
 
-  router.get('/', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
+  router.get('/', authenticate, requirePermission(P.VIEW_LOG), validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
-      const { page, limit, search, month, year, location } = (req.query as ScalarQuery);
+      const { page, limit, search, month, year, location } = requestQuery;
 
       const userLocations = req.user.assignedLocations || [];
       const built = checkInListQuery(userLocations, { search, month, year, location });
@@ -584,10 +586,11 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   // signs it in and errors come back as a short readable page, not JSON.
   // ?download=1 saves it; otherwise it opens in the browser's PDF viewer.
   // Registered before GET /:id, which would otherwise take "export.pdf".
-  router.get('/export.pdf', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
+  router.get('/export.pdf', authenticate, requirePermission(P.VIEW_LOG), validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     const fail = (status: number, message: string) => res.status(status).type('text/plain; charset=utf-8').send(message);
     try {
-      const { search, month, year, location, download, tz } = (req.query as ScalarQuery);
+      const { search, month, year, location, download, tz } = requestQuery;
       const built = checkInListQuery(req.user.assignedLocations || [], { search, month, year, location });
       if (built.forbidden) return fail(403, 'You don’t have access to that branch’s check-ins.');
 
@@ -616,7 +619,8 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   });
 
   // Check-in stats: today count + this month count (viewer-timezone aware)
-  router.get('/stats', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
+  router.get('/stats', authenticate, requirePermission(P.VIEW_LOG), validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
       const now = new Date();
 
@@ -629,7 +633,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       };
 
       const userLocations = req.user.assignedLocations || [];
-      const locFilter = locationFilterFor(userLocations, (req.query as ScalarQuery).location);
+      const locFilter = locationFilterFor(userLocations, requestQuery.location);
       if (locFilter.forbidden) {
         return res.status(403).json({ message: 'Access denied to this location' });
       }
@@ -652,9 +656,10 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   });
 
   // Get specific check-in
-  router.get('/:id', authenticate, requirePermission(P.VIEW_LOG), async (req, res) => {
+  router.get('/:id', authenticate, requirePermission(P.VIEW_LOG), validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const checkIn = await OfficeCheckIn.findById((req.params as ScalarParams).id);
+      const checkIn = await OfficeCheckIn.findById(requestParams.id);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in not found' });
       }
@@ -677,7 +682,8 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   // 2026-10-14 what a save needs depends on what it changes: visitor details
   // and branch need "Edit details" (manage_checkins), the Selection Sheet's
   // fields need "Edit sheets" (edit_selection_sheets) — missingEditPermission.
-  router.put('/:id', authenticate, async (req, res) => {
+  router.put('/:id', authenticate, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     const missing = missingEditPermission(req.user, req.body);
     if (missing) {
       return res.status(403).json({
@@ -702,7 +708,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         location,
         expectedUpdatedAt
       } = req.body;
-      const checkIn = await OfficeCheckIn.findById((req.params as ScalarParams).id);
+      const checkIn = await OfficeCheckIn.findById(requestParams.id);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in not found' });
       }
@@ -765,7 +771,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         // used to throw here and surface as an opaque 500 instead of a 400.
         const cleaned = cleanSelections(selections);
         if (cleaned.error) return res.status(400).json({ message: cleaned.error });
-        checkIn.selections = cleaned.selections;
+        checkIn.set('selections', cleaned.selections);
       }
       if (specialNotes !== undefined) checkIn.specialNotes = specialNotes;
       if (internalNotes !== undefined) checkIn.internalNotes = String(internalNotes ?? '');
@@ -827,7 +833,8 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   });
 
   // Send selection sheet email
-  router.post('/:id/send-email', authenticate, requirePermission(P.EMAIL_SHEET), async (req, res) => {
+  router.post('/:id/send-email', authenticate, requirePermission(P.EMAIL_SHEET), validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
       // withPrices: the "Send with prices" button. Off unless asked for, so a
       // visitor's copy never carries prices by accident.
@@ -836,7 +843,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         return res.status(400).json({ message: 'Recipient email is required' });
       }
 
-      const checkIn = await OfficeCheckIn.findById((req.params as ScalarParams).id);
+      const checkIn = await OfficeCheckIn.findById(requestParams.id);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in record not found' });
       }
@@ -863,9 +870,10 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   });
 
   // Delete specific check-in
-  router.delete('/:id', authenticate, requirePermission(P.DELETE), async (req, res) => {
+  router.delete('/:id', authenticate, requirePermission(P.DELETE), validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const checkIn = await OfficeCheckIn.findById((req.params as ScalarParams).id);
+      const checkIn = await OfficeCheckIn.findById(requestParams.id);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in not found' });
       }
@@ -873,7 +881,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       if (!hasLocationAccess(userLocations, checkIn.location)) {
         return res.status(403).json({ message: 'Access denied to delete this check-in' });
       }
-      await OfficeCheckIn.findByIdAndDelete((req.params as ScalarParams).id);
+      await OfficeCheckIn.findByIdAndDelete(requestParams.id);
       console.log(`🗑️ Office check-in ${checkIn._id} deleted by ${req.user?.displayName || req.user?.username}`);
       emitCheckInUpdate(req, checkIn.location);
 

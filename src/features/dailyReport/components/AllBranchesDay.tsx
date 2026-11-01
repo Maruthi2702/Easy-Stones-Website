@@ -32,10 +32,15 @@ const AllBranchesDay = ({ date, authFetch, onOpenBranch }: { date: string; authF
   const [error, setError] = useState<string | null>(null);
   const [noBranchTickets, setNoBranchTickets] = useState(0);
 
-  useEffect(() => {
-    let alive = true;
+  const [request, setRequest] = useState(() => ({ authFetch, date }));
+  if (request.authFetch !== authFetch || request.date !== date) {
+    setRequest({ authFetch, date });
     setLoading(true);
     setError(null);
+  }
+
+  useEffect(() => {
+    let alive = true;
     const tzOffset = -new Date().getTimezoneOffset();
     authFetch(`${API_URL}/api/daily-reports/overview/${date}?tzOffset=${tzOffset}`)
       .then(async r => {

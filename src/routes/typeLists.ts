@@ -40,9 +40,14 @@ const stored = (doc: Loose) => ({
 });
 
 type StaffRequest = Request & { user?: Loose; userId?: string };
-type Options = {
+type TypeListData = {
+  name: string; label: string; order: number; active: boolean; updatedBy: string;
+  system?: boolean; family?: string;
+  fields?: { notes: boolean; outcome: boolean; followUp: string } | null;
+};
+type Options<T extends TypeListData> = {
   kind: TypeKind;
-  Model: Model<Loose>;
+  Model: Model<T>;
   /** How many records carry this stored name. */
   countUses: (name: string) => Promise<number>;
   /** Moves every record from one stored name to another; returns how many moved. */
@@ -62,7 +67,7 @@ type Options = {
   requireAction: (key: string) => RequestHandler;
 };
 
-export default function createTypeListRouter({ kind, Model, countUses, replaceUses, onFamilyChange, families, actions, authenticate, requireAction }: Options) {
+export default function createTypeListRouter<T extends TypeListData>({ kind, Model, countUses, replaceUses, onFamilyChange, families, actions, authenticate, requireAction }: Options<T>) {
   const router = express.Router();
   const noun = { visit: 'visit type', resource: 'resource type', family: 'family' }[kind];
   const [one, many] = { visit: ['visit', 'visits'], resource: ['resource', 'resources'], family: ['resource type', 'resource types'] }[kind];
@@ -95,7 +100,8 @@ export default function createTypeListRouter({ kind, Model, countUses, replaceUs
       if (!value.label) return res.status(400).json({ message: 'Enter a name.' });
       // New types go to the bottom; a manager moves them where they want.
       const order = all.reduce((max: number, t: Loose) => Math.max(max, Number(t.order ?? 0)), -1) + 1;
-      const doc = await Model.create({ ...value, name: value.label, order, updatedBy: who(req) });
+      const doc = new Model({ ...value, name: value.label, order, updatedBy: who(req) });
+      await doc.save();
       res.status(201).json({ type: stored(doc.toObject()) });
     } catch (error) {
       if ((error as { code?: number })?.code === 11000) return res.status(400).json({ message: `There is already a ${kind === 'family' ? 'family' : 'type'} with that name.` });
@@ -110,7 +116,7 @@ export default function createTypeListRouter({ kind, Model, countUses, replaceUs
       const all = await Model.find({}).select('_id').lean();
       const ids = reorderedIds(all.map((d: Loose) => d._id), req.body?.ids);
       if (!ids) return res.status(400).json({ message: 'Send every type once, in the order you want.' });
-      await Model.bulkWrite(ids.map((id, order) => ({
+      await Model.bulkWrite<TypeListData>(ids.map((id, order) => ({
         updateOne: { filter: { _id: id }, update: { $set: { order, updatedBy: who(req) } } }
       })));
       const docs = await Model.find({}).sort({ order: 1 }).lean();

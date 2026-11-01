@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
 import { io } from 'socket.io-client';
 import { getCachedData, setCachedData, isCacheValid, expireCacheKeys } from '../../utils/dataCache';
 import { API_URL } from '../../config/api';
@@ -83,20 +83,12 @@ const CheckInLogPage = () => {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  useEffect(() => {
-    fetchCheckIns();
-    fetchStats();
-  }, [currentPage, debouncedSearch, limit, filterMonth, filterYear, filterLocation, refreshTrigger]);
-
   // The socket is set up once, but the fetchers close over the current page and
   // filters. Routing through a ref keeps a live update refreshing the view the
   // user is actually on — previously it always refetched first-render state,
   // snapping the table back to page 1 with the filters cleared.
   const refreshRef = useRef(() => {});
-  refreshRef.current = () => {
-    fetchCheckIns(true);
-    fetchStats();
-  };
+
 
   useEffect(() => {
     const socket = io(API_URL || window.location.origin, {
@@ -129,7 +121,7 @@ const CheckInLogPage = () => {
   const listSeq = useRef(0);
   const statsSeq = useRef(0);
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     const seq = ++statsSeq.current;
     try {
       const params = new URLSearchParams({
@@ -150,9 +142,9 @@ const CheckInLogPage = () => {
     } catch (err) {
       console.error('Error fetching stats:', err);
     }
-  };
+  }, [filterLocation, logout]);
 
-  const fetchCheckIns = async (silent = false) => {
+  const fetchCheckIns = useCallback(async (silent = false) => {
     const seq = ++listSeq.current;
     const cacheKey = `page_checkins_${currentPage}_${limit}_${debouncedSearch}_${filterMonth}_${filterYear}_${filterLocation}`;
     const cached = getCachedData<{ checkIns: Loose[]; totalPages: number; totalCount: number }>(cacheKey);
@@ -212,7 +204,19 @@ const CheckInLogPage = () => {
         setRefreshing(false);
       }
     }
+  }, [currentPage, limit, debouncedSearch, filterMonth, filterYear, filterLocation, logout]);
+
+  useEffect(() => {
+    fetchCheckIns();
+    fetchStats();
+  }, [fetchCheckIns, fetchStats, refreshTrigger]);
+
+  useLayoutEffect(() => {
+  refreshRef.current = () => {
+    fetchCheckIns(true);
+    fetchStats();
   };
+  }, [fetchCheckIns, fetchStats]);
 
   // Every row matching the table's filters, not just the page on screen —
   // see exportCheckInLog (shared with the Check-In Log tab). A failed page

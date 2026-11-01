@@ -21,7 +21,7 @@ const BATCH = 100;
 export function createHoldExpiry({ io = null, log = console }: Loose = {}) {
   const announce = (slabKeys: Loose) => { if (slabKeys.length) io?.emit('slab_reservations_changed', { slabKeys }); };
 
-  async function noteExpired(now: Loose) {
+  async function noteExpired(now: Date) {
     const due = await Hold.find({ status: 'active', expiresAt: { $lte: now }, releaseAt: { $gt: now }, expiredNotedAt: null }, '_id').limit(BATCH).lean();
     let noted = 0;
     for (const { _id } of due) {
@@ -44,7 +44,7 @@ export function createHoldExpiry({ io = null, log = console }: Loose = {}) {
     return noted;
   }
 
-  async function releaseDue(now: Loose) {
+  async function releaseDue(now: Date) {
     const due = await Hold.find({ status: 'active', releaseAt: { $lte: now } }, '_id').limit(BATCH).lean();
     let released = 0;
     for (const { _id } of due) {

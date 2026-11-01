@@ -1,4 +1,4 @@
-import type { ScalarQuery, ScalarParams } from '../types/server.ts';
+import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request, Response } from 'express';
 /**
@@ -16,7 +16,7 @@ import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import { randomBytes } from 'node:crypto';
 import Schedule from '../models/Schedule.ts';
-import Customer from '../models/Customer.ts';
+import Customer, { type CustomerData } from '../models/Customer.ts';
 import User from '../models/User.ts';
 import { calendarFeedToken, validCalendarFeedToken } from '../services/calendarFeed.ts';
 import { zonedTimeToUtc } from '../utils/dateUtils.ts';
@@ -97,15 +97,16 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   // Users & Roles → Visits → Team calendar — narrowed by ?reps= (the
   // dashboard's People filter) and ?location=, each with `ownerName`. Read
   // only: PUT and DELETE below still match on the signed-in user's id.
-  router.get('/schedule', verifyAnyAuth, async (req, res) => {
+  router.get('/schedule', verifyAnyAuth, validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
 
     try {
       const userId = req.userId || req.customerId;
-      const { start, end } = (req.query as ScalarQuery);
+      const { start, end } = requestQuery;
 
       let query: Loose = { userId };
       let nameOf = null;
-      if ((req.query as ScalarQuery).scope === 'team' && req.userId && req.user?.type !== 'customer') {
+      if (requestQuery.scope === 'team' && req.userId && req.user?.type !== 'customer') {
         const team = await calendarPeopleOf(req);
         nameOf = team.nameOf;
         query = team.people === ALL_PEOPLE ? {} : { userId: { $in: [...team.people].flatMap(idVariants) } };
@@ -116,7 +117,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       }
 
       const schedule = await Schedule.find(query)
-        .populate('customerId', 'contactName company')
+        .populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company')
         .sort({ startTime: 1 });
 
       if (!nameOf) return res.json(schedule);
@@ -149,7 +150,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         return res.status(400).json({ message: 'That customer no longer exists' });
       }
 
-      const populate = (id: unknown) => Schedule.findById(id).populate('customerId', 'contactName company');
+      const populate = (id: unknown) => Schedule.findById(id).populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company');
       const alreadySaved = async () => {
         const existing = await populate(wantedId);
         if (!existing) return null;
@@ -237,7 +238,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       const wantedId = items.length === 1 ? items[0]._id : undefined;
       if (wantedId !== undefined) {
         if (!isObjectId(wantedId)) return res.status(400).json({ message: 'That entry id is not valid' });
-        const existing = await Schedule.findById(wantedId).populate('customerId', 'contactName company');
+        const existing = await Schedule.findById(wantedId).populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company');
         if (existing) {
           if (String(existing.userId) !== String(userId)) return res.status(409).json({ message: 'That entry id is already used' });
           return res.status(200).json({ stops: [existing], replaced: 0, alreadySaved: true });
@@ -290,7 +291,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       emitScheduleUpdate({ type: 'bulk', userId, count: created.length });
 
       const populated = await Schedule.find({ _id: { $in: created.map((item: Loose) => item._id) } })
-        .populate('customerId', 'contactName company')
+        .populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company')
         .sort({ startTime: 1 });
 
       console.log(`🗺️ Route planned: ${created.length} stops for user ${userId}${replaced ? ` (replaced ${replaced})` : ''}`);
@@ -311,10 +312,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
    * entered by hand alone — the same rule the replace path follows, for the same
    * reason: undoing a plan is not permission to empty a calendar.
    */
-  router.delete('/schedule/route', authenticate, requirePermission('delete_route_plan'), async (req, res) => {
+  router.delete('/schedule/route', authenticate, requirePermission('delete_route_plan'), validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
       const userId = req.userId;
-      const { date } = (req.query as ScalarQuery);
+      const { date } = requestQuery;
 
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) {
         return res.status(400).json({ message: 'A date (YYYY-MM-DD) is required' });
@@ -338,10 +340,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   // Update schedule item: only the fields a write may set (never userId or
   // source), checked the same way as a create, with a start sent alone checked
   // against the entry's stored end.
-  router.put('/schedule/:id', verifyAnyAuth, async (req, res) => {
+  router.put('/schedule/:id', verifyAnyAuth, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
       const userId = req.userId || req.customerId;
-      const { id } = (req.params as ScalarParams);
+      const { id } = requestParams;
       if (!isObjectId(id)) return res.status(404).json({ message: 'Schedule item not found' });
 
       const existing = await Schedule.findOne({ _id: id, userId }).lean();
@@ -357,7 +360,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         { _id: id, userId },
         { $set: fields },
         { new: true }
-      ).populate('customerId', 'contactName company');
+      ).populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company');
 
       if (!item) {
         return res.status(404).json({ message: 'Schedule item not found' });
@@ -373,10 +376,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   });
 
   // Delete schedule item
-  router.delete('/schedule/:id', verifyAnyAuth, async (req, res) => {
+  router.delete('/schedule/:id', verifyAnyAuth, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
       const userId = req.userId || req.customerId;
-      const { id } = (req.params as ScalarParams);
+      const { id } = requestParams;
 
       const result = await Schedule.deleteOne({ _id: id, userId });
 
@@ -404,7 +408,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         { returnDocument: 'after' }
       ).select('+calendarFeedKey').lean();
       if (!owner) owner = await User.findById(req.userId).select('+calendarFeedKey').lean();
-      if (!owner || owner.isActive === false || owner.mustChangePassword) return res.sendStatus(403);
+      if (!owner || !owner.calendarFeedKey || owner.isActive === false || owner.mustChangePassword) return res.sendStatus(403);
       const token = calendarFeedToken(String(owner._id), owner.calendarFeedKey, JWT_SECRET);
       res.json({ path: `/api/calendar/feed/${owner._id}.ics?token=${token}` });
     } catch (error) {
@@ -416,9 +420,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.post('/calendar/subscription/rotate', authenticate, subscription(true));
 
   // Read-only feed for calendar clients, using its own revocable credential.
-  router.get('/calendar/feed/:userId.ics', async (req, res) => {
+  router.get('/calendar/feed/:userId.ics', validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
+  const requestQuery = scalarQuery(req);
     try {
-      const { userId } = (req.params as ScalarParams);
+      const { userId } = requestParams;
 
       // Validate ObjectId
       if (!mongoose.Types.ObjectId.isValid(userId)) {
@@ -429,7 +435,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       // (Users & Roles); so does one for an account that no longer exists.
       const owner = await User.findById(userId).select('isActive mustChangePassword +calendarFeedKey').lean();
       if (!owner || owner.isActive === false || owner.mustChangePassword
-          || !validCalendarFeedToken((req.query as ScalarQuery).token, userId, owner.calendarFeedKey, JWT_SECRET)) {
+          || !validCalendarFeedToken(requestQuery.token, userId, owner.calendarFeedKey, JWT_SECRET)) {
         return res.status(404).send('Calendar not found');
       }
 
@@ -438,7 +444,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         userId,
         status: { $ne: 'Cancelled' }
       })
-        .populate('customerId', 'contactName company')
+        .populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company')
         .lean();
 
       // Helper to format Date objects / strings to iCal date format (YYYYMMDDTHHmmssZ)
@@ -459,7 +465,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       };
 
       // Build iCalendar string
-      let icsContent = [
+      const icsContent = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
         'PRODID:-//EasyStones//CalendarFeed//EN',
@@ -573,7 +579,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         return;
       }
 
-      let accessToken = user.googleAccessToken;
+      const accessToken = user.googleAccessToken;
 
       const fetchGoogleEvents = async (token: string) => {
         const timeMin = new Date();
@@ -679,7 +685,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         userId,
         notes: { $not: /Google ID:/ },
         status: { $ne: 'Cancelled' }
-      }).populate('customerId', 'contactName company');
+      }).populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company');
 
       // schedule.startTime/endTime are naive wall-clock strings (no zone) —
       // whatever time the rep meant in THEIR OWN zone, not the server's. This
@@ -751,9 +757,10 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   };
 
   // Route: Initiate Google OAuth Redirection for Calendar Sync
-  router.get('/auth/google/calendar', async (req, res) => {
+  router.get('/auth/google/calendar', validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
-      const { token } = (req.query as ScalarQuery);
+      const { token } = requestQuery;
       if (!token) {
         return res.status(401).send('Authentication token is required');
       }
@@ -798,9 +805,10 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   });
 
   // Route: Google OAuth Redirect callback to parse code and save user tokens
-  router.get('/auth/google/calendar/callback', async (req, res) => {
+  router.get('/auth/google/calendar/callback', validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
-      const { code, state, error } = (req.query as ScalarQuery);
+      const { code, state, error } = requestQuery;
 
       if (error) {
         console.error('Google OAuth callback error:', error);
@@ -901,10 +909,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   });
 
   // Route: Trigger manual synchronization cycle
-  router.post('/auth/google/calendar/sync', verifyAnyAuth, async (req, res) => {
+  router.post('/auth/google/calendar/sync', verifyAnyAuth, validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
       const userId = req.userId || req.customerId;
-      await syncGoogleCalendar(userId, (req.query as ScalarQuery).tz);
+      await syncGoogleCalendar(userId, requestQuery.tz);
       res.json({ success: true, message: 'Google Calendar synchronized successfully' });
     } catch (error) {
       console.error('Google calendar sync trigger error:', error);
@@ -1000,10 +1009,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   });
 
   // Route: Trigger manual iCloud Sync
-  router.post('/auth/icloud/sync', verifyAnyAuth, async (req, res) => {
+  router.post('/auth/icloud/sync', verifyAnyAuth, validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
       const userId = req.userId || req.customerId;
-      if (await syncICloudCalendar(userId!, (req.query as ScalarQuery).tz)) {
+      if (await syncICloudCalendar(userId!, requestQuery.tz)) {
         emitScheduleUpdate({ type: 'sync', userId });
       }
       res.json({ success: true, message: 'iCloud Calendar synchronized successfully' });

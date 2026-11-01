@@ -1,5 +1,3 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
 /**
@@ -7,7 +5,16 @@ import mongoose from 'mongoose';
  * The first is 'navOrder' — the side nav's admin-set order
  * (src/routes/navOrder.ts, src/utils/navPins.ts).
  */
-const appSettingSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+/** Settings may hold differently shaped values; callers validate each key's value. */
+export interface AppSettingRecord {
+  key: string;
+  value: unknown;
+  updatedBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const appSettingSchema = new mongoose.Schema<AppSettingRecord>({
   key: {
     type: String,
     required: true,
@@ -26,4 +33,4 @@ const appSettingSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.Objec
   timestamps: true
 });
 
-export default mongoose.models.AppSetting || mongoose.model('AppSetting', appSettingSchema);
+export default ((mongoose.models.AppSetting as mongoose.Model<mongoose.InferSchemaType<typeof appSettingSchema>> | undefined) || mongoose.model('AppSetting', appSettingSchema)) as mongoose.Model<mongoose.InferSchemaType<typeof appSettingSchema>>;

@@ -27,10 +27,18 @@ third-party package entry points still use JavaScript as expected.
 - `npm run audit:typescript` recounts files; `-- --list` lists remaining
   JavaScript sources, `-- --json` prints JSON, and `-- --check` fails if any remain.
 
-Legacy BSON and external JSON records retain the existing `Loose` boundary type
-where their complete persisted shape is not yet modeled. Mongoose schemas still
-validate at runtime. Props, events, middleware, sessions, callbacks, request
-fields, parser results and other stable contracts have explicit types. No
+The `feat/typescript-hardening` follow-up replaces the model-wide `Loose`
+generics with schema-derived or explicit document contracts, including password
+methods and nested document identities. Settings and heterogeneous snapshot
+fields use `unknown` where each consumer must check the stored value. Some
+legacy controller and UI records still use `Loose`; conversion of an extension
+alone does not guarantee that every boundary has a complete type contract.
+
+Legacy scalar controllers now validate query and path values before running;
+repeated query values and nested query objects receive HTTP 400. Endpoints
+that intentionally accept arrays keep their own contracts. Mongoose schemas
+continue to validate writes at runtime. Props, events, middleware, sessions,
+callbacks, request fields, parser results and other stable contracts have explicit types. No
 `@ts-nocheck`, `@ts-ignore`, or weaker compiler options were added.
 
 The three obsolete Admin maintenance scripts already failed because their model
@@ -41,17 +49,25 @@ clear message directing users to Users & Roles.
 
 - Whole-project strict type checking passed on the current files.
 - The production build passed on Node 24.22.1, including the server import and
-  zero-JavaScript-source checks (265 server graph files, all TypeScript).
-- The full Node 24 test suite passed: 199 test files, 2,622 tests passed and
+  zero-JavaScript-source checks (271 server graph files, all TypeScript).
+- The full Node 24 test suite passed: 201 test files, 2,643 tests passed and
   four tests skipped. No failures were reported.
-- ESLint completed with 74 errors and 15 warnings. These remain a separate
-  cleanup: explicit `any`, unused variables, hook rules and other existing style
-  findings. No lint rules were disabled to make the migration pass.
+- ESLint passed across 1,049 files: zero errors and zero warnings, resolving
+  the earlier 74 errors and 15 warnings. No lint rules were disabled to make
+  these checks pass.
 
 The isolated native Node 24.22.1 smoke test passed: connected health/database
 ping, public catalog pricing restrictions, cold and warm catalog reads (including
 a direct temporary-database change proving the cached snapshot is reused),
-built HTML serving, and JSON 404 responses. The temporary server and MongoDB
+built HTML serving, and JSON 404 responses. The hardening smoke check also
+verified authenticated identity, fresh role permissions, valid dashboard
+queries (200), and repeated scalar query values (400). The temporary server and MongoDB
 were cleaned up. External HTTP was blocked and real credentials were cleared.
 
-Nothing was deployed by this migration.
+The browser smoke test covered the public catalog, warranty navigation and
+login with mocked APIs, with no page errors. Model review confirmed unchanged
+runtime schema paths, defaults, options and indexes; Customer/User password and
+lock methods were also exercised natively. A regression test covers legacy daily
+reports with missing visitor figures.
+
+Changes are on `feat/typescript-hardening`. Nothing was deployed or merged.

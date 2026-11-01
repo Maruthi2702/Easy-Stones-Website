@@ -3,6 +3,7 @@ import { buildPlan, stockId } from './buildPlan.ts';
 import { transitSupply } from './transitSupply';
 import { transitSignature } from './transitSignature';
 import { normalizeInbound } from './planning';
+import type { InboundRow, Receipt } from './types';
 import type { TransitLine } from '../types/inventory';
 
 const now = new Date('2026-10-25T20:00:00Z');
@@ -25,7 +26,7 @@ const inputs = () => {
     stock, reservations: [], locks: [],
     cohort: { id: 'sales', start: '2026-09-26', end: '2026-10-31', importedAt: now.toISOString(),
       records: [{ product: 'Quartz 3CM', uom: 'SF', quantitySold: 54, slabsSold: 54, importedAt: now }] },
-    inbound: { _id: 'inbound', complete: true, createdAt: now, rows: [] as any[], receipts: [] as any[] },
+    inbound: { _id: 'inbound', complete: true, createdAt: now, rows: [] as InboundRow[], receipts: [] as Receipt[] },
     transitShipments: [shipment()],
   };
 };
@@ -67,7 +68,7 @@ describe('uploaded transit in purchasing', () => {
   });
   it('blocks conflicting parent totals rather than silently losing reported containers', () => {
     const input = inputs();
-    input.inbound.rows = [{ po: 'P1', line: '1', product: 'Quartz 3CM', branch: 'Seattle', ordered: 12, received: 0, cancelled: 0 }];
+    input.inbound.rows = [{ po: 'P1', line: '1', product: 'Quartz 3CM', branch: 'Seattle', supplier: '', ordered: 12, received: 0, cancelled: 0, eta: '', confirmed: false, shipment: '', shipped: 0, shipmentReceived: 0, shipmentEta: '' }];
     const row = buildPlan(input, now).rows[0];
     expect(row.transit[0].slabs).toBe(24);
     expect(row.protective).toBeNull();

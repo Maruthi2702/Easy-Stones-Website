@@ -34,23 +34,30 @@ export type VisitsFocusListProps = {
     onOpenGallery?: (images: string[], index: number) => void;
 };
 
-const VisitsFocusList = ({ visits = [], loading = false, busyVisitId = null, canModify, canDelete, canOpenCustomer = true, showWhoLogged = false, onOpenCustomer, onEdit, onDelete, onOpenGallery }: VisitsFocusListProps) => {
-    const [openId, setOpenId] = useState<string | null>(null);
+const EMPTY_VISITS: Loose[] = [];
+
+const VisitsFocusList = ({ visits = EMPTY_VISITS, loading = false, busyVisitId = null, canModify, canDelete, canOpenCustomer = true, showWhoLogged = false, onOpenCustomer, onEdit, onDelete, onOpenGallery }: VisitsFocusListProps) => {
+    const [openId, setOpenId] = useState<string | null>(visits[0]?._id ?? null);
     const [viewing, setViewing] = useState<Loose | null>(null);
     // The opened visit's photos and comments; cleared on every open so an edit
     // saved meanwhile is read again.
     const [details, setDetails] = useState<VisitDetails | null>(null);
 
     // The first visit starts open, as in the design — until the list changes under it.
-    useEffect(() => {
+    const [previousVisits, setPreviousVisits] = useState(visits);
+    if (previousVisits !== visits) {
+        setPreviousVisits(visits);
         setOpenId(prev => (prev && visits.some(v => v._id === prev) ? prev : (visits[0]?._id ?? null)));
-    }, [visits]);
+    }
+    const [previousViewing, setPreviousViewing] = useState(viewing);
+    if (previousViewing !== viewing) {
+        setPreviousViewing(viewing);
+        setDetails(!viewing ? null : { status: viewing.customerId ? 'loading' : 'done', images: [] });
+    }
 
     useEffect(() => {
-        if (!viewing) { setDetails(null); return undefined; }
-        if (!viewing.customerId) { setDetails({ status: 'done', images: [] }); return undefined; }
+        if (!viewing?.customerId) return undefined;
         let cancelled = false;
-        setDetails({ status: 'loading', images: [] });
         authFetch(`${API_URL}/api/customers/${viewing.customerId}/visits/${viewing._id}`)
             .then(r => (r.ok ? r.json() : null))
             .then((data: Loose | null) => {

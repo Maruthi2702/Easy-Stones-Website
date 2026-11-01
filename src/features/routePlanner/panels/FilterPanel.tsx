@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { ChevronDown, ChevronUp, Filter, Search, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Filter, X } from 'lucide-react';
+import RepFilterPicker from '../../../components/shared/form/RepFilterPicker';
+import { UNASSIGNED } from '../../../utils/routePlannerScope';
 import { typeColors } from '../helpers';
 import type { ColorMode, RecencyBucket, RecencyColors, RepOption, Toggles } from '../types';
 import './FilterPanel.css';
@@ -57,7 +59,8 @@ const CheckRow = ({ label, count, on, color, onClick }: CheckRowProps) => (
  * "Filter by", opened from the funnel icon — the fixed right column the info,
  * lead and Tools panels use. Three sections in this order (the owner's call,
  * 2026-10-18): Sales reps (only the reps this person may see, and only the
- * checked ones' customers are loaded — src/utils/routePlannerScope.ts), then
+ * checked ones' customers are loaded — src/utils/routePlannerScope.ts; a
+ * dropdown in the Customer List rep filter's format, RepFilterPicker), then
  * Customer type, then Days since last visit. The "Colour pins by" switch in
  * the header decides what the pins' colour means; whichever of the two
  * sections it colours shows its colours here, as the map's key.
@@ -92,7 +95,6 @@ const FilterPanel = ({
     salesRepOptions, activeSalesReps, repCounts, onToggleSalesRep, onToggleAllSalesReps,
     scopeNote
 }: FilterPanelProps) => {
-    const [repOpen, setRepOpen] = useState(true);
     const [typeOpen, setTypeOpen] = useState(true);
     const [recencyOpen, setRecencyOpen] = useState(true);
 
@@ -101,10 +103,15 @@ const FilterPanel = ({
     const repsOn = salesRepOptions.filter(r => activeSalesReps[r.key] === true).length;
     const bucketsOn = recencyBuckets.filter(b => activeBuckets[b.key]).length;
 
-    // Search, then reps under their branch — the format every rep filter shares.
-    const [repQuery, setRepQuery] = useState('');
-    const q = repQuery.trim().toLowerCase();
-    const shownReps = q ? salesRepOptions.filter(r => `${r.label} ${r.group || ''}`.toLowerCase().includes(q)) : salesRepOptions;
+    // The shared rep filter dropdown (RepFilterPicker): Unassigned first,
+    // then the reps under their branch. Labels already carry "(you)".
+    const unassigned = salesRepOptions.find(r => r.key === UNASSIGNED);
+    const repOptions = salesRepOptions.filter(r => r.key !== UNASSIGNED).map(r => ({ value: r.key, label: r.label, location: r.group || '' }));
+    const repsSelected = repOptions.filter(r => activeSalesReps[r.value] === true).map(r => r.value);
+    const repSummary = repsOn === salesRepOptions.length && repsOn > 0 ? 'All reps'
+        : repsOn === 0 ? 'No reps'
+            : repsOn === 1 ? salesRepOptions.find(r => activeSalesReps[r.key] === true)?.label
+                : `${repsOn} of ${salesRepOptions.length} reps`;
 
     const byType = colorMode === 'type';
 
@@ -125,48 +132,29 @@ const FilterPanel = ({
             </div>
 
             <div className="rpv2-panel-body rpv2-filter-body">
-                <Section
-                    title="Sales reps"
-                    summary={`${repsOn} of ${salesRepOptions.length}`}
-                    open={repOpen}
-                    onToggle={() => setRepOpen(v => !v)}
-                    actions={(
-                        <div className="rpv2-filter-actions">
-                            {scopeNote && <span className="rpv2-filter-scope">{scopeNote}</span>}
-                            <span className="rpv2-filter-spacer" />
-                            <button type="button" className="rpv2-filter-toggle-all" onClick={() => onToggleAllSalesReps(true)}>All</button>
-                            <button type="button" className="rpv2-filter-toggle-all" onClick={() => onToggleAllSalesReps(false)}>None</button>
-                        </div>
-                    )}
-                >
-                    <label className="rpv2-filter-search">
-                        <Search size={14} aria-hidden="true" />
-                        <input
-                            type="text"
-                            className="no-capitalize"
-                            value={repQuery}
-                            onChange={(e) => setRepQuery(e.target.value)}
-                            placeholder="Search reps"
-                            aria-label="Search sales reps"
-                        />
-                    </label>
-                    {shownReps.map((rep, i) => (
-                        <React.Fragment key={rep.key}>
-                            {rep.group && rep.group !== shownReps[i - 1]?.group && (
-                                <div className="rpv2-filter-group">{rep.group}</div>
-                            )}
-                            <CheckRow
-                                label={rep.label}
-                                count={repCounts[rep.key] ?? 0}
-                                on={activeSalesReps[rep.key] === true}
-                                onClick={() => onToggleSalesRep(rep.key)}
-                            />
-                        </React.Fragment>
-                    ))}
-                    {shownReps.length === 0 && (
-                        <p className="rpv2-filter-hint">{q ? `No reps match “${repQuery.trim()}”` : 'No reps to show.'}</p>
-                    )}
-                </Section>
+                <div className="rpv2-filter-section rpv2-filter-reps">
+                    <div className="rpv2-filter-reps-head">Sales reps</div>
+                    <RepFilterPicker
+                        label="Sales reps"
+                        hideLabel
+                        options={repOptions}
+                        selected={repsSelected}
+                        onToggle={onToggleSalesRep}
+                        counts={repCounts}
+                        extras={unassigned ? [{
+                            value: unassigned.key,
+                            label: unassigned.label,
+                            checked: activeSalesReps[unassigned.key] === true,
+                            onClick: () => onToggleSalesRep(unassigned.key),
+                            count: repCounts[unassigned.key] ?? 0
+                        }] : []}
+                        onAll={() => onToggleAllSalesReps(true)}
+                        onNone={() => onToggleAllSalesReps(false)}
+                        summary={repSummary}
+                        note={scopeNote || undefined}
+                        phoneSheet={false}
+                    />
+                </div>
 
                 <Section
                     title="Customer type"

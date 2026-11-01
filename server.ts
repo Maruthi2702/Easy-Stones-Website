@@ -1,4 +1,5 @@
-import type { ScalarQuery, ScalarParams } from './src/types/server.ts';
+import type { AuthenticatedStaffDocument } from './src/types/server.ts';
+import { scalarQuery, scalarParams, validateScalarRequest } from './src/server/scalarRequest.ts';
 import type { Loose } from './src/types/records.ts';
 import type { Response, Request, NextFunction } from 'express';
 import dotenv from 'dotenv';
@@ -144,8 +145,7 @@ import createCustomerBulkDeleteRouter, { backupAndDeleteCustomer } from './src/r
 import createGeocodeRouter from './src/routes/geocode.ts';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.ts';
 import { unlinkVisitFromSchedule } from './src/services/visitSchedule.ts';
-import { normalizeVisitDate } from './src/utils/visitDates.ts';
-import { canModifyVisit, canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from './src/utils/visitAccess.ts';
+import { canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from './src/utils/visitAccess.ts';
 import { homeLocationOf, homeLocationProblem, fallbackHomeLocation } from './src/utils/locationFilter.ts';
 import {
   getAggregationRangeMatch, getFollowUpRangeMatch, dashboardRangeDates, rangePrefilter, followUpDatePrefilter, slimForUnwind,
@@ -168,7 +168,6 @@ import { insertInBatches, withDbRetry, hasRowErrorsOnly } from './src/utils/dbRe
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import bcrypt from 'bcryptjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -907,7 +906,7 @@ async function startServer() {
       // (This used to re-grant anything missing on every boot, silently undoing
       // those changes at the next restart.) On the first boot with this, every
       // grant is checked once more, exactly as before, and recorded.
-      const grantsByRole = new Map();
+      const grantsByRole = new Map<string, string[]>();
       for (const grant of NEW_PERMISSION_GRANTS) {
         for (const roleName of grant.roles) {
           grantsByRole.set(roleName, [...(grantsByRole.get(roleName) || []), ...grant.permissions]);
@@ -1264,7 +1263,7 @@ const authenticate = async (req: Request, res: Response, next: NextFunction) => 
     // the role name it returned), which meant two sequential Atlas round trips on
     // EVERY authenticated request. Joining them server-side halves that: same
     // freshness, same result, one trip.
-    const [dbUser] = await User.aggregate(([
+    const [dbUser] = await User.aggregate<AuthenticatedStaffDocument>(([
       { $match: { _id: new mongoose.Types.ObjectId(userId) } },
       { $limit: 1 },
       // Role.name is stored trimmed + lower-cased by its schema setters, and
@@ -1319,10 +1318,10 @@ const authenticate = async (req: Request, res: Response, next: NextFunction) => 
 
     // Populate req.user with fresh data
     req.user = {
-      id: dbUser._id,
+      id: String(dbUser._id),
       username: dbUser.username,          // login identifier — do not render
       displayName: displayNameOf(dbUser), // render this instead
-      email: dbUser.email,
+      email: dbUser.email ?? undefined,
       role: dbUser.role,
       permissions: dbUser.permissions,   // always fresh from DB
       assignedLocations: dbUser.assignedLocations || ['Seattle'],
@@ -1334,7 +1333,7 @@ const authenticate = async (req: Request, res: Response, next: NextFunction) => 
     req.authUserDoc = dbUser;
 
     // Legacy compatibility fields used by existing route handlers
-    req.userId   = dbUser._id;
+    req.userId   = String(dbUser._id);
     req.userRole = dbUser.role;
     req.authType = 'admin';
 
@@ -1413,7 +1412,6 @@ const requireSalesPage = (req: Request, res: Response, next: NextFunction) => {
 // during the transition. These will be removed in a future cleanup.
 const verifyToken    = authenticate;
 const verifyAnyAuth  = authenticate;
-const checkPermission = (permission: string) => requirePermission(permission);
 const authorize = (...roles: (string | undefined)[]) => (req: Request, res: Response, next: NextFunction) => {
   if (!req.user || !roles.includes(req.user.role)) {
     return res.status(403).json({ error: 'Access denied. Insufficient role.' });
@@ -1428,7 +1426,8 @@ const authorize = (...roles: (string | undefined)[]) => (req: Request, res: Resp
 // to sit right after startServer(), near the top of the file) because
 // verifyToken/authorize don't exist yet at that point in a top-to-bottom
 // script — referencing them there throws at startup, not at request time.
-app.get('/api/debug/config', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
+app.get('/api/debug/config', verifyToken, authorize('admin'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
   try {
     const adminCount = await User.countDocuments();
     const dbName = mongoose.connection.name;
@@ -1436,10 +1435,10 @@ app.get('/api/debug/config', verifyToken, authorize('admin'), async (req: Reques
 
     // Check for specific user if provided
     let userCheck = null;
-    if ((req.query as ScalarQuery).username) {
-      const user = await User.findOne({ username: (req.query as ScalarQuery).username!.toLowerCase() });
+    if (requestQuery.username) {
+      const user = await User.findOne({ username: requestQuery.username!.toLowerCase() });
       userCheck = {
-        requested_username: (req.query as ScalarQuery).username,
+        requested_username: requestQuery.username,
         found: !!user,
         login_attempts: user ? user.loginAttempts : null,
         is_locked: user ? user.isLocked() : null
@@ -1704,7 +1703,7 @@ app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req:
     if (invite) {
       const link = inviteLinkFor(req, invite.token);
       inviteSent = await sendInviteEmail({
-        to: newUser.email,
+        to: newUser.email || '',
         name: displayNameOf(newUser),
         username: newUser.username,
         link,
@@ -1741,10 +1740,11 @@ app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req:
 });
 
 // Update user (manage_users permission needed)
-app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (req: Request, res: Response) => {
+app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     const { username, displayName, email, role, password, location, assignedLocations, joiningDate, signInReset } = req.body;
-    const userId = (req.params as ScalarParams).id;
+    const userId = requestParams.id;
     // Fields are checked only when sent, so the older /admin screen's partial
     // saves still work; Edit user (features/users/userForm/EditUserForm.tsx) sends them all.
     const fail = (field: string, message: string) => res.status(400).json({ field, message });
@@ -1807,7 +1807,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (
     if (joiningDate !== undefined) user.joiningDate = new Date(`${joiningDate}T00:00:00Z`);
     if (location !== undefined || assignedLocations !== undefined) {
       const nextAssigned = assignedLocations !== undefined ? assignedLocations : (user.assignedLocations || []);
-      const home = await resolveHomeLocation({ requested: location, current: user.location, assignedLocations: nextAssigned });
+      const home = await resolveHomeLocation({ requested: location, current: user.location ?? undefined, assignedLocations: nextAssigned });
       if (home.error) return fail('assignedLocations', home.error);
       user.location = home.location;
       if (assignedLocations !== undefined) user.assignedLocations = assignedLocations;
@@ -1871,7 +1871,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (
     if (invite) {
       const link = inviteLinkFor(req, invite.token);
       inviteSent = await sendInviteEmail({
-        to: user.email,
+        to: user.email || '',
         name: displayNameOf(user),
         username: user.username,
         link,
@@ -1957,14 +1957,15 @@ const clearDriverHandover = async (req: Request, res: Response, user: Loose, ver
 // open session ends on its next request, their calendar feed stops, and a
 // driver drops off the board's columns except on weeks they delivered. Kept,
 // not deleted, so their name stays on the history they made.
-app.patch('/api/admin/users/:id/active', authenticate, usersAccess(USERS.DEACTIVATE), async (req: Request, res: Response) => {
+app.patch('/api/admin/users/:id/active', authenticate, usersAccess(USERS.DEACTIVATE), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     const active = req.body?.active !== false;
-    if (!mongoose.Types.ObjectId.isValid((req.params as ScalarParams).id)) return res.status(404).json({ message: 'User not found' });
-    if (!active && String((req.params as ScalarParams).id) === String(req.user.id)) {
+    if (!mongoose.Types.ObjectId.isValid(requestParams.id)) return res.status(404).json({ message: 'User not found' });
+    if (!active && String(requestParams.id) === String(req.user.id)) {
       return res.status(400).json({ message: "You can't deactivate your own account." });
     }
-    const user = await User.findById((req.params as ScalarParams).id).select('username displayName isActive role assignedLocations').lean();
+    const user = await User.findById(requestParams.id).select('username displayName isActive role assignedLocations').lean();
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (!memberAllowed(req, user)) return res.status(403).json({ message: "You can't change this person's account." });
 
@@ -1982,16 +1983,17 @@ app.patch('/api/admin/users/:id/active', authenticate, usersAccess(USERS.DEACTIV
   }
 });
 
-app.delete('/api/admin/users/:id', authenticate, requireAction(USERS.DELETE), async (req: Request, res: Response) => {
+app.delete('/api/admin/users/:id', authenticate, requireAction(USERS.DELETE), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    if (String((req.params as ScalarParams).id) === String(req.user.id)) {
+    if (String(requestParams.id) === String(req.user.id)) {
       return res.status(400).json({ message: "You can't delete your own account." });
     }
-    const user = mongoose.Types.ObjectId.isValid((req.params as ScalarParams).id)
-      ? await User.findById((req.params as ScalarParams).id).select('username displayName').lean()
+    const user = mongoose.Types.ObjectId.isValid(requestParams.id)
+      ? await User.findById(requestParams.id).select('username displayName').lean()
       : null;
     if (user && !(await clearDriverHandover(req, res, user, 'delete'))) return;
-    await User.findByIdAndDelete((req.params as ScalarParams).id);
+    await User.findByIdAndDelete(requestParams.id);
     bustUserCaches();
     req.app.get('io')?.emit('truck_update');
     res.json({ message: 'User deleted successfully' });
@@ -2044,10 +2046,11 @@ app.post('/api/admin/roles', verifyAnyAuth, requireAction(ROLES.ADD), async (req
 });
 
 // Update role permissions (manage_users permission needed)
-app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), async (req: Request, res: Response) => {
+app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     const { permissions, displayName, manageableRoles } = req.body;
-    const roleId = (req.params as ScalarParams).id;
+    const roleId = requestParams.id;
 
     const role = await Role.findById(roleId);
     if (!role) {
@@ -2069,9 +2072,10 @@ app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), async 
 });
 
 // Delete custom role (manage_users permission needed)
-app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), async (req: Request, res: Response) => {
+app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const roleId = (req.params as ScalarParams).id;
+    const roleId = requestParams.id;
     const role = await Role.findById(roleId);
     if (!role) {
       return res.status(404).json({ message: 'Role not found' });
@@ -2161,12 +2165,13 @@ app.post('/api/admin/locations', verifyAnyAuth, requireAction(LOCATIONS.ADD), as
 // Update a location (manage_users permission needed). Everything but the
 // short name is editable — the name is the key stored on users, check-ins,
 // daily reports, etc., so renaming would orphan those records.
-app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDIT), async (req: Request, res: Response) => {
+app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDIT), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    if (!mongoose.isValidObjectId((req.params as ScalarParams).id)) {
+    if (!mongoose.isValidObjectId(requestParams.id)) {
       return res.status(404).json({ message: 'Location not found' });
     }
-    const location = await Location.findById((req.params as ScalarParams).id);
+    const location = await Location.findById(requestParams.id);
     if (!location) {
       return res.status(404).json({ message: 'Location not found' });
     }
@@ -2187,9 +2192,10 @@ app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDI
 });
 
 // Delete a location (manage_users permission needed)
-app.delete('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.DELETE), async (req: Request, res: Response) => {
+app.delete('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.DELETE), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const locationId = (req.params as ScalarParams).id;
+    const locationId = requestParams.id;
     const location = await Location.findById(locationId);
     if (!location) {
       return res.status(404).json({ message: 'Location not found' });
@@ -2705,7 +2711,7 @@ app.post('/api/customer/logout', (req: Request, res: Response) => {
 const getPerformerInfo = async (req: Request) => {
   let id = '';
   let name = '';
-  let role = req.authType;
+  const role = req.authType;
 
   if (req.authType === 'admin') {
     id = req.userId!;
@@ -2722,12 +2728,13 @@ const getPerformerInfo = async (req: Request) => {
 
 // Customer-accessible endpoint: Get all customers (for sales page)
 // Customer-accessible endpoint: Get all customers (for sales page) - Optimized (No images)
-app.get('/api/customers', authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
+app.get('/api/customers', authenticate, requirePermission('view_customers'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
   try {
-    const page = parseInt(String((req.query as ScalarQuery).page)) || 1;
-    const limit = parseInt(String((req.query as ScalarQuery).limit)) || 50;
+    const page = parseInt(String(requestQuery.page)) || 1;
+    const limit = parseInt(String(requestQuery.limit)) || 50;
     const skip = (page - 1) * limit;
-    const search = (req.query as ScalarQuery).search || '';
+    const search = requestQuery.search || '';
 
     let query: Loose = {};
     if (search) {
@@ -2809,9 +2816,10 @@ app.use('/api/customers', createCustomerMapRouter({
 }));
 
 // Get dashboard statistics (optimized aggregation)
-app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
+app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
   try {
-    const { timeRange = '7days', localDate } = (req.query as ScalarQuery);
+    const { timeRange = '7days', localDate } = requestQuery;
     const now = new Date();
 
     // Determine "Today" based on localDate from client or server now
@@ -2979,7 +2987,8 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
 // The dashboard's visit rows for the caller's scope, range and location; filterType 'followup'
 // swaps the date rule for the follow-up one. Shared by the list and the Follow-ups panel.
 const loadDashboardVisits = async (req: Request, filterType: string | undefined, { timeRange: forcedRange }: { timeRange?: string } = {}) => {
-    const { timeRange: askedRange = 'all', localDate } = (req.query as ScalarQuery);
+  const requestQuery = scalarQuery(req);
+    const { timeRange: askedRange = 'all', localDate } = requestQuery;
     const timeRange = forcedRange || askedRange;
     const now = new Date();
 
@@ -3089,9 +3098,10 @@ const loadDashboardVisits = async (req: Request, filterType: string | undefined,
     return visits;
 };
 
-app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
+app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
   try {
-    res.json(await loadDashboardVisits(req, (req.query as ScalarQuery).filterType));
+    res.json(await loadDashboardVisits(req, requestQuery.filterType));
   } catch (error) {
     console.error('Error fetching dashboard visits:', error);
     res.status(500).json({ message: 'Failed to fetch dashboard visits' });
@@ -3100,10 +3110,11 @@ app.get('/api/dashboard/visits', authenticate, requirePermission('view_dashboard
 
 // The Visits tab's Follow-ups panel: just the few follow-ups worth a glance, picked by
 // src/utils/followUpPanel.ts (due soonest, then recently overdue) — the browser no longer sorts them.
-app.get('/api/dashboard/followups/panel', authenticate, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
+app.get('/api/dashboard/followups/panel', authenticate, requirePermission('view_dashboard'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
   try {
     const rows = await loadDashboardVisits(req, 'followup');
-    const today = /^\d{4}-\d{2}-\d{2}$/.test((req.query as ScalarQuery).localDate || '') ? (req.query as ScalarQuery).localDate : undefined;
+    const today = /^\d{4}-\d{2}-\d{2}$/.test(requestQuery.localDate || '') ? requestQuery.localDate : undefined;
     res.json(pickPanelFollowUps(rows, today));
   } catch (error) {
     console.error('Error fetching follow-up panel:', error);
@@ -3116,13 +3127,19 @@ app.get('/api/dashboard/followups/panel', authenticate, requirePermission('view_
 // and Status, by src/utils/followUpList.ts. `summary` counts the list (the Due field);
 // `counts` is the same, for apps still showing the old totals tiles; `doneThisWeek` is
 // over every date.
-const followUpRangeOf = (req: Loose) => ({
-  range: FOLLOW_UP_RANGE_IDS.includes(req.query.timeRange) ? req.query.timeRange : 'all',
-  from: String(req.query.from || ''),
-  to: String(req.query.to || '')
-});
-const followUpTodayOf = (req: Loose) => (/^\d{4}-\d{2}-\d{2}$/.test(req.query.localDate || '') ? req.query.localDate : getNowLocalISO().slice(0, 10));
-app.get('/api/dashboard/followups', authenticate, requirePermission('view_dashboard'), async (req, res) => {
+const followUpRangeOf = (req: Request) => {
+  const query = scalarQuery(req);
+  return {
+    range: FOLLOW_UP_RANGE_IDS.find((range) => range === query.timeRange) || 'all',
+    from: query.from || '',
+    to: query.to || ''
+  };
+};
+const followUpTodayOf = (req: Request) => {
+  const date = scalarQuery(req).localDate;
+  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : getNowLocalISO().slice(0, 10);
+};
+app.get('/api/dashboard/followups', authenticate, requirePermission('view_dashboard'), validateScalarRequest, async (req, res) => {
   try {
     const all = await loadDashboardVisits(req, 'followup', { timeRange: 'all' });
     const today = followUpTodayOf(req);
@@ -3143,9 +3160,10 @@ app.get('/api/dashboard/followups', authenticate, requirePermission('view_dashbo
 });
 
 // Get dashboard resources (returns a flat list for all customers in range)
-app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
+app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashboard'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
   try {
-    const { timeRange = 'all', localDate } = (req.query as ScalarQuery);
+    const { timeRange = 'all', localDate } = requestQuery;
     const now = new Date();
 
     // Determine "Today" based on localDate from client or server now
@@ -3256,14 +3274,16 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
 // authenticates it. An iPhone shows the contact card (Create New Contact)
 // when it's served inline; everything else gets a download, so a laptop
 // browser doesn't just print the text.
-app.get('/api/customers/:id/vcard', authenticate, requirePermission('view_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
+app.get('/api/customers/:id/vcard', authenticate, requirePermission('view_customers'), requireCustomerProfile, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
+  const requestQuery = scalarQuery(req);
   try {
-    if (!/^[a-f0-9]{24}$/i.test((req.params as ScalarParams).id)) return res.status(404).json({ message: 'Customer not found' });
-    const customer = await Customer.findById((req.params as ScalarParams).id)
+    if (!/^[a-f0-9]{24}$/i.test(requestParams.id)) return res.status(404).json({ message: 'Customer not found' });
+    const customer = await Customer.findById(requestParams.id)
       .select('company contactName name phone email address city location salesRepName customerType contacts')
       .lean();
     if (!customer) return res.status(404).json({ message: 'Customer not found' });
-    const person = vcardPersonFor(customer, String((req.query as ScalarQuery).contact || 'primary'));
+    const person = vcardPersonFor(customer, String(requestQuery.contact || 'primary'));
     if (!person) return res.status(404).json({ message: 'Contact not found' });
 
     const fileName = vcardFileName(person);
@@ -3287,10 +3307,11 @@ app.use('/api/customers', createCustomerHistoryRouter({ authenticate, requirePer
 // ============================================
 
 // Link customer to a partner (bi-directional association)
-app.post('/api/customers/:customerId/associations', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
+app.post('/api/customers/:customerId/associations', authenticate, requirePermission('manage_customers'), requireCustomerProfile, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     const { partnerId } = req.body;
-    const { customerId } = (req.params as ScalarParams);
+    const { customerId } = requestParams;
 
     if (!partnerId) {
       return res.status(400).json({ message: 'partnerId is required' });
@@ -3327,9 +3348,10 @@ app.post('/api/customers/:customerId/associations', authenticate, requirePermiss
 // kept alongside delete_customers, same reasoning as DELETE /api/customers/:id
 // above: the client here has no permission check of its own, so dropping it
 // would silently break this for any role that predates delete_customers.
-app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
+app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, requireAnyPermission('manage_customers', 'delete_customers'), requireCustomerProfile, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const { customerId, partnerId } = (req.params as ScalarParams);
+    const { customerId, partnerId } = requestParams;
 
     // Bi-directional unlink using $pull
     await Promise.all([
@@ -3349,9 +3371,10 @@ app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, r
 // ============================================
 
 // Add contact to customer
-app.post('/api/customers/:customerId/contacts', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
+app.post('/api/customers/:customerId/contacts', authenticate, requirePermission('manage_customers'), requireCustomerProfile, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const { customerId } = (req.params as ScalarParams);
+    const { customerId } = requestParams;
     const { name, phone, email, role, notes } = req.body;
 
     const newContact = {
@@ -3428,9 +3451,10 @@ app.get('/api/salesreps', authenticate, requireSalesPage, async (req: Request, r
 });
 
 // Update contact
-app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requirePermission('manage_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
+app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requirePermission('manage_customers'), requireCustomerProfile, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const { customerId, contactId } = (req.params as ScalarParams);
+    const { customerId, contactId } = requestParams;
     const fields = req.body;
 
     const updateData: Loose = {};
@@ -3465,9 +3489,10 @@ app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requireP
 // Get all dashboard resources (Support folder navigation)
 // The Dashboard's team resources: open to whoever can open the Dashboard
 // (view_dashboard), which is where they're listed, uploaded and changed.
-app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
+app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view_dashboard'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
   try {
-    const { parentId } = (req.query as ScalarQuery);
+    const { parentId } = requestQuery;
     const query = parentId ? { parentId } : { parentId: null };
 
 
@@ -3485,9 +3510,10 @@ app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view
 });
 
 // Get single resource (with full content)
-app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
+app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const resource = await SalesDashboardResource.findById((req.params as ScalarParams).id).populate('uploadedBy', 'username');
+    const resource = await SalesDashboardResource.findById(requestParams.id).populate('uploadedBy', 'username');
     if (!resource) {
       return res.status(404).json({ message: 'Resource not found' });
     }
@@ -3570,9 +3596,10 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_d
 });
 
 // Update dashboard resource
-app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), uploadResources.single('file'), async (req: Request, res: Response) => {
+app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), uploadResources.single('file'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const { id } = (req.params as ScalarParams);
+    const { id } = requestParams;
     const { name, type, content: linkContent, parentId, thumbnail } = req.body;
 
     const resource = await SalesDashboardResource.findById(id);
@@ -3585,7 +3612,7 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
 
     // Update modified by
     if (req.userId) {
-      resource.uploadedBy = req.userId;
+      resource.uploadedBy = new mongoose.Types.ObjectId(req.userId);
     }
 
     // If a new file is uploaded
@@ -3636,9 +3663,10 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
 });
 
 // Delete dashboard resource (Recursive for folders)
-app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), async (req: Request, res: Response) => {
+app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const resourceId = (req.params as ScalarParams).id;
+    const resourceId = requestParams.id;
     const resource = await SalesDashboardResource.findById(resourceId);
 
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
@@ -3650,7 +3678,7 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermissio
       // For simplicity, we'll just delete direct children or use a recursive function.
       // Let's implement a helper function for recursive delete.
 
-      const deleteFolderContents = async (folderId: unknown) => {
+      const deleteFolderContents = async (folderId: string | mongoose.Types.ObjectId) => {
         const children = await SalesDashboardResource.find({ parentId: folderId });
         for (const child of children) {
           if (child.isFolder) {
@@ -3690,7 +3718,7 @@ app.get(['/api/customers/cities', '/api/partners/cities'], authenticate, require
     const cities1 = await Customer.distinct('city');
     const cities2 = await Customer.distinct('address.city');
     const mergedCities = Array.from(new Set([...cities1, ...cities2]))
-      .filter(Boolean)
+      .filter((city): city is string => typeof city === 'string' && Boolean(city))
       .map(c => c.trim())
       .sort();
     res.json(mergedCities);
@@ -3703,10 +3731,11 @@ app.get(['/api/customers/cities', '/api/partners/cities'], authenticate, require
 // CUSTOMER LIST (Spreadsheet Data Source with Pagination & Search)
 // The customer list (Customers page). /api/partners is the old address, kept
 // until cached apps have updated.
-app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
+app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermission('view_customers'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
   try {
-    const page = parseInt(String((req.query as ScalarQuery).page)) || 1;
-    const limitInput = parseInt(String((req.query as ScalarQuery).limit));
+    const page = parseInt(String(requestQuery.page)) || 1;
+    const limitInput = parseInt(String(requestQuery.limit));
     // Everyone sees the same list screen, but only Export holders may pull the
     // whole list (limit -1) or more than a page of 100; Full profile holders
     // alone may filter, sort or view by what the profile holds (level, Moda,
@@ -3717,17 +3746,17 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
       return res.status(403).json({ message: 'Exporting the customer list needs the Export permission.' });
     }
     const limit = isNaN(limitInput) ? 50 : (mayExport ? limitInput : Math.min(Math.max(limitInput, 1), 100));
-    const search = (req.query as ScalarQuery).search || '';
-    const filterLevel = mayProfile ? ((req.query as ScalarQuery).level || '') : '';
-    const filterType = (req.query as ScalarQuery).type || '';
-    const filterTypeExclude = (req.query as ScalarQuery).typeExclude || ''; // comma-separated types to exclude
-    const filterCity = (req.query as ScalarQuery).city || '';
-    const filterStatus = (req.query as ScalarQuery).status || '';
-    const filterSalesRep = (req.query as ScalarQuery).salesRep || '';
-    const filterLocation = (req.query as ScalarQuery).location || '';
-    const filterView = mayProfile && isSavedView((req.query as ScalarQuery).view) ? (req.query as ScalarQuery).view : '';
-    const filterLetter = (req.query as ScalarQuery).letter || '';
-    const filterModa = mayProfile ? ((req.query as ScalarQuery).moda || '') : '';
+    const search = requestQuery.search || '';
+    const filterLevel = mayProfile ? (requestQuery.level || '') : '';
+    const filterType = requestQuery.type || '';
+    const filterTypeExclude = requestQuery.typeExclude || ''; // comma-separated types to exclude
+    const filterCity = requestQuery.city || '';
+    const filterStatus = requestQuery.status || '';
+    const filterSalesRep = requestQuery.salesRep || '';
+    const filterLocation = requestQuery.location || '';
+    const filterView = mayProfile && isSavedView(requestQuery.view) ? requestQuery.view : '';
+    const filterLetter = requestQuery.letter || '';
+    const filterModa = mayProfile ? (requestQuery.moda || '') : '';
     const skip = (page - 1) * limit;
 
     let query: Loose = {};
@@ -3894,8 +3923,8 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
       query = filterConditions.length === 1 ? filterConditions[0] : { $and: filterConditions };
     }
 
-    const sortBy = mayProfile ? ((req.query as ScalarQuery).sortBy || 'level') : ((req.query as ScalarQuery).sortBy === 'level' || !(req.query as ScalarQuery).sortBy ? 'company' : (req.query as ScalarQuery).sortBy);
-    const sortOrder = (req.query as ScalarQuery).sortOrder === 'desc' ? -1 : 1;
+    const sortBy = mayProfile ? (requestQuery.sortBy || 'level') : (requestQuery.sortBy === 'level' || !requestQuery.sortBy ? 'company' : requestQuery.sortBy);
+    const sortOrder = requestQuery.sortOrder === 'desc' ? -1 : 1;
 
     // Build the dynamic sort stage. Low-priority statuses always float to the bottom,
     // and we sort by the chosen sortBy field within those groupings.
@@ -4002,7 +4031,7 @@ const partnersTabQuery = (tab: string | undefined) => (tab === 'partners'
     $and: [
       { customerType: { $exists: true } },
       { customerType: { $ne: null } },
-      { customerType: { $ne: '' } },
+      { customerType: { $ne: '' as const } },
       { customerType: { $not: { $regex: /^fabricator$/i } } }
     ]
   }
@@ -4011,16 +4040,17 @@ const partnersTabQuery = (tab: string | undefined) => (tab === 'partners'
       { customerType: { $regex: /^fabricator$/i } },
       { customerType: null },
       { customerType: { $exists: false } },
-      { customerType: '' }
+      { customerType: '' as const }
     ]
   });
 
 // Counts for the customer list's saved views, within one tab.
-app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
+app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticate, requirePermission('view_customers'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
   try {
     // Saved views read the profile (follow-ups, levels), so they're Full profile's.
     if (!canViewCustomerProfile(req.user)) return res.json({});
-    const base = partnersTabQuery((req.query as ScalarQuery).tab);
+    const base = partnersTabQuery(requestQuery.tab);
     const opts = {
       userId: req.userId,
       today: pacificToday(),
@@ -4186,7 +4216,8 @@ app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authentica
 // address. Password, login state, the map point and the rep's name are never
 // taken from the body (customerUpdateFields) — findByIdAndUpdate skips the
 // schema's bcrypt hook, so a password sent here used to be stored as typed.
-app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermission('manage_customers'), async (req: Request, res: Response) => {
+app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermission('manage_customers'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     const allUpdates = customerUpdateFields(req.body);
     // Without Full profile an edit can only change the basic card: a form that
@@ -4205,7 +4236,7 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
     // a nested object wholesale and a city-only edit would otherwise drop the
     // street; and the key the stored point came from, because re-geocoding is
     // only worth paying for when the address actually moved.
-    const existing = await Customer.findById((req.params as ScalarParams).id).select('address geocode').lean();
+    const existing = await Customer.findById(requestParams.id).select('address geocode').lean();
     if (!existing) {
       return res.status(404).json({ message: 'Customer not found' });
     }
@@ -4227,7 +4258,7 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
     // A typed Moda display / binders is the new total; the resources' share
     // stays counted (src/utils/modaTotals.ts), and it can't go below them.
     if (updateData.modaDisplay !== undefined || updateData.modaBinder !== undefined) {
-      const moda = await Customer.findById((req.params as ScalarParams).id)
+      const moda = await Customer.findById(requestParams.id)
         .select('modaDisplay modaBinder modaEarlier resources.resourceType resources.title resources.qty resources.status').lean();
       const typed = typedModaFields(moda || {}, { modaDisplay: updateData.modaDisplay, modaBinder: updateData.modaBinder },
         (moda as Loose)?.resources, await loadFamilies());
@@ -4238,7 +4269,7 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
     }
 
     const updatedCustomer = await Customer.findByIdAndUpdate(
-      (req.params as ScalarParams).id,
+      requestParams.id,
       updateData,
       { new: true, runValidators: true }
     );
@@ -4259,11 +4290,12 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
 // customerAccess.js, which the screens use too); Edit no longer implies it.
 app.delete(['/api/customers/:id', '/api/partners/:id'], authenticate, (req: Request, res: Response, next: NextFunction) => (
   canDeleteCustomers(req.user) ? next() : res.status(403).json({ error: 'Access denied. Your role cannot delete customers.' })
-), async (req: Request, res: Response) => {
+), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     // Saved whole before it goes (customerdeletebackups), so the SPS import
     // can say who deleted it and when and offer to bring it back.
-    const saved = await backupAndDeleteCustomer((req.params as ScalarParams).id, req.user?.username || req.user?.name || '');
+    const saved = await backupAndDeleteCustomer(requestParams.id, req.user?.username || req.user?.name || '');
     if (!saved) {
       return res.status(404).json({ message: 'Customer not found' });
     }
@@ -4312,9 +4344,10 @@ app.use('/api/customers', createVisitsRouter({
 
 // Delete visit
 // Delete visit
-app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAnyPermission(...ANY_DELETE_VISIT_PERMISSIONS), async (req: Request, res: Response) => {
+app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAnyPermission(...ANY_DELETE_VISIT_PERMISSIONS), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const { customerId, visitId } = (req.params as ScalarParams);
+    const { customerId, visitId } = requestParams;
 
     // Get performer information
     // Get performer information
@@ -4482,9 +4515,10 @@ const permitSync = createPermitSync({
 app.use('/api/permits', createPermitsRouter({ authenticate, sync: permitSync, contractors: contractorRegistry }));
 
 // Toggle reaction on visit
-app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
+app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requirePermission('view_customers'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const { customerId, visitId } = (req.params as ScalarParams);
+    const { customerId, visitId } = requestParams;
     const { type } = req.body;
 
     // Get user info from auth middleware
@@ -4536,7 +4570,7 @@ app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requi
         visit.reactions.splice(otherReactionIndex, 1);
       }
 
-      visit.reactions.push({
+      visit.reactions.push({ _id: new mongoose.Types.ObjectId(),
         type,
         userId: userId!.toString(),
         userName,
@@ -4652,7 +4686,9 @@ const buildImportReference = async ({ repAliases = {}, branchAliases = {} }: { r
   }
 
   const branches = [...new Set(reference.branchByKey.values())];
-  const resolveBranch = (branch: unknown) => (branch === '' || branch === IMPORT_DEFAULT_BRANCH ? '' : (branches.includes(branch) ? branch : undefined));
+  const resolveBranch = (branch: unknown) => typeof branch === 'string'
+    ? (branch === '' || branch === IMPORT_DEFAULT_BRANCH ? '' : (branches.includes(branch) ? branch : undefined))
+    : undefined;
   for (const [key, branch] of Object.entries(savedBranches)) {
     if (reference.branchByKey.has(key)) continue;
     const resolved = resolveBranch(branch);
@@ -5095,14 +5131,15 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
 // real ERP's markup. Wiring the reviewed rows into Customer/Product/sales
 // writes is follow-up work, same shape as /api/admin/customers/import/apply
 // above.
-app.post('/api/admin/erp-import/:type', authenticate, requirePermission('manage_customers'), async (req: Request, res: Response) => {
+app.post('/api/admin/erp-import/:type', authenticate, requirePermission('manage_customers'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   const scrapers: Record<string, () => Promise<unknown[]>> = {
     customers: scrapeErpCustomers,
     inventory: scrapeErpInventory,
     sales: scrapeErpSales
   };
-  const scrape = scrapers[(req.params as ScalarParams).type];
-  if (!scrape) return res.status(400).json({ message: `Unknown import type: ${(req.params as ScalarParams).type}` });
+  const scrape = scrapers[requestParams.type];
+  if (!scrape) return res.status(400).json({ message: `Unknown import type: ${requestParams.type}` });
 
   try {
     const rows = await scrape();
@@ -5144,9 +5181,10 @@ app.get('/api/admin/products/list', verifyToken, requireSalesPage, async (req: R
 });
 
 // Admin: Get full product details by ID
-app.get('/api/admin/products/:id', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
+app.get('/api/admin/products/:id', verifyToken, authorize('admin'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const product = await Product.findOne({ id: parseInt(String((req.params as ScalarParams).id)) });
+    const product = await Product.findOne({ id: parseInt(String(requestParams.id)) });
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
@@ -5164,14 +5202,15 @@ app.get('/api/admin/products/:id', verifyToken, authorize('admin'), async (req: 
 // customer field) uses findByIdAndUpdate and would store a plaintext password.
 // Password reset. Its own route (and permission) so the ordinary edit route
 // never writes a password; customer.save() runs the schema's bcrypt hook.
-app.put(['/api/customers/:id/password', '/api/admin/customers/:id'], verifyToken, requirePermission('manage_customer_accounts'), async (req: Request, res: Response) => {
+app.put(['/api/customers/:id/password', '/api/admin/customers/:id'], verifyToken, requirePermission('manage_customer_accounts'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     const { password } = req.body;
     if (!password || !password.trim()) {
       return res.status(400).json({ message: 'Password is required' });
     }
 
-    const customer = await Customer.findById((req.params as ScalarParams).id);
+    const customer = await Customer.findById(requestParams.id);
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
@@ -5193,7 +5232,8 @@ app.put(['/api/customers/:id/password', '/api/admin/customers/:id'], verifyToken
 
 // Update customer quick note — the box on the customer's details, which
 // opens for view_customers (GET /api/customers/:id), so saving needs the same.
-app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('view_customers'), requireCustomerProfile, async (req: Request, res: Response) => {
+app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('view_customers'), requireCustomerProfile, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     const { quickNote } = req.body;
 
@@ -5203,7 +5243,7 @@ app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('vie
     }
 
     const customer = await Customer.findByIdAndUpdate(
-      (req.params as ScalarParams).id,
+      requestParams.id,
       { quickNote },
       { new: true }
     );
@@ -5298,7 +5338,8 @@ app.post('/api/lost-sales', verifyAnyAuth, allowLostSales(canEditLostSales), asy
 });
 
 // PUT /api/lost-sales/:id: Update a lost sale entry
-app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), async (req: Request, res: Response) => {
+app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     const data = req.body;
     const slabsCount = Number(data.slabsCount) || 1;
@@ -5333,7 +5374,7 @@ app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), 
     // `reason` outside the schema enum that POST would have rejected.
     // Only a record this person can see — one at another branch reads as missing.
     const updated = await LostSale.findOneAndUpdate(
-      { _id: (req.params as ScalarParams).id, ...lostSaleLocationQuery(req.user) },
+      { _id: requestParams.id, ...lostSaleLocationQuery(req.user) },
       updateObj,
       { new: true, runValidators: true }
     );
@@ -5351,9 +5392,10 @@ app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), 
 });
 
 // DELETE /api/lost-sales/:id: Delete a lost sale entry
-app.delete('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canDeleteLostSales), async (req: Request, res: Response) => {
+app.delete('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canDeleteLostSales), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const deleted = await LostSale.findOneAndDelete({ _id: (req.params as ScalarParams).id, ...lostSaleLocationQuery(req.user) });
+    const deleted = await LostSale.findOneAndDelete({ _id: requestParams.id, ...lostSaleLocationQuery(req.user) });
     if (!deleted) {
       return res.status(404).json({ message: 'Lost sale record not found' });
     }
@@ -5404,7 +5446,7 @@ async function resolveCanonicalEasyStonesName(rawName: string, session: mongoose
 // twice as duplicate chips in one matrix cell. `excludeId` skips the
 // subdocument being edited in place, so saving it unchanged isn't flagged
 // as a duplicate of itself.
-function hasDuplicateMapping(crossovers: Loose[], distributorName: string, distributorColorName: string, excludeId?: string | mongoose.Types.ObjectId | null) {
+function hasDuplicateMapping(crossovers: { _id?: unknown; distributorName: string; distributorColorName: string }[] | undefined, distributorName: string, distributorColorName: string, excludeId?: string | mongoose.Types.ObjectId | null) {
   const dName = distributorName.toLowerCase();
   const dColor = distributorColorName.toLowerCase();
   return (crossovers || []).some(c =>
@@ -5468,8 +5510,9 @@ app.post('/api/crossover-sheet', authenticate, requirePermission('add_crossover_
 // document if that was its last mapping) — done in a transaction so a
 // failure partway through can't delete the mapping from one document
 // without it landing in the other.
-app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('edit_crossover_sheet'), async (req: Request, res: Response) => {
-  const { colorId, crossoverId } = (req.params as ScalarParams);
+app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('edit_crossover_sheet'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
+  const { colorId, crossoverId } = requestParams;
   const rawNewName = (req.body.easyStonesName || '').trim();
   const fields = {
     distributorName: (req.body.distributorName || '').trim(),
@@ -5544,9 +5587,10 @@ app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermi
 // mapping. Deletes the color's document too if that was its last mapping —
 // an empty color document isn't needed for the matrix's empty-row seeding,
 // that comes from the separate EasyStonesColor catalog now.
-app.delete('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('delete_crossover_sheet'), async (req: Request, res: Response) => {
+app.delete('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('delete_crossover_sheet'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const { colorId, crossoverId } = (req.params as ScalarParams);
+    const { colorId, crossoverId } = requestParams;
     const colorDoc = await CrossoverSheet.findById(colorId);
     const entry = colorDoc?.crossovers.id(crossoverId);
     if (!colorDoc || !entry) {
@@ -5609,7 +5653,8 @@ app.post('/api/easy-stones-colors', authenticate, requirePermission('manage_easy
 // PUT /api/easy-stones-colors/:id: Rename a catalog color. Renaming does not
 // touch existing Crossover Sheet entries pointing at the old name — see the
 // note on the frontend's manage-colors modal before assuming otherwise.
-app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), async (req: Request, res: Response) => {
+app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     const name = (req.body.name || '').trim();
     if (!name) {
@@ -5617,7 +5662,7 @@ app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_e
     }
 
     const updated = await EasyStonesColor.findByIdAndUpdate(
-      (req.params as ScalarParams).id,
+      requestParams.id,
       { name },
       { new: true, runValidators: true }
     );
@@ -5636,9 +5681,10 @@ app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_e
 // only stops it being auto-seeded as an empty matrix row — any Crossover
 // Sheet entries already pointing at its name are left as-is (they'll sort to
 // the bottom as "not in the catalog," same as a misspelled name today).
-app.delete('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), async (req: Request, res: Response) => {
+app.delete('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const deleted = await EasyStonesColor.findByIdAndDelete((req.params as ScalarParams).id);
+    const deleted = await EasyStonesColor.findByIdAndDelete(requestParams.id);
     if (!deleted) {
       return res.status(404).json({ message: 'Color not found' });
     }
@@ -5651,11 +5697,12 @@ app.delete('/api/easy-stones-colors/:id', authenticate, requirePermission('manag
 });
 
 // Admin: Update customer status
-app.patch(['/api/customers/:id/active', '/api/admin/customers/:id/status'], verifyToken, requirePermission('manage_customer_accounts'), async (req: Request, res: Response) => {
+app.patch(['/api/customers/:id/active', '/api/admin/customers/:id/status'], verifyToken, requirePermission('manage_customer_accounts'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
     const { isActive } = req.body;
     const customer = await Customer.findByIdAndUpdate(
-      (req.params as ScalarParams).id,
+      requestParams.id,
       { isActive },
       { new: true }
     );
@@ -5909,8 +5956,9 @@ app.post('/api/migrate-collection', verifyToken, authorize('admin'), async (req:
 
     for (const product of products) {
       // If collectionType is missing but we have the data in the request or can infer it
-      if (!product.collectionType && product.collection) {
-        product.collectionType = product.collection;
+      const legacyCollection: unknown = product.get('collection');
+      if (!product.collectionType && typeof legacyCollection === 'string' && legacyCollection) {
+        product.collectionType = legacyCollection;
         await product.save();
         updated++;
       }
@@ -5972,9 +6020,10 @@ app.post('/api/sales-resources', verifyToken, authorize('admin'), async (req: Re
 });
 
 // Delete a sales resource
-app.delete('/api/sales-resources/:id', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
+app.delete('/api/sales-resources/:id', verifyToken, authorize('admin'), validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
   try {
-    const { id } = (req.params as ScalarParams);
+    const { id } = requestParams;
     await SalesResource.findByIdAndDelete(id);
     req.app.get('io').emit('resource_update');
     res.json({ message: 'Resource deleted successfully' });

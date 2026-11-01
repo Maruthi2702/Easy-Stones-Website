@@ -1,4 +1,4 @@
-import type { ScalarParams } from '../types/server.ts';
+import { validateScalarRequest, scalarParams } from '../server/scalarRequest.ts';
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request } from 'express';
 import express from 'express';
@@ -75,9 +75,10 @@ export default function createVisitsRouter({
       }
     });
 
-  router.post('/:customerId/visits', authenticate, requirePermission('add_visits'), async (req, res) => {
+  router.post('/:customerId/visits', authenticate, requirePermission('add_visits'), validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const { customerId } = (req.params as ScalarParams);
+      const { customerId } = requestParams;
       const { date, purpose, notes, outcome, managerComment, headquartersComment, image } = req.body;
 
       // Only a real YYYY-MM-DD date is stored — these feed date-range queries and
@@ -191,9 +192,10 @@ export default function createVisitsRouter({
     }
   });
 
-  router.put('/:customerId/visits/:visitId', authenticate, requireAnyPermission(...ANY_EDIT_VISIT_PERMISSIONS), async (req, res) => {
+  router.put('/:customerId/visits/:visitId', authenticate, requireAnyPermission(...ANY_EDIT_VISIT_PERMISSIONS), validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const { customerId, visitId } = (req.params as ScalarParams);
+      const { customerId, visitId } = requestParams;
       const { date, purpose, notes, outcome, managerComment, headquartersComment, image } = req.body;
 
       const updateData: Loose = {};

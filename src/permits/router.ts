@@ -244,7 +244,7 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
         PermitRun.findOne({ source: id, ok: true }).sort({ startedAt: -1 }).lean(),
         PermitRun.findOne({ source: id, ok: true, kind: 'backfill' }).sort({ startedAt: 1 }).lean()
       ]);
-      const run = (r: Loose) => r && {
+      const run = (r: Loose | null) => r && {
         kind: r.kind, since: r.since, startedAt: r.startedAt, finishedAt: r.finishedAt, ok: r.ok, error: r.error,
         seen: r.seen, leads: r.leads, added: r.added, updated: r.updated, detailErrors: r.detailErrors,
         latestIssuedOn: r.latestIssuedOn, ...(canRefresh && { unsortedTypes: r.unsortedTypes || [], by: r.by })

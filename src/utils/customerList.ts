@@ -112,7 +112,7 @@ export const incompleteQuery = () => ({
     { $and: [{ email: PLACEHOLDER_EMAIL_RE }, { email: { $not: /[,;]/ } }] },
     { $and: [{ email: OWN_DOMAIN_RE }, { email: { $not: /[,;]/ } }] },
     { 'address.street': { $not: /\S/ } },
-    { 'geocode.status': 'failed' }
+    { 'geocode.status': 'failed' as const }
   ]
 });
 
@@ -159,7 +159,7 @@ export const savedViewQuery = (key: string, { userId, today, toId = (x: unknown)
         }
       };
     case 'onboarding':
-      return { status: 'Trying to Onboard' };
+      return { status: 'Trying to Onboard' as const };
     case 'noModa':
       return { modaDisplay: { $ne: 'Yes' } };
     case 'unassigned':

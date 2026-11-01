@@ -1,5 +1,3 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
 /**
@@ -14,7 +12,23 @@ import mongoose from 'mongoose';
  * whole customer documents as they were, including fields the Customer schema
  * may no longer define.
  */
-const customerMergeBackupSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+/** A raw collection snapshot can include keys no longer present in today's schema. */
+export interface CustomerMergeSnapshot {
+  survivorId: string;
+  survivorBefore: Record<string, unknown>;
+  losers: Record<string, unknown>[];
+  moved: { collection: string; field: string; type: string; from: string; ids: string[] }[];
+}
+export interface CustomerMergeBackupRecord {
+  group: CustomerMergeSnapshot;
+  action: string;
+  createdBy: string;
+  undoneAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const customerMergeBackupSchema = new mongoose.Schema<CustomerMergeBackupRecord>({
   group: { type: mongoose.Schema.Types.Mixed, required: true },
   // 'merge' | 'delete' — for the record, and for the Undo message
   action: { type: String, default: '' },

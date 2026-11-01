@@ -1,5 +1,3 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
 /**
@@ -9,7 +7,49 @@ import mongoose from 'mongoose';
  * the report / Undo have something to read. The per-row work lives in
  * SpsImportItem.
  */
-const spsImportRunSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+export interface SpsImportVerification {
+  checkedAt: Date;
+  expected: number;
+  present: number;
+  keptDeleted: number;
+  missing: { key: string; name: string; rowNumber: number; reason: string }[];
+  missingCount: number;
+  ok: boolean;
+}
+export interface SpsSheetCheck {
+  ok: boolean;
+  rowsRead: number;
+  distinctNames: number;
+  blocking: { code: string; message: string; rows: number[] }[];
+  warnings: { code: string; message: string; rows: number[] }[];
+}
+export interface SpsImportRunRecord {
+  fileName: string;
+  fingerprint: string;
+  file?: Buffer;
+  createdBy: string;
+  status: string;
+  mapping: Record<string, string>;
+  repAliases: Record<string, string>;
+  branchAliases: Record<string, string>;
+  answers: Record<string, string>;
+  fileCheck: SpsSheetCheck | null;
+  rowsRead: number;
+  total: number;
+  done: number;
+  results: Record<string, number>;
+  planCounts: Record<string, number>;
+  verify: SpsImportVerification | null;
+  error: string;
+  startedAt: Date | null;
+  finishedAt: Date | null;
+  undoneAt: Date | null;
+  undoneBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const spsImportRunSchema = new mongoose.Schema<SpsImportRunRecord>({
   fileName: { type: String, default: '' },
   fingerprint: { type: String, default: '' },
   // The upload itself, until the import starts (then it is dropped: the plan is frozen into the items).

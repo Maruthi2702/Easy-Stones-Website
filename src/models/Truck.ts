@@ -1,8 +1,6 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
-const truckSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+const truckSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true, index: true },
   name: { type: String, required: true },
   driver: { type: String, default: '' },
@@ -12,5 +10,5 @@ const truckSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }
   timestamps: true
 });
 
-const Truck = mongoose.models.Truck || mongoose.model('Truck', truckSchema);
+const Truck: mongoose.Model<mongoose.InferSchemaType<typeof truckSchema>> = (mongoose.models.Truck as mongoose.Model<mongoose.InferSchemaType<typeof truckSchema>> | undefined) || mongoose.model('Truck', truckSchema);
 export default Truck;

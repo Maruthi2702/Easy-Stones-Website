@@ -217,7 +217,7 @@ describe('who sees what', () => {
     const mine = (await api('get', '?scope=mine', ownOnly).expect(200)).body;
     expect(mine.items.map((h: Loose) => h.number)).toEqual([2]);
     await api('get', '?scope=all', ownOnly).expect(403);
-    const krishsHold = await Hold.findOne({ number: 1 });
+    const krishsHold = await Hold.findOne({ number: 1 }).orFail();
     await api('get', `/${krishsHold._id}`, ownOnly).expect(404);
     const branch = (await api('get', '?scope=branch', { ...MARIA, permissions: [HOLDS.VIEW_BRANCH] }).expect(200)).body;
     expect(branch.items).toHaveLength(2);
@@ -234,7 +234,7 @@ describe('who sees what', () => {
 });
 
 describe('changing a hold', () => {
-  const load = async (n = 1) => Hold.findOne({ number: n }).lean();
+  const load = async (n = 1) => Hold.findOne({ number: n }).lean().orFail();
 
   it('each change needs its own switch', async () => {
     await newHold(['14744-29']).expect(201);
@@ -251,7 +251,7 @@ describe('changing a hold', () => {
     const res = await api('patch', `/${h._id}/details`).send({ version: h.__v, customerId: otherCustomerId, job: 'Lobby', chanceToClose: 75, lineNotes: [{ slabKey: '14744-29', note: 'Island' }] }).expect(200);
     expect(res.body).toMatchObject({ job: 'Lobby', chanceToClose: 75, customer: { name: 'Bella Pietra' } });
     expect(res.body.lines[0].note).toBe('Island');
-    expect((await SlabReservation.findOne({ slabKey: '14744-29' })).customerName).toBe('Bella Pietra');
+    expect((await SlabReservation.findOne({ slabKey: '14744-29' }).orFail()).customerName).toBe('Bella Pietra');
     expect(await HoldHistory.countDocuments({ action: 'edited' })).toBe(1);
   });
 
@@ -366,7 +366,7 @@ describe('history and PDF', () => {
   });
 });
 
-async function load1() { return Hold.findOne({ number: 1 }).lean(); }
+async function load1() { return Hold.findOne({ number: 1 }).lean().orFail(); }
 
 describe('indexes', () => {
   it('the serial # lookup has its index, and every holds collection is in the startup list', () => {

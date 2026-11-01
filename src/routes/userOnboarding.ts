@@ -1,4 +1,4 @@
-import type { ScalarQuery, ScalarParams } from '../types/server.ts';
+import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import type { Loose } from '../types/records.ts';
 import type { Request, RequestHandler, Response } from 'express';
 /**
@@ -113,8 +113,9 @@ export default function createUserOnboardingRouter({
 }: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; loginLimiter: RequestHandler; jwtSecret: string; usersAccess?: (permission: string) => RequestHandler; memberAllowed?: (req: Request, target: Loose) => boolean }) {
   const router = express.Router();
 
-  router.get('/admin/users/username-available', authenticate, usersAccess('view'), async (req, res) => {
-    const username = String((req.query as ScalarQuery).username || '').trim().toLowerCase();
+  router.get('/admin/users/username-available', authenticate, usersAccess('view'), validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
+    const username = String(requestQuery.username || '').trim().toLowerCase();
     const problem = usernameProblem(username);
     if (problem) return res.json({ available: false, reason: problem });
     try {
@@ -210,9 +211,10 @@ export default function createUserOnboardingRouter({
     return user;
   };
 
-  router.get('/auth/invite/:token', loginLimiter, async (req, res) => {
+  router.get('/auth/invite/:token', loginLimiter, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const user = await findInvite((req.params as ScalarParams).token);
+      const user = await findInvite(requestParams.token);
       if (!user) return res.json({ valid: false });
       res.json({ valid: true, username: user.username, name: String(user.displayName || '').trim() || user.username });
     } catch {
@@ -282,10 +284,11 @@ export default function createUserOnboardingRouter({
   // Edit user → Unlock now: lifts a lock from too many wrong passwords
   // without waiting out its 15 minutes. Their password doesn't change and
   // they stay signed in wherever they already are.
-  router.post('/admin/users/:id/unlock', authenticate, usersAccess('unlock_users'), async (req, res) => {
+  router.post('/admin/users/:id/unlock', authenticate, usersAccess('unlock_users'), validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      if (!mongoose.isValidObjectId((req.params as ScalarParams).id)) return res.status(404).json({ message: 'User not found' });
-      const user = await User.findById((req.params as ScalarParams).id);
+      if (!mongoose.isValidObjectId(requestParams.id)) return res.status(404).json({ message: 'User not found' });
+      const user = await User.findById(requestParams.id);
       if (!user) return res.status(404).json({ message: 'User not found' });
       if (!memberAllowed(req, user)) return res.status(403).json({ message: "You can't change this person's account." });
       clearSignInLock(user);

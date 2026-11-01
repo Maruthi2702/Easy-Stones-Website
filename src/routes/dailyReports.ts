@@ -1,4 +1,4 @@
-import type { ScalarQuery, ScalarParams } from '../types/server.ts';
+import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import type { Loose } from '../types/records.ts';
 import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import express from 'express';
@@ -103,7 +103,7 @@ export const incomingTransferQuery = (date: string, location: string) => ({
   transferDestination: location,
   status: { $ne: 'cancelled' },
   truckId: { $nin: ['', null] }
-});
+} as const);
 
 /**
  * The day's tickets across every branch — one query, shared when a caller
@@ -151,7 +151,7 @@ export const deliveriesOnDate = (date: string) => Delivery.find(
  * off. One delivery query per date, shared across that date's branches.
  * Works on lean (plain) documents.
  */
-export async function withDraftsDerived(docs: Loose[] = []) {
+export async function withDraftsDerived<T extends Loose>(docs: T[] = []): Promise<T[]> {
   const byDate = new Map();
   return Promise.all(docs.map(async (doc) => {
     if (doc.status !== 'draft') return doc;
@@ -377,9 +377,19 @@ export function handSetFigures(report: Loose) {
   };
 }
 
-export function applyDerived(report: Loose, derived: Loose) {
+type DerivedReport = {
+  status?: string;
+  visitors?: { homeowners?: number | string | null; fabricators?: number | string | null; designers?: number | string | null } | null;
+  deliveries: { assigned?: number | string | null; capacity?: number | string | null };
+  pickups: { assigned?: number | string | null; capacity?: number | string | null };
+  returns?: number | string | null;
+  returnsSlabs?: number | string | null;
+  transfers: Loose[];
+};
+export function applyDerived<T extends DerivedReport>(report: T, derived: Loose): T {
   if (report.status === 'submitted') return report;
 
+  report.visitors ||= { homeowners: 0 };
   report.visitors.homeowners = derived.visitorCheckIns;
   report.deliveries.assigned = derived.deliveriesAssigned;
   report.pickups.assigned = derived.pickupsAssigned;
@@ -412,7 +422,7 @@ export function applyDerived(report: Loose, derived: Loose) {
   // edits. That is the safe direction for a field people have been typing into
   // by hand for months: an auto-fill that goes stale can be corrected on the
   // sheet, whereas a strip would quietly wipe a number somebody entered.
-  const fillReturn = (value: unknown, count: number) =>
+  const fillReturn = <Value,>(value: Value, count: number) =>
     ((value === null || value === undefined) && count > 0 ? count : value);
 
   report.returns = fillReturn(report.returns, derived.returnsCount);
@@ -554,15 +564,16 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   });
 
   /** GET /api/daily-reports?month=YYYY-MM&location=Seattle — the month view. */
-  router.get('/', canView, async (req: Request, res: Response) => {
+  router.get('/', canView, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
     try {
-      const { month, location } = (req.query as ScalarQuery);
+      const { month, location } = requestQuery;
       if (!isValidMonth(month)) {
         return res.status(400).json({ message: 'Provide a month as YYYY-MM.' });
       }
 
       const allowed = allowedLocations(req);
-      let locations!: Loose;
+      let locations!: readonly string[];
       if (location && location !== 'all') {
         if (!canSeeLocation(req, location)) {
           return res.status(403).json({ message: 'That branch is not assigned to you.' });
@@ -594,9 +605,10 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
    * this view at all. Those rows still carry the system's own figures, so a
    * branch that hasn't started shows the deliveries it was assigned.
    */
-  router.get('/overview/:date', canView, async (req: Request, res: Response) => {
+  router.get('/overview/:date', canView, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
     try {
-      const { date } = (req.params as ScalarParams);
+      const { date } = requestParams;
       if (!isValidDate(date)) return res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' });
 
       const allowed = allowedLocations(req);
@@ -641,9 +653,10 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     if (perms.includes('view_daily_report') || perms.includes('view_delivery_schedule')) return next();
     return res.status(403).json({ message: 'Not allowed.' });
   }];
-  router.get('/submitted-days', canSeeDayStatus, async (req: Request, res: Response) => {
+  router.get('/submitted-days', canSeeDayStatus, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
     try {
-      const pairs = String((req.query as ScalarQuery).days || '').split(',').slice(0, 10)
+      const pairs = String(requestQuery.days || '').split(',').slice(0, 10)
         .map((p) => { const [location, date] = p.split('|'); return { location, date }; })
         .filter((p) => isBranch(p.location) && isValidDate(p.date));
       if (!pairs.length) return res.json({ days: [] });
@@ -663,10 +676,12 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     }
   });
 
-  router.get('/:date', canView, async (req: Request, res: Response) => {
+  router.get('/:date', canView, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
+  const requestQuery = scalarQuery(req);
     try {
-      const { date } = (req.params as ScalarParams);
-      const location = (req.query as ScalarQuery).location;
+      const { date } = requestParams;
+      const location = requestQuery.location;
 
       if (!isValidDate(date)) return res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' });
       if (!location) return res.status(400).json({ message: 'Provide a branch.' });
@@ -719,9 +734,10 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   });
 
   /** PUT /api/daily-reports/:date — save the draft. */
-  router.put('/:date', canEdit, async (req: Request, res: Response) => {
+  router.put('/:date', canEdit, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
     try {
-      const { date } = (req.params as ScalarParams);
+      const { date } = requestParams;
       const { location } = req.body;
 
       if (!isValidDate(date)) return res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' });
@@ -802,9 +818,10 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   });
 
   /** POST /api/daily-reports/:date/submit — lock the day. */
-  router.post('/:date/submit', canSubmit, async (req: Request, res: Response) => {
+  router.post('/:date/submit', canSubmit, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
     try {
-      const { date } = (req.params as ScalarParams);
+      const { date } = requestParams;
       const { location } = req.body;
       if (!isValidDate(date) || !location) {
         return res.status(400).json({ message: 'Provide a date and a branch.' });
@@ -858,9 +875,10 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   });
 
   /** POST /api/daily-reports/:date/reopen — unlock, with a reason on the record. */
-  router.post('/:date/reopen', canReopen, async (req: Request, res: Response) => {
+  router.post('/:date/reopen', canReopen, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
     try {
-      const { date } = (req.params as ScalarParams);
+      const { date } = requestParams;
       const { location, reason } = req.body;
       if (!isValidDate(date) || !location) {
         return res.status(400).json({ message: 'Provide a date and a branch.' });
@@ -898,14 +916,16 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
    * CSV, because it opens in the spreadsheet everyone already has. Managers get
    * their own branches; anyone assigned to all four can take the company sheet.
    */
-  router.get('/export/:month', canView, async (req: Request, res: Response) => {
+  router.get('/export/:month', canView, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestParams = scalarParams(req);
+  const requestQuery = scalarQuery(req);
     try {
-      const { month } = (req.params as ScalarParams);
-      const { location } = (req.query as ScalarQuery);
+      const { month } = requestParams;
+      const { location } = requestQuery;
       if (!isValidMonth(month)) return res.status(400).json({ message: 'Provide a month as YYYY-MM.' });
 
       const allowed = allowedLocations(req);
-      let locations!: Loose;
+      let locations!: readonly string[];
       if (location && location !== 'all') {
         if (!canSeeLocation(req, location)) {
           return res.status(403).json({ message: 'That branch is not assigned to you.' });
@@ -978,8 +998,10 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   // the file that lands in an inbox can never be built from different rules.
 
   const resolveDay = async (req: Request, res: Response) => {
-    const { date } = (req.params as ScalarParams);
-    const location = (req.query as ScalarQuery).location || req.body?.location;
+  const requestParams = scalarParams(req);
+  const requestQuery = scalarQuery(req);
+    const { date } = requestParams;
+    const location = requestQuery.location || req.body?.location;
     if (!isValidDate(date)) { res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' }); return null; }
     if (!location) { res.status(400).json({ message: 'Provide a branch.' }); return null; }
     if (!canSeeLocation(req, location)) { res.status(403).json({ message: 'That branch is not assigned to you.' }); return null; }
@@ -999,12 +1021,14 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   };
 
   const resolveMonth = async (req: Request, res: Response) => {
-    const { month } = (req.params as ScalarParams);
-    const location = (req.query as ScalarQuery).location || req.body?.location;
+  const requestParams = scalarParams(req);
+  const requestQuery = scalarQuery(req);
+    const { month } = requestParams;
+    const location = requestQuery.location || req.body?.location;
     if (!isValidMonth(month)) { res.status(400).json({ message: 'Provide a month as YYYY-MM.' }); return null; }
 
     const allowed = allowedLocations(req);
-    let locations!: Loose;
+    let locations!: readonly string[];
     let scopeLabel!: string;
     if (location && location !== 'all') {
       if (!canSeeLocation(req, location)) { res.status(403).json({ message: 'That branch is not assigned to you.' }); return null; }
@@ -1024,12 +1048,13 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   };
 
   /** GET /api/daily-reports/:date/pdf?location=Seattle */
-  router.get('/:date/pdf', canView, async (req: Request, res: Response) => {
+  router.get('/:date/pdf', canView, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
     try {
       const report = await resolveDay(req, res);
       if (!report) return;
       const bytes = await buildDayPdf(report);
-      const disposition = (req.query as ScalarQuery).disposition === 'inline' ? 'inline' : 'attachment';
+      const disposition = requestQuery.disposition === 'inline' ? 'inline' : 'attachment';
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `${disposition}; filename="${dayPdfFileName(report)}"`);
       res.send(Buffer.from(bytes));
@@ -1040,12 +1065,13 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   });
 
   /** GET /api/daily-reports/export/:month/pdf?location=Seattle|all */
-  router.get('/export/:month/pdf', canView, async (req: Request, res: Response) => {
+  router.get('/export/:month/pdf', canView, validateScalarRequest, async (req: Request, res: Response) => {
+  const requestQuery = scalarQuery(req);
     try {
       const data = await resolveMonth(req, res);
       if (!data) return;
       const bytes = await buildMonthPdf(data);
-      const disposition = (req.query as ScalarQuery).disposition === 'inline' ? 'inline' : 'attachment';
+      const disposition = requestQuery.disposition === 'inline' ? 'inline' : 'attachment';
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `${disposition}; filename="${monthPdfFileName(data.month, data.scopeLabel)}"`);
       res.send(Buffer.from(bytes));
@@ -1090,7 +1116,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   };
 
   /** POST /api/daily-reports/:date/email  { location, to, message } */
-  router.post('/:date/email', canView, async (req: Request, res: Response) => {
+  router.post('/:date/email', canView, validateScalarRequest, async (req: Request, res: Response) => {
     try {
       const report = await resolveDay(req, res);
       if (!report) return;
@@ -1109,7 +1135,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
   });
 
   /** POST /api/daily-reports/export/:month/email  { location, to, message } */
-  router.post('/export/:month/email', canView, async (req: Request, res: Response) => {
+  router.post('/export/:month/email', canView, validateScalarRequest, async (req: Request, res: Response) => {
     try {
       const data = await resolveMonth(req, res);
       if (!data) return;

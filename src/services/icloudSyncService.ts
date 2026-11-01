@@ -2,6 +2,7 @@ import type { Loose } from '../types/records.ts';
 import User from '../models/User.ts';
 import Schedule from '../models/Schedule.ts';
 import Customer from '../models/Customer.ts';
+import type { CustomerData } from '../models/Customer.ts';
 import https from 'https';
 import { zonedTimeToUtc } from '../utils/dateUtils.ts';
 
@@ -13,7 +14,7 @@ const resolveUrl = (baseUrl: string, href: string) => {
   return origin + (href.startsWith('/') ? href : '/' + href);
 };
 
-const makeDavRequest = (url: string, method: string, body: string, username: string, password: string, depth = '0', contentType = 'application/xml; charset=utf-8') => {
+const makeDavRequest = (url: string, method: string, body: string, username: unknown, password: unknown, depth = '0', contentType = 'application/xml; charset=utf-8') => {
   return new Promise<string>((resolve, reject) => {
     const urlObj = new URL(url);
     const auth = Buffer.from(`${String(username).trim()}:${String(password).trim()}`).toString('base64');
@@ -297,7 +298,7 @@ export const syncICloudCalendar = async (userId: string, timeZone?: string) => {
       userId,
       notes: { $not: /iCloud ID:/ },
       status: { $ne: 'Cancelled' }
-    }).populate('customerId', 'contactName company');
+    }).populate<{ customerId: Pick<CustomerData, 'contactName' | 'company'> | null }>('customerId', 'contactName company');
 
     // Formats an already-real instant (a Date, or a raw epoch ms number —
     // both unambiguous) as iCal's UTC date-time. schedule.startTime/endTime

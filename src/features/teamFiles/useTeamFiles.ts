@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import type { Loose } from '../../types/records';
@@ -47,7 +47,7 @@ export function useTeamFiles({ active, resourceRefreshTrigger, setIsSaving, fetc
     const [folderPath, setFolderPath] = useState<{ id: string; name: string }[]>([]);
 
     // Fetch Sales Dashboard Resources
-    const fetchDashboardResources = async () => {
+    const fetchDashboardResources = useCallback(async () => {
         try {
             const query = currentFolderId ? `?parentId=${currentFolderId}` : '';
             const url = `${API_URL}/api/sales-dashboard/resources${query}`;
@@ -63,13 +63,13 @@ export function useTeamFiles({ active, resourceRefreshTrigger, setIsSaving, fetc
         } catch (error) {
             console.error('❌ [FETCH] Error fetching dashboard resources:', error);
         }
-    };
+    }, [currentFolderId]);
 
     useEffect(() => {
         if (active) {
             fetchDashboardResources();
         }
-    }, [active, currentFolderId, resourceRefreshTrigger]);
+    }, [active, fetchDashboardResources, resourceRefreshTrigger]);
 
     const handleDashboardUpload = async (e: { preventDefault: () => void }) => {
         e.preventDefault();

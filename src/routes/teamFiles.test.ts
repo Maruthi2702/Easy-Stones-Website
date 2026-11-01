@@ -79,7 +79,7 @@ const diskFile = (name: string) => {
   fs.writeFileSync(path.join(dir, name), 'pdf bytes');
   return `/uploads/resources/${name}`;
 };
-const onDisk = (content: Loose) => fs.existsSync(path.join(publicDir, `.${content}`));
+const onDisk = (content: unknown) => fs.existsSync(path.join(publicDir, `.${content}`));
 
 beforeEach(async () => {
   emit.mockClear();

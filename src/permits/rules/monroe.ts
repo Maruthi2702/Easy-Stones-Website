@@ -14,7 +14,7 @@ import type { Loose } from '../../types/records.ts';
  * Monroe is a small office (about 60 permits of every kind a month, and most
  * of them trades), so a quiet month is normal.
  */
-import { key, typeMap, typeSet, cleanText, dayOf, tidyContacts, money } from '../common.ts';
+import { key, typeSet, cleanText, dayOf, tidyContacts, money } from '../common.ts';
 
 export const MONROE_SITE = 'https://monroewa.gov';
 export const MONROE_REPORTS_PAGE = `${MONROE_SITE}/1355/Monthly-Issued-Permit-Reports`;

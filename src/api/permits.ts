@@ -1,11 +1,11 @@
 import { API_URL } from '../config/api';
 import { authFetch } from './authFetch';
 import { queryEntries, type ErrorBody, type Query } from '../types/api';
-import type { Loose } from '../types/records.ts';
+import type { PermitSource, PermitCheck, PermitItem, ContractorProfile } from '../types/permitApi.ts';
 
 export type PermitsMeta = {
-  sources: Loose[];
-  checks: Loose[];
+  sources: PermitSource[];
+  checks: PermitCheck[];
   cities: string[];
   cityCounties: Record<string, string[]>;
   canExport: boolean;
@@ -13,7 +13,7 @@ export type PermitsMeta = {
   running: boolean;
 };
 export type PermitsPage = {
-  items: Loose[];
+  items: PermitItem[];
   counts: Record<string, number>;
   total: number;
 };
@@ -39,4 +39,4 @@ export const permitsMeta = () => call<PermitsMeta>('/meta');
 export const listPermits = (query: Query) => call<PermitsPage>('', { query });
 export const exportPermits = (query: Query) => call<Pick<PermitsPage, 'items' | 'total'>>('/export', { query });
 export const refreshPermits = () => call<{ started: boolean }>('/refresh', { method: 'POST' });
-export const permitContractor = (license: string) => call<Loose>(`/contractor/${encodeURIComponent(license)}`);
+export const permitContractor = (license: string) => call<ContractorProfile>(`/contractor/${encodeURIComponent(license)}`);

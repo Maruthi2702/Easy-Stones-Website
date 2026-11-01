@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import './WarrantyPage.css';
 
@@ -7,7 +7,9 @@ const WarrantyPage = () => {
     const [activeSection, setActiveSection] = useState('warranty');
 
     // Handle URL query parameters for direct section navigation
-    useEffect(() => {
+    const [sectionSource, setSectionSource] = useState<{ d0: typeof location.search } | null>(null);
+    if (!sectionSource || sectionSource.d0 !== location.search) {
+        setSectionSource({ d0: location.search });
         const params = new URLSearchParams(location.search);
         const section = params.get('section');
 
@@ -18,7 +20,8 @@ const WarrantyPage = () => {
         } else if (section === 'qc') {
             setActiveSection('safety-data');
         }
-    }, [location.search]);
+
+    }
 
     const renderContent = () => {
         switch (activeSection) {

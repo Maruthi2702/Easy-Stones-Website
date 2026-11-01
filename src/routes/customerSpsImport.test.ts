@@ -53,7 +53,7 @@ beforeAll(async () => {
 afterAll(async () => { await mongoose.disconnect(); await mongo?.stop(); });
 beforeEach(async () => {
   remembered = null;
-  await Promise.all([Customer, CustomerDeleteBackup, SpsImportRun, SpsImportItem].map((m) => m.collection.deleteMany({})));
+  await Promise.all([Customer.collection.deleteMany({}), CustomerDeleteBackup.collection.deleteMany({}), SpsImportRun.collection.deleteMany({}), SpsImportItem.collection.deleteMany({})]);
   await Customer.collection.insertOne({ company: 'Acme Stone', email: 'a@acme.com', sps: { key: 'acme stone' } });
   sheet = { headers: ['Name', 'Sales Person1', 'Email'], rows: [row('Acme Stone'), row('Zed Tile', { Email: 'z@zed.com' })], parse: {} };
 });
@@ -98,7 +98,7 @@ describe('sps-import', () => {
     const ok = await start(body.run.id);
     expect(ok.status).toBe(200);
     const run = await wait(body.run.id);
-    expect((run)!.verify.ok).toBe(true);
+    expect((run)!.verify?.ok).toBe(true);
     expect((run)!.results).toMatchObject({ added: 1, keptDeleted: 1 });
   });
 

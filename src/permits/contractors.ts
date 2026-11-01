@@ -48,7 +48,7 @@ export const registryName = (name: unknown) => cleanText(name).toUpperCase();
 const soql = (s: unknown) => `'${String(s).replace(/'/g, "''")}'`;
 
 /** One registry row as a Contractor record. */
-export function contractorRecord(row: Loose, at: unknown) {
+export function contractorRecord(row: Loose, at: Date) {
   return {
     license: cleanText(row.contractorlicensenumber).toUpperCase(),
     businessName: cleanText(row.businessname),

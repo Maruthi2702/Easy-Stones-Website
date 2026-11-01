@@ -1,5 +1,5 @@
 import type { Loose } from '../../types/records.ts';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { X, ArrowLeftRight, Save, AlertCircle, Building2, FileText } from 'lucide-react';
 import CustomSelect from '../shared/CustomSelect';
 
@@ -25,7 +25,9 @@ const CrossoverSheetModal = ({ isOpen, onClose, onSave, initialData = null, exis
     setError('');
   }, []);
 
-  useEffect(() => {
+  const [formSource, setFormSource] = useState<{ initialData: typeof initialData; isOpen: typeof isOpen } | null>(null);
+  if (!formSource || formSource.initialData !== initialData || formSource.isOpen !== isOpen) {
+    setFormSource({ initialData, isOpen });
     if (initialData) {
       setDistributorName(initialData.distributorName || '');
       setDistributorColorName(initialData.distributorColorName || '');
@@ -36,7 +38,7 @@ const CrossoverSheetModal = ({ isOpen, onClose, onSave, initialData = null, exis
     } else {
       resetForm();
     }
-  }, [initialData, isOpen, resetForm]);
+  }
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

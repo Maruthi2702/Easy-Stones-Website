@@ -4,7 +4,7 @@ import { useState } from 'react';
 import type { Draft, InboundRow } from '../../../purchasing/types';
 import FormModal from '../../../components/shared/form/FormModal';
 import { purchasingApi, download, csv } from '../purchasingApi';
-import { num } from './BuyerQueue';
+import { num } from './formatNumber';
 export default function DraftList({
   drafts,
   inbound,

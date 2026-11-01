@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Ellipsis, Info, MapPin, Package, Phone, Trash2, TriangleAlert } from 'lucide-react';
 import FormModal from '../form/FormModal';
-import { FormField, FormPicker, FormSearchPicker, SegmentedToggle } from '../form/FormControls';
+import { FormField, FormPicker, FormSearchPicker, FormSection, SegmentedToggle } from '../form/FormControls';
 import { DatePicker } from '../calendar/Calendar';
 import { formatDateText, todayISO } from '../calendar/calendarDates';
 import type { CustomerOption } from '../../../utils/customerOptions';
@@ -177,135 +177,140 @@ export default function ScheduleActivityForm({
                 </button>
             ) : null}
         >
-            {customer ? (
-                <p className="sa-who">
-                    <MapPin size={16} aria-hidden="true" />
-                    <span>{customer.label}</span>
-                    {customer.city && <span className="sa-who-city">· {customer.city}</span>}
-                </p>
-            ) : (
-                <FormField name="customer" id="sa-customer" label="Customer" required error={tried ? errors.customer : ''}>
-                    <FormSearchPicker
-                        id="sa-customer"
-                        value={customerId}
-                        onChange={setCustomerId}
-                        options={customerOptions}
-                        placeholder="Search customers…"
-                        sheetTitle="Customer"
-                        loading={customersLoading}
-                        selectedLabel={customerLabelFallback}
-                        error={tried ? errors.customer : ''}
-                    />
-                </FormField>
-            )}
+            {/* One FormSection, like Add visit: the template's spacing between fields. */}
+            <div className="sa-form">
+                <FormSection>
+                    {customer ? (
+                        <p className="sa-who">
+                            <MapPin size={16} aria-hidden="true" />
+                            <span>{customer.label}</span>
+                            {customer.city && <span className="sa-who-city">· {customer.city}</span>}
+                        </p>
+                    ) : (
+                        <FormField name="customer" id="sa-customer" label="Customer" required error={tried ? errors.customer : ''}>
+                            <FormSearchPicker
+                                id="sa-customer"
+                                value={customerId}
+                                onChange={setCustomerId}
+                                options={customerOptions}
+                                placeholder="Search customers…"
+                                sheetTitle="Customer"
+                                loading={customersLoading}
+                                selectedLabel={customerLabelFallback}
+                                error={tried ? errors.customer : ''}
+                            />
+                        </FormField>
+                    )}
 
-            <FormField name="type" id="sa-type" label="Type">
-                <div className="sa-type">
-                    <SegmentedToggle label="Type" value={activityType} onChange={setActivityType} options={TYPE_OPTIONS} />
-                </div>
-            </FormField>
+                    <FormField name="type" id="sa-type" label="Type">
+                        <div className="sa-type">
+                            <SegmentedToggle label="Type" value={activityType} onChange={setActivityType} options={TYPE_OPTIONS} />
+                        </div>
+                    </FormField>
 
-            <FormField name="date" id="sa-date" label="Day" required>
-                <DatePicker
-                    id="sa-date"
-                    value={date}
-                    onChange={(v) => { if (v) { setDate(v); setPickedTime(''); } }}
-                    min={minDate}
-                    formatText={dateText}
-                    sheetTitle="Day"
-                />
-            </FormField>
+                    <FormField name="date" id="sa-date" label="Day" required>
+                        <DatePicker
+                            id="sa-date"
+                            value={date}
+                            onChange={(v) => { if (v) { setDate(v); setPickedTime(''); } }}
+                            min={minDate}
+                            formatText={dateText}
+                            sheetTitle="Day"
+                        />
+                    </FormField>
 
-            <FormField name="time" id="sa-time" label="Start time" status={`Ends ${clockLabel(start + length)}`}>
-                <FormPicker id="sa-time" value={time} onChange={setPickedTime} options={TIMES} sheetTitle="Start time" />
-            </FormField>
+                    <FormField name="time" id="sa-time" label="Start time" status={`Ends ${clockLabel(start + length)}`}>
+                        <FormPicker id="sa-time" value={time} onChange={setPickedTime} options={TIMES} sheetTitle="Start time" />
+                    </FormField>
 
-            <FormField name="length" id="sa-length" label="Length">
-                <div className="sa-length">
-                    <SegmentedToggle
-                        label="Length"
-                        value={minutes}
-                        onChange={(v) => { setMinutes(v); setPickedTime(''); }}
-                        options={lengths.map(lengthOption)}
-                    />
-                </div>
-            </FormField>
+                    <FormField name="length" id="sa-length" label="Length">
+                        <div className="sa-length">
+                            <SegmentedToggle
+                                label="Length"
+                                value={minutes}
+                                onChange={(v) => { setMinutes(v); setPickedTime(''); }}
+                                options={lengths.map(lengthOption)}
+                            />
+                        </div>
+                    </FormField>
 
-            <div className="sa-notices" aria-live="polite">
-                {overlaps.length > 0 && (
-                    <p className="sa-note" data-tone="warn">
-                        <TriangleAlert size={17} aria-hidden="true" />
-                        <span>
-                            <b>Overlaps {overlaps.map((b) => b.label || 'a booking').join(', ')}</b>.
-                            {alternative && <> <button type="button" className="sa-note-action" onClick={() => setPickedTime(alternative)}>Use {clockLabel(minutesOf(alternative) as number)} instead</button></>}
-                        </span>
-                    </p>
-                )}
-                {past && (
-                    <p className="sa-note" data-tone="warn">
-                        <TriangleAlert size={17} aria-hidden="true" />
-                        <span>
-                            <b>That time has already passed today.</b>
-                            {alternative && <> <button type="button" className="sa-note-action" onClick={() => setPickedTime(alternative)}>Use {clockLabel(minutesOf(alternative) as number)} instead</button></>}
-                        </span>
-                    </p>
-                )}
-                {sameCustomer.length > 0 && (
-                    <p className="sa-note" data-tone="warn">
-                        <TriangleAlert size={17} aria-hidden="true" />
-                        <span>
-                            <b>{customerName || 'This customer'} is already booked {dayLabel(date)}</b>
-                            {' '}at {sameCustomer.map((b) => clockLabel(minutesOf(b.startTime) as number)).join(', ')}.
-                        </span>
-                    </p>
-                )}
-                {dayFull && (
-                    <p className="sa-note" data-tone="info">
-                        <Info size={17} aria-hidden="true" />
-                        <span>
-                            <b>No {lengthLabel(length)} gap on {dayLabel(date)}.</b>
-                            {nextRoom
-                                ? <> <button type="button" className="sa-note-action" onClick={() => { setDate(nextRoom); setPickedTime(''); }}>Try {dayLabel(nextRoom)}</button> or pick a start time yourself.</>
-                                : <> Pick a start time yourself.</>}
-                        </span>
-                    </p>
-                )}
-            </div>
-
-            <div className="sa-day">
-                <div className="sa-day-head">
-                    <span className="sa-day-title">{booked.length ? `Already on ${dayLabel(date)}` : `${dayLabel(date)}`}</span>
-                    <span className="sa-day-count">{booked.length === 0 ? 'Nothing booked yet' : `${booked.length} ${booked.length === 1 ? 'visit' : 'visits'}`}</span>
-                </div>
-                {rows.map((r) => (
-                    <div key={r.key} className="sa-day-row" data-mine={r.mine ? 'true' : undefined}>
-                        <span className="sa-day-time">{r.span.assumed ? `${clockLabel(r.span.start)} · about ${DEFAULT_VISIT_MINUTES} min` : rangeLabel(r.span.start, r.span.end)}</span>
-                        <span className="sa-day-what">{r.label}</span>
+                    <div className="sa-notices" aria-live="polite">
+                        {overlaps.length > 0 && (
+                            <p className="sa-note" data-tone="warn">
+                                <TriangleAlert size={17} aria-hidden="true" />
+                                <span>
+                                    <b>Overlaps {overlaps.map((b) => b.label || 'a booking').join(', ')}</b>.
+                                    {alternative && <> <button type="button" className="sa-note-action" onClick={() => setPickedTime(alternative)}>Use {clockLabel(minutesOf(alternative) as number)} instead</button></>}
+                                </span>
+                            </p>
+                        )}
+                        {past && (
+                            <p className="sa-note" data-tone="warn">
+                                <TriangleAlert size={17} aria-hidden="true" />
+                                <span>
+                                    <b>That time has already passed today.</b>
+                                    {alternative && <> <button type="button" className="sa-note-action" onClick={() => setPickedTime(alternative)}>Use {clockLabel(minutesOf(alternative) as number)} instead</button></>}
+                                </span>
+                            </p>
+                        )}
+                        {sameCustomer.length > 0 && (
+                            <p className="sa-note" data-tone="warn">
+                                <TriangleAlert size={17} aria-hidden="true" />
+                                <span>
+                                    <b>{customerName || 'This customer'} is already booked {dayLabel(date)}</b>
+                                    {' '}at {sameCustomer.map((b) => clockLabel(minutesOf(b.startTime) as number)).join(', ')}.
+                                </span>
+                            </p>
+                        )}
+                        {dayFull && (
+                            <p className="sa-note" data-tone="info">
+                                <Info size={17} aria-hidden="true" />
+                                <span>
+                                    <b>No {lengthLabel(length)} gap on {dayLabel(date)}.</b>
+                                    {nextRoom
+                                        ? <> <button type="button" className="sa-note-action" onClick={() => { setDate(nextRoom); setPickedTime(''); }}>Try {dayLabel(nextRoom)}</button> or pick a start time yourself.</>
+                                        : <> Pick a start time yourself.</>}
+                                </span>
+                            </p>
+                        )}
                     </div>
-                ))}
+
+                    <div className="sa-day">
+                        <div className="sa-day-head">
+                            <span className="sa-day-title">{booked.length ? `Already on ${dayLabel(date)}` : `${dayLabel(date)}`}</span>
+                            <span className="sa-day-count">{booked.length === 0 ? 'Nothing booked yet' : `${booked.length} ${booked.length === 1 ? 'visit' : 'visits'}`}</span>
+                        </div>
+                        {rows.map((r) => (
+                            <div key={r.key} className="sa-day-row" data-mine={r.mine ? 'true' : undefined}>
+                                <span className="sa-day-time">{r.span.assumed ? `${clockLabel(r.span.start)} · about ${DEFAULT_VISIT_MINUTES} min` : rangeLabel(r.span.start, r.span.end)}</span>
+                                <span className="sa-day-what">{r.label}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    {showNotes && (
+                        <FormField name="notes" id="sa-notes" label="Notes">
+                            <textarea
+                                id="sa-notes"
+                                className="fm-input fm-textarea"
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                placeholder="Agenda or special instructions"
+                                rows={3}
+                                maxLength={2000}
+                                autoCapitalize="sentences"
+                            />
+                        </FormField>
+                    )}
+
+                    {error && (
+                        <p className="sa-note" data-tone="error" role="alert">
+                            <TriangleAlert size={17} aria-hidden="true" />
+                            <span>{error}</span>
+                        </p>
+                    )}
+                </FormSection>
             </div>
-
-            {showNotes && (
-                <FormField name="notes" id="sa-notes" label="Notes">
-                    <textarea
-                        id="sa-notes"
-                        className="fm-input fm-textarea"
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        placeholder="Agenda or special instructions"
-                        rows={3}
-                        maxLength={2000}
-                        autoCapitalize="sentences"
-                    />
-                </FormField>
-            )}
-
-            {error && (
-                <p className="sa-note" data-tone="error" role="alert">
-                    <TriangleAlert size={17} aria-hidden="true" />
-                    <span>{error}</span>
-                </p>
-            )}
         </FormModal>
     );
 }

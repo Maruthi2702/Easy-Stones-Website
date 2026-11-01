@@ -63,7 +63,7 @@ beforeEach(async () => {
 });
 
 const addCarrier = async (over: Loose = {}) => (await api('post', '/carriers').send({ name: 'ABC Freight Inc', ...over })).body;
-const chargeOf = (deliveryId: Loose) => FreightCharge.findOne({ deliveryId }).lean();
+const chargeOf = (deliveryId: string) => FreightCharge.findOne({ deliveryId }).lean().orFail();
 
 describe('permissions', () => {
   it('nothing opens without the switch for it', async () => {
@@ -136,7 +136,7 @@ describe('the schedule creates charges', () => {
     await sync.syncDeliveryIds([d.id]);
     charge = await chargeOf(d.id);
     expect(charge.amountCents).toBe(50000);
-    expect(charge.flags.find((f: Loose) => !f.resolvedAt).code).toBe('delivery_changed');
+    expect(charge.flags.find((f: Loose) => !f.resolvedAt)?.code).toBe('delivery_changed');
 
     await api('post', `/freight-charges/${charge._id}/resolve-flags`).send({ version: charge.__v }).expect(200);
     expect((await chargeOf(d.id)).flags.every((f: Loose) => f.resolvedAt)).toBe(true);
@@ -207,10 +207,10 @@ describe('approve, pay, void', () => {
     const payOnly = { ...ALL, permissions: [FREIGHT.VIEW, FREIGHT.PAY] };
     await api('post', '/freight-charges/pay', payOnly).send({ items: [item(charge)], paidOn: '2026-10-09', method: 'check', reference: '1042' }).expect(400);
     await api('post', '/freight-charges/approve').send({ items: [item(charge)] }).expect(200);
-    let c = await FreightCharge.findById(charge._id).lean();
+    let c = await FreightCharge.findById(charge._id).lean().orFail();
     expect(c.status).toBe('approved');
     await api('post', '/freight-charges/pay').send({ items: [item(c)], paidOn: '2026-10-09', method: 'check', reference: '1042' }).expect(200);
-    c = await FreightCharge.findById(charge._id).lean();
+    c = await FreightCharge.findById(charge._id).lean().orFail();
     expect(c).toMatchObject({ status: 'paid', payment: { paidOn: '2026-10-09', method: 'check', reference: '1042' } });
     await api('post', `/freight-charges/${c._id}/void`).send({ version: c.__v, reason: 'oops' }).expect(400);
     await api('patch', `/freight-charges/${c._id}`).send({ version: c.__v, amount: '1' }).expect(400);
@@ -223,7 +223,7 @@ describe('approve, pay, void', () => {
     await api('patch', `/freight-charges/${charge._id}`).send({ version: charge.__v, bolNumber: 'B-1' }).expect(200);
     const stale = await api('patch', `/freight-charges/${charge._id}`).send({ version: charge.__v, bolNumber: 'B-2' }).expect(409);
     expect(stale.body.error).toMatch(/changed by someone else/);
-    expect((await FreightCharge.findById(charge._id).lean()).bolNumber).toBe('B-1');
+    expect((await FreightCharge.findById(charge._id).lean().orFail()).bolNumber).toBe('B-1');
   });
 
   it('a batch is all or nothing', async () => {
@@ -235,7 +235,7 @@ describe('approve, pay, void', () => {
     const b = await chargeOf(noPrice.id);
     const res = await api('post', '/freight-charges/approve').send({ items: [{ id: String(a._id), version: a.__v }, { id: String(b._id), version: b.__v }] }).expect(400);
     expect(res.body.problems).toHaveLength(1);
-    expect((await FreightCharge.findById(a._id).lean()).status).toBe('draft');
+    expect((await FreightCharge.findById(a._id).lean().orFail()).status).toBe('draft');
   });
 
   it('a per-invoice carrier’s charge is approved through its invoice', async () => {
@@ -248,7 +248,7 @@ describe('approve, pay, void', () => {
     const { charge } = await setup();
     await api('post', `/freight-charges/${charge._id}/void`).send({ version: charge.__v, reason: '' }).expect(400);
     await api('post', `/freight-charges/${charge._id}/void`).send({ version: charge.__v, reason: 'Duplicate' }).expect(200);
-    expect(await FreightCharge.findById(charge._id).lean()).toMatchObject({ status: 'void', voidReason: 'Duplicate' });
+    expect(await FreightCharge.findById(charge._id).lean().orFail()).toMatchObject({ status: 'void', voidReason: 'Duplicate' });
   });
 
   it('a charge added by hand needs a carrier, an amount and a reason', async () => {
@@ -278,7 +278,7 @@ describe('carrier invoices', () => {
     expect((await FreightCharge.find({ _id: { $in: ids } }).lean()).every((c) => c.status === 'approved')).toBe(true);
 
     // On an invoice, a charge can't be paid on its own.
-    const one = await FreightCharge.findById(ids[0]).lean();
+    const one = await FreightCharge.findById(ids[0]).lean().orFail();
     await api('post', '/freight-charges/pay').send({ items: [{ id: ids[0], version: one.__v }], paidOn: '2026-10-10', method: 'ach' }).expect(400);
 
     inv = (await api('post', `/carrier-invoices/${inv._id}/pay`).send({ version: inv.version, paidOn: '2026-10-10', method: 'ach', reference: 'ACH-5' }).expect(200)).body;
@@ -326,7 +326,7 @@ describe('history', () => {
     await AccountingAudit.create({ entityType: 'charge', entityId: 'x', action: 'created' });
     await expect(AccountingAudit.updateOne({ entityId: 'x' }, { action: 'hacked' })).rejects.toThrow(/append-only/);
     await expect(AccountingAudit.deleteMany({})).rejects.toThrow(/append-only/);
-    const doc = await AccountingAudit.findOne({ entityId: 'x' });
+    const doc = await AccountingAudit.findOne({ entityId: 'x' }).orFail();
     doc.action = 'hacked';
     await expect(doc.save()).rejects.toThrow(/append-only/);
   });
@@ -418,7 +418,7 @@ describe('one-step pay and transaction ids', () => {
     expect(paid.status).toBe('paid');
     expect(paid.payment.paymentId).toMatch(ID_PATTERN);
     expect(await chargeOf(d.id)).toMatchObject({ status: 'paid', payment: { paymentId: paid.payment.paymentId } });
-    expect(await Payment.findOne({ paymentId: paid.payment.paymentId }).lean()).toMatchObject({ kind: 'invoice', totalCents: 30000, approvedInSameStep: true });
+    expect(await Payment.findOne({ paymentId: paid.payment.paymentId }).lean().orFail()).toMatchObject({ kind: 'invoice', totalCents: 30000, approvedInSameStep: true });
   });
 
   it('the payment register can’t be edited or deleted', async () => {
@@ -468,7 +468,7 @@ describe('a deleted delivery', () => {
     await sync.syncDeliveryIds([d.id]);
     let c = await chargeOf(d.id);
     expect(c.status).toBe('draft');
-    expect(c.flags.find((f: Loose) => !f.resolvedAt).detail).toBe('The delivery was deleted');
+    expect(c.flags.find((f: Loose) => !f.resolvedAt)?.detail).toBe('The delivery was deleted');
 
     const item = () => ({ id: String(c._id), version: c.__v });
     const pay = { paidOn: '2026-10-09', method: 'check' };

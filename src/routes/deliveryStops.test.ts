@@ -29,7 +29,7 @@ const has = (req: Loose, p: string) => (req.user.permissions || []).includes(p);
 const DAY = '2026-10-16';
 const NEXT = '2026-10-19';
 const ticket = (id: string, truckId: string, routeNumber: number | null, over: Loose = {}) => ({
-  id, truckId, routeNumber, date: DAY, location: 'Seattle', deliveryType: 'jobsite', status: 'scheduled', customerName: id, ...over
+  id, truckId, routeNumber, date: DAY, location: 'Seattle', deliveryType: 'jobsite' as const, status: 'scheduled' as const, customerName: id, ...over
 });
 
 /** { id: routeNumber } for one run, read back from the database. */
@@ -90,7 +90,7 @@ describe('closing up a run', () => {
   it('a cancel does too, and the cancelled ticket keeps its number to come back to', async () => {
     await request(app).patch('/api/deliveries/a/status').set(as()).send({ status: 'cancelled' }).expect(200);
     expect(await run('angel')).toEqual({ b1: 1, b2: 1, c: 2 });
-    expect((await Delivery.findOne({ id: 'a' }).lean()).routeNumber).toBe(1);
+    expect((await Delivery.findOne({ id: 'a' }).lean().orFail()).routeNumber).toBe(1);
   });
 
   it('a drag to another driver joins the end of their run and closes the old one', async () => {
@@ -144,7 +144,7 @@ describe('renumberAllRuns (startup)', () => {
     expect(await renumberAllRuns()).toBe(6);
     expect(await run('angel')).toEqual({ b1: 1, b2: 1, c: 2, a: 3 });
     expect(await run('brock')).toEqual({ t2: 1, t1: 2 });
-    expect((await Delivery.findOne({ id: 'wc' }).lean()).routeNumber).toBe(7);
+    expect((await Delivery.findOne({ id: 'wc' }).lean().orFail()).routeNumber).toBe(7);
     expect(await renumberAllRuns()).toBe(0);
   });
 });

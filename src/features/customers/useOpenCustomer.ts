@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useLayoutEffect, useCallback } from 'react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { canViewCustomerProfile } from '../../utils/customerAccess';
@@ -31,17 +31,20 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
     // In-memory customer cache for instant rendering
     const customerCacheRef = React.useRef<Record<string, Loose>>({});
 
+    const callbacks = React.useRef({ onOpening, onShown });
+    useLayoutEffect(() => { callbacks.current = { onOpening, onShown }; }, [onOpening, onShown]);
+
     // Optimized function to fetch only the selected customer with instant cache hydration
-    const fetchSingleCustomer = async (customerId: string, skipCache = false) => {
+    const fetchSingleCustomer = useCallback(async (customerId: string, skipCache = false) => {
         if (!customerId) return;
 
         // 1. Instant Cache Hydration: Serve cached data in 0ms if available
-        onOpening();
+        callbacks.current.onOpening();
 
         if (!skipCache && customerCacheRef.current[customerId]) {
             const cachedData = customerCacheRef.current[customerId];
             setSelectedCustomerDetail(cachedData);
-            onShown(cachedData);
+            callbacks.current.onShown(cachedData);
             setVisitsLoading(false);
         } else {
             setVisitsLoading(true);
@@ -54,7 +57,7 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
                 const data = await response.json();
                 customerCacheRef.current[customerId] = data; // Update memory cache
                 setSelectedCustomerDetail(data);
-                onShown(data);
+                callbacks.current.onShown(data);
                 return data;
             }
         } catch (error) {
@@ -62,7 +65,7 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
         } finally {
             setVisitsLoading(false);
         }
-    };
+    }, []);
 
     // Use selectedCustomerDetail for the main view, fallback to list item (which might be partial)
     // The full profile (visits, resources, contacts, network, details) is Full
@@ -76,7 +79,7 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
         if (selectedCustomerId) {
             fetchSingleCustomer(selectedCustomerId);
         }
-    }, [selectedCustomerId]);
+    }, [selectedCustomerId, fetchSingleCustomer]);
 
     // Show a saved visit on the open customer straight away, rather than only
     // once the background refresh lands. Kept in the detail cache too, so the

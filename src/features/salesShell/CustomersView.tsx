@@ -70,7 +70,7 @@ export default function CustomersView(p: CustomersViewProps) {
                     currentUser={p.currentUser}
                     currentUserId={p.currentUserId}
                     visitsLoading={visitsLoading}
-                    historyLoading={visitsLoading || (!selectedCustomerDetail?.visits && !customerCacheRef.current[selectedCustomerId!])}
+                    historyLoading={visitsLoading || !selectedCustomerDetail?.visits}
                     levelLabel={getCustomerLevelLabel(selectedCustomer)}
                     canAddVisits={p.canAddVisits}
                     customers={p.customers}

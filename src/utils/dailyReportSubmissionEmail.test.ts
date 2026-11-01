@@ -40,7 +40,7 @@ beforeEach(async () => {
   await User.deleteMany({});
 });
 
-const user = (username: unknown, email: string, isActive = true) =>
+const user = (username: string, email: string, isActive = true) =>
   User.create({ username, displayName: username, password: 'secret123', email, isActive });
 
 describe('daily report email', () => {

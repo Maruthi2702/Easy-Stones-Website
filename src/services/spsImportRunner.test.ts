@@ -62,7 +62,7 @@ describe('SPS import writer', () => {
     expect(acme).toMatchObject({ salesRepName: 'Steve Watson', location: 'Atlanta' });
     const zed = (await Customer.findOne({ 'sps.key': 'zed tile' }).lean())!;
     expect(zed).toMatchObject({ company: 'Zed Tile', email: 'z@zed.com', isVerified: true });
-    expect(zed.sps.runId).toBe(String(fresh._id));
+    expect(zed.sps?.runId).toBe(String(fresh._id));
   });
 
   it('is safe to run twice: the same file adds nothing the second time', async () => {
@@ -101,15 +101,15 @@ describe('SPS import writer', () => {
     await freezePlan(run, plan);
     await runItems(run._id);
     const fresh = (await SpsImportRun.findById(run._id).lean())!;
-    expect(fresh.verify.ok).toBe(false);
-    expect(fresh.verify.missing[0]).toMatchObject({ key: 'clash co' });
-    expect(fresh.verify.missing[0].reason).toMatch(/email/i);
+    expect(fresh.verify?.ok).toBe(false);
+    expect(fresh.verify?.missing[0]).toMatchObject({ key: 'clash co' });
+    expect(fresh.verify?.missing[0].reason).toMatch(/email/i);
     expect(await checkRun(run._id)).toMatchObject({ missingCount: 1 });
   });
 
   it('brings a deleted customer back, same id, and Undo deletes it again', async () => {
     await Customer.collection.insertOne({ _id: D, company: 'Granite Masters', email: 'g@gm.com', visits: [{ notes: 'old visit' }] });
-    const raw = await Customer.collection.findOne({ _id: D });
+    const raw = (await Customer.collection.findOne({ _id: D }))!;
     await Customer.collection.deleteOne({ _id: D });
     await CustomerDeleteBackup.create({ batchId: 'b', customerId: D, customer: raw, source: 'bulk', deletedBy: 'Maria' });
 

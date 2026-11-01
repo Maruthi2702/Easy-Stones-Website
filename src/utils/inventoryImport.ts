@@ -20,8 +20,9 @@ const num = (v: unknown) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-const dateOrNull = (v: any): Date | null => {
+const dateOrNull = (v: unknown): Date | null => {
   if (!v) return null;
+  if (!(typeof v === 'string' || typeof v === 'number' || v instanceof Date)) return null;
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d;
 };
@@ -152,8 +153,8 @@ const NUMERIC_FIELDS = new Set([
 ]);
 const DATE_FIELDS = new Set(['receivedDate']);
 
-const buildRow = (r: Record<string, any>, mapping: Record<string, string | null>, columns: [string, string[]][]) => {
-  const row: Record<string, any> = {};
+const buildRow = (r: Record<string, unknown>, mapping: Record<string, string | null>, columns: [string, string[]][]) => {
+  const row: Record<string, string | number | Date | null> = {};
   for (const [field] of columns) {
     const raw = r[mapping[field] ?? ''];
     if (DATE_FIELDS.has(field)) row[field] = dateOrNull(raw);
@@ -202,6 +203,12 @@ export const STOCK_COLUMNS: [string, string[]][] = [
   ['receivedDate', ['received date']]
 ];
 
+export type ParsedStockRow = Record<
+  'product' | 'sku' | 'genericSku' | 'type' | 'category' | 'subCategory' | 'group' | 'kind' |
+  'serialNumber' | 'barcodeId' | 'bundle' | 'slabNumber' | 'block' | 'idFour' | 'idFive' |
+  'suppBarcodeId' | 'bin' | 'dimensions' | 'units' | 'supplier' | 'location' | 'slabStatus' | 'notes' | 'remnant', string> & Record<
+  'instockQty' | 'availableSlabs' | 'availableQuantity' | 'unitFobCost' | 'unitLandedCost' | 'purchaseCost' | 'assetValue', number> & { receivedDate: Date | null };
+
 const STOCK_REQUIRED = ['product', 'receivedDate', 'instockQty'];
 
 export const parseInventoryStockWorkbook = (buffer: Buffer) => {
@@ -210,7 +217,7 @@ export const parseInventoryStockWorkbook = (buffer: Buffer) => {
   const missingRequired = STOCK_REQUIRED.filter(f => !mapping[f]);
 
   const parsedRows = missingRequired.length ? [] : rows
-    .map(r => buildRow(r, mapping, STOCK_COLUMNS))
+    .map(r => buildRow(r, mapping, STOCK_COLUMNS) as ParsedStockRow)
     .filter(r => r.product);
 
   return { headers, mapping, missingRequired, rows: parsedRows };
@@ -238,6 +245,9 @@ export const SALES_COLUMNS: [string, string[]][] = [
   ['margin', ['margin']],
   ['marginPercent', ['margin%']]
 ];
+
+export type ParsedSalesRow = Record<'product' | 'sku' | 'type' | 'category' | 'subCategory' | 'group' | 'origin' | 'uom', string> & Record<
+  'slabsSold' | 'quantitySold' | 'saleValue' | 'cost' | 'avgSellingPrice' | 'avgCost' | 'margin' | 'marginPercent', number>;
 
 const SALES_REQUIRED = ['product', 'quantitySold'];
 
@@ -276,7 +286,7 @@ export const parseInventorySalesWorkbook = (buffer: Buffer) => {
   const detected = parseSalesReportTitle(rawFirstCell);
 
   const parsedRows = missingRequired.length ? [] : rows
-    .map(r => buildRow(r, mapping, SALES_COLUMNS))
+    .map(r => buildRow(r, mapping, SALES_COLUMNS) as ParsedSalesRow)
     .filter(r => r.product);
 
   return { headers, mapping, missingRequired, rows: parsedRows, detected };

@@ -3,7 +3,6 @@ import ResourceType from '../models/ResourceType.ts';
 import ResourceFamily from '../models/ResourceFamily.ts';
 import Customer from '../models/Customer.ts';
 import type { Model } from 'mongoose';
-import type { Loose } from '../types/records.ts';
 import type { VisitTypeFields } from '../utils/typeLists.ts';
 import { STARTING_RESOURCE_FAMILIES } from '../utils/typeLists.ts';
 
@@ -62,7 +61,7 @@ export const startingFamilyOf = (name: unknown) => {
 const clean = (list: unknown[] | null | undefined): string[] =>
   [...new Set((list || []).map((s) => String(s || '').trim()).filter(Boolean))];
 
-const insert = async (Model: Model<Loose>, docs: Loose[]): Promise<number> => {
+const insert = async <T extends object>(Model: Model<T>, docs: Partial<T>[]): Promise<number> => {
   if (!docs.length) return 0;
   try {
     const out = await Model.insertMany(docs, { ordered: false });

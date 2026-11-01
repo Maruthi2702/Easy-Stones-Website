@@ -297,7 +297,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       }
       const changes = diff(doc, set);
       if (!changes.length) return doc;
-      for (const c of changes) doc[c.field] = set[c.field];
+      for (const c of changes) doc.set(c.field, set[c.field]);
       // On a schedule-made charge, a field corrected by hand stops following the delivery.
       if (doc.source === 'delivery') {
         const followed = new Set(['amountCents', 'carrierId', 'bolNumber', 'soNumber', 'customerName', 'deliveryDate']);
@@ -642,7 +642,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       if (body.chargeIds) {
         const next = await invoiceCharges(req, body.chargeIds, inv.carrierId, inv._id, session);
         const nextIds = new Set(next.map((c) => String(c._id)));
-        const removed = inv.chargeIds.filter((id: string) => !nextIds.has(String(id)));
+        const removed = inv.chargeIds.filter((id) => !nextIds.has(String(id)));
         for (const id of removed) {
           const c = await FreightCharge.findById(id).session(session);
           if (c) { c.invoiceId = null; c.updatedBy = by; await c.save({ session }); entries.push({ entityType: 'charge', entityId: String(c._id), action: 'removed_from_invoice', by, note: `Invoice #${inv.invoiceNumber}` }); }

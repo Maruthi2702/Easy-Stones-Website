@@ -28,15 +28,22 @@ export function ResultTiles({ counts = {}, selected, onSelect }: { counts?: Loos
 }
 
 // The customers of one run, a page at a time (the server pages them).
-export function RunItems({ runId, result }: { runId: string; result: string }) {
+export function RunItems(props: { runId: string; result: string }) {
+    return <RunItemsPage key={`${props.runId}:${props.result}`} {...props} />;
+}
+
+function RunItemsPage({ runId, result }: { runId: string; result: string }) {
     const pager = usePagination();
-    const { currentPage, rowsPerPage, resetPage } = pager;
+    const { currentPage, rowsPerPage } = pager;
     const [data, setData] = useState<{ items: Loose[]; total: number }>({ items: [], total: 0 });
     const [state, setState] = useState('loading');
-    useEffect(() => { resetPage(); }, [runId, result, resetPage]);
+    const [previousPage, setPreviousPage] = useState({ currentPage, rowsPerPage });
+    if (previousPage.currentPage !== currentPage || previousPage.rowsPerPage !== rowsPerPage) {
+        setPreviousPage({ currentPage, rowsPerPage });
+        setState('loading');
+    }
     useEffect(() => {
         let alive = true;
-        setState('loading');
         call(`${API}/${runId}/items?result=${result}&page=${currentPage}&limit=${rowsPerPage}`)
             .then((r) => r.json())
             .then((d) => { if (alive) { setData(d); setState('ok'); } })

@@ -1,6 +1,6 @@
 import FormModal from '../../../components/shared/form/FormModal';
 import type { Plan, PlanRow } from '../../../purchasing/types';
-import { num } from './BuyerQueue';
+import { num } from './formatNumber';
 import IncomingSupply from './IncomingSupply';
 import { StockCover, StockForecast } from './StockCoverageCells';
 export default function PlanDetails({

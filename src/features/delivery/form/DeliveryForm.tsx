@@ -1,6 +1,6 @@
 import { isReceivingTransfer } from '../../../utils/transferAccess';
 import IncomingTransferForm from './IncomingTransferForm';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Clock, Trash2 } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormSearchPicker } from '../../../components/shared/form/FormControls';
@@ -118,7 +118,7 @@ function DeliveryFormBody({
     const repChoices = useSalesRepOptions({ branches: branchesOf(currentUser), current: { name: values.salesRepName } });
     useEffect(() => { if (restored) clearDraft(draftKey); }, [restored, draftKey]);
     const valuesRef = useRef(values);
-    valuesRef.current = values;
+    useLayoutEffect(() => { valuesRef.current = values; }, [values]);
     useEffect(() => {
         const stash = () => saveDraft(draftKey, valuesRef.current);
         window.addEventListener('auth:session-expired', stash);
@@ -141,9 +141,10 @@ function DeliveryFormBody({
     const filedUnder = initialData?.location || currentUser?.location || '';
     const touchedDays = reportDaysTouched(values, { initial: isEdit ? initial : null, location: filedUnder });
     const touchedKey = touchedDays.map((d) => `${d.location}|${d.date}`).join(',');
-    const [submittedDays, setSubmittedDays] = useState<{ location: string; date: string }[]>([]);
+    const [loadedSubmittedDays, setSubmittedDays] = useState<{ location: string; date: string }[]>([]);
+    const submittedDays = touchedKey ? loadedSubmittedDays : [];
     useEffect(() => {
-        if (!touchedKey) { setSubmittedDays([]); return undefined; }
+        if (!touchedKey) return undefined;
         let live = true;
         const timer = setTimeout(() => {
             authFetch(`${API_URL}/api/daily-reports/submitted-days?days=${encodeURIComponent(touchedKey)}`)

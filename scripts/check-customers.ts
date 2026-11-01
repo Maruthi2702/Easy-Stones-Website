@@ -13,7 +13,7 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones
       const customers = await Customer.find({});
       console.log(`Found ${customers.length} customers:`);
       customers.forEach(c => {
-        console.log(`- ${c.firstName} ${c.lastName} (${c.email})`);
+        console.log(`- ${c.get('firstName')} ${c.get('lastName')} (${c.email})`);
       });
     } catch (error) {
       console.error('Error fetching customers:', error);

@@ -1,7 +1,10 @@
 import { variantKey } from './planning.ts';
 import type { Receipt } from './types.ts';
-export const transitParentIdentity = (po: string, product: string, branch: string, _supplier?: string) =>
-  JSON.stringify([po, variantKey(product), branch]);
+export const transitParentIdentity = (po: string, product: string, branch: string, ..._supplier: [string?]) =>
+  {
+  void _supplier; // Supplier deliberately does not split one PO/product/branch identity.
+  return JSON.stringify([po, variantKey(product), branch]);
+};
 export function existingTransitParents(draft: { existingTransitParents?: string[]; inputSnapshot?: { receipts?: Receipt[] } }): Set<string> {
   const parents = new Set(draft.existingTransitParents || []);
   // Older drafts already kept source receipt keys. Retain their protection too.

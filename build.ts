@@ -36,7 +36,7 @@ async function buildAll() {
       resolve(__dirname, 'public/vite.svg'),
       resolve(__dirname, 'dist/vite.svg')
     );
-  } catch(e) {
+  } catch {
     console.log('vite.svg not found, skipping');
   }
 

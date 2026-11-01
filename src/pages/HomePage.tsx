@@ -7,7 +7,12 @@ import { useProducts } from '../context/ProductContext';
 
 const HomePage = () => {
   const location = useLocation();
-  const [activeCategory, setActiveCategory] = useState('Moda Quartz');
+  const [activeCategory, setActiveCategory] = useState(location.state?.activeCategory || 'Moda Quartz');
+  const [previousState, setPreviousState] = useState(location.state);
+  if (previousState !== location.state) {
+    setPreviousState(location.state);
+    if (location.state?.activeCategory) setActiveCategory(location.state.activeCategory);
+  }
   const [searchTerm, setSearchTerm] = useState('');
 
   // Use global product context
@@ -15,7 +20,6 @@ const HomePage = () => {
 
   useEffect(() => {
     if (location.state?.activeCategory) {
-      setActiveCategory(location.state.activeCategory);
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);

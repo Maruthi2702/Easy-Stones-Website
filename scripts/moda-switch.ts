@@ -21,7 +21,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import { familyLookup, earlierCount, modaFields } from '../src/utils/modaTotals.ts';
+import { familyLookup, earlierCount, modaFields, type ModaCustomer, type ModaResource } from '../src/utils/modaTotals.ts';
 
 dotenv.config();
 
@@ -31,8 +31,8 @@ const BACKUP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'merg
 const main = async () => {
   await mongoose.connect(process.env.MONGO_URI!);
   const db = mongoose.connection.db!;
-  const familyOf = familyLookup(await db.collection('resourcetypes').find({}, { projection: { name: 1, family: 1 } }).toArray());
-  const customers = await db.collection('customers').find(
+  const familyOf = familyLookup(await db.collection<{ name?: unknown; family?: unknown }>('resourcetypes').find({}, { projection: { name: 1, family: 1 } }).toArray());
+  const customers = await db.collection<ModaCustomer & { company?: string; contactName?: string; resources?: ModaResource[] }>('customers').find(
     { 'modaEarlier.binders': { $exists: false } },
     { projection: { company: 1, contactName: 1, modaDisplay: 1, modaBinder: 1, modaEarlier: 1, 'resources.resourceType': 1, 'resources.title': 1, 'resources.qty': 1, 'resources.status': 1 } }
   ).toArray();

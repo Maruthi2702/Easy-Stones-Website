@@ -16,12 +16,16 @@ const app = express(); app.use(express.json());
 const emit = vi.fn(); app.set('io', { emit });
 app.use('/api/customers', createCustomerResourcesRouter({
   authenticate: (req, _res, next) => { const user = JSON.parse(String(req.headers['x-user'] || JSON.stringify(actor))); Object.assign(req, { user, userId: user.id, authType: 'admin' }); next(); },
-  requirePermission: key => (req, res, next) => (req as any).user.permissions.includes(key) ? next() : void res.sendStatus(403),
-  requireAnyPermission: (...keys) => (req, res, next) => keys.some(key => (req as any).user.permissions.includes(key)) ? next() : void res.sendStatus(403),
+  requirePermission: key => (req, res, next) => req.user.permissions.includes(key) ? next() : void res.sendStatus(403),
+  requireAnyPermission: (...keys) => (req, res, next) => keys.some(key => req.user.permissions.includes(key)) ? next() : void res.sendStatus(403),
   getPerformerInfo: async req => ({ id: req.userId!, name: 'Test Rep' }), getNowLocalISO: () => '2026-10-31T10:00:00.000',
   processBase64Images: async images => images || [], emitScheduleUpdate: emit
 }));
-const doc = (id = source) => Customer.findById(id).lean() as Promise<any>;
+const doc = async (id = source) => {
+  const customer = await Customer.findById(id).lean();
+  if (!customer) throw new Error('Expected fixture customer');
+  return customer;
+};
 const add = (notes: string, over = {}) => request(app).post(`/api/customers/${source}/resources`).send({ resourceType: 'Same type', date: '2026-10-31', notes, ...over });
 beforeAll(async () => {
   mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } }); await mongoose.connect(mongo.getUri());
@@ -66,10 +70,10 @@ describe('resource identity and history', () => {
     const first = (await add('First').expect(201)).body, second = (await add('Second').expect(201)).body;
     await request(app).put(`/api/customers/${source}/resources/${second.resource._id}`).send({ notes: 'Second edited' }).expect(200);
     const after = await doc();
-    expect(after.visits.find((v: any) => String(v._id) === first.visit._id).notes).toBe('First');
-    expect(after.visits.find((v: any) => String(v._id) === second.visit._id).notes).toBe('Second edited');
+    expect(after.visits.find((v) => String(v._id) === first.visit._id)?.notes).toBe('First');
+    expect(after.visits.find((v) => String(v._id) === second.visit._id)?.notes).toBe('Second edited');
     await request(app).delete(`/api/customers/${source}/resources/${second.resource._id}`).expect(200);
-    expect((await doc()).visits.map((v: any) => String(v._id))).toEqual([first.visit._id]);
+    expect((await doc()).visits.map((v) => String(v._id))).toEqual([first.visit._id]);
     expect(await Schedule.countDocuments({ linkedVisitId: first.visit._id })).toBe(1);
     expect(await Schedule.countDocuments({ linkedVisitId: second.visit._id })).toBe(0);
   });
@@ -170,7 +174,7 @@ describe('Moda Display and Binders follow the resources (src/utils/modaTotals.ts
     await add('Tower', { resourceType: 'Tower', date: '2026-10-30', status: 'Inactive' }).expect(201);
     const res = await request(app).get(`/api/customers/${source}/moda`).expect(200);
     expect(res.body).toMatchObject({ display: false, binders: 9, earlier: { display: false, binders: 6 } });
-    expect(res.body.items.map((i: any) => [i.kind, i.qty, i.status])).toEqual([['binders', 3, 'Active'], ['display', 1, 'Inactive']]);
+    expect(res.body.items.map((i: { kind: string; qty: number; status: string }) => [i.kind, i.qty, i.status])).toEqual([['binders', 3, 'Active'], ['display', 1, 'Inactive']]);
     await request(app).get(`/api/customers/${source}/moda`).set({ 'x-user': JSON.stringify({ ...actor, permissions: [] }) }).expect(403);
   });
 });

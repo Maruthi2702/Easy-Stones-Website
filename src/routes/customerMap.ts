@@ -1,4 +1,4 @@
-import type { ScalarQuery, ScalarParams } from '../types/server.ts';
+import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request } from 'express';
 import express from 'express';
@@ -79,24 +79,25 @@ export default function createCustomerMapRouter({ authenticate, requirePermissio
 
   /** The signed-in person as the scope rule reads them, and the staff it checks reps against. */
   const scopeFor = async (req: Request) => {
-    const me = req.authUserDoc || {};
+    const me = req.authUserDoc;
     const staff = await User.find({}, 'username role location assignedLocations').lean();
     return {
       user: {
         id: req.userId ?? req.user?.id,
         role: req.userRole ?? req.user?.role,
-        assignedLocations: me.assignedLocations || req.user?.assignedLocations || [],
-        location: me.location || req.user?.location || ''
+        assignedLocations: me?.assignedLocations || req.user?.assignedLocations || [],
+        location: me?.location || req.user?.location || ''
       },
       staff
     };
   };
 
-  router.get('/map', ...gate, async (req, res) => {
+  router.get('/map', ...gate, validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
       const [all, { user, staff }] = await Promise.all([allPins(), scopeFor(req)]);
       const scoped = inScopePins(all, user, staff);
-      const keys = parseRepKeys((req.query as ScalarQuery).reps);
+      const keys = parseRepKeys(requestQuery.reps);
       res.json(keys ? pinsForReps(scoped, keys) : scoped);
     } catch (error) {
       console.error('Error building customer map:', error);
@@ -116,11 +117,12 @@ export default function createCustomerMapRouter({ authenticate, requirePermissio
     }
   });
 
-  router.get('/map/:id', ...gate, async (req, res) => {
-    if (!mongoose.Types.ObjectId.isValid((req.params as ScalarParams).id)) return res.status(400).json({ message: 'Not a customer id' });
+  router.get('/map/:id', ...gate, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
+    if (!mongoose.Types.ObjectId.isValid(requestParams.id)) return res.status(400).json({ message: 'Not a customer id' });
     try {
       const [customer, { user, staff }] = await Promise.all([
-        Customer.findById((req.params as ScalarParams).id)
+        Customer.findById(requestParams.id)
           .select('phone email marketingEmail address level modaDisplay modaBinder quickNote salesRep location')
           .lean(),
         scopeFor(req)

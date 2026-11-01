@@ -21,7 +21,7 @@ import '../src/features/customers/list/CustomerList.css';
 
 if (new URLSearchParams(location.search).get('theme') === 'light') document.body.classList.add('light-theme-active');
 const opts = <><option>Level 1 → 4</option><option>Company A–Z</option></>;
-const Case = ({ name, children }: { name: string; children: React.ReactNode }) => (
+export const Case = ({ name, children }: { name: string; children: React.ReactNode }) => (
   <div style={{ display: 'grid', gridTemplateColumns: '240px 300px', gap: 12, alignItems: 'center', marginBottom: 10 }}>
     <span style={{ color: 'var(--text-primary)', fontSize: 13 }}>{name}</span>
     <div data-case={name}>{children}</div>

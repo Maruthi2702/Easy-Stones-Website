@@ -1,9 +1,7 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-const userSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+const userDefinition = {
   // Login identifier. Forced lower-case so signing in is not case-sensitive —
   // which is exactly why it is a poor thing to show people. Use displayName.
   username: {
@@ -126,7 +124,7 @@ const userSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>
   },
   assignedLocations: {
     type: [String],
-    default: ['Seattle']
+    default: ['Seattle'] as string[]
   },
   googleAccessToken: {
     type: String,
@@ -184,9 +182,26 @@ const userSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>
   // /sales lands when the URL names no tab (src/utils/navPins.ts).
   pinnedTabs: {
     type: [String],
-    default: []
+    default: [] as string[]
   }
-}, {
+} as const;
+
+export type UserData = Omit<mongoose.InferRawDocType<typeof userDefinition>, 'routePlannerFilters'> & {
+  // Persisted Mixed values must be checked before they are used.
+  routePlannerFilters: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+};
+export interface UserMethods {
+  comparePassword(candidatePassword: string): Promise<boolean>;
+  isLocked(): boolean;
+  incLoginAttempts(): PromiseLike<mongoose.UpdateWriteOpResult>;
+  resetLoginAttempts(): PromiseLike<mongoose.UpdateWriteOpResult>;
+}
+export type UserDocument = mongoose.HydratedDocument<UserData, UserMethods>;
+type UserModel = mongoose.Model<UserData, object, UserMethods>;
+
+const userSchema = new mongoose.Schema<UserData, UserModel, UserMethods>(userDefinition, {
   timestamps: true
 });
 
@@ -210,13 +225,13 @@ userSchema.methods.comparePassword = async function(candidatePassword: string) {
 
 // Check if account is locked
 userSchema.methods.isLocked = function() {
-  return !!(this.lockUntil && this.lockUntil > Date.now());
+  return !!(this.lockUntil && this.lockUntil.getTime() > Date.now());
 };
 
 // Increment login attempts
 userSchema.methods.incLoginAttempts = function() {
   // If lock has expired, restart attempts
-  if (this.lockUntil && this.lockUntil < Date.now()) {
+  if (this.lockUntil && this.lockUntil.getTime() < Date.now()) {
     return this.updateOne({
       $set: { loginAttempts: 1 },
       $unset: { lockUntil: 1 }
@@ -243,6 +258,6 @@ userSchema.methods.resetLoginAttempts = function() {
   });
 };
 
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model<UserData, UserModel>('User', userSchema);
 
 export default User;

@@ -1,4 +1,3 @@
-import type { Loose } from '../types/records.ts';
 /**
  * Permits records (2026-10-11), in their own collections and reached only
  * through src/permits/.
@@ -23,7 +22,7 @@ import { SOURCE_IDS, CATEGORY_IDS } from './permitRules.ts';
 
 const { Schema } = mongoose;
 
-const contactSchema = new Schema<Loose>({
+const contactSchema = new Schema({
   role: { type: String, default: '' },
   kind: { type: String, default: 'other' },
   company: { type: String, default: '' },
@@ -35,7 +34,7 @@ const contactSchema = new Schema<Loose>({
   license: { type: String, default: undefined }
 }, { _id: false });
 
-const permitSchema = new Schema<Loose>({
+const permitSchema = new Schema({
   source: { type: String, enum: SOURCE_IDS, required: true },
   permitNumber: { type: String, required: true },
   externalId: { type: String, default: '' },
@@ -73,7 +72,7 @@ permitSchema.index({ source: 1, permitNumber: 1 }, { unique: true });
 permitSchema.index({ issuedOn: -1, permitNumber: -1 });
 permitSchema.index({ category: 1, issuedOn: -1 });
 
-const permitRunSchema = new Schema<Loose>({
+const permitRunSchema = new Schema({
   source: { type: String, enum: SOURCE_IDS, required: true },
   kind: { type: String, enum: ['backfill', 'daily', 'manual'], required: true },
   since: { type: String, required: true },
@@ -92,12 +91,12 @@ const permitRunSchema = new Schema<Loose>({
   latestIssuedOn: { type: String, default: null },
   // Building permit types nobody has sorted into a category or the skip list yet.
   // (A sub-schema, because a plain { type: String } would declare the field's type.)
-  unsortedTypes: { type: [new Schema<Loose>({ type: { type: String }, count: Number }, { _id: false })], default: [] }
+  unsortedTypes: { type: [new Schema({ type: { type: String }, count: Number }, { _id: false })], default: [] }
 }, { collection: 'permit_runs' });
 
 permitRunSchema.index({ source: 1, startedAt: -1 });
 
-const permitCheckSchema = new Schema<Loose>({
+const permitCheckSchema = new Schema({
   source: { type: String, enum: SOURCE_IDS, default: 'whatcom' },
   month: { type: String, required: true },          // 'YYYY-MM'
   // 'report': against the county's published monthly report (final).
@@ -135,7 +134,7 @@ const permitCheckSchema = new Schema<Loose>({
 
 permitCheckSchema.index({ source: 1, month: 1 }, { unique: true });
 
-const contractorSchema = new Schema<Loose>({
+const contractorSchema = new Schema({
   license: { type: String, required: true },
   businessName: { type: String, default: '' },
   phone: { type: String, default: '' },
@@ -157,7 +156,7 @@ const contractorSchema = new Schema<Loose>({
 
 contractorSchema.index({ license: 1 }, { unique: true });
 
-const contractorNameSchema = new Schema<Loose>({
+const contractorNameSchema = new Schema({
   name: { type: String, required: true },          // the exact business name, upper case
   license: { type: String, default: '' },          // '' — no active license by that exact name, or several
   candidates: { type: Number, default: 0 },        // active licenses found under the name
@@ -166,8 +165,8 @@ const contractorNameSchema = new Schema<Loose>({
 
 contractorNameSchema.index({ name: 1 }, { unique: true });
 
-export const Permit = mongoose.models.Permit || mongoose.model('Permit', permitSchema);
-export const PermitRun = mongoose.models.PermitRun || mongoose.model('PermitRun', permitRunSchema);
-export const PermitCheck = mongoose.models.PermitCheck || mongoose.model('PermitCheck', permitCheckSchema);
-export const Contractor = mongoose.models.PermitContractor || mongoose.model('PermitContractor', contractorSchema);
-export const ContractorName = mongoose.models.PermitContractorName || mongoose.model('PermitContractorName', contractorNameSchema);
+export const Permit: mongoose.Model<mongoose.InferSchemaType<typeof permitSchema>> = (mongoose.models.Permit as mongoose.Model<mongoose.InferSchemaType<typeof permitSchema>> | undefined) || mongoose.model('Permit', permitSchema);
+export const PermitRun: mongoose.Model<mongoose.InferSchemaType<typeof permitRunSchema>> = (mongoose.models.PermitRun as mongoose.Model<mongoose.InferSchemaType<typeof permitRunSchema>> | undefined) || mongoose.model('PermitRun', permitRunSchema);
+export const PermitCheck: mongoose.Model<mongoose.InferSchemaType<typeof permitCheckSchema>> = (mongoose.models.PermitCheck as mongoose.Model<mongoose.InferSchemaType<typeof permitCheckSchema>> | undefined) || mongoose.model('PermitCheck', permitCheckSchema);
+export const Contractor: mongoose.Model<mongoose.InferSchemaType<typeof contractorSchema>> = (mongoose.models.PermitContractor as mongoose.Model<mongoose.InferSchemaType<typeof contractorSchema>> | undefined) || mongoose.model('PermitContractor', contractorSchema);
+export const ContractorName: mongoose.Model<mongoose.InferSchemaType<typeof contractorNameSchema>> = (mongoose.models.PermitContractorName as mongoose.Model<mongoose.InferSchemaType<typeof contractorNameSchema>> | undefined) || mongoose.model('PermitContractorName', contractorNameSchema);

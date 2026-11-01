@@ -1,12 +1,11 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import Pagination from '../../../components/shared/Pagination';
 import { usePagination, pageCount } from '../../../components/shared/paginationConfig';
 import IncomingSupply from './IncomingSupply';
 import { StockCover, StockForecast, StockReview } from './StockCoverageCells';
 import { exportPlan } from '../purchasingApi';
 import type { Plan, PlanRow } from '../../../purchasing/types';
-export const num = (value: number | null | undefined) =>
-  value == null ? '—' : value.toLocaleString('en-US', { maximumFractionDigits: 2 });
+import { num } from './formatNumber';
 export default function BuyerQueue({
   plan,
   onInspect,
@@ -49,23 +48,16 @@ export default function BuyerQueue({
     [plan, search, state, sort, horizon],
   );
   const selectionContext = JSON.stringify([plan.fingerprint, search, state, sort]);
-  const previousContext = useRef(selectionContext);
-  useEffect(() => {
-    if (previousContext.current === selectionContext) return;
-    previousContext.current = selectionContext;
+  const [previousContext, setPreviousContext] = useState(selectionContext);
+  const [previousRows, setPreviousRows] = useState(plan.rows);
+  if (previousContext !== selectionContext) {
+    setPreviousContext(selectionContext);
     pagination.resetPage();
     setSelected([]);
-  }, [selectionContext, pagination.resetPage]);
-  useEffect(() => {
-    setSelected((old) => {
-      const next = old.filter((key) =>
-        plan.rows.some(
-          (r) => r.key === key && !r.blockers.length && r.protective?.proposedSlabs && r.policy?.active,
-        ),
-      );
-      return next.length === old.length ? old : next;
-    });
-  }, [plan.rows]);
+  } else if (previousRows !== plan.rows) {
+    setSelected(old => old.filter(key => plan.rows.some(r => r.key === key && !r.blockers.length && r.protective?.proposedSlabs && r.policy?.active)));
+  }
+  if (previousRows !== plan.rows) setPreviousRows(plan.rows);
   const visible = rows.slice(
     (pagination.currentPage - 1) * pagination.rowsPerPage,
     pagination.currentPage * pagination.rowsPerPage,

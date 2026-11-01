@@ -67,7 +67,6 @@ export default function SelfCheckInKiosk({ theme, selectedLocation, locationDisp
     }
     return () => { if (interval) clearInterval(interval); };
     // resetSelfForm only sets state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
   const resetSelfForm = () => {

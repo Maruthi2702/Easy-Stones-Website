@@ -36,7 +36,7 @@ export type DashboardDeps = {
     resourceRefreshTrigger: number;
 };
 
-export function useDashboardData({ currentUser, locations, customers, currentUserId, customerRefreshTrigger, resourceRefreshTrigger }: DashboardDeps) {
+export function useDashboardData({ currentUser, locations, currentUserId, customerRefreshTrigger, resourceRefreshTrigger }: DashboardDeps) {
         // Dashboard State (Required for memoized values)
     // One time range for the whole dashboard (dashboardFocus.ts's RANGES); Custom has its days.
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
@@ -289,7 +289,7 @@ export function useDashboardData({ currentUser, locations, customers, currentUse
                 start = null;
         }
         return start;
-    }, [dashboardTimeRange]);
+    }, [dashboardTimeRange, dashboardVisits.length, dashboardResources.length]);
 
 
     // Whether the viewer may see other people's visits and resources at all.

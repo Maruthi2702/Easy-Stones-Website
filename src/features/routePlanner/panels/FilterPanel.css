@@ -98,44 +98,21 @@
     color: var(--cd2-muted);
 }
 
-/* Sales rep filter: search, then reps under their branch — the format every
-   rep dropdown and filter shares (groupRepOptions, src/utils/salesReps.js). */
-.rpv2-filter-search {
-    display: flex;
-    align-items: center;
-    gap: 0.45rem;
-    padding: 0 0.6rem;
-    height: 2.25rem;
-    border: 1px solid var(--cd2-line);
-    border-radius: 8px;
-    color: var(--cd2-muted, inherit);
-}
-.rpv2-filter-search input {
-    flex: 1;
-    min-width: 0;
-    height: 100%;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    outline: none;
-}
-.rpv2-filter-group {
-    padding: 0.6rem 0.2rem 0.1rem;
-    font-size: 0.7rem;
-    font-weight: 800;
-    letter-spacing: 0.06em;
+/* Sales reps: the shared rep filter dropdown (RepFilterPicker) under a
+   heading styled like the sections' heads. */
+.rpv2-filter-reps { padding: 0 1.1rem 0.9rem; }
+.rpv2-filter-reps-head {
+    padding: 0.75rem 0 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
-    opacity: 0.65;
+    color: var(--cd2-ink);
 }
 
 /* ── Filter panel, 2026-10-18 redesign: reps → type → days, colour switch ── */
 .rpv2-filter-section-sum { font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--cd2-muted); font-size: 0.75rem; }
-.rpv2-filter-actions { display: flex; align-items: center; gap: 0.2rem; padding: 0 0.1rem; }
-.rpv2-filter-spacer { flex: 1; }
-.rpv2-filter-scope { font-size: 0.74rem; color: var(--cd2-muted); }
 .rpv2-filter-pin { flex-shrink: 0; }
-.rpv2-filter-actions .rpv2-filter-toggle-all { padding: 0.3rem 0.4rem; }
 
 .rpv2-colour-switch {
     margin-left: auto;

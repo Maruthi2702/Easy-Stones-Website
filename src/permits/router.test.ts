@@ -117,7 +117,7 @@ describe('the morning pull', () => {
     expect(out.bellingham.unsortedTypes).toEqual([{ type: 'BUILDING NONRESIDENTIAL · CHANGE OF USE', count: 1 }]);
     const numbers = (await Permit.find().sort({ permitNumber: 1 }).lean()).map((p: Loose) => p.permitNumber);
     expect(numbers).toEqual(['BLD2026-0001', 'SFR2026-00100', 'SFR2026-00212']);
-    const p = await Permit.findOne({ permitNumber: 'SFR2026-00212' }).lean();
+    const p = await Permit.findOne({ permitNumber: 'SFR2026-00212' }).lean().orFail();
     expect(p).toMatchObject({ category: 'new_home', issuedOn: '2026-10-06', valuation: 300000, sqft: 2400, city: 'Ferndale' });
     expect(p.contacts[0]).toMatchObject({ kind: 'contractor', company: 'KVF Construction', phone: '3607397535' });
     expect(p.detailsAt).toBeTruthy();
@@ -130,17 +130,18 @@ describe('the morning pull', () => {
     const out = await sync.run();
     expect(out.whatcom).toMatchObject({ kind: 'daily', since: '2026-09-12', ok: true, added: 0, updated: 1 });
     expect(await Permit.countDocuments({ permitNumber: 'SFR2026-00212' })).toBe(1);
-    expect((await Permit.findOne({ permitNumber: 'SFR2026-00212' }).lean()).status).toBe('Final');
+    expect((await Permit.findOne({ permitNumber: 'SFR2026-00212' }).lean().orFail()).status).toBe('Final');
   });
 
   it('counts a permit as changed only when the source changed it', async () => {
     await sync.run();
-    const before = await Permit.findOne({ permitNumber: 'SFR2026-00212' }).lean();
+    const before = await Permit.findOne({ permitNumber: 'SFR2026-00212' }).lean().orFail();
     clock = new Date('2026-10-12T12:05:00Z');
     const out = await sync.run();
     expect(out.whatcom).toMatchObject({ ok: true, added: 0, updated: 0 });
     expect(out.bellingham).toMatchObject({ ok: true, added: 0, updated: 0 });
-    const after = await Permit.findOne({ permitNumber: 'SFR2026-00212' }).lean();
+    const after = await Permit.findOne({ permitNumber: 'SFR2026-00212' }).lean().orFail();
+    if (!before.detailsAt || !after.detailsAt) throw new Error('Expected both permit detail timestamps to be present');
     expect(after.lastSeenAt.getTime()).toBeGreaterThan(before.lastSeenAt.getTime());
     expect(after.detailsAt.getTime()).toBeGreaterThan(before.detailsAt.getTime());
     expect(after.firstSeenAt).toEqual(before.firstSeenAt);
@@ -154,7 +155,7 @@ describe('the morning pull', () => {
     delete whatcomDetails['SFR2026-00212'];
     const out = await sync.run();
     expect(out.whatcom).toMatchObject({ ok: true, detailErrors: 1 });
-    const p = await Permit.findOne({ permitNumber: 'SFR2026-00212' }).lean();
+    const p = await Permit.findOne({ permitNumber: 'SFR2026-00212' }).lean().orFail();
     expect(p.contacts[0].company).toBe('KVF Construction');
     expect(p.valuation).toBe(300000);
   });
@@ -205,7 +206,7 @@ describe('the morning pull', () => {
   it('closes a pull the last server didn’t finish', async () => {
     await PermitRun.create({ source: 'whatcom', kind: 'backfill', since: '2026-04-11', startedAt: new Date(clock.getTime() - 5 * 60000) });
     expect(await sync.closeInterrupted()).toBe(1);
-    const run = await PermitRun.findOne({ source: 'whatcom' }).lean();
+    const run = await PermitRun.findOne({ source: 'whatcom' }).lean().orFail();
     expect(run).toMatchObject({ ok: false, error: expect.stringMatching(/restarted/) });
     expect(run.finishedAt).toBeTruthy();
     const out = await sync.run();
@@ -216,7 +217,7 @@ describe('the morning pull', () => {
     (whatcomRows as Loose[]).push(wRow('SFR2026-00300', '2026-10-02'));
     const out = await sync.run();
     expect(out.whatcom).toMatchObject({ ok: true, leads: 3, added: 3, detailErrors: 1 });
-    expect((await Permit.findOne({ permitNumber: 'SFR2026-00300' }).lean()).detailsAt).toBeNull();
+    expect((await Permit.findOne({ permitNumber: 'SFR2026-00300' }).lean().orFail()).detailsAt).toBeNull();
   });
 
   it('waits 30 minutes before trying a failed source again', async () => {
@@ -235,7 +236,7 @@ describe('the county report check', () => {
   it('matches a month permit by permit, ignoring report permits that aren’t leads', async () => {
     (whatcomRows as Loose[]).push(wRow('EFR2026-00001', '2026-08-10', 'Building (Commercial) - Eligible Facility Request'));
     await sync.run();
-    const check = await PermitCheck.findOne({ month: '2026-08' }).lean();
+    const check = await PermitCheck.findOne({ month: '2026-08' }).lean().orFail();
     expect(check).toMatchObject({ ok: true, inReport: 2, matched: 1, missingFromApp: [], notInReport: [], notInCountySearch: [] });
   });
 
@@ -244,7 +245,7 @@ describe('the county report check', () => {
     whatcomDetails['SFR2026-00150'] = wDetail('SFR2026-00150');
     report.numbers = ['SFR2026-00100', 'SFR2026-00999'];
     await sync.run();
-    const check = await PermitCheck.findOne({ month: '2026-08' }).lean();
+    const check = await PermitCheck.findOne({ month: '2026-08' }).lean().orFail();
     expect(check).toMatchObject({ ok: false, missingFromApp: [], notInReport: ['SFR2026-00150'], notInCountySearch: ['SFR2026-00999'] });
   });
 
@@ -273,7 +274,7 @@ describe('the county report check', () => {
 describe('the month-so-far check', () => {
   it('refreshes a source-cleared issue date without deleting the permit or hiding a true missing lead', async () => {
     await sync.runSource('bellingham', { kind: 'manual' });
-    const saved = await Permit.findOne({ source: 'bellingham' }).lean();
+    const saved = await Permit.findOne({ source: 'bellingham' }).lean().orFail();
     const row: Loose = { ...(bellinghamRows as Loose[])[0], ISSUED: null, STATUS: 'RTI HOLD' };
     const corrected = createPermitSync({ readers: { bellingham: {
       issuedSince: async () => ({ rows: [], pages: 1, total: 0 }),
@@ -281,7 +282,7 @@ describe('the month-so-far check', () => {
     } }, log: quiet, now: () => clock });
     const [check] = await corrected.checkMonthToDate();
     expect(check).toMatchObject({ ok: true, notFoundAgain: [], notIssuedYet: [row.PERMIT_NO], matched: 0 });
-    const retained = await Permit.findById(saved._id).lean();
+    const retained = await Permit.findById(saved._id).lean().orFail();
     expect(retained).toMatchObject({ issuedOn: null, status: 'RTI HOLD', firstSeenAt: saved.firstSeenAt });
     // The source's withdrawn record stays in storage but out of leads/exports.
     expect((await api('get', '?source=bellingham')).body.total).toBe(0);
@@ -289,7 +290,7 @@ describe('the month-so-far check', () => {
     // Re-issue: the ordinary pull brings the same record back on its new day.
     bellinghamRows = [{ ...row, ISSUED: Date.parse('2026-10-10T00:00:00Z'), STATUS: 'ISSUED' }];
     await sync.runSource('bellingham', { kind: 'manual' });
-    expect((await Permit.findById(saved._id)).issuedOn).toBe('2026-10-10');
+    expect((await Permit.findById(saved._id).orFail()).issuedOn).toBe('2026-10-10');
     expect((await api('get', '?source=bellingham')).body.total).toBe(1);
   });
 
@@ -300,7 +301,7 @@ describe('the month-so-far check', () => {
       issuedSince: async () => ({ rows: [], pages: 1, total: 0 }), findByNumber: async () => row
     } }, log: quiet, now: () => clock });
     expect((await corrected.checkMonthToDate())[0]).toMatchObject({ ok: true, datesMoved: [row.PERMIT_NO], notFoundAgain: [] });
-    expect((await Permit.findOne({ source: 'bellingham' })).issuedOn).toBe('2026-09-30');
+    expect((await Permit.findOne({ source: 'bellingham' }).orFail()).issuedOn).toBe('2026-09-30');
   });
 
   it('keeps the discrepancy when the exact lookup is missing or still says issued this month', async () => {
@@ -310,7 +311,7 @@ describe('the month-so-far check', () => {
         issuedSince: async () => ({ rows: [], pages: 1, total: 0 }), findByNumber: async () => row
       } }, log: quiet, now: () => clock });
       expect((await corrected.checkMonthToDate())[0]).toMatchObject({ ok: false, notFoundAgain: ['BLD2026-0001'], notIssuedYet: [] });
-      expect((await Permit.findOne({ source: 'bellingham' })).issuedOn).toBe('2026-10-01');
+      expect((await Permit.findOne({ source: 'bellingham' }).orFail()).issuedOn).toBe('2026-10-01');
     }
   });
 
@@ -321,16 +322,16 @@ describe('the month-so-far check', () => {
       findByNumber: async () => ({ ...(bellinghamRows as Loose[])[0], PERMIT_NO: 'WRONG', ISSUED: null })
     } }, log: quiet, now: () => clock });
     expect((await corrected.checkMonthToDate())[0]).toMatchObject({ ok: false, error: expect.stringContaining('wrong permit') });
-    expect((await Permit.findOne({ source: 'bellingham' })).issuedOn).toBe('2026-10-01');
+    expect((await Permit.findOne({ source: 'bellingham' }).orFail()).issuedOn).toBe('2026-10-01');
     expect(await Permit.countDocuments()).toBe(1);
   });
 
   it('finds every lead permit again a second way, for each source', async () => {
     const out = await sync.run();
     expect(out.monthToDate).toHaveLength(2);
-    const w = await PermitCheck.findOne({ source: 'whatcom', month: '2026-10' }).lean();
+    const w = await PermitCheck.findOne({ source: 'whatcom', month: '2026-10' }).lean().orFail();
     expect(w).toMatchObject({ method: 'search', ok: true, inSearch: 1, matched: 1, missingFromApp: [], notFoundAgain: [] });
-    const b = await PermitCheck.findOne({ source: 'bellingham', month: '2026-10' }).lean();
+    const b = await PermitCheck.findOne({ source: 'bellingham', month: '2026-10' }).lean().orFail();
     expect(b).toMatchObject({ method: 'search', ok: true, matched: 1 });
   });
 
@@ -359,7 +360,7 @@ describe('the month-so-far check', () => {
     report.numbers = [];
     await PermitCheck.create({ source: 'whatcom', month: '2026-09', method: 'search', checkedAt: clock, ok: true });
     await sync.checkCountyReport();
-    expect((await PermitCheck.findOne({ source: 'whatcom', month: '2026-09' }).lean()).method).toBe('report');
+    expect((await PermitCheck.findOne({ source: 'whatcom', month: '2026-09' }).lean().orFail()).method).toBe('report');
   });
 });
 
@@ -466,7 +467,7 @@ describe('the API', () => {
     expect(r.status).toBe(202);
     expect(r.body.started).toBe(true);
     await sync.run(); // the same run, already going
-    const manual = await PermitRun.findOne({ kind: 'manual' }).lean();
+    const manual = await PermitRun.findOne({ kind: 'manual' }).lean().orFail();
     expect(manual).toMatchObject({ by: 'Krish', ok: true });
   });
 });

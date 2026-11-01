@@ -29,8 +29,7 @@ const ADMIN = {
 };
 const as = (user: unknown) => ({ 'x-user': JSON.stringify(user) });
 const api = (method: 'get' | 'post' | 'put' | 'patch' | 'delete', path: string, user = ADMIN) =>
-  request(app)
-    [method]('/api/purchasing' + path)
+  request(app)[method]('/api/purchasing' + path)
     .set(as(user));
 const policy = {
   product: 'Quartz 3CM',
@@ -505,7 +504,8 @@ describe('purchasing review regressions', () => {
     await InventoryTransitShipment.create({ poNumber: 'OLD', containerNumber: 'CONT', location: 'Seattle', importedAt: clock,
       lines: [{ product: 'Quartz 3CM', poNumber: 'OLD', containerNumber: 'CONT', location: 'Seattle', units: 'SF', slabs: 0, quantity: 0, etaDate: new Date('2026-12-08'), status: 'INTRANSIT', supplier: 'ABC' }] });
     // Confirm the usable receipt explicitly.
-    let p = await plan(id), line = p.rows[0].transit[0];
+    let p = await plan(id);
+    const line = p.rows[0].transit[0];
     await api('post', `/scopes/${id}/incoming/${line.shipmentId}/receipt`).send({ date: '2026-12-08', signature: line.sourceSignature }).expect(200);
     p = await plan(id);
     const d = (await api('post', `/scopes/${id}/drafts`).send(draftBody(p)).expect(201)).body;
@@ -535,7 +535,8 @@ describe('purchasing review regressions', () => {
     const { id } = await setup();
     const d = (await api('post', `/scopes/${id}/drafts`).send(draftBody(await plan(id))).expect(201)).body;
     await PurchasingDraft.collection.insertMany(Array.from({ length: 105 }, (_, index) => ({ scopeId: new mongoose.Types.ObjectId(id), status: 'cancelled', createdAt: new Date(clock.getTime() + index + 1) })));
-    let cursor = '', found = [], pages = 0;
+    let cursor = '', pages = 0;
+    const found = [];
     do {
       const response = await api('get', `/scopes/${id}/drafts?paginated=true&limit=50${cursor ? `&cursor=${cursor}` : ''}`).expect(200);
       found.push(...response.body.items); cursor = response.body.nextCursor; pages++;

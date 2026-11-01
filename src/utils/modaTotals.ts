@@ -28,13 +28,13 @@ export const BINDER_FAMILY = 'binder';
 
 export type ModaEarlier = { display: boolean; binders: number };
 // Records as the database holds them: the fields read here, plus whatever else they carry.
-export type ModaResource = { _id?: unknown; resourceType?: unknown; title?: unknown; qty?: unknown; status?: unknown; date?: unknown; [key: string]: unknown };
-export type ModaCustomer = { modaDisplay?: unknown; modaBinder?: unknown; modaEarlier?: { display?: unknown; binders?: unknown } | null; [key: string]: unknown };
+export type ModaResource = { _id?: unknown; resourceType?: unknown; title?: unknown; qty?: unknown; status?: unknown; date?: unknown };
+export type ModaCustomer = { modaDisplay?: unknown; modaBinder?: unknown; modaEarlier?: { display?: unknown; binders?: unknown } | null };
 export type FamilyOf = (typeName: string) => string | undefined;
 export type ModaFields = { modaDisplay: 'Yes' | 'No'; modaBinder: string; modaEarlier: ModaEarlier };
 
 /** Type name → family, from the Resource Types list. */
-export const familyLookup = (types: readonly { name?: unknown; family?: unknown; [key: string]: unknown }[]): FamilyOf => {
+export const familyLookup = (types: readonly { name?: unknown; family?: unknown }[]): FamilyOf => {
     const map = new Map(types.map((t) => [String(t.name ?? ''), String(t.family || 'other')]));
     return (name) => map.get(name);
 };

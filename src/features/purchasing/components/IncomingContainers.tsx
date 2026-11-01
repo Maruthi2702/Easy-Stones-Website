@@ -6,7 +6,7 @@ import FormModal from '../../../components/shared/form/FormModal';
 import { DatePicker } from '../../../components/shared/calendar/Calendar';
 import { todayPacific } from '../../../purchasing/planning';
 import { purchasingApi } from '../purchasingApi';
-import { num } from './BuyerQueue';
+import { num } from './formatNumber';
 export default function IncomingContainers({ plan, canEdit, onImport, onChanged }: {
   plan: Plan; canEdit: boolean; onImport?: () => void; onChanged: () => void;
 }) {

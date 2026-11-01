@@ -34,6 +34,12 @@ const baseDerived = (overrides: Loose = {}) => ({
 });
 
 describe('applyDerived', () => {
+  it('initializes missing visitor figures on a legacy draft', () => {
+    const report = baseReport({ visitors: null });
+    applyDerived(report, baseDerived({ visitorCheckIns: 4 }));
+    expect(report).toHaveProperty('visitors.homeowners', 4);
+  });
+
   it('never touches a submitted report, no matter what the system now shows', () => {
     const report = baseReport({
       status: 'submitted',
@@ -150,7 +156,7 @@ describe('applyDerived — at submit', () => {
     const r = applyDerived(morningDraft(), evening());
     expect(r.deliveries.capacity).toBe(31);
     expect(r.pickups.capacity).toBe(6);
-    expect(r.visitors.fabricators).toBe(1);
+    expect(r.visitors).toHaveProperty('fabricators', 1);
   });
 
   it('takes transfer counts and routes from the tickets, keeping typed slabs and hand-added lines', () => {

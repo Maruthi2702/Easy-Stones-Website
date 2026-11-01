@@ -14,7 +14,7 @@ import { recipientEmails, seedFromAddresses, SEATTLE_RECIPIENTS_BEFORE_2026_10_1
  * no email. (Until 2026-10-15 this was Seattle only, to a list in the code.)
  */
 async function recipientsFor(locationName: unknown) {
-  const location = await Location.findOne({ name: locationName }, 'dailyReportEmail').lean();
+  const location = await Location.findOne({ name: String(locationName ?? "") }, 'dailyReportEmail').lean();
   const setting = location?.dailyReportEmail;
   const ids = setting?.userIds || [];
   const users = ids.length ? await User.find({ _id: { $in: ids } }, 'email isActive').lean() : [];

@@ -15,7 +15,7 @@ import type { Loose } from '../src/types/records.ts';
  */
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import Customer from '../src/models/Customer.ts';
+import Customer, { type CustomerData } from '../src/models/Customer.ts';
 import {
   groupDuplicates, companyKey, phoneKey, emailKeys,
   isPlaceholderEmail, STRONG
@@ -37,7 +37,7 @@ mongoose
     const rows = await Customer.find(
       {},
       'company contactName email phone address createdAt isActive mergedInto'
-    ).lean();
+    ).lean<(CustomerData & { _id: mongoose.Types.ObjectId; mergedInto?: mongoose.Types.ObjectId })[]>();
 
     const live = rows.filter(r => !r.mergedInto);
     const byId = new Map(live.map(r => [String(r._id), r]));

@@ -15,7 +15,7 @@ import type { Loose } from '../../types/records.ts';
  */
 import { Buffer } from 'node:buffer';
 import * as XLSX from 'xlsx';
-import { cleanText, dayOf } from '../common.ts';
+import { dayOf } from '../common.ts';
 import { MONROE_REPORTS_PAGE, parseMonroeReports, monroeReportRows } from '../rules/monroe.ts';
 import { BROWSER_UA } from './http.ts';
 

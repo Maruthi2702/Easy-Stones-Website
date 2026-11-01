@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useLayoutEffect, useState, useEffect, useCallback, useRef } from 'react';
 import { Filter, Loader, Link } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import type { Loose } from '../types/records';
@@ -105,14 +105,7 @@ const SalesPage = () => {
     });
     
     // A signed-in record always has id or _id; the type says so (the value is kept exactly as it was).
-    const [currentUserId, setCurrentUserId] = useState<string | null>((currentUser?.id || currentUser?._id || null) as string | null);
-
-    // Sync currentUserId when currentUser loads
-    useEffect(() => {
-        if (currentUser) {
-            setCurrentUserId((currentUser.id || currentUser._id) as string);
-        }
-    }, [currentUser]);
+    const currentUserId = (currentUser?.id || currentUser?._id || null) as string | null;
 
     useEffect(() => {
         currentUserIdRef.current = currentUserId;
@@ -144,10 +137,12 @@ const SalesPage = () => {
     } : undefined;
 
     // What a live check-in update runs: always the current filters' fetch.
-    refreshCheckInsRef.current = () => checkInLog.refresh(true);
+    useLayoutEffect(() => {
+        refreshCheckInsRef.current = () => checkInLog.refresh(true);
+        resyncCheckInsRef.current = () => { if (crmTab === 'checkin') checkInLog.refresh(true); };
+    }, [checkInLog, crmTab]);
     // After a reconnect or the app coming back on screen: only while the log
     // is showing (its cache is expired either way, so opening it reloads).
-    resyncCheckInsRef.current = () => { if (crmTab === 'checkin') checkInLog.refresh(true); };
 
     // Modal states
     const [showCalendarSyncModal, setShowCalendarSyncModal] = useState(false);

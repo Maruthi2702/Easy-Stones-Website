@@ -82,7 +82,7 @@ describe('POST /api/customers/bulk-delete', () => {
     expect(saved).toHaveLength(2);
     const acme = saved.find((b) => String(b.customerId) === String(A));
     expect((acme)!.deletedBy).toBe('krish');
-    expect((acme)!.customer.visits[0].notes).toBe('Looked at quartz');
+    expect(acme!.customer).toMatchObject({ visits: [{ notes: 'Looked at quartz' }] });
     expect((acme)!.customer.extra).toEqual({ kept: true });
     expect(emit).toHaveBeenCalledWith('customer_update');
   });
@@ -150,7 +150,7 @@ describe('backupAndDeleteCustomer (the single Delete)', () => {
     expect(await Customer.collection.findOne({ _id: A })).toBeNull();
     const saved = await CustomerDeleteBackup.findOne({ customerId: A }).lean();
     expect(saved).toMatchObject({ source: 'single', deletedBy: 'krish', batchId });
-    expect((saved)!.customer.visits[0].notes).toBe('Looked at quartz');
+    expect(saved!.customer).toMatchObject({ visits: [{ notes: 'Looked at quartz' }] });
     // …and the same Undo brings it back.
     await undo((batchId)!).expect(200);
     expect(await Customer.collection.findOne({ _id: A })).toBeTruthy();

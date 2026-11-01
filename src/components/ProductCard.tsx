@@ -1,4 +1,4 @@
-import type { Product } from '../context/ProductContext.tsx';
+import type { Product } from '../context/ProductContext.ts';
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';

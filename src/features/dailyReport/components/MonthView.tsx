@@ -79,11 +79,16 @@ const MonthView = ({ month, location, locations = [], authFetch, onOpenDay }: Mo
 
   const allBranches = location === 'all';
 
+  const [request, setRequest] = useState(() => ({ authFetch, month, location }));
+  if (request.authFetch !== authFetch || request.month !== month || request.location !== location) {
+    setRequest({ authFetch, month, location });
+    setLoading(true);
+    setError(null);
+  }
+
   useEffect(() => {
     if (!location) return undefined;
     let alive = true;
-    setLoading(true);
-    setError(null);
     authFetch(`${API_URL}/api/daily-reports?month=${month}&location=${encodeURIComponent(location)}`)
       .then(async r => {
         if (!r.ok) throw new Error((await r.json()).message || 'Could not load the month.');

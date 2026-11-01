@@ -194,15 +194,15 @@ describe('delete', () => {
     const customer = await Customer.create({
       contactName: 'Sam', company: 'Sam Homes', email: 'sam@x.com',
       resources: [
-        { _id: linked, title: 'Tower v2', resourceType: 'Tower v2', date: '2026-01-14', visitId: linkedVisit, uploadedBy: author },
+        { _id: linked, title: 'Tower v2', resourceType: 'Tower v2', date: '2026-01-14', visitId: linkedVisit, uploadedBy: String(author) },
         // Older: no links, matched to its visit by title, day and author.
-        { _id: legacy, title: 'Tower v2', resourceType: 'Tower v2', date: '2026-02-01', uploadedBy: author },
+        { _id: legacy, title: 'Tower v2', resourceType: 'Tower v2', date: '2026-02-01', uploadedBy: String(author) },
         { _id: renamed, title: 'Front window tower', resourceType: 'Tower v2', date: '2026-03-01' },
         { _id: other, title: 'Binder', resourceType: 'Binder', date: '2026-01-14', visitId: otherVisit }
       ],
       visits: [
-        { _id: linkedVisit, resourceId: linked, date: '2026-01-14', purpose: 'Resource Placement: Tower v2', notes: 'Added resource: Tower v2', createdBy: author },
-        { _id: legacyVisit, date: '2026-02-01', purpose: 'Resource Placement: Tower v2', notes: 'Dropped it at the front', createdBy: author },
+        { _id: linkedVisit, resourceId: linked, date: '2026-01-14', purpose: 'Resource Placement: Tower v2', notes: 'Added resource: Tower v2', createdBy: String(author) },
+        { _id: legacyVisit, date: '2026-02-01', purpose: 'Resource Placement: Tower v2', notes: 'Dropped it at the front', createdBy: String(author) },
         { _id: otherVisit, resourceId: other, date: '2026-01-14', purpose: 'Resource Placement: Binder' }
       ]
     });

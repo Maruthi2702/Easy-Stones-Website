@@ -18,7 +18,7 @@ export default function createPublicProductsRouter({ jwtSecret, getProducts }: {
         if (customer && customer.isActive !== false) priceLevel = customer.priceLevel || 1;
       } else if (decoded) {
         const staff = await resolveStaffToken(token, jwtSecret);
-        if (staff && ((staff as Loose).role === 'admin' || staff.permissions.includes('view_product_prices'))) priceLevel = 1;
+        if (staff && (staff.role === 'admin' || staff.permissions.includes('view_product_prices'))) priceLevel = 1;
       }
       const products = await getProducts();
       res.json(products.map((product: Loose) => {

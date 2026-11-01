@@ -1,5 +1,5 @@
 import type { Loose } from '../../types/records.ts';
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { X, DollarSign, Calculator, AlertCircle, Save, Calendar, Building, FileText } from 'lucide-react';
 import SearchableSelect from '../SearchableSelect';
 import CustomSelect from '../shared/CustomSelect';
@@ -106,7 +106,9 @@ const LostSaleModal = ({
     setError('');
   }, [newEntryLocation]);
 
-  useEffect(() => {
+  const [formSource, setFormSource] = useState<{ initialData: typeof initialData; isOpen: typeof isOpen; locations: string; startingLocation: typeof newEntryLocation } | null>(null);
+  if (!formSource || formSource.initialData !== initialData || formSource.isOpen !== isOpen || formSource.locations !== locationOptions.join("\0") || formSource.startingLocation !== newEntryLocation) {
+    setFormSource({ initialData, isOpen, locations: locationOptions.join("\0"), startingLocation: newEntryLocation });
     if (initialData) {
       setCustomerName(getCustomerName(initialData.customerName, ''));
       setSelectedCustomerId(initialData.customerId || '');
@@ -126,7 +128,7 @@ const LostSaleModal = ({
     } else {
       resetForm();
     }
-  }, [initialData, isOpen, locationOptions, resetForm]);
+  }
 
   // Live Calculations
   const l = parseFloat(String(lengthInches)) || 0;

@@ -92,7 +92,7 @@ export default function ContractorDialog({ license, onClose, onShowPermits = nul
       .then((data) => {
         if (!live) return;
         setState({ loading: false, data, error: '' });
-        if (data.found) onLoaded?.(data.license, data.businessName);
+        if (data.found) onLoaded?.(data.license || lookup, data.businessName || '');
       })
       .catch((err) => { if (live) setState({ loading: false, data: null, error: err.message }); });
     return () => { live = false; };

@@ -171,3 +171,9 @@ describe('GET /map/:id — the details', () => {
     expect((await get('/map/not-an-id')).status).toBe(400);
   });
 });
+
+it('rejects repeated scalar rep filters before running the map query', async () => {
+  const response = await get('/map?reps=one&reps=two');
+  expect(response.status).toBe(400);
+  expect(response.body.message).toBe('Query and path parameters must be single text values.');
+});

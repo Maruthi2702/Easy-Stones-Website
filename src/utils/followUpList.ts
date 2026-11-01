@@ -27,6 +27,16 @@ import type { Loose } from '../types/records.ts';
 
 const dayOf = (value: unknown): string => dayOfLoose(value as Loose);
 
+/** The fields shared by stored visits and browser follow-up rows. */
+type FollowUpFields = {
+    date?: unknown;
+    followUpDate?: unknown;
+    followUp?: string | null;
+    nextAction?: string | null;
+    followUpDoneAt?: string | null;
+    followUpDoneOn?: string | null;
+};
+
 /** A row of GET /api/dashboard/followups (a visit with its customer's name). */
 export type FollowUpRow = {
     _id?: string;
@@ -100,14 +110,14 @@ const dayNumber = (day: string): number => {
 export const daysBetween = (a: string, b: string): number => dayNumber(b) - dayNumber(a);
 
 /** The day it's due: its follow-up date, else the visit's day; '' when neither is a day. */
-export const dueDayOf = (row: FollowUpRow): string => dayOf(row?.followUpDate) || dayOf(row?.date);
-export const isFollowUpDone = (row: FollowUpRow): boolean => Boolean(text(row?.followUpDoneAt));
+export const dueDayOf = (row: FollowUpFields): string => dayOf(row?.followUpDate) || dayOf(row?.date);
+export const isFollowUpDone = (row: FollowUpFields): boolean => Boolean(text(row?.followUpDoneAt));
 /** The day it was ticked done ('' while pending). */
-export const doneDayOf = (row: FollowUpRow): string => (isFollowUpDone(row) ? (dayOf(row.followUpDoneOn) || dayOf(row.followUpDoneAt)) : '');
+export const doneDayOf = (row: FollowUpFields): string => (isFollowUpDone(row) ? (dayOf(row.followUpDoneOn) || dayOf(row.followUpDoneAt)) : '');
 /** Whether a visit carries a follow-up at all (a note or a date). */
-export const hasFollowUpFields = (row: FollowUpRow): boolean =>
+export const hasFollowUpFields = (row: FollowUpFields): boolean =>
     Boolean(text(row?.followUp) || text(row?.nextAction) || dayOf(row?.followUpDate));
-export const followUpNote = (row: FollowUpRow): string => text(row?.followUp) || text(row?.nextAction);
+export const followUpNote = (row: FollowUpFields): string => text(row?.followUp) || text(row?.nextAction);
 
 export const followUpState = (row: FollowUpRow, today: string): FollowUpState => {
     if (isFollowUpDone(row)) return 'done';
@@ -411,7 +421,7 @@ const cleared = (): Record<string, string> => Object.fromEntries(DONE_FIELDS.map
  * the server's clock and who is acting.
  */
 export const followUpUpdate = (
-    visit: FollowUpRow | null,
+    visit: FollowUpFields | null,
     body: { action?: unknown; doneOn?: unknown; until?: unknown; outcome?: unknown },
     ctx: { now: string; today: string; userId: string; userName: string }
 ): Update => {

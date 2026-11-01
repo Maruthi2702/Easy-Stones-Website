@@ -38,7 +38,7 @@ export type CustomerContactsTabProps = {
 };
 
 const CustomerContactsTab = ({ customer, canManage = false, onAdd, onEdit, onDelete, onEditCustomer }: CustomerContactsTabProps) => {
-  const c: Loose = customer || {};
+  const c = useMemo<Loose>(() => customer || {}, [customer]);
 
   const rows = useMemo(() => {
     const out: ContactRow[] = [];

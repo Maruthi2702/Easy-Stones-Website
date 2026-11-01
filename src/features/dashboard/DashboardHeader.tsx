@@ -37,7 +37,7 @@ export type DashboardHeaderProps = {
 };
 
 /** Tabs whose Filters and ⋯ are rendered by the tab itself, into the header's slot. */
-export const TABS_WITH_OWN_TOOLS = ['resources', 'followups'];
+const TABS_WITH_OWN_TOOLS = ['resources', 'followups'];
 
 /**
  * The Dashboard's one header (owner, 2026-10-31; claude.ai artifact "Dashboard tabs —

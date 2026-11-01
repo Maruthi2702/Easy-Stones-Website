@@ -8,7 +8,10 @@ import { sessionIsCurrent } from './staffSession.ts';
 // are anonymous; database failures still propagate rather than granting access.
 export function readSessionToken(token: string | null | undefined, secret: string) {
   if (!token) return null;
-  try { return jwt.verify(token, secret) as jwt.JwtPayload; } catch { return null; }
+  try {
+    const decoded = jwt.verify(token, secret);
+    return typeof decoded === 'string' ? null : decoded;
+  } catch { return null; }
 }
 
 export async function resolveStaffToken(token: string | null | undefined, secret: string) {

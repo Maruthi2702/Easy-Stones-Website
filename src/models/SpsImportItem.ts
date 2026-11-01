@@ -1,5 +1,3 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
 /**
@@ -7,7 +5,39 @@ import mongoose from 'mongoose';
  * worked through in batches. `state` is what makes a restart safe: only
  * 'pending' items are picked up again, and every write is idempotent.
  */
-const spsImportItemSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+/** Frozen field patches include dotted paths and values from the uploaded sheet. */
+export interface SpsImportItemRecord {
+  runId: string;
+  seq: number;
+  key: string;
+  rowNumber: number;
+  name: string;
+  action: string;
+  customerId: string;
+  connect: boolean;
+  create?: Record<string, unknown> & { address?: { city?: string } | null; location?: string; salesRepName?: string };
+  apply?: Record<string, unknown>;
+  before?: Record<string, unknown>;
+  unset: string[];
+  changes: { field: string; from: unknown; to: unknown }[];
+  deleted?: {
+    backupId: string;
+    customerId: string;
+    company: string;
+    deletedBy: string;
+    deletedAt: Date | string | null;
+    source: string;
+    batchId: string;
+    remembered?: boolean;
+  };
+  warnings: string[];
+  state: string;
+  result: string;
+  reason: string;
+  createdId: string;
+}
+
+const spsImportItemSchema = new mongoose.Schema<SpsImportItemRecord>({
   runId: { type: String, required: true },
   seq: { type: Number, required: true },
   key: { type: String, required: true },

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act, cleanup } from '@testing-library/react';
-import { AuthProvider, useAuth } from './AuthContext';
+import { useAuth } from './AuthContext';
+import { AuthProvider } from './AuthProvider';
 
 vi.mock('../api/deliverySchedule', () => ({ clearScheduleCache: vi.fn() }));
 vi.mock('../api/customerOptions', () => ({ clearCustomers: vi.fn() }));

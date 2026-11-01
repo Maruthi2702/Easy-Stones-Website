@@ -8,6 +8,9 @@
  * an occasional, human-triggered action (someone picking a file and clicking
  * Import), not a hot path worth the complexity of keeping workers warm for.
  */
+import type { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './inventoryImport.ts';
+import type { parseInventoryTransitWorkbook } from './inventoryTransitImport.ts';
+import type { readCustomerSheet } from './customerImport.ts';
 import type { WorkbookParseKind } from '../types/inventory.ts';
 import { Worker } from 'node:worker_threads';
 
@@ -27,12 +30,19 @@ const DEFAULT_TIMEOUT_MS = 20_000;
  * @param {number} [timeoutMs]
  * @returns {Promise<any>} whatever the underlying parser normally returns.
  */
-export function runWorkbookParse(kind: WorkbookParseKind, buffer: Buffer, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<any> {
-  return new Promise<any>((resolve, reject) => {
+export type WorkbookParseResults = {
+  'inventory-stock': ReturnType<typeof parseInventoryStockWorkbook>;
+  'inventory-sales': ReturnType<typeof parseInventorySalesWorkbook>;
+  'inventory-transit': ReturnType<typeof parseInventoryTransitWorkbook>;
+  customer: ReturnType<typeof readCustomerSheet>;
+};
+
+export function runWorkbookParse<K extends WorkbookParseKind>(kind: K, buffer: Buffer, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<WorkbookParseResults[K]> {
+  return new Promise<WorkbookParseResults[K]>((resolve, reject) => {
     const worker = new Worker(WORKER_PATH, { workerData: { kind, buffer } });
     let settled = false;
 
-    const finish = (fn: (value: any) => void, arg: any) => {
+    const finish = <T>(fn: (value: T) => void, arg: T) => {
       if (settled) return; // one of the listeners below already resolved/rejected
       settled = true;
       clearTimeout(timer);

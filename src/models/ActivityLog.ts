@@ -1,8 +1,19 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
-const activityLogSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+export interface ActivityLogRecord {
+    entityType: 'Visit' | 'Customer' | 'Resource' | 'Contact' | 'User' | 'Delivery';
+    entityId: mongoose.Types.ObjectId;
+    customerId?: mongoose.Types.ObjectId | null;
+    action: 'CREATE' | 'UPDATE' | 'DELETE' | 'REACTION_ADD' | 'REACTION_REMOVE';
+    performedBy: string;
+    performedByName: string;
+    performedByRole?: 'admin' | 'customer' | null;
+    // Activity kinds have different details; readers must inspect their shape.
+    details?: Record<string, unknown> | null;
+    timestamp?: string | null;
+}
+
+const activityLogSchema = new mongoose.Schema<ActivityLogRecord>({
     entityType: {
         type: String,
         required: true,

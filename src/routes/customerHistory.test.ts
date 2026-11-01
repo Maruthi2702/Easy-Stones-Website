@@ -15,7 +15,7 @@ let mongo: MongoMemoryServer;
 const app = express();
 app.use('/api/customers', createCustomerHistoryRouter({
   authenticate: (req, _res, next) => { Object.assign(req, { user: JSON.parse(String(req.headers['x-user'] || '{}')), userId: String(req.headers['x-id'] || me) }); next(); },
-  requirePermission: key => (req, res, next) => ((req as any).user.permissions || []).includes(key) ? next() : void res.sendStatus(403)
+  requirePermission: key => (req, res, next) => (req.user.permissions || []).includes(key) ? next() : void res.sendStatus(403)
 }));
 const headers = (permissions = profile, id = String(me), assignedLocations = ['Seattle']) => ({ 'x-user': JSON.stringify({ permissions, assignedLocations }), 'x-id': id });
 beforeAll(async () => { mongo = await MongoMemoryServer.create(); await mongoose.connect(mongo.getUri()); }, 180000);
@@ -30,8 +30,8 @@ beforeEach(async () => {
 describe('history read scope', () => {
   it('own-only profile reads include only the viewer history and its last visit date', async () => {
     const { body } = await request(app).get('/api/customers/'+cid).set(headers()).expect(200);
-    expect(body.visits.map((v: any) => v._id)).toEqual([String(ownVisit)]);
-    expect(body.resources.map((r: any) => r.title)).toEqual(['Mine']);
+    expect(body.visits.map((v: { _id: string }) => v._id)).toEqual([String(ownVisit)]);
+    expect(body.resources.map((r: { title: string }) => r.title)).toEqual(['Mine']);
     expect(body.lastVisitDate).toBe('2026-10-01'); expect(body.password).toBeUndefined();
   });
   it('branch reads include deactivated colleagues, but exclude the other branch', async () => {
@@ -52,7 +52,7 @@ describe('history read scope', () => {
   });
   it('also scopes mutation response documents without changing their stored history', async () => {
     const record = await Customer.findById(cid);
-    const body = await customerHistoryResponse({ userId: String(me), user: { permissions: [...profile, 'view_branch_visits'], assignedLocations: ['Seattle'] } } as any, record!);
+    const body = await customerHistoryResponse({ userId: String(me), user: { permissions: [...profile, 'view_branch_visits'], assignedLocations: ['Seattle'] } } as Parameters<typeof customerHistoryResponse>[0], record!);
     expect(body.visits).toHaveLength(2); expect(body.password).toBeUndefined();
     expect(record!.visits).toHaveLength(3);
   });

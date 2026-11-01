@@ -26,4 +26,4 @@ const visitTypeSchema = new mongoose.Schema({
   updatedBy: { type: String, default: '' }
 }, { timestamps: true });
 
-export default mongoose.models.VisitType || mongoose.model('VisitType', visitTypeSchema);
+export default ((mongoose.models.VisitType as mongoose.Model<mongoose.InferSchemaType<typeof visitTypeSchema>> | undefined) || mongoose.model('VisitType', visitTypeSchema)) as mongoose.Model<mongoose.InferSchemaType<typeof visitTypeSchema>>;

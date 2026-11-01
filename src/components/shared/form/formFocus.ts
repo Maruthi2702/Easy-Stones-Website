@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useState, useSyncExternalStore } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from 'react';
 import { prefersReducedMotion } from './useIsPhone';
 
@@ -104,26 +104,55 @@ const MENU_START: MenuPlacement = { placement: 'down', maxHeight: 440 };
  * around it) never goes to a sheet. Back to the start when it closes, so the
  * next open measures again.
  */
+const formScrollerOf = (anchor: Element) => anchor.closest('.fm-body, .fm-sheet-body');
+
 export function useMenuPlacement(
     open: boolean,
     isPhone: boolean,
     anchorRef: RefObject<Element | null>,
     menuRef: RefObject<Element | null>,
-    scrollerOf: (anchor: Element) => Element | null | undefined = (a) => a.closest('.fm-body, .fm-sheet-body')
+    scrollerOf: (anchor: Element) => Element | null | undefined = formScrollerOf
 ): MenuPlacement {
-    const [pos, setPos] = useState<MenuPlacement>(MENU_START);
+    // Menu geometry comes from the DOM. Publish only changed measurements so
+    // a caller's inline scroller callback cannot cause a render/reset loop.
+    const [measurements] = useState(() => {
+        let snapshot = MENU_START;
+        const listeners = new Set<() => void>();
+        return {
+            getSnapshot: () => snapshot,
+            subscribe: (listener: () => void) => {
+                listeners.add(listener);
+                return () => { listeners.delete(listener); };
+            },
+            update: (next: MenuPlacement) => {
+                if (snapshot.placement === next.placement && snapshot.maxHeight === next.maxHeight) return;
+                snapshot = next;
+                listeners.forEach(listener => listener());
+            }
+        };
+    });
+    const pos = useSyncExternalStore(measurements.subscribe, measurements.getSnapshot, () => MENU_START);
     useLayoutEffect(() => {
         const anchor = anchorRef.current;
         if (!open || isPhone || !anchor) return undefined;
-        const scroller = scrollerOf(anchor);
-        const content = menuRef.current?.scrollHeight || 0;
-        const placed = menuPlacement(anchor, 440, scroller, content || 440);
-        const { above, below } = menuRoom(anchor, scroller);
-        const room = placed.placement === 'up' ? above : below;
-        // Unmeasured (0, as in jsdom) keeps the list where it is.
-        const noRoom = Boolean(scroller?.closest('.fm-body')) && content > 0 && room < Math.min(content, 160);
-        setPos(noRoom ? { placement: 'sheet', maxHeight: 440 } : placed);
-        return () => setPos(MENU_START);
-    }, [open, isPhone]);
-    return pos;
+        const measure = () => {
+            const scroller = scrollerOf(anchor);
+            const content = menuRef.current?.scrollHeight || 0;
+            const placed = menuPlacement(anchor, 440, scroller, content || 440);
+            const { above, below } = menuRoom(anchor, scroller);
+            const room = placed.placement === 'up' ? above : below;
+            const noRoom = Boolean(scroller?.closest('.fm-body')) && content > 0 && room < Math.min(content, 160);
+            measurements.update(noRoom ? { placement: 'sheet', maxHeight: 440 } : placed);
+        };
+        measure();
+        window.addEventListener('resize', measure);
+        const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+        observer?.observe(anchor);
+        if (menuRef.current) observer?.observe(menuRef.current);
+        return () => {
+            window.removeEventListener('resize', measure);
+            observer?.disconnect();
+        };
+    }, [open, isPhone, anchorRef, menuRef, scrollerOf, measurements]);
+    return open && !isPhone ? pos : MENU_START;
 }

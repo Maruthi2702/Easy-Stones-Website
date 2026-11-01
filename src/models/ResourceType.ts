@@ -15,4 +15,4 @@ const resourceTypeSchema = new mongoose.Schema({
   updatedBy: { type: String, default: '' }
 }, { timestamps: true });
 
-export default mongoose.models.ResourceType || mongoose.model('ResourceType', resourceTypeSchema);
+export default ((mongoose.models.ResourceType as mongoose.Model<mongoose.InferSchemaType<typeof resourceTypeSchema>> | undefined) || mongoose.model('ResourceType', resourceTypeSchema)) as mongoose.Model<mongoose.InferSchemaType<typeof resourceTypeSchema>>;

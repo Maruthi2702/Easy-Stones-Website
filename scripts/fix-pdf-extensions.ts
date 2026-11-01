@@ -25,9 +25,9 @@ dotenv.config();
 
 const APPLY = process.argv.includes('--apply');
 
-const isOldRawUrl = (url: string) =>
+const isOldRawUrl = (url: string | null | undefined): url is string =>
   /^https:\/\/res\.cloudinary\.com\/[^/]+\/raw\/upload\//.test(url || '') &&
-  !/\.pdf(\?.*)?$/i.test(url);
+  !/\.pdf(\?.*)?$/i.test(url || '');
 
 // https://res.cloudinary.com/<cloud>/raw/upload/v123/deliveries/x/ID -> deliveries/x/ID
 const publicIdFromUrl = (url: string) =>
@@ -91,9 +91,10 @@ const run = async () => {
       const r = await moveToPdf(`${d.id} packing list`, d.packingListUrl);
       if (r) { set.packingListUrl = r.url; set.packingListPublicId = r.publicId; }
     }
-    if (isOldRawUrl(d.pod?.signedPdfUrl)) {
+    const signedPdfUrl = d.pod?.signedPdfUrl;
+    if (isOldRawUrl(signedPdfUrl)) {
       todo += 1;
-      const r = await moveToPdf(`${d.id} signed copy`, d.pod.signedPdfUrl);
+      const r = await moveToPdf(`${d.id} signed copy`, signedPdfUrl);
       if (r) { set['pod.signedPdfUrl'] = r.url; set['pod.signedPdfPublicId'] = r.publicId; }
     }
     if (Object.keys(set).length) {

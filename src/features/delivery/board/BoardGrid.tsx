@@ -4,7 +4,7 @@
 // separate, mobile-first component a driver sees instead. See
 // src/features/delivery/README.md for how this fits with the rest
 // of the feature (deliverySchedule.ts's cache, the backend router, the socket).
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import TicketChip from './TicketChip';
 import BoardCards from './BoardCards';
 import BoardTable from './BoardTable';
@@ -71,28 +71,12 @@ const BoardGrid = ({
 
   const [selectedDate, setSelectedDate] = useState(initialDate);
 
-  // Track the week start so we only react when the user navigates to a DIFFERENT week
-  const prevWeekStartRef = useRef(weekDates[0] || '');
-
-  useEffect(() => {
-    const currentWeekStart = weekDates[0] || '';
-    const weekChanged = currentWeekStart !== prevWeekStartRef.current;
-    prevWeekStartRef.current = currentWeekStart;
-
-    if (weekDates && weekDates.length > 0) {
-      if (weekChanged) {
-        // User navigated to a new week — auto-select today if in range, else first day
-        if (weekDates.includes(todayStr)) {
-          setSelectedDate(todayStr);
-        } else {
-          setSelectedDate(weekDates[0]);
-        }
-      } else if (!weekDates.includes(selectedDate)) {
-        // Same week but selectedDate no longer valid (edge case), fall back
-        setSelectedDate(weekDates[0]);
-      }
-    }
-  }, [weekDates]);
+  const weekStart = weekDates[0] || '';
+  const [previousWeekStart, setPreviousWeekStart] = useState(weekStart);
+  if (weekStart !== previousWeekStart || (weekDates.length > 0 && !weekDates.includes(selectedDate))) {
+    setPreviousWeekStart(weekStart);
+    if (weekDates.length > 0) setSelectedDate(weekStart !== previousWeekStart ? initialDate : weekDates[0]);
+  }
 
   // Automatic screen size detection (Desktop/Laptop >= 900px -> Dispatch Matrix 'table', Mobile/iPad < 900px -> Cards View 'cards')
   const [viewMode, setViewMode] = useState(() => {
@@ -229,7 +213,7 @@ const BoardGrid = ({
   });
 
   // Pre-index deliveries by `${truckId}_${date}` in O(N) for optimal rendering performance
-  const cellMap = React.useMemo(() => {
+  const cellMap = (() => {
     const map = new Map<string, Ticket[]>();
     for (const d of filteredDeliveries) {
       // Keyed by column, not by truck: that pulls a will call out of the driver
@@ -241,14 +225,14 @@ const BoardGrid = ({
     // Sort each cell's list by routeNumber ascending (Stop #1, Stop #2...), then by time
     for (const list of map.values()) list.sort(compareStops);
     return map;
-  }, [filteredDeliveries]);
+  })();
 
   // The same cells before the search: a drop is worked out against every
   // ticket in the cell, not just the ones a search left on screen. Renumbering
   // only the visible cards left the hidden ones holding numbers the drop now
   // claimed, and the server refused it ("This run changed since you loaded
   // it") on every try while a search was active.
-  const fullCellMap = React.useMemo(() => {
+  const fullCellMap = (() => {
     const map = new Map<string, Ticket[]>();
     for (const d of deliveries) {
       const key = `${columnIdFor(d)}_${d.date}`;
@@ -257,7 +241,7 @@ const BoardGrid = ({
     }
     for (const list of map.values()) list.sort(compareStops);
     return map;
-  }, [deliveries]);
+  })();
 
   // Recomputed each render — a few drivers, cheaper than a memo the compiler
   // can't keep (see the cellMap note above).

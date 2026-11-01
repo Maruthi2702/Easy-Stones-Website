@@ -67,8 +67,8 @@ describe('filing a day nobody opened', () => {
     const r = await fileUnopenedDay('2026-09-25', 'Seattle', new Date('2026-09-26T07:00:00Z'));
     expect(save).toHaveBeenCalledTimes(1);
     expect(r).toMatchObject({ date: '2026-09-25', location: 'Seattle', status: 'submitted', autoSubmitted: true, submittedBy: 'Auto-submitted' });
-    expect(r.deliveries.assigned).toBe(1);
-    expect(r.deliveries.capacity).toBe(12);
+    expect(r?.deliveries.assigned).toBe(1);
+    expect(r?.deliveries.capacity).toBe(12);
   });
 
   it('a day with nothing at all stays Not started, and isn\'t re-derived every minute', async () => {

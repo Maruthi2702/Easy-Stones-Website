@@ -1,4 +1,4 @@
-import type { ScalarParams, ScalarQuery } from '../types/server.ts';
+import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import type { Loose } from '../types/records.ts';
 import type { Request, RequestHandler, Response } from 'express';
 import express from 'express';
@@ -206,7 +206,7 @@ const certificateWordingFor = async ({ deliveryType, truckId }: { deliveryType?:
   if (id === THIRD_PARTY_TRUCK_ID) return PICKUP_WORDING;
   if (!/^[0-9a-fA-F]{24}$/.test(id)) return DELIVERY_WORDING;
 
-  const truckUser = await User.findById(id, 'name username').lean();
+  const truckUser = await User.findById(id, 'name username').lean<{ name?: string; username?: string } | null>();
   return THIRD_PARTY_NAME.test(`${truckUser?.name || ''} ${truckUser?.username || ''}`)
     ? PICKUP_WORDING
     : DELIVERY_WORDING;
@@ -355,7 +355,7 @@ const DELIVERY_LIST_PROJECTION = {
 const RUN_FIELDS = 'id truckId date routeNumber deliveryType customerDropOff status';
 
 /** The run a ticket was or is saved in, judged by its truck and day alone. */
-const runOf = (d: Loose) => (d?.truckId && d?.date ? { truckId: d.truckId, date: d.date } : null);
+const runOf = (d: { truckId?: string | null; date?: string | null } | null | undefined) => (d?.truckId && d?.date ? { truckId: d.truckId, date: d.date } : null);
 
 /** What's on the board in a run: not cancelled, not a will call left pointing at the truck. */
 const ticketsInRun = async ({ truckId, date }: { truckId: string; date: string }) =>
@@ -544,15 +544,16 @@ export default function createDeliveriesRouter({
     }
   });
 
-  router.put('/delivery-columns/:location', authenticate, canViewDeliveries, requirePermission(DELIVERY_PERMISSIONS.ARRANGE_COLUMNS), async (req, res) => {
+  router.put('/delivery-columns/:location', authenticate, canViewDeliveries, requirePermission(DELIVERY_PERMISSIONS.ARRANGE_COLUMNS), validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      if (!userCanRequestLocation(req, (req.params as ScalarParams).location)) {
+      if (!userCanRequestLocation(req, requestParams.location)) {
         return res.status(403).json({ error: 'You can only arrange the columns for your own locations.' });
       }
       const columns = cleanColumnOrder(req.body?.columns);
       if (!columns) return res.status(400).json({ error: 'columns must be a list of column ids' });
       const location = await Location.findOneAndUpdate(
-        { name: (req.params as ScalarParams).location },
+        { name: requestParams.location },
         { $set: { deliveryColumns: columns } },
         { new: true, projection: { name: 1, deliveryColumns: 1 } }
       ).lean();
@@ -564,7 +565,8 @@ export default function createDeliveriesRouter({
     }
   });
 
-  router.get('/deliveries', authenticate, canViewDeliveries, async (req, res) => {
+  router.get('/deliveries', authenticate, canViewDeliveries, validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
       // The board only ever displays one week at a time — scope the query to that
       // range (via ?startDate=&endDate=, both 'YYYY-MM-DD') instead of pulling the
@@ -599,7 +601,7 @@ export default function createDeliveriesRouter({
       // admin, or someone with several assignedLocations) narrow the board to
       // just one at a time instead of every branch they can see mashed
       // together — see the location selector in src/features/delivery/DeliveryScheduleTab.tsx.
-      const { startDate, endDate, pending, cancelled, location: requestedLocation } = (req.query as ScalarQuery);
+      const { startDate, endDate, pending, cancelled, location: requestedLocation } = requestQuery;
       if (requestedLocation && !userCanRequestLocation(req, requestedLocation)) {
         return res.status(403).json({ error: 'You do not have access to that location' });
       }
@@ -716,13 +718,14 @@ export default function createDeliveriesRouter({
   // limited to the user's own assignedLocations — stricter than the board,
   // which also shows unowned tickets. The rules live in
   // src/utils/deliverySearch.ts, shared with the search box.
-  router.get('/deliveries/search', authenticate, canViewDeliveries, async (req, res) => {
+  router.get('/deliveries/search', authenticate, canViewDeliveries, validateScalarRequest, async (req, res) => {
+  const requestQuery = scalarQuery(req);
     try {
       // Drivers (Users & Roles → Delivery Schedule → Driver view) don't search.
       if (isDeliveryDriver(req.user)) {
         return res.status(403).json({ error: 'Order search is not available for drivers' });
       }
-      const filter = buildDeliverySearchFilter((req.query as ScalarQuery).q, req.user?.assignedLocations);
+      const filter = buildDeliverySearchFilter(requestQuery.q, req.user?.assignedLocations);
       if (!filter) return res.json({ results: [], total: 0, more: false });
 
       // One extra row tells us whether there are more than SEARCH_SCAN_LIMIT
@@ -743,9 +746,10 @@ export default function createDeliveriesRouter({
     }
   });
 
-  router.get('/deliveries/:id', authenticate, canViewDeliveries, async (req, res) => {
+  router.get('/deliveries/:id', authenticate, canViewDeliveries, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const { id } = (req.params as ScalarParams);
+      const { id } = requestParams;
       const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id }, req)).lean();
       if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
       res.json(delivery);
@@ -972,7 +976,7 @@ export default function createDeliveriesRouter({
         { id: delivery.id },
         { $set: updateData },
         { upsert: true, new: true }
-      ).lean();
+      ).lean().orFail();
       // The run it left (if it moved) and the one it's in now.
       const updated = withNumberFrom(saved, await renumberAfter(req, [runOf(existing), runOf(saved)], saved.id));
 
@@ -990,9 +994,10 @@ export default function createDeliveriesRouter({
   router.post('/deliveries', authenticate, canWriteDeliveries, saveDeliveryRoute);
   // Saves one delivery's ePOD and marks it completed, and writes nothing else —
   // the same narrowing a driver's save gets on POST, for the office too.
-  router.patch('/deliveries/:id/pod', authenticate, canWriteDeliveries, (req, res) => {
+  router.patch('/deliveries/:id/pod', authenticate, canWriteDeliveries, validateScalarRequest, (req, res) => {
+  const requestParams = scalarParams(req);
     req.podOnly = true;
-    req.body = { id: (req.params as ScalarParams).id, pod: req.body?.pod };
+    req.body = { id: requestParams.id, pod: req.body?.pod };
     return saveDeliveryRoute(req, res);
   });
 
@@ -1008,14 +1013,15 @@ export default function createDeliveriesRouter({
   const DELIVERY_STATUSES = ['pending', 'scheduled', 'completed', 'delayed', 'cancelled'];
 
   // Receiving branches may change only the expected delivery date and slab count.
-  router.patch('/deliveries/:id/receiving', authenticate, canManageDeliverySchedule, async (req, res) => {
+  router.patch('/deliveries/:id/receiving', authenticate, canManageDeliverySchedule, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
       const fields = req.body || {};
       const keys = Object.keys(fields);
       if (!keys.length || keys.some(key => !['expectedArrivalDate', 'numberOfSlabs'].includes(key))) {
         return res.status(400).json({ error: 'Only expected delivery date and slab count can be changed here.' });
       }
-      const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id: (req.params as ScalarParams).id, deliveryType: 'transfer' }, req)).lean();
+      const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id: requestParams.id, deliveryType: 'transfer' }, req)).lean();
       if (!delivery) return res.status(404).json({ error: 'Transfer not found' });
       const changes: Loose = {};
       if (fields.expectedArrivalDate !== undefined) {
@@ -1042,9 +1048,10 @@ export default function createDeliveriesRouter({
     }
   });
 
-  router.patch('/deliveries/:id/status', authenticate, canWriteDeliveries, async (req, res) => {
+  router.patch('/deliveries/:id/status', authenticate, canWriteDeliveries, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const { id } = (req.params as ScalarParams);
+      const { id } = requestParams;
       const { status } = req.body || {};
 
       if (!DELIVERY_STATUSES.includes(status)) {
@@ -1084,10 +1091,12 @@ export default function createDeliveriesRouter({
   //
   // Requires edit_delivery_schedule outright (not the broader
   // canWriteDeliveries) — a driver's app never calls this.
-  router.patch('/deliveries/:id/assignment', authenticate, canManageDeliverySchedule, async (req, res) => {
+  router.patch('/deliveries/:id/assignment', authenticate, canManageDeliverySchedule, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const { id } = (req.params as ScalarParams);
-      let { truckId, deliveryType, date, customerDropOff } = req.body || {};
+      const { id } = requestParams;
+      const { deliveryType, date } = req.body || {};
+      let { truckId, customerDropOff } = req.body || {};
       // Only meaningful on a driverless return (see isCounterReturn in
       // src/utils/deliveryTypes.ts) — coerced to a plain boolean here so an
       // omitted or falsy value from an older client never persists as anything
@@ -1248,14 +1257,14 @@ export default function createDeliveriesRouter({
       const cellKeyOf = (d: Loose) => `${columnIdFor(d)}||${d.date || ''}`;
       const cellRouteNumbers = new Map(); // "columnId||date" -> Set(routeNumber)
       for (const u of applicable) {
-        const rec = writableById.get(u.id);
+        const rec = writableById.get(u.id)!;
         const cellKey = cellKeyOf(rec);
         if (!cellRouteNumbers.has(cellKey)) cellRouteNumbers.set(cellKey, new Set());
         cellRouteNumbers.get(cellKey).add(u.routeNumber);
       }
       const applicableIds = new Set(applicable.map(u => u.id));
       const cellFilters = [...new Set(applicable.map(u => {
-        const rec = writableById.get(u.id);
+        const rec = writableById.get(u.id)!;
         return `${rec.truckId || ''}||${rec.date || ''}`;
       }))].map(key => {
         const [truckId, date] = key.split('||');
@@ -1313,9 +1322,10 @@ export default function createDeliveriesRouter({
   // `location`, the origin branch, which is the wrong side of this ticket for
   // this action. Only someone assigned to transferDestination (or an admin
   // with '*') may confirm receipt.
-  router.patch('/deliveries/:id/receive', authenticate, canManageDeliverySchedule, async (req, res) => {
+  router.patch('/deliveries/:id/receive', authenticate, canManageDeliverySchedule, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const { id } = (req.params as ScalarParams);
+      const { id } = requestParams;
       const delivery = await Delivery.findOne({ id, deliveryType: 'transfer' });
       if (!delivery) return res.status(404).json({ error: 'Transfer ticket not found' });
 
@@ -1330,7 +1340,7 @@ export default function createDeliveriesRouter({
       delivery.receivedBy = performedByName || '';
       await delivery.save();
 
-      const updated = await Delivery.findOne({ id }, DELIVERY_LIST_PROJECTION).lean();
+      const updated = await Delivery.findOne({ id }, DELIVERY_LIST_PROJECTION).lean().orFail();
 
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
 
@@ -1341,9 +1351,10 @@ export default function createDeliveriesRouter({
     }
   });
 
-  router.delete('/deliveries/:id', authenticate, canDeleteDeliveries, async (req, res) => {
+  router.delete('/deliveries/:id', authenticate, canDeleteDeliveries, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const { id } = (req.params as ScalarParams);
+      const { id } = requestParams;
       // Scoped the same way every other :id route here is (GET/status/
       // assignment) — anyone with delete rights could otherwise delete any
       // branch's delivery by guessing an id.
@@ -1361,9 +1372,10 @@ export default function createDeliveriesRouter({
     }
   });
 
-  router.delete('/deliveries/:id/pod', authenticate, canClearPod, async (req, res) => {
+  router.delete('/deliveries/:id/pod', authenticate, canClearPod, validateScalarRequest, async (req, res) => {
+  const requestParams = scalarParams(req);
     try {
-      const { id } = (req.params as ScalarParams);
+      const { id } = requestParams;
       const reason = String(req.body?.reason || '').trim();
       if (reason.length < 4) {
         return res.status(400).json({ error: 'A reason is required to clear an ePOD.' });
@@ -1374,7 +1386,7 @@ export default function createDeliveriesRouter({
 
       const { id: performedBy, name: performedByName } = await getPerformerInfo(req);
       const assetIds = podAssetIds(id);
-      const previous = delivery.pod || {};
+      const previous: Partial<NonNullable<typeof delivery.pod>> = delivery.pod || {};
 
       // Destroy by stored id where we have one, falling back to the derived id for
       // records written before publicIds were tracked.

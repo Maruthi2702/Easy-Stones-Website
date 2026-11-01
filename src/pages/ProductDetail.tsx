@@ -36,6 +36,11 @@ const ProductDetail = () => {
   const [loading, setLoading] = useState(!initialProduct);
   const [error, setError] = useState<string | null>(null);
 
+  const canViewPrices = user?.permissions?.includes('view_product_prices');
+  const hasProduct = Boolean(product);
+  const productPresent = React.useRef(hasProduct);
+  React.useLayoutEffect(() => { productPresent.current = hasProduct; }, [hasProduct]);
+
   useEffect(() => {
     const controller = new AbortController();
     setProduct(current => current ? publicProduct(current) : current);
@@ -61,7 +66,7 @@ const ProductDetail = () => {
           if (found) {
             setProduct(found);
             setError(null);
-          } else if (!product) {
+          } else if (!productPresent.current) {
             // Only set error if we don't have a product already (and couldn't find one)
             console.error(`Product not found for ID/Slug: ${productId}`);
             setError(`Product not found: ${productId}`);
@@ -78,7 +83,7 @@ const ProductDetail = () => {
 
     fetchProduct();
     return () => controller.abort();
-  }, [productId, initialProduct, authLoading, user?.id, user?.type, user?.role, user?.permissions?.includes('view_product_prices')]);
+  }, [productId, initialProduct, authLoading, user?.id, user?.type, user?.role, canViewPrices]);
 
   // Get category from location state or fallback to product category or default
   const backCategory = location.state?.fromCategory;

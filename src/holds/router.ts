@@ -173,7 +173,7 @@ async function lockSlabs(hold: Loose, lines: Loose[], by: Loose, session: mongoo
   }
 }
 
-const unlockSlabs = (holdId: unknown, slabKeys: string[], session: mongoose.ClientSession) => SlabReservation.deleteMany({ holdId, slabKey: { $in: slabKeys } }, { session });
+const unlockSlabs = (holdId: mongoose.Types.ObjectId, slabKeys: string[], session: mongoose.ClientSession) => SlabReservation.deleteMany({ holdId, slabKey: { $in: slabKeys } }, { session });
 
 /** Check new slabs before they go on a hold: in stock, whole slabs, not held elsewhere. */
 async function holdableLines(requested: Loose[], holdId: unknown = null) {
@@ -273,7 +273,8 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
       if (already.has(key)) { skipped.push({ slabKey: key, reason: 'Already in your cart' }); continue; }
       if (!item) { skipped.push({ slabKey: key, reason: 'Not in stock' }); continue; }
       if (!isHoldableSlab(item)) { skipped.push({ slabKey: key, reason: 'Only whole slabs can go in the cart' }); continue; }
-      if (locks.has(key)) { skipped.push({ slabKey: key, reason: lockedReason(locks.get(key)) }); continue; }
+      const lock = locks.get(key);
+      if (lock) { skipped.push({ slabKey: key, reason: lockedReason(lock) }); continue; }
       if (room <= 0) { skipped.push({ slabKey: key, reason: `The cart holds up to ${MAX_CART_SLABS} slabs` }); continue; }
       wanted.push({ key, line: { slabKey: key, product: item.product || '', note: '', addedAt: new Date() } });
       room -= 1;

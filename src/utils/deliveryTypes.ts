@@ -186,7 +186,8 @@ export const applyTransferPerspective = (delivery: Loose | null | undefined, vie
  * transfer the report forgot. `viewedAs` is which side of the transfer the
  * viewer is on, which changes how that note is worded.
  */
-export const showOnArrivalDay = (delivery: Loose, viewedAs: unknown) => ({
+type ArrivalDelivery = { date?: string | null; expectedArrivalDate?: string | null };
+export const showOnArrivalDay = <T extends ArrivalDelivery>(delivery: T, viewedAs: 'origin' | 'destination') => ({
   ...delivery,
   date: delivery.expectedArrivalDate,
   isIncomingView: true,

@@ -43,18 +43,34 @@ const FILTERS_URL = `${API_URL}/api/inventory-analysis/filters`;
 const BRANCHES_URL = `${API_URL}/api/admin/locations`;
 
 /** A fresh answer for `url`, remembered for next time. Throws on a failed request. */
-const fetchInventoryJson = async (url: string) => {
+const fetchInventoryJson = async <T,>(url: string): Promise<T> => {
   const res = await authFetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
+  const data: T = await res.json();
   rememberInventory(url, data);
   return data;
 };
 
-// Stock/sales responses predate the typed in-transit API. Keep their payload
-// boundary explicit while shared cache entries remain unknown.
-type InventoryRecord = Record<string, any>;
-const peekInventory = (url: string): any => peekInventoryCache(url);
+type AgingBucket = { _id: number | string; count: number; assetValue?: number };
+type InventorySummary = {
+  totalItems: number; totalAssetValue?: number; distinctProductCount: number; totalAvailableQty: number;
+  lastImportedAt?: string; lastImportedByName?: string; agingBuckets: AgingBucket[];
+};
+type InventoryFilters = { categories: string[]; locations: string[]; statuses: string[] };
+type InventoryBranch = { name: string; locationName?: string } | string;
+type InventoryGroup = {
+  product: string; category: string; units: string; locations: string[]; oldestReceivedDate: string | null;
+  statusCounts: Record<string, number>; slabCount: number; totalOnHand: number; totalAvailable: number; totalAssetValue?: number;
+};
+type InventorySlab = Record<string, unknown>;
+type InventoryItems = { items: InventorySlab[]; total: number };
+type SlabState = Partial<InventoryItems> & { loading: boolean; error: boolean };
+type VelocityRow = {
+  product: string; location: string; units: string; availableQuantity: number;
+  quantitySoldInPeriod: number | null; velocityPerDay: number | null; daysOfSupply: number | null;
+};
+// The cache preserves responses from these endpoints; callers declare the endpoint's contract.
+const peekInventory = <T,>(url: string): T | undefined => peekInventoryCache(url) as T | undefined;
 interface InventoryAnalysisTabProps {
   currentUser?: { id?: string; _id?: string; permissions?: string[] } | null;
   sidebarToggle?: React.ReactNode;
@@ -63,27 +79,27 @@ interface InventoryAnalysisTabProps {
 
 const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refreshSignal = 0 }: InventoryAnalysisTabProps) => {
   const [view, setView] = useState<'stock' | 'reorder' | 'transit' | 'purchasing'>('stock');
-  const [summary, setSummary] = useState<InventoryRecord | null>(null);
+  const [summary, setSummary] = useState<InventorySummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(true);
   // Tracked separately from `summary` (which reflects the active filters) so
   // that filtering down to zero matches shows "no matching items," not the
   // first-time "nothing has ever been imported" empty state.
   const [hasAnyInventory, setHasAnyInventory] = useState(() => {
-    const remembered = peekInventory(PRESENCE_URL);
+    const remembered = peekInventory<InventorySummary>(PRESENCE_URL);
     return remembered === undefined ? null : (remembered.totalItems || 0) > 0;
   });
 
   // Stock Detail, grouped by product — one row per product with rolled-up
   // totals; slabsByProduct lazily holds each expanded product's individual
   // slabs, fetched only once a group is opened.
-  const [groups, setGroups] = useState<InventoryRecord[]>([]);
+  const [groups, setGroups] = useState<InventoryGroup[]>([]);
   const [groupsTotal, setGroupsTotal] = useState(0);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [expandedProducts, setExpandedProducts] = useState(() => new Set<string>());
-  const [slabsByProduct, setSlabsByProduct] = useState<Record<string, InventoryRecord>>({});
+  const [slabsByProduct, setSlabsByProduct] = useState<Record<string, SlabState>>({});
   const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
 
-  const [filterOptions, setFilterOptions] = useState(() => peekInventory(FILTERS_URL) || { categories: [], locations: [], statuses: [] });
+  const [filterOptions, setFilterOptions] = useState(() => peekInventory<InventoryFilters>(FILTERS_URL) || { categories: [], locations: [], statuses: [] });
   const [search, setSearch] = useState('');
   // Fetches key off this, not `search` — typing stays instant in the box
   // while the network request waits for a pause, instead of firing (and
@@ -97,11 +113,11 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // on every Easy Stones location that does — never on everything by accident
   // (src/utils/inventoryLocations.js). [] = every location.
   // `branches` is Users & Roles → Locations: what tells ours from consignment.
-  const [branches, setBranches] = useState(() => peekInventory(BRANCHES_URL) || []);
+  const [branches, setBranches] = useState(() => peekInventory<InventoryBranch[]>(BRANCHES_URL) || []);
   // No stock is fetched until the locations and branches have both arrived,
   // so the first load is already the right selection — not "everything"
   // first, replaced a moment later.
-  const [filtersReady, setFiltersReady] = useState(() => peekInventory(FILTERS_URL) !== undefined && peekInventory(BRANCHES_URL) !== undefined);
+  const [filtersReady, setFiltersReady] = useState(() => peekInventory<InventoryFilters>(FILTERS_URL) !== undefined && peekInventory<InventoryBranch[]>(BRANCHES_URL) !== undefined);
   const locationGroups = useMemo(
     () => splitInventoryLocations(filterOptions.locations, branches),
     [filterOptions.locations, branches]
@@ -114,7 +130,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   const locationParam = locationFilter.join(',');
   const [statusFilter, setStatusFilter] = useState('All');
 
-  const [velocityRows, setVelocityRows] = useState<InventoryRecord[]>([]);
+  const [velocityRows, setVelocityRows] = useState<VelocityRow[]>([]);
   const [loadingVelocity, setLoadingVelocity] = useState(false);
 
   const [transitRefresh, setTransitRefresh] = useState(0);
@@ -163,7 +179,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   const fetchSummary = useCallback(async () => {
     const reqId = ++summaryReqRef.current;
     const url = `${API_URL}/api/inventory-analysis/summary?${buildFilterParams().toString()}`;
-    const remembered = peekInventory(url);
+    const remembered = peekInventory<InventorySummary>(url);
     if (remembered !== undefined) {
       setSummary(remembered);
       setLoadingSummary(false);
@@ -171,7 +187,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     }
     try {
       setLoadingSummary(true);
-      const data = await fetchInventoryJson(url);
+      const data = await fetchInventoryJson<InventorySummary>(url);
       if (reqId === summaryReqRef.current) setSummary(data);
     } catch (err) {
       console.error('Failed to fetch inventory summary:', err);
@@ -184,7 +200,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // happened at all — see hasAnyInventory's declaration above.
   const checkHasAnyInventory = useCallback(async () => {
     try {
-      const data = peekInventory(PRESENCE_URL) ?? await fetchInventoryJson(PRESENCE_URL);
+      const data = peekInventory<InventorySummary>(PRESENCE_URL) ?? await fetchInventoryJson<InventorySummary>(PRESENCE_URL);
       setHasAnyInventory((data.totalItems || 0) > 0);
     } catch (err) {
       console.error('Failed to check inventory presence:', err);
@@ -192,8 +208,8 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   }, []);
 
   const fetchFilterOptions = useCallback(async () => {
-    const rememberedFilters = peekInventory(FILTERS_URL);
-    const rememberedBranches = peekInventory(BRANCHES_URL);
+    const rememberedFilters = peekInventory<InventoryFilters>(FILTERS_URL);
+    const rememberedBranches = peekInventory<InventoryBranch[]>(BRANCHES_URL);
     if (rememberedFilters !== undefined && rememberedBranches !== undefined) {
       setFilterOptions(rememberedFilters);
       setBranches(Array.isArray(rememberedBranches) ? rememberedBranches : []);
@@ -201,8 +217,8 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
       return;
     }
     const [filtersRes, branchesRes] = await Promise.allSettled([
-      rememberedFilters ?? fetchInventoryJson(FILTERS_URL),
-      rememberedBranches ?? fetchInventoryJson(BRANCHES_URL)
+      rememberedFilters ?? fetchInventoryJson<InventoryFilters>(FILTERS_URL),
+      rememberedBranches ?? fetchInventoryJson<InventoryBranch[]>(BRANCHES_URL)
     ]);
     if (filtersRes.status === 'fulfilled') setFilterOptions(filtersRes.value);
     else console.error('Failed to fetch inventory filters:', filtersRes.reason);
@@ -219,7 +235,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     params.set('page', String(currentPage));
     params.set('limit', String(rowsPerPage));
     const url = `${API_URL}/api/inventory-analysis/items/grouped?${params.toString()}`;
-    const remembered = peekInventory(url);
+    const remembered = peekInventory<{ groups: InventoryGroup[]; total: number }>(url);
     if (remembered !== undefined) {
       setGroups(remembered.groups || []);
       setGroupsTotal(remembered.total || 0);
@@ -228,7 +244,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     }
     try {
       setLoadingGroups(true);
-      const data = await fetchInventoryJson(url);
+      const data = await fetchInventoryJson<{ groups: InventoryGroup[]; total: number }>(url);
       if (reqId !== groupsReqRef.current) return;
       setGroups(data.groups || []);
       setGroupsTotal(data.total || 0);
@@ -249,7 +265,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
       params.set('product', product);
       params.set('limit', '200');
       const url = `${API_URL}/api/inventory-analysis/items?${params.toString()}`;
-      const data = peekInventory(url) ?? await fetchInventoryJson(url);
+      const data = peekInventory<InventoryItems>(url) ?? await fetchInventoryJson<InventoryItems>(url);
       setSlabsByProduct(prev => ({ ...prev, [product]: { items: data.items || [], total: data.total || 0, loading: false, error: false } }));
     } catch (err) {
       console.error('Failed to fetch slabs for product:', err);
@@ -262,7 +278,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     const params = new URLSearchParams();
     if (locationParam) params.set('location', locationParam);
     const url = `${API_URL}/api/inventory-analysis/velocity?${params.toString()}`;
-    const remembered = peekInventory(url);
+    const remembered = peekInventory<{ rows: VelocityRow[] }>(url);
     if (remembered !== undefined) {
       setVelocityRows(remembered.rows || []);
       setLoadingVelocity(false);
@@ -270,7 +286,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
     }
     try {
       setLoadingVelocity(true);
-      const data = await fetchInventoryJson(url);
+      const data = await fetchInventoryJson<{ rows: VelocityRow[] }>(url);
       if (reqId === velocityReqRef.current) setVelocityRows(data.rows || []);
     } catch (err) {
       console.error('Failed to fetch inventory velocity:', err);
@@ -365,9 +381,9 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
   // rendered as one of AGING_BOUNDARIES' rows below, so it must also be
   // excluded here or its count would inflate the bar chart's scale and make
   // every rendered bar look shorter than its true share.
-  const numericAgingBuckets = (summary?.agingBuckets || []).filter((b: InventoryRecord) => typeof b._id === 'number');
+  const numericAgingBuckets = (summary?.agingBuckets || []).filter((b: AgingBucket) => typeof b._id === 'number');
   const maxAgingCount = numericAgingBuckets.length
-    ? Math.max(...numericAgingBuckets.map((b: InventoryRecord) => b.count))
+    ? Math.max(...numericAgingBuckets.map((b: AgingBucket) => b.count))
     : 0;
 
   return (
@@ -460,7 +476,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
               <h4><Clock size={15} /> Inventory Age (by Received Date)</h4>
               <div className="invan-aging-bars">
                 {AGING_BOUNDARIES.map(boundary => {
-                  const bucket = summary?.agingBuckets.find((b: InventoryRecord) => b._id === boundary.min);
+                  const bucket = summary?.agingBuckets.find((b: AgingBucket) => b._id === boundary.min);
                   const count = bucket?.count || 0;
                   const assetValue = bucket?.assetValue || 0;
                   const pct = maxAgingCount ? (count / maxAgingCount) * 100 : 0;
@@ -608,7 +624,7 @@ const InventoryAnalysisTab = ({ currentUser = null, sidebarToggle = null, refres
                               ) : slabState?.items?.length ? (
                                 <InventorySlabList
                                   items={slabState.items}
-                                  total={slabState.total}
+                                  total={slabState.total || 0}
                                   canViewPrices={canViewPrices}
                                   canUseCart={canUseCart}
                                 />

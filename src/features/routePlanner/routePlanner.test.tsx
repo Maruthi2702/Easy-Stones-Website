@@ -115,8 +115,18 @@ describe('Route Planner', () => {
     fireEvent.click(screen.getByLabelText('Filter customers'));
     expect(screen.getByText('Filter by')).toBeTruthy();
     expect(screen.getByText('Sales reps')).toBeTruthy();
-    expect(screen.getByText('Unassigned')).toBeTruthy();
     expect(screen.getByText('Days since last visit')).toBeTruthy();
+    // Reps are a dropdown (RepFilterPicker): its list holds Unassigned, then
+    // the reps under their branch with a count, and stays open while ticking.
+    const reps = screen.getByRole('button', { name: 'Sales reps' });
+    expect(reps.textContent).toBe('All reps');
+    expect(screen.queryByText('Unassigned')).toBeNull();
+    fireEvent.click(reps);
+    const unassigned = screen.getByRole('checkbox', { name: /Unassigned/ });
+    expect(unassigned.getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(unassigned);
+    expect(screen.getByRole('checkbox', { name: /Unassigned/ }).getAttribute('aria-checked')).toBe('false');
+    expect(reps.textContent).toMatch(/^\d+ of \d+ reps$/);
   });
 
   it('Tools: a radius draw selects and numbers the stops; Schedule shows the day', async () => {

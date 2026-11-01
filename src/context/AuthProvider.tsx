@@ -1,33 +1,12 @@
-import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useRef, useCallback, useLayoutEffect, type ReactNode } from 'react';
 import { API_URL } from '../config/api';
 import { resetSessionExpiredGuard } from '../api/authFetch';
 import { getAuthToken, setAuthToken, clearAuthToken } from '../api/authToken';
 import { clearScheduleCache } from '../api/deliverySchedule';
 import { clearCustomers } from '../api/customerOptions';
 import { clearAllCache } from '../utils/dataCache';
-import type { CurrentUser } from '../types/records';
-
-/** The signed-in person: staff ('internal') or a website customer. */
-export type AuthUser = CurrentUser & {
-    type: 'internal' | 'customer';
-    contactName?: string;
-};
-
-/** A browser mid first password (a setup session — src/services/staffSession.ts). */
-export type PasswordSetup = { username: string; name?: string };
-
-export type AuthContextValue = {
-    user: AuthUser | null;
-    loading: boolean;
-    passwordSetup: PasswordSetup | null;
-    authError: string | null;
-    retryAuth: () => void;
-    startPasswordSetup: () => Promise<PasswordSetup | null>;
-    login: (userData: AuthUser) => void;
-    completeLogin: (fallbackUser: AuthUser) => Promise<AuthUser>;
-    logout: () => Promise<void>;
-    checkAuth: (opts?: { silent?: boolean }) => Promise<AuthUser | null>;
-};
+import AuthContext from './AuthContext';
+import type { AuthUser, AuthContextValue, PasswordSetup } from './AuthContext';
 
 // What the screens remember between visits (the delivery board's weeks and
 // drivers, the check-in log and customer pages, the customer dropdown) belongs
@@ -37,16 +16,6 @@ const forgetSessionData = () => {
     for (const clear of [clearScheduleCache, clearCustomers, clearAllCache]) {
         try { clear(); } catch (error) { console.error('Clearing session data:', error); }
     }
-};
-
-const AuthContext = createContext<AuthContextValue | null>(null);
-
-export const useAuth = (): AuthContextValue => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth must be used within AuthProvider');
-    }
-    return context;
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -61,8 +30,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // ProtectedRoute shows ChoosePasswordPage instead of its page meanwhile.
     const [passwordSetup, setPasswordSetup] = useState<PasswordSetup | null>(null);
 
+    const logout = useCallback(async (): Promise<void> => {
+        authRequest.current++; setAuthFailure(null);
+        try {
+            await Promise.all([
+                fetch(`${API_URL}/api/customer/logout`, { method: 'POST', credentials: 'include' }),
+                fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' })
+            ]);
+        } catch (error) {
+            console.error('Logout error:', error);
+        } finally {
+            clearAuthToken();
+            forgetSessionData();
+            localStorage.setItem('auth_logout_event', Date.now().toString());
+            setPasswordSetup(null);
+            setUser(null);
+        }
+    }, []);
+
+
     // Who the setup session is for — null when there isn't one (or it ran out).
-    const readPasswordSetup = async (): Promise<PasswordSetup | null> => {
+    const readPasswordSetup = useCallback(async (): Promise<PasswordSetup | null> => {
         try {
             const res = await fetch(`${API_URL}/api/auth/setup`, { credentials: 'include' });
             const data = res.ok ? await res.json() : null;
@@ -70,12 +58,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } catch {
             return null;
         }
-    };
-
-    // Check if user is logged in on mount
-    useEffect(() => {
-        checkAuth();
     }, []);
+
 
     /**
      * Re-read the session and full profile. Resolves to the user it set, or
@@ -88,7 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
      * user. Only the very first check, when nobody knows who's signed in yet,
      * needs to hold the page back.
      */
-    const checkAuth = async ({ silent = false }: { silent?: boolean } = {}): Promise<AuthUser | null> => {
+    const checkAuth = useCallback(async ({ silent = false }: { silent?: boolean } = {}): Promise<AuthUser | null> => {
         const requestId = ++authRequest.current;
         let retryAfter = 0;
         if (!silent) setLoading(true);
@@ -195,9 +179,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (requestId === authRequest.current) setLoading(false);
         }
         return null;
-    };
+    }, [readPasswordSetup]);
 
-    checkAgain.current = () => { void checkAuth({ silent: Boolean(user) }); };
+    useEffect(() => { void checkAuth(); }, [checkAuth]);
+
+    useLayoutEffect(() => {
+        checkAgain.current = () => { void checkAuth({ silent: Boolean(user) }); };
+    }, [checkAuth, user]);
     useEffect(() => {
         if (!authFailure || authFailure.attempt > 3) return;
         const timer = setTimeout(() => checkAgain.current(), authFailure.delay);
@@ -236,7 +224,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 window.removeEventListener(event, resetTimer);
             });
         };
-    }, [user]);
+    }, [user, logout]);
 
     // Cross-tab session synchronization
     useEffect(() => {
@@ -266,7 +254,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             window.removeEventListener('storage', handleStorageChange);
         };
-    }, []);
+    }, [checkAuth]);
 
     // Any authFetch call, anywhere, can discover the session died — this is
     // what turns that discovery into the same sign-out ProtectedRoute already
@@ -279,7 +267,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return () => {
             window.removeEventListener('auth:session-expired', handleSessionExpired);
         };
-    }, []);
+    }, [logout]);
 
     const login = (userData: AuthUser): void => {
         authRequest.current++; setAuthFailure(null);
@@ -311,23 +299,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return fullUser;
     };
 
-    const logout = async (): Promise<void> => {
-        authRequest.current++; setAuthFailure(null);
-        try {
-            await Promise.all([
-                fetch(`${API_URL}/api/customer/logout`, { method: 'POST', credentials: 'include' }),
-                fetch(`${API_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' })
-            ]);
-        } catch (error) {
-            console.error('Logout error:', error);
-        } finally {
-            clearAuthToken();
-            forgetSessionData();
-            localStorage.setItem('auth_logout_event', Date.now().toString());
-            setPasswordSetup(null);
-            setUser(null);
-        }
-    };
 
     /**
      * Signed in with a temporary password (the login answered `setup`): drop

@@ -1,10 +1,9 @@
-import type { ClientSession } from 'mongoose';
+import type { ClientSession, Types } from 'mongoose';
 import Customer from '../models/Customer.ts';
 import Schedule from '../models/Schedule.ts';
 import { placementVisit, PlacementConflict } from './resourcePlacement.ts';
 import { loadFamilies, resourcesOf, recountModa, recountForFamilyChange } from './modaCount.ts';
 import ResourceType from '../models/ResourceType.ts';
-import type { Loose } from '../types/records.ts';
 
 /**
  * What a Visit Types / Resource Types delete counts and, with "Move them to…",
@@ -43,7 +42,7 @@ export const countResourceTypeUses = countIn('resources', 'resourceType');
 /** Every visit of type `from` becomes `to`. Returns how many moved. */
 export async function replaceVisitType(from: string, to: string, session: ClientSession): Promise<number> {
   const customers = await Customer.find({ 'visits.purpose': from }).select('visits._id visits.purpose').session(session).lean();
-  const visitIds = customers.flatMap((c: Loose) => (c.visits || []).filter((v: Loose) => v.purpose === from).map((v: Loose) => v._id));
+  const visitIds = customers.flatMap((c) => (c.visits || []).filter((v) => v.purpose === from).map((v) => v._id));
   if (!visitIds.length) return 0;
   await Customer.updateMany(
     { 'visits.purpose': from },
@@ -67,14 +66,14 @@ export async function replaceResourceType(from: string, to: string, session: Cli
   let moved = 0;
   for (const customer of customers) {
     const before = resourcesOf(customer);
-    const resources = Array.from(customer.resources as Loose[]).filter(r => r.resourceType === from);
+    const resources = Array.from(customer.resources).filter(r => r.resourceType === from);
     // Match every placement visit before anything changes: a later title change
     // would hide an earlier resource's visit from the legacy match.
     const pairs = resources.map(resource => ({ resource, visit: placementVisit(customer, resource) }));
     const claimed = pairs.map(p => p.visit && String(p.visit._id)).filter(Boolean);
     if (new Set(claimed).size !== claimed.length) throw new PlacementConflict();
 
-    const calendar: { visitId: unknown; before: string; after: string }[] = [];
+    const calendar: { visitId: Types.ObjectId; before: string; after: string }[] = [];
     for (const { resource, visit } of pairs) {
       const oldTitle = resource.title;
       resource.resourceType = to;
@@ -110,7 +109,7 @@ export const countFamilyUses = async (name: string): Promise<number> => Resource
  */
 export async function replaceFamily(from: string, to: string, session: ClientSession): Promise<number> {
   const types = await ResourceType.find({ family: from }).select('name').session(session).lean();
-  for (const type of types as Loose[]) {
+  for (const type of types) {
     await recountForFamilyChange(type.name, from, to, session);
     await ResourceType.updateOne({ _id: type._id }, { $set: { family: to } }, { session });
   }

@@ -84,7 +84,7 @@ describe('any source, pulled the same way', () => {
     const first = await sync.run();
     expect(first.king_county).toMatchObject({ ok: true, kind: 'backfill', seen: 4, leads: 3, added: 3, detailErrors: 0 });
     expect(detailCalls.sort()).toEqual(['ADDC25-0739', 'SFR26-0001', 'SFR26-0009']);
-    const p = await Permit.findOne({ permitNumber: 'SFR26-0009' }).lean();
+    const p = await Permit.findOne({ permitNumber: 'SFR26-0009' }).lean().orFail();
     expect(p).toMatchObject({ source: 'king_county', category: 'new_home', city: 'North Bend', zip: '98045', parcel: '1593001020' });
     expect(p.contacts[0]).toMatchObject({ kind: 'contractor', company: 'ABC Homes', license: 'ABCHOHL123AB' });
 
@@ -93,7 +93,7 @@ describe('any source, pulled the same way', () => {
     const next = await sync.run();
     expect(next.king_county).toMatchObject({ ok: true, kind: 'daily', since: '2026-09-12', leads: 3, added: 0 });
     expect(detailCalls).toEqual([]);
-    expect((await Permit.findOne({ permitNumber: 'SFR26-0009' }).lean()).contacts[0].license).toBe('ABCHOHL123AB');
+    expect((await Permit.findOne({ permitNumber: 'SFR26-0009' }).lean().orFail()).contacts[0].license).toBe('ABCHOHL123AB');
 
     // Eight days on, the window (from Sep 20) holds two leads whose details are over a week old.
     clock = new Date('2026-10-20T12:30:00Z');
@@ -118,33 +118,33 @@ describe('a category that needs the details', () => {
     };
     const sync = createPermitSync({ readers: { bellevue: bellevueReader }, log: quiet, now: () => clock });
     await sync.run();
-    expect((await Permit.findOne({ permitNumber: '25 120925 BB' }).lean()).category).toBe('multifamily');
+    expect((await Permit.findOne({ permitNumber: '25 120925 BB' }).lean().orFail()).category).toBe('multifamily');
     // The next morning its details are fresh, so they aren't read again — the category must hold.
     withRecord = false;
     clock = new Date('2026-10-12T12:30:00Z');
     await sync.run();
-    expect((await Permit.findOne({ permitNumber: '25 120925 BB' }).lean()).category).toBe('multifamily');
+    expect((await Permit.findOne({ permitNumber: '25 120925 BB' }).lean().orFail()).category).toBe('multifamily');
   });
 });
 
 describe('King County’s monthly spreadsheet', () => {
   it('matches a month permit by permit, fills in value and city, and ignores non-leads', async () => {
     await makeSync().run();
-    const check = await PermitCheck.findOne({ source: 'king_county', month: '2026-09' }).lean();
+    const check = await PermitCheck.findOne({ source: 'king_county', month: '2026-09' }).lean().orFail();
     expect(check).toMatchObject({ method: 'report', ok: true, inReport: 3, matched: 2, missingFromApp: [], notInReport: [], filled: 2 });
-    expect(await Permit.findOne({ permitNumber: 'ADDC25-0739' }).lean()).toMatchObject({ valuation: 344212.8, city: 'North Bend' });
-    expect(await Permit.findOne({ permitNumber: 'SFR26-0001' }).lean()).toMatchObject({ valuation: 650000, units: 1 });
+    expect(await Permit.findOne({ permitNumber: 'ADDC25-0739' }).lean().orFail()).toMatchObject({ valuation: 344212.8, city: 'North Bend' });
+    expect(await Permit.findOne({ permitNumber: 'SFR26-0001' }).lean().orFail()).toMatchObject({ valuation: 650000, units: 1 });
   });
 
   it('lists a lead the report has that the pull didn’t', async () => {
     report.rows.push({ number: 'ADU26-0005', type: 'Building/Residential Building/Dwelling-ADU/NA', project: '', issuedOn: '2026-09-25', valuation: 90000, parcel: '', city: '', zip: '', units: 1 });
     await makeSync().run();
-    expect(await PermitCheck.findOne({ source: 'king_county', month: '2026-09' }).lean()).toMatchObject({ ok: false, missingFromApp: ['ADU26-0005'], addedFromReport: ['ADU26-0005'] });
+    expect(await PermitCheck.findOne({ source: 'king_county', month: '2026-09' }).lean().orFail()).toMatchObject({ ok: false, missingFromApp: ['ADU26-0005'], addedFromReport: ['ADU26-0005'] });
     // …and saves it from the report, so it's on the list; the next morning's check comes out clean.
-    expect(await Permit.findOne({ permitNumber: 'ADU26-0005' }).lean()).toMatchObject({ source: 'king_county', category: 'adu', valuation: 90000, issuedOn: '2026-09-25' });
+    expect(await Permit.findOne({ permitNumber: 'ADU26-0005' }).lean().orFail()).toMatchObject({ source: 'king_county', category: 'adu', valuation: 90000, issuedOn: '2026-09-25' });
     clock = new Date('2026-10-12T12:30:00Z');
     await makeSync().run();
-    expect(await PermitCheck.findOne({ source: 'king_county', month: '2026-09' }).lean()).toMatchObject({ ok: true, missingFromApp: [] });
+    expect(await PermitCheck.findOne({ source: 'king_county', month: '2026-09' }).lean().orFail()).toMatchObject({ ok: true, missingFromApp: [] });
   });
 
   it('never runs without the county’s reader', async () => {
@@ -186,7 +186,7 @@ describe('the WA contractor registry', () => {
     const sync = makeSync({ contractors: createContractorRegistry({ fetchImpl: reg.fetchImpl, sleep: async () => {}, now: () => clock, log: quiet }) });
     const out = await sync.run();
     expect(out.contractors).toEqual({ licensesRead: 1, namesLookedUp: 1, namesMatched: 1 });
-    expect(await Contractor.findOne({ license: 'ABCHOHL123AB' }).lean()).toMatchObject({ businessName: 'ABC HOMES LLC', phone: '4255550100', status: 'ACTIVE' });
+    expect(await Contractor.findOne({ license: 'ABCHOHL123AB' }).lean().orFail()).toMatchObject({ businessName: 'ABC HOMES LLC', phone: '4255550100', status: 'ACTIVE' });
 
     // Read again the next morning: nothing new to ask the registry.
     clock = new Date('2026-10-12T12:30:00Z');
@@ -206,7 +206,7 @@ describe('the WA contractor registry', () => {
   it('records a license the registry doesn’t have, and never shows it', async () => {
     const sync = makeSync({ contractors: createContractorRegistry({ fetchImpl: lni([]).fetchImpl, sleep: async () => {}, now: () => clock, log: quiet }) });
     await sync.run();
-    expect(await Contractor.findOne({ license: 'ABCHOHL123AB' }).lean()).toMatchObject({ notFound: true });
+    expect(await Contractor.findOne({ license: 'ABCHOHL123AB' }).lean().orFail()).toMatchObject({ notFound: true });
   });
 
   it('never fails the pull when the registry is down', async () => {
@@ -292,7 +292,7 @@ describe('a contractor’s pop-up and their permits', () => {
     // Three King County permits by license, and Burien's by the matched name.
     expect(r.body.permits.total).toBe(4);
     expect(r.body.permits.recent[0]).toMatchObject({ permitNumber: 'BLD26-2486', source: 'burien' });
-    expect(await Contractor.findOne({ license: 'ABCHOHL123AB' }).lean()).toMatchObject({ businessName: 'ABC HOMES LLC' });
+    expect(await Contractor.findOne({ license: 'ABCHOHL123AB' }).lean().orFail()).toMatchObject({ businessName: 'ABC HOMES LLC' });
   });
 
   it('narrows the list to one contractor’s permits', async () => {
@@ -313,7 +313,7 @@ describe('a contractor’s pop-up and their permits', () => {
     expect(after.total).toBe(before.total - 1);
     expect(after.byCategory.reduce((n: number, row: Loose) => n + row.count, 0)).toBe(after.total);
     expect(after.recent.some((row: Loose) => row._id === withdrawn._id)).toBe(false);
-    expect(await Permit.findById(withdrawn._id)).not.toBeNull();
+    expect(await Permit.findById(withdrawn._id).orFail()).not.toBeNull();
   });
 
   it('says when the state has no such license, and finds an existing customer', async () => {

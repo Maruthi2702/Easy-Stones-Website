@@ -1,9 +1,7 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-const visitSchema = new mongoose.Schema<Loose>({
+const visitDefinition = {
   resourceId: { type: mongoose.Schema.Types.ObjectId, default: null },
   date: { type: String, required: true },
   purpose: String,
@@ -38,9 +36,10 @@ const visitSchema = new mongoose.Schema<Loose>({
   updatedBy: String,  // User ID or Customer ID who last updated this visit
   updatedByName: String,  // Display name of the person who last updated this visit
   updatedAt: String
-});
+} as const;
+const visitSchema = new mongoose.Schema(visitDefinition);
 
-const customerSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+const customerDefinition = {
   contactName: {
     type: String,
     required: true
@@ -169,7 +168,7 @@ const customerSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectI
   priceLevel: { type: Number, default: 1, min: 1, max: 4 },
   loginAttempts: { type: Number, default: 0 },
   lockUntil: { type: Date },
-  loginIps: { type: [String], default: [] },
+  loginIps: { type: [String], default: [] as string[] },
   contacts: [{
     name: { type: String, trim: true },
     phone: String,
@@ -227,7 +226,38 @@ const customerSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectI
     // The SPS import run that added this customer (src/models/SpsImportRun.ts).
     runId: { type: String }
   }
-}, {
+} as const;
+
+type CustomerFields = mongoose.InferRawDocType<typeof customerDefinition>;
+export type CustomerVisit = Omit<mongoose.InferRawDocType<typeof visitDefinition>, 'image'> & {
+  _id: mongoose.Types.ObjectId;
+  image?: unknown;
+};
+export type CustomerResource = Omit<NonNullable<CustomerFields['resources']>[number], 'image'> & {
+  _id: mongoose.Types.ObjectId;
+  image?: unknown;
+};
+export type CustomerData = Omit<CustomerFields, 'visits' | 'resources' | 'customerType'> & {
+  // Older imports stored an empty type before the enum and default existed.
+  customerType: CustomerFields['customerType'] | '' | null;
+  visits: CustomerVisit[];
+  resources: CustomerResource[];
+  createdAt: Date;
+  updatedAt: Date;
+};
+export interface CustomerMethods {
+  comparePassword(candidatePassword: string): Promise<boolean>;
+  isLocked(): boolean;
+  incLoginAttempts(): PromiseLike<mongoose.UpdateWriteOpResult>;
+  resetLoginAttempts(): PromiseLike<mongoose.UpdateWriteOpResult>;
+}
+export type CustomerDocument = mongoose.HydratedDocument<CustomerData, CustomerMethods & {
+  visits: mongoose.Types.DocumentArray<CustomerVisit>;
+  resources: mongoose.Types.DocumentArray<CustomerResource>;
+}>;
+type CustomerModel = mongoose.Model<CustomerData, object, CustomerMethods, object, CustomerDocument>;
+
+const customerSchema = new mongoose.Schema<CustomerData, CustomerModel, CustomerMethods>(customerDefinition, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true },
@@ -272,13 +302,13 @@ customerSchema.methods.comparePassword = async function (candidatePassword: stri
 
 // Check if account is locked
 customerSchema.methods.isLocked = function () {
-  return !!(this.lockUntil && this.lockUntil > Date.now());
+  return !!(this.lockUntil && this.lockUntil.getTime() > Date.now());
 };
 
 // Increment login attempts
 customerSchema.methods.incLoginAttempts = async function () {
   // If lock has expired, reset attempts
-  if (this.lockUntil && this.lockUntil < Date.now()) {
+  if (this.lockUntil && this.lockUntil.getTime() < Date.now()) {
     return await this.updateOne({
       $set: { loginAttempts: 1 },
       $unset: { lockUntil: 1 }
@@ -305,4 +335,4 @@ customerSchema.methods.resetLoginAttempts = async function () {
   });
 };
 
-export default mongoose.model('Customer', customerSchema);
+export default mongoose.model<CustomerData, CustomerModel>('Customer', customerSchema);

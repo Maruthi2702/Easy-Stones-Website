@@ -13,8 +13,7 @@ import { matchesOption } from '../utils/customerOptions';
 const SearchableSelect = ({ options, value, onChange, placeholder, className, style, onCreateNew, createNewLabel, isLoading }: { options: (Loose & { value: string; label: string })[]; value: string; onChange: (value: string) => void; placeholder?: string; className?: string; style?: React.CSSProperties; onCreateNew?: (text?: string) => void; createNewLabel?: string; isLoading?: boolean }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [hasOpenedOnce, setHasOpenedOnce] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement | null>(null);
+        const dropdownRef = useRef<HTMLDivElement | null>(null);
     const inputRef = useRef<HTMLInputElement | null>(null);
 
     // Close dropdown when clicking/touching outside (iPad fix: include touchstart)
@@ -22,6 +21,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
         const handleOutside = (event: MouseEvent | TouchEvent) => {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                 setIsOpen(false);
+                setSearchTerm('');
             }
         };
 
@@ -36,19 +36,17 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
     // Focus input when opening
     useEffect(() => {
         if (isOpen && inputRef.current) {
-            setTimeout(() => inputRef.current?.focus(), 50);
-            if (!hasOpenedOnce) setHasOpenedOnce(true);
-        } else {
-            setSearchTerm('');
+            const timer = setTimeout(() => inputRef.current?.focus(), 50);
+            return () => clearTimeout(timer);
         }
-    }, [isOpen, hasOpenedOnce]);
+    }, [isOpen]);
 
     const filteredOptions = React.useMemo(() => {
-        if (!hasOpenedOnce) return [];
+        if (!isOpen) return [];
         // Same search as the form template's picker (customerOptions.js): the
         // name, plus the city and contact a customer option carries.
         return options.filter(option => matchesOption(option, searchTerm));
-    }, [options, searchTerm, hasOpenedOnce]);
+    }, [options, searchTerm, isOpen]);
 
     const selectedOption = React.useMemo(() => 
         options.find(option => 
@@ -65,6 +63,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
         }
         onChange(optionValue);
         setIsOpen(false);
+        setSearchTerm('');
     };
 
     const displayText = selectedOption ? selectedOption.label : (value || placeholder || 'Select...');
@@ -74,7 +73,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
         <div className={`searchable-select-container ${className || ''}`} ref={dropdownRef} style={{ position: 'relative', ...style }}>
             <div
                 className="searchable-select-trigger"
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={() => { setIsOpen(!isOpen); setSearchTerm(''); }}
                 style={{
                     padding: '0 0.85rem',
                     border: `1px solid ${isOpen ? 'rgba(212,175,55,0.7)' : 'var(--border-color, rgba(255,255,255,0.12))'}`,
@@ -157,7 +156,7 @@ const SearchableSelect = ({ options, value, onChange, placeholder, className, st
                             {onCreateNew && (
                                 <div
                                     className="searchable-select-create-new"
-                                    onClick={(e) => { e.stopPropagation(); setIsOpen(false); onCreateNew(); }}
+                                    onClick={(e) => { e.stopPropagation(); setIsOpen(false); setSearchTerm(''); onCreateNew(); }}
                                     style={{
                                         padding: '10px 12px',
                                         cursor: 'pointer',

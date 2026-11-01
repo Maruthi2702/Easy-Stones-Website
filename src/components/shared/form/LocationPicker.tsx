@@ -53,6 +53,10 @@ export type LocationPickerProps = {
     className?: string;
 };
 
+// Outside the component so the placement hook sees the same function every
+// render: a form's body, else whatever clips the field (a filter panel).
+const scrollerOf = (a: Element) => a.closest('.fm-body, .fm-sheet-body') || clipParentOf(a);
+
 export default function LocationPicker({
     id, value, onChange, options = [], user = null, home: homeProp,
     allLabel = null, noneLabel = null, placeholder = 'Choose a location',
@@ -69,7 +73,7 @@ export default function LocationPicker({
     const menuRef = useRef<HTMLDivElement>(null);
     // In a form, against its body (a sheet when it has no room); elsewhere
     // against the nearest box that would clip it, never a sheet.
-    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef, (a) => a.closest('.fm-body, .fm-sheet-body') || clipParentOf(a));
+    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef, scrollerOf);
     const sheet = isPhone || pos.placement === 'sheet';
     const listId = `${id}-list`;
 

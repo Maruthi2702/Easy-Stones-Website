@@ -1,5 +1,3 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
 /**
@@ -13,7 +11,7 @@ import mongoose from 'mongoose';
  * afterwards because someone edited a delivery in the following week.
  */
 
-const transferLineSchema = new mongoose.Schema<Loose>({
+const transferLineSchema = new mongoose.Schema({
   fromTo: { type: String, default: '' },   // 'SEA — SLC', origin first regardless of direction
   // The transfer's number ('14956'). A line is one transfer: filled from its
   // ticket on a ticket line, typed on one added by hand — so the same
@@ -45,13 +43,13 @@ const transferLineSchema = new mongoose.Schema<Loose>({
   ticketIds: { type: [String], default: [] }
 }, { _id: false });
 
-const containerLineSchema = new mongoose.Schema<Loose>({
+const containerLineSchema = new mongoose.Schema({
   poNumber: { type: String, default: '' },  // blank continues the line above
   material: { type: String, default: '' },
   slabs: { type: Number, default: 0 }
 }, { _id: false });
 
-const countPairSchema = new mongoose.Schema<Loose>({
+const countPairSchema = new mongoose.Schema({
   assigned: { type: Number, default: 0 },
   // Shown on the sheet as "Slabs" — how many went out on the day's deliveries
   // and pick-ups. Named `capacity` because that is what the column asked for
@@ -60,7 +58,7 @@ const countPairSchema = new mongoose.Schema<Loose>({
   capacity: { type: Number, default: null }
 }, { _id: false });
 
-const dailyReportSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+const dailyReportSchema = new mongoose.Schema({
   // 'YYYY-MM-DD'. A calendar date, never an instant — a report belongs to the
   // branch's day, not to whoever happens to open it from another timezone.
   date: { type: String, required: true, index: true },
@@ -131,5 +129,5 @@ dailyReportSchema.index({ date: 1, location: 1 }, { unique: true });
 // The month view reads a location's days in reverse date order.
 dailyReportSchema.index({ location: 1, date: -1 });
 
-const DailyReport = mongoose.models.DailyReport || mongoose.model('DailyReport', dailyReportSchema);
+const DailyReport: mongoose.Model<mongoose.InferSchemaType<typeof dailyReportSchema>> = (mongoose.models.DailyReport as mongoose.Model<mongoose.InferSchemaType<typeof dailyReportSchema>> | undefined) || mongoose.model('DailyReport', dailyReportSchema);
 export default DailyReport;

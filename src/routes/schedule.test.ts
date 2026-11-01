@@ -16,7 +16,7 @@ const customer = new mongoose.Types.ObjectId();
 const emit = vi.fn();
 const staff = { id: String(owner), type: 'staff', permissions: ['create_route_plan', 'edit_route_plan'] };
 const as = (user = staff) => ({ 'x-test-user': JSON.stringify(user) });
-const stop = (over: Loose = {}) => ({ userId: owner, customerId: customer, startTime: '2026-10-24T09:00:00.000', source: 'route_planner', ...over });
+const stop = (over: Loose = {}) => ({ userId: owner, customerId: customer, startTime: '2026-10-24T09:00:00.000', source: 'route_planner' as const, ...over });
 const replacement = (over: Loose = {}): Loose => ({ date: '2026-10-24', replace: true, items: [stop({ startTime: '2026-10-24T10:00:00.000' })], ...over });
 const replace = (body = replacement(), user = staff) => request(app).post('/api/schedule/bulk').set(as(user)).send(body);
 const subscription = (user = staff) => request(app).get('/api/calendar/subscription').set(as(user));

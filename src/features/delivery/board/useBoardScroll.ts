@@ -57,7 +57,7 @@ export function useBoardScroll({ weekDates, viewMode, todayRequest, todayStr, se
       ro.disconnect();
       events.forEach((ev) => box.removeEventListener(ev, stop));
     };
-  }, [viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [viewMode]);
   // ── More columns to the side (2026-10-15) ──
   // Scrollbars are hidden on most machines, so a board wider than the screen
   // gave no sign that Will Call (or a driver) was off to the right. Each side

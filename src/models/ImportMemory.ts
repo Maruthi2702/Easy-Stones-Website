@@ -1,5 +1,3 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
 /**
@@ -14,7 +12,7 @@ import mongoose from 'mongoose';
  * src/utils/customerImport.ts): letters, digits and '|' only, which is what
  * makes them safe as Mongo map keys.
  */
-const importMemorySchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+const importMemorySchema = new mongoose.Schema({
   kind: { type: String, required: true, unique: true },
   // normalized sheet rep name → User _id, or '' for "leave unassigned"
   repAliases: { type: Map, of: String, default: {} },

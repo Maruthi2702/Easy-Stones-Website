@@ -1,5 +1,3 @@
-// Legacy BSON records remain flexible; runtime schemas still validate every write.
-import type { Loose } from '../types/records.ts';
 import mongoose from 'mongoose';
 
 /**
@@ -12,7 +10,22 @@ import mongoose from 'mongoose';
  * `customer` is the raw document as it was (Mixed: it may hold fields the
  * Customer schema no longer defines), so Undo restores it exactly, same _id.
  */
-const customerDeleteBackupSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectId }>({
+/** Raw BSON snapshot, including legacy keys outside the current Customer schema. */
+export interface CustomerDeleteBackupRecord {
+  batchId: string;
+  customerId: mongoose.Types.ObjectId;
+  customer: Record<string, unknown>;
+  source: string;
+  deletedBy: string;
+  spsKeepDeleted: boolean;
+  spsKeepRun: string;
+  undoneAt?: Date | null;
+  undoneBy: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const customerDeleteBackupSchema = new mongoose.Schema<CustomerDeleteBackupRecord>({
   batchId: { type: String, required: true, index: true },
   customerId: { type: mongoose.Schema.Types.ObjectId, required: true },
   customer: { type: mongoose.Schema.Types.Mixed, required: true },

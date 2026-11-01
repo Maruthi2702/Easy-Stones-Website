@@ -32,8 +32,7 @@ export default defineConfig([
     },
   },
   {
-    // TypeScript (browser-only for now — MIGRATION_NOTES.md §1). tsc does the
-    // type checking; this keeps the hooks rules and the same unused-vars rule.
+    // tsc checks the application and server types; ESLint checks hooks and style.
     files: ['**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,
@@ -76,8 +75,8 @@ export default defineConfig([
       // node:worker_threads only exists in Node — these run an uploaded
       // file's parse off the main thread and are never reachable from the
       // browser bundle.
-      'src/utils/runWorkbookParse.js',
-      'src/utils/workbookParseWorker.js',
+      'src/utils/runWorkbookParse.ts',
+      'src/utils/workbookParseWorker.ts',
       // Shared API plumbing and Cart & Holds' server half. holdRules.js,
       // permissions.js and schemas.js are left out: the screens import them.
       'src/server/**/*.ts',

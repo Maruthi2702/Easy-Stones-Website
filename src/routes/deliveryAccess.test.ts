@@ -21,7 +21,7 @@ let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
 const emit = vi.fn();
 const roomsEmittedTo: string[] = [];
-let openRooms = ['delivery-location:Seattle', 'delivery-location:Spokane', 'delivery-location:*', 'some-socket-id'];
+const openRooms = ['delivery-location:Seattle', 'delivery-location:Spokane', 'delivery-location:*', 'some-socket-id'];
 
 const VIEW_ONLY = { username: 'sam', role: 'sales_rep', permissions: ['view_delivery_schedule'], assignedLocations: ['Seattle'] };
 const DRIVER = { username: 'angel', role: 'driver', permissions: ['view_delivery_schedule', 'delivery_driver_view'], assignedLocations: ['Seattle'] };
@@ -30,8 +30,8 @@ const as = (user: Loose) => ({ 'x-test-user': JSON.stringify(user) });
 const has = (req: Loose, p: string) => (req.user.permissions || []).includes(p);
 
 const DAY = '2026-10-16';
-const ticket = (id: string, truckId: string, routeNumber: number | null, over: Loose = {}) => ({
-  id, truckId, routeNumber, date: DAY, location: 'Seattle', deliveryType: 'jobsite', status: 'scheduled',
+const ticket = <Route extends number | null>(id: string, truckId: string, routeNumber: Route, over: Loose = {}) => ({
+  id, truckId, routeNumber, date: DAY, location: 'Seattle', deliveryType: 'jobsite' as const, status: 'scheduled' as const,
   customerName: id, address: '1 Main St', numberOfSlabs: 2, ...over
 });
 
@@ -77,7 +77,7 @@ describe('O4 — who may write a ticket', () => {
     await request(app).post('/api/deliveries').set(as(VIEW_ONLY)).send({ ...ticket('a', 'drv_angel', 1), customerName: 'Hacked' }).expect(403);
     await request(app).patch('/api/deliveries/a/status').set(as(VIEW_ONLY)).send({ status: 'completed' }).expect(403);
     await request(app).patch('/api/deliveries/a/receive').set(as(VIEW_ONLY)).send({}).expect(403);
-    const a = await Delivery.findOne({ id: 'a' }).lean();
+    const a = await Delivery.findOne({ id: 'a' }).lean().orFail();
     expect(a.customerName).toBe('a');
     expect(a.status).toBe('scheduled');
     expect(await Delivery.countDocuments({ id: 'new' })).toBe(0);
@@ -86,7 +86,7 @@ describe('O4 — who may write a ticket', () => {
   it('lets the office save a whole ticket, create included', async () => {
     await request(app).post('/api/deliveries').set(as(OFFICE)).send({ ...ticket('a', 'drv_angel', 1), customerName: 'Renamed' }).expect(200);
     await request(app).post('/api/deliveries').set(as(OFFICE)).send(ticket('new', 'drv_angel', 9)).expect(200);
-    expect((await Delivery.findOne({ id: 'a' }).lean()).customerName).toBe('Renamed');
+    expect((await Delivery.findOne({ id: 'a' }).lean().orFail()).customerName).toBe('Renamed');
     expect(await Delivery.countDocuments({ id: 'new' })).toBe(1);
   });
 
@@ -97,21 +97,21 @@ describe('O4 — who may write a ticket', () => {
       pod: { receivedByName: 'Pat', notes: 'left at gate' }
     }).expect(200);
     expect(res.body.status).toBe('completed');
-    const a = await Delivery.findOne({ id: 'a' }).lean();
+    const a = await Delivery.findOne({ id: 'a' }).lean().orFail();
     expect(a).toMatchObject({ status: 'completed', customerName: 'a', address: '1 Main St', truckId: 'drv_angel', deliveryType: 'jobsite', routeNumber: 1 });
-    expect(a.pod.receivedByName).toBe('Pat');
+    expect(a.pod).toHaveProperty('receivedByName', 'Pat');
   });
 
   it('refuses a driver a new ticket, or a save with no ePOD in it', async () => {
     await request(app).post('/api/deliveries').set(as(DRIVER)).send({ ...ticket('new', 'drv_angel', 1), pod: { notes: 'x' } }).expect(403);
     await request(app).post('/api/deliveries').set(as(DRIVER)).send({ ...ticket('a', 'drv_angel', 1), customerName: 'Hacked' }).expect(403);
     expect(await Delivery.countDocuments({ id: 'new' })).toBe(0);
-    expect((await Delivery.findOne({ id: 'a' }).lean()).customerName).toBe('a');
+    expect((await Delivery.findOne({ id: 'a' }).lean().orFail()).customerName).toBe('a');
   });
 
   it('still lets a driver set their stop\'s status', async () => {
     await request(app).patch('/api/deliveries/a/status').set(as(DRIVER)).send({ status: 'delayed' }).expect(200);
-    expect((await Delivery.findOne({ id: 'a' }).lean()).status).toBe('delayed');
+    expect((await Delivery.findOne({ id: 'a' }).lean().orFail()).status).toBe('delayed');
   });
 });
 
@@ -127,9 +127,9 @@ describe('O2 — saving an ePOD writes the ePOD and nothing else', () => {
       address: '1 Main St', truckId: 'drv_angel', customerName: 'Hacked'
     }).expect(200);
     expect(res.body.status).toBe('completed');
-    const a = await Delivery.findOne({ id: 'a' }).lean();
+    const a = await Delivery.findOne({ id: 'a' }).lean().orFail();
     expect(a).toMatchObject({ status: 'completed', address: '9 New Rd', truckId: 'drv_brock', customerName: 'a' });
-    expect(a.pod.signeeName).toBe('Pat');
+    expect(a.pod?.signeeName).toBe('Pat');
   });
 
   it('leaves a transfer\'s ship date alone', async () => {
@@ -137,7 +137,7 @@ describe('O2 — saving an ePOD writes the ePOD and nothing else', () => {
       deliveryType: 'transfer', transferDestination: 'Spokane', date: '2026-10-14', expectedArrivalDate: '2026-10-16'
     }));
     await sign('tr', { pod: { signeeName: 'Pat' }, date: '2026-10-16' }).expect(200);
-    expect((await Delivery.findOne({ id: 'tr' }).lean()).date).toBe('2026-10-14');
+    expect((await Delivery.findOne({ id: 'tr' }).lean().orFail()).date).toBe('2026-10-14');
   });
 
   it('refuses a ticket that doesn\'t exist, a body with no ePOD, and a view-only login', async () => {
@@ -145,7 +145,7 @@ describe('O2 — saving an ePOD writes the ePOD and nothing else', () => {
     expect(await Delivery.countDocuments({ id: 'nope' })).toBe(0);
     await sign('a', {}).expect(400);
     await sign('a', { pod: { signeeName: 'Pat' } }, VIEW_ONLY).expect(403);
-    expect((await Delivery.findOne({ id: 'a' }).lean()).status).toBe('scheduled');
+    expect((await Delivery.findOne({ id: 'a' }).lean().orFail()).status).toBe('scheduled');
   });
 
   it('is open to a driver, for any ticket they can reach', async () => {
@@ -179,8 +179,8 @@ describe('O6 — reorder isn\'t refused over tickets the board doesn\'t show', (
     ]);
     await order([{ id: 'b', routeNumber: 1 }, { id: 'a', routeNumber: 2 }]).expect(200);
     await order([{ id: 'wcB', routeNumber: 1 }, { id: 'wcA', routeNumber: 2 }]).expect(200);
-    expect((await Delivery.findOne({ id: 'b' }).lean()).routeNumber).toBe(1);
-    expect((await Delivery.findOne({ id: 'a' }).lean()).routeNumber).toBe(2);
+    expect((await Delivery.findOne({ id: 'b' }).lean().orFail()).routeNumber).toBe(1);
+    expect((await Delivery.findOne({ id: 'a' }).lean().orFail()).routeNumber).toBe(2);
   });
 
   it('ignores another branch\'s ticket on a shared column the user can\'t see', async () => {
@@ -228,7 +228,7 @@ describe('incoming transfers — receiving edits only', () => {
     await incoming();
     await request(app).patch('/api/deliveries/incoming/receiving').set(as(OFFICE))
       .send({ expectedArrivalDate: '2026-10-20', numberOfSlabs: 8 }).expect(200);
-    const saved = await Delivery.findOne({ id: 'incoming' }).lean();
+    const saved = await Delivery.findOne({ id: 'incoming' }).lean().orFail();
     expect(saved.expectedArrivalDate).toBe('2026-10-20'); expect(saved.numberOfSlabs).toBe(8);
     expect(saved.date).toBe(DAY); expect(saved.driver).toBe('Sending driver'); expect(saved.location).toBe('Spokane');
     expect(roomsEmittedTo).toContain('delivery-location:Seattle'); expect(roomsEmittedTo).toContain('delivery-location:Spokane');
@@ -240,7 +240,7 @@ describe('incoming transfers — receiving edits only', () => {
     await request(app).patch('/api/deliveries/incoming/assignment').set(as(OFFICE)).send({ truckId: 'drv_angel', deliveryType: 'transfer', date: '2026-10-30' }).expect(404);
     await request(app).patch('/api/deliveries/incoming/status').set(as(OFFICE)).send({ status: 'cancelled' }).expect(404);
     await request(app).delete('/api/deliveries/incoming').set(as({ ...OFFICE, permissions: [...OFFICE.permissions, 'delete_delivery_schedule'] })).expect(404);
-    expect((await Delivery.findOne({ id: 'incoming' }).lean()).date).toBe(DAY);
+    expect((await Delivery.findOne({ id: 'incoming' }).lean().orFail()).date).toBe(DAY);
   });
   it('checks permission, branch access, real dates and whole slab counts', async () => {
     await incoming();
