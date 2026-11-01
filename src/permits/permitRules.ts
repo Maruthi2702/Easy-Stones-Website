@@ -15,6 +15,8 @@ import type { Loose } from '../types/records.ts';
  *   Snohomish County  Snohomish County (outside cities, from the county's monthly
  *                   spreadsheets of issued permits), Edmonds via MyBuildingPermit,
  *                   Marysville (eTRAKiT)
+ *   Clark County    Clark County, Vancouver and the other cities (the county's one layer)
+ *   Kitsap County   Kitsap County (outside cities, the county's ArcGIS layer; no contacts)
  *   Pierce County   Pierce County (outside cities, the county's ArcGIS layer; no contacts),
  *                   Tacoma (the city's open data layer)
  *   Whatcom County  Whatcom County (outside cities, EnerGov), Bellingham
@@ -35,6 +37,8 @@ import whatcom, { WHATCOM_PORTAL, whatcomPermitUrl, energovPermit } from './rule
 import skagitCounty from './rules/skagitCounty.ts';
 import pierceCounty from './rules/pierceCounty.ts';
 import tacoma from './rules/tacoma.ts';
+import kitsapCounty from './rules/kitsapCounty.ts';
+import clarkCounty from './rules/clarkCounty.ts';
 import anacortes from './rules/anacortes.ts';
 import snohomishCounty from './rules/snohomishCounty.ts';
 import { edmonds } from './rules/snohomishCities.ts';
@@ -58,6 +62,8 @@ export { WHATCOM_PORTAL, whatcomPermitUrl, BELLINGHAM_PERMIT_SEARCH, BELLINGHAM_
  */
 export const RULES: Readonly<Record<string, Loose>> = Object.freeze(Object.fromEntries([
   kingCounty, auburn, bellevue, burien, issaquah, kenmore, kirkland, mercerIsland, renton, sammamish, seattle, shoreline, snoqualmie,
+  clarkCounty,
+  kitsapCounty,
   pierceCounty, tacoma,
   skagitCounty, anacortes,
   snohomishCounty, edmonds, marysville, monroe, snohomishCity,
