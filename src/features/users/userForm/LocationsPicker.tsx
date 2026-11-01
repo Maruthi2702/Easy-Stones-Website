@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, Star, X } from 'lucide-react';
 import useIsPhone from '../../../components/shared/form/useIsPhone';
 import { FormSheet } from '../../../components/shared/form/FormControls';
-import { describedBy, menuPlacement } from '../../../components/shared/form/formFocus';
+import { describedBy, useMenuPlacement } from '../../../components/shared/form/formFocus';
 import { toggleLocation, homeAfterChange } from '../../../utils/userForm';
 import { orderLocations } from '../../../utils/locationFilter';
 
@@ -26,25 +26,24 @@ export default function LocationsPicker({ id, locations, value, home, onChange, 
 }) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
-    const [pos, setPos] = useState({ placement: 'down', maxHeight: 440 });
     const wrapRef = useRef<HTMLDivElement>(null);
     const fieldRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const pos = useMenuPlacement(open, isPhone, fieldRef, menuRef);
+    const sheet = isPhone || pos.placement === 'sheet';
     const allOn = value.includes('*');
-    const toggleOpen = () => {
-        if (!open && !isPhone) setPos(menuPlacement(fieldRef.current));
-        setOpen(!open);
-    };
+    const toggleOpen = () => setOpen(!open);
 
     const set = (list: string[], nextHome = home) => onChange({ assignedLocations: list, location: homeAfterChange(nextHome, list) });
     const toggle = (key: string) => set(toggleLocation(value, key));
     const makeHome = (name: string) => onChange({ assignedLocations: value, location: name });
 
     useEffect(() => {
-        if (!open || isPhone) return;
+        if (!open || sheet) return;
         const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as Node)) setOpen(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
-    }, [open, isPhone]);
+    }, [open, sheet]);
 
     // Home first, then the rest A–Z (the list below is A–Z too: orderLocations).
     const picked = allOn ? [] : orderLocations(locations).filter((n) => value.includes(n));
@@ -128,8 +127,8 @@ export default function LocationsPicker({ id, locations, value, home, onChange, 
                     {count ? 'Edit' : 'Choose'}<ChevronDown size={16} aria-hidden="true" />
                 </button>
             </div>
-            {open && !isPhone && (
-                <div className="fm-menu up-loc-menu" data-placement={pos.placement} style={{ maxHeight: pos.maxHeight }} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } }}>
+            {open && !sheet && (
+                <div ref={menuRef} className="fm-menu up-loc-menu" data-placement={pos.placement} style={{ maxHeight: pos.maxHeight }} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } }}>
                     {options}
                     <div className="up-loc-foot">
                         <span className="fm-status">{countText}</span>
@@ -137,7 +136,7 @@ export default function LocationsPicker({ id, locations, value, home, onChange, 
                     </div>
                 </div>
             )}
-            {isPhone && (
+            {sheet && (
                 <FormSheet open={open} title="Locations" onClose={() => setOpen(false)} footer={<span className="fm-status">{countText}</span>}>
                     {options}
                 </FormSheet>

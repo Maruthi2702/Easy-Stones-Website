@@ -863,7 +863,12 @@ no helper text, validation banner, saving lock, unsaved-changes check, edit
 mode, and light/dark colors. It's built in `src/components/shared/form/`
 (Add and Edit User, Add / Edit location, Add / Edit visit, Add / Edit customer, Add / Edit delivery, and the Selection Sheet are on it); move the others onto it one at a time and
 re-check each by hand, since every form with a dropdown is subject to the
-CustomSelect incident below.
+CustomSelect incident below. A form dropdown (FormPicker, FormSearchPicker,
+RepPicker, LocationPicker, Users' LocationsPicker) floats inside the form body
+and, when the body has no room for its list above or below the field (a
+two-field S form), opens as the phone bottom sheet instead
+(`useMenuPlacement` in `formFocus.ts`, 2026-11-01) — the list used to be cut
+off by the body's scroll box.
 
 ## Incident: CustomSelect portal broke dropdowns inside modals (2026-08-13)
 

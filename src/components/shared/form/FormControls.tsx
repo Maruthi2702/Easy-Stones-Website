@@ -2,12 +2,11 @@ import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, Check, ChevronDown, Eye, EyeOff, Plus, Search } from 'lucide-react';
 import useIsPhone from './useIsPhone';
-import { firstFocusableIn, describedBy, menuPlacement } from './formFocus';
+import { firstFocusableIn, describedBy, useMenuPlacement } from './formFocus';
 import { FormLayerContext } from './formLayer';
 import { matchesOption } from '../../../utils/customerOptions';
 
 type Node = React.ReactNode;
-type Placement = { placement: 'up' | 'down'; maxHeight: number };
 /** A choice in FormPicker / FormSearchPicker / SegmentedToggle. */
 export type FormOption<V = string> = { value: V; label: Node; description?: Node; disabled?: boolean; keywords?: string };
 
@@ -193,9 +192,12 @@ export function FormPicker<V extends string | number = string>({ id, value, onCh
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
     const [active, setActive] = useState(-1);
-    const [pos, setPos] = useState<Placement>({ placement: 'down', maxHeight: 440 });
     const wrapRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef);
+    // A phone, or a form too short to hold the list beside the field.
+    const sheet = isPhone || pos.placement === 'sheet';
     const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
     const listId = `${id}-list`;
     const selected = options.find((o) => o.value === value);
@@ -221,21 +223,20 @@ export function FormPicker<V extends string | number = string>({ id, value, onCh
     const openList = () => {
         const current = options.findIndex((o) => o.value === value);
         setActive(current >= 0 && !options[current].disabled ? current : stepFrom(-1, 1));
-        if (!isPhone) setPos(menuPlacement(triggerRef.current));
         setOpen(true);
     };
 
     // Desktop: a click anywhere outside the field closes the inline list.
     useEffect(() => {
-        if (!open || isPhone) return;
+        if (!open || sheet) return;
         const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as globalThis.Node)) close(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
-    }, [open, isPhone]);
+    }, [open, sheet]);
 
     useEffect(() => {
         if (open && active >= 0) optionRefs.current[active]?.focus({ preventScroll: false });
-    }, [open, active]);
+    }, [open, active, sheet]);
 
     const onListKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -248,16 +249,17 @@ export function FormPicker<V extends string | number = string>({ id, value, onCh
         } else if (e.key === 'Escape') {
             e.stopPropagation();
             close();
-        } else if (e.key === 'Tab' && !isPhone) {
+        } else if (e.key === 'Tab' && !sheet) {
             close(false);
         }
     };
 
     const list = (
         <div
-            className={isPhone ? undefined : 'fm-menu'}
-            data-placement={isPhone ? undefined : pos.placement}
-            style={isPhone ? undefined : { maxHeight: pos.maxHeight }}
+            ref={sheet ? undefined : menuRef}
+            className={sheet ? undefined : 'fm-menu'}
+            data-placement={sheet ? undefined : pos.placement}
+            style={sheet ? undefined : { maxHeight: pos.maxHeight }}
             role="listbox"
             id={listId}
             aria-label={sheetTitle}
@@ -318,8 +320,8 @@ export function FormPicker<V extends string | number = string>({ id, value, onCh
                 </span>
                 <ChevronDown size={18} aria-hidden="true" />
             </button>
-            {open && !isPhone && list}
-            {isPhone && (
+            {open && !sheet && list}
+            {sheet && (
                 <FormSheet open={open} title={sheetTitle} onClose={() => close()}>
                     {list}
                 </FormSheet>
@@ -354,14 +356,13 @@ export function FormSearchPicker({
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
-    const [pos, setPos] = useState<Placement>({ placement: 'down', maxHeight: 440 });
     const wrapRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
-    const openList = () => {
-        if (!isPhone) setPos(menuPlacement(triggerRef.current));
-        setOpen(true);
-    };
+    const menuRef = useRef<HTMLDivElement>(null);
+    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef);
+    const sheet = isPhone || pos.placement === 'sheet';
+    const openList = () => setOpen(true);
     const listId = `${id}-list`;
     const selected = options.find((o) => o.value === value);
 
@@ -383,12 +384,12 @@ export function FormSearchPicker({
     };
 
     useEffect(() => {
-        if (!open || isPhone) return;
+        if (!open || sheet) return;
         searchRef.current?.focus({ preventScroll: true });
         const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as globalThis.Node)) close(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
-    }, [open, isPhone]);
+    }, [open, sheet]);
 
     const onSearchKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -402,7 +403,7 @@ export function FormSearchPicker({
             e.preventDefault();
             e.stopPropagation();
             close();
-        } else if (e.key === 'Tab' && !isPhone) {
+        } else if (e.key === 'Tab' && !sheet) {
             close(false);
         }
     };
@@ -497,10 +498,10 @@ export function FormSearchPicker({
                 </span>
                 <ChevronDown size={18} aria-hidden="true" />
             </button>
-            {open && !isPhone && (
-                <div className="fm-menu" data-placement={pos.placement} style={{ maxHeight: pos.maxHeight }}>{body}</div>
+            {open && !sheet && (
+                <div ref={menuRef} className="fm-menu" data-placement={pos.placement} style={{ maxHeight: pos.maxHeight }}>{body}</div>
             )}
-            {isPhone && (
+            {sheet && (
                 <FormSheet open={open} title={sheetTitle} onClose={() => close()}>
                     {body}
                 </FormSheet>

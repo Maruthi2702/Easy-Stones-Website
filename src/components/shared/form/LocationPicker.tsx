@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
 import useIsPhone from './useIsPhone';
-import { describedBy, menuPlacement } from './formFocus';
+import { describedBy, useMenuPlacement } from './formFocus';
 import { FormSheet } from './FormControls';
 import {
     homeLocationOf, orderLocations, matchLocations, LOCATION_SEARCH_FROM
@@ -71,11 +71,15 @@ export default function LocationPicker({
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState('');
     const [active, setActive] = useState(0);
-    const [pos, setPos] = useState<{ placement: 'up' | 'down'; maxHeight: number }>({ placement: 'down', maxHeight: 440 });
     const wrapRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    // In a form, against its body (a sheet when it has no room); elsewhere
+    // against the nearest box that would clip it, never a sheet.
+    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef, (a) => a.closest('.fm-body, .fm-sheet-body') || clipParentOf(a));
+    const sheet = isPhone || pos.placement === 'sheet';
     const listId = `${id}-list`;
 
     const current = typeof value === 'string' ? value : '';
@@ -111,22 +115,16 @@ export default function LocationPicker({
     const openList = () => {
         const at = flat.indexOf(current);
         setActive(at >= 0 ? at : 0);
-        if (!isPhone) {
-            const anchor = triggerRef.current;
-            setPos(anchor?.closest('.fm-body, .fm-sheet-body')
-                ? menuPlacement(anchor)
-                : menuPlacement(anchor, 440, clipParentOf(anchor)));
-        }
         setOpen(true);
     };
 
     useEffect(() => {
-        if (!open || isPhone) return undefined;
+        if (!open || sheet) return undefined;
         (searchRef.current || listRef.current)?.focus({ preventScroll: true });
         const onDown = (e: MouseEvent) => { if (!wrapRef.current?.contains(e.target as Node)) close(false); };
         document.addEventListener('mousedown', onDown);
         return () => document.removeEventListener('mousedown', onDown);
-    }, [open, isPhone]);
+    }, [open, sheet]);
 
     // Keep the highlighted row in view while arrowing through a long list —
     // by scrolling the list only. scrollIntoView would scroll every box
@@ -157,7 +155,7 @@ export default function LocationPicker({
             e.preventDefault();
             e.stopPropagation();
             close();
-        } else if (e.key === 'Tab' && !isPhone) {
+        } else if (e.key === 'Tab' && !sheet) {
             close(false);
         }
     };
@@ -262,10 +260,10 @@ export default function LocationPicker({
                 </span>
                 <ChevronDown size={18} aria-hidden="true" />
             </button>
-            {open && !isPhone && (
-                <div className="fm-menu" data-placement={pos.placement} style={{ maxHeight: pos.maxHeight }}>{body}</div>
+            {open && !sheet && (
+                <div ref={menuRef} className="fm-menu" data-placement={pos.placement} style={{ maxHeight: pos.maxHeight }}>{body}</div>
             )}
-            {isPhone && (
+            {sheet && (
                 <FormSheet open={open} title={sheetTitle} onClose={() => close()}>
                     {body}
                 </FormSheet>

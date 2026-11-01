@@ -1,4 +1,5 @@
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useLayoutEffect, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from 'react';
 import { prefersReducedMotion } from './useIsPhone';
 
 const FOCUSABLE = 'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -53,23 +54,67 @@ export const describedBy = (id: string, error: unknown, status?: unknown) => ({
     'aria-describedby': error || status ? `${id}-msg` : undefined
 });
 
+/** Room between a field and the edges of the box it scrolls in (or the window). */
+function menuRoom(anchor: Element, scroller: Element | null | undefined): { above: number; below: number } {
+    const a = anchor.getBoundingClientRect();
+    const b = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+    return { below: b.bottom - a.bottom - 12, above: a.top - b.top - 12 };
+}
+
 /**
  * Where a desktop dropdown (.fm-menu) opens: below its field, or above it
  * when the form body has more room there, with its height capped to that
  * room. Measured when the list opens, against the form body it scrolls in —
  * or `scroller`, for a dropdown used outside a form (LocationPicker passes
  * the nearest box that would clip it; null measures against the window).
+ * `content` is the list's own height when known: a short list doesn't flip
+ * above a field that has room for it below.
  */
 export function menuPlacement(
     anchor: Element | null | undefined,
     wanted = 440,
-    scroller: Element | null | undefined = anchor?.closest('.fm-body, .fm-sheet-body')
+    scroller: Element | null | undefined = anchor?.closest('.fm-body, .fm-sheet-body'),
+    content = wanted
 ): { placement: 'up' | 'down'; maxHeight: number } {
     if (!anchor) return { placement: 'down', maxHeight: wanted };
-    const a = anchor.getBoundingClientRect();
-    const b = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
-    const below = b.bottom - a.bottom - 12;
-    const above = a.top - b.top - 12;
-    const up = below < Math.min(wanted, 240) && above > below;
+    const { above, below } = menuRoom(anchor, scroller);
+    const up = below < Math.min(wanted, content, 240) && above > below;
     return { placement: up ? 'up' : 'down', maxHeight: Math.round(Math.max(160, Math.min(wanted, up ? above : below))) };
+}
+
+export type MenuPlacement = { placement: 'up' | 'down' | 'sheet'; maxHeight: number };
+const MENU_START: MenuPlacement = { placement: 'down', maxHeight: 440 };
+
+/**
+ * menuPlacement for a dropdown that's open, measured once its list is drawn —
+ * and when the form body has no room for the list on either side of the
+ * field (a short form: Add resource type's Family under one Name field), it
+ * says 'sheet' and the picker shows its phone bottom sheet instead, like the
+ * calendar (choosePlacement). Before this the list was cut off by the body.
+ * A dropdown outside a form (`scrollerOf` gives null, or no form body is
+ * around it) never goes to a sheet. Back to the start when it closes, so the
+ * next open measures again.
+ */
+export function useMenuPlacement(
+    open: boolean,
+    isPhone: boolean,
+    anchorRef: RefObject<Element | null>,
+    menuRef: RefObject<Element | null>,
+    scrollerOf: (anchor: Element) => Element | null | undefined = (a) => a.closest('.fm-body, .fm-sheet-body')
+): MenuPlacement {
+    const [pos, setPos] = useState<MenuPlacement>(MENU_START);
+    useLayoutEffect(() => {
+        const anchor = anchorRef.current;
+        if (!open || isPhone || !anchor) return undefined;
+        const scroller = scrollerOf(anchor);
+        const content = menuRef.current?.scrollHeight || 0;
+        const placed = menuPlacement(anchor, 440, scroller, content || 440);
+        const { above, below } = menuRoom(anchor, scroller);
+        const room = placed.placement === 'up' ? above : below;
+        // Unmeasured (0, as in jsdom) keeps the list where it is.
+        const noRoom = Boolean(scroller?.closest('.fm-body')) && content > 0 && room < Math.min(content, 160);
+        setPos(noRoom ? { placement: 'sheet', maxHeight: 440 } : placed);
+        return () => setPos(MENU_START);
+    }, [open, isPhone]);
+    return pos;
 }
