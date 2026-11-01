@@ -34,7 +34,7 @@ const SETTINGS = JSON.stringify({
 const MAX_POLLS = 120;
 
 const arg = (value: unknown) => ({ className: '', value, isArray: false });
-const typed = (className: unknown, value: unknown = undefined, isArray = false) => ({ className, ...(value !== undefined && { value }), isArray });
+const typed = (className: unknown, value?: unknown, isArray = false) => ({ className, ...(value !== undefined && { value }), isArray });
 /** The report server's way of naming a Date Issued range. */
 export const dateFilter = (from: string, to: string) => `Permits.Date Issued|^|bt|^|${from} 00:00:00.000|~|${to} 00:00:00.000|^||^|true|^|false|^|0|^|0|^|0`;
 

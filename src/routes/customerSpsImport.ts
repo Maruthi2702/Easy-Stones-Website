@@ -35,7 +35,7 @@ import { freezePlan, runItems, retryFailed, undoRun } from '../services/spsImpor
  * The server re-plans from the file it saved; nothing the browser sends picks
  * which customer gets written.
  */
-export default function createCustomerSpsImportRouter({ authenticate, uploadMemory, readSheet, resolveMapping, buildReference, rememberAliases, fields }: { authenticate: RequestHandler; uploadMemory: Loose; readSheet: Loose; resolveMapping: Loose; buildReference: Loose; rememberAliases: Loose; fields: Loose }) {
+export default function createCustomerSpsImportRouter({ authenticate, uploadMemory, readSheet, resolveMapping, buildReference, rememberAliases, fields }: { authenticate: RequestHandler; uploadMemory: import('multer').Multer; readSheet: (buffer: Buffer) => Promise<{ headers: string[]; rows: Loose[]; parse?: Loose }>; resolveMapping: typeof import('../utils/customerImport.ts').resolveImportMapping; buildReference: (options: Loose) => Promise<Loose>; rememberAliases: (aliases: { repAliases?: Loose; branchAliases?: Loose; repIds: ReadonlySet<string>; branches: string[]; by?: string }) => Promise<unknown>; fields: string[] }) {
   const router = express.Router();
   const BASE = '/sps-import/runs';
 
@@ -43,8 +43,8 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
     canImportCustomers(req.user) ? next() : res.status(403).json({ message: 'Your role can’t import customers.' })
   );
   const who = (req: Request) => req.user?.username || req.user?.name || '';
-  const json = (value: unknown) => { try { return value ? JSON.parse(value) : {}; } catch { return {}; } };
-  const bad = (res: Response, code: Loose, message: string, extra: Loose = {}) => res.status(code).json({ message, ...extra });
+  const json = (value: unknown) => { try { return value ? JSON.parse(value as string) : {}; } catch { return {}; } };
+  const bad = (res: Response, code: number, message: string, extra: Loose = {}) => res.status(code).json({ message, ...extra });
   const ownerOf = (run: Loose) => run.createdBy || 'someone';
 
   const summary = (run: Loose) => ({
@@ -91,7 +91,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   };
 
   const rowsFor = (plan: Loose) => {
-    const pick = (action: Loose, shape: Loose) => plan.outcomes.filter((o: Loose) => o.action === action).map(shape);
+    const pick = <T>(action: string, shape: (outcome: Loose) => T) => plan.outcomes.filter((o: Loose) => o.action === action).map(shape);
     const common = (o: Loose) => ({ key: o.key, rowNumber: o.rowNumber, name: o.name, city: o.city, warnings: o.warnings });
     return {
       decision: pick('decision', (o: Loose) => ({ ...common(o), matches: o.matches, sheet: o.sheet })),
@@ -110,7 +110,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   router.post(`${BASE}`, authenticate, mayImport, uploadMemory.single('file'), async (req, res) => {
     if (!req.file) return bad(res, 400, 'No file uploaded');
     try {
-      const { headers, rows, parse } = await readSheet(req.file.buffer);
+      const { headers, rows, parse } = await readSheet(req.file!.buffer);
       const mapping = resolveMapping(headers, json(req.body.mapping));
       const fileCheck = checkSheet({ rows, mapping, parse });
       if (!fileCheck.ok) {
@@ -164,11 +164,11 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
       }
       if (Object.keys(set).length) await SpsImportRun.updateOne({ _id: run._id }, { $set: set });
       const fresh = await SpsImportRun.findById(run._id).lean();
-      const out = await computePlan(fresh);
+      const out = await computePlan(fresh!);
       if (!out.plan) return bad(res, 422, out.fileCheck.blocking.map((b) => b.message).join(' '), { fileCheck: out.fileCheck });
       const { plan } = out;
       res.json({
-        run: summary(fresh),
+        run: summary(fresh!),
         fileCheck: out.fileCheck, headers: out.headers, mapping: out.mapping, fields,
         reps: out.reps, branches: out.branches,
         counts: plan.counts, rowsRead: plan.rowsRead, distinct: plan.distinct, skipped: plan.skipped, adds: plan.adds,
@@ -209,7 +209,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
       await rememberAliases({ repAliases: run.repAliases || {}, branchAliases: run.branchAliases || {}, repIds: new Set(out.reps.map((r) => r._id)), branches: out.branches, by: who(req) });
       req.app.get('io')?.emit('customer_update');
       runItems(run._id).then(() => req.app.get('io')?.emit('customer_update'));
-      res.json({ run: summary(await SpsImportRun.findById(run._id).lean()) });
+      res.json({ run: summary((await SpsImportRun.findById(run._id).lean())!) });
     } catch (err) {
       console.error('SPS import start error:', err);
       bad(res, 500, `Could not start the import: ${(err as Error).message}`);
@@ -238,7 +238,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   });
 
   // ── report and the Customer List's filter ─────────────────────────────────
-  const csvCell = (v: Loose) => {
+  const csvCell = (v: unknown) => {
     const s = String(v ?? '');
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
@@ -247,7 +247,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
     if (!run) return bad(res, 404, 'No such import.');
     const items = await SpsImportItem.find({ runId: String(run._id) }).sort({ seq: 1 }).lean();
     const lines = [['Row', 'SPS customer', 'What happened', 'Easy Stones customer id', 'Changes', 'Note'].map(csvCell).join(',')];
-    const words = { added: 'Added', updated: 'Updated', unchanged: 'No changes', restored: 'Brought back', keptDeleted: 'Kept deleted', failed: 'Failed' };
+    const words: Record<string, string> = { added: 'Added', updated: 'Updated', unchanged: 'No changes', restored: 'Brought back', keptDeleted: 'Kept deleted', failed: 'Failed' };
     for (const i of items) {
       lines.push([
         i.rowNumber, i.name, words[i.result] || (i.state === 'pending' ? 'Waiting' : i.result),

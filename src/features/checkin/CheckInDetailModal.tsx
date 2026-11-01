@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import LocationPicker from '../../components/shared/form/LocationPicker';
 import { formatPhoneInput } from '../../utils/phoneUtils';
 import type { CheckInLog } from './useCheckInLog';
+import type { homeLocationOf } from '../../utils/locationFilter';
 
 /**
  * One check-in, read-only ('view') or with its visitor details editable
@@ -13,7 +14,7 @@ export type CheckInDetailModalProps = {
     log: CheckInLog;
     /** Branch names (or Location documents) the Branch picker offers. */
     locations: unknown[];
-    currentUser: unknown;
+    currentUser: Parameters<typeof homeLocationOf>[0];
 };
 
 export default function CheckInDetailModal({ log, locations, currentUser }: CheckInDetailModalProps) {

@@ -70,7 +70,7 @@ const emitCheckInUpdate = (req: Request, location: string) => {
 // RegExp. Duplicated from server.ts's own copy (used there by several
 // unrelated features) rather than threaded through as a dependency — it's a
 // one-line pure function with no state to keep in sync.
-const escapeRegex = (str: Loose) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegex = (str: unknown) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 // Whether a new visit starts with a sales rep. Off since 2026-10-12 at the
 // owner's request: new visits (and so their Selection Sheets) start with
@@ -81,7 +81,7 @@ export const NEW_VISITS_START_WITH_REP = false;
 // logged it if they're a sales rep, else the branch's sales person (Users &
 // Roles → Locations → Sales defaults) — the same rule as a new customer or
 // delivery (startingRepFor). Nobody if neither applies; never blocks a check-in.
-const startingRepForCheckIn = async (location: string, creatorId = null) => {
+const startingRepForCheckIn = async (location: string, creatorId: string | null = null) => {
   if (!NEW_VISITS_START_WITH_REP) return {};
   try {
     const [loc, users] = await Promise.all([
@@ -108,7 +108,7 @@ const startingRepForCheckIn = async (location: string, creatorId = null) => {
 // instead. Returns null when there aren't enough digits to search on, so a
 // short numeric fragment (e.g. a house number in a name) doesn't turn into
 // an overly broad match against every phone number.
-const digitTolerantPhoneRegex = (search: Loose) => {
+const digitTolerantPhoneRegex = (search: string) => {
   const digits = String(search).replace(/\D/g, '');
   if (digits.length < 3) return null;
   return new RegExp(digits.split('').map(escapeRegex).join('[\\s().-]*'), 'i');
@@ -137,7 +137,7 @@ const zoneFormatter = (timeZone: string) => {
 // Reading the formatted parts back as if they were UTC keeps this independent of
 // the server's own timezone — the round-trip-through-toLocaleString trick this
 // replaced silently returned 0 whenever the host was already in that zone.
-const zoneOffsetMs = (date: string, timeZone: string) => {
+const zoneOffsetMs = (date: Date, timeZone: string) => {
   const parts: Loose = {};
   for (const { type, value } of zoneFormatter(timeZone).formatToParts(date)) parts[type] = value;
   const wallClockAsUtc = Date.UTC(
@@ -148,7 +148,7 @@ const zoneOffsetMs = (date: string, timeZone: string) => {
 };
 
 // The calendar date it currently is in the given zone.
-const zoneDateParts = (date: string, timeZone: string) => {
+const zoneDateParts = (date: Date, timeZone: string) => {
   const parts: Loose = {};
   for (const { type, value } of zoneFormatter(timeZone).formatToParts(date)) parts[type] = value;
   return { year: Number(parts.year), monthIndex: Number(parts.month) - 1, day: Number(parts.day) };
@@ -156,7 +156,7 @@ const zoneDateParts = (date: string, timeZone: string) => {
 
 // The UTC instant of midnight in the given zone on a calendar date. monthIndex is
 // 0-based and Date.UTC handles rollover, so month 12 becomes the next January.
-const zoneMidnightUtc = (timeZone: string, year: Loose, monthIndex: Loose, day = 1) => {
+const zoneMidnightUtc = (timeZone: string, year: number, monthIndex: number, day = 1) => {
   const naive = Date.UTC(year, monthIndex, day, 0, 0, 0, 0);
   const firstGuess = new Date(naive + zoneOffsetMs(new Date(naive), timeZone));
   // Re-derive using the offset actually in force at that instant so dates next
@@ -171,15 +171,15 @@ const zoneMidnightUtc = (timeZone: string, year: Loose, monthIndex: Loose, day =
 // is exactly how POST /api/checkin ended up as the one route that silently
 // swapped an inaccessible location for a default instead of rejecting it
 // (see that route below). One helper now backs all of them.
-const hasLocationAccess = (userLocations: Loose, location: string) =>
-  userLocations.includes('*') || userLocations.includes(location);
+const hasLocationAccess = (userLocations: string[], location: unknown) =>
+  userLocations.includes('*') || userLocations.includes(location as string);
 
 // Builds the `location` clause for a query scoped to what this user can see.
 // `requestedLocation` is an explicit ?location= filter the caller asked for;
 // with none, the clause covers every location the user is assigned to.
 // Returns `{ forbidden: true }` instead of a clause when the caller asked
 // for a specific location they can't see, so the route can 403 on it.
-const locationFilterFor = (userLocations: Loose, requestedLocation: Loose) => {
+const locationFilterFor = (userLocations: string[], requestedLocation: string | null | undefined) => {
   if (userLocations.includes('*')) {
     return requestedLocation ? { location: requestedLocation } : {};
   }
@@ -198,7 +198,7 @@ const locationFilterFor = (userLocations: Loose, requestedLocation: Loose) => {
  * (GET /export.pdf) so the PDF is always exactly what the list shows.
  * Returns { forbidden: true } for a branch they can't see.
  */
-const checkInListQuery = (userLocations: Loose, { search, month, year, location }: Loose = {}) => {
+const checkInListQuery = (userLocations: string[], { search, month, year, location }: Loose = {}) => {
   const locFilter = locationFilterFor(userLocations, location);
   if (locFilter.forbidden) return { forbidden: true };
   // Location, month and search clauses, ANDed — the month window and the
@@ -209,7 +209,7 @@ const checkInListQuery = (userLocations: Loose, { search, month, year, location 
   if (m >= 1 && m <= 12 && y > 2000) {
     // The month on each check-in's own branch clock, matching GET /stats
     // and the Daily Report.
-    clauses.push(byBranchClock(locFilter, (zone: Loose) => ({
+    clauses.push(byBranchClock(locFilter, (zone: string) => ({
       $gte: zoneMidnightUtc(zone, y, m - 1, 1),
       $lt: zoneMidnightUtc(zone, y, m, 1)
     })));
@@ -234,7 +234,7 @@ const checkInListQuery = (userLocations: Loose, { search, month, year, location 
 };
 
 /** A time zone the browser sent (?tz=), or undefined when it isn't a real one. */
-const validZone = (tz: Loose) => {
+const validZone = (tz: unknown) => {
   if (!tz) return undefined;
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: String(tz) });
@@ -252,7 +252,7 @@ const validZone = (tz: Loose) => {
 // nobody re-checks against reality once it's submitted. Same phone + same
 // location within a couple minutes is the same visit, not a second one.
 const DUPLICATE_CHECKIN_WINDOW_MS = 2 * 60 * 1000;
-async function findRecentDuplicateCheckIn(phone: Loose, location: string) {
+async function findRecentDuplicateCheckIn(phone: unknown, location: string) {
   if (!phone || !location) return null;
   return OfficeCheckIn.findOne({
     phone,
@@ -321,7 +321,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       // their own default location instead of rejected — the check-in still
       // saved, just filed under a branch nobody chose, with no error shown.
       const userLocations = req.user?.assignedLocations || [];
-      let kioskLocation!: Loose;
+      let kioskLocation!: string;
       if (bodyLocation) {
         if (!hasLocationAccess(userLocations, bodyLocation)) {
           return res.status(403).json({ message: 'Access denied to this location' });
@@ -556,11 +556,11 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       }
 
       // Otherwise, support full pagination, search, and date filters
-      const pageNum = parseInt(page) || 1;
+      const pageNum = parseInt(page as string) || 1;
       // Capped so a client-supplied limit can't force one query/response to
       // pull the entire collection — 1000 comfortably covers exporting a full
       // filtered month at any single location.
-      const limitNum = Math.min(parseInt(limit) || 20, 1000);
+      const limitNum = Math.min(parseInt(limit as string) || 20, 1000);
 
       const total = await OfficeCheckIn.countDocuments(query);
       const checkIns = await OfficeCheckIn.find(query)
@@ -604,7 +604,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         list, total, viewerZone, generated,
         scope: checkInExportScope({ search, month, year, location })
       });
-      const fileName = checkInExportFileName(location, new Date(), 'pdf');
+      const fileName = checkInExportFileName(location as string, new Date(), 'pdf');
       res.set('Content-Type', 'application/pdf');
       res.set('Content-Disposition', `${download ? 'attachment' : 'inline'}; filename="${fileName}"`);
       res.set('Cache-Control', 'no-store');
@@ -623,7 +623,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       // Today and this month on each branch's own clock — the same windows
       // the list's month filter and the Daily Report use, so "Today" for
       // Atlanta starts at Atlanta's midnight whoever is looking.
-      const startOf = (zone: Loose, wholeMonth: Loose) => {
+      const startOf = (zone: string, wholeMonth: boolean) => {
         const { year, monthIndex, day } = zoneDateParts(now, zone);
         return { $gte: zoneMidnightUtc(zone, year, monthIndex, wholeMonth ? 1 : day) };
       };
@@ -634,8 +634,8 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         return res.status(403).json({ message: 'Access denied to this location' });
       }
 
-      const queryToday = byBranchClock(locFilter, (zone: Loose) => startOf(zone, false));
-      const queryMonth = byBranchClock(locFilter, (zone: Loose) => startOf(zone, true));
+      const queryToday = byBranchClock(locFilter, (zone: string) => startOf(zone, false));
+      const queryMonth = byBranchClock(locFilter, (zone: string) => startOf(zone, true));
       const queryAllTime = { ...locFilter };
 
       const [todayCount, monthCount, allTimeCount] = await Promise.all([

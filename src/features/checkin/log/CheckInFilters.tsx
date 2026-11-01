@@ -3,6 +3,7 @@ import { Filter, X } from 'lucide-react';
 import { LocationField } from '../../../components/shared/LocationFilter';
 import { MonthPicker, YearPicker } from '../../../components/shared/calendar/Calendar';
 import { MONTH_NAMES } from '../../../components/shared/calendar/calendarDates';
+import type { homeLocationOf } from '../../../utils/locationFilter';
 
 /**
  * The Check-In Log's Filters button and its panel: branch (when there's more
@@ -18,7 +19,7 @@ export type CheckInFiltersProps = {
   onFilterLocationChange: ((location: string | null) => void) | null;
   /** The branches this person may filter by (accessibleLocations). */
   locationOptions: string[];
-  user: unknown;
+  user: Parameters<typeof homeLocationOf>[0];
 };
 
 export default function CheckInFilters({

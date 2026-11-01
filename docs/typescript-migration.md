@@ -1,89 +1,50 @@
-# TypeScript migration inventory
+# TypeScript migration
 
-Audit date: 2026-10-31. Counts exclude dependencies, build output, hidden
-directories/worktrees, and declaration files. Tests count as files, not app modules.
+Updated 2026-11-01. All repository application, test, and tooling source files
+have moved to TypeScript. Counts exclude dependencies, generated build output,
+hidden worktrees, and declaration files.
 
-| File type | Before this batch | Remaining |
+| Extension | Remaining before final migration | Remaining now |
 | --- | ---: | ---: |
-| `.js` | 322 | 294 |
-| `.jsx` | 42 | 35 |
-| `.mjs` | 3 | 3 |
-| **Total** | **367** | **332** |
+| `.js` | 294 | 0 |
+| `.jsx` | 35 | 0 |
+| `.mjs` | 3 | 0 |
+| **Total** | **332** | **0** |
 
-Remaining: **202 application modules**, **107 tests**, **23 tooling/harness files**.
-This is an incremental migration; the remaining files still need conversion.
+The first batch converted 35 files; this completes the remaining 332. React
+files use `.tsx`, and other modules use `.ts`. Generated browser bundles and
+third-party package entry points still use JavaScript as expected.
 
-Regenerate counts and the complete file list:
+## Runtime and checks
 
-```sh
-npm run audit:typescript
-npm run audit:typescript -- --list
-npm run audit:typescript -- --json
-```
+- Render and `npm start` run `node server.ts` on the pinned Node 24.22.1.
+- Local imports name their renamed files; server imports use exact `.ts` paths.
+- The Vite, ESLint, build, maintenance-script, and harness entry points are typed.
+- `tsconfig.json` checks the app, tests, server, scripts and harness with strict
+  checking, erasable syntax and `allowJs: false`.
+- `npm run typecheck` also checks the server import graph and rejects new
+  JavaScript source files. `npm run build` runs those checks before Vite.
+- `npm run audit:typescript` recounts files; `-- --list` lists remaining
+  JavaScript sources, `-- --json` prints JSON, and `-- --check` fails if any remain.
 
-| Area | Remaining JS/JSX files, including tests |
-| --- | ---: |
-| Shared utilities (`src/utils`) | 111 |
-| Permits | 57 |
-| Components | 33 |
-| Routes | 33 |
-| Models | 24 |
-| Services | 20 |
-| Holds | 10 |
-| Accounting | 8 |
-| Pages | 8 |
-| Jobs | 2 |
-| Purchasing | 1 |
-| Server helpers | 1 |
-| App entry (`src/App.tsx`) | 1 |
-| Root/server/tooling | 5 |
-| Scripts | 17 |
-| Harness | 1 |
+Legacy BSON and external JSON records retain the existing `Loose` boundary type
+where their complete persisted shape is not yet modeled. Mongoose schemas still
+validate at runtime. Props, events, middleware, sessions, callbacks, request
+fields, parser results and other stable contracts have explicit types. No
+`@ts-nocheck`, `@ts-ignore`, or weaker compiler options were added.
 
-## Converted in this batch
+The three obsolete Admin maintenance scripts already failed because their model
+was removed. They continue to fail before connecting to a database, now with a
+clear message directing users to Users & Roles.
 
-35 files: 26 application modules and nine existing test files.
+## Validation
 
-- Shared utilities: phone, text, image paths, location codes, contact values,
-  date formatting, slab statuses, Check In permissions, Lost Sales permissions.
-- Branch configuration and timezone/date helpers.
-- Accounting: money parsing/formatting, transaction IDs, permissions.
-- Holds permissions and shared permission principal type.
-- Inventory display formats and navigation icon maps.
-- Product/color seed data.
-- React: root entry, CategoryNav, ErrorBoundary, Footer, PresenceReporter,
-  ScrollToTop, WarrantyPage; sign-in theme hook.
-- Existing tests for phone, location codes, contact values, slab statuses,
-  branches, accounting money/IDs, Check In access and Lost Sales access.
+Final whole-project verification is recorded when the migration checks finish.
 
-Explicit imports, HTML/build entry points, the server import checker, and
-documentation references follow the new filenames. The conversion keeps
-strict checking enabled, with no `@ts-nocheck` or new explicit `any` types.
+The isolated native Node 24.22.1 smoke test passed: connected health/database
+ping, public catalog pricing restrictions, cold and warm catalog reads (including
+a direct temporary-database change proving the cached snapshot is reused),
+built HTML serving, and JSON 404 responses. The temporary server and MongoDB
+were cleaned up. External HTTP was blocked and real credentials were cleared.
 
-## Continue bottom-up
-
-1. Remaining shared utilities and their tests; keep browser and server rules
-   in the same module.
-2. Component helpers/hooks and React components, then public/auth pages and App.
-3. Models and services, then route modules and integration tests. Keep existing
-   work in progress intact when converting files already modified locally.
-4. Server entry points and maintenance/build scripts. Update package scripts
-   and hosting references when renaming server entry points.
-
-Use `.tsx` for JSX and `.ts` for other modules. Node 24 loads server/shared
-TypeScript directly: keep exact `.ts` import paths and erasable syntax.
-Run strict type checking, server import validation, affected tests, and the
-production build for each batch. Recheck relevant screens before deploying.
-
-## Validation for this batch
-
-- `npm run typecheck` and `npm run build` passed.
-- Full test run: 2,477 passed, four skipped, eight timed out across five files.
-  Rerunning those five files with `--maxWorkers=1` passed all 93 tests;
-  collectively all 2,485 runnable tests passed.
-- ESLint on the converted files found the existing synchronous state update
-  in WarrantyPage's URL-selection effect (`react-hooks/set-state-in-effect`).
-  That navigation behavior is unchanged by this migration.
-- The server import checker still warns about three legacy admin scripts
-  importing the absent `src/models/Admin.js`; those warnings predate this batch.
-- Screens have not been manually checked in a browser; nothing was deployed.
+Nothing was deployed by this migration.

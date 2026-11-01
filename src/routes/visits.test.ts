@@ -17,11 +17,11 @@ const { seedTypeLists } = await import('../services/seedTypeLists.ts');
 
 let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
-let customerId!: Loose;
-let processBase64Image!: Loose;
+let customerId!: string;
+let processBase64Image!: ReturnType<typeof vi.fn>;
 
 const STAFF = { _id: 'u1', permissions: ['add_visits', 'edit_own_visits'], assignedLocations: ['*'] };
-const send = (method: string, url: string, body: Loose, user = STAFF) =>
+const send = (method: 'post' | 'put' | 'patch' | 'delete', url: string, body: Loose, user: Loose = STAFF) =>
   request(app)[method](url).set('x-test-user', JSON.stringify(user)).send(body);
 const visitsNow = async () => ((await Customer.findById(customerId).lean()))!.visits;
 const base = (over: Loose = {}) => ({ date: '2026-10-20', purpose: 'Unscheduled in Person Sales Call', notes: 'hi', ...over });
@@ -33,11 +33,11 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.set('io', { emit: () => {} });
-  const has = (req: Loose, p: Loose) => (req.user.permissions || []).includes(p);
+  const has = (req: Loose, p: string) => (req.user.permissions || []).includes(p);
   app.use('/api/customers', createVisitsRouter({
     authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); req.userId = req.user._id; req.authType = 'admin'; next(); },
     requirePermission: (p: string) => (req: Loose, res: Loose, next: () => void) => (has(req, p) ? next() : res.status(403).json({})),
-    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
+    requireAnyPermission: (...ps: string[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
     processBase64Image,
     getPerformerInfo: async () => ({ id: 'u1', name: 'Rita' }),
     getNowLocalISO: () => '2026-10-23T09:00:00.000',
@@ -150,7 +150,7 @@ describe('POST /:customerId/visits', () => {
 });
 
 describe('PUT /:customerId/visits/:visitId', () => {
-  const add = async (over: Loose) => (await send('post', `/api/customers/${customerId}/visits`, base(over))).body.visit;
+  const add = async (over: Loose = {}) => (await send('post', `/api/customers/${customerId}/visits`, base(over))).body.visit;
 
   it('saves the change and answers with the stored visit', async () => {
     const v = await add();
@@ -231,7 +231,7 @@ describe("PUT — Edit branch goes by the rep's branch (teamScope.js)", () => {
   });
   const manager = () => ({ _id: String(mgr._id), permissions: ['edit_branch_visits'], assignedLocations: ['Seattle'] });
   // A visit logged by `author` on a customer at `customerLocation`.
-  const visitBy = async (author: Loose, customerLocation: Loose) => {
+  const visitBy = async (author: Loose, customerLocation: string) => {
     const c = await Customer.findById(customerId);
     (c)!.location = customerLocation;
     (c)!.visits.push({ ...base(), createdBy: author._id });

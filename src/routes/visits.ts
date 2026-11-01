@@ -1,6 +1,6 @@
 import type { ScalarParams } from '../types/server.ts';
 import type { Loose } from '../types/records.ts';
-import type { RequestHandler } from 'express';
+import type { RequestHandler, Request } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
 import Customer from '../models/Customer.ts';
@@ -42,7 +42,7 @@ import { followUpUpdate } from '../utils/followUpList.ts';
 export default function createVisitsRouter({
   authenticate, requirePermission, requireAnyPermission,
   processBase64Image, getPerformerInfo, getNowLocalISO, emitScheduleUpdate
-}: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; requireAnyPermission: (...permissions: string[]) => RequestHandler; processBase64Image: Loose; getPerformerInfo: Loose; getNowLocalISO: Loose; emitScheduleUpdate: Loose }) {
+}: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; requireAnyPermission: (...permissions: string[]) => RequestHandler; processBase64Image: (image: string, folder?: string) => Promise<unknown>; getPerformerInfo: (req: Request) => Promise<Loose>; getNowLocalISO: () => string; emitScheduleUpdate: (event: Loose) => void }) {
   const router = express.Router();
 
   const processImages = async (image: Loose) => {
@@ -51,7 +51,7 @@ export default function createVisitsRouter({
     return image;
   };
 
-  const visitOf = async (customerId: string, visitId: string) => {
+  const visitOf = async (customerId: string, visitId: string | mongoose.Types.ObjectId) => {
     const doc = await Customer.findOne({ _id: customerId, 'visits._id': visitId }, { 'visits.$': 1 }).lean();
     return doc?.visits?.[0] || null;
   };
@@ -202,7 +202,7 @@ export default function createVisitsRouter({
         if (!processedDate) return res.status(400).json({ message: 'Visit date must be a date (YYYY-MM-DD)' });
         updateData['visits.$.date'] = processedDate;
       }
-      let followUpDate!: Loose;
+      let followUpDate!: string | null;
       if (req.body.followUpDate !== undefined) {
         followUpDate = normalizeOptionalDate(req.body.followUpDate);
         if (followUpDate === null) return res.status(400).json({ message: 'Follow-up date must be a date (YYYY-MM-DD)' });

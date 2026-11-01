@@ -37,7 +37,7 @@ beforeAll(async () => {
   app.use(express.json());
   app.get('/api/list', authenticate, usersAccess('view'), async (req, res) => res.json(req.teamScope ? await teamUsers(req) : await User.find()));
   app.use('/api', createUserOnboardingRouter({
-    authenticate, requirePermission, loginLimiter: (q: Loose, r: Loose, n: number) => n(), jwtSecret: 's', usersAccess, memberAllowed
+    authenticate, requirePermission, loginLimiter: (q: Loose, r: Loose, n: () => void) => n(), jwtSecret: 's', usersAccess, memberAllowed
   }));
 }, 180000);
 
@@ -115,9 +115,9 @@ describe('single actions (no master key)', () => {
   });
   it('team access cannot reach an action outside view, deactivate and unlock', async () => {
     const { usersAccess } = createTeamAccess({ Role, User });
-    const res = { status(c: Loose) { this.code = c; return this; }, json() { return this; } };
+    const res: { code?: number; status(c: number): unknown; json(): unknown } = { status(c: number) { this.code = c; return this; }, json() { return this; } };
     let passed = false;
-    await usersAccess('delete_users')({ user: teamActor }, res, () => { passed = true; });
+    await usersAccess('delete_users')({ user: teamActor } as unknown as import('express').Request, res as unknown as import('express').Response, () => { passed = true; });
     expect(passed).toBe(false);
     expect(res.code).toBe(403);
   });

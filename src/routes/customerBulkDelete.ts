@@ -57,7 +57,7 @@ export default function createCustomerBulkDeleteRouter({ authenticate }: { authe
     const { ids, error } = bulkDeleteIds(req.body?.ids);
     if (error) return res.status(400).json({ message: error });
     try {
-      const oids = ids.map((id) => new mongoose.Types.ObjectId(id));
+      const oids = ids!.map((id) => new mongoose.Types.ObjectId(id));
       const docs = await Customer.collection.find({ _id: { $in: oids } }).toArray();
       if (docs.length === 0) {
         return res.status(404).json({ message: 'None of these customers exist any more — refresh the list.' });
@@ -71,7 +71,7 @@ export default function createCustomerBulkDeleteRouter({ authenticate }: { authe
       const { deletedCount } = await Customer.collection.deleteMany({ _id: { $in: docs.map((d) => d._id) } });
 
       req.app.get('io')?.emit('customer_update');
-      res.json({ deleted: deletedCount, missing: ids.length - docs.length, batchId });
+      res.json({ deleted: deletedCount, missing: ids!.length - docs.length, batchId });
     } catch (err) {
       console.error('Bulk delete customers error:', err);
       res.status(500).json({ message: `Could not delete the customers: ${(err as Error).message}` });

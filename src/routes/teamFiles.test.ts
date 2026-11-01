@@ -21,7 +21,7 @@ const { default: User } = await import('../models/User.ts');
 
 let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
-let publicDir!: Loose;
+let publicDir!: string;
 const emit = vi.fn();
 const uploadToCloudinary = vi.fn(async () => ({ secure_url: 'https://res.cloudinary.com/demo/res_1.webp' }));
 
@@ -31,7 +31,7 @@ const MANAGER = { _id: String(KRISH), permissions: ['view_team_files', 'manage_t
 const VIEWER = { _id: String(DANA), permissions: ['view_team_files'] };
 const DASHBOARD_ONLY = { _id: String(DANA), permissions: ['view_dashboard'] };
 const as = (user: Loose) => ({ 'x-test-user': JSON.stringify(user) });
-const api = (p: Loose) => `/api/team-files${p}`;
+const api = (p: string) => `/api/team-files${p}`;
 
 let clock = 0;
 const getNowLocalISO = () => `2026-10-30T09:${String(clock++).padStart(2, '0')}:00.000`;
@@ -91,7 +91,7 @@ beforeEach(async () => {
     { _id: KRISH, username: 'krish', displayName: 'Krish' },
     { _id: DANA, username: 'dana.w' }
   ]);
-  const folder = (_id: Loose, name: string, parentId: Loose) => ({ _id, name, type: 'folder', content: '', isFolder: true, parentId, uploadedBy: KRISH, createdAt: '2026-01-01T09:00:00.000' });
+  const folder = (_id: mongoose.Types.ObjectId, name: string, parentId: mongoose.Types.ObjectId | null) => ({ _id, name, type: 'folder', content: '', isFolder: true, parentId, uploadedBy: KRISH, createdAt: '2026-01-01T09:00:00.000' });
   await SalesDashboardResource.collection.insertMany([
     folder(PRICE, 'Price lists', null),
     folder(ARCHIVE, 'Archive 2025', PRICE),

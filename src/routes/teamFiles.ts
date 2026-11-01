@@ -1,6 +1,6 @@
 import type { ScalarParams, ScalarQuery } from '../types/server.ts';
 import type { Loose } from '../types/records.ts';
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -42,7 +42,7 @@ import { displayNameOf } from '../utils/salesReps.ts';
  *         uploadToCloudinary(buffer, folder, name), publicDir, getNowLocalISO }
  */
 
-const isId = (v: Loose) => typeof v === 'string' && mongoose.Types.ObjectId.isValid(v) && /^[a-f0-9]{24}$/i.test(v);
+const isId = (v: unknown) => typeof v === 'string' && mongoose.Types.ObjectId.isValid(v) && /^[a-f0-9]{24}$/i.test(v);
 const POPULATE = [
   { path: 'uploadedBy', select: 'username displayName' },
   { path: 'updatedBy', select: 'username displayName' }
@@ -63,15 +63,15 @@ const allFolders = async () => (await SalesDashboardResource.find({ isFolder: tr
   .map((f) => ({ _id: String(f._id), name: f.name, parentId: f.parentId ? String(f.parentId) : null }));
 
 /** How many files (not folders) sit directly in each of `parentIds` (null = the top). */
-const fileCounts = async (parentIds: Loose) => {
-  const match = { isFolder: { $ne: true } };
+const fileCounts = async (parentIds: string[] | null) => {
+  const match: Loose = { isFolder: { $ne: true } };
   if (parentIds) match.parentId = { $in: parentIds.map((id: string) => new mongoose.Types.ObjectId(id)) };
   const rows = await SalesDashboardResource.aggregate([{ $match: match }, { $group: { _id: '$parentId', n: { $sum: 1 } } }]);
   return new Map(rows.map((r) => [r._id ? String(r._id) : null, r.n]));
 };
 
 /** Everything under a folder: its folders' ids and its files (for the summary, and to remove disk files). */
-const subtreeOf = async (folderId: Loose) => {
+const subtreeOf = async (folderId: string) => {
   const folders: Loose[] = [];
   const files: Loose[] = [];
   let frontier = [new mongoose.Types.ObjectId(folderId)];
@@ -93,11 +93,13 @@ const subtreeOf = async (folderId: Loose) => {
   return { folders, files };
 };
 
-export function createTeamFilesCore({ uploadToCloudinary, publicDir, getNowLocalISO }: { uploadToCloudinary: Loose; publicDir: Loose; getNowLocalISO: Loose }) {
+export type TeamFilesDependencies = { authenticate: RequestHandler; upload: RequestHandler; uploadToCloudinary: (buffer: Buffer, folder: string, name: string) => Promise<{ secure_url: string }>; publicDir: string; getNowLocalISO: () => string };
+
+export function createTeamFilesCore({ uploadToCloudinary, publicDir, getNowLocalISO }: Pick<TeamFilesDependencies, 'uploadToCloudinary' | 'publicDir' | 'getNowLocalISO'>) {
   const uploadDir = path.join(publicDir, 'uploads', 'resources');
 
   /** A file from multer as stored content: images to Cloudinary, the rest to disk. */
-  const storeFile = async (file: Loose) => {
+  const storeFile = async (file: Pick<Express.Multer.File, 'buffer' | 'originalname' | 'mimetype'> & Partial<Pick<Express.Multer.File, 'size'>>) => {
     const suffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     if (file.mimetype?.startsWith('image/')) {
       const result = await uploadToCloudinary(file.buffer, 'Resources', `res_${suffix}`);
@@ -153,7 +155,7 @@ const requireManage = (req: Request, res: Response, next: NextFunction) => (
 );
 const userIdOf = (req: Request) => (isId(String(req.userId || req.user?._id || req.user?.id || '')) ? String(req.userId || req.user?._id || req.user?.id) : undefined);
 
-export default function createTeamFilesRouter(deps: Loose) {
+export default function createTeamFilesRouter(deps: TeamFilesDependencies) {
   const { authenticate, upload } = deps;
   const core = createTeamFilesCore(deps);
   const router = express.Router();
@@ -178,7 +180,7 @@ export default function createTeamFilesRouter(deps: Loose) {
       const subIds = items.filter((i) => i.isFolder).map((i) => String(i._id));
       const counts = subIds.length ? await fileCounts(subIds) : new Map();
       res.json({
-        folder: folderId ? { _id: folderId, name: trail.at(-1).name } : null,
+        folder: folderId ? { _id: folderId, name: trail!.at(-1)!.name } : null,
         path: trail,
         items: items.map((i) => ({ ...shape(i), ...(i.isFolder ? { files: counts.get(String(i._id)) || 0 } : {}) }))
       });
@@ -206,7 +208,7 @@ export default function createTeamFilesRouter(deps: Loose) {
     const pattern = searchPattern(String((req.query as ScalarQuery).q || ''));
     if (!pattern) return res.json({ items: [], total: 0 });
     try {
-      const query = { isFolder: { $ne: true }, name: { $regex: pattern, $options: 'i' } };
+      const query: Loose = { isFolder: { $ne: true }, name: { $regex: pattern, $options: 'i' } };
       const [hits, total, folders] = await Promise.all([
         SalesDashboardResource.find(query).select('-content').populate(POPULATE).sort({ createdAt: -1 }).limit(SEARCH_LIMIT),
         SalesDashboardResource.countDocuments(query),
@@ -225,10 +227,10 @@ export default function createTeamFilesRouter(deps: Loose) {
     }
   });
 
-  const listOf = (query: string, sort: Loose, limit: number) => async (req: Request, res: Response) => {
+  const listOf = (query: Loose, sort: Loose, limit: number) => async (req: Request, res: Response) => {
     try {
       const [items, folders] = await Promise.all([
-        SalesDashboardResource.find(query).select('-content').populate(POPULATE).sort(sort).limit(limit),
+        SalesDashboardResource.find(query).select('-content').populate(POPULATE).sort(sort as Parameters<ReturnType<typeof SalesDashboardResource.find>['sort']>[0]).limit(limit),
         allFolders()
       ]);
       res.json({ items: items.map((i) => { const r = shape(i); return { ...r, path: pathTo(r.parentId, folders) || [] }; }) });
@@ -262,7 +264,7 @@ export default function createTeamFilesRouter(deps: Loose) {
       if (parentId === false) return res.status(400).json({ message: 'That folder no longer exists.', folderGone: true });
       const stored = kind === 'link'
         ? { content: String(req.body.url ?? req.body.content).trim(), contentType: 'text/uri-list' }
-        : await core.storeFile(req.file);
+        : await core.storeFile(req.file!);
       const item = await SalesDashboardResource.create({
         name: String(req.body.name).trim(),
         type: kind,
@@ -371,7 +373,7 @@ export default function createTeamFilesRouter(deps: Loose) {
       } else {
         const problem = checkUpload({ kind: 'file', name: req.body.name || item.name, hasFile: Boolean(req.file), fileSize: req.file?.size });
         if (problem) return res.status(400).json({ message: problem });
-        Object.assign(item, await core.storeFile(req.file));
+        Object.assign(item, await core.storeFile(req.file!));
         const thumb = core.thumbnailFrom(req.body.thumbnail);
         item.thumbnail = thumb;
       }
@@ -424,7 +426,7 @@ export default function createTeamFilesRouter(deps: Loose) {
  * /resources/:id, /upload (file, link or folder), PUT and DELETE /resources/:id.
  * Same switches as the new routes. Remove with KNOWN_ISSUES.md's Cleanup due.
  */
-export function createLegacyTeamFilesRouter(deps: Loose) {
+export function createLegacyTeamFilesRouter(deps: TeamFilesDependencies) {
   const { authenticate, upload } = deps;
   const core = createTeamFilesCore(deps);
   const router = express.Router();
@@ -468,7 +470,7 @@ export function createLegacyTeamFilesRouter(deps: Loose) {
         if (problem) return res.status(400).json({ message: problem });
         stored = { content: '', contentType: 'application/vnd.google-apps.folder' };
       } else if (req.file) {
-        stored = await core.storeFile(req.file);
+        stored = await core.storeFile(req.file!);
       } else if (type === 'link' && isWebLink(String(linkContent || ''))) {
         stored = { content: String(linkContent).trim(), contentType: 'text/uri-list' };
       } else {
@@ -503,7 +505,7 @@ export function createLegacyTeamFilesRouter(deps: Loose) {
       const old = item.content;
       if (name && String(name).trim()) item.name = String(name).trim();
       if (req.file) {
-        Object.assign(item, await core.storeFile(req.file));
+        Object.assign(item, await core.storeFile(req.file!));
       } else if (type === 'link' && linkContent) {
         if (!isWebLink(String(linkContent))) return res.status(400).json({ message: 'The link must start with http:// or https://.' });
         item.content = String(linkContent).trim();

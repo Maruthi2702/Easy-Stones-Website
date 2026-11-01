@@ -67,7 +67,7 @@ describe('hand-added transfer lines on save', () => {
 describe('one transfer per line, each with its number', () => {
   const get = () => request(app).get('/api/daily-reports/2026-10-15?location=Seattle')
     .set('x-test-user', JSON.stringify(EDITOR)).expect(200);
-  const transferTicket = (id: string, soNumber: Loose, slabs: Loose[]) => ({
+  const transferTicket = (id: string, soNumber: string, slabs: number) => ({
     id, deliveryType: 'transfer', location: 'Seattle', transferDestination: 'Spokane', truckId: 'drv_3rd',
     date: '2026-10-15', status: 'scheduled', soNumber, numberOfSlabs: slabs
   });

@@ -539,5 +539,5 @@ export async function buildMonthPdf({ month, rows, scopeLabel }: Loose) {
 export const dayPdfFileName = (report: Loose) =>
   `daily_report_${report.date}_${String(report.location).replace(/\s+/g, '_')}.pdf`;
 
-export const monthPdfFileName = (month: number, scopeLabel: unknown) =>
+export const monthPdfFileName = (month: string, scopeLabel: unknown) =>
   `daily_report_${month}_${String(scopeLabel).replace(/\s+/g, '_')}.pdf`;

@@ -133,7 +133,7 @@ export function salesRepNameOptions(payload: Loose, { branches = [], current = {
 }
 
 /** A location record → its sales person (Users & Roles → Locations → Sales defaults). */
-export const branchSalesRepOf = (loc: Loose) => String(loc?.defaultSalesRep ?? loc?.salesDefaults?.salesRep ?? '').trim();
+export const branchSalesRepOf = (loc: Loose | null | undefined) => String(loc?.defaultSalesRep ?? loc?.salesDefaults?.salesRep ?? '').trim();
 
 /**
  * Who something new at `branch` — a customer, a delivery, a check-in —

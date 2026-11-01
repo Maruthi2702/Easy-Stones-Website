@@ -19,7 +19,7 @@ import { sanitizeNavOrder, isDefaultNavOrder } from '../utils/navPins.ts';
  */
 const KEY = 'navOrder';
 
-export default function createNavOrderRouter({ authenticate, requirePermission, requireAction = () => requirePermission('manage_users') }: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; requireAction?: Loose }) {
+export default function createNavOrderRouter({ authenticate, requirePermission, requireAction = () => requirePermission('manage_users') }: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; requireAction?: (key: string) => RequestHandler }) {
   const router = express.Router();
 
   router.get('/', authenticate, async (req, res) => {

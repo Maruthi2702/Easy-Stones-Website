@@ -23,7 +23,7 @@ const EDITOR = { username: 'ed', permissions: ['view_customers', 'manage_custome
 const NO_VIEW = { username: 'nv', permissions: ['delete_customers'] };
 const as = (user: Loose) => ({ 'x-test-user': JSON.stringify(user) });
 const del = (ids: string[], user = DELETER) => request(app).post('/api/customers/bulk-delete').set(as(user)).send({ ids });
-const undo = (batchId: Loose, user = DELETER) => request(app).post('/api/customers/bulk-delete/undo').set(as(user)).send({ batchId });
+const undo = (batchId: string | null, user = DELETER) => request(app).post('/api/customers/bulk-delete/undo').set(as(user)).send({ batchId });
 
 const A = new mongoose.Types.ObjectId();
 const B = new mongoose.Types.ObjectId();

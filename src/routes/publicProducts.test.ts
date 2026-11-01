@@ -22,7 +22,7 @@ const product = {
   internalFutureField: 'private', bundles: [{ bundleNumber: 'B1', images: ['/bundle.jpg'] }]
 };
 const token = (claims: Loose, options: Loose = {}) => jwt.sign(claims, secret, { expiresIn: '1h', ...options });
-const get = (session: Loose) => {
+const get = (session?: string) => {
   const req = request(app).get('/api/products');
   return session ? req.set('Authorization', `Bearer ${session}`) : req;
 };

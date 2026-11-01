@@ -76,7 +76,7 @@ const cloudinaryReady = () => Boolean(
 // generated strings but may carry separators we shouldn't pass through raw.
 const safeIdSegment = (value: unknown) => String(value || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
 
-const podAssetIds = (deliveryId: Loose) => {
+const podAssetIds = (deliveryId: unknown) => {
   const key = safeIdSegment(deliveryId);
   return {
     packingList: `deliveries/packing_lists/${key}`,
@@ -86,16 +86,16 @@ const podAssetIds = (deliveryId: Loose) => {
   };
 };
 
-const uploadBufferToCloudinary = (buffer: Loose, publicId: Loose, resourceType = 'raw') =>
-  new Promise((resolve, reject) => {
+const uploadBufferToCloudinary = (buffer: Buffer, publicId: string, resourceType: 'raw' | 'image' | 'video' | 'auto' = 'raw') =>
+  new Promise<import('cloudinary').UploadApiResponse>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       { public_id: publicId, resource_type: resourceType, overwrite: true, invalidate: true },
-      (err, result) => (err ? reject(err) : resolve(result))
+      (err, result) => (err ? reject(err) : resolve(result!))
     );
     stream.end(buffer);
   });
 
-const destroyCloudinaryAsset = async (publicId: Loose, resourceType = 'raw') => {
+const destroyCloudinaryAsset = async (publicId: string, resourceType: 'raw' | 'image' | 'video' | 'auto' = 'raw') => {
   if (!publicId || !cloudinaryReady()) return;
   try {
     await cloudinary.uploader.destroy(publicId, { resource_type: resourceType, invalidate: true });
@@ -107,7 +107,7 @@ const destroyCloudinaryAsset = async (publicId: Loose, resourceType = 'raw') => 
 // Writes a PDF buffer and returns { url, publicId }. Without Cloudinary
 // configured this falls back to disk so local dev still works — but on Render
 // that directory is wiped by every deploy, which is why the warning is loud.
-const storeDeliveryPdf = async (buffer: Loose, publicId: Loose, diskName: Loose) => {
+const storeDeliveryPdf = async (buffer: Buffer, publicId: string, diskName: string) => {
   if (cloudinaryReady()) {
     // A raw asset is served with the content type of its extension, and the
     // extensionless id (…/tmp_1792…_5544) came back as octet-stream, so View
@@ -128,10 +128,10 @@ const storeDeliveryPdf = async (buffer: Loose, publicId: Loose, diskName: Loose)
 // helper re-encodes everything to WebP at up to 1200px, which is the wrong
 // trade here — trimming the empty margin and keeping PNG is both smaller and
 // keeps the clean alpha that stamping depends on.
-const storeSignaturePng = async (dataUrl: string, publicId: Loose) => {
+const storeSignaturePng = async (dataUrl: string, publicId: string) => {
   if (!dataUrl || !dataUrl.startsWith('data:image/')) return dataUrl || '';
 
-  let buffer = Buffer.from(dataUrl.split(';base64,').pop(), 'base64');
+  let buffer: Buffer = Buffer.from(dataUrl.split(';base64,').pop()!, 'base64');
   try {
     const sharp = (await import('sharp')).default;
     buffer = await sharp(buffer).trim({ threshold: 10 }).png({ compressionLevel: 9 }).toBuffer();
@@ -174,7 +174,7 @@ const mergePodOntoExisting = (incoming: Loose = {}, existing: Loose = {}) => {
 // card would advertise proof that leads to no document. A delivery with no
 // packing list to begin with is still proven by the signatures alone; requiring
 // a PDF there would leave it permanently reading "No ePOD" after a valid signing.
-const derivePodVerified = (pod: Loose, hasPackingList: Loose) => Boolean(
+const derivePodVerified = (pod: Loose, hasPackingList: boolean) => Boolean(
   pod &&
   String(pod.signeeName || '').trim() &&
   pod.customerSignature &&
@@ -194,7 +194,7 @@ const derivePodVerified = (pod: Loose, hasPackingList: Loose) => Boolean(
  * a driver user account, so the only way to recognise it is by the name on the
  * account the ticket was filed under.
  */
-const certificateWordingFor = async ({ deliveryType, truckId }: { deliveryType: Loose; truckId: Loose }) => {
+const certificateWordingFor = async ({ deliveryType, truckId }: { deliveryType?: string; truckId?: string }) => {
   // Checked before anything else: a return is a return whether a driver went
   // out for it or the customer brought it back, and its certificate names the
   // two parties the opposite way round from every other ticket.
@@ -235,7 +235,7 @@ const certificateWordingFor = async ({ deliveryType, truckId }: { deliveryType: 
 // treats the narrowed set as if it were the user's whole assignedLocations,
 // which naturally keeps the transfer-destination rule below working the same
 // way it does for an ordinary single-location user.
-const scopeDeliveryQueryToLocations = (query: string, req: Request, dateRange: Loose, requestedLocation: Loose) => {
+const scopeDeliveryQueryToLocations = (query: Loose, req: Request, dateRange: { start: string; end: string } | null = null, requestedLocation?: string) => {
   const userLocations = requestedLocation ? [requestedLocation] : (req.user?.assignedLocations || []);
   const inRange = (field: string) => dateRange ? { [field]: { $gte: dateRange.start, $lte: dateRange.end } } : {};
 
@@ -262,7 +262,7 @@ const scopeDeliveryQueryToLocations = (query: string, req: Request, dateRange: L
 
 // Writes to shipping fields belong to the sender. Inbound receipt edits have
 // their own narrow route below; read scope remains shared by both branches.
-const scopeShipmentWrites = (query: string, req: Request) => {
+const scopeShipmentWrites = (query: Loose, req: Request) => {
   const locations = req.user?.assignedLocations || [];
   if (locations.includes('*')) return query;
   return { $and: [query, { $or: [
@@ -278,7 +278,7 @@ const scopeShipmentWrites = (query: string, req: Request) => {
 // without this, scopeDeliveryQueryToLocations would treat a request for
 // location='*' as if the caller actually held it, handing back every
 // branch's deliveries to someone assigned to just one.
-const userCanRequestLocation = (req: Request, requestedLocation: Loose) => {
+const userCanRequestLocation = (req: Request, requestedLocation: string | undefined) => {
   if (!requestedLocation) return true;
   const userLocations = req.user?.assignedLocations || [];
   if (userLocations.includes('*')) return true;
@@ -306,7 +306,7 @@ const DELIVERY_ROOM_ALL = 'delivery-location:*';
 // the server never has to know the full set of branches, only which rooms
 // someone has joined.
 const BRANCH_ROOM_PREFIX = 'delivery-location:';
-const deliveryRoomsFor = (record: Loose, io = null) => {
+const deliveryRoomsFor = (record: Loose, io: { sockets?: { adapter?: { rooms: Pick<Map<string, unknown>, 'keys'> } } } | null = null) => {
   const rooms = [DELIVERY_ROOM_ALL];
   if (!record?.location || record.location === '*') {
     const open = io?.sockets?.adapter?.rooms;
@@ -358,7 +358,7 @@ const RUN_FIELDS = 'id truckId date routeNumber deliveryType customerDropOff sta
 const runOf = (d: Loose) => (d?.truckId && d?.date ? { truckId: d.truckId, date: d.date } : null);
 
 /** What's on the board in a run: not cancelled, not a will call left pointing at the truck. */
-const ticketsInRun = async ({ truckId, date }: { truckId: Loose; date: string }) =>
+const ticketsInRun = async ({ truckId, date }: { truckId: string; date: string }) =>
   (await Delivery.find({ truckId, date, status: { $ne: 'cancelled' } }, RUN_FIELDS).lean())
     .filter(d => columnIdFor(d) === truckId);
 
@@ -368,7 +368,7 @@ const writeStopNumbers = (changes: Loose[]) => Delivery.bulkWrite(
 );
 
 /** Closes up each run given (nulls and repeats skipped); returns the tickets it renumbered. */
-async function renumberRuns(runs: Loose) {
+async function renumberRuns(runs: (Loose | null)[]) {
   const seen = new Set();
   const changes: Loose[] = [];
   for (const run of runs) {
@@ -376,7 +376,7 @@ async function renumberRuns(runs: Loose) {
     const key = `${run.truckId}||${run.date}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    changes.push(...compactStopNumbers(await ticketsInRun(run)));
+    changes.push(...compactStopNumbers(await ticketsInRun(run as { truckId: string; date: string })));
   }
   if (!changes.length) return [];
   await writeStopNumbers(changes);
@@ -434,7 +434,7 @@ const uploadPackingList = multer({
 // imports, and for the same reason: a client-supplied filename/mimetype is
 // just a label, not a guarantee.
 const PDF_MAGIC = Buffer.from('%PDF-');
-const isPdfBuffer = (buffer: Loose) => Buffer.isBuffer(buffer) && buffer.length >= PDF_MAGIC.length
+const isPdfBuffer = (buffer: Buffer) => Buffer.isBuffer(buffer) && buffer.length >= PDF_MAGIC.length
   && buffer.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC);
 
 export default function createDeliveriesRouter({
@@ -444,7 +444,7 @@ export default function createDeliveriesRouter({
   getPerformerInfo,
   processBase64Images,
   getNowLocalISO
-}: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; requireAnyPermission: (...permissions: string[]) => RequestHandler; getPerformerInfo: Loose; processBase64Images: Loose; getNowLocalISO: Loose }) {
+}: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; requireAnyPermission: (...permissions: string[]) => RequestHandler; getPerformerInfo: (req: Request) => Promise<Loose>; processBase64Images: (images: unknown[], folder: string) => Promise<unknown[]>; getNowLocalISO: () => string }) {
   const router = express.Router();
 
   // ── Delivery schedule authorisation ────────────────────────────────────
@@ -484,7 +484,7 @@ export default function createDeliveriesRouter({
   // boards about every ticket that moved, except `selfId`: the caller sends
   // that one itself, with the number this returns. A failure here is logged,
   // not returned — the save it follows has already happened.
-  const renumberAfter = async (req: Request, runs: Loose, selfId: Loose) => {
+  const renumberAfter = async (req: Request, runs: (Loose | null)[], selfId?: string) => {
     try {
       const moved = await renumberRuns(runs);
       for (const delivery of moved) {
@@ -496,7 +496,7 @@ export default function createDeliveriesRouter({
       return [];
     }
   };
-  const withNumberFrom = (record: Loose, moved: Loose) => {
+  const withNumberFrom = (record: Loose, moved: Loose[]) => {
     const fixed = moved.find((d: Loose) => d.id === record.id);
     return fixed ? { ...record, routeNumber: fixed.routeNumber } : record;
   };
@@ -674,7 +674,7 @@ export default function createDeliveriesRouter({
       // silently fall back to Monday because that also matched. Only this list
       // response is reshaped this way; the single-ticket fetch that populates
       // the edit modal always shows the real stored ship date.
-      const inWeek = (d: Loose) => Boolean(d && startDate && endDate && d >= startDate && d <= endDate);
+      const inWeek = (d: string | null | undefined) => Boolean(d && startDate && endDate && d >= startDate && d <= endDate);
       // Same narrowing as the query above — an admin who filtered down to one
       // branch should see that branch's own transfer perspective (arrival
       // date for an inbound transfer), not their usual admin-wide one.
@@ -1479,7 +1479,7 @@ export default function createDeliveriesRouter({
         // after READ_LIMIT_MS — a slow or huge PDF then just uploads without
         // the auto-fill instead of holding the form's "Attaching PDF…".
         const READ_LIMIT_MS = 4000;
-        let giveUp!: Loose;
+        let giveUp!: ReturnType<typeof setTimeout>;
         const readText = Promise.race([
           extractPdfTextItems(req.file.buffer, { deadline: Date.now() + READ_LIMIT_MS })
             .then((items) => {

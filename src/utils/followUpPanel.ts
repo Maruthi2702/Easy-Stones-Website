@@ -28,7 +28,7 @@ const dayNumber = (day: string) => {
 };
 
 /** `rows` are /api/dashboard/visits rows; `today` is YYYY-MM-DD. */
-export const pickPanelFollowUps = (rows: Loose[] = [], today: string, limit = FOLLOW_UP_PANEL_LIMIT) => {
+export const pickPanelFollowUps = (rows: Loose[] = [], today: string | undefined = undefined, limit = FOLLOW_UP_PANEL_LIMIT) => {
   const todayN = dayNumber(dayOf(today) || dayOf(new Date()));
   return rows
     .filter((v) => v && (v.nextAction || v.followUp || v.followUpDate) && !v.followUpDoneAt)

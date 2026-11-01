@@ -127,7 +127,7 @@ export const SAVED_VIEWS = Object.freeze([
   { key: 'incomplete', label: 'Incomplete', warn: true }
 ]);
 
-export const isSavedView = (key: string) => SAVED_VIEWS.some(v => v.key === key);
+export const isSavedView = (key: unknown) => SAVED_VIEWS.some(v => v.key === key);
 
 /** 'YYYY-MM-DD' plus n days, in UTC so it never shifts with the server's zone. */
 export const addDays = (dayStr: unknown, n: number) => {

@@ -17,12 +17,12 @@ const { default: User } = await import('../models/User.ts');
 
 let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
-let store = null;
-const cache = { get: vi.fn(() => store), put: vi.fn((pins) => { store = pins; return pins; }) };
+let store: Loose[] | null = null;
+const cache = { get: vi.fn(() => store), put: vi.fn((pins: Loose[]) => { store = pins; return pins; }) };
 
 const id = () => new mongoose.Types.ObjectId();
 const DANA = id(); const MARCUS = id(); const ALEX = id(); const CHRIS = id();
-const staff = (_id: Loose, username: string, location: string) => ({ _id, username, role: 'sales_rep', location, assignedLocations: [location], password: 'x' });
+const staff = (_id: mongoose.Types.ObjectId, username: string, location: string) => ({ _id, username, role: 'sales_rep', location, assignedLocations: [location], password: 'x' });
 
 const customer = (over: Loose) => ({
   _id: id(), company: 'Co', contactName: 'Pat', email: 'pat@example.com', phone: '(206) 555-0100',
@@ -37,7 +37,7 @@ const ADMIN = { id: 'adm', role: 'admin', permissions: ['view_route_planner'], a
 const MANAGER = { id: 'mgr', role: 'manager', permissions: ['view_route_planner'], assignedLocations: ['Kent', 'Seattle'], location: 'Kent' };
 const NO_PERM = { id: 'np', role: 'manager', permissions: [], assignedLocations: ['Kent'] };
 const as = (user: Loose) => ({ 'x-test-user': JSON.stringify(user) });
-const get = (path: string, user = MANAGER) => request(app).get(`/api/customers${path}`).set(as(user));
+const get = (path: string, user: Loose = MANAGER) => request(app).get(`/api/customers${path}`).set(as(user));
 const companies = (res: Loose) => res.body.map((p: Loose) => p.company).sort();
 
 beforeAll(async () => {
@@ -142,11 +142,11 @@ describe('GET /map — the pin', () => {
 describe('GET /map/rep-counts', () => {
   it('counts per rep over the person’s scope only', async () => {
     const res = await get('/map/rep-counts');
-    expect(res.body).toEqual({ [DANA]: 1, [MARCUS]: 1, [ALEX]: 1, unassigned: 1 });
+    expect(res.body).toEqual({ [String(DANA)]: 1, [String(MARCUS)]: 1, [String(ALEX)]: 1, unassigned: 1 });
   });
   it('counts everyone for an admin', async () => {
     const res = await get('/map/rep-counts', ADMIN);
-    expect(res.body).toEqual({ [DANA]: 1, [MARCUS]: 1, [ALEX]: 1, [CHRIS]: 1, unassigned: 2 });
+    expect(res.body).toEqual({ [String(DANA)]: 1, [String(MARCUS)]: 1, [String(ALEX)]: 1, [String(CHRIS)]: 1, unassigned: 2 });
   });
 });
 

@@ -94,7 +94,7 @@ export default function createCustomerResourcesRouter(deps: Deps) {
         customer.visits.push(visit);
         await customer.save({ session });
         const events: Loose[] = [];
-        await linkVisitToSchedule({ customerId: customer._id, visitId, visitDate: fields.date,
+        await linkVisitToSchedule({ customerId: customer._id as mongoose.Types.ObjectId, visitId, visitDate: fields.date,
           userId: req.authType === 'admin' ? performer.id : null, purpose: visit.purpose,
           session, emit: (event: Loose) => { events.push(event); } });
         return { resource, visit, events };
@@ -145,7 +145,7 @@ export default function createCustomerResourcesRouter(deps: Deps) {
           await Schedule.updateMany({ linkedVisitId: carriedVisit._id },
             { $set: { customerId: target._id, notes: carriedVisit.purpose } }, { session });
           if (oldDate !== carriedVisit.date) {
-            await moveVisitOnSchedule({ customerId: target._id, visitId: carriedVisit._id, newDate: carriedVisit.date,
+            await moveVisitOnSchedule({ customerId: target._id as mongoose.Types.ObjectId, visitId: carriedVisit._id, newDate: carriedVisit.date,
               userId: carriedVisit.createdBy, purpose: carriedVisit.purpose, session,
               emit: (event: Loose) => { events.push(event); } });
           } else {

@@ -14,7 +14,8 @@ vi.mock('../services/emailService.ts', () => ({
   sendSelectionSheetEmail: vi.fn(async () => ({ success: true }))
 }));
 
-const { sendSelectionSheetEmail } = await import('../services/emailService.ts');
+const { sendSelectionSheetEmail: actualSendSelectionSheetEmail } = await import('../services/emailService.ts');
+const sendSelectionSheetEmail = vi.mocked(actualSendSelectionSheetEmail);
 const { default: createCheckInRouter, NEW_VISITS_START_WITH_REP } = await import('./checkIn.ts');
 const { default: OfficeCheckIn } = await import('../models/OfficeCheckIn.ts');
 const { default: User } = await import('../models/User.ts');
@@ -22,7 +23,7 @@ const { default: Location } = await import('../models/Location.ts');
 
 let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
-let id!: Loose;
+let id!: string;
 
 const STAFF = { username: 'krish', permissions: ['create_checkins', 'view_checkins', 'manage_checkins', 'edit_selection_sheets', 'send_checkin_email'], assignedLocations: ['*'] };
 const put = (body: Loose, user = STAFF) => request(app).put(`/api/checkin/${id}`).set('x-test-user', JSON.stringify(user)).send(body);

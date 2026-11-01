@@ -17,7 +17,7 @@ const emit = vi.fn();
 const staff = { id: String(owner), type: 'staff', permissions: ['create_route_plan', 'edit_route_plan'] };
 const as = (user = staff) => ({ 'x-test-user': JSON.stringify(user) });
 const stop = (over: Loose = {}) => ({ userId: owner, customerId: customer, startTime: '2026-10-24T09:00:00.000', source: 'route_planner', ...over });
-const replacement = (over: Loose = {}) => ({ date: '2026-10-24', replace: true, items: [stop({ startTime: '2026-10-24T10:00:00.000' })], ...over });
+const replacement = (over: Loose = {}): Loose => ({ date: '2026-10-24', replace: true, items: [stop({ startTime: '2026-10-24T10:00:00.000' })], ...over });
 const replace = (body = replacement(), user = staff) => request(app).post('/api/schedule/bulk').set(as(user)).send(body);
 const subscription = (user = staff) => request(app).get('/api/calendar/subscription').set(as(user));
 
@@ -95,8 +95,9 @@ describe('atomic route replacement', () => {
   });
   it('rolls back both deletion and partial inserts when a database write fails', async () => {
     const old = await Schedule.create(stop());
-    const insert = Schedule.insertMany.bind(Schedule);
-    vi.spyOn(Schedule, 'insertMany').mockImplementationOnce(async (documents: Loose, options: Loose) => {
+    const insertStore = Schedule as unknown as { insertMany: (documents: Loose[], options?: Loose) => Promise<Loose[]> };
+    const insert = insertStore.insertMany.bind(insertStore);
+    vi.spyOn(insertStore, 'insertMany').mockImplementationOnce(async (documents: Loose[], options?: Loose) => {
       await insert([documents[0]], options);
       throw new Error('Simulated database write failure');
     });
@@ -133,7 +134,7 @@ describe('atomic route replacement', () => {
 
 describe('saving one entry', () => {
   const body = (over: Loose = {}) => ({ customerId: String(customer), startTime: '2026-10-30T09:00:00.000', endTime: '2026-10-30T09:30:00.000', activityType: 'Call', notes: 'hi', ...over });
-  const create = (over: Loose, user = staff) => request(app).post('/api/schedule').set(as(user)).send(body(over));
+  const create = (over: Loose = {}, user = staff) => request(app).post('/api/schedule').set(as(user)).send(body(over));
 
   it('saves a good entry and defaults the type', async () => {
     const res = await create({ activityType: undefined }).expect(201);
@@ -210,7 +211,7 @@ describe('the calendar feed', () => {
     const start = res.text.match(/DTSTART[^:]*:(\d{8}T\d{6}Z)/)?.[1];
     const end = res.text.match(/DTEND[^:]*:(\d{8}T\d{6}Z)/)?.[1];
     expect(start && end).toBeTruthy();
-    const ms = (t: Loose) => Date.UTC(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8), +t.slice(9, 11), +t.slice(11, 13));
+    const ms = (t: string) => Date.UTC(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8), +t.slice(9, 11), +t.slice(11, 13));
     expect(ms((end)!) - ms((start)!)).toBe(30 * 60000);
   });
 });

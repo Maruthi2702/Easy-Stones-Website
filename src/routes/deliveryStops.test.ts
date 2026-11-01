@@ -23,17 +23,17 @@ const ADMIN = {
   permissions: ['view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule'],
   assignedLocations: ['*']
 };
-const as = (user = ADMIN) => ({ 'x-test-user': JSON.stringify(user) });
-const has = (req: Loose, p: Loose) => (req.user.permissions || []).includes(p);
+const as = (user: Loose = ADMIN) => ({ 'x-test-user': JSON.stringify(user) });
+const has = (req: Loose, p: string) => (req.user.permissions || []).includes(p);
 
 const DAY = '2026-10-16';
 const NEXT = '2026-10-19';
-const ticket = (id: string, truckId: Loose, routeNumber: Loose, over: Loose = {}) => ({
+const ticket = (id: string, truckId: string, routeNumber: number | null, over: Loose = {}) => ({
   id, truckId, routeNumber, date: DAY, location: 'Seattle', deliveryType: 'jobsite', status: 'scheduled', customerName: id, ...over
 });
 
 /** { id: routeNumber } for one run, read back from the database. */
-const run = async (truckId: Loose, date = DAY) => Object.fromEntries(
+const run = async (truckId: string, date = DAY) => Object.fromEntries(
   (await Delivery.find({ truckId, date, status: { $ne: 'cancelled' }, deliveryType: { $ne: 'will_call' } }).lean())
     .map(d => [d.id, d.routeNumber])
 );
@@ -51,10 +51,10 @@ beforeAll(async () => {
   app.set('io', { emit, to: () => ({ emit }) });
   app.use('/api', createDeliveriesRouter({
     authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    requirePermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
-    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
+    requirePermission: (...ps: string[]) => (req: Loose, res: Loose, next: () => void) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
+    requireAnyPermission: (...ps: string[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
     getPerformerInfo: async () => ({}),
-    processBase64Images: async (x: Loose) => x,
+    processBase64Images: async (x: unknown[]) => x,
     getNowLocalISO: () => new Date().toISOString()
   }));
 }, 180000);

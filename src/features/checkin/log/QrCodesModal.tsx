@@ -1,6 +1,7 @@
 import { Check, Copy, Printer, QrCode, Smartphone, X } from 'lucide-react';
 import LocationPicker from '../../../components/shared/form/LocationPicker';
 import type { useQrCodes } from './useQrCodes';
+import type { homeLocationOf } from '../../../utils/locationFilter';
 
 /**
  * The QR / NFC self check-in codes: which branch, the QR to print or scan,
@@ -10,7 +11,7 @@ import type { useQrCodes } from './useQrCodes';
 export type QrCodesModalProps = {
   qr: ReturnType<typeof useQrCodes>;
   locations: unknown[];
-  user: unknown;
+  user: Parameters<typeof homeLocationOf>[0];
   /** Only an admin may change the domain the codes point at. */
   isAdmin: boolean;
   onClose: () => void;

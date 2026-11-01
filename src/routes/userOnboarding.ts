@@ -44,7 +44,7 @@ const hashToken = (token: string) => crypto.createHash('sha256').update(String(t
 
 const escapeHtml = (s = '') => String(s).replace(/[&<>"']/g, (c) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-}[c]));
+}[c as '&' | '<' | '>' | '"' | "'"]));
 
 /**
  * A fresh invite for a new account: the token goes in the emailed link, only
@@ -71,13 +71,13 @@ export const newInvite = () => {
  * site they actually use, which FRONTEND_URL may not be in development),
  * otherwise the configured site.
  */
-export const inviteLinkFor = (req: Request, token: string) => {
+export const inviteLinkFor = (req: { get: (name: string) => string | undefined }, token: string) => {
   const base = (req.get('origin') || process.env.FRONTEND_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
   return `${base}/set-password?token=${encodeURIComponent(token)}`;
 };
 
 /** Sends the invite email. Resolves to true when it went out. */
-export const sendInviteEmail = async ({ to, name, username, link, invitedBy, reset = false }: { to: string; name: string; username: string; link: Loose; invitedBy: Loose; reset?: Loose }) => {
+export const sendInviteEmail = async ({ to, name, username, link, invitedBy, reset = false }: { to: string; name: string; username: string; link: string; invitedBy?: string; reset?: boolean }) => {
   const safeName = escapeHtml(name);
   const html = reset ? `
     <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">
@@ -110,7 +110,7 @@ export const sendInviteEmail = async ({ to, name, username, link, invitedBy, res
 export default function createUserOnboardingRouter({
   authenticate, requirePermission, loginLimiter, jwtSecret,
   usersAccess = () => requirePermission('manage_users'), memberAllowed = () => true
-}: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; loginLimiter: Loose; jwtSecret: Loose; usersAccess?: (permission: string) => RequestHandler; memberAllowed?: Loose }) {
+}: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; loginLimiter: RequestHandler; jwtSecret: string; usersAccess?: (permission: string) => RequestHandler; memberAllowed?: (req: Request, target: Loose) => boolean }) {
   const router = express.Router();
 
   router.get('/admin/users/username-available', authenticate, usersAccess('view'), async (req, res) => {

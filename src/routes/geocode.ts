@@ -1,5 +1,5 @@
 import type { ScalarParams } from '../types/server.ts';
-import type { RequestHandler } from 'express';
+import type { RequestHandler, Request, Response } from 'express';
 import express from 'express';
 import { zipToCityState } from '../utils/geocode.ts';
 
@@ -11,10 +11,10 @@ import { zipToCityState } from '../utils/geocode.ts';
  *   import createGeocodeRouter from './src/routes/geocode.ts';
  *   app.use('/api/geocode', createGeocodeRouter({ authenticate }));
  */
-export default function createGeocodeRouter({ authenticate }: { authenticate: RequestHandler }) {
+export default function createGeocodeRouter({ authenticate }: { authenticate: RequestHandler | RequestHandler[] }) {
   const router = express.Router();
 
-  router.get('/zip/:zip', authenticate, async (req, res) => {
+  router.get('/zip/:zip', authenticate, async (req: Request, res: Response) => {
     const result = await zipToCityState((req.params as ScalarParams).zip);
 
     if (result.status === 'ok') {

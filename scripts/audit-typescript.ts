@@ -37,12 +37,21 @@ const report = {
   files: javascript
 };
 
-if (process.argv.includes('--json')) {
+const check = process.argv.includes('--check');
+if (check && !process.argv.includes('--json') && !process.argv.includes('--list')) {
+  if (javascript.length === 0) {
+    console.log('TypeScript migration check passed: no JavaScript source files remain.');
+  } else {
+    console.error(`TypeScript migration check failed: ${javascript.length} JavaScript source file(s) remain:\n${javascript.join('\n')}`);
+  }
+} else if (process.argv.includes('--json')) {
   console.log(JSON.stringify(report, null, 2));
 } else {
-  console.log(`JavaScript remaining: ${report.javascript} (${Object.entries(report.extensions).map(([extension, count]) => `${count} ${extension}`).join(', ')})`);
+  const extensionCounts = Object.entries(report.extensions).map(([extension, count]) => `${count} ${extension}`).join(', ');
+  console.log(`JavaScript remaining: ${report.javascript}${extensionCounts ? ` (${extensionCounts})` : ''}`);
   console.log(`Application: ${report.application}; tests: ${report.tests}; tooling/harness: ${report.tooling}`);
   console.log(`TypeScript: ${report.typescript}`);
-  console.table(report.areas);
+  if (areas.length) console.table(report.areas);
   if (process.argv.includes('--list')) console.log(report.files.join('\n'));
 }
+if (check && javascript.length > 0) process.exitCode = 1;

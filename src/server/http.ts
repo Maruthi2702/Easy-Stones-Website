@@ -20,8 +20,8 @@ import type { PermissionUser } from '../types/permissions.ts';
 import type {} from '../types/server.ts';
 
 export class HttpError extends Error {
-  status: number;
-  extra: Record<string, unknown>;
+  declare status: number;
+  declare extra: Record<string, unknown>;
 
   constructor(status: number, message: string, extra: Record<string, unknown> = {}) {
     super(message);

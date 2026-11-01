@@ -54,7 +54,7 @@ export type LocationFieldProps = {
   value?: FilterValue;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- single or multiple, decided by `multiple`
   onChange?: (value: any) => void;
-  user?: unknown;
+  user?: Parameters<typeof homeLocationOf>[0];
   multiple?: boolean;
   allLabel?: string;
 };

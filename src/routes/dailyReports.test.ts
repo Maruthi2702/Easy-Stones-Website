@@ -2,9 +2,13 @@ import type { Loose } from '../types/records.ts';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { applyDerived, incomingTransferQuery, summarise, handSetFigures, claimSubmission, writeDraft, withDraftsDerived, deriveFromSystem } from './dailyReports.ts';
 import Delivery from '../models/Delivery.ts';
+const deliveryStore = Delivery as unknown as { find: (query: Loose) => { lean: () => Promise<Loose[]> } };
 import OfficeCheckIn from '../models/OfficeCheckIn.ts';
+const checkInStore = OfficeCheckIn as unknown as { countDocuments: (query: Loose) => Promise<number> };
 import DailyReport from '../models/DailyReport.ts';
+const reportStore = DailyReport as unknown as { findOneAndUpdate: (filter: Loose, update: Loose, options?: Loose) => Promise<Loose | null> };
 import { buildDraftPayload } from '../features/dailyReport/savePayload.ts';
+import { emptyReport } from '../features/dailyReport/reportFigures.ts';
 
 const baseReport = (overrides: Loose = {}) => ({
   status: 'draft',
@@ -271,7 +275,12 @@ describe('handSetFigures — a correction typed earlier survives a reload and Su
     expect(report.pickups.capacity).toBe(4);
     // The next save (e.g. the one right before Submit) with the sheet's
     // touched sets seeded from handSet — nothing typed this visit.
-    const body = buildDraftPayload((report)!, new Set(handSet.capacity), new Set(handSet.transferSlabs));
+    // The save builder receives the full form DTO, unlike the stored snapshot above.
+    const reportForSave = {
+      ...emptyReport('2026-10-05', 'Seattle'), ...report,
+      visitors: { fabricators: null, designers: null, ...report.visitors }
+    };
+    const body = buildDraftPayload(reportForSave, new Set(handSet.capacity), new Set(handSet.transferSlabs));
     expect(body.deliveries.capacity).toBe(25);
     expect(body.pickups.capacity).toBe(null);
     expect(body.transfers).toHaveLength(1);
@@ -288,15 +297,15 @@ describe('claimSubmission — one sign-off per day', () => {
 
   // A stand-in for the stored day: findOneAndUpdate only matches while it's a draft.
   const fakeStore = () => {
-    const doc = { _id: 'r1', status: 'draft' };
-    vi.spyOn(DailyReport, 'findOneAndUpdate').mockImplementation((async (filter: Loose, update: Loose) => {
+    const doc: Loose = { _id: 'r1', status: 'draft' };
+    vi.spyOn(reportStore, 'findOneAndUpdate').mockImplementation((async (filter: Loose, update: Loose) => {
       if (filter._id !== doc._id || doc.status !== filter.status) return null;
       Object.assign(doc, update.$set);
       return { ...doc, toObject: () => ({ ...doc }) };
-    }) as Loose);
+    }));
     return doc;
   };
-  const submittedBy = (who: Loose) => ({
+  const submittedBy = (who: string) => ({
     _id: 'r1',
     toObject: () => ({ _id: 'r1', __v: 3, status: 'submitted', submittedBy: who })
   });
@@ -304,7 +313,7 @@ describe('claimSubmission — one sign-off per day', () => {
   it('only matches a day still in draft, and never rewrites _id or __v', async () => {
     fakeStore();
     await claimSubmission(submittedBy('Ann'));
-    const [filter, update] = DailyReport.findOneAndUpdate.mock.calls[0];
+    const [filter, update] = vi.mocked(reportStore.findOneAndUpdate).mock.calls[0];
     expect(filter).toEqual({ _id: 'r1', status: 'draft' });
     expect(update.$set).not.toHaveProperty('_id');
     expect(update.$set).not.toHaveProperty('__v');
@@ -323,18 +332,18 @@ describe('writeDraft — an autosave never un-submits a day', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('only matches a day that is not submitted', async () => {
-    vi.spyOn(DailyReport, 'findOneAndUpdate').mockResolvedValue({ status: 'draft' });
+    vi.spyOn(reportStore, 'findOneAndUpdate').mockResolvedValue({ status: 'draft' });
     await writeDraft('2026-10-05', 'Seattle', { status: 'draft' });
-    expect(DailyReport.findOneAndUpdate.mock.calls[0][0]).toEqual({ date: '2026-10-05', location: 'Seattle', status: { $ne: 'submitted' } });
+    expect(vi.mocked(reportStore.findOneAndUpdate).mock.calls[0][0]).toEqual({ date: '2026-10-05', location: 'Seattle', status: { $ne: 'submitted' } });
   });
 
   it('a save that loses the race to Submit returns null (→ 409) instead of flipping it back', async () => {
-    vi.spyOn(DailyReport, 'findOneAndUpdate').mockRejectedValue(Object.assign(new Error('E11000 duplicate key'), { code: 11000 }));
+    vi.spyOn(reportStore, 'findOneAndUpdate').mockRejectedValue(Object.assign(new Error('E11000 duplicate key'), { code: 11000 }));
     await expect(writeDraft('2026-10-05', 'Seattle', { status: 'draft' })).resolves.toBe(null);
   });
 
   it('any other database error still surfaces', async () => {
-    vi.spyOn(DailyReport, 'findOneAndUpdate').mockRejectedValue(new Error('connection lost'));
+    vi.spyOn(reportStore, 'findOneAndUpdate').mockRejectedValue(new Error('connection lost'));
     await expect(writeDraft('2026-10-05', 'Seattle', {})).rejects.toThrow('connection lost');
   });
 });
@@ -344,8 +353,8 @@ describe('withDraftsDerived — exports read drafts with today\'s figures', () =
 
   it('re-derives drafts (one delivery query per date) and leaves submitted days as signed off', async () => {
     const tickets = [{ deliveryType: 'jobsite', location: 'Seattle', numberOfSlabs: 12 }, { deliveryType: 'jobsite', location: 'Seattle', numberOfSlabs: 8 }];
-    const find = vi.spyOn(Delivery, 'find').mockImplementation((query) => ({ lean: async () => ((query)!.deliveryType === 'transfer' ? [] : tickets) }));
-    vi.spyOn(OfficeCheckIn, 'countDocuments').mockResolvedValue(9);
+    const find = vi.spyOn(deliveryStore, 'find').mockImplementation((query) => ({ lean: async () => ((query)!.deliveryType === 'transfer' ? [] : tickets) }));
+    vi.spyOn(checkInStore, 'countDocuments').mockResolvedValue(9);
     const draft = { date: '2026-10-05', location: 'Seattle', status: 'draft', visitors: { homeowners: 2 }, deliveries: { assigned: 1, capacity: null }, pickups: { assigned: 0, capacity: null }, transfers: [] };
     const draft2 = { ...draft, location: 'Kent' };
     const signed = { ...draft, location: 'Spokane', status: 'submitted', deliveries: { assigned: 1, capacity: 5 } };
@@ -364,8 +373,8 @@ describe('deriveFromSystem — Homeowners counted in the branch\'s own day', () 
   afterEach(() => vi.restoreAllMocks());
 
   it('uses the branch clock on the report date, not the viewer\'s or today\'s offset', async () => {
-    vi.spyOn(Delivery, 'find').mockImplementation(() => ({ lean: async () => [] }));
-    const count = vi.spyOn(OfficeCheckIn, 'countDocuments').mockResolvedValue(0);
+    vi.spyOn(deliveryStore, 'find').mockImplementation(() => ({ lean: async () => [] }));
+    const count = vi.spyOn(checkInStore, 'countDocuments').mockResolvedValue(0);
     await deriveFromSystem('2026-07-01', 'Seattle');
     expect((count.mock.calls[0][0])!.createdAt).toEqual({ $gte: new Date('2026-07-01T07:00:00Z'), $lt: new Date('2026-07-02T07:00:00Z') });
     // A winter day is measured on winter time, whenever it's worked out.

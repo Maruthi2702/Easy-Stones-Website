@@ -1,4 +1,3 @@
-import type { Loose } from '../types/records.ts';
 /**
  * What each Cart & Holds request may contain (zod). Anything else is turned
  * away with one readable sentence (see src/server/http.ts).

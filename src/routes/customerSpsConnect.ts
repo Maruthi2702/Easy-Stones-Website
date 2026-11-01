@@ -21,7 +21,7 @@ import { planConnect, resolveAnswers, spsRowsOf } from '../utils/spsConnect.ts';
  *
  *   app.use('/api/customers', createCustomerSpsConnectRouter({ authenticate, uploadMemory, readSheet, resolveMapping }));
  */
-export default function createCustomerSpsConnectRouter({ authenticate, uploadMemory, readSheet, resolveMapping }: { authenticate: RequestHandler; uploadMemory: Loose; readSheet: Loose; resolveMapping: Loose }) {
+export default function createCustomerSpsConnectRouter({ authenticate, uploadMemory, readSheet, resolveMapping }: { authenticate: RequestHandler; uploadMemory: import('multer').Multer; readSheet: (buffer: Buffer) => Promise<{ headers: string[]; rows: Loose[]; parse?: Loose }>; resolveMapping: typeof import('../utils/customerImport.ts').resolveImportMapping }) {
   const router = express.Router();
 
   const mayConnect = (req: Request, res: Response, next: NextFunction) => (
@@ -30,11 +30,11 @@ export default function createCustomerSpsConnectRouter({ authenticate, uploadMem
       : res.status(403).json({ message: 'Connecting customers to SPS needs the Import and Edit customer switches.' })
   );
   const who = (req: Request) => req.user?.username || req.user?.name || '';
-  const json = (value: unknown) => { try { return value ? JSON.parse(value) : {}; } catch { return {}; } };
+  const json = (value: unknown) => { try { return value ? JSON.parse(value as string) : {}; } catch { return {}; } };
 
   /** The file, its mapping, its check and the plan against the customers held now. */
   const load = async (req: Request) => {
-    const { headers, rows, parse } = await readSheet(req.file.buffer);
+    const { headers, rows, parse } = await readSheet(req.file!.buffer);
     const mapping = resolveMapping(headers, json(req.body.mapping));
     const fileCheck = checkSheet({ rows, mapping, parse });
     if (!fileCheck.ok) return { fileCheck };
@@ -99,7 +99,7 @@ export default function createCustomerSpsConnectRouter({ authenticate, uploadMem
 
       // ordered:false — one name taken in the meantime must not stop the rest.
       const failed: Loose[] = [];
-      const run = async (ops: Loose) => {
+      const run = async (ops: Parameters<typeof Customer.collection.bulkWrite>[0]) => {
         if (!ops.length) return 0;
         try {
           return (await Customer.collection.bulkWrite(ops, { ordered: false })).modifiedCount;

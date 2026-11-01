@@ -36,6 +36,7 @@ declare module 'express-serve-static-core' {
     userRole?: string;
     authUserDoc?: Loose;
     tokenClaims?: import('jsonwebtoken').JwtPayload;
+    podOnly?: boolean;
     teamScope?: { manageableRoles: string[] } | null;
     /** Multipart/SPS request details are validated by the owning route. */
     importContext?: Loose;

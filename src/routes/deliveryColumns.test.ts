@@ -26,10 +26,10 @@ const MANAGER = { username: 'mo', permissions: ['view_delivery_schedule', 'edit_
 // manage_users used to be the check; sales reps hold it too.
 const USER_MANAGER = { username: 'rep', permissions: ['view_delivery_schedule', 'edit_delivery_schedule', 'manage_users'], assignedLocations: ['*'] };
 const as = (user: Loose) => ({ 'x-test-user': JSON.stringify(user) });
-const put = (location: string, body: Loose, user = ADMIN) =>
+const put = (location: string, body: Loose, user: Loose = ADMIN) =>
   request(app).put(`/api/delivery-columns/${encodeURIComponent(location)}`).set(as(user)).send(body);
 
-const has = (req: Loose, p: Loose) => (req.user.permissions || []).includes(p);
+const has = (req: Loose, p: string) => (req.user.permissions || []).includes(p);
 
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create();
@@ -39,10 +39,10 @@ beforeAll(async () => {
   app.set('io', { emit, to: () => ({ emit }) });
   app.use('/api', createDeliveriesRouter({
     authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    requirePermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
-    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
+    requirePermission: (...ps: string[]) => (req: Loose, res: Loose, next: () => void) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
+    requireAnyPermission: (...ps: string[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
     getPerformerInfo: async () => ({}),
-    processBase64Images: async (x: Loose) => x,
+    processBase64Images: async (x: unknown[]) => x,
     getNowLocalISO: () => new Date().toISOString()
   }));
 }, 180000);

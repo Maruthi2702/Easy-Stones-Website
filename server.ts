@@ -149,7 +149,6 @@ import {
 } from './src/utils/dashboardMatch.ts';
 import { dashboardPeopleOf, teamOfRequest, idVariants } from './src/services/teamDirectory.ts';
 import { pickPanelFollowUps } from './src/utils/followUpPanel.ts';
-import type { Loose } from './src/types/records.ts';
 import { FOLLOW_UP_RANGE_IDS, FOLLOW_UP_STATUSES, followUpsInView, followUpsDueIn, withStatus, followUpCounts, doneThisWeek } from './src/utils/followUpList.ts';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.ts';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.ts';
@@ -171,7 +170,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Mockup Generation Utility
-const generateMockups = async (slabImageBuffer: Buffer, baseFilename: string) => {
+const generateMockups = async (slabImageBuffer: Buffer, baseFilename: string): Promise<string[]> => {
   const sharp = (await import('sharp')).default;
   const templatesDir = path.join(__dirname, 'public', 'images', 'templates');
 
@@ -180,7 +179,7 @@ const generateMockups = async (slabImageBuffer: Buffer, baseFilename: string) =>
     { name: 'bathroom_template.png', suffix: 'installed_2' }
   ];
 
-  const generatedUrls: Loose[] = [];
+  const generatedUrls: string[] = [];
 
   for (const template of templates) {
     try {
@@ -257,10 +256,10 @@ const memoryCache: Record<CacheKey, { data: Loose[] | Loose | null; lastFetched:
 
 function cacheHit(key: 'customerMap'): Loose | null;
 function cacheHit(key: Exclude<CacheKey, 'customerMap'>): Loose[] | null;
-function cacheHit(key: CacheKey): Loose[] | Loose | null { return
+function cacheHit(key: CacheKey): Loose[] | Loose | null { return (
   memoryCache[key].data && (Date.now() - memoryCache[key].lastFetched) < memoryCache.TTL
     ? memoryCache[key].data
-    : null;
+    : null);
 }
 
 const cachePut = <T extends Loose[] | Loose>(key: CacheKey, data: T): T => {
@@ -968,7 +967,7 @@ async function startServer() {
       // strip it from any role (existing installs) that still has it.
       const rolesWithStalePerm = await Role.find({ permissions: 'manage_delivery_schedule' });
       for (const role of rolesWithStalePerm) {
-        role.permissions = role.permissions.filter(p => p !== 'manage_delivery_schedule');
+        role.permissions = role.permissions.filter((p: string) => p !== 'manage_delivery_schedule');
         await role.save();
         console.log(`🧹 Removed orphaned permission 'manage_delivery_schedule' from role '${role.name}'`);
       }
@@ -1434,7 +1433,7 @@ app.get('/api/debug/config', verifyToken, authorize('admin'), async (req: Reques
     // Check for specific user if provided
     let userCheck = null;
     if ((req.query as ScalarQuery).username) {
-      const user = await User.findOne({ username: (req.query as ScalarQuery).username.toLowerCase() });
+      const user = await User.findOne({ username: (req.query as ScalarQuery).username!.toLowerCase() });
       userCheck = {
         requested_username: (req.query as ScalarQuery).username,
         found: !!user,
@@ -1757,7 +1756,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), async (
     if (assignedLocations !== undefined && (!Array.isArray(assignedLocations) || assignedLocations.length === 0 || !assignedLocations.every(l => typeof l === 'string' && l))) {
       return fail('assignedLocations', 'Choose at least one location');
     }
-    let nextRole!: Loose;
+    let nextRole: string | undefined;
     if (role !== undefined) {
       nextRole = String(role || '').trim().toLowerCase();
       if (!nextRole || !(await Role.exists({ name: nextRole }))) return fail('role', 'Pick a role');
@@ -2685,16 +2684,16 @@ app.post('/api/customer/logout', (req: Request, res: Response) => {
 
 // Helper: Standardized User Attribution
 const getPerformerInfo = async (req: Request) => {
-  let id: string | undefined = '';
+  let id = '';
   let name = '';
   let role = req.authType;
 
   if (req.authType === 'admin') {
-    id = req.userId;
+    id = req.userId!;
     const user = await User.findById(req.userId).select('username displayName');
     name = user ? displayNameOf(user) : `Unknown User (${req.userId})`;
   } else if (req.authType === 'customer') {
-    id = req.customerId;
+    id = req.customerId!;
     const customer = await Customer.findById(req.customerId).select('contactName email');
     name = customer ? (customer.contactName || customer.email) : `Unknown Customer (${req.customerId})`;
   }
@@ -2787,7 +2786,7 @@ app.get('/api/customers/dropdown', authenticate, requireSalesPage, async (req: R
 app.use('/api/customers', createCustomerMapRouter({
   authenticate,
   requirePermission,
-  cache: { get: () => cacheHit('customerMap'), put: (pins) => cachePut('customerMap', pins) }
+  cache: { get: () => cacheHit('customerMap'), put: (pins: Loose) => cachePut('customerMap', pins) }
 }));
 
 // Get dashboard statistics (optimized aggregation)
@@ -2954,7 +2953,7 @@ app.get('/api/dashboard/stats', authenticate, requirePermission('view_dashboard'
 // Get dashboard visits (returns a flat list for all customers in range)
 // The dashboard's visit rows for the caller's scope, range and location; filterType 'followup'
 // swaps the date rule for the follow-up one. Shared by the list and the Follow-ups panel.
-const loadDashboardVisits = async (req: Request, filterType: string, { timeRange: forcedRange }: { timeRange?: string } = {}) => {
+const loadDashboardVisits = async (req: Request, filterType: string | undefined, { timeRange: forcedRange }: { timeRange?: string } = {}) => {
     const { timeRange: askedRange = 'all', localDate } = (req.query as ScalarQuery);
     const timeRange = forcedRange || askedRange;
     const now = new Date();
@@ -3733,8 +3732,8 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
       filterConditions.push(savedViewQuery(filterView, {
         userId: req.userId,
         today: pacificToday(),
-        toId: (id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null)
-      }));
+        toId: (id: string) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null)
+      })!);
     }
 
     // A–Z jump strip.
@@ -3769,7 +3768,7 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
       const types = filterType.split(',').map(t => t.trim()).filter(Boolean);
       if (types.length > 0) {
         const orConditions: Loose[] = [];
-        const nonFabricatorTypes: Loose[] = [];
+        const nonFabricatorTypes: string[] = [];
         let hasFabricator = false;
 
         types.forEach(t => {
@@ -3857,7 +3856,7 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
     if (filterLocation) {
       const locations = filterLocation.split(',').map(l => l.trim()).filter(Boolean);
       if (locations.length > 0) {
-        const locationOrs = [{ location: { $in: locations } }];
+        const locationOrs: Loose[] = [{ location: { $in: locations } }];
         if (locations.some(l => l.toLowerCase() === 'seattle')) {
           locationOrs.push({ location: { $in: [null, ''] } }, { location: { $exists: false } });
         }
@@ -3972,7 +3971,7 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
 
 // The Fabricators / Partners tab, as a query. Same rule as the type/typeExclude
 // handling in GET /api/partners: a record with no type is a Fabricator.
-const partnersTabQuery = (tab: string) => (tab === 'partners'
+const partnersTabQuery = (tab: string | undefined) => (tab === 'partners'
   ? {
     $and: [
       { customerType: { $exists: true } },
@@ -3999,10 +3998,10 @@ app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticat
     const opts = {
       userId: req.userId,
       today: pacificToday(),
-      toId: (id) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null)
+      toId: (id: string) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null)
     };
     const entries = await Promise.all(SAVED_VIEWS.map(async ({ key }) =>
-      [key, await Customer.countDocuments({ $and: [base, savedViewQuery(key, opts)] })]
+      [key, await Customer.countDocuments({ $and: [base, savedViewQuery(key, opts)!] })]
     ));
     res.json(Object.fromEntries(entries));
   } catch (error) {
@@ -4017,17 +4016,17 @@ app.use('/api/customers', createCustomerBulkDeleteRouter({ authenticate }));
 app.use('/api/customers', createCustomerSpsConnectRouter({
   authenticate,
   uploadMemory,
-  readSheet: (buffer) => runWorkbookParse('customer', buffer),
+  readSheet: (buffer: Buffer) => runWorkbookParse('customer', buffer),
   resolveMapping: resolveImportMapping
 }));
 // The new SPS customer import (src/routes/customerSpsImport.ts).
 app.use('/api/customers', createCustomerSpsImportRouter({
   authenticate,
   uploadMemory,
-  readSheet: (buffer) => runWorkbookParse('customer', buffer),
+  readSheet: (buffer: Buffer) => runWorkbookParse('customer', buffer),
   resolveMapping: resolveImportMapping,
-  buildReference: (overrides) => buildImportReference(overrides),
-  rememberAliases: (answers) => rememberImportAliases(answers),
+  buildReference: (overrides: Parameters<typeof buildImportReference>[0]) => buildImportReference(overrides),
+  rememberAliases: (answers: Parameters<typeof rememberImportAliases>[0]) => rememberImportAliases(answers),
   fields: IMPORT_FIELDS
 }));
 
@@ -4036,7 +4035,7 @@ app.use('/api/customers', createCustomerSpsImportRouter({
 app.patch(['/api/customers/bulk', '/api/partners/bulk'], authenticate, requirePermission('manage_customers'), async (req: Request, res: Response) => {
   try {
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
-    const validIds = ids.filter(id => mongoose.Types.ObjectId.isValid(id));
+    const validIds = ids.filter((id: string) => mongoose.Types.ObjectId.isValid(id));
     if (validIds.length === 0) {
       return res.status(400).json({ message: 'Choose at least one customer' });
     }
@@ -4478,7 +4477,7 @@ app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requi
 
     // Check if user already reacted with this type
     const existingIndex = visit.reactions.findIndex(
-      r => r.userId === userId.toString() && r.type === type
+      (r: Loose) => r.userId === userId!.toString() && r.type === type
     );
 
     if (existingIndex > -1) {
@@ -4489,14 +4488,14 @@ app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requi
       // Optionally remove other reactions by same user if we want single-reaction logic
       // But requested feature implies "Like", "Love", etc. which could theoretically co-exist,
       // though typically mutually exclusive. Let's make them mutually exclusive for simplicity.
-      const otherReactionIndex = visit.reactions.findIndex(r => r.userId === userId.toString());
+      const otherReactionIndex = visit.reactions.findIndex((r: Loose) => r.userId === userId!.toString());
       if (otherReactionIndex > -1) {
         visit.reactions.splice(otherReactionIndex, 1);
       }
 
       visit.reactions.push({
         type,
-        userId: userId.toString(),
+        userId: userId!.toString(),
         userName,
         createdAt: getNowLocalISO()
       });
@@ -4650,7 +4649,7 @@ const planCustomerImport = async (req: Request) => {
 
   // How many of this sheet's names were answered from memory, for the
   // preview's "using saved choices" line.
-  const sheetKeys = (field: string) => new Set(rows.map(r => importNormalize(mapping[field] ? r[mapping[field]] : '')).filter(Boolean));
+  const sheetKeys = (field: string) => new Set<string>(rows.map((r: Loose) => importNormalize(mapping[field] ? r[mapping[field]] : '')).filter(Boolean));
   const countRemembered = (field: string, realKeys: Set<string>, saved: Record<string, unknown>) =>
     [...sheetKeys(field)].filter(k => !realKeys.has(k) && Object.prototype.hasOwnProperty.call(saved, k)).length;
 
@@ -4686,9 +4685,9 @@ const planCustomerImport = async (req: Request) => {
  * plan actually honoured are filed — one naming a record the row didn't match
  * was ignored by buildImportPlan, and is ignored here too.
  */
-const saveImportMemory = async (req: Request, plan: Loose, createdByRow: Loose) => {
+const saveImportMemory = async (req: Request, plan: Loose, createdByRow: Map<number, string>) => {
   const parse = (field: string) => (req.body[field] ? JSON.parse(req.body[field]) : {});
-  const repIds = new Set(plan.reps.map(r => String(r._id)));
+  const repIds = new Set(plan.reps.map((r: Loose) => String(r._id)));
   const set: Loose = {};
 
   for (const [given, userId] of Object.entries(parse('repAliases'))) {
@@ -4704,7 +4703,7 @@ const saveImportMemory = async (req: Request, plan: Loose, createdByRow: Loose) 
     else if (plan.branches.includes(branch)) set[`branchAliases.${key}`] = branch;
   }
 
-  const byRow = new Map(plan.planned.map(p => [p.rowNumber, p]));
+  const byRow = new Map<number, Loose>(plan.planned.map((p: Loose) => [p.rowNumber, p]));
   for (const [rowNumber, choice] of Object.entries(parse('decisions'))) {
     const row = byRow.get(Number(rowNumber));
     if (!row?.rowKey) continue;
@@ -4810,7 +4809,7 @@ app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/
 
     const db = mongoose.connection.db!;
     const ids = [keepId, ...entries.map(([id]) => id)];
-    if (!ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
+    if (!ids.every((id: string) => mongoose.Types.ObjectId.isValid(id))) {
       return res.status(400).json({ message: 'Unknown customer id' });
     }
     const docs = await db.collection('customers')
@@ -4869,7 +4868,7 @@ app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/
 app.post(['/api/customers/duplicates/undo', '/api/admin/customers/duplicates/undo'], verifyToken, requirePermission('manage_customers', 'delete_customers'), async (req: Request, res: Response) => {
   try {
     const ids = Array.isArray(req.body?.undoIds) ? req.body.undoIds : [];
-    if (!ids.length || !ids.every(id => mongoose.Types.ObjectId.isValid(id))) {
+    if (!ids.length || !ids.every((id: string) => mongoose.Types.ObjectId.isValid(id))) {
       return res.status(400).json({ message: 'Nothing to undo' });
     }
     // By _id, not createdAt: both backups from one click can share a millisecond.
@@ -5054,7 +5053,7 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
 // writes is follow-up work, same shape as /api/admin/customers/import/apply
 // above.
 app.post('/api/admin/erp-import/:type', authenticate, requirePermission('manage_customers'), async (req: Request, res: Response) => {
-  const scrapers = {
+  const scrapers: Record<string, () => Promise<unknown[]>> = {
     customers: scrapeErpCustomers,
     inventory: scrapeErpInventory,
     sales: scrapeErpSales
@@ -5663,7 +5662,7 @@ const uploadToCloudinary = async (buffer: Buffer, folder: string, filename?: str
 };
 
 // Helper to process an array of images (base64 or URLs) and upload new base64 to Cloudinary
-const processBase64Images = async (imagesArray: unknown, folder: string) => {
+const processBase64Images = async (imagesArray: unknown, folder: string): Promise<string[]> => {
   if (!imagesArray || !Array.isArray(imagesArray)) return [];
 
   const processedImages = await Promise.all(imagesArray.map(async (img, index) => {

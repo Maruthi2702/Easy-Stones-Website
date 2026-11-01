@@ -43,5 +43,5 @@ scripts/merge-backups/
 .claude/settings.local.json
 
 # Vite temp config artifacts
-vite.config.js.timestamp-*.mjs
+vite.config.*.timestamp-*.mjs
 

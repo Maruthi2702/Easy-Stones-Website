@@ -16,7 +16,7 @@ const { default: Customer } = await import('../models/Customer.ts');
 
 let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
-let sheet!: Loose;
+let sheet!: { headers: string[]; rows: Loose[]; parse?: Loose };
 
 const BOTH = { username: 'krish', permissions: ['view_customers', 'import_customers', 'manage_customers'] };
 const IMPORT_ONLY = { username: 'imp', permissions: ['view_customers', 'import_customers'] };
@@ -32,7 +32,7 @@ const apply = (fields: Loose = {}, user = BOTH) => {
 
 const [A, B, C] = [1, 2, 3].map(() => new mongoose.Types.ObjectId());
 const row = (Name: unknown, Email = '', Phone1 = '') => ({ Name, Email, Phone1 });
-const keyOf = async (id: string) => (await Customer.collection.findOne({ _id: id }))?.sps;
+const keyOf = async (id: mongoose.Types.ObjectId) => (await Customer.collection.findOne({ _id: id }))?.sps;
 
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create();
@@ -89,7 +89,7 @@ describe('sps-connect', () => {
     await apply({});
     expect(await keyOf(A)).toBeUndefined();
 
-    const res = await apply({ connectAuto: 'true', answers: { [B]: 'bay granite works inc', [C]: 'none' } });
+    const res = await apply({ connectAuto: 'true', answers: { [String(B)]: 'bay granite works inc', [String(C)]: 'none' } });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ connected: 2, notInSps: 1, failed: [] });
     expect(await keyOf(A)).toMatchObject({ key: 'acme stone', connectedBy: 'krish' });
@@ -100,14 +100,14 @@ describe('sps-connect', () => {
 
   it('is safe to run twice and never overwrites a key', async () => {
     await apply({ connectAuto: 'true' });
-    const again = await apply({ connectAuto: 'true', answers: { [A]: 'delta' } });
+    const again = await apply({ connectAuto: 'true', answers: { [String(A)]: 'delta' } });
     expect(again.body.rejected).toHaveLength(1);
     expect(await keyOf(A)).toMatchObject({ key: 'acme stone' });
   });
 
   it('reports a name another customer took in the meantime, and still saves the rest', async () => {
     await Customer.collection.updateOne({ _id: C }, { $set: { 'sps.key': 'delta' } }); // taken after the plan would offer it
-    const res = await apply({ connectAuto: 'true', answers: { [B]: 'delta' } });
+    const res = await apply({ connectAuto: 'true', answers: { [String(B)]: 'delta' } });
     expect(res.status).toBe(200);
     expect(res.body.rejected.map((r: Loose) => r.customerId)).toEqual([String(B)]);
     expect(await keyOf(A)).toMatchObject({ key: 'acme stone' });

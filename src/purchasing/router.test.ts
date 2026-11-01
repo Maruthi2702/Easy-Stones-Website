@@ -1,3 +1,4 @@
+import type { Loose } from '../types/records.ts';
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
@@ -85,8 +86,8 @@ async function setup(over = {}) {
     .expect(201);
   return { id, body };
 }
-const plan = async (id) => (await api('get', `/scopes/${id}/plan`).expect(200)).body;
-const draftBody = (p) => ({
+const plan = async (id: string) => (await api('get', `/scopes/${id}/plan`).expect(200)).body;
+const draftBody = (p: Loose) => ({
   fingerprint: p.fingerprint,
   lines: [{ key: p.rows[0].key, branch: 'Seattle', quantity: p.rows[0].protective.proposedSlabs }],
   note: 'Weekly replenishment',
@@ -114,7 +115,7 @@ beforeAll(async () => {
       now: () => clock,
       authenticate: (req, res, next) => {
         if (!req.headers['x-user']) return res.sendStatus(401);
-        req.user = JSON.parse(req.headers['x-user']);
+        req.user = JSON.parse(req.headers['x-user'] as string);
         next();
       },
     }),
@@ -231,7 +232,7 @@ describe('purchasing access and input validation', () => {
       importedAt: clock,
     });
     const { id } = await setup();
-    const r = (await plan(id)).rows.find((r) => r.product === 'Missing 2CM');
+    const r = (await plan(id)).rows.find((r: Loose) => r.product === 'Missing 2CM');
     expect(r.hasStock).toBe(false);
     expect(r.readySlabs).toBeNull();
     expect(r.protective).toBeNull();
@@ -297,7 +298,7 @@ describe('container draft workflow', () => {
   it('does not infer zero stock across incompatible units', async () => {
     await InventoryItem.updateMany({}, { $set: { units: 'EA' } });
     const { id } = await setup();
-    const row = (await plan(id)).rows.find((r) => r.uom === 'SF');
+    const row = (await plan(id)).rows.find((r: Loose) => r.uom === 'SF');
     expect(row.blockers.join(' ')).toMatch(/UOM do not match/);
     expect(row.protective).toBeNull();
   });
@@ -406,7 +407,7 @@ describe('container draft workflow', () => {
 describe('live stock overview API', () => {
   it('returns total/allocated/available physical slabs and independent day coverage', async () => {
     await InventoryItem.deleteMany({});
-    const physical = (serialNumber, slabStatus = '') => ({ product: 'Quartz 3CM', type: 'SLAB', serialNumber,
+    const physical = (serialNumber: string, slabStatus = '') => ({ product: 'Quartz 3CM', type: 'SLAB', serialNumber,
       instockQty: 75, availableSlabs: slabStatus ? 0 : 1, availableQuantity: slabStatus ? 0 : 75,
       slabStatus, remnant: '', units: 'SF', location: 'Seattle', importedAt: clock });
     await InventoryItem.collection.insertMany([
@@ -460,7 +461,7 @@ describe('using the uploaded sales period', () => {
     expect(result.rows[0].coverage).toMatchObject({ state: 'estimated', dailyQuantity: 9 });
     expect(result.rows[0].coverage.days).toBeCloseTo(75 / 9);
     expect(result.blockers.join(' ')).not.toMatch(/after the report was imported|confirm the actual report cutoff/);
-    expect((await InventorySalesRecord.findOne().lean()).importedAt.toISOString()).toBe(legacyImport.toISOString());
+    expect((await InventorySalesRecord.findOne().lean())!.importedAt.toISOString()).toBe(legacyImport.toISOString());
     await api('post', '/scopes').send({ ...request, observedThrough: '2026-11-01' }).expect(400);
     await api('post', '/scopes').send({ ...request, salesCoverageConfirmation: { through: '2026-09-30' } }).expect(400);
   });
@@ -516,9 +517,10 @@ describe('purchasing review regressions', () => {
   it('serializes a source publication ahead of approval and rejects the stale draft', async () => {
     const { id } = await setup();
     const p = await plan(id), d = (await api('post', `/scopes/${id}/drafts`).send(draftBody(p)).expect(201)).body;
-    let release, entered;
-    const ready = new Promise(resolve => { entered = resolve; });
-    const paused = new Promise(resolve => { release = resolve; });
+    let release!: () => void;
+    let entered!: () => void;
+    const ready = new Promise<void>(resolve => { entered = resolve; });
+    const paused = new Promise<void>(resolve => { release = resolve; });
     const publication = inInventoryTransaction(async session => {
       await InventoryItem.updateOne({ serialNumber: 'SER1' }, { $set: { slabStatus: 'ONHOLD', availableSlabs: 0, availableQuantity: 0 } }, { session });
       entered(); await paused;

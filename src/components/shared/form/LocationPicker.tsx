@@ -50,7 +50,7 @@ export type LocationPickerProps = {
     onChange?: (value: string) => void;
     /** Location names or Location documents. */
     options?: unknown[];
-    user?: unknown;
+    user?: Parameters<typeof homeLocationOf>[0];
     home?: string;
     allLabel?: string | null;
     noneLabel?: string | null;

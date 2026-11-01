@@ -34,8 +34,8 @@ const EXPORT_MAX_ROWS = 5000;
 const escapeRegex = (s: unknown) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 class HttpError extends Error {
-  status: number;
-  extra: Record<string, unknown>;
+  declare status: number;
+  declare extra: Record<string, unknown>;
 
   constructor(status: number, message: string, extra: Loose = {}) { super(message); this.status = status; this.extra = extra; }
 }

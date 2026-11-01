@@ -103,7 +103,10 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
     // Offices issue permits every working day; an empty window means the
     // source answered wrongly, not that nothing happened.
     if (!rows.length && !rule.mayBeEmpty) throw new Error(rule.emptyError(since, total));
-    const leads = rows.filter((row: Loose) => categoryFor(id, rule.typeOf(row)[0], rule.typeOf(row)[1]));
+    const leads = rows.filter((row: Loose) => {
+      const types = rule.typeOf(row);
+      return categoryFor(id, types[0], types[1]);
+    });
     const totals = { added: 0, updated: 0 };
     const add = (r: Loose) => { totals.added += r.added; totals.updated += r.updated; };
     let detailErrors = 0;

@@ -1,8 +1,8 @@
 {
   // Type-check the app, tests, server and tools. Vite, Vitest and Node 24
   // strip types at runtime; nothing is emitted here. JavaScript is disallowed.
-  // Erasable syntax only (no enum/namespace), so Node 24 can strip the same
-  // files the day the shared ones convert.
+  // Erasable syntax only (no enum/namespace), so Node 24 can load the server
+  // and shared modules directly without a compilation step.
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],

@@ -17,7 +17,7 @@ const { default: CustomerDeleteBackup } = await import('../models/CustomerDelete
 const { default: SpsImportRun } = await import('../models/SpsImportRun.ts');
 const { default: SpsImportItem } = await import('../models/SpsImportItem.ts');
 
-let mongo!: MongoMemoryServer; let app!: import('express').Express; let sheet!: Loose; let remembered!: Loose;
+let mongo!: MongoMemoryServer; let app!: import('express').Express; let sheet!: { headers: string[]; rows: Loose[]; parse?: Loose }; let remembered!: Loose | null;
 const BASE = '/api/customers/sps-import/runs';
 const IMPORTER = { username: 'imp', permissions: ['view_customers', 'import_customers'] };
 const FULL = { username: 'krish', permissions: ['view_customers', 'import_customers', 'manage_customers', 'add_customers', 'delete_customers'] };

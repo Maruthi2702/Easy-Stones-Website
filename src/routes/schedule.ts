@@ -48,7 +48,7 @@ export const createScheduleEmitter = (io: Loose) => (payload: Loose) => {
  * `emitScheduleUpdate` comes from createScheduleEmitter above — created once in
  * server.ts, since the visit routes there announce calendar changes too.
  */
-export default function createScheduleRouter({ authenticate, requirePermission, emitScheduleUpdate, jwtSecret }: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; emitScheduleUpdate: Loose; jwtSecret: Loose }) {
+export default function createScheduleRouter({ authenticate, requirePermission, emitScheduleUpdate, jwtSecret }: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; emitScheduleUpdate: (event: Loose) => void; jwtSecret: string }) {
   const router = express.Router();
   const verifyAnyAuth = authenticate;
   const JWT_SECRET = jwtSecret;
@@ -103,7 +103,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       const userId = req.userId || req.customerId;
       const { start, end } = (req.query as ScalarQuery);
 
-      let query = { userId };
+      let query: Loose = { userId };
       let nameOf = null;
       if ((req.query as ScalarQuery).scope === 'team' && req.userId && req.user?.type !== 'customer') {
         const team = await calendarPeopleOf(req);
@@ -145,11 +145,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       if (wantedId !== undefined && !isObjectId(wantedId)) {
         return res.status(400).json({ message: 'That entry id is not valid' });
       }
-      if (!(await Customer.exists({ _id: fields.customerId }))) {
+      if (!(await Customer.exists({ _id: fields!.customerId }))) {
         return res.status(400).json({ message: 'That customer no longer exists' });
       }
 
-      const populate = (id: string) => Schedule.findById(id).populate('customerId', 'contactName company');
+      const populate = (id: unknown) => Schedule.findById(id).populate('customerId', 'contactName company');
       const alreadySaved = async () => {
         const existing = await populate(wantedId);
         if (!existing) return null;
@@ -173,7 +173,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
 
       const populatedItem = await populate(created._id);
 
-      emitScheduleUpdate({ type: 'upsert', userId, id: String(populatedItem._id) });
+      emitScheduleUpdate({ type: 'upsert', userId, id: String(populatedItem!._id) });
 
       res.status(201).json(populatedItem);
     } catch (error) {
@@ -230,7 +230,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       for (const item of items) {
         const result = cleanScheduleFields(item);
         if (result.error) return res.status(400).json({ message: result.error });
-        cleaned.push(result.fields);
+        cleaned.push(result.fields!);
       }
       // One stop sent with its own `_id` can be repeated safely (a double tap):
       // the second answers with the entry already saved.
@@ -349,7 +349,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
 
       const { fields, error } = cleanScheduleFields(req.body, existing);
       if (error) return res.status(400).json({ message: error });
-      if (fields.customerId && !(await Customer.exists({ _id: fields.customerId }))) {
+      if (fields!.customerId && !(await Customer.exists({ _id: fields!.customerId }))) {
         return res.status(400).json({ message: 'That customer no longer exists' });
       }
 
@@ -395,7 +395,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
 
   // The authenticated owner can retrieve or rotate their subscription link.
   // Creating the seed conditionally keeps concurrent first reads on one link.
-  const subscription = (rotate: Loose) => async (req: Request, res: Response) => {
+  const subscription = (rotate: boolean) => async (req: Request, res: Response) => {
     if (!req.userId || req.user?.type === 'customer') return res.status(403).json({ message: 'Staff access required' });
     try {
       let owner = await User.findOneAndUpdate(
@@ -442,7 +442,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         .lean();
 
       // Helper to format Date objects / strings to iCal date format (YYYYMMDDTHHmmssZ)
-      const formatIcsDate = (dateVal: string) => {
+      const formatIcsDate = (dateVal: Date | string | null | undefined) => {
         if (!dateVal) return '';
         const d = new Date(dateVal);
         if (isNaN(d.getTime())) return '';
@@ -530,7 +530,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
 
   // Helper to determine the standard OAuth callback redirect URI
   const getRedirectUri = (req: Request) => {
-    const host = req.get('host');
+    const host = req.get('host')!;
     const isLocal = host.includes('localhost') || host.includes('127.0.0.1');
     const protocol = isLocal ? 'http' : 'https';
     return `${protocol}://${host}/api/auth/google/calendar/callback`;
@@ -546,8 +546,8 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        client_id: process.env.GOOGLE_CLIENT_ID!,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
         refresh_token: user.googleRefreshToken,
         grant_type: 'refresh_token'
       })
@@ -566,7 +566,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   };
 
   // Core Helper: Perform Two-Way synchronization between MongoDB Schedules and Google Calendar
-  const syncGoogleCalendar = async (userId: string, timeZone: string) => {
+  const syncGoogleCalendar = async (userId: string | undefined, timeZone: string | undefined) => {
     try {
       const user = await User.findById(userId);
       if (!user || !user.googleCalendarSyncEnabled || !user.googleAccessToken) {
@@ -702,13 +702,13 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         const startUtc = zonedTimeToUtc(schedule.startTime, zone);
         const endUtc = schedule.endTime
           ? zonedTimeToUtc(schedule.endTime, zone)
-          : new Date(startUtc.getTime() + 3600000);
+          : new Date(startUtc!.getTime() + 3600000);
 
         const eventPayload = {
           summary: `${schedule.activityType || 'Visit'} - ${clientName}`,
           description: `${schedule.notes || ''}\n\n[EasyStones ID: ${schedule._id}]`,
-          start: { dateTime: startUtc.toISOString(), timeZone: zone },
-          end: { dateTime: endUtc.toISOString(), timeZone: zone }
+          start: { dateTime: startUtc!.toISOString(), timeZone: zone },
+          end: { dateTime: endUtc!.toISOString(), timeZone: zone }
         };
 
         if (syncedMatch) {
@@ -760,7 +760,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
 
       let decoded!: Loose;
       try {
-        decoded = jwt.verify(token, JWT_SECRET);
+        decoded = jwt.verify(token, JWT_SECRET) as jwt.JwtPayload;
       } catch {
         return res.status(401).send('Invalid or expired authentication token');
       }
@@ -770,8 +770,8 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         return res.status(401).send('Invalid token payload');
       }
 
-      const client_id = process.env.GOOGLE_CLIENT_ID;
-      const client_secret = process.env.GOOGLE_CLIENT_SECRET;
+      const client_id = process.env.GOOGLE_CLIENT_ID!;
+      const client_secret = process.env.GOOGLE_CLIENT_SECRET!;
 
       if (!client_id || !client_secret) {
         return res.status(400).send('Google Client credentials are not configured. Please add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to your environment variables.');
@@ -823,8 +823,8 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         return res.status(401).send('Invalid state payload');
       }
 
-      const client_id = process.env.GOOGLE_CLIENT_ID;
-      const client_secret = process.env.GOOGLE_CLIENT_SECRET;
+      const client_id = process.env.GOOGLE_CLIENT_ID!;
+      const client_secret = process.env.GOOGLE_CLIENT_SECRET!;
       const redirect_uri = getRedirectUri(req);
 
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
@@ -963,7 +963,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         await user.save();
 
         // Trigger initial sync cycle
-        if (await syncICloudCalendar(userId, tz)) {
+        if (await syncICloudCalendar(userId!, tz)) {
           emitScheduleUpdate({ type: 'sync', userId });
         }
 
@@ -1003,7 +1003,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.post('/auth/icloud/sync', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
-      if (await syncICloudCalendar(userId, (req.query as ScalarQuery).tz)) {
+      if (await syncICloudCalendar(userId!, (req.query as ScalarQuery).tz)) {
         emitScheduleUpdate({ type: 'sync', userId });
       }
       res.json({ success: true, message: 'iCloud Calendar synchronized successfully' });

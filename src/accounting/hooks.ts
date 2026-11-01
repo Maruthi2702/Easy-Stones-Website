@@ -1,4 +1,3 @@
-import type { Loose } from '../types/records.ts';
 /**
  * The Delivery Schedule tells Accounting which deliveries just changed, so a
  * completed 3rd-party delivery gets its freight charge within moments.

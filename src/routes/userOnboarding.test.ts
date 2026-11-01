@@ -29,13 +29,13 @@ const SECRET = 'test-secret';
 let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
 
-const authenticate = async (req: Loose, res: Loose, next: () => void) => {
+const authenticate = async (req: Loose, res: import('express').Response, next: () => void) => {
   const token = req.cookies.adminToken || req.cookies.customerToken
     || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.slice(7) : null);
   if (!token) return res.status(401).json({ error: 'none' });
-  let decoded!: Loose;
+  let decoded!: jwt.JwtPayload;
   try {
-    decoded = jwt.verify(token, SECRET);
+    decoded = jwt.verify(token, SECRET) as jwt.JwtPayload;
   } catch {
     return res.status(401).json({ error: 'invalid' });
   }
@@ -52,7 +52,7 @@ const authenticate = async (req: Loose, res: Loose, next: () => void) => {
 
 // What /api/customer/login does for a staff account: locked → refused before
 // the password is checked; a wrong one is counted towards the lock.
-const signIn = async (req: Loose, res: Loose) => {
+const signIn = async (req: Loose, res: import('express').Response) => {
   const user = await User.findOne({ username: req.body.username });
   if (!user) return res.status(401).json({ message: 'Invalid' });
   if (user.isLocked()) return res.status(423).json({ message: 'Locked' });
@@ -69,13 +69,13 @@ const signIn = async (req: Loose, res: Loose) => {
 
 // The cookie `name` a response set, as a request Cookie header ('' if none —
 // or if it was being cleared).
-const cookieFrom = (res: Loose, name: string) => {
+const cookieFrom = (res: Loose, name: string): string => {
   const line = (res.headers['set-cookie'] || []).find((c: string) => c.startsWith(`${name}=`));
   if (!line) return '';
   const pair = line.split(';')[0];
   return pair === `${name}=` ? '' : pair;
 };
-const setCookieLine = (res: Loose, name: string) => (res.headers['set-cookie'] || []).find((c: string) => c.startsWith(`${name}=`)) || '';
+const setCookieLine = (res: Loose, name: string): string => (res.headers['set-cookie'] || []).find((c: string) => c.startsWith(`${name}=`)) || '';
 
 const makeUser = async (over: Loose = {}) => new User({
   username: 'rita', displayName: 'Rita Gomez', email: 'rita@x.com', role: 'sales_rep',
@@ -83,7 +83,7 @@ const makeUser = async (over: Loose = {}) => new User({
 }).save();
 
 const login = (username = 'rita', password = 'Granite-4821-Ridge') => request(app).post('/api/test-login').send({ username, password });
-const protectedWith = (cookie: Loose) => request(app).get('/api/protected').set('Cookie', cookie);
+const protectedWith = (cookie: string) => request(app).get('/api/protected').set('Cookie', cookie);
 
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create();
@@ -91,10 +91,10 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.use(cookieParser());
-  const pass = (req: Loose, res: Loose, next: () => void) => next();
+  const pass = (req: Loose, res: import('express').Response, next: () => void) => next();
   app.post('/api/test-login', signIn);
   app.get('/api/protected', authenticate, (req, res) => res.json({ ok: true, username: req.user.username }));
-  const requirePermission = (p: string) => (req: Loose, res: Loose, next: () => void) => (req.user?.permissions.includes(p) ? next() : res.status(403).json({ message: 'No' }));
+  const requirePermission = (p: string) => (req: Loose, res: import('express').Response, next: () => void) => (req.user?.permissions.includes(p) ? next() : res.status(403).json({ message: 'No' }));
   app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter: pass, jwtSecret: SECRET }));
 }, 180000);
 
@@ -156,7 +156,7 @@ describe('signing in with a temporary password', () => {
 });
 
 describe('POST /api/auth/first-password — choosing their own', () => {
-  const choose = (cookie: Loose, newPassword: string) => request(app).post('/api/auth/first-password').set('Cookie', cookie).send({ newPassword });
+  const choose = (cookie: string, newPassword: string) => request(app).post('/api/auth/first-password').set('Cookie', cookie).send({ newPassword });
 
   it('signs them in for real, and the temporary password stops working', async () => {
     await makeUser();
@@ -265,7 +265,7 @@ describe('an emailed invite link', () => {
   const accept = (token: string, newPassword = 'my-own-pass') => request(app).post('/api/auth/accept-invite').send({ token, newPassword });
 
   it('points at /set-password, not the admin pages', () => {
-    const req = { get: (h: Loose) => (h === 'origin' ? 'https://app.easystones.com' : undefined) };
+    const req = { get: (h: string) => (h === 'origin' ? 'https://app.easystones.com' : undefined) };
     expect(inviteLinkFor((req)!, 'abc')).toBe('https://app.easystones.com/set-password?token=abc');
   });
 
@@ -326,7 +326,7 @@ describe('an emailed invite link', () => {
 });
 
 describe('POST /api/auth/change-password', () => {
-  const change = (cookie: Loose, body: Loose) => request(app).post('/api/auth/change-password').set('Cookie', cookie).send(body);
+  const change = (cookie: string, body: Loose) => request(app).post('/api/auth/change-password').set('Cookie', cookie).send(body);
   const signedIn = async () => {
     await makeUser({ mustChangePassword: false, tempPasswordExpiresAt: null, password: 'old-own-pass' });
     return cookieFrom(await login('rita', 'old-own-pass'), SESSION_COOKIE);
@@ -369,7 +369,7 @@ describe('an admin reset to a temporary password', () => {
     // What PUT /api/admin/users/:id does for Sign-in → Temporary password.
     const user = await User.findOne({ username: 'rita' });
     (user)!.password = 'Basalt-1234-Creek';
-    Object.assign(user, temporaryPasswordFields());
+    Object.assign(user!, temporaryPasswordFields());
     (user)!.sessionVersion = sessionVersionOf(user) + 1;
     await (user)!.save();
     await protectedWith(before).expect(401);
@@ -395,7 +395,7 @@ describe('POST /api/admin/users/:id/unlock — Edit user → Unlock now', () => 
     for (let i = 0; i < 5; i += 1) await login('rita', 'wrong-pass');
     return rita;
   };
-  const unlock = (cookie: Loose, id: string) => request(app).post(`/api/admin/users/${id}/unlock`).set('Cookie', cookie);
+  const unlock = (cookie: string, id: unknown) => request(app).post(`/api/admin/users/${id}/unlock`).set('Cookie', cookie);
 
   it('five wrong passwords lock the account, even against the right one', async () => {
     await lockedRita();

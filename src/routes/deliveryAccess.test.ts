@@ -20,17 +20,17 @@ const { default: Delivery } = await import('../models/Delivery.ts');
 let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
 const emit = vi.fn();
-const roomsEmittedTo: Loose[] = [];
+const roomsEmittedTo: string[] = [];
 let openRooms = ['delivery-location:Seattle', 'delivery-location:Spokane', 'delivery-location:*', 'some-socket-id'];
 
 const VIEW_ONLY = { username: 'sam', role: 'sales_rep', permissions: ['view_delivery_schedule'], assignedLocations: ['Seattle'] };
 const DRIVER = { username: 'angel', role: 'driver', permissions: ['view_delivery_schedule', 'delivery_driver_view'], assignedLocations: ['Seattle'] };
 const OFFICE = { username: 'dee', role: 'manager', permissions: ['view_delivery_schedule', 'edit_delivery_schedule'], assignedLocations: ['Seattle'] };
 const as = (user: Loose) => ({ 'x-test-user': JSON.stringify(user) });
-const has = (req: Loose, p: Loose) => (req.user.permissions || []).includes(p);
+const has = (req: Loose, p: string) => (req.user.permissions || []).includes(p);
 
 const DAY = '2026-10-16';
-const ticket = (id: string, truckId: Loose, routeNumber: Loose, over: Loose = {}) => ({
+const ticket = (id: string, truckId: string, routeNumber: number | null, over: Loose = {}) => ({
   id, truckId, routeNumber, date: DAY, location: 'Seattle', deliveryType: 'jobsite', status: 'scheduled',
   customerName: id, address: '1 Main St', numberOfSlabs: 2, ...over
 });
@@ -42,15 +42,15 @@ beforeAll(async () => {
   app.use(express.json({ limit: '5mb' }));
   app.set('io', {
     emit,
-    to: (room: Loose) => ({ emit: (...args: Loose[]) => { roomsEmittedTo.push(room); emit(...args); } }),
+    to: (room: string) => ({ emit: (...args: Loose[]) => { roomsEmittedTo.push(room); emit(...args); } }),
     sockets: { adapter: { rooms: { keys: () => openRooms[Symbol.iterator]() } } }
   });
   app.use('/api', createDeliveriesRouter({
     authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    requirePermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
-    requireAnyPermission: (...ps: Loose[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
+    requirePermission: (...ps: string[]) => (req: Loose, res: Loose, next: () => void) => (ps.every((p) => has(req, p)) ? next() : res.status(403).json({})),
+    requireAnyPermission: (...ps: string[]) => (req: Loose, res: Loose, next: () => void) => (ps.some((p) => has(req, p)) ? next() : res.status(403).json({})),
     getPerformerInfo: async () => ({}),
-    processBase64Images: async (x: Loose) => x,
+    processBase64Images: async (x: unknown[]) => x,
     getNowLocalISO: () => new Date().toISOString()
   }));
 }, 180000);
@@ -156,7 +156,7 @@ describe('O2 — saving an ePOD writes the ePOD and nothing else', () => {
 
 describe('O8 — packing-list upload', () => {
   const pdf = Buffer.from('%PDF-1.4\n%fake\n');
-  const upload = (deliveryId: Loose, user = OFFICE) => request(app).post('/api/deliveries/upload-packing-list')
+  const upload = (deliveryId: string, user = OFFICE) => request(app).post('/api/deliveries/upload-packing-list')
     .set(as(user)).field('deliveryId', deliveryId).attach('file', pdf, { filename: 'pl.pdf', contentType: 'application/pdf' });
 
   it('refuses another branch\'s ticket id before storing anything', async () => {

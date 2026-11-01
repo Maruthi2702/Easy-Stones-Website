@@ -480,7 +480,7 @@ async function slabExpectation(locations: string[]) {
 
 const outboundLines = (r: Loose) => (r.transfers || []).filter((t: Loose) => t.direction !== 'in');
 const inboundLines = (r: Loose) => (r.transfers || []).filter((t: Loose) => t.direction === 'in');
-const total = (lines: Loose[], key: string) => lines.reduce((sum: Loose, t: Loose) => sum + (t[key] || 0), 0);
+const total = (lines: Loose[], key: string) => lines.reduce((sum: number, t: Loose) => sum + (t[key] || 0), 0);
 
 /** Everything the month view needs, without shipping whole documents. */
 export const summarise = (r: Loose) => ({
@@ -518,10 +518,10 @@ const parseRecipients = (input: unknown) => {
   return [...new Set(list.map(x => String(x).trim().toLowerCase()).filter(x => EMAIL_RE.test(x)))];
 };
 
-const escapeHtml = (v: Loose) => String(v ?? '')
+const escapeHtml = (v: unknown) => String(v ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-export default function createDailyReportsRouter({ authenticate, requirePermission, logActivity }: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; logActivity: Loose }) {
+export default function createDailyReportsRouter({ authenticate, requirePermission, logActivity }: { authenticate: RequestHandler; requirePermission: (permission: string) => RequestHandler; logActivity?: (req: Request, action: string, details: string) => Promise<unknown> }) {
   const router = express.Router();
 
   const canView = [authenticate, requirePermission('view_daily_report')];
@@ -1005,7 +1005,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
 
     const allowed = allowedLocations(req);
     let locations!: Loose;
-    let scopeLabel!: Loose;
+    let scopeLabel!: string;
     if (location && location !== 'all') {
       if (!canSeeLocation(req, location)) { res.status(403).json({ message: 'That branch is not assigned to you.' }); return null; }
       locations = [location];
@@ -1055,7 +1055,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     }
   });
 
-  const mailReport = async (req: Request, res: Response, { subject, heading, lines, filename, bytes }: { subject: Loose; heading: Loose; lines: Loose[]; filename: string; bytes: Loose }) => {
+  const mailReport = async (req: Request, res: Response, { subject, heading, lines, filename, bytes }: { subject: string; heading: string; lines: string[]; filename: string; bytes: Uint8Array }) => {
     const to = parseRecipients(req.body?.to);
     if (!to.length) return res.status(400).json({ message: 'Add at least one valid email address.' });
     if (to.length > 20) return res.status(400).json({ message: 'That is more recipients than this is meant for — 20 at most.' });

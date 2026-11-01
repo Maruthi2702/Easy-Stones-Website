@@ -12,7 +12,8 @@ import type { Loose } from '../types/records.ts';
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
 /** A failure worth sending again: the connection, not the data, was the problem. */
-export const isTransientDbError = (err: Loose | null | undefined) => {
+export const isTransientDbError = (value: unknown) => {
+  const err = value as Loose | null | undefined;
   if (!err) return false;
   if (typeof err.hasErrorLabel === 'function'
     && (err.hasErrorLabel('RetryableWriteError') || err.hasErrorLabel('ResetPool'))) return true;
@@ -47,7 +48,7 @@ export const withDbRetry = async <T>(fn: () => T | Promise<T>, { attempts = 3, d
  * error with an empty writeErrors list, and must be resent, not read as
  * "everything saved".
  */
-export const hasRowErrorsOnly = (err: Loose | null | undefined) => Boolean(err?.writeErrors?.length) && !isTransientDbError(err as Loose);
+export const hasRowErrorsOnly = (err: unknown) => Boolean((err as Loose)?.writeErrors?.length) && !isTransientDbError(err as Loose);
 
 /**
  * Insert `docs` (each already carrying its _id) `batchSize` at a time, each

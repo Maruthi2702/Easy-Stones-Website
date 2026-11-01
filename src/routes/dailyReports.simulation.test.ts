@@ -10,13 +10,15 @@ import type { Loose } from '../types/records.ts';
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Delivery from '../models/Delivery.ts';
+const deliveryStore = Delivery as unknown as { find: (query: Loose) => { lean: () => Promise<Loose[]> } };
 import OfficeCheckIn from '../models/OfficeCheckIn.ts';
+const checkInStore = OfficeCheckIn as unknown as { countDocuments: (query: Loose) => Promise<number> };
 import { BRANCH_NAMES, branchDayWindow, branchNow, branchZone } from '../config/branches.ts';
 import { deriveFromSystem, deliveriesOnDate, applyDerived, summarise, withDraftsDerived } from './dailyReports.ts';
 import { isDueForAutoSubmit } from '../jobs/autoSubmitDailyReports.ts';
 
 // ── a tiny in-memory stand-in for the two collections ──────────────────────
-const matches = (doc: Loose, query: string) => Object.entries(query).every(([key, cond]) => {
+const matches = (doc: Loose, query: Loose) => (Object.entries(query) as [string, Loose][]).every(([key, cond]) => {
   if (key === '$or') return cond.some((q: Loose) => matches(doc, q));
   const value = doc[key];
   if (cond && typeof cond === 'object' && !(cond instanceof Date)) {
@@ -35,11 +37,11 @@ let deliveryQueries = 0;
 
 beforeEach(() => {
   deliveryQueries = 0;
-  vi.spyOn(Delivery, 'find').mockImplementation(((query: Loose) => {
+  vi.spyOn(deliveryStore, 'find').mockImplementation(((query: Loose) => {
     deliveryQueries += 1;
     return { lean: async () => tickets.filter((t) => matches(t, query)) };
-  }) as Loose);
-  vi.spyOn(OfficeCheckIn, 'countDocuments').mockImplementation(async (query) => checkIns.filter((c) => matches(c, (query)!)).length);
+  }));
+  vi.spyOn(checkInStore, 'countDocuments').mockImplementation(async (query) => checkIns.filter((c) => matches(c, (query)!)).length);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -56,7 +58,7 @@ describe('every branch: its own clock', () => {
     for (const b of BRANCH_NAMES) {
       for (const d of ['2026-07-15', '2026-12-15']) {
         const w = branchDayWindow(b, d);
-        expect((w.end - w.start) / 3600000).toBe(24);
+        expect((w.end.getTime() - w.start.getTime()) / 3600000).toBe(24);
         // Local midnight in the branch's zone really is 00:00 there.
         const local = new Intl.DateTimeFormat('en-US', { timeZone: branchZone(b), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(w.start);
         expect(local).toBe('00:00');
@@ -68,7 +70,7 @@ describe('every branch: its own clock', () => {
     for (const b of BRANCH_NAMES) {
       const spring = branchDayWindow(b, '2026-03-08');
       const fall = branchDayWindow(b, '2026-11-01');
-      expect([(spring.end - spring.start) / 3600000, (fall.end - fall.start) / 3600000]).toEqual([23, 25]);
+      expect([(spring.end.getTime() - spring.start.getTime()) / 3600000, (fall.end.getTime() - fall.start.getTime()) / 3600000]).toEqual([23, 25]);
     }
   });
 
@@ -84,7 +86,7 @@ describe('every branch: its own clock', () => {
   it('the 11:59 PM job closes each branch\'s day at 11:59 on its own clock', () => {
     for (const b of BRANCH_NAMES) {
       const { start } = branchDayWindow(b, '2026-10-05');
-      const at = (mins: Loose) => new Date(start.getTime() + mins * 60000);
+      const at = (mins: number) => new Date(start.getTime() + mins * 60000);
       expect(isDueForAutoSubmit({ date: '2026-10-05' }, b, at(23 * 60 + 58))).toBe(false);
       expect(isDueForAutoSubmit({ date: '2026-10-05' }, b, at(23 * 60 + 59))).toBe(true);
       expect(branchNow(b, at(23 * 60 + 59))).toEqual({ date: '2026-10-05', minutes: 23 * 60 + 59 });
@@ -123,7 +125,7 @@ describe('every branch: what the day counts', () => {
   });
 
   it('a transfer counts once out (origin, ship date) and once in (destination, arrival date)', async () => {
-    const lines = async (date: string, b: Loose) => (await deriveFromSystem(date, b)).transfers.map((t) => `${t.direction} ${t.fromTo} ${t.count}`);
+    const lines = async (date: string, b: string) => (await deriveFromSystem(date, b)).transfers.map((t) => `${t.direction} ${t.fromTo} ${t.count}`);
     expect(await lines('2026-10-05', 'Spokane')).toEqual([]);
     expect(await lines('2026-10-07', 'Spokane')).toEqual(['in SEA — SPO 1']);
     expect(await lines('2026-10-07', 'Seattle')).toEqual([]);
@@ -151,7 +153,7 @@ describe('every branch: what the day counts', () => {
       const d = await deriveFromSystem('2026-10-05', b);
       expect(d.noBranchTickets).toBe(2);
       // Seattle and Dallas keep only their own; no one gains the two.
-      expect(d.deliveriesAssigned).toBe({ Seattle: 2, Dallas: 1 }[b] || 0);
+      expect(d.deliveriesAssigned).toBe(({ Seattle: 2, Dallas: 1 } as Record<string, number>)[b] || 0);
       expect(d.transfers.some((t) => t.fromTo.startsWith('* ') || t.slabs === 9)).toBe(false);
     }
   });
@@ -166,7 +168,7 @@ describe('every branch: what the day counts', () => {
     }));
     // Only the per-branch incoming-transfer lookups ran — never the all-branch query again.
     expect(deliveryQueries - before).toBe(BRANCH_NAMES.length);
-    const total = (k: string) => rows.reduce((s, r) => s + r[k], 0);
+    const total = (k: 'deliveries' | 'pickups' | 'transferCount' | 'transferCountIn') => rows.reduce((s, r) => s + r[k], 0);
     expect(total('deliveries')).toBe(3); // Seattle 2 + Dallas 1
     expect(total('pickups')).toBe(1);
     expect(total('transferCount')).toBe(2); // out: SEA→SPO, ATL→CLT
