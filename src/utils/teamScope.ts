@@ -34,13 +34,22 @@ export const viewerLocations = (viewer: Loose | null | undefined) => {
 export const workLocationsOf = (person: Loose | null | undefined) =>
   [...new Set([person?.location, ...list(person?.assignedLocations)].filter((l) => l && l !== '*'))];
 
+/**
+ * The branches whose team a person is on: none when they're assigned '*', even
+ * with a home location (owner's call, 2026-11-01: an admin's work stays out of a
+ * branch manager's view). To put someone on a branch's team, assign them that
+ * branch instead of All locations.
+ */
+export const teamLocationsOf = (person: Loose | null | undefined) =>
+  list(person?.assignedLocations).includes('*') ? [] : workLocationsOf(person);
+
 /** The viewer's teammates (see above): `ALL_PEOPLE` or a Set of ids, always holding the viewer. */
 export const teammatesOf = (viewer: Loose | null | undefined, staff: Loose[] = []) => {
   const locations = viewerLocations(viewer);
   if (locations === ALL_PEOPLE) return ALL_PEOPLE;
   const ids = new Set(
     list(staff)
-      .filter((p) => workLocationsOf(p).some((l) => locations.includes(l)))
+      .filter((p) => teamLocationsOf(p).some((l) => locations.includes(l)))
       .map(idOf)
   );
   const me = idOf(viewer);

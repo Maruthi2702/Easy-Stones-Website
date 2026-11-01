@@ -119,7 +119,9 @@ Visits, resources, follow-ups and calendars go by **where the
 rep works**, not where the customer is (owner's call): `src/utils/teamScope.ts`
 (tested). A person's team is everyone whose location / assigned locations
 include one of their assigned locations, deactivated people included, plus
-themselves; someone assigned `'*'` is on no branch's team. Users & Roles →
+themselves; someone assigned `'*'` is on no branch's team, even with a home
+location (`teamLocationsOf`, 2026-11-01 — an admin's work stays out of a branch
+manager's view; to put them on a team, assign that branch instead of All). Users & Roles →
 Visits: View all → everyone, View branch → their team, neither → their own;
 Edit / Delete branch → visits and resources **logged by** their team
 (`canModifyVisit(user, visit, team)` — the third argument is the team, not a

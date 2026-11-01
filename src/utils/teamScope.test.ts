@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ALL_PEOPLE, viewerLocations, workLocationsOf, teammatesOf, inTeam,
+  ALL_PEOPLE, viewerLocations, workLocationsOf, teamLocationsOf, teammatesOf, inTeam,
   visiblePeople, narrowPeople, parseRepsParam, peopleOptions, canSeeTeamCalendar, calendarPeople
 } from './teamScope.ts';
 
@@ -37,6 +37,15 @@ describe('teammatesOf', () => {
     const team = teammatesOf(mgr, staff);
     expect(inTeam(team, 'boss')).toBe(false);
     expect(inTeam(team, 'bart')).toBe(false);
+  });
+
+  it("leaves out someone assigned '*' even when their home location is the viewer's", () => {
+    const admin = { _id: 'admin', location: 'Seattle', assignedLocations: ['*'] };
+    const team = teammatesOf(mgr, [...staff, admin]);
+    expect(inTeam(team, 'admin')).toBe(false);
+    expect(inTeam(calendarPeople({ ...mgr, permissions: ['view_team_calendar'] }, [...staff, admin]), 'admin')).toBe(false);
+    expect(teamLocationsOf(admin)).toEqual([]);
+    expect(workLocationsOf(admin)).toEqual(['Seattle']);
   });
 
   it("is everyone for an all-locations viewer", () => {
