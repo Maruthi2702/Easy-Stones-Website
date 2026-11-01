@@ -44,6 +44,12 @@ export function useImageGallery() {
         setFullScreenImage(fullScreenGallery[prevIndex]);
     };
 
+    const goTo = (index: number) => {
+        if (!fullScreenGallery[index]) return;
+        setFullScreenIndex(index);
+        setFullScreenImage(fullScreenGallery[index]);
+    };
+
     const closeGallery = () => {
         setFullScreenImage(null);
         setFullScreenGallery([]);
@@ -51,7 +57,7 @@ export function useImageGallery() {
 
     return {
         fullScreenImage, setFullScreenImage, fullScreenIndex, galleryCount: fullScreenGallery.length,
-        handleOpenGallery, handleNextImage, handlePrevImage, closeGallery
+        galleryImages: fullScreenGallery, handleOpenGallery, handleNextImage, handlePrevImage, goTo, closeGallery
     };
 }
 

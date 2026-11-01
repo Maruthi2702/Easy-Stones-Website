@@ -204,8 +204,10 @@ export default function SalesModals(p: SalesModalsProps) {
                     image={gallery.fullScreenImage}
                     index={gallery.fullScreenIndex}
                     count={gallery.galleryCount}
+                    images={gallery.galleryImages}
                     onPrev={gallery.handlePrevImage}
                     onNext={gallery.handleNextImage}
+                    onSelect={gallery.goTo}
                     onClose={gallery.closeGallery}
                 />
             )}
