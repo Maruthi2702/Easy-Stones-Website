@@ -235,6 +235,14 @@ export const visiblePinnedTabs = (user: NavUser, pins: unknown) =>
 /** Where /sales opens when the URL names no tab: their first visible pin, or null. */
 export const pinnedDefaultTab = (user: NavUser, pins: unknown) => visiblePinnedTabs(user, pins)[0] || null;
 
+/**
+ * Where the rail's Home icon takes you (desktop, 2026-11-01): your default
+ * page (the first pin), else the Dashboard, else nowhere — Home then only
+ * opens its panel of pins, as it always did.
+ */
+export const homeTab = (user: NavUser, pins: unknown) =>
+  pinnedDefaultTab(user, pins) || (navItem('dashboard')!.canSee(user) ? 'dashboard' : null);
+
 /** Pin a page (added last) or unpin it. Pinning past the limit changes nothing. */
 export const togglePinnedTab = (pins: unknown, id: string) => {
   const list = sanitizePinnedTabs(pins) || [];

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
-import { railSections, visiblePinnedTabs, sectionOf, MAX_PINNED_TABS, isOnePageSection } from '../../../utils/navPins';
+import { railSections, visiblePinnedTabs, sectionOf, MAX_PINNED_TABS, isOnePageSection, homeTab } from '../../../utils/navPins';
 import { CartRailButton } from '../../holds';
 import { SECTION_ICONS } from '../../../components/sales/navIcons';
 import type { Loose } from '../../../types/records';
@@ -72,10 +72,14 @@ const CustomerSidebar = ({
     const menuRef = useRef<HTMLDivElement | null>(null);
 
     // The panel follows the page you're on; clicking a section only previews it.
+    // Except right after Home opened your default page from another section:
+    // the panel stays on Home's pins (keepHome).
     const [lastSection, setLastSection] = useState(currentSection);
+    const [keepHome, setKeepHome] = useState(false);
     if (currentSection !== lastSection) {
         setLastSection(currentSection);
-        if (currentSection) setViewSection(currentSection);
+        if (keepHome) setKeepHome(false);
+        else if (currentSection) setViewSection(currentSection);
     }
 
     useEffect(() => {
@@ -128,12 +132,19 @@ const CustomerSidebar = ({
     const openSection = (section: NavSection) => {
         setViewSection(section.id);
         // A one-page section (Admin today) goes straight to it. Not Home —
-        // that's where the pins are — nor Accounting (isOnePageSection).
+        // its panel is where the pins are — nor Accounting (isOnePageSection).
         if (isOnePageSection(section)) {
             go(section.items[0].id);
             return;
         }
         if (isMobile) return;
+        // Home also opens your default page (homeTab), with the pins still
+        // shown beside it, even when that page lives in another section.
+        const home = section.id === 'home' ? homeTab(user, pinnedTabs) : null;
+        if (home) {
+            if (sectionOf(home) !== currentSection) setKeepHome(true);
+            handleCrmTabChange(home);
+        }
         // The open section's icon again closes it; another section switches.
         setFlyoutOpen(open => !(open && viewSection === section.id));
     };

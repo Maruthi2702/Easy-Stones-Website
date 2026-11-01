@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   NAV_ITEMS, MAX_PINNED_TABS, visibleSections, railSections, sectionOf, isOnePageSection,
   sanitizeNavOrder, orderedSections, navOrderOf, isDefaultNavOrder, moveInList, sanitizePinnedTabs, visiblePinnedTabs,
-  pinnedDefaultTab, togglePinnedTab, makeDefaultTab, isCheckInOnly, hasSalesPage
+  pinnedDefaultTab, homeTab, togglePinnedTab, makeDefaultTab, isCheckInOnly, hasSalesPage
 } from './navPins.ts';
 
 const rep = { role: 'sales_rep', permissions: ['view_customers', 'view_route_planner', 'view_daily_report'] };
@@ -76,6 +76,19 @@ describe('default tab', () => {
     expect(pinnedDefaultTab(rep, [])).toBeNull();
     expect(pinnedDefaultTab(rep, ['users'])).toBeNull();
     expect(pinnedDefaultTab(rep, undefined)).toBeNull();
+  });
+});
+
+describe('home icon', () => {
+  it('goes to the default page (first visible pin)', () => {
+    expect(homeTab(admin, ['daily_report', 'dashboard'])).toBe('daily_report');
+    expect(homeTab(rep, ['users', 'customers'])).toBe('customers');
+  });
+
+  it('falls back to the Dashboard, then to nowhere (just the pins panel)', () => {
+    expect(homeTab(admin, [])).toBe('dashboard');
+    expect(homeTab(rep, [])).toBeNull();
+    expect(homeTab(rep, undefined)).toBeNull();
   });
 });
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The side nav renders: the desktop rail with its fly-out (Home's empty pins,
 // a section with the pin tip, closing it), the account menu, pinned pages with
-// Default, and the drawer on tablets.
+// Default, Home opening the default page, and the drawer on tablets.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -58,6 +58,26 @@ describe('Side nav', () => {
     expect(screen.getByText('Default')).toBeTruthy();
     fireEvent.click(screen.getByLabelText('Make Dashboard your default page'));
     expect(base.onMakeDefault).toHaveBeenCalledWith('dashboard');
+  });
+  it('Home opens the default page and keeps the pins showing beside it', () => {
+    const props = { ...base, crmTab: 'dashboard', pinnedTabs: ['customers', 'dashboard'] };
+    const view = open(props);
+    fireEvent.click(sections()[0]);
+    expect(base.handleCrmTabChange).toHaveBeenCalledWith('customers');
+    // The page it opened is in Sales; the panel stays on Home's pins.
+    view.rerender(<MemoryRouter><CustomerSidebar {...props} crmTab="customers" /></MemoryRouter>);
+    expect(document.querySelector('.side-nav-panel-title')?.textContent).toBe('Home');
+    expect(screen.getByText('Default')).toBeTruthy();
+  });
+  it('Home with no pins opens the Dashboard; in the drawer it only shows the pins', () => {
+    open({ crmTab: 'customers' });
+    fireEvent.click(sections()[0]);
+    expect(base.handleCrmTabChange).toHaveBeenCalledWith('dashboard');
+    cleanup();
+    vi.clearAllMocks();
+    open({ isMobile: true, crmTab: 'customers' });
+    fireEvent.click(sections()[0]);
+    expect(base.handleCrmTabChange).not.toHaveBeenCalled();
   });
   it('is a drawer on tablets, closed by its button', () => {
     open({ isMobile: true });
