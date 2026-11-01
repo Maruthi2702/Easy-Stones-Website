@@ -88,6 +88,13 @@ const customerSchema = new mongoose.Schema<Loose & { _id: mongoose.Types.ObjectI
     type: String,
     default: '0'
   },
+  // What was counted before resources were logged (typed or imported) that no
+  // resource accounts for; Display and Binders = this + the Active tower /
+  // binder resources (src/utils/modaTotals.ts). Missing until the first recount.
+  modaEarlier: {
+    display: Boolean,
+    binders: Number
+  },
   followUpDate: String,
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,

@@ -11,6 +11,7 @@ import {
   STATUSES, companyOf, cityLineOf, streetOf, contactCard, initialsOf
 } from '../../../utils/customerList';
 import { StatusDot, LocationTag, RepBadge, TypeTag, LevelTag, CopyButton } from './parts';
+import ModaTiles from './ModaTiles';
 import { useDismiss, copyText, peopleOf, telHref, directionsHref, anchoredMenuStyle } from './uiHelpers';
 import type { Person } from './uiHelpers';
 import type { Loose } from '../../../types/records';
@@ -173,7 +174,6 @@ const CustomerDrawer = ({
 
   if (!customer) return null;
 
-  const binders = parseInt(c.modaBinder, 10) || 0;
   const directions = directionsHref(c);
   const street = streetOf(c);
   const cityLine = cityLineOf(c);
@@ -339,10 +339,7 @@ const CustomerDrawer = ({
           {canProfile && (
           <section className="cl-sec" aria-label="Moda Resources">
             <h4><Presentation size={15} aria-hidden="true" />Moda Resources</h4>
-            <div className="cl-tiles">
-              <div className="cl-tile"><span className="cl-muted" style={{ fontSize: 12.5 }}>Display</span><b style={{ color: c.modaDisplay === 'Yes' ? 'var(--cl-ok-ink)' : 'var(--cl-muted)' }}>{c.modaDisplay === 'Yes' ? 'Installed' : 'None'}</b></div>
-              <div className="cl-tile"><span className="cl-muted" style={{ fontSize: 12.5 }}>Binders</span><b>{binders}</b></div>
-            </div>
+            <ModaTiles customer={customer} />
           </section>
           )}
 

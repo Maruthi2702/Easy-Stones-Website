@@ -44,6 +44,12 @@ type Options = {
   countUses: (name: string) => Promise<number>;
   /** Moves every record from one stored name to another; returns how many moved. */
   replaceUses: (from: string, to: string, session: ClientSession) => Promise<number>;
+  /**
+   * Resource Types: a family change recounts the customers holding the type
+   * (src/services/modaCount.ts), in the same transaction as the save. Returns
+   * how many customers were recounted.
+   */
+  onFamilyChange?: (name: string, from: string | undefined, to: string | undefined, session: ClientSession) => Promise<number>;
   /** The list's Users & Roles keys. */
   actions: { add: string; edit: string; reorder: string; delete: string };
   /** Staff who can open a Sales page. */
@@ -51,7 +57,7 @@ type Options = {
   requireAction: (key: string) => RequestHandler;
 };
 
-export default function createTypeListRouter({ kind, Model, countUses, replaceUses, actions, authenticate, requireAction }: Options) {
+export default function createTypeListRouter({ kind, Model, countUses, replaceUses, onFamilyChange, actions, authenticate, requireAction }: Options) {
   const router = express.Router();
   const noun = kind === 'visit' ? 'visit type' : 'resource type';
   const records = (n: number) => `${n} ${kind === 'visit' ? (n === 1 ? 'visit' : 'visits') : (n === 1 ? 'resource' : 'resources')}`;
@@ -110,7 +116,17 @@ export default function createTypeListRouter({ kind, Model, countUses, replaceUs
       const others = await Model.find({ _id: { $ne: doc._id } }).select('name label').lean();
       const checked = validateTypeBody(kind, req.body, others as TypeLike[]);
       if (checked.error !== undefined) return res.status(400).json({ message: checked.error });
+      const fromFamily = doc.family;
+      const toFamily = checked.value.family;
       Object.assign(doc, checked.value, { updatedBy: who(req) });
+      if (onFamilyChange && toFamily !== undefined && toFamily !== fromFamily) {
+        const recounted = await mongoose.connection.transaction(async (session) => {
+          const n = await onFamilyChange(doc.name, fromFamily, toFamily, session);
+          await doc.save({ session });
+          return n;
+        });
+        return res.json({ type: stored(doc.toObject()), recounted });
+      }
       await doc.save();
       res.json({ type: stored(doc.toObject()) });
     } catch (error) {

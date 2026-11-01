@@ -15,6 +15,7 @@ const { default: Customer } = await import('../models/Customer.ts');
 const { default: Schedule } = await import('../models/Schedule.ts');
 const { seedTypeLists } = await import('../services/seedTypeLists.ts');
 const { countVisitTypeUses, countResourceTypeUses, replaceVisitType, replaceResourceType } = await import('../services/typeReplacement.ts');
+const { recountForFamilyChange } = await import('../services/modaCount.ts');
 
 let mongo: MongoMemoryReplSet;
 let app: express.Express;
@@ -39,7 +40,7 @@ beforeAll(async () => {
   }));
   app.use('/api/resource-types', createTypeListRouter({
     kind: 'resource', Model: ResourceType, actions: ACTIONS('resource_types'), authenticate, requireAction,
-    countUses: countResourceTypeUses, replaceUses: replaceResourceType
+    countUses: countResourceTypeUses, replaceUses: replaceResourceType, onFamilyChange: recountForFamilyChange
   }));
 }, 180000);
 
@@ -278,5 +279,41 @@ describe('delete', () => {
   it('never deletes a built-in visit type', async () => {
     const [first] = await list('/api/visit-types');
     expect((await send('delete', `/api/visit-types/${first._id}`)).status).toBe(409);
+  });
+});
+
+describe('Moda Display and Binders (src/utils/modaTotals.ts)', () => {
+  const setup = async () => {
+    const [kit, tower] = await ResourceType.create([
+      { name: 'Binder kit', label: 'Binder kit', order: 50, family: 'other' },
+      { name: 'Tower 2026', label: 'Tower 2026', order: 51, family: 'tower' }
+    ]);
+    const customer = await Customer.create({
+      company: 'Five Star', contactName: 'Derek', email: 'fs@example.invalid', modaDisplay: 'No', modaBinder: '6',
+      resources: [{ title: 'Binder kit', resourceType: 'Binder kit', qty: 3, status: 'Active', date: '2026-10-01' }]
+    });
+    return { kit, tower, customer };
+  };
+  const moda = async (id: unknown) => { const c = await Customer.findById(id).lean() as Loose; return { display: c.modaDisplay, binders: c.modaBinder }; };
+
+  it('moving a type into Sample binders adds its resources to every customer holding it', async () => {
+    const { kit, customer } = await setup();
+    const res = await send('put', `/api/resource-types/${kit._id}`, { family: 'binder' });
+    expect(res.status).toBe(200);
+    expect(res.body.recounted).toBe(1);
+    expect(await moda(customer._id)).toEqual({ display: 'No', binders: '9' });
+    // And back out again.
+    await send('put', `/api/resource-types/${kit._id}`, { family: 'samples' });
+    expect(await moda(customer._id)).toEqual({ display: 'No', binders: '6' });
+  });
+  it('a family change that touches neither Display nor Binders recounts nobody', async () => {
+    const { kit } = await setup();
+    expect((await send('put', `/api/resource-types/${kit._id}`, { family: 'samples' })).body.recounted).toBe(0);
+  });
+  it('deleting a type and moving its resources into a Display tower type turns Display on', async () => {
+    const { kit, tower, customer } = await setup();
+    const res = await send('delete', `/api/resource-types/${kit._id}`, { replaceWith: String(tower._id) });
+    expect(res.status).toBe(200);
+    expect(await moda(customer._id)).toEqual({ display: 'Yes', binders: '6' });
   });
 });

@@ -135,6 +135,8 @@ import { resumeRunningImports } from './src/services/spsImportRunner.ts';
 import createVisitsRouter from './src/routes/visits.ts';
 import createCustomerHistoryRouter, { customerHistoryResponse } from './src/routes/customerHistory.ts';
 import createCustomerResourcesRouter from './src/routes/customerResources.ts';
+import { loadFamilies, resourcesOf, recountModa, recountForFamilyChange } from './src/services/modaCount.ts';
+import { typedModaFields } from './src/utils/modaTotals.ts';
 import { placementResource, PlacementConflict } from './src/services/resourcePlacement.ts';
 import { geocodeCustomersInBackground, onCustomersGeocoded } from './src/services/customerGeocoding.ts';
 import createCustomerBulkDeleteRouter, { backupAndDeleteCustomer } from './src/routes/customerBulkDelete.ts';
@@ -2328,6 +2330,7 @@ app.use('/api/resource-types', createTypeListRouter({
   Model: ResourceType,
   countUses: countResourceTypeUses,
   replaceUses: replaceResourceType,
+  onFamilyChange: recountForFamilyChange,
   actions: { add: RESOURCE_TYPE_ACTIONS.ADD, edit: RESOURCE_TYPE_ACTIONS.EDIT, reorder: RESOURCE_TYPE_ACTIONS.REORDER, delete: RESOURCE_TYPE_ACTIONS.DELETE },
   authenticate: [authenticate, requireSalesPage],
   requireAction
@@ -4208,6 +4211,19 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
       if (geo) Object.assign(updateData, geo);
     }
 
+    // A typed Moda display / binders is the new total; the resources' share
+    // stays counted (src/utils/modaTotals.ts), and it can't go below them.
+    if (updateData.modaDisplay !== undefined || updateData.modaBinder !== undefined) {
+      const moda = await Customer.findById((req.params as ScalarParams).id)
+        .select('modaDisplay modaBinder modaEarlier resources.resourceType resources.title resources.qty resources.status').lean();
+      const typed = typedModaFields(moda || {}, { modaDisplay: updateData.modaDisplay, modaBinder: updateData.modaBinder },
+        (moda as Loose)?.resources, await loadFamilies());
+      if ('error' in typed) return res.status(400).json({ message: typed.error });
+      delete updateData.modaDisplay;
+      delete updateData.modaBinder;
+      if (typed.fields) Object.assign(updateData, typed.fields);
+    }
+
     const updatedCustomer = await Customer.findByIdAndUpdate(
       (req.params as ScalarParams).id,
       updateData,
@@ -4307,8 +4323,12 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAn
       { createdBy: resource.uploadedBy || resource.createdBy }, await teamOfRequest(req))) {
       return res.status(403).json({ message: 'You do not have permission to delete the linked resource.' });
     }
+    const resourcesBefore = resourcesOf(customer);
     customer.visits.pull({ _id: visitId });
-    if (resource) customer.resources.pull({ _id: resource._id });
+    if (resource) {
+      customer.resources.pull({ _id: resource._id });
+      recountModa(customer, resourcesBefore, await loadFamilies());
+    }
 
     await customer.save();
 

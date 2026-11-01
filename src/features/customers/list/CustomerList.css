@@ -367,6 +367,16 @@ body.light-theme-active .cl-drawer { --fm-x: #dc2626; --fm-x-hover: #b91c1c; --f
 .cl-tiles { display: flex; gap: 10px; }
 .cl-tile { flex: 1; border: 1px solid var(--cl-line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
 .cl-tile b { font-size: 18px; font-weight: 750; }
+/* Moda Resources tiles (ModaTiles.tsx): the resource behind each number and the binder breakdown. */
+.cl-mt-num { font-variant-numeric: tabular-nums; }
+.cl-mt-sub { font-size: 12.5px; color: var(--cl-muted); }
+.cl-mt-link { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--cl-gold-ink); font: inherit; font-size: 12.5px; font-weight: 650; cursor: pointer; }
+.cl-mt-link:hover { text-decoration: underline; }
+.cl-mt-link:focus-visible { outline: 2px solid var(--cl-gold-line); outline-offset: 2px; border-radius: 4px; }
+.cl-mt-break { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--cl-line-soft); display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cl-mt-break > div { display: flex; justify-content: space-between; gap: 12px; }
+.cl-mt-break > div > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.cl-mt-total { font-weight: 700; padding-top: 6px; border-top: 1px solid var(--cl-line-soft); }
 .cl-vis { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--cl-line-soft); }
 .cl-vis:first-of-type { border-top: 0; padding-top: 0; }
 .cl-vic { width: 32px; height: 32px; border-radius: 9px; background: var(--cl-hover); color: var(--cl-text-2); display: flex; align-items: center; justify-content: center; flex: none; }

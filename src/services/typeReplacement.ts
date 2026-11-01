@@ -2,6 +2,7 @@ import type { ClientSession } from 'mongoose';
 import Customer from '../models/Customer.ts';
 import Schedule from '../models/Schedule.ts';
 import { placementVisit, PlacementConflict } from './resourcePlacement.ts';
+import { loadFamilies, resourcesOf, recountModa } from './modaCount.ts';
 import type { Loose } from '../types/records.ts';
 
 /**
@@ -60,8 +61,11 @@ export async function replaceVisitType(from: string, to: string, session: Client
  */
 export async function replaceResourceType(from: string, to: string, session: ClientSession): Promise<number> {
   const customers = await Customer.find({ 'resources.resourceType': from }).session(session);
+  // Both types are still on the list here; a move between families recounts Display / Binders.
+  const families = await loadFamilies(session);
   let moved = 0;
   for (const customer of customers) {
+    const before = resourcesOf(customer);
     const resources = Array.from(customer.resources as Loose[]).filter(r => r.resourceType === from);
     // Match every placement visit before anything changes: a later title change
     // would hide an earlier resource's visit from the legacy match.
@@ -85,6 +89,7 @@ export async function replaceResourceType(from: string, to: string, session: Cli
       }
       if (text(visit.notes) === `Added resource: ${text(oldTitle)}`) visit.notes = `Added resource: ${resource.title}`;
     }
+    recountModa(customer, before, families);
     // Old customers can hold fields today's schema would refuse; only what changed is checked.
     await customer.save({ session, validateModifiedOnly: true });
     for (const entry of calendar) {

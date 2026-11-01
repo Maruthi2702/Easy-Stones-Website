@@ -368,6 +368,31 @@ an EMPTY collection once, from the old lists plus any name old records carry
 add and on a change of type (`resourceTypeRefusal` in server.js): unknown or hidden
 is refused, the type it already has can stay.
 
+## Moda Display and Binders: counted from resources (2026-11-01, on `feat/moda-counts`)
+
+Design: claude.ai artifact **Moda counts from resources**
+(https://claude.ai/artifact/RwLQGxLHFaVfpf8HiinAEk). The profile's Display and
+Binders are the customer's **Active** resources by family — a **Display
+towers** resource makes Display Yes (Installed; tabletops don't), a **Sample
+binders** one adds its Qty — plus `modaEarlier`, what was typed or imported
+before that no resource accounts for (owner's calls: tower only, Inactive /
+Archived don't count, Edit customer may still type a total, recount every
+time). The rule is `src/utils/modaTotals.ts` (tested); `modaDisplay` /
+`modaBinder` stay stored so the list, filters, map and export read them as
+before. **Every write that changes a customer's resources recounts** in the
+same save (`src/services/modaCount.ts`: `resourcesOf` before, `recountModa`
+after): resource add / edit / move / delete (`customerResources.ts`), the Visits
+tab's placement delete (server.ts), a type's records moved on delete
+(`typeReplacement.ts`), a type's family change (`recountForFamilyChange`) and
+a duplicate merge (`customerMerge.ts`). A new one must too. Edit customer's
+typed values go through `typedModaFields` (never below what Active resources
+hold — 400 with the reason). A customer saved before the rule gets its earlier
+count the first time its resources change, so no count goes down;
+`scripts/moda-switch.ts` (dry run, then `--apply`) does everyone at once.
+Screens: `GET /api/customers/:id/moda` (`useModaSummary`), the drawer's
+`ModaTiles.tsx`, and Add / Edit resource's "Binders" / "Towers" Qty label
+(Binders starts empty) and its change line ("Binders 6 → 9").
+
 ## Resources and Team Files (2026-10-30, on `feat/resources-redesign`)
 
 Design: claude.ai artifact **Resources Redesign Canvas**
