@@ -126,7 +126,8 @@ Edit / Delete branch → visits and resources **logged by** their team
 customer location). The server reads the staff list per request
 (`src/services/teamDirectory.ts`); screens use `useMyTeam` /
 `usePeopleOptions` (`src/api/myTeam.ts`). The Sales dashboard's Filters panel
-has a **People** field (Me / My team / reps by branch, `PeopleField.tsx`,
+has a **People** field (Me / My team / reps by branch, `PeopleField.tsx` —
+a dropdown in the Customer List rep filter's format since 2026-11-01,
 value rules in `dashboardPeople.ts`, tested): it opens on **Me** (owner's
 call), a pick is remembered for the session, and `?reps=` / `?location=` can
 only narrow (`narrowPeople`). The location filter now means people working

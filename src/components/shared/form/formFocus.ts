@@ -82,6 +82,15 @@ export function menuPlacement(
     return { placement: up ? 'up' : 'down', maxHeight: Math.round(Math.max(160, Math.min(wanted, up ? above : below))) };
 }
 
+/** The nearest ancestor that would cut a floating list off (a dropdown outside a form). */
+export const clipParentOf = (el: Element | null | undefined): HTMLElement | null => {
+    for (let node = el?.parentElement; node && node !== document.body; node = node.parentElement) {
+        const { overflowY } = window.getComputedStyle(node);
+        if (overflowY !== 'visible') return node;
+    }
+    return null;
+};
+
 export type MenuPlacement = { placement: 'up' | 'down' | 'sheet'; maxHeight: number };
 const MENU_START: MenuPlacement = { placement: 'down', maxHeight: 440 };
 

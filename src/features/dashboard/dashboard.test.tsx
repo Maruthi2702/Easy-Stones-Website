@@ -122,18 +122,25 @@ describe('People filter (manager view)', () => {
     value: ['me1'], me: 'me1', onChange: vi.fn(), onToggle: vi.fn(), active: false, onReset: vi.fn(), summary: 'Me', ...over
   });
 
-  it('offers Me, My team and the reps by branch, and passes picks back', () => {
+  it('offers Me, My team and the reps by branch in a dropdown, and passes picks back', () => {
     const p = people();
     render(<FollowUpsPanel {...base} people={p} />);
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
-    expect(screen.getByText('People')).toBeTruthy();
+    // Closed, the field says who is in view; the list opens from it.
+    expect(screen.queryByText('Krish (you)')).toBeNull();
+    fireEvent.click(screen.getByLabelText('People'));
+    expect(screen.getByRole('checkbox', { name: 'Me' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByText('Krish (you)')).toBeTruthy();
     expect(screen.getByText('Kent')).toBeTruthy();
     expect(screen.getByText(/inactive/)).toBeTruthy();
-    fireEvent.click(screen.getByLabelText('My team'));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'My team' }));
     expect(p.onChange).toHaveBeenCalledWith([]);
-    fireEvent.click(screen.getByLabelText('Jesus B.'));
+    // It stays open while ticking.
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Jesus B.' }));
     expect(p.onToggle).toHaveBeenCalledWith('j');
+    fireEvent.change(screen.getByLabelText('Search people'), { target: { value: 'bart' } });
+    expect(screen.queryByText('Jesus B.')).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'My team' })).toBeNull();
     fireEvent.click(screen.getByText('Clear Filter'));
     expect(p.onReset).toHaveBeenCalled();
   });

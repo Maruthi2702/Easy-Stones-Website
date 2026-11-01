@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
 import useIsPhone from './useIsPhone';
-import { describedBy, useMenuPlacement } from './formFocus';
+import { clipParentOf, describedBy, useMenuPlacement } from './formFocus';
 import { FormSheet } from './FormControls';
 import {
     homeLocationOf, orderLocations, matchLocations, LOCATION_SEARCH_FROM
@@ -34,15 +34,6 @@ import './FormModal.css';
  * `user`'s home location; pass it to put another branch first (the Daily
  * Report's own branch). `labelOf` changes how a name reads (a branch code).
  */
-
-// The nearest ancestor that would cut the list off, if it isn't a form body.
-const clipParentOf = (el: Element | null | undefined): HTMLElement | null => {
-    for (let node = el?.parentElement; node && node !== document.body; node = node.parentElement) {
-        const { overflowY } = window.getComputedStyle(node);
-        if (overflowY !== 'visible') return node;
-    }
-    return null;
-};
 
 export type LocationPickerProps = {
     id: string;
