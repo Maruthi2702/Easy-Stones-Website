@@ -209,7 +209,7 @@ const parseIcsEvents = (icsText: string) => {
  * (dateUtils.js) for the full story of why that silently shifted every
  * synced event by several hours on the rep's actual phone.
  */
-export const syncICloudCalendar = async (userId: string, timeZone: string) => {
+export const syncICloudCalendar = async (userId: string, timeZone?: string) => {
   let plannerChanged = false;
   try {
     const user = await User.findById(userId);

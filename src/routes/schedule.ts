@@ -813,7 +813,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
 
       let decoded!: Loose;
       try {
-        decoded = jwt.verify(state, JWT_SECRET);
+        decoded = jwt.verify(state, JWT_SECRET) as Loose;
       } catch {
         return res.status(401).send('Invalid or expired state token');
       }

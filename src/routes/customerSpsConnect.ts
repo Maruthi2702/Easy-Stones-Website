@@ -106,7 +106,7 @@ export default function createCustomerSpsConnectRouter({ authenticate, uploadMem
         } catch (err) {
           if (!(err as Error & Loose).writeErrors && !(err as Error & Loose).result) throw err;
           for (const e of (err as Error & Loose).writeErrors || []) {
-            const op = ops[e.index ?? e.err?.index];
+            const op = ops[e.index ?? e.err?.index] as Loose | undefined;
             failed.push({ customerId: String(op?.updateOne?.filter?._id || ''), reason: e.code === 11000 ? 'another customer took that SPS name first' : (e.errmsg || 'could not be saved') });
           }
           return (err as Error & Loose).result?.modifiedCount ?? (err as Error & Loose).result?.nModified ?? 0;

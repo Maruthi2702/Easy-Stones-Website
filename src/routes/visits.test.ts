@@ -4,6 +4,7 @@ import type { Loose } from '../types/records.ts';
 // the same POST (same _id) adding nothing, PUT answering with the stored visit,
 // and a photo coming back as a link.
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import mongoose from 'mongoose';
@@ -18,7 +19,7 @@ const { seedTypeLists } = await import('../services/seedTypeLists.ts');
 let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
 let customerId!: string;
-let processBase64Image!: ReturnType<typeof vi.fn>;
+let processBase64Image!: Mock<(image: string, folder?: string) => Promise<unknown>>;
 
 const STAFF = { _id: 'u1', permissions: ['add_visits', 'edit_own_visits'], assignedLocations: ['*'] };
 const send = (method: 'post' | 'put' | 'patch' | 'delete', url: string, body: Loose, user: Loose = STAFF) =>
@@ -29,7 +30,7 @@ const base = (over: Loose = {}) => ({ date: '2026-10-20', purpose: 'Unscheduled 
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create();
   await mongoose.connect(mongo.getUri());
-  processBase64Image = vi.fn(async (s) => (s.startsWith('data:image/') ? 'https://cdn.example/x.webp' : s.startsWith('data:application/pdf') ? 'https://cdn.example/x.pdf' : s));
+  processBase64Image = vi.fn(async (s: string) => (s.startsWith('data:image/') ? 'https://cdn.example/x.webp' : s.startsWith('data:application/pdf') ? 'https://cdn.example/x.pdf' : s));
   app = express();
   app.use(express.json());
   app.set('io', { emit: () => {} });
