@@ -2,12 +2,13 @@ import { useState } from 'react';
 import FormModal from '../../components/shared/form/FormModal';
 import { FormField, FormPicker, SegmentedToggle } from '../../components/shared/form/FormControls';
 import { goToField } from '../../components/shared/form/formFocus';
+import { typeOptions, useResourceFamilies } from '../../api/typeLists';
 import type { ResourceFamily, TypeInput, TypeListKind, TypeRecord, VisitFields } from '../../api/typeLists';
-import { NAME_MAX, DEFAULT_VISIT_FIELDS } from '../../utils/typeLists';
-import { COPY, FAMILY_CHOICES, FOLLOW_UP_CHOICES } from './typeListView';
+import { NAME_MAX, DEFAULT_VISIT_FIELDS, OTHER_FAMILY } from '../../utils/typeLists';
+import { COPY, FOLLOW_UP_CHOICES } from './typeListView';
 
 /*
- * Add / Edit a visit type or a resource type, on the form template
+ * Add / Edit a visit type, a resource type or a family, on the form template
  * (FORM_TEMPLATE.md), size S. The name staff read is the only name that can be
  * changed: what records store stays as it was, so history, filters and the
  * calendar keep matching.
@@ -28,7 +29,10 @@ export default function TypeForm({ kind, type = null, onSave, onClose }: TypeFor
     const copy = COPY[kind];
     const editing = Boolean(type);
     const [label, setLabel] = useState(type?.label || '');
-    const [family, setFamily] = useState<ResourceFamily>(type?.family || 'other');
+    const [family, setFamily] = useState<ResourceFamily>(type?.family || OTHER_FAMILY);
+    const families = useResourceFamilies();
+    // The shown families, plus the one this type already has if it's hidden.
+    const familyChoices = typeOptions(families.active, families.types, type?.family);
     const [fields, setFields] = useState<VisitFields>(type?.fields || { ...DEFAULT_VISIT_FIELDS } as VisitFields);
     const [submitted, setSubmitted] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -39,9 +43,9 @@ export default function TypeForm({ kind, type = null, onSave, onClose }: TypeFor
     const errors = { label: submitted ? nameError : serverError };
 
     const dirty = editing
-        ? [trimmed !== type?.label, kind === 'resource' && family !== (type?.family || 'other'),
+        ? [trimmed !== type?.label, kind === 'resource' && family !== (type?.family || OTHER_FAMILY),
             kind === 'visit' && JSON.stringify(fields) !== JSON.stringify(type?.fields)].filter(Boolean).length
-        : [trimmed, kind === 'resource' && family !== 'other'].filter(Boolean).length;
+        : [trimmed, kind === 'resource' && family !== OTHER_FAMILY].filter(Boolean).length;
 
     const submit = async () => {
         setSubmitted(true);
@@ -49,7 +53,7 @@ export default function TypeForm({ kind, type = null, onSave, onClose }: TypeFor
         if (!trimmed || trimmed.length > NAME_MAX) { goToField('label'); return; }
         setSaving(true);
         try {
-            await onSave(kind === 'resource' ? { label: trimmed, family } : { label: trimmed, fields });
+            await onSave(kind === 'resource' ? { label: trimmed, family } : kind === 'visit' ? { label: trimmed, fields } : { label: trimmed });
             onClose();
         } catch (error) {
             setServerError((error as Error).message || 'Could not save');
@@ -94,7 +98,7 @@ export default function TypeForm({ kind, type = null, onSave, onClose }: TypeFor
                         id="tl-family"
                         value={family}
                         onChange={(v) => setFamily(v as ResourceFamily)}
-                        options={FAMILY_CHOICES}
+                        options={familyChoices}
                         sheetTitle="Family"
                     />
                 </FormField>

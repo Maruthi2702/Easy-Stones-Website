@@ -29,6 +29,13 @@ describe('validateTypeBody', () => {
     expect(validateTypeBody('resource', { family: 'banana' }).error).toBe('Choose a family.');
   });
 
+  it('a resource type may go in a family a manager added; a family is just a name', () => {
+    expect(validateTypeBody('resource', { family: 'Slab samples' }, [], ['tower', 'Slab samples']).value?.family).toBe('Slab samples');
+    expect(validateTypeBody('resource', { family: 'tower' }, [], ['Slab samples']).error).toBe('Choose a family.');
+    expect(validateTypeBody('family', { label: 'Slabs', family: 'tower', fields: {} }).value).toEqual({ label: 'Slabs' });
+    expect(validateTypeBody('family', { label: 'samples' }, [{ name: 'samples', label: 'Samples' }]).error).toBe('There is already a family with that name.');
+  });
+
   it('refuses a name that is too long', () => {
     expect(validateTypeBody('visit', { label: 'x'.repeat(121) }).error).toMatch(/at most/);
   });

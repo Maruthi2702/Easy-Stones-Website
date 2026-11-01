@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
     typeInfoFrom, typeFacets, loggerFacets, applyResourceFilters, activeFilterCount, weekHeading, groupByWeek,
-    customerParts, resourceDay, shortDay, resourceExportRows
+    customerParts, resourceDay, shortDay, resourceExportRows, familyColour, familyTag
 } from './resourceList';
 
 const r = (over: Record<string, unknown>) => ({ _id: Math.random().toString(36), ...over });
@@ -21,6 +21,30 @@ describe('typeInfoFrom', () => {
     it('a type not in the list is Other and shows as stored', () => {
         expect(info('Old thing')).toMatchObject({ family: 'other', label: 'Old thing' });
         expect(info('')).toMatchObject({ family: 'other', label: '' });
+    });
+});
+
+describe('families a manager added (Admin → Resource Types → Families)', () => {
+    const FAMILIES = [
+        { name: 'Slab samples', label: 'Slab samples', order: 0 },
+        { name: 'tower', label: 'Towers', order: 1 },
+        { name: 'other', label: 'Other', order: 2 }
+    ];
+    const withSlabs = typeInfoFrom([...LIST, { name: 'Quartz slab', label: 'Quartz slab', order: 3, family: 'Slab samples' }], FAMILIES);
+
+    it('groups in the managers\' order under their names; a family no longer listed is Other', () => {
+        const rows = [r({ resourceType: '2025V3 Moda Tower' }), r({ resourceType: 'Quartz slab' }), r({ resourceType: 'Moda Misc. Samples' })];
+        expect(typeFacets(rows, withSlabs, FAMILIES).map((g) => [g.label, g.types.map((t) => t.type)])).toEqual([
+            ['Slab samples', ['Quartz slab']],
+            ['Towers', ['2025V3 Moda Tower']],
+            ['Other', ['Moda Misc. Samples']]
+        ]);
+    });
+    it('a new family takes Other\'s colour and the first three letters of its name as a tag', () => {
+        expect(familyColour('Slab samples')).toBe('other');
+        expect(familyColour('binder')).toBe('binder');
+        expect(familyTag('Slab samples', FAMILIES)).toBe('SLA');
+        expect(familyTag('tower', FAMILIES)).toBe('TWR');
     });
 });
 

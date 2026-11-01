@@ -125,8 +125,9 @@ import createNavOrderRouter from './src/routes/navOrder.ts';
 import createTypeListRouter from './src/routes/typeLists.ts';
 import VisitType from './src/models/VisitType.ts';
 import ResourceType from './src/models/ResourceType.ts';
+import ResourceFamily from './src/models/ResourceFamily.ts';
 import { seedTypeLists } from './src/services/seedTypeLists.ts';
-import { countVisitTypeUses, countResourceTypeUses, replaceVisitType, replaceResourceType } from './src/services/typeReplacement.ts';
+import { countVisitTypeUses, countResourceTypeUses, replaceVisitType, replaceResourceType, countFamilyUses, replaceFamily } from './src/services/typeReplacement.ts';
 import { VISIT_TYPES as VISIT_TYPE_ACTIONS, RESOURCE_TYPES as RESOURCE_TYPE_ACTIONS } from './src/utils/usersAccess.ts';
 import { checkSheet, spsCoverage } from './src/utils/spsSheet.ts';
 import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.ts';
@@ -2331,6 +2332,18 @@ app.use('/api/resource-types', createTypeListRouter({
   countUses: countResourceTypeUses,
   replaceUses: replaceResourceType,
   onFamilyChange: recountForFamilyChange,
+  families: () => ResourceFamily.find({}).select('name active').lean() as Promise<{ name: string; active?: boolean }[]>,
+  actions: { add: RESOURCE_TYPE_ACTIONS.ADD, edit: RESOURCE_TYPE_ACTIONS.EDIT, reorder: RESOURCE_TYPE_ACTIONS.REORDER, delete: RESOURCE_TYPE_ACTIONS.DELETE },
+  authenticate: [authenticate, requireSalesPage],
+  requireAction
+}));
+// The families a resource type is put in (Admin → Resource Types → Families); the
+// Resource Types switches cover them.
+app.use('/api/resource-families', createTypeListRouter({
+  kind: 'family',
+  Model: ResourceFamily,
+  countUses: countFamilyUses,
+  replaceUses: replaceFamily,
   actions: { add: RESOURCE_TYPE_ACTIONS.ADD, edit: RESOURCE_TYPE_ACTIONS.EDIT, reorder: RESOURCE_TYPE_ACTIONS.REORDER, delete: RESOURCE_TYPE_ACTIONS.DELETE },
   authenticate: [authenticate, requireSalesPage],
   requireAction

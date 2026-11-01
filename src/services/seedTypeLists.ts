@@ -1,9 +1,11 @@
 import VisitType from '../models/VisitType.ts';
 import ResourceType from '../models/ResourceType.ts';
+import ResourceFamily from '../models/ResourceFamily.ts';
 import Customer from '../models/Customer.ts';
 import type { Model } from 'mongoose';
 import type { Loose } from '../types/records.ts';
 import type { VisitTypeFields } from '../utils/typeLists.ts';
+import { STARTING_RESOURCE_FAMILIES } from '../utils/typeLists.ts';
 
 /*
  * One-time start of the two admin-managed lists. The lists live in the
@@ -16,6 +18,9 @@ import type { VisitTypeFields } from '../utils/typeLists.ts';
  * list doesn't have are added too, hidden (`active: false`): they stay known to
  * filters and reports and a manager can show them, but they don't land in
  * everyone's Add dropdown.
+ *
+ * The resource families start as the five the code used to name, built in
+ * (`system`), plus any other family a type already carries.
  */
 
 const NO_FOLLOW_UP: VisitTypeFields = { notes: true, outcome: false, followUp: 'none' };
@@ -94,5 +99,16 @@ export async function seedTypeLists() {
     ];
     const n = await insert(ResourceType, docs);
     if (n) console.log(`🗂️ Seeded ${n} resource types (${extra.length} hidden, from existing resources)`);
+  }
+
+  if ((await ResourceFamily.estimatedDocumentCount()) === 0) {
+    const known = new Set(STARTING_RESOURCE_FAMILIES.map((f) => f.name));
+    const extra = clean(await ResourceType.distinct('family')).filter((n) => !known.has(n));
+    const docs = [
+      ...STARTING_RESOURCE_FAMILIES.map(({ name, label }, order) => ({ name, label, order, system: true, active: true })),
+      ...extra.map((name, i) => ({ name, label: name, order: STARTING_RESOURCE_FAMILIES.length + i, system: false, active: true }))
+    ];
+    const n = await insert(ResourceFamily, docs);
+    if (n) console.log(`🗂️ Seeded ${n} resource families`);
   }
 }

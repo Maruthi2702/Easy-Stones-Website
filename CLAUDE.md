@@ -368,6 +368,22 @@ an EMPTY collection once, from the old lists plus any name old records carry
 add and on a change of type (`resourceTypeRefusal` in server.js): unknown or hidden
 is refused, the type it already has can stay.
 
+**Resource families are a list too** (2026-11-01, on `feat/moda-counts`): the
+`ResourceFamily` collection, managed in a **Families** section under the
+Resource Types list (the same `TypeListTab` / `TypeForm`, `kind: 'family'`,
+`/api/resource-families` on the same router; the four Resource Types switches
+cover it — no new permission). A type's `family` stores the family's `name`;
+the server refuses a family that isn't on the list or is hidden (the one a
+type already has can stay). The five the code used to name are built in
+(`STARTING_RESOURCE_FAMILIES`, seeded once into an empty collection): renamed,
+reordered, hidden, never deleted — `tower` and `binder` are what the Moda
+counts read. Deleting a family moves its types to another shown one
+(`replaceFamily`, recounting Moda in the same transaction). The family order
+is the Family dropdown's and Dashboard → Resources' Filters groups'; a family
+a manager added shows in Other's colour with the first three letters as its
+phone tag (`familyColour` / `familyTag` in `resourceList.ts`). Read the list
+through `useResourceFamilies()`; never name a family in code again.
+
 ## Moda Display and Binders: counted from resources (2026-11-01, on `feat/moda-counts`)
 
 Design: claude.ai artifact **Moda counts from resources**

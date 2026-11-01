@@ -45,6 +45,7 @@ import InventorySalesRecord from '../models/InventorySalesRecord.ts';
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
 import VisitType from '../models/VisitType.ts';
 import ResourceType from '../models/ResourceType.ts';
+import ResourceFamily from '../models/ResourceFamily.ts';
 import ContactSubmission from '../models/ContactSubmission.ts';
 import SalesResource from '../models/SalesResource.ts';
 import SalesDashboardResource from '../models/SalesDashboardResource.ts';
@@ -67,6 +68,7 @@ export const INDEXED_MODELS: readonly (readonly [string, IndexedModel])[] = [
   ['Customer', Customer],
   ['VisitType', VisitType],
   ['ResourceType', ResourceType],
+  ['ResourceFamily', ResourceFamily],
   ['Product', Product],
   ['User', User],
   ['OfficeCheckIn', OfficeCheckIn],

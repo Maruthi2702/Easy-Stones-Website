@@ -8,8 +8,8 @@ import { PlacementConflict } from '../services/resourcePlacement.ts';
 import type { Loose } from '../types/records.ts';
 
 /**
- * The two admin-managed lists, Visit Types and Resource Types (one router per
- * list, built here). The database is the only source: the forms, filters and
+ * The admin-managed lists, Visit Types, Resource Types and the resource
+ * families (one router per list, built here). The database is the only source: the forms, filters and
  * the server's own checks all read it.
  *
  *   GET    /            → { types }   every staff login that can open a Sales page;
@@ -24,6 +24,9 @@ import type { Loose } from '../types/records.ts';
  *                       and the type goes, in one transaction; without it, 409
  *
  *   app.use('/api/visit-types', createTypeListRouter({ kind: 'visit', Model: VisitType, … }));
+ *
+ * A family is a record like a type: `name` is what resource types store in
+ * `family`, `label` what staff read; its "uses" are the resource types in it.
  */
 const stored = (doc: Loose) => ({
   _id: String(doc._id),
@@ -50,6 +53,8 @@ type Options = {
    * how many customers were recounted.
    */
   onFamilyChange?: (name: string, from: string | undefined, to: string | undefined, session: ClientSession) => Promise<number>;
+  /** Resource Types: the families list (name, shown or hidden) a type's family is checked against. */
+  families?: () => Promise<{ name: string; active?: boolean }[]>;
   /** The list's Users & Roles keys. */
   actions: { add: string; edit: string; reorder: string; delete: string };
   /** Staff who can open a Sales page. */
@@ -57,10 +62,18 @@ type Options = {
   requireAction: (key: string) => RequestHandler;
 };
 
-export default function createTypeListRouter({ kind, Model, countUses, replaceUses, onFamilyChange, actions, authenticate, requireAction }: Options) {
+export default function createTypeListRouter({ kind, Model, countUses, replaceUses, onFamilyChange, families, actions, authenticate, requireAction }: Options) {
   const router = express.Router();
-  const noun = kind === 'visit' ? 'visit type' : 'resource type';
-  const records = (n: number) => `${n} ${kind === 'visit' ? (n === 1 ? 'visit' : 'visits') : (n === 1 ? 'resource' : 'resources')}`;
+  const noun = { visit: 'visit type', resource: 'resource type', family: 'family' }[kind];
+  const [one, many] = { visit: ['visit', 'visits'], resource: ['resource', 'resources'], family: ['resource type', 'resource types'] }[kind];
+  const notFound = kind === 'family' ? 'Family not found' : 'Type not found';
+  const records = (n: number) => `${n} ${n === 1 ? one : many}`;
+  /** The families a type may be put in: the shown ones, plus the one it already has. */
+  const allowedFamilies = async (current?: string) => {
+    if (!families) return undefined;
+    const list = await families();
+    return list.filter((f) => f.active !== false || f.name === current).map((f) => f.name);
+  };
   const who = (req: StaffRequest) => String(req.user?.username || req.userId || '');
 
   router.get('/', authenticate, async (_req: Request, res: Response) => {
@@ -76,7 +89,7 @@ export default function createTypeListRouter({ kind, Model, countUses, replaceUs
   router.post('/', authenticate, requireAction(actions.add), async (req: StaffRequest, res: Response) => {
     try {
       const all = await Model.find({}).select('name label order').lean();
-      const checked = validateTypeBody(kind, { ...req.body, label: req.body?.label ?? req.body?.name }, all as TypeLike[]);
+      const checked = validateTypeBody(kind, { ...req.body, label: req.body?.label ?? req.body?.name }, all as TypeLike[], await allowedFamilies());
       if (checked.error !== undefined) return res.status(400).json({ message: checked.error });
       const value = checked.value;
       if (!value.label) return res.status(400).json({ message: 'Enter a name.' });
@@ -85,7 +98,7 @@ export default function createTypeListRouter({ kind, Model, countUses, replaceUs
       const doc = await Model.create({ ...value, name: value.label, order, updatedBy: who(req) });
       res.status(201).json({ type: stored(doc.toObject()) });
     } catch (error) {
-      if ((error as { code?: number })?.code === 11000) return res.status(400).json({ message: 'There is already a type with that name.' });
+      if ((error as { code?: number })?.code === 11000) return res.status(400).json({ message: `There is already a ${kind === 'family' ? 'family' : 'type'} with that name.` });
       console.error(`Add ${noun} error:`, error);
       res.status(500).json({ message: `Failed to add the ${noun}` });
     }
@@ -110,11 +123,11 @@ export default function createTypeListRouter({ kind, Model, countUses, replaceUs
 
   router.put('/:id', authenticate, requireAction(actions.edit), async (req: StaffRequest, res: Response) => {
     try {
-      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Type not found' });
+      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: notFound });
       const doc = await Model.findById(req.params.id);
-      if (!doc) return res.status(404).json({ message: 'Type not found' });
+      if (!doc) return res.status(404).json({ message: notFound });
       const others = await Model.find({ _id: { $ne: doc._id } }).select('name label').lean();
-      const checked = validateTypeBody(kind, req.body, others as TypeLike[]);
+      const checked = validateTypeBody(kind, req.body, others as TypeLike[], await allowedFamilies(doc.family));
       if (checked.error !== undefined) return res.status(400).json({ message: checked.error });
       const fromFamily = doc.family;
       const toFamily = checked.value.family;
@@ -137,9 +150,9 @@ export default function createTypeListRouter({ kind, Model, countUses, replaceUs
 
   router.get('/:id/uses', authenticate, requireAction(actions.delete), async (req: StaffRequest, res: Response) => {
     try {
-      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Type not found' });
+      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: notFound });
       const doc = await Model.findById(req.params.id).select('name').lean();
-      if (!doc) return res.status(404).json({ message: 'Type not found' });
+      if (!doc) return res.status(404).json({ message: notFound });
       res.json({ uses: await countUses(doc.name) });
     } catch (error) {
       console.error(`Count ${noun} uses error:`, error);
@@ -149,9 +162,9 @@ export default function createTypeListRouter({ kind, Model, countUses, replaceUs
 
   router.delete('/:id', authenticate, requireAction(actions.delete), async (req: StaffRequest, res: Response) => {
     try {
-      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Type not found' });
+      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: notFound });
       const doc = await Model.findById(req.params.id).lean();
-      if (!doc) return res.status(404).json({ message: 'Type not found' });
+      if (!doc) return res.status(404).json({ message: notFound });
       if (doc.system) return res.status(409).json({ message: `This ${noun} is built in. Hide it instead.` });
       const replaceWith = req.body?.replaceWith;
       let target: Loose | null = null;
@@ -170,7 +183,7 @@ export default function createTypeListRouter({ kind, Model, countUses, replaceUs
         return { uses, moved, deleted: true };
       });
       if (!result.deleted) {
-        return res.status(409).json({ message: `${records(result.uses)} use this ${noun}. Choose a type to move them to, or hide it instead.`, uses: result.uses });
+        return res.status(409).json({ message: `${records(result.uses)} use this ${noun}. Choose ${kind === 'family' ? 'a family' : 'a type'} to move them to, or hide it instead.`, uses: result.uses });
       }
       res.json({ ok: true, moved: result.moved, ...(target ? { movedTo: target.label } : {}) });
     } catch (error) {
