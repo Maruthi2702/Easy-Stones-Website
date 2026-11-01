@@ -9,7 +9,7 @@ import type { FollowUpAction, FollowUpCounts, FollowUpRangeQuery, FollowUpRow, F
  */
 
 /** `counts`: the ones due in the range (the tiles); `summary`: the list (due in it plus still overdue). */
-export type FollowUpsAnswer = { rows: FollowUpRow[]; counts: FollowUpCounts; summary: FollowUpCounts; doneThisWeek: number };
+export type FollowUpsAnswer = { rows: FollowUpRow[]; summary: FollowUpCounts; doneThisWeek: number };
 
 /** `range` is the dashboard's; `scope` its People / location query (`&reps=…&location=…`). */
 export async function fetchFollowUps(status: FollowUpStatus, range: FollowUpRangeQuery, today: string, scope: string): Promise<FollowUpsAnswer> {

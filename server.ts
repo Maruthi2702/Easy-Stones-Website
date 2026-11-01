@@ -150,7 +150,7 @@ import {
 } from './src/utils/dashboardMatch.ts';
 import { dashboardPeopleOf, teamOfRequest, idVariants } from './src/services/teamDirectory.ts';
 import { pickPanelFollowUps } from './src/utils/followUpPanel.ts';
-import { FOLLOW_UP_RANGE_IDS, FOLLOW_UP_STATUSES, followUpsInView, followUpsDueIn, withStatus, followUpCounts, doneThisWeek } from './src/utils/followUpList.ts';
+import { FOLLOW_UP_RANGE_IDS, FOLLOW_UP_STATUSES, followUpsInView, withStatus, followUpCounts, doneThisWeek } from './src/utils/followUpList.ts';
 import createScheduleRouter, { createScheduleEmitter } from './src/routes/schedule.ts';
 import createInventoryAnalysisRouter from './src/routes/inventoryAnalysis.ts';
 import createPurchasingRouter from './src/purchasing/router.ts';
@@ -3090,10 +3090,10 @@ app.get('/api/dashboard/followups/panel', authenticate, requirePermission('view_
 });
 
 // Dashboard → Follow-ups: every follow-up in the caller's scope (People / location, by
-// the rep's branch), then the dashboard's time range by due date — plus every one still
-// overdue — and Status, by src/utils/followUpList.ts. `counts` are the totals for the ones
-// due in the range (the tiles); `summary` counts the list (pending / overdue in the header,
-// the Due field); `doneThisWeek` is over every date.
+// the rep's branch), then the dashboard's time range by due date (Today = today and later)
+// and Status, by src/utils/followUpList.ts. `summary` counts the list (the Due field);
+// `counts` is the same, for apps still showing the old totals tiles; `doneThisWeek` is
+// over every date.
 const followUpRangeOf = (req: Loose) => ({
   range: FOLLOW_UP_RANGE_IDS.includes(req.query.timeRange) ? req.query.timeRange : 'all',
   from: String(req.query.from || ''),
@@ -3105,12 +3105,13 @@ app.get('/api/dashboard/followups', authenticate, requirePermission('view_dashbo
     const all = await loadDashboardVisits(req, 'followup', { timeRange: 'all' });
     const today = followUpTodayOf(req);
     const range = followUpRangeOf(req);
-    const status = FOLLOW_UP_STATUSES.find((s) => s.value === req.query.status)?.value ?? 'pending';
+    const status = FOLLOW_UP_STATUSES.find((s) => s.value === req.query.status)?.value ?? 'all';
     const inView = followUpsInView(all, range, today);
+    const summary = followUpCounts(inView, today);
     res.json({
       rows: withStatus(inView, status),
-      counts: followUpCounts(followUpsDueIn(all, range, today), today),
-      summary: followUpCounts(inView, today),
+      counts: summary,
+      summary,
       doneThisWeek: doneThisWeek(all, today)
     });
   } catch (error) {

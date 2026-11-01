@@ -166,22 +166,23 @@ call) — never trimmed; rows say "Snoozed from Oct 24" / "Snoozed 2× · first 
 Today / 7 / 30 / **90 days** / YTD / All / **Custom** (From–To, the shared
 DatePicker) drives every tab and tile — `RANGES`, `rangeQuery` in
 `dashboardFocus.ts`, `dashboardRangeDates` in `src/utils/dashboardMatch.ts`
-(tested) for the server's routes. Follow-ups reads it **by due date, and
-anything still overdue is always listed** (owner's pick), so Today = overdue +
-due today and upcoming ones show with All or a Custom range ahead; a done one
-is also listed when it was ticked in the range (Today + Done = what got done
-today; Filters → Status: Done opens exactly those); a range
-looking back (7 / 30 / 90 days, YTD, Custom) brings up the totals tiles, which
-count only those due in the range. The Follow-up tile and By rep count the
-same pending list.
+(tested) for the server's routes. Follow-ups reads it **by due date only**
+(owner, 2026-11-01): **Today** = due today and every day after (upcoming below
+today's); **7 / 30 / 90 days, YTD** = due in that period up to today — an older
+overdue one drops off, nothing upcoming shows; **Custom** = due in its days;
+**All** = every one. Done and pending are listed together (Status opens on
+**All**; done ones show ticked), today and upcoming soonest first, then the past
+newest first. No totals tiles (removed 2026-11-01). The Follow-up tile and By
+rep count the pending ones in that same list.
 
 Every rule is `src/utils/followUpList.ts` (tested), shared by the server and
 the screen. `GET /api/dashboard/followups?timeRange=…&status=…` (server.ts:
 `rows`, `counts` for the range, `summary` for the list, `doneThisWeek`) and
 `PATCH /api/customers/:customerId/visits/:visitId/follow-up` (`src/routes/visits.ts`,
 tested; whoever may edit the visit, `canModifyVisit`). The screen is
-`src/features/dashboard/followUps/` (`useFollowUps`): pending grouped Overdue /
-Today / Next 7 days / Later; Snooze moves the due day; the Filters panel holds
+`src/features/dashboard/followUps/` (`useFollowUps`): grouped Today / Next 7
+days / Later, then Earlier this week / Last week / by month (Pending alone:
+Overdue / Today / Next 7 days / Later); Snooze moves the due day; the Filters panel holds
 People, **Status** (Pending / Done / All) and **Due**. Done ones are off the
 Follow-up tile, the Visits tab's panel (`followUpPanel.ts`) and By rep.
 Calendar stops are no longer listed here (the Calendar tab shows them).

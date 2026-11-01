@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-    DEFAULT_FOLLOW_UP_FILTERS, dueDayOf, followUpState, dueBucketOf, doneOnTime, rangeBounds, followUpsDueIn, followUpsInView, withStatus, withDue,
+    DEFAULT_FOLLOW_UP_FILTERS, dueDayOf, followUpState, dueBucketOf, doneOnTime, rangeBounds, followUpsInView, withStatus, withDue,
     followUpCounts, doneThisWeek, searchFollowUps, sortFollowUps, groupFollowUps, pageOfGroups, shortDay, whenText, snoozeChoices,
-    followUpTags, withoutTag, followUpExportRows, followUpUpdate, rangeHasTotals, snoozesOf, firstDueOf, snoozeText
+    followUpTags, withoutTag, followUpExportRows, followUpUpdate, snoozesOf, firstDueOf, snoozeText
 } from './followUpList';
 import type { FollowUpRow } from './followUpList';
 
@@ -57,24 +57,25 @@ describe('the Date range', () => {
         fu({ followUp: '', followUpDate: '' })
     ];
     const q = (range: Parameters<typeof rangeBounds>[0]) => ({ range, from: '', to: '' });
-    it('counts the follow-ups due in it, done or not, and never a visit with no follow-up', () => {
-        expect(followUpsDueIn(rows, q('90days'), TODAY).map(dueDayOf)).toEqual(['2026-08-03', '2026-10-29', TODAY]);
-        expect(followUpsDueIn(rows, q('all'), TODAY)).toHaveLength(6);
-    });
-    it('lists those plus every one still overdue — never an old done one; Today also lists upcoming ones', () => {
-        expect(followUpsInView(rows, q('1day'), TODAY).map(dueDayOf)).toEqual(['2026-08-02', '2026-08-03', TODAY, '2026-11-02']);
-        // Other ranges still leave upcoming ones out.
-        expect(followUpsInView(rows, q('7days'), TODAY).map(dueDayOf)).not.toContain('2026-11-02');
-        // Ticked done today: listed under Today whatever day it was due.
-        const tickedToday = done(TODAY, { followUpDate: '2026-10-20' });
-        expect(followUpsInView([tickedToday], q('1day'), TODAY)).toHaveLength(1);
-        expect(followUpsInView([tickedToday], q('7days'), TODAY)).toHaveLength(1);
-        expect(followUpsDueIn([tickedToday], q('1day'), TODAY)).toHaveLength(0);
-        expect(followUpsInView(rows, q('90days'), TODAY).map(dueDayOf)).toEqual(['2026-08-02', '2026-08-03', '2026-10-29', TODAY]);
+    it('lists by due day only, done or not, never a visit with no follow-up', () => {
+        // 90 days back from Oct 31 starts Aug 3: the one due Aug 2 drops off, overdue or not.
+        expect(followUpsInView(rows, q('90days'), TODAY).map(dueDayOf)).toEqual(['2026-08-03', '2026-10-29', TODAY]);
+        expect(followUpsInView(rows, q('7days'), TODAY).map(dueDayOf)).toEqual(['2026-10-29', TODAY]);
         expect(followUpsInView(rows, q('all'), TODAY)).toHaveLength(6);
     });
-    it('brings up the totals only for a period looking back', () => {
-        expect(['1day', '7days', '90days', 'year', 'custom', 'all'].map((r) => rangeHasTotals(r as never))).toEqual([false, true, true, true, true, false]);
+    it('Today is due today and every day after; looking back never lists upcoming ones', () => {
+        expect(followUpsInView(rows, q('1day'), TODAY).map(dueDayOf)).toEqual([TODAY, '2026-11-02']);
+        expect(followUpsInView(rows, q('30days'), TODAY).map(dueDayOf)).not.toContain('2026-11-02');
+        expect(followUpsInView([done(TODAY, { followUpDate: '2026-11-05' })], q('1day'), TODAY)).toHaveLength(1);
+    });
+    it('goes by the day it was due, not the day it was ticked', () => {
+        const tickedToday = done(TODAY, { followUpDate: '2026-10-20' });
+        expect(followUpsInView([tickedToday], q('1day'), TODAY)).toHaveLength(0);
+        expect(followUpsInView([tickedToday], q('7days'), TODAY)).toHaveLength(0);
+        expect(followUpsInView([tickedToday], q('30days'), TODAY)).toHaveLength(1);
+    });
+    it('a Custom range is the ones due in it', () => {
+        expect(followUpsInView(rows, { range: 'custom', from: '2026-10-01', to: '2026-11-30' }, TODAY).map(dueDayOf)).toEqual(['2026-10-29', TODAY, '2026-11-02']);
     });
 });
 
@@ -114,7 +115,7 @@ describe('order and headings', () => {
     it('lists pending soonest first, grouped Overdue / Today / Next 7 days / Later', () => {
         const rows = sortFollowUps([
             fu({ followUpDate: '2026-11-20' }), fu({ followUpDate: TODAY }), fu({ followUpDate: '2026-10-24' }), fu({ followUpDate: '2026-11-02' }), fu({ followUpDate: '2026-10-28' })
-        ], 'pending');
+        ], 'pending', TODAY);
         expect(rows.map(dueDayOf)).toEqual(['2026-10-24', '2026-10-28', TODAY, '2026-11-02', '2026-11-20']);
         const groups = groupFollowUps(rows, 'pending', TODAY);
         expect(groups.map((g) => [g.label, g.rows.length, g.late])).toEqual([
@@ -122,17 +123,24 @@ describe('order and headings', () => {
         ]);
     });
     it('lists done ones last ticked first: This week, Last week, then by month', () => {
-        const rows = sortFollowUps([done('2026-09-12'), done('2026-10-30'), done('2026-10-21'), done('2026-10-27')], 'done');
+        const rows = sortFollowUps([done('2026-09-12'), done('2026-10-30'), done('2026-10-21'), done('2026-10-27')], 'done', TODAY);
         const groups = groupFollowUps(rows, 'done', TODAY);
         expect(groups.map((g) => [g.label, g.rows.length])).toEqual([['This week', 2], ['Last week', 1], ['September 2026', 1]]);
     });
-    it('groups Status: All by month due, counting done and pending', () => {
-        const rows = sortFollowUps([fu({ followUpDate: '2026-10-28' }), done('2026-10-30', { followUpDate: '2026-10-29' }), fu({ followUpDate: '2026-09-15' })], 'all');
+    it('lists Status: All today and upcoming soonest first, then the past newest first, counting done and pending', () => {
+        const rows = sortFollowUps([
+            fu({ followUpDate: '2026-10-28' }), fu({ followUpDate: '2026-11-20' }), done('2026-10-30', { followUpDate: '2026-10-29' }),
+            fu({ followUpDate: '2026-09-15' }), done(TODAY, { followUpDate: TODAY }), fu({ followUpDate: '2026-11-02' }), fu({ followUpDate: '2026-10-21' })
+        ], 'all', TODAY);
+        expect(rows.map(dueDayOf)).toEqual([TODAY, '2026-11-02', '2026-11-20', '2026-10-29', '2026-10-28', '2026-10-21', '2026-09-15']);
         const groups = groupFollowUps(rows, 'all', TODAY);
-        expect(groups.map((g) => [g.label, g.done, g.pending])).toEqual([['October 2026', 1, 1], ['September 2026', 0, 1]]);
+        expect(groups.map((g) => [g.label, g.done, g.pending])).toEqual([
+            ['Today', 1, 0], ['Next 7 days', 0, 1], ['Later', 0, 1], ['Earlier this week', 1, 1], ['Last week', 0, 1], ['September 2026', 0, 1]
+        ]);
+        expect(groups.some((g) => g.late)).toBe(false);
     });
     it('cuts a page out of the groups, each heading keeping its full count', () => {
-        const rows = sortFollowUps(Array.from({ length: 5 }, (_, i) => fu({ followUpDate: `2026-10-2${i}` })).concat([fu({ followUpDate: TODAY }), fu({ followUpDate: TODAY })]), 'pending');
+        const rows = sortFollowUps(Array.from({ length: 5 }, (_, i) => fu({ followUpDate: `2026-10-2${i}` })).concat([fu({ followUpDate: TODAY }), fu({ followUpDate: TODAY })]), 'pending', TODAY);
         const groups = groupFollowUps(rows, 'pending', TODAY);
         const page2 = pageOfGroups(groups, 2, 4);
         expect(page2.map((g) => [g.label, g.rows.length, g.total])).toEqual([['Overdue', 1, 5], ['Today', 2, 2]]);
@@ -163,9 +171,10 @@ describe('words', () => {
     });
     it('shows a tag for each filter off its default, and removes it', () => {
         expect(followUpTags(DEFAULT_FOLLOW_UP_FILTERS)).toEqual([]);
-        expect(followUpTags({ status: 'all', due: 'overdue' }).map((t) => t.label)).toEqual(['Status: All']);
-        expect(followUpTags({ status: 'pending', due: 'overdue' }).map((t) => t.label)).toEqual(['Due: Overdue']);
-        expect(withoutTag({ status: 'done', due: 'all' }, 'status').status).toBe('pending');
+        expect(DEFAULT_FOLLOW_UP_FILTERS.status).toBe('all');
+        expect(followUpTags({ status: 'done', due: 'all' }).map((t) => t.label)).toEqual(['Status: Done']);
+        expect(followUpTags({ status: 'pending', due: 'overdue' }).map((t) => t.label)).toEqual(['Status: Pending', 'Due: Overdue']);
+        expect(withoutTag({ status: 'done', due: 'all' }, 'status').status).toBe('all');
         expect(withoutTag({ status: 'pending', due: 'today' }, 'due').due).toBe('all');
     });
     it('keeps the snoozes: how many, and the day it was first due', () => {

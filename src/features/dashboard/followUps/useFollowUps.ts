@@ -15,7 +15,7 @@ const DONE_FIELDS = { followUpDoneAt: '', followUpDoneOn: '', followUpDoneBy: ''
  * older than FRESH_MS or the dashboard's `refreshKey` moved.
  */
 const FRESH_MS = 30_000;
-type Cached = { rows: FollowUpRow[]; counts: FollowUpCounts; summary: FollowUpCounts; at: number; refreshKey: number };
+type Cached = { rows: FollowUpRow[]; summary: FollowUpCounts; at: number; refreshKey: number };
 const cache = new Map<string, Cached>();
 /** Forget every kept answer (tests, sign-out). */
 export const clearFollowUpCache = () => cache.clear();
@@ -26,12 +26,12 @@ export type FollowUpUndo = { id: number; row: FollowUpRow };
 
 /**
  * Dashboard → Follow-ups' data: the page's own filters (Status, Due) and
- * search, the list for the dashboard's time range (by due date, plus every one
- * still overdue — `range`) and its People / location (`scope`), and the tick /
+ * search, the list for the dashboard's time range (by due date — `range`) and
+ * its People / location (`scope`), and the tick /
  * undo / reopen / snooze / note
  * actions. A change shows at once and the server's answer replaces it; a
  * refusal puts the row back and says why. After each change the list is read
- * again quietly so the totals catch up. `refreshKey` changes when the
+ * again quietly so the counts catch up. `refreshKey` changes when the
  * dashboard reloads (a visit saved elsewhere).
  */
 export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, onChanged, viewerName }: {
@@ -50,7 +50,6 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
     const queryKey = `${scope}|${filters.status}|${rangeQ.range}|${rangeQ.from}|${rangeQ.to}|${today}`;
     const seed = cache.get(queryKey);
     const [rows, setRows] = useState<FollowUpRow[]>(seed?.rows ?? []);
-    const [counts, setCounts] = useState<FollowUpCounts>(seed?.counts ?? NO_COUNTS);
     const [summary, setSummary] = useState<FollowUpCounts>(seed?.summary ?? NO_COUNTS);
     const [loading, setLoading] = useState(!seed);
     const [loadError, setLoadError] = useState('');
@@ -73,9 +72,8 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
             if (id !== reqRef.current) return; // a later request is on its way
             const nextRows = Array.isArray(answer.rows) ? answer.rows : [];
             setRows(nextRows);
-            setCounts(answer.counts || NO_COUNTS);
             setSummary(answer.summary || NO_COUNTS);
-            cache.set(queryKey, { rows: nextRows, counts: answer.counts || NO_COUNTS, summary: answer.summary || NO_COUNTS, at: Date.now(), refreshKey: refreshKeyRef.current });
+            cache.set(queryKey, { rows: nextRows, summary: answer.summary || NO_COUNTS, at: Date.now(), refreshKey: refreshKeyRef.current });
             setLoadError('');
         } catch (error) {
             if (id === reqRef.current) setLoadError((error as Error).message || 'Could not load follow-ups');
@@ -87,7 +85,7 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
     useEffect(() => {
         const hit = cache.get(queryKey);
         if (hit && hit.refreshKey === refreshKey && Date.now() - hit.at < FRESH_MS) {
-            setRows(hit.rows); setCounts(hit.counts); setSummary(hit.summary); setLoading(false);
+            setRows(hit.rows); setSummary(hit.summary); setLoading(false);
             return;
         }
         // Something is on screen already (cached or from before): refresh without the spinner.
@@ -108,7 +106,7 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
     // What's on screen: the server's rows with this screen's changes, then Due and search.
     const visible = useMemo(() => {
         const shown = withStatus(rows, filters.status);
-        return sortFollowUps(searchFollowUps(withDue(shown, filters.status === 'pending' ? filters.due : 'all', today), search), filters.status);
+        return sortFollowUps(searchFollowUps(withDue(shown, filters.status === 'pending' ? filters.due : 'all', today), search), filters.status, today);
     }, [rows, filters.status, filters.due, search, today]);
     const groups = useMemo(() => groupFollowUps(visible, filters.status, today), [visible, filters.status, today]);
     // How many the filters leave before the search: the search box's "2 of 17".
@@ -161,7 +159,7 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
 
     return {
         today, filters, setFilters, search, setSearch,
-        rows, visible, unsearchedCount, groups, counts, summary, loading, loadError, reload: load,
+        rows, visible, unsearchedCount, groups, summary, loading, loadError, reload: load,
         notice, dismissNotice: () => setNotice(null), undo, dismissUndo: () => setUndo(null),
         tick, reopen, undoTick, snooze, saveOutcome
     };

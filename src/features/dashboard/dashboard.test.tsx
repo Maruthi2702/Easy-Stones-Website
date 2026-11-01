@@ -50,16 +50,15 @@ describe('Follow-ups tab', () => {
     onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop, toolSlot: headerSlot(), rangeGroup: null
   };
 
-  it('groups pending follow-ups by when they are due and opens a customer', async () => {
+  it('lists done and pending together by when they are due, and opens a customer', async () => {
     followUps.rows = [row(), row({ _id: 'f2', company: 'Stone River', followUp: 'Drop samples', followUpDate: today })];
     const onOpenCustomer = vi.fn();
     render(<FollowUpsPanel {...props} onOpenCustomer={onOpenCustomer} />);
     fireEvent.click(await screen.findByText('Pacific Granite'));
     expect(onOpenCustomer).toHaveBeenCalledWith('c1');
-    expect(screen.getByText('Overdue')).toBeTruthy();
     expect(screen.getByText('Today', { selector: 'h3.fu-sec-head' })).toBeTruthy();
     expect(screen.getByText('3 days late')).toBeTruthy();
-    expect(followUps.calls.some((c) => /status=pending&timeRange=all/.test(c.url))).toBe(true);
+    expect(followUps.calls.some((c) => /status=all&timeRange=all/.test(c.url))).toBe(true);
   });
 
   it('ticks one done in a click, then Undo reopens it', async () => {
@@ -86,11 +85,11 @@ describe('Follow-ups tab', () => {
     expect(followUps.calls.some((c) => /timeRange=custom&localDate=[\d-]+&from=2026-10-01&to=2026-10-31/.test(c.url))).toBe(true);
   });
 
-  it('shows the totals for a range looking back, and where a snoozed one was first due', async () => {
+  it('shows no totals tiles on a range looking back, and where a snoozed one was first due', async () => {
     followUps.rows = [row({ followUpDate: today, followUpHistory: [{ action: 'snooze', at: 'x', on: today, by: 'me1', byName: 'Krish', from: '2026-10-24', to: today }] })];
     render(<FollowUpsPanel {...props} range={{ range: '90days', from: '', to: '' }} />);
     expect(await screen.findByText('Snoozed from Oct 24')).toBeTruthy();
-    expect(screen.getByText('All follow-ups')).toBeTruthy();
+    expect(screen.queryByText('All follow-ups')).toBeNull();
   });
 
   it('says so when there is nothing to follow up', async () => {

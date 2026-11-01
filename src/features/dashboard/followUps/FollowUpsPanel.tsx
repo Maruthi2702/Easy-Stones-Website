@@ -10,7 +10,7 @@ import { useMyTeam } from '../../../api/myTeam';
 import { canModifyVisit } from '../../../utils/visitAccess';
 import { ALL_LOCATIONS } from '../../../utils/locationFilter';
 import {
-    DEFAULT_FOLLOW_UP_FILTERS, DUE_BUCKETS, FOLLOW_UP_STATUSES, followUpExportRows, followUpNote, followUpTags, pageOfGroups, rangeHasTotals
+    DEFAULT_FOLLOW_UP_FILTERS, DUE_BUCKETS, FOLLOW_UP_STATUSES, followUpExportRows, followUpNote, followUpTags, pageOfGroups
 } from '../../../utils/followUpList';
 import type { DueBucket, FollowUpRangeQuery, FollowUpRow, FollowUpStatus } from '../../../utils/followUpList';
 import PeopleField from '../components/PeopleField';
@@ -27,7 +27,7 @@ import './FollowUpsPanel.css';
 export type FollowUpsPanelProps = {
     /** The dashboard's People / location query (`&reps=…&location=…`). */
     scope: string;
-    /** The dashboard's time range (its header): read by due date, plus every one still overdue. */
+    /** The dashboard's time range (its header): read by due date (Today = today and later). */
     range: FollowUpRangeQuery;
     /** After a saved tick / reopen / snooze / note (the dashboard re-reads its tiles). */
     onChanged?: () => void;
@@ -62,17 +62,17 @@ const UNDO_MS = 8000;
 /**
  * Dashboard → Follow-ups (design A · Due list on the claude.ai artifact
  * "Follow-ups redesign canvas", https://claude.ai/artifact/5x7prJdkNJAKcViVbzeTbK).
- * Pending ones grouped Overdue / Today / Next 7 days / Later, each ticked done
- * in one click (Undo, or add what happened, from the bar after). Filters (People,
+ * Done and pending together, each ticked done in one click (Undo, or add what happened, from the bar after). Filters (People,
  * Status, Due, Location) and ⋯ sit in the dashboard's header like every tab's, and
  * the rows are the "One header" design (claude.ai artifact "Dashboard tabs —
- * Visits, Resources, Follow-ups, Calendar", 2026-10-31). The dashboard's time range applies by due date, and anything
- * still overdue is always listed; a range looking back brings up its totals.
+ * Visits, Resources, Follow-ups, Calendar", 2026-10-31). The dashboard's time
+ * range picks the list by due date, done and pending together (owner, 2026-11-01:
+ * no totals tiles; Today = due today and later, 30 days = due in the last 30).
  */
 export default function FollowUpsPanel(p: FollowUpsPanelProps) {
     const viewerName = String(p.currentUser?.displayName || p.currentUser?.username || 'You');
     const fu = useFollowUps({ scope: p.scope, range: p.range, refreshKey: p.refreshKey, onPageChange: p.onPageChange, onChanged: p.onChanged, viewerName });
-    const { filters, today, counts, summary } = fu;
+    const { filters, today, summary } = fu;
     const team = useMyTeam(p.currentUser, p.currentUserId);
     const isPhone = useIsPhone();
     const [snoozing, setSnoozing] = useState<FollowUpRow | null>(null);
@@ -101,9 +101,6 @@ export default function FollowUpsPanel(p: FollowUpsPanelProps) {
     const paged = pageOfGroups(fu.groups, p.page, p.rowsPerPage);
 
     const set = (next: Partial<typeof filters>) => fu.setFilters({ ...filters, ...next });
-    const showTiles = rangeHasTotals(p.range.range);
-    // While a new range loads, the tiles say so rather than show the last range's numbers.
-    const num = (n: number) => (fu.loading ? '…' : n);
     const clearAll = () => {
         fu.setFilters(DEFAULT_FOLLOW_UP_FILTERS);
         if (locationOn) p.onLocationChange(ALL_LOCATIONS);
@@ -227,33 +224,6 @@ export default function FollowUpsPanel(p: FollowUpsPanelProps) {
                     />
                 </>,
                 p.toolSlot
-            )}
-
-            {showTiles && (
-                <div className="fu-tiles" role="group" aria-label="Show">
-                    <button type="button" className="fu-tile" aria-pressed={filters.status === 'all'} onClick={() => set({ status: 'all', due: 'all' })}>
-                        <span className="fu-tile-label">All follow-ups</span>
-                        <span className="fu-tile-num">{num(counts.all)}</span>
-                        <span className="fu-tile-sub">due in this range</span>
-                    </button>
-                    <button type="button" className="fu-tile" aria-pressed={filters.status === 'done'} onClick={() => set({ status: 'done', due: 'all' })}>
-                        <span className="fu-tile-label">Done</span>
-                        <span className="fu-tile-num is-ok">{num(counts.done)}</span>
-                        <span className="fu-tile-sub">
-                            {fu.loading ? '…' : `${counts.all ? Math.round((counts.done / counts.all) * 100) : 0}% · ${counts.doneOnTime} on time`}
-                        </span>
-                    </button>
-                    <button type="button" className="fu-tile" aria-pressed={filters.status === 'pending' && filters.due === 'all'} onClick={() => set({ status: 'pending', due: 'all' })}>
-                        <span className="fu-tile-label">Pending</span>
-                        <span className="fu-tile-num">{num(counts.pending)}</span>
-                        <span className="fu-tile-sub">not done yet</span>
-                    </button>
-                    <button type="button" className="fu-tile" aria-pressed={filters.status === 'pending' && filters.due === 'overdue'} onClick={() => set({ status: 'pending', due: 'overdue' })}>
-                        <span className="fu-tile-label">Overdue</span>
-                        <span className="fu-tile-num is-late">{num(counts.overdue)}</span>
-                        <span className="fu-tile-sub">pending and past due</span>
-                    </button>
-                </div>
             )}
 
             {empty || (isPhone ? <FollowUpCards groups={paged} {...actions} /> : <FollowUpTable groups={paged} {...actions} />)}

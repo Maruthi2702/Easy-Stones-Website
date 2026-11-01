@@ -16,9 +16,10 @@
  * everyone.
  *
  * The date range is the dashboard's own (its header, every tab; owner's call
- * 2026-10-31): a follow-up is in it by its due day, and one still overdue is
- * always listed whatever the range, so unfinished work never drops off. The
- * totals count only the ones due in the range.
+ * 2026-10-31) and decides the list by due day alone (owner, 2026-11-01): Today
+ * is due today and every day after; 7 / 30 / 90 days, YTD and Custom are the
+ * ones due in that period up to today — an older overdue one drops off; All is
+ * every one. Done and pending are listed together.
  */
 import { MONTH_NAMES, MONTH_SHORT, isValidISO, nextWeekday, shiftDay, weekBounds } from '../components/shared/calendar/calendarDates.ts';
 import { dayOf as dayOfLoose } from './followUpPanel.ts';
@@ -67,17 +68,14 @@ export type FollowUpState = 'done' | 'overdue' | 'pending';
 /** The page's own filters (the range is the dashboard's). */
 export type FollowUpFilters = { status: FollowUpStatus; due: DueBucket };
 
-/** What the page opens on: what's still to do. */
-export const DEFAULT_FOLLOW_UP_FILTERS: FollowUpFilters = Object.freeze({ status: 'pending', due: 'all' }) as FollowUpFilters;
+/** What the page opens on: done and pending together (owner, 2026-11-01). */
+export const DEFAULT_FOLLOW_UP_FILTERS: FollowUpFilters = Object.freeze({ status: 'all', due: 'all' }) as FollowUpFilters;
 
 export const FOLLOW_UP_STATUSES: { value: FollowUpStatus; label: string }[] = [
+    { value: 'all', label: 'All' },
     { value: 'pending', label: 'Pending' },
-    { value: 'done', label: 'Done' },
-    { value: 'all', label: 'All' }
+    { value: 'done', label: 'Done' }
 ];
-
-/** The ranges that look back over a period, which bring up the totals tiles (not Today, not All). */
-export const rangeHasTotals = (range: FollowUpRange): boolean => ['7days', '30days', '90days', 'year', 'custom'].includes(range);
 
 /** The Due field (pending follow-ups only). */
 export const DUE_BUCKETS: { value: DueBucket; label: string }[] = [
@@ -150,27 +148,14 @@ export const rangeBounds = (range: FollowUpRange, today: string, from = '', to =
 const inBounds = (day: string, b: { start: string; end: string } | null): boolean =>
     !b || (Boolean(day) && (!b.start || day >= b.start) && (!b.end || day <= b.end));
 
-/** The follow-ups due in the range — what the totals count. */
-export const followUpsDueIn = (rows: FollowUpRow[], q: FollowUpRangeQuery, today: string): FollowUpRow[] => {
-    const b = rangeBounds(q.range, today, q.from, q.to);
-    return rows.filter((r) => r && hasFollowUpFields(r) && inBounds(dueDayOf(r), b));
-};
-
 /**
- * What the list holds for a range: the ones due in it, every one still
- * overdue, and every one ticked done in it (so Today + Done is what got done
- * today). Today also lists every pending one due later (owner's call,
- * 2026-10-31), so the day's work and what's coming sit together.
+ * What the list holds for a range, done or not, by due day only (owner,
+ * 2026-11-01): Today is due today and every day after it, so the day's work and
+ * what's coming sit together; a period looking back is the ones due in it.
  */
 export const followUpsInView = (rows: FollowUpRow[], q: FollowUpRangeQuery, today: string): FollowUpRow[] => {
-    const b = rangeBounds(q.range, today, q.from, q.to);
-    return rows.filter((r) => {
-        if (!r || !hasFollowUpFields(r)) return false;
-        const due = dueDayOf(r);
-        if (inBounds(due, b)) return true;
-        if (isFollowUpDone(r)) return inBounds(doneDayOf(r), b);
-        return Boolean(due) && (due < today || (q.range === '1day' && due > today));
-    });
+    const b = q.range === '1day' ? { start: today, end: '' } : rangeBounds(q.range, today, q.from, q.to);
+    return rows.filter((r) => r && hasFollowUpFields(r) && inBounds(dueDayOf(r), b));
 };
 
 /** A follow-up's snoozes, oldest first. */
@@ -228,8 +213,11 @@ export const searchFollowUps = (rows: FollowUpRow[], term: string): FollowUpRow[
         .some((v) => lower(v).includes(q)));
 };
 
-/** Pending: soonest due first (so overdue leads). Done: last ticked first. All: newest due first. */
-export const sortFollowUps = (rows: FollowUpRow[], status: FollowUpStatus): FollowUpRow[] => {
+/**
+ * Pending: soonest due first (so overdue leads). Done: last ticked first. All:
+ * today and what's coming, soonest first, then the past, newest first.
+ */
+export const sortFollowUps = (rows: FollowUpRow[], status: FollowUpStatus, today: string): FollowUpRow[] => {
     const copy = [...rows];
     if (status === 'pending') return copy.sort((a, b) => dueDayOf(a).localeCompare(dueDayOf(b)));
     if (status === 'done') {
@@ -237,7 +225,13 @@ export const sortFollowUps = (rows: FollowUpRow[], status: FollowUpStatus): Foll
             || text(b.followUpDoneAt).localeCompare(text(a.followUpDoneAt))
             || dueDayOf(b).localeCompare(dueDayOf(a)));
     }
-    return copy.sort((a, b) => dueDayOf(b).localeCompare(dueDayOf(a)));
+    return copy.sort((a, b) => {
+        const da = dueDayOf(a);
+        const db = dueDayOf(b);
+        const aAhead = da >= today;
+        if (aAhead !== db >= today) return aAhead ? -1 : 1;
+        return aAhead ? da.localeCompare(db) : db.localeCompare(da);
+    });
 };
 
 export type FollowUpGroup = {
@@ -256,8 +250,9 @@ const DUE_LABELS: Record<Exclude<DueBucket, 'all'>, string> = { overdue: 'Overdu
 
 /**
  * Headings for a sorted list, in its order. Pending: Overdue / Today / Next 7
- * days / Later. Done: This week / Last week / then by month ticked. All: by
- * month due.
+ * days / Later. Done: This week / Last week / then by month ticked. All, by
+ * due day: Today / Next 7 days / Later, then Earlier this week / Last week /
+ * by month.
  */
 export const groupFollowUps = (rows: FollowUpRow[], status: FollowUpStatus, today: string): FollowUpGroup[] => {
     const week = weekBounds(today);
@@ -274,6 +269,12 @@ export const groupFollowUps = (rows: FollowUpRow[], status: FollowUpStatus, toda
             return [d.slice(0, 7) || 'none', monthLabel(d), false];
         }
         const due = dueDayOf(r);
+        if (due >= today) {
+            const b = dueBucketOf(r, today);
+            return [b, DUE_LABELS[b], false];
+        }
+        if (week && due >= week.start) return ['past-week', 'Earlier this week', false];
+        if (lastWeek && due >= lastWeek.start && due <= lastWeek.end) return ['past-last-week', 'Last week', false];
         return [due.slice(0, 7) || 'none', monthLabel(due), false];
     };
     const groups: FollowUpGroup[] = [];
@@ -347,13 +348,13 @@ export const snoozeChoices = (today: string): { label: string; value: string }[]
 /** Tags for what's switched on (the defaults show none). */
 export const followUpTags = (f: FollowUpFilters): { key: 'status' | 'due'; label: string }[] => {
     const tags: { key: 'status' | 'due'; label: string }[] = [];
-    if (f.status !== 'pending') tags.push({ key: 'status', label: `Status: ${FOLLOW_UP_STATUSES.find((s) => s.value === f.status)?.label}` });
+    if (f.status !== 'all') tags.push({ key: 'status', label: `Status: ${FOLLOW_UP_STATUSES.find((s) => s.value === f.status)?.label}` });
     if (f.status === 'pending' && f.due !== 'all') tags.push({ key: 'due', label: `Due: ${DUE_LABELS[f.due]}` });
     return tags;
 };
 
 export const withoutTag = (f: FollowUpFilters, key: 'status' | 'due'): FollowUpFilters =>
-    (key === 'status' ? { ...f, status: 'pending' } : { ...f, due: 'all' });
+    (key === 'status' ? { ...f, status: 'all' } : { ...f, due: 'all' });
 
 /** Excel rows for what's on screen. */
 export const followUpExportRows = (rows: FollowUpRow[], today: string): Record<string, string>[] => rows.map((r) => {
