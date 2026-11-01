@@ -187,14 +187,35 @@ describe('Sales Planner — the team calendar (teamScope.js)', () => {
         expect(card('Pacific Granite').querySelector('[aria-label="Edit activity"]')).not.toBeNull();
         // Moving needs your calendar alone.
         expect(card('Pacific Granite').getAttribute('draggable')).toBeNull();
-        expect(screen.getByLabelText('Schedule activity')).toBeTruthy();
+        // You're in view, so each day still offers Add (the dashboard's + is the other way in).
+        expect(document.querySelector('.pl-addday')).not.toBeNull();
     });
 
     it("offers no Add on a calendar you aren't in", async () => {
         schedule = [team[1]];
         await open({ viewing: '&scope=team&reps=u2', includesMe: false, justMe: false });
-        expect(screen.queryByLabelText('Schedule activity')).toBeNull();
         expect(document.querySelector('.pl-addday')).toBeNull();
+    });
+
+    it("the dashboard's + asks for the form: it opens on your calendar, and not on one you aren't in", async () => {
+        schedule = [team[1]];
+        const taken = vi.fn();
+        await open({ viewing: '&scope=team&reps=u2', includesMe: false, justMe: false, openAdd: true, onOpenAddTaken: taken });
+        expect(taken).toHaveBeenCalled();
+        expect(screen.queryByText('Schedule activity')).toBeNull();
+        cleanup();
+        const taken2 = vi.fn();
+        await open({ openAdd: true, onOpenAddTaken: taken2 });
+        await settle();
+        expect(taken2).toHaveBeenCalled();
+        expect(screen.getByText('Schedule activity')).toBeTruthy();
+    });
+
+    it("shows only the stops whose customer matches the dashboard's search", async () => {
+        schedule = team;
+        await open({ viewing: '&scope=team', includesMe: true, justMe: false, search: 'stone' });
+        expect(screen.queryByText('Pacific Granite')).toBeNull();
+        expect(screen.getByText('Stone River')).toBeTruthy();
     });
 
     it('is your own, movable calendar as before without it', async () => {

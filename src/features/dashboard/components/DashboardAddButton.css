@@ -1,0 +1,65 @@
+/* The dashboard's round + (DashboardAddButton.tsx). Same look as the Calendar's
+   phone + it replaces; under every form, modal and the phone tab bar (96–98). */
+.dab {
+    position: fixed;
+    right: 32px;
+    bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+    z-index: 90;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+}
+.dab-btn {
+    width: 58px;
+    height: 58px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: #cdaf4f;
+    color: #141b2d;
+    box-shadow: 0 6px 16px rgba(20, 27, 45, 0.28);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s, background 0.15s;
+}
+.dab-btn:hover { background: #d4b85a; }
+.dab-btn svg { transition: transform 0.2s; }
+.dab-btn.is-open svg { transform: rotate(45deg); }
+.dab-btn:focus-visible { outline: 3px solid rgba(212, 175, 55, 0.5); outline-offset: 3px; }
+.dab-menu {
+    min-width: 210px;
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+}
+.dab-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+.dab-item svg { color: var(--dfx-gold-text, #7a5c0b); }
+.dab-item:hover, .dab-item:focus-visible { background: var(--dfx-hover, rgba(212, 175, 55, 0.08)); outline: none; }
+
+@media (max-width: 1023px) {
+    .dab { right: 24px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 639px) {
+    .dab { right: 16px; bottom: calc(var(--app-bottom-h, 0px) + 16px + env(safe-area-inset-bottom, 0px)); }
+}

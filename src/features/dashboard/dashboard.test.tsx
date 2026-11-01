@@ -35,6 +35,8 @@ const { todayISO, shiftDay } = await import('../../components/shared/calendar/ca
 beforeEach(() => clearFollowUpCache());
 afterEach(() => { cleanup(); clearFollowUpCache(); followUps.rows = []; followUps.calls = []; });
 const noop = () => {};
+// Resources and Follow-ups put their Filters and ⋯ in the dashboard header's slot.
+const headerSlot = () => { const el = document.createElement('div'); document.body.appendChild(el); return el; };
 
 describe('Follow-ups tab', () => {
   const today = todayISO();
@@ -45,7 +47,7 @@ describe('Follow-ups tab', () => {
   const props = {
     scope: '', range: { range: 'all' as const, from: '', to: '' }, refreshKey: 0, page: 1, rowsPerPage: 50, onPageChange: noop, onRowsPerPageChange: noop, locationOptions: [], location: '',
     onLocationChange: noop, currentUser: { permissions: ['edit_own_visits'] }, currentUserId: 'me1', people: null,
-    onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop
+    onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop, toolSlot: headerSlot(), rangeGroup: null
   };
 
   it('groups pending follow-ups by when they are due and opens a customer', async () => {
@@ -55,7 +57,7 @@ describe('Follow-ups tab', () => {
     fireEvent.click(await screen.findByText('Pacific Granite'));
     expect(onOpenCustomer).toHaveBeenCalledWith('c1');
     expect(screen.getByText('Overdue')).toBeTruthy();
-    expect(screen.getByText('Today', { selector: '.fu-group span' })).toBeTruthy();
+    expect(screen.getByText('Today', { selector: 'h3.fu-sec-head' })).toBeTruthy();
     expect(screen.getByText('3 days late')).toBeTruthy();
     expect(followUps.calls.some((c) => /status=pending&timeRange=all/.test(c.url))).toBe(true);
   });
@@ -96,20 +98,21 @@ describe('Follow-ups tab', () => {
     expect(await screen.findByText('Nothing to follow up')).toBeTruthy();
   });
 
-  it('Status: Done asks the server for done ones and shows a tag to take it off', async () => {
+  it('Status: Done (in the header Filters) asks the server for done ones; no tag row on the page', async () => {
     render(<FollowUpsPanel {...props} />);
     await screen.findByText('Nothing to follow up');
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
     fireEvent.click(screen.getByRole('radio', { name: 'Done' }));
-    await screen.findByText('Status: Done');
-    expect(followUps.calls.some((c) => /status=done/.test(c.url))).toBe(true);
+    await vi.waitFor(() => expect(followUps.calls.some((c) => /status=done/.test(c.url))).toBe(true));
+    expect(screen.queryByText('Status: Done')).toBeNull();
   });
 });
 
 describe('People filter (manager view)', () => {
   const base = {
     scope: '', range: { range: 'all' as const, from: '', to: '' }, refreshKey: 0, page: 1, rowsPerPage: 50, onPageChange: noop, onRowsPerPageChange: noop, locationOptions: [], location: '',
-    onLocationChange: noop, currentUser: null, currentUserId: 'me1', onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop
+    onLocationChange: noop, currentUser: null, currentUserId: 'me1', onViewVisit: noop, onEditVisit: noop, onOpenCustomer: noop,
+    toolSlot: headerSlot(), rangeGroup: null
   };
   const people = (over = {}) => ({
     options: [
@@ -136,14 +139,13 @@ describe('People filter (manager view)', () => {
     expect(p.onReset).toHaveBeenCalled();
   });
 
-  it('shows a Rep column only when more than the viewer is in view', async () => {
-    followUps.rows = [{ _id: 'f1', customerId: 'c1', company: 'Pacific Granite', followUp: 'Send quote', followUpDate: todayISO(), createdByName: 'Jesus B.' }];
-    const { rerender } = render(<FollowUpsPanel {...base} people={people()} />);
+  it("every row says who logged it, with their initials, and the customer's location", async () => {
+    followUps.rows = [{ _id: 'f1', customerId: 'c1', company: 'Pacific Granite', followUp: 'Send quote', followUpDate: todayISO(), createdByName: 'Jesus B.', location: 'Seattle' }];
+    render(<FollowUpsPanel {...base} people={people()} />);
     await screen.findByText('Pacific Granite');
-    expect(screen.queryByText('Rep')).toBeNull();
-    rerender(<FollowUpsPanel {...base} people={people({ value: [] })} showWhoLogged />);
-    expect(screen.getByText('Rep')).toBeTruthy();
-    expect(screen.getByText('Jesus B.')).toBeTruthy();
+    expect(screen.getByText('Jesus B.', { selector: '.fu-repchip' })).toBeTruthy();
+    expect(screen.getByText('JB')).toBeTruthy();
+    expect(screen.getByText('Seattle', { selector: '.fu-locpill' })).toBeTruthy();
   });
 });
 
@@ -179,7 +181,7 @@ describe('Sales Visits → By rep', () => {
     const onPick = vi.fn();
     const { container } = render(panel({ view: 'byRep', onPick }));
     expect(screen.queryByText('Stone River')).toBeNull();
-    expect(screen.queryByPlaceholderText('Search visits...')).toBeNull();
+    expect(screen.queryByLabelText('Search visits')).toBeNull();
     expect(screen.getByText('Krish (you)')).toBeTruthy();
     expect([...container.querySelectorAll('tfoot td')].map((td) => td.textContent)).toEqual(['7', '1', '3', '2']);
     fireEvent.click(screen.getByText('Jesus B.'));
@@ -213,6 +215,7 @@ describe('Resources tab', () => {
     searchTerm: '', onSearchChange: noop, locationOptions: [], location: '', onLocationChange: noop, people: null,
     currentUser: { permissions: ['edit_own_visits'] }, currentUserId: 'u1', loadingResourceId: null,
     onViewResource: noop, onEditResource: noop, onDeleteResource: noop, onExportView: noop, onExportAll: noop,
+    toolSlot: headerSlot(), rangeGroup: null,
     ...over
   });
   const rows = [
@@ -234,13 +237,14 @@ describe('Resources tab', () => {
     expect(onViewResource).toHaveBeenCalledWith(rows[1]);
   });
 
-  it('filters by resource type from the Filters panel, with a tag to take it off', async () => {
+  it('filters by resource type from the header Filters panel; unticking brings them back', async () => {
     render(<ResourcesPanel {...panel({ rows })} />);
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
     expect(await screen.findByText('Display towers')).toBeTruthy();
     fireEvent.click(screen.getByRole('checkbox', { name: /2025V3 Moda Tower/ }));
     expect(screen.queryByText('TopLine Counters')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Remove 2025V3 Moda Tower' }));
+    expect(screen.queryByRole('button', { name: 'Remove 2025V3 Moda Tower' })).toBeNull();
+    fireEvent.click(screen.getByRole('checkbox', { name: /2025V3 Moda Tower/ }));
     expect(screen.getByText('TopLine Counters')).toBeTruthy();
   });
 });

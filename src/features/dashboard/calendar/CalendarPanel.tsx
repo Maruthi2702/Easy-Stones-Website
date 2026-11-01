@@ -1,6 +1,7 @@
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { lazyRetry } from '../../../utils/lazyRetry';
 import type { Loose } from '../../../types/records';
+import DashboardSearch from '../components/DashboardSearch';
 
 const SalesPlannerTab = lazyRetry(() => import('../../salesPlanner/SalesPlannerTab'));
 
@@ -17,10 +18,15 @@ export type CalendarPanelProps = {
     viewing: string;
     includesMe: boolean;
     justMe: boolean;
+    /** The + asked for "Schedule activity": open the form once, then say so. */
+    scheduleRequest?: boolean;
+    onScheduleRequestTaken?: () => void;
 };
 
 /** Dashboard → Calendar: the sales planner. */
-export default function CalendarPanel({ customerSelection, customerOptions, isDropdownLoading, currentUserId, fallback, onSelectCustomer, onScheduleChange, viewing, includesMe, justMe }: CalendarPanelProps) {
+export default function CalendarPanel({ customerSelection, customerOptions, isDropdownLoading, currentUserId, fallback, onSelectCustomer, onScheduleChange, viewing, includesMe, justMe, scheduleRequest = false, onScheduleRequestTaken }: CalendarPanelProps) {
+    // The dashboard's one search box: shows only the stops whose customer matches.
+    const [search, setSearch] = useState('');
     return (
         <div className="planner-dashboard-container">
             <Suspense fallback={fallback}>
@@ -34,6 +40,10 @@ export default function CalendarPanel({ customerSelection, customerOptions, isDr
                 viewing={viewing}
                 includesMe={includesMe}
                 justMe={justMe}
+                search={search}
+                searchBox={<DashboardSearch value={search} onChange={setSearch} label="Search the calendar" />}
+                openAdd={scheduleRequest}
+                onOpenAddTaken={onScheduleRequestTaken}
             />
             </Suspense>
         </div>

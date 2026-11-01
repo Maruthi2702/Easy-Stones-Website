@@ -1,4 +1,4 @@
-import { Download, Menu } from 'lucide-react';
+import { CalendarSync, Download, Menu } from 'lucide-react';
 import LocationFilter from '../../components/shared/LocationFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import { DashboardRange, RangeFilterGroup } from './components/DashboardStats';
@@ -29,24 +29,36 @@ export type DashboardHeaderProps = {
     onOpenSidebar: () => void;
     onExportVisits: () => void;
     onOpenCalendarSync: () => void;
-    canAddVisits: boolean;
-    onAddResource: () => void;
-    onAddVisit: () => void;
+    /**
+     * Where a tab puts its own Filters and ⋯ (Resources and Follow-ups keep their
+     * filters' state, so they render them here through a portal).
+     */
+    onToolSlot: (el: HTMLElement | null) => void;
 };
 
-/** The Dashboard's title, date and actions (time range, branch, export, calendar sync, add). */
+/** Tabs whose Filters and ⋯ are rendered by the tab itself, into the header's slot. */
+export const TABS_WITH_OWN_TOOLS = ['resources', 'followups'];
+
+/**
+ * The Dashboard's one header (owner, 2026-10-31; claude.ai artifact "Dashboard tabs —
+ * Visits, Resources, Follow-ups, Calendar", section "One header"). The same on every
+ * tab and size: title and date, the time range, then Filters (round icon) and ⋯ —
+ * always in the same place; only what they hold changes with the tab. Desktop is one
+ * row; under 1024px the range drops to its own row under title / Filters / ⋯, and on
+ * a phone the Calendar tab has no range (it has its own Day / Week / Month).
+ * Adding is the round + (DashboardAddButton), not header buttons.
+ */
 export default function DashboardHeader({
-    activeTab: activeDashboardTab, timeRange, rangeFrom = '', rangeTo = '', onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, visitsView = null, showPeopleOnCalendar = false,
-    showMenuButton, onOpenSidebar, onExportVisits, onOpenCalendarSync, canAddVisits, onAddResource, onAddVisit
+    activeTab, timeRange, rangeFrom = '', rangeTo = '', onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, visitsView = null, showPeopleOnCalendar = false,
+    showMenuButton, onOpenSidebar, onExportVisits, onOpenCalendarSync, onToolSlot
 }: DashboardHeaderProps) {
     const rangeActive = timeRange === 'all' || timeRange === 'custom';
     const rangeGroup = <RangeFilterGroup value={timeRange} from={rangeFrom} to={rangeTo} onChange={onTimeRangeChange} />;
-    // Every tab gets the one Filters button (All time / Custom live in it); the
-    // Visits and Calendar tabs add View / People / Location to the same panel.
-    const ownFilter = activeDashboardTab === 'visits' || (activeDashboardTab === 'planner' && people && showPeopleOnCalendar);
+    const tabOwnsTools = TABS_WITH_OWN_TOOLS.includes(activeTab);
+    const calendarPeople = activeTab === 'planner' && people && showPeopleOnCalendar ? people : null;
     return (
         <div className="dashboard-header-v2">
-            <div className="dashboard-header-content">
+            <div className="dashboard-header-content dfx-head" data-tab={activeTab}>
                 <div className="dashboard-left-section">
                     {showMenuButton && (
                         <button
@@ -65,15 +77,16 @@ export default function DashboardHeader({
                         </div>
                     </div>
                 </div>
-                <div className="dashboard-actions">
-                    {/* One range for every tab; Follow-ups reads it by due date. */}
+
+                {/* One range for every tab; Follow-ups reads it by due date. */}
+                <div className="dfx-head-range">
                     <DashboardRange value={timeRange} from={rangeFrom} to={rangeTo} onChange={onTimeRangeChange} />
-                    {!ownFilter && (
-                        <LocationFilter options={[]} value="" onChange={() => {}} user={currentUser} active={rangeActive}>
-                            {rangeGroup}
-                        </LocationFilter>
-                    )}
-                    {activeDashboardTab === 'visits' && (
+                </div>
+
+                <div className="dfx-head-tools">
+                    {/* Resources / Follow-ups put their Filters and ⋯ here. */}
+                    <span className="dfx-head-slot" ref={onToolSlot} />
+                    {activeTab === 'visits' && (
                         <>
                             <LocationFilter
                                 options={locationOptions}
@@ -94,42 +107,39 @@ export default function DashboardHeader({
                             </LocationFilter>
                             <RowMenu
                                 label="More"
-                                items={[{ key: 'export', label: 'Export to Excel', icon: Download, onClick: () => onExportVisits() }]}
+                                items={[{ key: 'export', label: 'Export this view to Excel', icon: Download, onClick: () => onExportVisits() }]}
                             />
                         </>
                     )}
-                    {activeDashboardTab === 'planner' && people && showPeopleOnCalendar && (
-                        <LocationFilter
-                            options={locationOptions}
-                            value={location}
-                            onChange={onLocationChange}
-                            user={currentUser}
-                            active={Boolean(people.active) || rangeActive}
-                            onClear={people.onReset}
-                        >
-                            {rangeGroup}
-                            <PeopleField {...people} />
-                        </LocationFilter>
-                    )}
-                    {activeDashboardTab === 'planner' && (
-                        <button 
-                            className="btn-secondary" 
-                            onClick={() => onOpenCalendarSync()} 
-                            title="Sync to Apple / Google Calendar"
-                            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                        >
-                            📅 Sync Calendar
-                        </button>
-                    )}
-                    {canAddVisits && (
+                    {activeTab === 'planner' && (
                         <>
-                            <button className="btn-secondary" onClick={onAddResource} title="Add Resource for any Client">
-                                + Add Resource
-                            </button>
-                            <button className="btn-primary" onClick={onAddVisit} title="Add Visit for any Client">
-                                + Add Visit
-                            </button>
+                            {calendarPeople ? (
+                                <LocationFilter
+                                    options={locationOptions}
+                                    value={location}
+                                    onChange={onLocationChange}
+                                    user={currentUser}
+                                    active={Boolean(calendarPeople.active) || rangeActive}
+                                    onClear={calendarPeople.onReset}
+                                >
+                                    {rangeGroup}
+                                    <PeopleField {...calendarPeople} />
+                                </LocationFilter>
+                            ) : (
+                                <LocationFilter options={[]} value="" onChange={() => {}} user={currentUser} active={rangeActive}>
+                                    {rangeGroup}
+                                </LocationFilter>
+                            )}
+                            <RowMenu
+                                label="More"
+                                items={[{ key: 'sync', label: 'Sync calendar', icon: CalendarSync, onClick: () => onOpenCalendarSync() }]}
+                            />
                         </>
+                    )}
+                    {!tabOwnsTools && activeTab !== 'visits' && activeTab !== 'planner' && (
+                        <LocationFilter options={[]} value="" onChange={() => {}} user={currentUser} active={rangeActive}>
+                            {rangeGroup}
+                        </LocationFilter>
                     )}
                 </div>
             </div>

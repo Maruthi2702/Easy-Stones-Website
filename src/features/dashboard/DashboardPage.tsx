@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import ErrorBoundary from '../../components/shared/ErrorBoundary';
 import DashboardHeader from './DashboardHeader';
-import DashboardStats from './components/DashboardStats';
+import DashboardStats, { RangeFilterGroup } from './components/DashboardStats';
+import DashboardAddButton from './components/DashboardAddButton';
 import { CalendarPanel } from './calendar';
 import { VisitsPanel } from './visits';
 import { FollowUpsPanel } from './followUps';
@@ -61,6 +63,15 @@ export default function DashboardPage({
     onSelectCustomer, renderLeads
 }: DashboardPageProps) {
     const tab = data.activeDashboardTab;
+    // Where Resources / Follow-ups put their Filters and ⋯ (the header's slot).
+    const [toolSlot, setToolSlot] = useState<HTMLElement | null>(null);
+    // "Schedule activity" from the + on another tab opens the Calendar, then its form.
+    const [scheduleRequest, setScheduleRequest] = useState(false);
+    const rangeGroup = <RangeFilterGroup value={data.dashboardTimeRange} from={data.rangeFrom} to={data.rangeTo} onChange={data.setDashboardRange} />;
+    const scheduleActivity = data.calendarIncludesMe ? () => {
+        setScheduleRequest(true);
+        if (tab !== 'planner') data.setActiveDashboardTab('planner');
+    } : undefined;
     const failed = Object.values(data.dashboardErrors || {}).filter(Boolean);
     const loadFailed = failed.length > 0;
     // The People filter, the same in the header (Sales Visits), Follow-up and Resources.
@@ -101,9 +112,7 @@ export default function DashboardPage({
                         onOpenSidebar={onOpenSidebar}
                         onExportVisits={() => data.handleExportVisits()}
                         onOpenCalendarSync={onOpenCalendarSync}
-                        canAddVisits={data.canAddVisits}
-                        onAddResource={onAddResource}
-                        onAddVisit={onAddVisit}
+                        onToolSlot={setToolSlot}
                     />
 
                     {loadFailed && (
@@ -136,6 +145,8 @@ export default function DashboardPage({
                             viewing={data.calendarViewing}
                             includesMe={data.calendarIncludesMe}
                             justMe={!data.calendarViewing}
+                            scheduleRequest={scheduleRequest}
+                            onScheduleRequestTaken={() => setScheduleRequest(false)}
                         />
                     )}
 
@@ -157,6 +168,7 @@ export default function DashboardPage({
                             schedules={data.allSchedules}
                             followUpPanel={data.followUpPanel}
                             followUpCount={data.stats.followUp}
+                            periodCount={data.stats.visits}
                             showWhoLogged={data.showWhoLogged}
                             byRep={data.canPickPeople ? {
                                 view: data.visitsView,
@@ -190,6 +202,9 @@ export default function DashboardPage({
                             currentUser={currentUser}
                             currentUserId={currentUserId}
                             people={people}
+                            toolSlot={toolSlot}
+                            rangeGroup={rangeGroup}
+                            rangeActive={data.dashboardTimeRange === 'all' || data.dashboardTimeRange === 'custom'}
                             showWhoLogged={data.showWhoLogged}
                             onViewVisit={onViewVisit}
                             onEditVisit={onEditVisit}
@@ -219,12 +234,21 @@ export default function DashboardPage({
                             onViewResource={onViewResource}
                             onEditResource={onEditResource}
                             onDeleteResource={onDeleteResource}
+                            toolSlot={toolSlot}
+                            rangeGroup={rangeGroup}
+                            rangeActive={data.dashboardTimeRange === 'all' || data.dashboardTimeRange === 'custom'}
+                            periodCount={data.stats.resources}
                             onExportView={(rows) => data.handleExportResources(rows)}
                             onExportAll={data.handleExportAllResources}
                         />
                     )}
                     </>}
                 </>
+                <DashboardAddButton
+                    onAddVisit={data.canAddVisits ? onAddVisit : undefined}
+                    onAddResource={data.canAddVisits ? onAddResource : undefined}
+                    onScheduleActivity={scheduleActivity}
+                />
             </div>
         </ErrorBoundary>
     );

@@ -1,8 +1,8 @@
-import { Search } from 'lucide-react';
 import Pagination from '../../../components/shared/Pagination';
 import { canModifyVisit, canDeleteVisit } from '../../../utils/visitAccess';
 import { useMyTeam } from '../../../api/myTeam';
 import DashboardAside from '../components/DashboardAside';
+import DashboardSearch from '../components/DashboardSearch';
 import VisitsFocusList from '../components/VisitsFocusList';
 import RepBreakdownTable from '../components/RepBreakdownTable';
 import type { RepRow } from '../repBreakdown';
@@ -29,6 +29,8 @@ export type VisitsPanelProps = {
     schedules: Loose[];
     followUpPanel: Loose[];
     followUpCount: number;
+    /** Visits in the period before the search (the tile's number), for "2 of 17". */
+    periodCount?: number;
     /** More than the viewer is in view (the People filter): rows say who logged them. */
     showWhoLogged: boolean;
     /** "List | By rep": null hides the switch (they only see their own). */
@@ -45,7 +47,7 @@ export type VisitsPanelProps = {
 /** Dashboard → Sales Visits: the Focus board (visit list with pager) and its Today / Follow-ups panels. */
 export default function VisitsPanel({
     pagedVisits, totalCount, searchTerm, onSearchChange, page, rowsPerPage, onPageChange, onRowsPerPageChange, tableLoading, busyVisitId,
-    currentUser, currentUserId, customers, schedules, followUpPanel, followUpCount, showWhoLogged, byRep, onOpenTab, onOpenVisitCard, onEditVisit, onDeleteVisit,
+    currentUser, currentUserId, customers, schedules, followUpPanel, followUpCount, periodCount, showWhoLogged, byRep, onOpenTab, onOpenVisitCard, onEditVisit, onDeleteVisit,
     onOpenGallery, onOpenCustomer
 }: VisitsPanelProps) {
     const team = useMyTeam(currentUser, currentUserId);
@@ -53,21 +55,17 @@ export default function VisitsPanel({
     return (
         <div className="dfx-board">
         <div className="visits-table-section">
-            <div className="section-header">
+            {/* Title on the left, the dashboard's search box on the right (every tab). */}
+            <div className="section-header dfx-tab-head">
                 <h2>Sales Visits</h2>
-                <div className="table-controls">
-                    {!showingByRep && (
-                    <div className="table-search">
-                         <Search className="search-icon" size={18} />
-                         <input
-                             type="text"
-                             placeholder="Search visits..."
-                            value={searchTerm}
-                            onChange={(e) => onSearchChange(e.target.value)}
-                        />
-                    </div>
-                    )}
-                </div>
+                {!showingByRep && (
+                    <DashboardSearch
+                        value={searchTerm}
+                        onChange={onSearchChange}
+                        label="Search visits"
+                        count={searchTerm ? `${totalCount} of ${Math.max(periodCount ?? totalCount, totalCount)}` : null}
+                    />
+                )}
             </div>
 
             {showingByRep && byRep ? (
