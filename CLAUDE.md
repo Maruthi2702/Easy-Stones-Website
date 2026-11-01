@@ -343,7 +343,13 @@ and never changes; `label` is what staff read and can be renamed. Managers add,
 rename, hide / show and **reorder** (the order is everyone's dropdown order;
 saves on drop through `PATCH /reorder`, which takes the whole id list). A hidden
 type can't start a new visit but stays valid on the ones that have it; delete is
-only for a type no record uses and never the 10 built-in visit types. A visit
+never for the 10 built-in visit types, and a type records use is deleted only
+by **moving them to another shown type** in the same step (the delete check's
+"Move them to", 2026-11-01): `src/services/typeReplacement.ts` (tested in
+`typeLists.test.ts`) rewrites the visits' purpose / the resources' type, a
+title, placement visit and calendar note that still say the old type, links an
+older resource to its placement visit, and deletes, in one transaction; an
+ambiguous older placement is a 409 that changes nothing. A visit
 type carries `fields` (notes, outcome, follow-up none / optional / always) that
 the form and `cleanVisitFields` follow — `visitFieldsFor(type)` takes the
 record, not a name. Each list has four switches on the Users & Roles card (add,

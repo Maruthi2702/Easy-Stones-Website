@@ -132,9 +132,16 @@ export const typeListApi = {
             throw error;
         }
     },
-    async remove(kind: TypeListKind, id: string): Promise<void> {
-        await send(kind, `/${id}`, 'DELETE', undefined, 'Could not delete the type');
+    /** How many records carry the type: a delete must move them to another first. */
+    async uses(kind: TypeListKind, id: string): Promise<number> {
+        const { uses } = await send(kind, `/${id}/uses`, 'GET', undefined, 'Could not check where the type is used');
+        return Number(uses) || 0;
+    },
+    /** Deletes the type; with `replaceWith`, its records move to that type first (one step on the server). */
+    async remove(kind: TypeListKind, id: string, replaceWith?: string): Promise<{ moved: number }> {
+        const result = await send(kind, `/${id}`, 'DELETE', replaceWith ? { replaceWith } : undefined, 'Could not delete the type');
         publish(kind, stores[kind].types.filter((t) => t._id !== id));
+        return { moved: Number(result?.moved) || 0 };
     }
 };
 

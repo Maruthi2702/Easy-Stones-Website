@@ -3,6 +3,7 @@ import { AlertCircle, ArrowUpToLine, ChevronDown, ChevronUp, Eye, EyeOff, GripVe
 import RowMenu from '../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../components/shared/RowMenu';
 import FormModal from '../../components/shared/form/FormModal';
+import { FormField, FormPicker } from '../../components/shared/form/FormControls';
 import { typeListApi, useTypeList } from '../../api/typeLists';
 import type { TypeListKind, TypeRecord } from '../../api/typeLists';
 import { moveItem } from '../../utils/typeLists';
@@ -145,34 +146,80 @@ export default function TypeListTab({ kind, currentUser, sidebarToggle }: TypeLi
                 <DeleteTypeDialog
                     kind={kind}
                     type={deleting}
+                    others={types.filter((t) => t.active && t._id !== deleting._id)}
                     onClose={() => setDeleting(null)}
-                    onDelete={() => typeListApi.remove(kind, deleting._id)}
+                    onDelete={(replaceWith) => typeListApi.remove(kind, deleting._id, replaceWith)}
                 />
             )}
         </div>
     );
 }
 
-function DeleteTypeDialog({ kind, type, onClose, onDelete }: { kind: TypeListKind; type: TypeRecord; onClose: () => void; onDelete: () => Promise<unknown> }) {
+function DeleteTypeDialog({ kind, type, others, onClose, onDelete }: {
+    kind: TypeListKind; type: TypeRecord; others: TypeRecord[]; onClose: () => void; onDelete: (replaceWith?: string) => Promise<unknown>;
+}) {
+    const copy = COPY[kind];
+    // null while the count loads; then how many records carry the type.
+    const [uses, setUses] = useState<number | null>(null);
+    const [replaceWith, setReplaceWith] = useState('');
+    const [tried, setTried] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+
+    useEffect(() => {
+        let live = true;
+        typeListApi.uses(kind, type._id)
+            .then((n) => { if (live) setUses(n); })
+            .catch((err) => { if (live) setError((err as Error).message || 'Could not check where it is used'); });
+        return () => { live = false; };
+    }, [kind, type._id]);
+
+    const moving = (uses ?? 0) > 0;
     const confirm = async () => {
+        if (uses === null) return;
+        if (moving && !replaceWith) { setTried(true); return; }
         setSaving(true);
         setError('');
-        try { await onDelete(); onClose(); } catch (err) { setError((err as Error).message || 'Could not delete'); } finally { setSaving(false); }
+        try { await onDelete(moving ? replaceWith : undefined); onClose(); } catch (err) { setError((err as Error).message || 'Could not delete'); } finally { setSaving(false); }
     };
+    const records = (n: number) => `${n} ${kind === 'visit' ? (n === 1 ? 'visit' : 'visits') : (n === 1 ? 'resource' : 'resources')}`;
     return (
         <FormModal
-            title={`Delete ${COPY[kind].noun}`}
+            title={`Delete ${copy.noun}`}
             size="s"
             onClose={onClose}
             onSubmit={(e) => { e.preventDefault(); confirm(); }}
-            submitLabel="Delete"
-            savingLabel="Deleting…"
+            submitLabel={moving ? 'Move and delete' : 'Delete'}
+            savingLabel={moving ? 'Moving…' : 'Deleting…'}
             submitTone="danger"
+            submitDisabled={uses === null || (moving && others.length === 0)}
             saving={saving}
         >
-            <p className="tl-confirm">Delete <strong>{type.label}</strong>? It disappears from the list for everyone. If any record uses it, hiding it is the way to remove it instead.</p>
+            {uses === null && !error && <p className="tl-confirm">Checking where <strong>{type.label}</strong> is used…</p>}
+            {uses === 0 && (
+                <p className="tl-confirm">Delete <strong>{type.label}</strong>? It disappears from the list for everyone.</p>
+            )}
+            {moving && (
+                <>
+                    <p className="tl-confirm">
+                        <strong>{type.label}</strong> is on {records(uses as number)}. Choose the type they become, then it's deleted. To keep them as they are, hide it instead.
+                    </p>
+                    {others.length === 0 ? (
+                        <p className="tl-confirm">There is no other shown {copy.noun} to move them to.</p>
+                    ) : (
+                        <FormField name="replaceWith" id="tl-replace" label="Move them to" required error={tried && !replaceWith ? `Choose a ${copy.noun}` : ''}>
+                            <FormPicker
+                                id="tl-replace"
+                                value={replaceWith || null}
+                                onChange={(v) => setReplaceWith(v)}
+                                options={others.map((t) => ({ value: t._id, label: t.label }))}
+                                error={tried && !replaceWith}
+                                sheetTitle="Move them to"
+                            />
+                        </FormField>
+                    )}
+                </>
+            )}
             {error && <div className="tl-error" role="alert"><AlertCircle size={14} aria-hidden="true" />{error}</div>}
         </FormModal>
     );

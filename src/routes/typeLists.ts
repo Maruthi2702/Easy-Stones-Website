@@ -1,9 +1,10 @@
 import express from 'express';
 import type { Request, RequestHandler, Response } from 'express';
 import mongoose from 'mongoose';
-import type { Model } from 'mongoose';
+import type { ClientSession, Model } from 'mongoose';
 import { validateTypeBody, reorderedIds } from '../utils/typeLists.ts';
 import type { TypeKind, TypeLike } from '../utils/typeLists.ts';
+import { PlacementConflict } from '../services/resourcePlacement.ts';
 import type { Loose } from '../types/records.ts';
 
 /**
@@ -16,8 +17,11 @@ import type { Loose } from '../types/records.ts';
  *   POST   /            add (needs the list's Add action)
  *   PUT    /:id         rename, family / fields, hide or show (Edit)
  *   PATCH  /reorder     { ids } the whole list in its new order (Reorder)
- *   DELETE /:id         only a type no record uses and that isn't a starting
- *                       one (Delete); otherwise hide it
+ *   GET    /:id/uses    { uses } how many records carry it (Delete), so the
+ *                       delete check can ask where they go before it's pressed
+ *   DELETE /:id         never a starting one (Delete). A type records use needs
+ *                       { replaceWith: <id of a shown type> }: they move to it
+ *                       and the type goes, in one transaction; without it, 409
  *
  *   app.use('/api/visit-types', createTypeListRouter({ kind: 'visit', Model: VisitType, … }));
  */
@@ -38,6 +42,8 @@ type Options = {
   Model: Model<Loose>;
   /** How many records carry this stored name. */
   countUses: (name: string) => Promise<number>;
+  /** Moves every record from one stored name to another; returns how many moved. */
+  replaceUses: (from: string, to: string, session: ClientSession) => Promise<number>;
   /** The list's Users & Roles keys. */
   actions: { add: string; edit: string; reorder: string; delete: string };
   /** Staff who can open a Sales page. */
@@ -45,9 +51,10 @@ type Options = {
   requireAction: (key: string) => RequestHandler;
 };
 
-export default function createTypeListRouter({ kind, Model, countUses, actions, authenticate, requireAction }: Options) {
+export default function createTypeListRouter({ kind, Model, countUses, replaceUses, actions, authenticate, requireAction }: Options) {
   const router = express.Router();
   const noun = kind === 'visit' ? 'visit type' : 'resource type';
+  const records = (n: number) => `${n} ${kind === 'visit' ? (n === 1 ? 'visit' : 'visits') : (n === 1 ? 'resource' : 'resources')}`;
   const who = (req: StaffRequest) => String(req.user?.username || req.userId || '');
 
   router.get('/', authenticate, async (_req: Request, res: Response) => {
@@ -112,19 +119,46 @@ export default function createTypeListRouter({ kind, Model, countUses, actions, 
     }
   });
 
+  router.get('/:id/uses', authenticate, requireAction(actions.delete), async (req: StaffRequest, res: Response) => {
+    try {
+      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Type not found' });
+      const doc = await Model.findById(req.params.id).select('name').lean();
+      if (!doc) return res.status(404).json({ message: 'Type not found' });
+      res.json({ uses: await countUses(doc.name) });
+    } catch (error) {
+      console.error(`Count ${noun} uses error:`, error);
+      res.status(500).json({ message: `Failed to check where the ${noun} is used` });
+    }
+  });
+
   router.delete('/:id', authenticate, requireAction(actions.delete), async (req: StaffRequest, res: Response) => {
     try {
       if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: 'Type not found' });
       const doc = await Model.findById(req.params.id).lean();
       if (!doc) return res.status(404).json({ message: 'Type not found' });
       if (doc.system) return res.status(409).json({ message: `This ${noun} is built in. Hide it instead.` });
-      const uses = await countUses(doc.name);
-      if (uses > 0) {
-        return res.status(409).json({ message: `${uses} ${uses === 1 ? 'record uses' : 'records use'} this ${noun}. Hide it instead.` });
+      const replaceWith = req.body?.replaceWith;
+      let target: Loose | null = null;
+      if (replaceWith !== undefined && replaceWith !== null && replaceWith !== '') {
+        target = mongoose.isValidObjectId(replaceWith) ? await Model.findById(replaceWith).lean() : null;
+        if (!target || String(target._id) === String(doc._id) || target.active === false) {
+          return res.status(400).json({ message: `Choose a shown ${noun} to move them to.` });
+        }
       }
-      await Model.deleteOne({ _id: doc._id });
-      res.json({ ok: true });
+      const result = await mongoose.connection.transaction(async (session) => {
+        // Counted inside so a record saved since the check is moved too, or stops the delete.
+        const uses = await countUses(doc.name);
+        if (uses > 0 && !target) return { uses, moved: 0, deleted: false };
+        const moved = uses > 0 && target ? await replaceUses(doc.name, target.name, session) : 0;
+        await Model.deleteOne({ _id: doc._id }, { session });
+        return { uses, moved, deleted: true };
+      });
+      if (!result.deleted) {
+        return res.status(409).json({ message: `${records(result.uses)} use this ${noun}. Choose a type to move them to, or hide it instead.`, uses: result.uses });
+      }
+      res.json({ ok: true, moved: result.moved, ...(target ? { movedTo: target.label } : {}) });
     } catch (error) {
+      if (error instanceof PlacementConflict) return res.status(409).json({ message: error.message });
       console.error(`Delete ${noun} error:`, error);
       res.status(500).json({ message: `Failed to delete the ${noun}` });
     }

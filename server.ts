@@ -126,6 +126,7 @@ import createTypeListRouter from './src/routes/typeLists.ts';
 import VisitType from './src/models/VisitType.ts';
 import ResourceType from './src/models/ResourceType.ts';
 import { seedTypeLists } from './src/services/seedTypeLists.ts';
+import { countVisitTypeUses, countResourceTypeUses, replaceVisitType, replaceResourceType } from './src/services/typeReplacement.ts';
 import { VISIT_TYPES as VISIT_TYPE_ACTIONS, RESOURCE_TYPES as RESOURCE_TYPE_ACTIONS } from './src/utils/usersAccess.ts';
 import { checkSheet, spsCoverage } from './src/utils/spsSheet.ts';
 import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.ts';
@@ -2316,7 +2317,8 @@ app.use('/api/user/me/pinned-tabs', createPinnedTabsRouter({ authenticate }));
 app.use('/api/visit-types', createTypeListRouter({
   kind: 'visit',
   Model: VisitType,
-  countUses: (name) => Customer.countDocuments({ 'visits.purpose': name }),
+  countUses: countVisitTypeUses,
+  replaceUses: replaceVisitType,
   actions: { add: VISIT_TYPE_ACTIONS.ADD, edit: VISIT_TYPE_ACTIONS.EDIT, reorder: VISIT_TYPE_ACTIONS.REORDER, delete: VISIT_TYPE_ACTIONS.DELETE },
   authenticate: [authenticate, requireSalesPage],
   requireAction
@@ -2324,7 +2326,8 @@ app.use('/api/visit-types', createTypeListRouter({
 app.use('/api/resource-types', createTypeListRouter({
   kind: 'resource',
   Model: ResourceType,
-  countUses: (name) => Customer.countDocuments({ 'resources.resourceType': name }),
+  countUses: countResourceTypeUses,
+  replaceUses: replaceResourceType,
   actions: { add: RESOURCE_TYPE_ACTIONS.ADD, edit: RESOURCE_TYPE_ACTIONS.EDIT, reorder: RESOURCE_TYPE_ACTIONS.REORDER, delete: RESOURCE_TYPE_ACTIONS.DELETE },
   authenticate: [authenticate, requireSalesPage],
   requireAction

@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import mongoose from 'mongoose';
-import { MongoMemoryServer } from 'mongodb-memory-server';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import type { NextFunction, Request, Response } from 'express';
 import type { Loose } from '../types/records.ts';
 
@@ -12,9 +12,11 @@ const { default: createTypeListRouter } = await import('./typeLists.ts');
 const { default: VisitType } = await import('../models/VisitType.ts');
 const { default: ResourceType } = await import('../models/ResourceType.ts');
 const { default: Customer } = await import('../models/Customer.ts');
+const { default: Schedule } = await import('../models/Schedule.ts');
 const { seedTypeLists } = await import('../services/seedTypeLists.ts');
+const { countVisitTypeUses, countResourceTypeUses, replaceVisitType, replaceResourceType } = await import('../services/typeReplacement.ts');
 
-let mongo: MongoMemoryServer;
+let mongo: MongoMemoryReplSet;
 let app: express.Express;
 const ACTIONS = (p: string) => ({ add: `add_${p}`, edit: `edit_${p}`, reorder: `reorder_${p}`, delete: `delete_${p}` });
 const ALL = ['add', 'edit', 'reorder', 'delete'].flatMap((a) => [`${a}_visit_types`, `${a}_resource_types`]);
@@ -22,8 +24,10 @@ const send = (method: 'get' | 'post' | 'put' | 'patch' | 'delete', url: string, 
   request(app)[method](url).set('x-test-user', JSON.stringify({ _id: 'u1', username: 'amy', permissions })).send(body);
 
 beforeAll(async () => {
-  mongo = await MongoMemoryServer.create();
+  // A replica set: a delete that moves records runs in a transaction.
+  mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   await mongoose.connect(mongo.getUri());
+  await Promise.all([Customer.createCollection(), Schedule.createCollection(), VisitType.createCollection(), ResourceType.createCollection()]);
   app = express();
   app.use(express.json());
   type TestRequest = Request & { user?: Loose; userId?: string };
@@ -31,11 +35,11 @@ beforeAll(async () => {
   const requireAction = (key: string) => (req: TestRequest, res: Response, next: NextFunction) => ((req.user?.permissions || []).includes(key) ? next() : void res.status(403).json({}));
   app.use('/api/visit-types', createTypeListRouter({
     kind: 'visit', Model: VisitType, actions: ACTIONS('visit_types'), authenticate, requireAction,
-    countUses: (name: string) => Customer.countDocuments({ 'visits.purpose': name })
+    countUses: countVisitTypeUses, replaceUses: replaceVisitType
   }));
   app.use('/api/resource-types', createTypeListRouter({
     kind: 'resource', Model: ResourceType, actions: ACTIONS('resource_types'), authenticate, requireAction,
-    countUses: (name: string) => Customer.countDocuments({ 'resources.resourceType': name })
+    countUses: countResourceTypeUses, replaceUses: replaceResourceType
   }));
 }, 180000);
 
@@ -46,6 +50,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await Customer.deleteMany({});
+  await Schedule.deleteMany({});
   await VisitType.deleteMany({});
   await ResourceType.deleteMany({});
   await seedTypeLists();
@@ -156,12 +161,118 @@ describe('delete', () => {
     expect((await list('/api/resource-types')).some((t: Loose) => t.name === 'Temp rack')).toBe(false);
   });
 
-  it('keeps a type a resource uses — hide it instead', async () => {
+  it('keeps a type a resource uses unless a type to move them to is chosen', async () => {
     const { body } = await send('post', '/api/resource-types', { label: 'Used rack' });
-    await Customer.create({ contactName: 'Sam', company: 'Sam Homes', email: 'sam@x.com', resources: [{ title: 'Used rack', resourceType: 'Used rack' }] });
+    await Customer.create({ contactName: 'Sam', company: 'Sam Homes', email: 'sam@x.com', resources: [{ title: 'Used rack', resourceType: 'Used rack' }, { title: 'Used rack', resourceType: 'Used rack' }] });
+    expect((await send('get', `/api/resource-types/${body.type._id}/uses`)).body).toEqual({ uses: 2 });
     const res = await send('delete', `/api/resource-types/${body.type._id}`);
     expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/Hide it/);
+    expect(res.body).toMatchObject({ uses: 2 });
+    expect(res.body.message).toMatch(/2 resources use/);
+    expect((await list('/api/resource-types')).some((t: Loose) => t.name === 'Used rack')).toBe(true);
+  });
+
+  it('the count needs the Delete action', async () => {
+    const { body } = await send('post', '/api/resource-types', { label: 'Counted rack' });
+    expect((await send('get', `/api/resource-types/${body.type._id}/uses`, undefined, ['add_resource_types'])).status).toBe(403);
+  });
+
+  it('moves every resource to the chosen type, with its title, placement visit and calendar entry, then deletes', async () => {
+    const old = (await send('post', '/api/resource-types', { label: 'Tower v2' })).body.type;
+    const keep = (await send('post', '/api/resource-types', { label: 'Tower v3' })).body.type;
+    const [linkedVisit, legacyVisit, otherVisit] = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
+    const [linked, legacy, renamed, other] = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
+    const author = new mongoose.Types.ObjectId();
+    const customer = await Customer.create({
+      contactName: 'Sam', company: 'Sam Homes', email: 'sam@x.com',
+      resources: [
+        { _id: linked, title: 'Tower v2', resourceType: 'Tower v2', date: '2026-01-14', visitId: linkedVisit, uploadedBy: author },
+        // Older: no links, matched to its visit by title, day and author.
+        { _id: legacy, title: 'Tower v2', resourceType: 'Tower v2', date: '2026-02-01', uploadedBy: author },
+        { _id: renamed, title: 'Front window tower', resourceType: 'Tower v2', date: '2026-03-01' },
+        { _id: other, title: 'Binder', resourceType: 'Binder', date: '2026-01-14', visitId: otherVisit }
+      ],
+      visits: [
+        { _id: linkedVisit, resourceId: linked, date: '2026-01-14', purpose: 'Resource Placement: Tower v2', notes: 'Added resource: Tower v2', createdBy: author },
+        { _id: legacyVisit, date: '2026-02-01', purpose: 'Resource Placement: Tower v2', notes: 'Dropped it at the front', createdBy: author },
+        { _id: otherVisit, resourceId: other, date: '2026-01-14', purpose: 'Resource Placement: Binder' }
+      ]
+    });
+    await Schedule.create([
+      { userId: author, customerId: customer._id, startTime: '2026-01-14T12:00:00.000', linkedVisitId: linkedVisit, notes: 'Resource Placement: Tower v2' },
+      { userId: author, customerId: customer._id, startTime: '2026-02-01T12:00:00.000', linkedVisitId: legacyVisit, notes: 'Bring the brochure' }
+    ]);
+
+    const res = await send('delete', `/api/resource-types/${old._id}`, { replaceWith: keep._id });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, moved: 3, movedTo: 'Tower v3' });
+    expect((await list('/api/resource-types')).some((t: Loose) => t.name === 'Tower v2')).toBe(false);
+
+    const after = (await Customer.findById(customer._id).lean()) as Loose;
+    const resource = (id: unknown) => after.resources.find((r: Loose) => String(r._id) === String(id));
+    const visit = (id: unknown) => after.visits.find((v: Loose) => String(v._id) === String(id));
+    expect(resource(linked)).toMatchObject({ resourceType: 'Tower v3', title: 'Tower v3' });
+    expect(resource(legacy)).toMatchObject({ resourceType: 'Tower v3', title: 'Tower v3' });
+    // A title someone typed stays.
+    expect(resource(renamed)).toMatchObject({ resourceType: 'Tower v3', title: 'Front window tower' });
+    expect(resource(other)).toMatchObject({ resourceType: 'Binder', title: 'Binder' });
+    expect(visit(linkedVisit)).toMatchObject({ purpose: 'Resource Placement: Tower v3', notes: 'Added resource: Tower v3' });
+    expect(visit(legacyVisit)).toMatchObject({ purpose: 'Resource Placement: Tower v3', notes: 'Dropped it at the front' });
+    // The older pair is linked now, so the next change finds it by id.
+    expect(String(resource(legacy).visitId)).toBe(String(legacyVisit));
+    expect(String(visit(legacyVisit).resourceId)).toBe(String(legacy));
+    expect(visit(otherVisit).purpose).toBe('Resource Placement: Binder');
+    expect((await Schedule.findOne({ linkedVisitId: linkedVisit }).lean())!.notes).toBe('Resource Placement: Tower v3');
+    expect((await Schedule.findOne({ linkedVisitId: legacyVisit }).lean())!.notes).toBe('Bring the brochure');
+  });
+
+  it('changes nothing when an older resource matches two placement visits', async () => {
+    const old = (await send('post', '/api/resource-types', { label: 'Twin rack' })).body.type;
+    const keep = (await send('post', '/api/resource-types', { label: 'Single rack' })).body.type;
+    await Customer.create({
+      contactName: 'Sam', company: 'Sam Homes', email: 'sam@x.com',
+      resources: [{ title: 'Twin rack', resourceType: 'Twin rack', date: '2026-02-01' }],
+      visits: [
+        { date: '2026-02-01', purpose: 'Resource Placement: Twin rack', notes: 'one' },
+        { date: '2026-02-01', purpose: 'Resource Placement: Twin rack', notes: 'two' }
+      ]
+    });
+    const res = await send('delete', `/api/resource-types/${old._id}`, { replaceWith: keep._id });
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/nothing was saved/);
+    expect((await list('/api/resource-types')).some((t: Loose) => t.name === 'Twin rack')).toBe(true);
+    const after = (await Customer.findOne({ company: 'Sam Homes' }).lean()) as Loose;
+    expect(after.resources[0].resourceType).toBe('Twin rack');
+    expect(after.visits.map((v: Loose) => v.purpose)).toEqual(['Resource Placement: Twin rack', 'Resource Placement: Twin rack']);
+  });
+
+  it('refuses to move them to itself, a hidden type or one that isn’t there', async () => {
+    const old = (await send('post', '/api/resource-types', { label: 'Moving rack' })).body.type;
+    const hidden = (await send('post', '/api/resource-types', { label: 'Hidden rack' })).body.type;
+    await send('put', `/api/resource-types/${hidden._id}`, { active: false });
+    await Customer.create({ contactName: 'Sam', company: 'Sam Homes', email: 'sam@x.com', resources: [{ title: 'Moving rack', resourceType: 'Moving rack' }] });
+    for (const replaceWith of [old._id, hidden._id, String(new mongoose.Types.ObjectId()), 'nope']) {
+      const res = await send('delete', `/api/resource-types/${old._id}`, { replaceWith });
+      expect(res.status).toBe(400);
+    }
+    expect((await Customer.findOne({ company: 'Sam Homes' }).lean() as Loose).resources[0].resourceType).toBe('Moving rack');
+  });
+
+  it('moves visits to the chosen visit type, with their calendar entries, then deletes', async () => {
+    const old = (await send('post', '/api/visit-types', { label: 'Lunch and learn' })).body.type;
+    const [keep] = await list('/api/visit-types');
+    const visitId = new mongoose.Types.ObjectId();
+    const customer = await Customer.create({
+      contactName: 'Sam', company: 'Sam Homes', email: 'sam@x.com',
+      visits: [{ _id: visitId, date: '2026-02-01', purpose: 'Lunch and learn' }, { date: '2026-02-02', purpose: keep.name }]
+    });
+    await Schedule.create({ userId: new mongoose.Types.ObjectId(), customerId: customer._id, startTime: '2026-02-01T12:00:00.000', linkedVisitId: visitId, notes: 'Lunch and learn' });
+    expect((await send('get', `/api/visit-types/${old._id}/uses`)).body).toEqual({ uses: 1 });
+    const res = await send('delete', `/api/visit-types/${old._id}`, { replaceWith: keep._id });
+    expect(res.body).toMatchObject({ ok: true, moved: 1 });
+    const after = (await Customer.findById(customer._id).lean()) as Loose;
+    expect(after.visits.map((v: Loose) => v.purpose)).toEqual([keep.name, keep.name]);
+    expect((await Schedule.findOne({ linkedVisitId: visitId }).lean())!.notes).toBe(keep.name);
   });
 
   it('never deletes a built-in visit type', async () => {
