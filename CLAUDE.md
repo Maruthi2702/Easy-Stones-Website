@@ -170,7 +170,7 @@ DatePicker) drives every tab and tile — `RANGES`, `rangeQuery` in
 anything still overdue is always listed** (owner's pick), so Today = overdue +
 due today and upcoming ones show with All or a Custom range ahead; a done one
 is also listed when it was ticked in the range (Today + Done = what got done
-today, and the header's "N done" link opens exactly those); a range
+today; Filters → Status: Done opens exactly those); a range
 looking back (7 / 30 / 90 days, YTD, Custom) brings up the totals tiles, which
 count only those due in the range. The Follow-up tile and By rep count the
 same pending list.
@@ -185,6 +185,36 @@ Today / Next 7 days / Later; Snooze moves the due day; the Filters panel holds
 People, **Status** (Pending / Done / All) and **Due**. Done ones are off the
 Follow-up tile, the Visits tab's panel (`followUpPanel.ts`) and By rep.
 Calendar stops are no longer listed here (the Calendar tab shows them).
+
+## Dashboard: one header, one +, one search box (2026-11-01, on `feat/dashboard-one-header`)
+
+Design: claude.ai artifact **Dashboard tabs — Visits, Resources, Follow-ups,
+Calendar** (https://claude.ai/artifact/YVvwQh1LL7HC3rPnM2AW1X, section "One
+header"; the owner's comments on it set every rule here). Every dashboard tab,
+every size:
+- **One header** (`DashboardHeader.tsx`): title and date, the time range, then
+  **Filters** (round funnel icon) and **⋯** — always there; only what they hold
+  changes with the tab. Visits and Calendar render theirs in the header;
+  Resources and Follow-ups keep their filters' state and portal their Filters
+  and ⋯ into the header's slot (`toolSlot`, `TABS_WITH_OWN_TOOLS`). What's
+  filtered shows **only inside Filters** — no chip row on the page; the gold dot
+  says one is on. Under 1024px the range is its own row under title / Filters /
+  ⋯; on a phone the Calendar tab has no range (it has Day / Week / Month).
+  Calendar's ⋯ holds Sync calendar.
+- **One +** (`components/DashboardAddButton.tsx`): round gold, bottom right,
+  menu Add visit / Add resource / Schedule activity on every tab (Schedule
+  activity opens the Calendar and its form: `scheduleRequest` → the planner's
+  `openAdd`). No Add buttons in the header or the planner's toolbar.
+- **One search box** (`components/DashboardSearch.tsx`): "Search customer,
+  contact, note", 300px (full row on a phone), "/" jumps into it, "2 of 17" and
+  ✕ when typed. Each tab's title bar is just its title and this box (no count
+  under the title). The Calendar's filters its stops (`search` prop).
+- **Follow-up rows** (`followUps/FollowUpRows.tsx`): tick · date block coloured
+  by how due · customer + 📍 location · note · rep chip with initials + logged
+  day · due pill · ⋯ (Call, Snooze, the visit, the customer). On a phone, cards:
+  customer + due pill / location + due day / note / rep, day and ⋯ (Done is in ⋯).
+- Tiles are 4 across on a tablet; Visits' Today / Follow-ups go under the list
+  below 1024px. Layout CSS is the end of `DashboardFocus.css`.
 
 ## Locations: one dropdown, one order (2026-10-17)
 
@@ -262,9 +292,9 @@ Planner mobile redesign** (https://claude.ai/artifact/GumfdseBzFVABVrq5jAwMn).
 One header row ‹ date ›, the Day / Week / Month switch under it, a "Today"
 button only when the period on screen doesn't hold today
 (`isCurrentPeriod`), the Day view's subtitle ("Today · 9 stops",
-`relativeDayLabel`), no column header in the Day view, and **Schedule
-Activity is the round + at the bottom right** (`.pl-new`, fixed above
-`--app-bottom-h`). A stop shows its time in its own column and its length when
+`relativeDayLabel`), no column header in the Day view, and **adding is the
+dashboard's round +** (`DashboardAddButton`, fixed above `--app-bottom-h`; the
+toolbar's Schedule Activity button and `.pl-new` are gone since 2026-11-01). A stop shows its time in its own column and its length when
 it saved an end; the pencil and bin become one "⋯" (`.pl-kebab`) that opens
 Edit / Delete under the card. The extra parts (`.pl-time`, `.pl-kebab`,
 `.pl-drawer`, `.pl-sub`) are in the markup on every screen and hidden above

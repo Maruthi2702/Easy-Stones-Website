@@ -111,6 +111,11 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
         return sortFollowUps(searchFollowUps(withDue(shown, filters.status === 'pending' ? filters.due : 'all', today), search), filters.status);
     }, [rows, filters.status, filters.due, search, today]);
     const groups = useMemo(() => groupFollowUps(visible, filters.status, today), [visible, filters.status, today]);
+    // How many the filters leave before the search: the search box's "2 of 17".
+    const unsearchedCount = useMemo(
+        () => withDue(withStatus(rows, filters.status), filters.status === 'pending' ? filters.due : 'all', today).length,
+        [rows, filters.status, filters.due, today]
+    );
 
     const patchRow = (id: unknown, fields: Partial<FollowUpRow>) =>
         setRows((prev) => prev.map((r) => (r._id === id ? { ...r, ...fields } : r)));
@@ -156,7 +161,7 @@ export function useFollowUps({ scope, range: rangeQ, refreshKey, onPageChange, o
 
     return {
         today, filters, setFilters, search, setSearch,
-        rows, visible, groups, counts, summary, loading, loadError, reload: load,
+        rows, visible, unsearchedCount, groups, counts, summary, loading, loadError, reload: load,
         notice, dismissNotice: () => setNotice(null), undo, dismissUndo: () => setUndo(null),
         tick, reopen, undoTick, snooze, saveOutcome
     };

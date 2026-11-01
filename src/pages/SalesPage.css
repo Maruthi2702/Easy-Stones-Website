@@ -7070,3 +7070,33 @@ body.light-theme-active .partner-action-btn.view-btn:hover,
     color: var(--text-primary, #0f172a) !important;
   }
 }
+
+/* ── Sales Planner inside the dashboard: the search box and the tablet toolbar ──
+   (owner, 2026-10-31; claude.ai artifact "Dashboard tabs — Visits, Resources,
+   Follow-ups, Calendar", Calendar row). Adding is the dashboard's round +, so the
+   toolbar has no Schedule Activity button; the dashboard's search box sits at its
+   end. Tablet is two fixed rows: the period and moving through it, then the view
+   switch and the search. A phone puts the search under Day / Week / Month. */
+.pl-search { display: flex; margin-left: auto; }
+@media (min-width: 640px) and (max-width: 1024px) {
+  .pl-toolbar {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "title chip . prev today next"
+      "views views views search search search";
+    align-items: center;
+    gap: 12px 6px;
+  }
+  .pl-toolbar-left, .pl-nav { display: contents; }
+  .pl-nav > .pl-navbtn:first-child { grid-area: prev; }
+  .pl-nav > .pl-navbtn:last-child { grid-area: next; }
+  .pl-views { grid-area: views; justify-self: start; display: flex; padding: 3px; border-radius: 10px; background: var(--pl-fill); border: 1px solid var(--pl-line); }
+  .pl-today { grid-area: today; }
+  .pl-title-wrap { grid-area: title; }
+  .pl-chip { grid-area: chip; justify-self: start; white-space: nowrap; }
+  .pl-search { grid-area: search; justify-self: end; margin-left: 0; }
+}
+@media (max-width: 639px) {
+  .pl-search { margin: 10px 0 0; }
+}

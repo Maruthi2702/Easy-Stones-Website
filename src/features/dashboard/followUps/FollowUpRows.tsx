@@ -1,16 +1,15 @@
-import { AlarmClock, Check, Eye, MessageSquareText, Pencil, Phone, RotateCcw, User } from 'lucide-react';
+import { AlarmClock, Check, CircleCheck, Eye, MapPin, MessageSquareText, Pencil, Phone, RotateCcw, User } from 'lucide-react';
 import RowMenu from '../../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../../components/shared/RowMenu';
-import { visitTypeLabel } from '../../../utils/visitForm';
 import {
-    doneDayOf, dueDayOf, followUpNote, followUpState, isFollowUpDone, shortDay, snoozeText, whenText
+    doneDayOf, dueBucketOf, dueDayOf, followUpNote, isFollowUpDone, shortDay, snoozeText, whenText
 } from '../../../utils/followUpList';
 import type { FollowUpGroup, FollowUpRow, FollowUpStatus } from '../../../utils/followUpList';
 
 export type FollowUpRowActions = {
     today: string;
     status: FollowUpStatus;
-    /** A Rep column / line once more than the viewer is in view. */
+    /** Kept for the panel's API; who logged it now shows on every row (owner, 2026-10-31). */
     showWhoLogged: boolean;
     /** Whoever may edit the visit may tick, reopen or snooze its follow-up. */
     canModify: (row: FollowUpRow) => boolean;
@@ -27,17 +26,38 @@ type Props = FollowUpRowActions & { groups: (FollowUpGroup & { total: number })[
 
 const companyOf = (r: FollowUpRow) => r.company || r.customerName || 'Unknown customer';
 const telOf = (phone: unknown) => (typeof phone === 'string' ? phone.replace(/[^\d+]/g, '') : '');
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') || '?';
 
-const menuItems = (a: FollowUpRowActions, r: FollowUpRow, { withSnooze = false } = {}): RowMenuItem[] => {
+/** How due a row is, for its colour: late (red), today (amber), soon (plain), done (green). */
+const toneOf = (r: FollowUpRow, today: string) => {
+    if (isFollowUpDone(r)) return 'done';
+    const bucket = dueBucketOf(r, today);
+    return bucket === 'overdue' ? 'late' : bucket === 'today' ? 'today' : 'soon';
+};
+
+/**
+ * Everything a follow-up row can do lives in its ⋯ (owner, 2026-10-31): Call, Snooze,
+ * what happened, Reopen, the visit and the customer. On a phone Done is in it too
+ * (desktop and tablet keep the tick at the row's start).
+ */
+const menuItems = (a: FollowUpRowActions, r: FollowUpRow, { withDone = false } = {}): RowMenuItem[] => {
     const may = a.canModify(r);
     const done = isFollowUpDone(r);
+    const tel = telOf(r.phone);
     const items: RowMenuItem[] = [];
-    if (withSnooze && may && !done) items.push({ key: 'snooze', label: 'Snooze…', icon: AlarmClock, onClick: () => a.onSnooze(r) });
+    if (withDone && may) {
+        items.push(done
+            ? { key: 'reopen', label: 'Reopen', icon: RotateCcw, onClick: () => a.onReopen(r) }
+            : { key: 'done', label: 'Mark done', icon: CircleCheck, onClick: () => a.onTick(r) });
+    }
+    if (tel) items.push({ key: 'call', label: `Call ${r.phone}`, icon: Phone, onClick: () => { window.location.href = `tel:${tel}`; } });
+    if (may && !done) items.push({ key: 'snooze', label: 'Snooze…', icon: AlarmClock, onClick: () => a.onSnooze(r) });
     if (may && done) {
         items.push({ key: 'outcome', label: r.followUpOutcome ? 'Edit what happened' : 'Add what happened', icon: MessageSquareText, onClick: () => a.onOutcome(r) });
-        items.push({ key: 'reopen', label: 'Reopen', icon: RotateCcw, onClick: () => a.onReopen(r) });
+        if (!withDone) items.push({ key: 'reopen', label: 'Reopen', icon: RotateCcw, onClick: () => a.onReopen(r) });
     }
-    items.push({ key: 'view', label: 'View visit', icon: Eye, onClick: () => a.onViewVisit(r), divider: items.length > 0 });
+    items.push({ key: 'view', label: 'Open visit', icon: Eye, onClick: () => a.onViewVisit(r), divider: items.length > 0 });
     if (may) items.push({ key: 'edit', label: 'Edit visit', icon: Pencil, onClick: () => a.onEditVisit(r) });
     if (r.customerId) items.push({ key: 'customer', label: 'Open customer', icon: User, onClick: () => a.onOpenCustomer(String(r.customerId)) });
     return items;
@@ -45,7 +65,7 @@ const menuItems = (a: FollowUpRowActions, r: FollowUpRow, { withSnooze = false }
 
 function TickButton({ a, r }: { a: FollowUpRowActions; r: FollowUpRow }) {
     const done = isFollowUpDone(r);
-    if (!a.canModify(r)) return done ? <span className="fu-tick is-done is-static" aria-label="Done"><Check size={13} strokeWidth={3} /></span> : null;
+    if (!a.canModify(r)) return done ? <span className="fu-tick is-done is-static" aria-label="Done"><Check size={13} strokeWidth={3} /></span> : <span className="fu-tick-gap" />;
     return done ? (
         <button type="button" className="fu-tick-btn" aria-label={`Reopen the follow-up for ${companyOf(r)}`} title="Done — click to reopen" onClick={() => a.onReopen(r)}>
             <span className="fu-tick is-done"><Check size={13} strokeWidth={3} /></span>
@@ -57,141 +77,139 @@ function TickButton({ a, r }: { a: FollowUpRowActions; r: FollowUpRow }) {
     );
 }
 
-function When({ r, today }: { r: FollowUpRow; today: string }) {
-    const state = followUpState(r, today);
-    const when = whenText(r, today);
-    const lateDone = state === 'done' && when !== 'On time';
+/** The due day as a date block, coloured by how due it is (like a Visits row's date block). */
+function DateBlock({ r, tone }: { r: FollowUpRow; tone: string }) {
+    const day = dueDayOf(r);
+    return (
+        <span className={`fu-dateblock is-${tone}`} aria-hidden="true">
+            <span>{day ? MONTHS[Number(day.slice(5, 7)) - 1] : ''}</span>
+            <strong>{day ? Number(day.slice(8, 10)) : '—'}</strong>
+        </span>
+    );
+}
+
+/** "7 days late" / "Today" / "Tue" — or Done and when, for a done one. */
+function DuePill({ r, today, tone }: { r: FollowUpRow; today: string; tone: string }) {
+    if (tone === 'done') {
+        return <span className="fu-duepill is-done"><Check size={11} strokeWidth={3} aria-hidden="true" />Done {shortDay(doneDayOf(r), today)}</span>;
+    }
+    return <span className={`fu-duepill is-${tone}`}>{whenText(r, today) || shortDay(dueDayOf(r), today)}</span>;
+}
+
+/** The customer's location, the same pill a Visits row shows. */
+function LocationPill({ r }: { r: FollowUpRow }) {
+    if (!r.location) return null;
+    return <span className="fu-locpill"><MapPin size={12} aria-hidden="true" />{r.location}</span>;
+}
+
+/** Who logged it and the day: the rep as a chip with initials (owner: a manager reads this first). */
+function Logged({ r, today }: { r: FollowUpRow; today: string }) {
+    const name = String(r.createdByName || '').trim();
+    const day = String(r.date || '').slice(0, 10);
+    return (
+        <span className="fu-logged">
+            {name && <span className="fu-repchip"><span className="fu-repchip-av" aria-hidden="true">{initialsOf(name)}</span>{name}</span>}
+            {day && <span className="fu-logged-day">{shortDay(day, today)}</span>}
+        </span>
+    );
+}
+
+function Note({ r, today }: { r: FollowUpRow; today: string }) {
     const snoozed = snoozeText(r, today);
     return (
         <>
-            <span className="fu-day">{shortDay(dueDayOf(r), today)}</span>
-            {when && <span className={`fu-when${state === 'overdue' || lateDone ? ' is-late' : ''}${state === 'done' && !lateDone ? ' is-ok' : ''}`}>{when}</span>}
+            <span className="fu-r-note">{followUpNote(r) || '—'}</span>
+            {r.followUpOutcome && <span className="fu-outcome"><strong>What happened:</strong> {r.followUpOutcome}</span>}
             {snoozed && <span className="fu-snoozed">{snoozed}</span>}
         </>
     );
 }
 
-function StatusPill({ r, today }: { r: FollowUpRow; today: string }) {
-    const state = followUpState(r, today);
-    if (state === 'done') {
-        return (
-            <>
-                <span className="fu-pill is-done"><Check size={11} strokeWidth={3} aria-hidden="true" />Done</span>
-                <span className="fu-sub">{shortDay(doneDayOf(r), today)}{r.followUpDoneByName ? ` · ${r.followUpDoneByName}` : ''}</span>
-            </>
-        );
-    }
-    return <span className={`fu-pill${state === 'overdue' ? ' is-late' : ''}`}>{state === 'overdue' ? 'Overdue' : 'Pending'}</span>;
+function CustomerName({ a, r, className }: { a: FollowUpRowActions; r: FollowUpRow; className: string }) {
+    return r.customerId
+        ? <button type="button" className={`fu-link ${className}`} onClick={() => a.onOpenCustomer(String(r.customerId))}>{companyOf(r)}</button>
+        : <strong className={className}>{companyOf(r)}</strong>;
 }
 
-/** Desktop and tablet: a table with a heading row per group. */
-export function FollowUpTable({ groups, ...a }: Props) {
-    const showStatus = a.status !== 'pending';
-    const cols = 6 + (showStatus ? 1 : 0) + (a.showWhoLogged ? 1 : 0);
+function GroupHead({ g, status }: { g: FollowUpGroup & { total: number }; status: FollowUpStatus }) {
     return (
-        <div className="dashboard-table-wrapper">
-            <table className="dashboard-table fu-table">
-                <thead>
-                    <tr>
-                        <th className="fu-col-tick"><span className="fu-sr">Done</span></th>
-                        {showStatus && <th>Status</th>}
-                        <th>Due</th>
-                        <th>Customer</th>
-                        <th>Follow-up</th>
-                        <th className="fu-col-from">From</th>
-                        {a.showWhoLogged && <th className="fu-col-rep">Rep</th>}
-                        <th className="fu-col-actions"><span className="fu-sr">Actions</span></th>
-                    </tr>
-                </thead>
-                {groups.map((g) => (
-                    <tbody key={g.key}>
-                        <tr className="fu-group">
-                            <th colSpan={cols} scope="colgroup">
-                                <span className={g.late ? 'is-late' : undefined}>{g.label}</span>
-                                <span className="fu-group-count">
-                                    {a.status === 'all' ? `${g.total} · ${g.done} done · ${g.pending} pending` : g.total}
-                                </span>
-                            </th>
-                        </tr>
+        <h3 className={`fu-sec-head${g.late ? ' is-late' : ''}`}>
+            <span className={`fu-sec-dot is-${g.late ? 'late' : g.key === 'today' ? 'today' : 'soon'}`} aria-hidden="true" />
+            {g.label}
+            <span className="fu-sec-count">{status === 'all' ? `${g.total} · ${g.done} done · ${g.pending} pending` : g.total}</span>
+        </h3>
+    );
+}
+
+/**
+ * Desktop and tablet: one row per follow-up, shaped like a Visits row (claude.ai
+ * artifact "Dashboard tabs — Visits, Resources, Follow-ups, Calendar", Follow-ups ·
+ * desktop — one header): tick, the due day's date block, the customer with its
+ * location, the note, who logged it and when, the due pill, and ⋯ for the rest.
+ */
+export function FollowUpTable({ groups, ...a }: Props) {
+    return (
+        <div className="fu-list">
+            {groups.map((g) => (
+                <section key={g.key} className="fu-sec" aria-label={g.label}>
+                    <GroupHead g={g} status={a.status} />
+                    <ul className="fu-rows">
                         {g.rows.map((r) => {
-                            const tel = telOf(r.phone);
-                            const may = a.canModify(r);
+                            const tone = toneOf(r, a.today);
                             return (
-                                <tr key={String(r._id)} className={`fu-row${r._saving ? ' is-saving' : ''}`}>
-                                    <td className="fu-col-tick"><TickButton a={a} r={r} /></td>
-                                    {showStatus && <td className="fu-status"><StatusPill r={r} today={a.today} /></td>}
-                                    <td className="fu-due"><When r={r} today={a.today} /></td>
-                                    <td className="fu-cust">
-                                        {r.customerId
-                                            ? <button type="button" className="fu-link" onClick={() => a.onOpenCustomer(String(r.customerId))}>{companyOf(r)}</button>
-                                            : <strong>{companyOf(r)}</strong>}
-                                        {r.city && <span className="fu-sub">{r.city}</span>}
-                                    </td>
-                                    <td className="fu-note">
-                                        <span>{followUpNote(r) || '—'}</span>
-                                        {r.followUpOutcome && <span className="fu-outcome"><strong>What happened:</strong> {r.followUpOutcome}</span>}
-                                    </td>
-                                    <td className="fu-col-from">
-                                        <button type="button" className="fu-from" onClick={() => a.onViewVisit(r)}>{visitTypeLabel(r.purpose) || 'Visit'}</button>
-                                        <span className="fu-sub">{shortDay(String(r.date || '').slice(0, 10), a.today)}</span>
-                                    </td>
-                                    {a.showWhoLogged && <td className="fu-col-rep fu-rep">{r.createdByName || '—'}</td>}
-                                    <td className="fu-col-actions">
-                                        <div className="fu-actions">
-                                            {tel && <a className="fu-icon-btn" href={`tel:${tel}`} aria-label={`Call ${companyOf(r)}`} title={`Call ${r.phone}`}><Phone size={16} /></a>}
-                                            {may && !isFollowUpDone(r) && (
-                                                <button type="button" className="fu-icon-btn" aria-label={`Snooze the follow-up for ${companyOf(r)}`} title="Snooze" onClick={() => a.onSnooze(r)}>
-                                                    <AlarmClock size={16} />
-                                                </button>
-                                            )}
-                                            <RowMenu label={`More for ${companyOf(r)}`} items={menuItems(a, r)} />
-                                        </div>
-                                    </td>
-                                </tr>
+                                <li key={String(r._id)} className={`fu-r${r._saving ? ' is-saving' : ''}${tone === 'done' ? ' is-done' : ''}`}>
+                                    <TickButton a={a} r={r} />
+                                    <DateBlock r={r} tone={tone} />
+                                    <div className="fu-r-main">
+                                        <span className="fu-r-top"><CustomerName a={a} r={r} className="fu-r-name" /><LocationPill r={r} /></span>
+                                        <Note r={r} today={a.today} />
+                                        <Logged r={r} today={a.today} />
+                                    </div>
+                                    <DuePill r={r} today={a.today} tone={tone} />
+                                    <RowMenu label={`More for ${companyOf(r)}`} items={menuItems(a, r)} />
+                                </li>
                             );
                         })}
-                    </tbody>
-                ))}
-            </table>
+                    </ul>
+                </section>
+            ))}
         </div>
     );
 }
 
-/** Phones: cards under the same headings — tick, the follow-up, Call and ⋯. */
+/**
+ * Phones: a card per follow-up (same canvas, Follow-ups · phone). Two rows on top —
+ * the customer with the due pill, then its location and due day — the note, and one
+ * line with who logged it, the day and ⋯ (Done is in ⋯ here).
+ */
 export function FollowUpCards({ groups, ...a }: Props) {
     return (
         <div className="fu-cards">
             {groups.map((g) => (
-                <section key={g.key} className="fu-card-group" aria-label={g.label}>
-                    <h3 className="fu-card-head">
-                        <span className={g.late ? 'is-late' : undefined}>{g.label}</span>
-                        <span>{a.status === 'all' ? `${g.done} done · ${g.pending} pending` : g.total}</span>
-                    </h3>
-                    {g.rows.map((r) => {
-                        const tel = telOf(r.phone);
-                        const state = followUpState(r, a.today);
-                        const when = state === 'done'
-                            ? `Done ${shortDay(doneDayOf(r), a.today)}${r.followUpDoneByName ? ` · ${r.followUpDoneByName}` : ''}`
-                            : [whenText(r, a.today) || shortDay(dueDayOf(r), a.today), a.showWhoLogged ? r.createdByName : ''].filter(Boolean).join(' · ');
-                        return (
-                            <article key={String(r._id)} className="fu-card">
-                                <div className="fu-card-tick"><TickButton a={a} r={r} /></div>
-                                <div className="fu-card-text">
-                                    {r.customerId
-                                        ? <button type="button" className="fu-link fu-card-title" onClick={() => a.onOpenCustomer(String(r.customerId))}>{companyOf(r)}</button>
-                                        : <strong className="fu-card-title">{companyOf(r)}</strong>}
-                                    <span className="fu-card-note">{followUpNote(r) || '—'}</span>
-                                    {r.followUpOutcome && <span className="fu-card-outcome">{r.followUpOutcome}</span>}
-                                    {snoozeText(r, a.today) && <span className="fu-snoozed">{snoozeText(r, a.today)}</span>}
-                                    <span className={`fu-card-meta${state === 'overdue' ? ' is-late' : ''}${state === 'done' ? ' is-ok' : ''}`}>{when}</span>
-                                </div>
-                                <div className="fu-card-actions">
-                                    {tel && <a className="fu-icon-btn is-boxed" href={`tel:${tel}`} aria-label={`Call ${companyOf(r)}`}><Phone size={18} /></a>}
-                                    <RowMenu label={`More for ${companyOf(r)}`} items={menuItems(a, r, { withSnooze: true })} />
-                                </div>
-                            </article>
-                        );
-                    })}
+                <section key={g.key} className="fu-sec" aria-label={g.label}>
+                    <GroupHead g={g} status={a.status} />
+                    <div className="fu-pcs">
+                        {g.rows.map((r) => {
+                            const tone = toneOf(r, a.today);
+                            return (
+                                <article key={String(r._id)} className={`fu-pc${r._saving ? ' is-saving' : ''}${tone === 'done' ? ' is-done' : ''}`}>
+                                    <div className="fu-pc-top">
+                                        <CustomerName a={a} r={r} className="fu-pc-name" />
+                                        <DuePill r={r} today={a.today} tone={tone} />
+                                    </div>
+                                    <div className="fu-pc-sub">
+                                        <LocationPill r={r} />
+                                        <span>Due {shortDay(dueDayOf(r), a.today)}</span>
+                                    </div>
+                                    <Note r={r} today={a.today} />
+                                    <div className="fu-pc-foot">
+                                        <Logged r={r} today={a.today} />
+                                        <RowMenu label={`More for ${companyOf(r)}`} items={menuItems(a, r, { withDone: true })} />
+                                    </div>
+                                </article>
+                            );
+                        })}
+                    </div>
                 </section>
             ))}
         </div>

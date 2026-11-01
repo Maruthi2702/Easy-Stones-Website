@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Download, Search, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Download } from 'lucide-react';
 import LocationFilter from '../../../components/shared/LocationFilter';
 import { useMyTeam } from '../../../api/myTeam';
 import { useResourceTypes } from '../../../api/typeLists';
 import PeopleField from '../components/PeopleField';
+import DashboardSearch from '../components/DashboardSearch';
 import type { PeopleFilter } from '../components/PeopleField';
 import Pagination from '../../../components/shared/Pagination';
 import RowMenu from '../../../components/shared/RowMenu';
@@ -34,6 +36,13 @@ export type ResourcesPanelProps = Omit<ResourceRowActions, 'team'> & {
     onLocationChange: (value: string) => void;
     /** The People filter (dashboardPeople.ts); null when they only see their own. */
     people: PeopleFilter | null;
+    /** The dashboard header's slot: this tab's Filters and ⋯ go there (one header for every tab). */
+    toolSlot: HTMLElement | null;
+    /** The header's All time / Custom part of Filters, and whether one is on. */
+    rangeGroup: React.ReactNode;
+    rangeActive?: boolean;
+    /** Resources in the period before the search (the tile's number), for "2 of 17". */
+    periodCount?: number;
     /** Excel of what's on screen (filters and search applied). */
     onExportView: (rows: Loose[]) => void;
     /** Excel of every resource the login can see, all dates. */
@@ -101,35 +110,32 @@ export default function ResourcesPanel(p: ResourcesPanelProps) {
 
     return (
         <div className="visits-table-section rs-panel">
-            <div className="section-header rs-head">
+            {/* Title on the left, the dashboard's search box on the right (every tab). */}
+            <div className="section-header rs-head dfx-tab-head">
                 <h2>Resources</h2>
-                <div className="table-controls rs-controls">
-                    <div className="table-search rs-search">
-                        <Search className="search-icon" size={18} aria-hidden="true" />
-                        <input
-                            id="rs-search"
-                            type="text"
-                            placeholder="Search customer, type, note"
-                            aria-label="Search resources"
-                            value={p.searchTerm}
-                            onChange={(e) => p.onSearchChange(e.target.value)}
-                        />
-                        {p.searchTerm && (
-                            <button type="button" className="table-search-clear" aria-label="Clear search" onClick={() => p.onSearchChange('')}>
-                                <X size={14} />
-                            </button>
-                        )}
-                    </div>
+                <DashboardSearch
+                    value={p.searchTerm}
+                    onChange={p.onSearchChange}
+                    label="Search resources"
+                    count={p.searchTerm ? `${filtered.length} of ${Math.max(p.periodCount ?? rows.length, filtered.length)}` : null}
+                />
+            </div>
+
+            {/* Filters and ⋯ live in the dashboard's header, the same place on every tab;
+                what's ticked shows only inside Filters (owner, 2026-10-31). */}
+            {p.toolSlot && createPortal(
+                <>
                     <LocationFilter
                         options={p.locationOptions}
                         value={p.location}
                         onChange={p.onLocationChange}
                         user={p.currentUser}
-                        active={ticked > 0 || Boolean(p.people?.active)}
+                        active={ticked > 0 || locationOn || Boolean(p.people?.active) || Boolean(p.rangeActive)}
                         onClear={() => { update(NO_RESOURCE_FILTERS); p.people?.onReset(); }}
                         wide
                     >
                         <>
+                            {p.rangeGroup}
                             {p.people && <PeopleField {...p.people} />}
                             {types.length > 0 && (
                                 <div className="lf-group" role="group" aria-labelledby="rs-f-types">
@@ -174,33 +180,8 @@ export default function ResourcesPanel(p: ResourcesPanelProps) {
                             { key: 'export-all', label: 'Export all resources to Excel', icon: Download, onClick: p.onExportAll }
                         ]}
                     />
-                </div>
-            </div>
-
-            {(ticked > 0 || locationOn) && (
-                <div className="rs-pills" aria-label="Filters on">
-                    {locationOn && (
-                        <span className="rs-pill">
-                            {p.location}
-                            <button type="button" aria-label={`Remove ${p.location}`} onClick={() => p.onLocationChange(ALL_LOCATIONS)}><X size={12} /></button>
-                        </span>
-                    )}
-                    {filters.types.map((t) => (
-                        <span key={`t-${t}`} className="rs-pill">
-                            {info(t).label}
-                            <button type="button" aria-label={`Remove ${info(t).label}`} onClick={() => toggle('types', t)}><X size={12} /></button>
-                        </span>
-                    ))}
-                    {filters.loggedBy.map((n) => (
-                        <span key={`b-${n}`} className="rs-pill">
-                            Logged by {n}
-                            <button type="button" aria-label={`Remove logged by ${n}`} onClick={() => toggle('loggedBy', n)}><X size={12} /></button>
-                        </span>
-                    ))}
-                    <button type="button" className="rs-clear-link" onClick={() => { update(NO_RESOURCE_FILTERS); if (locationOn) p.onLocationChange(ALL_LOCATIONS); }}>
-                        Clear all
-                    </button>
-                </div>
+                </>,
+                p.toolSlot
             )}
 
             {empty || (isPhone

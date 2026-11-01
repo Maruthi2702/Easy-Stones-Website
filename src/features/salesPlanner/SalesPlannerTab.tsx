@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { toCustomerOptions, type CustomerOption } from '../../utils/customerOptions';
 import type { Loose } from '../../types/records';
@@ -54,11 +54,27 @@ export type SalesPlannerTabProps = {
      * read only and say whose they are.
      */
     viewing?: string; includesMe?: boolean; justMe?: boolean;
+    /**
+     * The dashboard's search box (rendered by the dashboard, placed in the toolbar)
+     * and what's typed in it: only stops whose customer, type or note match show.
+     */
+    search?: string; searchBox?: React.ReactNode;
+    /** The dashboard's + asked for "Schedule activity": open the form, then call onOpenAddTaken. */
+    openAdd?: boolean; onOpenAddTaken?: () => void;
 };
 
-const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onScheduleChange, isDropdownLoading, currentUserId = null, viewing = '', includesMe = true, justMe = true }: SalesPlannerTabProps) => {
+/** A stop matches the search by its customer, type or note. */
+const matchesSearch = (item: PlannerItem, q: string) => {
+    if (!q) return true;
+    const text = [customerName(item), item.activityType, item.notes].filter(Boolean).join(' ').toLowerCase();
+    return q.toLowerCase().split(/\s+/).filter(Boolean).every((word) => text.includes(word));
+};
+
+const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onScheduleChange, isDropdownLoading, currentUserId = null, viewing = '', includesMe = true, justMe = true, search = '', searchBox = null, openAdd = false, onOpenAddTaken }: SalesPlannerTabProps) => {
     const data = useSalesPlannerData(currentUserId, viewing);
-    const { currentDate, setCurrentDate, viewMode, setViewMode, today, itemsFor, weekdays, weekendDays, monthWeeks, todayCount, loading, loadError, refresh, stepPeriod } = data;
+    const { itemsFor: allItemsFor } = data;
+    const itemsFor = useCallback((day: Date) => allItemsFor(day).filter((item) => matchesSearch(item, search.trim())), [allItemsFor, search]);
+    const { currentDate, setCurrentDate, viewMode, setViewMode, today, weekdays, weekendDays, monthWeeks, todayCount, loading, loadError, refresh, stepPeriod } = data;
     const editor = useActivityEditor(onScheduleChange);
     const edge = useEdgeFlip(stepPeriod);
     const { edgeDir, scrollRef } = edge;
@@ -74,6 +90,17 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         [itemsFor, justMe, me]
     );
     const onAdd = includesMe ? editor.openAdd : undefined;
+    // The dashboard's + → Schedule activity: open the form once (only if it's your calendar too).
+    // Once per request: the form's opener changes every render, so the ref stops a loop.
+    const { openAdd: openAddForm } = editor;
+    const addHandled = useRef(false);
+    useEffect(() => {
+        if (!openAdd) { addHandled.current = false; return; }
+        if (addHandled.current) return;
+        addHandled.current = true;
+        if (includesMe) openAddForm(null);
+        onOpenAddTaken?.();
+    }, [openAdd, includesMe, openAddForm, onOpenAddTaken]);
     const { drag, ghostRef, announcement, moveError, clearMoveError } = move;
 
     const effectiveCustomerOptions = useMemo(() => {
@@ -108,7 +135,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 onToday={() => setCurrentDate(new Date())}
                 onViewMode={setViewMode}
                 onDate={setCurrentDate}
-                onNew={includesMe ? () => editor.openAdd(null) : undefined}
+                searchBox={searchBox}
             />
 
             {loadError && (

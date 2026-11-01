@@ -198,11 +198,6 @@ body:not(.light-theme-active) .dfx-btn--dark { background: #f1f5f9; border-color
   .dfx-modal-foot .dfx-btn--gold { border-color: #b8921d; }
 }
 
-/* Header: the range sits with the buttons and wraps with them. */
-.dashboard-actions { flex-wrap: wrap; align-items: center; }
-@media (max-width: 639px) {
-  .dashboard-actions { width: 100%; }
-}
 
 /* View pop-up: the badge, notes and coloured detail rows are the profile
    card's own classes (SalesPage.css), so the two views look the same. */
@@ -212,48 +207,78 @@ body:not(.light-theme-active) .dfx-btn--dark { background: #f1f5f9; border-color
 .dfx-modal-body .post-text { margin: 0; }
 .dfx-modal-body .post-details-ext { margin-top: 0 !important; }
 
-/* Phone header (<640px): one tidy toolbar. Row 1 is the range (takes the
-   leftover width) with the filter circle and More button beside it, both
-   the same 44px; row 2 is Add Resource + Add Visit sharing the width.
-   Scoped to .dashboard-actions so the shared LocationFilter / RowMenu are
-   untouched everywhere else. Beats the older grid / column rules above by
-   specificity, not !important (except the filter circle, which already
-   forces its own size). */
-@media (max-width: 639px) {
-  .dashboard-header-v2 .dashboard-actions {
-    display: flex;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-  }
-  .dashboard-header-v2 .dashboard-actions .dfx-range-phone { flex: 1 1 calc(100% - 118px); }
-  .dashboard-header-v2 .dashboard-actions .lf { flex: 0 0 auto; }
-  .dashboard-header-v2 .dashboard-actions .lf .lf-btn { width: 44px !important; height: 44px !important; }
-  .dashboard-header-v2 .dashboard-actions .row-menu-btn {
-    flex: 0 0 44px;
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    border-radius: 50%;
-    background: var(--bg-card);
-    border-color: var(--border-color);
-  }
-  .dashboard-header-v2 .dashboard-actions .btn-primary,
-  .dashboard-header-v2 .dashboard-actions .btn-secondary {
-    flex: 1 1 calc(50% - 5px);
-    width: auto;
-    min-width: 0;
-    height: 48px;
-    padding: 0 12px;
-    justify-content: center;
-    white-space: nowrap;
-  }
-}
-
 /* Failed requests are distinct from an empty result, in either theme. */
 .dfx-load-error { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 18px; border: 1px solid var(--accent-primary); border-radius: 12px; background: var(--bg-card); color: var(--text-primary); }
 .dfx-load-error > div { display: flex; flex-direction: column; gap: 6px; }
 .dfx-load-error span { color: var(--text-secondary); font-size: 14px; }
 .dfx-load-error .dfx-retry { padding: 10px 18px; border: 1px solid var(--accent-primary); border-radius: 8px; background: var(--accent-primary); color: #000000; font: inherit; font-weight: 700; cursor: pointer; }
 .dfx-load-error .dfx-retry:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
+
+/* ── One header for every tab (owner, 2026-10-31; claude.ai artifact "Dashboard
+   tabs — Visits, Resources, Follow-ups, Calendar", section "One header") ──
+   Title and date, the time range, then Filters and ⋯ — the same place on every
+   tab. Desktop: one row. Under 1024px: title with Filters / ⋯ on the right, the
+   range on its own row under them; on a phone the Calendar has no range (it has
+   its own Day / Week / Month). Scoped to .dfx-head so they beat the older
+   .dashboard-header-content rules in SalesPageDashboard.css by specificity. */
+.dashboard-header-v2 .dfx-head { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; }
+.dashboard-header-v2 .dfx-head .dashboard-left-section { flex: 1; min-width: 0; width: auto; justify-content: flex-start; }
+.dfx-head-range { flex-shrink: 0; }
+.dfx-head-tools { flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
+.dfx-head-slot { display: contents; }
+.dfx-head-tools .lf .lf-btn { width: 38px !important; height: 38px !important; }
+.dfx-head-tools .row-menu-btn { width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 1.5px solid var(--border-color); background: var(--bg-card); }
+
+@media (max-width: 1023px) {
+  .dashboard-header-v2 .dfx-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "title tools" "range range";
+    align-items: center;
+    gap: 14px 10px;
+  }
+  .dashboard-header-v2 .dfx-head .dashboard-left-section { grid-area: title; }
+  .dfx-head-tools { grid-area: tools; }
+  .dfx-head-range { grid-area: range; display: flex; }
+  .dfx-head-range .dfx-range { flex: 1; }
+  .dfx-head-range .dfx-range button { flex: 1; height: 38px; }
+  .dfx-head-tools .lf .lf-btn { width: 44px !important; height: 44px !important; }
+  .dfx-head-tools .row-menu-btn { width: 44px; height: 44px; }
+}
+@media (max-width: 639px) {
+  .dashboard-header-v2 .dfx-head { gap: 12px 8px; }
+  .dfx-head-range .dfx-range-phone { flex: 1; }
+  .dfx-head[data-tab="planner"] { grid-template-areas: "title tools"; }
+  .dfx-head[data-tab="planner"] .dfx-head-range { display: none; }
+}
+
+/* Each tab's own title bar: the title on the left, the search box on the right
+   (no count under the title — the tile and the pager already say it). */
+.visits-table-section > .section-header.dfx-tab-head { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: nowrap; }
+.dfx-tab-head h2 { white-space: nowrap; }
+
+/* Tiles: four across on a tablet too (they wrapped 3 + 1 at 834px). */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .dfx-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+  .dfx-card { display: grid; grid-template-columns: 30px minmax(0, 1fr); grid-template-areas: "icon title" "value value" "foot foot"; align-items: center; gap: 6px 8px; min-height: 96px; padding: 12px 14px; }
+  .dfx-card-text { display: contents; }
+  .dfx-card-icon { grid-area: icon; width: 30px; height: 30px; border-radius: 8px; }
+  .dfx-card-icon svg { width: 15px; height: 15px; }
+  .dfx-card-title { grid-area: title; font-size: 10.5px; letter-spacing: 0.07em; }
+  .dfx-card-value { grid-area: value; font-size: 26px; }
+  .dfx-card-foot { grid-area: foot; align-self: start; font-size: 11.5px; }
+}
+
+/* Sales Visits under 1024px: Today and Follow-ups below the list (side by side on
+   a tablet, stacked on a phone) — owner, 2026-10-31. */
+@media (max-width: 1023px) {
+  .dfx-board { flex-direction: column; align-items: stretch; }
+  .dfx-board > .visits-table-section { flex: none; width: 100%; }
+  .dfx-aside { flex: none; width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+}
+@media (max-width: 639px) {
+  .dfx-aside { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Room under the last row so the round + never sits on it. */
+.sales-dashboard-v2 { padding-bottom: 96px; }

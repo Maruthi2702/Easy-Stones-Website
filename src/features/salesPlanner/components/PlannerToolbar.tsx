@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { DatePicker, MonthPicker } from '../../../components/shared/calendar/Calendar';
 import { withMonth } from '../../../components/shared/calendar/calendarDates';
 import type { StopMove } from '../useMoveStop';
@@ -15,12 +15,15 @@ export type PlannerToolbarProps = {
     onPrev: () => void; onNext: () => void; onToday: () => void;
     onViewMode: (mode: ViewMode) => void;
     onDate: (date: Date) => void;
-    /** Absent on a team calendar you aren't in: no Schedule Activity button. */
-    onNew?: () => void;
+    /**
+     * The dashboard's search box, at the end of the toolbar (under Day / Week / Month
+     * on a phone). Adding is the dashboard's round +, not a button here (owner, 2026-10-31).
+     */
+    searchBox?: React.ReactNode;
 };
 
-/** Back / Day·Week·Month / forward, Today, the title's calendar, today's count, and Schedule Activity. */
-export default function PlannerToolbar({ viewMode, currentDate, titleLabel, todayCount, edgeDir, dayLabel, dayCount, isCurrent, navHoverProps, onPrev, onNext, onToday, onViewMode, onDate, onNew }: PlannerToolbarProps) {
+/** Back / Day·Week·Month / forward, Today, the title's calendar, today's count, and the search box. */
+export default function PlannerToolbar({ viewMode, currentDate, titleLabel, todayCount, edgeDir, dayLabel, dayCount, isCurrent, navHoverProps, onPrev, onNext, onToday, onViewMode, onDate, searchBox = null }: PlannerToolbarProps) {
     // The long day ("Thursday, October 29, 2026") doesn't fit between the arrows on a phone.
     const phone = useIsPhone();
     const shownTitle = phone && viewMode === 'day' ? shortDayTitle(currentDate) : titleLabel;
@@ -104,12 +107,7 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
                 )}
             </div>
 
-            {/* On a phone this is the round + at the bottom right (SalesPage.css). */}
-            {onNew && (
-            <button className="pl-new" type="button" onClick={onNew} aria-label="Schedule activity">
-                <Plus size={18} /> <span className="pl-new-label">Schedule Activity</span>
-            </button>
-            )}
+            {searchBox && <div className="pl-search">{searchBox}</div>}
         </div>
     );
 }

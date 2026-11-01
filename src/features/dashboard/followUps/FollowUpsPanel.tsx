@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Download, Search, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Download, X } from 'lucide-react';
 import LocationFilter from '../../../components/shared/LocationFilter';
 import Pagination from '../../../components/shared/Pagination';
 import RowMenu from '../../../components/shared/RowMenu';
@@ -9,10 +10,11 @@ import { useMyTeam } from '../../../api/myTeam';
 import { canModifyVisit } from '../../../utils/visitAccess';
 import { ALL_LOCATIONS } from '../../../utils/locationFilter';
 import {
-    DEFAULT_FOLLOW_UP_FILTERS, DUE_BUCKETS, FOLLOW_UP_STATUSES, followUpExportRows, followUpNote, followUpTags, pageOfGroups, rangeHasTotals, withoutTag
+    DEFAULT_FOLLOW_UP_FILTERS, DUE_BUCKETS, FOLLOW_UP_STATUSES, followUpExportRows, followUpNote, followUpTags, pageOfGroups, rangeHasTotals
 } from '../../../utils/followUpList';
 import type { DueBucket, FollowUpRangeQuery, FollowUpRow, FollowUpStatus } from '../../../utils/followUpList';
 import PeopleField from '../components/PeopleField';
+import DashboardSearch from '../components/DashboardSearch';
 import type { PeopleFilter } from '../components/PeopleField';
 import type { Loose } from '../../../types/records';
 import { FollowUpCards, FollowUpTable } from './FollowUpRows';
@@ -42,6 +44,11 @@ export type FollowUpsPanelProps = {
     currentUserId: string | null;
     /** The People filter (dashboardPeople.ts); null when they only see their own. */
     people: PeopleFilter | null;
+    /** The dashboard header's slot: this tab's Filters and ⋯ go there (one header for every tab). */
+    toolSlot: HTMLElement | null;
+    /** The header's All time / Custom part of Filters, and whether one is on. */
+    rangeGroup: React.ReactNode;
+    rangeActive?: boolean;
     /** More than the viewer is in view: a Rep column says whose each one is. */
     showWhoLogged?: boolean;
     onViewVisit: (visit: Loose) => void;
@@ -56,9 +63,10 @@ const UNDO_MS = 8000;
  * Dashboard → Follow-ups (design A · Due list on the claude.ai artifact
  * "Follow-ups redesign canvas", https://claude.ai/artifact/5x7prJdkNJAKcViVbzeTbK).
  * Pending ones grouped Overdue / Today / Next 7 days / Later, each ticked done
- * in one click (Undo, or add what happened, from the bar after); the Filters
- * panel holds People, Status (Pending / Done / All), Due and Location, what's on
- * shown as tags. The dashboard's time range applies by due date, and anything
+ * in one click (Undo, or add what happened, from the bar after). Filters (People,
+ * Status, Due, Location) and ⋯ sit in the dashboard's header like every tab's, and
+ * the rows are the "One header" design (claude.ai artifact "Dashboard tabs —
+ * Visits, Resources, Follow-ups, Calendar", 2026-10-31). The dashboard's time range applies by due date, and anything
  * still overdue is always listed; a range looking back brings up its totals.
  */
 export default function FollowUpsPanel(p: FollowUpsPanelProps) {
@@ -89,7 +97,7 @@ export default function FollowUpsPanel(p: FollowUpsPanelProps) {
 
     const tags = followUpTags(filters);
     const locationOn = Boolean(p.location) && p.location !== ALL_LOCATIONS;
-    const filtersOn = tags.length > 0 || Boolean(p.people?.active);
+    const filtersOn = tags.length > 0 || locationOn || Boolean(p.people?.active) || Boolean(p.rangeActive);
     const paged = pageOfGroups(fu.groups, p.page, p.rowsPerPage);
 
     const set = (next: Partial<typeof filters>) => fu.setFilters({ ...filters, ...next });
@@ -123,6 +131,14 @@ export default function FollowUpsPanel(p: FollowUpsPanelProps) {
         XLSX.writeFile(wb, 'Follow_ups.xlsx');
     };
 
+    // Every follow-up in the range, whatever the Status / Due / search.
+    const exportAll = async () => {
+        const XLSX = await import('xlsx');
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(followUpExportRows(fu.rows, today)), 'Follow-ups');
+        XLSX.writeFile(wb, 'Follow_ups_all.xlsx');
+    };
+
     const empty = (() => {
         if (fu.visible.length > 0) return null;
         if (fu.loading && fu.rows.length === 0) return <div className="fu-empty" role="status">Loading…</div>;
@@ -149,35 +165,21 @@ export default function FollowUpsPanel(p: FollowUpsPanelProps) {
 
     return (
         <div className="visits-table-section fu-panel">
-            <div className="section-header fu-head">
-                <div className="fu-title">
-                    <h2>Follow-ups</h2>
-                    <p className="fu-summary">
-                        {summary.pending} pending
-                        {summary.overdue > 0 && <> · <span className="fu-late-text">{summary.overdue} overdue</span></>}
-                        {' · '}
-                        <button type="button" className="fu-done-link" onClick={() => set({ status: 'done', due: 'all' })}>
-                            {summary.done} done
-                        </button>
-                    </p>
-                </div>
-                <div className="table-controls fu-controls">
-                    <div className="table-search fu-search">
-                        <Search className="search-icon" size={18} aria-hidden="true" />
-                        <input
-                            type="text"
-                            className="no-capitalize"
-                            placeholder="Search customer, note, rep"
-                            aria-label="Search follow-ups"
-                            value={fu.search}
-                            onChange={(e) => fu.setSearch(e.target.value)}
-                        />
-                        {fu.search && (
-                            <button type="button" className="table-search-clear" aria-label="Clear search" onClick={() => fu.setSearch('')}>
-                                <X size={14} />
-                            </button>
-                        )}
-                    </div>
+            {/* Title on the left, the dashboard's search box on the right (every tab). */}
+            <div className="section-header fu-head dfx-tab-head">
+                <h2>Follow-ups</h2>
+                <DashboardSearch
+                    value={fu.search}
+                    onChange={fu.setSearch}
+                    label="Search follow-ups"
+                    count={fu.search ? `${fu.visible.length} of ${Math.max(fu.unsearchedCount, fu.visible.length)}` : null}
+                />
+            </div>
+
+            {/* Filters and ⋯ live in the dashboard's header, the same place on every tab;
+                what's on shows only inside Filters (owner, 2026-10-31). */}
+            {p.toolSlot && createPortal(
+                <>
                     <LocationFilter
                         options={p.locationOptions}
                         value={p.location}
@@ -188,6 +190,7 @@ export default function FollowUpsPanel(p: FollowUpsPanelProps) {
                         wide
                     >
                         <div className="fm-tokens fu-fields">
+                            {p.rangeGroup}
                             {p.people && <PeopleField {...p.people} />}
                             <div className="lf-group" role="group" aria-labelledby="fu-f-status">
                                 <span className="lf-group-label" id="fu-f-status">Status</span>
@@ -217,27 +220,13 @@ export default function FollowUpsPanel(p: FollowUpsPanelProps) {
                     </LocationFilter>
                     <RowMenu
                         label="More"
-                        items={[{ key: 'export', label: `Export this view to Excel (${fu.visible.length})`, icon: Download, onClick: exportView }]}
+                        items={[
+                            { key: 'export', label: `Export this view to Excel (${fu.visible.length})`, icon: Download, onClick: exportView },
+                            { key: 'export-all', label: 'Export all follow-ups in this range', icon: Download, onClick: exportAll }
+                        ]}
                     />
-                </div>
-            </div>
-
-            {(tags.length > 0 || locationOn) && (
-                <div className="rs-pills fu-pills" aria-label="Filters on">
-                    {tags.map((t) => (
-                        <span key={t.key} className="rs-pill">
-                            {t.label}
-                            <button type="button" aria-label={`Remove ${t.label}`} onClick={() => fu.setFilters(withoutTag(filters, t.key))}><X size={12} /></button>
-                        </span>
-                    ))}
-                    {locationOn && (
-                        <span className="rs-pill">
-                            {p.location}
-                            <button type="button" aria-label={`Remove ${p.location}`} onClick={() => p.onLocationChange(ALL_LOCATIONS)}><X size={12} /></button>
-                        </span>
-                    )}
-                    <button type="button" className="rs-clear-link" onClick={clearAll}>Clear all</button>
-                </div>
+                </>,
+                p.toolSlot
             )}
 
             {showTiles && (
