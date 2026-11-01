@@ -219,7 +219,12 @@ every size:
 - **One +** (`components/DashboardAddButton.tsx`): round gold, bottom right,
   menu Add visit / Add resource / Schedule activity on every tab (Schedule
   activity opens the Calendar and its form: `scheduleRequest` → the planner's
-  `openAdd`). No Add buttons in the header or the planner's toolbar.
+  `openAdd`). No Add buttons in the header or the planner's toolbar. It opens
+  as a **speed dial** (owner's pick, 2026-11-01; claude.ai artifact **Dashboard
+  + menu opening**, https://claude.ai/artifact/KsDZ3TUpkexMDGgTJaUNZb, option
+  B): each action a label + round button popping out nearest first, the page
+  dark and blurred behind (a tap there only closes), the + turning into × with
+  a gold ring; hover only where there's a mouse.
 - **One search box** (`components/DashboardSearch.tsx`): "Search customer,
   contact, note", 300px (full row on a phone), "/" jumps into it, "2 of 17" and
   ✕ when typed. Each tab's title bar is just its title and this box (no count

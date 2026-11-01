@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { Calendar, FolderPlus, Plus, UserPlus } from 'lucide-react';
 import './DashboardAddButton.css';
 
@@ -15,24 +16,21 @@ export type DashboardAddButtonProps = {
  * Add Visit / Add Resource and the Calendar's Schedule Activity. It opens the same
  * menu everywhere — Add visit, Add resource, Schedule activity. On a phone it sits
  * above the tab bar (--app-bottom-h). Below every form and modal (z-index 90).
+ *
+ * It opens as a speed dial (owner's pick, 2026-11-01; claude.ai artifact
+ * "Dashboard + menu opening", https://claude.ai/artifact/KsDZ3TUpkexMDGgTJaUNZb,
+ * option B): each action pops out of the + as its own round button with a label,
+ * nearest first, over a dark, blurred page; the + turns into × with a gold ring.
+ * The menu stays in the page while closed (hidden) so it can animate both ways.
+ * A tap on the dark page closes it without reaching what's underneath.
  */
 export default function DashboardAddButton({ onAddVisit, onAddResource, onScheduleActivity }: DashboardAddButtonProps) {
     const [open, setOpen] = useState(false);
-    const rootRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         if (!open) return undefined;
-        const onDown = (e: MouseEvent | TouchEvent) => {
-            if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
-        };
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
-        document.addEventListener('mousedown', onDown);
-        document.addEventListener('touchstart', onDown);
         document.addEventListener('keydown', onKey);
-        return () => {
-            document.removeEventListener('mousedown', onDown);
-            document.removeEventListener('touchstart', onDown);
-            document.removeEventListener('keydown', onKey);
-        };
+        return () => document.removeEventListener('keydown', onKey);
     }, [open]);
 
     const items = [
@@ -43,17 +41,24 @@ export default function DashboardAddButton({ onAddVisit, onAddResource, onSchedu
     if (items.length === 0) return null;
 
     return (
-        <div className="dab" ref={rootRef}>
-            {open && (
-                <div className="dab-menu" role="menu" aria-label="Add">
-                    {items.map(({ key, label, Icon, run }) => (
-                        <button key={key} type="button" role="menuitem" className="dab-item" onClick={() => { setOpen(false); run(); }}>
-                            <Icon size={16} aria-hidden="true" />
-                            {label}
-                        </button>
-                    ))}
-                </div>
-            )}
+        <div className={`dab${open ? ' is-open' : ''}`}>
+            <div className="dab-scrim" aria-hidden="true" onClick={() => setOpen(false)} />
+            <div className="dab-menu" role="menu" aria-label="Add" aria-hidden={!open} inert={!open}>
+                {items.map(({ key, label, Icon, run }, i) => (
+                    <button
+                        key={key}
+                        type="button"
+                        role="menuitem"
+                        className="dab-item"
+                        // How far from the + (0 = nearest): the pop-out order and distance.
+                        style={{ '--k': items.length - 1 - i } as CSSProperties}
+                        onClick={() => { setOpen(false); run(); }}
+                    >
+                        <span className="dab-label">{label}</span>
+                        <span className="dab-icon"><Icon size={19} aria-hidden="true" /></span>
+                    </button>
+                ))}
+            </div>
             <button
                 type="button"
                 className={`dab-btn${open ? ' is-open' : ''}`}
