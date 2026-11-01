@@ -1,5 +1,12 @@
 /* The dashboard's round + (DashboardAddButton.tsx). Same look as the Calendar's
-   phone + it replaces; under every form, modal and the phone tab bar (96–98). */
+   phone + it replaces; under every form, modal and the phone tab bar (96–98)
+   until it's open — then it and its dark backdrop cover the tab bar too (99),
+   still under every form.
+
+   Opens as a speed dial (owner's pick, 2026-11-01 — artifact "Dashboard + menu
+   opening", option B): the actions pop out of the + nearest first, each a label
+   and a round button; the page behind goes dark and blurs; the + turns into ×
+   with a gold ring. Closing runs faster than opening. */
 .dab {
     position: fixed;
     right: 32px;
@@ -9,8 +16,33 @@
     flex-direction: column;
     align-items: flex-end;
     gap: 12px;
+    /* The box spans the hidden menu too: only the + (and, open, the menu and
+       backdrop) take clicks, never the empty space above the button. */
+    pointer-events: none;
+    --dab-scrim: rgba(0, 0, 0, 0.45);
+    --dab-spring: cubic-bezier(0.2, 0.9, 0.3, 1.25);
 }
+body.light-theme-active .dab { --dab-scrim: rgba(15, 23, 42, 0.32); }
+.dab.is-open { z-index: 99; }
+
+.dab-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: transparent;
+    transition: background 0.16s ease, backdrop-filter 0.16s ease, -webkit-backdrop-filter 0.16s ease;
+}
+.dab.is-open .dab-scrim {
+    pointer-events: auto;
+    background: var(--dab-scrim);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+}
+
 .dab-btn {
+    position: relative;
+    z-index: 2;
+    pointer-events: auto;
     width: 58px;
     height: 58px;
     padding: 0;
@@ -23,39 +55,95 @@
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: transform 0.15s, background 0.15s;
+    transition: transform 0.15s, background 0.15s, box-shadow 0.2s;
 }
-.dab-btn:hover { background: #d4b85a; }
-.dab-btn svg { transition: transform 0.2s; }
-.dab-btn.is-open svg { transform: rotate(45deg); }
+.dab-btn:active { transform: scale(0.94); }
+.dab-btn svg { transition: transform 0.32s var(--dab-spring); }
+.dab-btn.is-open svg { transform: rotate(135deg); }
+.dab-btn.is-open { box-shadow: 0 0 0 6px rgba(205, 175, 79, 0.28), 0 6px 16px rgba(20, 27, 45, 0.28); }
 .dab-btn:focus-visible { outline: 3px solid rgba(212, 175, 55, 0.5); outline-offset: 3px; }
+
+/* The actions: one column above the +, each circle centred on the + (58 vs 44px). */
 .dab-menu {
-    min-width: 210px;
-    padding: 6px;
-    border-radius: 12px;
-    border: 1px solid var(--border-color);
-    background: var(--bg-card);
-    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+    padding-right: 7px;
+    visibility: hidden;
+    transition: visibility 0s 0.16s;
 }
+.dab.is-open .dab-menu { visibility: visible; pointer-events: auto; transition: visibility 0s; }
 .dab-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    width: 100%;
-    min-height: 44px;
-    padding: 0 12px;
+    gap: 12px;
+    padding: 0;
     border: 0;
-    border-radius: 8px;
     background: none;
     color: var(--text-primary);
     font: inherit;
-    font-size: 14px;
-    font-weight: 600;
-    text-align: left;
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transform-origin: calc(100% - 22px) 50%;
+    /* Closed: tucked into the + (further for the ones further up), tiny and clear. */
+    opacity: 0;
+    transform: translateY(calc(var(--k, 0) * 56px + 40px)) scale(0.3);
+    transition: opacity 0.11s ease, transform 0.16s ease;
 }
-.dab-item svg { color: var(--dfx-gold-text, #7a5c0b); }
-.dab-item:hover, .dab-item:focus-visible { background: var(--dfx-hover, rgba(212, 175, 55, 0.08)); outline: none; }
+.dab.is-open .dab-item {
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.16s ease calc(var(--k, 0) * 40ms), transform 0.34s var(--dab-spring) calc(var(--k, 0) * 40ms);
+}
+.dab-label {
+    padding: 8px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.dab-icon {
+    width: 44px;
+    height: 44px;
+    flex: none;
+    border-radius: 50%;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+    color: var(--dfx-gold-text, #7a5c0b);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+/* Mouse over (only where there is a mouse — a phone keeps no sticky hover): the
+   circle fills gold with a dark icon, the label's edge turns gold and it moves
+   3px toward the circle. The keyboard gets the same plus a focus ring. */
+@media (hover: hover) {
+    .dab-btn:hover { background: #d4b85a; box-shadow: 0 8px 20px rgba(20, 27, 45, 0.34); }
+    .dab-btn.is-open:hover { box-shadow: 0 0 0 8px rgba(205, 175, 79, 0.34), 0 8px 20px rgba(20, 27, 45, 0.34); }
+    .dab-item:hover .dab-icon { background: #cdaf4f; border-color: #cdaf4f; color: #141b2d; }
+    .dab-item:hover .dab-label { border-color: rgba(205, 175, 79, 0.75); transform: translateX(3px); }
+}
+.dab-item:focus-visible { outline: none; }
+.dab-item:focus-visible .dab-icon { background: #cdaf4f; border-color: #cdaf4f; color: #141b2d; box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.5), 0 6px 16px rgba(0, 0, 0, 0.22); }
+.dab-item:focus-visible .dab-label { border-color: rgba(205, 175, 79, 0.75); transform: translateX(3px); }
+/* A tap or click: the circle presses in, a deeper gold — a phone's only feedback. */
+.dab-item:active .dab-icon { transform: scale(0.92); background: #b8993f; border-color: #b8993f; color: #141b2d; }
+
+@media (prefers-reduced-motion: reduce) {
+    .dab-scrim, .dab-menu, .dab-item, .dab-label, .dab-icon, .dab-btn, .dab-btn svg {
+        transition-duration: 1ms !important;
+        transition-delay: 0s !important;
+    }
+}
 
 @media (max-width: 1023px) {
     .dab { right: 24px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }

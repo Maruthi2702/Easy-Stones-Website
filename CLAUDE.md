@@ -98,8 +98,14 @@ filter's format, the user's call 2026-10-10): a search box, None /
 Unassigned first, then reps under a heading for their branch (branches and
 names A–Z, "Other" last) with you marked "(you)" — `groupRepOptions`. On a
 form that's `src/components/shared/form/RepPicker.tsx` (not FormPicker);
-the Customer List filter and the Route Planner's rep filter render the same
-groups. A new rep dropdown or filter uses these.
+the Customer List filter renders the same groups. A filter that ticks
+**several** reps is `src/components/shared/form/RepFilterPicker.tsx`
+(2026-11-01): the closed field says who is ticked ("All reps", a name,
+"8 of 14 reps"); its list has search, optional All / None, `extras` rows
+before the reps (Unassigned, Me, My team), the branch groups with an optional
+count per rep, and a `note` line; it floats in its container (never portaled)
+and is a bottom sheet on phones unless `phoneSheet={false}`. The Route
+Planner's Filter uses it. A new rep dropdown or filter uses these.
 
 Something **new** at a branch starts with a rep by one rule too,
 `startingRepFor`: the person creating it if they're a sales rep, else that
@@ -213,7 +219,12 @@ every size:
 - **One +** (`components/DashboardAddButton.tsx`): round gold, bottom right,
   menu Add visit / Add resource / Schedule activity on every tab (Schedule
   activity opens the Calendar and its form: `scheduleRequest` → the planner's
-  `openAdd`). No Add buttons in the header or the planner's toolbar.
+  `openAdd`). No Add buttons in the header or the planner's toolbar. It opens
+  as a **speed dial** (owner's pick, 2026-11-01; claude.ai artifact **Dashboard
+  + menu opening**, https://claude.ai/artifact/KsDZ3TUpkexMDGgTJaUNZb, option
+  B): each action a label + round button popping out nearest first, the page
+  dark and blurred behind (a tap there only closes), the + turning into × with
+  a gold ring; hover only where there's a mouse.
 - **One search box** (`components/DashboardSearch.tsx`): "Search customer,
   contact, note", 300px (full row on a phone), "/" jumps into it, "2 of 17" and
   ✕ when typed. Each tab's title bar is just its title and this box (no count
