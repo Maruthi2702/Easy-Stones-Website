@@ -39,7 +39,14 @@ clear message directing users to Users & Roles.
 
 ## Validation
 
-Final whole-project verification is recorded when the migration checks finish.
+- Whole-project strict type checking passed on the current files.
+- The production build passed on Node 24.22.1, including the server import and
+  zero-JavaScript-source checks (265 server graph files, all TypeScript).
+- The full Node 24 test suite passed: 199 test files, 2,622 tests passed and
+  four tests skipped. No failures were reported.
+- ESLint completed with 74 errors and 15 warnings. These remain a separate
+  cleanup: explicit `any`, unused variables, hook rules and other existing style
+  findings. No lint rules were disabled to make the migration pass.
 
 The isolated native Node 24.22.1 smoke test passed: connected health/database
 ping, public catalog pricing restrictions, cold and warm catalog reads (including
