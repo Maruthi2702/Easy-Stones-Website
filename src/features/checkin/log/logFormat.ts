@@ -1,13 +1,22 @@
 import { formatInstantTime } from '../../../utils/dateUtils';
 import { checkInMoment } from '../../../utils/checkInClock.ts';
 import type { Loose } from '../../../types/records';
+import type { CheckInRecord } from '../../../types/checkIn';
 
 /** How the Check-In Log shows one row: its moment on its branch's clock, initials, colours. */
 // A check-in's date, time and "Today" are read on its own branch's clock
 // (checkInMoment, src/utils/checkInClock.ts) — the same day the list's month
 // filter, the counts and the Daily Report put it on. A time from a branch in
 // another zone than the viewer's carries its zone ("12:30 AM EDT").
-export const momentOf = (c: Loose) => checkInMoment(c.createdAt || c.date, c.location);
+export const momentOf = (c: CheckInRecord) => checkInMoment(c.createdAt, c.location);
+
+/** Who logged a check-in: the person's name, "Self Check-In (QR/NFC)" for the kiosk, else "Staff". */
+export const loggedByLabel = (c: Pick<CheckInRecord, 'loggedBy'>): string => {
+  // Every stored check-in has the object; a plain string is how very old ones were kept.
+  const raw: unknown = c.loggedBy;
+  if (typeof raw === 'string' && raw.trim()) return raw;
+  return c.loggedBy?.displayName || c.loggedBy?.username || 'Staff';
+};
 export const timeLabel = (m: { time: string; zone?: string }): string => (m.zone ? `${m.time} ${m.zone}` : m.time);
 
 export const formatLastUpdated = (d: Date | string | number | null | undefined): string =>

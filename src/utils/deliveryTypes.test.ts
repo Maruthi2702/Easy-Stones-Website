@@ -427,7 +427,7 @@ describe('ticketAccentFor', () => {
     expect(ticketAccentFor({ deliveryType: 'return', truckId: 'drv_brock' })).toBe(TICKET_ACCENTS.return);
     expect(ticketAccentFor({ deliveryType: 'transfer' })).toBe(TICKET_ACCENTS.transfer);
     expect(ticketAccentFor({ deliveryType: 'will_call' })).toBe(TICKET_ACCENTS.will_call);
-    expect(new Set(['jobsite', 'return', 'transfer', 'will_call'].map((t) => ticketAccentFor({ deliveryType: t }))).size).toBe(4);
+    expect(new Set((['jobsite', 'return', 'transfer', 'will_call'] as const).map((t) => ticketAccentFor({ deliveryType: t }))).size).toBe(4);
   });
 
   it('is the same whichever driver has it, grey when cancelled, gold when the type is missing', () => {

@@ -134,7 +134,7 @@ const DeliveryScheduleTab = ({
       // The first driver still working — a deactivated one (Users & Roles) is
       // in the list for their history, but takes no new orders.
       truckId: isWillCallColumn ? '' : (truckId || trucks.find(t => !t.inactive)?.id || 'trk_1'),
-      deliveryType: isWillCallColumn ? 'will_call' : 'jobsite',
+      deliveryType: isWillCallColumn ? 'will_call' as const : 'jobsite' as const,
       date: dateStr || weekDates[0],
       time: '09:00 AM',
       salesRepName: currentUser?.name || 'Admin'

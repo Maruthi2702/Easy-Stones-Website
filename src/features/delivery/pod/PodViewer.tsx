@@ -57,8 +57,6 @@ const PodViewer = ({
 
   const resolvedDriver = (
     (pod.driverName && pod.driverName !== 'Driver' ? pod.driverName : '') ||
-    delivery.driverName ||
-    delivery.truckDriver ||
     delivery.driver ||
     currentUser?.name ||
     'Driver'

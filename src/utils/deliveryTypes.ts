@@ -1,4 +1,12 @@
 import type { Loose } from '../types/records.ts';
+import type { DeliveryKind, DeliveryStatus, ViewedTicket } from '../types/delivery.ts';
+
+/** Any part of a ticket: these rules read a few fields, and a form's values qualify too. */
+export type TicketLike = Partial<Omit<ViewedTicket, 'receivedAt' | 'createdAt' | 'updatedAt' | 'pod'>> & {
+  // A stored record holds real Dates where the wire has strings; none of these rules care which.
+  receivedAt?: string | Date | null;
+  createdAt?: string | Date | null;
+};
 /**
  * What kind of ticket this is, and — the part that keeps biting — where that
  * makes it live.
@@ -46,11 +54,20 @@ import type { Loose } from '../types/records.ts';
  * that means something else.
  */
 
-export const DELIVERY_TYPES = ['jobsite', 'transfer', 'will_call', 'return'];
+export const DELIVERY_TYPES: DeliveryKind[] = ['jobsite', 'transfer', 'will_call', 'return'];
+export const DELIVERY_STATUSES: DeliveryStatus[] = ['pending', 'scheduled', 'completed', 'delayed', 'cancelled'];
 
-export const isWillCall = (delivery: Loose | null | undefined) => delivery?.deliveryType === 'will_call';
+/** A stored or typed value as a delivery type — anything unknown is an ordinary jobsite delivery. */
+export const asDeliveryKind = (value: unknown): DeliveryKind =>
+  DELIVERY_TYPES.find((kind) => kind === value) ?? 'jobsite';
 
-export const isReturn = (delivery: Loose | null | undefined) => delivery?.deliveryType === 'return';
+/** A stored or typed value as a status — anything unknown is still pending. */
+export const asDeliveryStatus = (value: unknown): DeliveryStatus =>
+  DELIVERY_STATUSES.find((status) => status === value) ?? 'pending';
+
+export const isWillCall = (delivery: TicketLike | null | undefined) => delivery?.deliveryType === 'will_call';
+
+export const isReturn = (delivery: TicketLike | null | undefined) => delivery?.deliveryType === 'return';
 
 /**
  * The colour of a ticket card's left edge: what KIND of ticket it is, and only
@@ -67,9 +84,9 @@ export const TICKET_ACCENTS: Readonly<Record<string, string>> = Object.freeze({
   cancelled: '#94a3b8'
 });
 
-export const ticketAccentFor = (delivery: Loose | null | undefined) => (delivery?.status === 'cancelled'
+export const ticketAccentFor = (delivery: TicketLike | null | undefined) => (delivery?.status === 'cancelled'
   ? TICKET_ACCENTS.cancelled
-  : TICKET_ACCENTS[delivery?.deliveryType] || TICKET_ACCENTS.jobsite);
+  : TICKET_ACCENTS[delivery?.deliveryType ?? 'jobsite'] || TICKET_ACCENTS.jobsite);
 
 /**
  * A return the customer brings back themselves: no driver of ours goes out
@@ -82,7 +99,7 @@ export const ticketAccentFor = (delivery: Loose | null | undefined) => (delivery
  * date" — a return can just as well be sitting in Pending with a date filled
  * in while nobody has decided who's collecting it yet.
  */
-export const isCounterReturn = (delivery: Loose | null | undefined) =>
+export const isCounterReturn = (delivery: TicketLike | null | undefined) =>
   isReturn(delivery) && !delivery?.truckId && Boolean(delivery?.date) && Boolean(delivery?.customerDropOff);
 
 /**
@@ -90,7 +107,7 @@ export const isCounterReturn = (delivery: Loose | null | undefined) =>
  * before it becomes either one again. See PATCH /deliveries/:id/assignment
  * for how that restore clears this back to a fresh pending/scheduled status.
  */
-export const isCancelledDelivery = (delivery: Loose | null | undefined) => delivery?.status === 'cancelled';
+export const isCancelledDelivery = (delivery: TicketLike | null | undefined) => delivery?.status === 'cancelled';
 
 /**
  * Waiting on a driver, with no place on the board yet.
@@ -99,7 +116,7 @@ export const isCancelledDelivery = (delivery: Loose | null | undefined) => deliv
  * ?pending=true branch in GET /api/deliveries. A cancelled ticket is never
  * pending even with no truckId — it belongs to Cancelled Orders instead.
  */
-export const isPendingDelivery = (delivery: Loose | null | undefined) =>
+export const isPendingDelivery = (delivery: TicketLike | null | undefined) =>
   !delivery || (
     !isCancelledDelivery(delivery) &&
     !delivery.truckId &&
@@ -121,7 +138,7 @@ export const isPendingDelivery = (delivery: Loose | null | undefined) =>
  * happened on the day, not about whether a driver is assigned, and neither is
  * anybody's default.
  */
-export const defaultStatusFor = (delivery: Loose | null | undefined) => {
+export const defaultStatusFor = (delivery: TicketLike | null | undefined) => {
   const status = delivery?.status;
   if (status === 'completed' || status === 'delayed') return status;
   return isPendingDelivery(delivery) ? 'pending' : 'scheduled';
@@ -144,7 +161,7 @@ export const WILL_CALL_COLUMN_ID = '__will_call__';
  * A cancelled ticket has no column at all, even if truckId still names one —
  * that field is kept only as a record of what to restore it to.
  */
-export const columnIdFor = (delivery: Loose | null | undefined) => {
+export const columnIdFor = (delivery: TicketLike | null | undefined) => {
   if (isCancelledDelivery(delivery)) return '';
   if (isWillCall(delivery) || isCounterReturn(delivery)) return WILL_CALL_COLUMN_ID;
   return delivery?.truckId || '';
@@ -155,7 +172,7 @@ export const columnIdFor = (delivery: Loose | null | undefined) => {
  * relates to a transfer as its origin — the branch that shipped it, as
  * opposed to the branch it's due to arrive at.
  */
-export const isTransferOrigin = (delivery: Loose | null | undefined, viewerLocations: string[] = []) =>
+export const isTransferOrigin = (delivery: TicketLike | null | undefined, viewerLocations: string[] = []) =>
   viewerLocations.includes('*') || !delivery?.location || viewerLocations.includes(delivery.location);
 
 /**
@@ -172,7 +189,7 @@ export const isTransferOrigin = (delivery: Loose | null | undefined, viewerLocat
  * under its old date on the destination's board until a full reload
  * re-fetches the already-shaped list.
  */
-export const applyTransferPerspective = (delivery: Loose | null | undefined, viewerLocations: string[] = []) => {
+export const applyTransferPerspective = (delivery: TicketLike | null | undefined, viewerLocations: string[] = []) => {
   if (delivery?.deliveryType !== 'transfer') return delivery;
   if (isTransferOrigin(delivery, viewerLocations)) return delivery;
   return delivery.expectedArrivalDate ? showOnArrivalDay(delivery, 'destination') : delivery;
@@ -186,7 +203,7 @@ export const applyTransferPerspective = (delivery: Loose | null | undefined, vie
  * transfer the report forgot. `viewedAs` is which side of the transfer the
  * viewer is on, which changes how that note is worded.
  */
-type ArrivalDelivery = { date?: string | null; expectedArrivalDate?: string | null };
+type ArrivalDelivery = { date?: string; expectedArrivalDate?: string };
 export const showOnArrivalDay = <T extends ArrivalDelivery>(delivery: T, viewedAs: 'origin' | 'destination') => ({
   ...delivery,
   date: delivery.expectedArrivalDate,
@@ -204,7 +221,7 @@ export const showOnArrivalDay = <T extends ArrivalDelivery>(delivery: T, viewedA
  * arrives before it leaves. A transfer with no ship date yet (still in
  * Pending) keeps whatever it has: there's nothing to default from.
  */
-export const transferArrivalFor = ({ date, expectedArrivalDate }: Loose = {}) => {
+export const transferArrivalFor = ({ date, expectedArrivalDate }: Pick<TicketLike, 'date' | 'expectedArrivalDate'> = {}) => {
   const arrival = expectedArrivalDate || '';
   if (!date) return arrival;
   return !arrival || arrival < date ? date : arrival;
@@ -223,7 +240,7 @@ export const shortDayLabel = (dateStr: unknown) => {
  * The line a transfer card carries when it is drawn on a different day from
  * the one it shipped, or '' when it needs none. `today` is 'YYYY-MM-DD'.
  */
-export const transferShipNote = (delivery: Loose | null | undefined, today = '') => {
+export const transferShipNote = (delivery: TicketLike | null | undefined, today = '') => {
   if (!delivery?.isIncomingView || !delivery.shipDate || delivery.shipDate === delivery.date) return '';
   const shipped = shortDayLabel(delivery.shipDate);
   if (delivery.viewedAs === 'destination') return `Incoming · shipped ${shipped}`;
@@ -285,9 +302,9 @@ export const pendingDeliveryDateLabel = (date: unknown, today = '') => {
  * end. Orders due the same day keep the one waiting longest (created first)
  * ahead. Returns a new array; the list it's given is left alone.
  */
-export const sortPendingByDate = <T extends Loose>(deliveries: T[] = []) => {
-  const dayOf = (d: Loose) => ymdToDayNumber(d?.date);
-  const createdOf = (d: Loose) => {
+export const sortPendingByDate = <T extends TicketLike>(deliveries: T[] = []) => {
+  const dayOf = (d: TicketLike) => ymdToDayNumber(d?.date);
+  const createdOf = (d: TicketLike) => {
     const t = new Date(d?.createdAt || 0).getTime();
     return Number.isNaN(t) ? 0 : t;
   };

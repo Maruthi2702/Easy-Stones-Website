@@ -1,4 +1,4 @@
-import type { Loose } from '../types/records.ts';
+import type { ContainerLineLike } from '../types/dailyReport.ts';
 /**
  * A container line with a blank PO# continues the container above it — one
  * PO can land with two or three different materials/colors on it, entered as
@@ -8,8 +8,8 @@ import type { Loose } from '../types/records.ts';
  * lines double-counts a single container once per color, and makes an
  * ordinary split shipment's per-color line look like an anomaly on its own.
  */
-export const groupContainers = (containers: Loose[] | null | undefined) => {
-  const groups: { poNumber: string; lines: Loose[] }[] = [];
+export const groupContainers = (containers: ContainerLineLike[] | null | undefined) => {
+  const groups: { poNumber: string; lines: ContainerLineLike[] }[] = [];
   for (const line of containers || []) {
     const startsNew = Boolean(line.poNumber && String(line.poNumber).trim());
     if (startsNew || groups.length === 0) {
@@ -21,5 +21,5 @@ export const groupContainers = (containers: Loose[] | null | undefined) => {
   return groups;
 };
 
-export const groupSlabs = (group: Loose) =>
-  group.lines.reduce((s: number, l: Loose) => s + (Number(l.slabs) || 0), 0);
+export const groupSlabs = (group: { lines: ContainerLineLike[] }) =>
+  group.lines.reduce((s, l) => s + (Number(l.slabs) || 0), 0);

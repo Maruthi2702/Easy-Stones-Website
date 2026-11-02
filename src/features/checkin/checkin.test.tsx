@@ -18,7 +18,7 @@ const { default: CheckInPage } = await import('./staff/CheckInPage');
 
 const rows = [
   { _id: 'a', name: 'Sam Lee', phone: '(206) 555-0101', fabricatorCompany: 'Apex Granite', fabricatorPhone: '(206) 555-0199', location: 'Seattle', createdAt: new Date().toISOString() },
-  { _id: 'b', name: 'Ana Ruiz', location: 'Spokane', createdAt: '2026-09-02T18:00:00Z' }
+  { _id: 'b', name: 'Ana Ruiz', phone: '(509) 555-0102', location: 'Spokane', createdAt: '2026-09-02T18:00:00Z' }
 ];
 const panel = {
   checkIns: rows, onSearchChange: () => {}, onPageChange: () => {}, todayCount: 1, monthCount: 4, allTimeCount: 50, totalCount: 2,

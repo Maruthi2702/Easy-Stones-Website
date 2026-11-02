@@ -1,4 +1,7 @@
-import type { Loose } from '../types/records.ts';
+import type { TransferLineLike, TransferDirection } from '../types/dailyReport.ts';
+
+/** A warning on a hand-added line (manualTransferWarning). */
+export type TransferWarning = { code: 'number-on-report'; numbers: string[] } | { code: 'same-branch' | 'not-this-branch' | 'duplicate'; numbers?: undefined };
 /**
  * Which way a transfer line added by hand on the Daily Work Report goes, and
  * what about it deserves a second look (2026-10-15).
@@ -23,7 +26,7 @@ const splitRoute = (fromTo: unknown) => {
  * or isn't finished yet — a new line counts as Outgoing until it says
  * otherwise, as before). `branch` is this report's branch code ('SEA').
  */
-export function manualTransferDirection(fromTo: unknown, branch: string) {
+export function manualTransferDirection(fromTo: unknown, branch: string): TransferDirection {
   const [from, to] = splitRoute(fromTo);
   if (!branch) return 'out';
   if (to === branch && from !== branch) return 'in';
@@ -34,7 +37,7 @@ export function manualTransferDirection(fromTo: unknown, branch: string) {
  * A line is one transfer, with one transfer number ('14956', '149567'). The
  * number as written, without a leading '#', or '' when there isn't one yet.
  */
-export function transferNumberOf(line: Loose | null | undefined) {
+export function transferNumberOf(line: TransferLineLike | null | undefined) {
   return String(line?.transferNumber || '').trim().replace(/^#/, '');
 }
 
@@ -46,7 +49,7 @@ export const cleanTransferNumber = (value: unknown) => String(value || '').repla
  * The day sheet doesn't ask for a count (2026-10-15); the month view, its
  * PDF and the CSV total these.
  */
-export function transferCountOf(line: Loose | null | undefined) {
+export function transferCountOf(line: TransferLineLike | null | undefined) {
   if (!line) return 0;
   if (line.auto) return 1;
   return (transferNumberOf(line) || String(line.fromTo || '').replace(/—/g, '').trim() || Number(line.slabs) > 0) ? 1 : 0;
@@ -61,12 +64,12 @@ export function transferCountOf(line: Loose | null | undefined) {
  * two transfers on one route would have shared a correction. A line with
  * neither number nor ticket id keeps the old 'out:SEA — SLC' form.
  */
-export function transferLineKey(line: Loose) {
+export function transferLineKey(line: TransferLineLike) {
   const which = transferNumberOf(line) || (line?.ticketIds?.[0] ? `id:${line.ticketIds[0]}` : '');
   return `${line?.direction || 'out'}:${String(line?.fromTo || '').trim()}${which ? `#${which}` : ''}`;
 }
 
-const routeKeyOf = (line: Loose) => `${line?.direction || 'out'}:${String(line?.fromTo || '').trim()}`;
+const routeKeyOf = (line: TransferLineLike) => `${line?.direction || 'out'}:${String(line?.fromTo || '').trim()}`;
 
 /**
  * Which slab figure each line from the tickets should carry when a stored
@@ -76,7 +79,7 @@ const routeKeyOf = (line: Loose) => `${line?.direction || 'out'}:${String(line?.
  * one ticket (with two or more there's no telling whose it was, so they show
  * their tickets' figures). Returns the derived lines with slabs filled in.
  */
-export function mergeTypedTransferSlabs(storedLines: Loose[] = [], derivedLines: Loose[] = []) {
+export function mergeTypedTransferSlabs<D extends TransferLineLike>(storedLines: TransferLineLike[] = [], derivedLines: D[] = []): D[] {
   const typed = new Map(storedLines.map(t => [transferLineKey(t), t.slabs]));
   const perRoute = new Map();
   for (const t of derivedLines) perRoute.set(routeKeyOf(t), (perRoute.get(routeKeyOf(t)) || 0) + 1);
@@ -96,7 +99,7 @@ export function mergeTypedTransferSlabs(storedLines: Loose[] = [], derivedLines:
  * on the next save (the 2026-08-28 incident's failure). Keys already in the
  * new form, or for a route that now has several tickets, are left as they are.
  */
-export function upgradeHandSetKeys(keys: string[] = [], lines: Loose[] = []) {
+export function upgradeHandSetKeys(keys: string[] = [], lines: TransferLineLike[] = []) {
   return keys.map(key => {
     if (key.includes('#')) return key;
     const matches = lines.filter(t => t.auto && routeKeyOf(t) === key);
@@ -116,7 +119,7 @@ export function upgradeHandSetKeys(keys: string[] = [], lines: Loose[] = []) {
  *    already covers this route and direction, so it may be counted twice
  * Never blocks a save; the report asks, as it does for an odd slab count.
  */
-export function manualTransferWarning(line: Loose | null | undefined, branch: string, lines: Loose[] = []) {
+export function manualTransferWarning(line: TransferLineLike | null | undefined, branch: string, lines: TransferLineLike[] = []): TransferWarning | null {
   if (!line || line.auto) return null;
   const number = transferNumberOf(line);
   if (number && lines.some(t => t !== line && transferNumberOf(t) === number)) {
@@ -135,10 +138,10 @@ export function manualTransferWarning(line: Loose | null | undefined, branch: st
 }
 
 /** The sentence shown under a line for each warning. */
-export function transferWarningText(warning: Loose | null | undefined, branchName = 'this branch') {
+export function transferWarningText(warning: TransferWarning | null | undefined, branchName = 'this branch') {
   switch (warning?.code) {
     case 'number-on-report': {
-      const list = warning.numbers.map((n: number) => `#${n}`).join(', ');
+      const list = warning.numbers.map((n) => `#${n}`).join(', ');
       return `Transfer ${list} ${warning.numbers.length === 1 ? 'is' : 'are'} already on this report — the same transfer may be added twice.`;
     }
     case 'not-this-branch': return `This route doesn't include ${branchName}. It's counted as outgoing until From or To is ${branchName}.`;

@@ -274,15 +274,15 @@ const TicketChip = ({
           than claiming a fact nobody has confirmed. */}
       {(() => {
         const place = isWillCall
-          ? (delivery.pickupInfo && { icon: Truck, text: delivery.pickupInfo })
-          : (delivery.address && { icon: MapPin, text: delivery.address });
+          ? (delivery.pickupInfo ? { icon: Truck, text: delivery.pickupInfo } : null)
+          : (delivery.address ? { icon: MapPin, text: delivery.address } : null);
         const slabs = Number(delivery.numberOfSlabs) > 0 ? Number(delivery.numberOfSlabs) : 0;
         if (!place && !slabs) return null;
         const PlaceIcon = place?.icon;
         return (
           <div className="ticket-place-row">
             <div className="ticket-place-inner">
-            {place && (
+            {place && PlaceIcon && (
               <p className="ticket-address">
                 <PlaceIcon size={12} />
                 <Highlight text={place.text} query={searchQuery} />

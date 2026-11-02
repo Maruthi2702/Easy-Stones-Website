@@ -9,6 +9,7 @@ import {
 } from './deliveryForm';
 
 import type { TruckColumn } from '../types/records.ts';
+import type { DeliveryTicket, ViewedTicket } from '../types/delivery.ts';
 
 const TRUCKS = [
   { id: 'trk_3rd_party', name: '3rd Party' },
@@ -75,9 +76,9 @@ describe('deliveryToFormValues', () => {
   });
 
   it('opens a transfer drawn on its arrival day with its real ship date, and saves that', () => {
-    const stored = { id: 't1', deliveryType: 'transfer', date: '2026-10-05', expectedArrivalDate: '2026-10-07', location: 'Seattle', transferDestination: 'Spokane', truckId: 'trk_3rd_party' };
+    const stored: DeliveryTicket = { id: 't1', deliveryType: 'transfer', date: '2026-10-05', expectedArrivalDate: '2026-10-07', location: 'Seattle', transferDestination: 'Spokane', truckId: 'trk_3rd_party' };
     // What the receiving branch's board (or the arrival week) holds — see showOnArrivalDay.
-    const onArrivalDay = { ...stored, date: '2026-10-07', isIncomingView: true, shipDate: '2026-10-05', viewedAs: 'destination' };
+    const onArrivalDay: ViewedTicket = { ...stored, date: '2026-10-07', isIncomingView: true, shipDate: '2026-10-05', viewedAs: 'destination' };
     const v = deliveryToFormValues(onArrivalDay, { todayStr: '2026-10-05' });
     expect(v.date).toBe('2026-10-05');
     expect(v.expectedArrivalDate).toBe('2026-10-07');
@@ -129,7 +130,7 @@ describe('validateDeliveryValues', () => {
 });
 
 describe('drivers', () => {
-  const deliveries = [
+  const deliveries: DeliveryTicket[] = [
     ...Array.from({ length: 12 }, (_, i) => ({ id: `x${i}`, truckId: 'dave', date: '2026-10-06' })),
     { id: 'w', truckId: 'mike', date: '2026-10-06', deliveryType: 'will_call' },
     { id: 'self', truckId: 'mike', date: '2026-10-06' }
@@ -300,7 +301,7 @@ describe('report days a ticket touches (submitted-day warning)', () => {
 });
 
 describe('report days a board move touches', () => {
-  const ticket = { id: 't', deliveryType: 'jobsite', status: 'scheduled', truckId: 'mike', date: '2026-10-02', location: 'Seattle' };
+  const ticket: DeliveryTicket = { id: 't', deliveryType: 'jobsite', status: 'scheduled', truckId: 'mike', date: '2026-10-02', location: 'Seattle' };
 
   it('dragging to another day touches both days; to Pending or Cancelled, the day it left', () => {
     expect(reportDaysForMove(ticket, { ...ticket, date: '2026-10-06' })).toEqual([{ location: 'Seattle', date: '2026-10-02' }, { location: 'Seattle', date: '2026-10-06' }]);
@@ -309,7 +310,7 @@ describe('report days a board move touches', () => {
   });
 
   it('a transfer drawn on its arrival day uses its real ship date', () => {
-    const shown = { ...ticket, deliveryType: 'transfer', transferDestination: 'Spokane', expectedArrivalDate: '2026-10-05', date: '2026-10-05', shipDate: '2026-10-02', isIncomingView: true };
+    const shown: ViewedTicket = { ...ticket, deliveryType: 'transfer', transferDestination: 'Spokane', expectedArrivalDate: '2026-10-05', date: '2026-10-05', shipDate: '2026-10-02', isIncomingView: true };
     expect(ticketReportValues(shown).date).toBe('2026-10-02');
     expect(reportDaysForMove(shown, { ...shown, truckId: '' })).toEqual([{ location: 'Seattle', date: '2026-10-02' }, { location: 'Spokane', date: '2026-10-05' }]);
   });
@@ -325,7 +326,7 @@ describe('a new ticket\'s sales rep', () => {
 });
 
 describe('the Stop field follows the run', () => {
-  const week = [
+  const week: DeliveryTicket[] = [
     { id: 'a', truckId: 'mike', date: '2026-10-06', routeNumber: 1, deliveryType: 'jobsite' },
     { id: 'b', truckId: 'mike', date: '2026-10-06', routeNumber: 2, deliveryType: 'jobsite' },
     { id: 'c', truckId: 'mike', date: '2026-10-07', routeNumber: 1, deliveryType: 'jobsite' },

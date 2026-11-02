@@ -17,6 +17,7 @@
  *  - Internal notes: staff only — never printed or emailed to anyone.
  */
 
+import type { CheckInRecord, SavedSelection } from '../types/checkIn.ts';
 import { toCents, formatCents, centsToPlain } from '../accounting/money.ts';
 
 /** One material row on the sheet, as typed (price as text). */
@@ -32,11 +33,18 @@ export type SheetValues = {
   specialNotes: string;
 };
 export type SheetInput = Omit<Partial<SheetValues>, 'rows'> & { rows?: Partial<SheetRow>[] };
-/** A selection as saved on the check-in (price in whole cents). */
-export type SavedSelection = { material?: string; lot?: string; details?: string; size?: string; priceCentsPerSf?: number | null };
-/** The check-in fields the sheet reads. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- a stored check-in, read field by field
-export type SheetCheckIn = Record<string, any>;
+export type { SavedSelection };
+
+/** A date as the API sent it (a string); a record read straight from the database holds a Date. */
+export const wireDate = (value: string | Date | null | undefined): string | null =>
+  value == null ? null : typeof value === 'string' ? value : value.toISOString();
+/** The check-in fields the sheet reads — a stored record or the one the screen holds. */
+export type SheetCheckIn = Partial<Omit<CheckInRecord, '_id' | 'sheetEditedAt' | 'createdAt' | 'updatedAt' | 'loggedBy'>> & {
+  _id?: string | { toString(): string };
+  sheetEditedAt?: string | Date | null;
+  createdAt?: string | Date | null;
+  updatedAt?: string | Date | null;
+};
 
 export const SHEET_ROWS = 12;
 // How many rows a new or short sheet shows before anyone presses "Add".

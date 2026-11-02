@@ -33,6 +33,7 @@ import { usePackingList } from './usePackingList';
 import PackingListField from './PackingListField';
 import DeleteConfirm from './DeleteConfirm';
 import type { DeliveryFormValues } from '../../../utils/deliveryForm';
+import { asDeliveryKind } from '../../../utils/deliveryTypes';
 import type { CustomerOption } from '../../../utils/customerOptions';
 import type { CurrentUser, Loose } from '../../../types/records';
 import type { BoardColumn, Ticket } from '../types';
@@ -252,7 +253,7 @@ function DeliveryFormBody({
     });
 
     const typeField = picker('deliveryType', 'Delivery type', DELIVERY_TYPE_OPTIONS, {
-        onChange: (next: string) => setValues((v) => applyTypeChange(v, next, { isNew: !isEdit, thirdPartyTruckId: trucks.find(isThirdPartyTruck)?.id }))
+        onChange: (next: string) => setValues((v) => applyTypeChange(v, asDeliveryKind(next), { isNew: !isEdit, thirdPartyTruckId: trucks.find(isThirdPartyTruck)?.id }))
     });
 
     const slabsField = text('numberOfSlabs', 'No. of slabs', {

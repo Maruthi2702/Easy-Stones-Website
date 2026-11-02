@@ -105,7 +105,7 @@ export function downloadUrlFor(url: string, filename: unknown) {
  * leaves. The storage host allows the read (Access-Control-Allow-Origin: *),
  * which is the same route downloadPdf already takes.
  */
-export async function openPdfInline(url: string) {
+export async function openPdfInline(url: string | undefined) {
   const href = String(url || '');
   if (!href) return;
 
@@ -136,7 +136,7 @@ export async function openPdfInline(url: string) {
   }
 }
 
-export async function downloadPdf(url: string, filename: unknown) {
+export async function downloadPdf(url: string | undefined, filename: unknown) {
   const href = String(url || '');
   if (!href) return;
 

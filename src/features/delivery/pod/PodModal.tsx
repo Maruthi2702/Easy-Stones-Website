@@ -202,8 +202,6 @@ const PodModal = ({ isOpen, onClose, delivery, trucks = [], currentUser = null, 
       currentUser?.name ||
       currentUser?.username ||
       (delivery?.pod?.driverName && delivery.pod.driverName !== 'Driver' ? delivery.pod.driverName : '') ||
-      delivery?.driverName ||
-      delivery?.truckDriver ||
       delivery?.driver ||
       'Driver'
     );

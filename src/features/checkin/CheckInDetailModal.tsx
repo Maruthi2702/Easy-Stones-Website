@@ -2,6 +2,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import LocationPicker from '../../components/shared/form/LocationPicker';
 import { formatPhoneInput } from '../../utils/phoneUtils';
+import { loggedByLabel } from './log/logFormat';
 import type { CheckInLog } from './useCheckInLog';
 import type { homeLocationOf } from '../../utils/locationFilter';
 
@@ -104,11 +105,7 @@ export default function CheckInDetailModal({ log, locations, currentUser }: Chec
                             <label style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Logged By</label>
                             <input
                                 type="text"
-                                value={
-                                    typeof log.selected!.loggedBy === 'string' && log.selected!.loggedBy.trim()
-                                        ? log.selected!.loggedBy
-                                        : log.selected!.loggedBy?.displayName || log.selected!.loggedBy?.username || (log.selected!.isSelfCheckIn || log.selected!.source === 'self' || log.selected!.loggedBy === 'Self Check-In (QR/NFC)' ? '📱 Self Check-In (QR/NFC)' : 'Staff')
-                                }
+                                value={loggedByLabel(log.selected!)}
                                 readOnly
                                 disabled
                                 style={{ width: '100%', padding: '0.75rem 0.95rem', borderRadius: '8px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', fontSize: '0.9rem', outline: 'none', cursor: 'not-allowed' }}

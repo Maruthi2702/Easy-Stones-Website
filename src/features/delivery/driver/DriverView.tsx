@@ -127,7 +127,7 @@ const DriverView = ({
       if (truckIds.has(cleanField(del.truckId).toLowerCase())) return true;
       // Names are compared whole. A "contains" match put Jose's stops on Jose
       // M's manifest, which is the one mistake a driver's day cannot absorb.
-      const named = [del.driver, del.truckDriver, del.assignedDriver, del.driverName]
+      const named = [del.driver]
         .map(v => cleanField(v).toLowerCase())
         .filter(Boolean);
       return named.some(n => truckDriver.includes(n));

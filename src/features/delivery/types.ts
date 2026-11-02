@@ -1,7 +1,8 @@
-import type { DeliveryRecord, TruckColumn, Loose } from '../../types/records';
+import type { ViewedTicket } from '../../types/delivery';
+import type { TruckColumn } from '../../types/records';
 
-/** A ticket as the screens hold it: the typed fields, the rest read loosely. */
-export type Ticket = DeliveryRecord & Loose;
+/** A ticket as the screens hold it. */
+export type Ticket = ViewedTicket;
 
 /** A board column: a driver, a 3rd-party truck, or Will Call (src/utils/deliveryColumns.ts). */
 export type BoardColumn = TruckColumn & { isWillCall?: boolean };

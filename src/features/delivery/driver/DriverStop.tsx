@@ -24,9 +24,11 @@ export default function DriverStop({ del, copiedId, busyId, onCopy, onStatus, on
   const stopNum = Number(del.routeNumber) || 1;
   const soVal = cleanField(del.soNumber) || cleanField(del.invoiceNumber);
   const isTransfer = del.deliveryType === 'transfer';
-  const address = cleanField(del.address) || cleanField(del.city);
+  const address = cleanField(del.address);
   const mapsHref = mapsHrefFor(address);
-  const phone = cleanField(del.phone) || cleanField(del.customerPhone) || cleanField(del.contactPhone);
+  // A ticket carries no phone number (no such field on the Delivery model or in
+  // its list), so the Call button below has never shown — see KNOWN_ISSUES.md.
+  const phone: string = '';
   const time = cleanField(del.time);
   const notes = cleanField(del.notes);
   const isDone = del.status === 'completed';

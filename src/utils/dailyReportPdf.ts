@@ -1,9 +1,9 @@
-import type { Loose } from '../types/records.ts';
+import type { ContainerLineLike, PaymentsLike, TransferLineLike } from '../types/dailyReport.ts';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import type { PDFPage, PDFFont, PDFImage } from 'pdf-lib';
+import type { Color, PDFPage, PDFFont, PDFImage, PDFPageDrawRectangleOptions } from 'pdf-lib';
 import { groupContainers } from './dailyReportContainers.ts';
 import { PAYMENT_METHODS, paymentCount, paymentAmount } from './dailyReportPayments.ts';
 
@@ -58,25 +58,64 @@ const monthName = (ym: unknown) => {
   return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 };
 
+type Fonts = { regular: PDFFont; bold: PDFFont };
+type TextOpts = { size?: number; font?: PDFFont; color?: Color };
+type LineOpts = { color?: Color; thickness?: number };
+type Canvas = ReturnType<typeof makeCanvas>;
+/** One column of a table: its width, and which edge its text hugs. */
+type TableCol = { width: number; align?: 'left' | 'right' };
+type TableRow = { cells: unknown[]; total?: boolean; span?: boolean; muted?: boolean };
+
+/** The day's report as the PDF reads it (a stored one, lean or from the sheet). */
+export type PdfDayReport = {
+  date: string;
+  location: string;
+  status?: string;
+  visitors?: { homeowners?: number | null; fabricators?: number | null; designers?: number | null } | null;
+  deliveries?: { assigned?: number | null; capacity?: number | null } | null;
+  pickups?: { assigned?: number | null; capacity?: number | null } | null;
+  returns?: number | null;
+  returnsSlabs?: number | null;
+  sinks?: number | null;
+  transfers?: TransferLineLike[] | null;
+  containers?: ContainerLineLike[] | null;
+  payments?: PaymentsLike | null;
+  notes?: string | null;
+  submittedBy?: string | null;
+  submittedAt?: string | Date | null;
+  autoSubmitted?: boolean | null;
+  reopenedBy?: string | null;
+  reopenedAt?: string | Date | null;
+};
+
+/** One row of the month's figures (`summarise` in src/routes/dailyReports.ts). */
+export type PdfMonthRow = {
+  date: string; location: string; status?: string;
+  visitors: number; deliveries: number; pickups: number;
+  transferCount: number; transferSlabs: number; transferCountIn: number; transferSlabsIn: number;
+  containerCount: number; containerSlabs: number; payments: number;
+  submittedBy?: string; autoSubmitted?: boolean;
+};
+
 /** A tiny drawing surface over a pdf-lib page, so the layout code reads as layout. */
-function makeCanvas(page: PDFPage, fonts: Loose) {
+function makeCanvas(page: PDFPage, fonts: Fonts) {
   return {
     page,
-    text(str: unknown, x: number, y: number, { size = 9.5, font = fonts.regular, color = INK }: Loose = {}) {
+    text(str: unknown, x: number, y: number, { size = 9.5, font = fonts.regular, color = INK }: TextOpts = {}) {
       page.drawText(String(str ?? ''), { x, y, size, font, color });
     },
-    right(str: unknown, xRight: number, y: number, { size = 9.5, font = fonts.regular, color = INK }: Loose = {}) {
+    right(str: unknown, xRight: number, y: number, { size = 9.5, font = fonts.regular, color = INK }: TextOpts = {}) {
       const s = String(str ?? '');
       page.drawText(s, { x: xRight - font.widthOfTextAtSize(s, size), y, size, font, color });
     },
-    line(x1: number, y: number, x2: number, { color = HAIR, thickness = 0.5 }: Loose = {}) {
+    line(x1: number, y: number, x2: number, { color = HAIR, thickness = 0.5 }: LineOpts = {}) {
       page.drawLine({ start: { x: x1, y }, end: { x: x2, y }, thickness, color });
     },
-    rect(x: number, y: number, w: number, h: number, opts: Loose = {}) {
+    rect(x: number, y: number, w: number, h: number, opts: Partial<PDFPageDrawRectangleOptions> = {}) {
       page.drawRectangle({ x, y, width: w, height: h, ...opts });
     },
     /** Truncate rather than let a long material name run into the next column. */
-    fit(str: unknown, maxWidth: number, { size = 9.5, font = fonts.regular }: Loose = {}) {
+    fit(str: unknown, maxWidth: number, { size = 9.5, font = fonts.regular }: TextOpts = {}) {
       let s = String(str ?? '');
       if (font.widthOfTextAtSize(s, size) <= maxWidth) return s;
       while (s.length > 1 && font.widthOfTextAtSize(s + '…', size) > maxWidth) s = s.slice(0, -1);
@@ -89,13 +128,13 @@ async function loadLogo(doc: PDFDocument) {
   try {
     return await doc.embedPng(fs.readFileSync(LOGO_PATH));
   } catch (err) {
-    console.warn('[dailyReportPdf] logo unavailable, falling back to the wordmark:', (err as Loose).message);
+    console.warn('[dailyReportPdf] logo unavailable, falling back to the wordmark:', (err as Error).message);
     return null;
   }
 }
 
 /** Shared masthead: logo left, title and meta right, rule underneath. */
-function drawHeader(c: Loose, fonts: Loose, logo: PDFImage | null, { title, meta, status }: Loose) {
+function drawHeader(c: Canvas, fonts: Fonts, logo: PDFImage | null, { title, meta, status }: { title: string; meta: string; status?: string | null }) {
   const top = PAGE.h - M;
 
   if (logo) {
@@ -128,7 +167,7 @@ function drawHeader(c: Loose, fonts: Loose, logo: PDFImage | null, { title, meta
 }
 
 /** The five headline figures, boxed and divided. */
-function drawGlance(c: Loose, fonts: Loose, y: number, cells: { label: string; value: unknown; sub?: string }[]) {
+function drawGlance(c: Canvas, fonts: Fonts, y: number, cells: { label: string; value: unknown; sub?: string }[]) {
   const h = 46;
   const colW = CONTENT_W / cells.length;
   c.rect(M, y - h, CONTENT_W, h, { borderColor: RULE, borderWidth: 0.6 });
@@ -149,7 +188,7 @@ function drawGlance(c: Loose, fonts: Loose, y: number, cells: { label: string; v
   return y - h - 16;
 }
 
-function drawSectionTitle(c: Loose, fonts: Loose, x: number, y: number, w: number, title: string) {
+function drawSectionTitle(c: Canvas, fonts: Fonts, x: number, y: number, w: number, title: string) {
   c.text(title.toUpperCase(), x, y, { size: 7.6, font: fonts.bold, color: rgb(0.2, 0.2, 0.2) });
   c.line(x, y - 4, x + w, { color: INK, thickness: 0.8 });
   return y - 14;
@@ -159,12 +198,12 @@ function drawSectionTitle(c: Loose, fonts: Loose, x: number, y: number, w: numbe
  * A section table. `cols` are [{ key, align, width }]; a row flagged `total`
  * gets the banded treatment the spreadsheet's yellow rows had.
  */
-function drawTable(c: Loose, fonts: Loose, x: number, y: number, w: number, { head, rows, cols }: Loose) {
+function drawTable(c: Canvas, fonts: Fonts, x: number, y: number, w: number, { head, rows, cols }: { head?: string[]; rows: TableRow[]; cols: TableCol[] }) {
   let cursor = y;
 
   if (head) {
     let cx = x;
-    cols.forEach((col: Loose, i: number) => {
+    cols.forEach((col, i) => {
       const label = head[i];
       if (label) {
         if (col.align === 'right') c.right(label, cx + col.width, cursor, { size: 6.4, font: fonts.bold, color: FAINT });
@@ -177,7 +216,7 @@ function drawTable(c: Loose, fonts: Loose, x: number, y: number, w: number, { he
     cursor -= 10;
   }
 
-  rows.forEach((row: Loose) => {
+  rows.forEach((row) => {
     if (row.total) {
       c.rect(x, cursor - 4, w, 14, { color: BAND });
       c.line(x, cursor + 10, x + w, { color: RULE });
@@ -195,7 +234,7 @@ function drawTable(c: Loose, fonts: Loose, x: number, y: number, w: number, { he
     }
 
     let cx = x;
-    cols.forEach((col: Loose, i: number) => {
+    cols.forEach((col, i) => {
       const cell = row.cells[i];
       if (cell !== null && cell !== undefined && cell !== '') {
         const colour = row.muted && i > 0 ? FAINT : INK;
@@ -211,7 +250,7 @@ function drawTable(c: Loose, fonts: Loose, x: number, y: number, w: number, { he
   return cursor - 4;
 }
 
-function drawFooter(c: Loose, fonts: Loose, leftText: string, rightText: string) {
+function drawFooter(c: Canvas, fonts: Fonts, leftText: string, rightText: string) {
   c.line(M, M + 18, PAGE.w - M, { color: RULE });
   if (leftText) c.text(leftText, M, M + 7, { size: 7.4, color: rgb(0.3, 0.3, 0.3) });
   c.right(rightText, PAGE.w - M, M + 7, { size: 6.8, color: FAINT });
@@ -224,7 +263,7 @@ const stamp = (d = new Date()) =>
 /* ─────────────────────────────────────────────────────────────────────────────
    One day, one branch
    ───────────────────────────────────────────────────────────────────────────── */
-export async function buildDayPdf(report: Loose) {
+export async function buildDayPdf(report: PdfDayReport) {
   const doc = await PDFDocument.create();
   const fonts = {
     regular: await doc.embedFont(StandardFonts.Helvetica),
@@ -241,14 +280,14 @@ export async function buildDayPdf(report: Loose) {
   const slabsOut = Number(report.deliveries?.capacity || 0) + Number(report.pickups?.capacity || 0);
   const transfers = report.transfers || [];
   const containers = report.containers || [];
-  const outboundTransfers = transfers.filter((t: Loose) => t.direction !== 'in');
-  const inboundTransfers = transfers.filter((t: Loose) => t.direction === 'in');
+  const outboundTransfers = transfers.filter((t) => t.direction !== 'in');
+  const inboundTransfers = transfers.filter((t) => t.direction === 'in');
   // Outgoing only, same as the glance tile in the tab — the detailed table
   // below lists both directions with their own subtotals.
-  const transferSlabs = outboundTransfers.reduce((s: number, t: Loose) => s + Number(t.slabs || 0), 0);
-  const transferCount = outboundTransfers.reduce((s: number, t: Loose) => s + Number(t.count || 0), 0);
-  const inboundTransferSlabs = inboundTransfers.reduce((s: number, t: Loose) => s + Number(t.slabs || 0), 0);
-  const containerSlabs = containers.reduce((s: number, x: Loose) => s + Number(x.slabs || 0), 0);
+  const transferSlabs = outboundTransfers.reduce((s, t) => s + Number(t.slabs || 0), 0);
+  const transferCount = outboundTransfers.reduce((s, t) => s + Number(t.count || 0), 0);
+  const inboundTransferSlabs = inboundTransfers.reduce((s, t) => s + Number(t.slabs || 0), 0);
+  const containerSlabs = containers.reduce((s, x) => s + Number(x.slabs || 0), 0);
   const pay = report.payments || {};
   const payCount = paymentCount(pay);
   const payAmount = paymentAmount(pay);
@@ -296,9 +335,9 @@ export async function buildDayPdf(report: Loose) {
     cols: [{ align: 'left', width: colW - 160 }, { align: 'left', width: 105 }, { align: 'right', width: 55 }],
     rows: transfers.length
       ? [
-          ...outboundTransfers.map((t: Loose) => ({ cells: [`OUT  ${t.fromTo || '—'}`, t.transferNumber || '—', int(t.slabs)] })),
+          ...outboundTransfers.map((t) => ({ cells: [`OUT  ${t.fromTo || '—'}`, t.transferNumber || '—', int(t.slabs)] })),
           { cells: ['Outgoing total', '', int(transferSlabs)], total: true },
-          ...inboundTransfers.map((t: Loose) => ({
+          ...inboundTransfers.map((t) => ({
             cells: [`IN  ${t.fromTo || '—'}${t.received ? ' (received)' : ''}`, t.transferNumber || '—', int(t.slabs)]
           })),
           { cells: ['Incoming total', '', int(inboundTransferSlabs)], total: true }
@@ -342,7 +381,7 @@ export async function buildDayPdf(report: Loose) {
     head: ['PO#', 'Material', 'Slabs'],
     cols: [{ align: 'left', width: 58 }, { align: 'left', width: colW - 113 }, { align: 'right', width: 55 }],
     rows: containers.length
-      ? [...containers.map((x: Loose) => ({ cells: [x.poNumber || '', x.material || '', int(x.slabs)] })),
+      ? [...containers.map((x) => ({ cells: [x.poNumber || '', x.material || '', int(x.slabs)] })),
          { cells: ['Total', '', int(containerSlabs)], total: true }]
       : [{ cells: ['No containers recorded'], span: true },
          { cells: ['Total', '', '0'], total: true }]
@@ -391,7 +430,7 @@ export async function buildDayPdf(report: Loose) {
 /* ─────────────────────────────────────────────────────────────────────────────
    A month, one branch or all of them
    ───────────────────────────────────────────────────────────────────────────── */
-export async function buildMonthPdf({ month, rows, scopeLabel }: Loose) {
+export async function buildMonthPdf({ month, rows, scopeLabel }: { month: string; rows: PdfMonthRow[]; scopeLabel: string }) {
   const doc = await PDFDocument.create();
   const fonts = {
     regular: await doc.embedFont(StandardFonts.Helvetica),
@@ -405,7 +444,7 @@ export async function buildMonthPdf({ month, rows, scopeLabel }: Loose) {
     byBranch.get(r.location).push(r);
   }
 
-  const sum = (list: Loose[], key: string) => list.reduce((s: number, r: Loose) => s + Number(r[key] || 0), 0);
+  const sum = (list: PdfMonthRow[], key: 'visitors' | 'deliveries' | 'pickups' | 'transferCount' | 'transferSlabs' | 'transferCountIn' | 'transferSlabsIn' | 'containerCount' | 'containerSlabs' | 'payments') => list.reduce((s, r) => s + Number(r[key] || 0), 0);
   const grand = {
     visitors: sum(rows, 'visitors'), deliveries: sum(rows, 'deliveries'), pickups: sum(rows, 'pickups'),
     containerCount: sum(rows, 'containerCount'), containerSlabs: sum(rows, 'containerSlabs'),
@@ -445,7 +484,7 @@ export async function buildMonthPdf({ month, rows, scopeLabel }: Loose) {
   };
 
   /** One row, advancing the cursor exactly once. */
-  const drawRow = (cells: unknown[], { total = false, grand = false }: Loose = {}) => {
+  const drawRow = (cells: unknown[], { total = false, grand = false }: { total?: boolean; grand?: boolean } = {}) => {
     if (total || grand) {
       c.rect(M, y - 4, CONTENT_W, ROW_H, { color: grand ? rgb(0.949, 0.933, 0.882) : BAND });
       c.line(M, y + ROW_H - 4, PAGE.w - M, { color: grand ? INK : RULE, thickness: grand ? 1 : 0.5 });
@@ -536,7 +575,7 @@ export async function buildMonthPdf({ month, rows, scopeLabel }: Loose) {
   return doc.save();
 }
 
-export const dayPdfFileName = (report: Loose) =>
+export const dayPdfFileName = (report: Pick<PdfDayReport, 'date' | 'location'>) =>
   `daily_report_${report.date}_${String(report.location).replace(/\s+/g, '_')}.pdf`;
 
 export const monthPdfFileName = (month: string, scopeLabel: unknown) =>

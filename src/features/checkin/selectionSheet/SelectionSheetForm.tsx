@@ -9,7 +9,7 @@ import { useSalesRepOptions } from '../../../api/salesRepOptions';
 import { formatInstant } from '../../../utils/dateUtils';
 import { letterheadFor } from '../../../utils/locationForm';
 import {
-    SHEET_ROWS, emptyRow, sheetValuesFromCheckIn, countSheetChanges, sheetPayload,
+    SHEET_ROWS, emptyRow, wireDate, sheetValuesFromCheckIn, countSheetChanges, sheetPayload,
     buildSelectionSheetHtml, formatSlabSize, sheetPriceErrors, sheetPriceSummary, PRICE_ERROR,
     type SheetValues, type SheetCheckIn
 } from '../../../utils/selectionSheet';
@@ -69,7 +69,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
     // A tag scan takes seconds; it places its rows against the sheet as it is when it finishes.
     const valuesRef = useRef(values);
     valuesRef.current = values;
-    const [loadedAt, setLoadedAt] = useState<string | null>(() => draft?.loadedAt || checkIn.updatedAt || null);
+    const [loadedAt, setLoadedAt] = useState<string | null>(() => draft?.loadedAt || wireDate(checkIn.updatedAt));
 
     const [products, setProducts] = useState<Loose[]>([]);
     const [saving, setSaving] = useState(false);
@@ -180,7 +180,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         const saved = data.data || record;
         setRecord(saved);
         setValues(sheetValuesFromCheckIn(saved));
-        setLoadedAt(saved.updatedAt || null);
+        setLoadedAt(wireDate(saved.updatedAt));
         setConflict(null);
         setNotices({});
         onSaved?.(saved);
@@ -220,7 +220,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         setPriceTouched({});
         setRecord(conflict);
         setValues(sheetValuesFromCheckIn(conflict));
-        setLoadedAt(conflict.updatedAt || null);
+        setLoadedAt(wireDate(conflict.updatedAt));
         setConflict(null);
         setNotices({});
     };
@@ -402,7 +402,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                         <strong>Someone else saved this sheet while you had it open.</strong>
                         <div className="ss-conflict-actions">
                             <button type="button" className="fm-btn fm-btn-small" onClick={loadTheirs}>Load their version</button>
-                            <button type="button" className="fm-btn fm-btn-small fm-btn-primary" onClick={() => save(conflict.updatedAt)}>Save mine over it</button>
+                            <button type="button" className="fm-btn fm-btn-small fm-btn-primary" onClick={() => save(wireDate(conflict.updatedAt))}>Save mine over it</button>
                         </div>
                     </div>
                 </div>

@@ -1,5 +1,9 @@
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import type { Loose } from '../types/records.ts';
+import type { ContainerLineLike, PaymentsLike, StoredContainerLine, StoredTransferLine, TransferLineLike } from '../types/dailyReport.ts';
+
+/** A transfer line as the sheet sends it on a save: whatever was typed, checked below. */
+type SentTransferLine = TransferLineLike & { received?: unknown; receivedAt?: string | number | Date | null; receivedBy?: unknown };
 import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import express from 'express';
 import DailyReport from '../models/DailyReport.ts';
@@ -172,13 +176,17 @@ export async function withDraftsDerived<T extends Loose>(docs: T[] = []): Promis
  * caller deriving several branches for the same date.
  */
 /** A ticket's transfer number, as the board shows it ('Transfer# 18936'). */
-const ticketTransferNumber = (ticket: Loose) => String(ticket.soNumber || ticket.invoiceNumber || '').trim();
+const ticketTransferNumber = (ticket: { soNumber?: string; invoiceNumber?: string }) => String(ticket.soNumber || ticket.invoiceNumber || '').trim();
 
 /** Lines in a steady order: by route, then transfer number. */
-const byRouteThenNumber = (a: Loose, b: Loose) =>
+const byRouteThenNumber = (a: { fromTo: string; transferNumber: string }, b: { fromTo: string; transferNumber: string }) =>
   a.fromTo.localeCompare(b.fromTo) || a.transferNumber.localeCompare(b.transferNumber, 'en', { numeric: true });
 
-export async function deriveFromSystem(date: string, location: string, { deliveryRows }: Loose = {}) {
+type DeliveryRows = Awaited<ReturnType<typeof deliveriesOnDate>>;
+/** What the schedule and check-ins add up to for one branch and day (deriveFromSystem). */
+export type DerivedFigures = Awaited<ReturnType<typeof deriveFromSystem>>;
+
+export async function deriveFromSystem(date: string, location: string, { deliveryRows }: { deliveryRows?: DeliveryRows | Promise<DeliveryRows> } = {}) {
   // Check-ins are counted in the branch's own calendar day — its midnight to
   // midnight on that date's offset — wherever the person looking is and
   // whenever it's worked out. It used to be the viewer's browser offset on a
@@ -205,25 +213,25 @@ export async function deriveFromSystem(date: string, location: string, { deliver
   // All-locations total counted it 13 times (the #18299 transfer did exactly
   // that). Now it counts nowhere and is reported as noBranchTickets, so the
   // sheet can say so and someone can set its branch on the board.
-  const mine = allDeliveryRows.filter((d: Loose) => d.location === location);
-  const noBranchTickets = allDeliveryRows.filter((d: Loose) => !d.location || d.location === '*').length;
+  const mine = allDeliveryRows.filter((d) => d.location === location);
+  const noBranchTickets = allDeliveryRows.filter((d) => !d.location || d.location === '*').length;
   // A ticket nobody has counted yet contributes nothing rather than blocking
   // the rest of the day's total.
-  const slabsOf = (d: Loose) => (Number.isFinite(d.numberOfSlabs) ? d.numberOfSlabs : 0);
+  const slabsOf = (d: { numberOfSlabs?: number | null }) => (Number.isFinite(d.numberOfSlabs) ? d.numberOfSlabs as number : 0);
 
-  const jobsiteRows = mine.filter((d: Loose) => !d.deliveryType || d.deliveryType === 'jobsite');
-  const willCallRows = mine.filter((d: Loose) => d.deliveryType === 'will_call');
+  const jobsiteRows = mine.filter((d) => !d.deliveryType || d.deliveryType === 'jobsite');
+  const willCallRows = mine.filter((d) => d.deliveryType === 'will_call');
   // Returns are material coming back in, so they are deliberately not folded
   // into the Deliveries or Pick-ups totals — those two are what went out, and
   // a day that shipped nothing but took four slabs back should not read as a
   // day that shipped four. Both kinds count here: whether a driver collected
   // it or the customer walked it in, the same material arrived.
-  const returnRows = mine.filter((d: Loose) => d.deliveryType === 'return');
+  const returnRows = mine.filter((d) => d.deliveryType === 'return');
 
   // One line per transfer (2026-10-15), each with its own transfer number, so
   // the same transfer added again by hand stands out. It used to be one line
   // per counterpart branch with a count; the count is now the number of lines.
-  const outbound = mine.filter((d: Loose) => d.deliveryType === 'transfer').map((d: Loose) => ({
+  const outbound = mine.filter((d) => d.deliveryType === 'transfer').map((d) => ({
     fromTo: `${branchCode(location)} — ${branchCode(d.transferDestination || 'Unspecified')}`,
     transferNumber: ticketTransferNumber(d),
     count: 1,
@@ -233,7 +241,7 @@ export async function deriveFromSystem(date: string, location: string, { deliver
     ticketIds: [d.id].filter(Boolean)
   })).sort(byRouteThenNumber);
 
-  const inbound = incomingRows.map((d: Loose) => ({
+  const inbound = incomingRows.map((d) => ({
     fromTo: `${branchCode(d.location || 'Unspecified')} — ${branchCode(location)}`,
     transferNumber: ticketTransferNumber(d),
     count: 1,
@@ -253,10 +261,10 @@ export async function deriveFromSystem(date: string, location: string, { deliver
     visitorCheckIns: checkIns,
     deliveriesAssigned: jobsiteRows.length,
     pickupsAssigned: willCallRows.length,
-    deliveriesSlabs: jobsiteRows.reduce((sum: Loose, d: Loose) => sum + slabsOf(d), 0),
-    pickupsSlabs: willCallRows.reduce((sum: Loose, d: Loose) => sum + slabsOf(d), 0),
+    deliveriesSlabs: jobsiteRows.reduce((sum, d) => sum + slabsOf(d), 0),
+    pickupsSlabs: willCallRows.reduce((sum, d) => sum + slabsOf(d), 0),
     returnsCount: returnRows.length,
-    returnsSlabs: returnRows.reduce((sum: Loose, d: Loose) => sum + slabsOf(d), 0),
+    returnsSlabs: returnRows.reduce((sum, d) => sum + slabsOf(d), 0),
     transfers: [...outbound, ...inbound],
     // The day's tickets (every branch) with no branch set — counted on no
     // report until someone sets one.
@@ -350,7 +358,7 @@ export async function writeDraft(date: string, location: string, update: Loose) 
       { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
     );
   } catch (error) {
-    if ((error as Error & Loose)?.code === 11000) return null;
+    if ((error as { code?: number } | null)?.code === 11000) return null;
     throw error;
   }
 }
@@ -367,12 +375,12 @@ export async function writeDraft(date: string, location: string, update: Loose) 
  * including the one before Submit — blanked it and /submit locked the
  * schedule's figure instead.
  */
-export function handSetFigures(report: Loose) {
-  const set = (v: Loose) => v !== null && v !== undefined;
+export function handSetFigures(report: { deliveries?: { capacity?: unknown } | null; pickups?: { capacity?: unknown } | null; transfers?: TransferLineLike[] | null } | null | undefined) {
+  const set = (v: unknown) => v !== null && v !== undefined;
   return {
-    capacity: ['deliveries', 'pickups'].filter((k) => set(report?.[k]?.capacity)),
+    capacity: (['deliveries', 'pickups'] as const).filter((k) => set(report?.[k]?.capacity)),
     transferSlabs: (report?.transfers || [])
-      .filter((t: Loose) => t.auto && set(t.slabs))
+      .filter((t) => t.auto && set(t.slabs))
       .map(transferLineKey)
   };
 }
@@ -384,9 +392,9 @@ type DerivedReport = {
   pickups: { assigned?: number | string | null; capacity?: number | string | null };
   returns?: number | string | null;
   returnsSlabs?: number | string | null;
-  transfers: Loose[];
+  transfers: TransferLineLike[];
 };
-export function applyDerived<T extends DerivedReport>(report: T, derived: Loose): T {
+export function applyDerived<T extends DerivedReport>(report: T, derived: Omit<DerivedFigures, 'noBranchTickets'>): T {
   if (report.status === 'submitted') return report;
 
   report.visitors ||= { homeowners: 0 };
@@ -437,7 +445,7 @@ export function applyDerived<T extends DerivedReport>(report: T, derived: Loose)
   // Keyed per transfer now (transferLineKey: direction, route and transfer
   // number or ticket), so two transfers on one route keep their own figures;
   // a draft saved per route carries over where that's still one ticket.
-  const manual = report.transfers.filter((t: Loose) => !t.auto);
+  const manual = report.transfers.filter((t) => !t.auto);
   report.transfers = [
     ...mergeTypedTransferSlabs(report.transfers, derived.transfers),
     ...manual
@@ -488,12 +496,24 @@ async function slabExpectation(locations: string[]) {
   };
 }
 
-const outboundLines = (r: Loose) => (r.transfers || []).filter((t: Loose) => t.direction !== 'in');
-const inboundLines = (r: Loose) => (r.transfers || []).filter((t: Loose) => t.direction === 'in');
-const total = (lines: Loose[], key: string) => lines.reduce((sum: number, t: Loose) => sum + (t[key] || 0), 0);
+type SummarisedReport = {
+  date: string; location: string; status?: string;
+  visitors?: { homeowners?: number | null; fabricators?: number | null; designers?: number | null } | null;
+  deliveries?: { assigned?: number | null } | null;
+  pickups?: { assigned?: number | null } | null;
+  transfers?: TransferLineLike[] | null;
+  containers?: ContainerLineLike[] | null;
+  payments?: PaymentsLike | null;
+  submittedBy?: string | null;
+  autoSubmitted?: boolean | null;
+};
+
+const outboundLines = (r: SummarisedReport) => (r.transfers || []).filter((t) => t.direction !== 'in');
+const inboundLines = (r: SummarisedReport) => (r.transfers || []).filter((t) => t.direction === 'in');
+const total = (lines: TransferLineLike[], key: 'count' | 'slabs') => lines.reduce((sum, t) => sum + (Number(t[key]) || 0), 0);
 
 /** Everything the month view needs, without shipping whole documents. */
-export const summarise = (r: Loose) => ({
+export const summarise = (r: SummarisedReport) => ({
   date: r.date,
   location: r.location,
   status: r.status,
@@ -514,7 +534,7 @@ export const summarise = (r: Loose) => ({
   // that arrived with a couple of different colors on it), so the count is
   // the number of distinct containers, not the number of lines.
   containerCount: groupContainers(r.containers || []).length,
-  containerSlabs: (r.containers || []).reduce((sum: Loose, c: Loose) => sum + (c.slabs || 0), 0),
+  containerSlabs: (r.containers || []).reduce((sum, c) => sum + (Number(c.slabs) || 0), 0),
   payments: paymentAmount(r.payments),
   submittedBy: r.submittedBy || '',
   autoSubmitted: Boolean(r.autoSubmitted)
@@ -766,7 +786,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         returns: numOrNull(body.returns),
         returnsSlabs: numOrNull(body.returnsSlabs),
         sinks: numOrNull(body.sinks),
-        transfers: (body.transfers || []).map((t: Loose) => ({
+        transfers: (body.transfers || []).map((t: SentTransferLine): StoredTransferLine => ({
           fromTo: String(t.fromTo || '').trim(),
           // One transfer, one number: spaces and commas are dropped.
           transferNumber: cleanTransferNumber(t.transferNumber).slice(0, 40),
@@ -790,12 +810,12 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           // Kept on a ticket line so its typed slabs stay matched to it when
           // the ticket has no transfer number (transferLineKey).
           ticketIds: t.auto && Array.isArray(t.ticketIds) ? t.ticketIds.map(String).slice(0, 5) : []
-        })).filter((t: Loose) => t.fromTo || t.transferNumber || t.slabs),
-        containers: (body.containers || []).map((c: Loose) => ({
+        })).filter((t: StoredTransferLine) => t.fromTo || t.transferNumber || t.slabs),
+        containers: (body.containers || []).map((c: ContainerLineLike): StoredContainerLine => ({
           poNumber: String(c.poNumber || '').trim(),
           material: String(c.material || '').trim(),
           slabs: num(c.slabs)
-        })).filter((c: Loose) => c.poNumber || c.material || c.slabs),
+        })).filter((c: StoredContainerLine) => c.poNumber || c.material || c.slabs),
         payments: Object.fromEntries(PAYMENT_METHODS.map(({ key }) => [key, {
           count: numOrNull(body.payments?.[key]?.count),
           amount: moneyOrNull(body.payments?.[key]?.amount)
@@ -958,7 +978,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         'Submitted by'
       ];
 
-      const esc = (v: Loose) => {
+      const esc = (v: unknown) => {
         const s = String(v ?? '');
         return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
       };
@@ -971,8 +991,8 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           r.deliveries?.assigned || 0, r.deliveries?.capacity || 0,
           r.pickups?.assigned || 0, r.pickups?.capacity || 0,
           r.returns || 0, r.sinks || 0,
-          outboundLines(r).map((t: Loose) => t.fromTo).join(' / '), s.transferCount, s.transferSlabs,
-          inboundLines(r).map((t: Loose) => t.fromTo).join(' / '), s.transferCountIn, s.transferSlabsIn,
+          outboundLines(r).map((t) => t.fromTo).join(' / '), s.transferCount, s.transferSlabs,
+          inboundLines(r).map((t) => t.fromTo).join(' / '), s.transferCountIn, s.transferSlabsIn,
           (r.containers || []).length, s.containerSlabs,
           r.payments?.ach?.count || 0, (r.payments?.ach?.amount || 0).toFixed(2),
           r.payments?.cash?.count || 0, (r.payments?.cash?.amount || 0).toFixed(2),

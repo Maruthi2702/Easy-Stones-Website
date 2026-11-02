@@ -1,4 +1,4 @@
-import type { Loose } from '../types/records.ts';
+import type { PdfDayReport } from './dailyReportPdf.ts';
 import { buildDayPdf, dayPdfFileName } from './dailyReportPdf.ts';
 import { sendEmail } from '../services/emailService.ts';
 import Location from '../models/Location.ts';
@@ -45,7 +45,7 @@ export async function seedSeattleRecipients() {
  * job, neither of which should fail — or make the person submitting wait —
  * because a notification email had trouble sending.
  */
-export async function notifyDailyReportSubmission(report: Loose) {
+export async function notifyDailyReportSubmission(report: PdfDayReport) {
   try {
     const to = await recipientsFor(report.location);
     if (!to.length) return;

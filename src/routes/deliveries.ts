@@ -1,5 +1,6 @@
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import type { Loose } from '../types/records.ts';
+import type { DeliveryKind } from '../types/delivery.ts';
 import type { Request, RequestHandler, Response } from 'express';
 import express from 'express';
 import { canManageShipment, isReceivingTransfer } from '../utils/transferAccess.ts';
@@ -194,7 +195,7 @@ const derivePodVerified = (pod: Loose, hasPackingList: boolean) => Boolean(
  * a driver user account, so the only way to recognise it is by the name on the
  * account the ticket was filed under.
  */
-const certificateWordingFor = async ({ deliveryType, truckId }: { deliveryType?: string; truckId?: string }) => {
+const certificateWordingFor = async ({ deliveryType, truckId }: { deliveryType?: DeliveryKind; truckId?: string }) => {
   // Checked before anything else: a return is a return whether a driver went
   // out for it or the customer brought it back, and its certificate names the
   // two parties the opposite way round from every other ticket.

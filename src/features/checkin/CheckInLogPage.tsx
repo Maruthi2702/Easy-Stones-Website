@@ -11,6 +11,7 @@ import { usePagination } from '../../components/shared/paginationConfig';
 import { useLocationFilter } from '../../components/shared/useLocationFilter';
 import { accessibleLocations } from '../../utils/locationFilter';
 import type { Loose } from '../../types/records';
+import type { CheckInRecord } from '../../types/checkIn';
 
 
 const CheckInLogPage = () => {
@@ -39,7 +40,7 @@ const CheckInLogPage = () => {
     };
   }, []);
 
-  const [checkIns, setCheckIns] = useState<Loose[]>([]);
+  const [checkIns, setCheckIns] = useState<CheckInRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -147,7 +148,7 @@ const CheckInLogPage = () => {
   const fetchCheckIns = useCallback(async (silent = false) => {
     const seq = ++listSeq.current;
     const cacheKey = `page_checkins_${currentPage}_${limit}_${debouncedSearch}_${filterMonth}_${filterYear}_${filterLocation}`;
-    const cached = getCachedData<{ checkIns: Loose[]; totalPages: number; totalCount: number }>(cacheKey);
+    const cached = getCachedData<{ checkIns: CheckInRecord[]; totalPages: number; totalCount: number }>(cacheKey);
 
     if (cached && !silent) {
       setCheckIns(cached.checkIns);
@@ -178,7 +179,7 @@ const CheckInLogPage = () => {
       if (response.ok) {
         const data = await response.json();
         if (seq !== listSeq.current) return;
-        let list: Loose[] = [];
+        let list: CheckInRecord[] = [];
         let tPages = 1;
         let tCount = 0;
         if (Array.isArray(data)) {

@@ -44,11 +44,12 @@ import CheckInCards from './CheckInCards';
 import QrCodesModal from './QrCodesModal';
 import { useQrCodes } from './useQrCodes';
 import './CheckInLogPanel.css';
+import type { CheckInRecord } from '../../../types/checkIn';
 
-type RowHandler = ((checkIn: Loose) => void) | null;
+type RowHandler = ((checkIn: CheckInRecord) => void) | null;
 
 export type CheckInLogPanelProps = {
-  checkIns?: Loose[];
+  checkIns?: CheckInRecord[];
   loading?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void;
@@ -172,7 +173,7 @@ const CheckInLogPanel = ({
   // ── Selection sheet (src/components/sales/selectionSheet/) ──
   // { checkIn, draft } while it's open. Unsaved work left by this same person
   // (they refreshed mid-edit) reopens on load; someone else's never does.
-  const [sheet, setSheet] = useState<{ checkIn: Loose; draft: Loose | null } | null>(null);
+  const [sheet, setSheet] = useState<{ checkIn: CheckInRecord; draft: Loose | null } | null>(null);
   const draftOwner = user?._id || user?.username || 'anonymous';
   // Checked once per signed-in person, during render (not in an effect) so
   // the sheet is open on the very first paint after a refresh.
@@ -184,7 +185,7 @@ const CheckInLogPanel = ({
       if (saved?.checkIn && saved.values && saved.owner === draftOwner) setSheet({ checkIn: saved.checkIn, draft: saved });
     } catch { /* storage off or an old-format draft — start fresh */ }
   }
-  const handleOpenSelectionModal = (checkIn: Loose) => setSheet({ checkIn, draft: null });
+  const handleOpenSelectionModal = (checkIn: CheckInRecord) => setSheet({ checkIn, draft: null });
   const closeSheet = () => {
     setSheet(null);
     try { localStorage.removeItem(SHEET_DRAFT_KEY); } catch { /* not fatal */ }

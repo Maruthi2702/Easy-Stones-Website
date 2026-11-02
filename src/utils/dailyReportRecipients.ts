@@ -1,4 +1,7 @@
-import type { Loose } from '../types/records.ts';
+/** A location's saved recipients (the Location form's Daily Report list). */
+export type RecipientSetting = { userIds?: unknown; extraEmails?: string[] | null };
+/** A listed user as loaded. */
+export type RecipientUser = { _id: unknown; email?: string | null; isActive?: boolean };
 /**
  * Who gets a location's Daily Work Report PDF by email every day, the moment
  * the day is submitted (by a person or the 11:59 PM auto-submit). Set per
@@ -57,7 +60,7 @@ export const cleanUserIds = (ids: unknown) =>
  * `users` are the listed users as loaded ({ _id, email, isActive }); ids
  * with no user (deleted) are skipped.
  */
-export const recipientEmails = (setting: Loose | null | undefined, users: Loose[] = []) => {
+export const recipientEmails = (setting: RecipientSetting | null | undefined, users: RecipientUser[] = []) => {
   const byId = new Map(users.map((u) => [String(u._id), u]));
   const out: string[] = [];
   const add = (e: unknown) => {
@@ -76,7 +79,7 @@ export const recipientEmails = (setting: Loose | null | undefined, users: Loose[
  * Why a listed user won't get the email, or '' if they will — shown beside
  * their name on the form.
  */
-export const userRecipientProblem = (user: Loose | null | undefined) => {
+export const userRecipientProblem = (user: Pick<RecipientUser, 'email' | 'isActive'> | null | undefined) => {
   if (!user) return 'no longer a user';
   if (user.isActive === false) return 'deactivated — not sent';
   if (!isEmail(user.email)) return 'no email on file';
@@ -87,7 +90,7 @@ export const userRecipientProblem = (user: Loose | null | undefined) => {
  * Seattle's one-time copy: the old addresses that belong to a user become
  * that user (so their email can change later), the rest stay typed.
  */
-export const seedFromAddresses = (addresses: string[], users: Loose[] = []) => {
+export const seedFromAddresses = (addresses: string[], users: RecipientUser[] = []) => {
   const userIds: string[] = [];
   const extraEmails: string[] = [];
   for (const a of addresses) {

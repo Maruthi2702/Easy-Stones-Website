@@ -5,6 +5,7 @@ import { accessibleLocations } from '../../utils/locationFilter';
 import { getCachedData, setCachedData, isCacheValid } from '../../utils/dataCache';
 import type { Loose } from '../../types/records';
 import { fetchCheckInStatsFor, fetchCheckInPage, deleteCheckIn, saveCheckInDetails } from './checkInApi';
+import type { CheckInRecord } from '../../types/checkIn';
 
 /** The visitor details the Edit Check-In form changes. */
 export type CheckInForm = {
@@ -34,7 +35,7 @@ export function useCheckInLog({ active, currentUser, locations, onUnauthorized }
   locations: unknown[];
   onUnauthorized: () => void;
 }) {
-  const [checkIns, setCheckIns] = useState<Loose[]>([]);
+  const [checkIns, setCheckIns] = useState<CheckInRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -47,7 +48,7 @@ export function useCheckInLog({ active, currentUser, locations, onUnauthorized }
   const locationOptions = useMemo(() => accessibleLocations(currentUser, locations), [currentUser, locations]);
   const [locationPick, setLocationPick] = useLocationFilter('checkInLog', currentUser as never, locationOptions);
   const location = locationPick || null;
-  const [selected, setSelected] = useState<Loose | null>(null);
+  const [selected, setSelected] = useState<CheckInRecord | null>(null);
   const [mode, setMode] = useState<'view' | 'edit' | null>(null);
   const [form, setForm] = useState<CheckInForm>(EMPTY_FORM);
   const [todayCount, setTodayCount] = useState(0);
@@ -83,7 +84,7 @@ export function useCheckInLog({ active, currentUser, locations, onUnauthorized }
   const refresh = useCallback(async (silent = false) => {
     const seq = ++listSeq.current;
     const cacheKey = `checkins_${page}_${limit}_${search}_${month}_${year}_${location}`;
-    const cached = getCachedData<{ checkIns: Loose[]; totalPages: number; totalCount: number }>(cacheKey);
+    const cached = getCachedData<{ checkIns: CheckInRecord[]; totalPages: number; totalCount: number }>(cacheKey);
 
     if (cached && !silent) {
       setCheckIns(cached.checkIns);
@@ -105,7 +106,7 @@ export function useCheckInLog({ active, currentUser, locations, onUnauthorized }
       if (response.ok) {
         const data = await response.json();
         if (seq !== listSeq.current) return;
-        let list: Loose[] = [];
+        let list: CheckInRecord[] = [];
         let pages = 1;
         let count = 0;
         if (Array.isArray(data)) {
@@ -151,12 +152,12 @@ export function useCheckInLog({ active, currentUser, locations, onUnauthorized }
     }
   };
 
-  const view = (checkIn: Loose) => {
+  const view = (checkIn: CheckInRecord) => {
     setSelected(checkIn);
     setMode('view');
   };
 
-  const edit = (checkIn: Loose) => {
+  const edit = (checkIn: CheckInRecord) => {
     setSelected(checkIn);
     setMode('edit');
     setForm({
@@ -170,7 +171,7 @@ export function useCheckInLog({ active, currentUser, locations, onUnauthorized }
     });
   };
 
-  const remove = async (checkIn: Loose) => {
+  const remove = async (checkIn: CheckInRecord) => {
     if (window.confirm(`Are you sure you want to delete the check-in record for ${checkIn.name}?`)) {
       try {
         const response = await deleteCheckIn(checkIn._id);
@@ -193,8 +194,9 @@ export function useCheckInLog({ active, currentUser, locations, onUnauthorized }
       alert('Name, Phone Number, Company Name, and Company Phone Number are mandatory');
       return;
     }
+    if (!selected) return;
     try {
-      const response = await saveCheckInDetails((selected as Loose)._id, form);
+      const response = await saveCheckInDetails(selected._id, form);
       if (response.ok) {
         setMode(null);
         setSelected(null);

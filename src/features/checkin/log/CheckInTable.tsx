@@ -1,16 +1,17 @@
 import { ClipboardList, Edit2, Eye, MoreHorizontal, Phone, Settings, Trash2, Building2, X } from 'lucide-react';
 import type { Loose } from '../../../types/records';
 import { momentOf, timeLabel, getInitials, getAvatarColor, getLocationBadgeStyle } from './logFormat';
+import type { CheckInRecord } from '../../../types/checkIn';
 
 export type CheckInRowsProps = {
-  rows: Loose[];
+  rows: CheckInRecord[];
   hasMultipleLocations: boolean;
   /** The theme the branch badges are coloured for. */
   badgeTheme: string | null;
-  onOpenSheet: (checkIn: Loose) => void;
-  onView: ((checkIn: Loose) => void) | null;
-  onEdit: ((checkIn: Loose) => void) | null;
-  onDelete: ((checkIn: Loose) => void) | null;
+  onOpenSheet: (checkIn: CheckInRecord) => void;
+  onView: ((checkIn: CheckInRecord) => void) | null;
+  onEdit: ((checkIn: CheckInRecord) => void) | null;
+  onDelete: ((checkIn: CheckInRecord) => void) | null;
   hasEditPermission: boolean;
   hasDeletePermission: boolean;
 };

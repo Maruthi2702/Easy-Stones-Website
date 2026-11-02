@@ -1,4 +1,4 @@
-import type { Loose } from '../types/records.ts';
+import type { PdfDayReport } from './dailyReportPdf.ts';
 /**
  * The daily report email goes to each location's list (Users & Roles →
  * Locations), against an in-memory MongoDB with the email sender mocked.
@@ -18,7 +18,7 @@ const { default: Location } = await import('../models/Location.ts');
 const { default: User } = await import('../models/User.ts');
 
 let mongo: MongoMemoryServer;
-const report = (location: string): Loose => ({
+const report = (location: string): PdfDayReport => ({
   date: '2026-10-15', location, status: 'submitted', submittedBy: 'Krish',
   visitors: { homeowners: 1 }, deliveries: {}, pickups: {}, transfers: [], containers: [],
   payments: { ach: { count: 1, amount: 500 } }, notes: ''

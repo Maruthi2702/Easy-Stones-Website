@@ -1,4 +1,5 @@
 import type { Id } from './api.ts';
+import type { DeliveryTicket } from './delivery.ts';
 
 /**
  * Records as the screens receive them. Loose on purpose for now: the fields
@@ -38,19 +39,8 @@ export type LocationRecord = {
   [key: string]: unknown;
 };
 
-/**
- * A delivery ticket as /api/deliveries sends it (src/routes/deliveries.ts
- * reshapes the model to `id`, not `_id`). Dates are 'YYYY-MM-DD'.
- */
-export type DeliveryRecord = {
-  id: string;
-  date?: string;
-  truckId?: string;
-  deliveryType?: string;
-  status?: string;
-  location?: string;
-  [key: string]: unknown;
-};
+/** A delivery ticket as /api/deliveries sends it (see src/types/delivery.ts). */
+export type DeliveryRecord = DeliveryTicket;
 
 /** A column on the delivery board: one driver (or 3rd party, Will Call). */
 export type TruckColumn = {

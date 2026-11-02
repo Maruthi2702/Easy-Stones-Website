@@ -177,6 +177,12 @@ already on `main`, kept as they were.
 - [ ] `searchDeliveries()` in `src/api/deliverySchedule.ts` is typed as a list,
       but the route answers `{ results, total, more }`; `DeliveryOrderSearch.tsx`
       casts around it. Fix the type.
+- [ ] The driver's stop card never shows its **Call** button (found 2026-11-01
+      while typing the delivery ticket): `DriverStop.tsx` looked for a phone on
+      `phone` / `customerPhone` / `contactPhone`, and a Delivery has no such
+      field (nor does the list send one), so it has always been blank. The
+      reads are now an explicit empty `phone`. To fix: send the customer's
+      phone with the driver's tickets (look it up by `customerId`).
 - [ ] The page passes `onUpdateTruck` to `BoardGrid`, which never uses it.
 
 ## Route Planner — other

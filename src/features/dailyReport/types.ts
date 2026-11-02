@@ -18,14 +18,12 @@ export type TransferLine = {
   auto?: boolean;
   direction?: string;
   ticketIds?: string[];
-  [key: string]: unknown;
 };
 
 export type ContainerLine = {
   poNumber: string;
   material: string;
   slabs: Figure;
-  [key: string]: unknown;
 };
 
 export type PaymentFigures = { count: Figure; amount: Figure };
@@ -46,7 +44,6 @@ export type Report = {
   notes: string;
   autoSubmitted?: boolean;
   submittedBy?: string;
-  [key: string]: unknown;
 };
 
 /** What a slab count usually looks like for the branch (slabExpectation). */

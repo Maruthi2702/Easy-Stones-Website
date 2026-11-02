@@ -1,4 +1,4 @@
-import type { Loose } from '../types/records.ts';
+import type { TruckColumn } from '../types/records.ts';
 /**
  * One definition of "this order is collected, not delivered".
  *
@@ -13,6 +13,7 @@ import type { Loose } from '../types/records.ts';
  * the certificate labels as collected.
  */
 import { isWillCall, isReturn, isCounterReturn } from './deliveryTypes.ts';
+import type { TicketLike } from './deliveryTypes.ts';
 
 export const THIRD_PARTY_TRUCK_ID = 'trk_3rd_party';
 
@@ -23,7 +24,10 @@ export const THIRD_PARTY_TRUCK_ID = 'trk_3rd_party';
  */
 export const THIRD_PARTY_NAME = /3rd\s*[-–—\s]*party|third\s*[-–—\s]*party/i;
 
-export const isThirdPartyTruck = (trk: Loose | null | undefined) => Boolean(
+/** A board column or a truck record: these rules read a few of its fields. */
+export type ColumnLike = Partial<TruckColumn> & { isWillCall?: boolean };
+
+export const isThirdPartyTruck = (trk: ColumnLike | null | undefined) => Boolean(
   trk && (
     trk.id === THIRD_PARTY_TRUCK_ID ||
     THIRD_PARTY_NAME.test(`${trk.driver || ''} ${trk.name || ''} ${trk.username || ''}`)
@@ -45,7 +49,7 @@ export { isWillCall, isReturn, isCounterReturn };
  * A return one of our drivers goes out for is not: that one is signed on the
  * driver's phone at the customer's place, like any other stop.
  */
-export const isPickupDelivery = (delivery: Loose | null | undefined, trucks: Loose[] = []) =>
+export const isPickupDelivery = (delivery: TicketLike | null | undefined, trucks: ColumnLike[] = []) =>
   isWillCall(delivery) ||
   isCounterReturn(delivery) ||
   isThirdPartyTruck((trucks || []).find(t => t.id === delivery?.truckId));
@@ -175,5 +179,5 @@ export const wordingFor = (isPickup: unknown) => (isPickup ? PICKUP_WORDING : DE
  * can arrive either way (a driver collects it, or the customer drops it off)
  * and both are returns.
  */
-export const wordingForTicket = (delivery: Loose | null | undefined, trucks: Loose[] = []) =>
+export const wordingForTicket = (delivery: TicketLike | null | undefined, trucks: ColumnLike[] = []) =>
   isReturn(delivery) ? RETURN_WORDING : wordingFor(isPickupDelivery(delivery, trucks));

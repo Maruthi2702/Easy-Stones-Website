@@ -2,6 +2,7 @@ import type { Loose } from '../types/records.ts';
 import DailyReport from '../models/DailyReport.ts';
 import { BRANCH_NAMES, branchNow, shiftDate } from '../config/branches.ts';
 import { deriveFromSystem, applyDerived, claimSubmission } from '../routes/dailyReports.ts';
+import type { DerivedFigures } from '../routes/dailyReports.ts';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.ts';
 
 /**
@@ -61,7 +62,7 @@ export const AUTO_SUBMITTED_BY = 'Auto-submitted';
  *    yesterday was locked again within a minute, often before the
  *    correction it was reopened for had been made.
  */
-export function isDueForAutoSubmit(report: Loose, location: string, now = new Date()) {
+export function isDueForAutoSubmit(report: { date: string; reopenedAt?: string | Date | null }, location: string, now = new Date()) {
   const { date: today, minutes } = branchNow(location, now);
   const pastCutoff = minutes >= CUTOFF_MINUTES;
   if (report.reopenedAt) {
@@ -75,9 +76,9 @@ export function isDueForAutoSubmit(report: Loose, location: string, now = new Da
 }
 
 /** Anything happened at the branch that day, by the system's own figures. */
-export const hasActivity = (derived: Loose) => Boolean(
-  derived && (derived.visitorCheckIns > 0 || derived.deliveriesAssigned > 0 || derived.pickupsAssigned > 0
-    || derived.returnsCount > 0 || (derived.transfers || []).length > 0)
+export const hasActivity = (derived: (Partial<Omit<DerivedFigures, 'transfers'>> & { transfers?: unknown[] }) | null | undefined) => Boolean(
+  derived && ((derived.visitorCheckIns ?? 0) > 0 || (derived.deliveriesAssigned ?? 0) > 0 || (derived.pickupsAssigned ?? 0) > 0
+    || (derived.returnsCount ?? 0) > 0 || (derived.transfers || []).length > 0)
 );
 
 // A quiet branch-day is re-checked at most hourly, not on every one-minute
@@ -115,7 +116,7 @@ export async function fileUnopenedDay(date: string, location: string, now = new 
   try {
     return await report.save();
   } catch (error) {
-    if ((error as Error & Loose)?.code === 11000) return null;
+    if ((error as { code?: number } | null)?.code === 11000) return null;
     throw error;
   }
 }

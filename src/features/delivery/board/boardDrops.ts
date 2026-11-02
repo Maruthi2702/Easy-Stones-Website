@@ -2,7 +2,7 @@
 // (a new stop before/after it, or the same stop), or onto a cell's empty
 // space. BoardGrid keeps the highlight state and passes in how to clear it.
 import { groupStops, applyStopMove, flattenGroups, sameStopOrder } from '../../../utils/stopGrouping';
-import { columnIdFor } from '../../../utils/deliveryTypes';
+import { columnIdFor, asDeliveryKind } from '../../../utils/deliveryTypes';
 import { assignmentFor } from './boardRules';
 import type { DropMode } from './boardRules';
 import type { Assignment, BoardColumn, StopOrder, Ticket } from '../types';
@@ -85,7 +85,7 @@ export const dropOnStop = (
   if (!onMoveDelivery) return;
   // Type comes off the drag itself (see TicketChip's onDragStart), so this
   // handler never reads the deliveries/pending props.
-  const dragged = { id: deliveryId, deliveryType: e.dataTransfer.getData('application/x-delivery-type') || 'jobsite' };
+  const dragged = { id: deliveryId, deliveryType: asDeliveryKind(e.dataTransfer.getData('application/x-delivery-type')) };
   Promise.resolve(onMoveDelivery(deliveryId, assignmentFor(trk, dragged, dateStr)))
     .then(saveOrder)
     // The move reports its own failure; without it landing there is no cell

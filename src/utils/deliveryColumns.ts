@@ -1,4 +1,4 @@
-import type { Loose } from '../types/records.ts';
+import type { ColumnLike } from './deliveryPickup.ts';
 /**
  * The left-to-right order of the delivery board's columns.
  *
@@ -37,18 +37,18 @@ export const WILL_CALL_COLUMN = {
 // Enough for any branch's drivers; stops a bad request storing a huge list.
 export const MAX_SAVED_COLUMNS = 100;
 
-export const columnLabel = (col: Loose) => String(col?.driver || col?.name || col?.id || '');
+export const columnLabel = (col: ColumnLike | null | undefined) => String(col?.driver || col?.name || col?.id || '');
 
 // 0 our drivers, 1 contract trucks, 2 Will Call.
-const rankOf = (col: Loose) => {
+const rankOf = (col: ColumnLike | null | undefined) => {
   if (col?.id === WILL_CALL_COLUMN_ID || col?.isWillCall) return 2;
   return isThirdPartyTruck(col) ? 1 : 0;
 };
 
-const byLabel = (a: Loose, b: Loose) => columnLabel(a).localeCompare(columnLabel(b), undefined, { sensitivity: 'base' });
+const byLabel = (a: ColumnLike, b: ColumnLike) => columnLabel(a).localeCompare(columnLabel(b), undefined, { sensitivity: 'base' });
 
 /** Our drivers A–Z, then contract trucks A–Z, then Will Call. */
-export const defaultColumnOrder = <T extends Loose>(columns: T[] = []) =>
+export const defaultColumnOrder = <T extends ColumnLike>(columns: T[] = []) =>
   [...columns].sort((a, b) => rankOf(a) - rankOf(b) || byLabel(a, b));
 
 /**
@@ -61,7 +61,7 @@ export const defaultColumnOrder = <T extends Loose>(columns: T[] = []) =>
  * @param {any[]} [columns]
  * @param {string[] | null} [savedOrder]
  */
-export const orderBoardColumns = <T extends Loose>(columns: T[] = [], savedOrder: string[] | null = null) => {
+export const orderBoardColumns = <T extends ColumnLike>(columns: T[] = [], savedOrder: string[] | null = null) => {
   const byDefault = defaultColumnOrder(columns);
   if (!Array.isArray(savedOrder) || savedOrder.length === 0) return byDefault;
 
@@ -79,7 +79,7 @@ export const orderBoardColumns = <T extends Loose>(columns: T[] = [], savedOrder
 };
 
 /** True when `ids` is just the default order for these columns (nothing to save). */
-export const isDefaultOrder = (columns: Loose[] = [], ids: string[] = []) => {
+export const isDefaultOrder = (columns: ColumnLike[] = [], ids: string[] = []) => {
   const def = defaultColumnOrder(columns).map((c) => c.id);
   return def.length === ids.length && def.every((id, i) => id === ids[i]);
 };

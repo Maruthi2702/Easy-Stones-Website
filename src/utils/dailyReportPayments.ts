@@ -1,4 +1,4 @@
-import type { Loose } from '../types/records.ts';
+import type { PaymentKey, PaymentsLike } from '../types/dailyReport.ts';
 /**
  * The Daily Work Report's payment methods, in the order the sheet, the PDF
  * and the CSV list them. Shared by the tab, the server's save and summaries,
@@ -7,32 +7,32 @@ import type { Loose } from '../types/records.ts';
  * ACH was added 2026-10-15. Reports saved before then have no `ach` at all,
  * which reads as unsaid (null), never as a zero.
  */
-export const PAYMENT_METHODS = [
+export const PAYMENT_METHODS: { key: PaymentKey; label: string }[] = [
   { key: 'ach', label: 'ACH' },
   { key: 'cash', label: 'Cash' },
   { key: 'card', label: 'Credit Card (CC)' },
   { key: 'check', label: 'Check' }
 ];
 
-const orNull = (v: number | '' | null | undefined) => (v === undefined || v === '' ? null : v);
+const orNull = <V,>(v: V | undefined | ''): V | null => (v === undefined || v === '' ? null : v);
 
 /** Every method present, as { count, amount } — missing ones (older reports) null. */
-export const withAllPaymentMethods = (payments: Loose | null | undefined) => Object.fromEntries(
+export const withAllPaymentMethods = (payments: PaymentsLike | null | undefined) => Object.fromEntries(
   PAYMENT_METHODS.map(({ key }) => [key, {
     count: orNull(payments?.[key]?.count ?? null),
     amount: orNull(payments?.[key]?.amount ?? null)
   }])
 );
 
-const sumOf = (payments: Loose | null | undefined, field: string) =>
+const sumOf = (payments: PaymentsLike | null | undefined, field: 'count' | 'amount') =>
   PAYMENT_METHODS.reduce((s, { key }) => s + (Number(payments?.[key]?.[field]) || 0), 0);
 
-export const paymentCount = (payments: Loose | null | undefined) => sumOf(payments, 'count');
-export const paymentAmount = (payments: Loose | null | undefined) => sumOf(payments, 'amount');
+export const paymentCount = (payments: PaymentsLike | null | undefined) => sumOf(payments, 'count');
+export const paymentAmount = (payments: PaymentsLike | null | undefined) => sumOf(payments, 'amount');
 
 /** Somebody entered a figure — a 0 included ("nothing taken" is an answer). */
-export const paymentsSaid = (payments: Loose | null | undefined) => PAYMENT_METHODS.some(({ key }) =>
-  ['count', 'amount'].some(f => orNull(payments?.[key]?.[f] ?? null) !== null));
+export const paymentsSaid = (payments: PaymentsLike | null | undefined) => PAYMENT_METHODS.some(({ key }) =>
+  (['count', 'amount'] as const).some(f => orNull(payments?.[key]?.[f] ?? null) !== null));
 
 /** "Nothing taken today": every method 0. */
 export const noPayments = () => Object.fromEntries(
