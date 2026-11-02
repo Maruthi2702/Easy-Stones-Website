@@ -420,6 +420,30 @@ Found while building the redesigned header and tabs
 - [ ] Component tests (`profileHeader.test.tsx`, `profile.test.tsx`) were written
       but not run — `@testing-library/react` isn't installed in this checkout.
 
+## Future enhancements
+
+Ideas the owner wants kept for later. Not scheduled; don't build unprompted.
+
+- [ ] **Where a visit was logged** (2026-11-01). Managers asked to see where
+      reps are. A PWA can't read location in the background (iPhone and Android
+      stop it once the app leaves the screen), so the plan is to read the
+      phone's location **once**, when an in-person visit is saved. The server
+      measures the distance to the customer's pin and the visit gets a mark:
+      On site / Nearby / N mi away / Logged after leaving / No location. Design
+      and every rule: claude.ai artifact **Visit location stamp**
+      (https://claude.ai/artifact/Fiu5mUw8yn7ftVsEbHggRK). It covers the rep's Add
+      visit form (5 states), the Visits list chip, the Visit view box, the
+      Filters field, the By rep column, what's stored (`loggedFrom` on the
+      visit, written once by `POST …/visits`) and who sees it. Six calls are
+      still the owner's (my defaults on the canvas): On site ≤ 0.25 mi and
+      Nearby ≤ 1 mi; which visit types ask (Visit Types gets "Ask for
+      location"); the rep sees their own marks and managers use a new switch
+      under the team rule; the "logging this after I left" tick; no reading on
+      a computer; and telling the reps first (check with HR). Parked after
+      it: a live "last seen here" dot while the app is open. True all-day
+      tracking would need a store app (Capacitor + background location), which
+      is not planned.
+
 ## Cleanup due
 
 - [ ] **On or after 2026-11-06:** drop the old customer API addresses kept
