@@ -108,26 +108,19 @@ const formScrollerOf = (anchor: Element) => anchor.closest('.fm-body, .fm-sheet-
 
 /**
  * `keepInForm` (opt-in; owner, 2026-11-02, on the Payments form): the list
- * never leaves the form for the sheet on desktop. It opens below the field
- * when the whole list fits there, above when it all fits there, and otherwise
- * below with the form body scrolled just enough to show all of it. The list
- * is never taller than the body under the field once the field sits at the
- * body's top, and the scroll never goes past the field — so the field and a
- * search box at the top of the list stay in view (a short window showed the
- * list from its middle, under the header, 2026-11-02).
+ * never leaves the form for the sheet on desktop, and the form never moves
+ * (owner: scrolling it to make room "jumps"). The list opens below the field
+ * when it all fits there, above when it all fits there, and otherwise on the
+ * side with more room, sized to that room, scrolling inside itself.
  */
 export function keepInFormPlacement(anchor: Element, scroller: Element | null | undefined, menu: Element | null): MenuPlacement {
     const content = Math.min(menu?.scrollHeight || 440, 440);
-    const { above, below } = menuRoom(anchor, scroller);
     if (!scroller) return { placement: 'down', maxHeight: content };
-    const a = anchor.getBoundingClientRect();
-    const b = scroller.getBoundingClientRect();
-    const maxHeight = Math.max(160, Math.min(content, Math.floor(b.height - a.height - 24)));
-    if (maxHeight <= below) return { placement: 'down', maxHeight };
+    const { above, below } = menuRoom(anchor, scroller);
+    if (content <= below) return { placement: 'down', maxHeight: content };
     if (content <= above) return { placement: 'up', maxHeight: content };
-    const lift = Math.min(maxHeight - below, a.top - b.top - 8);
-    if (lift > 0) scroller.scrollTop += lift;
-    return { placement: 'down', maxHeight };
+    const up = above > below;
+    return { placement: up ? 'up' : 'down', maxHeight: Math.max(120, Math.floor(up ? above : below)) };
 }
 
 export function useMenuPlacement(

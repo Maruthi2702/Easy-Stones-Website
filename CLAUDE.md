@@ -1019,7 +1019,7 @@ against a deposit slip / card batch / cash count); the round gold + (no Add
 in the header); phones put the tiles behind a stats button. The form's
 dropdowns use **`keepInForm`** (FormPicker / FormSearchPicker, opt-in, owner
 2026-11-02: never the bottom sheet on desktop — below if it fits, above if it
-all fits, else below with the form body scrolled); other forms are unchanged
+all fits, else the roomier side sized to it, scrolling inside — the form never moves); other forms are unchanged
 until the owner decides app-wide. **Switch-over not built**: the Daily
 Report keeps its typed Payments grid and shows "Payments page: $X" under it
 (`usePaymentsSummary`); once the owner has tested and confirmed, the report's
