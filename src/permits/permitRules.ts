@@ -37,6 +37,10 @@ import whatcom, { WHATCOM_PORTAL, whatcomPermitUrl, energovPermit } from './rule
 import skagitCounty from './rules/skagitCounty.ts';
 import pierceCounty from './rules/pierceCounty.ts';
 import lakewood from './rules/lakewood.ts';
+import kennewick from './rules/kennewick.ts';
+import richland from './rules/richland.ts';
+import pasco from './rules/pasco.ts';
+import yakima from './rules/yakima.ts';
 import tacoma from './rules/tacoma.ts';
 import kitsapCounty from './rules/kitsapCounty.ts';
 import clarkCounty from './rules/clarkCounty.ts';
@@ -63,12 +67,15 @@ export { WHATCOM_PORTAL, whatcomPermitUrl, BELLINGHAM_PERMIT_SEARCH, BELLINGHAM_
  */
 export const RULES: Readonly<Record<string, Loose>> = Object.freeze(Object.fromEntries([
   kingCounty, auburn, bellevue, burien, issaquah, kenmore, kirkland, mercerIsland, renton, sammamish, seattle, shoreline, snoqualmie,
+  kennewick, richland,
   clarkCounty,
+  pasco,
   kitsapCounty,
   pierceCounty, lakewood, tacoma,
   skagitCounty, anacortes,
   snohomishCounty, edmonds, marysville, monroe, snohomishCity,
-  whatcom, bellingham
+  whatcom, bellingham,
+  yakima
 ].map((r: Loose) => [r.id, r])));
 
 /** What the screen and API show about each source (no functions — safe to send as JSON). */
