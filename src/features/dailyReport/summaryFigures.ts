@@ -10,7 +10,8 @@ import type { SummaryRow, SummaryTotals } from './types';
  */
 
 /** Table money: always two decimals, so the column aligns down the page. */
-export const money = (v: number | null | undefined): string => `$${Number(v || 0).toLocaleString('en-US', {
+// A Return is negative: "−$1,000.00", not "$-1,000.00".
+export const money = (v: number | null | undefined): string => `${Number(v || 0) < 0 ? '−' : ''}$${Math.abs(Number(v || 0)).toLocaleString('en-US', {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 })}`;

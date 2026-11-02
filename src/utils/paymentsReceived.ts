@@ -21,17 +21,15 @@ import { PAYMENT_METHODS } from './dailyReportPayments.ts';
 export const RETURN_METHOD = 'return';
 export type MethodKey = 'ach' | 'cash' | 'card' | 'check' | 'return';
 
-/** The report's four methods, in its order, then Return. */
-export const RECEIVED_METHODS: readonly { key: string; label: string; short: string; reference: string; hint: string }[] = [
-  ...PAYMENT_METHODS.map(({ key, label }) => ({
+/** The Daily Report's methods, in its order (Return last). */
+export const RECEIVED_METHODS: readonly { key: string; label: string; short: string; reference: string; hint: string }[] =
+  PAYMENT_METHODS.map(({ key, label }) => ({
     key,
     label,
     short: key === 'card' ? 'Credit Card' : label,
-    reference: ({ ach: 'ACH reference', cash: 'Receipt #', card: 'Card last 4', check: 'Check #' } as Record<string, string>)[key] || 'Reference',
-    hint: ({ ach: 'Bank transfer', cash: 'At the desk', card: 'Last 4 digits', check: 'Check number' } as Record<string, string>)[key] || ''
-  })),
-  { key: RETURN_METHOD, label: 'Return', short: 'Return', reference: 'Return ticket #', hint: 'Saved as negative' }
-];
+    reference: ({ ach: 'ACH reference', cash: 'Receipt #', card: 'Card last 4', check: 'Check #', return: 'Return ticket #' } as Record<string, string>)[key] || 'Reference',
+    hint: ({ ach: 'Bank transfer', cash: 'At the desk', card: 'Last 4 digits', check: 'Check number', return: 'Saved as negative' } as Record<string, string>)[key] || ''
+  }));
 
 export const METHOD_KEYS = RECEIVED_METHODS.map(m => m.key);
 export const isMethod = (key: unknown): key is MethodKey => typeof key === 'string' && METHOD_KEYS.includes(key);

@@ -78,7 +78,9 @@ export function isDueForAutoSubmit(report: { date: string; reopenedAt?: string |
 /** Anything happened at the branch that day, by the system's own figures. */
 export const hasActivity = (derived: (Partial<Omit<DerivedFigures, 'transfers'>> & { transfers?: unknown[] }) | null | undefined) => Boolean(
   derived && ((derived.visitorCheckIns ?? 0) > 0 || (derived.deliveriesAssigned ?? 0) > 0 || (derived.pickupsAssigned ?? 0) > 0
-    || (derived.returnsCount ?? 0) > 0 || (derived.transfers || []).length > 0)
+    || (derived.returnsCount ?? 0) > 0 || (derived.transfers || []).length > 0
+    // A day with payments on the Payments page (and nothing else) is filed too.
+    || ((derived as { payments?: { count?: number } }).payments?.count ?? 0) > 0)
 );
 
 // A quiet branch-day is re-checked at most hourly, not on every one-minute

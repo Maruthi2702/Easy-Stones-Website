@@ -101,12 +101,15 @@ const dailyReportSchema = new mongoose.Schema({
   containers: { type: [containerLineSchema], default: [] },
 
   // Methods and their order: src/utils/dailyReportPayments.ts. ACH added
-  // 2026-10-15 — older reports have no ach, which reads as unsaid.
+  // 2026-10-15 — older reports have no ach, which reads as unsaid. Return
+  // added 2026-11-02 with the Payments page (its amount is negative); from
+  // PAYMENTS_FROM_PAGE_SINCE every method is filled from that page.
   payments: {
     ach: { count: { type: Number, default: null }, amount: { type: Number, default: null } },
     cash: { count: { type: Number, default: null }, amount: { type: Number, default: null } },
     card: { count: { type: Number, default: null }, amount: { type: Number, default: null } },
-    check: { count: { type: Number, default: null }, amount: { type: Number, default: null } }
+    check: { count: { type: Number, default: null }, amount: { type: Number, default: null } },
+    return: { count: { type: Number, default: null }, amount: { type: Number, default: null } }
   },
 
   notes: { type: String, default: '' },

@@ -15,7 +15,9 @@ import OfficeCheckIn from '../models/OfficeCheckIn.ts';
 import Location from '../models/Location.ts';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.ts';
 import { groupContainers, groupSlabs } from '../utils/dailyReportContainers.ts';
-import { PAYMENT_METHODS, paymentAmount } from '../utils/dailyReportPayments.ts';
+import { PAYMENT_METHODS, paymentAmount, paymentsSaid, paymentsFromPage } from '../utils/dailyReportPayments.ts';
+import PaymentReceived from '../models/PaymentReceived.ts';
+import { reportGridFrom } from '../utils/paymentsReceived.ts';
 import { ticketSlabs, arrivalsShippedEarlier } from '../utils/dailyReportTransfers.ts';
 import { manualTransferDirection, transferCountOf, transferLineKey, mergeTypedTransferSlabs, upgradeHandSetKeys, cleanTransferNumber } from '../utils/transferDirection.ts';
 
@@ -195,7 +197,7 @@ export async function deriveFromSystem(date: string, location: string, { deliver
   // a summer day submitted after the clocks changed).
   const { start: dayStart, end: dayEnd } = branchDayWindow(location, date);
 
-  const [checkIns, allDeliveryRows, incomingRows] = await Promise.all([
+  const [checkIns, allDeliveryRows, incomingRows, paymentRows] = await Promise.all([
     OfficeCheckIn.countDocuments({
       location,
       createdAt: { $gte: dayStart, $lt: dayEnd }
@@ -204,7 +206,10 @@ export async function deriveFromSystem(date: string, location: string, { deliver
     Delivery.find(
       incomingTransferQuery(date, location),
       'id location numberOfSlabs receivedAt receivedBy soNumber invoiceNumber'
-    ).lean()
+    ).lean(),
+    // From PAYMENTS_FROM_PAGE_SINCE the day's payments are the Payments
+    // page's entries (voided ones never count); before it, what was typed.
+    paymentsFromPage(date) ? PaymentReceived.find({ location, date, voidedAt: null }, 'method cents').lean() : null
   ]);
 
   // Only tickets filed under this branch. A ticket with no branch (or '*')
@@ -266,6 +271,9 @@ export async function deriveFromSystem(date: string, location: string, { deliver
     returnsCount: returnRows.length,
     returnsSlabs: returnRows.reduce((sum, d) => sum + slabsOf(d), 0),
     transfers: [...outbound, ...inbound],
+    payments: paymentRows
+      ? { fromPage: true as const, count: paymentRows.length, grid: reportGridFrom(paymentRows.map(p => ({ method: p.method, cents: p.cents }))) }
+      : { fromPage: false as const, count: 0, grid: null },
     // The day's tickets (every branch) with no branch set — counted on no
     // report until someone sets one.
     noBranchTickets
@@ -393,9 +401,24 @@ type DerivedReport = {
   returns?: number | string | null;
   returnsSlabs?: number | string | null;
   transfers: TransferLineLike[];
+  payments?: PaymentsLike | null;
 };
-export function applyDerived<T extends DerivedReport>(report: T, derived: Omit<DerivedFigures, 'noBranchTickets'>): T {
+export function applyDerived<T extends DerivedReport>(report: T, derived: Omit<DerivedFigures, 'noBranchTickets' | 'payments'> & { payments?: DerivedFigures['payments'] }): T {
   if (report.status === 'submitted') return report;
+
+  // Payments from the Payments page (from PAYMENTS_FROM_PAGE_SINCE): its
+  // entries decide every method. With none, "Nothing taken today" (every
+  // method 0) stands; anything else left from an earlier read goes back to
+  // not recorded, so a payment voided since doesn't linger.
+  if (derived.payments?.fromPage) {
+    const nothingTaken = paymentsSaid(report.payments) && PAYMENT_METHODS.every(({ key }) =>
+      !Number(report.payments?.[key]?.count) && !Number(report.payments?.[key]?.amount));
+    report.payments = derived.payments.count > 0 && derived.payments.grid
+      ? derived.payments.grid
+      : nothingTaken
+        ? Object.fromEntries(PAYMENT_METHODS.map(({ key }) => [key, { count: 0, amount: 0 }]))
+        : Object.fromEntries(PAYMENT_METHODS.map(({ key }) => [key, { count: null, amount: null }]));
+  }
 
   report.visitors ||= { homeowners: 0 };
   report.visitors.homeowners = derived.visitorCheckIns;
@@ -740,7 +763,11 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           pickupsSlabs: derived.pickupsSlabs,
           returnsCount: derived.returnsCount,
           returnsSlabs: derived.returnsSlabs,
-          noBranchTickets: derived.noBranchTickets
+          noBranchTickets: derived.noBranchTickets,
+          // From the Payments page (PAYMENTS_FROM_PAGE_SINCE): the report's
+          // Payments are read-only and this many live entries made them.
+          paymentsFromPage: derived.payments.fromPage,
+          paymentEntries: derived.payments.count
         },
         // The band a slab count is sane within, so the rule lives on the server
         // rather than being reinvented in the form.
@@ -974,7 +1001,9 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         // ACH added 2026-10-15, first like on the sheet.
         'ACH count', 'ACH amount',
         'Cash count', 'Cash amount', 'Card count', 'Card amount',
-        'Check count', 'Check amount', 'Payments total',
+        'Check count', 'Check amount',
+        // Return added 2026-11-02 (negative amounts); the total is the net.
+        'Return count', 'Return amount', 'Payments total',
         'Submitted by'
       ];
 
@@ -998,6 +1027,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
           r.payments?.cash?.count || 0, (r.payments?.cash?.amount || 0).toFixed(2),
           r.payments?.card?.count || 0, (r.payments?.card?.amount || 0).toFixed(2),
           r.payments?.check?.count || 0, (r.payments?.check?.amount || 0).toFixed(2),
+          r.payments?.return?.count || 0, (r.payments?.return?.amount || 0).toFixed(2),
           s.payments.toFixed(2),
           r.submittedBy || ''
         ].map(esc).join(',');

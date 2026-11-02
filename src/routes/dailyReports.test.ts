@@ -5,6 +5,8 @@ import Delivery from '../models/Delivery.ts';
 const deliveryStore = Delivery as unknown as { find: (query: Loose) => { lean: () => Promise<Loose[]> } };
 import OfficeCheckIn from '../models/OfficeCheckIn.ts';
 const checkInStore = OfficeCheckIn as unknown as { countDocuments: (query: Loose) => Promise<number> };
+import PaymentReceived from '../models/PaymentReceived.ts';
+const paymentStore = PaymentReceived as unknown as { find: (query: Loose, fields?: string) => { lean: () => Promise<Loose[]> } };
 import DailyReport from '../models/DailyReport.ts';
 const reportStore = DailyReport as unknown as { findOneAndUpdate: (filter: Loose, update: Loose, options?: Loose) => Promise<Loose | null> };
 import { buildDraftPayload } from '../features/dailyReport/savePayload.ts';
@@ -381,6 +383,8 @@ describe('deriveFromSystem — Homeowners counted in the branch\'s own day', () 
   it('uses the branch clock on the report date, not the viewer\'s or today\'s offset', async () => {
     vi.spyOn(deliveryStore, 'find').mockImplementation(() => ({ lean: async () => [] }));
     const count = vi.spyOn(checkInStore, 'countDocuments').mockResolvedValue(0);
+    // 2026-12-01 is after PAYMENTS_FROM_PAGE_SINCE, so its payments are read too.
+    vi.spyOn(paymentStore, 'find').mockImplementation(() => ({ lean: async () => [] }));
     await deriveFromSystem('2026-07-01', 'Seattle');
     expect((count.mock.calls[0][0])!.createdAt).toEqual({ $gte: new Date('2026-07-01T07:00:00Z'), $lt: new Date('2026-07-02T07:00:00Z') });
     // A winter day is measured on winter time, whenever it's worked out.

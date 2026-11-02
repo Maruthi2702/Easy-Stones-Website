@@ -5,14 +5,24 @@ import type { PaymentKey, PaymentsLike } from '../types/dailyReport.ts';
  * and the PDF — adding a method is one line here plus the model's field.
  *
  * ACH was added 2026-10-15. Reports saved before then have no `ach` at all,
- * which reads as unsaid (null), never as a zero.
+ * which reads as unsaid (null), never as a zero. Return was added 2026-11-02
+ * with the Payments page: its amount is negative, so the total is the net.
  */
 export const PAYMENT_METHODS: { key: PaymentKey; label: string }[] = [
   { key: 'ach', label: 'ACH' },
   { key: 'cash', label: 'Cash' },
   { key: 'card', label: 'Credit Card (CC)' },
-  { key: 'check', label: 'Check' }
+  { key: 'check', label: 'Check' },
+  { key: 'return', label: 'Return' }
 ];
+
+/**
+ * From this day (each branch's own calendar day) the report's Payments come
+ * from the Payments page (src/utils/paymentsReceived.ts) and can't be typed;
+ * days before it keep what was typed. Owner's go-ahead 2026-11-02.
+ */
+export const PAYMENTS_FROM_PAGE_SINCE = '2026-11-02';
+export const paymentsFromPage = (date: string | null | undefined) => Boolean(date) && String(date) >= PAYMENTS_FROM_PAGE_SINCE;
 
 const orNull = <V,>(v: V | undefined | ''): V | null => (v === undefined || v === '' ? null : v);
 

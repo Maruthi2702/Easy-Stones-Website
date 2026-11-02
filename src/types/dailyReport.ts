@@ -45,7 +45,7 @@ export type TransferLineLike = {
 /** What the container rules read: any line, stored or being typed. */
 export type ContainerLineLike = { poNumber?: string; material?: string; slabs?: unknown };
 
-export type PaymentKey = 'ach' | 'cash' | 'card' | 'check';
+export type PaymentKey = 'ach' | 'cash' | 'card' | 'check' | 'return';
 /** What the payment rules read: any method may be missing (older reports have no `ach`). */
 export type PaymentsLike = Partial<Record<PaymentKey, { count?: number | string | null; amount?: number | string | null } | null>>;
 

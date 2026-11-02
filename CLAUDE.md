@@ -1020,12 +1020,18 @@ in the header); phones put the tiles behind a stats button. The form's
 dropdowns use **`keepInForm`** (FormPicker / FormSearchPicker, opt-in, owner
 2026-11-02: never the bottom sheet on desktop — below if it fits, above if it
 all fits, else the roomier side sized to it, scrolling inside — the form never moves); other forms are unchanged
-until the owner decides app-wide. **Switch-over not built**: the Daily
-Report keeps its typed Payments grid and shows "Payments page: $X" under it
-(`usePaymentsSummary`); once the owner has tested and confirmed, the report's
-grid is to come from this page (`reportGridFrom`, via deriveFromSystem /
-applyDerived, Return added to the report, PDF, month view and CSV; days
-before the switch keep their typed figures).
+until the owner decides app-wide. **The Daily Report reads it** (switch-over,
+owner's go-ahead 2026-11-02): from `PAYMENTS_FROM_PAGE_SINCE` (2026-11-02, in
+`src/utils/dailyReportPayments.ts`) `deriveFromSystem` reads the day's live
+entries and `applyDerived` sets the report's Payments from them (every method,
+**Return** a fifth method with a negative amount, the total the net) — read
+only on the sheet; "Nothing taken today" (every method 0) stands while there
+are none; a stored grid with no entries left goes back to not recorded.
+Submit / auto-submit freeze it like every derived figure; a day with only
+payments counts as activity for the 11:59 auto-submit. The PDF, month view
+and CSV (Return count / amount columns) follow. Days before the start keep
+their typed grid (no Return row) and show "Payments page: $X" under it
+(`usePaymentsSummary`). Tests: `src/routes/dailyReportPaymentsFromPage.test.ts`.
 
 ## Forms: one template, everywhere
 

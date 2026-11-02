@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import type { Color, PDFPage, PDFFont, PDFImage, PDFPageDrawRectangleOptions } from 'pdf-lib';
 import { groupContainers } from './dailyReportContainers.ts';
-import { PAYMENT_METHODS, paymentCount, paymentAmount } from './dailyReportPayments.ts';
+import { PAYMENT_METHODS, paymentCount, paymentAmount, paymentsFromPage } from './dailyReportPayments.ts';
 
 /**
  * The Daily Work Report as paper.
@@ -35,7 +35,8 @@ const BAND = rgb(0.976, 0.976, 0.976);
 const GREEN = rgb(0.12, 0.48, 0.26);
 const AMBER = rgb(0.60, 0.46, 0.08);
 
-const money = (v: unknown) => `$${Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// A Return is negative: "-$1,000.00", not "$-1,000.00".
+const money = (v: unknown) => `${Number(v || 0) < 0 ? '-' : ''}$${Math.abs(Number(v || 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const int = (v: unknown) => Number(v || 0).toLocaleString('en-US');
 
 /** A figure nobody entered is a dash, not a zero — they mean different things. */
@@ -354,7 +355,8 @@ export async function buildDayPdf(report: PdfDayReport) {
     head: ['Method', 'Trans.', 'Amount'],
     cols: [{ align: 'left', width: colW - 130 }, { align: 'right', width: 45 }, { align: 'right', width: 85 }],
     rows: [
-      ...PAYMENT_METHODS.map(({ key, label }) => ({
+      // Return only on days the Payments page fills (older days never had it).
+      ...PAYMENT_METHODS.filter(({ key }) => key !== 'return' || paymentsFromPage(report.date)).map(({ key, label }) => ({
         cells: [label, int(pay[key]?.count), money(pay[key]?.amount)]
       })),
       { cells: ['Total', int(payCount), money(payAmount)], total: true }

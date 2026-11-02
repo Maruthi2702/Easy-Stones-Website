@@ -4,8 +4,8 @@ import {
 } from './dailyReportPayments.ts';
 
 describe('daily report payments', () => {
-  it('lists ACH first, then Cash, Credit Card, Check', () => {
-    expect(PAYMENT_METHODS.map(m => m.label)).toEqual(['ACH', 'Cash', 'Credit Card (CC)', 'Check']);
+  it('lists ACH first, then Cash, Credit Card, Check, Return', () => {
+    expect(PAYMENT_METHODS.map(m => m.label)).toEqual(['ACH', 'Cash', 'Credit Card (CC)', 'Check', 'Return']);
   });
 
   it('gives a report saved before ACH a blank ACH, keeping the rest', () => {
@@ -14,7 +14,8 @@ describe('daily report payments', () => {
       ach: { count: null, amount: null },
       cash: { count: 2, amount: 150 },
       card: { count: null, amount: null },
-      check: { count: 0, amount: 0 }
+      check: { count: 0, amount: 0 },
+      return: { count: null, amount: null }
     });
     expect(withAllPaymentMethods(undefined).ach).toEqual({ count: null, amount: null });
   });

@@ -1328,3 +1328,7 @@ body.light-theme-active .dr-root,
 .dr-pay-compare { padding: 9px 14px; font-size: 13px; border-top: 1px solid var(--dr-line-soft); }
 .dr-pay-compare.is-match { color: var(--dr-good); }
 .dr-pay-compare.is-diff { color: var(--dr-warn); background: var(--dr-warn-bg); }
+/* Payments filled from the Payments page (from 2026-11-02). */
+.dr-pay-neg { color: var(--dr-bad); }
+.dr-pay-from { padding: 9px 14px; font-size: 13px; color: var(--dr-text-2); border-top: 1px solid var(--dr-line-soft); }
+.dr-pay-from b { color: var(--dr-text); }
