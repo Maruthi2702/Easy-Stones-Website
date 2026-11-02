@@ -14,7 +14,7 @@ import {
 } from '../../../utils/followUpList';
 import type { DueBucket, FollowUpFilters, FollowUpRangeQuery, FollowUpRow, FollowUpStatus } from '../../../utils/followUpList';
 import PeopleField from '../components/PeopleField';
-import DashboardSearch from '../components/DashboardSearch';
+import DashboardSearch from '../../../components/shared/DashboardSearch';
 import type { PeopleFilter } from '../components/PeopleField';
 import type { Loose } from '../../../types/records';
 import { FollowUpCards, FollowUpTable } from './FollowUpRows';

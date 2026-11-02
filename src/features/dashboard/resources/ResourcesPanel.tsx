@@ -5,7 +5,7 @@ import LocationFilter from '../../../components/shared/LocationFilter';
 import { useMyTeam } from '../../../api/myTeam';
 import { useResourceFamilies, useResourceTypes } from '../../../api/typeLists';
 import PeopleField from '../components/PeopleField';
-import DashboardSearch from '../components/DashboardSearch';
+import DashboardSearch from '../../../components/shared/DashboardSearch';
 import type { PeopleFilter } from '../components/PeopleField';
 import Pagination from '../../../components/shared/Pagination';
 import RowMenu from '../../../components/shared/RowMenu';

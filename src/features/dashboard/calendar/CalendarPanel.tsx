@@ -1,7 +1,7 @@
 import { Suspense, useState } from 'react';
 import { lazyRetry } from '../../../utils/lazyRetry';
 import type { Loose } from '../../../types/records';
-import DashboardSearch from '../components/DashboardSearch';
+import DashboardSearch from '../../../components/shared/DashboardSearch';
 
 const SalesPlannerTab = lazyRetry(() => import('../../salesPlanner/SalesPlannerTab'));
 

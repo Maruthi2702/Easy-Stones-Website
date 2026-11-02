@@ -9,6 +9,8 @@ export type DashboardSearchProps = {
     label: string;
     /** "2 of 17" while something is typed; nothing when empty. */
     count?: string | null;
+    /** Defaults to the dashboard's; another page (Payments) names what it searches. */
+    placeholder?: string;
 };
 
 /** The placeholder every dashboard tab shares (the Dashboard tabs canvas, "Search box — one for every tab"). */
@@ -29,7 +31,7 @@ const typingInto = (el: EventTarget | null) => {
  * anywhere outside a text field jumps into it. Typed, it shows how many match and
  * a ✕ to clear. Focused, a gold border and ring.
  */
-export default function DashboardSearch({ value, onChange, label, count = null }: DashboardSearchProps) {
+export default function DashboardSearch({ value, onChange, label, count = null, placeholder = DASHBOARD_SEARCH_PLACEHOLDER }: DashboardSearchProps) {
     const inputRef = useRef<HTMLInputElement>(null);
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
@@ -50,7 +52,7 @@ export default function DashboardSearch({ value, onChange, label, count = null }
                 type="search"
                 className="dsx-input no-capitalize"
                 aria-label={label}
-                placeholder={DASHBOARD_SEARCH_PLACEHOLDER}
+                placeholder={placeholder}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Escape' && value) { e.preventDefault(); onChange(''); } }}

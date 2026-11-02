@@ -106,12 +106,31 @@ const MENU_START: MenuPlacement = { placement: 'down', maxHeight: 440 };
  */
 const formScrollerOf = (anchor: Element) => anchor.closest('.fm-body, .fm-sheet-body');
 
+/**
+ * `keepInForm` (opt-in; owner, 2026-11-02, on the Payments form): the list
+ * never leaves the form for the sheet on desktop. It opens below the field
+ * when the whole list fits there, above when it all fits there, and otherwise
+ * below with the form body scrolled just enough to show all of it.
+ */
+function keepInFormPlacement(anchor: Element, scroller: Element | null | undefined, menu: Element | null): MenuPlacement {
+    const content = Math.min(menu?.scrollHeight || 440, 440);
+    const { above, below } = menuRoom(anchor, scroller);
+    if (content > below && content <= above) return { placement: 'up', maxHeight: 440 };
+    if (content > below && scroller && menu) {
+        const m = menu.getBoundingClientRect();
+        const b = scroller.getBoundingClientRect();
+        if (m.bottom > b.bottom - 12) scroller.scrollTop += m.bottom - b.bottom + 12;
+    }
+    return { placement: 'down', maxHeight: 440 };
+}
+
 export function useMenuPlacement(
     open: boolean,
     isPhone: boolean,
     anchorRef: RefObject<Element | null>,
     menuRef: RefObject<Element | null>,
-    scrollerOf: (anchor: Element) => Element | null | undefined = formScrollerOf
+    scrollerOf: (anchor: Element) => Element | null | undefined = formScrollerOf,
+    keepInForm = false
 ): MenuPlacement {
     // Menu geometry comes from the DOM. Publish only changed measurements so
     // a caller's inline scroller callback cannot cause a render/reset loop.
@@ -137,6 +156,7 @@ export function useMenuPlacement(
         if (!open || isPhone || !anchor) return undefined;
         const measure = () => {
             const scroller = scrollerOf(anchor);
+            if (keepInForm) { measurements.update(keepInFormPlacement(anchor, scroller, menuRef.current)); return; }
             const content = menuRef.current?.scrollHeight || 0;
             const placed = menuPlacement(anchor, 440, scroller, content || 440);
             const { above, below } = menuRoom(anchor, scroller);
@@ -153,6 +173,6 @@ export function useMenuPlacement(
             window.removeEventListener('resize', measure);
             observer?.disconnect();
         };
-    }, [open, isPhone, anchorRef, menuRef, scrollerOf, measurements]);
+    }, [open, isPhone, anchorRef, menuRef, scrollerOf, measurements, keepInForm]);
     return open && !isPhone ? pos : MENU_START;
 }

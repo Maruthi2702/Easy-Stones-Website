@@ -1,0 +1,175 @@
+/*
+ * Operations → Payments (PaymentsPage.tsx). Built from the claude.ai artifact
+ * "Payments page prototype". Everything is prefixed .pay- so nothing leaks;
+ * dark is the app's default, light sits under body.light-theme-active.
+ * Forms use the shared template (FormModal); search is DashboardSearch and
+ * Filters is the shared LocationFilter.
+ */
+
+.pay {
+  --pay-bg: var(--bg-primary, #0f1013);
+  --pay-surface: var(--bg-card, #17191e);
+  --pay-head: #1f2228;
+  --pay-hover: #23262d;
+  --pay-line: rgba(255, 255, 255, 0.09);
+  --pay-line-soft: rgba(255, 255, 255, 0.05);
+  --pay-text: var(--text-primary, #e8eaed);
+  --pay-text-2: #c3c8d0;
+  --pay-muted: #9aa3af;
+  --pay-gold: #d4af37;
+  --pay-gold-bd: #bf9b2a;
+  --pay-on-gold: #1a1505;
+  --pay-total-bg: rgba(212, 175, 55, 0.09);
+  --pay-total-ink: #e2c76a;
+  --pay-neg: #f87171;
+  --pay-neg-bg: rgba(248, 113, 113, 0.12);
+  --pay-info-bg: rgba(96, 165, 250, 0.12);
+  --pay-info-ink: #bfdbfe;
+  --pay-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  background: var(--pay-bg);
+  color: var(--pay-text);
+  font-size: 14px;
+  line-height: 1.4;
+  box-sizing: border-box;
+}
+.pay::-webkit-scrollbar { display: none; }
+.pay *, .pay *::before, .pay *::after { box-sizing: border-box; }
+
+body.light-theme-active .pay {
+  --pay-bg: #f5f6f8;
+  --pay-surface: #ffffff;
+  --pay-head: #edf1f7;
+  --pay-hover: #f4f5f7;
+  --pay-line: #e3e6ea;
+  --pay-line-soft: #eef0f3;
+  --pay-text: #0f172a;
+  --pay-text-2: #334155;
+  --pay-muted: #5a6574;
+  --pay-gold: #c9a227;
+  --pay-gold-bd: #a88515;
+  --pay-on-gold: #1f1a08;
+  --pay-total-bg: #fffbeb;
+  --pay-total-ink: #7a5e10;
+  --pay-neg: #b42318;
+  --pay-neg-bg: #fdecea;
+  --pay-info-bg: #eff6ff;
+  --pay-info-ink: #1e40af;
+  --pay-shadow: 0 6px 18px rgba(15, 23, 42, 0.07);
+}
+
+.pay-page { max-width: 1440px; margin: 0 auto; padding: 22px 28px 120px; display: flex; flex-direction: column; gap: 16px; }
+.pay-neg { color: var(--pay-neg); }
+.pay-muted { color: var(--pay-muted); }
+.pay-sub { font-size: 12px; color: var(--pay-muted); }
+.pay-nowrap { white-space: nowrap; }
+.pay-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ── Header: title left; search + Filters together in the right corner ── */
+.pay-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pay-ttl { display: grid; gap: 2px; min-width: 0; }
+.pay-ttl h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
+.pay-ttl span { font-size: 13px; color: var(--pay-muted); }
+.pay-pill { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--pay-info-bg); color: var(--pay-info-ink); white-space: nowrap; }
+.pay-tools { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pay-round { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--pay-line); background: var(--pay-surface); color: var(--pay-text-2); cursor: pointer; }
+.pay-filter-gap { margin-top: 1rem; }
+.pay-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--pay-text-2); cursor: pointer; }
+
+/* ── Notes ── */
+.pay-note { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 10px; font-size: 13px; }
+.pay-note.is-lock { background: var(--pay-info-bg); color: var(--pay-info-ink); }
+.pay-note.is-lock svg { margin-top: 2px; flex: none; }
+.pay-note.is-error { background: var(--pay-neg-bg); color: var(--pay-neg); }
+
+/* ── Totals: a tile per method, then the day; each one filters the list ── */
+.pay-tiles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.pay-tile { display: grid; gap: 2px; padding: 12px 14px; text-align: left; border: 1px solid var(--pay-line); border-radius: 12px; background: var(--pay-surface); color: inherit; font: inherit; cursor: pointer; }
+.pay-tile:hover { border-color: rgba(212, 175, 55, 0.4); }
+.pay-tile.is-on { border-color: var(--pay-gold); box-shadow: inset 0 0 0 1px var(--pay-gold); }
+.pay-tile.is-total { background: var(--pay-total-bg); border-color: transparent; box-shadow: none; }
+.pay-tile-k { font-size: 12px; font-weight: 500; color: var(--pay-text-2); }
+.pay-tile-v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pay-tile.is-total .pay-tile-v { color: var(--pay-total-ink); }
+.pay-tile-c { font-size: 12px; color: var(--pay-muted); }
+
+/* ── The list ── */
+.pay-card-box { background: var(--pay-surface); border: 1px solid var(--pay-line); border-radius: 12px; overflow: hidden; transition: opacity 0.15s; }
+.pay-card-box.is-loading { opacity: 0.6; }
+.pay-table-wrap { overflow-x: auto; scrollbar-width: none; }
+.pay-table { width: 100%; border-collapse: collapse; }
+.pay-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--pay-text-2); background: var(--pay-head); padding: 9px 12px; white-space: nowrap; }
+.pay-table td { padding: 11px 12px; border-top: 1px solid var(--pay-line-soft); vertical-align: top; }
+.pay-table th.pay-num { text-align: right; }
+.pay-table tr.is-void td { color: var(--pay-muted); }
+.pay-table tr.is-void .pay-amt { text-decoration: line-through; }
+.pay-co { font-weight: 600; }
+.pay-amt { font-weight: 700; }
+.pay-note-cell { max-width: 260px; }
+.pay-menu-cell { width: 44px; text-align: right; }
+.pay-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 12px; font-weight: 600; background: var(--pay-line-soft); color: var(--pay-text-2); white-space: nowrap; }
+.pay-chip.is-return { background: var(--pay-neg-bg); color: var(--pay-neg); }
+.pay-void-tag { margin-left: 6px; font-size: 11px; font-weight: 700; color: var(--pay-muted); }
+tr.pay-shown td { background: var(--pay-total-bg); color: var(--pay-total-ink); font-weight: 600; border-top: 1px solid var(--pay-line); }
+
+.pay-cards { display: flex; flex-direction: column; }
+.pay-card { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 12px 14px; border-top: 1px solid var(--pay-line-soft); }
+.pay-card:first-child { border-top: 0; }
+.pay-card.is-void { opacity: 0.6; }
+.pay-card.is-void .pay-amt { text-decoration: line-through; }
+.pay-card-meta { font-size: 12px; color: var(--pay-muted); }
+.pay-card-menu { justify-self: end; }
+.pay-card.pay-shown { background: var(--pay-total-bg); color: var(--pay-total-ink); font-weight: 600; border-top: 1px solid var(--pay-line); }
+
+.pay-empty { padding: 36px 16px; display: grid; gap: 10px; justify-items: center; text-align: center; color: var(--pay-text-2); }
+.pay-empty h3 { margin: 0; font-size: 15px; color: var(--pay-text); }
+.pay-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--pay-line); background: var(--pay-surface); color: var(--pay-text); font: inherit; font-weight: 600; cursor: pointer; }
+.pay-btn.gold { background: var(--pay-gold); border-color: var(--pay-gold-bd); color: var(--pay-on-gold); }
+
+/* ── The one + (round gold, bottom right, as on the dashboard) ── */
+.pay-fab { position: fixed; right: 24px; bottom: calc(24px + var(--app-bottom-h, 0px)); z-index: 60; width: 56px; height: 56px; border-radius: 50%; border: 0; background: var(--pay-gold); color: var(--pay-on-gold); display: grid; place-items: center; cursor: pointer; box-shadow: var(--pay-shadow); transition: filter 0.15s, box-shadow 0.15s; }
+.pay-fab:hover:not(:disabled) { filter: brightness(1.06); box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.25), var(--pay-shadow); }
+.pay-fab:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.pay-toast { position: fixed; left: 50%; bottom: calc(24px + var(--app-bottom-h, 0px)); transform: translateX(-50%); z-index: 70; background: var(--pay-text); color: var(--pay-bg); padding: 10px 16px; border-radius: 10px; font-weight: 500; box-shadow: var(--pay-shadow); }
+
+/* ── In the form (FormModal is portaled, so these aren't under .pay) ── */
+.pay-row-company { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.pay-money { position: relative; }
+.pay-money > span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--fm-mut); pointer-events: none; font-variant-numeric: tabular-nums; }
+.pay-money .fm-input { padding-left: 30px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pay-money.is-return > span, .pay-money.is-return .fm-input { color: var(--fm-err); }
+.pay-money.is-return .fm-input { padding-left: 36px; }
+.pay-opt { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+.pay-opt.is-return { color: var(--fm-err); }
+.pay-opt-hint { font-weight: 500; color: var(--fm-mut); }
+.fm-picker-trigger .pay-opt-hint { display: none; }
+.pay-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--fm-gold); }
+.pay-dot-return { background: var(--fm-err-bd); }
+.fm-menu .fm-opt:has(.pay-opt) { min-height: 40px; padding: 6px 12px; }
+.pay-form-error { margin-top: 16px; padding: 11px 14px; border-radius: 10px; background: var(--fm-err-bg); border: 1px solid var(--fm-err-bd); color: var(--fm-label); font-size: 13px; }
+.pay-void-what { margin: 0; font-size: 14px; line-height: 1.5; color: var(--fm-label); }
+.pay-void-what .pay-neg { color: var(--fm-err); }
+
+/* ── Tablet ── */
+@media (max-width: 1023px) {
+  .pay-page { padding: 18px 20px 120px; }
+  .pay-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ── Phone: totals behind the stats button, search + Filters on their own row ── */
+@media (max-width: 639px) {
+  .pay-page { padding: 14px 16px 120px; gap: 12px; }
+  .pay-ttl h1 { font-size: 20px; }
+  .pay-round { margin-left: auto; }
+  .pay-tools { order: 6; flex: 1 1 100%; margin-left: 0; }
+  .pay-tools .dsx { flex: 1; }
+  .pay-row-company { grid-template-columns: minmax(0, 1fr); }
+  .pay-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pay-tiles .pay-tile.is-total { grid-column: 1 / -1; }
+  .pay-fab { right: 18px; bottom: calc(20px + var(--app-bottom-h, 0px)); }
+}

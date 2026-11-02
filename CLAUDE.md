@@ -225,7 +225,8 @@ every size:
   B): each action a label + round button popping out nearest first, the page
   dark and blurred behind (a tap there only closes), the + turning into × with
   a gold ring; hover only where there's a mouse.
-- **One search box** (`components/DashboardSearch.tsx`): "Search customer,
+- **One search box** (`src/components/shared/DashboardSearch.tsx`, shared since
+  2026-11-02 — Payments uses it with its own `placeholder`): "Search customer,
   contact, note", 300px (full row on a phone), "/" jumps into it, "2 of 17" and
   ✕ when typed. Each tab's title bar is just its title and this box (no count
   under the title). The Calendar's filters its stops (`search` prop).
@@ -987,6 +988,44 @@ an always-empty list). A conversion is types only: `git mv`, annotations,
 importers updated, no behaviour change; check with typecheck, `npm test`,
 `vite build`, and the screen by hand — for a server file also boot `server.ts`
 (an in-memory MongoDB is enough).
+
+## Payments: one entry per payment (2026-11-02, on `feat/payments-page`)
+
+Operations → **Payments** (`src/features/payments/`, nav `payments`): every
+payment a branch takes, one entry each, by branch and day — instead of typing
+totals into the Daily Report (owner's ask). Design and the owner's calls: the
+claude.ai artifact **Payments page prototype**
+(https://claude.ai/artifact/4zkVgFWTfDFdtLdfVJjjQh). Rules are
+`src/utils/paymentsReceived.ts` (tested), shared by the server and the screen:
+Company (the shared customer list), date, method and amount required; methods
+are the report's four plus **Return**, saved **negative whatever is typed**
+(1000 or -1000 → −$1,000.00); a minus on any other method is refused; a card
+reference keeps its last 4 digits only; amounts are cents. A payment is
+**voided with a reason, never deleted**, and every add / edit / void is kept in
+its `history`. **A day whose Daily Report is submitted is locked** — every
+write to it, or moving a payment into or out of it, answers 409; reopening
+the report unlocks it (owner's call, so the 11:59 PM auto-submit locks it too).
+API `src/routes/paymentsReceived.ts` (tested): `/api/payments-received`
+(list by branch + day with the day's status and the branch's own today,
+`/summary`, add with the screen's own `_id` so a repeat answers
+`alreadySaved`, edit, void). Branch access is the Daily Report's
+(assignedLocations). Users & Roles → **Payments** card: View / Add / Edit /
+Void, given once to roles holding `edit_daily_report` (all four) or
+`view_daily_report` (View) — `PAYMENTS_MIGRATION`. The screen: title with
+branch · day; DashboardSearch and the shared Filters (Day, Location — one
+branch, no "All" — Method, Show voided) together at the right; a tile per
+method that also filters; the list's total line for what's shown (to check
+against a deposit slip / card batch / cash count); the round gold + (no Add
+in the header); phones put the tiles behind a stats button. The form's
+dropdowns use **`keepInForm`** (FormPicker / FormSearchPicker, opt-in, owner
+2026-11-02: never the bottom sheet on desktop — below if it fits, above if it
+all fits, else below with the form body scrolled); other forms are unchanged
+until the owner decides app-wide. **Switch-over not built**: the Daily
+Report keeps its typed Payments grid and shows "Payments page: $X" under it
+(`usePaymentsSummary`); once the owner has tested and confirmed, the report's
+grid is to come from this page (`reportGridFrom`, via deriveFromSystem /
+applyDerived, Return added to the report, PDF, month view and CSV; days
+before the switch keep their typed figures).
 
 ## Forms: one template, everywhere
 

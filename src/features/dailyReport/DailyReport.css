@@ -1322,3 +1322,9 @@ body.light-theme-active .dr-root,
 
 /* The dollar sign shouldn't read as a filled field when the amount is unsaid. */
 .dr-money-sign.is-unsaid { opacity: 0.45; }
+
+/* The Payments page's total for the day, under the typed grid (until the
+   owner confirms the switch-over — src/features/payments/). */
+.dr-pay-compare { padding: 9px 14px; font-size: 13px; border-top: 1px solid var(--dr-line-soft); }
+.dr-pay-compare.is-match { color: var(--dr-good); }
+.dr-pay-compare.is-diff { color: var(--dr-warn); background: var(--dr-warn-bg); }

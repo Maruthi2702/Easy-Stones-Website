@@ -94,6 +94,8 @@ import {
 // of on this process's own thread. See runWorkbookParse.ts for why.
 import { runWorkbookParse } from './src/utils/runWorkbookParse.ts';
 import createDailyReportsRouter from './src/routes/dailyReports.ts';
+import createPaymentsReceivedRouter from './src/routes/paymentsReceived.ts';
+import { PAYMENTS_MIGRATION } from './src/utils/paymentsReceived.ts';
 import createDeliveriesRouter, { deliveryRoomsFor, renumberAllRuns } from './src/routes/deliveries.ts';
 import createCheckInRouter from './src/routes/checkIn.ts';
 import createFuelManRouter from './src/fuelman/router.ts';
@@ -944,7 +946,11 @@ async function startServer() {
         { from: 'view_all_visits', grant: ['view_team_calendar'] },
         ...CHECKIN_MIGRATION,
         // Customers (2026-10-17): add and import split from manage_customers.
-        ...CUSTOMER_MIGRATION
+        ...CUSTOMER_MIGRATION,
+        // Payments (2026-11-02, src/utils/paymentsReceived.ts): whoever could
+        // edit the Daily Report's payments can add / edit / void them on the
+        // new page; whoever could view the report can view it.
+        ...PAYMENTS_MIGRATION
       ];
       const migratedPerms = [...new Set(ACTION_MIGRATIONS.flatMap(m => m.grant))];
       for (const role of await Role.find({})) {
@@ -4426,6 +4432,14 @@ app.use('/api', createScheduleRouter({
 // Lives in src/routes/dailyReports.ts rather than here — a self-contained
 // feature with its own model, handed the middleware it needs.
 app.use('/api/daily-reports', createDailyReportsRouter({
+  authenticate,
+  requirePermission
+}));
+
+// ── PAYMENTS RECEIVED ── one entry per payment for a branch's day
+// (src/routes/paymentsReceived.ts); the Daily Report's Payments grid will read
+// them once the owner confirms the switch-over.
+app.use('/api/payments-received', createPaymentsReceivedRouter({
   authenticate,
   requirePermission
 }));

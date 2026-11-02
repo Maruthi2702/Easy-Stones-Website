@@ -8,10 +8,11 @@ import { PERMITS } from '../../../permits/permissions';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert
+    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
+import { PAYMENTS } from '../../../utils/paymentsReceived';
 import { FULL_ACCESS, USERS, ROLES, LOCATIONS, VISIT_TYPES, RESOURCE_TYPES, TYPE_LISTS_ALL, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
 import type { PageDef, RoleRecord } from '../types';
 
@@ -143,6 +144,21 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             // not just another save.
             { key: 'submit_daily_report', label: 'Submit',  icon: CheckCheck, desc: 'Sign off a day and lock it' },
             { key: 'reopen_daily_report', label: 'Reopen',  icon: RotateCcw, desc: 'Unlock a submitted day to correct it' }
+        ]
+    },
+    {
+        // Operations → Payments (src/utils/paymentsReceived.ts). A submitted
+        // Daily Report day is locked here whatever the switches say.
+        id: 'payments',
+        page: 'Payments',
+        icon: Wallet,
+        description: 'Payments taken at a branch, one entry each',
+        color: '#16a34a',
+        actions: [
+            { key: PAYMENTS.VIEW, label: 'View', icon: Eye,    desc: "See a branch's payments for a day and their totals" },
+            { key: PAYMENTS.ADD,  label: 'Add',  icon: Plus,   desc: 'Enter a payment or a return' },
+            { key: PAYMENTS.EDIT, label: 'Edit', icon: Pencil, desc: 'Change a payment (every change is kept in its history)' },
+            { key: PAYMENTS.VOID, label: 'Void', icon: Eraser, desc: 'Void a payment with a reason; it stays in the list, struck through' }
         ]
     },
     {

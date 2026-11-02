@@ -18,6 +18,7 @@ import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions.ts';
 import { PERMITS } from '../permits/permissions.ts';
 import { canCheckIn, canViewCheckInLog } from './checkInAccess.ts';
 import { canViewLostSales } from './lostSaleAccess.ts';
+import { PAYMENTS } from './paymentsReceived.ts';
 import { canOpenUsersPage } from './teamAccess.ts';
 import { canOpenArea, can, NAV_ORDER } from './usersAccess.ts';
 
@@ -63,6 +64,8 @@ export const NAV_ITEMS: NavItem[] = [
     id: 'daily_report', label: 'Daily Report', section: 'operations',
     canSee: (u: NavUser) => has(u, 'view_daily_report') || isAdmin(u) || !u
   },
+  // Payments (src/features/payments/): one entry per payment taken, by branch and day.
+  { id: 'payments', label: 'Payments', section: 'operations', canSee: (u: NavUser) => has(u, PAYMENTS.VIEW) },
   { id: 'checkin', label: 'Check-In Log', section: 'operations', canSee: (u: NavUser) => canViewCheckInLog(u) },
   { id: 'pricelist', label: 'Price List', section: 'products', canSee: (u: NavUser) => has(u, 'view_pricelist') },
   {

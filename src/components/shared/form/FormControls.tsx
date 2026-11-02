@@ -185,9 +185,11 @@ export function FormSheet({ open, title, onClose, children, footer }: { open: bo
  * sheet. An option with `disabled: true` is shown greyed out and skipped by
  * the arrow keys (a driver whose truck is full).
  */
-export function FormPicker<V extends string | number = string>({ id, value, onChange, options, placeholder = 'Choose…', error, sheetTitle, disabled }: {
+export function FormPicker<V extends string | number = string>({ id, value, onChange, options, placeholder = 'Choose…', error, sheetTitle, disabled, keepInForm = false }: {
     id: string; value: V | null | undefined; onChange: (value: V) => void; options: FormOption<V>[];
     placeholder?: Node; error?: unknown; sheetTitle?: string; disabled?: boolean;
+    /** Desktop: never the bottom sheet; the list stays under the field (useMenuPlacement's keepInForm). */
+    keepInForm?: boolean;
 }) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
@@ -195,7 +197,7 @@ export function FormPicker<V extends string | number = string>({ id, value, onCh
     const wrapRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
-    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef);
+    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef, undefined, keepInForm);
     // A phone, or a form too short to hold the list beside the field.
     const sheet = isPhone || pos.placement === 'sheet';
     const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
@@ -344,13 +346,15 @@ export function FormPicker<V extends string | number = string>({ id, value, onCh
 export function FormSearchPicker({
     id, value, onChange, options, placeholder = 'Search…', searchPlaceholder = 'Type a name',
     error, sheetTitle, loading = false, onCreateNew, createNewLabel = 'New', selectedLabel = '',
-    maxResults = 50, disabled
+    maxResults = 50, disabled, keepInForm = false
 }: {
     id: string; value: string | null | undefined; onChange: (value: string) => void;
     options: { value: string; label: string; description?: string; keywords?: string }[];
     placeholder?: Node; searchPlaceholder?: string; error?: unknown; sheetTitle?: string; loading?: boolean;
     onCreateNew?: (typed: string) => void; createNewLabel?: Node | ((typed: string) => Node | null);
     selectedLabel?: Node; maxResults?: number; disabled?: boolean;
+    /** As FormPicker's. */
+    keepInForm?: boolean;
 }) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
@@ -360,7 +364,7 @@ export function FormSearchPicker({
     const triggerRef = useRef<HTMLButtonElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const menuRef = useRef<HTMLDivElement>(null);
-    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef);
+    const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef, undefined, keepInForm);
     const sheet = isPhone || pos.placement === 'sheet';
     const openList = () => setOpen(true);
     const listId = `${id}-list`;

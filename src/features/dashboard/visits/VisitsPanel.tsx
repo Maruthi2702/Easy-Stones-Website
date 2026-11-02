@@ -2,7 +2,7 @@ import Pagination from '../../../components/shared/Pagination';
 import { canModifyVisit, canDeleteVisit } from '../../../utils/visitAccess';
 import { useMyTeam } from '../../../api/myTeam';
 import DashboardAside from '../components/DashboardAside';
-import DashboardSearch from '../components/DashboardSearch';
+import DashboardSearch from '../../../components/shared/DashboardSearch';
 import VisitsFocusList from '../components/VisitsFocusList';
 import RepBreakdownTable from '../components/RepBreakdownTable';
 import type { RepRow } from '../repBreakdown';

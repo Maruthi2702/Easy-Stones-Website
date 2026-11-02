@@ -126,7 +126,7 @@ describe('admin nav order', () => {
   it('applies the order and puts anything it doesn’t mention after, in the default order', () => {
     const order = { sections: ['operations', 'sales'], items: { sales: ['lost_sales'], operations: ['checkin', 'delivery_schedule'] } };
     expect(ids(orderedSections(order))).toEqual([
-      ['operations', ['checkin', 'delivery_schedule', 'daily_report']],
+      ['operations', ['checkin', 'delivery_schedule', 'daily_report', 'payments']],
       ['sales', ['lost_sales', 'customers', 'route_planner', 'holds', 'permits', 'team_files']],
       ['home', ['dashboard']],
       ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet', 'live_inventory']],

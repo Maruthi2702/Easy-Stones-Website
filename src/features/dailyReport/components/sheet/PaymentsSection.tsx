@@ -4,6 +4,8 @@ import { ReportCell, MoneyCell } from '../ReportCell';
 import { money } from '../../summaryFigures';
 import { PAYMENT_METHODS, paymentsSaid } from '../../../../utils/dailyReportPayments';
 import type { SheetEditors } from '../../sheetEditing';
+import { usePaymentsSummary } from '../../../payments';
+import { formatMoney } from '../../../../utils/paymentsReceived';
 import type { DayTotals, Report } from '../../types';
 
 export type PaymentsSectionProps = {
@@ -17,6 +19,11 @@ export type PaymentsSectionProps = {
 /** Payments taken, by method — or "Nothing taken today". */
 export default function PaymentsSection({ report, totals, locked, setPath, declareNoPayments }: PaymentsSectionProps) {
   const paymentsUnsaid = report && !paymentsSaid(report.payments);
+  // While the report keeps its typed grid (until the owner confirms the
+  // switch-over), the Payments page's total for the day sits under it.
+  const fromPage = usePaymentsSummary(report?.location, report?.date);
+  const pageCents = fromPage?.net ?? 0;
+  const typedCents = Math.round((totals.payAmount || 0) * 100);
 
   return (
     <ReportSection
@@ -56,6 +63,13 @@ export default function PaymentsSection({ report, totals, locked, setPath, decla
           </tr>
         </tbody>
       </table>
+      {fromPage && fromPage.count > 0 ? (
+        <div className={`dr-pay-compare ${!paymentsUnsaid && typedCents === pageCents ? 'is-match' : 'is-diff'}`} role="status">
+          Payments page: <strong>{formatMoney(pageCents)}</strong> ({fromPage.count} {fromPage.count === 1 ? 'entry' : 'entries'}
+          {fromPage.returned ? `, ${formatMoney(fromPage.returned)} returned` : ''}).{' '}
+          {paymentsUnsaid ? 'Nothing typed above yet.' : typedCents === pageCents ? 'Matches the total above.' : `The total above differs by ${formatMoney(typedCents - pageCents)}.`}
+        </div>
+      ) : null}
     </ReportSection>
   );
 }
