@@ -16,8 +16,6 @@ export type PaymentsSectionProps = {
   declareNoPayments: SheetEditors['declareNoPayments'];
 };
 
-const figure = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : String(v));
-
 /**
  * Payments taken, by method — or "Nothing taken today".
  *
@@ -55,9 +53,11 @@ export default function PaymentsSection({ report, totals, locked, setPath, decla
             {PAYMENT_METHODS.map(({ label, key }) => (
               <tr key={key}>
                 <td>{label}</td>
-                <td className="dr-num">{figure(report.payments?.[key]?.count)}</td>
-                <td className={`dr-num${Number(report.payments?.[key]?.amount) < 0 ? ' dr-pay-neg' : ''}`}>
-                  {report.payments?.[key]?.amount === null || report.payments?.[key]?.amount === undefined ? '—' : money(Number(report.payments[key].amount))}
+                <td className="dr-num">
+                  <ReportCell value={report.payments?.[key]?.count} readOnly ariaLabel={`${label} transactions`} onChange={() => {}} />
+                </td>
+                <td className="dr-num">
+                  <MoneyCell value={report.payments?.[key]?.amount} readOnly ariaLabel={`${label} amount`} onChange={() => {}} />
                 </td>
               </tr>
             ))}

@@ -82,16 +82,21 @@ const formatMoney = (v: Figure | undefined) => {
 };
 
 /** Money reads better with the symbol outside the box than inside the value. */
-export const MoneyCell = ({ value, onChange, disabled = false, ariaLabel, onKeyDown }: Pick<ReportCellProps, 'value' | 'onChange' | 'disabled' | 'ariaLabel' | 'onKeyDown'>) => {
+// `readOnly` (opt-in): the system's figure (Payments from the Payments page),
+// in the read-only cell style; a negative one (a Return) reads "−$2,000.00" in red.
+export const MoneyCell = ({ value, onChange, disabled = false, ariaLabel, onKeyDown, readOnly = false }: Pick<ReportCellProps, 'value' | 'onChange' | 'disabled' | 'ariaLabel' | 'onKeyDown' | 'readOnly'>) => {
   const [focused, setFocused] = useState(false);
-  const shown = !focused && value !== null && value !== undefined && value !== '' ? formatMoney(value) : value;
+  const negative = readOnly && Number(value) < 0;
+  const plain = negative ? Math.abs(Number(value)) : value;
+  const shown = !focused && plain !== null && plain !== undefined && plain !== '' ? formatMoney(plain) : plain;
   return (
-    <span className="dr-money">
-      <span className={`dr-money-sign ${value === null || value === undefined ? 'is-unsaid' : ''}`}>$</span>
+    <span className={`dr-money${negative ? ' is-negative' : ''}`}>
+      <span className={`dr-money-sign ${value === null || value === undefined ? 'is-unsaid' : ''}`}>{negative ? '−$' : '$'}</span>
       <ReportCell
         value={shown}
         onChange={onChange}
         disabled={disabled}
+        readOnly={readOnly}
         ariaLabel={ariaLabel}
         onKeyDown={onKeyDown}
         width={100}
