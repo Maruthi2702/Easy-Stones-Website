@@ -111,16 +111,20 @@ const formScrollerOf = (anchor: Element) => anchor.closest('.fm-body, .fm-sheet-
  * never leaves the form for the sheet on desktop, and the form never moves
  * (owner: scrolling it to make room "jumps"). The list opens below the field
  * when it all fits there, above when it all fits there, and otherwise on the
- * side with more room, sized to that room, scrolling inside itself.
+ * side with more room, scrolling inside itself. Its height is always the
+ * room on its side (up to 440), never what it holds when it opens: a list
+ * still loading ("Loading…") was sized to that and couldn't grow when the
+ * customers arrived, showing one row (2026-11-02).
  */
 export function keepInFormPlacement(anchor: Element, scroller: Element | null | undefined, menu: Element | null): MenuPlacement {
     const content = Math.min(menu?.scrollHeight || 440, 440);
-    if (!scroller) return { placement: 'down', maxHeight: content };
+    if (!scroller) return { placement: 'down', maxHeight: 440 };
     const { above, below } = menuRoom(anchor, scroller);
-    if (content <= below) return { placement: 'down', maxHeight: content };
-    if (content <= above) return { placement: 'up', maxHeight: content };
+    const room = (side: number) => Math.max(120, Math.min(440, Math.floor(side)));
+    if (content <= below) return { placement: 'down', maxHeight: room(below) };
+    if (content <= above) return { placement: 'up', maxHeight: room(above) };
     const up = above > below;
-    return { placement: up ? 'up' : 'down', maxHeight: Math.max(120, Math.floor(up ? above : below)) };
+    return { placement: up ? 'up' : 'down', maxHeight: room(up ? above : below) };
 }
 
 export function useMenuPlacement(

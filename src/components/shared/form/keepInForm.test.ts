@@ -8,12 +8,17 @@ const list = (height: number) => ({ scrollHeight: height });
 const place = (a: unknown, s: unknown, m: unknown) => keepInFormPlacement(a as Element, s as Element, m as Element);
 
 describe('keepInForm: the list stays in the form and the form never moves', () => {
-  it('opens below when the whole list fits there', () => {
-    expect(place(field(230), body(200, 600), list(220))).toEqual({ placement: 'down', maxHeight: 220 });
+  it('opens below when the whole list fits there, as tall as the room (up to 440)', () => {
+    expect(place(field(230), body(200, 600), list(220))).toEqual({ placement: 'down', maxHeight: 440 });
+  });
+
+  it('a list still loading opens with the room below, so it can grow when the customers arrive', () => {
+    // The owner's screenshot: "Loading…" was ~86px tall and the list stayed that size.
+    expect(place(field(271), body(186, 377), list(86))).toEqual({ placement: 'down', maxHeight: 186 + 377 - 313 - 12 });
   });
 
   it('opens above when it only fits there', () => {
-    expect(place(field(600), body(200, 600), list(220))).toEqual({ placement: 'up', maxHeight: 220 });
+    expect(place(field(600), body(200, 600), list(220))).toEqual({ placement: 'up', maxHeight: 600 - 200 - 12 });
   });
 
   it('a long list in a short body (the owner\'s screenshot) fills the room below and scrolls inside', () => {
