@@ -110,18 +110,24 @@ const formScrollerOf = (anchor: Element) => anchor.closest('.fm-body, .fm-sheet-
  * `keepInForm` (opt-in; owner, 2026-11-02, on the Payments form): the list
  * never leaves the form for the sheet on desktop. It opens below the field
  * when the whole list fits there, above when it all fits there, and otherwise
- * below with the form body scrolled just enough to show all of it.
+ * below with the form body scrolled just enough to show all of it. The list
+ * is never taller than the body under the field once the field sits at the
+ * body's top, and the scroll never goes past the field — so the field and a
+ * search box at the top of the list stay in view (a short window showed the
+ * list from its middle, under the header, 2026-11-02).
  */
-function keepInFormPlacement(anchor: Element, scroller: Element | null | undefined, menu: Element | null): MenuPlacement {
+export function keepInFormPlacement(anchor: Element, scroller: Element | null | undefined, menu: Element | null): MenuPlacement {
     const content = Math.min(menu?.scrollHeight || 440, 440);
     const { above, below } = menuRoom(anchor, scroller);
-    if (content > below && content <= above) return { placement: 'up', maxHeight: 440 };
-    if (content > below && scroller && menu) {
-        const m = menu.getBoundingClientRect();
-        const b = scroller.getBoundingClientRect();
-        if (m.bottom > b.bottom - 12) scroller.scrollTop += m.bottom - b.bottom + 12;
-    }
-    return { placement: 'down', maxHeight: 440 };
+    if (!scroller) return { placement: 'down', maxHeight: content };
+    const a = anchor.getBoundingClientRect();
+    const b = scroller.getBoundingClientRect();
+    const maxHeight = Math.max(160, Math.min(content, Math.floor(b.height - a.height - 24)));
+    if (maxHeight <= below) return { placement: 'down', maxHeight };
+    if (content <= above) return { placement: 'up', maxHeight: content };
+    const lift = Math.min(maxHeight - below, a.top - b.top - 8);
+    if (lift > 0) scroller.scrollTop += lift;
+    return { placement: 'down', maxHeight };
 }
 
 export function useMenuPlacement(
