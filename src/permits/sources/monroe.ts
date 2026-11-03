@@ -9,20 +9,22 @@ import type { Loose } from '../../types/records.ts';
  * another month, a layout without the columns the rules need, or a download
  * that isn't a spreadsheet stops the run rather than save a short or wrong
  * list. The page lists only the latest few months, and the newest month is
- * posted some days after it ends.
+ * posted some days after it ends; a month still missing a month after it
+ * ended stops the run too. Months are read whole, like Snohomish County's
+ * (monthlyReadFrom), so a month posted late still has its first days read.
  *
- * Server-only. `fetchImpl` is injectable for tests.
+ * Server-only. `fetchImpl` and `now` are injectable for tests.
  */
 import { Buffer } from 'node:buffer';
 import * as XLSX from 'xlsx';
-import { dayOf } from '../common.ts';
+import { dayOf, monthlyReadFrom, monthName, pacificNow } from '../common.ts';
 import { MONROE_REPORTS_PAGE, parseMonroeReports, monroeReportRows } from '../rules/monroe.ts';
 import { BROWSER_UA } from './http.ts';
 
 const TIMEOUT_MS = 60000;
 const SHEET_TYPE = /spreadsheetml|ms-excel|octet-stream/i;
 
-export function createMonroeSource({ fetchImpl = globalThis.fetch, page = MONROE_REPORTS_PAGE }: Loose = {}) {
+export function createMonroeSource({ fetchImpl = globalThis.fetch, page = MONROE_REPORTS_PAGE, now = () => new Date() }: Loose = {}) {
   const get = (url: string) => fetchImpl(url, { headers: { 'User-Agent': BROWSER_UA }, signal: AbortSignal.timeout(TIMEOUT_MS) });
 
   async function list() {
@@ -50,13 +52,20 @@ export function createMonroeSource({ fetchImpl = globalThis.fetch, page = MONROE
     return rows;
   }
 
-  /** Every permit in the reports issued on or after `since`, as one row per permit. */
+  /**
+   * Every permit in the reports issued in since's month or later, one row per
+   * permit — whole months, and the newest posted month while since's isn't up
+   * yet (monthlyReadFrom).
+   */
   async function issuedSince(since: string) {
     const rows = [];
     let pages = 0;
-    for (const file of (await list()).filter((f) => f.month >= since.slice(0, 7))) {
+    const files = await list();
+    const { from, newest, overdue } = monthlyReadFrom(files.map((f: Loose) => f.month), since, pacificNow(now()).day);
+    if (overdue) throw new Error(`Monroe hasn’t posted its ${monthName(overdue)} Issued Permits Report yet${newest ? ` — the newest is ${monthName(newest)}` : ''}`);
+    for (const file of files.filter((f: Loose) => f.month >= from.slice(0, 7))) {
       for (const r of await read(file)) {
-        if ((dayOf(r['Issue Date']) || '') >= since) rows.push(r);
+        if ((dayOf(r['Issue Date']) || '') >= from) rows.push(r);
       }
       pages += 1;
     }

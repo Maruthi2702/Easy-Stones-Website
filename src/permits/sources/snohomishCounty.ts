@@ -8,14 +8,16 @@ import type { Loose } from '../../types/records.ts';
  * The county's files hold exactly their own month, so a row issued in another
  * month, a layout without the columns the rules need, or a download that
  * isn't a spreadsheet stops the run rather than save a short or wrong list.
- * The latest month is posted around the 1st of the next, so the newest
- * permits are up to a month behind.
+ * The latest month is posted some days into the next, so the newest
+ * permits are up to a month behind; a month still missing a month after it
+ * ended stops the run too. Months are read whole, so a window that has moved
+ * past a month's first days while it waited to be posted still reads them.
  *
- * Server-only. `fetchImpl` is injectable for tests.
+ * Server-only. `fetchImpl` and `now` are injectable for tests.
  */
 import { Buffer } from 'node:buffer';
 import * as XLSX from 'xlsx';
-import { cleanText, dayOf } from '../common.ts';
+import { cleanText, dayOf, monthlyReadFrom, monthName, pacificNow } from '../common.ts';
 import {
   SNOHOMISH_ARCHIVE, SNOHOMISH_REPORTS, SNOHOMISH_COLUMNS, parseSnohomishArchive, snohomishFilesSince, rowBelongsToFile
 } from '../rules/snohomishCounty.ts';
@@ -36,7 +38,7 @@ export function reportRows(grid: unknown[][]) {
     .map((r) => Object.fromEntries(names.map((n: string, i: number) => [n, r[i] ?? null])));
 }
 
-export function createSnohomishCountySource({ fetchImpl = globalThis.fetch }: Loose = {}) {
+export function createSnohomishCountySource({ fetchImpl = globalThis.fetch, now = () => new Date() }: Loose = {}) {
   const get = (url: string) => fetchImpl(url, { headers: { 'User-Agent': BROWSER_UA }, signal: AbortSignal.timeout(TIMEOUT_MS) });
 
   /** One report's files, newest first. */
@@ -66,16 +68,23 @@ export function createSnohomishCountySource({ fetchImpl = globalThis.fetch }: Lo
     return rows.map((r): Loose => ({ ...r, _report: report.id }));
   }
 
-  /** Every permit in the reports issued on or after `since`, as report rows. */
+  /**
+   * Every permit in the reports issued in since's month or later, as report
+   * rows — whole months, and the newest posted month while since's isn't up
+   * yet (monthlyReadFrom), so the first days of a month posted late are read.
+   */
   async function issuedSince(since: string) {
     const rows = [];
     let pages = 0;
     const seen = new Set();
     for (const report of SNOHOMISH_REPORTS) {
-      for (const file of snohomishFilesSince(await list(report), since)) {
+      const files = await list(report);
+      const { from, newest, overdue } = monthlyReadFrom(files.map((f: Loose) => f.month), since, pacificNow(now()).day);
+      if (overdue) throw new Error(`Snohomish County hasn’t posted its ${monthName(overdue)} ${report.label} report yet${newest ? ` — the newest is ${monthName(newest)}` : ''}`);
+      for (const file of snohomishFilesSince(files, from)) {
         for (const r of await read(report, file)) {
           const n = cleanText(r.Project_File_Number);
-          if (seen.has(n) || (dayOf(r.Issue_Date) || '') < since) continue;
+          if (seen.has(n) || (dayOf(r.Issue_Date) || '') < from) continue;
           seen.add(n);
           rows.push(r);
         }

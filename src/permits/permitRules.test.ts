@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   categoryFor, isUnsortedBuildingType, dayOf, shiftDay, pacificNow, isDailyRunDue, runSince, phoneKey, formatPhone,
   emailKey, nameKey, tidyContacts, isPlaceholderName, isFinalOnly, whatcomPermit, bellinghamPermit, reportMonthOf,
-  reportPermitNumbers, reconcileReport, compareMonthToDate, permitPrefix, monthBounds, fullMonthsBetween, whatcomPermitUrl
+  reportPermitNumbers, reconcileReport, compareMonthToDate, permitPrefix, monthBounds, fullMonthsBetween, monthlyReadFrom, previousMonth, monthName, whatcomPermitUrl
 } from './permitRules.ts';
 
 // Trimmed from real answers, 2026-10-11.
@@ -109,6 +109,17 @@ describe('days', () => {
     expect(fullMonthsBetween('2026-04-01', '2026-06')).toEqual(['2026-04', '2026-05']);
     expect(fullMonthsBetween('2025-11-15', '2026-02')).toEqual(['2025-12', '2026-01']);
     expect(fullMonthsBetween('2026-10-02', '2026-10')).toEqual([]);
+  });
+
+  it('reads monthly files whole, the newest posted while since’s month is not, and names a month a month overdue', () => {
+    expect(monthlyReadFrom(['2026-09', '2026-08'], '2026-09-10', '2026-10-10')).toEqual({ from: '2026-09-01', newest: '2026-09', overdue: null });
+    expect(monthlyReadFrom(['2026-09', '2026-08'], '2026-10-03', '2026-11-02')).toEqual({ from: '2026-09-01', newest: '2026-09', overdue: null });
+    expect(monthlyReadFrom(['2026-10', '2026-09'], '2026-10-07', '2026-11-06')).toEqual({ from: '2026-10-01', newest: '2026-10', overdue: null });
+    expect(monthlyReadFrom(['2026-09'], '2026-11-01', '2026-12-01').overdue).toBe('2026-10');
+    expect(monthlyReadFrom(['2025-11'], '2025-12-03', '2026-01-02')).toEqual({ from: '2025-11-01', newest: '2025-11', overdue: null });
+    expect(monthlyReadFrom([], '2026-10-03', '2026-11-02').overdue).toBe('2026-09');
+    expect(previousMonth('2026-01')).toBe('2025-12');
+    expect(monthName('2026-10')).toBe('October 2026');
   });
 
   it('knows each month’s first and last day', () => {

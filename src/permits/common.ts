@@ -112,6 +112,37 @@ export function fullMonthsBetween(sinceDay: string, beforeMonth: string) {
   }
 }
 
+/** The month before 'YYYY-MM'. */
+export function previousMonth(month: string) {
+  const [y, m] = month.split('-').map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+}
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** 'YYYY-MM' as "September 2026". */
+export const monthName = (month: string) => `${MONTH_NAMES[Number(month.slice(5, 7)) - 1]} ${month.slice(0, 4)}`;
+
+/**
+ * Where a source published as one file per month (posted some days after
+ * the month ends) starts reading for a window from `since`, given the months
+ * it has posted. Always whole months: since's month from its 1st, so a month
+ * posted after the 30-day window has moved past its first days is still read
+ * whole — or, while since's month isn't posted yet, the newest month that is,
+ * so the run re-reads real data instead of an empty window. `overdue` is the
+ * month before last on `today`'s clock when it still isn't posted (a month
+ * has passed since it ended): the run should say so rather than go quiet.
+ */
+export function monthlyReadFrom(posted: string[], since: string, today: string) {
+  const want = since.slice(0, 7);
+  const newest = posted.filter(Boolean).sort().pop() || null;
+  const due = previousMonth(previousMonth(today.slice(0, 7)));
+  return {
+    from: `${newest && newest < want ? newest : want}-01`,
+    newest,
+    overdue: !newest || newest < due ? due : null
+  };
+}
+
 export const monthBounds = (month: string) => {
   const [y, m] = month.split('-').map(Number);
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();

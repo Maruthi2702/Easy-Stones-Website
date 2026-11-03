@@ -132,8 +132,11 @@ describe('the reader', () => {
     return new Response(f.body, { status: 200, headers: { 'content-type': f.type || SHEET } });
   };
 
-  it('reads each report’s files since the day, tags the report and keeps only permits issued since', async () => {
-    const reader = createSnohomishCountySource({ fetchImpl: server({
+  // The pull's clock: a fortnight into October, September's files out.
+  const now = () => new Date('2026-10-14T15:00:00Z');
+
+  it('reads each report’s whole months from since’s month, tags the report and leaves out earlier months', async () => {
+    const reader = createSnohomishCountySource({ now, fetchImpl: server({
       res: [[2, 'September 2026 Issued Residential Permits'], [1, 'August 2026 Issued Residential Permits']],
       com: [[3, 'September 2026 Issued Commercial Permits']],
       files: {
@@ -143,20 +146,40 @@ describe('the reader', () => {
       }
     }) });
     const { rows, pages, total } = await reader.issuedSince('2026-09-10');
-    expect(rows.map((r) => [r.Project_File_Number, r._report])).toEqual([['26-1 RBP', 'residential']]);
-    // August is before the window; the commercial September file holds only a permit issued before the 10th.
+    // September is read whole (from the 1st, not the 10th); August is before the window.
+    expect(rows.map((r) => [r.Project_File_Number, r._report])).toEqual([['25-102950 RBP', 'residential'], ['26-1 RBP', 'residential'], ['26-9 CBP', 'commercial']]);
     expect(pages).toBe(2);
-    expect(total).toBe(1);
+    expect(total).toBe(3);
+  });
+
+  it('re-reads the newest posted month while since’s month isn’t posted, so its first days are read once it is', async () => {
+    const files = { 2: { body: sheet([row({ Issue_Date: '09/29/2026' })]) }, 3: { body: sheet([]) }, 4: { body: sheet([row({ Project_File_Number: '26-5 RBP', Issue_Date: '10/02/2026' })]) }, 5: { body: sheet([]) } };
+    const sept = { res: [[2, 'September 2026 Issued Residential Permits']], com: [[3, 'September 2026 Issued Commercial Permits']], files };
+    // Nov 2: the window starts Oct 3 and October isn't posted — September again, not an empty window.
+    const early = createSnohomishCountySource({ now: () => new Date('2026-11-02T15:00:00Z'), fetchImpl: server(sept) });
+    expect((await early.issuedSince('2026-10-03')).rows.map((r) => r.Project_File_Number)).toEqual(['25-102950 RBP']);
+    // Nov 6: October is up and read from the 1st, though the window starts Oct 7.
+    const posted = createSnohomishCountySource({ now: () => new Date('2026-11-06T15:00:00Z'), fetchImpl: server({
+      res: [[4, 'October 2026 Issued Residential Permits'], ...sept.res], com: [[5, 'October 2026 Issued Commercial Permits'], ...sept.com], files
+    }) });
+    expect((await posted.issuedSince('2026-10-07')).rows.map((r) => r.Project_File_Number)).toEqual(['26-5 RBP']);
+  });
+
+  it('stops when a month is still not posted a month after it ended', async () => {
+    const reader = createSnohomishCountySource({ now: () => new Date('2026-12-01T15:00:00Z'), fetchImpl: server({
+      res: [[2, 'September 2026 Issued Residential Permits']], com: [[3, 'September 2026 Issued Commercial Permits']], files: { 2: { body: sheet([row()]) }, 3: { body: sheet([]) } }
+    }) });
+    await expect(reader.issuedSince('2026-11-01')).rejects.toThrow('Snohomish County hasn’t posted its October 2026 Issued Residential Permits report yet — the newest is September 2026');
   });
 
   it('trims the county’s " Valuation " header so the figure reads', async () => {
-    const reader = createSnohomishCountySource({ fetchImpl: server({ res: [[2, 'September 2026 Issued Residential Permits']], com: [[3, 'September 2026 Issued Commercial Permits']], files: { 2: { body: sheet([row()]) }, 3: { body: sheet([]) } } }) });
+    const reader = createSnohomishCountySource({ now, fetchImpl: server({ res: [[2, 'September 2026 Issued Residential Permits']], com: [[3, 'September 2026 Issued Commercial Permits']], files: { 2: { body: sheet([row()]) }, 3: { body: sheet([]) } } }) });
     const { rows } = await reader.issuedSince('2026-09-01');
     expect(rows[0].Valuation).toBe(245973.96);
   });
 
   it('stops when a file holds a permit issued in another month', async () => {
-    const reader = createSnohomishCountySource({ fetchImpl: server({
+    const reader = createSnohomishCountySource({ now, fetchImpl: server({
       res: [[2, 'September 2026 Issued Residential Permits']], com: [[3, 'September 2026 Issued Commercial Permits']],
       files: { 2: { body: sheet([row({ Issue_Date: '10/01/2026' })]) }, 3: { body: sheet([]) } }
     }) });
@@ -165,16 +188,14 @@ describe('the reader', () => {
 
   it('stops when the layout has changed, or the download is not a spreadsheet', async () => {
     const noCol = COLS.filter((c) => c !== 'Issue_Date');
-    await expect(createSnohomishCountySource({ fetchImpl: server({ res: [[2, 'September 2026 Issued Residential Permits']], com: [[3, 'September 2026 Issued Commercial Permits']], files: { 2: { body: sheet([row()], noCol) } } }) }).issuedSince('2026-09-01'))
+    await expect(createSnohomishCountySource({ now, fetchImpl: server({ res: [[2, 'September 2026 Issued Residential Permits']], com: [[3, 'September 2026 Issued Commercial Permits']], files: { 2: { body: sheet([row()], noCol) } } }) }).issuedSince('2026-09-01'))
       .rejects.toThrow(/has changed — no Issue_Date column/);
-    await expect(createSnohomishCountySource({ fetchImpl: server({ res: [[2, 'September 2026 Issued Residential Permits']], com: [[3, 'September 2026 Issued Commercial Permits']], files: { 2: { body: '<html>', type: 'text/html' } } }) }).issuedSince('2026-09-01'))
+    await expect(createSnohomishCountySource({ now, fetchImpl: server({ res: [[2, 'September 2026 Issued Residential Permits']], com: [[3, 'September 2026 Issued Commercial Permits']], files: { 2: { body: '<html>', type: 'text/html' } } }) }).issuedSince('2026-09-01'))
       .rejects.toThrow(/not a spreadsheet/);
   });
 
-  it('stops when an archive page lists nothing, and reads nothing from a window with no files yet', async () => {
-    await expect(createSnohomishCountySource({ fetchImpl: server({ res: [], com: [] }) }).issuedSince('2026-09-01')).rejects.toThrow(/may have moved/);
-    const quiet = createSnohomishCountySource({ fetchImpl: server({ res: [[2, 'September 2026 Issued Residential Permits']], com: [[3, 'September 2026 Issued Commercial Permits']] }) });
-    expect(await quiet.issuedSince('2026-10-01')).toEqual({ rows: [], pages: 0, total: 0 });
+  it('stops when an archive page lists nothing', async () => {
+    await expect(createSnohomishCountySource({ now, fetchImpl: server({ res: [], com: [] }) }).issuedSince('2026-09-01')).rejects.toThrow(/may have moved/);
   });
 
   it('reportRows names the missing column', () => {
@@ -194,6 +215,7 @@ describe('Snohomish County cities', () => {
     expect(cat('SINGLE FAMILY-ACCESSORY DWELLING UNIT DETACHED-NEW')).toBe('adu');
     expect(cat('SINGLE FAMILY-STRUCTURE ADDITION-ADDITION')).toBe('addition');
     expect(cat('SINGLE FAMILY-REMODEL-ALTERATION')).toBe('remodel');
+    expect(cat('SINGLE FAMILY-REMODEL-ADDITION')).toBe('addition');
     expect(cat('CONDOMINIUM-NEW CONSTRUCTION-NEW')).toBe('multifamily');
     expect(cat('COMMERCIAL-NEW CONSTRUCTION-NEW')).toBe('commercial_new');
     expect(cat('COMMERCIAL-TENANT IMPROVEMENT-ALTERATION')).toBe('commercial_remodel');
@@ -351,7 +373,7 @@ describe('Monroe', () => {
     expect(p.contacts).toEqual([expect.objectContaining({ kind: 'contractor', company: 'New Vision Construction Inc', phone: '(425) 361-5661' }), expect.objectContaining({ kind: 'applicant', company: '2812 Architecture' })]);
     expect(monroePermit(monroeReportRows(grid([line({ Address: 'Parcel: 00834300000100' })])).rows[0]).address).toBe('00834300000100');
   });
-  it('reads the months since a day, and stops on a permit from another month or a non-spreadsheet', async () => {
+  it('reads whole months from since’s month, and stops on a permit from another month, a non-spreadsheet or a month overdue', async () => {
     const sheet = (rows: unknown[][]) => {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(grid(rows)), 'Sheet1');
@@ -363,11 +385,17 @@ describe('Monroe', () => {
       const f = files[url.match(/View\/(\d+)/)![1]];
       return new Response(f.body, { status: 200, headers: { 'content-type': f.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } });
     };
-    const ok = await createMonroeSource({ fetchImpl: server({ 2: { body: sheet([line(), line({ 'Permit No': '26-B', 'Issue Date': '09/05/2026' })]) }, 1: { body: sheet([line({ 'Issue Date': '08/10/2026' })]) } }) }).issuedSince('2026-09-10');
-    expect(ok.rows.map((r) => r['Permit No'])).toEqual(['26-ADD-0119']);
+    const now = () => new Date('2026-11-02T15:00:00Z');
+    const files = { 2: { body: sheet([line(), line({ 'Permit No': '26-B', 'Issue Date': '09/05/2026' })]) }, 1: { body: sheet([line({ 'Issue Date': '08/10/2026' })]) } };
+    const ok = await createMonroeSource({ now, fetchImpl: server(files) }).issuedSince('2026-09-10');
+    expect(ok.rows.map((r) => r['Permit No'])).toEqual(['26-ADD-0119', '26-B']);
     expect(ok.pages).toBe(1);
-    await expect(createMonroeSource({ fetchImpl: server({ 2: { body: sheet([line({ 'Issue Date': '10/01/2026' })]) }, 1: { body: sheet([]) } }) }).issuedSince('2026-09-01')).rejects.toThrow(/stopped so nothing is missed/);
-    await expect(createMonroeSource({ fetchImpl: server({ 2: { body: '<html>', type: 'text/html' }, 1: { body: '' } }) }).issuedSince('2026-09-01')).rejects.toThrow(/not a spreadsheet/);
+    // October isn't posted yet: September is re-read rather than an empty window.
+    expect((await createMonroeSource({ now, fetchImpl: server(files) }).issuedSince('2026-10-03')).rows).toHaveLength(2);
+    await expect(createMonroeSource({ now: () => new Date('2026-12-01T15:00:00Z'), fetchImpl: server(files) }).issuedSince('2026-11-01'))
+      .rejects.toThrow('Monroe hasn’t posted its October 2026 Issued Permits Report yet — the newest is September 2026');
+    await expect(createMonroeSource({ now, fetchImpl: server({ 2: { body: sheet([line({ 'Issue Date': '10/01/2026' })]) }, 1: { body: sheet([]) } }) }).issuedSince('2026-09-01')).rejects.toThrow(/stopped so nothing is missed/);
+    await expect(createMonroeSource({ now, fetchImpl: server({ 2: { body: '<html>', type: 'text/html' }, 1: { body: '' } }) }).issuedSince('2026-09-01')).rejects.toThrow(/not a spreadsheet/);
   });
   it('is under the Snohomish filter and keeps phones', () => {
     expect(SOURCES.monroe).toMatchObject({ county: 'snohomish', kind: 'city', phones: true });

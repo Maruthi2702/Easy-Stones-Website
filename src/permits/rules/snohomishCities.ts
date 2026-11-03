@@ -27,6 +27,8 @@ export const edmonds = city('Edmonds', {
     ['SINGLE FAMILY-STRUCTURE ADDITION-ADDITION', 'addition'],
     ['SINGLE FAMILY-STRUCTURE ADDITION-ALTERATION', 'addition'],
     ['SINGLE FAMILY-REMODEL-ALTERATION', 'remodel'],
+    // A remodel that adds space (Anacortes' "remodel with new sq ft" is an addition too).
+    ['SINGLE FAMILY-REMODEL-ADDITION', 'addition'],
     ['MULTIFAMILY APARTMENT-NEW CONSTRUCTION-NEW', 'multifamily'],
     ['CONDOMINIUM-NEW CONSTRUCTION-NEW', 'multifamily'],
     ['MULTIFAMILY APARTMENT-REMODEL-ALTERATION', 'remodel'],

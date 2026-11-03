@@ -638,8 +638,12 @@ The county filter lists all 39 WA counties (`places.js`); a county is
   permit by number or address (it's for scheduling inspections), so it's the
   "Look it up" link, not a source. Each file holds only its own month (a row
   from another month, a missing column or a non-spreadsheet stops the run), is
-  posted around the 1st of the next month, so permits are up to a month
-  behind. The applicant (name, company, mailing address) is the only contact —
+  posted some days into the next month, so permits are up to a month
+  behind. Months are read **whole**, and while the window's month isn't posted
+  the newest posted one is re-read (`monthlyReadFrom` in `common.ts`, Monroe
+  too, 2026-11-02) — the 30-day window used to fail as empty from the 1st and
+  then skip the first days of a month posted late; a month still missing a
+  month after it ended fails the run. The applicant (name, company, mailing address) is the only contact —
   no phone or email; the report's `PDS_Contact_*` columns are the county's own
   staff and are never copied. Trade, land-disturbing and sign reports aren't
   read. My defaults on categories: duplex/townhouse → Multifamily, guesthouse
