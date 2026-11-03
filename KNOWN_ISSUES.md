@@ -145,7 +145,6 @@ Both scripts only preview until run with `--apply`.
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
 | 4 | A transfer on a branch-only driver is invisible on the receiving branch's board (no column for that driver). 1 of 76 transfers today (Sergio); the rest use the all-branch "3rd party - delivery" driver, which shows on every board. | `BoardGrid.tsx` columns, `fetchDriverUsers` in `src/api/deliverySchedule.ts` | Blocked on question B | Open |
-| 5 | No "mark received" button. `PATCH /deliveries/:id/receive` and the report's received fields exist, but nothing calls them. | `src/routes/deliveries.ts`, inbound `ticketIds` in `deriveFromSystem` | New feature: a Received button on incoming lines or cards | Fixed on `feat/transfer-arrival` (not merged): **Mark received** in Update incoming transfer; Log arrival saves received. Not on the Daily Report sheet. |
 | 6 | A transfer line added by hand always counts as Outgoing; there's no way to add an incoming line. | `addTransfer` in `src/features/dailyReport/sheetEditing.ts`, PUT `/api/daily-reports/:date` | New feature: an In/Out toggle on manual lines | Fixed `a75e9b3` |
 | 7 | Minor: a driver assigned after the arrival day's 11:59 PM auto-submit never reaches that report. (The other half of this row — month view and CSV counting only outgoing transfers — is fixed; see Fixed.) | `src/jobs/autoSubmitDailyReports.ts` | Probably leave as-is | Open |
 
@@ -462,6 +461,7 @@ Ideas the owner wants kept for later. Not scheduled; don't build unprompted.
 | Date | Issue | Commit |
 |---|---|---|
 | 2026-10-31 | Review R1–R8: scoped customer reads/write responses, protected resource ownership, transactional placement/history/calendar updates, local date chips, dashboard retry, read-only contact controls and session recovery. | `9fba1a6` (merged by `93da4c8`) |
+| 2026-11-03 | Transfers #5: no "mark received" button. **Mark received** is in Update incoming transfer (it also completes the transfer; Completed marks it received). Also new: **Log arrival** for a transfer the sender never logged, and the receiving branch may set Scheduled / Delayed / Completed / Cancelled. Not on the Daily Report sheet. | `1ac51bd` |
 | 2026-10-31 | Transfers #3: receiving branches may edit expected delivery date and slab count only; sending branch controls driver, ship date, dispatch/status and deletion. | `9fba1a6` (merged by `93da4c8`) |
 | 2026-10-24 | Route Planner dead code, on the owner's go-ahead: `panels/AreaScheduleTrigger.tsx` and `rail/ScheduleSummaryButton.tsx` with their CSS (imported by nothing) and the unused `statusTone` / `STATUS_TONE` in `helpers.ts` deleted. | on `feat/typescript` |
 | 2026-10-24 | Delivery board: a dead effect meant to scroll the phone's selected day pill into view (its selector matched no element). Not a visible bug — the five pills are a grid that always fits — so it was removed rather than revived (`scrollIntoView` also scrolls the page, see Locations in CLAUDE.md). | on `feat/typescript` |
