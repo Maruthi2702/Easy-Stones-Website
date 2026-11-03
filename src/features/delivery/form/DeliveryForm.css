@@ -111,3 +111,14 @@
     .df-icon-btn { width: 44px; height: 44px; }
     .df-money > span { font-size: 16px; }
 }
+
+/* Update incoming transfer: whether it's been marked received, and the button. */
+.it-received {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+    border: 1px solid var(--fm-bd);
+    color: var(--fm-tx);
+}

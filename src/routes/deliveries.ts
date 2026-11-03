@@ -3,8 +3,12 @@ import type { Loose } from '../types/records.ts';
 import type { DeliveryKind } from '../types/delivery.ts';
 import type { Request, RequestHandler, Response } from 'express';
 import express from 'express';
-import { canManageShipment, isReceivingTransfer } from '../utils/transferAccess.ts';
+import { canManageShipment, isReceivingTransfer, isReceivingStatus, receivingStatusRefusal, receivedFieldsForStatus, statusForReceived } from '../utils/transferAccess.ts';
 import { normalizeVisitDate } from '../utils/visitDates.ts';
+import { arrivalBranchesFor, arrivalErrors, arrivalPayload, arrivalTicket } from '../utils/transferArrival.ts';
+import { branchNow } from '../config/branches.ts';
+import { addTransferToSubmittedReports } from './dailyReports.ts';
+import { notifyArrivalLogged } from '../services/transferArrivalEmail.ts';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
@@ -211,6 +215,15 @@ const certificateWordingFor = async ({ deliveryType, truckId }: { deliveryType?:
   return THIRD_PARTY_NAME.test(`${truckUser?.name || ''} ${truckUser?.username || ''}`)
     ? PICKUP_WORDING
     : DELIVERY_WORDING;
+};
+
+/** Who a board column is, for the arrival email ('drv_<username>' → their name). */
+const driverNameFor = async (truckId: string) => {
+  if (truckId === THIRD_PARTY_TRUCK_ID) return '3rd party freight';
+  if (!truckId.startsWith('drv_')) return '';
+  const user = await User.findOne({ username: truckId.slice(4) }, 'name username').lean<{ name?: string; username?: string } | null>()
+    .catch(() => null);
+  return user?.name || user?.username || '';
 };
 
 // ── Location-scoping ─────────────────────────────────────────────────────
@@ -1013,14 +1026,18 @@ export default function createDeliveriesRouter({
   // reach a stop belonging to a branch they are not assigned to.
   const DELIVERY_STATUSES = ['pending', 'scheduled', 'completed', 'delayed', 'cancelled'];
 
-  // Receiving branches may change only the expected delivery date and slab count.
+  // Receiving branches may change only the expected delivery date, slab count
+  // and status (scheduled / delayed / completed / cancelled —
+  // RECEIVING_STATUSES; owner, 2026-11-03). Completed also marks it received
+  // and leaving Completed un-marks it (receivedFieldsForStatus). Pending,
+  // restoring a cancelled one, driver, ship date and deletion stay the sender's.
   router.patch('/deliveries/:id/receiving', authenticate, canManageDeliverySchedule, validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
     try {
       const fields = req.body || {};
       const keys = Object.keys(fields);
-      if (!keys.length || keys.some(key => !['expectedArrivalDate', 'numberOfSlabs'].includes(key))) {
-        return res.status(400).json({ error: 'Only expected delivery date and slab count can be changed here.' });
+      if (!keys.length || keys.some(key => !['expectedArrivalDate', 'numberOfSlabs', 'status'].includes(key))) {
+        return res.status(400).json({ error: 'Only expected delivery date, slab count and status can be changed here.' });
       }
       const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id: requestParams.id, deliveryType: 'transfer' }, req)).lean();
       if (!delivery) return res.status(404).json({ error: 'Transfer not found' });
@@ -1037,15 +1054,121 @@ export default function createDeliveriesRouter({
         }
         changes.numberOfSlabs = Number(value);
       }
-      const updated = await Delivery.findOneAndUpdate({ _id: delivery._id, location: delivery.location, transferDestination: delivery.transferDestination },
+      if (fields.status !== undefined && fields.status !== delivery.status) {
+        if (!isReceivingStatus(fields.status)) {
+          return res.status(400).json({ error: 'The receiving branch can set Scheduled, Delayed, Completed or Cancelled. Only the sending branch can move it to Pending.' });
+        }
+        const refusal = receivingStatusRefusal(delivery);
+        if (refusal) return res.status(409).json({ error: refusal });
+        changes.status = fields.status;
+        const { name: performedByName } = await getPerformerInfo(req);
+        Object.assign(changes, receivedFieldsForStatus(fields.status, delivery, {
+          byName: performedByName || req.user?.displayName || req.user?.username || '', at: new Date()
+        }));
+      }
+      if (!Object.keys(changes).length) {
+        const unchanged = await Delivery.findOne({ _id: delivery._id }, DELIVERY_LIST_PROJECTION).lean();
+        return res.json(unchanged);
+      }
+      // A status change also needs the status and truck it was judged on: the
+      // sender may have cancelled it or taken it off its truck meanwhile.
+      const unchangedSince = changes.status ? { status: delivery.status, truckId: delivery.truckId } : {};
+      const saved = await Delivery.findOneAndUpdate({ _id: delivery._id, location: delivery.location, transferDestination: delivery.transferDestination, ...unchangedSince },
         { $set: changes }, { new: true, projection: DELIVERY_LIST_PROJECTION }).lean();
-      if (!updated) return res.status(409).json({ error: 'The transfer changed; refresh and try again.' });
+      if (!saved) return res.status(409).json({ error: 'The transfer changed; refresh and try again.' });
+      // Cancelling takes it out of its run, so the stops after it move up.
+      const updated = changes.status === 'cancelled' ? withNumberFrom(saved, await renumberAfter(req, [runOf(saved)], saved.id)) : saved;
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
       deliveriesChanged([updated.id]);
       res.json(updated);
     } catch (error) {
       console.error('Receiving transfer update failed:', error);
       res.status(500).json({ error: 'Could not update the incoming transfer.' });
+    }
+  });
+
+  // POST /api/deliveries/arrivals — Log arrival: a transfer the sending branch
+  // never put on the schedule, recorded by the branch it arrived at (owner's
+  // calls, 2026-11-03; rules in src/utils/transferArrival.ts). Anyone who can
+  // edit the Delivery Schedule may log one at their own branch. It is saved as
+  // the sender's transfer — shipped on the arrival day until the sender says
+  // otherwise, completed and received — so the sender keeps its driver, ship
+  // date, status and deletion. Its line is added to both branches' Daily
+  // Reports, submitted ones included, and the sender's report list is emailed.
+  // The body carries the ticket's own id: a repeat of the same save answers
+  // 200 `alreadySaved` instead of logging it twice.
+  router.post('/deliveries/arrivals', authenticate, canManageDeliverySchedule, async (req, res) => {
+    try {
+      const body = req.body || {};
+      const id = typeof body.id === 'string' ? body.id.trim() : '';
+      if (!/^[\w-]{6,64}$/.test(id)) return res.status(400).json({ error: 'Invalid arrival id.' });
+
+      const already = await Delivery.findOne({ id }, DELIVERY_LIST_PROJECTION).lean();
+      if (already) {
+        if (already.arrivalLogged) return res.json({ ...already, alreadySaved: true });
+        return res.status(409).json({ error: 'That ticket id is already in use. Refresh and try again.' });
+      }
+
+      // Every location the transfer form's From / To offers, not only the
+      // branches with a Daily Report clock.
+      const branches = (await Location.find({}, 'name').lean()).map((l) => String(l.name || '')).filter(Boolean);
+      const receivingBranches = arrivalBranchesFor(req.user?.assignedLocations, branches);
+      const to = typeof body.to === 'string' ? body.to.trim() : '';
+      // The receiving branch's own day (Pacific for a location with no clock set).
+      const errors = arrivalErrors(body, { receivingBranches, branches, today: branchNow(to).date });
+      const first = Object.values(errors)[0];
+      if (first) return res.status(400).json({ error: first, errors });
+
+      const payload = arrivalPayload({
+        from: String(body.from).trim(), to, arrivedOn: String(body.arrivedOn).trim(),
+        transferNumber: String(body.transferNumber || ''), numberOfSlabs: String(body.numberOfSlabs).trim(),
+        truckId: String(body.truckId).trim(), notes: String(body.notes || '')
+      }, id);
+
+      // The sender may have logged it after all, or someone here beat us to it.
+      if (payload.transferNumber) {
+        const twin = await Delivery.findOne({
+          deliveryType: 'transfer', location: payload.from, transferDestination: payload.to,
+          soNumber: payload.transferNumber, status: { $ne: 'cancelled' }
+        }, 'id date expectedArrivalDate').lean();
+        if (twin) {
+          return res.status(409).json({
+            error: `Transfer # ${payload.transferNumber} from ${payload.from} is already on the schedule (arriving ${twin.expectedArrivalDate || twin.date}). Open it there instead.`,
+            existingId: twin.id
+          });
+        }
+      }
+
+      const { id: performedBy, name: performedByName } = await getPerformerInfo(req);
+      const byName = performedByName || req.user?.displayName || req.user?.username || '';
+      const at = new Date();
+      await Delivery.create(arrivalTicket(payload, { byName, at }));
+      const saved = await Delivery.findOne({ id }, DELIVERY_LIST_PROJECTION).lean().orFail();
+      const updated = withNumberFrom(saved, await renumberAfter(req, [runOf(saved)], saved.id));
+
+      emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
+      deliveriesChanged([updated.id]);
+
+      const reportsChanged = await addTransferToSubmittedReports(updated, at)
+        .catch((err) => { console.error('[server] arrival: adding to submitted reports failed:', err); return []; });
+      void driverNameFor(payload.truckId)
+        .then((driverName) => notifyArrivalLogged(updated, { byName, driverName, reportsChanged }));
+
+      try {
+        await ActivityLog.create({
+          entityType: 'Delivery', entityId: updated._id, action: 'CREATE',
+          performedBy: performedBy || req.userId || byName || 'unknown', performedByName: byName, performedByRole: req.authType,
+          timestamp: getNowLocalISO(),
+          details: { scope: 'arrival_logged', deliveryId: id, from: payload.from, to: payload.to, arrivedOn: payload.arrivedOn, transferNumber: payload.transferNumber, reportsChanged }
+        });
+      } catch (logErr) {
+        console.error('[server] arrival activity log failed:', logErr);
+      }
+
+      res.status(201).json({ ...updated, reportsChanged });
+    } catch (err) {
+      console.error('[server] log arrival error:', err);
+      res.status(500).json({ error: 'Could not log the arrival. Try again.' });
     }
   });
 
@@ -1336,14 +1459,23 @@ export default function createDeliveriesRouter({
         return res.status(403).json({ error: 'Only the receiving branch can confirm this transfer arrived.' });
       }
 
+      if (delivery.status === 'cancelled') {
+        return res.status(409).json({ error: 'It’s cancelled. Only the sending branch can restore it.' });
+      }
+
+      // Received and Completed are one fact (owner, 2026-11-03): marking it
+      // received also completes it once it's on a truck (statusForReceived).
       const { name: performedByName } = await getPerformerInfo(req);
+      const completes = statusForReceived(delivery);
       delivery.receivedAt = new Date();
       delivery.receivedBy = performedByName || '';
+      if (completes.status) delivery.status = completes.status;
       await delivery.save();
 
       const updated = await Delivery.findOne({ id }, DELIVERY_LIST_PROJECTION).lean().orFail();
 
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
+      if (completes.status) deliveriesChanged([updated.id]);
 
       res.json(updated);
     } catch (err) {

@@ -7,13 +7,14 @@ import { WILL_CALL_COLUMN } from '../../utils/deliveryColumns';
 // The Add / Edit delivery form (shared form template). It replaced the old
 // DeliveryModal.jsx, deleted 2026-10-24.
 import DeliveryForm from './form/DeliveryForm';
+import LogArrivalForm from './form/LogArrivalForm';
 import ColumnOrderForm from './board/ColumnOrderForm';
 import PodModal from './pod/PodModal';
 import PodViewer from './pod/PodViewer';
 import ScheduleHeader from './ScheduleHeader';
 import { useLocationFilter } from '../../components/shared/useLocationFilter';
 import { accessibleLocations } from '../../utils/locationFilter';
-import { getDeliveryById, updateIncomingTransfer } from '../../api/deliverySchedule';
+import { getDeliveryById, updateIncomingTransfer, logTransferArrival, markTransferReceived } from '../../api/deliverySchedule';
 import {
   getWeekMonday,
   getWeekDates,
@@ -78,6 +79,7 @@ const DeliveryScheduleTab = ({
   const [searchQuery, setSearchQuery] = useState('');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [logArrivalOpen, setLogArrivalOpen] = useState(false);
   const [editingDelivery, setEditingDelivery] = useState<Loose | null>(null);
 
   const { trucks, setTrucks, deliveries, pending, cancelled, loading, loadError, setLoadError, connection, loadData, applyUpdatedList, handleRefresh }
@@ -210,6 +212,7 @@ const DeliveryScheduleTab = ({
         handleOpenPodViewer={handleOpenPodViewer}
         trucks={trucks}
         handleOpenAddModal={() => handleOpenAddModal()}
+        handleOpenLogArrival={() => setLogArrivalOpen(true)}
       />
 
       <ScheduleStage
@@ -268,6 +271,7 @@ const DeliveryScheduleTab = ({
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveDelivery}
         onReceivingSave={async (id, fields) => { await applyUpdatedList(await updateIncomingTransfer(id, fields)); }}
+        onMarkReceived={async (id) => { const { ticket, list } = await markTransferReceived(id); await applyUpdatedList(list); return ticket; }}
         onDelete={handleDeleteDelivery}
         initialData={editingDelivery}
         trucks={trucks}
@@ -276,6 +280,20 @@ const DeliveryScheduleTab = ({
         locationsList={locationsList}
         currentUser={currentUser}
       />
+
+      {logArrivalOpen && (
+        <LogArrivalForm
+          currentUser={currentUser}
+          trucks={trucks}
+          locationsList={locationsList}
+          onClose={() => setLogArrivalOpen(false)}
+          onSave={async (payload) => {
+            await applyUpdatedList(await logTransferArrival(payload));
+            // Show the week it arrived in, so the new card is on screen.
+            setCurrentMonday(getWeekMonday(payload.arrivedOn));
+          }}
+        />
+      )}
 
       <PodModal
         isOpen={isPodOpen}

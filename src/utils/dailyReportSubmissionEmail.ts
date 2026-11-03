@@ -13,7 +13,7 @@ import { recipientEmails, seedFromAddresses, SEATTLE_RECIPIENTS_BEFORE_2026_10_1
  * use Export → Email as PDF every evening. A location with nobody listed gets
  * no email. (Until 2026-10-15 this was Seattle only, to a list in the code.)
  */
-async function recipientsFor(locationName: unknown) {
+export async function recipientsFor(locationName: unknown) {
   const location = await Location.findOne({ name: String(locationName ?? "") }, 'dailyReportEmail').lean();
   const setting = location?.dailyReportEmail;
   const ids = setting?.userIds || [];

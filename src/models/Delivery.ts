@@ -53,6 +53,18 @@ const deliverySchema = new mongoose.Schema({
   // source of truth re-derived fresh on every report load.
   receivedAt: { type: Date, default: null },
   receivedBy: { type: String, default: '' },
+  // Set when the receiving branch logged this transfer because the sending
+  // branch never put it on the schedule (Log arrival, POST
+  // /api/deliveries/arrivals; src/utils/transferArrival.ts). It stays the
+  // sender's ticket; this only says who recorded it and where.
+  arrivalLogged: {
+    type: new mongoose.Schema({
+      byName: { type: String, default: '' },
+      byLocation: { type: String, default: '' },
+      at: { type: Date, default: null }
+    }, { _id: false }),
+    default: null
+  },
   pickupInfo: { type: String, default: '' },
   carrierName: { type: String, default: '' },
   proNumber: { type: String, default: '' },

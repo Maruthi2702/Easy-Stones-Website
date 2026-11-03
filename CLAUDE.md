@@ -456,11 +456,22 @@ Customer profile/detail reads and customer create/edit responses share
 `customerHistoryResponse` in `src/routes/customerHistory.ts`: full-profile
 permission does not widen the separate Visits read scope.
 
-Incoming transfers (owner's decision, 2026-10-31): a receiving branch may change
-only **expected delivery date and slab count**, through
-`PATCH /api/deliveries/:id/receiving` and `IncomingTransferForm.tsx`. The sender
-controls driver/ship date, dispatch/status and deletion. Read access to both
+Incoming transfers (owner's decision, 2026-10-31; status added 2026-11-03): a
+receiving branch may change only **expected delivery date, slab count and
+status** — Scheduled / Delayed / Completed / Cancelled (`RECEIVING_STATUSES`),
+once the sender has it on a truck; once cancelled only the sender restores it
+— through `PATCH /api/deliveries/:id/receiving` and `IncomingTransferForm.tsx`.
+On the receiving side **Completed = received**: setting Completed marks it
+received, leaving Completed un-marks it, and Mark received completes it
+(`receivedFieldsForStatus` / `statusForReceived` in `transferAccess.ts`). The
+sender controls driver/ship date, dispatch, Pending and deletion. Read access to both
 branches must never be reused as shipping-write access (`transferAccess.ts`).
+A transfer the sender never logged is recorded by the receiver with **Log
+arrival** (2026-11-03, owner's calls: ship date = arrival day, added to both
+Daily Reports even when submitted, anyone with Edit on the Delivery Schedule
+at their own branch): `POST /api/deliveries/arrivals`, saved as the sender's
+transfer, received — see `src/features/delivery/README.md`. That is the one
+place a submitted report gains a line without being reopened.
 
 **Team Files** is its own Sales page (`team_files` in `navPins.js`, still
 opened by `view_dashboard`; `src/features/teamFiles/`). The page is the old

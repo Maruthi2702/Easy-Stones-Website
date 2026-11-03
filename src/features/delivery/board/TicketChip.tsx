@@ -8,6 +8,7 @@ import StatusPill from './StatusPill';
 import EpodChip from './EpodChip';
 import { isCounterReturn, transferShipNote, pendingDeliveryDateLabel, ticketAccentFor } from '../../../utils/deliveryTypes';
 import { formatForDateInput } from '../../../utils/dateUtils';
+import { arrivalFlagText } from '../../../utils/transferArrival';
 import type { Ticket } from '../types';
 
 /**
@@ -308,6 +309,15 @@ const TicketChip = ({
         <p className="ticket-return-flag">
           <Undo2 size={12} />
           Return pickup
+        </p>
+      )}
+
+      {/* Logged by the receiving branch because the sender never put it on
+          the schedule (Log arrival) — so the sender can see it wasn't theirs. */}
+      {isTransfer && arrivalFlagText(delivery) && (
+        <p className="ticket-arrival-flag">
+          <PackageCheck size={12} />
+          {arrivalFlagText(delivery)}
         </p>
       )}
 

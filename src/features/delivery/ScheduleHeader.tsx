@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Plus, ArrowLeftRight, Search, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, ArrowLeftRight, Search, X, PackageCheck } from 'lucide-react';
 import DeliveryOrderSearch from './search/DeliveryOrderSearch';
 import LocationFilter from '../../components/shared/LocationFilter';
 import { DatePicker } from '../../components/shared/calendar/Calendar';
@@ -28,13 +28,15 @@ export type ScheduleHeaderProps = {
   handleOpenPodViewer: (delivery: Ticket) => void;
   trucks: BoardColumn[];
   handleOpenAddModal: () => void;
+  /** Opens Log arrival: a transfer that arrived but was never put on the schedule. */
+  handleOpenLogArrival: () => void;
 };
 
-/** The Delivery Schedule's one-row toolbar: title, week, Search & filters, Add delivery. */
+/** The Delivery Schedule's one-row toolbar: title, week, Search & filters, Log arrival, Add delivery. */
 export default function ScheduleHeader({
   sidebarToggle, role, currentUser, currentMonday, weekRangeText, handlePrevWeek, handleTodayWeek, handleNextWeek,
   handlePickWeek, searchQuery, setSearchQuery, filterableLocations, locationFilter, setLocationFilter,
-  canArrangeColumns, setArrangeOpen, handleOrderSearchSelect, handleOpenPodViewer, trucks, handleOpenAddModal
+  canArrangeColumns, setArrangeOpen, handleOrderSearchSelect, handleOpenPodViewer, trucks, handleOpenAddModal, handleOpenLogArrival
 }: ScheduleHeaderProps) {
   return (
     /* ── OPTION 1: 1-ROW COMPACT LUXURY TOOLBAR ── */
@@ -147,6 +149,19 @@ export default function ScheduleHeader({
             onChange={setLocationFilter}
             user={currentUser}
           />
+        )}
+
+        {role === 'office' && (
+          <button
+            type="button"
+            className="btn-log-arrival"
+            onClick={handleOpenLogArrival}
+            aria-label="Log arrival"
+            title="Log a transfer that arrived but isn’t on the schedule"
+          >
+            <PackageCheck size={16} aria-hidden="true" />
+            <span className="btn-log-arrival-word">Log arrival</span>
+          </button>
         )}
 
         {role === 'office' && (

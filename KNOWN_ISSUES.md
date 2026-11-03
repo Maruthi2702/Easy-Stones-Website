@@ -145,7 +145,7 @@ Both scripts only preview until run with `--apply`.
 | # | Issue | Where | Suggested fix | Status |
 |---|---|---|---|---|
 | 4 | A transfer on a branch-only driver is invisible on the receiving branch's board (no column for that driver). 1 of 76 transfers today (Sergio); the rest use the all-branch "3rd party - delivery" driver, which shows on every board. | `BoardGrid.tsx` columns, `fetchDriverUsers` in `src/api/deliverySchedule.ts` | Blocked on question B | Open |
-| 5 | No "mark received" button. `PATCH /deliveries/:id/receive` and the report's received fields exist, but nothing calls them. | `src/routes/deliveries.ts`, inbound `ticketIds` in `deriveFromSystem` | New feature: a Received button on incoming lines or cards | Open |
+| 5 | No "mark received" button. `PATCH /deliveries/:id/receive` and the report's received fields exist, but nothing calls them. | `src/routes/deliveries.ts`, inbound `ticketIds` in `deriveFromSystem` | New feature: a Received button on incoming lines or cards | Fixed on `feat/transfer-arrival` (not merged): **Mark received** in Update incoming transfer; Log arrival saves received. Not on the Daily Report sheet. |
 | 6 | A transfer line added by hand always counts as Outgoing; there's no way to add an incoming line. | `addTransfer` in `src/features/dailyReport/sheetEditing.ts`, PUT `/api/daily-reports/:date` | New feature: an In/Out toggle on manual lines | Fixed `a75e9b3` |
 | 7 | Minor: a driver assigned after the arrival day's 11:59 PM auto-submit never reaches that report. (The other half of this row — month view and CSV counting only outgoing transfers — is fixed; see Fixed.) | `src/jobs/autoSubmitDailyReports.ts` | Probably leave as-is | Open |
 
@@ -153,7 +153,11 @@ Both scripts only preview until run with `--apply`.
 
 - **A. Answered 2026-10-31:** the receiving branch may update expected delivery
   date and slab count only. Shipment driver/date, status and deletion belong
-  to the sender. Fixed in `9fba1a6` and regression-tested.
+  to the sender. Fixed in `9fba1a6` and regression-tested. **Changed
+  2026-11-03 (owner):** the receiving branch may also set the status —
+  Scheduled / Delayed / Completed / Cancelled; Pending and restoring a
+  cancelled one stay the sender's; Completed and received are linked on the
+  receiving side.
 - **B.** When one branch logs a transfer on behalf of the sending branch,
   should the form's driver list show the sending branch's drivers? Today it
   shows the logged-in user's own branch plus the all-branch driver (issue 4).

@@ -57,11 +57,35 @@ all-branches user) controls the shipment's driver, ship date, status and deletio
 `src/utils/transferAccess.ts` supplies that rule to the server and interface.
 
 The receiving branch opens `form/IncomingTransferForm.tsx`, using the shared
-form shell, to update expected delivery date and slab count only.
+form shell, to update expected delivery date, slab count and status only.
+Status is Scheduled / Delayed / Completed / Cancelled (`RECEIVING_STATUSES`
+in `transferAccess.ts`, owner 2026-11-03), locked until the sender puts it on
+a truck; once cancelled only the sender can restore it, and Pending stays the
+sender's. Completed and received go together on this side: Completed marks it
+received, leaving Completed un-marks it, and **Mark received** completes it.
 `updateIncomingTransfer` in `src/api/deliverySchedule.ts` sends the narrow
-`PATCH /api/deliveries/:id/receiving` request. The route validates both fields
+`PATCH /api/deliveries/:id/receiving` request. The route validates the fields
 and notifies both branch rooms. Pending inbound cards cannot be dispatched by
 receiving users. Submitted Daily Reports retain their existing reopen rule.
+
+## Log arrival (a transfer the sender never logged)
+
+When a truck arrives with a transfer the sending branch never put on the
+schedule, the receiving branch uses **Log arrival** in the header
+(`form/LogArrivalForm.tsx`, office view only). `POST /api/deliveries/arrivals`
+(`edit_delivery_schedule`, the person's own branch only) saves it as the
+**sender's** transfer — shipped and arrived that day (owner, 2026-11-03),
+completed and received, with `arrivalLogged` saying who logged it — so the
+sender still controls driver, ship date, status and deletion, and the card
+reads "Logged by Seattle on arrival". The body carries its own id, so a retry
+answers 200 `alreadySaved`; a transfer # already on the schedule from that
+branch is a 409. Its line is added to **both** branches' Daily Reports, even
+submitted ones (`addTransferToSubmittedReports` in
+`src/routes/dailyReports.ts`, owner's call), and the sender's Daily Report
+email list is told (`src/services/transferArrivalEmail.ts`). Rules:
+`src/utils/transferArrival.ts`; tests: `src/routes/transferArrival.test.ts`.
+
+The receiving form also has **Mark received** (`PATCH /:id/receive`).
 
 ## Order search (SO# / company, every date)
 

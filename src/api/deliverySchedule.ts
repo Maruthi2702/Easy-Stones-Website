@@ -14,6 +14,7 @@ import { getAuthToken, setAuthToken, onAuthTokenChange } from './authToken';
 import { DAYS_IN_WEEK } from '../utils/deliveryWeek';
 import { isPendingDelivery, isCancelledDelivery, applyTransferPerspective } from '../utils/deliveryTypes';
 import type { CurrentUser, DeliveryRecord, TruckColumn } from '../types/records';
+import type { ArrivalPayload } from '../utils/transferArrival';
 
 export type ConnectionStatus = 'online' | 'reconnecting' | 'offline';
 export type ConnectionState = { status: ConnectionStatus; lastSyncedAt: number | null };
@@ -980,13 +981,36 @@ export async function deleteDelivery(id: string): Promise<DeliveryRecord[]> {
 // time the office had changed in the meantime. It also can't be done offline in
 // any honest way, so a failure is raised rather than swallowed.
 /** An inbound receipt edit never echoes the sender's shipping fields. */
-export async function updateIncomingTransfer(id: string, fields: { expectedArrivalDate?: string; numberOfSlabs?: number }): Promise<DeliveryRecord[]> {
+export async function updateIncomingTransfer(id: string, fields: { expectedArrivalDate?: string; numberOfSlabs?: number; status?: string }): Promise<DeliveryRecord[]> {
   const res = await authFetch(`${API_URL}/api/deliveries/${encodeURIComponent(id)}/receiving`, { method: 'PATCH', body: JSON.stringify(fields) });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || 'Could not update the incoming transfer.');
   upsertDeliveryIntoCache(body);
   notifyScheduleListeners();
   return getActiveWeekDeliveries();
+}
+
+/**
+ * Log arrival (POST /api/deliveries/arrivals): a transfer the sending branch
+ * never logged, recorded where it arrived. Throws with the server's reason.
+ */
+export async function logTransferArrival(payload: ArrivalPayload): Promise<DeliveryRecord[]> {
+  const res = await authFetch(`${API_URL}/api/deliveries/arrivals`, { method: 'POST', body: JSON.stringify(payload) });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Could not log the arrival. Try again.');
+  upsertDeliveryIntoCache(body);
+  notifyScheduleListeners();
+  return getActiveWeekDeliveries();
+}
+
+/** The receiving branch confirming a transfer arrived (PATCH /:id/receive): the ticket, and the week as it now stands. */
+export async function markTransferReceived(id: string): Promise<{ ticket: DeliveryRecord; list: DeliveryRecord[] }> {
+  const res = await authFetch(`${API_URL}/api/deliveries/${encodeURIComponent(id)}/receive`, { method: 'PATCH', body: '{}' });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Could not mark it received. Try again.');
+  upsertDeliveryIntoCache(body);
+  notifyScheduleListeners();
+  return { ticket: body, list: getActiveWeekDeliveries() };
 }
 
 export async function updateDeliveryStatus(id: string, newStatus: string): Promise<DeliveryRecord[]> {

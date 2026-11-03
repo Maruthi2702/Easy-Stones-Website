@@ -2,9 +2,10 @@ import type { Loose } from '../types/records.ts';
 import type { DeliveryKind, DeliveryStatus, ViewedTicket } from '../types/delivery.ts';
 
 /** Any part of a ticket: these rules read a few fields, and a form's values qualify too. */
-export type TicketLike = Partial<Omit<ViewedTicket, 'receivedAt' | 'createdAt' | 'updatedAt' | 'pod'>> & {
+export type TicketLike = Partial<Omit<ViewedTicket, 'receivedAt' | 'createdAt' | 'updatedAt' | 'pod' | 'arrivalLogged'>> & {
   // A stored record holds real Dates where the wire has strings; none of these rules care which.
   receivedAt?: string | Date | null;
+  arrivalLogged?: { byName?: string; byLocation?: string; at?: string | Date | null } | null;
   createdAt?: string | Date | null;
 };
 /**

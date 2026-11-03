@@ -57,6 +57,8 @@ export type DeliveryTicket = {
   expectedArrivalDate?: string;
   receivedAt?: string | null;
   receivedBy?: string;
+  /** Logged by the receiving branch on arrival (src/utils/transferArrival.ts). */
+  arrivalLogged?: { byName?: string; byLocation?: string; at?: string | null } | null;
   pickupInfo?: string;
   carrierName?: string;
   proNumber?: string;

@@ -184,6 +184,71 @@ const ticketTransferNumber = (ticket: { soNumber?: string; invoiceNumber?: strin
 const byRouteThenNumber = (a: { fromTo: string; transferNumber: string }, b: { fromTo: string; transferNumber: string }) =>
   a.fromTo.localeCompare(b.fromTo) || a.transferNumber.localeCompare(b.transferNumber, 'en', { numeric: true });
 
+type TransferTicketRow = {
+  id?: string; location?: string | null; transferDestination?: string | null; numberOfSlabs?: number | null;
+  soNumber?: string; invoiceNumber?: string; receivedAt?: Date | string | null; receivedBy?: string | null;
+};
+
+/**
+ * A transfer ticket's line on `location`'s report: outgoing on the sender's
+ * ship day, incoming on the receiver's arrival day. One line per ticket.
+ */
+export function transferLineFor(d: TransferTicketRow, location: string, direction: 'out' | 'in') {
+  if (direction === 'out') {
+    return {
+      fromTo: `${branchCode(location)} — ${branchCode(d.transferDestination || 'Unspecified')}`,
+      transferNumber: ticketTransferNumber(d),
+      count: 1,
+      slabs: ticketSlabs(d),
+      auto: true,
+      direction: 'out' as const,
+      ticketIds: [d.id].filter(Boolean) as string[]
+    };
+  }
+  return {
+    fromTo: `${branchCode(d.location || 'Unspecified')} — ${branchCode(location)}`,
+    transferNumber: ticketTransferNumber(d),
+    count: 1,
+    slabs: ticketSlabs(d),
+    auto: true,
+    direction: 'in' as const,
+    received: Boolean(d.receivedAt),
+    receivedAt: d.receivedAt || null,
+    receivedBy: d.receivedBy || '',
+    // Which ticket this line is, so "mark received" on the report has
+    // something to PATCH, and so its typed slabs stay its own without a
+    // transfer number (transferLineKey).
+    ticketIds: [d.id].filter(Boolean) as string[]
+  };
+}
+
+/**
+ * A transfer logged on arrival (POST /api/deliveries/arrivals) belongs on
+ * the sender's report for its ship day and the receiver's for its arrival
+ * day even when those are already submitted (owner's call, 2026-11-03).
+ * A submitted report is otherwise never re-derived, so its line is added
+ * here, once: a report that already has a line for this ticket is left
+ * alone. Drafts need nothing — they derive the ticket on their next load.
+ * Returns the submitted reports it changed.
+ */
+export async function addTransferToSubmittedReports(ticket: TransferTicketRow & { date?: string; expectedArrivalDate?: string }, at = new Date()) {
+  if (!ticket.id) return [];
+  const sides = [
+    { location: ticket.location, date: ticket.date, direction: 'out' as const },
+    { location: ticket.transferDestination, date: ticket.expectedArrivalDate, direction: 'in' as const }
+  ].filter((s): s is { location: string; date: string; direction: 'out' | 'in' } => Boolean(s.location && s.date));
+  const changed: { location: string; date: string }[] = [];
+  for (const side of sides) {
+    const line = { ...transferLineFor(ticket, side.location, side.direction), addedAfterSubmitAt: at };
+    const result = await DailyReport.updateOne(
+      { date: side.date, location: side.location, status: 'submitted', 'transfers.ticketIds': { $ne: ticket.id } },
+      { $push: { transfers: line } }
+    );
+    if (result.modifiedCount) changed.push({ location: side.location, date: side.date });
+  }
+  return changed;
+}
+
 type DeliveryRows = Awaited<ReturnType<typeof deliveriesOnDate>>;
 /** What the schedule and check-ins add up to for one branch and day (deriveFromSystem). */
 export type DerivedFigures = Awaited<ReturnType<typeof deriveFromSystem>>;
@@ -236,31 +301,9 @@ export async function deriveFromSystem(date: string, location: string, { deliver
   // One line per transfer (2026-10-15), each with its own transfer number, so
   // the same transfer added again by hand stands out. It used to be one line
   // per counterpart branch with a count; the count is now the number of lines.
-  const outbound = mine.filter((d) => d.deliveryType === 'transfer').map((d) => ({
-    fromTo: `${branchCode(location)} — ${branchCode(d.transferDestination || 'Unspecified')}`,
-    transferNumber: ticketTransferNumber(d),
-    count: 1,
-    slabs: ticketSlabs(d),
-    auto: true,
-    direction: 'out',
-    ticketIds: [d.id].filter(Boolean)
-  })).sort(byRouteThenNumber);
-
-  const inbound = incomingRows.map((d) => ({
-    fromTo: `${branchCode(d.location || 'Unspecified')} — ${branchCode(location)}`,
-    transferNumber: ticketTransferNumber(d),
-    count: 1,
-    slabs: ticketSlabs(d),
-    auto: true,
-    direction: 'in',
-    received: Boolean(d.receivedAt),
-    receivedAt: d.receivedAt || null,
-    receivedBy: d.receivedBy || '',
-    // Which ticket this line is, so "mark received" on the report has
-    // something to PATCH, and so its typed slabs stay its own without a
-    // transfer number (transferLineKey).
-    ticketIds: [d.id].filter(Boolean)
-  })).sort(byRouteThenNumber);
+  const outbound = mine.filter((d) => d.deliveryType === 'transfer')
+    .map((d) => transferLineFor(d, location, 'out')).sort(byRouteThenNumber);
+  const inbound = incomingRows.map((d) => transferLineFor(d, location, 'in')).sort(byRouteThenNumber);
 
   return {
     visitorCheckIns: checkIns,

@@ -4145,6 +4145,54 @@ body.light-theme-active .delivery-arrange-btn:hover,
   .btn-add-delivery-word { display: none; }
 }
 
+/* Log arrival: beside Add Delivery, quieter than it (it's the exception, not
+   the daily action). Icon only below 768px, where the header is one tight row. */
+.btn-log-arrival {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.6rem 1rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  color: #fff;
+  font: 700 0.85rem var(--font-main);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-log-arrival:hover { background: rgba(255, 255, 255, 0.12); border-color: rgba(212, 175, 55, 0.5); }
+.btn-log-arrival:focus-visible { outline: 2px solid #D4AF37; outline-offset: 2px; }
+body.light-theme-active .btn-log-arrival,
+.light-theme-active .btn-log-arrival {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  color: #334155;
+}
+body.light-theme-active .btn-log-arrival:hover,
+.light-theme-active .btn-log-arrival:hover { background: #e2e8f0; color: #0f172a; }
+@media (max-width: 768px) {
+  .btn-log-arrival { padding: 0.6rem 0.7rem; }
+  .btn-log-arrival-word { display: none; }
+}
+
+/* A transfer the receiving branch logged because the sender never did
+   (Log arrival). Gold, like the board's other "look at this" marks. */
+.ticket-arrival-flag {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #e6c25e;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  line-height: 1.2;
+}
+body.light-theme-active .ticket-arrival-flag,
+.light-theme-active .ticket-arrival-flag {
+  color: #8a6d12 !important;
+}
+
 /* A deactivated driver's column (Users & Roles), shown only on weeks they
    have orders — tagged so nobody schedules them by mistake. */
 .truck-former-tag {

@@ -40,7 +40,11 @@ const transferLineSchema = new mongoose.Schema({
   // silently drops any field assigned to a subdocument that isn't in its
   // schema, so without this the derived array would arrive at the client with
   // ticketIds stripped and the button would have nothing to call.
-  ticketIds: { type: [String], default: [] }
+  ticketIds: { type: [String], default: [] },
+  // When a ticket line was added to a report already submitted — a transfer
+  // the receiving branch logged on arrival (addTransferToSubmittedReports in
+  // src/routes/dailyReports.ts). null on every other line.
+  addedAfterSubmitAt: { type: Date, default: null }
 }, { _id: false });
 
 const containerLineSchema = new mongoose.Schema({

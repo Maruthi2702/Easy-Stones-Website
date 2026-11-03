@@ -26,6 +26,8 @@ export type StoredTransferLine = {
   receivedAt: string | Date | null;
   receivedBy: string;
   ticketIds: string[];
+  /** Only on a ticket line added to an already-submitted report (a logged arrival). */
+  addedAfterSubmitAt?: string | Date | null;
 };
 
 export type StoredContainerLine = { poNumber: string; material: string; slabs: number };

@@ -242,6 +242,48 @@ describe('incoming transfers — receiving edits only', () => {
     await request(app).delete('/api/deliveries/incoming').set(as({ ...OFFICE, permissions: [...OFFICE.permissions, 'delete_delivery_schedule'] })).expect(404);
     expect((await Delivery.findOne({ id: 'incoming' }).lean().orFail()).date).toBe(DAY);
   });
+  it('lets the receiving branch set Scheduled, Delayed, Completed or Cancelled, never Pending (2026-11-03)', async () => {
+    await incoming();
+    const path = '/api/deliveries/incoming/receiving';
+    // Not on a truck yet: the sender hasn't shipped it, so no status from here.
+    expect((await request(app).patch(path).set(as(OFFICE)).send({ status: 'delayed' }).expect(409)).body.error).toMatch(/truck/);
+    await Delivery.updateOne({ id: 'incoming' }, { $set: { truckId: 'drv_sending', status: 'scheduled' } });
+    for (const status of ['pending', 'shipped']) await request(app).patch(path).set(as(OFFICE)).send({ status }).expect(400);
+    await request(app).patch(path).set(as(OFFICE)).send({ status: 'delayed' }).expect(200);
+    expect((await Delivery.findOne({ id: 'incoming' }).lean().orFail()).status).toBe('delayed');
+    await request(app).patch(path).set(as(OFFICE)).send({ status: 'completed', numberOfSlabs: 9 }).expect(200);
+    const saved = await Delivery.findOne({ id: 'incoming' }).lean().orFail();
+    expect(saved).toMatchObject({ status: 'completed', numberOfSlabs: 9, truckId: 'drv_sending', date: DAY, location: 'Spokane' });
+    expect(roomsEmittedTo).toContain('delivery-location:Spokane');
+    // Its own status again is no change, not a refusal.
+    await request(app).patch(path).set(as(OFFICE)).send({ status: 'completed' }).expect(200);
+    // The receiving branch may cancel it; only the sender restores it.
+    await request(app).patch(path).set(as(OFFICE)).send({ status: 'cancelled' }).expect(200);
+    expect((await Delivery.findOne({ id: 'incoming' }).lean().orFail()).status).toBe('cancelled');
+    expect((await request(app).patch(path).set(as(OFFICE)).send({ status: 'scheduled' }).expect(409)).body.error).toMatch(/cancelled/);
+    expect((await request(app).patch('/api/deliveries/incoming/receive').set(as(OFFICE)).send({}).expect(409)).body.error).toMatch(/cancelled/);
+  });
+  it('keeps Completed and received together on the receiving side (2026-11-03)', async () => {
+    await incoming();
+    await Delivery.updateOne({ id: 'incoming' }, { $set: { truckId: 'drv_sending', status: 'scheduled' } });
+    const path = '/api/deliveries/incoming/receiving';
+    await request(app).patch(path).set(as(OFFICE)).send({ status: 'completed' }).expect(200);
+    let saved = await Delivery.findOne({ id: 'incoming' }).lean().orFail();
+    expect(saved.receivedAt).toBeInstanceOf(Date);
+    await request(app).patch(path).set(as(OFFICE)).send({ status: 'delayed' }).expect(200);
+    saved = await Delivery.findOne({ id: 'incoming' }).lean().orFail();
+    expect(saved).toMatchObject({ status: 'delayed', receivedAt: null, receivedBy: '' });
+    // Mark received completes it.
+    const { body } = await request(app).patch('/api/deliveries/incoming/receive').set(as(OFFICE)).send({}).expect(200);
+    expect(body.status).toBe('completed');
+    expect(body.receivedAt).toBeTruthy();
+  });
+  it('marks a transfer with no truck received without completing it', async () => {
+    await incoming();
+    const { body } = await request(app).patch('/api/deliveries/incoming/receive').set(as(OFFICE)).send({}).expect(200);
+    expect(body.receivedAt).toBeTruthy();
+    expect(body.status).toBe('scheduled');
+  });
   it('checks permission, branch access, real dates and whole slab counts', async () => {
     await incoming();
     const path = '/api/deliveries/incoming/receiving';

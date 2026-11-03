@@ -60,7 +60,9 @@ export type DeliveryFormProps = {
     onClose: () => void;
     /** Saves the ticket; throws with the server's reason to show. */
     onSave: (payload: DeliveryPayload) => Promise<unknown>;
-    onReceivingSave?: (id: string, fields: { expectedArrivalDate?: string; numberOfSlabs?: number }) => Promise<unknown>;
+    onReceivingSave?: (id: string, fields: { expectedArrivalDate?: string; numberOfSlabs?: number; status?: string }) => Promise<unknown>;
+    /** The receiving branch's "Mark received"; resolves to the updated ticket. */
+    onMarkReceived?: (id: string) => Promise<Loose>;
     onDelete?: (id: string) => Promise<unknown>;
     /** The ticket being edited, or a new one's starting values (no id). */
     initialData?: Loose | null;
@@ -76,7 +78,7 @@ const STOP_OPTIONS = Array.from({ length: MAX_TRUCK_CAPACITY }, (_, i) => ({ val
 export default function DeliveryForm(props: DeliveryFormProps) {
     if (!props.isOpen) return null;
     if (props.initialData?.id && isReceivingTransfer(props.currentUser, props.initialData)) {
-        return <IncomingTransferForm ticket={props.initialData} onClose={props.onClose} onSave={props.onReceivingSave} />;
+        return <IncomingTransferForm ticket={props.initialData} onClose={props.onClose} onSave={props.onReceivingSave} onMarkReceived={props.onMarkReceived} />;
     }
     // A fresh form every time it opens, so nothing carries over between tickets.
     return <DeliveryFormBody {...props} />;

@@ -25,4 +25,49 @@ describe('receiving transfer form', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Try again');
     expect(onClose).not.toHaveBeenCalled();
   });
+  it('marks it received and says so', async () => {
+    const onMarkReceived = vi.fn(async () => ({ ...ticket, receivedAt: '2026-11-02T18:00:00Z', receivedBy: 'Dee' }));
+    render(<IncomingTransferForm ticket={ticket} onClose={vi.fn()} onMarkReceived={onMarkReceived} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mark received' }));
+    expect((await screen.findByText(/^Received/)).textContent).toMatch(/by Dee/);
+    expect(onMarkReceived).toHaveBeenCalledWith('t1');
+  });
+  it('shows a transfer already received, with no button', () => {
+    render(<IncomingTransferForm ticket={{ ...ticket, receivedAt: '2026-11-02T18:00:00Z', receivedBy: 'Dee' }} onClose={vi.fn()} onMarkReceived={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: 'Mark received' })).toBeNull();
+    expect(screen.getByText(/^Received/).textContent).toMatch(/by Dee/);
+  });
+  it('sends a status change the receiving branch may make', async () => {
+    const onSave = vi.fn(async () => {}), onClose = vi.fn();
+    render(<IncomingTransferForm ticket={{ ...ticket, truckId: 'drv_x', status: 'scheduled' }} onSave={onSave} onClose={onClose} />);
+    fireEvent.click(document.getElementById('incoming-status')!);
+    expect(screen.getByRole('option', { name: /Cancelled/ })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: /Pending/ })).toBeNull();
+    fireEvent.click(screen.getByRole('option', { name: /Delayed/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(onSave).toHaveBeenCalledWith('t1', { status: 'delayed' });
+  });
+  it('locks the status until the sender puts it on a truck', () => {
+    render(<IncomingTransferForm ticket={{ ...ticket, truckId: '', status: 'pending' }} onClose={vi.fn()} />);
+    expect((document.getElementById('incoming-status') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/hasn’t put it on a truck/)).toBeTruthy();
+  });
+  it('says what Completed and Cancelled also do', () => {
+    render(<IncomingTransferForm ticket={{ ...ticket, truckId: 'drv_x', status: 'scheduled' }} onClose={vi.fn()} />);
+    fireEvent.click(document.getElementById('incoming-status')!);
+    fireEvent.click(screen.getByRole('option', { name: /Completed/ }));
+    expect(screen.getByText('Also marks it received.')).toBeTruthy();
+    fireEvent.click(document.getElementById('incoming-status')!);
+    fireEvent.click(screen.getByRole('option', { name: /Cancelled/ }));
+    expect(screen.getByText('Only Spokane can restore it once cancelled.')).toBeTruthy();
+  });
+  it('shows Completed once Mark received completes it', async () => {
+    const onMarkReceived = vi.fn(async () => ({ ...ticket, truckId: 'drv_x', status: 'completed', receivedAt: '2026-11-02T18:00:00Z', receivedBy: 'Dee' }));
+    render(<IncomingTransferForm ticket={{ ...ticket, truckId: 'drv_x', status: 'scheduled' }} onClose={vi.fn()} onMarkReceived={onMarkReceived} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mark received' }));
+    await screen.findByText(/^Received/);
+    expect(document.getElementById('incoming-status')!.textContent).toMatch(/Completed/);
+    expect((screen.getByRole('button', { name: 'Save changes' }) as HTMLButtonElement).disabled).toBe(true);
+  });
 });
