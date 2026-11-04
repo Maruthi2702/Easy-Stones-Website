@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupTransferTickets, groupTicketSlabs, groupReceived, boardWeekMonday, arrivalsShippedEarlier } from './dailyReportTransfers';
+import { groupTransferTickets, groupTicketSlabs, groupReceived, boardWeekMonday, arrivalsShippedEarlier, transferTile } from './dailyReportTransfers';
 import type { TransferTicket } from './dailyReportTransfers';
 
 describe('groupTransferTickets', () => {
@@ -107,5 +107,20 @@ describe('arrivalsShippedEarlier', () => {
   it('counts a ticket nobody has counted slabs on as zero slabs', () => {
     expect(arrivalsShippedEarlier([t('2026-09-25', '2026-09-28', null)], '2026-09-28'))
       .toEqual([{ shipDate: '2026-09-25', count: 1, slabs: 0 }]);
+  });
+});
+
+describe('transferTile (sent and received both count, 2026-11-03)', () => {
+  it('counts a branch that only received — SLC, two in, none out', () => {
+    expect(transferTile({ out: 0, outSlabs: 0, inCount: 2, inSlabs: 93 })).toEqual({ value: 2, sub: '2 in · 93 slabs' });
+  });
+  it('adds both directions and splits them underneath', () => {
+    expect(transferTile({ out: 1, outSlabs: 47, inCount: 2, inSlabs: 93 })).toEqual({ value: 3, sub: '1 out · 2 in · 140 slabs' });
+    expect(transferTile({ out: 1, outSlabs: 0, inCount: 0, inSlabs: 0 })).toEqual({ value: 1, sub: '1 out' });
+  });
+  it('says none when there are none, and drops slabs when short', () => {
+    expect(transferTile({ out: 0, outSlabs: 0, inCount: 0, inSlabs: 0 })).toEqual({ value: 0, sub: 'none recorded' });
+    expect(transferTile({ out: 12, outSlabs: 1402, inCount: 9, inSlabs: 800 }, { short: true, fmt: (n) => n.toLocaleString('en-US') }).sub).toBe('12 out · 9 in');
+    expect(transferTile({ out: 0, outSlabs: 0, inCount: 3, inSlabs: 1200 }, { fmt: (n) => n.toLocaleString('en-US') }).sub).toBe('3 in · 1,200 slabs');
   });
 });

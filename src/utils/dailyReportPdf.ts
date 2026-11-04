@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import type { Color, PDFPage, PDFFont, PDFImage, PDFPageDrawRectangleOptions } from 'pdf-lib';
 import { groupContainers } from './dailyReportContainers.ts';
+import { transferTile } from './dailyReportTransfers.ts';
 import { PAYMENT_METHODS, paymentCount, paymentAmount, paymentsFromPage } from './dailyReportPayments.ts';
 
 /**
@@ -283,11 +284,13 @@ export async function buildDayPdf(report: PdfDayReport) {
   const containers = report.containers || [];
   const outboundTransfers = transfers.filter((t) => t.direction !== 'in');
   const inboundTransfers = transfers.filter((t) => t.direction === 'in');
-  // Outgoing only, same as the glance tile in the tab — the detailed table
-  // below lists both directions with their own subtotals.
+  // The glance tile counts both directions, as in the tab (transferTile); the
+  // detailed table below lists each with its own subtotal.
   const transferSlabs = outboundTransfers.reduce((s, t) => s + Number(t.slabs || 0), 0);
   const transferCount = outboundTransfers.reduce((s, t) => s + Number(t.count || 0), 0);
   const inboundTransferSlabs = inboundTransfers.reduce((s, t) => s + Number(t.slabs || 0), 0);
+  const inboundTransferCount = inboundTransfers.reduce((s, t) => s + Number(t.count || 0), 0);
+  const transfersTile = transferTile({ out: transferCount, outSlabs: transferSlabs, inCount: inboundTransferCount, inSlabs: inboundTransferSlabs }, { fmt: int });
   const containerSlabs = containers.reduce((s, x) => s + Number(x.slabs || 0), 0);
   const pay = report.payments || {};
   const payCount = paymentCount(pay);
@@ -303,7 +306,7 @@ export async function buildDayPdf(report: PdfDayReport) {
     { label: 'Visitors', value: int(visitors), sub: `${int(v.homeowners || 0)} homeowners` },
     { label: 'Orders', value: int(assigned), sub: `${int(report.deliveries?.assigned)} out · ${int(report.pickups?.assigned)} picked up` },
     { label: 'Containers', value: int(groupContainers(containers).length), sub: containerSlabs ? `${int(containerSlabs)} slabs` : 'no slabs counted' },
-    { label: 'Transfers', value: int(transferCount), sub: transferSlabs ? `${int(transferSlabs)} slabs` : 'no slabs counted' },
+    { label: 'Transfers', value: int(transfersTile.value), sub: transfersTile.sub },
     { label: 'Payments', value: money(payAmount), sub: `${payCount} transaction${payCount === 1 ? '' : 's'}` }
   ]);
 
@@ -516,15 +519,13 @@ export async function buildMonthPdf({ month, rows, scopeLabel }: { month: string
         { label: 'Visitors', value: int(grand.visitors), sub: `${byBranch.size} branch${byBranch.size === 1 ? '' : 'es'}` },
         { label: 'Orders', value: int(grand.deliveries + grand.pickups), sub: `${int(grand.deliveries)} out · ${int(grand.pickups)} picked up` },
         { label: 'Containers', value: int(grand.containerCount), sub: `${int(grand.containerSlabs)} slabs` },
-        // Outgoing, as on the day sheet; incoming in the line under it. The
-        // table's "Slabs out" column stays outgoing transfers only.
-        {
-          label: 'Transfers', value: int(grand.transferCount),
+        // Sent and received, as on the day sheet (transferTile). The table's
+        // "Slabs out" column stays outgoing transfers only.
+        (() => {
           // Short: the tile is narrow and fit() cuts anything longer.
-          sub: grand.transferCountIn
-            ? `${int(grand.transferSlabs)} slabs · ${int(grand.transferCountIn)} in`
-            : `${int(grand.transferSlabs)} slabs`
-        },
+          const tile = transferTile({ out: grand.transferCount, outSlabs: grand.transferSlabs, inCount: grand.transferCountIn, inSlabs: grand.transferSlabsIn }, { short: true, fmt: int });
+          return { label: 'Transfers', value: int(tile.value), sub: tile.sub };
+        })(),
         { label: 'Payments', value: money(grand.payments), sub: `${rows.length} day${rows.length === 1 ? '' : 's'}` }
       ]);
     }

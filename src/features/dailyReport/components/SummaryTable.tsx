@@ -2,6 +2,7 @@ import React from 'react';
 import { Users, Truck, Package, ArrowLeftRight, Wallet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { money, moneyShort, STATUS } from '../summaryFigures';
+import { transferTile } from '../../../utils/dailyReportTransfers';
 import type { SummaryRow, SummaryTotals } from '../types';
 
 /** A column before the figures: the day, the branch. */
@@ -52,15 +53,8 @@ export const SummaryStats = ({ totals, visitorsNote, paymentsNote }: { totals: S
       key: 'transfers',
       icon: ArrowLeftRight,
       label: 'Transfers',
-      // The figure is what this branch shipped, as on the day sheet; what
-      // arrived from other branches is in the line under it.
-      value: totals.transferCount,
-      sub: totals.transferCount || totals.transferCountIn
-        ? [
-            totals.transferCount ? `${totals.transferSlabs} slabs out` : 'none out',
-            totals.transferCountIn ? `${totals.transferCountIn} in (${totals.transferSlabsIn} slabs)` : null
-          ].filter(Boolean).join(' · ')
-        : 'none recorded'
+      // Every transfer sent or received, as on the day sheet (transferTile).
+      ...transferTile({ out: totals.transferCount, outSlabs: totals.transferSlabs, inCount: totals.transferCountIn, inSlabs: totals.transferSlabsIn })
     },
     {
       key: 'payments',

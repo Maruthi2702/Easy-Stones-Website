@@ -66,3 +66,25 @@ export const arrivalsShippedEarlier = (tickets: TransferTicket[] | null | undefi
 /** True only once every ticket making up the line has been confirmed received. */
 export const groupReceived = (group: TicketGroup<TransferTicket>) =>
   group.tickets.length > 0 && group.tickets.every((t) => Boolean(t.receivedAt));
+
+/**
+ * The Transfers tile on the day sheet, the month / all-locations view and both
+ * PDFs (2026-11-03): every transfer the branch sent **or received**, with the
+ * split under it — "2 in · 93 slabs", "1 out · 2 in · 140 slabs". It used to
+ * count outgoing only, so a branch that only received read 0 above a section
+ * listing its arrivals. `short` drops the slabs for a narrow PDF tile.
+ */
+export function transferTile(
+  { out, outSlabs, inCount, inSlabs }: { out: number; outSlabs: number; inCount: number; inSlabs: number },
+  { short = false, fmt = (n: number) => String(n) }: { short?: boolean; fmt?: (n: number) => string } = {}
+) {
+  const value = (out || 0) + (inCount || 0);
+  if (!value) return { value, sub: 'none recorded' };
+  const slabs = (outSlabs || 0) + (inSlabs || 0);
+  const parts = [
+    out ? `${fmt(out)} out` : null,
+    inCount ? `${fmt(inCount)} in` : null,
+    !short && slabs ? `${fmt(slabs)} slabs` : null
+  ];
+  return { value, sub: parts.filter(Boolean).join(' · ') };
+}

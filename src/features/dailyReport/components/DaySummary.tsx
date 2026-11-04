@@ -3,6 +3,7 @@ import { Users, Truck, Package, ArrowLeftRight, Wallet, Check } from 'lucide-rea
 import { moneyShort } from '../summaryFigures';
 import { groupContainers } from '../../../utils/dailyReportContainers';
 import { paymentsSaid } from '../../../utils/dailyReportPayments';
+import { transferTile } from '../../../utils/dailyReportTransfers';
 import type { LucideIcon } from 'lucide-react';
 import type { ContainerLine, DayTotals, Report, TransferLine } from '../types';
 
@@ -52,10 +53,11 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false }:
   // grouped back into physical containers so a three-color shipment reads as
   // one container, not three.
   const containerCount = groupContainers(report.containers.filter(hasContent)).length;
-  // Either direction counts toward "this section has something in it" — but
-  // the tile below quotes outgoing only, so it needs its own narrower count.
   const transferLines = report.transfers.filter(hasContent).length;
-  const outboundTransferLines = report.transfers.filter(t => t.direction !== 'in' && hasContent(t)).length;
+  // Sent and received both count (transferTile, 2026-11-03).
+  const transfersTile = transferTile({
+    out: totals.transferCount, outSlabs: totals.transferSlabs, inCount: totals.transferCountIn, inSlabs: totals.transferSlabsIn
+  });
 
   const tiles: { key: string; icon: LucideIcon; label: string; value: string | number; sub: string; accent?: boolean; suffix?: string }[] = [
     {
@@ -97,16 +99,9 @@ const DaySummary = ({ report, totals, canSubmit, onSubmit, submitting = false }:
       key: 'transfers',
       icon: ArrowLeftRight,
       label: 'Transfers',
-      // The lines are routes; the counts on them are the transfers themselves.
-      // Outgoing only — incoming has its own subtotal in the section itself,
-      // this tile's meaning is unchanged from before inbound existed.
-      value: totals.transferCount,
-      sub: outboundTransferLines
-        ? [
-            plural(outboundTransferLines, 'route'),
-            totals.transferSlabs ? plural(totals.transferSlabs, 'slab') : null
-          ].filter(Boolean).join(' · ')
-        : 'none recorded'
+      // Every transfer sent or received, split out underneath.
+      value: transfersTile.value,
+      sub: transfersTile.sub
     },
     {
       key: 'payments',
