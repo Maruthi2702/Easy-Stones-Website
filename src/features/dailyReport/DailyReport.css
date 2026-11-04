@@ -318,15 +318,8 @@ body.light-theme-active .dr-root,
 /* ── The More menu (exports, then View Log) ───────────────────────────────── */
 .dr-menu { position: relative; display: inline-flex; }
 
-.dr-btn--menu.is-open { border-color: var(--dr-gold); background: var(--dr-head); }
-
-.dr-menu-caret {
-  margin-left: 0.05rem;
-  color: var(--dr-text-3);
-  transition: transform 0.15s ease;
-}
-
-.dr-btn--menu.is-open .dr-menu-caret { transform: rotate(180deg); }
+/* The round ⋯ is the shared Filters circle (.lf .lf-btn); open, it's ringed in gold. */
+.dr-more-btn.is-open { border-color: var(--dr-gold); }
 
 .dr-menu-pop {
   position: absolute;
@@ -367,7 +360,6 @@ body.light-theme-active .dr-root,
 
 .dr-menu-divider { height: 1px; margin: 0.3rem 0.4rem; background: var(--dr-line); }
 
-@media (prefers-reduced-motion: reduce) { .dr-menu-caret { transition: none; } }
 
 /* ── Status line ─────────────────────────────────────────────────────────── */
 .dr-statusline {
@@ -1131,12 +1123,10 @@ body.light-theme-active .dr-root,
   .dr-progress-submit, .dr-progress-done { margin-left: 0; width: 100%; justify-content: center; }
   .dr-title { width: 100%; margin-right: 0; }
   .dr-actions { width: 100%; }
-  .dr-actions > .dr-btn,
-  .dr-actions > .dr-menu { flex: 1; }
-  .dr-menu .dr-btn { width: 100%; }
-  /* Anchored to the right edge on a wide bar, but a full-width button on a
-     narrow one has no right edge worth hanging from. */
-  .dr-menu-pop { left: 0; right: 0; min-width: 0; }
+  .dr-actions > .dr-btn { flex: 1; }
+  /* The ⋯ sits first on the row, so its menu hangs from its left edge,
+     kept inside the screen. */
+  .dr-menu-pop { left: 0; right: auto; max-width: calc(100vw - 1.6rem); }
   .dr-datenav { flex: 1; }
   .dr-datepick { flex: 1; justify-content: center; }
   .dr-table { --dr-cellpad: 0.6rem; }

@@ -93,7 +93,7 @@ describe('Daily Report', () => {
 
   it('More lists the exports and opens Email', async () => {
     await open();
-    fireEvent.click(screen.getByText('More'));
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     expect(screen.getByText('Download PDF')).toBeTruthy();
     expect(screen.getByText('Download CSV — every branch')).toBeTruthy();
     fireEvent.click(screen.getByText('Email as PDF…'));
@@ -102,7 +102,7 @@ describe('Daily Report', () => {
 
   it('More → View Log shows who submitted and reopened, with the reason', async () => {
     await open();
-    fireEvent.click(screen.getByText('More'));
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByText('View Log'));
     await waitFor(() => expect(screen.getByText('Submitted by Scott')).toBeTruthy());
     expect(screen.getByText('Reopened by Jeremy Earnest')).toBeTruthy();

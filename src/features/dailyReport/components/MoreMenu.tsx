@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MoreHorizontal, ChevronDown } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 /** `dividerBefore` draws a line above the item (View Log, under the exports). */
@@ -13,7 +13,10 @@ export type MoreItem = { key: string; icon: LucideIcon; label: string; hint?: st
  * Submit day — in a row of five that all looked the same. They are one menu
  * now: the bar carries the choice of report, and this carries what to do with
  * it. Since 2026-11-04 the menu is "More" and also holds View Log (the
- * day's submits, reopens and emails) under a line.
+ * day's submits, reopens and emails) under a line. Its button is the round
+ * ⋯ beside the round Filters one, as on the Dashboard and Payments headers —
+ * the shared LocationFilter circle (`.lf .lf-btn`), so both match in light
+ * and dark.
  *
  * items — [{ key, icon, label, hint, onSelect, dividerBefore }]
  */
@@ -36,16 +39,17 @@ const MoreMenu = ({ items, label = 'More' }: { items: MoreItem[]; label?: string
   if (!items.length) return null;
 
   return (
-    <div className="dr-menu" ref={wrap}>
+    <div className="dr-menu lf" ref={wrap}>
       <button
         type="button"
-        className={`dr-btn dr-btn--menu ${open ? 'is-open' : ''}`}
+        className={`lf-btn dr-more-btn ${open ? 'is-open' : ''}`}
         onClick={() => setOpen(o => !o)}
+        aria-label={label}
+        title={label}
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <MoreHorizontal size={14} /> {label}
-        <ChevronDown size={13} className="dr-menu-caret" />
+        <MoreHorizontal size={18} />
       </button>
 
       {open && (
