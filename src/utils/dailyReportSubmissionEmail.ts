@@ -3,6 +3,8 @@ import { buildDayPdf, dayPdfFileName } from './dailyReportPdf.ts';
 import { sendEmail } from '../services/emailService.ts';
 import Location from '../models/Location.ts';
 import User from '../models/User.ts';
+import DailyReport from '../models/DailyReport.ts';
+import { logEntry } from './dailyReportLog.ts';
 import { recipientEmails, seedFromAddresses, SEATTLE_RECIPIENTS_BEFORE_2026_10_15 } from './dailyReportRecipients.ts';
 
 /**
@@ -10,7 +12,7 @@ import { recipientEmails, seedFromAddresses, SEATTLE_RECIPIENTS_BEFORE_2026_10_1
  * → Edit → "Daily Report email", src/utils/dailyReportRecipients.ts) the
  * moment the day is submitted — whether a person clicked Submit or the
  * 11:59 PM auto-submit job closed it out — so nobody on it has to remember to
- * use Export → Email as PDF every evening. A location with nobody listed gets
+ * use More → Email as PDF every evening. A location with nobody listed gets
  * no email. (Until 2026-10-15 this was Seattle only, to a list in the code.)
  */
 export async function recipientsFor(locationName: unknown) {
@@ -68,13 +70,25 @@ export async function notifyDailyReportSubmission(report: PdfDayReport) {
       attachments: [{ filename: dayPdfFileName(report), content: Buffer.from(bytes) }]
     });
 
+    const people = `${to.length} ${to.length === 1 ? 'person' : 'people'}`;
     if (result.success) {
       console.log(`✅ ${report.location} daily report emailed for ${report.date} to ${to.length}`);
+      await logEmail(report, logEntry('emailed', '', `To the branch's Daily Report list (${people})`));
     } else {
       console.error(`⚠️ ${report.location} daily report email failed for ${report.date}: ${result.error}`);
+      await logEmail(report, logEntry('email_failed', '', `To the branch's Daily Report list (${people}): ${result.error || 'no reason given'}`));
     }
   } catch (error) {
     console.error(`⚠️ ${report.location} daily report email threw for ${report.date}:`, error);
+  }
+}
+
+/** The send goes in the report's log (More → View Log), so a second email has a visible reason. */
+async function logEmail(report: PdfDayReport, entry: ReturnType<typeof logEntry>) {
+  try {
+    await DailyReport.updateOne({ date: report.date, location: report.location }, { $push: { log: entry } });
+  } catch (error) {
+    console.error(`⚠️ ${report.location} daily report email log failed for ${report.date}:`, error);
   }
 }
 

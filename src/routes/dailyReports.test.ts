@@ -1,6 +1,7 @@
 import type { Loose } from '../types/records.ts';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { applyDerived, incomingTransferQuery, summarise, handSetFigures, claimSubmission, writeDraft, withDraftsDerived, deriveFromSystem } from './dailyReports.ts';
+import { applyDerived, incomingTransferQuery, summarise, handSetFigures, claimSubmission, submitLogFor, writeDraft, withDraftsDerived, deriveFromSystem } from './dailyReports.ts';
+import { logEntry } from '../utils/dailyReportLog.ts';
 import Delivery from '../models/Delivery.ts';
 const deliveryStore = Delivery as unknown as { find: (query: Loose) => { lean: () => Promise<Loose[]> } };
 import OfficeCheckIn from '../models/OfficeCheckIn.ts';
@@ -315,21 +316,39 @@ describe('claimSubmission — one sign-off per day', () => {
   };
   const submittedBy = (who: string) => ({
     _id: 'r1',
-    toObject: () => ({ _id: 'r1', __v: 3, status: 'submitted', submittedBy: who })
+    toObject: () => ({ _id: 'r1', __v: 3, status: 'submitted', submittedBy: who, log: [] })
   });
+  const line = (who: string) => [logEntry('submitted', who)];
 
   it('only matches a day still in draft, and never rewrites _id or __v', async () => {
     fakeStore();
-    await claimSubmission(submittedBy('Ann'));
+    await claimSubmission(submittedBy('Ann'), line('Ann'));
     const [filter, update] = vi.mocked(reportStore.findOneAndUpdate).mock.calls[0];
     expect(filter).toEqual({ _id: 'r1', status: 'draft' });
     expect(update.$set).not.toHaveProperty('_id');
     expect(update.$set).not.toHaveProperty('__v');
   });
 
+  it('pushes its log lines, never sets the log (a line added meanwhile stays)', async () => {
+    fakeStore();
+    await claimSubmission(submittedBy('Ann'), line('Ann'));
+    const [, update] = vi.mocked(reportStore.findOneAndUpdate).mock.calls[0];
+    expect(update.$set).not.toHaveProperty('log');
+    expect(update.$push.log.$each.map((e: Loose) => [e.action, e.by])).toEqual([['submitted', 'Ann']]);
+  });
+
+  it('a day from before the log: its kept reopen goes in ahead of the submit', () => {
+    const old = { log: [], reopenedAt: new Date('2026-11-04T01:57:36Z'), reopenedBy: 'Jeremy Earnest', reopenReason: 'update payments' };
+    const lines = submitLogFor(old, logEntry('auto_submitted', '', '', new Date('2026-11-04T07:59:30Z')));
+    expect(lines.map((e) => [e.action, e.by, e.note])).toEqual([
+      ['reopened', 'Jeremy Earnest', 'update payments'],
+      ['auto_submitted', '', '']
+    ]);
+  });
+
   it('when manual Submit and the 11:59 job race, exactly one wins', async () => {
     const doc = fakeStore();
-    const [manual, job] = await Promise.all([claimSubmission(submittedBy('Ann')), claimSubmission(submittedBy('Auto-submitted'))]);
+    const [manual, job] = await Promise.all([claimSubmission(submittedBy('Ann'), line('Ann')), claimSubmission(submittedBy('Auto-submitted'), line(''))]);
     expect([manual, job].filter(Boolean)).toHaveLength(1);
     expect(doc.submittedBy).toBe('Ann');
     expect(job).toBe(null); // the loser sends no email

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // The Daily Report renders (API mocked): a day with every section, a submitted
-// day, Reopen, the month, all locations, Export with its Email and PDF
-// pop-ups, read-only, and no access.
+// day, Reopen, the month, all locations, More with its Email and PDF
+// pop-ups and View Log, read-only, and no access.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import type { ComponentType } from 'react';
@@ -36,6 +36,10 @@ vi.mock('../../api/authFetch', () => ({
     if (url.includes('/locations')) return Promise.resolve(json({ locations: branches, allLocations: ['Seattle', 'Spokane', 'Salt Lake City'], canExportAll: true }));
     if (url.includes('/overview/')) return Promise.resolve(json({ rows: [row(TODAY, 'Seattle', 'draft'), row(TODAY, 'Spokane', 'none')], noBranchTickets: 0 }));
     if (url.includes('?month=')) return Promise.resolve(json({ reports: [row(TODAY, 'Seattle', 'submitted')] }));
+    if (url.includes('/log?')) return Promise.resolve(json({ status: 'submitted', earlier: false, entries: [
+      { at: '2026-11-04T01:52:00Z', by: 'Scott', action: 'submitted', note: '' },
+      { at: '2026-11-04T01:57:00Z', by: 'Jeremy Earnest', action: 'reopened', note: 'update payments' }
+    ] }));
     if (/\/api\/daily-reports\/\d{4}-\d{2}-\d{2}\?/.test(url)) return Promise.resolve(json(day(status)));
     return Promise.resolve(json({}));
   }
@@ -87,13 +91,22 @@ describe('Daily Report', () => {
     expect(screen.getByText('1 of 2 started · 0 submitted')).toBeTruthy();
   });
 
-  it('Export lists its choices and opens Email', async () => {
+  it('More lists the exports and opens Email', async () => {
     await open();
-    fireEvent.click(screen.getByText('Export'));
+    fireEvent.click(screen.getByText('More'));
     expect(screen.getByText('Download PDF')).toBeTruthy();
     expect(screen.getByText('Download CSV — every branch')).toBeTruthy();
     fireEvent.click(screen.getByText('Email as PDF…'));
     expect(screen.getByText(`daily_report_${TODAY}_Seattle.pdf`)).toBeTruthy();
+  });
+
+  it('More → View Log shows who submitted and reopened, with the reason', async () => {
+    await open();
+    fireEvent.click(screen.getByText('More'));
+    fireEvent.click(screen.getByText('View Log'));
+    await waitFor(() => expect(screen.getByText('Submitted by Scott')).toBeTruthy());
+    expect(screen.getByText('Reopened by Jeremy Earnest')).toBeTruthy();
+    expect(screen.getByText('“update payments”')).toBeTruthy();
   });
 
   it('read only without edit, and a single branch has no filter', async () => {

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, ChevronDown } from 'lucide-react';
+import { MoreHorizontal, ChevronDown } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
-export type ExportItem = { key: string; icon: LucideIcon; label: string; hint?: string; onSelect: () => void };
+/** `dividerBefore` draws a line above the item (View Log, under the exports). */
+export type MoreItem = { key: string; icon: LucideIcon; label: string; hint?: string; onSelect: () => void; dividerBefore?: boolean };
 
 /**
  * The report's ways out, behind one button.
@@ -11,11 +12,12 @@ export type ExportItem = { key: string; icon: LucideIcon; label: string; hint?: 
  * equal weight in the top bar, which buried the one button anybody presses —
  * Submit day — in a row of five that all looked the same. They are one menu
  * now: the bar carries the choice of report, and this carries what to do with
- * it.
+ * it. Since 2026-11-04 the menu is "More" and also holds View Log (the
+ * day's submits, reopens and emails) under a line.
  *
- * items — [{ key, icon, label, hint, onSelect }]
+ * items — [{ key, icon, label, hint, onSelect, dividerBefore }]
  */
-const ExportMenu = ({ items, label = 'Export' }: { items: ExportItem[]; label?: string }) => {
+const MoreMenu = ({ items, label = 'More' }: { items: MoreItem[]; label?: string }) => {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
 
@@ -42,26 +44,28 @@ const ExportMenu = ({ items, label = 'Export' }: { items: ExportItem[]; label?: 
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <Download size={14} /> {label}
+        <MoreHorizontal size={14} /> {label}
         <ChevronDown size={13} className="dr-menu-caret" />
       </button>
 
       {open && (
         <div className="dr-menu-pop" role="menu">
           {items.map(item => (
-            <button
-              key={item.key}
-              type="button"
-              role="menuitem"
-              className="dr-menu-item"
-              onClick={() => { setOpen(false); item.onSelect(); }}
-            >
-              <item.icon size={15} className="dr-menu-icon" />
-              <span className="dr-menu-text">
-                <strong>{item.label}</strong>
-                {item.hint && <em>{item.hint}</em>}
-              </span>
-            </button>
+            <React.Fragment key={item.key}>
+              {item.dividerBefore && <div className="dr-menu-divider" role="separator" />}
+              <button
+                type="button"
+                role="menuitem"
+                className="dr-menu-item"
+                onClick={() => { setOpen(false); item.onSelect(); }}
+              >
+                <item.icon size={15} className="dr-menu-icon" />
+                <span className="dr-menu-text">
+                  <strong>{item.label}</strong>
+                  {item.hint && <em>{item.hint}</em>}
+                </span>
+              </button>
+            </React.Fragment>
           ))}
         </div>
       )}
@@ -69,4 +73,4 @@ const ExportMenu = ({ items, label = 'Export' }: { items: ExportItem[]; label?: 
   );
 };
 
-export default ExportMenu;
+export default MoreMenu;

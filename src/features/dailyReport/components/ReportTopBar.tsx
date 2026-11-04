@@ -1,7 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react';
 import { ClipboardList, ChevronLeft, ChevronRight, Check, Unlock, MapPin } from 'lucide-react';
-import ExportMenu from './ExportMenu';
-import type { ExportItem } from './ExportMenu';
+import MoreMenu from './MoreMenu';
+import type { MoreItem } from './MoreMenu';
 import LocationFilter from '../../../components/shared/LocationFilter';
 import { DatePicker, MonthPicker } from '../../../components/shared/calendar/Calendar';
 import { todayISO, monthOf, shiftDay, shiftMonth, withMonth } from '../../../components/shared/calendar/calendarDates';
@@ -21,7 +21,8 @@ export type ReportTopBarProps = {
   location: string;
   setLocation: (location: string) => void;
   currentUser: Loose | null;
-  exportItems: ExportItem[];
+  /** The More menu: the exports, then View Log. */
+  moreItems: MoreItem[];
   allBranches: boolean;
   submitted: boolean;
   canSubmit: boolean;
@@ -33,10 +34,10 @@ export type ReportTopBarProps = {
   setReopenOpen: Dispatch<SetStateAction<boolean>>;
 };
 
-/** The bar over the sheet: Day / Month, the date stepper, the branch, Export, Submit / Reopen. */
+/** The bar over the sheet: Day / Month, the date stepper, the branch, More, Submit / Reopen. */
 export default function ReportTopBar({
   sidebarToggle, view, setView, date, setDate, locations, location, setLocation, currentUser,
-  exportItems, allBranches, submitted, canSubmit, canReopen, submitDay, loading, report, saving, setReopenOpen
+  moreItems, allBranches, submitted, canSubmit, canReopen, submitDay, loading, report, saving, setReopenOpen
 }: ReportTopBarProps) {
   return (
     <header className="dr-topbar">
@@ -118,7 +119,7 @@ export default function ReportTopBar({
       ) : null}
 
       <div className="dr-actions">
-        <ExportMenu items={exportItems} />
+        <MoreMenu items={moreItems} />
         {view === 'day' && !allBranches && !submitted && canSubmit && (
           <button className="dr-btn dr-btn--gold" onClick={submitDay} disabled={loading || !report || saving}>
             <Check size={14} /> Submit day

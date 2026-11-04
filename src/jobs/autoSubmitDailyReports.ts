@@ -1,9 +1,10 @@
 import type { Loose } from '../types/records.ts';
 import DailyReport from '../models/DailyReport.ts';
 import { BRANCH_NAMES, branchNow, shiftDate } from '../config/branches.ts';
-import { deriveFromSystem, applyDerived, claimSubmission } from '../routes/dailyReports.ts';
+import { deriveFromSystem, applyDerived, claimSubmission, submitLogFor } from '../routes/dailyReports.ts';
 import type { DerivedFigures } from '../routes/dailyReports.ts';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.ts';
+import { logEntry } from '../utils/dailyReportLog.ts';
 
 /**
  * Submit the day for anyone who went home without doing it.
@@ -115,6 +116,7 @@ export async function fileUnopenedDay(date: string, location: string, now = new 
   report.submittedAt = now;
   report.submittedBy = AUTO_SUBMITTED_BY;
   report.autoSubmitted = true;
+  report.log.push(logEntry('auto_submitted', '', '', now));
   try {
     return await report.save();
   } catch (error) {
@@ -161,6 +163,7 @@ export async function autoSubmitDueDays(now = new Date()) {
       // is yet.
       applyDerived(report, derived);
 
+      const log = submitLogFor(report, logEntry('auto_submitted', '', '', now));
       report.status = 'submitted';
       report.submittedAt = now;
       report.submittedBy = AUTO_SUBMITTED_BY;
@@ -171,7 +174,7 @@ export async function autoSubmitDueDays(now = new Date()) {
       // ticking the same second, or a person pressing Submit at 11:59, may
       // both derive the same day harmlessly; only one write can match a
       // document still in 'draft', and the loser's simply matches nothing.
-      const claimed = await claimSubmission(report);
+      const claimed = await claimSubmission(report, log);
       if (!claimed) continue;
 
       count++;

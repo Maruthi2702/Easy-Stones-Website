@@ -1004,6 +1004,23 @@ importers updated, no behaviour change; check with typecheck, `npm test`,
 `vite build`, and the screen by hand — for a server file also boot `server.ts`
 (an in-memory MongoDB is enough).
 
+## Daily Report: More menu and View Log (2026-11-04, on `feat/daily-report-log`)
+
+The day sheet's top bar has one **More** menu (`components/MoreMenu.tsx`, was
+Export): the PDF / email / CSV items, then **View Log** under a line (a
+branch's day only). The log is `DailyReport.log`, written **only by `$push`**:
+Submit, the 11:59 PM job (`claimSubmission(report, log)` — build `log` with
+`submitLogFor` *before* setting the submit fields), Reopen with its reason,
+both emails (branch list from `notifyDailyReportSubmission`, the Email button
+with sender and addresses) and a transfer added after submit (Log arrival). A
+new way to submit, reopen or change a submitted day writes its line too.
+Rules and wording: `src/utils/dailyReportLog.ts` (tested); route `GET
+/:date/log` (`src/routes/dailyReportLog.test.ts`, in-memory MongoDB). Days from
+before the log show the one submit / reopen their fields kept (`earlier`),
+copied into the log on the next write so nothing overwrites them. Why: Seattle
+Nov 3 2026 emailed twice — Jeremy reopened it ("update payments") five minutes
+after Scott submitted, nobody re-submitted, and the job signed it off.
+
 ## Payments: one entry per payment (2026-11-02, on `feat/payments-page`)
 
 Operations → **Payments** (`src/features/payments/`, nav `payments`): every

@@ -1149,7 +1149,7 @@ export default function createDeliveriesRouter({
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
       deliveriesChanged([updated.id]);
 
-      const reportsChanged = await addTransferToSubmittedReports(updated, at)
+      const reportsChanged = await addTransferToSubmittedReports(updated, at, byName)
         .catch((err) => { console.error('[server] arrival: adding to submitted reports failed:', err); return []; });
       void driverNameFor(payload.truckId)
         .then((driverName) => notifyArrivalLogged(updated, { byName, driverName, reportsChanged }));

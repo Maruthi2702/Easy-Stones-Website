@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, History } from 'lucide-react';
 import NoBranchNote from './components/NoBranchNote';
 import { authFetch } from '../../api/authFetch';
 import { orderLocations } from '../../utils/locationFilter';
@@ -11,6 +11,7 @@ import PdfPreviewDialog from './components/PdfPreviewDialog';
 import ReportTopBar from './components/ReportTopBar';
 import DaySheet from './components/sheet/DaySheet';
 import ReopenDialog from './components/ReopenDialog';
+import ReportLogDialog from './components/ReportLogDialog';
 import { useLocationFilter } from '../../components/shared/useLocationFilter';
 import './DailyReport.css';
 import { todayISO, monthOf } from '../../components/shared/calendar/calendarDates';
@@ -78,6 +79,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }: DailyRepor
   const [reopenReason, setReopenReason] = useState('');
   const [emailOpen, setEmailOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
 
   const allBranches = location === ALL;
 
@@ -127,6 +129,18 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }: DailyRepor
     ...scope, allBranches, canExportAll, scopeLabel, monthLabel,
     onDownloadPdf: downloadPdf, onEmail: () => setEmailOpen(true), onViewPdf: viewPdf, onCsv: exportCsv
   });
+  // More = the exports, then the one day's log (a branch's day only).
+  const moreItems = [
+    ...exportItems,
+    ...(view === 'day' && !allBranches ? [{
+      key: 'log',
+      icon: History,
+      label: 'View Log',
+      hint: 'submits, reopens and emails for this day',
+      onSelect: () => setLogOpen(true),
+      dividerBefore: exportItems.length > 0
+    }] : [])
+  ];
 
   // ── render ────────────────────────────────────────────────────────────────
   if (!perms.includes('view_daily_report')) {
@@ -155,7 +169,7 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }: DailyRepor
         location={location}
         setLocation={setLocation}
         currentUser={currentUser}
-        exportItems={exportItems}
+        moreItems={moreItems}
         allBranches={allBranches}
         submitted={submitted}
         canSubmit={canSubmit}
@@ -241,6 +255,8 @@ const DailyReportTab = ({ currentUser = null, sidebarToggle = null }: DailyRepor
         title={view === 'month' ? `${monthOf(date)} · ${scopeLabel}` : `${longDate(date)} · ${location}`}
         filename={pdfName}
       />
+
+      {logOpen && <ReportLogDialog date={date} location={location} onClose={() => setLogOpen(false)} />}
 
       {/* Reopening a signed-off day states why, on the record. */}
       {reopenOpen && (

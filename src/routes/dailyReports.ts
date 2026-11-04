@@ -14,6 +14,8 @@ import { BRANCH_NAMES, branchCode, isBranch, branchDayWindow } from '../config/b
 import OfficeCheckIn from '../models/OfficeCheckIn.ts';
 import Location from '../models/Location.ts';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.ts';
+import { logEntry, reportLog, entriesFromFields } from '../utils/dailyReportLog.ts';
+import type { LogEntry } from '../utils/dailyReportLog.ts';
 import { groupContainers, groupSlabs } from '../utils/dailyReportContainers.ts';
 import { PAYMENT_METHODS, paymentAmount, paymentsSaid, paymentsFromPage } from '../utils/dailyReportPayments.ts';
 import PaymentReceived from '../models/PaymentReceived.ts';
@@ -231,7 +233,7 @@ export function transferLineFor(d: TransferTicketRow, location: string, directio
  * alone. Drafts need nothing — they derive the ticket on their next load.
  * Returns the submitted reports it changed.
  */
-export async function addTransferToSubmittedReports(ticket: TransferTicketRow & { date?: string; expectedArrivalDate?: string }, at = new Date()) {
+export async function addTransferToSubmittedReports(ticket: TransferTicketRow & { date?: string; expectedArrivalDate?: string }, at = new Date(), by = '') {
   if (!ticket.id) return [];
   const sides = [
     { location: ticket.location, date: ticket.date, direction: 'out' as const },
@@ -240,9 +242,10 @@ export async function addTransferToSubmittedReports(ticket: TransferTicketRow & 
   const changed: { location: string; date: string }[] = [];
   for (const side of sides) {
     const line = { ...transferLineFor(ticket, side.location, side.direction), addedAfterSubmitAt: at };
+    const what = `${side.direction === 'in' ? 'Incoming' : 'Outgoing'} transfer${line.transferNumber ? ` #${line.transferNumber}` : ''} ${line.fromTo}`.replace(/\s+/g, ' ').trim();
     const result = await DailyReport.updateOne(
       { date: side.date, location: side.location, status: 'submitted', 'transfers.ticketIds': { $ne: ticket.id } },
-      { $push: { transfers: line } }
+      { $push: { transfers: line, log: logEntry('transfer_added', by, `${what}, logged on arrival`, at) } }
     );
     if (result.modifiedCount) changed.push({ location: side.location, date: side.date });
   }
@@ -375,21 +378,33 @@ async function transfersShippedEarlier(date: string, location: string) {
  * day off twice and sent the Seattle email twice.
  *
  * `report` is the loaded document, already re-derived and with the submit
- * fields set. Resolves the stored document if this call won, or null if the
- * day had already been submitted by someone else — only a winner should send
- * the email.
+ * fields set; `log` is what the submit adds to the report's log — its own
+ * line, after any older submit / reopen the fields held (submitLogFor, read
+ * before those fields were overwritten). Pushed, never set, so it can't drop
+ * a line another write added meanwhile. Resolves the stored document if this
+ * call won, or null if the day had already been submitted by someone else —
+ * only a winner should send the email.
  */
-export async function claimSubmission(report: Loose) {
+export async function claimSubmission(report: Loose, log: LogEntry[]) {
   const payload = report.toObject();
-  // _id can't move and shouldn't be restated in $set; __v is left for Mongo.
+  // _id can't move and shouldn't be restated in $set; __v is left for Mongo;
+  // the log is only ever pushed to.
   delete payload._id;
   delete payload.__v;
+  delete payload.log;
   return DailyReport.findOneAndUpdate(
     { _id: report._id, status: 'draft' },
-    { $set: payload },
+    { $set: payload, $push: { log: { $each: log } } },
     { returnDocument: 'after' }
   );
 }
+
+/**
+ * The log lines a submit adds: the older submit / reopen the report's fields
+ * still hold and the log doesn't (a day from before the log), then its own.
+ * Call before setting the submit fields, which overwrite the older ones.
+ */
+export const submitLogFor = (report: Loose, entry: LogEntry): LogEntry[] => [...entriesFromFields(report), entry];
 
 /**
  * A draft save: write the day only if it isn't submitted. PUT /:date checks
@@ -907,6 +922,32 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     }
   });
 
+  /**
+   * GET /api/daily-reports/:date/log?location= — every submit, reopen, email
+   * and line added after submit, oldest first (More → View Log).
+   */
+  router.get('/:date/log', canView, validateScalarRequest, async (req: Request, res: Response) => {
+    const requestParams = scalarParams(req);
+    const requestQuery = scalarQuery(req);
+    try {
+      const { date } = requestParams;
+      const location = requestQuery.location;
+      if (!isValidDate(date)) return res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' });
+      if (!location) return res.status(400).json({ message: 'Provide a branch.' });
+      if (!canSeeLocation(req, location)) {
+        return res.status(403).json({ message: 'That branch is not assigned to you.' });
+      }
+      const report = await DailyReport.findOne(
+        { date, location },
+        'status log submittedBy submittedAt autoSubmitted reopenedBy reopenedAt reopenReason'
+      ).lean();
+      res.json({ status: report?.status || 'none', ...reportLog(report as Parameters<typeof reportLog>[0]) });
+    } catch (error) {
+      console.error('[daily-reports] log failed:', error);
+      res.status(500).json({ message: 'Could not load the log.' });
+    }
+  });
+
   /** POST /api/daily-reports/:date/submit — lock the day. */
   router.post('/:date/submit', canSubmit, validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
@@ -937,13 +978,16 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       // throws, the catch below answers 500 and nothing is locked.
       applyDerived(report, await deriveFromSystem(date, location));
 
+      const by = req.user?.displayName || req.user?.username || '';
+      const now = new Date();
+      const log = submitLogFor(report, logEntry('submitted', by, '', now));
       report.status = 'submitted';
-      report.submittedBy = req.user?.displayName || req.user?.username || '';
-      report.submittedAt = new Date();
+      report.submittedBy = by;
+      report.submittedAt = now;
       report.autoSubmitted = false;
       // Atomic, like the 11:59 job: only one of a racing submit, a second
       // click or the job can flip the day, and only that one sends the email.
-      const claimed = await claimSubmission(report);
+      const claimed = await claimSubmission(report, log);
       if (!claimed) {
         return res.status(409).json({ message: 'This day was already submitted.' });
       }
@@ -983,10 +1027,15 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       const report = await DailyReport.findOne({ date, location });
       if (!report) return res.status(404).json({ message: 'No report for that day.' });
 
+      // Into the log first: the older submit / reopen these fields held
+      // (a day from before the log), then this reopen with its reason.
+      const by = req.user?.displayName || req.user?.username || '';
+      const now = new Date();
+      report.log.push(...submitLogFor(report, logEntry('reopened', by, String(reason).trim(), now)));
       report.status = 'draft';
       report.autoSubmitted = false;
-      report.reopenedBy = req.user?.displayName || req.user?.username || '';
-      report.reopenedAt = new Date();
+      report.reopenedBy = by;
+      report.reopenedAt = now;
       report.reopenReason = String(reason).trim();
       await report.save();
 
@@ -1174,7 +1223,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     }
   });
 
-  const mailReport = async (req: Request, res: Response, { subject, heading, lines, filename, bytes }: { subject: string; heading: string; lines: string[]; filename: string; bytes: Uint8Array }) => {
+  const mailReport = async (req: Request, res: Response, { subject, heading, lines, filename, bytes, onSent }: { subject: string; heading: string; lines: string[]; filename: string; bytes: Uint8Array; onSent?: (to: string[], sender: string) => Promise<unknown> }) => {
     const to = parseRecipients(req.body?.to);
     if (!to.length) return res.status(400).json({ message: 'Add at least one valid email address.' });
     if (to.length > 20) return res.status(400).json({ message: 'That is more recipients than this is meant for — 20 at most.' });
@@ -1205,6 +1254,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     }
 
     if (logActivity) logActivity(req, 'daily_report_emailed', `${filename} → ${to.join(', ')}`);
+    if (onSent) await onSent(to, sender).catch((error) => console.error('[daily-reports] email log failed:', error));
     res.json({ sent: to });
   };
 
@@ -1219,7 +1269,12 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         heading: `Daily Work Report — ${report.location}`,
         lines: [report.date, report.status === 'submitted' ? 'Submitted' : 'Draft'],
         filename: dayPdfFileName(report),
-        bytes
+        bytes,
+        // A day never saved has no record to log on; updateOne just finds nothing.
+        onSent: (to, sender) => DailyReport.updateOne(
+          { date: report.date, location: report.location },
+          { $push: { log: logEntry('emailed', sender, `To ${to.join(', ')}`) } }
+        )
       });
     } catch (error) {
       console.error('[daily-reports] day email failed:', error);

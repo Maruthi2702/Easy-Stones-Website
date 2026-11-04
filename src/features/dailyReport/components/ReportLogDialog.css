@@ -1,0 +1,51 @@
+/* More → View Log. Inside FormModal, which is portaled to body, so it reads
+   the form shell's --fm-* colours (light / dark follow the app), not the
+   sheet's --dr-* ones. */
+
+.drl-list { list-style: none; margin: 0; padding: 0; }
+
+.drl-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--fm-bd);
+}
+.drl-row:last-child { border-bottom: 0; }
+
+.drl-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--fm-bd2);
+  color: var(--fm-mut);
+}
+.drl-row.is-submitted .drl-icon,
+.drl-row.is-auto_submitted .drl-icon { color: var(--fm-gold-tx); border-color: var(--fm-gold-bd); }
+.drl-row.is-email_failed .drl-icon { color: var(--fm-err); border-color: var(--fm-err-bd); background: var(--fm-err-bg); }
+
+.drl-text { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; padding-top: 0.2rem; }
+.drl-text strong { font-size: 0.86rem; font-weight: 600; color: var(--fm-tx); }
+.drl-detail { font-size: 0.8rem; color: var(--fm-mut); overflow-wrap: anywhere; }
+
+.drl-time { padding-top: 0.25rem; font-size: 0.76rem; color: var(--fm-mut); white-space: nowrap; }
+
+.drl-note {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  font-size: 0.86rem;
+  color: var(--fm-mut);
+}
+.drl-note.is-error { color: var(--fm-err); }
+
+.drl-foot { margin: 0.75rem 0 0; font-size: 0.76rem; color: var(--fm-mut); }
+
+.drl-spin { animation: drl-spin 0.9s linear infinite; }
+@keyframes drl-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .drl-spin { animation: none; } }

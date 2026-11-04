@@ -2,7 +2,7 @@ import { FileText, Mail, FileSpreadsheet, Eye } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { monthOf } from '../../components/shared/calendar/calendarDates';
 import { longDate } from './reportFigures';
-import type { ExportItem } from './components/ExportMenu';
+import type { MoreItem } from './components/MoreMenu';
 
 // Resend has no verified domain to send transactional mail from yet, so its
 // default onboarding@resend.dev sender only delivers to the account's own
@@ -51,7 +51,7 @@ export const exportMenuItems = ({ view, date, location, allBranches, canExportAl
   onEmail: () => void;
   onViewPdf: () => void;
   onCsv: (scope: 'all' | 'branch') => void;
-}): ExportItem[] => [
+}): MoreItem[] => [
   ...((view === 'month' || !allBranches) ? [
     {
       key: 'pdf',

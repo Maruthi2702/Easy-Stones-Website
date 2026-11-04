@@ -315,7 +315,7 @@ body.light-theme-active .dr-root,
 
 .dr-btn--gold:hover:not(:disabled) { filter: brightness(1.05); }
 
-/* ── The export menu ─────────────────────────────────────────────────────── */
+/* ── The More menu (exports, then View Log) ───────────────────────────────── */
 .dr-menu { position: relative; display: inline-flex; }
 
 .dr-btn--menu.is-open { border-color: var(--dr-gold); background: var(--dr-head); }
@@ -364,6 +364,8 @@ body.light-theme-active .dr-root,
 .dr-menu-text { display: flex; flex-direction: column; gap: 0.08rem; }
 .dr-menu-text strong { font-size: 0.8rem; font-weight: 620; }
 .dr-menu-text em { font-style: normal; font-size: 0.7rem; color: var(--dr-text-3); }
+
+.dr-menu-divider { height: 1px; margin: 0.3rem 0.4rem; background: var(--dr-line); }
 
 @media (prefers-reduced-motion: reduce) { .dr-menu-caret { transition: none; } }
 

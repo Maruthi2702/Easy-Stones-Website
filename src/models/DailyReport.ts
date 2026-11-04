@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { LOG_ACTIONS } from '../utils/dailyReportLog.ts';
 
 /**
  * One Daily Work Report per branch per day — the spreadsheet the branches used
@@ -60,6 +61,18 @@ const countPairSchema = new mongoose.Schema({
   // first, and the stored days would need migrating to rename it.
   // null until someone counts them.
   capacity: { type: Number, default: null }
+}, { _id: false });
+
+// One event in the report's log (More → View Log): every submit, reopen,
+// email and line added after submit — src/utils/dailyReportLog.ts. Added
+// 2026-11-04; before it only the latest submit and reopen were kept.
+const logEntrySchema = new mongoose.Schema({
+  at: { type: Date, required: true },
+  by: { type: String, default: '' },
+  action: { type: String, enum: [...LOG_ACTIONS], required: true },
+  note: { type: String, default: '' },
+  // Copied from the report's own fields, from before the log existed.
+  earlier: { type: Boolean, default: undefined }
 }, { _id: false });
 
 const dailyReportSchema = new mongoose.Schema({
@@ -128,7 +141,8 @@ const dailyReportSchema = new mongoose.Schema({
   reopenedBy: { type: String, default: '' },
   reopenedAt: { type: Date, default: null },
   reopenReason: { type: String, default: '' },
-  updatedBy: { type: String, default: '' }
+  updatedBy: { type: String, default: '' },
+  log: { type: [logEntrySchema], default: [] }
 }, { timestamps: true });
 
 // One report per branch per day — the constraint the whole feature rests on.
