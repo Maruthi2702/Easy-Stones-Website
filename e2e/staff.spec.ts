@@ -1,5 +1,5 @@
 import { test, expect } from 'playwright/test';
-import { mockApi } from './fixtures';
+import { mockApi, staff } from './fixtures';
 
 test.beforeEach(async ({ page }) => { await mockApi(page, true); });
 
@@ -41,4 +41,35 @@ test('Team Files filters the loaded folder', async ({ page }) => {
   await expect(page.getByText('Team Catalog.pdf')).toHaveCount(0);
   await page.getByRole('button', { name: 'Clear search' }).click();
   await expect(page.getByText('Team Catalog.pdf')).toBeVisible();
+});
+
+test('My team checks the people list and unchecking a person keeps the other teammates', async ({ page }) => {
+  await page.route('http://127.0.0.1:4175/api/user/me', route => route.fulfill({ json: { ...staff, permissions: [...staff.permissions, 'view_all_visits'] } }));
+  await page.route('http://127.0.0.1:4175/api/salesreps', route => route.fulfill({ json: { data: [
+    { ...staff, displayName: 'Alex Stone' },
+    { _id: 'u2', username: 'jesus', displayName: 'Jesus B.', role: 'sales_rep', location: 'Seattle', assignedLocations: ['Seattle'] },
+    { _id: 'u3', username: 'bart', displayName: 'Bart A.', role: 'sales_rep', location: 'Kent', assignedLocations: ['Kent'] }
+  ] } }));
+  await page.goto('/sales?tab=dashboard');
+  await page.getByRole('button', { name: 'Filters', exact: true }).click();
+  await page.getByLabel('People', { exact: true }).click();
+  await expect(page.getByRole('checkbox', { name: 'Jesus B.', exact: true })).toBeVisible();
+  const teamRequest = page.waitForRequest(request => {
+    const url = new URL(request.url());
+    return url.pathname === '/api/dashboard/visits' && !url.searchParams.has('reps');
+  });
+  await page.getByRole('checkbox', { name: 'My team', exact: true }).click();
+  await teamRequest;
+  for (const name of [/Alex Stone/, 'Jesus B.', 'Bart A.']) {
+    await expect(page.getByRole('checkbox', { name })).toHaveAttribute('aria-checked', 'true');
+  }
+  const subsetRequest = page.waitForRequest(request => {
+    const url = new URL(request.url());
+    return url.pathname === '/api/dashboard/visits' && url.searchParams.get('reps') === 'u1,u3';
+  });
+  await page.getByRole('checkbox', { name: 'Jesus B.', exact: true }).click();
+  await subsetRequest;
+  await expect(page.getByRole('checkbox', { name: 'Jesus B.', exact: true })).toHaveAttribute('aria-checked', 'false');
+  await expect(page.getByRole('checkbox', { name: 'Bart A.', exact: true })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('checkbox', { name: /Alex Stone/ })).toHaveAttribute('aria-checked', 'true');
 });

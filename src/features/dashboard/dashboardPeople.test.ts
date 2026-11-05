@@ -41,9 +41,18 @@ describe('the People filter value', () => {
     });
 
     it('ticks and unticks, falling back to the viewer rather than everyone', () => {
-        expect(togglePerson(['me1'], 'jesus', 'me1')).toEqual(['me1', 'jesus']);
-        expect(togglePerson(['me1', 'jesus'], 'me1', 'me1')).toEqual(['jesus']);
-        expect(togglePerson(['jesus'], 'jesus', 'me1')).toEqual(['me1']);
+        const team = ['me1', 'jesus', 'bart'];
+        expect(togglePerson(['me1'], 'jesus', 'me1', team)).toEqual(['me1', 'jesus']);
+        expect(togglePerson(['me1', 'jesus'], 'me1', 'me1', team)).toEqual(['jesus']);
+        expect(togglePerson(['jesus'], 'jesus', 'me1', team)).toEqual(['me1']);
+    });
+
+    it('unticks one teammate from My team while keeping everyone else selected', () => {
+        expect(togglePerson([], 'jesus', 'me1', ['me1', 'jesus', 'bart'])).toEqual(['me1', 'bart']);
+    });
+
+    it('keeps the viewer when missing from the options and removes duplicate ids', () => {
+        expect(togglePerson([], 'jesus', 'me1', ['jesus', 'bart', 'bart'])).toEqual(['me1', 'bart']);
     });
 
     it('reads a remembered value back, or nothing', () => {

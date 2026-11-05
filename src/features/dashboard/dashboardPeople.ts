@@ -39,9 +39,12 @@ export const peopleSummary = (people: string[], me: string, nameOf: (id: string)
 /**
  * Tick or untick one person. Unticking the last one goes back to the viewer
  * (never to an empty list, which would read as My team).
+ * My team starts with everyone selected; expand its shorthand before removing
+ * a person, using the full options list even when the picker is searched.
  */
-export const togglePerson = (people: string[], id: string, me: string): string[] => {
-    const next = people.includes(id) ? people.filter((p) => p !== id) : [...people, id];
+export const togglePerson = (people: string[], id: string, me: string, teamIds: readonly string[]): string[] => {
+    const selected = people.length ? people : [...new Set([me, ...teamIds].filter(Boolean))];
+    const next = selected.includes(id) ? selected.filter((p) => p !== id) : [...selected, id];
     return next.length ? next : peopleDefault(me);
 };
 

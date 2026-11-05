@@ -102,7 +102,7 @@ export default function PeopleField({ options, value, me, onChange, onToggle }: 
                         <div className="fm-opt-group" aria-hidden="true">{g.group}</div>
                         {g.options.map((o: PersonOption & { you?: boolean }) => row(
                             o.value,
-                            !team && value.includes(o.value),
+                            team || value.includes(o.value),
                             <>{o.label}{o.inactive && <span className="fm-opt-branch"> · inactive</span>}</>,
                             () => onToggle(o.value)
                         ))}

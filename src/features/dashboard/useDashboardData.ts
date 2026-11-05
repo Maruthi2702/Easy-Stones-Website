@@ -447,7 +447,7 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
         setCurrentFollowUpPage(1);
         setCurrentResourcesPage(1);
     };
-    const toggleDashboardPerson = (id: string) => setDashboardPeople(togglePerson(dashboardPeople, id, me));
+    const toggleDashboardPerson = (id: string) => setDashboardPeople(togglePerson(dashboardPeople, id, me, peopleOptions.map(person => person.value)));
 
     // Sales Visits → "List | By rep" (repBreakdown.ts), for anyone with the
     // People filter. By rep counts the lists already loaded, so its totals are
