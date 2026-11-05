@@ -117,10 +117,11 @@ body.light-theme-active :is(.dcs-wrap, .dfx-find, .dfx-find-btn) { --dcs-gold-ti
    dimmed above it (a tap there closes; so does dragging the handle down). The
    box is 16px so iOS doesn't zoom. */
 @media (max-width: 640px) {
-  /* Fits what the keyboard leaves (CustomerSearch's visualViewport vars). */
+  /* The whole screen, always: the keyboard covers the sheet's bottom rather
+     than squeezing it (CustomerSearch.tsx), so nothing behind ever shows. */
   .dcs-wrap {
-    top: var(--dcs-vvtop, 0px); bottom: auto; height: var(--dcs-vvh, 100dvh);
     padding: calc(env(safe-area-inset-top, 0px) + 76px) 0 0; align-items: stretch;
+    overscroll-behavior: contain;
   }
   .dcs-backdrop { background: rgba(0, 0, 0, 0.38); backdrop-filter: blur(1px); animation: dcs-fade 0.18s ease-out; }
   .dcs {
@@ -137,7 +138,8 @@ body.light-theme-active :is(.dcs-wrap, .dfx-find, .dfx-find-btn) { --dcs-gold-ti
   .dcs-field > svg { width: 17px; height: 17px; }
   .dcs-field input { font-size: 16px; }
   .dcs-cancel { display: inline-flex; flex: none; border: 0; background: none; padding: 8px 2px; color: var(--dfx-gold-text); font: inherit; font-size: 15.5px; font-weight: 600; cursor: pointer; }
-  .dcs-body { flex: 1 1 auto; padding: 0 8px env(safe-area-inset-bottom, 0px); }
+  /* Ends above the keyboard (--dcs-kb), so the last row can be scrolled into view. */
+  .dcs-body { flex: 1 1 auto; padding: 0 8px calc(var(--dcs-kb, 0px) + env(safe-area-inset-bottom, 0px)); }
   .dcs-row { padding: 11px 10px; border-radius: 0; border-bottom: 1px solid var(--border-color); }
   .dcs-row.is-active { background: none; box-shadow: none; }
   .dcs-type { display: none; }
