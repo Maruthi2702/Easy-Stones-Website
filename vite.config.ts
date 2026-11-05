@@ -90,11 +90,20 @@ export default defineConfig({
       }
     },
   },
-  // Unit tests only cover pure logic (no React rendering, no real DOM), so
-  // the default 'node' environment is enough — see src/utils/routePlan.test.ts
-  // and src/components/sales/routePlannerV2/helpers.test.js.
+  // Pure logic and backend tests use node; React suites opt into jsdom with
+  // their @vitest-environment directive. Browser journeys use Playwright.
   test: {
     include: ['src/**/*.test.{js,ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}', 'server.ts'],
+      exclude: ['**/*.test.{ts,tsx}', '**/*.d.ts', '**/testing/**'],
+      reporter: ['text-summary', 'html', 'json-summary', 'lcov'],
+      reportsDirectory: './coverage',
+      // Floors just below the measured 2026-11-05 baseline; untested runtime
+      // source stays in the denominator rather than being hidden by imports.
+      thresholds: { statements: 61, branches: 55, functions: 57, lines: 62 }
+    },
     // Node 25+ has its own localStorage / sessionStorage, empty without a
     // --localstorage-file, and it hides jsdom's: every test that touches
     // storage failed on Node 26 (fine on Render's Node 24). Turned off where

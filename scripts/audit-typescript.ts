@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const extensions = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts']);
-const ignored = new Set(['node_modules', 'dist', 'build', 'coverage']);
+const ignored = new Set(['node_modules', 'dist', 'build', 'coverage', 'playwright-report', 'test-results']);
 
 function walk(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {

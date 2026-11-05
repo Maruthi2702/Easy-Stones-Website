@@ -16,6 +16,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage --maxWorkers=2 --testTimeout=15000 --hookTimeout=30000",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "typecheck": "tsc -p . && node scripts/check-server-ts.ts && node scripts/audit-typescript.ts --check",
     "typecheck:inventory": "tsc -p tsconfig.inventory.json",
     "audit:typescript": "node scripts/audit-typescript.ts"
@@ -66,6 +69,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/supertest": "^7.2.1",
     "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
