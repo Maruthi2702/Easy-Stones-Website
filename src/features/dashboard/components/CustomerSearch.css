@@ -1,6 +1,7 @@
 /* Dashboard → Find a customer (claude.ai artifact "Dashboard customer search").
    iPad and phone, option A (CustomerSearch.tsx): a pop-up near the top on a
-   tablet, a full-screen sheet under 640px. Laptop and desktop, option B
+   tablet, a sheet under 640px that leaves the Dashboard's title row showing
+   (artifact "Dashboard search with a peek", option A). Laptop and desktop, option B
    (HeaderCustomerSearch.tsx): the header field, at the end of this file.
    CustomerFinder.tsx picks. The pop-up is portaled to body at the dashboard
    pop-ups' z-index (.dfx-modal-wrap): above the phone tab bar (96–98) and the
@@ -34,6 +35,7 @@ body.light-theme-active :is(.dcs-wrap, .dfx-find, .dfx-find-btn) { --dcs-gold-ti
 .dcs-clear { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--dfx-soft); color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .dcs-clear:hover { color: var(--text-primary); }
 .dcs-cancel { display: none; }
+.dcs-grab { display: none; }
 .dcs-kbd { display: inline-flex; align-items: center; height: 22px; padding: 0 6px; border-radius: 5px; border: 1px solid var(--border-color); background: var(--dfx-soft); font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
 
 .dcs-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px; }
@@ -111,12 +113,23 @@ body.light-theme-active :is(.dcs-wrap, .dfx-find, .dfx-find-btn) { --dcs-gold-ti
   .dcs-foot, .dcs-esc, .dcs-enter { display: none; }
 }
 
-/* Phone: a full-screen sheet with Cancel; the box at 16px so iOS doesn't zoom. */
+/* Phone: a sheet with Cancel from under the Dashboard's title row, which shows
+   dimmed above it (a tap there closes; so does dragging the handle down). The
+   box is 16px so iOS doesn't zoom. */
 @media (max-width: 640px) {
-  .dcs-wrap { padding: 0; }
-  .dcs-backdrop { display: none; }
-  .dcs { width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; padding-top: env(safe-area-inset-top, 0px); }
-  .dcs-top { height: auto; padding: 10px 14px; }
+  .dcs-wrap { padding: calc(env(safe-area-inset-top, 0px) + 76px) 0 0; align-items: stretch; }
+  .dcs-backdrop { background: rgba(0, 0, 0, 0.38); backdrop-filter: blur(1px); }
+  .dcs {
+    width: 100%; height: 100%; max-height: none;
+    border: 0; border-top: 1px solid var(--border-color); border-radius: 18px 18px 0 0;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s ease;
+    animation: dcs-sheet-up 0.22s ease-out;
+  }
+  .dcs.is-dragging { transition: none; }
+  .dcs-grab { display: flex; flex: none; justify-content: center; padding: 8px 0 2px; touch-action: none; cursor: grab; }
+  .dcs-grab span { width: 38px; height: 5px; border-radius: 3px; background: var(--border-color); }
+  .dcs-top { height: auto; padding: 6px 14px 10px; }
   .dcs-field { height: 44px; padding: 0 12px; border-radius: 12px; background: var(--dfx-soft); border: 1.5px solid var(--dcs-gold-line); }
   .dcs-field > svg { width: 17px; height: 17px; }
   .dcs-field input { font-size: 16px; }
@@ -126,3 +139,5 @@ body.light-theme-active :is(.dcs-wrap, .dfx-find, .dfx-find-btn) { --dcs-gold-ti
   .dcs-row.is-active { background: none; box-shadow: none; }
   .dcs-type { display: none; }
 }
+@keyframes dcs-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@media (max-width: 640px) and (prefers-reduced-motion: reduce) { .dcs { animation: none; transition: none; } }

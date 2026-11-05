@@ -247,7 +247,11 @@ every size:
   (`src/utils/customerQuickSearch.ts`, tested). A pick opens the full profile
   (`onOpenCustomer`; ✕ comes back to the Dashboard), or the basic card without
   Full profile; no match offers Add customer with the name filled in. A pop-up
-  near the top on desktop / tablet, a full-screen sheet with Cancel on a phone.
+  near the top on desktop / tablet. On a phone a sheet with Cancel from under
+  the Dashboard's title row, which shows dimmed above it (owner's pick
+  2026-11-04, option A of the artifact **Dashboard search with a peek**,
+  https://claude.ai/artifact/Pei1RCubnrXnthu6S68DWb): a tap there, Cancel or
+  dragging the handle down closes it.
 - **Follow-up rows** (`followUps/FollowUpRows.tsx`): tick · date block coloured
   by how due · customer + 📍 location · note · rep chip with initials + logged
   day · due pill · ⋯ (Call, Snooze, the visit, the customer). On a phone, cards:
