@@ -94,6 +94,11 @@ export default defineConfig({
   // the default 'node' environment is enough — see src/utils/routePlan.test.ts
   // and src/components/sales/routePlannerV2/helpers.test.js.
   test: {
-    include: ['src/**/*.test.{js,ts,tsx}']
+    include: ['src/**/*.test.{js,ts,tsx}'],
+    // Node 25+ has its own localStorage / sessionStorage, empty without a
+    // --localstorage-file, and it hides jsdom's: every test that touches
+    // storage failed on Node 26 (fine on Render's Node 24). Turned off where
+    // the flag exists, so tests get jsdom's on any Node.
+    execArgv: process.allowedNodeEnvironmentFlags.has('--experimental-webstorage') ? ['--no-experimental-webstorage'] : []
   }
 })

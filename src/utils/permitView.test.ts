@@ -1,5 +1,6 @@
 import type { Loose } from '../types/records.ts';
 import { describe, it, expect } from 'vitest';
+import { RULES } from '../permits/permitRules.ts';
 import {
   rangeFrom, splitChecks, nextSort, ariaSort, formatDay, formatMonth, formatMoney, sizeLine, whenLine, sourceStatus, checkStatus, reportDifferences, checksAttention, leadContact, contactPerson,
   customerOf, permitExportRows, placeGroups, placeQuery, permitPdfRows, permitPdfScope, permitPdfUrl, permitFileName,
@@ -200,6 +201,10 @@ describe('Excel export', () => {
   });
 });
 
+// Every county a source covers (src/permits/rules/), A–Z. A new county's
+// source changes this on purpose.
+const COVERED = ['benton', 'clark', 'franklin', 'king', 'kitsap', 'pierce', 'skagit', 'snohomish', 'whatcom', 'yakima'];
+
 describe('the county filter', () => {
   it('lists every Washington county, the covered ones tickable', () => {
     const [wa] = countyTree([]);
@@ -209,16 +214,16 @@ describe('the county filter', () => {
     expect(wa.counties.find((c) => c.id === 'adams')).toMatchObject({ covered: false });
     expect(countyTree(['king'])[0].state).toBe('some');
     expect(countyTree(['king', 'whatcom'])[0].state).toBe('some');
-    expect(countyTree(['clark', 'king', 'kitsap', 'pierce', 'skagit', 'snohomish', 'whatcom'])[0].state).toBe('all');
+    expect(countyTree(COVERED)[0].state).toBe('all');
   });
 
   it('ticks a county on and off, and the state ticks every covered county or none', () => {
     expect(toggleCounty([], 'whatcom')).toEqual(['whatcom']);
     expect(toggleCounty(['whatcom'], 'king')).toEqual(['king', 'whatcom']);
     expect(toggleCounty(['king', 'whatcom'], 'king')).toEqual(['whatcom']);
-    expect(toggleState([], 'wa')).toEqual(['clark', 'king', 'kitsap', 'pierce', 'skagit', 'snohomish', 'whatcom']);
-    expect(toggleState(['king'], 'wa')).toEqual(['clark', 'king', 'kitsap', 'pierce', 'skagit', 'snohomish', 'whatcom']);
-    expect(toggleState(['clark', 'king', 'kitsap', 'pierce', 'skagit', 'snohomish', 'whatcom'], 'wa')).toEqual([]);
+    expect(toggleState([], 'wa')).toEqual(COVERED);
+    expect(toggleState(['king'], 'wa')).toEqual(COVERED);
+    expect(toggleState(COVERED, 'wa')).toEqual([]);
   });
 
   it('says what’s picked in words, and forgets counties that no longer exist', () => {
@@ -251,7 +256,8 @@ describe('the place filter', () => {
     ]);
     expect(groups[1].options[1]).toEqual({ value: 'city:Ferndale', label: 'Ferndale' });
     expect(placeGroups().map((g) => g.label)).toEqual(['Issued by']);
-    expect(placeGroups()[0].options).toHaveLength(26);
+    // One "Issued by" choice per source office.
+    expect(placeGroups()[0].options).toHaveLength(Object.keys(RULES).length);
   });
 
   it('reads a pick as the list query — an issuer or a city, never both', () => {
