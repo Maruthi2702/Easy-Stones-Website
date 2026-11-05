@@ -1103,6 +1103,34 @@ two-field S form), opens as the phone bottom sheet instead
 (`useMenuPlacement` in `formFocus.ts`, 2026-11-01) — the list used to be cut
 off by the body's scroll box.
 
+## Phones: pop-ups, sheets and the iPhone keyboard (2026-11-04)
+
+Check every phone-size pop-up, sheet or full-screen panel that has a text box
+against these, on a real iPhone (the emulator has no keyboard):
+
+- **Don't size or place it from `visualViewport`.** iOS reports its height and
+  offset late while the keyboard slides and sometimes stale after it closes, so
+  a sheet that follows them squeezes, jumps, and is left sitting too low. Pin
+  it to the screen (`position: fixed; inset: 0`) and let the keyboard cover its
+  bottom, as iOS's own sheets do; only the scrolling list's end padding follows
+  the keyboard (a stale value there is just blank space). Reference:
+  Dashboard → Find a customer (`CustomerSearch.tsx` / `.css`, `--dcs-kb`).
+  FormModal still follows `visualViewport` (full-screen, top included) and
+  works; don't copy that onto a sheet that leaves part of the page showing.
+- **Cover the whole screen behind it.** Any strip of the page left uncovered
+  (between the sheet and the keyboard, say) takes the drag and scrolls the page.
+- **A drag outside the list moves nothing.** A non-passive `touchmove` on the
+  pop-up calls `preventDefault` unless the finger is in the list and the list
+  can still scroll that way; the list has `overscroll-behavior: contain`. Without
+  it, scrolling the sheet scrolls the Dashboard behind, and with the keyboard up
+  iOS pans the whole screen. Pointer-event drags (a sheet's handle) still work.
+- **Lock the page** with `lockPage` / `unlockPage` (`components/shared/pageLock.ts`).
+- **Focus without moving it**: `focus({ preventScroll: true })`, and don't
+  slide the box in on open — iOS draws the caret where the box was when it got
+  focus.
+- **Text boxes are 16px** (or iOS zooms) and get `no-capitalize` when they
+  shouldn't take the global capitalize (index.css), e.g. search boxes.
+
 ## Incident: CustomSelect portal broke dropdowns inside modals (2026-08-13)
 
 `CustomSelect`'s options popover was changed to `createPortal(…, document.body)`
