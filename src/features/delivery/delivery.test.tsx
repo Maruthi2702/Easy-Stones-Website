@@ -110,3 +110,67 @@ describe('Delivery Schedule', () => {
     expect(screen.getAllByText('Delivered / Sign ePOD').length).toBeGreaterThan(0);
   });
 });
+
+describe('Add delivery date defaults', () => {
+  beforeEach(() => {
+    // Thursday: using Monday as the default must fail even when this suite
+    // happens to run on a Monday. Keep normal timers for the real form.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 5, 12));
+    setWidth(1280);
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it.each(['current', 'previous', 'next'])('the header defaults to today while viewing the %s week', async shownWeek => {
+    await open();
+    if (shownWeek !== 'current') {
+      fireEvent.click(screen.getByTitle(shownWeek === 'previous' ? 'Previous Week' : 'Next Week'));
+      await settle();
+    }
+    fireEvent.click(screen.getByLabelText('Add delivery'));
+    await settle();
+    expect(document.getElementById('df-date')?.textContent).toContain('Thu, Nov 5, 2026');
+  });
+
+  it('uses the day clicked on the desktop board', async () => {
+    await open();
+    fireEvent.click(screen.getByTitle('Add delivery — Angel on Friday'));
+    await settle();
+    expect(document.getElementById('df-date')?.textContent).toContain('Fri, Nov 6, 2026');
+  });
+
+  it('uses the selected day when adding from a phone day card', async () => {
+    setWidth(500);
+    await open();
+    const friday = [...document.querySelectorAll('.ux-day-pill-card')].find(button => button.textContent?.includes('FRI'))!;
+    fireEvent.click(friday);
+    fireEvent.click(screen.getByTitle('Add stop for Angel'));
+    await settle();
+    expect(document.getElementById('df-date')?.textContent).toContain('Fri, Nov 6, 2026');
+  });
+
+  it('lets the user change the default date', async () => {
+    await open();
+    fireEvent.click(screen.getByLabelText('Add delivery'));
+    await settle();
+    fireEvent.click(document.getElementById('df-date')!);
+    fireEvent.click(screen.getByRole('button', { name: 'Friday, November 6, 2026' }));
+    expect(document.getElementById('df-date')?.textContent).toContain('Fri, Nov 6, 2026');
+  });
+
+  it('uses the local day late at night', async () => {
+    vi.setSystemTime(new Date(2026, 10, 5, 23, 30));
+    await open();
+    fireEvent.click(screen.getByLabelText('Add delivery'));
+    await settle();
+    expect(document.getElementById('df-date')?.textContent).toContain('Thu, Nov 5, 2026');
+  });
+
+  it('uses the new current day if the board was left open overnight', async () => {
+    await open();
+    vi.setSystemTime(new Date(2026, 10, 6, 0, 1));
+    fireEvent.click(screen.getByLabelText('Add delivery'));
+    await settle();
+    expect(document.getElementById('df-date')?.textContent).toContain('Fri, Nov 6, 2026');
+  });
+});

@@ -22,6 +22,7 @@ import {
   formatWeekRangeText
 } from '../../utils/deliveryWeek';
 import { deliveryViewMode } from '../../utils/deliveryAccess';
+import { todayISO } from '../../components/shared/calendar/calendarDates';
 import { useScheduleData } from './useScheduleData';
 import { usePodDialogs } from './usePodDialogs';
 import { useColumnOrders } from './useColumnOrders';
@@ -137,7 +138,9 @@ const DeliveryScheduleTab = ({
       // in the list for their history, but takes no new orders.
       truckId: isWillCallColumn ? '' : (truckId || trucks.find(t => !t.inactive)?.id || 'trk_1'),
       deliveryType: isWillCallColumn ? 'will_call' as const : 'jobsite' as const,
-      date: dateStr || weekDates[0],
+      // A day-cell Add supplies its date; the header's Add starts on today,
+      // even when another week is on screen or the board stayed open overnight.
+      date: dateStr || todayISO(),
       time: '09:00 AM',
       salesRepName: currentUser?.name || 'Admin'
     };

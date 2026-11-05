@@ -73,3 +73,29 @@ test('My team checks the people list and unchecking a person keeps the other tea
   await expect(page.getByRole('checkbox', { name: 'Bart A.', exact: true })).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByRole('checkbox', { name: /Alex Stone/ })).toHaveAttribute('aria-checked', 'true');
 });
+
+test.describe('Delivery date defaults', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' });
+
+  test('header Add uses today and a day-specific Add uses that day', async ({ page, isMobile }) => {
+    await page.clock.setFixedTime(new Date('2026-11-05T20:00:00Z'));
+    await page.route('http://127.0.0.1:4175/api/user/me', route => route.fulfill({ json: {
+      ...staff, permissions: [...staff.permissions, 'edit_delivery_schedule']
+    } }));
+    await page.route('http://127.0.0.1:4175/api/salesreps', route => route.fulfill({ json: { data: [
+      { _id: 'angel', username: 'angel', name: 'Angel', displayName: 'Angel', role: 'driver', isDeliveryDriver: true, isActive: true, assignedLocations: ['Seattle'] }
+    ] } }));
+    await page.goto('/sales?tab=delivery_schedule');
+    await page.getByTitle('Previous Week', { exact: true }).click();
+    await page.getByRole('button', { name: 'Add delivery', exact: true }).click();
+    await expect(page.locator('#df-date')).toContainText('Thu, Nov 5, 2026');
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    if (isMobile) {
+      await page.locator('.ux-day-pill-card').filter({ hasText: 'FRI' }).click();
+      await page.getByTitle('Add stop for Angel', { exact: true }).click();
+    } else {
+      await page.getByTitle('Add delivery — Angel on Friday', { exact: true }).click();
+    }
+    await expect(page.locator('#df-date')).toContainText('Fri, Oct 30, 2026');
+  });
+});
