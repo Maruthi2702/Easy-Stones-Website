@@ -28,7 +28,7 @@ describe('customerOption', () => {
     it('has the name, the city under it, and what a search can match', () => {
         const o = customerOption({ _id: 'c1', company: 'Western Tile Inc.', contactName: 'Alex', address: { street: '1 Main St', city: 'Kent', state: 'WA' }, salesRepName: 'Krish', customerType: 'Fabricator' });
         expect(o).toEqual({
-            value: 'c1', label: 'Western Tile Inc.', description: 'Kent', keywords: 'Alex Kent WA',
+            value: 'c1', label: 'Western Tile Inc.', description: 'Kent', keywords: 'Alex Kent WA', contact: 'Alex',
             city: 'Kent', address: '1 Main St', fullAddress: '1 Main St, Kent, WA', salesRepName: 'Krish', customerType: 'Fabricator'
         });
     });

@@ -10,6 +10,8 @@ export type CustomerOption = {
     label: string;
     description?: string;
     keywords: string;
+    /** The contact's name when it isn't already the name shown; '' otherwise. */
+    contact: string;
     city: string;
     address: string;
     fullAddress: string;
@@ -80,6 +82,7 @@ export const customerOption = (c: AnyCustomer = {}): CustomerOption => {
         label,
         description: city || undefined,
         keywords: [contact !== label ? contact : '', city, state].filter(Boolean).join(' '),
+        contact: contact !== label ? contact : '',
         city,
         address: street || city,
         fullAddress: [street, city, state].filter(Boolean).join(', ') || city || street,

@@ -230,6 +230,24 @@ every size:
   contact, note", 300px (full row on a phone), "/" jumps into it, "2 of 17" and
   ✕ when typed. Each tab's title bar is just its title and this box (no count
   under the title). The Calendar's filters its stops (`search` prop).
+- **Find a customer** (2026-11-04, on `feat/dashboard-customer-search`; claude.ai
+  artifact **Dashboard customer search**, https://claude.ai/artifact/7JSB6KcbPKb6a1ZPHjcuha,
+  owner's pick: **B on a laptop / desktop, A on an iPad / phone**): a round 🔍
+  before Filters on every tab (`view_customers`), also Ctrl / ⌘ K (not over
+  another pop-up). `components/CustomerFinder.tsx` picks the look by
+  `HEADER_FIELD_QUERY` — 1024px+ **and** a mouse / trackpad, so an iPad in
+  landscape still gets A: B is `HeaderCustomerSearch.tsx` (the 🔍 grows left
+  into a field over the time range, which is hidden via `:has()` so nothing
+  moves; the list drops down under it; Esc, a pick, or a click elsewhere with
+  the box empty closes it), A is `CustomerSearch.tsx` (pop-up, full-screen sheet
+  on a phone). Both share `useCustomerFinder` + `CustomerFinderList`, read the
+  shared list (`useCustomerOptions`) — no Customers page load — and open on the
+  last 5 customers opened (per person, this device); typing matches name /
+  contact / city, names starting with it first, 50 rows max
+  (`src/utils/customerQuickSearch.ts`, tested). A pick opens the full profile
+  (`onOpenCustomer`; ✕ comes back to the Dashboard), or the basic card without
+  Full profile; no match offers Add customer with the name filled in. A pop-up
+  near the top on desktop / tablet, a full-screen sheet with Cancel on a phone.
 - **Follow-up rows** (`followUps/FollowUpRows.tsx`): tick · date block coloured
   by how due · customer + 📍 location · note · rep chip with initials + logged
   day · due pill · ⋯ (Call, Snooze, the visit, the customer). On a phone, cards:

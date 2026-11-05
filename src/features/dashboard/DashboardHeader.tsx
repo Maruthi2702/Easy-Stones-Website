@@ -29,6 +29,8 @@ export type DashboardHeaderProps = {
     onOpenSidebar: () => void;
     onExportVisits: () => void;
     onOpenCalendarSync: () => void;
+    /** Find a customer (CustomerFinder), before Filters; absent without View customers. */
+    finder?: React.ReactNode;
     /**
      * Where a tab puts its own Filters and ⋯ (Resources and Follow-ups keep their
      * filters' state, so they render them here through a portal).
@@ -42,7 +44,8 @@ const TABS_WITH_OWN_TOOLS = ['resources', 'followups'];
 /**
  * The Dashboard's one header (owner, 2026-10-31; claude.ai artifact "Dashboard tabs —
  * Visits, Resources, Follow-ups, Calendar", section "One header"). The same on every
- * tab and size: title and date, the time range, then Filters (round icon) and ⋯ —
+ * tab and size: title and date, the time range, then Find a customer (🔍, 2026-11-04),
+ * Filters (round icon) and ⋯ —
  * always in the same place; only what they hold changes with the tab. Desktop is one
  * row; under 1024px the range drops to its own row under title / Filters / ⋯, and on
  * a phone the Calendar tab has no range (it has its own Day / Week / Month).
@@ -50,7 +53,7 @@ const TABS_WITH_OWN_TOOLS = ['resources', 'followups'];
  */
 export default function DashboardHeader({
     activeTab, timeRange, rangeFrom = '', rangeTo = '', onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, visitsView = null, showPeopleOnCalendar = false,
-    showMenuButton, onOpenSidebar, onExportVisits, onOpenCalendarSync, onToolSlot
+    showMenuButton, onOpenSidebar, onExportVisits, onOpenCalendarSync, finder = null, onToolSlot
 }: DashboardHeaderProps) {
     const rangeActive = timeRange === 'all' || timeRange === 'custom';
     const rangeGroup = <RangeFilterGroup value={timeRange} from={rangeFrom} to={rangeTo} onChange={onTimeRangeChange} />;
@@ -84,6 +87,8 @@ export default function DashboardHeader({
                 </div>
 
                 <div className="dfx-head-tools">
+                    {/* Find a customer: before Filters on every tab (CustomerFinder). */}
+                    {finder}
                     {/* Resources / Follow-ups put their Filters and ⋯ here. */}
                     <span className="dfx-head-slot" ref={onToolSlot} />
                     {activeTab === 'visits' && (

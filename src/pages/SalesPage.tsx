@@ -438,6 +438,7 @@ const SalesPage = () => {
                     setShowDashboard(false);
                 }}
                 onSelectCustomer={handleSelectCustomer}
+                onAddCustomer={openNewCustomer ? (company) => { setCustomerPrefill({ company }); setShowAddCustomerModal(true); } : undefined}
                 renderLeads={() => (
                     <CustomersList
                         onSelectCustomer={handleSelectCustomer}

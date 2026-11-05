@@ -1,0 +1,128 @@
+/* Dashboard → Find a customer (claude.ai artifact "Dashboard customer search").
+   iPad and phone, option A (CustomerSearch.tsx): a pop-up near the top on a
+   tablet, a full-screen sheet under 640px. Laptop and desktop, option B
+   (HeaderCustomerSearch.tsx): the header field, at the end of this file.
+   CustomerFinder.tsx picks. The pop-up is portaled to body at the dashboard
+   pop-ups' z-index (.dfx-modal-wrap): above the phone tab bar (96–98) and the
+   round + (90–99), below every form (FormModal, 2147483647). Colours are the
+   app's tokens plus DashboardFocus.css's --dfx-*. */
+.dcs-wrap, .dfx-find, .dfx-find-btn {
+  --dcs-gold-tint: rgba(212, 175, 55, 0.12);
+  --dcs-gold-line: rgba(212, 175, 55, 0.4);
+  --dcs-faint: #6b7380;
+}
+body.light-theme-active :is(.dcs-wrap, .dfx-find, .dfx-find-btn) { --dcs-gold-tint: #fbf3d9; --dcs-gold-line: #e6cf7f; --dcs-faint: #8a94a3; }
+.dcs-wrap {
+  position: fixed; inset: 0; z-index: 2147483000;
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 72px 16px 32px;
+}
+.dcs-backdrop { position: absolute; inset: 0; width: 100%; border: 0; padding: 0; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(2px); cursor: default; }
+.dcs {
+  position: relative; width: 620px; max-width: 100%; max-height: min(640px, calc(100vh - 104px));
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg-card); color: var(--text-primary);
+  border: 1px solid var(--border-color); border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.3);
+}
+
+.dcs-top { flex: none; display: flex; align-items: center; gap: 10px; padding: 0 14px 0 18px; height: 58px; border-bottom: 1px solid var(--border-color); }
+.dcs-field { flex: 1; min-width: 0; height: 100%; display: flex; align-items: center; gap: 10px; }
+.dcs-field > svg { flex: none; color: var(--dfx-gold-text); }
+.dcs-field input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: var(--text-primary); font: inherit; font-size: 17px; }
+.dcs-field input::placeholder { color: var(--dcs-faint); }
+.dcs-clear { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--dfx-soft); color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.dcs-clear:hover { color: var(--text-primary); }
+.dcs-cancel { display: none; }
+.dcs-kbd { display: inline-flex; align-items: center; height: 22px; padding: 0 6px; border-radius: 5px; border: 1px solid var(--border-color); background: var(--dfx-soft); font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
+
+.dcs-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 8px; }
+.dcs-group { display: flex; justify-content: space-between; padding: 10px 10px 6px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--dcs-faint); }
+.dcs-group em { font-style: normal; font-weight: 500; letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+.dcs-row { display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 10px; cursor: pointer; }
+.dcs-row.is-active { background: var(--dcs-gold-tint); box-shadow: inset 0 0 0 1px var(--dcs-gold-line); }
+.dcs-avatar { flex: none; width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 12.5px; font-weight: 700; }
+.dcs-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dcs-name, .dcs-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dcs-name { font-size: 14.5px; font-weight: 600; }
+.dcs-sub { font-size: 12.5px; color: var(--text-secondary); }
+.dcs-row mark { background: transparent; color: var(--dfx-gold-text); text-decoration: underline; text-decoration-color: var(--accent-primary, #d4af37); text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.dcs-type { flex: none; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-color); font-size: 11.5px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+.dcs-rep { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--dfx-soft); display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 700; color: var(--text-secondary); }
+.dcs-enter { flex: none; visibility: hidden; font-size: 12px; color: var(--dfx-gold-text); white-space: nowrap; }
+.dcs-row.is-active .dcs-enter { visibility: visible; }
+.dcs-more, .dcs-hint { padding: 10px 10px 6px; font-size: 12.5px; color: var(--dcs-faint); }
+.dcs-hint { padding: 22px 10px; text-align: center; font-size: 13.5px; }
+
+.dcs-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 34px 20px 30px; text-align: center; }
+.dcs-empty svg { color: var(--dcs-faint); }
+.dcs-empty strong { font-size: 15px; }
+.dcs-empty p { margin: 0; font-size: 13.5px; color: var(--text-secondary); }
+.dcs-gold-btn { margin-top: 6px; height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid var(--dcs-gold-line); background: var(--dcs-gold-tint); color: var(--dfx-gold-text); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+
+.dcs-skeleton { height: 52px; display: flex; align-items: center; gap: 12px; padding: 0 10px; }
+.dcs-skeleton i { display: block; height: 11px; border-radius: 6px; background: linear-gradient(90deg, var(--dfx-soft), var(--border-color), var(--dfx-soft)); background-size: 200% 100%; animation: dcs-shine 1.4s linear infinite; }
+.dcs-skeleton i:first-child { width: 34px; height: 34px; border-radius: 9px; }
+@keyframes dcs-shine { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .dcs-skeleton i { animation: none; } }
+
+.dcs-foot { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--border-color); font-size: 12px; color: var(--text-secondary); }
+.dcs-foot > span { display: inline-flex; align-items: center; gap: 6px; }
+.dcs-foot .dcs-foot-gap { flex: 1; }
+
+/* The header's button: the same circle as Filters and ⋯ (.dfx-head-tools). */
+.dfx-find-btn { flex: none; width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 1.5px solid var(--border-color); background: var(--bg-card); color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: color 0.15s ease, border-color 0.15s ease; }
+.dfx-find-btn:hover { color: var(--text-primary); border-color: var(--dcs-gold-line); }
+.dfx-find-btn:focus-visible { outline: 2px solid var(--accent-primary, #d4af37); outline-offset: 2px; }
+
+/* Laptop / desktop (HeaderCustomerSearch): the 🔍 grown into a field. It keeps
+   the button's 38px place and grows left over the time range, which is hidden
+   (not removed) while it's open, so nothing in the header moves. The list drops
+   down under it at the Filters panel's level (LocationFilter.css, 1000). */
+.dfx-find { position: relative; flex: none; width: 38px; height: 38px; }
+.dfx-head:has(.dfx-find.is-open) .dfx-head-range { visibility: hidden; }
+.dfx-find-field {
+  position: absolute; top: 0; right: 0; z-index: 1001; width: 360px; height: 38px;
+  display: flex; align-items: center; gap: 8px; padding: 0 8px 0 13px;
+  border-radius: 999px; border: 1.5px solid var(--dcs-gold-line); background: var(--bg-card);
+  box-shadow: 0 0 0 3px var(--dcs-gold-tint);
+  animation: dfx-find-grow 0.16s ease-out;
+}
+.dfx-find-field > svg { flex: none; color: var(--dfx-gold-text); }
+.dfx-find-field input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: var(--text-primary); font: inherit; font-size: 14.5px; }
+.dfx-find-field input::placeholder { color: var(--dcs-faint); }
+.dfx-find-field .dcs-clear { width: 24px; height: 24px; }
+.dfx-find-menu {
+  position: absolute; top: 46px; right: 0; z-index: 1001; width: 440px; max-height: min(520px, calc(100vh - 180px));
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg-card); color: var(--text-primary);
+  border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.25);
+}
+.dfx-find-menu .dcs-foot { padding: 8px 14px; gap: 14px; }
+@keyframes dfx-find-grow { from { width: 38px; opacity: 0.6; } to { width: 360px; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .dfx-find-field { animation: none; } }
+
+/* Tablet: taller rows for touch, no keyboard hints. */
+@media (max-width: 1023px) {
+  .dfx-find-btn { width: 44px; height: 44px; }
+  .dcs-wrap { padding-top: 120px; }
+  .dcs { width: 640px; }
+  .dcs-row { padding: 11px 12px; }
+  .dcs-foot, .dcs-esc, .dcs-enter { display: none; }
+}
+
+/* Phone: a full-screen sheet with Cancel; the box at 16px so iOS doesn't zoom. */
+@media (max-width: 640px) {
+  .dcs-wrap { padding: 0; }
+  .dcs-backdrop { display: none; }
+  .dcs { width: 100%; height: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; padding-top: env(safe-area-inset-top, 0px); }
+  .dcs-top { height: auto; padding: 10px 14px; }
+  .dcs-field { height: 44px; padding: 0 12px; border-radius: 12px; background: var(--dfx-soft); border: 1.5px solid var(--dcs-gold-line); }
+  .dcs-field > svg { width: 17px; height: 17px; }
+  .dcs-field input { font-size: 16px; }
+  .dcs-cancel { display: inline-flex; flex: none; border: 0; background: none; padding: 8px 2px; color: var(--dfx-gold-text); font: inherit; font-size: 15.5px; font-weight: 600; cursor: pointer; }
+  .dcs-body { flex: 1 1 auto; padding: 0 8px env(safe-area-inset-bottom, 0px); }
+  .dcs-row { padding: 11px 10px; border-radius: 0; border-bottom: 1px solid var(--border-color); }
+  .dcs-row.is-active { background: none; box-shadow: none; }
+  .dcs-type { display: none; }
+}

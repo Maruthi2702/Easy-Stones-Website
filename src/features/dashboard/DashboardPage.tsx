@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ErrorBoundary from '../../components/shared/ErrorBoundary';
 import DashboardHeader from './DashboardHeader';
 import DashboardStats, { RangeFilterGroup } from './components/DashboardStats';
 import DashboardAddButton from './components/DashboardAddButton';
+import CustomerFinder from './components/CustomerFinder';
+import { canViewCustomerProfile, canViewCustomers } from '../../utils/customerAccess';
+import type { CustomerOption } from '../../utils/customerOptions';
 import { CalendarPanel } from './calendar';
 import { VisitsPanel } from './visits';
 import { FollowUpsPanel } from './followUps';
@@ -46,6 +49,8 @@ export type DashboardPageProps = {
     onOpenCustomer: (customerId: string) => void;
     /** The planner picked a customer. */
     onSelectCustomer: (customer: Loose) => void;
+    /** Find a customer's "Add customer" when nothing matches (the form, the name filled in); absent without Add customer. */
+    onAddCustomer?: (company: string) => void;
     /** The Leads tab is the Customers module's partner sheet. */
     renderLeads: () => React.ReactNode;
 };
@@ -60,9 +65,31 @@ export default function DashboardPage({
     data, currentUser, currentUserId, customers, customerSelection, customerOptions, isDropdownLoading, fallback, showMenuButton,
     onOpenSidebar, loadingVisitId, loadingResourceId, onOpenCalendarSync, onAddVisit, onAddResource, onViewVisit, onEditVisit, onDeleteVisit,
     onOpenVisitCard, onViewResource, onEditResource, onDeleteResource, onOpenGallery, onOpenCustomer,
-    onSelectCustomer, renderLeads
+    onSelectCustomer, onAddCustomer, renderLeads
 }: DashboardPageProps) {
     const tab = data.activeDashboardTab;
+    // Find a customer (the header's 🔍 and Ctrl / ⌘ K): anyone who can view customers.
+    const canFind = canViewCustomers(currentUser);
+    const [finding, setFinding] = useState(false);
+    const closeFinding = useCallback(() => setFinding(false), []);
+    useEffect(() => {
+        if (!canFind) return undefined;
+        const onKey = (e: KeyboardEvent) => {
+            if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== 'k') return;
+            // Not over a form or another pop-up: it would open underneath.
+            if (document.querySelector('[aria-modal="true"]')) return;
+            e.preventDefault();
+            setFinding(true);
+        };
+        document.addEventListener('keydown', onKey);
+        return () => document.removeEventListener('keydown', onKey);
+    }, [canFind]);
+    // The full profile, as the Customers list opens it; without Full profile, the basic card.
+    const openFound = (customer: CustomerOption) => {
+        setFinding(false);
+        if (canViewCustomerProfile(currentUser)) onOpenCustomer(String(customer.value));
+        else onOpenVisitCard({ customerId: customer.value, company: customer.label, contactName: customer.contact });
+    };
     // Where Resources / Follow-ups put their Filters and ⋯ (the header's slot).
     const [toolSlot, setToolSlot] = useState<HTMLElement | null>(null);
     // "Schedule activity" from the + on another tab opens the Calendar, then its form.
@@ -112,6 +139,16 @@ export default function DashboardPage({
                         onOpenSidebar={onOpenSidebar}
                         onExportVisits={() => data.handleExportVisits()}
                         onOpenCalendarSync={onOpenCalendarSync}
+                        finder={canFind ? (
+                            <CustomerFinder
+                                open={finding}
+                                onOpen={() => setFinding(true)}
+                                userId={currentUserId}
+                                onClose={closeFinding}
+                                onPick={openFound}
+                                onAddCustomer={onAddCustomer ? (company) => { setFinding(false); onAddCustomer(company); } : undefined}
+                            />
+                        ) : null}
                         onToolSlot={setToolSlot}
                     />
 
