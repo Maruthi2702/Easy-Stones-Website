@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { Search, X } from 'lucide-react';
 import { useCustomerFinder } from './useCustomerFinder';
 import CustomerFinderList from './CustomerFinderList';
+import { lockPage, unlockPage } from '../../../components/shared/pageLock';
 import type { CustomerOption } from '../../../utils/customerOptions';
 import './DashboardFocus.css';
 import './CustomerSearch.css';
@@ -36,6 +37,7 @@ export default function CustomerSearch({ userId, onClose, onPick, onAddCustomer 
     const finder = useCustomerFinder({ userId, onPick });
     const { query, setQuery, onKeyDown, inputAria } = finder;
     const inputRef = useRef<HTMLInputElement>(null);
+    const wrapRef = useRef<HTMLDivElement>(null);
     const sheetRef = useRef<HTMLDivElement>(null);
     const dragFrom = useRef<number | null>(null);
 
@@ -60,16 +62,40 @@ export default function CustomerSearch({ userId, onClose, onPick, onAddCustomer 
         if (sheetRef.current) sheetRef.current.style.transform = '';
     };
 
-    // Focus the box, lock the page behind, give focus back on close.
+    // Lock the page behind (as forms do, so the keyboard opening on a phone
+    // can't scroll the Dashboard under the sheet), focus the box, give focus
+    // back on close. The sheet doesn't slide in: iOS draws the caret where the
+    // box was when it got focus, so a moving box left the caret mid-list.
     useEffect(() => {
         const previous = document.activeElement as HTMLElement | null;
+        lockPage();
         inputRef.current?.focus({ preventScroll: true });
-        const html = document.documentElement;
-        const had = html.style.overflow;
-        html.style.overflow = 'hidden';
         return () => {
-            html.style.overflow = had;
+            unlockPage();
             previous?.focus?.({ preventScroll: true });
+        };
+    }, []);
+
+    // Phones: the sheet fits the part of the screen the keyboard leaves
+    // (visualViewport, as FormModal does), so the list ends above the keyboard.
+    useEffect(() => {
+        const wrap = wrapRef.current;
+        const vv = window.visualViewport;
+        if (!wrap || !vv) return undefined;
+        let frame = 0;
+        const apply = () => {
+            frame = 0;
+            wrap.style.setProperty('--dcs-vvh', `${vv.height}px`);
+            wrap.style.setProperty('--dcs-vvtop', `${vv.offsetTop}px`);
+        };
+        const schedule = () => { if (!frame) frame = requestAnimationFrame(apply); };
+        apply();
+        vv.addEventListener('resize', schedule, { passive: true });
+        vv.addEventListener('scroll', schedule, { passive: true });
+        return () => {
+            if (frame) cancelAnimationFrame(frame);
+            vv.removeEventListener('resize', schedule);
+            vv.removeEventListener('scroll', schedule);
         };
     }, []);
 
@@ -81,7 +107,7 @@ export default function CustomerSearch({ userId, onClose, onPick, onAddCustomer 
     }, [onClose]);
 
     return createPortal(
-        <div className="dcs-wrap">
+        <div ref={wrapRef} className="dcs-wrap">
             <button type="button" className="dcs-backdrop" aria-label="Close search" tabIndex={-1} onClick={onClose} />
             <div ref={sheetRef} className="dcs" role="dialog" aria-modal="true" aria-label="Find a customer">
                 {/* Phone only (CustomerSearch.css): drag down to close. */}
@@ -103,6 +129,7 @@ export default function CustomerSearch({ userId, onClose, onPick, onAddCustomer 
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyDown={onKeyDown}
+                            className="no-capitalize"
                             placeholder="Find a customer…"
                             autoComplete="off"
                             spellCheck={false}

@@ -4,6 +4,7 @@ import { X, AlertCircle } from 'lucide-react';
 import useIsPhone, { prefersReducedMotion } from './useIsPhone';
 import { goToField, trapTab } from './formFocus';
 import { FormLayerContext } from './formLayer';
+import { lockPage, unlockPage } from '../pageLock';
 import './FormModal.css';
 
 /*
@@ -24,32 +25,7 @@ import './FormModal.css';
  *     Enter submits, and focus goes back where it was on close.
  */
 
-// More than one form can be open (a form opening another); only the first
-// lock saves and the last unlock restores the page.
-let lockCount = 0;
-let savedScrollY = 0;
-const lockPage = () => {
-    if (lockCount++ > 0) return;
-    savedScrollY = window.scrollY;
-    const b = document.body.style;
-    b.position = 'fixed';
-    b.top = `-${savedScrollY}px`;
-    b.left = '0';
-    b.right = '0';
-    b.width = '100%';
-    b.overflow = 'hidden';
-};
-const unlockPage = () => {
-    if (--lockCount > 0) return;
-    const b = document.body.style;
-    b.position = '';
-    b.top = '';
-    b.left = '';
-    b.right = '';
-    b.width = '';
-    b.overflow = '';
-    window.scrollTo(0, savedScrollY);
-};
+// The page lock (shared with other pop-ups; it counts nested ones) is pageLock.ts.
 
 export type FormModalProps = {
     title: React.ReactNode;

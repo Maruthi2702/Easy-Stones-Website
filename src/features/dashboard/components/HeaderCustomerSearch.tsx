@@ -55,6 +55,7 @@ export default function HeaderCustomerSearch({ userId, onClose, onPick, onAddCus
                 <input
                     ref={inputRef}
                     id="dashboard-customer-search"
+                    className="no-capitalize"
                     type="text"
                     value={query}
                     onChange={(e) => { setQuery(e.target.value); setListOpen(true); }}
