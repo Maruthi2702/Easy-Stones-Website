@@ -5,6 +5,7 @@ import { API_URL } from '../../../config/api';
 import { formatDate } from '../../../utils/dateUtils';
 import { isPdfSource } from '../../../utils/attachments';
 import { splitCustomer } from '../../../components/sales/visitsListHelpers';
+import { visitDetailRows } from './visitDetailRows';
 import type { Loose } from '../../../types/records';
 import './DashboardFocus.css';
 
@@ -62,15 +63,7 @@ const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDel
     const isResource = purpose.includes('resource');
     const isMeeting = purpose.includes('meeting') || purpose.includes('visit');
     const kind = isQuickNote ? 'quick-note' : (isResource ? 'resource' : 'meeting');
-    const plain = /quick note|resource placement|resource update/i.test(String(visit.purpose || ''));
-    const rows = ([
-        !plain && visit.outcome && ['outcome', 'OUTCOME', visit.outcome],
-        !plain && visit.followUp && ['follow-up', 'FOLLOW UP', visit.followUp],
-        visit.followUpDate && ['follow-up', 'FOLLOW-UP DATE', formatDate(visit.followUpDate as string, { month: 'short', day: 'numeric', year: 'numeric' })],
-        details?.managerComment && ['manager-comment', 'MANAGER COMMENT', details.managerComment],
-        details?.headquartersComment && ['hq-comment', 'HQ COMMENT', details.headquartersComment],
-        visit.nextAction && ['next-action', 'NEXT STEPS', visit.nextAction],
-    ].filter(Boolean)) as [string, string, React.ReactNode][];
+    const rows = visitDetailRows(visit, details?.status === 'done' ? details : null);
     const note = visit.createdByName ? `Logged by ${visit.createdByName} · ${formatDate(visit.date as string, { month: 'short', day: 'numeric' })}` : '';
 
     return createPortal(
@@ -102,9 +95,9 @@ const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDel
                     {Boolean(visit.notes) && <p className="post-text">{visit.notes as string}</p>}
                     {rows.length > 0 && (
                         <div className="post-details-ext">
-                            {rows.map(([cls, label, value]) => (
-                                <div key={cls} className={`post-detail-row ${cls}`}>
-                                    <span className="detail-label">{label}:</span>
+                            {rows.map(({ key, cls, label, value }) => (
+                                <div key={key} className={`post-detail-row ${cls}`}>
+                                    <span className="detail-label">{label.toUpperCase()}:</span>
                                     <span className="detail-value">{value}</span>
                                 </div>
                             ))}

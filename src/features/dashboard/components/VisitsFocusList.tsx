@@ -6,16 +6,18 @@ import { formatDate, parseAsLocal } from '../../../utils/dateUtils';
 import { splitCustomer } from '../../../components/sales/visitsListHelpers';
 import VisitViewModal from './VisitViewModal';
 import type { VisitDetails } from './VisitViewModal';
+import { visitDetailRows } from './visitDetailRows';
 import type { Loose } from '../../../types/records';
 import './DashboardFocus.css';
 
 /**
  * Dashboard Sales Visits, the Focus board's list (design "Option A"): one row
  * per visit — date chip, company over contact, branch — that opens in place
- * to the visit's type, who logged it, follow-up and notes, with View / Edit /
- * Delete; the customer's name opens their card. View opens VisitViewModal, which reads the photos
- * and manager / HQ comments from the single-visit route (the list carries
- * neither). Edit / Delete / the name link are the page's own handlers.
+ * to the visit's type, who logged it, follow-up date, notes, then Outcome /
+ * Follow up / Manager and HQ comments / Next steps (visitDetailRows, shared
+ * with the pop-up), with View / Edit / Delete; the customer's name opens their
+ * card. View opens VisitViewModal, which reads the photos (and the comments
+ * again, in case they changed) from the single-visit route. Edit / Delete / the name link are the page's own handlers.
  * canModify / canDelete say whether to offer them per visit; canOpenCustomer
  * is view_customers.
  */
@@ -132,6 +134,19 @@ const VisitsFocusList = ({ visits = EMPTY_VISITS, loading = false, busyVisitId =
                                         <span><em>Follow-up </em><strong>{visit.followUpDate ? formatDate(visit.followUpDate as string, { month: 'short', day: 'numeric' }) : 'None'}</strong></span>
                                     </div>
                                     <p>{(visit.notes as string) || 'No notes.'}</p>
+                                    {(() => {
+                                        const rows = visitDetailRows(visit);
+                                        return rows.length > 0 && (
+                                            <dl className="dfx-details">
+                                                {rows.map(r => (
+                                                    <div key={r.key} className={`dfx-detail dfx-detail--${r.cls}`}>
+                                                        <dt>{r.label}</dt>
+                                                        <dd>{r.value}</dd>
+                                                    </div>
+                                                ))}
+                                            </dl>
+                                        );
+                                    })()}
                                     <div className="dfx-actions">
                                         <button type="button" className="dfx-btn dfx-btn--dark" onClick={() => setViewing(visit)} disabled={Boolean(visit._saving)}><Eye size={15} aria-hidden="true" />View</button>
                                         {allowedEdit(visit) && (
