@@ -44,6 +44,7 @@ const answer = (url: string, init?: RequestInit) => {
 vi.mock('../../api/authFetch', () => ({ authFetch: (u: string, init?: RequestInit) => answer(u, init), resetSessionExpiredGuard() {} }));
 
 const { default: CardReceiptsPage } = await import('./CardReceiptsPage');
+const { default: ReceiptPreview } = await import('./components/ReceiptPreview');
 
 const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => { await new Promise((r) => setTimeout(r, 10)); }); };
 const show = async (permissions: string[]) => { render(<CardReceiptsPage currentUser={{ _id: 'u1', displayName: 'Maruthi Ponugupati', permissions }} />); await settle(); };
@@ -99,5 +100,20 @@ describe('the Credit Card Receipts page', () => {
     await show(['use_card_receipts']);
     expect(text()).toContain('You don’t have a company card set up yet');
     expect(screen.queryByLabelText('Add receipt')).toBeNull();
+  });
+
+  it('shows the receipt large, zooms with − / +, fits again, and hides', () => {
+    const closed: string[] = [];
+    render(<ReceiptPreview url="https://res.cloudinary.com/x/r.webp" onClose={() => closed.push('x')} />);
+    const img = screen.getByAltText('The receipt') as HTMLImageElement;
+    expect(img.style.width).toBe('100%');
+    expect((screen.getByLabelText('Zoom out') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText('Zoom in'));
+    fireEvent.click(screen.getByLabelText('Zoom in'));
+    expect(img.style.width).toBe('200%');
+    fireEvent.click(screen.getByLabelText(/Fit the width/));
+    expect(img.style.width).toBe('100%');
+    fireEvent.click(screen.getByLabelText('Hide the receipt'));
+    expect(closed).toEqual(['x']);
   });
 });

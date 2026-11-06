@@ -94,7 +94,7 @@ async function approvableIds(req: Request) {
 
 export default function createCardReceiptsRouter({ authenticate, processBase64Image }: {
   authenticate: RequestHandler;
-  processBase64Image: (data: string, folder?: string) => Promise<unknown>;
+  processBase64Image: (data: string, folder?: string, maxSide?: number) => Promise<unknown>;
 }) {
   const router = express.Router();
   const opener = [authenticate, anyOf(...PAGE_PERMISSIONS)];
@@ -286,7 +286,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       return res.status(400).json({ message: 'Send a photo or a PDF of the receipt.' });
     }
     try {
-      const url = await processBase64Image(data, 'CardReceipts');
+      // Receipts keep up to 2000px (visit photos 1000) so the print stays readable when zoomed.
+      const url = await processBase64Image(data, 'CardReceipts', 2000);
       // processBase64Image hands the data back when the upload fails.
       if (typeof url !== 'string' || url.startsWith('data:')) return res.status(502).json({ message: 'Could not store the receipt. Try again.' });
       res.json({ url });

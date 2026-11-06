@@ -329,7 +329,9 @@ const processBase64Pdf = async (dataUrl: string, subDir: string) => {
   }
 };
 
-const processBase64Image = async (base64String: string, subDir: string = 'Visits') => {
+// `maxSide`: visits and resources keep 1000px; card receipts ask for 2000 so
+// their small print can still be read (src/routes/cardReceipts.ts).
+const processBase64Image = async (base64String: string, subDir: string = 'Visits', maxSide: number = 1000) => {
   if (typeof base64String === 'string' && base64String.startsWith('data:application/pdf')) {
     return processBase64Pdf(base64String, subDir);
   }
@@ -342,7 +344,7 @@ const processBase64Image = async (base64String: string, subDir: string = 'Visits
 
     // Optimize with sharp before uploading
     const optimizedBuffer = await sharp(buffer)
-      .resize(1000, 1000, { fit: 'inside', withoutEnlargement: true })
+      .resize(maxSide, maxSide, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 75, effort: 2 })
       .toBuffer();
 

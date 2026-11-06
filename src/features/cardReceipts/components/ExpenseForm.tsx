@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { Camera, X } from 'lucide-react';
+import { Camera, Maximize2, X } from 'lucide-react';
+import ReceiptPreview from './ReceiptPreview';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '../../../components/shared/form/FormControls';
 import type { FormOption } from '../../../components/shared/form/FormControls';
@@ -60,6 +61,8 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
   const [serverProblems, setServerProblems] = useState<ExpenseProblems>({});
   const [repeat, setRepeat] = useState<{ merchant: string; date: string; cents: number } | null>(null);
   const [person, setPerson] = useState('');
+  // The receipt shown large at the top of the form while the fields are filled in.
+  const [viewing, setViewing] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const customers = useCustomerOptions();
 
@@ -82,9 +85,11 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
     setUploading(true);
     setServerError('');
     try {
-      const data = file.type === 'application/pdf' ? await fileToBase64(file) : await compressImage(file);
+      const data = file.type === 'application/pdf' ? await fileToBase64(file) : await compressImage(file, 2000, 0.8);
       const { url } = await upload(data);
       set({ receiptUrl: url });
+      // A new photo opens large so its date, total and merchant can be copied in.
+      if (file.type !== 'application/pdf') setViewing(true);
       setLost(false);
     } catch (err) {
       setServerError((err as Error).message || 'Could not upload the receipt. Try again.');
@@ -148,15 +153,27 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
         </div>
       ) : null}
 
+      {viewing && !lost && values.receiptUrl && !isPdfUrl(values.receiptUrl)
+        ? <ReceiptPreview url={values.receiptUrl} onClose={() => setViewing(false)} />
+        : null}
+
       <FormSection>
         {!lost ? (
           <FormField name="receipt" id="ccr-file-btn" label="Receipt" error={errors.receipt}>
             <div className="ccr-photo">
               {values.receiptUrl
-                ? (isPdfUrl(values.receiptUrl) ? <span className="ccr-photo-pdf">PDF</span> : <img src={values.receiptUrl} alt="The receipt" />)
+                ? (isPdfUrl(values.receiptUrl)
+                  ? <a className="ccr-photo-thumb" href={values.receiptUrl} target="_blank" rel="noreferrer" aria-label="Open the PDF receipt"><span className="ccr-photo-pdf">PDF</span></a>
+                  : (
+                    <button type="button" className="ccr-photo-thumb" onClick={() => setViewing((v) => !v)} aria-expanded={viewing}
+                      aria-label="View the receipt large">
+                      <img src={values.receiptUrl} alt="" />
+                      <span className="ccr-photo-zoom" aria-hidden="true"><Maximize2 size={14} /></span>
+                    </button>
+                  ))
                 : <span className="ccr-photo-pdf" aria-hidden="true"><Camera size={22} /></span>}
               <div className="ccr-photo-side">
-                <span className="ccr-sub">{uploading ? 'Uploading…' : values.receiptUrl ? 'Uploaded.' : 'A photo of the receipt, or the emailed PDF.'}</span>
+                <span className="ccr-sub">{uploading ? 'Uploading…' : values.receiptUrl ? (isPdfUrl(values.receiptUrl) ? 'Uploaded. Tap it to open.' : viewing ? 'Shown above while you fill in the details.' : 'Uploaded. Tap it to see it large.') : 'A photo of the receipt, or the emailed PDF.'}</span>
                 <div className="ccr-photo-btns">
                   <button id="ccr-file-btn" type="button" className="fm-btn fm-btn-small" onClick={() => fileRef.current?.click()} disabled={uploading}>
                     {values.receiptUrl ? 'Replace' : 'Take photo or choose file'}

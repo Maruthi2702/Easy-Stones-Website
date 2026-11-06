@@ -1,7 +1,7 @@
 /** Reading a picked photo or PDF into the data URL the forms hold (visit and resource attachments). */
 
-/** A photo, scaled to fit 1200px and saved as a 0.7-quality JPEG data URL. */
-export const compressImage = (file: File): Promise<string> => {
+/** A photo, scaled to fit `maxSide` (1200px) and saved as a JPEG data URL (0.7 quality). Card receipts ask for more, to read small print. */
+export const compressImage = (file: File, maxSide = 1200, quality = 0.7): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -12,8 +12,8 @@ export const compressImage = (file: File): Promise<string> => {
                 const canvas = document.createElement('canvas');
                 let width = img.width;
                 let height = img.height;
-                const MAX_WIDTH = 1200;
-                const MAX_HEIGHT = 1200;
+                const MAX_WIDTH = maxSide;
+                const MAX_HEIGHT = maxSide;
 
                 if (width > height) {
                     if (width > MAX_WIDTH) {
@@ -33,7 +33,7 @@ export const compressImage = (file: File): Promise<string> => {
                 ctx.drawImage(img, 0, 0, width, height);
 
                 // Compress to JPEG with 0.7 quality
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                const dataUrl = canvas.toDataURL('image/jpeg', quality);
                 resolve(dataUrl);
             };
             img.onerror = (error) => reject(error);
