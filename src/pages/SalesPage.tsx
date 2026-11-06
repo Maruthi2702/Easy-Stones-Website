@@ -183,7 +183,6 @@ const SalesPage = () => {
 
     // Form states
 
-    const [expandedResourceId, setExpandedResourceId] = useState<string | null>(null);
     // The full-screen photo / PDF viewer (ImageGallery).
     const gallery = useImageGallery();
     const { handleOpenGallery } = gallery;
@@ -397,10 +396,7 @@ const SalesPage = () => {
                         currentUser={currentUser}
                         currentUserId={currentUserId}
                         canAddVisits={canAddVisits}
-                        customers={customers}
                         onOpenGallery={handleOpenGallery}
-                        expandedResourceId={expandedResourceId}
-                        setExpandedResourceId={setExpandedResourceId}
                         activeReactionMessageId={activeReactionMessageId}
                         setActiveReactionMessageId={setActiveReactionMessageId}
                         list={{

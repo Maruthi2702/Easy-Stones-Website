@@ -360,7 +360,12 @@ template (`.fm-close`, the Selection Sheet's "…"). Under 640px the tabs are
 icons with count badges and Add is the round + (above `--app-bottom-h`). Each
 tab has **one** Add button in the header (Add visit / resource / contact, Link
 partner); a tab with nothing on it shows `TabEmpty` (which holds the button) and
-the header's hides. Visits and Resources use the shared `Pagination`.
+the header's hides. Visits and Resources use the shared `Pagination`. The
+Resources tab is Dashboard → Resources' own rows (`ResourceTable` /
+`ResourceCards` from `features/dashboard/resources`, `showCustomer={false}`;
+owner 2026-11-06: both look the same) — **a change to those rows changes both
+screens; check both**. A row opens View resource (files, notes, status); the
+server names who logged each one (`uploadedByName`, `customerHistoryResponse`).
 
 The Customers list owns the Edit customer form and Delete and stays mounted under
 the profile, so the profile asks for them through `customerBridge.ts` (window

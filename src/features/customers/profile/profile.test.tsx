@@ -13,23 +13,29 @@ const noop = () => {};
 const admin = { permissions: ['view_all_visits', 'delete_all_visits', 'edit_all_visits'], role: 'admin' };
 
 describe('Resources tab', () => {
-  const resources = [{ _id: 'r1', date: '2026-10-01', customerId: 'c1', resourceType: 'Moda Tower 2024 version 2', location: 'Seattle', description: 'Placed in showroom', image: [] }];
+  const resources = [
+    { _id: 'r1', date: '2026-04-15', customerId: 'c1', resourceType: 'Moda Tower 2024 version 2', location: 'Seattle', description: 'Placed in showroom', uploadedByName: 'Dana W', image: [] },
+    { _id: 'r2', date: '2026-10-08', customerId: 'c1', resourceType: 'Sample binder', qty: 3, status: 'Inactive', uploadedByName: 'Krish', image: [] }
+  ];
   const props = {
-    resources, customers: [{ _id: 'c1', company: 'Pacific Granite' }], currentUser: admin, currentUserId: 'u1', loadingResourceId: null, canAddVisits: true,
-    onAddResource: noop, onViewResource: noop, onEditResource: noop, onDeleteResource: noop, onOpenGallery: noop,
-    expandedResourceId: null as string | null, setExpandedResourceId: noop
+    resources, currentUser: admin, currentUserId: 'u1', loadingResourceId: null, canAddVisits: true,
+    onAddResource: noop, onViewResource: noop, onEditResource: noop, onDeleteResource: noop
   };
-  it('lists a resource with its client, and opens its row', () => {
-    const setExpandedResourceId = vi.fn();
-    render(<ResourcesTab {...props} setExpandedResourceId={setExpandedResourceId} />);
-    expect(screen.getByText('Pacific Granite')).toBeTruthy();
-    fireEvent.click(screen.getByText('Moda Tower 2024 version 2'));
-    expect(setExpandedResourceId).toHaveBeenCalledWith('r1');
+  it('lists resources the way Dashboard → Resources does, newest first, without a Customer column', () => {
+    render(<ResourcesTab {...props} />);
+    const headers = screen.getAllByRole('columnheader').map((th) => th.textContent);
+    expect(headers).toEqual(['Date', 'Resource', 'Qty', 'Note', 'Logged by', 'Actions']);
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows[0].textContent).toContain('Sample binder');
+    expect(rows[0].textContent).toContain('Inactive');
+    expect(rows[1].textContent).toContain('Placed in showroom');
+    expect(rows[1].textContent).toContain('Dana W');
   });
-  it('shows details when expanded, and an empty state', () => {
-    const { rerender } = render(<ResourcesTab {...props} expandedResourceId="r1" />);
-    expect(screen.getByText('Placed in showroom')).toBeTruthy();
-    expect(screen.getByText('No attachments')).toBeTruthy();
+  it('a row opens the resource; an empty tab says so', () => {
+    const onViewResource = vi.fn();
+    const { rerender } = render(<ResourcesTab {...props} onViewResource={onViewResource} />);
+    fireEvent.click(screen.getByText('Moda Tower 2024 version 2'));
+    expect(onViewResource).toHaveBeenCalledWith(resources[0]);
     rerender(<ResourcesTab {...props} resources={[]} />);
     expect(screen.getByText('No resources yet')).toBeTruthy();
   });
@@ -39,14 +45,14 @@ describe('Resources tab', () => {
     fireEvent.click(screen.getByText('Add resource'));
     expect(onAddResource).toHaveBeenCalled();
   });
-  it('a row\'s Edit and Delete are in its ⋯ menu', () => {
+  it('a row\'s View, Edit and Delete are in its ⋯ menu', () => {
     const onEditResource = vi.fn(); const onDeleteResource = vi.fn();
-    render(<ResourcesTab {...props} onEditResource={onEditResource} onDeleteResource={onDeleteResource} />);
+    render(<ResourcesTab {...props} resources={[resources[0]]} onEditResource={onEditResource} onDeleteResource={onDeleteResource} />);
     fireEvent.click(screen.getByLabelText('Resource actions'));
-    fireEvent.click(screen.getByText('Edit resource'));
+    fireEvent.click(screen.getByText('Edit'));
     expect(onEditResource).toHaveBeenCalledWith(resources[0]);
     fireEvent.click(screen.getByLabelText('Resource actions'));
-    fireEvent.click(screen.getByText('Delete resource…'));
+    fireEvent.click(screen.getByText('Delete'));
     expect(onDeleteResource).toHaveBeenCalledWith('r1', 'c1');
   });
 });

@@ -33,8 +33,6 @@ export type CustomerProfileProps = {
     historyLoading: boolean;
     levelLabel: string;
     canAddVisits: boolean;
-    /** The Customers tab's first page — a resource's client name. */
-    customers: Loose[];
     loadingResourceId: string | null;
     // Details tab: quick note and the customer's website account.
     quickNote: string;
@@ -60,8 +58,6 @@ export type CustomerProfileProps = {
     onEditResource: (resource: Loose) => void;
     onDeleteResource: (resourceId: string, customerId?: string | null) => void;
     onOpenGallery: (images: string[], index: number) => void;
-    expandedResourceId: string | null;
-    setExpandedResourceId: (id: string | null) => void;
     activeReactionMessageId: string | null;
     setActiveReactionMessageId: (id: string | null) => void;
     // Network
@@ -184,7 +180,6 @@ export default function CustomerProfile(p: CustomerProfileProps) {
                     {activeTab === 'resources' && (
                         <ResourcesTab
                             resources={customer.resources || []}
-                            customers={p.customers}
                             currentUser={currentUser}
                             currentUserId={currentUserId}
                             loadingResourceId={p.loadingResourceId}
@@ -193,9 +188,6 @@ export default function CustomerProfile(p: CustomerProfileProps) {
                             onViewResource={p.onViewResource}
                             onEditResource={p.onEditResource}
                             onDeleteResource={p.onDeleteResource}
-                            onOpenGallery={p.onOpenGallery}
-                            expandedResourceId={p.expandedResourceId}
-                            setExpandedResourceId={p.setExpandedResourceId}
                         />
                     )}
                     {activeTab === 'network' && (

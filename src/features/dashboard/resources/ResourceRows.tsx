@@ -6,6 +6,7 @@ import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import { canDeleteVisit, canModifyVisit } from '../../../utils/visitAccess';
 import { resourceQty } from '../../../utils/resourceForm';
 import type { Loose } from '../../../types/records';
+import './ResourcesPanel.css';
 import {
     familyColour, familyTag, customerParts, groupByWeek, loggedByOf, resourceDay, shortDay, typeInfoFrom, typeOf
 } from './resourceList';
@@ -22,7 +23,18 @@ export type ResourceRowActions = {
     onDeleteResource: (resourceId: string, customerId?: string | null) => void;
 };
 
-type RowsProps = ResourceRowActions & { rows: Loose[]; today: string };
+type RowsProps = ResourceRowActions & {
+    rows: Loose[];
+    today: string;
+    /** False on a customer's profile, where every row is that customer (the Resources tab). */
+    showCustomer?: boolean;
+};
+
+/** Inactive / Archived beside the type; Active (or blank) says nothing. */
+const StatusTag = ({ status }: { status: unknown }) => {
+    const s = String(status || '').trim();
+    return s && s.toLowerCase() !== 'active' ? <span className="rs-status">{s}</span> : null;
+};
 
 // A resource follows the visit rules, its uploader standing in for who logged
 // the visit (resourceAccessArgs in server.ts, which checks it again).
@@ -54,14 +66,14 @@ const TypeChip = ({ type }: { type: string }) => {
 };
 
 /** Desktop and tablet: one row per resource; a click (or Enter) opens it. */
-export function ResourceTable({ rows, today, ...a }: RowsProps) {
+export function ResourceTable({ rows, today, showCustomer = true, ...a }: RowsProps) {
     return (
         <div className="dashboard-table-wrapper">
             <table className="dashboard-table rs-table">
                 <thead>
                     <tr>
                         <th>Date</th>
-                        <th>Customer</th>
+                        {showCustomer && <th>Customer</th>}
                         <th>Resource</th>
                         <th className="rs-num">Qty</th>
                         <th className="rs-col-note">Note</th>
@@ -80,17 +92,22 @@ export function ResourceTable({ rows, today, ...a }: RowsProps) {
                                 key={r._id}
                                 className="rs-row"
                                 tabIndex={0}
-                                aria-label={`Open ${typeOf(r)} at ${company}`}
+                                aria-label={showCustomer ? `Open ${typeOf(r)} at ${company}` : `Open ${typeOf(r)}`}
                                 onClick={() => !busy && a.onViewResource(r)}
                                 onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget && !busy) a.onViewResource(r); }}
                             >
                                 <td className="rs-date">{shortDay(resourceDay(r), today)}</td>
-                                <td className="rs-cust">
-                                    <strong>{company || '—'}</strong>
-                                    {sub && <span className="rs-sub">{sub}</span>}
-                                    {note && <span className="rs-note-inline">{note}</span>}
+                                {showCustomer && (
+                                    <td className="rs-cust">
+                                        <strong>{company || '—'}</strong>
+                                        {sub && <span className="rs-sub">{sub}</span>}
+                                        {note && <span className="rs-note-inline">{note}</span>}
+                                    </td>
+                                )}
+                                <td>
+                                    <TypeChip type={typeOf(r)} /><StatusTag status={r.status} />
+                                    {!showCustomer && note && <span className="rs-note-inline">{note}</span>}
                                 </td>
-                                <td><TypeChip type={typeOf(r)} /></td>
                                 <td className="rs-num">{resourceQty(r)}</td>
                                 <td className="rs-col-note rs-note">{note || '—'}</td>
                                 <td className="rs-col-by rs-by">{loggedByOf(r)}</td>
@@ -109,7 +126,7 @@ export function ResourceTable({ rows, today, ...a }: RowsProps) {
 }
 
 /** Phones: cards under week headings; the whole card opens the resource (Edit / Delete are inside it). */
-export function ResourceCards({ rows, today, ...a }: RowsProps) {
+export function ResourceCards({ rows, today, showCustomer = true, ...a }: RowsProps) {
     const info = useTypeInfo();
     const families = useResourceFamilies().types;
     return (
@@ -121,14 +138,16 @@ export function ResourceCards({ rows, today, ...a }: RowsProps) {
                         const { company } = customerParts(r);
                         const type = typeOf(r);
                         const { family, label: typeLabel } = info(type);
-                        const meta = [r.city, loggedByOf(r)].filter(Boolean).join(' · ');
+                        const meta = [showCustomer ? r.city : '', loggedByOf(r)].filter(Boolean).join(' · ');
+                        const note = r.description || r.notes || '';
                         const busy = a.loadingResourceId === r._id;
                         return (
                             <button key={r._id} type="button" className="rs-card" disabled={busy} onClick={() => a.onViewResource(r)}>
                                 <span className={`rs-tile rs-type--${familyColour(family)}`} aria-hidden="true">{familyTag(family, families)}</span>
                                 <span className="rs-card-text">
-                                    <strong>{company || '—'}</strong>
-                                    <span>{type ? typeLabel : '—'}</span>
+                                    {showCustomer
+                                        ? <><strong>{company || '—'}</strong><span>{type ? typeLabel : '—'}<StatusTag status={r.status} /></span></>
+                                        : <><strong>{type ? typeLabel : '—'}<StatusTag status={r.status} /></strong>{note && <span>{note}</span>}</>}
                                     {meta && <small>{meta}</small>}
                                 </span>
                                 <span className="rs-card-side">

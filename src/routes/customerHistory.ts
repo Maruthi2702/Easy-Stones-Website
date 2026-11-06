@@ -1,12 +1,23 @@
 import { Router } from 'express';
 import type { Request, RequestHandler } from 'express';
 import Customer from '../models/Customer.ts';
+import User from '../models/User.ts';
+import { displayNameOf } from '../utils/salesReps.ts';
 import { basicCustomer, canViewCustomerProfile } from '../utils/customerAccess.ts';
 import { inTeam } from '../utils/teamScope.ts';
 import { visiblePeopleOfRequest } from '../services/teamDirectory.ts';
 import type { Loose } from '../types/records.ts';
 
 type StaffRequest = Request & { user?: Loose; userId?: string };
+/** Who logged each resource, by name — the Resources tab's "Logged by" (as Dashboard → Resources sends it). */
+async function nameUploaders(resources: Loose[]) {
+  const ids = [...new Set(resources.map((r) => String(r.uploadedBy || '')).filter((id) => /^[a-f0-9]{24}$/i.test(id)))];
+  if (!ids.length) return;
+  const users = await User.find({ _id: { $in: ids } }).select('username displayName').lean() as Loose[];
+  const nameById = new Map(users.map((u) => [String(u._id), displayNameOf(u)]));
+  resources.forEach((r) => { r.uploadedByName = nameById.get(String(r.uploadedBy || '')) || ''; });
+}
+
 const lastVisit = (visits: Loose[] = []) => visits.reduce<string | null>((last, visit) =>
   visit.date && (!last || visit.date > last) ? visit.date : last, null);
 
@@ -18,6 +29,7 @@ export async function customerHistoryResponse(req: StaffRequest, record: Loose):
   const people = await visiblePeopleOfRequest(req);
   customer.visits = (customer.visits || []).filter((visit: Loose) => inTeam(people, visit.createdBy));
   customer.resources = (customer.resources || []).filter((resource: Loose) => inTeam(people, resource.uploadedBy || resource.createdBy));
+  await nameUploaders(customer.resources);
   customer.lastVisitDate = lastVisit(customer.visits);
   customer.associatedCustomers = (customer.associatedCustomers || []).map((partner: Loose) => {
     if (!partner || typeof partner !== 'object' || !('visits' in partner)) return partner;

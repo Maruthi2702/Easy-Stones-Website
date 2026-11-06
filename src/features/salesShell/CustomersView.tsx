@@ -23,11 +23,8 @@ export type CustomersViewProps = {
     currentUser: Loose | null;
     currentUserId: string | null;
     canAddVisits: boolean;
-    customers: Loose[];
     onOpenGallery: (images: string[], index: number) => void;
     /** Kept by the page so they survive a tab change. */
-    expandedResourceId: string | null;
-    setExpandedResourceId: (id: string | null) => void;
     activeReactionMessageId: string | null;
     setActiveReactionMessageId: (id: string | null) => void;
     list: CustomersListProps;
@@ -84,7 +81,6 @@ function CustomersContent(p: CustomersViewProps) {
                     historyLoading={visitsLoading || !selectedCustomerDetail?.visits}
                     levelLabel={getCustomerLevelLabel(selectedCustomer)}
                     canAddVisits={p.canAddVisits}
-                    customers={p.customers}
                     loadingResourceId={resources.loadingResourceId}
                     quickNote={actions.quickNote}
                     onQuickNoteChange={actions.setQuickNote}
@@ -108,8 +104,6 @@ function CustomersContent(p: CustomersViewProps) {
                     onDeleteResource={resources.handleDeleteResource}
                     onOpenGallery={p.onOpenGallery}
                     onOpenCustomer={p.onOpenCustomer}
-                    expandedResourceId={p.expandedResourceId}
-                    setExpandedResourceId={p.setExpandedResourceId}
                     activeReactionMessageId={p.activeReactionMessageId}
                     setActiveReactionMessageId={p.setActiveReactionMessageId}
                     onUnlinkPartner={actions.handleUnlinkPartner}
