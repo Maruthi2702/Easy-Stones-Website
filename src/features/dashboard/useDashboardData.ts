@@ -34,9 +34,17 @@ export type DashboardDeps = {
     /** Bumped when customers or resources change (socket), to refetch. */
     customerRefreshTrigger: number;
     resourceRefreshTrigger: number;
+    /** The dashboard is on screen. A live change while it isn't waits until it is. */
+    active?: boolean;
 };
 
-export function useDashboardData({ currentUser, locations, currentUserId, customerRefreshTrigger, resourceRefreshTrigger }: DashboardDeps) {
+/**
+ * Live changes (anyone's save, anywhere) arriving within this long of each
+ * other are one reload: a visit save sends two events, an import several.
+ */
+export const LIVE_REFRESH_DELAY_MS = 2000;
+
+export function useDashboardData({ currentUser, locations, currentUserId, customerRefreshTrigger, resourceRefreshTrigger, active = true }: DashboardDeps) {
         // Dashboard State (Required for memoized values)
     // One time range for the whole dashboard (dashboardFocus.ts's RANGES); Custom has its days.
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
@@ -133,16 +141,23 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     // matches nothing) and overwrite it — the filter "not working".
     const dashboardStatsReqRef = React.useRef(0);
     const dashboardDataReqRef = React.useRef(0);
+    // The query the tiles / lists on screen were loaded for. Reading the same
+    // query again is a refresh (a save, a live change): what's showing stays
+    // until the new answer lands, instead of the tiles going to "…" and the
+    // tables to "Loading". Only a new range, location or People pick shows it.
+    const statsShownForRef = React.useRef<string | null>(null);
+    const dataShownForRef = React.useRef<string | null>(null);
 
     const fetchDashboardStats = useCallback(async () => {
         const reqId = ++dashboardStatsReqRef.current;
-        setStatsLoading(true);
+        const query = rangeParam + dashboardLocationParam;
+        if (statsShownForRef.current !== query) setStatsLoading(true);
         try {
             const localDate = new Date().toLocaleDateString('en-CA');
             const response = await authFetch(`${API_URL}/api/dashboard/stats?${rangeParam}&localDate=${localDate}${dashboardLocationParam}`);
             if (!response.ok) throw new Error(`Stats request failed (${response.status})`);
             const data = await response.json();
-            if (reqId === dashboardStatsReqRef.current) { setStats(data); loadError('stats', null); }
+            if (reqId === dashboardStatsReqRef.current) { setStats(data); loadError('stats', null); statsShownForRef.current = query; }
         } catch (error) {
             console.error('Error fetching dashboard stats:', error);
             if (reqId === dashboardStatsReqRef.current) loadError('stats', 'summary totals');
@@ -169,7 +184,8 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     // Fetch Independent Dashboard Data
     const fetchDashboardData = useCallback(async () => {
         const reqId = ++dashboardDataReqRef.current;
-        setDashboardDataLoading(true);
+        const query = rangeParam + dashboardLocationParam;
+        if (dataShownForRef.current !== query) setDashboardDataLoading(true);
         fetchFollowUpPanel(); // not awaited: the table doesn't wait for the panel
         try {
             const localDateStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
@@ -190,6 +206,7 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
             setDashboardResources(Array.isArray(resources) ? resources : []);
             setDashboardFollowups(followups);
             loadError('data', null);
+            dataShownForRef.current = query;
             setDashboardDataVersion((v) => v + 1);
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
@@ -206,10 +223,33 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     // says so, instead of claiming there's nothing there.
     const dashboardTableLoading = dashboardDataLoading || !dashboardLoaded;
 
-    // Single effect: fire BOTH dashboard fetches in parallel when dashboardTimeRange or refresh triggers change
+    // A new range, location, People pick or access: load both at once, now.
+    // It covers any live change still waiting (below).
+    const liveChangeWaitingRef = React.useRef(false);
     useEffect(() => {
+        liveChangeWaitingRef.current = false;
         Promise.all([fetchDashboardStats(), fetchDashboardData()]);
-    }, [fetchDashboardStats, fetchDashboardData, customerRefreshTrigger, resourceRefreshTrigger, dashboardAccessKey]);
+    }, [fetchDashboardStats, fetchDashboardData, dashboardAccessKey]);
+
+    // A change somewhere else (the socket's customer / resource triggers —
+    // anyone's save, at any branch): reload quietly, once per burst
+    // (LIVE_REFRESH_DELAY_MS), and only while the dashboard is on screen; a
+    // change while it isn't waits and reloads when it's opened again.
+    const liveTriggers = `${customerRefreshTrigger}:${resourceRefreshTrigger}`;
+    const liveTriggersSeenRef = React.useRef(liveTriggers);
+    useEffect(() => {
+        const justChanged = liveTriggers !== liveTriggersSeenRef.current;
+        if (justChanged) {
+            liveTriggersSeenRef.current = liveTriggers;
+            liveChangeWaitingRef.current = true;
+        }
+        if (!active || !liveChangeWaitingRef.current) return;
+        const timer = window.setTimeout(() => {
+            liveChangeWaitingRef.current = false;
+            Promise.all([fetchDashboardStats(), fetchDashboardData()]);
+        }, justChanged ? LIVE_REFRESH_DELAY_MS : 0);
+        return () => window.clearTimeout(timer);
+    }, [liveTriggers, active, fetchDashboardStats, fetchDashboardData]);
 
     // Fetch schedules for the dashboard
     const schedulesReqRef = React.useRef(0);

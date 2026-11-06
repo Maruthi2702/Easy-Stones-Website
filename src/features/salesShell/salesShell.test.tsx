@@ -9,7 +9,7 @@ const listeners: Record<string, Handler> = {};
 const emit = vi.fn();
 const disconnect = vi.fn();
 vi.mock('socket.io-client', () => ({
-  io: () => ({ on: (event: string, fn: Handler) => { listeners[event] = fn; }, emit, disconnect })
+  io: () => ({ on: (event: string, fn: Handler) => { listeners[event] = fn; }, emit, disconnect, connected: true })
 }));
 vi.mock('../../api/authToken', () => ({ getAuthToken: () => 'tok', setAuthToken: vi.fn(), onAuthTokenChange: () => () => {} }));
 const refreshCustomers = vi.fn();
@@ -27,7 +27,7 @@ vi.stubGlobal('localStorage', {
 });
 
 const { useSalesTheme } = await import('./useSalesTheme');
-const { useSalesLiveUpdates } = await import('./useSalesLiveUpdates');
+const { useSalesLiveUpdates, AWAY_BEFORE_RELOAD_MS } = await import('./useSalesLiveUpdates');
 
 beforeEach(() => {
   try { localStorage.clear(); } catch { /* */ }
@@ -127,6 +127,33 @@ describe('useSalesLiveUpdates', () => {
     expect(h.onCustomersChanged).toHaveBeenCalledTimes(1);
     expect(h.onResourcesChanged).toHaveBeenCalledTimes(1);
     expect(h.onMySchedulesChanged).toHaveBeenCalledTimes(1);
+  });
+  it('back on screen soon reloads only the check-in log; after a long time away, the dashboard too', () => {
+    const show = (state: 'visible' | 'hidden') => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+      document.dispatchEvent(new Event('visibilitychange'));
+    };
+    vi.useFakeTimers();
+    const { h, hook } = setup();
+    try {
+      show('hidden'); vi.advanceTimersByTime(30_000); show('visible');
+      expect(h.resyncCheckInsRef.current).toHaveBeenCalledTimes(1);
+      expect(h.onCustomersChanged).not.toHaveBeenCalled();
+      expect(h.onResourcesChanged).not.toHaveBeenCalled();
+      expect(refreshCustomers).not.toHaveBeenCalled();
+      show('hidden'); vi.advanceTimersByTime(AWAY_BEFORE_RELOAD_MS); show('visible');
+      expect(h.resyncCheckInsRef.current).toHaveBeenCalledTimes(2);
+      expect(h.onCustomersChanged).toHaveBeenCalledTimes(1);
+      expect(h.onResourcesChanged).toHaveBeenCalledTimes(1);
+      expect(h.onMySchedulesChanged).toHaveBeenCalledTimes(1);
+      // The time away starts again from the next time it's hidden.
+      show('hidden'); vi.advanceTimersByTime(1000); show('visible');
+      expect(h.onCustomersChanged).toHaveBeenCalledTimes(1);
+    } finally {
+      hook.unmount();
+      vi.useRealTimers();
+      Reflect.deleteProperty(document, 'visibilityState');
+    }
   });
   it('registers once and disconnects on unmount', () => {
     const { hook, h } = setup();

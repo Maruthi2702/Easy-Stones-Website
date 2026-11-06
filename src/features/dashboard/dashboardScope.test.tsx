@@ -2,7 +2,7 @@
 // Keep real location/people state and exercise the requests the dashboard sends.
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useDashboardData } from './useDashboardData';
+import { useDashboardData, LIVE_REFRESH_DELAY_MS } from './useDashboardData';
 import { narrowPeople, visiblePeople } from '../../utils/teamScope';
 import { repTotals } from './repBreakdown';
 import type { Loose } from '../../types/records';
@@ -20,7 +20,7 @@ vi.mock('../../api/authFetch', () => ({ authFetch: request }));
 
 let viewer: Loose;
 const locations = ['Seattle', 'Dallas', 'Atlanta'];
-const deps = () => ({ currentUser: viewer, currentUserId: String(viewer.id), locations, customers: [], customerRefreshTrigger: 0, resourceRefreshTrigger: 0 });
+const deps = (live: { customerRefreshTrigger?: number; resourceRefreshTrigger?: number; active?: boolean } = {}) => ({ currentUser: viewer, currentUserId: String(viewer.id), locations, customers: [], customerRefreshTrigger: 0, resourceRefreshTrigger: 0, ...live });
 const scopedRows = (url: URL) => {
     const visible = visiblePeople(viewer, fixtures.staff);
     const picked = narrowPeople(visible, { reps: url.searchParams.get('reps')?.split(',') || [], location: url.searchParams.get('location') || '' }, fixtures.staff);
@@ -174,5 +174,58 @@ describe('dashboard multiple locations and reps', () => {
         const { result } = renderHook(() => useDashboardData(deps()));
         await waitFor(() => expect(result.current.allSchedules).toHaveLength(2));
         expect(result.current.todayScheduleCount).toBe(1);
+    });
+});
+
+describe('dashboard live changes', () => {
+    it('reloads once per burst of changes, keeping the tiles on screen meanwhile', async () => {
+        const live = { customerRefreshTrigger: 0, resourceRefreshTrigger: 0, active: true };
+        const { result, rerender } = renderHook(() => useDashboardData(deps(live)));
+        await waitFor(() => expect(result.current.statsLoading).toBe(false));
+        await waitFor(() => expect(result.current.dashboardTableLoading).toBe(false));
+        const before = calls('/dashboard/stats').length;
+        vi.useFakeTimers();
+        try {
+            // A visit save sends customer_update and resource_update: two bumps, one reload.
+            live.customerRefreshTrigger = 1; rerender();
+            live.resourceRefreshTrigger = 1; rerender();
+            expect(calls('/dashboard/stats').length).toBe(before);
+            await act(async () => { vi.advanceTimersByTime(LIVE_REFRESH_DELAY_MS); });
+            expect(calls('/dashboard/stats').length).toBe(before + 1);
+            // Same query: no "…" or "Loading" while it reloads.
+            expect(result.current.statsLoading).toBe(false);
+            expect(result.current.dashboardTableLoading).toBe(false);
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('waits while the dashboard is not on screen, then reloads when it is', async () => {
+        const live = { customerRefreshTrigger: 0, resourceRefreshTrigger: 0, active: false };
+        const { result, rerender } = renderHook(() => useDashboardData(deps(live)));
+        await waitFor(() => expect(result.current.statsLoading).toBe(false));
+        const before = calls('/dashboard/stats').length;
+        vi.useFakeTimers();
+        try {
+            live.customerRefreshTrigger = 1; rerender();
+            live.customerRefreshTrigger = 2; rerender();
+            await act(async () => { vi.advanceTimersByTime(LIVE_REFRESH_DELAY_MS * 5); });
+            expect(calls('/dashboard/stats').length).toBe(before);
+            live.active = true; rerender();
+            await act(async () => { vi.advanceTimersByTime(0); });
+            expect(calls('/dashboard/stats').length).toBe(before + 1);
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('still shows loading for a new range', async () => {
+        const { result } = renderHook(() => useDashboardData(deps()));
+        await waitFor(() => expect(result.current.statsLoading).toBe(false));
+        let resolveStats: () => void = () => {};
+        request.mockImplementation(async url => {
+            if (String(url).includes('/dashboard/stats')) await new Promise<void>(done => { resolveStats = done; });
+            return reply(url);
+        });
+        act(() => result.current.setDashboardRange('7days'));
+        await waitFor(() => expect(result.current.statsLoading).toBe(true));
+        await act(async () => { resolveStats(); });
+        await waitFor(() => expect(result.current.statsLoading).toBe(false));
     });
 });

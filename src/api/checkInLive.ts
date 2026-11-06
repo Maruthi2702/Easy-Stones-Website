@@ -15,13 +15,19 @@ import { getAuthToken, setAuthToken, onAuthTokenChange } from './authToken';
  * - when the page comes back on screen (or out of the back/forward cache),
  *   before the socket has even noticed it was dropped.
  *
+ * `resync` is told which: 'reconnect' (updates were surely missed) or 'shown'
+ * (the page came back on screen — maybe missed, maybe not). The Sales page
+ * reloads its other lists only on a reconnect or after a long time away.
+ *
  * The join asks the server whether it worked. A refusal with a token means it
  * expired (sessions last 10 hours, and a phone keeps the app open for days):
  * one fresh token is fetched from the session cookie, which rejoins through
  * onAuthTokenChange — the same as the delivery board's joinDeliveryRooms.
  * Returns the cleanup.
  */
-export function followCheckIns(socket: Socket, resync: () => void): () => void {
+export type ResyncReason = 'reconnect' | 'shown';
+
+export function followCheckIns(socket: Socket, resync: (why: ResyncReason) => void): () => void {
   let connectedBefore = false;
   let retried = false;
 
@@ -48,7 +54,7 @@ export function followCheckIns(socket: Socket, resync: () => void): () => void {
   socket.on('connect', () => {
     retried = false;
     join();
-    if (connectedBefore) resync();
+    if (connectedBefore) resync('reconnect');
     connectedBefore = true;
   });
 
@@ -59,7 +65,7 @@ export function followCheckIns(socket: Socket, resync: () => void): () => void {
   const onShow = () => {
     if (document.visibilityState !== 'visible') return;
     if (!socket.connected) socket.connect();
-    resync();
+    resync('shown');
   };
   const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) onShow(); };
   document.addEventListener('visibilitychange', onShow);

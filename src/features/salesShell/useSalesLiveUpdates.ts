@@ -8,6 +8,9 @@ import { cartActions } from '../holds';
 import { clearInventoryCache } from '../../api/inventoryAnalysisCache';
 import { clearListCache } from '../customers/list/listOptions';
 
+/** Away from the page at least this long, coming back reloads the dashboard and customer lists too. */
+export const AWAY_BEFORE_RELOAD_MS = 2 * 60 * 1000;
+
 /**
  * What the page does when the server says something changed. The handlers are
  * registered once, on mount. Calendar callbacks read the latest handlers so
@@ -52,9 +55,23 @@ export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
         // broadcast to every connected socket. followCheckIns joins those
         // rooms on every connect (with a fresh token if the old one expired)
         // and reloads the log after a reconnect or the phone waking up.
-        const stopFollowing = followCheckIns(socket, () => {
+        // When the page went off screen. Coming back reloads the check-in log
+        // every time, but the dashboard and customer lists only after a
+        // reconnect (events were surely missed) or a long time away (a phone's
+        // socket can look connected while it's dead). Reloading them on every
+        // tab switch made the dashboard tiles flash with nothing saved.
+        let hiddenAt: number | null = document.visibilityState === 'hidden' ? Date.now() : null;
+        const noteHidden = () => {
+            if (document.visibilityState === 'hidden' && hiddenAt === null) hiddenAt = Date.now();
+        };
+        document.addEventListener('visibilitychange', noteHidden);
+
+        const stopFollowing = followCheckIns(socket, (why) => {
             expireCacheKeys('checkins_');
             resyncCheckInsRef.current();
+            const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+            if (why === 'shown') hiddenAt = null;
+            if (why === 'shown' && away < AWAY_BEFORE_RELOAD_MS) return;
             // Customer/visit and resource events missed while offline are not
             // replayed. Reload the dashboard too when its socket reconnects.
             clearListCache();
@@ -121,6 +138,7 @@ export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
         onStart();
 
         return () => {
+            document.removeEventListener('visibilitychange', noteHidden);
             stopFollowing();
             socket.disconnect();
         };

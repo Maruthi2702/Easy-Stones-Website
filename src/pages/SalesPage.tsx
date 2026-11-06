@@ -98,7 +98,8 @@ const SalesPage = () => {
     useEffect(() => {
         currentUserIdRef.current = currentUserId;
     }, [currentUserId]);
-    const dashboardData = useDashboardData({ currentUser, locations, customers, currentUserId, customerRefreshTrigger, resourceRefreshTrigger });
+    // Live changes reload the dashboard only while it's the page showing (useDashboardData's `active`).
+    const dashboardData = useDashboardData({ currentUser, locations, customers, currentUserId, customerRefreshTrigger, resourceRefreshTrigger, active: crmTab === 'dashboard' });
     const {
         activeDashboardTab, setActiveDashboardTab, fetchDashboardStats, fetchDashboardData, fetchSchedules,
         canAddVisits, setCurrentVisitsPage, setCurrentFollowUpPage, setCurrentResourcesPage, patchDashboardVisit, removeDashboardVisit
