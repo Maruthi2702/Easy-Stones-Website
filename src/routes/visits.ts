@@ -154,6 +154,7 @@ export default function createVisitsRouter({
 
       console.log(`[Add Visit] Success in ${Date.now() - updateStart}ms for customer ${customerId}`);
       req.app.get('io').emit('visit_updated', { customerId });
+      req.app.get('io')?.emit('customer_update');
       res.status(201).json({ success: true, visit: visitData });
 
       // Background: put the visit on the logger's calendar — completing their
@@ -256,6 +257,7 @@ export default function createVisitsRouter({
       // The stored visit (image links and all), as POST answers — the screen
       // shows this, not a guess from what it sent.
       const saved = await visitOf(customerId, visitId);
+      req.app.get('io')?.emit('customer_update');
       res.json({ success: true, message: 'Visit updated successfully', visit: saved });
 
       // Background: a visit moved to another day takes its calendar entry along.
@@ -317,6 +319,7 @@ export default function createVisitsRouter({
       const write = update.event ? { $set: set, $push: { 'visits.$.followUpHistory': update.event } } : { $set: set };
       const result = await Customer.updateOne({ _id: customerId, 'visits._id': visitId }, write);
       if (result.matchedCount === 0) return res.status(404).json({ message: 'Customer or visit not found' });
+      req.app.get('io')?.emit('customer_update');
       res.json({ visit: await visitOf(customerId, visitId) });
 
       try {

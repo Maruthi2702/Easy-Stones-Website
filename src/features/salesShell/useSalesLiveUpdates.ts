@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { API_URL } from '../../config/api';
 import { followCheckIns } from '../../api/checkInLive';
@@ -10,9 +10,8 @@ import { clearListCache } from '../customers/list/listOptions';
 
 /**
  * What the page does when the server says something changed. The handlers are
- * registered once, on mount, with the first render's functions — anything
- * that must read current state goes through a ref (`refreshCheckIns`,
- * `currentUserId`), as it always did.
+ * registered once, on mount. Calendar callbacks read the latest handlers so
+ * a live event follows the filters and access rules currently on screen.
  */
 export type LiveUpdateHandlers = {
     /** The current filters' check-in fetch (a ref: the filters change). */
@@ -26,6 +25,8 @@ export type LiveUpdateHandlers = {
     onLocationsChanged: () => void;
     onInventoryChanged: () => void;
     onMySchedulesChanged: () => void;
+    /** The dashboard is allowed to follow its team's calendars too. */
+    teamCalendar?: boolean;
     /** Run once the socket is set up (the first loads). */
     onStart: () => void;
 };
@@ -37,8 +38,10 @@ export type LiveUpdateHandlers = {
  * viewer's own calendar. Moved out of SalesPage unchanged (2026-10-24).
  */
 export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
+    const latest = useRef(handlers);
+    useLayoutEffect(() => { latest.current = handlers; });
     useEffect(() => {
-        const { refreshCheckInsRef, resyncCheckInsRef, currentUserIdRef, onCustomersChanged, onResourcesChanged, onLocationsChanged, onInventoryChanged, onMySchedulesChanged, onStart } = handlers;
+        const { refreshCheckInsRef, resyncCheckInsRef, currentUserIdRef, onCustomersChanged, onResourcesChanged, onLocationsChanged, onInventoryChanged, onStart } = handlers;
         const socket = io(API_URL || window.location.origin, {
             transports: ['websocket', 'polling'],
             withCredentials: true
@@ -52,6 +55,14 @@ export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
         const stopFollowing = followCheckIns(socket, () => {
             expireCacheKeys('checkins_');
             resyncCheckInsRef.current();
+            // Customer/visit and resource events missed while offline are not
+            // replayed. Reload the dashboard too when its socket reconnects.
+            clearListCache();
+            window.dispatchEvent(new Event('customers:changed'));
+            latest.current.onCustomersChanged();
+            refreshCustomers();
+            latest.current.onResourcesChanged();
+            latest.current.onMySchedulesChanged();
         });
 
         // Through a ref: this handler is registered once, and calling
@@ -104,7 +115,7 @@ export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
             const mine = !payload?.userId
                 || !currentUserIdRef.current
                 || String(payload.userId) === String(currentUserIdRef.current);
-            if (mine) onMySchedulesChanged();
+            if (mine || latest.current.teamCalendar) latest.current.onMySchedulesChanged();
         });
 
         onStart();

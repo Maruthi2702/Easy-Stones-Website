@@ -106,6 +106,28 @@ describe('useSalesLiveUpdates', () => {
     listeners.schedule_update({ userId: 'u1' }); expect(h.onMySchedulesChanged).toHaveBeenCalledTimes(1);
     listeners.schedule_update({}); expect(h.onMySchedulesChanged).toHaveBeenCalledTimes(2);
   });
+  it('refreshes other reps in the team calendar using the latest filters callback', () => {
+    const h = {
+      refreshCheckInsRef: { current: vi.fn() }, resyncCheckInsRef: { current: vi.fn() }, currentUserIdRef: { current: 'u1' },
+      onCustomersChanged: vi.fn(), onResourcesChanged: vi.fn(), onLocationsChanged: vi.fn(), onInventoryChanged: vi.fn(),
+      onMySchedulesChanged: vi.fn(), onStart: vi.fn(), teamCalendar: false
+    };
+    const { rerender } = renderHook(() => useSalesLiveUpdates(h));
+    const latest = vi.fn();
+    h.teamCalendar = true; h.onMySchedulesChanged = latest;
+    rerender();
+    listeners.schedule_update({ userId: 'u2' });
+    expect(latest).toHaveBeenCalledTimes(1);
+  });
+  it('resyncs dashboard work missed while disconnected', () => {
+    const { h } = setup();
+    listeners.connect();
+    expect(h.onCustomersChanged).not.toHaveBeenCalled();
+    listeners.connect();
+    expect(h.onCustomersChanged).toHaveBeenCalledTimes(1);
+    expect(h.onResourcesChanged).toHaveBeenCalledTimes(1);
+    expect(h.onMySchedulesChanged).toHaveBeenCalledTimes(1);
+  });
   it('registers once and disconnects on unmount', () => {
     const { hook, h } = setup();
     hook.rerender();

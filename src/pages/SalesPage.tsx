@@ -56,7 +56,7 @@ const SalesPage = () => {
     const { isSidebarOpen, setIsSidebarOpen, isMobile } = useSidebarLayout();
     // Locations and sales reps (src/features/salesShell/useSalesDirectory.ts).
     const { locations, salesReps, fetchLocations, fetchSalesReps } = useSalesDirectory();
-    const [customerRefreshTrigger] = useState(0);
+    const [customerRefreshTrigger, setCustomerRefreshTrigger] = useState(0);
     const [resourceRefreshTrigger, setResourceRefreshTrigger] = useState(0);
     const [inventoryAnalysisRefreshTrigger, setInventoryAnalysisRefreshTrigger] = useState(0);
     // The shared customer list behind every customer dropdown (src/api/customerOptions.js).
@@ -92,19 +92,6 @@ const SalesPage = () => {
     const refreshCheckInsRef = useRef(() => {});
     const resyncCheckInsRef = useRef(() => {});
 
-    // Live updates from the server (src/features/salesShell/useSalesLiveUpdates.ts).
-    useSalesLiveUpdates({
-        refreshCheckInsRef,
-        resyncCheckInsRef,
-        currentUserIdRef,
-        onCustomersChanged: () => fetchCustomers(true),
-        onResourcesChanged: () => setResourceRefreshTrigger(prev => prev + 1),
-        onLocationsChanged: () => fetchLocations(),
-        onInventoryChanged: () => setInventoryAnalysisRefreshTrigger(prev => prev + 1),
-        onMySchedulesChanged: () => fetchSchedules(),
-        onStart: () => { fetchLocations(); fetchSalesReps(); }
-    });
-    
     // A signed-in record always has id or _id; the type says so (the value is kept exactly as it was).
     const currentUserId = (currentUser?.id || currentUser?._id || null) as string | null;
 
@@ -116,6 +103,20 @@ const SalesPage = () => {
         activeDashboardTab, setActiveDashboardTab, fetchDashboardStats, fetchDashboardData, fetchSchedules,
         canAddVisits, setCurrentVisitsPage, setCurrentFollowUpPage, setCurrentResourcesPage, patchDashboardVisit, removeDashboardVisit
     } = dashboardData;
+
+    // Customer/visit updates also reload the dashboard's own independent lists.
+    useSalesLiveUpdates({
+        refreshCheckInsRef,
+        resyncCheckInsRef,
+        currentUserIdRef,
+        onCustomersChanged: () => { fetchCustomers(true); setCustomerRefreshTrigger(value => value + 1); },
+        onResourcesChanged: () => setResourceRefreshTrigger(prev => prev + 1),
+        onLocationsChanged: () => fetchLocations(),
+        onInventoryChanged: () => setInventoryAnalysisRefreshTrigger(prev => prev + 1),
+        onMySchedulesChanged: () => fetchSchedules(),
+        teamCalendar: dashboardData.teamCalendar,
+        onStart: () => { fetchLocations(); fetchSalesReps(); }
+    });
 
     // "Plan route" from the customer list's selection bar: open Route Planner
     // with those customers already selected (RoutePlannerV2's preselect prop).
@@ -405,7 +406,6 @@ const SalesPage = () => {
                             onSelectCustomer: handleSelectCustomer,
                             onOpenSidebar: () => setIsSidebarOpen(true),
                             isSidebarOpen,
-                            customerRefreshTrigger,
                             onPlanRoute: canPlanRoutes ? handlePlanRoute : undefined
                         }}
                     />
@@ -447,7 +447,6 @@ const SalesPage = () => {
                         onSelectCustomer={handleSelectCustomer}
                         onOpenSidebar={() => setIsSidebarOpen(true)}
                         isSidebarOpen={isSidebarOpen}
-                        customerRefreshTrigger={customerRefreshTrigger}
                         onPlanRoute={canPlanRoutes ? handlePlanRoute : undefined}
                     />
                 )}

@@ -3243,7 +3243,7 @@ app.get('/api/dashboard/resources', authenticate, requirePermission('view_dashbo
             ]
           },
           content: "$resources.content",
-          uploadedBy: "$resources.uploadedBy",
+          uploadedBy: { $ifNull: ["$resources.uploadedBy", "$resources.createdBy"] },
           createdAt: {
             $cond: [
               { $eq: [{ $type: "$resources.createdAt" }, "date"] },
@@ -4390,6 +4390,7 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAn
 
     await customer.save();
 
+    req.app.get('io')?.emit('customer_update');
     res.json({ success: true, message: 'Visit deleted successfully' });
 
     // Background: its drop-in comes off the calendar; a planned entry it had

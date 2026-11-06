@@ -68,6 +68,9 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     // remembered for the session, like the location. The location narrows by
     // where the people work (teamScope.js — by the rep's branch).
     const me = String(currentUserId || '');
+    // Access can change without changing the query (My team / All locations).
+    // Re-read every rollup under the current server-side permissions then too.
+    const dashboardAccessKey = JSON.stringify([me, currentUser?.permissions, currentUser?.assignedLocations]);
     const canPickPeople = visitViewScope(currentUser).kind !== 'own';
     const peopleOptions = usePeopleOptions(currentUser, currentUserId);
     const peopleKey = `salesDashboard.people.${me}`;
@@ -89,7 +92,7 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     // calendar, as before), else the team calendar's query for
     // /api/schedule?scope=team. Others' stops are read only.
     const teamCalendar = canPickPeople && canSeeTeamCalendar(currentUser);
-    const calendarViewing = teamCalendar && !isJustMe(dashboardPeople, me)
+    const calendarViewing = teamCalendar && (!isJustMe(dashboardPeople, me) || Boolean(dashboardLocation))
         ? `&scope=team${repsParam(dashboardPeople)}${dashboardLocation ? `&location=${encodeURIComponent(dashboardLocation)}` : ''}`
         : '';
     const myLocations = peopleOptions.find((o) => o.value === me)?.locations;
@@ -206,7 +209,7 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     // Single effect: fire BOTH dashboard fetches in parallel when dashboardTimeRange or refresh triggers change
     useEffect(() => {
         Promise.all([fetchDashboardStats(), fetchDashboardData()]);
-    }, [fetchDashboardStats, fetchDashboardData, customerRefreshTrigger, resourceRefreshTrigger]);
+    }, [fetchDashboardStats, fetchDashboardData, customerRefreshTrigger, resourceRefreshTrigger, dashboardAccessKey]);
 
     // Fetch schedules for the dashboard
     const schedulesReqRef = React.useRef(0);
@@ -238,7 +241,7 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
 
                 const todayCount = data.filter((s: Loose) => {
                     const d = new Date(s.startTime);
-                    return d >= todayStart && d <= todayEnd;
+                    return s.status !== 'Cancelled' && d >= todayStart && d <= todayEnd;
                 }).length;
                 setTodayScheduleCount(todayCount);
             }
@@ -250,7 +253,7 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
 
     useEffect(() => {
         fetchSchedules();
-    }, [fetchSchedules]);
+    }, [fetchSchedules, dashboardAccessKey]);
 
     const dashboardDateRangeStart = React.useMemo(() => {
         // If we are using the dedicated dashboardVisits/dashboardResources from the backend,

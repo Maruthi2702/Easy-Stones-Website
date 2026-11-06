@@ -12,7 +12,8 @@ export type CustomersListProps = {
     onSelectCustomer: (customer: Loose) => void;
     onOpenSidebar: () => void;
     isSidebarOpen: boolean;
-    customerRefreshTrigger: number;
+    /** Optional explicit refresh; live customer changes use customers:changed. */
+    customerRefreshTrigger?: number;
     /** The selection bar's "Plan route"; undefined without the Route Planner. */
     onPlanRoute?: (rows: Loose[]) => void;
 };
