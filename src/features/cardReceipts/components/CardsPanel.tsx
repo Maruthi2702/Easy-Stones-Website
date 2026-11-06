@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Ban, Pencil, Plus, RotateCcw } from 'lucide-react';
+import RowMenu from '../../../components/shared/RowMenu';
+import type { RowMenuItem } from '../../../components/shared/RowMenu';
+import useIsPhone from '../../../components/shared/form/useIsPhone';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '../../../components/shared/form/FormControls';
 import { ISSUERS, cleanCard, suggestCardLabel } from '../../../utils/cardReceipts';
@@ -105,6 +108,20 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
   const placeOf = (id: string) => people.find((p) => p.id === id)?.location || '';
   const replace = (card: Card) => setCards((list) => [card, ...list.filter((c) => c._id !== card._id)].sort((a, b) => Number(b.active) - Number(a.active) || a.label.localeCompare(b.label)));
 
+  const isPhone = useIsPhone();
+  /** Edit and Deactivate / Reactivate, in the row's ⋯ like the other screens. */
+  const menu = (c: Card) => {
+    if (!canManage) return null;
+    const items: RowMenuItem[] = [
+      { key: 'edit', label: 'Edit', icon: Pencil, onClick: () => setOpen(c) },
+      c.active
+        ? { key: 'off', label: 'Deactivate', icon: Ban, danger: true, onClick: () => toggle(c) }
+        : { key: 'on', label: 'Reactivate', icon: RotateCcw, onClick: () => toggle(c) }
+    ];
+    return <RowMenu items={items} label={`Actions for card ${c.label}`} />;
+  };
+  const status = (c: Card) => (c.active ? <span className="ccr-chip is-ok">Active</span> : <span className="ccr-chip is-draft">Deactivated</span>);
+
   const toggle = async (card: Card) => {
     try { replace((await api.editCard(card._id, { active: !card.active })).card); onSaved(card.active ? `${card.label} deactivated` : `${card.label} active again`); } catch (e) { setError((e as Error).message); }
   };
@@ -118,7 +135,20 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
       </div>
       {error ? <div className="ccr-note is-error" role="alert">{error}</div> : null}
       <div className={`ccr-box${loading ? ' is-loading' : ''}`}>
-        {cards.length ? (
+        {cards.length && isPhone ? (
+          <div className="ccr-cards">
+            {cards.map((c) => (
+              <div key={c._id} className="ccr-card ccr-card-row" style={{ opacity: c.active ? 1 : 0.6, cursor: 'default' }}>
+                <span style={{ display: 'grid', gap: 3, minWidth: 0 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><b className="ccr-mono">{c.label}</b>{status(c)}</span>
+                  <span className="ccr-card-meta">{nameOf(c.userId)}{placeOf(c.userId) ? ` · ${placeOf(c.userId)}` : ''}</span>
+                  <span className="ccr-card-meta">{c.issuer === 'amex' ? 'Amex' : 'Other card'} ···{c.lastDigits}</span>
+                </span>
+                <span style={{ alignSelf: 'center' }}>{menu(c)}</span>
+              </div>
+            ))}
+          </div>
+        ) : cards.length ? (
           <div className="ccr-table-wrap">
             <table className="ccr-table">
               <thead><tr><th>Card ID</th><th>Cardholder</th><th className="ccr-col-wide">Location</th><th>Card</th><th>Status</th>{canManage ? <th aria-label="Actions" /> : null}</tr></thead>
@@ -129,13 +159,8 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
                     <td>{nameOf(c.userId)}</td>
                     <td className="ccr-col-wide">{placeOf(c.userId)}</td>
                     <td>{c.issuer === 'amex' ? 'Amex' : 'Other'} ···{c.lastDigits}</td>
-                    <td>{c.active ? <span className="ccr-chip is-ok">Active</span> : <span className="ccr-chip is-draft">Deactivated</span>}</td>
-                    {canManage ? (
-                      <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
-                        <button type="button" className="ccr-btn" style={{ height: 34 }} onClick={() => setOpen(c)}>Edit</button>{' '}
-                        <button type="button" className="ccr-btn" style={{ height: 34 }} onClick={() => toggle(c)}>{c.active ? 'Deactivate' : 'Reactivate'}</button>
-                      </td>
-                    ) : null}
+                    <td>{status(c)}</td>
+                    {canManage ? <td style={{ width: 52, textAlign: 'right' }}>{menu(c)}</td> : null}
                   </tr>
                 ))}
               </tbody>
