@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { usePortalVisibility } from '../../../components/shared/form/usePortalVisibility';
 import './CustomerProfile.css';
 
 /**
@@ -10,5 +12,7 @@ import './CustomerProfile.css';
  * `.cl .cp` tokens and rules it lost by leaving the profile.
  */
 export default function MenuLayer({ sheet, children }: { sheet: boolean; children: ReactNode }) {
-    return sheet ? createPortal(<div className="cl cp">{children}</div>, document.body) : <>{children}</>;
+    const portalRef = useRef<HTMLDivElement>(null);
+    usePortalVisibility(portalRef, sheet);
+    return sheet ? createPortal(<div ref={portalRef} className="cl cp">{children}</div>, document.body) : <>{children}</>;
 }

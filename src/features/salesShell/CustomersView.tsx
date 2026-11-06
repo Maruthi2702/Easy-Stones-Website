@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { Activity, useEffect, useState } from 'react';
 import ErrorBoundary from '../../components/shared/ErrorBoundary';
 import { CustomerProfile, getCustomerLevelLabel } from '../customers';
 import type { CustomerActions, OpenCustomer } from '../customers';
@@ -10,6 +10,7 @@ import CustomersList from './CustomersList';
 import type { CustomersListProps } from './CustomersList';
 
 export type CustomersViewProps = {
+    active?: boolean;
     open: OpenCustomer;
     actions: CustomerActions;
     visits: VisitEditor;
@@ -37,6 +38,16 @@ export type CustomersViewProps = {
  * mounted (hidden) while a customer is open, so its filters survive.
  */
 export default function CustomersView(p: CustomersViewProps) {
+    const active = p.active ?? true;
+    const [visited, setVisited] = useState(active);
+    if (active && !visited) setVisited(true);
+    // Load on first use, then preserve the page's state between CRM tabs.
+    // Activity disconnects effects while away; modal portals follow that
+    // lifecycle so they cannot cover a different page.
+    return visited ? <Activity mode={active ? 'visible' : 'hidden'}><CustomersContent {...p} /></Activity> : null;
+}
+
+function CustomersContent(p: CustomersViewProps) {
     const { open, actions, visits, resources, selectedCustomerId } = p;
     const { selectedCustomer, selectedCustomerDetail, customerCacheRef, visitsLoading, fetchSingleCustomer } = open;
 

@@ -24,6 +24,7 @@ import { useListPaging, useListPickers, useListFilters } from './useListFilters'
 import { useCustomerListData } from './useCustomerListData';
 import { useCustomerWrites, useBulkActions } from './useListActions';
 import { useListKeyboard } from './useListKeyboard';
+import { customerListScope } from './listOptions';
 import { exportRows, listExportActions } from './listExport';
 import type { Loose } from '../../../types/records';
 // Kept for the add/edit modal and the classes other sales screens share with it
@@ -84,7 +85,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
     const { uniqueCities, salesReps, locations } = useListPickers();
     const filters = useListFilters(user, salesReps, locations);
     const { view, setView, letter, setLetter, filterTypes, activeFilterCount } = filters;
-    const data = useCustomerListData({ activeTab, filters, sortBy, sortOrder, currentPage, setCurrentPage, limit, customerRefreshTrigger });
+    const data = useCustomerListData({ activeTab, filters, sortBy, sortOrder, currentPage, setCurrentPage, limit, customerRefreshTrigger, cacheScope: customerListScope(user) });
     const { partners, loading, loadError, totalPages, totalCount, searchTerm, setSearchTerm, debouncedSearch, setDebouncedSearch, refreshAll } = data;
 
     const { selected, setSelected, selectedIds, selectedRows, toggleRow, toggleAll } = useSelection(partners);

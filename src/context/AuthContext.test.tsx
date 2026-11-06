@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act, cleanup } from '@testing-library/react';
 import { useAuth } from './AuthContext';
 import { AuthProvider } from './AuthProvider';
+import { clearListCache, globalPartnersCache } from '../features/customers/list/listOptions';
 
 vi.mock('../api/deliverySchedule', () => ({ clearScheduleCache: vi.fn() }));
 vi.mock('../api/customerOptions', () => ({ clearCustomers: vi.fn() }));
@@ -10,6 +11,7 @@ vi.mock('../utils/dataCache', () => ({ clearAllCache: vi.fn() }));
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 let verifyStatus = 200, valid = true;
 beforeEach(() => {
+  clearListCache();
   verifyStatus = 200; valid = true;
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
     if (url.endsWith('/verify')) return reply({ valid, authType: 'admin', role: 'sales_rep' }, verifyStatus);
@@ -41,9 +43,11 @@ describe('recoverable authentication failures', () => {
   it('still clears identity when the server explicitly reports an invalid session', async () => {
     const { result } = open();
     await waitFor(() => expect(result.current.user?._id).toBe('u1'));
+    globalPartnersCache.remembered = { partners: [{ _id: 'private-customer' }] };
     valid = false;
     await act(async () => { await result.current.checkAuth({ silent: true }); });
     expect(result.current.user).toBeNull(); expect(result.current.authError).toBeNull();
+    expect(Object.keys(globalPartnersCache)).toHaveLength(0);
   });
   it('treats a temporary profile-load failure as recoverable too', async () => {
     vi.mocked(fetch).mockImplementation(async (url) => String(url).endsWith('/verify')

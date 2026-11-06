@@ -2,6 +2,7 @@
 // The Sales page shell's hooks: the theme, and what each live update runs.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { clearListCache, globalPartnersCache } from '../customers/list/listOptions';
 
 type Handler = (payload?: unknown) => void;
 const listeners: Record<string, Handler> = {};
@@ -33,6 +34,7 @@ beforeEach(() => {
   document.body.className = '';
   for (const k of Object.keys(listeners)) delete listeners[k];
   vi.clearAllMocks();
+  clearListCache();
 });
 
 describe('useSalesTheme', () => {
@@ -87,6 +89,16 @@ describe('useSalesLiveUpdates', () => {
     listeners.location_update(); expect(h.onLocationsChanged).toHaveBeenCalled();
     listeners.slab_reservations_changed({ slabKeys: ['A-1'] }); expect(reservationsChanged).toHaveBeenCalledWith(['A-1']);
     listeners.inventory_analysis_update(); expect(clearInventoryCache).toHaveBeenCalled(); expect(h.onInventoryChanged).toHaveBeenCalled();
+  });
+  it('invalidates remembered customer lists and tells the visible list to refresh', () => {
+    setup();
+    globalPartnersCache.remembered = { partners: [{ _id: 'c1' }] };
+    const changed = vi.fn();
+    window.addEventListener('customers:changed', changed);
+    listeners.customer_update();
+    expect(Object.keys(globalPartnersCache)).toHaveLength(0);
+    expect(changed).toHaveBeenCalledTimes(1);
+    window.removeEventListener('customers:changed', changed);
   });
   it("reloads the calendar only for the viewer's own (or unaddressed) changes", () => {
     const { h } = setup('u1');

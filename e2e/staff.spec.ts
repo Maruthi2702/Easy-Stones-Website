@@ -43,6 +43,62 @@ test('Team Files filters the loaded folder', async ({ page }) => {
   await expect(page.getByText('Team Catalog.pdf')).toBeVisible();
 });
 
+test('Customers retains the selected tab and search across page switches and refreshes aged rows quietly', async ({ page }) => {
+  const now = new Date('2026-11-05T20:00:00Z');
+  await page.clock.setFixedTime(now);
+  let requests = 0;
+  let releaseRefresh!: () => void;
+  const refreshGate = new Promise<void>(resolve => { releaseRefresh = resolve; });
+  let refresh = false;
+  await page.route('http://127.0.0.1:4175/api/customers/list?**', async route => {
+    requests++;
+    if (refresh) await refreshGate;
+    await route.fulfill({ json: {
+      partners: [{ _id: 'c1', company: refresh ? 'Pacific Granite Updated' : 'Pacific Granite', type: 'Builder', city: 'Seattle' }],
+      totalCount: 1, totalPages: 1
+    } });
+  });
+  await page.goto('/sales?tab=customers');
+  await expect(page.getByText('Pacific Granite', { exact: true }).first()).toBeVisible();
+  await page.getByRole('tab', { name: /^Partners/ }).click();
+  const search = page.getByRole('searchbox', { name: 'Search customers', exact: true });
+  const searched = page.waitForResponse(response => {
+    const url = new URL(response.url());
+    return url.pathname === '/api/customers/list' && url.searchParams.get('search') === 'Pacific';
+  });
+  await search.fill('Pacific');
+  await searched;
+  await search.blur();
+  const warmRequests = requests;
+
+  // Exercise the shell's real browser-history navigation without reloading it.
+  const leaveCustomers = async () => {
+    await page.evaluate(() => {
+      history.pushState({}, '', '/sales?tab=pricelist');
+      dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await expect(page.getByRole('heading', { name: 'Confidential Pricing Sheet', exact: true })).toBeVisible();
+    await expect(search).not.toBeVisible();
+  };
+  await leaveCustomers();
+  await page.goBack();
+  await expect(search).toHaveValue('Pacific');
+  await expect(page.getByRole('tab', { name: /^Partners/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('Pacific Granite', { exact: true }).first()).toBeVisible();
+  expect(requests).toBe(warmRequests);
+
+  await leaveCustomers();
+  await page.clock.setFixedTime(new Date(now.getTime() + 3 * 60 * 1000));
+  refresh = true;
+  await page.goBack();
+  await expect.poll(() => requests).toBe(warmRequests + 1);
+  await expect(search).toHaveValue('Pacific');
+  await expect(page.getByText('Pacific Granite', { exact: true }).first()).toBeVisible();
+  await expect(page.locator('.cl-sk:visible')).toHaveCount(0);
+  releaseRefresh();
+  await expect(page.getByText('Pacific Granite Updated', { exact: true }).first()).toBeVisible();
+});
+
 test('My team checks the people list and unchecking a person keeps the other teammates', async ({ page }) => {
   await page.route('http://127.0.0.1:4175/api/user/me', route => route.fulfill({ json: { ...staff, permissions: [...staff.permissions, 'view_all_visits'] } }));
   await page.route('http://127.0.0.1:4175/api/salesreps', route => route.fulfill({ json: { data: [

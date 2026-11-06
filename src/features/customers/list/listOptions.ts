@@ -35,6 +35,12 @@ export const SORTS = [
 export const SHOW_EXCEL_IMPORT = false;
 
 // Global in-memory cache to prevent re-fetching on tab switches & re-mounts.
-// Cleared on every write (see clearListCache) — it has no expiry of its own.
+// Writes invalidate it; age is a backstop for a missed live update.
+export const CUSTOMER_LIST_CACHE_TTL = 2 * 60 * 1000;
 export const globalPartnersCache: Record<string, Loose> = {};
 export const clearListCache = () => { Object.keys(globalPartnersCache).forEach(k => delete globalPartnersCache[k]); };
+
+/** A remembered list belongs to this account and its current access scope. */
+export const customerListScope = (user: Loose | null) => JSON.stringify([
+    String(user?.id || user?._id || ''), user?.role, user?.permissions, user?.assignedLocations, user?.location
+]);

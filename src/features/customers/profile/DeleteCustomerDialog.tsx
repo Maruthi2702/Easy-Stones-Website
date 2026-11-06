@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { deleteSummary } from './profileHeaderRules';
 import { companyOf } from '../../../utils/customerList';
 import type { Loose } from '../../../types/records';
+import { usePortalVisibility } from '../../../components/shared/form/usePortalVisibility';
 import './CustomerProfile.css';
 
 export type DeleteCustomerDialogProps = {
@@ -21,6 +22,8 @@ export type DeleteCustomerDialogProps = {
  */
 export default function DeleteCustomerDialog({ customer, deleting = false, onKeep, onDelete }: DeleteCustomerDialogProps) {
     const keepRef = useRef<HTMLButtonElement>(null);
+    const portalRef = useRef<HTMLDivElement>(null);
+    usePortalVisibility(portalRef);
     useEffect(() => {
         keepRef.current?.focus();
         const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !deleting) { e.stopPropagation(); onKeep(); } };
@@ -29,7 +32,7 @@ export default function DeleteCustomerDialog({ customer, deleting = false, onKee
     }, [deleting, onKeep]);
 
     return createPortal(
-        <div className="cl cp">
+        <div ref={portalRef} className="cl cp">
             <div className="cp-cf-back" onClick={deleting ? undefined : onKeep} aria-hidden="true" />
             <div className="cp-cf-wrap">
                 <div className="cp-cf" role="alertdialog" aria-modal="true" aria-labelledby="cp-cf-title" aria-describedby="cp-cf-text">

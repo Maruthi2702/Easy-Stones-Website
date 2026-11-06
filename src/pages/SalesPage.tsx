@@ -26,6 +26,7 @@ import SalesTabViews from '../features/salesShell/SalesTabViews';
 import TabLoader from '../features/salesShell/TabLoader';
 import SalesModals from '../features/salesShell/SalesModals';
 import CustomersView from '../features/salesShell/CustomersView';
+import { customerListScope } from '../features/customers/list/listOptions';
 import CustomersList from '../features/salesShell/CustomersList';
 import { useSidebarLayout } from '../features/salesShell/useSidebarLayout';
 import { useSalesNavigation } from '../features/salesShell/useSalesNavigation';
@@ -378,8 +379,10 @@ const SalesPage = () => {
                     teamFiles={teamFiles}
                 />
 
-                {!authLoading && currentUser?.permissions && crmTab === 'customers' && currentUser.permissions.includes('view_customers') && (
+                {!authLoading && currentUser?.permissions && currentUser.permissions.includes('view_customers') && (
                     <CustomersView
+                        key={customerListScope(currentUser)}
+                        active={crmTab === 'customers'}
                         open={openCustomer}
                         actions={customerActions}
                         visits={visitEditor}

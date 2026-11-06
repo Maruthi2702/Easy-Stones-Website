@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
-import { globalPartnersCache, clearListCache } from './listOptions';
+import { globalPartnersCache, clearListCache, CUSTOMER_LIST_CACHE_TTL } from './listOptions';
 import type { ListFilters } from './useListFilters';
 import type { Loose } from '../../../types/records';
 
@@ -18,9 +18,10 @@ export type ListQueryDeps = {
     setCurrentPage: Dispatch<SetStateAction<number>>;
     limit: number;
     customerRefreshTrigger?: number;
+    cacheScope: string;
 };
 
-export function useCustomerListData({ activeTab, filters, sortBy, sortOrder, currentPage, setCurrentPage, limit, customerRefreshTrigger }: ListQueryDeps) {
+export function useCustomerListData({ activeTab, filters, sortBy, sortOrder, currentPage, setCurrentPage, limit, customerRefreshTrigger, cacheScope }: ListQueryDeps) {
     const { filterLevels, filterTypes, filterCities, filterStatuses, filterSalesReps, filterLocations, filterModa, view, letter } = filters;
     const [partners, setPartners] = useState<Loose[]>([]);
     const [loading, setLoading] = useState(true);
@@ -61,19 +62,24 @@ export function useCustomerListData({ activeTab, filters, sortBy, sortOrder, cur
     };
 
     const requestSeq = useRef(0);
+    const loadedKey = useRef('');
     const fetchPartners = useCallback(async ({ skipCache = false } = {}) => {
         const params = { ...listParams(), page: currentPage, limit };
-        const cacheKey = JSON.stringify(params);
+        const cacheKey = JSON.stringify({ scope: cacheScope, ...params });
         const seq = ++requestSeq.current;
         const cached = globalPartnersCache[cacheKey];
         if (cached) {
+            loadedKey.current = cacheKey;
             setPartners(cached.partners || []);
             setTotalPages(cached.totalPages || 1);
             setTotalCount(cached.totalCount || 0);
             setLoading(false);
-            if (!skipCache) return;
+            setLoadError('');
+            if (!skipCache && Date.now() - (cached.cachedAt || 0) < CUSTOMER_LIST_CACHE_TTL) return;
         } else {
-            setLoading(true);
+            // Invalidation means the same list needs a quiet refresh, not a
+            // new loading screen. A genuinely new query still loads normally.
+            setLoading(loadedKey.current !== cacheKey);
         }
         try {
             const response = await authFetch(urlFor(params) as unknown as string);
@@ -81,7 +87,8 @@ export function useCustomerListData({ activeTab, filters, sortBy, sortOrder, cur
             if (response.ok) {
                 const data = await response.json();
                 if (seq !== requestSeq.current) return;
-                globalPartnersCache[cacheKey] = data;
+                globalPartnersCache[cacheKey] = { ...data, cachedAt: Date.now() };
+                loadedKey.current = cacheKey;
                 setPartners(data.partners || []);
                 setTotalPages(data.totalPages || 1);
                 setTotalCount(data.totalCount || 0);
@@ -95,9 +102,15 @@ export function useCustomerListData({ activeTab, filters, sortBy, sortOrder, cur
         } finally {
             if (seq === requestSeq.current) setLoading(false);
         }
-    }, [listParams, currentPage, limit]);
+    }, [listParams, currentPage, limit, cacheScope]);
 
-    useEffect(() => { fetchPartners(); }, [fetchPartners, customerRefreshTrigger]);
+    useEffect(() => {
+        fetchPartners();
+        // A hidden page's effects disconnect. A response from before that
+        // point must not restore stale rows or repopulate a cleared cache.
+        const pending = requestSeq;
+        return () => { pending.current++; };
+    }, [fetchPartners, customerRefreshTrigger]);
 
     const refreshAll = useCallback(() => {
         clearListCache();

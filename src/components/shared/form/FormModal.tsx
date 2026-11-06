@@ -5,6 +5,7 @@ import useIsPhone, { prefersReducedMotion } from './useIsPhone';
 import { goToField, trapTab } from './formFocus';
 import { FormLayerContext } from './formLayer';
 import { lockPage, unlockPage } from '../pageLock';
+import { usePortalVisibility } from './usePortalVisibility';
 import './FormModal.css';
 
 /*
@@ -118,6 +119,8 @@ export default function FormModal({
             else dialogRef.current?.focus({ preventScroll: true });
         });
     };
+
+    usePortalVisibility(overlayRef);
 
     // Page lock + focus in/out. Layout effect so the page never visibly
     // scrolls under the form on the first frame.

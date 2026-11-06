@@ -5,6 +5,7 @@ import { getAuthToken, setAuthToken, clearAuthToken } from '../api/authToken';
 import { clearScheduleCache } from '../api/deliverySchedule';
 import { clearCustomers } from '../api/customerOptions';
 import { clearAllCache } from '../utils/dataCache';
+import { clearListCache } from '../features/customers/list/listOptions';
 import AuthContext from './AuthContext';
 import type { AuthUser, AuthContextValue, PasswordSetup } from './AuthContext';
 
@@ -13,7 +14,7 @@ import type { AuthUser, AuthContextValue, PasswordSetup } from './AuthContext';
 // to whoever loaded it. Dropped whenever that person goes, so the next login on
 // the same tab starts empty instead of briefly showing their branches.
 const forgetSessionData = () => {
-    for (const clear of [clearScheduleCache, clearCustomers, clearAllCache]) {
+    for (const clear of [clearScheduleCache, clearCustomers, clearAllCache, clearListCache]) {
         try { clear(); } catch (error) { console.error('Clearing session data:', error); }
     }
 };
@@ -95,6 +96,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             if (requestId !== authRequest.current) return null;
             if (!verifyRes.ok) {
                 if (verifyRes.status === 401 || verifyRes.status === 403) {
+                    forgetSessionData();
                     setUser(null); setPasswordSetup(null); setAuthFailure(null);
                     return null;
                 }
@@ -109,6 +111,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             // Server returns { valid: false } when no token is present —
             // with `setup` when this browser is mid first password.
             if (!authData.valid) {
+                forgetSessionData();
                 setAuthFailure(null);
                 setPasswordSetup(authData.setup ? await readPasswordSetup() : null);
                 setUser(null);
@@ -165,7 +168,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 return nextUser;
             } else {
                 if (profileRes.status === 401 || profileRes.status === 403) {
-                    if (requestId === authRequest.current) { setUser(null); setAuthFailure(null); }
+                    if (requestId === authRequest.current) { forgetSessionData(); setUser(null); setAuthFailure(null); }
                 } else throw new Error('Your account could not be loaded. Please retry in a moment.');
             }
         } catch (error) {

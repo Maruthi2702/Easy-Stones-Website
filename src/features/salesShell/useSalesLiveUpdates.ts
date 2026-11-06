@@ -6,6 +6,7 @@ import { expireCacheKeys } from '../../utils/dataCache';
 import { refreshCustomers } from '../../api/customerOptions';
 import { cartActions } from '../holds';
 import { clearInventoryCache } from '../../api/inventoryAnalysisCache';
+import { clearListCache } from '../customers/list/listOptions';
 
 /**
  * What the page does when the server says something changed. The handlers are
@@ -64,6 +65,8 @@ export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
         });
 
         socket.on('customer_update', () => {
+            clearListCache();
+            window.dispatchEvent(new Event('customers:changed'));
             onCustomersChanged();
             // Every customer dropdown, for a change made by anyone, anywhere.
             refreshCustomers();
