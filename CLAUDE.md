@@ -1087,6 +1087,51 @@ and CSV (Return count / amount columns) follow. Days before the start keep
 their typed grid (no Return row) and show "Payments page: $X" under it
 (`usePaymentsSummary`). Tests: `src/routes/dailyReportPaymentsFromPage.test.ts`.
 
+## Credit Card Receipts: the upload is the expense (2026-11-05, on `feat/card-receipts`)
+
+Accounting → **Credit Card Receipts** (`src/features/cardReceipts/`, nav
+`card_receipts`) and Admin → **Receipt Categories** (`receipt_categories`).
+Design and the owner's calls: the claude.ai artifacts **Credit Card Receipts
+Architecture** (https://claude.ai/artifact/64fQdQpmprHrsVuMbnBYDh) and **Credit
+Card Receipts UX** (https://claude.ai/artifact/CjnEH4QoPTtBwKt7hWYEvC). Rules are
+`src/utils/cardReceipts.ts` (tested), shared by the server and the screens; API
+`src/routes/cardReceipts.ts` (tested, in-memory MongoDB) at `/api/card-receipts`;
+models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpense`).
+- **One card per person** (`CompanyCard`, unique active per user and per card
+  ID like `MARU92069`: first 4 letters of the name + the last 5 digits).
+- **The cardholder uploads the receipt right after paying, and that upload is
+  the expense.** It belongs to the uploader and their card — never to a name or
+  digits printed on the receipt (Apple Pay prints other digits). The branch is
+  their home location, saved on the expense. The photo / PDF uploads when picked
+  (`POST /attachments`); the screen makes the `_id`, so a repeat answers
+  `alreadySaved`; the same day + total already saved answers 409 `repeat` until
+  "Save anyway" (`confirmRepeat`).
+- **Draft → Waiting for approval → Approved**, or **Sent back** with a comment.
+  Complete = a receipt or a **lost-receipt reason**, a category, and the
+  category's own fields (customer, who attended, purpose); until then it saves
+  as a draft. Approved can't be edited; voided with a reason, never deleted.
+- **Approval by role** (owner): each role lists the roles whose receipts it
+  approves — `Role.approvesCardReceiptsOf`, ticked under Roles & Permissions
+  once the role has Approve — from any branch, never your own. A lost receipt
+  needs the approver's comment. A new rule goes through `canApprove` /
+  `decisionProblem`; never check a role name.
+- **Categories** are a list in the database, seeded once
+  (`STARTING_CATEGORIES`); `name` is stored and never changes, `label` is shown.
+  A hidden one can't start an expense but stays valid on old ones; one in use is
+  deleted only by moving its expenses to a shown one.
+- **Excel** starts with the six columns of the card log accounting keeps today
+  (Transaction Date MM-DD-YYYY · Location · C C Holder Name · Credit Card Number ·
+  Description · Spent Amount; owner's sample), new fields after (`exportRows`).
+- Switches (Users & Roles → Accounting · Credit Card Receipts and Admin ·
+  Receipt Categories, `CARD_RECEIPTS`): My receipts, View all, Approve, Export,
+  Manage cards; categories add / edit / reorder / delete. Admin gets them through
+  `ALL_ACCOUNTING_PERMISSIONS`; nobody else until an admin turns them on.
+- **Not built yet** (owner's plan, in this order): reading the receipt
+  automatically (server-side; test 20–30 real receipts first), the weekly **Amex
+  PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
+  sample statement), the daily reminder email, closing a month, the PDF export.
+  The `missing` status and `approvesCardReceiptsOf` already exist for them.
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Plus, Trash2, Save } from 'lucide-react';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
+import { CARD_RECEIPTS } from '../../../utils/cardReceipts';
 import PagePermissionDialog from './PagePermissionDialog';
 import { PAGE_PERMISSIONS } from './pagePermissions';
 import type { UsersAllow } from '../usersAllow';
@@ -19,7 +20,7 @@ export type RolesSectionProps = {
  * a card's switches in a dialog.
  */
 export default function RolesSection({ roles, editor, allow }: RolesSectionProps) {
-    const { selectedRole, editedPermissions, editedManageable, savingPermissions, pagePopup } = editor;
+    const { selectedRole, editedPermissions, editedManageable, editedApprovable, savingPermissions, pagePopup } = editor;
     return (
         <div className="roles-panel-layout">
             {/* Left Roles Sidebar list */}
@@ -113,6 +114,28 @@ export default function RolesSection({ roles, editor, allow }: RolesSectionProps
                             );
                         })}
                     </div>
+
+                    {editedPermissions.includes(CARD_RECEIPTS.APPROVE) && (
+                        <div className="team-roles-panel">
+                            <h4>Card receipts {selectedRole.displayName} approves</h4>
+                            <p className="subtitle">
+                                The roles whose company-card receipts they approve or send back, from any branch.
+                                Nobody approves their own.
+                            </p>
+                            <div className="team-roles-list">
+                                {roles.map(x => (
+                                    <label key={x._id} className="team-role-option">
+                                        <input
+                                            type="checkbox"
+                                            checked={editedApprovable.includes(x.name)}
+                                            onChange={() => editor.toggleApprovable(x.name)}
+                                        />
+                                        {x.displayName}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {editedPermissions.includes(TEAM_PERMISSION) && !editedPermissions.includes('manage_users') && (
                         <div className="team-roles-panel">

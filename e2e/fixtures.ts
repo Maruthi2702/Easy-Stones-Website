@@ -10,7 +10,8 @@ export const staff = {
   permissions: ['view_dashboard', 'view_customers', 'view_pricelist', 'view_permits', 'view_inventory_analysis',
     'view_crossover_sheet', 'view_lost_sales', 'view_daily_report', 'view_delivery_schedule', 'view_checkins',
     'create_checkins', 'view_payments', 'view_fuel_man', 'view_freight_charges', 'view_all_holds',
-    'view_route_planner', 'manage_users', 'manage_type_lists', 'edit_nav_order', 'view_purchasing']
+    'view_route_planner', 'manage_users', 'manage_type_lists', 'edit_nav_order', 'view_purchasing',
+    'use_card_receipts', 'view_all_card_receipts', 'approve_card_receipts', 'manage_company_cards', 'add_receipt_categories']
 };
 
 /** Deterministic API boundary: no production backend, account, or database. */
@@ -52,6 +53,9 @@ export async function mockApi(page: Page, signedIn = false) {
     else if (path === '/api/payments-received/locations') body = { locations: ['Seattle'] };
     else if (path === '/api/payments-received') body = { payments: [], day: { submitted: false, submittedBy: '', submittedAt: null, autoSubmitted: false }, today: '2026-11-05' };
     else if (path === '/api/payments-received/summary') body = { net: 0, count: 0, taken: 0, returned: 0, grid: {} };
+    else if (path === '/api/card-receipts/me') body = { user: { id: 'u1', name: 'Alex Stone', location: 'Seattle' }, card: { _id: 'c1', userId: 'u1', label: 'ALEX12345', issuer: 'amex', lastDigits: '12345', active: true }, categories: [{ _id: 'k1', name: 'fuel', label: 'Fuel', order: 0, active: true, fields: { customer: false, attendees: false, purpose: false, recurring: false } }], approverRoles: [], today: '2026-11-05' };
+    else if (path === '/api/card-receipts/expenses') body = { expenses: [] };
+    else if (path === '/api/card-receipts/categories') body = { categories: [{ _id: 'k1', name: 'fuel', label: 'Fuel', order: 0, active: true, fields: { customer: false, attendees: false, purpose: false, recurring: false } }] };
     else if (path === '/api/customers/list') body = { partners: [], totalCount: 0, totalPages: 1 };
     else if (path === '/api/customers/view-counts') body = { incomplete: 0 };
     else if (path === '/api/customers/map/rep-counts') body = {};

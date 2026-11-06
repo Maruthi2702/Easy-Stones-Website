@@ -8,11 +8,12 @@ import { PERMITS } from '../../../permits/permissions';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet
+    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, ListOrdered
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
 import { PAYMENTS } from '../../../utils/paymentsReceived';
+import { CARD_RECEIPTS } from '../../../utils/cardReceipts';
 import { FULL_ACCESS, USERS, ROLES, LOCATIONS, VISIT_TYPES, RESOURCE_TYPES, TYPE_LISTS_ALL, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
 import type { PageDef, RoleRecord } from '../types';
 
@@ -322,6 +323,30 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: FUEL_MAN.CLOSE, label: 'Close periods', icon: Lock, desc: 'Close or reopen Fuel Man reporting periods with a reason' },
             { key: FUEL_MAN.EXPORT, label: 'Export', icon: Download, desc: 'Export approved P&L input for assigned locations' },
             { key: FUEL_MAN.HISTORY, label: 'History', icon: Clock, desc: 'Read report import, reconciliation and approval history' }
+        ]
+    },
+    {
+        // Accounting → Credit Card Receipts (src/utils/cardReceipts.ts, 2026-11-05).
+        // Who approves whom is set on each role under Roles & Permissions
+        // ("Card receipts … approves"), shown once Approve is on.
+        id: 'accounting_card_receipts', page: 'Accounting · Credit Card Receipts', icon: CreditCard,
+        description: 'Company-card receipts: uploaded when paid, approved by someone above, exported for accounting', color: '#d4af37',
+        actions: [
+            { key: CARD_RECEIPTS.USE, label: 'My receipts', icon: Camera, desc: 'Upload receipts for their own company card and see their own expenses' },
+            { key: CARD_RECEIPTS.VIEW_ALL, label: 'View all', icon: Eye, desc: 'See every cardholder’s expenses and receipts' },
+            { key: CARD_RECEIPTS.APPROVE, label: 'Approve', icon: CheckCheck, desc: 'Approve or send back the receipts of the roles this role approves (set below the cards), never their own' },
+            { key: CARD_RECEIPTS.EXPORT, label: 'Export', icon: Download, desc: 'Download the expenses they can see to Excel' },
+            { key: CARD_RECEIPTS.MANAGE_CARDS, label: 'Manage cards', icon: CreditCard, desc: 'Add company cards, link each to its holder, deactivate them' }
+        ]
+    },
+    {
+        id: 'receipt_categories', page: 'Admin · Receipt Categories', icon: ListOrdered,
+        description: 'The list staff pick from when they save a card receipt', color: '#a16207',
+        actions: [
+            { key: CARD_RECEIPTS.CATEGORY_ADD, label: 'Add', icon: Plus, desc: 'Add a receipt category' },
+            { key: CARD_RECEIPTS.CATEGORY_EDIT, label: 'Edit', icon: Pencil, desc: 'Rename a category, choose what it asks for, hide or show it' },
+            { key: CARD_RECEIPTS.CATEGORY_REORDER, label: 'Reorder', icon: ArrowUpDown, desc: 'Change the order everyone’s dropdown shows' },
+            { key: CARD_RECEIPTS.CATEGORY_DELETE, label: 'Delete', icon: Trash2, desc: 'Delete a category; expenses that use it move to another one first' }
         ]
     },
     {

@@ -9,6 +9,7 @@
  */
 
 import { ALL_FUEL_MAN_PERMISSIONS } from '../fuelman/permissions.ts';
+import { ALL_CARD_RECEIPT_PERMISSIONS } from '../utils/cardReceipts.ts';
 import type { PermissionUser } from '../types/permissions.ts';
 
 export const FREIGHT = Object.freeze({
@@ -31,6 +32,8 @@ export const CARRIERS = Object.freeze({
 
 export const ALL_ACCOUNTING_PERMISSIONS = Object.freeze([
   ...ALL_FUEL_MAN_PERMISSIONS,
+  // Credit Card Receipts (src/utils/cardReceipts.ts, 2026-11-05).
+  ...ALL_CARD_RECEIPT_PERMISSIONS,
   ...Object.values(FREIGHT),
   ...Object.values(CARRIERS)
 ]);

@@ -19,6 +19,7 @@ import { PERMITS } from '../permits/permissions.ts';
 import { canCheckIn, canViewCheckInLog } from './checkInAccess.ts';
 import { canViewLostSales } from './lostSaleAccess.ts';
 import { PAYMENTS } from './paymentsReceived.ts';
+import { canOpenReceipts, canOpenCategories } from './cardReceipts.ts';
 import { canOpenUsersPage } from './teamAccess.ts';
 import { canOpenArea, can, NAV_ORDER } from './usersAccess.ts';
 
@@ -91,6 +92,8 @@ export const NAV_ITEMS: NavItem[] = [
   // every Accounting action.
   { id: 'freight', label: '3rd-Party Freight', section: 'accounting', canSee: (u: NavUser) => has(u, 'view_freight_charges') },
   { id: 'fuel_man', label: 'Fuel Man', section: 'accounting', canSee: (u: NavUser) => has(u, 'view_fuel_man') },
+  // Credit Card Receipts (src/features/cardReceipts/): any of its switches opens it.
+  { id: 'card_receipts', label: 'Credit Card Receipts', section: 'accounting', canSee: (u: NavUser) => canOpenReceipts(u) },
   // Users & Roles is three pages (2026-10-16), each opened by any action in its area
   // (src/utils/usersAccess.ts), Users also by team access (src/utils/teamAccess.ts).
   { id: 'users', label: 'Users', section: 'admin', canSee: (u: NavUser) => canOpenUsersPage(u) },
@@ -99,6 +102,7 @@ export const NAV_ITEMS: NavItem[] = [
   // The lists the Add visit / Add resource forms offer (src/features/types/), opened by any action on them.
   { id: 'visit_types', label: 'Visit Types', section: 'admin', canSee: (u: NavUser) => canOpenArea(u, 'visitTypes') },
   { id: 'resource_types', label: 'Resource Types', section: 'admin', canSee: (u: NavUser) => canOpenArea(u, 'resourceTypes') },
+  { id: 'receipt_categories', label: 'Receipt Categories', section: 'admin', canSee: (u: NavUser) => canOpenCategories(u) },
   // The side nav's order for everyone (NavOrderTab.jsx); saving needs the same permission.
   { id: 'nav_order', label: 'Side Nav Order', section: 'admin', canSee: (u: NavUser) => can(u, NAV_ORDER) }
 ];

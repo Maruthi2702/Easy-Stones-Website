@@ -31,6 +31,13 @@ const roleSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
+  // Credit Card Receipts (src/utils/cardReceipts.ts): the roles whose company-
+  // card receipts this role's holders approve, from any branch, when the role
+  // has approve_card_receipts. Set per role in Roles & Permissions.
+  approvesCardReceiptsOf: {
+    type: [String],
+    default: []
+  },
   isSystem: {
     type: Boolean,
     default: false

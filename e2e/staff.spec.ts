@@ -11,7 +11,7 @@ for (const [tab, heading] of [
   ['dashboard', 'Dashboard'], ['customers', 'Customers'], ['payments', 'Payments'], ['holds', 'Holds'],
   ['fuel_man', 'Fuel Man'], ['freight', '3rd-Party Freight'], ['delivery_schedule', 'Delivery Schedule'],
   ['daily_report', 'Daily Work Report'], ['visit_types', 'Visit Types'], ['resource_types', 'Resource Types'],
-  ['checkin', 'Visitor Check-In Log']
+  ['checkin', 'Visitor Check-In Log'], ['card_receipts', 'Credit Card Receipts'], ['receipt_categories', 'Receipt Categories']
 ]) {
   test(`Sales opens ${tab} with its real components`, async ({ page }) => {
     const failures: string[] = [];

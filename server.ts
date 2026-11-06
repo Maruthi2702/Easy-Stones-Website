@@ -96,6 +96,8 @@ import { runWorkbookParse } from './src/utils/runWorkbookParse.ts';
 import createDailyReportsRouter from './src/routes/dailyReports.ts';
 import createPaymentsReceivedRouter from './src/routes/paymentsReceived.ts';
 import { PAYMENTS_MIGRATION } from './src/utils/paymentsReceived.ts';
+import createCardReceiptsRouter from './src/routes/cardReceipts.ts';
+import { cleanApproverRoles } from './src/utils/cardReceipts.ts';
 import createDeliveriesRouter, { deliveryRoomsFor, renumberAllRuns } from './src/routes/deliveries.ts';
 import createCheckInRouter from './src/routes/checkIn.ts';
 import createFuelManRouter from './src/fuelman/router.ts';
@@ -2055,7 +2057,7 @@ app.post('/api/admin/roles', verifyAnyAuth, requireAction(ROLES.ADD), async (req
 app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
-    const { permissions, displayName, manageableRoles } = req.body;
+    const { permissions, displayName, manageableRoles, approvesCardReceiptsOf } = req.body;
     const roleId = requestParams.id;
 
     const role = await Role.findById(roleId);
@@ -2066,6 +2068,8 @@ app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), valida
     if (permissions !== undefined) role.permissions = permissions;
     if (displayName !== undefined) role.displayName = displayName;
     if (manageableRoles !== undefined) role.manageableRoles = cleanManageableRoles(manageableRoles, role.name);
+    // Credit Card Receipts: whose receipts this role approves (src/utils/cardReceipts.ts).
+    if (approvesCardReceiptsOf !== undefined) role.approvesCardReceiptsOf = cleanApproverRoles(approvesCardReceiptsOf);
 
     await role.save();
     // A role's permissions decide who counts as a delivery driver in the
@@ -4442,6 +4446,13 @@ app.use('/api/daily-reports', createDailyReportsRouter({
 app.use('/api/payments-received', createPaymentsReceivedRouter({
   authenticate,
   requirePermission
+}));
+
+// ── CREDIT CARD RECEIPTS ── company-card expenses, one per receipt, with
+// approval by role (src/routes/cardReceipts.ts, rules in src/utils/cardReceipts.ts).
+app.use('/api/card-receipts', createCardReceiptsRouter({
+  authenticate,
+  processBase64Image
 }));
 
 // ── MANIFEST DISPATCH SCHEDULER ENDPOINTS (MongoDB Persisted) ──

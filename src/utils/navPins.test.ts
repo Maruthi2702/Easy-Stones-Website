@@ -130,8 +130,8 @@ describe('admin nav order', () => {
       ['sales', ['lost_sales', 'customers', 'route_planner', 'holds', 'permits', 'team_files']],
       ['home', ['dashboard']],
       ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet', 'live_inventory']],
-      ['accounting', ['freight', 'fuel_man']],
-      ['admin', ['users', 'roles', 'locations', 'visit_types', 'resource_types', 'nav_order']]
+      ['accounting', ['freight', 'fuel_man', 'card_receipts']],
+      ['admin', ['users', 'roles', 'locations', 'visit_types', 'resource_types', 'receipt_categories', 'nav_order']]
     ]);
   });
 

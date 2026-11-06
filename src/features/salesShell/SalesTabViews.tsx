@@ -10,6 +10,7 @@ import { canViewCheckInLog } from '../../utils/checkInAccess';
 import { canOpenUsersPage } from '../../utils/teamAccess';
 import { canOpenArea, can, NAV_ORDER } from '../../utils/usersAccess';
 import { PERMITS } from '../../permits/permissions';
+import { canOpenReceipts, canOpenCategories } from '../../utils/cardReceipts';
 import { TeamFilesPage } from '../teamFiles';
 import type { TeamFiles } from '../teamFiles';
 import type { Loose } from '../../types/records';
@@ -37,6 +38,8 @@ const DeliveryScheduleTab = page(() => import('../delivery/DeliveryScheduleTab')
 const DailyReportTab = page(() => import('../dailyReport/DailyReportTab'));
 const PaymentsPage = page(() => import('../payments/PaymentsPage'));
 const FuelManPage = page(() => import('../fuelman'));
+const CardReceiptsPage = page(() => import('../cardReceipts/CardReceiptsPage'));
+const ReceiptCategoriesPage = page(() => import('../cardReceipts/categories/ReceiptCategoriesPage'));
 const FreightTab = page(() => import('../freight/FreightTab'));
 const HoldsTab = page(() => import('../holds/HoldsTab'));
 const PermitsTab = page(() => import('../../components/sales/permits/PermitsTab'));
@@ -197,6 +200,22 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
             {ready && crmTab === 'fuel_man' && perms.includes('view_fuel_man') && (
                 <ErrorBoundary key="fuel-man-view">
                     <Suspense fallback={<TabLoader />}><FuelManPage key={currentUser?.id || currentUser?._id || 'fuel-man'} currentUser={currentUser} sidebarToggle={menu(true)} /></Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && crmTab === 'card_receipts' && canOpenReceipts(currentUser) && (
+                <ErrorBoundary key="card-receipts-view">
+                    <Suspense fallback={<TabLoader />}>
+                        <CardReceiptsPage currentUser={currentUser} sidebarToggle={menu(true)} />
+                    </Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && crmTab === 'receipt_categories' && canOpenCategories(currentUser) && (
+                <ErrorBoundary key="receipt-categories-view">
+                    <Suspense fallback={<TabLoader />}>
+                        <ReceiptCategoriesPage currentUser={currentUser} sidebarToggle={menu()} />
+                    </Suspense>
                 </ErrorBoundary>
             )}
 

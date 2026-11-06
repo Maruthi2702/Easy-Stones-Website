@@ -35,6 +35,8 @@ export type RoleRecord = {
     isSystem?: boolean;
     permissions?: string[];
     manageableRoles?: string[];
+    /** Credit Card Receipts: the roles whose receipts this role approves. */
+    approvesCardReceiptsOf?: string[];
     [key: string]: unknown;
 };
 
