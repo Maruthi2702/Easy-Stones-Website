@@ -8,6 +8,7 @@ import type { Payment } from '../types';
 export type PaymentListProps = {
   rows: Payment[];
   isPhone: boolean;
+  showLocation?: boolean;
   /** "Credit Card · 2 entries" — what the total line is a total of. */
   shownLabel: string;
   shownCents: number;
@@ -27,7 +28,7 @@ const MethodChip = ({ method }: { method: string }) => (
  * the total of what's listed. A voided payment stays, struck through, with
  * who voided it and why. Edit / Void are in the row's ⋯ (none on a locked day).
  */
-export default function PaymentList({ rows, isPhone, shownLabel, shownCents, shownCount, canEdit, canVoid, onEdit, onVoid }: PaymentListProps) {
+export default function PaymentList({ rows, isPhone, showLocation = false, shownLabel, shownCents, shownCount, canEdit, canVoid, onEdit, onVoid }: PaymentListProps) {
   const menu = (p: Payment) => {
     if (p.voided) return null;
     const items: RowMenuItem[] = [];
@@ -50,7 +51,7 @@ export default function PaymentList({ rows, isPhone, shownLabel, shownCents, sho
           <div key={p.id} className={`pay-card${p.voided ? ' is-void' : ''}`}>
             <div className="pay-card-main">
               <div className="pay-co">{p.customerName}</div>
-              <div className="pay-sub">{timeLabel(p.createdAt)} · {p.invoice || 'No invoice #'}</div>
+              <div className="pay-sub">{showLocation ? `${p.location} · ` : ''}{timeLabel(p.createdAt)} · {p.invoice || 'No invoice #'}</div>
             </div>
             <div className={`pay-amt${p.cents < 0 ? ' pay-neg' : ''}`}>{formatMoney(p.cents)}</div>
             <div className="pay-card-meta">
@@ -71,7 +72,7 @@ export default function PaymentList({ rows, isPhone, shownLabel, shownCents, sho
       <table className="pay-table">
         <thead>
           <tr>
-            <th>Time</th><th>Company</th><th>Method</th><th className="pay-num">Amount</th>
+            <th>Time</th><th>Company</th>{showLocation ? <th>Location</th> : null}<th>Method</th><th className="pay-num">Amount</th>
             <th>Invoice / SO #</th><th>Reference</th><th>Note</th><th>Entered by</th><th aria-label="Actions" />
           </tr>
         </thead>
@@ -80,6 +81,7 @@ export default function PaymentList({ rows, isPhone, shownLabel, shownCents, sho
             <tr key={p.id} className={p.voided ? 'is-void' : undefined}>
               <td className="pay-sub pay-nowrap">{timeLabel(p.createdAt)}</td>
               <td><div className="pay-co">{p.customerName}</div></td>
+              {showLocation ? <td>{p.location}</td> : null}
               <td><MethodChip method={p.method} />{p.voided ? <span className="pay-void-tag">Voided</span> : null}</td>
               <td className={`pay-num pay-amt${p.cents < 0 ? ' pay-neg' : ''}`}>{formatMoney(p.cents)}</td>
               <td>{p.invoice || <span className="pay-muted">—</span>}</td>
@@ -96,7 +98,7 @@ export default function PaymentList({ rows, isPhone, shownLabel, shownCents, sho
         </tbody>
         <tfoot>
           <tr className="pay-shown">
-            <td colSpan={3}>{shownLabel} · {shownCount} {shownCount === 1 ? 'entry' : 'entries'}</td>
+            <td colSpan={showLocation ? 4 : 3}>{shownLabel} · {shownCount} {shownCount === 1 ? 'entry' : 'entries'}</td>
             <td className={`pay-num${shownCents < 0 ? ' pay-neg' : ''}`}><strong>{formatMoney(shownCents)}</strong></td>
             <td colSpan={5} />
           </tr>

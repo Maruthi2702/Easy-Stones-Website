@@ -2,7 +2,7 @@ import type { Loose } from '../types/records.ts';
 // Payments received (src/routes/paymentsReceived.ts) against a throwaway
 // in-memory MongoDB: who may do what, branch access, the Return sign, a
 // repeated save, edits with their history, voids, and the submitted-day lock.
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import mongoose from 'mongoose';
@@ -114,6 +114,71 @@ describe('who may', () => {
     expect(res.body).toMatchObject({ count: 2, net: 385000, taken: 485000, returned: -100000 });
     expect(res.body.grid.check).toEqual({ count: 1, amount: 4850 });
     expect(res.body.grid.return).toEqual({ count: 1, amount: -1000 });
+  });
+});
+
+describe('All locations', () => {
+  const MULTI = { ...VIEWER, assignedLocations: ['Seattle', 'Dallas'] };
+
+  async function branches() {
+    await as(CLERK).post('', payment({ customerName: 'Seattle Company', amount: '100' })).expect(201);
+    await as(ADMIN).post('', payment({ location: 'Dallas', customerName: 'Dallas Company', amount: '200' })).expect(201);
+    await as(ADMIN).post('', payment({ location: 'Spokane', customerName: 'Spokane Company', amount: '300' })).expect(201);
+    await as(ADMIN).post('', payment({ location: 'Dallas', date: '2026-10-29', customerName: 'Another day' })).expect(201);
+  }
+
+  it('combines the selected day across all branches assigned to an administrator', async () => {
+    await branches();
+    const res = await as(ADMIN).get(`?location=*&date=${DAY}`).expect(200);
+    expect(res.body.payments.map((p: Loose) => p.location).sort()).toEqual(['Dallas', 'Seattle', 'Spokane']);
+    expect(res.body.payments.reduce((total: number, p: Loose) => total + p.cents, 0)).toBe(60000);
+    expect(res.body.payments.some((p: Loose) => p.customerName === 'Another day')).toBe(false);
+  });
+
+  it('limits a combined request to the assigned branches', async () => {
+    await branches();
+    const res = await as(MULTI).get(`?location=*&date=${DAY}`).expect(200);
+    expect(res.body.payments.map((p: Loose) => p.location).sort()).toEqual(['Dallas', 'Seattle']);
+  });
+
+  it('does not widen a single-branch account, even if it has an admin role', async () => {
+    await branches();
+    const res = await as({ ...VIEWER, role: 'admin' }).get(`?location=*&date=${DAY}`).expect(200);
+    expect(res.body.payments.map((p: Loose) => p.location)).toEqual(['Seattle']);
+  });
+
+  it('requires both view permission and at least one assigned branch', async () => {
+    await as({ ...ADMIN, permissions: [] }).get(`?location=*&date=${DAY}`).expect(403);
+    await as({ ...VIEWER, assignedLocations: [] }).get(`?location=*&date=${DAY}`).expect(403);
+  });
+
+  it('requires a real branch when adding, including for an administrator', async () => {
+    await as(ADMIN).post('', payment({ location: '*' })).expect(403);
+    expect(await PaymentReceived.countDocuments()).toBe(0);
+  });
+
+  it('keeps submitted-day locks on the individual branches', async () => {
+    await branches();
+    await submit();
+    const combined = await as(ADMIN).get(`?location=*&date=${DAY}`).expect(200);
+    expect(combined.body.payments).toHaveLength(3);
+    const single = await as(ADMIN).get(`?location=Seattle&date=${DAY}`).expect(200);
+    expect(single.body.day.submitted).toBe(true);
+    await as(ADMIN).post('', payment()).expect(409);
+    await as(ADMIN).post('', payment({ location: 'Dallas' })).expect(201);
+  });
+
+  it('allows reading the latest current day when branches cross midnight at different times', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-06T05:30:00Z'));
+    try {
+      const combined = await as(ADMIN).get(`?location=*&date=${DAY}`).expect(200);
+      const seattle = await as(ADMIN).get(`?location=Seattle&date=${DAY}`).expect(200);
+      expect(combined.body.today).toBe('2026-11-06');
+      expect(seattle.body.today).toBe('2026-11-05');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

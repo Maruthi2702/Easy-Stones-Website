@@ -36,7 +36,7 @@ export type PaymentBody = {
 
 export const paymentLocations = () => call<{ locations: string[] }>('/locations');
 export const listPayments = (location: string, date: string) =>
-  call<{ payments: Payment[]; day: PaymentDay; today: string }>('', { query: { location, date } });
+  call<{ payments: Payment[]; day: PaymentDay; today: string }>('', { query: { location: location || '*', date } });
 export const paymentSummary = (location: string, date: string) => call<PaymentSummary>('/summary', { query: { location, date } });
 export const addPayment = (id: string, location: string, body: PaymentBody) =>
   call<{ payment: Payment; alreadySaved?: boolean }>('', { method: 'POST', body: { id, location, ...body } });

@@ -14,7 +14,7 @@ import {
  * branch's day; the rules are src/utils/paymentsReceived.ts.
  *
  *   GET  /locations                 the branches this login may pick
- *   GET  /?location=&date=          the day's payments, its report status, the branch's today
+ *   GET  /?location=&date=          the day's payments; '*' reads all assigned branches
  *   GET  /summary?location=&date=   the day's totals as the Daily Report grid holds them
  *   POST /                          add (the body's `id` is the new payment's _id: a repeat answers alreadySaved)
  *   PUT  /:id                       edit
@@ -80,11 +80,15 @@ export default function createPaymentsReceivedRouter({ authenticate, requirePerm
   router.get('/', canView, validateScalarRequest, async (req: Request, res: Response) => {
     const { location, date } = scalarQuery(req);
     if (!isDay(date)) return res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' });
-    if (!canSeeLocation(req, location)) return res.status(403).json({ message: 'That branch is not assigned to you.' });
+    const all = location === '*';
+    const locations = all ? allowedLocations(req) : canSeeLocation(req, location) ? [location as string] : [];
+    if (!locations.length) return res.status(403).json({ message: 'That branch is not assigned to you.' });
     try {
       const [rows, report] = await Promise.all([
-        PaymentReceived.find({ location, date }).sort({ createdAt: 1 }).lean(),
-        DailyReport.findOne({ location, date }, 'status submittedBy submittedAt autoSubmitted').lean()
+        PaymentReceived.find({ location: all ? { $in: locations } : location, date }).sort({ createdAt: 1, _id: 1 }).lean(),
+        // Report locks belong to individual branches. The combined view is
+        // read-only; choose a branch before making changes.
+        all ? Promise.resolve(null) : DailyReport.findOne({ location, date }, 'status submittedBy submittedAt autoSubmitted').lean()
       ]);
       res.json({
         payments: rows.map(view),
@@ -94,7 +98,9 @@ export default function createPaymentsReceivedRouter({ authenticate, requirePerm
           submittedAt: report?.submittedAt || null,
           autoSubmitted: Boolean(report?.autoSubmitted)
         },
-        today: branchNow(location as string).date
+        // Some branches have already crossed midnight while others have not.
+        // The combined reader can show the latest current day among its branches.
+        today: locations.map(name => branchNow(name).date).sort().at(-1)
       });
     } catch (error) {
       console.error('[payments-received] list failed:', error);

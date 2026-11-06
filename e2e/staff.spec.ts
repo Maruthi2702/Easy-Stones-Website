@@ -99,3 +99,46 @@ test.describe('Delivery date defaults', () => {
     await expect(page.locator('#df-date')).toContainText('Fri, Oct 30, 2026');
   });
 });
+
+test.describe('Payments location filters', () => {
+  test.use({ timezoneId: 'America/Los_Angeles' });
+
+  test('admin can view All locations with combined totals and return to a branch', async ({ page, isMobile }) => {
+    await page.clock.setFixedTime(new Date('2026-11-05T20:00:00Z'));
+    await page.route('http://127.0.0.1:4175/api/user/me', route => route.fulfill({ json: {
+      ...staff, permissions: [...staff.permissions, 'add_payments', 'edit_payments', 'void_payments']
+    } }));
+    const payment = (id: string, location: string, cents: number) => ({
+      id, location, cents, date: '2026-11-05', customerId: `c-${id}`, customerName: `${location} Company`,
+      method: 'cash', invoice: '', reference: '', note: '', enteredBy: 'Alex', createdAt: '2026-11-05T18:00:00Z',
+      updatedBy: 'Alex', updatedAt: '2026-11-05T18:00:00Z', voided: null, history: []
+    });
+    const rows = [payment('p1', 'Seattle', 10000), payment('p2', 'Spokane', 20000)];
+    await page.route('http://127.0.0.1:4175/api/payments-received**', async route => {
+      const url = new URL(route.request().url());
+      if (url.pathname.endsWith('/locations')) return route.fulfill({ json: { locations: ['Seattle', 'Spokane'] } });
+      if (url.pathname !== '/api/payments-received') return route.fallback();
+      const location = url.searchParams.get('location');
+      await route.fulfill({ json: { payments: location === '*' ? rows : rows.filter(row => row.location === location),
+        day: { submitted: location === 'Seattle', submittedBy: 'Alex', submittedAt: null, autoSubmitted: false }, today: '2026-11-05' } });
+    });
+    await page.goto('/sales?tab=payments');
+    await expect(page.getByText('Seattle Company', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Filters', exact: true }).click();
+    await page.locator('#pay-filter-location').click();
+    await page.getByRole('option', { name: 'All locations', exact: true }).click();
+    const list = page.locator(isMobile ? '.pay-cards' : '.pay-table');
+    await expect(list).toContainText('Seattle Company');
+    await expect(list).toContainText('Spokane Company');
+    await expect(list).toContainText('Seattle');
+    await expect(list).toContainText('Spokane');
+    await expect(page.locator('.pay-shown strong')).toHaveText('$300.00');
+    await expect(page.getByRole('button', { name: 'Add payment', exact: true })).toBeDisabled();
+    await expect(page.getByRole('status')).toContainText('Choose a location');
+    await page.locator('#pay-filter-location').click();
+    await page.getByRole('option', { name: /^Spokane/ }).click();
+    await expect(list).not.toContainText('Seattle Company');
+    await expect(list).toContainText('Spokane Company');
+    await expect(page.getByRole('button', { name: 'Add payment', exact: true })).toBeEnabled();
+  });
+});

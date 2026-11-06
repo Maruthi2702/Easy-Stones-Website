@@ -36,13 +36,14 @@ export type PaymentsHeaderProps = {
  */
 export default function PaymentsHeader(p: PaymentsHeaderProps) {
   const home = homeLocationOf(p.user || {});
-  const active = p.filters.method !== 'all' || p.filters.showVoided || (Boolean(home) && p.location !== home) || p.date !== p.today;
+  const defaultLocation = p.locations.includes(home) ? home : p.locations[0] || '';
+  const active = p.filters.method !== 'all' || p.filters.showVoided || (p.locations.length > 0 && p.location !== defaultLocation) || p.date !== p.today;
   return (
     <div className="pay-head">
       {p.sidebarToggle}
       <div className="pay-ttl">
         <h1>Payments</h1>
-        <span>{p.location}{p.location && p.location === home ? ' · Home' : ''} · {dayLabel(p.date)}</span>
+        <span>{p.location || 'All locations'}{p.location && p.location === home ? ' · Home' : ''} · {dayLabel(p.date)}</span>
       </div>
       {p.locked ? <span className="pay-pill"><Lock size={12} aria-hidden="true" /> Submitted</span> : null}
       {p.isPhone ? (
@@ -62,7 +63,7 @@ export default function PaymentsHeader(p: PaymentsHeaderProps) {
           onClear={() => {
             p.onFilters({ method: 'all', showVoided: false });
             p.onDate(p.today);
-            if (home && p.locations.includes(home)) p.onLocation(home);
+            if (defaultLocation) p.onLocation(defaultLocation);
           }}
         >
           <div className="lf-group">
@@ -72,8 +73,8 @@ export default function PaymentsHeader(p: PaymentsHeaderProps) {
           {p.locations.length > 1 ? (
             <div className="lf-group pay-filter-gap">
               <label className="lf-group-label" htmlFor="pay-filter-location">Location</label>
-              <LocationPicker id="pay-filter-location" value={p.location} onChange={(v) => v && p.onLocation(v)}
-                options={p.locations} user={p.user} sheetTitle="Location" />
+              <LocationPicker id="pay-filter-location" value={p.location} onChange={p.onLocation}
+                allLabel="All locations" options={p.locations} user={p.user} sheetTitle="Location" />
             </div>
           ) : null}
           <div className="lf-group pay-filter-gap">

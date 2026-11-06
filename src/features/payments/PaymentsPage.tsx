@@ -35,10 +35,12 @@ export default function PaymentsPage({ currentUser, sidebarToggle = null }: Paym
   const [toast, setToast] = useState('');
 
   const perms = currentUser?.permissions || [];
+  const allLocations = data.locations.length > 1 && !data.location;
   const locked = data.day.submitted;
-  const canAdd = perms.includes(PAYMENTS.ADD) && !locked;
-  const canEdit = perms.includes(PAYMENTS.EDIT) && !locked;
-  const canVoid = perms.includes(PAYMENTS.VOID) && !locked;
+  const canChange = Boolean(data.location) && !data.loading && !data.error && !locked;
+  const canAdd = perms.includes(PAYMENTS.ADD) && canChange;
+  const canEdit = perms.includes(PAYMENTS.EDIT) && canChange;
+  const canVoid = perms.includes(PAYMENTS.VOID) && canChange;
 
   const totals = paymentTotals(data.payments);
   const { base, rows, shown } = visiblePayments(data.payments, filters);
@@ -83,6 +85,9 @@ export default function PaymentsPage({ currentUser, sidebarToggle = null }: Paym
           </div>
         ) : null}
         {data.error ? <div className="pay-note is-error" role="alert">{data.error}</div> : null}
+        {allLocations && (perms.includes(PAYMENTS.ADD) || perms.includes(PAYMENTS.EDIT) || perms.includes(PAYMENTS.VOID)) ? (
+          <div className="pay-note" role="status">Choose a location to add or change payments.</div>
+        ) : null}
 
         {!isPhone ? <PaymentTiles totals={totals} method={filters.method} onMethod={pickMethod} /> : null}
 
@@ -91,6 +96,7 @@ export default function PaymentsPage({ currentUser, sidebarToggle = null }: Paym
             <PaymentList
               rows={rows}
               isPhone={isPhone}
+              showLocation={allLocations}
               shownLabel={filters.search ? `${shownLabel} matching “${filters.search.trim()}”` : shownLabel}
               shownCents={shown.net}
               shownCount={shown.count}
@@ -116,7 +122,7 @@ export default function PaymentsPage({ currentUser, sidebarToggle = null }: Paym
 
       {perms.includes(PAYMENTS.ADD) ? (
         <button type="button" className="pay-fab" onClick={() => setOpen({ kind: 'add' })} disabled={!canAdd || !data.location}
-          aria-label="Add payment" title={locked ? 'This day is submitted. Reopen it to add a payment' : 'Add payment'}>
+          aria-label="Add payment" title={allLocations ? 'Choose a location to add a payment' : locked ? 'This day is submitted. Reopen it to add a payment' : 'Add payment'}>
           <Plus size={24} strokeWidth={2.4} aria-hidden="true" />
         </button>
       ) : null}

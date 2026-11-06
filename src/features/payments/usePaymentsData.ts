@@ -10,7 +10,7 @@ const NO_DAY: PaymentDay = { submitted: false, submittedBy: '', submittedAt: nul
 
 /**
  * The Payments page's data: which branches this login may pick, the branch
- * and day on screen, that day's payments and whether its Daily Report is
+ * (or all assigned branches) and day on screen, that day's payments and whether its Daily Report is
  * submitted (locked), and the branch's own today (no payment after it).
  * Answers for a branch or day no longer on screen are ignored.
  */
@@ -21,6 +21,7 @@ export function usePaymentsData(user: PaymentsUser | null) {
   const [today, setToday] = useState(todayISO());
   const [payments, setPayments] = useState<Payment[]>([]);
   const [day, setDay] = useState<PaymentDay>(NO_DAY);
+  const [loadedFor, setLoadedFor] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const asked = useRef('');
@@ -42,7 +43,8 @@ export function usePaymentsData(user: PaymentsUser | null) {
   }, []);
 
   const load = useCallback(async () => {
-    if (!location) return;
+    // A blank picker means All locations once the allowed branches load.
+    if (!locations.length) return;
     const key = `${location}|${date}`;
     asked.current = key;
     setLoading(true);
@@ -56,12 +58,13 @@ export function usePaymentsData(user: PaymentsUser | null) {
       setPayments(res.payments);
       setDay(res.day);
       setToday(res.today);
+      setLoadedFor(key);
     } catch (e) {
       if (asked.current === key) setError((e as Error).message);
     } finally {
       if (asked.current === key) setLoading(false);
     }
-  }, [location, date]);
+  }, [location, date, locations]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -86,7 +89,11 @@ export function usePaymentsData(user: PaymentsUser | null) {
     return res.payment;
   };
 
-  return { locations, location, setLocation, date, setDate, today, payments, day, loading, error, reload: load, add, edit, voidOne };
+  // Do not present another branch's rows or lock state as the newly selected
+  // view while its request is pending (or if that request fails).
+  const current = loadedFor === `${location}|${date}`;
+  return { locations, location, setLocation, date, setDate, today, payments: current ? payments : [], day: current ? day : NO_DAY,
+    loading: loading || (locations.length > 0 && !current && !error), error, reload: load, add, edit, voidOne };
 }
 
 export type PaymentsData = ReturnType<typeof usePaymentsData>;

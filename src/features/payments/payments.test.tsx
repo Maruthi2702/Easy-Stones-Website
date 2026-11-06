@@ -17,17 +17,22 @@ const PAYMENTS = [
   pay('c', { customerName: 'Rainier Granite Fabrication', method: 'return', cents: -200000, invoice: 'INV-20356', reference: 'R-0912', note: '2 slabs returned' }),
   pay('d', { customerName: 'Harbor Kitchen & Bath', method: 'card', cents: 125750, voided: { at: '2026-10-30T16:14:00Z', by: 'Dee', reason: 'Typed the wrong amount' } })
 ];
-const fake = { submitted: false, posted: [] as Record<string, unknown>[] };
+const fake = { submitted: false, posted: [] as Record<string, unknown>[], locations: ['Seattle', 'Spokane'], queries: [] as string[] };
 const answer = (url: string, init?: RequestInit) => {
   const u = String(url);
   let body: unknown = {};
-  if (/\/locations/.test(u)) body = { locations: ['Seattle', 'Spokane'] };
+  if (/\/locations/.test(u)) body = { locations: fake.locations };
   else if (init?.method === 'POST') {
     const sent = JSON.parse(String(init.body));
     fake.posted.push(sent);
     body = { payment: pay(sent.id, { customerId: sent.customerId, customerName: sent.customerName, method: sent.method, cents: -Math.round(Number(sent.amount) * 100), date: sent.date }) };
   } else if (/customers\/dropdown/.test(u)) body = [{ _id: 'c9', company: 'Olympic Remodeling', city: 'Bremerton' }];
-  else if (/payments-received\?/.test(u)) body = { payments: PAYMENTS, day: { submitted: fake.submitted, submittedBy: 'Maya', submittedAt: '2026-10-31T01:12:00Z', autoSubmitted: false }, today: '2026-10-30' };
+  else if (/payments-received\?/.test(u)) {
+    const location = new URL(u, 'http://localhost').searchParams.get('location') || '';
+    fake.queries.push(location);
+    body = { payments: location === '*' ? [...PAYMENTS, pay('s1', { location: 'Spokane', customerName: 'Spokane Stone', method: 'cash', cents: 10000 })] : PAYMENTS,
+      day: { submitted: location !== '*' && fake.submitted, submittedBy: 'Maya', submittedAt: '2026-10-31T01:12:00Z', autoSubmitted: false }, today: '2026-10-30' };
+  }
   return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }));
 };
 vi.mock('../../api/authFetch', () => ({ authFetch: (u: string, init?: RequestInit) => answer(u, init), resetSessionExpiredGuard() {} }));
@@ -40,10 +45,53 @@ const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => {
 const show = async (perms = ALL) => { render(<PaymentsPage currentUser={userWith(perms)} />); await settle(); };
 const text = () => document.body.textContent || '';
 
-beforeEach(() => { fake.submitted = false; fake.posted = []; Element.prototype.scrollIntoView = () => {}; });
+beforeEach(() => { fake.submitted = false; fake.posted = []; fake.locations = ['Seattle', 'Spokane']; fake.queries = []; Element.prototype.scrollIntoView = () => {}; });
 afterEach(cleanup);
 
 describe('the Payments page', () => {
+  it('combines permitted locations, shows each branch, and returns to the home branch', async () => {
+    await show();
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    fireEvent.click(document.getElementById('pay-filter-location')!);
+    fireEvent.click(screen.getByRole('option', { name: 'All locations' }));
+    await settle();
+    expect(fake.queries.at(-1)).toBe('*');
+    expect(screen.getByRole('columnheader', { name: 'Location' })).toBeTruthy();
+    expect(screen.getByText('Spokane Stone')).toBeTruthy();
+    expect(document.querySelector('.pay-tile.is-total .pay-tile-v')?.textContent).toBe('$4,225.50');
+    expect((screen.getByLabelText('Add payment') as HTMLButtonElement).disabled).toBe(true);
+    expect(document.querySelectorAll('.pay-table [aria-haspopup="menu"]')).toHaveLength(0);
+    expect(screen.getByRole('status').textContent).toContain('Choose a location');
+    fireEvent.click(document.getElementById('pay-filter-location')!);
+    fireEvent.click(screen.getByRole('option', { name: /^Seattle/ }));
+    await settle();
+    expect(fake.queries.at(-1)).toBe('Seattle');
+    expect(screen.queryByRole('columnheader', { name: 'Location' })).toBeNull();
+    expect((screen.getByLabelText('Add payment') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('offers no All locations option to a single-branch login', async () => {
+    fake.locations = ['Seattle'];
+    await show();
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    expect(document.getElementById('pay-filter-location')).toBeNull();
+    expect(screen.queryByRole('option', { name: 'All locations' })).toBeNull();
+  });
+
+  it('restores the branch lock when leaving the combined view', async () => {
+    fake.submitted = true;
+    await show();
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    fireEvent.click(document.getElementById('pay-filter-location')!);
+    fireEvent.click(screen.getByRole('option', { name: 'All locations' }));
+    await settle();
+    expect(screen.queryByText(/was submitted by Maya/)).toBeNull();
+    fireEvent.click(document.getElementById('pay-filter-location')!);
+    fireEvent.click(screen.getByRole('option', { name: /^Seattle/ }));
+    await settle();
+    expect(screen.getByText(/was submitted by Maya/)).toBeTruthy();
+    expect((screen.getByLabelText('Add payment') as HTMLButtonElement).disabled).toBe(true);
+  });
   it('shows the day\'s tiles and list, nets the return and hides the voided entry', async () => {
     await show();
     expect(screen.getByRole('heading', { name: 'Payments' })).toBeTruthy();
