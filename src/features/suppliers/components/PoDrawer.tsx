@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Ban, CheckCircle2, Mail, Pencil, RotateCcw, X } from 'lucide-react';
+import { Ban, CheckCircle2, ImagePlus, Mail, Pencil, RotateCcw, X } from 'lucide-react';
 import { lockPage, unlockPage } from '../../../components/shared/pageLock';
 import RowMenu, { type RowMenuItem } from '../../../components/shared/RowMenu';
 import { noteFor } from '../../../utils/supplierBlocks';
@@ -16,6 +16,8 @@ export type PoDrawerProps = {
   onStatus: (status: 'open' | 'closed' | 'cancelled') => void;
   onNotify: () => void;
   onOpenBlock: (b: Block) => void;
+  /** Add a block for the supplier from photos they emailed / sent on WhatsApp. */
+  onAddBlock?: () => void;
   onClose: () => void;
 };
 
@@ -23,9 +25,10 @@ export type PoDrawerProps = {
  * A PO opened: its materials and how much of each is approved, every block
  * the supplier sent with where it stands, the note they read, and the PO's
  * history. ⋯ holds Edit, Email the supplier again, Close / Reopen and Cancel
- * for whoever may manage POs.
+ * for whoever may manage POs, who can also add a block for the supplier from
+ * the photos they emailed or sent on WhatsApp.
  */
-export default function PoDrawer({ po, loading, canManage, onEdit, onStatus, onNotify, onOpenBlock, onClose }: PoDrawerProps) {
+export default function PoDrawer({ po, loading, canManage, onEdit, onStatus, onNotify, onOpenBlock, onAddBlock, onClose }: PoDrawerProps) {
   useEffect(() => { lockPage(); return () => unlockPage(); }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -37,6 +40,7 @@ export default function PoDrawer({ po, loading, canManage, onEdit, onStatus, onN
   const note = noteFor(po.note, 'en');
   const items: RowMenuItem[] = canManage ? [
     ...(po.status !== 'cancelled' ? [{ key: 'edit', label: 'Edit PO', icon: Pencil, onClick: onEdit }] : []),
+    ...(po.status === 'open' && onAddBlock ? [{ key: 'block', label: 'Add block for the supplier', icon: ImagePlus, onClick: onAddBlock }] : []),
     ...(po.status === 'open' ? [{ key: 'mail', label: 'Email the supplier again', icon: Mail, onClick: onNotify }] : []),
     ...(po.status === 'open' ? [{ key: 'close', label: 'Close PO (nothing more to offer)', icon: CheckCircle2, onClick: () => onStatus('closed'), divider: true }] : []),
     ...(po.status !== 'open' ? [{ key: 'open', label: 'Reopen PO', icon: RotateCcw, onClick: () => onStatus('open'), divider: true }] : []),
@@ -83,7 +87,12 @@ export default function PoDrawer({ po, loading, canManage, onEdit, onStatus, onN
           </section>
 
           <section className="sp-section">
-            <h3>Blocks offered · {po.blocks?.length || 0}{po.draftBlocks ? <span className="sp-sub"> · the supplier is preparing {po.draftBlocks} more</span> : null}</h3>
+            <div className="sp-section-h">
+              <h3>Blocks offered · {po.blocks?.length || 0}{po.draftBlocks ? <span className="sp-sub"> · the supplier is preparing {po.draftBlocks} more</span> : null}</h3>
+              {canManage && po.status === 'open' && onAddBlock ? (
+                <button type="button" className="sp-btn is-small" onClick={onAddBlock}><ImagePlus size={15} /> Add block</button>
+              ) : null}
+            </div>
             {po.blocks?.length ? (
               <div className="sp-queue">
                 {po.blocks.map((b) => {
@@ -96,14 +105,18 @@ export default function PoDrawer({ po, loading, canManage, onEdit, onStatus, onN
                       <span className="sp-qbody">
                         <span className="sp-qtop"><b>Block {b.blockNumber}</b><Chip colour={bs.colour}>{bs.label}</Chip></span>
                         <span>{b.material}{b.thickness ? ` ${b.thickness}` : ''}</span>
-                        <span className="sp-sub">{b.bundles.length} bundles, {b.bundles.reduce((s, x) => s + (Number(x.slabs) || 0), 0)} slabs · {line}</span>
+                        <span className="sp-sub">{b.bundles.length} bundles, {b.bundles.reduce((s, x) => s + (Number(x.slabs) || 0), 0)} slabs · {line}{b.enteredBy ? ` · added by ${b.enteredBy}` : ''}</span>
                       </span>
                       <span className="sp-qwhen"><span className="sp-sub">Sent</span><b>{timeAgo(b.firstSentAt)}</b></span>
                     </button>
                   );
                 })}
               </div>
-            ) : <p className="sp-sub">Nothing offered yet.</p>}
+            ) : (
+              <p className="sp-sub">
+                Nothing offered yet.{canManage && po.status === 'open' && onAddBlock ? ` If ${po.supplierName} emails or WhatsApps the photos, Add block enters them for them.` : ''}
+              </p>
+            )}
           </section>
 
           {note ? (

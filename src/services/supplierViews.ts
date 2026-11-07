@@ -42,6 +42,7 @@ export function staffBlockView(b: Loose, ctx: { viewerId: string; supplier?: Loo
     // What this viewer may decide now (the screen still checks their switches).
     decidable: { 1: decidable(bundles, 1, ctx.viewerId).map((x) => x.id), 2: decidable(bundles, 2, ctx.viewerId).map((x) => x.id) },
     firstSentAt: iso(b.firstSentAt), sentAt: iso(b.sentAt), createdAt: iso(b.createdAt), updatedAt: iso(b.updatedAt),
+    enteredBy: b.enteredBy || '',
     history: b.history || []
   };
 }

@@ -202,6 +202,73 @@ export function withNewPhoto<B extends BundleLike>(b: B, url: string, at: Date):
   return { ...b, photoUrl: url, previousPhotos: keep.slice(-10) };
 }
 
+// ── Purchasing enters a block for its supplier (2026-11-07) ─────────────────
+
+/** A photo purchasing uploaded (POST /api/suppliers/block-photos): our own Cloudinary, nothing else. */
+export const isStoredPhotoUrl = (v: unknown): v is string =>
+  typeof v === 'string' && v.length <= 500 && /^https:\/\/res\.cloudinary\.com\/[^\s"'<>]+$/.test(v);
+
+export type EntryBundle = { id: string; slabs?: unknown; photoUrl?: unknown };
+const isBundleId = (v: unknown) => typeof v === 'string' && /^[a-f0-9]{24}$/i.test(v);
+const slabsOf = (v: unknown) => (v === null || v === undefined || v === '' ? null : Number(v));
+
+/**
+ * Purchasing entering what a supplier emailed or sent on WhatsApp: the
+ * block's bundles after the entry, ready for sendProblems / applySend. The
+ * same bundles the supplier could change are open to purchasing (a draft, a
+ * new photo asked, an unlocked one): each takes the slabs and photo given — a
+ * different photo keeps the one it replaces. A new id is a new bundle,
+ * numbered after the last; a draft never sent that's left out is removed.
+ * A bundle that's with Easy Stones (in review, approved, rejected) stays as
+ * it is: changing one is a problem.
+ */
+export function applyEntry(bundles: BundleLike[], entry: EntryBundle[], at: Date): { bundles: BundleLike[]; problem: string | null } {
+  const ids = entry.map((e) => String(e?.id || ''));
+  if (new Set(ids).size !== ids.length) return { bundles, problem: 'A bundle is listed twice. Reload and try again.' };
+  const photo = (e: EntryBundle) => (e.photoUrl ? String(e.photoUrl) : '');
+  const out: BundleLike[] = [];
+  for (const b of bundles) {
+    const e = entry.find((x) => x.id === b.id);
+    if (!supplierMayEdit(b)) {
+      if (e && ((photo(e) && photo(e) !== b.photoUrl) || (e.slabs !== undefined && slabsOf(e.slabs) !== b.slabs))) {
+        return { bundles, problem: `Bundle ${b.n} is with Easy Stones now, so it can’t be changed. Reload to see where it is.` };
+      }
+      out.push(b);
+      continue;
+    }
+    if (!e) {
+      if (b.status !== 'draft' || b.round) out.push(b);
+      continue;
+    }
+    let next: BundleLike = { ...b, slabs: e.slabs === undefined ? b.slabs : slabsOf(e.slabs) };
+    if (photo(e) && photo(e) !== b.photoUrl) {
+      if (!isStoredPhotoUrl(photo(e))) return { bundles, problem: `Bundle ${b.n}’s photo didn’t upload. Add it again.` };
+      next = { ...withNewPhoto(next, photo(e), at), photoAt: at };
+    }
+    out.push(next);
+  }
+  let n = Math.max(0, ...bundles.map((b) => b.n));
+  for (const e of entry) {
+    if (bundles.some((b) => b.id === e.id)) continue;
+    if (!isBundleId(e.id)) return { bundles, problem: 'Reload the page and try again.' };
+    n += 1;
+    if (photo(e) && !isStoredPhotoUrl(photo(e))) return { bundles, problem: `Bundle ${n}’s photo didn’t upload. Add it again.` };
+    out.push({ id: e.id, n, slabs: slabsOf(e.slabs), photoUrl: photo(e), photoAt: photo(e) ? at : null, status: 'draft', round: 0, previousPhotos: [] });
+  }
+  if (out.length > MAX_BUNDLES) return { bundles, problem: `A block has up to ${MAX_BUNDLES} bundles.` };
+  return { bundles: out, problem: null };
+}
+
+/** sendProblems' keys in purchasing's words (the portal says them in the supplier's). */
+export const ENTRY_PROBLEM_TEXT: Record<string, string> = {
+  blockNumber: 'Enter the block #.',
+  size: 'Enter the block’s size.',
+  nothingToSend: 'Nothing on this block waits for the supplier.',
+  photo: 'Add its photo.',
+  slabs: `How many slabs (${MIN_SLABS}–${MAX_SLABS})?`,
+  newPhoto: 'Add the new photo the supplier sent.'
+};
+
 // ── Decisions ───────────────────────────────────────────────────────────────
 
 export type DecisionInput = { bundleId: string; decision: Decision; reason?: string; comment?: string };

@@ -165,6 +165,10 @@ const supplierBlockSchema = new mongoose.Schema({
   // blockStage(): kept for listing and counting; recomputed on every save.
   stage: { type: String, default: 'draft' },
   firstSentAt: { type: Date, default: null },
+  // Purchasing entered it from photos the supplier emailed / sent on WhatsApp
+  // (their name and id; blank = the supplier offered it in the portal).
+  enteredBy: { type: String, default: '' },
+  enteredById: { type: String, default: '' },
   sentAt: { type: Date, default: null },
   createdBy: { type: String, default: '' },
   history: { type: [historySchema], default: [] }

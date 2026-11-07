@@ -54,33 +54,39 @@ export function sendPoAssigned({ to, lang, poNumber, lines, link, note }: { to: 
   return send(to, t(lang, 'm_poSubject', { po: poNumber }), html, 'po assigned');
 }
 
-type DecidedBundle = { n: number; status: string; decision?: string; reason?: string; comment?: Note | null };
+type DecidedBundle = { n: number; status: string; decision?: string; reason?: string; comment?: Note | null; photoUrl?: string };
 
-/** After a step's decisions: what happened to each bundle decided, in the supplier's words. */
-export function sendDecisions({ to, lang, blockNumber, poNumber, bundles, note, link }: { to: string; lang: string; blockNumber: string; poNumber: string; bundles: DecidedBundle[]; note: Note | null; link: string }) {
+const thumb = (url?: string) => (url && /^https:\/\//.test(url) ? `<td style="padding:6px 10px 6px 0;vertical-align:top"><img src="${esc(url)}" alt="" width="96" style="display:block;width:96px;height:72px;object-fit:cover;border-radius:6px"></td>` : '');
+
+/**
+ * After a step's decisions: what happened to each bundle decided, in the
+ * supplier's words. With no `link` (a supplier with no portal login, whose
+ * blocks purchasing enters for them) each bundle shows its photo instead.
+ */
+export function sendDecisions({ to, lang, blockNumber, poNumber, bundles, note, link }: { to: string; lang: string; blockNumber: string; poNumber: string; bundles: DecidedBundle[]; note: Note | null; link?: string }) {
   const finalOnly = bundles.every((b) => b.status === 'approved');
   const rows = bundles.map((b) => {
     const why = b.status === 'rejected' || b.status === 'retake' ? reasonText(lang, b.status === 'retake' ? 'retake' : 'reject', b.reason) : '';
     const comment = noteFor(b.comment, lang)?.text || '';
     const colour = b.status === 'approved' ? '#17663a' : b.status === 'final' ? '#6f560b' : b.status === 'rejected' ? '#9a3d06' : '#1d4f91';
-    return `<tr><td style="padding:6px 10px 6px 0;font-weight:700;white-space:nowrap">${esc(t(lang, 'bundle', { n: b.n }))}</td>
+    return `<tr>${link ? '' : thumb(b.photoUrl)}<td style="padding:6px 10px 6px 0;font-weight:700;white-space:nowrap;vertical-align:top">${esc(t(lang, 'bundle', { n: b.n }))}</td>
       <td style="padding:6px 0;color:${colour};font-weight:600">${esc(t(lang, `st_${b.status}` as StringKey))}${why ? ` · ${esc(why)}` : ''}${comment ? `<div style="color:#3a3c41;font-weight:400">${esc(comment)}</div>` : ''}</td></tr>`;
   }).join('');
   const html = shell(lang, `<p style="margin:0 0 10px">${esc(t(lang, 'm_decisionIntro', { block: blockNumber, po: poNumber }))}</p>
     <table style="border-collapse:collapse;font-size:14px">${rows}</table>${noteHtml(lang, note)}
-    <p style="margin:14px 0 0;font-size:13px;color:#5d6066">${esc(t(lang, 'lockNote'))}</p>`, { href: link, label: t(lang, 'm_open') });
+    <p style="margin:14px 0 0;font-size:13px;color:#5d6066">${esc(t(lang, 'lockNote'))}</p>`, link ? { href: link, label: t(lang, 'm_open') } : undefined);
   return send(to, t(lang, finalOnly ? 'm_finalSubject' : 'm_decisionSubject', { block: blockNumber, po: poNumber }), html, 'decisions');
 }
 
-export function sendUnlocked({ to, lang, blockNumber, poNumber, list, reason, link }: { to: string; lang: string; blockNumber: string; poNumber: string; list: string; reason: Note | null; link: string }) {
-  const html = shell(lang, `<p style="margin:0">${esc(t(lang, 'm_unlockBody', { list, block: blockNumber }))}</p>${noteHtml(lang, reason)}`, { href: link, label: t(lang, 'm_open') });
+export function sendUnlocked({ to, lang, blockNumber, poNumber, list, reason, link }: { to: string; lang: string; blockNumber: string; poNumber: string; list: string; reason: Note | null; link?: string }) {
+  const html = shell(lang, `<p style="margin:0">${esc(t(lang, 'm_unlockBody', { list, block: blockNumber }))}</p>${noteHtml(lang, reason)}`, link ? { href: link, label: t(lang, 'm_open') } : undefined);
   return send(to, t(lang, 'm_unlockSubject', { block: blockNumber, po: poNumber }), html, 'unlocked');
 }
 
-/** To the PO's buyer when a supplier sends a block (or changes) for review. */
-export function sendBlockOffered({ to, buyerName, supplierName, poNumber, blockNumber, material, bundles, slabs, link, resent }: { to: string; buyerName: string; supplierName: string; poNumber: string; blockNumber: string; material: string; bundles: number; slabs: number; link: string; resent: boolean }) {
+/** To the PO's buyer when a supplier sends a block (or changes) for review — or someone in purchasing enters it for them (`enteredBy`). */
+export function sendBlockOffered({ to, buyerName, supplierName, poNumber, blockNumber, material, bundles, slabs, link, resent, enteredBy }: { to: string; buyerName: string; supplierName: string; poNumber: string; blockNumber: string; material: string; bundles: number; slabs: number; link: string; resent: boolean; enteredBy?: string }) {
   const html = shell('en', `<p style="margin:0">Hi ${esc(buyerName || 'there')},</p>
-    <p style="margin:10px 0 0">${esc(supplierName)} ${resent ? 'sent changes to' : 'offered'} <b>block ${esc(blockNumber)}</b> on PO ${esc(poNumber)} — ${esc(material)}: ${bundles} bundle${bundles === 1 ? '' : 's'}, ${slabs} slabs, waiting for review.</p>`,
+    <p style="margin:10px 0 0">${enteredBy ? `${esc(enteredBy)} ${resent ? 'entered changes to' : 'entered'}` : `${esc(supplierName)} ${resent ? 'sent changes to' : 'offered'}`} <b>block ${esc(blockNumber)}</b>${enteredBy ? ` for ${esc(supplierName)}` : ''} on PO ${esc(poNumber)} — ${esc(material)}: ${bundles} bundle${bundles === 1 ? '' : 's'}, ${slabs} slabs, waiting for review.</p>`,
   { href: link, label: 'Review the block' });
-  return send(to, `PO ${poNumber}: block ${blockNumber} ${resent ? 'changed' : 'offered'} by ${supplierName}`, html, 'block offered');
+  return send(to, `PO ${poNumber}: block ${blockNumber} ${resent ? 'changed' : 'offered'} by ${supplierName}${enteredBy ? ` (entered by ${enteredBy})` : ''}`, html, 'block offered');
 }

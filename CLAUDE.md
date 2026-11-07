@@ -1179,6 +1179,22 @@ the supplier on PO assigned, on decisions that need them and on final approval;
 the PO's buyer when a block is sent. **Not built** (canvas phase 3): loading
 documents (container, seal, B/L) and the arrival check against the photos.
 
+**Purchasing can enter a block for its supplier** (2026-11-07, owner's ask —
+suppliers who email or WhatsApp the photos): the PO's **Add block** and a
+block's **Enter what they sent** (`components/BlockEntryForm.tsx`, anyone with
+`manage_supplier_pos`; photos upload when picked, several at once fill the
+bundles in file-name order). Routes `src/routes/supplierBlockEntry.ts`
+(`POST /block-photos`, `POST /pos/:id/blocks`, `PUT /blocks/:id/entry` with
+`expectedUpdatedAt`), rules `applyEntry` in `supplierBlocks.ts` (tested): only
+the bundles the supplier could change (draft, new photo asked, unlocked, a new
+bundle), only photos we stored (`isStoredPhotoUrl`), never a block the
+supplier is still putting together. The block stays the supplier's (their
+portal shows it), is marked `enteredBy` ("Added by …" on the block, never
+shown to the supplier) and goes through both steps; whoever entered it **may
+give it step 1** (owner's call). A supplier with **no portal login** gets the
+decision and unlock emails at the supplier's own email, in its language, with
+the bundle photos instead of a portal link (`supplierRecipients`).
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,

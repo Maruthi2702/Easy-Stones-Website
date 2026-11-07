@@ -4474,7 +4474,7 @@ app.use('/api/card-receipts', createCardReceiptsRouter({
 // a photo per bundle; two-step approval (src/routes/suppliers.ts, rules in
 // src/utils/supplierBlocks.ts). The supplier portal has its own sign-in, whose
 // token no staff route accepts (src/services/supplierSession.ts).
-app.use('/api/suppliers', createSuppliersRouter({ authenticate }));
+app.use('/api/suppliers', createSuppliersRouter({ authenticate, processBase64Image }));
 app.use('/api/supplier-portal', createSupplierPortalRouter({
   jwtSecret: JWT_SECRET,
   loginLimiter,

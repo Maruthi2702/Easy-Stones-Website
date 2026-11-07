@@ -21,6 +21,7 @@ import PoDrawer from './components/PoDrawer';
 import PoForm from './components/PoForm';
 import PoStatusForm from './components/PoStatusForm';
 import UnlockForm from './components/UnlockForm';
+import BlockEntryForm from './components/BlockEntryForm';
 import SuppliersPanel from './components/SuppliersPanel';
 import type { Block, Po, SuppliersUser } from './types';
 import '../../components/shared/form/FormModal.css';
@@ -56,6 +57,8 @@ export default function SupplierPosPage({ currentUser, locations = [], sidebarTo
   const [poForm, setPoForm] = useState<{ po: Po | null } | null>(null);
   const [statusForm, setStatusForm] = useState<{ po: Po; status: Po['status'] } | null>(null);
   const [unlocking, setUnlocking] = useState<Block | null>(null);
+  // Add block for the supplier / Enter what they sent (photos emailed or sent on WhatsApp).
+  const [entry, setEntry] = useState<{ po: Po | null; block: Block | null } | null>(null);
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [toast, setToast] = useState('');
   const pager = usePagination();
@@ -231,6 +234,7 @@ export default function SupplierPosPage({ currentUser, locations = [], sidebarTo
             try { const { notified } = await api.notifyPo(openPo.po.id); say(`Emailed ${notified.emailed} login${notified.emailed === 1 ? '' : 's'}`); openPoById(openPo.po.id); } catch (e) { say((e as Error).message); }
           }}
           onOpenBlock={(b) => setOpenBlock({ block: b, from: openPo.po.blocks || null })}
+          onAddBlock={canManagePos && meta ? () => setEntry({ po: openPo.po, block: null }) : undefined}
           onClose={() => { setOpenPo(null); clearDeepLink(); }} />
       ) : null}
 
@@ -257,6 +261,7 @@ export default function SupplierPosPage({ currentUser, locations = [], sidebarTo
             else setOpenBlock({ block: r.block, from: from ? from.map((b) => (b.id === r.block.id ? r.block : b)) : null });
           }}
           onUnlock={() => setUnlocking(openBlock.block)}
+          onEnter={canManagePos ? () => setEntry({ po: null, block: openBlock.block }) : undefined}
           onOpenPo={() => openPoById(openBlock.block.poId)}
           onClose={() => { setOpenBlock(null); clearDeepLink(); }}
         />
@@ -295,6 +300,24 @@ export default function SupplierPosPage({ currentUser, locations = [], sidebarTo
             setOpenBlock((ob) => (ob ? { ...ob, block } : ob));
             setUnlocking(null);
             say(`Unlocked · ${block.supplierName} was emailed`);
+          }} />
+      ) : null}
+
+      {entry && meta ? (
+        <BlockEntryForm po={entry.po} block={entry.block}
+          supplier={data.suppliers.find((x) => x.id === (entry.po?.supplierId || entry.block?.supplierId)) || null}
+          onClose={() => setEntry(null)}
+          onSave={async (body, id) => {
+            const { lineId, note, ...fields } = body;
+            const { block } = entry.block
+              ? await api.enterChanges(entry.block.id, entry.block.updatedAt, fields)
+              : await api.enterBlock(entry.po!.id, id, { ...fields, lineId, note });
+            await data.placeBlock(block);
+            setEntry(null);
+            setOpenBlock((ob) => (ob && ob.block.id === block.id ? { ...ob, block } : ob));
+            if (openPo?.po.id === block.poId) openPoById(block.poId);
+            const sent = block.bundles.filter((b) => b.status === 'review').length;
+            say(`Block ${block.blockNumber} sent for review · ${sent} bundle${sent === 1 ? '' : 's'} for ${block.supplierName}`);
           }} />
       ) : null}
 

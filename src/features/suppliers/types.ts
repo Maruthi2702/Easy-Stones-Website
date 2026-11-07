@@ -16,6 +16,8 @@ export type Block = {
   blockNumber: string; size: BlockSize | null; note: Note | null; decisionNote: Note | null; bundles: Bundle[];
   stage: BlockStage; counts: BlockCounts; decidable: { 1: string[]; 2: string[] };
   firstSentAt: string | null; sentAt: string | null; createdAt: string | null; updatedAt: string | null; history: HistoryEntry[];
+  /** Purchasing entered it for the supplier (their name); blank = the supplier offered it. */
+  enteredBy?: string;
 };
 
 export type Po = {

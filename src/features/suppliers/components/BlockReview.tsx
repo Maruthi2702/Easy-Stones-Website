@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Lock, Maximize2, RotateCcw, Unlock, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, ImagePlus, Lock, Maximize2, RotateCcw, Unlock, X } from 'lucide-react';
 import { lockPage, unlockPage } from '../../../components/shared/pageLock';
 import { FormPicker, SegmentedToggle } from '../../../components/shared/form/FormControls';
 import { languageEnglish, t } from '../../../utils/supplierI18n';
@@ -20,6 +20,8 @@ export type BlockReviewProps = {
   onStep: (by: number) => void;
   onDecide: (step: Step, decisions: { bundleId: string; decision: Choice['decision']; reason?: string; comment?: string }[], note: string) => Promise<unknown>;
   onUnlock: () => void;
+  /** Enter the new photos / bundles the supplier emailed or sent on WhatsApp (Add / edit POs). */
+  onEnter?: () => void;
   onOpenPo: () => void;
   onClose: () => void;
 };
@@ -36,7 +38,7 @@ const decisionWord = (d: string) => (d === 'approve' ? 'approved' : d === 'rejec
  * what step 1 decided, and never offers a bundle the same person approved.
  * Approved bundles show their lock; Unlock asks for a reason.
  */
-export default function BlockReview({ block, meta, canReview, canFinal, canUnlock, position, onStep, onDecide, onUnlock, onOpenPo, onClose }: BlockReviewProps) {
+export default function BlockReview({ block, meta, canReview, canFinal, canUnlock, position, onStep, onDecide, onUnlock, onEnter, onOpenPo, onClose }: BlockReviewProps) {
   const steps: Step[] = [];
   if (canReview && block.counts.review) steps.push(1);
   if (canFinal && block.counts.final) steps.push(2);
@@ -108,6 +110,9 @@ export default function BlockReview({ block, meta, canReview, canFinal, canUnloc
     : step === 1 && counts.approve === mineToDecide.length ? `Approve · ${counts.approve} bundle${counts.approve === 1 ? '' : 's'}, ${approvedSlabs} slabs`
     : 'Send decisions';
   const lockedApproved = block.bundles.filter((b) => b.status === 'approved');
+  // Bundles waiting on the supplier: a new photo asked, an unlocked one; a rejected one can be replaced.
+  const waitingOnSupplier = block.counts.retake + block.counts.unlocked;
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const languages = meta.translation ? 'Translated for the supplier automatically.' : 'The supplier reads it as you type it (translation isn’t switched on).';
 
   return (
@@ -116,7 +121,7 @@ export default function BlockReview({ block, meta, canReview, canFinal, canUnloc
       <aside className="sp-drawer is-wide fm-tokens" role="dialog" aria-modal="true" aria-label={`Block ${block.blockNumber}`}>
         <header className="sp-drawer-h">
           <div className="sp-drawer-ttl">
-            <div className="sp-row"><h2>Block {block.blockNumber}</h2><Chip colour={st.colour}>{st.label}</Chip></div>
+            <div className="sp-row"><h2>Block {block.blockNumber}</h2><Chip colour={st.colour}>{st.label}</Chip>{block.enteredBy ? <span className="sp-tag" title="Entered from photos the supplier emailed or sent on WhatsApp">Added by {block.enteredBy}</span> : null}</div>
             <span className="sp-sub is-13">{block.material}{block.thickness ? ` ${block.thickness}` : ''}{block.finish ? ` · ${block.finish}` : ''}{block.size ? ` · ${sizeText(block.size)}` : ''}</span>
             <span className="sp-sub is-13">
               <button type="button" className="sp-link" onClick={onOpenPo}>PO {block.poNumber}</button> · {block.supplierName}{block.supplierCountry ? ` (${block.supplierCountry})` : ''}
@@ -145,7 +150,7 @@ export default function BlockReview({ block, meta, canReview, canFinal, canUnloc
 
           {supplierNote ? (
             <div className="sp-note">
-              <span className="sp-note-k">Note from {block.supplierName}</span>
+              <span className="sp-note-k">{block.enteredBy ? `Note from ${block.supplierName}, entered by ${block.enteredBy}` : `Note from ${block.supplierName}`}</span>
               <span>{showOriginal ? supplierNote.original : supplierNote.text}</span>
               {supplierNote.foreign ? (
                 <span className="sp-sub">
@@ -192,6 +197,18 @@ export default function BlockReview({ block, meta, canReview, canFinal, canUnloc
               />
             ))}
           </div>
+
+          {onEnter && block.poStatus === 'open' && (waitingOnSupplier || block.counts.rejected) ? (
+            <div className="sp-banner is-warn">
+              <span>
+                {waitingOnSupplier
+                  ? `${plural(waitingOnSupplier, 'bundle waits', 'bundles wait')} for ${block.supplierName}${block.counts.rejected ? `; ${plural(block.counts.rejected, 'rejected one', 'rejected ones')} can be replaced` : ''}.`
+                  : `${plural(block.counts.rejected, 'bundle was', 'bundles were')} rejected; ${block.supplierName} can offer another in place.`}
+                {' '}If they emailed or WhatsApped the photos, enter them here.
+              </span>
+              <button type="button" className="fm-btn fm-btn-small" onClick={onEnter}><ImagePlus size={14} /> Enter what they sent</button>
+            </div>
+          ) : null}
 
           {lockedApproved.length ? (
             <div className="sp-lock">

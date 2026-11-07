@@ -47,6 +47,16 @@ export const listBlocks = (queue: 'review' | 'final') => call<{ blocks: Block[] 
 export const getBlock = (id: string) => call<{ block: Block }>(`/blocks/${id}`);
 export const decide = (id: string, step: Step, decisions: DecisionInput[], note: string) =>
   call<{ block: Block; emailed: number }>(`/blocks/${id}/decide`, { method: 'POST', body: { step, decisions, note } });
+export type EntryBody = {
+  blockNumber: string; length: string; height: string; unit: 'in' | 'cm';
+  bundles: { id: string; slabs: number | null; photoUrl?: string }[];
+};
+/** Purchasing entering a block for its supplier (photos they emailed / sent on WhatsApp). */
+export const uploadBlockPhoto = (data: string) => call<{ url: string }>('/block-photos', { method: 'POST', body: { data } });
+export const enterBlock = (poId: string, id: string, body: EntryBody & { lineId: string; note: string }) =>
+  call<{ block: Block; alreadySaved?: boolean }>(`/pos/${poId}/blocks`, { method: 'POST', body: { id, ...body } });
+export const enterChanges = (blockId: string, expectedUpdatedAt: string | null, body: EntryBody) =>
+  call<{ block: Block }>(`/blocks/${blockId}/entry`, { method: 'PUT', body: { expectedUpdatedAt, ...body } });
 export const unlock = (id: string, bundleIds: string[], reason: string) => call<{ block: Block }>(`/blocks/${id}/unlock`, { method: 'POST', body: { bundleIds, reason } });
 
 export const listSuppliers = () => call<{ suppliers: SupplierRow[] }>('/suppliers');

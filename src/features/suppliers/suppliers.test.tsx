@@ -50,6 +50,8 @@ const answer = (url: string, init?: RequestInit) => {
   if (init?.method === 'POST') {
     const body = JSON.parse(String(init.body || '{}'));
     fake.posted.push({ url: u, body });
+    if (/\/block-photos$/.test(u)) return ok({ url: `https://res.cloudinary.com/t/SupplierBlocks/${fake.posted.length}.webp` });
+    if (/\/pos\/41872\/blocks$/.test(u)) return ok({ block: { ...REVIEW[0], id: body.id, blockNumber: body.blockNumber, enteredBy: 'Ravi Shah' } });
     if (/\/decide$/.test(u)) return ok({ block: { ...REVIEW[0], bundles: REVIEW[0]!.bundles.map((b) => ({ ...b, status: 'final' })), decidable: { 1: [], 2: [] }, stage: 'final' }, emailed: 0 });
     return ok({});
   }
@@ -64,6 +66,7 @@ const answer = (url: string, init?: RequestInit) => {
   if (/\/incoming$/.test(u)) return ok({ items: [{ id: 'k9', material: 'Taj Mahal Quartzite', thickness: '3 cm', finish: 'Polished', blockNumber: '3317', size: { length: 124, height: 76, unit: 'in' }, shipTo: 'Seattle', readyBy: '2026-12-04', bundles: [{ n: 1, slabs: 8, photoUrl: 'https://x/1.webp' }], slabs: 8, approvedAt: '2026-11-06T00:00:00Z' }] });
   return ok({});
 };
+vi.mock('../../utils/attachmentFiles', () => ({ compressImage: async (f: File) => `data:image/jpeg;base64,${btoa(f.name)}` }));
 vi.mock('../../api/authFetch', () => ({ authFetch: (u: string, init?: RequestInit) => answer(u, init), resetSessionExpiredGuard() {} }));
 
 const { default: SupplierPosPage } = await import('./SupplierPosPage');
@@ -132,6 +135,36 @@ describe('the Supplier POs page', () => {
     await settle();
     expect(text()).toContain('so someone else gives the final approval');
     expect(screen.queryByRole('button', { name: /Final approval ·/ })).toBeNull();
+  });
+
+  it('adds a block for a supplier who emailed the photos: photos in name order, slabs for each, sent for review', async () => {
+    await show();
+    fireEvent.click(document.querySelector('.sp-table tbody tr')!);
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: /Add block/ }));
+    await settle();
+    expect(text()).toContain('Add block for Pedras Vale Verde');
+    expect(text()).toContain('Pedras Vale Verde has no portal login or email');
+    fireEvent.change(document.getElementById('blockNumber')!, { target: { value: 'B-77' } });
+    fireEvent.change(screen.getByLabelText('Length'), { target: { value: '320' } });
+    fireEvent.change(screen.getByLabelText('Height'), { target: { value: '190,5' } });
+    const files = ['IMG_0012.jpg', 'IMG_0002.jpg'].map((n) => new File(['x'], n, { type: 'image/jpeg' }));
+    const many = document.querySelector('input[type=file][multiple]') as HTMLInputElement;
+    await act(async () => { fireEvent.change(many, { target: { files } }); });
+    await settle();
+    fireEvent.change(document.getElementById('eachSlabs')!, { target: { value: '8' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send for review · 2 bundles' }));
+    await settle();
+    const sent = fake.posted.find((p) => /\/pos\/41872\/blocks$/.test(p.url))!;
+    expect(sent.body).toMatchObject({ lineId: 'L1', blockNumber: 'B-77', length: '320', height: '190.5', unit: 'cm' });
+    const bundles = sent.body.bundles as { slabs: number; photoUrl: string }[];
+    expect(bundles.map((b) => b.slabs)).toEqual([8, 8]);
+    // IMG_0002 was uploaded first (name order), so it's bundle 1.
+    const uploads = fake.posted.filter((p) => /\/block-photos$/.test(p.url)).map((p) => atob(String(p.body.data).split(',')[1]!));
+    expect(uploads).toEqual(['IMG_0002.jpg', 'IMG_0012.jpg']);
+    expect(bundles[0]!.photoUrl).toMatch(/\/1\.webp$/);
+    expect(bundles[1]!.photoUrl).toMatch(/\/2\.webp$/);
+    expect(text()).toContain('Block B-77 sent for review');
   });
 
   it('shows a supplier’s record on the Suppliers tab', async () => {

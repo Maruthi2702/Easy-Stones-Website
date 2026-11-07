@@ -55,7 +55,10 @@ beforeAll(async () => {
     const token = req.cookies?.customerToken;
     try { jwt.verify(token, SECRET); req.user = { id: 'x', permissions: Object.values(P) }; return next(); } catch { return res.status(401).json({ error: 'Sign in' }); }
   };
-  app.use('/api/suppliers', createSuppliersRouter({ authenticate }));
+  app.use('/api/suppliers', createSuppliersRouter({
+    authenticate,
+    processBase64Image: async () => `https://res.cloudinary.com/test/SupplierBlocks/staff_${Math.random().toString(36).slice(2)}.webp`
+  }));
   app.use('/api/supplier-portal', createSupplierPortalRouter({
     jwtSecret: SECRET, loginLimiter: (_req, _res, next) => next(),
     processBase64Image: async () => `https://res.cloudinary.com/test/SupplierBlocks/img_${Math.random().toString(36).slice(2)}.webp`
@@ -318,6 +321,101 @@ describe('a PO from assignment to approved to load', () => {
     await staff(DANA).post(`/pos/${po.id}/status`, { status: 'cancelled', reason: 'Quarry closed' }).expect(200);
     expect((await a.p.post(`/pos/${po.id}/blocks`, { id: newId(), lineId: po.lines[0].id }).expect(409)).body.code).toBe('poCancelled');
     expect((await a.p.get('/pos').expect(200)).body.pos[0].group).toBe('closed');
+  });
+});
+
+describe('purchasing enters a block for its supplier', () => {
+  /** Photos uploaded as they're picked, then the block entered and sent in one save. */
+  async function enterBlock(user: Loose, po: Loose, count = 7, slabs: number | null = 8) {
+    const bundles = [];
+    for (let i = 0; i < count; i++) {
+      const { url } = (await staff(user).post('/block-photos', { data: PHOTO }).expect(201)).body;
+      bundles.push({ id: newId(), slabs, photoUrl: url });
+    }
+    return { id: newId(), lineId: po.lines[0].id, blockNumber: 'B-77', length: '320', height: '190', unit: 'cm', note: 'Sent on WhatsApp', bundles };
+  }
+
+  it('enters the photos a supplier with no login emailed; they hear the decisions by email with the photos', async () => {
+    const s = (await staff(ADMIN).post('/suppliers', { name: 'Phuson Joint Stock', country: 'Vietnam', language: 'vi', timeZone: 'Asia/Ho_Chi_Minh', email: 'sales@phuson.test' }).expect(201)).body.supplier;
+    const po = await assignPo(s.id, '14985', 56);
+
+    // Only Add / edit POs may enter one.
+    await staff(RAVI).post('/block-photos', { data: PHOTO }).expect(403);
+    const body = await enterBlock(DANA, po);
+    await staff(RAVI).post(`/pos/${po.id}/blocks`, body).expect(403);
+
+    // Every bundle needs its photo and slabs before it goes.
+    const missing = { ...body, bundles: body.bundles.map((b: Loose, i: number) => (i === 2 ? { ...b, slabs: null } : b)) };
+    const refused = await staff(DANA).post(`/pos/${po.id}/blocks`, { ...missing, id: newId() }).expect(400);
+    expect(refused.body.problems.bundles[body.bundles[2].id]).toMatch(/How many slabs/);
+    // Only photos we stored.
+    await staff(DANA).post(`/pos/${po.id}/blocks`, { ...body, id: newId(), bundles: [{ ...body.bundles[0], photoUrl: 'https://evil.test/x.jpg' }] }).expect(409);
+
+    const first = await staff(DANA).post(`/pos/${po.id}/blocks`, body).expect(201);
+    const block = first.body.block;
+    expect(block).toMatchObject({ enteredBy: 'Dana Whitfield', blockNumber: 'B-77', stage: 'review', size: { length: 320, height: 190, unit: 'cm' } });
+    expect(block.bundles.map((b: Loose) => b.status)).toEqual(Array(7).fill('review'));
+    expect(block.history[0]).toMatchObject({ by: 'Dana Whitfield', side: 'staff', action: 'entered for the supplier', changes: '7 bundles, 56 slabs' });
+    // A repeat of the same save doesn't double it.
+    expect((await staff(DANA).post(`/pos/${po.id}/blocks`, body).expect(200)).body.alreadySaved).toBe(true);
+    expect(await SupplierBlock.countDocuments({ poId: po.id })).toBe(1);
+    // It's on the PO and in the review queue like any other.
+    expect((await staff(DANA).get(`/pos/${po.id}`).expect(200)).body.po.blocks).toHaveLength(1);
+    expect((await staff(RAVI).get('/blocks?queue=review').expect(200)).body.blocks[0].id).toBe(body.id);
+
+    mail.sent = [];
+    const decisions = block.bundles.map((b: Loose) => (b.n === 3 ? { bundleId: b.id, decision: 'retake', reason: 'dark' } : { bundleId: b.id, decision: 'approve' }));
+    await staff(RAVI).post(`/blocks/${body.id}/decide`, { step: 1, decisions }).expect(200);
+    // No login: the supplier's own email, in Vietnamese, with the photos and no portal link.
+    expect(mail.sent).toHaveLength(1);
+    expect(mail.sent[0]!.to).toBe('sales@phuson.test');
+    expect(mail.sent[0]!.html).toContain('<img src="https://res.cloudinary.com/test/SupplierBlocks/staff_');
+    expect(mail.sent[0]!.html).not.toContain('/supplier/block/');
+
+    // The new photo the supplier sent for bundle 3, and one more bundle.
+    const now = (await staff(DANA).get(`/blocks/${body.id}`).expect(200)).body.block;
+    const b3 = now.bundles.find((b: Loose) => b.n === 3);
+    const b1 = now.bundles.find((b: Loose) => b.n === 1);
+    const { url } = (await staff(DANA).post('/block-photos', { data: PHOTO }).expect(201)).body;
+    const { url: url8 } = (await staff(DANA).post('/block-photos', { data: PHOTO }).expect(201)).body;
+    // A bundle that's with Easy Stones can't be changed.
+    await staff(DANA).put(`/blocks/${body.id}/entry`, { expectedUpdatedAt: now.updatedAt, bundles: [{ id: b1.id, slabs: 8, photoUrl: url }] }).expect(409);
+    // Saving over a newer block is refused.
+    await staff(DANA).put(`/blocks/${body.id}/entry`, { expectedUpdatedAt: '2020-01-01T00:00:00.000Z', bundles: [{ id: b3.id, slabs: 8, photoUrl: url }] }).expect(409);
+    const id8 = newId();
+    const changed = (await staff(DANA).put(`/blocks/${body.id}/entry`, {
+      expectedUpdatedAt: now.updatedAt, bundles: [{ id: b3.id, slabs: 8, photoUrl: url }, { id: id8, slabs: 6, photoUrl: url8 }]
+    }).expect(200)).body.block;
+    const after3 = changed.bundles.find((b: Loose) => b.n === 3);
+    expect(after3).toMatchObject({ status: 'review', round: 2, photoUrl: url });
+    expect(after3.previousPhotos).toHaveLength(1);
+    expect(changed.bundles.find((b: Loose) => b.id === id8)).toMatchObject({ n: 8, status: 'review', slabs: 6 });
+    expect(changed.bundles.filter((b: Loose) => b.status === 'final')).toHaveLength(6);
+    expect(changed.history.at(-1)).toMatchObject({ action: 'entered changes for the supplier', changes: '2 bundles, 14 slabs · 1 new photo' });
+  });
+
+  it('a block entered for a supplier with a login shows in their portal, without staff names; the buyer hears who entered it', async () => {
+    const { supplier, p } = await supplierSignedIn();
+    const po = await assignPo(supplier.id);
+    mail.sent = [];
+    const body = await enterBlock(ADMIN, po, 2);
+    await staff(ADMIN).post(`/pos/${po.id}/blocks`, body).expect(201);
+    const seen = (await p.get(`/blocks/${body.id}`).expect(200)).body.block;
+    expect(seen.bundles.map((b: Loose) => b.status)).toEqual(['review', 'review']);
+    expect(JSON.stringify(seen)).not.toMatch(/Ana Admin|enteredBy/);
+    // Dana is the PO's buyer (she added it).
+    await new Promise((r) => setTimeout(r, 100));
+    const toBuyer = mail.sent.find((m) => m.to === 'dana@easystones.test')!;
+    expect(toBuyer.subject).toBe('PO 41872: block B-77 offered by Pedras Vale Verde (entered by Ana Admin)');
+    expect(toBuyer.html).toContain('Ana Admin entered <b>block B-77</b> for Pedras Vale Verde');
+    // Whoever entered it may give it step 1 (owner's call); step 2 is still someone else's.
+    const entered = (await staff(ADMIN).get(`/blocks/${body.id}`).expect(200)).body.block;
+    await staff(ADMIN).post(`/blocks/${body.id}/decide`, { step: 1, decisions: entered.bundles.map((b: Loose) => ({ bundleId: b.id, decision: 'approve' })) }).expect(200);
+    await staff(ADMIN).post(`/blocks/${body.id}/decide`, { step: 2, decisions: entered.bundles.map((b: Loose) => ({ bundleId: b.id, decision: 'approve' })) }).expect(409);
+    // A block the supplier is still putting together in the portal is theirs.
+    const draft = newId();
+    await p.post(`/pos/${po.id}/blocks`, { id: draft, lineId: po.lines[0].id }).expect(201);
+    await staff(ADMIN).put(`/blocks/${draft}/entry`, { bundles: [] }).expect(409);
   });
 });
 

@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import {
   sendProblems, applySend, withNewPhoto, decisionProblem, applyDecision, decidable, unlockProblem, blockStage, blockCounts,
   coverage, isCovered, poStage, supplierGroup, cleanPo, poKey, poChanges, lineRemovalProblem, parseSize, sizeText,
-  cleanSupplier, cleanLogin, scorecard, hoursText, noteFor, slabsProblem, type BundleLike, type PoLine
+  cleanSupplier, cleanLogin, scorecard, hoursText, noteFor, slabsProblem, applyEntry, isStoredPhotoUrl, type BundleLike, type PoLine
 } from './supplierBlocks';
 
 const b = (n: number, o: Partial<BundleLike> = {}): BundleLike => ({ id: `b${n}`, n, slabs: 8, photoUrl: `https://x/${n}.webp`, status: 'draft', ...o });
@@ -190,5 +190,50 @@ describe('the scorecard', () => {
     expect(scorecard(pos, blocks)).toEqual({ bundlesDecided: 3, rejectionRate: 33, retakes: 1, supplierHours: 17, reviewHours: 4 });
     expect(scorecard([], [])).toEqual({ bundlesDecided: 0, rejectionRate: null, retakes: 0, supplierHours: null, reviewHours: null });
     expect([hoursText(null), hoursText(0.4), hoursText(17), hoursText(72)]).toEqual(['—', '< 1 h', '17 h', '3 days']);
+  });
+});
+
+describe('purchasing entering a block for its supplier', () => {
+  const CDN = (x: string) => `https://res.cloudinary.com/es/SupplierBlocks/${x}.webp`;
+  const hex = (n: number) => n.toString(16).padStart(24, '0');
+
+  it('only takes photos we stored', () => {
+    expect(isStoredPhotoUrl(CDN('a'))).toBe(true);
+    expect(isStoredPhotoUrl('https://evil.test/a.jpg')).toBe(false);
+    expect(isStoredPhotoUrl('data:image/jpeg;base64,xx')).toBe(false);
+  });
+
+  it('a new block: every bundle numbered in order, as drafts ready to send', () => {
+    const { bundles, problem } = applyEntry([], [{ id: hex(1), slabs: 8, photoUrl: CDN('1') }, { id: hex(2), slabs: '7', photoUrl: CDN('2') }], at);
+    expect(problem).toBeNull();
+    expect(bundles.map((x) => [x.n, x.slabs, x.status])).toEqual([[1, 8, 'draft'], [2, 7, 'draft']]);
+    expect(sendProblems({ ...block(bundles) }).ok).toBe(true);
+  });
+
+  it('a new photo for a retake keeps the old one; locked bundles can’t change; untouched ones stay', () => {
+    const sent = '2026-11-05T10:00:00Z';
+    const start = [b(1, { status: 'final', round: 1 }), b(2, { status: 'retake', round: 1, sentAt: sent, photoAt: sent }), b(3, { status: 'rejected', round: 1 })];
+    const ok = applyEntry(start, [{ id: 'b2', slabs: 8, photoUrl: CDN('new') }, { id: hex(9), slabs: 5, photoUrl: CDN('9') }], at);
+    expect(ok.problem).toBeNull();
+    const b2 = ok.bundles.find((x) => x.id === 'b2')!;
+    expect(b2.photoUrl).toBe(CDN('new'));
+    expect(b2.previousPhotos?.map((p) => p.url)).toEqual(['https://x/2.webp']);
+    expect(ok.bundles.find((x) => x.id === hex(9))).toMatchObject({ n: 4, status: 'draft' });
+    expect(ok.bundles.find((x) => x.id === 'b1')).toBe(start[0]);
+    expect(sendProblems(block(ok.bundles, { sentAt: sent })).toSend).toEqual(['b2', hex(9)]);
+    expect(applyEntry(start, [{ id: 'b1', slabs: 9 }], at).problem).toMatch(/Bundle 1 is with Easy Stones/);
+    expect(applyEntry(start, [{ id: 'b2', photoUrl: 'https://evil.test/x.jpg' }], at).problem).toMatch(/didn’t upload/);
+  });
+
+  it('a draft never sent and left out is removed; a retake left out still needs its new photo', () => {
+    const start = [b(1, { status: 'draft' }), b(2, { status: 'retake', round: 1, sentAt: '2026-11-05T10:00:00Z', photoAt: '2026-11-05T09:00:00Z' })];
+    const { bundles } = applyEntry(start, [], at);
+    expect(bundles.map((x) => x.id)).toEqual(['b2']);
+    expect(sendProblems(block(bundles, { sentAt: '2026-11-05T10:00:00Z' })).problems.bundles.b2).toEqual(['newPhoto']);
+  });
+
+  it('refuses a bundle listed twice and more than 20', () => {
+    expect(applyEntry([], [{ id: hex(1) }, { id: hex(1) }], at).problem).toMatch(/twice/);
+    expect(applyEntry([], Array.from({ length: 21 }, (_, i) => ({ id: hex(i + 1) })), at).problem).toMatch(/up to 20/);
   });
 });

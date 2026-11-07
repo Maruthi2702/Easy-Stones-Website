@@ -17,6 +17,7 @@ import { newLink } from '../services/supplierSession.ts';
 import { makeNote, translationOn } from '../services/translate.ts';
 import { sendSupplierLink, sendPoAssigned, sendDecisions, sendUnlocked } from '../services/supplierEmails.ts';
 import { staffPoView, staffBlockView, incomingView, linesOf, blockLike } from '../services/supplierViews.ts';
+import createBlockEntryRoutes from './supplierBlockEntry.ts';
 import type { Loose } from '../types/records.ts';
 
 /**
@@ -44,8 +45,9 @@ import type { Loose } from '../types/records.ts';
  *   POST /blocks/:id/decide           { step, decisions: [{ bundleId, decision, reason, comment }], note }
  *   POST /blocks/:id/unlock           { bundleIds, reason }                       (unlock_supplier_bundles)
  *   GET  /incoming                    sales: approved bundles, no supplier / PO / price (view_incoming_material)
+ *   + purchasing entering a block for its supplier: ./supplierBlockEntry.ts
  *
- *   app.use('/api/suppliers', createSuppliersRouter({ authenticate }));
+ *   app.use('/api/suppliers', createSuppliersRouter({ authenticate, processBase64Image }));
  */
 
 type ReqUser = { id?: string; _id?: string; username?: string; displayName?: string; permissions?: string[]; email?: string };
@@ -85,7 +87,23 @@ async function readerLanguages(supplierId: string) {
   return [...new Set([supplier?.language || 'en', ...logins.map((l) => l.language || 'en')])];
 }
 
-export default function createSuppliersRouter({ authenticate }: { authenticate: RequestHandler }) {
+/**
+ * Who hears about a block's decisions: every active login with a password,
+ * with a link into the portal — or, for a supplier with none (purchasing
+ * enters their blocks), the supplier's own email, in its language, with the
+ * photos in the email instead of a link.
+ */
+async function supplierRecipients(supplierId: string): Promise<{ to: string; lang: string; portal: boolean }[]> {
+  const logins = await SupplierLogin.find({ supplierId, active: true, password: { $gt: '' } }, 'email language').lean();
+  if (logins.length) return logins.map((l) => ({ to: l.email, lang: l.language || 'en', portal: true }));
+  const supplier = await Supplier.findById(supplierId, 'email language active').lean();
+  return supplier?.email && supplier.active !== false ? [{ to: supplier.email, lang: supplier.language || 'en', portal: false }] : [];
+}
+
+export default function createSuppliersRouter({ authenticate, processBase64Image }: {
+  authenticate: RequestHandler;
+  processBase64Image?: (data: string, folder?: string, maxSide?: number) => Promise<unknown>;
+}) {
   const router = express.Router();
   const pageOpen = [authenticate, anyOf(...SUPPLIER_PAGE_PERMISSIONS)];
   const actor = (req: Request) => ({ id: userIdOf(req), name: nameOf(userOf(req)) });
@@ -557,11 +575,11 @@ export default function createSuppliersRouter({ authenticate }: { authenticate: 
       const tell = step === 2 || counts.reject || counts.retake;
       let emailed = 0;
       if (tell) {
-        const logins = await SupplierLogin.find({ supplierId: block.supplierId, active: true, password: { $gt: '' } }).lean();
+        const recipients = await supplierRecipients(block.supplierId);
         const link = `${siteBase(req)}/supplier/block/${String(block._id)}`;
-        const items = decided.filter((b) => step === 2 || b.status !== 'final').map((b) => ({ n: b.n, status: b.status, reason: b.reason, comment: b.comment }));
+        const items = decided.filter((b) => step === 2 || b.status !== 'final').map((b) => ({ n: b.n, status: b.status, reason: b.reason, comment: b.comment, photoUrl: b.photoUrl }));
         if (items.length) {
-          const sent = await Promise.all(logins.map((l) => sendDecisions({ to: l.email, lang: l.language || 'en', blockNumber: block.blockNumber, poNumber: block.poNumber, bundles: items, note, link })));
+          const sent = await Promise.all(recipients.map((r) => sendDecisions({ to: r.to, lang: r.lang, blockNumber: block.blockNumber, poNumber: block.poNumber, bundles: items, note, link: r.portal ? link : undefined })));
           emailed = sent.filter(Boolean).length;
         }
       }
@@ -597,15 +615,18 @@ export default function createSuppliersRouter({ authenticate }: { authenticate: 
       await block.save();
       const readers = await readerLanguages(block.supplierId);
       const why = await makeNote(reason, 'en', readers, who.name);
-      const logins = await SupplierLogin.find({ supplierId: block.supplierId, active: true, password: { $gt: '' } }).lean();
+      const recipients = await supplierRecipients(block.supplierId);
       const link = `${siteBase(req)}/supplier/block/${String(block._id)}`;
-      await Promise.all(logins.map((l) => sendUnlocked({ to: l.email, lang: l.language || 'en', blockNumber: block.blockNumber, poNumber: block.poNumber, list, reason: why, link })));
+      await Promise.all(recipients.map((r) => sendUnlocked({ to: r.to, lang: r.lang, blockNumber: block.blockNumber, poNumber: block.poNumber, list, reason: why, link: r.portal ? link : undefined })));
       res.json({ block: await blockDetail(block.toObject(), who.id) });
     } catch (error) {
       if (isVersionError(error)) return res.status(409).json({ message: 'Someone else just changed this block. Reload it and try again.' });
       fail(res, 'unlock', error, 'Could not unlock the bundles.');
     }
   });
+
+  // Purchasing entering a block for its supplier (photos they emailed / sent on WhatsApp).
+  router.use(createBlockEntryRoutes({ authenticate, processBase64Image }));
 
   // ── Sales: Incoming material ──────────────────────────────────────────────
 
