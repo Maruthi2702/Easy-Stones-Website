@@ -57,10 +57,17 @@ describe('sendSelectionSheetEmail', () => {
   // The printed sheet's template (owner, 2026-11-07).
   it('is the printed sheet: the same sections, policy and footer', async () => {
     const html = await htmlOf();
-    for (const text of ['Stone Selection', 'Oct 10, 2026 · Kent', 'Prepared for', 'Fabricator', 'Intown', 'Your sales rep', 'rita@x.com',
+    for (const text of ['Stone Selection', 'Oct 10, 2026 · Kent', 'PREPARED FOR', 'FABRICATOR', 'Intown', 'YOUR SALES REP', 'rita@<wbr>x.com',
       'Your selections', '2 materials', 'Hold Policy', 'Questions? Ask Rita or call the showroom.', 'Easy Stones Kent · 6012 S 196th St, Kent, WA 98032'])
       expect(html, text).toContain(text);
     expect(html).not.toContain('Check-In Portal');
+  });
+
+  // A forward (Outlook, Apple Mail) drops inline-block layouts and text-transform.
+  it('keeps the three people in a table and their labels in capitals, so a forward keeps them', async () => {
+    const html = await htmlOf();
+    expect(html).not.toContain('inline-block');
+    expect(html).toMatch(/<td width="32%"[^>]*>\s*<div[^>]*>PREPARED FOR<\/div>/);
   });
 
   it('shows the logo from an absolute address, else the name as text', async () => {

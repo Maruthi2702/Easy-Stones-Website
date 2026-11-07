@@ -566,8 +566,10 @@ address). What it says is `sheetDoc` in `src/utils/selectionSheet.ts` (tested);
 `buildSelectionSheetHtml` (print) and `selectionSheetEmailHtml`
 (`src/services/emailService.ts`) only lay it out — change both together. The
 print page sets `@page { margin: 0 }` so browsers print no date / about:blank /
-page count of their own. The email is fluid with no media queries (people are
-150px blocks: three across, two on a phone; one row per material). Subject
+page count of their own. The email is fluid with no media queries and built from tables so a
+**forward keeps it** (an Outlook forward dropped an inline-block layout and
+text-transform): the three people are one table row, labels typed in capitals;
+one row per material. Subject
 "Selection Sheet: <name>", sent as "<rep> at Easy Stones", reply-to the rep.
 The Email pop-up asks **Home Owner** (their email, without prices first) or
 **Fabricator** (typed address — a check-in keeps no fabricator email — with
