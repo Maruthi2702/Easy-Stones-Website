@@ -241,7 +241,7 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
             <tr>
               <td style="width: 22px; padding: 12px 0 0 0; vertical-align: top; font-size: 15px; font-weight: 700; color: #7A5C10;">${i + 1}</td>
               <td style="padding: 12px 0 0 0; vertical-align: top; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; color: #1F2328; word-break: break-word; overflow-wrap: anywhere;">${e(r.material) || '—'}</td>
-              ${doc.showPrices ? `<td style="padding: 12px 0 0 12px; vertical-align: top; text-align: right; white-space: nowrap; width: 1%; font-size: ${r.priceCents ? '15px; font-weight: 700; color: #1F2328' : '13px; color: #5B616B'};">${e(sheetPriceLabel(r.priceCents))}${r.priceCents ? '<span style="font-size: 12px; font-weight: 400; color: #5B616B;"> /SF</span>' : ''}</td>` : ''}
+              ${doc.showPrices ? `<td style="padding: 12px 0 0 12px; vertical-align: top; text-align: right; white-space: nowrap; width: 1%; font-size: ${r.priceCents ? '15px; font-weight: 700; color: #1F2328' : '13px; color: #5B616B'};">${e(sheetPriceLabel(r.priceCents))}${r.priceCents ? '&nbsp;<span style="font-size: 12px; font-weight: 400; color: #5B616B; white-space: nowrap;">/SF</span>' : ''}</td>` : ''}
             </tr>
             <tr>
               <td></td>
