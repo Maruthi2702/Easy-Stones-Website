@@ -148,6 +148,12 @@ describe('groupRepOptions — the format every rep dropdown and filter shares', 
     expect(shape(groupRepOptions(opts, { you: 'k' }))[2]).toBe('Seattle: Krish (you), Vishnu');
     expect(groupRepOptions(opts, { you: 'Asha' })[1].options[0]).toMatchObject({ label: 'Asha (you)', you: true });
   });
+  it('puts one branch first when asked (the Selection Sheet\'s visit branch)', () => {
+    expect(shape(groupRepOptions(opts, { first: 'Seattle' }))).toEqual([
+      'Seattle: Krish, Vishnu', 'Atlanta: Sree', 'Dallas: Asha, Babu', 'Other: Jeremy'
+    ]);
+    expect(shape(groupRepOptions(opts, { first: 'Spokane' }))[0]).toBe('Atlanta: Sree');
+  });
   it('searches by name or branch', () => {
     expect(shape(groupRepOptions(opts, { query: 'dal' }))).toEqual(['Dallas: Asha, Babu']);
     expect(shape(groupRepOptions(opts, { query: 'kri' }))).toEqual(['Seattle: Krish']);

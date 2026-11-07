@@ -86,8 +86,9 @@ Who can be picked as a sales rep is decided once, in `src/utils/salesReps.ts`
 shared `admin` login, drivers or CSRs). The customer rep picker and Customer
 List filter use `toSalesRepList` (by id; deactivated reps kept, marked, for
 filtering — the Add/Edit customer form offers them only when already set).
-Every dropdown that saves a rep's **name** — Selection Sheet (the visit's
-branch), Delivery (your branches), Location's sales person (any branch) —
+Every dropdown that saves a rep's **name** — Selection Sheet (every branch, the
+visit's branch group first — owner, 2026-11-07; it was the visit's branch only),
+Delivery (your branches), Location's sales person (any branch) —
 uses `useSalesRepOptions()` in `src/api/salesRepOptions.ts`, built on
 `salesRepNameOptions`: active reps only, A–Z, and whoever is already saved
 stays at the top. A new rep dropdown uses those; don't filter

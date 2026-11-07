@@ -15,7 +15,8 @@ import { groupRepOptions } from '../../../utils/salesReps';
  *
  * `options` are { value, label, location, id? } — from useSalesRepOptions or
  * toSalesRepList. `noneLabel` adds the blank choice (omit it where a rep is
- * required). `you` is the signed-in person's id.
+ * required). `you` is the signed-in person's id. `firstGroup` puts one
+ * branch's group at the top (the Selection Sheet's visit branch).
  */
 /** A rep as the picker shows them (useSalesRepOptions / toSalesRepList). */
 export type RepOption = { value: string; label: string; location?: string; id?: string };
@@ -29,13 +30,14 @@ export type RepPickerProps = {
     placeholder?: string;
     sheetTitle?: string;
     you?: string;
+    firstGroup?: string;
     error?: unknown;
     disabled?: boolean;
 };
 
 export default function RepPicker({
     id, value, onChange, options = [], noneLabel = null, placeholder = 'Choose a sales rep',
-    sheetTitle = 'Sales rep', you = '', error, disabled
+    sheetTitle = 'Sales rep', you = '', firstGroup = '', error, disabled
 }: RepPickerProps) {
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
@@ -49,7 +51,7 @@ export default function RepPicker({
     const sheet = isPhone || pos.placement === 'sheet';
     const listId = `${id}-list`;
 
-    const groups = useMemo(() => groupRepOptions(options, { you, query }), [options, you, query]);
+    const groups = useMemo(() => groupRepOptions(options, { you, query, first: firstGroup }), [options, you, query, firstGroup]);
     const showNone = noneLabel && !query.trim();
     // What the arrow keys move through, in the order on screen.
     const flat = useMemo<RepOption[]>(

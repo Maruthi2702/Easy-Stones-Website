@@ -171,13 +171,15 @@ export function startingRepFor({ staff = [], branch = '', branchReps = {}, creat
  * similar names at different branches aren't mixed up.
  *
  * `options` are { value, label, location, id? }; `you` is the signed-in
- * person's id (or the value they'd have); `query` narrows by name or branch.
+ * person's id (or the value they'd have); `query` narrows by name or branch;
+ * `first` is a branch whose group goes to the top (the Selection Sheet's
+ * visit branch).
  * A blank value (None / Unassigned) is left to the caller to show first.
  * @param {any[]} [options]
- * @param {{ you?: string, query?: string }} [opts]
+ * @param {{ you?: string, query?: string, first?: string }} [opts]
  * @returns {{ group: string, options: any[] }[]}
  */
-export function groupRepOptions(options: Loose[] = [], { you = '', query = '' }: Loose = {}) {
+export function groupRepOptions(options: Loose[] = [], { you = '', query = '', first = '' }: Loose = {}) {
     const q = String(query || '').trim().toLowerCase();
     const youKey = String(you || '');
     const byBranch = new Map();
@@ -191,5 +193,6 @@ export function groupRepOptions(options: Loose[] = [], { you = '', query = '' }:
     }
     return [...byBranch]
         .map(([group, opts]) => ({ group, options: opts.sort((a: Loose, b: Loose) => a.label.localeCompare(b.label)) }))
-        .sort((a, b) => Number(a.group === 'Other') - Number(b.group === 'Other') || a.group.localeCompare(b.group));
+        .sort((a, b) => Number(b.group === first) - Number(a.group === first) ||
+            Number(a.group === 'Other') - Number(b.group === 'Other') || a.group.localeCompare(b.group));
 }

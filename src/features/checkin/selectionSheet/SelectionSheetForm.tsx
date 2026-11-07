@@ -143,11 +143,13 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
         });
     };
 
-    // The shared sales rep list (src/api/salesRepOptions.js): reps working at
-    // this visit's branch. The sheet emails its rep on every change, so nobody
-    // deactivated is offered (one already named here still shows, marked).
+    // The shared sales rep list (src/api/salesRepOptions.js): every active rep
+    // at every branch, the visit's branch group first (owner, 2026-11-07 — a
+    // Spokane or SLC rep can serve a Seattle visit; it used to offer only reps
+    // working at the visit's branch). The sheet emails its rep on every change,
+    // so nobody deactivated is offered (one already named here still shows,
+    // marked).
     const repList = useSalesRepOptions({
-        branches: record.location ? [record.location] : [],
         current: { name: values.salesRep, email: values.salesRepEmail }
     });
     const chooseRep = (name: string) => {
@@ -417,13 +419,13 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                         {fact('Company', record.fabricatorCompany)}
                         {fact('Company phone', record.fabricatorPhone)}
                         <FormField name="salesRep" id="ss-rep" label="Sales rep">
-                            <RepPicker id="ss-rep" value={values.salesRep} onChange={chooseRep} options={repList} noneLabel="None" you={owner} disabled={!canEdit} />
+                            <RepPicker id="ss-rep" value={values.salesRep} onChange={chooseRep} options={repList} noneLabel="None" you={owner} firstGroup={record.location || ''} disabled={!canEdit} />
                         </FormField>
                     </div>
                 )}
                 {isPhone && (
                     <FormField name="salesRep" id="ss-rep" label="Sales rep">
-                        <RepPicker id="ss-rep" value={values.salesRep} onChange={chooseRep} options={repList} noneLabel="None" you={owner} disabled={!canEdit} />
+                        <RepPicker id="ss-rep" value={values.salesRep} onChange={chooseRep} options={repList} noneLabel="None" you={owner} firstGroup={record.location || ''} disabled={!canEdit} />
                     </FormField>
                 )}
             </section>
