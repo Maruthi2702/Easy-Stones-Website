@@ -8,12 +8,13 @@ import { PERMITS } from '../../../permits/permissions';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, ListOrdered
+    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, ListOrdered, PackageCheck, Ship, Unlock, Factory
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
 import { PAYMENTS } from '../../../utils/paymentsReceived';
 import { CARD_RECEIPTS } from '../../../utils/cardReceipts';
+import { SUPPLIER_POS } from '../../../utils/supplierAccess';
 import { FULL_ACCESS, USERS, ROLES, LOCATIONS, VISIT_TYPES, RESOURCE_TYPES, TYPE_LISTS_ALL, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
 import type { PageDef, RoleRecord } from '../types';
 
@@ -228,6 +229,22 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             // Separate from View on purpose: seeing stock levels and seeing what
             // that stock cost/is worth are different levels of trust.
             { key: 'view_inventory_prices', label: 'View Prices', icon: DollarSign, desc: 'See dollar value/cost figures on lots and slabs' }
+        ]
+    },
+    // Purchasing → Supplier POs (src/utils/supplierAccess.ts, 2026-11-07).
+    // Two approval steps, each its own switch (owner: managers with purchasing
+    // access approve, the purchasing team / directors give final approval).
+    {
+        id: 'supplier_pos', page: 'Purchasing · Supplier POs', icon: PackageCheck,
+        description: 'POs assigned to suppliers, the blocks they offer with a photo per bundle, and the two approval steps', color: '#b45309',
+        actions: [
+            { key: SUPPLIER_POS.VIEW, section: 'Purchase orders', label: 'View', icon: Eye, desc: 'See supplier POs, the blocks offered, their photos and history, and the suppliers list' },
+            { key: SUPPLIER_POS.MANAGE_POS, section: 'Purchase orders', label: 'Add & edit POs', icon: Pencil, desc: 'Add POs (typed or filled from the SPS import), assign them to a supplier, edit, close and cancel them' },
+            { key: SUPPLIER_POS.REVIEW, section: 'Approvals', label: 'Approve (step 1)', icon: CheckCheck, desc: 'Approve, reject or ask for a new photo of the bundles a supplier offers' },
+            { key: SUPPLIER_POS.FINAL, section: 'Approvals', label: 'Final approval (step 2)', icon: ShieldCheck, desc: 'Give final approval so the supplier may load — never for a bundle they approved in step 1' },
+            { key: SUPPLIER_POS.UNLOCK, section: 'Approvals', label: 'Unlock bundles', icon: Unlock, desc: 'Unlock an approved bundle, with a reason, so the supplier can change it (it goes through both steps again)' },
+            { key: SUPPLIER_POS.MANAGE_SUPPLIERS, section: 'Suppliers', label: 'Manage suppliers', icon: Factory, desc: 'Add and edit suppliers, and their portal logins: invite, send a new link, turn off, unlock' },
+            { key: SUPPLIER_POS.INCOMING, section: 'Sales', label: 'Incoming material', icon: Ship, desc: 'Products → Incoming Material: approved bundles on their way, with photos and sizes — no prices, supplier or PO' }
         ]
     },
     // Cart & Holds (src/holds/permissions.ts, 2026-10-10). Every action is its

@@ -97,6 +97,9 @@ import createDailyReportsRouter from './src/routes/dailyReports.ts';
 import createPaymentsReceivedRouter from './src/routes/paymentsReceived.ts';
 import { PAYMENTS_MIGRATION } from './src/utils/paymentsReceived.ts';
 import createCardReceiptsRouter from './src/routes/cardReceipts.ts';
+import createSuppliersRouter from './src/routes/suppliers.ts';
+import createSupplierPortalRouter from './src/routes/supplierPortal.ts';
+import { ALL_SUPPLIER_PERMISSIONS, DIRECTOR_SUPPLIER_GRANTS } from './src/utils/supplierAccess.ts';
 import { cleanApproverRoles } from './src/utils/cardReceipts.ts';
 import createDeliveriesRouter, { deliveryRoomsFor, renumberAllRuns } from './src/routes/deliveries.ts';
 import createCheckInRouter from './src/routes/checkIn.ts';
@@ -728,7 +731,8 @@ async function startServer() {
             'view_all_visits', 'edit_all_visits', 'delete_all_visits',
             ...ALL_ACCOUNTING_PERMISSIONS,
             ...ALL_HOLD_PERMISSIONS,
-            ...ALL_PERMIT_PERMISSIONS
+            ...ALL_PERMIT_PERMISSIONS,
+            ...ALL_SUPPLIER_PERMISSIONS
           ],
           isSystem: true
         },
@@ -903,7 +907,13 @@ async function startServer() {
         // Customers (src/utils/customerAccess.ts, 2026-10-17): the full profile
         // and Export start with Admin alone (owner's call) while the profile is
         // finished; every other role gets them under Users & Roles later.
-        { roles: ['admin'], permissions: [...CUSTOMER_ADMIN_GRANTS] }
+        { roles: ['admin'], permissions: [...CUSTOMER_ADMIN_GRANTS] },
+        // Supplier POs (src/utils/supplierAccess.ts, 2026-11-07): admin holds
+        // every switch; directors start with both approval steps (the owner
+        // named them for both). Managers and the purchasing team are ticked
+        // by an admin under Users & Roles.
+        { roles: ['admin'], permissions: [...ALL_SUPPLIER_PERMISSIONS] },
+        { roles: ['director'], permissions: [...DIRECTOR_SUPPLIER_GRANTS] }
       ];
 
       // Each grant reaches a role once. Its permissions are recorded in
@@ -4457,6 +4467,17 @@ app.use('/api/payments-received', createPaymentsReceivedRouter({
 // approval by role (src/routes/cardReceipts.ts, rules in src/utils/cardReceipts.ts).
 app.use('/api/card-receipts', createCardReceiptsRouter({
   authenticate,
+  processBase64Image
+}));
+
+// ── SUPPLIER POs ── purchasing assigns POs to suppliers, who offer blocks with
+// a photo per bundle; two-step approval (src/routes/suppliers.ts, rules in
+// src/utils/supplierBlocks.ts). The supplier portal has its own sign-in, whose
+// token no staff route accepts (src/services/supplierSession.ts).
+app.use('/api/suppliers', createSuppliersRouter({ authenticate }));
+app.use('/api/supplier-portal', createSupplierPortalRouter({
+  jwtSecret: JWT_SECRET,
+  loginLimiter,
   processBase64Image
 }));
 

@@ -37,6 +37,7 @@ import Role from '../models/Role.ts';
 import DailyReport from '../models/DailyReport.ts';
 import PaymentReceived from '../models/PaymentReceived.ts';
 import { CompanyCard, ReceiptCategory, CardExpense } from '../models/CardReceipts.ts';
+import { Supplier, SupplierLogin, SupplierPO, SupplierBlock } from '../models/Suppliers.ts';
 import CrossoverSheet from '../models/CrossoverSheet.ts';
 import EasyStonesColor from '../models/EasyStonesColor.ts';
 import InventoryTransitReport, { InventoryTransitEvent } from '../models/InventoryTransitReport.ts';
@@ -86,6 +87,7 @@ export const INDEXED_MODELS: readonly (readonly [string, IndexedModel])[] = [
   ['CompanyCard', CompanyCard],
   ['ReceiptCategory', ReceiptCategory],
   ['CardExpense', CardExpense],
+  ['Supplier', Supplier], ['SupplierLogin', SupplierLogin], ['SupplierPO', SupplierPO], ['SupplierBlock', SupplierBlock],
   ['CrossoverSheet', CrossoverSheet],
   ['EasyStonesColor', EasyStonesColor],
   ['InventoryItem', InventoryItem],

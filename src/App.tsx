@@ -28,6 +28,8 @@ const ChoosePasswordPage = lazyRetry(() => import('./pages/ChoosePasswordPage'))
 const SetPasswordPage = lazyRetry(() => import('./pages/SetPasswordPage'));
 const CheckInPage = lazyRetry(() => import('./features/checkin/staff/CheckInPage'));
 const CheckInLogPage = lazyRetry(() => import('./features/checkin/CheckInLogPage'));
+// The supplier portal (src/features/supplierPortal/): its own sign-in, never the staff session.
+const SupplierPortal = lazyRetry(() => import('./features/supplierPortal/SupplierPortal'));
 
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -111,7 +113,9 @@ function App() {
   // signs out; the check-in page has Back to Sales / Sign out), so the site
   // header is the public website's only (2026-10-18). The old standalone
   // /checkin-log keeps it: nothing links there and it has no way out of its own.
-  const hideHeader = isSalesPage || isSelfCheckInPage || location.pathname === '/checkin';
+  // The supplier portal is its own small site: no header, no footer.
+  const isSupplierPortal = location.pathname === '/supplier' || location.pathname.startsWith('/supplier/');
+  const hideHeader = isSalesPage || isSelfCheckInPage || location.pathname === '/checkin' || isSupplierPortal;
   useEffect(() => {
     document.body.classList.toggle('no-site-header', hideHeader);
   }, [hideHeader]);
@@ -179,6 +183,7 @@ function App() {
                   />
                   <Route path="/checkin" element={<ProtectedRoute><CheckInPage /></ProtectedRoute>} />
                   <Route path="/self-checkin" element={<CheckInPage isSelfCheckIn={true} />} />
+                  <Route path="/supplier/*" element={<SupplierPortal />} />
                   <Route path="/checkin-log" element={<ProtectedRoute><CheckInLogPage /></ProtectedRoute>} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                   <Route path="/product/:productId" element={<ProductDetail />} />
@@ -203,7 +208,7 @@ function App() {
               </Suspense>
             </ErrorBoundary>
           </main>
-          {!isSalesPage && !isAdminPage && !isSelfCheckInPage && !isLoginPage && <Footer />}
+          {!isSalesPage && !isAdminPage && !isSelfCheckInPage && !isLoginPage && !isSupplierPortal && <Footer />}
         </div>
         {/* Custom Alert Modal overlay outside normal layout */}
         {customAlert && (

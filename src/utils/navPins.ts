@@ -20,6 +20,7 @@ import { canCheckIn, canViewCheckInLog } from './checkInAccess.ts';
 import { canViewLostSales } from './lostSaleAccess.ts';
 import { PAYMENTS } from './paymentsReceived.ts';
 import { canOpenReceipts, canOpenCategories } from './cardReceipts.ts';
+import { canOpenSupplierPos, canSeeIncoming } from './supplierAccess.ts';
 import { canOpenUsersPage } from './teamAccess.ts';
 import { canOpenArea, can, NAV_ORDER } from './usersAccess.ts';
 
@@ -36,6 +37,9 @@ export const NAV_SECTIONS: NavSection[] = [
   { id: 'sales', label: 'Sales' },
   { id: 'operations', label: 'Operations' },
   { id: 'products', label: 'Products' },
+  // Purchasing (2026-11-07): Supplier POs now; loading documents and arrival
+  // checks are planned there, so it opens its panel like Accounting.
+  { id: 'purchasing', label: 'Purchasing', keepPanel: true },
   // Opens its panel even with one page in it: more Accounting pages are
   // coming (owner, 2026-10-10), so it shouldn't behave like a one-page link.
   { id: 'accounting', label: 'Accounting', keepPanel: true },
@@ -77,6 +81,9 @@ export const NAV_ITEMS: NavItem[] = [
     id: 'crossover_sheet', label: 'Crossover Sheet', section: 'products',
     canSee: (u: NavUser) => has(u, 'view_crossover_sheet') || isAdmin(u) || !u
   },
+  // Incoming Material (src/features/suppliers/incoming/): approved supplier
+  // bundles on their way — photos and sizes, no prices, supplier or PO.
+  { id: 'incoming_material', label: 'Incoming Material', section: 'products', canSee: (u: NavUser) => canSeeIncoming(u) },
   // Not a page here: StoneProfits' live inventory, opened in a new tab
   // (SalesPage's handleCrmTabChange). It was a link in the site header until
   // the header left the staff screens (2026-10-18). Shown beside the other
@@ -88,6 +95,8 @@ export const NAV_ITEMS: NavItem[] = [
     href: 'https://easystones.stoneprofitsweb.com/',
     canSee: (u: NavUser) => !!u && NAV_ITEMS.some((item) => item.section === 'products' && !item.href && item.canSee(u))
   },
+  // Supplier POs (src/features/suppliers/): any of its switches opens it.
+  { id: 'supplier_pos', label: 'Supplier POs', section: 'purchasing', canSee: (u: NavUser) => canOpenSupplierPos(u) },
   // Accounting (src/accounting/): the permission is the only key, as with
   // every Accounting action.
   { id: 'freight', label: '3rd-Party Freight', section: 'accounting', canSee: (u: NavUser) => has(u, 'view_freight_charges') },

@@ -1137,6 +1137,48 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   sample statement), the daily reminder email, closing a month, the PDF export.
   The `missing` status and `approvesCardReceiptsOf` already exist for them.
 
+## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
+
+Design and the owner's calls: the claude.ai artifact **Supplier Portal Design**
+(https://claude.ai/artifact/KbEE97GomxC1ANhshGNwoU). Purchasing → **Supplier
+POs** (`src/features/suppliers/`, nav `supplier_pos`, a new **Purchasing**
+module) and Products → **Incoming Material** (`incoming_material`). A PO
+(typed, or "Fill from SPS" from `InventoryTransitShipment`; one PO # is one PO,
+`poKey`) is assigned to a supplier; the supplier offers **blocks** against a
+material line, each with 7–8 **bundles, one photo each**. Two steps, bundle by
+bundle or the whole block: **1 Approve** (`review_supplier_blocks`) → **2 Final
+approval** (`final_approve_supplier_blocks`), never by the person who approved
+it in step 1 (`SAME_PERSON_BOTH_STEPS = false`, my default — owner unanswered).
+Reject / New photo take a reason from the list (`REJECT_REASONS` /
+`RETAKE_REASONS`, words in every language). Approved = **locked**; Unlock
+(`unlock_supplier_bundles`, with a reason) sends it back through both steps.
+**No prices anywhere in this module.** Rules: `src/utils/supplierBlocks.ts`
+(tested); permissions `src/utils/supplierAccess.ts` (one switch per action,
+Users & Roles card "Purchasing · Supplier POs"; admin all, directors view /
+both steps / unlock / incoming; everyone else ticked by an admin). Staff API
+`src/routes/suppliers.ts` at `/api/suppliers`; models `src/models/Suppliers.ts`.
+
+**The supplier portal** (`/supplier`, `src/features/supplierPortal/`, API
+`src/routes/supplierPortal.ts` at `/api/supplier-portal`) has **its own
+sign-in** (`src/services/supplierSession.ts`): a token on a key derived from
+JWT_SECRET in a cookie scoped to `/api/supplier-portal`, so no staff route
+accepts it and no portal route accepts a staff token — keep it that way. One
+login per supplier (`MAX_LOGINS_PER_SUPPLIER`), invite / reset links single-use
+7 days, five wrong passwords lock 15 minutes. Every portal read and write is
+limited to the login's own supplier; what a supplier sees is
+`supplierBlockView` / `supplierPoView` in `src/services/supplierViews.ts`
+(never a staff name — notes go out without `by`), what sales see is
+`incomingView` (never the supplier or the PO). The portal's words, reasons and
+emails are `src/utils/supplierI18n.ts` in 9 languages (my translations — have
+native speakers check them); `supplierI18n.test.ts` fails if a language misses
+a key. Free-text notes are machine translated only when
+`GOOGLE_TRANSLATE_API_KEY` is set (`src/services/translate.ts`), and always
+keep the original. Photos are shrunk on the phone (1800px) and upload when
+taken, waiting for signal when there is none (`usePhotoUploads.ts`). Emails:
+the supplier on PO assigned, on decisions that need them and on final approval;
+the PO's buyer when a block is sent. **Not built** (canvas phase 3): loading
+documents (container, seal, B/L) and the arrival check against the photos.
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,

@@ -1,6 +1,6 @@
 import {
     LayoutDashboard, User, Clock, Truck, Map as MapIcon, ClipboardList, Tag, TrendingDown, ArrowLeftRight, Boxes,
-    Users, Briefcase, Warehouse, ExternalLink, Layers, Shield, Calculator, Lock, HardHat, ShieldCheck, MapPin, ArrowUpDown, ListOrdered, Package, Receipt, Fuel, FolderOpen, Wallet, CreditCard, Tags
+    Users, Briefcase, Warehouse, ExternalLink, Layers, Shield, Calculator, Lock, HardHat, ShieldCheck, MapPin, ArrowUpDown, ListOrdered, Package, Receipt, Fuel, FolderOpen, Wallet, CreditCard, Tags, PackageCheck, Ship
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -33,6 +33,8 @@ export const ITEM_ICONS: Readonly<Record<string, LucideIcon>> = {
     fuel_man: Fuel,
     card_receipts: CreditCard,
     receipt_categories: Tags,
+    supplier_pos: PackageCheck,
+    incoming_material: Ship,
     live_inventory: ExternalLink
 };
 
@@ -41,6 +43,7 @@ export const SECTION_ICONS: Readonly<Record<string, LucideIcon>> = {
     sales: Briefcase,
     operations: Warehouse,
     products: Layers,
+    purchasing: PackageCheck,
     accounting: Calculator,
     admin: Shield
 };

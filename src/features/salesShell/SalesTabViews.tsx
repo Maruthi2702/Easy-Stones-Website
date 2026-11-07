@@ -11,6 +11,7 @@ import { canOpenUsersPage } from '../../utils/teamAccess';
 import { canOpenArea, can, NAV_ORDER } from '../../utils/usersAccess';
 import { PERMITS } from '../../permits/permissions';
 import { canOpenReceipts, canOpenCategories } from '../../utils/cardReceipts';
+import { canOpenSupplierPos, canSeeIncoming } from '../../utils/supplierAccess';
 import { TeamFilesPage } from '../teamFiles';
 import type { TeamFiles } from '../teamFiles';
 import type { Loose } from '../../types/records';
@@ -40,6 +41,8 @@ const PaymentsPage = page(() => import('../payments/PaymentsPage'));
 const FuelManPage = page(() => import('../fuelman'));
 const CardReceiptsPage = page(() => import('../cardReceipts/CardReceiptsPage'));
 const ReceiptCategoriesPage = page(() => import('../cardReceipts/categories/ReceiptCategoriesPage'));
+const SupplierPosPage = page(() => import('../suppliers/SupplierPosPage'));
+const IncomingMaterialPage = page(() => import('../suppliers/incoming/IncomingMaterialPage'));
 const FreightTab = page(() => import('../freight/FreightTab'));
 const HoldsTab = page(() => import('../holds/HoldsTab'));
 const PermitsTab = page(() => import('../../components/sales/permits/PermitsTab'));
@@ -207,6 +210,22 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
                 <ErrorBoundary key="card-receipts-view">
                     <Suspense fallback={<TabLoader />}>
                         <CardReceiptsPage currentUser={currentUser} sidebarToggle={menu(true)} />
+                    </Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && crmTab === 'supplier_pos' && canOpenSupplierPos(currentUser) && (
+                <ErrorBoundary key="supplier-pos-view">
+                    <Suspense fallback={<TabLoader />}>
+                        <SupplierPosPage currentUser={currentUser} locations={locations || []} sidebarToggle={menu(true)} />
+                    </Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && crmTab === 'incoming_material' && canSeeIncoming(currentUser) && (
+                <ErrorBoundary key="incoming-material-view">
+                    <Suspense fallback={<TabLoader />}>
+                        <IncomingMaterialPage currentUser={currentUser} sidebarToggle={menu(true)} />
                     </Suspense>
                 </ErrorBoundary>
             )}
