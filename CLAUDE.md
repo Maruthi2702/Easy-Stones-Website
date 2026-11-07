@@ -571,7 +571,7 @@ page count of their own. The email is fluid with no media queries and built from
 **forward keeps it** (an Outlook forward dropped an inline-block layout and
 text-transform): the three people are one table row, labels typed in capitals;
 one row per material. Subject
-"Selection Sheet: <name>", sent as "<rep> at Easy Stones", reply-to the rep.
+"Selection Sheet: <name>", sent as "Easy Stones" (owner, 2026-11-07), reply-to the rep.
 The Email pop-up asks **Home Owner** (their email, without prices first) or
 **Fabricator** (typed address — a check-in keeps no fabricator email — with
 prices first); both send the same sheet.

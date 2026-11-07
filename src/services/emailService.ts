@@ -315,20 +315,14 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
   `;
 }
 
-// The rep's name as the sender ("Krish at Easy Stones"), letters and spaces
-// only — it goes into a From header.
-const senderNameFor = (rep: unknown) => {
-  const name = String(rep ?? '').replace(/[^\p{L}\p{N} .'-]/gu, '').replace(/\s+/g, ' ').trim();
-  return name ? `${name} at Easy Stones` : 'Easy Stones Selection';
-};
-
 export async function sendSelectionSheetEmail(checkIn: Loose, recipientEmail: string, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, logoUrl = '' }: Loose = {}) {
   const repEmail = String(checkIn.salesRepEmail || '').trim();
   return await sendEmail({
     to: recipientEmail,
     subject: `Selection Sheet: ${checkIn.name}`,
     html: selectionSheetEmailHtml(checkIn, letterhead, { showPrices, logoUrl }),
-    defaultSenderName: senderNameFor(checkIn.salesRep),
+    // Sent as plain "Easy Stones" (owner, 2026-11-07); replies still go to the rep.
+    defaultSenderName: 'Easy Stones',
     ...(checkIn.salesRep && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(repEmail) ? { replyTo: repEmail } : {})
   });
 }

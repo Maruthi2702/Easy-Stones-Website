@@ -75,13 +75,13 @@ describe('sendSelectionSheetEmail', () => {
     expect(await htmlOf()).toContain('EASY STONES');
   });
 
-  it('is titled "Selection Sheet: <name>", from the rep, replies to the rep', async () => {
+  it('is titled "Selection Sheet: <name>", from Easy Stones, replies to the rep', async () => {
     const message = await messageOf();
     expect(message.subject).toBe('Selection Sheet: Pat Visitor');
-    expect(message.from).toContain('Rita at Easy Stones');
+    expect(message.from).toMatch(/^"?Easy Stones"? </);
     expect(message.replyTo).toBe('rita@x.com');
     const noRep = await messageOf({}, { ...checkIn, salesRep: '', salesRepEmail: 'old@x.com' });
-    expect(noRep.from).toContain('Easy Stones Selection');
+    expect(noRep.from).toMatch(/^"?Easy Stones"? </);
     expect(noRep.replyTo).toBeUndefined();
   });
 
