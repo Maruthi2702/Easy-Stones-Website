@@ -56,6 +56,12 @@ export default function createVisitsRouter({
     return doc?.visits?.[0] || null;
   };
 
+  const announceVisit = (req: Request, customerId: string, visitId: string | mongoose.Types.ObjectId) => {
+    const mutationId = typeof req.body?._mutationId === 'string' && /^[0-9a-f]{24}$/i.test(req.body._mutationId)
+      ? req.body._mutationId : undefined;
+    req.app.get('io')?.emit('customer_update', { kind: 'visit', customerId, visitId: String(visitId), mutationId });
+  };
+
   router.post('/visit-attachments', authenticate,
     requireAnyPermission('add_visits', ...ANY_EDIT_VISIT_PERMISSIONS), async (req, res) => {
       const data = req.body?.data;
@@ -154,7 +160,7 @@ export default function createVisitsRouter({
 
       console.log(`[Add Visit] Success in ${Date.now() - updateStart}ms for customer ${customerId}`);
       req.app.get('io').emit('visit_updated', { customerId });
-      req.app.get('io')?.emit('customer_update');
+      announceVisit(req, customerId, visitId);
       res.status(201).json({ success: true, visit: visitData });
 
       // Background: put the visit on the logger's calendar — completing their
@@ -257,7 +263,7 @@ export default function createVisitsRouter({
       // The stored visit (image links and all), as POST answers — the screen
       // shows this, not a guess from what it sent.
       const saved = await visitOf(customerId, visitId);
-      req.app.get('io')?.emit('customer_update');
+      announceVisit(req, customerId, visitId);
       res.json({ success: true, message: 'Visit updated successfully', visit: saved });
 
       // Background: a visit moved to another day takes its calendar entry along.

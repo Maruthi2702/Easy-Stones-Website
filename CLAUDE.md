@@ -991,6 +991,11 @@ the form closes and the visit shows on the customer at once (`handleSaveVisit`);
 the request goes behind it, a failure takes the visit back off and reopens the
 form with what was typed, and closing the tab mid-send asks first
 (`beforeunload`). A photo uploaded and then never saved stays in Cloudinary.
+A visit save refreshes through `refreshVisitData`
+(`src/features/visits/refreshVisitData.ts`, tested), for this browser's save and
+another's `customer_update {kind:'visit'}`: the dashboard's visit data, the
+open profile and the Customers list cache (Last visit) — not the customer
+dropdown or resources. A new visit-changing route should emit the scoped event.
 
 ## Code layout: one folder per module, props between them (2026-10-23)
 

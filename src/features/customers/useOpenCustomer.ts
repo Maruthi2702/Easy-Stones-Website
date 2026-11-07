@@ -17,6 +17,12 @@ export type OpenCustomerDeps = {
     onShown: (record: Loose) => void;
 };
 
+const withVisits = (customer: Loose, visits: Loose[]) => ({
+    ...customer,
+    visits,
+    lastVisitDate: visits.reduce<string | null>((last, visit) => visit.date && (!last || visit.date > last) ? visit.date : last, null)
+});
+
 /**
  * The open customer's full record: loaded when the id changes (the cached copy
  * first, so it shows at once), kept in a per-customer cache, and patched by a
@@ -30,6 +36,9 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
 
     // In-memory customer cache for instant rendering
     const customerCacheRef = React.useRef<Record<string, Loose>>({});
+    const pendingReadsRef = React.useRef(new Map<string, Map<string, Loose | null>>());
+    const selectedIdRef = React.useRef(selectedCustomerId);
+    useLayoutEffect(() => { selectedIdRef.current = selectedCustomerId; }, [selectedCustomerId]);
 
     const callbacks = React.useRef({ onOpening, onShown });
     useLayoutEffect(() => { callbacks.current = { onOpening, onShown }; }, [onOpening, onShown]);
@@ -37,16 +46,19 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
     // Optimized function to fetch only the selected customer with instant cache hydration
     const fetchSingleCustomer = useCallback(async (customerId: string, skipCache = false) => {
         if (!customerId) return;
+        const visitChanges = new Map<string, Loose | null>();
+        pendingReadsRef.current.set(customerId, visitChanges);
+        const isOpen = () => selectedIdRef.current === customerId && pendingReadsRef.current.get(customerId) === visitChanges;
 
         // 1. Instant Cache Hydration: Serve cached data in 0ms if available
-        callbacks.current.onOpening();
+        if (isOpen()) callbacks.current.onOpening();
 
-        if (!skipCache && customerCacheRef.current[customerId]) {
+        if (isOpen() && !skipCache && customerCacheRef.current[customerId]) {
             const cachedData = customerCacheRef.current[customerId];
             setSelectedCustomerDetail(cachedData);
             callbacks.current.onShown(cachedData);
             setVisitsLoading(false);
-        } else {
+        } else if (isOpen()) {
             setVisitsLoading(true);
         }
 
@@ -54,16 +66,30 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
             const response = await authFetch(`${API_URL}/api/customers/${customerId}`);
 
             if (response.ok) {
-                const data = await response.json();
+                let data = await response.json();
+                if (pendingReadsRef.current.get(customerId) !== visitChanges) return;
+                // Preserve changes made while this read was in flight, including
+                // saves that finish before the profile's initial read does.
+                if (visitChanges.size) {
+                    const visits = new Map<string, Loose>((data.visits || []).map((visit: Loose) => [visit._id, visit]));
+                    visitChanges.forEach((visit, id) => {
+                        if (visit) visits.set(id, { ...visits.get(id), ...visit });
+                        else visits.delete(id);
+                    });
+                    data = withVisits(data, [...visits.values()]);
+                }
                 customerCacheRef.current[customerId] = data; // Update memory cache
-                setSelectedCustomerDetail(data);
-                callbacks.current.onShown(data);
+                if (isOpen()) {
+                    setSelectedCustomerDetail(data);
+                    callbacks.current.onShown(data);
+                }
                 return data;
             }
         } catch (error) {
             console.error('Error fetching customer details:', error);
         } finally {
-            setVisitsLoading(false);
+            if (isOpen()) setVisitsLoading(false);
+            if (pendingReadsRef.current.get(customerId) === visitChanges) pendingReadsRef.current.delete(customerId);
         }
     }, []);
 
@@ -86,14 +112,13 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
     // cached copy shown while that refresh runs isn't the pre-save one.
     const patchOpenCustomerVisits = (customerId: string, visit: Loose) => {
         if (!visit?._id || customerId !== selectedCustomerId) return;
+        pendingReadsRef.current.get(customerId)?.set(visit._id, visit);
         setSelectedCustomerDetail(prev => {
             if (!prev || prev._id !== customerId) return prev;
             const visits = prev.visits || [];
             const exists = visits.some((v: Loose) => v._id === visit._id);
-            const next = {
-                ...prev,
-                visits: exists ? visits.map((v: Loose) => (v._id === visit._id ? { ...v, ...visit } : v)) : [...visits, visit]
-            };
+            const updated = exists ? visits.map((v: Loose) => (v._id === visit._id ? { ...v, ...visit } : v)) : [...visits, visit];
+            const next = withVisits(prev, updated);
             customerCacheRef.current[customerId] = next;
             return next;
         });
@@ -102,12 +127,24 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
     // The other way: take a visit that was shown ahead of its save back off.
     const removeOpenCustomerVisit = (customerId: string, visitId: string) => {
         if (!visitId || customerId !== selectedCustomerId) return;
+        pendingReadsRef.current.get(customerId)?.set(visitId, null);
         setSelectedCustomerDetail(prev => {
             if (!prev || prev._id !== customerId) return prev;
-            const next = { ...prev, visits: (prev.visits || []).filter((v: Loose) => v._id !== visitId) };
+            const visits = (prev.visits || []).filter((v: Loose) => v._id !== visitId);
+            const next = withVisits(prev, visits);
             customerCacheRef.current[customerId] = next;
             return next;
         });
+    };
+
+    // A remote visit changed this customer's history, not their directory
+    // entry. Refresh only the open profile and expire any kept closed copy.
+    const invalidateCustomerVisits = (customerId: string) => {
+        if (customerId === selectedCustomerId && canViewCustomerProfile(currentUser)) {
+            void fetchSingleCustomer(customerId);
+        } else {
+            delete customerCacheRef.current[customerId];
+        }
     };
 
     // A customer being opened shows at once: their cached copy, else the row
@@ -144,6 +181,7 @@ export function useOpenCustomer({ currentUser, customers, selectedCustomerId, on
         selectedCustomer,
         patchOpenCustomerVisits,
         removeOpenCustomerVisit,
+        invalidateCustomerVisits,
     };
 }
 

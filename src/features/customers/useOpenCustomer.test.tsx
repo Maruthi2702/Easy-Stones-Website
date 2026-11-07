@@ -62,4 +62,51 @@ describe('useOpenCustomer', () => {
     const { result } = renderHook(() => useOpenCustomer({ currentUser: { permissions: [] }, customers: [], selectedCustomerId: 'c1', onOpening() {}, onShown() {} }));
     expect(result.current.selectedCustomer).toBeNull();
   });
+
+  it('updates the last-visit summary from the saved response, including rollback', async () => {
+    const { result } = setup();
+    await waitFor(() => expect(result.current.selectedCustomerDetail).toEqual(record));
+    act(() => result.current.patchOpenCustomerVisits('c1', { _id: 'v2', date: '2026-11-06' }));
+    expect(result.current.selectedCustomer!.lastVisitDate).toBe('2026-11-06');
+    act(() => result.current.patchOpenCustomerVisits('c1', { _id: 'v2', date: '2026-10-06' }));
+    expect(result.current.selectedCustomer!.lastVisitDate).toBe('2026-10-06');
+    act(() => result.current.removeOpenCustomerVisit('c1', 'v2'));
+    expect(result.current.selectedCustomer!.lastVisitDate).toBeNull();
+  });
+
+  it('invalidates only the changed customer and refreshes its open profile', async () => {
+    const { result } = setup();
+    await waitFor(() => expect(result.current.selectedCustomerDetail).toEqual(record));
+    act(() => { result.current.customerCacheRef.current.c2 = { _id: 'c2', visits: [] }; });
+    authFetch.mockClear();
+    act(() => result.current.invalidateCustomerVisits('c2'));
+    expect(result.current.customerCacheRef.current.c2).toBeUndefined();
+    expect(authFetch).not.toHaveBeenCalled();
+    await act(async () => result.current.invalidateCustomerVisits('c1'));
+    expect(authFetch).toHaveBeenCalledTimes(1);
+    expect(authFetch.mock.calls[0][0]).toContain('/api/customers/c1');
+  });
+
+  it('preserves a saved visit when the older initial customer read arrives afterwards', async () => {
+    let finish!: (response: Response) => void;
+    authFetch.mockImplementation(() => new Promise<Response>(resolve => { finish = resolve; }));
+    const { result } = setup();
+    act(() => result.current.patchOpenCustomerVisits('c1', { _id: 'v2', date: '2026-11-06', notes: 'Saved' }));
+    await act(async () => { finish(Response.json(record)); });
+    expect(result.current.selectedCustomer!.visits.map((v: { _id: string }) => v._id)).toEqual(['v1', 'v2']);
+    expect(result.current.selectedCustomer!.lastVisitDate).toBe('2026-11-06');
+  });
+
+  it('does not replace another customer with a late remote-refresh response', async () => {
+    const { result, rerender } = setup();
+    await waitFor(() => expect(result.current.selectedCustomerDetail).toEqual(record));
+    let finish!: (response: Response) => void;
+    authFetch.mockImplementation((url: string) => url.endsWith('c1')
+      ? new Promise<Response>(resolve => { finish = resolve; }) : reply({ _id: 'c2', company: 'Next customer', visits: [] }));
+    act(() => result.current.invalidateCustomerVisits('c1'));
+    rerender({ id: 'c2' });
+    await waitFor(() => expect(result.current.selectedCustomer!._id).toBe('c2'));
+    await act(async () => { finish(Response.json(record)); });
+    expect(result.current.selectedCustomer!._id).toBe('c2');
+  });
 });

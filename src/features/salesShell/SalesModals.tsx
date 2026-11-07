@@ -125,7 +125,7 @@ export default function SalesModals(p: SalesModalsProps) {
                 setVisitForm={visits.setVisitForm}
                 customerOptions={p.customerOptions}
                 isDropdownLoading={p.isDropdownLoading}
-                isSaving={p.isSaving}
+                isSaving={p.isSaving || visits.visitSaving}
                 handleSaveVisit={visits.handleSaveVisit}
                 handleVisitImageUpload={visits.handleVisitImageUpload}
                 visitUploading={visits.visitUploading}

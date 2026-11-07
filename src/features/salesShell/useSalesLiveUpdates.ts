@@ -7,6 +7,7 @@ import { refreshCustomers } from '../../api/customerOptions';
 import { cartActions } from '../holds';
 import { clearInventoryCache } from '../../api/inventoryAnalysisCache';
 import { clearListCache } from '../customers/list/listOptions';
+import { isLocalVisitMutation } from '../visits/visitMutations';
 
 /** Away from the page at least this long, coming back reloads the dashboard and customer lists too. */
 export const AWAY_BEFORE_RELOAD_MS = 2 * 60 * 1000;
@@ -24,6 +25,7 @@ export type LiveUpdateHandlers = {
     /** The signed-in user's id (a ref: it loads after the first render). */
     currentUserIdRef: { current: string | null };
     onCustomersChanged: () => void;
+    onVisitsChanged?: (customerId: string) => void;
     onResourcesChanged: () => void;
     onLocationsChanged: () => void;
     onInventoryChanged: () => void;
@@ -44,7 +46,7 @@ export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
     const latest = useRef(handlers);
     useLayoutEffect(() => { latest.current = handlers; });
     useEffect(() => {
-        const { refreshCheckInsRef, resyncCheckInsRef, currentUserIdRef, onCustomersChanged, onResourcesChanged, onLocationsChanged, onInventoryChanged, onStart } = handlers;
+        const { refreshCheckInsRef, resyncCheckInsRef, currentUserIdRef, onResourcesChanged, onLocationsChanged, onInventoryChanged, onStart } = handlers;
         const socket = io(API_URL || window.location.origin, {
             transports: ['websocket', 'polling'],
             withCredentials: true
@@ -92,10 +94,16 @@ export function useSalesLiveUpdates(handlers: LiveUpdateHandlers) {
             refreshCheckInsRef.current();
         });
 
-        socket.on('customer_update', () => {
+        socket.on('customer_update', (payload) => {
+            if (payload?.kind === 'visit' && typeof payload.customerId === 'string' && latest.current.onVisitsChanged) {
+                // The local response already patches this visit and queues its
+                // refresh. A remote save only invalidates visit-related data.
+                if (!isLocalVisitMutation(payload.mutationId)) latest.current.onVisitsChanged(payload.customerId);
+                return;
+            }
             clearListCache();
             window.dispatchEvent(new Event('customers:changed'));
-            onCustomersChanged();
+            latest.current.onCustomersChanged();
             // Every customer dropdown, for a change made by anyone, anywhere.
             refreshCustomers();
         });

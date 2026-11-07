@@ -20,6 +20,7 @@ let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
 let customerId!: string;
 let processBase64Image!: Mock<(image: string, folder?: string) => Promise<unknown>>;
+const emit = vi.fn();
 
 const STAFF = { _id: 'u1', permissions: ['add_visits', 'edit_own_visits'], assignedLocations: ['*'] };
 const send = (method: 'post' | 'put' | 'patch' | 'delete', url: string, body: Loose, user: Loose = STAFF) =>
@@ -33,7 +34,7 @@ beforeAll(async () => {
   processBase64Image = vi.fn(async (s: string) => (s.startsWith('data:image/') ? 'https://cdn.example/x.webp' : s.startsWith('data:application/pdf') ? 'https://cdn.example/x.pdf' : s));
   app = express();
   app.use(express.json());
-  app.set('io', { emit: () => {} });
+  app.set('io', { emit });
   const has = (req: Loose, p: string) => (req.user.permissions || []).includes(p);
   app.use('/api/customers', createVisitsRouter({
     authenticate: (req: Loose, res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); req.userId = req.user._id; req.authType = 'admin'; next(); },
@@ -58,6 +59,7 @@ beforeEach(async () => {
   await seedTypeLists();
   customerId = String((await Customer.create({ contactName: 'Sam', company: 'Sam Homes', email: 'sam@x.com' }))._id);
   processBase64Image.mockClear();
+  emit.mockClear();
 });
 
 describe('visit types come from the database', () => {
@@ -79,6 +81,17 @@ describe('visit types come from the database', () => {
 });
 
 describe('POST /:customerId/visits', () => {
+  it('announces a scoped visit invalidation with only IDs, and does not persist the mutation token', async () => {
+    const _mutationId = String(new mongoose.Types.ObjectId());
+    const res = await send('post', `/api/customers/${customerId}/visits`, base({ _mutationId }));
+    expect(res.status).toBe(201);
+    expect(emit).toHaveBeenCalledWith('customer_update', {
+      kind: 'visit', customerId, visitId: res.body.visit._id, mutationId: _mutationId
+    });
+    expect(emit.mock.calls.filter(([event]) => event === 'customer_update')).toHaveLength(1);
+    expect((await visitsNow())[0]).not.toHaveProperty('_mutationId');
+    expect(res.body.visit).not.toHaveProperty('_mutationId');
+  });
   it('saves a visit and answers 201 with it', async () => {
     const res = await send('post', `/api/customers/${customerId}/visits`, base());
     expect(res.status).toBe(201);
@@ -160,6 +173,7 @@ describe('PUT /:customerId/visits/:visitId', () => {
     expect(res.body.visit.notes).toBe('changed');
     expect(res.body.visit.image).toEqual(['https://cdn.example/x.webp']);
     expect(res.body.visit.updatedByName).toBe('Rita');
+    expect(emit).toHaveBeenCalledWith('customer_update', expect.objectContaining({ kind: 'visit', customerId, visitId: String(v._id) }));
   });
 
   it('refuses an unknown type but keeps a legacy one the visit already has', async () => {

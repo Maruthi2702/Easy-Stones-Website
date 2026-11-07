@@ -71,4 +71,25 @@ describe('dashboard request failures', () => {
     const { result } = renderHook(() => useDashboardData(dependencies));
     await waitFor(() => expect(result.current.dashboardErrors.stats).toBe('summary totals'));
   });
+  it('does not hide a failed resources request after a successful visit-only refresh', async () => {
+    const normal = vi.mocked(authFetch).getMockImplementation()!;
+    vi.mocked(authFetch).mockImplementation(async (url, options) => String(url).includes('/dashboard/resources')
+      ? new Response('{}', { status: 500 }) : normal(url, options));
+    const { result } = renderHook(() => useDashboardData(dependencies));
+    await waitFor(() => expect(result.current.dashboardErrors.resources).toBe('resources'));
+    await act(async () => { await result.current.fetchDashboardData({ visitsOnly: true }); });
+    expect(result.current.dashboardErrors.resources).toBe('resources');
+    expect(result.current.memoizedFilteredVisits).toHaveLength(1);
+  });
+  it('keeps an overlapping full resource load when a later visit-only read finishes first', async () => {
+    const normal = vi.mocked(authFetch).getMockImplementation()!;
+    let finishResources!: (response: Response) => void;
+    vi.mocked(authFetch).mockImplementation(async (url, options) => String(url).includes('/dashboard/resources')
+      ? new Promise<Response>(resolve => { finishResources = resolve; }) : normal(url, options));
+    const { result } = renderHook(() => useDashboardData(dependencies));
+    await act(async () => { await result.current.fetchDashboardData({ visitsOnly: true }); });
+    expect(result.current.memoizedFilteredResources).toHaveLength(0);
+    await act(async () => { finishResources(Response.json([{ _id: 'r1', uploadedBy: 'u1', date: '2026-10-31', resourceType: 'Catalog' }])); });
+    expect(result.current.memoizedFilteredResources).toHaveLength(1);
+  });
 });

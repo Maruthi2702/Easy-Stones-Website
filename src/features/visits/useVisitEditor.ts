@@ -4,6 +4,7 @@ import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { formatForDateInput } from '../../utils/dateUtils';
 import { newVisitId } from '../../utils/visitForm';
+import { newVisitMutation } from './visitMutations';
 import { compressImage, fileToBase64 } from '../../utils/attachmentFiles';
 import type { Loose } from '../../types/records';
 import type { DeleteRequest } from '../teamFiles/useTeamFiles';
@@ -24,10 +25,18 @@ export type VisitEditorDeps = {
     removeDashboardVisit: (visitId: string) => void;
     setCurrentFollowUpPage: (page: number) => void;
     showSaveToast: (text: string, kind?: string) => void;
-    /** Reload what a saved visit changes (customer, dashboard, schedules). */
-    refreshAfterSave: (customerId: string, options?: { dashboard?: boolean; schedules?: boolean }) => void;
+    /** Queue one refresh of visit lists and totals; the response patches the customer. */
+    refreshVisits: () => void;
     setDeleteConfirmation: (request: DeleteRequest) => void;
 };
+
+const newSession = () => ({
+    preparations: new Set<Promise<string[]>>(),
+    uploads: new Set<Promise<void>>(),
+    uploaded: new Map<string, string>(),
+    newVisit: null as { customerId: string; id: string } | null,
+    saving: false
+});
 
 /**
  * The Add / Edit / View visit form's state and everything it does: opening it
@@ -35,7 +44,7 @@ export type VisitEditorDeps = {
  * that closes the form at once and sends behind it, and the delete check.
  * Moved out of SalesPage unchanged (2026-10-23).
  */
-export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustomer, customers, customerOptions, patchOpenCustomerVisits, removeOpenCustomerVisit, patchDashboardVisit, removeDashboardVisit, setCurrentFollowUpPage, showSaveToast, refreshAfterSave, setDeleteConfirmation }: VisitEditorDeps) {
+export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustomer, customers, customerOptions, patchOpenCustomerVisits, removeOpenCustomerVisit, patchDashboardVisit, removeDashboardVisit, setCurrentFollowUpPage, showSaveToast, refreshVisits, setDeleteConfirmation }: VisitEditorDeps) {
     const [showVisitModal, setShowVisitModal] = useState(false);
 
     const [editingVisit, setEditingVisit] = useState<Loose | null>(null);
@@ -54,14 +63,21 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
     });
 
     const [visitUploading, setVisitUploading] = useState(false);
-    const visitUploadsRef = useRef(new Set<Promise<void>>());   // uploads still going
-    const visitUploadedRef = useRef(new Map<string, string>());  // picked photo data → stored link
+    const [visitSaving, setVisitSaving] = useState(false);
+    const sessionRef = useRef(newSession());
     const visitSavesInFlight = useRef(0);        // saves sent and not yet answered
     const visitModalOpenRef = useRef(false);
 
     const [loadingVisitId, setLoadingVisitId] = useState<string | null>(null);
 
+    const resetSession = () => {
+        sessionRef.current = newSession();
+        setVisitUploading(false);
+        setVisitSaving(false);
+    };
+
     const handleEditVisit = async (visit: Loose) => {
+        resetSession();
         if (!visit?.customerId || !visit?._id) {
             setEditingVisit(visit);
             setIsViewingVisit(false);
@@ -120,6 +136,7 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
     };
 
     const handleViewVisit = async (visit: Loose) => {
+        resetSession();
         if (!visit?.customerId || !visit?._id) {
             setVisitForm(visit || {});
             setEditingVisit(visit);
@@ -180,6 +197,8 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
     }, []);
 
     const handleCloseVisitModal = () => {
+        resetSession();
+        visitModalOpenRef.current = false;
         setVisitForm({
             date: '',
             purpose: 'Scheduled in Person Sales Meeting',
@@ -210,52 +229,69 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
             return;
         }
 
+        const session = sessionRef.current;
+        if (session.saving) return;
+        session.saving = true;
+        setVisitSaving(true);
+        visitSavesInFlight.current += 1;
+
         const editing = editingVisit;
-        const visitId = editing ? editing._id : newVisitId();
+        if (!editing && session.newVisit?.customerId !== targetCustomerId) {
+            session.newVisit = { customerId: targetCustomerId, id: newVisitId() };
+        }
+        const visitId = editing ? editing._id : session.newVisit!.id;
         const url = editing
             ? `${API_URL}/api/customers/${targetCustomerId}/visits/${editing._id}`
             : `${API_URL}/api/customers/${targetCustomerId}/visits`;
         const payload: Loose = {
             ...form,
+            _mutationId: newVisitMutation(),
             date: form.date, // Send as-is, backend will handle with ensureDateString
             followUpDate: form.followUpDate || ''
         };
         if (!editing) payload._id = visitId;
 
-        patchOpenCustomerVisits(
-            targetCustomerId,
-            editing
-                ? { ...editing, ...payload, _id: visitId }
-                : { ...payload, createdBy: currentUser?._id || currentUser?.id, createdByName: currentUser?.displayName || currentUser?.username }
-        );
-        // The dashboard's list needs the customer's name and branch (the form
-        // only has an id), from whatever is already loaded.
-        const known = (selectedCustomer && String(selectedCustomer._id) === String(targetCustomerId) && selectedCustomer)
-            || customers.find(c => String(c._id) === String(targetCustomerId)) || {};
-        const optionLabel = (customerOptions || []).find(o => o.value === targetCustomerId)?.label || '';
-        patchDashboardVisit(
-            editing
-                ? { ...payload, _id: visitId, _saving: true }
-                : {
-                    ...payload,
-                    customerId: targetCustomerId,
-                    company: known.company || known.contactName || optionLabel,
-                    contactName: known.company ? (known.contactName || '') : '',
-                    location: known.location || '',
-                    createdByName: currentUser?.displayName || currentUser?.username,
-                    _saving: true
-                },
-            !editing
-        );
-        setCurrentFollowUpPage(1);
-        handleCloseVisitModal();
-
-        visitSavesInFlight.current += 1;
+        let shown = false;
         try {
+            // Compression/FileReader work precedes uploads. Include its results
+            // even when React hasn't rendered their attachment tiles yet.
+            const prepared = session.preparations.size ? (await Promise.all([...session.preparations])).flat() : [];
+            const images = Array.isArray(form.image) ? form.image : form.image ? [form.image] : [];
+            payload.image = [...new Set([...images, ...prepared])];
+
+            patchOpenCustomerVisits(
+                targetCustomerId,
+                editing
+                    ? { ...editing, ...payload, _id: visitId }
+                    : { ...payload, createdBy: currentUser?._id || currentUser?.id, createdByName: currentUser?.displayName || currentUser?.username }
+            );
+            // The dashboard's list needs the customer's name and branch (the form
+            // only has an id), from whatever is already loaded.
+            const known = (selectedCustomer && String(selectedCustomer._id) === String(targetCustomerId) && selectedCustomer)
+                || customers.find(c => String(c._id) === String(targetCustomerId)) || {};
+            const optionLabel = (customerOptions || []).find(o => o.value === targetCustomerId)?.label || '';
+            patchDashboardVisit(
+                editing
+                    ? { ...payload, _id: visitId, _saving: true }
+                    : {
+                        ...payload,
+                        customerId: targetCustomerId,
+                        company: known.company || known.contactName || optionLabel,
+                        contactName: known.company ? (known.contactName || '') : '',
+                        location: known.location || '',
+                        createdByName: currentUser?.displayName || currentUser?.username,
+                        _saving: true
+                    },
+                !editing
+            );
+            setCurrentFollowUpPage(1);
+            shown = true;
+            if (sessionRef.current === session) handleCloseVisitModal();
+
             // Photos still going up finish first; one that failed to upload is
             // sent here as it was picked, and the server stores it.
-            await Promise.allSettled([...visitUploadsRef.current]);
-            const stored = visitUploadedRef.current;
+            await Promise.allSettled([...session.uploads]);
+            const stored = session.uploaded;
             const linkOf = (img: unknown) => (typeof img === 'string' && stored.get(img)) || img;
             const body = {
                 ...payload,
@@ -264,6 +300,7 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
 
             // Smart Retry Logic for cold-starts/stale connections
             let response;
+            let saved: Loose | null = null;
             let lastError;
             const maxRetries = 1;
 
@@ -274,7 +311,13 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
                         body: JSON.stringify(body)
                     });
 
-                    if (response.ok) break;
+                    if (response.ok) {
+                        // Reading the body can fail after the server committed.
+                        // Retry the same ID rather than falsely confirming it.
+                        saved = await response.json();
+                        if (!saved?.visit?._id) throw new Error('Invalid visit save response');
+                        break;
+                    }
 
                     const errorJson = await response.json().catch(() => ({}));
                     lastError = Object.assign(new Error(errorJson.message || 'Failed to save visit'), { fromServer: true });
@@ -290,19 +333,19 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
                 }
             }
 
-            if (!response || !response.ok) {
+            if (!response?.ok || !saved?.visit?._id) {
                 throw lastError || new Error('Failed to save visit');
             }
 
             // Both answer with the stored visit (image links and all).
-            const saved = await response.json().catch(() => null);
-            if (saved?.visit) patchOpenCustomerVisits(targetCustomerId, saved.visit);
-            patchDashboardVisit({ ...(saved?.visit || {}), _id: visitId, _saving: false }, false);
+            patchOpenCustomerVisits(targetCustomerId, saved.visit);
+            patchDashboardVisit({ ...saved.visit, _id: visitId, _saving: false }, false);
             showSaveToast('Visit saved');
             (Array.isArray(payload.image) ? payload.image : [payload.image]).forEach((img: string) => stored.delete(img));
 
-            // Logging a visit can add a drop-in to the calendar, hence schedules.
-            refreshAfterSave(targetCustomerId, { schedules: true });
+            // Calendar changes announce themselves after the background link
+            // completes. An immediate fetch could read the old plan.
+            refreshVisits();
         } catch (caught) {
             const error = caught as Error & { fromServer?: boolean };
             console.error('[Visit Save Exception] Details:', {
@@ -311,27 +354,33 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
                 payload: form
             });
             // Take the visit back off the screen and give the form back.
-            if (editing) {
+            if (shown && editing) {
                 patchOpenCustomerVisits(targetCustomerId, editing);
                 patchDashboardVisit({ ...editing, _saving: false }, false);
-            } else {
+            } else if (shown) {
                 removeOpenCustomerVisit(targetCustomerId, visitId);
                 removeDashboardVisit(visitId);
             }
             if (!visitModalOpenRef.current) {
-                setVisitForm(form);
+                sessionRef.current = session;
+                setVisitForm({ ...form, image: payload.image });
                 setEditingVisit(editing);
                 setIsViewingVisit(false);
                 setShowVisitModal(true);
             }
             const why = error.fromServer ? error.message : 'Check your connection and try again.';
             showSaveToast(`Couldn’t save the visit — ${why}${visitModalOpenRef.current ? '' : ' Your entries are back in the form.'}`, 'error');
+            // A lost response can hide a committed visit. Reconcile it too.
+            if (!error.fromServer) refreshVisits();
         } finally {
+            session.saving = false;
+            if (sessionRef.current === session) setVisitSaving(false);
             visitSavesInFlight.current -= 1;
         }
     };
 
     const handleQuickAddVisit = () => {
+        resetSession();
         setEditingVisit(null);
         setIsViewingVisit(false);
 
@@ -358,6 +407,7 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
     // full directory, so looking a route-planner pin up in it would miss
     // most customers and silently blank the resource's Client label.
     const handleAddVisitForPin = (pin: Loose | null) => {
+        resetSession();
         setEditingVisit(null);
         setIsViewingVisit(false);
 
@@ -392,40 +442,55 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
-        const newFiles: string[] = [];
-        for (const file of files) {
-            if (file.size > 25 * 1024 * 1024) {
-                alert(`File ${file.name} is too large. Limit is 25MB.`);
-                continue;
-            }
-            try {
-                let processedFile;
-                if (file.type.startsWith('image/')) {
-                    processedFile = await compressImage(file);
-                } else if (file.type === 'application/pdf') {
-                    processedFile = await fileToBase64(file);
-                } else {
-                    alert(`Unsupported file type: ${file.name}`);
+        const session = sessionRef.current;
+        if (session.saving) return;
+        setVisitUploading(true);
+        const preparation = (async () => {
+            const newFiles: string[] = [];
+            for (const file of files) {
+                if (file.size > 25 * 1024 * 1024) {
+                    alert(`File ${file.name} is too large. Limit is 25MB.`);
                     continue;
                 }
-                newFiles.push(processedFile);
-            } catch (error) {
-                console.error(`Error processing ${file.name}:`, error);
-                alert(`Failed to process file ${file.name}`);
+                try {
+                    let processedFile;
+                    if (file.type.startsWith('image/')) {
+                        processedFile = await compressImage(file);
+                    } else if (file.type === 'application/pdf') {
+                        processedFile = await fileToBase64(file);
+                    } else {
+                        alert(`Unsupported file type: ${file.name}`);
+                        continue;
+                    }
+                    newFiles.push(processedFile);
+                } catch (error) {
+                    console.error(`Error processing ${file.name}:`, error);
+                    alert(`Failed to process file ${file.name}`);
+                }
             }
-        }
 
-        setVisitForm(prev => ({
-            ...prev,
-            image: prev.image ? (Array.isArray(prev.image) ? [...prev.image, ...newFiles] : [prev.image, ...newFiles]) : newFiles
-        }));
-        newFiles.forEach(uploadVisitAttachment);
+            if (sessionRef.current === session) {
+                setVisitForm(prev => ({
+                    ...prev,
+                    image: prev.image ? (Array.isArray(prev.image) ? [...prev.image, ...newFiles] : [prev.image, ...newFiles]) : newFiles
+                }));
+            }
+            if (sessionRef.current === session || session.saving) newFiles.forEach(data => uploadVisitAttachment(data, session));
+            return newFiles;
+        })();
+        session.preparations.add(preparation);
+        try {
+            await preparation;
+        } finally {
+            session.preparations.delete(preparation);
+            if (sessionRef.current === session) setVisitUploading(session.preparations.size + session.uploads.size > 0);
+        }
     };
 
     // Sends one picked photo/PDF to the server right away; the form keeps the
     // tile (with a spinner) and swaps in the stored link when it lands. If it
     // fails nothing is lost — Save sends the photo itself, as it always did.
-    const uploadVisitAttachment = (dataUrl: string) => {
+    const uploadVisitAttachment = (dataUrl: string, session: ReturnType<typeof newSession>) => {
         if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return;
         const job = (async () => {
             try {
@@ -436,7 +501,8 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
                 if (!res.ok) return;
                 const { url } = await res.json();
                 if (!url) return;
-                visitUploadedRef.current.set(dataUrl, url);
+                session.uploaded.set(dataUrl, url);
+                if (sessionRef.current !== session) return;
                 setVisitForm(prev => {
                     const list = Array.isArray(prev.image) ? prev.image : prev.image ? [prev.image] : [];
                     return list.includes(dataUrl) ? { ...prev, image: list.map(i => (i === dataUrl ? url : i)) } : prev;
@@ -445,11 +511,10 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
                 console.warn('[Visit photo] early upload failed; it will be sent with Save.', err);
             }
         })().finally(() => {
-            visitUploadsRef.current.delete(job);
-            setVisitUploading(visitUploadsRef.current.size > 0);
+            session.uploads.delete(job);
+            if (sessionRef.current === session) setVisitUploading(session.preparations.size + session.uploads.size > 0);
         });
-        visitUploadsRef.current.add(job);
-        setVisitUploading(true);
+        session.uploads.add(job);
     };
 
     const handleRemoveVisitImage = (index: number) => {
@@ -466,6 +531,7 @@ export function useVisitEditor({ currentUser, selectedCustomerId, selectedCustom
         visitForm,
         setVisitForm,
         visitUploading,
+        visitSaving,
         loadingVisitId,
         handleEditVisit,
         handleViewVisit,

@@ -178,6 +178,56 @@ describe('dashboard multiple locations and reps', () => {
 });
 
 describe('dashboard live changes', () => {
+    it('coalesces saved visits into four reads without resources, customers or schedules', async () => {
+        const { result } = renderHook(() => useDashboardData(deps()));
+        await waitFor(() => expect(result.current.dashboardTableLoading).toBe(false));
+        request.mockClear();
+        vi.useFakeTimers();
+        try {
+            act(() => result.current.refreshVisits());
+            act(() => result.current.refreshVisits());
+            expect(request).not.toHaveBeenCalled();
+            await act(async () => { vi.advanceTimersByTime(LIVE_REFRESH_DELAY_MS); });
+            expect(request).toHaveBeenCalledTimes(4);
+            expect(calls('/dashboard/stats')).toHaveLength(1);
+            expect(calls('/dashboard/visits')).toHaveLength(2);
+            expect(calls('/dashboard/followups/panel')).toHaveLength(1);
+            expect(calls('/dashboard/resources')).toHaveLength(0);
+            expect(calls('/schedule')).toHaveLength(0);
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('retains a resource invalidation when a visit arrives in the same burst', async () => {
+        const live = { customerRefreshTrigger: 0, resourceRefreshTrigger: 0, active: true };
+        const { result, rerender } = renderHook(() => useDashboardData(deps(live)));
+        await waitFor(() => expect(result.current.dashboardTableLoading).toBe(false));
+        request.mockClear();
+        vi.useFakeTimers();
+        try {
+            live.resourceRefreshTrigger++; rerender();
+            act(() => result.current.refreshVisits());
+            await act(async () => { vi.advanceTimersByTime(LIVE_REFRESH_DELAY_MS); });
+            expect(request).toHaveBeenCalledTimes(5);
+            expect(calls('/dashboard/resources')).toHaveLength(1);
+        } finally { vi.useRealTimers(); }
+    });
+
+    it('defers a visit refresh while hidden and uses the latest filters on return', async () => {
+        const live = { active: false };
+        const { result, rerender } = renderHook(() => useDashboardData(deps(live)));
+        await waitFor(() => expect(result.current.dashboardTableLoading).toBe(false));
+        request.mockClear();
+        vi.useFakeTimers();
+        try {
+            act(() => result.current.refreshVisits());
+            await act(async () => { vi.advanceTimersByTime(LIVE_REFRESH_DELAY_MS * 2); });
+            expect(request).not.toHaveBeenCalled();
+            live.active = true; rerender();
+            await act(async () => { vi.advanceTimersByTime(0); });
+            expect(request).toHaveBeenCalledTimes(4);
+        } finally { vi.useRealTimers(); }
+    });
+
     it('reloads once per burst of changes, keeping the tiles on screen meanwhile', async () => {
         const live = { customerRefreshTrigger: 0, resourceRefreshTrigger: 0, active: true };
         const { result, rerender } = renderHook(() => useDashboardData(deps(live)));

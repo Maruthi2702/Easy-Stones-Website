@@ -141,6 +141,7 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     // matches nothing) and overwrite it — the filter "not working".
     const dashboardStatsReqRef = React.useRef(0);
     const dashboardDataReqRef = React.useRef(0);
+    const dashboardResourcesReqRef = React.useRef(0);
     // The query the tiles / lists on screen were loaded for. Reading the same
     // query again is a refresh (a save, a live change): what's showing stays
     // until the new answer lands, instead of the tiles going to "…" and the
@@ -182,35 +183,51 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     }, [rangeParam, dashboardLocationParam]);
 
     // Fetch Independent Dashboard Data
-    const fetchDashboardData = useCallback(async () => {
+    const fetchDashboardData = useCallback(async ({ visitsOnly = false }: { visitsOnly?: boolean } = {}) => {
         const reqId = ++dashboardDataReqRef.current;
+        const resourceReqId = visitsOnly ? null : ++dashboardResourcesReqRef.current;
         const query = rangeParam + dashboardLocationParam;
         if (dataShownForRef.current !== query) setDashboardDataLoading(true);
         fetchFollowUpPanel(); // not awaited: the table doesn't wait for the panel
         try {
             const localDateStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
-            const [visitsRes, resourcesRes, followupsRes] = await Promise.all([
+            // Resources have their own request guard and error. A visit-only
+            // refresh can overlap this read without discarding or hiding it.
+            const resourcesJob = resourceReqId === null ? null : (async () => {
+                try {
+                    const response = await authFetch(`${API_URL}/api/dashboard/resources?${rangeParam}&localDate=${localDateStr}${dashboardLocationParam}`);
+                    if (!response.ok) throw new Error(`Resources request failed (${response.status})`);
+                    const rows = await response.json();
+                    if (!Array.isArray(rows)) throw new Error('Invalid resources response');
+                    if (resourceReqId === dashboardResourcesReqRef.current) {
+                        setDashboardResources(rows);
+                        loadError('resources', null);
+                    }
+                } catch (error) {
+                    console.error('Error fetching dashboard resources:', error);
+                    if (resourceReqId === dashboardResourcesReqRef.current) loadError('resources', 'resources');
+                }
+            })();
+            const [visitsRes, followupsRes] = await Promise.all([
                 authFetch(`${API_URL}/api/dashboard/visits?${rangeParam}&localDate=${localDateStr}${dashboardLocationParam}`),
-                authFetch(`${API_URL}/api/dashboard/resources?${rangeParam}&localDate=${localDateStr}${dashboardLocationParam}`),
                 // Every follow-up in scope: By rep counts them by the Follow-ups tab's rule (followUpList.ts).
-                authFetch(`${API_URL}/api/dashboard/visits?timeRange=all&localDate=${localDateStr}&filterType=followup${dashboardLocationParam}`)
+                authFetch(`${API_URL}/api/dashboard/visits?timeRange=all&localDate=${localDateStr}&filterType=followup${dashboardLocationParam}`),
+                resourcesJob
             ]);
-            if (![visitsRes, resourcesRes, followupsRes].every(response => response.ok)) throw new Error('Dashboard list request failed');
+            if (!visitsRes.ok || !followupsRes.ok) throw new Error('Dashboard list request failed');
             const visits = await visitsRes.json();
-            const resources = await resourcesRes.json();
             const followups = await followupsRes.json();
-            if (![visits, resources, followups].every(Array.isArray)) throw new Error('Invalid dashboard list response');
+            if (!Array.isArray(visits) || !Array.isArray(followups)) throw new Error('Invalid dashboard list response');
             if (reqId !== dashboardDataReqRef.current) return; // superseded — see dashboardDataReqRef
 
             setDashboardVisits(Array.isArray(visits) ? visits : []);
-            setDashboardResources(Array.isArray(resources) ? resources : []);
             setDashboardFollowups(followups);
             loadError('data', null);
             dataShownForRef.current = query;
             setDashboardDataVersion((v) => v + 1);
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
-            if (reqId === dashboardDataReqRef.current) loadError('data', 'visits and resources');
+            if (reqId === dashboardDataReqRef.current) loadError('data', visitsOnly ? 'visits and follow-ups' : 'visits and resources');
         } finally {
             if (reqId === dashboardDataReqRef.current) {
                 setDashboardDataLoading(false);
@@ -226,8 +243,12 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     // A new range, location, People pick or access: load both at once, now.
     // It covers any live change still waiting (below).
     const liveChangeWaitingRef = React.useRef(false);
+    const fullRefreshWaitingRef = React.useRef(false);
+    const [visitRefreshTrigger, setVisitRefreshTrigger] = useState(0);
+    const refreshVisits = useCallback(() => setVisitRefreshTrigger(value => value + 1), []);
     useEffect(() => {
         liveChangeWaitingRef.current = false;
+        fullRefreshWaitingRef.current = false;
         Promise.all([fetchDashboardStats(), fetchDashboardData()]);
     }, [fetchDashboardStats, fetchDashboardData, dashboardAccessKey]);
 
@@ -235,7 +256,9 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     // anyone's save, at any branch): reload quietly, once per burst
     // (LIVE_REFRESH_DELAY_MS), and only while the dashboard is on screen; a
     // change while it isn't waits and reloads when it's opened again.
-    const liveTriggers = `${customerRefreshTrigger}:${resourceRefreshTrigger}`;
+    const fullTriggers = `${customerRefreshTrigger}:${resourceRefreshTrigger}`;
+    const fullTriggersSeenRef = React.useRef(fullTriggers);
+    const liveTriggers = `${fullTriggers}:${visitRefreshTrigger}`;
     const liveTriggersSeenRef = React.useRef(liveTriggers);
     useEffect(() => {
         const justChanged = liveTriggers !== liveTriggersSeenRef.current;
@@ -243,13 +266,19 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
             liveTriggersSeenRef.current = liveTriggers;
             liveChangeWaitingRef.current = true;
         }
+        if (fullTriggers !== fullTriggersSeenRef.current) {
+            fullTriggersSeenRef.current = fullTriggers;
+            fullRefreshWaitingRef.current = true;
+        }
         if (!active || !liveChangeWaitingRef.current) return;
         const timer = window.setTimeout(() => {
             liveChangeWaitingRef.current = false;
-            Promise.all([fetchDashboardStats(), fetchDashboardData()]);
+            const visitsOnly = !fullRefreshWaitingRef.current;
+            fullRefreshWaitingRef.current = false;
+            Promise.all([fetchDashboardStats(), fetchDashboardData({ visitsOnly })]);
         }, justChanged ? LIVE_REFRESH_DELAY_MS : 0);
         return () => window.clearTimeout(timer);
-    }, [liveTriggers, active, fetchDashboardStats, fetchDashboardData]);
+    }, [liveTriggers, fullTriggers, active, fetchDashboardStats, fetchDashboardData]);
 
     // Fetch schedules for the dashboard
     const schedulesReqRef = React.useRef(0);
@@ -624,6 +653,7 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
         allSchedules,
         fetchDashboardStats,
         fetchDashboardData,
+        refreshVisits,
         dashboardTableLoading,
         fetchSchedules,
         canAddVisits,

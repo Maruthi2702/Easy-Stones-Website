@@ -3,6 +3,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { clearListCache, globalPartnersCache } from '../customers/list/listOptions';
+import { newVisitMutation } from '../visits/visitMutations';
 
 type Handler = (payload?: unknown) => void;
 const listeners: Record<string, Handler> = {};
@@ -89,6 +90,31 @@ describe('useSalesLiveUpdates', () => {
     listeners.location_update(); expect(h.onLocationsChanged).toHaveBeenCalled();
     listeners.slab_reservations_changed({ slabKeys: ['A-1'] }); expect(reservationsChanged).toHaveBeenCalledWith(['A-1']);
     listeners.inventory_analysis_update(); expect(clearInventoryCache).toHaveBeenCalled(); expect(h.onInventoryChanged).toHaveBeenCalled();
+  });
+  it('refreshes only visit data for a remote visit, using the latest handler', () => {
+    const { h, hook } = setup();
+    const onVisitsChanged = vi.fn();
+    hook.rerender();
+    // An installed handler can change with the open customer or filters.
+    Object.assign(h, { onVisitsChanged });
+    hook.rerender();
+    listeners.customer_update({ kind: 'visit', customerId: 'c1', mutationId: 'another-browser' });
+    expect(onVisitsChanged).toHaveBeenCalledWith('c1');
+    expect(h.onCustomersChanged).not.toHaveBeenCalled();
+    expect(refreshCustomers).not.toHaveBeenCalled();
+  });
+  it('leaves a local visit echo to its save handler, without suppressing remote saves', () => {
+    const { h, hook } = setup();
+    const onVisitsChanged = vi.fn();
+    Object.assign(h, { onVisitsChanged }); hook.rerender();
+    listeners.customer_update({ kind: 'visit', customerId: 'c1', mutationId: newVisitMutation() });
+    expect(onVisitsChanged).not.toHaveBeenCalled();
+    expect(refreshCustomers).not.toHaveBeenCalled();
+    listeners.customer_update({ kind: 'visit', customerId: 'c1' });
+    expect(onVisitsChanged).toHaveBeenCalledTimes(1);
+    listeners.customer_update();
+    expect(h.onCustomersChanged).toHaveBeenCalledTimes(1);
+    expect(refreshCustomers).toHaveBeenCalledTimes(1);
   });
   it('invalidates remembered customer lists and tells the visible list to refresh', () => {
     setup();

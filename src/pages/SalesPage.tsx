@@ -27,6 +27,7 @@ import TabLoader from '../features/salesShell/TabLoader';
 import SalesModals from '../features/salesShell/SalesModals';
 import CustomersView from '../features/salesShell/CustomersView';
 import { customerListScope } from '../features/customers/list/listOptions';
+import { refreshVisitData as refreshVisitDataWith } from '../features/visits/refreshVisitData';
 import CustomersList from '../features/salesShell/CustomersList';
 import { useSidebarLayout } from '../features/salesShell/useSidebarLayout';
 import { useSalesNavigation } from '../features/salesShell/useSalesNavigation';
@@ -100,6 +101,9 @@ const SalesPage = () => {
     }, [currentUserId]);
     // Live changes reload the dashboard only while it's the page showing (useDashboardData's `active`).
     const dashboardData = useDashboardData({ currentUser, locations, customers, currentUserId, customerRefreshTrigger, resourceRefreshTrigger, active: crmTab === 'dashboard' });
+    // A visit changes the Customers list's Last visit, so its cache goes too;
+    // the dropdown and resources aren't touched.
+    const refreshVisitData = () => refreshVisitDataWith(dashboardData.refreshVisits);
     const {
         activeDashboardTab, setActiveDashboardTab, fetchDashboardStats, fetchDashboardData, fetchSchedules,
         canAddVisits, setCurrentVisitsPage, setCurrentFollowUpPage, setCurrentResourcesPage, patchDashboardVisit, removeDashboardVisit
@@ -111,6 +115,10 @@ const SalesPage = () => {
         resyncCheckInsRef,
         currentUserIdRef,
         onCustomersChanged: () => { fetchCustomers(true); setCustomerRefreshTrigger(value => value + 1); },
+        onVisitsChanged: (customerId) => {
+            refreshVisitData();
+            invalidateCustomerVisits(customerId);
+        },
         onResourcesChanged: () => setResourceRefreshTrigger(prev => prev + 1),
         onLocationsChanged: () => fetchLocations(),
         onInventoryChanged: () => setInventoryAnalysisRefreshTrigger(prev => prev + 1),
@@ -225,7 +233,7 @@ const SalesPage = () => {
     });
     const {
         showCustomerAtOnce, clearCustomer, selectedCustomerDetail, setSelectedCustomerDetail, fetchSingleCustomer, selectedCustomer,
-        patchOpenCustomerVisits, removeOpenCustomerVisit
+        patchOpenCustomerVisits, removeOpenCustomerVisit, invalidateCustomerVisits
     } = openCustomer;
 
     // Link a partner: the same customer options, minus this account and the
@@ -265,7 +273,7 @@ const SalesPage = () => {
         }));
     };
 
-    const visitEditor = useVisitEditor({ currentUser, selectedCustomerId, selectedCustomer, customers, customerOptions, patchOpenCustomerVisits, removeOpenCustomerVisit, patchDashboardVisit, removeDashboardVisit, setCurrentFollowUpPage, showSaveToast, refreshAfterSave, setDeleteConfirmation });
+    const visitEditor = useVisitEditor({ currentUser, selectedCustomerId, selectedCustomer, customers, customerOptions, patchOpenCustomerVisits, removeOpenCustomerVisit, patchDashboardVisit, removeDashboardVisit, setCurrentFollowUpPage, showSaveToast, refreshVisits: refreshVisitData, setDeleteConfirmation });
     const {
         showVisitModal, isViewingVisit, setVisitForm, loadingVisitId, handleEditVisit, handleViewVisit,
         handleQuickAddVisit, handleAddVisitForPin, handleDeleteVisit
