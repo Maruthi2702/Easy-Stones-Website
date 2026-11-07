@@ -4,7 +4,8 @@ import { Resend } from 'resend';
 import type { CreateEmailOptions } from 'resend';
 import type { SendMailOptions } from 'nodemailer';
 import { DEFAULT_LETTERHEAD } from '../utils/locationForm.ts';
-import { formatSheetPrice, formatSlabSize } from '../utils/selectionSheet.ts';
+import { sheetDoc, docRowsFromSelections, sheetPriceLabel, HOLD_POLICY } from '../utils/selectionSheet.ts';
+import { checkInZone } from '../utils/checkInClock.ts';
 
 // The check-in emails below interpolate visitor-supplied fields (name, notes,
 // selections...) straight into HTML. The self check-in endpoint that produces
@@ -184,96 +185,118 @@ export async function sendCheckInAlertEmail(checkIn: Loose) {
 }
 
 // 2. Send Selection Sheet Email
-// `letterhead` is the check-in's location's address/contact lines
-// (letterheadFor in src/utils/locationForm.ts); without one it's the Kent address.
-// `showPrices` adds each material's Price / SF — always on for the sales rep's
-// automatic copy, only on request for anyone else. Internal notes are never in it.
+// The same sheet as the printed one (sheetDoc in src/utils/selectionSheet.ts —
+// owner, 2026-11-07: "make the email template same as print template"), laid
+// out for mail apps. `letterhead` is the check-in's location's address and
+// phone (letterheadFor in src/utils/locationForm.ts; without one it's the Kent
+// address). `showPrices` adds each material's Price / SF — always on for the
+// sales rep's automatic copy, the main button for a fabricator, only on
+// request for a home owner. `logoUrl` is an absolute address of the logo;
+// without one the name shows as text. Internal notes are never in it.
 //
 // Fluid at every width without media queries (many mail apps drop <style>):
-// one card per material instead of a 6-column table, which on a phone ran
-// past the email's right edge. Outlook for Windows ignores max-width, so it
-// gets a fixed 640px table in a conditional comment.
+// the three people are 150px blocks that sit three across at 600px and two
+// across on a phone; each material is one row — number, material and price,
+// then lot · slabs · size under it — instead of a wide table that ran past a
+// phone's edge. Outlook for Windows ignores max-width, so it gets a fixed
+// 600px table in a conditional comment.
 const SHEET_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
-export function selectionSheetEmailHtml(checkIn: Loose, letterhead = DEFAULT_LETTERHEAD, { showPrices = false }: Loose = {}) {
-  const dateStr = new Date(checkIn.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-  const selections = checkIn.selections || [];
+export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, logoUrl = '' }: Loose = {}) {
+  // The day on the branch's own clock (the server runs on UTC).
+  const date = checkIn.createdAt
+    ? new Date(checkIn.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: checkInZone(checkIn.location) })
+    : '';
+  const doc = sheetDoc({
+    checkIn, rows: docRowsFromSelections(checkIn.selections), salesRep: checkIn.salesRep, salesRepEmail: checkIn.salesRepEmail,
+    notes: checkIn.specialNotes, letterhead, date, showPrices: showPrices === true
+  });
+  const e = escapeHtml;
+  const LABEL = 'font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #5B616B;';
+  const H2 = 'margin: 0; font-size: 16px; font-weight: 700; color: #1F2328;';
+  const heading = [doc.date, doc.location].filter(Boolean).join(' · ');
 
-  const detail = (label: string, value: unknown, strong = false) => `
-          <tr>
-            <td style="padding: 5px 14px 5px 0; font-weight: 700; color: #555; font-size: 13px; white-space: nowrap; vertical-align: top; width: 1%;">${label}</td>
-            <td style="padding: 5px 0; color: #222; font-size: 14px; vertical-align: top; word-break: break-word; overflow-wrap: anywhere;${strong ? ' font-weight: 600;' : ''}">${value}</td>
-          </tr>`;
+  const person = (label: string, name: string, sub: string) => `
+            <div style="display: inline-block; vertical-align: top; width: 150px; margin: 0 8px 14px 0;">
+              <div style="${LABEL}">${label}</div>
+              <div style="margin-top: 3px; font-size: 15px; font-weight: 600; color: #1F2328; word-break: break-word; overflow-wrap: anywhere;">${e(name) || '—'}</div>
+              ${sub ? `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; word-break: break-word; overflow-wrap: anywhere;">${e(sub)}</div>` : ''}
+            </div>`;
 
-  const fact = (label: string, value: unknown) => `
-              <div style="display: inline-block; vertical-align: top; margin: 0 22px 6px 0;">
-                <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b;">${label}</div>
-                <div style="font-size: 14px; color: #334155; white-space: nowrap;">${value || 'N/A'}</div>
-              </div>`;
-
-  const selectionsHtml = selections.length === 0
-    ? '<p style="margin: 0 0 16px 0; padding: 14px; text-align: center; color: #666; font-style: italic; font-size: 14px; background: #fff; border: 1px solid #eaeaea; border-radius: 10px;">No selections registered.</p>'
-    : selections.map((sel: Loose, idx: number) => `
-        <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px 8px 14px; margin: 0 0 10px 0;">
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
+  const rowsHtml = doc.rows.length === 0
+    ? '<p style="margin: 0; padding: 14px 0; text-align: center; color: #5B616B; font-style: italic; font-size: 14px; border-bottom: 1px solid #D9D4C7;">No selections registered.</p>'
+    : doc.rows.map((r, i) => {
+      const facts = [r.lot && `Lot ${r.lot}`, r.details && `Slabs ${r.details}`, r.size && `${r.size} in`].filter(Boolean).map((f) => e(f)).join(' &middot; ');
+      return `
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; border-bottom: 1px solid #D9D4C7;">
             <tr>
-              <td style="vertical-align: top; padding: 0 0 8px 0; font-size: 15px; font-weight: 700; color: #111; word-break: break-word; overflow-wrap: anywhere;">
-                <span style="color: #b8941f; margin-right: 6px;">${idx + 1}.</span>${escapeHtml(sel.material) || 'N/A'}
-              </td>
-              ${showPrices ? `<td style="vertical-align: top; padding: 0 0 8px 12px; text-align: right; white-space: nowrap; width: 1%;">
-                <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b;">Price / SF</div>
-                <div style="font-size: 15px; font-weight: 700; color: #111;">${escapeHtml(formatSheetPrice(sel.priceCentsPerSf))}</div>
-              </td>` : ''}
+              <td style="width: 22px; padding: 12px 0 0 0; vertical-align: top; font-size: 15px; font-weight: 700; color: #7A5C10;">${i + 1}</td>
+              <td style="padding: 12px 0 0 0; vertical-align: top; font-size: 15px; font-weight: 600; letter-spacing: 0.02em; color: #1F2328; word-break: break-word; overflow-wrap: anywhere;">${e(r.material) || '—'}</td>
+              ${doc.showPrices ? `<td style="padding: 12px 0 0 12px; vertical-align: top; text-align: right; white-space: nowrap; width: 1%; font-size: ${r.priceCents ? '15px; font-weight: 700; color: #1F2328' : '13px; color: #5B616B'};">${e(sheetPriceLabel(r.priceCents))}${r.priceCents ? '<span style="font-size: 12px; font-weight: 400; color: #5B616B;"> /SF</span>' : ''}</td>` : ''}
             </tr>
-          </table>
-          <div>${fact('Lot / Bundle', escapeHtml(sel.lot))}${fact('Slabs', escapeHtml(sel.details))}${fact('Size', escapeHtml(formatSlabSize(sel.size)))}
-          </div>
-        </div>`).join('');
+            <tr>
+              <td></td>
+              <td colspan="${doc.showPrices ? 2 : 1}" style="padding: 3px 0 12px 0; font-size: 14px; color: #3D434B; word-break: break-word; overflow-wrap: anywhere;">${facts || '&nbsp;'}</td>
+            </tr>
+          </table>`;
+    }).join('');
+
+  const steps = doc.steps.map((t, i) => `
+              <tr>
+                <td style="width: 30px; padding: 6px 0 0 0; vertical-align: top;"><div style="width: 20px; height: 20px; line-height: 20px; border-radius: 10px; border: 1px solid #7A5C10; color: #7A5C10; font-size: 12px; font-weight: 700; text-align: center;">${i + 1}</div></td>
+                <td style="padding: 7px 0 0 0; vertical-align: top; font-size: 13px; line-height: 1.45; color: #1F2328;">${e(t)}</td>
+              </tr>`).join('');
 
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
     <tr><td align="center" style="padding: 0;">
-    <!--[if mso]><table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-    <div style="max-width: 640px; margin: 0 auto; box-sizing: border-box; padding: 20px 16px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fafafa; font-family: ${SHEET_FONT}; text-align: left; line-height: 1.4;">
-      <div style="text-align: center; border-bottom: 2px solid #d4af37; padding-bottom: 14px; margin-bottom: 18px;">
-        <div style="color: #111; font-weight: 800; letter-spacing: 0.05em; font-size: 24px;">EASY STONES</div>
-        <p style="color: #666; margin: 5px 0 0 0; font-size: 13px;">${escapeHtml(letterhead.addressLine)}</p>
-        ${letterhead.contactLine ? `<p style="color: #666; margin: 2px 0 0 0; font-size: 12px;">${escapeHtml(letterhead.contactLine)}</p>` : ''}
+    <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+    <div style="max-width: 600px; margin: 0 auto; box-sizing: border-box; padding: 24px 20px; border: 1px solid #E3DED2; border-radius: 12px; background: #ffffff; font-family: ${SHEET_FONT}; color: #1F2328; text-align: left; line-height: 1.4;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="vertical-align: bottom; padding: 0;">${logoUrl
+            ? `<img src="${e(logoUrl)}" alt="Easy Stones" height="32" style="display: block; height: 32px; width: auto; max-width: 140px; border: 0;">`
+            : '<div style="font-size: 20px; font-weight: 800; letter-spacing: 0.12em; color: #1F2328;">EASY STONES</div>'}</td>
+          <td style="vertical-align: bottom; padding: 0 0 0 12px; text-align: right;">
+            <div style="font-size: 19px; font-weight: 700; color: #1F2328; white-space: nowrap;">Stone Selection</div>
+            ${heading ? `<div style="margin-top: 2px; font-size: 13px; color: #5B616B; white-space: nowrap;">${e(heading)}</div>` : ''}
+          </td>
+        </tr>
+      </table>
+      <div style="height: 2px; line-height: 2px; font-size: 0; background: #C9A13B; margin: 16px 0 20px 0;">&nbsp;</div>
+
+      <div style="font-size: 0;">${person('Prepared for', doc.customer.name, doc.customer.phone)}${person('Fabricator', doc.fabricator.name, doc.fabricator.phone)}${person('Your sales rep', doc.rep.name, doc.rep.email)}
       </div>
 
-      <div style="color: #b8941f; text-align: center; margin: 0 0 18px 0; font-size: 16px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">
-        Customer Visit / Stone Selection
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+        <tr>
+          <td style="padding: 0 0 8px 0;"><div style="${H2}">Your selections</div></td>
+          <td style="padding: 0 0 8px 0; text-align: right; font-size: 13px; color: #5B616B; white-space: nowrap;">${e(doc.count)}</td>
+        </tr>
+      </table>
+      <div style="border-top: 1px solid #1F2328;">${rowsHtml}
       </div>
+      ${doc.showPrices ? `<p style="margin: 8px 0 0 0; font-size: 12px; color: #5B616B;">Prices per square foot, as quoted on ${e(doc.date)}.</p>` : ''}
 
-      <div style="background: #fff; border: 1px solid #eaeaea; border-radius: 12px; padding: 10px 14px; margin-bottom: 20px;">
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
-          ${detail('Date', dateStr)}
-          ${detail('Customer', escapeHtml(checkIn.name), true)}
-          ${detail('Phone', escapeHtml(checkIn.phone))}
-          ${detail('Company', escapeHtml(checkIn.fabricatorCompany) || 'N/A')}
-          ${detail('Company phone', escapeHtml(checkIn.fabricatorPhone) || 'N/A')}
-          ${checkIn.salesRep ? detail('Sales rep', escapeHtml(checkIn.salesRep), true) : ''}
+      ${doc.notes ? `
+      <div style="margin-top: 22px;">
+        <div style="${H2}">Notes</div>
+        <p style="margin: 6px 0 0 0; font-size: 15px; line-height: 1.55; color: #1F2328; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;">${e(doc.notes)}</p>
+      </div>` : ''}
+
+      <div style="margin-top: 24px; border: 1px solid #D9C27A; border-radius: 12px; padding: 16px 18px; background: #FBF8EF;">
+        <div style="${H2}">Hold Policy</div>
+        <p style="margin: 4px 0 0 0; font-size: 13px; line-height: 1.55; color: #3D434B;">${e(HOLD_POLICY)}</p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; margin-top: 10px; border-top: 1px solid #E6DAB3;">${steps}
         </table>
       </div>
 
-      <div style="color: #111; margin: 0 0 10px 0; font-size: 16px; font-weight: 700; border-left: 3px solid #d4af37; padding-left: 8px;">Material Selection(s)</div>
-      ${selectionsHtml}
-
-      ${checkIn.specialNotes ? `
-      <div style="background: #fff; border: 1px solid #eaeaea; border-radius: 12px; padding: 12px 14px; margin: 10px 0 16px 0;">
-        <div style="margin: 0 0 6px 0; color: #475569; font-size: 14px; font-weight: 700;">Notes</div>
-        <p style="margin: 0; color: #334155; font-size: 14px; white-space: pre-wrap; line-height: 1.5; word-break: break-word; overflow-wrap: anywhere;">${escapeHtml(checkIn.specialNotes)}</p>
-      </div>
-      ` : ''}
-
-      <div style="background: #fef2f2; border: 1px dashed #fca5a5; border-radius: 12px; padding: 12px 14px; margin: 10px 0 15px 0;">
-        <p style="margin: 0; font-size: 13px; color: #b91c1c; line-height: 1.5;">
-          <strong>Hold Policy Note:</strong> Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice to you or your fabricator.
-        </p>
-      </div>
-
-      <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 18px 0;" />
-      <p style="font-size: 12px; color: #888; text-align: center; margin: 0;">This is an automated notification from the Easy Stones Check-In Portal.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; margin-top: 24px; border-top: 1px solid #D9D4C7;">
+        <tr>
+          <td style="padding: 12px 12px 0 0; vertical-align: top; font-size: 12px; line-height: 1.6; color: #5B616B;">${e(doc.footer)}</td>
+          <td style="padding: 12px 0 0 0; vertical-align: top; text-align: right; white-space: nowrap; font-size: 12px; line-height: 1.6; color: #5B616B;">${e(doc.phone)}</td>
+        </tr>
+      </table>
     </div>
     <!--[if mso]></td></tr></table><![endif]-->
     </td></tr>
@@ -281,12 +304,21 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead = DEFAULT_LET
   `;
 }
 
-export async function sendSelectionSheetEmail(checkIn: Loose, recipientEmail: string, letterhead = DEFAULT_LETTERHEAD, { showPrices = false }: Loose = {}) {
+// The rep's name as the sender ("Krish at Easy Stones"), letters and spaces
+// only — it goes into a From header.
+const senderNameFor = (rep: unknown) => {
+  const name = String(rep ?? '').replace(/[^\p{L}\p{N} .'-]/gu, '').replace(/\s+/g, ' ').trim();
+  return name ? `${name} at Easy Stones` : 'Easy Stones Selection';
+};
+
+export async function sendSelectionSheetEmail(checkIn: Loose, recipientEmail: string, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, logoUrl = '' }: Loose = {}) {
+  const repEmail = String(checkIn.salesRepEmail || '').trim();
   return await sendEmail({
     to: recipientEmail,
-    subject: `🪨 Stone Selection Sheet: ${checkIn.name}`,
-    html: selectionSheetEmailHtml(checkIn, letterhead, { showPrices }),
-    defaultSenderName: 'Easy Stones Selection'
+    subject: `Selection Sheet: ${checkIn.name}`,
+    html: selectionSheetEmailHtml(checkIn, letterhead, { showPrices, logoUrl }),
+    defaultSenderName: senderNameFor(checkIn.salesRep),
+    ...(checkIn.salesRep && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(repEmail) ? { replyTo: repEmail } : {})
   });
 }
 

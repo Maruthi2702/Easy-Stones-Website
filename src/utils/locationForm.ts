@@ -304,7 +304,7 @@ export const hasPrintableAddress = (loc: Loose | null | undefined) => {
 
 // What every selection sheet printed before locations had addresses, and
 // still prints for one that has none yet.
-export const DEFAULT_LETTERHEAD = { addressLine: '6012 S 196th St, Kent, WA 98032', contactLine: '' };
+export const DEFAULT_LETTERHEAD = { addressLine: '6012 S 196th St, Kent, WA 98032', contactLine: '', phone: '' };
 
 /**
  * The address and contact line under "EASY STONES" on a printed or emailed
@@ -313,13 +313,19 @@ export const DEFAULT_LETTERHEAD = { addressLine: '6012 S 196th St, Kent, WA 9803
  * The contact line (phone · email) is switched off for now (2026-10-04) —
  * the user will add it back later. To restore it, set contactLine to
  * [trim(pc.phone), trim(pc.email)].filter(Boolean).join(' · ').
+ *
+ * `phone` is the location's own phone, which the Selection Sheet prints at
+ * the right of its footer (owner, 2026-11-07). Only with the location's own
+ * address — the Kent fallback carries no phone, so a branch is never shown
+ * with another's number.
  */
 export const letterheadFor = (loc: Loose | null | undefined) => {
   if (!hasPrintableAddress(loc)) return { ...DEFAULT_LETTERHEAD };
   const pc = loc!.primaryContact || {};
   return {
     addressLine: addressLines(pc.address).join(', '),
-    contactLine: ''
+    contactLine: '',
+    phone: trim(pc.phone) ? formatPhoneForDisplay(trim(pc.phone)) : ''
   };
 };
 

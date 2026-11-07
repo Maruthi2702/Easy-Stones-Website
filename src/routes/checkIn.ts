@@ -274,6 +274,13 @@ const selfCheckInLimiter = rateLimit({
   message: { error: 'Too many check-in attempts. Please ask the front desk for help.' }
 });
 
+// The logo in a selection sheet email: an absolute address on this site
+// (public/logo.png), or '' — the email then shows the name as text.
+const sheetLogoUrl = (req: Request) => {
+  const base = (req.get('origin') || process.env.FRONTEND_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
+  return /^https?:\/\//.test(base) ? `${base}/logo.png` : '';
+};
+
 // The address/contact printed under "EASY STONES" on a selection sheet: the
 // check-in's own location's, or the Kent default when it has none yet.
 const letterheadForCheckIn = async (checkIn: Loose) => {
@@ -812,10 +819,11 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         ? await User.exists({ email: new RegExp(`^${escapeRegex(checkIn.salesRepEmail)}$`, 'i'), isActive: { $ne: false } })
         : null;
       if (checkIn.salesRepEmail && repIsActiveStaff && canSendSheet && repEmailChanged) {
+        const logoUrl = sheetLogoUrl(req);
         (async () => {
           try {
             console.log(`📡 Automatically sending selection sheet alert to sales rep: ${checkIn.salesRepEmail}`);
-            await sendSelectionSheetEmail(checkIn, checkIn.salesRepEmail, await letterheadForCheckIn(checkIn), { showPrices: true });
+            await sendSelectionSheetEmail(checkIn, checkIn.salesRepEmail, await letterheadForCheckIn(checkIn), { showPrices: true, logoUrl });
           } catch (err) {
             console.error('❌ Failed to auto-send selection sheet email to sales rep:', (err as Error).message);
           }
@@ -856,7 +864,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         return res.status(403).json({ message: 'Access denied to this check-in' });
       }
 
-      const emailResult = await sendSelectionSheetEmail(checkIn, email, await letterheadForCheckIn(checkIn), { showPrices: withPrices === true });
+      const emailResult = await sendSelectionSheetEmail(checkIn, email, await letterheadForCheckIn(checkIn), { showPrices: withPrices === true, logoUrl: sheetLogoUrl(req) });
 
       if (!emailResult.success) {
         return res.status(500).json({ message: `Failed to send selection sheet email. Details: ${emailResult.error || 'Unknown error'}` });

@@ -550,6 +550,29 @@ lands on another card. Kept the old key names (stored on every role);
 open no Sales page (`isCheckInOnly` in `navPins.js`) is sent from `/sales`
 and `/` to `/checkin`, and the header hides its Sales link.
 
+## Selection Sheet: one customer copy, printed and emailed (2026-11-07, on `feat/selection-sheet-print`)
+
+What a customer or fabricator gets is direction A of the claude.ai canvas
+**Selection Sheet — customer copy** (https://claude.ai/artifact/F6qJqYpyfiuWiqyvaS8Viz;
+the owner's comments on it set every rule here; the staff form keeps its own
+canvas). **The email is the printed sheet** (owner's call): logo + "Stone
+Selection" with the day and branch; Prepared for / Fabricator / Your sales rep,
+each a name over a phone or email; Your selections (#, material, lot, slabs,
+size, Price / SF only when asked — **no slab count per row**, "Ask your rep"
+for a material with no price); Notes (printed notes only); **Hold Policy** —
+the policy word for word plus three steps; footer with the branch address left
+and **its phone right** (`letterheadFor(loc).phone`, only with the branch's own
+address). What it says is `sheetDoc` in `src/utils/selectionSheet.ts` (tested);
+`buildSelectionSheetHtml` (print) and `selectionSheetEmailHtml`
+(`src/services/emailService.ts`) only lay it out — change both together. The
+print page sets `@page { margin: 0 }` so browsers print no date / about:blank /
+page count of their own. The email is fluid with no media queries (people are
+150px blocks: three across, two on a phone; one row per material). Subject
+"Selection Sheet: <name>", sent as "<rep> at Easy Stones", reply-to the rep.
+The Email pop-up asks **Home Owner** (their email, without prices first) or
+**Fabricator** (typed address — a check-in keeps no fabricator email — with
+prices first); both send the same sheet.
+
 ## No route answers "any login" (2026-10-14)
 
 `authenticate` also accepts **website customer** logins (permissions `[]`)

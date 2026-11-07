@@ -261,7 +261,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
             if (bad) { setFormError(`${PRICE_ERROR} (item ${bad}).`); return; }
         }
         const location = (Array.isArray(locations) ? locations : []).find((l): l is Loose => Boolean(l) && typeof l === 'object' && (l as Loose).name === record.location);
-        const html = buildSelectionSheetHtml({ checkIn: record, dateStr: formatInstant(record.createdAt), values, letterhead: letterheadFor(location), showPrices });
+        const html = buildSelectionSheetHtml({ checkIn: record, dateStr: formatInstant(record.createdAt), values, letterhead: letterheadFor(location), showPrices, logoUrl: `${window.location.origin}/logo.png` });
         const win = window.open('', '_blank', 'width=800,height=800');
         if (!win) { setFormError('Your browser blocked the print window. Allow pop-ups for this site, then try again.'); return; }
         win.document.write(html);
@@ -487,6 +487,7 @@ export default function SelectionSheetForm({ checkIn, draft = null, owner, locat
                 <EmailDialog
                     initialTo={record.email || ''}
                     customer={record.name || ''}
+                    fabricator={record.fabricatorCompany || ''}
                     summary={priceSummary}
                     savesFirst={canEdit && dirty > 0}
                     sending={sending}

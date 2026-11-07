@@ -225,6 +225,29 @@ body.light-theme-active .ss-conflict > svg { color: #b45309; }
     cursor: pointer;
 }
 .ss-dialog-x:hover:not(:disabled) { background: var(--fm-hover); color: var(--fm-tx); }
+/* Email → "Who is it for?": Home Owner | Fabricator. */
+.ss-who { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ss-who-opt {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-height: 56px;
+    padding: 10px 12px;
+    border: 1px solid var(--fm-bd);
+    border-radius: 12px;
+    background: transparent;
+    color: var(--fm-tx);
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+}
+.ss-who-opt:hover:not(:disabled) { background: var(--fm-hover); }
+.ss-who-opt:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--fm-ring); }
+.ss-who-opt:disabled { opacity: 0.6; cursor: not-allowed; }
+.ss-who-opt.is-on { border: 2px solid var(--fm-gold); padding: 9px 11px; }
+.ss-who-title { font-size: 15px; font-weight: 800; }
+.ss-who-sub { max-width: 100%; font-size: 13px; font-weight: 600; color: var(--fm-mut); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ss-choices { display: flex; flex-direction: column; gap: 10px; }
 .ss-choice {
     display: flex;

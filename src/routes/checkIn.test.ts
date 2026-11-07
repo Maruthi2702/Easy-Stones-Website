@@ -88,7 +88,7 @@ describe('PUT /api/checkin/:id — the selection sheet', () => {
     await put({ selections: [row()] }).expect(200);
     await settle();
     expect(repEmails()).toHaveLength(1);
-    expect(repEmails()[0][3]).toEqual({ showPrices: true });
+    expect((repEmails()[0]![3] as Loose).showPrices).toBe(true);
     expect(repEmails()[0][0].selections[0].priceCentsPerSf).toBe(6800);
   });
 
@@ -133,9 +133,7 @@ describe('POST /api/checkin/:id/send-email', () => {
     await send({ email: 'pat@example.com' }).expect(200);
     await send({ email: 'pat@example.com', withPrices: 'yes' }).expect(200);
     await send({ email: 'pat@example.com', withPrices: true }).expect(200);
-    expect(sendSelectionSheetEmail.mock.calls.map((c: Loose) => c[3])).toEqual([
-      { showPrices: false }, { showPrices: false }, { showPrices: true }
-    ]);
+    expect(sendSelectionSheetEmail.mock.calls.map((c: Loose) => c[3].showPrices)).toEqual([false, false, true]);
   });
 });
 

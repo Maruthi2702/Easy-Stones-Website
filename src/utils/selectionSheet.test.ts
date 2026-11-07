@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   sheetValuesFromCheckIn, countSheetChanges, sheetPayload, buildSelectionSheetHtml,
   rowHasData, MIN_VISIBLE_ROWS, SHEET_ROWS, priceCentsOf, tidyPrice, formatSheetPrice, sheetPriceErrors,
-  sheetPriceSummary, cleanSelections, repEmailSnapshot, PRICE_ERROR, formatSlabSize
+  sheetPriceSummary, cleanSelections, repEmailSnapshot, PRICE_ERROR, formatSlabSize,
+  sheetDoc, docRowsFromValues, docRowsFromSelections, sheetPriceLabel, holdSteps, HOLD_POLICY, escapeHtml
 } from './selectionSheet.ts';
 
 const checkIn = {
@@ -181,7 +182,7 @@ describe('buildSelectionSheetHtml', () => {
     const html = buildSelectionSheetHtml({ checkIn, dateStr: 'Oct 4', values: sheetValuesFromCheckIn(checkIn), letterhead });
     expect(html).toContain('1440 Westinghouse Blvd, Charlotte, NC 28273');
     expect(html).toContain('CALACATTA GOLD');
-    expect((html.match(/<tr style="border-bottom/g) || []).length).toBe(1);
+    expect((html.match(/<td class="num">/g) || []).length).toBe(1);
   });
 
   it('adds the Price / SF column only when asked, and never prints internal notes', () => {
@@ -192,7 +193,7 @@ describe('buildSelectionSheetHtml', () => {
     const priced = buildSelectionSheetHtml({ checkIn, dateStr: '', values, letterhead, showPrices: true });
     expect(priced).toContain('Price / SF');
     expect(priced).toContain('$68.00');
-    expect(priced).toContain('—');
+    expect(priced).toContain('Ask your rep');
     for (const html of [plain, priced]) {
       expect(html).toContain('Hold for Friday');
       expect(html).not.toContain('Builder pricing');
@@ -202,6 +203,69 @@ describe('buildSelectionSheetHtml', () => {
   it('says so when there are no selections', () => {
     const html = buildSelectionSheetHtml({ checkIn: {}, dateStr: '', values: sheetValuesFromCheckIn({}), letterhead });
     expect(html).toContain('No selections registered.');
+  });
+
+  // Direction A of the "Selection Sheet — customer copy" canvas (2026-11-07).
+  it('leaves the browser no margin for its own header and footer', () => {
+    const html = buildSelectionSheetHtml({ checkIn, dateStr: 'Oct 4, 2026', values: sheetValuesFromCheckIn(checkIn), letterhead });
+    expect(html).toContain('@page { size: letter; margin: 0; }');
+    expect(html).not.toContain('Check-In Portal');
+    expect(html).not.toContain('N/A');
+  });
+
+  it('shows the logo when given one, else the name as text', () => {
+    const values = sheetValuesFromCheckIn(checkIn);
+    expect(buildSelectionSheetHtml({ checkIn, values, letterhead, logoUrl: 'https://x.test/logo.png?a=1&b="2"' }))
+      .toContain('src="https://x.test/logo.png?a=1&amp;b=&quot;2&quot;"');
+    expect(buildSelectionSheetHtml({ checkIn, values, letterhead })).toContain('EASY STONES');
+  });
+
+  it('prints the branch address on the left of the footer and its phone on the right', () => {
+    const html = buildSelectionSheetHtml({
+      checkIn: { ...checkIn, location: 'Charlotte' }, values: sheetValuesFromCheckIn(checkIn),
+      letterhead: { addressLine: '1440 Westinghouse Blvd, Charlotte, NC 28273', phone: '(980) 201-9506' }
+    });
+    expect(html).toContain('<span>Easy Stones Charlotte · 1440 Westinghouse Blvd, Charlotte, NC 28273</span>');
+    expect(html).toContain('<span class="phone">(980) 201-9506</span>');
+  });
+
+  it('keeps the hold policy word for word, with the rep named in its last step', () => {
+    const html = buildSelectionSheetHtml({ checkIn, values: { ...sheetValuesFromCheckIn(checkIn), salesRep: 'Rita' }, letterhead });
+    expect(html).toContain('Hold Policy');
+    expect(html).toContain(escapeHtml(HOLD_POLICY));
+    expect(html).toContain('Questions? Ask Rita or call the showroom.');
+  });
+});
+
+describe('sheetDoc — what the printed and emailed sheet say', () => {
+  const base = { name: 'Pat Visitor', phone: '(206) 555-0142', fabricatorCompany: 'Intown', fabricatorPhone: '(425) 306-8522', location: 'Kent' };
+
+  it('names the three people, a name over a phone or email', () => {
+    const d = sheetDoc({ checkIn: base, rows: [], salesRep: 'Rita', salesRepEmail: 'rita@x.com', letterhead: { addressLine: '6012 S 196th St', phone: '(253) 555-0100' }, date: 'Nov 7, 2026' });
+    expect(d.customer).toEqual({ name: 'Pat Visitor', phone: '(206) 555-0142' });
+    expect(d.fabricator).toEqual({ name: 'Intown', phone: '(425) 306-8522' });
+    expect(d.rep).toEqual({ name: 'Rita', email: 'rita@x.com' });
+    expect(d.footer).toBe('Easy Stones Kent · 6012 S 196th St');
+    expect(d.phone).toBe('(253) 555-0100');
+    expect(d.count).toBe('0 materials');
+  });
+
+  it('drops a leftover rep email when nobody is the rep', () => {
+    expect(sheetDoc({ checkIn: base, rows: [], salesRep: '', salesRepEmail: 'old@x.com' }).rep).toEqual({ name: '', email: '' });
+    expect(holdSteps('')[2]).toBe('Questions? Call the showroom.');
+  });
+
+  it('reads the same rows from the form and from a saved check-in', () => {
+    const fromValues = docRowsFromValues([{ material: 'A', lot: '1', details: '15 / 16', size: '126x63', price: '68' }, { material: '', lot: '', details: '', size: '', price: '' }]);
+    const fromSaved = docRowsFromSelections([{ material: 'A', lot: '1', details: '15 / 16', size: '126x63', priceCentsPerSf: 6800 }, {}]);
+    expect(fromValues).toEqual([{ material: 'A', lot: '1', details: '15 / 16', size: '126 * 63', priceCents: 6800 }]);
+    expect(fromSaved).toEqual(fromValues);
+    expect(sheetDoc({ checkIn: base, rows: fromValues }).count).toBe('1 material');
+  });
+
+  it('prices a material, or says to ask the rep', () => {
+    expect(sheetPriceLabel(6800)).toBe('$68.00');
+    expect(sheetPriceLabel(null)).toBe('Ask your rep');
   });
 });
 

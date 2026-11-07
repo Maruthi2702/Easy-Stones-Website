@@ -252,227 +252,247 @@ export const escapeHtml = (value: unknown): string => str(value).replace(/[&<>"'
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]
 ));
 
+// ── The sheet a customer gets: print and email (2026-11-07) ──────────────
+// One template for the printed sheet and every email (owner, on the claude.ai
+// canvas "Selection Sheet — customer copy", direction A,
+// https://claude.ai/artifact/F6qJqYpyfiuWiqyvaS8Viz): logo + "Stone Selection"
+// with the day and branch; Prepared for / Fabricator / Your sales rep, each a
+// name over a phone or email; Your selections (#, material, lot, slabs, size,
+// and Price / SF only when asked — no slab count per row); Notes (the printed
+// notes); the Hold Policy with three steps; a footer with the branch address on
+// the left and its phone on the right. `sheetDoc` decides what's on it; the
+// print page below and selectionSheetEmailHtml (src/services/emailService.ts)
+// only lay it out.
+
+/** The hold policy, word for word as it has always printed. */
+export const HOLD_POLICY = "Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice to you or your fabricator.";
+
+/** The three steps under the policy; the last names the sheet's rep when there is one. */
+export const holdSteps = (rep: unknown): string[] => [
+  'Give this sheet to your fabricator.',
+  'They hold the slabs on their account — a hold lasts 7 days.',
+  str(rep).trim() ? `Questions? Ask ${str(rep).trim()} or call the showroom.` : 'Questions? Call the showroom.'
+];
+
+/** A material's price on the customer's sheet: "$68.00", or "Ask your rep" when it has none. */
+export const sheetPriceLabel = (cents: unknown): string => (isPriceCents(cents) ? formatCents(cents) : 'Ask your rep');
+
+export type SheetDocRow = { material: string; lot: string; details: string; size: string; priceCents: number | null };
+export type SheetDoc = {
+  date: string;
+  location: string;
+  customer: { name: string; phone: string };
+  fabricator: { name: string; phone: string };
+  rep: { name: string; email: string };
+  rows: SheetDocRow[];
+  /** "3 materials" over the list. */
+  count: string;
+  notes: string;
+  address: string;
+  phone: string;
+  /** "Easy Stones Kent · 6012 S 196th St, Kent, WA 98032". */
+  footer: string;
+  showPrices: boolean;
+  steps: string[];
+};
+
+/** The form's rows (typed prices) → the sheet's rows. Empty rows are left out. */
+export const docRowsFromValues = (rows: Partial<SheetRow>[] = []): SheetDocRow[] => rows.filter(rowHasData).map((r) => {
+  const c = priceCentsOf(r.price);
+  return { material: str(r.material).trim(), lot: str(r.lot).trim(), details: str(r.details).trim(), size: formatSlabSize(r.size), priceCents: isPriceCents(c) ? c : null };
+});
+
+/** A saved check-in's selections → the sheet's rows. */
+export const docRowsFromSelections = (selections: unknown): SheetDocRow[] => (Array.isArray(selections) ? selections as SavedSelection[] : [])
+  .map((r) => ({ material: str(r?.material).trim(), lot: str(r?.lot).trim(), details: str(r?.details).trim(), size: formatSlabSize(r?.size), priceCents: isPriceCents(r?.priceCentsPerSf) ? r.priceCentsPerSf as number : null }))
+  .filter((r) => r.material || r.lot || r.details || r.size || r.priceCents);
+
+/** Everything the printed or emailed sheet says, as plain text (the renderers escape it). */
+export const sheetDoc = ({ checkIn = {}, rows, salesRep, salesRepEmail, notes, letterhead, date = '', showPrices = false }: {
+  checkIn?: SheetCheckIn; rows: SheetDocRow[]; salesRep?: unknown; salesRepEmail?: unknown; notes?: unknown;
+  letterhead?: { addressLine?: string; phone?: string } | null; date?: string; showPrices?: boolean;
+}): SheetDoc => {
+  const location = str(checkIn.location).trim();
+  const address = str(letterhead?.addressLine).trim();
+  const rep = str(salesRep).trim();
+  return {
+    date: str(date).trim(),
+    location,
+    customer: { name: str(checkIn.name).trim(), phone: str(checkIn.phone).trim() },
+    fabricator: { name: str(checkIn.fabricatorCompany).trim(), phone: str(checkIn.fabricatorPhone).trim() },
+    rep: { name: rep, email: rep ? str(salesRepEmail).trim() : '' },
+    rows,
+    count: rows.length === 1 ? '1 material' : `${rows.length} materials`,
+    notes: str(notes).trim(),
+    address,
+    phone: str(letterhead?.phone).trim(),
+    footer: [location ? `Easy Stones ${location}` : 'Easy Stones', address].filter(Boolean).join(' · '),
+    showPrices,
+    steps: holdSteps(rep)
+  };
+};
+
 /**
  * The printable page for a sheet — what's on screen, saved or not.
- * `letterhead` is letterheadFor(location) from src/utils/locationForm.ts.
+ * `letterhead` is letterheadFor(location) from src/utils/locationForm.ts;
+ * `logoUrl` an absolute address of the logo (the print window is about:blank,
+ * so a relative one wouldn't load; without one the name prints as text).
  * `showPrices` adds the Price / SF column ("Print with prices"). Internal
  * notes are never on it.
+ *
+ * `@page { margin: 0 }` leaves the browser no room for its own header and
+ * footer (the date, "about:blank", "1/1" it used to print); the page's own
+ * padding is the margin, cloned onto a second page when a long sheet runs over.
  */
-export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, letterhead, showPrices = false }: {
+export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, letterhead, showPrices = false, logoUrl = '' }: {
   checkIn?: SheetCheckIn; dateStr?: string; values: SheetInput;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- letterheadFor(location), src/utils/locationForm.ts
-  letterhead: any; showPrices?: boolean;
+  letterhead?: { addressLine?: string; phone?: string } | null; showPrices?: boolean; logoUrl?: string;
 }): string => {
-  const salesRep = values.salesRep;
-  const specialNotes = values.specialNotes;
-  const validSelections = (values.rows || []).filter(rowHasData);
-  let selectionsRowsHtml = '';
-  if (validSelections.length === 0) {
-    selectionsRowsHtml = `
-        <tr>
-          <td colspan="${showPrices ? 6 : 5}" style="padding: 12px 10px; text-align: center; color: #666; font-style: italic;">No selections registered.</td>
-        </tr>
-      `;
-  } else {
-    validSelections.forEach((sel, idx) => {
-      selectionsRowsHtml += `
-          <tr style="border-bottom: 1px solid #eaeaea;">
-            <td style="padding: 10px; text-align: center; color: #d4af37; font-weight: bold;">${idx + 1}</td>
-            <td style="padding: 10px; color: #222; font-weight: 500;">${escapeHtml(sel.material) || 'N/A'}</td>
-            <td style="padding: 10px; color: #555;">${escapeHtml(sel.lot) || 'N/A'}</td>
-            <td style="padding: 10px; color: #555;">${escapeHtml(sel.details) || 'N/A'}</td>
-            <td style="padding: 10px; color: #555;">${escapeHtml(formatSlabSize(sel.size)) || 'N/A'}</td>
-            ${showPrices ? `<td style="padding: 10px; color: #222; font-weight: 600; text-align: right; white-space: nowrap;">${escapeHtml(formatSheetPrice(priceCentsOf(sel.price)))}</td>` : ''}
-          </tr>
-        `;
-    });
-  }
-  return `
-      <html>
-        <head>
-          <title>Selection Sheet - ${escapeHtml(checkIn.name)}</title>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-              color: #333;
-              margin: 40px;
-              padding: 0;
-            }
-            .header {
-              text-align: center;
-              border-bottom: 2px solid #d4af37;
-              padding-bottom: 15px;
-              margin-bottom: 30px;
-            }
-            .header h1 {
-              margin: 0;
-              font-size: 24px;
-              font-weight: 800;
-              letter-spacing: 1px;
-            }
-            .header p {
-              margin: 5px 0 0 0;
-              color: #666;
-              font-size: 13px;
-            }
-            .title {
-              text-align: center;
-              font-size: 16px;
-              font-weight: bold;
-              letter-spacing: 1px;
-              color: #d4af37;
-              text-transform: uppercase;
-              margin-bottom: 25px;
-            }
-            .details-grid {
-              display: grid;
-              grid-template-columns: 1fr 1fr;
-              gap: 15px;
-              background: #fff;
-              border: 1px solid #eaeaea;
-              border-radius: 12px;
-              padding: 20px;
-              margin-bottom: 30px;
-            }
-            .detail-item {
-              font-size: 14px;
-            }
-            .detail-label {
-              font-weight: bold;
-              color: #555;
-            }
-            .detail-value {
-              color: #222;
-            }
-            .section-title {
-              font-size: 14px;
-              margin: 20px 0 12px 0;
-              color: #111;
-              border-left: 3px solid #d4af37;
-              padding-left: 8px;
-              text-transform: uppercase;
-              font-weight: bold;
-            }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              margin-bottom: 30px;
-              font-size: 13px;
-            }
-            th {
-              background: #f1f5f9;
-              border-bottom: 2px solid #e2e8f0;
-              padding: 10px;
-              text-align: left;
-              color: #475569;
-              font-weight: bold;
-            }
-            td {
-              padding: 10px;
-              border-bottom: 1px solid #eaeaea;
-            }
-            .notes {
-              background: #fff;
-              border: 1px solid #eaeaea;
-              border-radius: 12px;
-              padding: 15px;
-              margin-bottom: 30px;
-              font-size: 13px;
-            }
-            .notes h4 {
-              margin: 0 0 8px 0;
-              color: #475569;
-            }
-            .notes p {
-              margin: 0;
-              color: #334155;
-              white-space: pre-wrap;
-              line-height: 1.5;
-            }
-            .policy-box {
-              background: #fef2f2;
-              border: 1px dashed #fca5a5;
-              border-radius: 12px;
-              padding: 15px;
-              margin-bottom: 40px;
-              font-size: 12px;
-              color: #ef4444;
-              line-height: 1.5;
-            }
-            .footer {
-              text-align: center;
-              font-size: 11px;
-              color: #888;
-              margin-top: 30px;
-            }
-            @media print {
-              body {
-                margin: 20px;
-              }
-              .policy-box {
-                background: #fff !important;
-                border: 1px dashed #ef4444 !important;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>EASY STONES</h1>
-            <p>${escapeHtml(letterhead.addressLine)}</p>
-            ${letterhead.contactLine ? `<p>${escapeHtml(letterhead.contactLine)}</p>` : ''}
+  const doc = sheetDoc({
+    checkIn, rows: docRowsFromValues(values.rows), salesRep: values.salesRep, salesRepEmail: values.salesRepEmail,
+    notes: values.specialNotes, letterhead, date: dateStr, showPrices
+  });
+  const e = escapeHtml;
+  const person = (label: string, name: string, sub: string) => `
+        <div class="person">
+          <p class="label">${label}</p>
+          <p class="name">${e(name) || '—'}</p>
+          ${sub ? `<p class="sub">${e(sub)}</p>` : ''}
+        </div>`;
+  const cols = doc.showPrices ? 6 : 5;
+  const rowsHtml = doc.rows.length === 0
+    ? `<tr><td colspan="${cols}" class="empty">No selections registered.</td></tr>`
+    : doc.rows.map((r, i) => `
+          <tr>
+            <td class="num">${i + 1}</td>
+            <td class="material">${e(r.material)}</td>
+            <td>${e(r.lot)}</td>
+            <td>${e(r.details)}</td>
+            <td>${e(r.size)}</td>
+            ${doc.showPrices ? `<td class="price${r.priceCents ? '' : ' none'}">${e(sheetPriceLabel(r.priceCents))}</td>` : ''}
+          </tr>`).join('');
+  const heading = [doc.date, doc.location].filter(Boolean).join(' · ');
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Selection Sheet - ${e(doc.customer.name)}</title>
+    <style>
+      @page { size: letter; margin: 0; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+      body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1F2328; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { width: 8.5in; min-height: 10.95in; margin: 0 auto; padding: 0.58in 0.67in 0.46in; display: flex; flex-direction: column; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+      p { margin: 0; }
+      h1, h2 { margin: 0; font-family: Montserrat, Inter, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; }
+      .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+      .logo { height: 46px; width: auto; display: block; }
+      .wordmark { font-size: 24px; font-weight: 800; letter-spacing: 0.12em; }
+      .head-right { text-align: right; }
+      .head-right h1 { font-size: 26px; }
+      .head-right p { margin-top: 4px; font-size: 15px; color: #5B616B; }
+      .rule { height: 2px; background: #C9A13B; margin: 20px 0 28px; }
+      .people { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+      .label { margin-bottom: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #5B616B; }
+      .name { font-size: 18px; font-weight: 600; }
+      .sub { margin-top: 2px; font-size: 15px; color: #3D434B; overflow-wrap: anywhere; }
+      .section { margin-top: 32px; }
+      .section-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+      .section-head h2, .notes h2 { font-size: 17px; }
+      .count { font-size: 14px; color: #5B616B; }
+      table { width: 100%; border-collapse: collapse; font-size: 16px; }
+      thead tr { border-top: 1px solid #1F2328; border-bottom: 1px solid #1F2328; }
+      th { text-align: left; padding: 10px 8px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #3D434B; white-space: nowrap; }
+      td { padding: 13px 8px; border-bottom: 1px solid #D9D4C7; font-variant-numeric: tabular-nums; vertical-align: top; overflow-wrap: anywhere; }
+      tr { break-inside: avoid; }
+      .num { width: 40px; color: #7A5C10; font-weight: 700; white-space: nowrap; overflow-wrap: normal; }
+      .material { font-weight: 600; letter-spacing: 0.02em; }
+      .price, th.price { text-align: right; white-space: nowrap; }
+      .price { font-weight: 700; }
+      .price.none { font-weight: 400; color: #5B616B; }
+      .empty { padding: 14px 8px; text-align: center; color: #5B616B; font-style: italic; }
+      .price-note { margin-top: 10px; font-size: 13px; color: #5B616B; }
+      .notes { margin-top: 28px; break-inside: avoid; }
+      .notes h2 { margin-bottom: 8px; }
+      .notes p { font-size: 16px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .policy { margin-top: 32px; border: 1px solid #D9C27A; border-radius: 12px; padding: 20px 22px; background: #FBF8EF; break-inside: avoid; }
+      .policy-top { display: flex; gap: 12px; align-items: flex-start; }
+      .policy-top svg { flex: none; margin-top: 1px; }
+      .policy h2 { font-family: inherit; font-size: 17px; }
+      .policy-top p { margin-top: 6px; font-size: 14px; line-height: 1.55; color: #3D434B; }
+      .steps { margin: 18px 0 0; padding: 16px 0 0; border-top: 1px solid #E6DAB3; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+      .steps li { display: flex; gap: 10px; font-size: 14px; line-height: 1.45; }
+      .step-num { flex: none; width: 24px; height: 24px; border-radius: 12px; border: 1.5px solid #7A5C10; color: #7A5C10; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+      .foot { margin-top: auto; padding-top: 14px; border-top: 1px solid #D9D4C7; display: flex; justify-content: space-between; gap: 24px; font-size: 13px; color: #5B616B; }
+      .foot-gap { height: 28px; flex: none; }
+      .foot .phone { white-space: nowrap; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="head">
+        ${logoUrl ? `<img class="logo" src="${e(logoUrl)}" alt="Easy Stones">` : '<div class="wordmark">EASY STONES</div>'}
+        <div class="head-right">
+          <h1>Stone Selection</h1>
+          ${heading ? `<p>${e(heading)}</p>` : ''}
+        </div>
+      </header>
+      <div class="rule"></div>
+
+      <section class="people">${person('Prepared for', doc.customer.name, doc.customer.phone)}${person('Fabricator', doc.fabricator.name, doc.fabricator.phone)}${person('Your sales rep', doc.rep.name, doc.rep.email)}
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h2>Your selections</h2>
+          <p class="count">${e(doc.count)}${doc.showPrices ? ' · prices per square foot' : ''}</p>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Material</th>
+              <th>Lot / bundle</th>
+              <th>Slabs</th>
+              <th>Size (in)</th>
+              ${doc.showPrices ? '<th class="price">Price / SF</th>' : ''}
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}
+          </tbody>
+        </table>
+        ${doc.showPrices ? `<p class="price-note">Prices per square foot, as quoted on ${e(doc.date)}.</p>` : ''}
+      </section>
+
+      ${doc.notes ? `<section class="notes">
+        <h2>Notes</h2>
+        <p>${e(doc.notes).replace(/\n/g, '<br>')}</p>
+      </section>` : ''}
+
+      <section class="policy">
+        <div class="policy-top">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7A5C10" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>
+          <div>
+            <h2>Hold Policy</h2>
+            <p>${e(HOLD_POLICY)}</p>
           </div>
-          
-          <div class="title">Customer Visit / Stone Selection</div>
-          
-          <div class="details-grid">
-            <div class="detail-item"><span class="detail-label">Date:</span> <span class="detail-value">${escapeHtml(dateStr)}</span></div>
-            <div class="detail-item"><span class="detail-label">Customer Name:</span> <span class="detail-value">${escapeHtml(checkIn.name)}</span></div>
-            <div class="detail-item"><span class="detail-label">Phone Number:</span> <span class="detail-value">${escapeHtml(checkIn.phone)}</span></div>
-            <div class="detail-item"><span class="detail-label">Company Name:</span> <span class="detail-value">${escapeHtml(checkIn.fabricatorCompany) || 'N/A'}</span></div>
-            <div class="detail-item"><span class="detail-label">Company Phone:</span> <span class="detail-value">${escapeHtml(checkIn.fabricatorPhone) || 'N/A'}</span></div>
-            <div class="detail-item"><span class="detail-label">Sales Rep:</span> <span class="detail-value">${escapeHtml(salesRep) || 'N/A'}</span></div>
-          </div>
-          
-          <div class="section-title">Material Selection(s)</div>
-          <table>
-            <thead>
-              <tr>
-                <th style="width: 5%; text-align: center;">#</th>
-                <th>Material Name</th>
-                <th>Lot/Bundle Number</th>
-                <th>Slab Numbers</th>
-                <th>Size</th>
-                ${showPrices ? '<th style="text-align: right; white-space: nowrap;">Price / SF</th>' : ''}
-              </tr>
-            </thead>
-            <tbody>
-              ${selectionsRowsHtml}
-            </tbody>
-          </table>
-          
-          ${specialNotes ? `
-          <div class="notes">
-            <h4>Notes:</h4>
-            <p>${escapeHtml(specialNotes).replace(/\n/g, '<br>')}</p>
-          </div>
-          ` : ''}
-          
-          <div class="policy-box">
-            <strong>Hold Policy Note:</strong> Items will not automatically be held. Once a final selection is made, you or your fabricator may choose to hold under the fabricator's account for 7 days. After 7 days, tags may be removed without notice to you or your fabricator.
-          </div>
-          
-          <div class="footer">
-            This is an automated selection record from the Easy Stones Check-In Portal.
-          </div>
-          
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() { window.close(); }, 500);
-            };
-          </script>
-        </body>
-      </html>
-    `;
+        </div>
+        <ol class="steps">${doc.steps.map((t, i) => `<li><span class="step-num">${i + 1}</span><span>${e(t)}</span></li>`).join('')}</ol>
+      </section>
+
+      <div class="foot-gap"></div>
+      <footer class="foot">
+        <span>${e(doc.footer)}</span>
+        <span class="phone">${e(doc.phone)}</span>
+      </footer>
+    </div>
+    <script>
+      window.onload = function() {
+        window.print();
+        setTimeout(function() { window.close(); }, 500);
+      };
+    </script>
+  </body>
+</html>
+`;
 };

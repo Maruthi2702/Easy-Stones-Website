@@ -151,15 +151,18 @@ describe('parseLocationBody (server)', () => {
 });
 
 describe('letterhead', () => {
-  it('prints the location’s own address, without the contact line for now', () => {
+  it('prints the location’s own address and phone, without the contact line for now', () => {
     expect(letterheadFor(charlotte)).toEqual({
       addressLine: '1440 Westinghouse Blvd, Suite A, Charlotte, NC 28273',
-      contactLine: ''
+      contactLine: '',
+      phone: '(980) 201-9506'
     });
+    expect(letterheadFor({ ...charlotte, primaryContact: { ...charlotte.primaryContact, phone: '' } }).phone).toBe('');
   });
 
-  it('falls back to the Kent address for a location with none yet', () => {
+  it('falls back to the Kent address, with no phone, for a location with none yet', () => {
     expect(letterheadFor({ name: 'Spokane' })).toEqual(DEFAULT_LETTERHEAD);
+    expect(letterheadFor({ name: 'Spokane', primaryContact: { phone: '5095550100' } }).phone).toBe('');
     expect(letterheadFor(null)).toEqual(DEFAULT_LETTERHEAD);
   });
 
