@@ -1274,6 +1274,12 @@ or fails, the Gmail SMTP account (`SMTP_*`). Resend is gone. Both get the same
 nodemailer message, so attachments and Reply-To behave alike; the result says `via`.
 While SES is in its sandbox it refuses unverified recipients and Gmail sends them. A
 new email goes through `sendEmail` — never its own transport. Tests: `emailSend.test.ts`.
+Every email is sent as **Easy Surfaces** (owner, 2026-11-08; `SENDER_NAME` in
+`src/utils/emailSender.ts` — callers add a word, `${SENDER_NAME} Check-In`), from
+**noreply@easystones.com**, a Microsoft 365 shared mailbox. Until easystones.com's DNS
+records are in, SES sends from a single verified address (aws-infra `email.verifiedAddress`)
+and Outlook shows "via amazonses.com" with an "unverified sender" warning — tested
+2026-11-08 — so Render's SES settings wait for the DNS.
 
 ## Forms: one template, everywhere
 

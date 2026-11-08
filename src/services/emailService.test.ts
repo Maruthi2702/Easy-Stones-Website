@@ -96,13 +96,13 @@ describe('sendSelectionSheetEmail', () => {
     expect(html).toContain('<a href="mailto:rita@x.com" style="color: inherit; text-decoration: none;">rita@x.com</a>');
   });
 
-  it('is titled "Selection Sheet: <name>", from Easy Stones, replies to the rep', async () => {
+  it('is titled "Selection Sheet: <name>", from Easy Surfaces, replies to the rep', async () => {
     const message = await messageOf();
     expect(message.subject).toBe('Selection Sheet: Pat Visitor');
-    expect(message.from?.name).toBe('Easy Stones');
+    expect(message.from?.name).toBe('Easy Surfaces');
     expect(message.replyTo).toBe('rita@x.com');
     const noRep = await messageOf({}, { ...checkIn, salesRep: '', salesRepEmail: 'old@x.com' });
-    expect(noRep.from?.name).toBe('Easy Stones');
+    expect(noRep.from?.name).toBe('Easy Surfaces');
     expect(noRep.replyTo).toBeUndefined();
   });
 

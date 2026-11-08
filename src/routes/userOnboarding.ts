@@ -31,6 +31,7 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import User from '../models/User.ts';
 import { sendEmail } from '../services/emailService.ts';
+import { SENDER_NAME } from '../utils/emailSender.ts';
 import { usernameProblem, PASSWORD_MIN } from '../utils/userForm.ts';
 import { displayNameOf } from '../utils/salesReps.ts';
 import {
@@ -96,7 +97,7 @@ export const sendInviteEmail = async ({ to, name, username, link, invitedBy, res
       <p style="margin:0;font-size:13px;color:#5a6574;line-height:1.5">If the button doesn’t work, paste this into your browser:<br>${escapeHtml(link)}</p>
     </div>`;
   try {
-    const result = await sendEmail({ to, subject: reset ? 'Choose a new Easy Stones password' : 'Your Easy Stones account', html, defaultSenderName: 'Easy Stones' });
+    const result = await sendEmail({ to, subject: reset ? 'Choose a new Easy Stones password' : 'Your Easy Stones account', html, defaultSenderName: SENDER_NAME });
     return result?.success !== false;
   } catch (err) {
     console.error('Invite email failed:', (err as Error)?.message || err);

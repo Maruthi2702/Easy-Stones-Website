@@ -1,4 +1,5 @@
 import { sendEmail } from './emailService.ts';
+import { SENDER_NAME } from '../utils/emailSender.ts';
 import { recipientsFor } from '../utils/dailyReportSubmissionEmail.ts';
 import { arrivalEmailLines } from '../utils/transferArrival.ts';
 
@@ -30,7 +31,7 @@ export async function notifyArrivalLogged(
       to,
       subject: `Transfer from ${ticket.location} logged on arrival at ${ticket.transferDestination} — ${ticket.date}`,
       html,
-      defaultSenderName: 'Easy Stones'
+      defaultSenderName: SENDER_NAME
     });
     if (!result.success) console.error(`⚠️ arrival email to ${ticket.location} failed: ${result.error}`);
   } catch (error) {

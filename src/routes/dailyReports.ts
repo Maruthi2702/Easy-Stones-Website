@@ -9,6 +9,7 @@ import express from 'express';
 import DailyReport from '../models/DailyReport.ts';
 import { buildDayPdf, buildMonthPdf, dayPdfFileName, monthPdfFileName } from '../utils/dailyReportPdf.ts';
 import { sendEmail } from '../services/emailService.ts';
+import { SENDER_NAME } from '../utils/emailSender.ts';
 import Delivery from '../models/Delivery.ts';
 import { BRANCH_NAMES, branchCode, isBranch, branchDayWindow } from '../config/branches.ts';
 import OfficeCheckIn from '../models/OfficeCheckIn.ts';
@@ -1245,7 +1246,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       subject,
       html,
       replyTo: req.user?.email || undefined,
-      defaultSenderName: 'Easy Stones',
+      defaultSenderName: SENDER_NAME,
       attachments: [{ filename, content: Buffer.from(bytes) }]
     });
 
