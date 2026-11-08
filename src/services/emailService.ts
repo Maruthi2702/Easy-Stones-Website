@@ -191,8 +191,16 @@ export async function sendCheckInAlertEmail(checkIn: Loose) {
 // phone (letterheadFor in src/utils/locationForm.ts; without one it's the Kent
 // address). `showPrices` adds each material's Price / SF — always on for the
 // sales rep's automatic copy, the main button for a fabricator, only on
-// request for a home owner. `logoUrl` is an absolute address of the logo;
-// without one the name shows as text. Internal notes are never in it.
+// request for a home owner. `markUrl` is an absolute address of the gold mark
+// (public/favicon.png); without one only the name shows. Internal notes are
+// never in it.
+//
+// Dark mode (Outlook / Gmail on a phone repaint the email dark): the full logo
+// image has dark lettering that vanished there, so the email shows the gold
+// mark (transparent, reads on both) beside "EASY STONES" as text, which the
+// mail app recolours with everything else. Phones and emails are our own
+// links in the text's colour — left alone, phones turn them blue and
+// underlined.
 //
 // Fluid at every width without media queries (many mail apps drop <style>),
 // and built from tables so a forward keeps it: the three people side by side
@@ -202,7 +210,7 @@ export async function sendCheckInAlertEmail(checkIn: Loose) {
 // 600px table in a conditional comment.
 const SHEET_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
-export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, logoUrl = '' }: Loose = {}) {
+export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, markUrl = '' }: Loose = {}) {
   // The day on the branch's own clock (the server runs on UTC).
   const date = checkIn.createdAt
     ? new Date(checkIn.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: checkInZone(checkIn.location) })
@@ -215,6 +223,14 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
   const LABEL = 'font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #5B616B; white-space: nowrap;';
   const H2 = 'margin: 0; font-size: 16px; font-weight: 700; color: #1F2328;';
   const heading = [doc.date, doc.location].filter(Boolean).join(' · ');
+  // A phone or email as a link in the surrounding text's colour.
+  const LINK = 'color: inherit; text-decoration: none;';
+  const phoneLink = (phone: string) => {
+    const digits = phone.replace(/\D/g, '');
+    const tel = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : '';
+    return tel ? `<a href="tel:${tel}" style="${LINK}">${e(phone)}</a>` : e(phone);
+  };
+  const emailLink = (email: string) => `<a href="mailto:${e(email)}" style="${LINK}">${e(email).replace('@', '@<wbr>')}</a>`;
 
   // The three people are one table row of three cells — a table survives a
   // forward (Outlook's and Apple Mail's forwards dropped the inline-block
@@ -228,8 +244,8 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
             <div style="${LABEL}">${label}</div>
             <div style="margin-top: 3px; font-size: 15px; font-weight: 600; color: #1F2328; word-break: break-word; overflow-wrap: anywhere;">${e(name) || '—'}</div>
             ${sub ? (sub.includes('@')
-              ? `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; word-break: break-word; overflow-wrap: anywhere;">${e(sub).replace('@', '@<wbr>')}</div>`
-              : `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; white-space: nowrap;">${e(sub)}</div>`) : ''}
+              ? `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; word-break: break-word; overflow-wrap: anywhere;">${emailLink(sub)}</div>`
+              : `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; white-space: nowrap;">${phoneLink(sub)}</div>`) : ''}
           </td>`;
 
   const rowsHtml = doc.rows.length === 0
@@ -263,9 +279,14 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
     <div style="max-width: 600px; margin: 0 auto; box-sizing: border-box; padding: 24px 20px; border: 1px solid #E3DED2; border-radius: 12px; background: #ffffff; font-family: ${SHEET_FONT}; color: #1F2328; text-align: left; line-height: 1.4;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
         <tr>
-          <td style="vertical-align: bottom; padding: 0;">${logoUrl
-            ? `<img src="${e(logoUrl)}" alt="Easy Stones" height="32" style="display: block; height: 32px; width: auto; max-width: 140px; border: 0;">`
-            : '<div style="font-size: 20px; font-weight: 800; letter-spacing: 0.12em; color: #1F2328;">EASY STONES</div>'}</td>
+          <td style="vertical-align: bottom; padding: 0;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
+              <tr>
+                ${markUrl ? `<td style="vertical-align: middle; padding: 0 9px 0 0;"><img src="${e(markUrl)}" alt="" width="23" height="30" style="display: block; width: 23px; height: 30px; border: 0;"></td>` : ''}
+                <td style="vertical-align: middle; padding: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.2em; color: #1F2328; white-space: nowrap;">EASY STONES</td>
+              </tr>
+            </table>
+          </td>
           <td style="vertical-align: bottom; padding: 0 0 0 12px; text-align: right;">
             <div style="font-size: 19px; font-weight: 700; color: #1F2328; white-space: nowrap;">Stone Selection</div>
             ${heading ? `<div style="margin-top: 2px; font-size: 13px; color: #5B616B; white-space: nowrap;">${e(heading)}</div>` : ''}
@@ -305,7 +326,7 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; margin-top: 24px; border-top: 1px solid #D9D4C7;">
         <tr>
           <td style="padding: 12px 12px 0 0; vertical-align: top; font-size: 12px; line-height: 1.6; color: #5B616B;">${e(doc.footer)}</td>
-          <td style="padding: 12px 0 0 0; vertical-align: top; text-align: right; white-space: nowrap; font-size: 12px; line-height: 1.6; color: #5B616B;">${e(doc.phone)}</td>
+          <td style="padding: 12px 0 0 0; vertical-align: top; text-align: right; white-space: nowrap; font-size: 12px; line-height: 1.6; color: #5B616B;">${phoneLink(doc.phone)}</td>
         </tr>
       </table>
     </div>
@@ -315,12 +336,12 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
   `;
 }
 
-export async function sendSelectionSheetEmail(checkIn: Loose, recipientEmail: string, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, logoUrl = '' }: Loose = {}) {
+export async function sendSelectionSheetEmail(checkIn: Loose, recipientEmail: string, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, markUrl = '' }: Loose = {}) {
   const repEmail = String(checkIn.salesRepEmail || '').trim();
   return await sendEmail({
     to: recipientEmail,
     subject: `Selection Sheet: ${checkIn.name}`,
-    html: selectionSheetEmailHtml(checkIn, letterhead, { showPrices, logoUrl }),
+    html: selectionSheetEmailHtml(checkIn, letterhead, { showPrices, markUrl }),
     // Sent as plain "Easy Stones" (owner, 2026-11-07); replies still go to the rep.
     defaultSenderName: 'Easy Stones',
     ...(checkIn.salesRep && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(repEmail) ? { replyTo: repEmail } : {})

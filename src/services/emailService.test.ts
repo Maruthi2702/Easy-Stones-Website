@@ -17,13 +17,13 @@ const checkIn = {
     { material: 'ABSOLUTE BLACK', lot: '22001', details: '1, 2', size: '126x63', priceCentsPerSf: null }
   ]
 };
-const messageOf = async (opts: { showPrices?: boolean; logoUrl?: string } = {}, record: typeof checkIn = checkIn) => {
+const messageOf = async (opts: { showPrices?: boolean; markUrl?: string } = {}, record: typeof checkIn = checkIn) => {
   sendMail.mockClear();
   const result = await sendSelectionSheetEmail(record, 'to@example.com', undefined, opts);
   expect(result.success).toBe(true);
   return sendMail.mock.calls[0]![0];
 };
-const htmlOf = async (opts: { showPrices?: boolean; logoUrl?: string } = {}) => (await messageOf(opts)).html;
+const htmlOf = async (opts: { showPrices?: boolean; markUrl?: string } = {}) => (await messageOf(opts)).html;
 
 beforeAll(() => {
   delete process.env.RESEND_API_KEY;
@@ -70,9 +70,20 @@ describe('sendSelectionSheetEmail', () => {
     expect(html).toMatch(/<td width="32%"[^>]*>\s*<div[^>]*>PREPARED FOR<\/div>/);
   });
 
-  it('shows the logo from an absolute address, else the name as text', async () => {
-    expect(await htmlOf({ logoUrl: 'https://easystones.example/logo.png' })).toContain('<img src="https://easystones.example/logo.png"');
-    expect(await htmlOf()).toContain('EASY STONES');
+  // Dark mode repaints the email; the logo image's dark lettering vanished there.
+  it('shows the gold mark beside the name as text, so it reads in dark mode', async () => {
+    const html = await htmlOf({ markUrl: 'https://easystones.example/favicon.png' });
+    expect(html).toContain('<img src="https://easystones.example/favicon.png"');
+    expect(html).not.toContain('logo.png');
+    expect(html).toMatch(/>EASY STONES<\/td>/);
+    expect(await htmlOf()).not.toContain('<img');
+  });
+
+  it('links phones and emails in the text\'s own colour (a phone app would turn them blue)', async () => {
+    const html = await htmlOf();
+    expect(html).toContain('<a href="tel:+12065550142" style="color: inherit; text-decoration: none;">(206) 555-0142</a>');
+    expect(html).toContain('<a href="tel:+14253068522"');
+    expect(html).toContain('<a href="mailto:rita@x.com" style="color: inherit; text-decoration: none;">rita@<wbr>x.com</a>');
   });
 
   it('is titled "Selection Sheet: <name>", from Easy Stones, replies to the rep', async () => {
