@@ -394,3 +394,72 @@ browser yet.
 Each step is its own commit with typecheck, `npm test`, `vite build`, the
 import check, and a short hand-check list for the screens it touched. Steps
 reach `main` in small batches after the owner clicks through them.
+
+---
+
+## 5. Server: Render → AWS Lambda (owner, 2026-11-08; not started)
+
+Owner's calls: the server moves to **AWS Lambda behind API Gateway** after the
+database — **no ECS** and no Elastic Beanstalk. Keep MongoDB live until AWS is
+tested. Infra is the `aws-infra` repo (private, `Maruthi2702/aws-infra`; account
+533848567248, **us-east-2 only** — the organisation's SCP blocks us-east-1 and the
+us-west regions).
+
+**Plan (proposed 2026-11-08):**
+
+- **Keep the routes; change where they run.** One Lambda per *area* (customers,
+  visits, deliveries, daily reports, payments, check-in, holds, accounting,
+  permits, suppliers, users / sign-in, dashboard, files — about 15) running that
+  area's existing Express router through an adapter. The real rewrite is three
+  places: database calls (Mongo → Postgres), live updates, background jobs.
+- **Live updates** (Socket.IO: 17 event kinds + who's online) → API Gateway
+  **WebSocket API**, connections in a table, one shared `broadcast()`. Presence
+  leaves server memory (also lifts the one-server limit). The browser's socket
+  code moves from Socket.IO to a plain WebSocket (one file).
+- **Timers** (11:59 PM auto-submit, 5 AM permit pulls, hold expiry every 5 min,
+  freight check every 10 min) → **EventBridge Scheduler**, one Lambda each;
+  permit pulls one Lambda per source (15-minute limit).
+- **SPS import runner** → an **SQS** queue + worker Lambda (runs are already saved
+  step by step).
+- **Start-up tasks** (seed roles, grant permissions, renumber stops, indexes) → a
+  migrate Lambda run once per deploy.
+- **Files**: uploads go browser → S3 with signed links (Lambda takes ≤ 6 MB);
+  big Excel / PDF downloads are written to S3 and returned as a link (6 MB
+  response, 30 s API Gateway limit).
+- **Network**: Lambdas that reach RDS sit in the VPC, so they need a NAT for the
+  internet (Atlas while testing, email, Google, Cloudinary, permit sites) — a NAT
+  instance in dev (~$3/month), a NAT gateway in prod (~$32/month). Test permit
+  pulls from AWS early: some city sites block cloud IPs (Puyallup already does).
+- **One domain for site and API**: sign-in cookies are path-scoped
+  (`/api/auth`, `/api/supplier-portal`), so CloudFront must serve the frontend
+  and route `/api/*` to API Gateway under the same domain.
+- **Connections**: one Postgres connection per Lambda, capped concurrency; turn on
+  RDS Proxy only if RDS runs out.
+- **Cutover**: AWS (Lambda + Postgres) runs on staging fed by the copy job; test;
+  pause writes, final copy, verify, point the domain at AWS, `--lock` the copy.
+  Rollback = domain back to Render + copy AWS writes back into Mongo.
+
+## Open items for next week (2026-11-08)
+
+1. **RDS in dev** isn't deployed. The database stack puts RDS in isolated subnets,
+   so `scripts/pg-copy-customers.ts` can't reach it from a laptop — needs an SSM
+   tunnel / bastion, or the copy run as a Lambda inside the VPC. Decide, deploy,
+   then copy + `--verify` against RDS.
+2. **Prod RDS size**: `prod.yaml` asks for an m7g.large Multi-AZ (~$250+/month) for
+   a 32 MB database; suggested t4g.medium Multi-AZ — owner hasn't answered.
+3. **Customer routes on Postgres** behind a switch (data layer per area), then the
+   areas that point at customers: deliveries, payments, holds, lost sales, card
+   expenses, SPS import.
+4. **Lambda foundations** (section 5): NAT, WebSocket API, schedules, queue, the
+   Express adapter, CloudFront routing — then one area end to end on staging.
+5. **Email**: SES is built and deployed (aws-infra `email` stack) but **parked**
+   (owner, 2026-11-08): no admin access to easystones.com. Gmail keeps sending, as
+   "Easy Surfaces". To start SES: the other team adds the 5 DNS records (stack
+   outputs) and creates the `noreply@easystones.com` shared mailbox — or use an
+   own domain (e.g. easy-surfaces.com, unregistered on 2026-11-08). Then
+   `email.verifiedAddress` → noreply@, deploy, click the link, set `SES_FROM_EMAIL`
+   / `SES_CONFIGURATION_SET` on Render, ask AWS for production access.
+6. **Data problems the copy reported** (not fixed — the Mongo clean-up waits for the
+   owner): 25 visits with legacy visit types, 1 contact without an id, 1 link to a
+   deleted customer, 1 user whose home location isn't a location, 1 visit author
+   that is neither a user nor a customer, 34 visit photos on the old server disk.
