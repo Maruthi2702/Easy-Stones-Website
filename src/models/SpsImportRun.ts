@@ -28,6 +28,7 @@ export interface SpsImportRunRecord {
   fingerprint: string;
   file?: Buffer;
   createdBy: string;
+  createdById: string;
   status: string;
   mapping: Record<string, string>;
   repAliases: Record<string, string>;
@@ -55,6 +56,8 @@ const spsImportRunSchema = new mongoose.Schema<SpsImportRunRecord>({
   // The upload itself, until the import starts (then it is dropped: the plan is frozen into the items).
   file: { type: Buffer, default: undefined, select: false },
   createdBy: { type: String, default: '' },
+  // The same person's user id: saved as `createdBy` on every customer the run adds.
+  createdById: { type: String, default: '' },
   // draft → running → done | failed;  done → undone
   status: { type: String, default: 'draft', index: true },
   mapping: { type: mongoose.Schema.Types.Mixed, default: {} },

@@ -119,7 +119,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
       const fingerprint = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
       const run = await SpsImportRun.create({
         fileName: req.file.originalname || 'SPS export', fingerprint, file: req.file.buffer,
-        createdBy: who(req), mapping: json(req.body.mapping), fileCheck, rowsRead: rows.length
+        createdBy: who(req), createdById: req.userId || '', mapping: json(req.body.mapping), fileCheck, rowsRead: rows.length
       });
       res.json({ run: summary(run), fileCheck, headers, mapping, fields });
     } catch (err) {
@@ -206,7 +206,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
       if (needs.add && !canAddCustomer(req.user)) return bad(res, 403, 'Bringing back a deleted customer needs the Add customer switch.');
 
       // Claim the run before anything else so two Starts can't both go.
-      const claimed = await SpsImportRun.findOneAndUpdate({ _id: run._id, status: 'draft' }, { $set: { status: 'running', createdBy: run.createdBy || who(req) } });
+      const claimed = await SpsImportRun.findOneAndUpdate({ _id: run._id, status: 'draft' }, { $set: { status: 'running', createdBy: run.createdBy || who(req), createdById: run.createdById || req.userId || '' } });
       if (!claimed) return bad(res, 409, 'This import has already started.');
 
       await freezePlan(run, out.plan, who(req));

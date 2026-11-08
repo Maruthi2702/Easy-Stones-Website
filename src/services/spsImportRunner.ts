@@ -64,12 +64,13 @@ export async function freezePlan(run: Loose, plan: Loose, startedBy = '') {
 const bump = (run: string, result: string) => SpsImportRun.updateOne({ _id: run }, { $inc: { [`results.${result}`]: 1, done: 1 } });
 
 /** Write one item. Returns { result, reason?, createdId? }; never throws for a data problem. */
-async function writeItem(item: Loose, runId: string) {
+async function writeItem(item: Loose, runId: string, createdBy?: string) {
   const stamp = new Date();
   try {
     if (item.action === 'new') {
       const doc = new Customer({
         ...item.create,
+        ...(createdBy ? { createdBy } : {}),
         sps: { key: item.key, name: item.name, firstImportedAt: stamp, lastSeenAt: stamp, connectedAt: stamp, connectedBy: 'SPS import', runId }
       });
       await doc.validate();
@@ -121,6 +122,9 @@ export async function runItems(rawRunId: unknown) {
   if (active.has(runId)) return;
   active.add(runId);
   try {
+    // Who started the run is who created the customers it adds (blank on runs saved before 2026-11-08).
+    const starter = (await SpsImportRun.findById(runId).select('createdById').lean())?.createdById;
+    const createdBy = starter && mongoose.isValidObjectId(starter) ? String(starter) : undefined;
     // Two rounds at most: after the first check, whatever failed (a dropped
     // connection, usually) gets one more try before the run says what's missing.
     for (let round = 0; round < 2; round++) {
@@ -128,7 +132,7 @@ export async function runItems(rawRunId: unknown) {
         const batch = await SpsImportItem.find({ runId, state: 'pending' }).sort({ seq: 1 }).limit(BATCH).lean();
         if (!batch.length) break;
         for (const item of batch) {
-          const out = await writeItem(item, runId);
+          const out = await writeItem(item, runId, createdBy);
           await SpsImportItem.updateOne({ _id: item._id }, { $set: { state: out.result === 'failed' ? 'failed' : 'done', result: out.result, reason: out.reason || '', createdId: out.createdId || '' } });
           await bump(runId, out.result);
         }
