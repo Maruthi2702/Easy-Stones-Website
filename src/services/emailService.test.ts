@@ -57,17 +57,24 @@ describe('sendSelectionSheetEmail', () => {
   // The printed sheet's template (owner, 2026-11-07).
   it('is the printed sheet: the same sections, policy and footer', async () => {
     const html = await htmlOf();
-    for (const text of ['Stone Selection', 'Oct 10, 2026 · Kent', 'PREPARED FOR', 'FABRICATOR', 'Intown', 'YOUR SALES REP', 'rita@<wbr>x.com',
+    for (const text of ['Stone Selection', 'Oct 10, 2026 · Kent', 'PREPARED FOR', 'FABRICATOR', 'Intown', 'YOUR SALES REP', 'rita@x.com',
       'Your selections', '2 materials', 'Hold Policy', 'Questions? Ask Rita or call the showroom.', 'Easy Stones Kent · 6012 S 196th St, Kent, WA 98032'])
       expect(html, text).toContain(text);
     expect(html).not.toContain('Check-In Portal');
   });
 
-  // A forward (Outlook, Apple Mail) drops inline-block layouts and text-transform.
-  it('keeps the three people in a table and their labels in capitals, so a forward keeps them', async () => {
+  // A forward (Outlook, Apple Mail) dropped our text-align and text-transform.
+  it('lays the people out left-aligned, labels in capitals, so a forward keeps them', async () => {
     const html = await htmlOf();
-    expect(html).not.toContain('inline-block');
-    expect(html).toMatch(/<td width="32%"[^>]*>\s*<div[^>]*>PREPARED FOR<\/div>/);
+    expect(html).toMatch(/<td align="left"[^>]*><div style="display: inline-block;[^"]*text-align: left;"><div[^>]*>PREPARED FOR<\/div>/);
+    expect(html).toContain('</div></div><div style="display: inline-block;');
+  });
+
+  // Three phone-width columns broke the rep's email in two.
+  it('keeps a phone or an email on one line', async () => {
+    const html = await htmlOf();
+    expect(html).toMatch(/white-space: nowrap;"><a href="mailto:rita@x\.com"/);
+    expect(html).toMatch(/width: 180px;[^>]*>(?:<div[^>]*>[^<]*<\/div>)*<div[^>]*>YOUR SALES REP/);
   });
 
   // Dark mode repaints the email; the logo image's dark lettering vanished there.
@@ -83,7 +90,7 @@ describe('sendSelectionSheetEmail', () => {
     const html = await htmlOf();
     expect(html).toContain('<a href="tel:+12065550142" style="color: inherit; text-decoration: none;">(206) 555-0142</a>');
     expect(html).toContain('<a href="tel:+14253068522"');
-    expect(html).toContain('<a href="mailto:rita@x.com" style="color: inherit; text-decoration: none;">rita@<wbr>x.com</a>');
+    expect(html).toContain('<a href="mailto:rita@x.com" style="color: inherit; text-decoration: none;">rita@x.com</a>');
   });
 
   it('is titled "Selection Sheet: <name>", from Easy Stones, replies to the rep', async () => {

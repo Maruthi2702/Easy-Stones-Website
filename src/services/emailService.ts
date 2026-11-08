@@ -203,8 +203,8 @@ export async function sendCheckInAlertEmail(checkIn: Loose) {
 // underlined.
 //
 // Fluid at every width without media queries (many mail apps drop <style>),
-// and built from tables so a forward keeps it: the three people side by side
-// at every width; each material is one row — number, material and price,
+// and built so a forward keeps it: the three people side by side while they
+// fit (two and one on a phone); each material is one row — number, material and price,
 // then lot · slabs · size under it — instead of a wide table that ran past a
 // phone's edge. Outlook for Windows ignores max-width, so it gets a fixed
 // 600px table in a conditional comment.
@@ -230,23 +230,23 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
     const tel = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : '';
     return tel ? `<a href="tel:${tel}" style="${LINK}">${e(phone)}</a>` : e(phone);
   };
-  const emailLink = (email: string) => `<a href="mailto:${e(email)}" style="${LINK}">${e(email).replace('@', '@<wbr>')}</a>`;
+  const emailLink = (email: string) => `<a href="mailto:${e(email)}" style="${LINK}">${e(email)}</a>`;
 
-  // The three people are one table row of three cells — a table survives a
-  // forward (Outlook's and Apple Mail's forwards dropped the inline-block
-  // layout and its text-align, and centred the blocks). Labels are written in
-  // capitals rather than styled so, which a forward also dropped. An email
-  // address may break after its "@" in a narrow cell.
-  // The rep's column is a little wider: "YOUR SALES REP" and an email
-  // address are the longest, and on a phone they'd wrap first.
-  const person = (label: string, name: string, sub: string, last = false) => `
-          <td width="${last ? 36 : 32}%" valign="top" align="left" style="width: ${last ? 36 : 32}%; padding: 0 ${last ? '0' : '8px'} 0 0; vertical-align: top; text-align: left;">
-            <div style="${LABEL}">${label}</div>
-            <div style="margin-top: 3px; font-size: 15px; font-weight: 600; color: #1F2328; word-break: break-word; overflow-wrap: anywhere;">${e(name) || '—'}</div>
-            ${sub ? (sub.includes('@')
-              ? `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; word-break: break-word; overflow-wrap: anywhere;">${emailLink(sub)}</div>`
-              : `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; white-space: nowrap;">${phoneLink(sub)}</div>`) : ''}
-          </td>`;
+  // The three people: blocks that sit side by side while they fit and wrap
+  // when they don't — three across at 600px; on a phone Prepared for and
+  // Fabricator side by side and the rep under them, so the rep's email has
+  // the width to stay on one line (three phone-width columns broke it in
+  // two). They sit in a cell with align="left" and are written with no
+  // space between them: a forward (Outlook, Apple Mail) dropped our
+  // text-align and centred them, and a space would add a gap. Labels are
+  // typed in capitals — a forward dropped text-transform too.
+  const person = (label: string, name: string, sub: string, width: number) => `<div style="display: inline-block; vertical-align: top; width: ${width}px; max-width: 100%; margin: 0 12px 14px 0; text-align: left;">`
+    + `<div style="${LABEL}">${label}</div>`
+    + `<div style="margin-top: 3px; font-size: 15px; font-weight: 600; color: #1F2328; word-break: break-word; overflow-wrap: anywhere;">${e(name) || '—'}</div>`
+    + (sub ? (sub.includes('@')
+      ? `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; white-space: nowrap;">${emailLink(sub)}</div>`
+      : `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; white-space: nowrap;">${phoneLink(sub)}</div>`) : '')
+    + '</div>';
 
   const rowsHtml = doc.rows.length === 0
     ? '<p style="margin: 0; padding: 14px 0; text-align: center; color: #5B616B; font-style: italic; font-size: 14px; border-bottom: 1px solid #D9D4C7;">No selections registered.</p>'
@@ -282,22 +282,21 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
           <td style="vertical-align: bottom; padding: 0;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
               <tr>
-                ${markUrl ? `<td style="vertical-align: middle; padding: 0 9px 0 0;"><img src="${e(markUrl)}" alt="" width="23" height="30" style="display: block; width: 23px; height: 30px; border: 0;"></td>` : ''}
-                <td style="vertical-align: middle; padding: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.2em; color: #1F2328; white-space: nowrap;">EASY STONES</td>
+                ${markUrl ? `<td style="vertical-align: middle; padding: 0 8px 0 0;"><img src="${e(markUrl)}" alt="" width="20" height="26" style="display: block; width: 20px; height: 26px; border: 0;"></td>` : ''}
+                <td style="vertical-align: middle; padding: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.14em; color: #1F2328; white-space: nowrap;">EASY STONES</td>
               </tr>
             </table>
           </td>
           <td style="vertical-align: bottom; padding: 0 0 0 12px; text-align: right;">
-            <div style="font-size: 19px; font-weight: 700; color: #1F2328; white-space: nowrap;">Stone Selection</div>
+            <div style="font-size: 18px; font-weight: 700; color: #1F2328; white-space: nowrap;">Stone Selection</div>
             ${heading ? `<div style="margin-top: 2px; font-size: 13px; color: #5B616B; white-space: nowrap;">${e(heading)}</div>` : ''}
           </td>
         </tr>
       </table>
       <div style="height: 2px; line-height: 2px; font-size: 0; background: #C9A13B; margin: 16px 0 20px 0;">&nbsp;</div>
 
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
-        <tr>${person('PREPARED FOR', doc.customer.name, doc.customer.phone)}${person('FABRICATOR', doc.fabricator.name, doc.fabricator.phone)}${person('YOUR SALES REP', doc.rep.name, doc.rep.email, true)}
-        </tr>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
+        <tr><td align="left" style="padding: 0; text-align: left;">${person('PREPARED FOR', doc.customer.name, doc.customer.phone, 132)}${person('FABRICATOR', doc.fabricator.name, doc.fabricator.phone, 132)}${person('YOUR SALES REP', doc.rep.name, doc.rep.email, 180)}</td></tr>
       </table>
 
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; margin-top: 26px;">
