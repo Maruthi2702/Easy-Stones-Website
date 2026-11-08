@@ -10,7 +10,8 @@
 .customer-login-page {
   --login-gold: #d4af37;
   --login-gold-deep: #a8811f;
-  --login-slab-img: url('https://res.cloudinary.com/dqf4k0dn2/image/upload/f_auto,q_auto,w_1100,c_fill,g_center/v1768458938/products/Nero_Marquina.jpg');
+  /* 1100px copies of the Cloudinary-resized slabs, served by the app itself (2026-11). */
+  --login-slab-img: url('/images/login/nero-marquina.jpg');
 
   /* main.main-site already pads for the fixed header — don't pad again here,
      just subtract the same amount so the split fills exactly what's left. */
@@ -26,7 +27,7 @@
 }
 
 body.light-theme-active .customer-login-page {
-  --login-slab-img: url('https://res.cloudinary.com/dqf4k0dn2/image/upload/f_auto,q_auto,w_1100,c_fill,g_center/v1786117108/products/main/Calacatta_Lincoln_1786117108351-729370322.webp');
+  --login-slab-img: url('/images/login/calacatta-lincoln.webp');
 }
 
 .login-split {

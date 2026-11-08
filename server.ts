@@ -35,7 +35,8 @@ mongoose.set('autoIndex', false);
 // Removed bufferCommands: false to allow resilient reconnects
 
 import multer from 'multer';
-import { v2 as cloudinary } from 'cloudinary';
+import { getFileStore } from './src/services/fileStore.ts';
+import { filesCdnBases, isHostedFileUrl } from './src/utils/fileUrls.ts';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
@@ -217,11 +218,11 @@ const generateMockups = async (slabImageBuffer: Buffer, baseFilename: string): P
         .png()
         .toBuffer();
 
-      // Upload to Cloudinary
+      // Upload to the file store (Cloudinary or S3 — src/services/fileStore.ts)
       const outputFilename = `${template.suffix}_${baseFilename}`;
-      const result = await uploadToCloudinary(compositeBuffer, 'products/installed', outputFilename);
+      const result = await uploadFile(compositeBuffer, 'products/installed', outputFilename);
 
-      generatedUrls.push(result.secure_url);
+      generatedUrls.push(result.url);
 
     } catch (err) {
       console.error(`Failed to generate/upload mockup for ${template.name}:`, err);
@@ -313,19 +314,13 @@ const bustUserCaches = () => {
 // document — 6 of them, up to 269 KB each, by Feb 2026. Without Cloudinary, or
 // if the upload fails, it stays inline as before rather than being lost.
 const processBase64Pdf = async (dataUrl: string, subDir: string) => {
-  if (!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)) {
-    return dataUrl;
-  }
+  const store = getFileStore();
+  if (!store) return dataUrl;
   try {
     const buffer = Buffer.from(dataUrl.split(';base64,').pop()!, 'base64');
-    const publicId = `pdf_${Date.now()}_${Math.round(Math.random() * 1E9)}.pdf`;
-    const result = await new Promise<import('cloudinary').UploadApiResponse>((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        { folder: subDir, public_id: publicId, resource_type: 'raw' },
-        (error, res) => (error ? reject(error) : resolve(res!))
-      ).end(buffer);
-    });
-    return result.secure_url;
+    const name = `pdf_${Date.now()}_${Math.round(Math.random() * 1E9)}.pdf`;
+    const stored = await store.put(buffer, { key: `${subDir}/${name}`, kind: 'raw' });
+    return stored.url;
   } catch (err) {
     console.error('Failed to upload PDF attachment:', err);
     return dataUrl;
@@ -351,24 +346,16 @@ const processBase64Image = async (base64String: string, subDir: string = 'Visits
       .webp({ quality: 75, effort: 2 })
       .toBuffer();
 
-    // Upload to Cloudinary if configured (persistent — survives Render restarts)
-    if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+    // Upload to the file store if configured (persistent — survives Render restarts)
+    const store = getFileStore();
+    if (store) {
       const uniqueSuffix = `${Date.now()}_${Math.round(Math.random() * 1E9)}`;
-      const result = await new Promise<import('cloudinary').UploadApiResponse>((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: subDir, public_id: `img_${uniqueSuffix}`, resource_type: 'image' },
-          (error, result) => {
-            if (error) return reject(error);
-            resolve(result!);
-          }
-        );
-        uploadStream.end(optimizedBuffer);
-      });
-      return result.secure_url;
+      const stored = await store.put(optimizedBuffer, { key: `${subDir}/img_${uniqueSuffix}`, kind: 'image' });
+      return stored.url;
     }
 
     // Fallback: save to disk (local dev only — not suitable for Render/cloud)
-    console.warn('⚠️ Cloudinary not configured — saving visit image to disk (will be lost on restart)');
+    console.warn('⚠️ No file store configured (Cloudinary or S3) — saving visit image to disk (will be lost on restart)');
     const uploadDir = path.join(__dirname, 'public/uploads', subDir);
     if (!fs.existsSync(uploadDir)) {
       await fs.promises.mkdir(uploadDir, { recursive: true });
@@ -3574,8 +3561,8 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_d
 
       if (isImage) {
 
-        const result = await uploadToCloudinary(req.file!.buffer, 'Resources', `res_${uniqueSuffix}`);
-        content = result.secure_url;
+        const result = await uploadFile(req.file!.buffer, 'Resources', `res_${uniqueSuffix}`);
+        content = result.url;
         contentType = 'image/webp';
       } else {
         filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}${path.extname(req.file.originalname)}`;
@@ -3659,8 +3646,8 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
       let filename = ''; // Declare filename here for both branches
       if (isImage) {
 
-        const result = await uploadToCloudinary(req.file!.buffer, 'Resources', `res_${uniqueSuffix}`);
-        resource.content = result.secure_url;
+        const result = await uploadFile(req.file!.buffer, 'Resources', `res_${uniqueSuffix}`);
+        resource.content = result.url;
         resource.contentType = 'image/webp';
       } else {
         filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}${path.extname(req.file.originalname)}`;
@@ -5769,40 +5756,21 @@ app.patch(['/api/customers/:id/active', '/api/admin/customers/:id/status'], veri
   }
 });
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
-
-// Configure Multer for memory storage (direct upload to Cloudinary)
-// Use memory storage to process file with Sharp before uploading
+// Configure Multer for memory storage: files are processed with Sharp, then
+// uploaded to the file store (Cloudinary or S3 — src/services/fileStore.ts).
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// Helper to upload buffer to Cloudinary
-const uploadToCloudinary = async (buffer: Buffer, folder: string, filename?: string) => {
-  // Optimize before uploading to save credits
+// Optimize, then upload to the file store. Throws when none is configured.
+const uploadFile = async (buffer: Buffer, folder: string, filename: string) => {
+  const store = getFileStore();
+  if (!store) throw new Error('File storage is not configured (Cloudinary or S3)');
+  // Optimize before uploading (smaller files, fewer bytes stored and served)
   const optimizedBuffer = await optimizeImage(buffer);
-
-  return new Promise<import('cloudinary').UploadApiResponse>((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder: folder,
-        public_id: filename,
-        resource_type: 'auto'
-      },
-      (error, result) => {
-        if (error) return reject(error);
-        resolve(result!);
-      }
-    );
-    uploadStream.end(optimizedBuffer);
-  });
+  return store.put(optimizedBuffer, { key: `${folder}/${filename}`, kind: 'auto' });
 };
 
-// Helper to process an array of images (base64 or URLs) and upload new base64 to Cloudinary
+// Helper to process an array of images (base64 or URLs) and upload new base64 to the file store
 const processBase64Images = async (imagesArray: unknown, folder: string): Promise<string[]> => {
   if (!imagesArray || !Array.isArray(imagesArray)) return [];
 
@@ -5818,10 +5786,10 @@ const processBase64Images = async (imagesArray: unknown, folder: string): Promis
         const base64Data = img.split(',')[1];
         const buffer = Buffer.from(base64Data!, 'base64');
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const result = await uploadToCloudinary(buffer, folder, `client_res_${uniqueSuffix}_${index}`);
-        return result.secure_url;
+        const result = await uploadFile(buffer, folder, `client_res_${uniqueSuffix}_${index}`);
+        return result.url;
       } catch (err) {
-        console.error('Failed to upload base64 image to Cloudinary:', err);
+        console.error('Failed to upload base64 image to the file store:', err);
         return img; // Fallback to base64 if upload fails
       }
     }
@@ -5853,13 +5821,13 @@ app.post('/api/upload', verifyToken, requireSalesPage, upload.single('image'), a
     const filename = `${basename}_${uniqueSuffix}`;
 
     // 1. Upload Main Image
-    console.log('☁️ Uploading main image to Cloudinary...');
-    const mainImageResult = await uploadToCloudinary(
+    console.log('☁️ Uploading main image to the file store...');
+    const mainImageResult = await uploadFile(
       req.file!.buffer,
       'products/main',
       filename
     );
-    console.log('✅ Main image uploaded:', mainImageResult.secure_url);
+    console.log('✅ Main image uploaded:', mainImageResult.url);
 
     // 2. Generate and Upload Mockups
     // We pass the buffer directly to generateMockups
@@ -5874,7 +5842,7 @@ app.post('/api/upload', verifyToken, requireSalesPage, upload.single('image'), a
 
     res.json({
       success: true,
-      filePath: mainImageResult.secure_url,
+      filePath: mainImageResult.url,
       installedImages: installedImages
     });
 
@@ -5886,7 +5854,7 @@ app.post('/api/upload', verifyToken, requireSalesPage, upload.single('image'), a
   }
 });
 
-// API endpoint to delete image from Cloudinary
+// API endpoint to delete an uploaded image (Cloudinary or S3)
 // Was reachable with no auth at all — anyone who knew or guessed a Cloudinary
 // URL on this account could delete it, no ownership check, nothing.
 app.post('/api/upload/delete', verifyToken, requireSalesPage, async (req: Request, res: Response) => {
@@ -5897,37 +5865,17 @@ app.post('/api/upload/delete', verifyToken, requireSalesPage, async (req: Reques
       return res.status(400).json({ error: 'No image URL provided' });
     }
 
-    // Only delete if it's a Cloudinary URL
-    if (!imageUrl.includes('cloudinary.com')) {
-      return res.status(400).json({ error: 'Not a Cloudinary URL' });
+    // Only files this app stored: our Cloudinary account, or our own CDN.
+    if (!isHostedFileUrl(imageUrl, filesCdnBases())) {
+      return res.status(400).json({ error: 'Not a stored file URL' });
     }
+    const store = getFileStore();
+    if (!store) return res.status(503).json({ error: 'File storage is not configured' });
 
-    // Extract public_id from URL
-    // Example URL: https://res.cloudinary.com/dqf4k0dn2/image/upload/v1768437320/products/filename.jpg
-    // We need: products/filename (without extension)
-    const urlParts = imageUrl.split('/');
-    const uploadIndex = urlParts.indexOf('upload');
-
-    if (uploadIndex === -1) {
-      return res.status(400).json({ error: 'Invalid Cloudinary URL format' });
-    }
-
-    // Get everything after 'upload/vXXXXXXXXXX/'
-    const pathAfterVersion = urlParts.slice(uploadIndex + 2).join('/');
-    // Remove file extension
-    const publicId = pathAfterVersion.replace(/\.[^/.]+$/, '');
-
-    console.log('🗑️ Deleting from Cloudinary:', publicId);
-
-    const result = await cloudinary.uploader.destroy(publicId);
-
-    if (result.result === 'ok' || result.result === 'not found') {
-      console.log('✅ Image deleted successfully:', publicId);
-      res.json({ success: true, message: 'Image deleted from Cloudinary' });
-    } else {
-      console.warn('⚠️ Cloudinary delete returned:', result);
-      res.status(500).json({ error: 'Failed to delete image', details: result });
-    }
+    // remove() routes by URL (Cloudinary or the CDN) and treats "already gone" as done.
+    const deleted = await store.remove(imageUrl);
+    console.log(deleted ? '✅ Image deleted:' : 'ℹ️ Image was already gone (or not ours):', imageUrl);
+    res.json({ success: true, deleted, message: 'Image deleted' });
   } catch (error) {
     console.error('Delete image error:', error);
     res.status(500).json({ error: 'Failed to delete image', details: (error as Error).message });
@@ -5935,11 +5883,12 @@ app.post('/api/upload/delete', verifyToken, requireSalesPage, async (req: Reques
 });
 
 
-// Checl Cloudinary Config on Startup
-if (process.env.CLOUDINARY_CLOUD_NAME) {
-  console.log('☁️ Cloudinary configured with Cloud Name:', process.env.CLOUDINARY_CLOUD_NAME);
-} else {
-  console.warn('⚠️ Cloudinary environment variables missing!');
+// Say where uploads go on startup (src/services/fileStore.ts)
+{
+  const store = getFileStore();
+  if (store?.backend === 's3') console.log('☁️ File store: S3', process.env.FILES_BUCKET, 'via', process.env.FILES_CDN_URL);
+  else if (store) console.log('☁️ File store: Cloudinary', process.env.CLOUDINARY_CLOUD_NAME);
+  else console.warn('⚠️ No file store configured (Cloudinary or S3) — uploads fall back to local disk');
 }
 
 // API endpoint to save products (Sync entire list or update/create individual)

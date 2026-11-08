@@ -1,3 +1,4 @@
+import { DOWNLOAD_PARAM, isCloudinaryUrl, isHostedFileUrl } from './fileUrls.ts';
 import type { Loose } from '../types/records.ts';
 /**
  * Naming for the two PDFs attached to a delivery.
@@ -69,6 +70,15 @@ export function signedPackingListFileName(delivery: Loose = {}) {
  */
 export function downloadUrlFor(url: string, filename: unknown) {
   const href = String(url || '');
+  // Files moved to S3 (2026-11): the CDN sets Content-Disposition from ?download=
+  // (a CloudFront function in the aws-infra files stack), extension and all.
+  if (isHostedFileUrl(href) && !isCloudinaryUrl(href)) {
+    const name = safeFileSegment(String(filename || '')) || 'file';
+    const withExt = /\.[a-z0-9]{2,5}$/i.test(name) ? name : `${name}${/\.pdf(?:[?#]|$)/i.test(href) ? '.pdf' : ''}`;
+    const u = new URL(href);
+    u.searchParams.set(DOWNLOAD_PARAM, withExt);
+    return u.toString();
+  }
   if (!href.includes('res.cloudinary.com')) return href;
 
   // The extension has to come off: a dot inside fl_attachment is read as a

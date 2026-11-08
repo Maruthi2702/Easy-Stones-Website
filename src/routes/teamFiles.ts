@@ -39,7 +39,7 @@ import { displayNameOf } from '../utils/salesReps.ts';
  *   app.use('/api/sales-dashboard', createLegacyTeamFilesRouter(deps));
  *
  * deps: { authenticate, upload (multer middleware for one `file`),
- *         uploadToCloudinary(buffer, folder, name), publicDir, getNowLocalISO }
+ *         uploadFile(buffer, folder, name), publicDir, getNowLocalISO }
  */
 
 const isId = (v: unknown) => typeof v === 'string' && mongoose.Types.ObjectId.isValid(v) && /^[a-f0-9]{24}$/i.test(v);
@@ -93,17 +93,17 @@ const subtreeOf = async (folderId: string) => {
   return { folders, files };
 };
 
-export type TeamFilesDependencies = { authenticate: RequestHandler; upload: RequestHandler; uploadToCloudinary: (buffer: Buffer, folder: string, name: string) => Promise<{ secure_url: string }>; publicDir: string; getNowLocalISO: () => string };
+export type TeamFilesDependencies = { authenticate: RequestHandler; upload: RequestHandler; uploadFile: (buffer: Buffer, folder: string, name: string) => Promise<{ url: string }>; publicDir: string; getNowLocalISO: () => string };
 
-export function createTeamFilesCore({ uploadToCloudinary, publicDir, getNowLocalISO }: Pick<TeamFilesDependencies, 'uploadToCloudinary' | 'publicDir' | 'getNowLocalISO'>) {
+export function createTeamFilesCore({ uploadFile, publicDir, getNowLocalISO }: Pick<TeamFilesDependencies, 'uploadFile' | 'publicDir' | 'getNowLocalISO'>) {
   const uploadDir = path.join(publicDir, 'uploads', 'resources');
 
-  /** A file from multer as stored content: images to Cloudinary, the rest to disk. */
+  /** A file from multer as stored content: images to the file store (Cloudinary or S3), the rest to disk. */
   const storeFile = async (file: Pick<Express.Multer.File, 'buffer' | 'originalname' | 'mimetype'> & Partial<Pick<Express.Multer.File, 'size'>>) => {
     const suffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     if (file.mimetype?.startsWith('image/')) {
-      const result = await uploadToCloudinary(file.buffer, 'Resources', `res_${suffix}`);
-      return { content: result.secure_url, contentType: 'image/webp', size: file.size ?? file.buffer?.length };
+      const result = await uploadFile(file.buffer, 'Resources', `res_${suffix}`);
+      return { content: result.url, contentType: 'image/webp', size: file.size ?? file.buffer?.length };
     }
     const ext = path.extname(file.originalname || '');
     const base = path.basename(file.originalname || 'file', ext).replace(/[^a-zA-Z0-9]/g, '_') || 'file';

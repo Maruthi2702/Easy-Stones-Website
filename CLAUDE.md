@@ -1230,6 +1230,30 @@ give it step 1** (owner's call). A supplier with **no portal login** gets the
 decision and unlock emails at the supplier's own email, in its language, with
 the bundle photos instead of a portal link (`supplierRecipients`).
 
+## File storage: one store, Cloudinary → S3 (2026-11-08, on `feat/s3-file-storage`)
+
+Every upload and delete goes through `src/services/fileStore.ts` (`getFileStore()`,
+tested): `put(buffer, { key: 'folder/name', kind, overwrite })` → `{ url, id }`,
+`remove(url | 's3:<key>' | public_id)` (never throws). `FILE_STORE` picks the backend —
+unset/`cloudinary` = as before; `s3` = the bucket behind CloudFront (`FILES_BUCKET`,
+`FILES_CDN_URL`, `AWS_*`; the aws-infra repo's **files** stack in account 533848567248,
+us-east-2 — owner's call: in the dev environment, but retained, versioned and
+termination-protected). Old Cloudinary URLs keep working and still delete through
+Cloudinary, so keep the `CLOUDINARY_*` keys until nothing points there. Never call the
+Cloudinary SDK or check for `cloudinary.com` elsewhere: "is this a file we stored" is
+`src/utils/fileUrls.ts` (`isHostedFileUrl`; anything the server trusts uses
+`isFilesCdnUrl` with the configured base — `isStoredPhotoUrl` does). Keys keep the
+file's extension (`storageKey`, `src/utils/fileStoreRules.ts`) so `isPdfSource` still
+works; fixed-name delivery files are put with `overwrite` (S3: `Cache-Control: no-cache`).
+A download name is `?download=<name>` on a CDN URL (a CloudFront function sets
+Content-Disposition; `downloadUrlFor`). Moving the existing files is
+`scripts/migrate-cloudinary-to-s3.ts` (dry run → `--copy` → `--apply`, `--undo <run>`;
+engine `src/services/cloudinaryToS3.ts`, tested on in-memory MongoDB): it copies each
+file under the same folder/name, rewrites only fields whose file copied, backs every
+old value up in `cloudinarytos3backups`, and skips a record edited mid-write. Run it on
+a local copy first — the local `.env` is the live database. The login page's two
+resized slabs are now `public/images/login/`.
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,

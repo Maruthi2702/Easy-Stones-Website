@@ -23,7 +23,7 @@ let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
 let publicDir!: string;
 const emit = vi.fn();
-const uploadToCloudinary = vi.fn(async () => ({ secure_url: 'https://res.cloudinary.com/demo/res_1.webp' }));
+const uploadFile = vi.fn(async () => ({ url: 'https://res.cloudinary.com/demo/res_1.webp', id: 'Resources/res_1' }));
 
 const KRISH = new mongoose.Types.ObjectId();
 const DANA = new mongoose.Types.ObjectId();
@@ -56,7 +56,7 @@ beforeAll(async () => {
       next();
     },
     upload: multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } }).single('file'),
-    uploadToCloudinary,
+    uploadFile,
     publicDir,
     getNowLocalISO
   };
@@ -83,7 +83,7 @@ const onDisk = (content: unknown) => fs.existsSync(path.join(publicDir, `.${cont
 
 beforeEach(async () => {
   emit.mockClear();
-  uploadToCloudinary.mockClear();
+  uploadFile.mockClear();
   clock = 0;
   await SalesDashboardResource.collection.deleteMany({});
   await User.collection.deleteMany({});
@@ -195,7 +195,7 @@ describe('uploads and folders', () => {
   it('sends images to Cloudinary', async () => {
     const res = await request(app).post(api('/')).set(as(MANAGER))
       .field('name', 'Showroom').attach('file', Buffer.from('img'), { filename: 'a.jpg', contentType: 'image/jpeg' }).expect(201);
-    expect(uploadToCloudinary).toHaveBeenCalledOnce();
+    expect(uploadFile).toHaveBeenCalledOnce();
     expect(res.body).toMatchObject({ content: 'https://res.cloudinary.com/demo/res_1.webp', contentType: 'image/webp', parentId: null });
   });
 

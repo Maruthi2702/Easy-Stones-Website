@@ -12,7 +12,7 @@ import { notifyArrivalLogged } from '../services/transferArrivalEmail.ts';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
-import { v2 as cloudinary } from 'cloudinary';
+import { getFileStore } from '../services/fileStore.ts';
 
 import Delivery from '../models/Delivery.ts';
 import Truck from '../models/Truck.ts';
@@ -65,19 +65,16 @@ import { deliveriesChanged } from '../accounting/hooks.ts';
  * src/features/delivery/README.md.
  */
 
-// ── Cloudinary / POD asset helpers ──────────────────────────────────────────
+// ── POD asset helpers (Cloudinary or S3 — src/services/fileStore.ts) ───────
 // Packing lists, signatures and signed PDFs are keyed on the delivery id
 // rather than a timestamp. Re-signing therefore overwrites in place instead
-// of leaving the previous copy stranded in Cloudinary with nothing pointing
-// at it, so a delivery costs a fixed number of assets no matter how often it
-// is re-signed, and deleting one is a direct address rather than a search.
-const cloudinaryReady = () => Boolean(
-  process.env.CLOUDINARY_CLOUD_NAME &&
-  process.env.CLOUDINARY_API_KEY &&
-  process.env.CLOUDINARY_API_SECRET
-);
+// of leaving the previous copy stranded with nothing pointing at it, so a
+// delivery costs a fixed number of files no matter how often it is re-signed,
+// and deleting one is a direct address rather than a search. In S3 an
+// overwritten file is served with Cache-Control: no-cache, so the CDN never
+// shows the previous copy.
 
-// Cloudinary public_ids allow a limited character set; delivery ids are
+// Stored names allow a limited character set; delivery ids are
 // generated strings but may carry separators we shouldn't pass through raw.
 const safeIdSegment = (value: unknown) => String(value || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_');
 
@@ -91,38 +88,27 @@ const podAssetIds = (deliveryId: unknown) => {
   };
 };
 
-const uploadBufferToCloudinary = (buffer: Buffer, publicId: string, resourceType: 'raw' | 'image' | 'video' | 'auto' = 'raw') =>
-  new Promise<import('cloudinary').UploadApiResponse>((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { public_id: publicId, resource_type: resourceType, overwrite: true, invalidate: true },
-      (err, result) => (err ? reject(err) : resolve(result!))
-    );
-    stream.end(buffer);
-  });
-
-const destroyCloudinaryAsset = async (publicId: string, resourceType: 'raw' | 'image' | 'video' | 'auto' = 'raw') => {
-  if (!publicId || !cloudinaryReady()) return;
-  try {
-    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType, invalidate: true });
-  } catch (err) {
-    console.warn(`[pod] could not destroy ${publicId}:`, (err as Error).message);
-  }
+/** Delete a stored file by URL, "s3:<key>" or a Cloudinary public_id; never throws. */
+const removeStoredFile = async (idOrUrl: string | null | undefined, kind: 'image' | 'raw' = 'raw') => {
+  if (!idOrUrl) return;
+  await getFileStore()?.remove(idOrUrl, kind);
 };
 
-// Writes a PDF buffer and returns { url, publicId }. Without Cloudinary
-// configured this falls back to disk so local dev still works — but on Render
-// that directory is wiped by every deploy, which is why the warning is loud.
+// Writes a PDF buffer and returns { url, publicId } (publicId: what deletes it later).
+// Without a file store configured this falls back to disk so local dev still works —
+// but on Render that directory is wiped by every deploy, which is why the warning is loud.
 const storeDeliveryPdf = async (buffer: Buffer, publicId: string, diskName: string) => {
-  if (cloudinaryReady()) {
+  const store = getFileStore();
+  if (store) {
     // A raw asset is served with the content type of its extension, and the
     // extensionless id (…/tmp_1792…_5544) came back as octet-stream, so View
     // downloaded the file instead of opening it. The id keeps ".pdf".
     const rawId = /\.pdf$/i.test(publicId) ? publicId : `${publicId}.pdf`;
-    const result = await uploadBufferToCloudinary(buffer, rawId, 'raw');
-    return { url: result.secure_url, publicId: result.public_id };
+    const stored = await store.put(buffer, { key: rawId, kind: 'raw', overwrite: true });
+    return { url: stored.url, publicId: stored.id };
   }
 
-  console.warn('⚠️ Cloudinary not configured — writing delivery PDF to disk (lost on restart)');
+  console.warn('⚠️ No file store configured — writing delivery PDF to disk (lost on restart)');
   const dir = path.join(process.cwd(), 'public/uploads/packing_lists');
   if (!fs.existsSync(dir)) await fs.promises.mkdir(dir, { recursive: true });
   await fs.promises.writeFile(path.join(dir, diskName), buffer);
@@ -144,9 +130,10 @@ const storeSignaturePng = async (dataUrl: string, publicId: string) => {
     // A pad with no strokes trims to nothing and throws — keep the raw canvas PNG.
   }
 
-  if (!cloudinaryReady()) return dataUrl;
-  const result = await uploadBufferToCloudinary(buffer, publicId, 'image');
-  return result.secure_url;
+  const store = getFileStore();
+  if (!store) return dataUrl;
+  const stored = await store.put(buffer, { key: publicId, kind: 'image', overwrite: true });
+  return stored.url;
 };
 
 // The board's list fetch strips signatures and photos for speed, so any save
@@ -961,7 +948,7 @@ export default function createDeliveriesRouter({
           }
         }
 
-        // Signatures and photos move to Cloudinary so the delivery document stays
+        // Signatures and photos move to the file store so the delivery document stays
         // small — inline base64 used to bloat list queries and socket broadcasts.
         try {
           updateData.pod.customerSignature =
@@ -973,7 +960,7 @@ export default function createDeliveriesRouter({
             updateData.pod.photos = await processBase64Images(updateData.pod.photos, 'deliveries/pod');
           }
         } catch (podErr) {
-          console.error('Error uploading POD images to Cloudinary:', podErr);
+          console.error('Error uploading POD images to the file store:', podErr);
         }
 
         updateData.pod.verified = derivePodVerified(updateData.pod, Boolean(sourcePdf));
@@ -1522,11 +1509,15 @@ export default function createDeliveriesRouter({
       const previous: Partial<NonNullable<typeof delivery.pod>> = delivery.pod || {};
 
       // Destroy by stored id where we have one, falling back to the derived id for
-      // records written before publicIds were tracked.
+      // records written before publicIds were tracked — and by the stored URLs too,
+      // which is what reaches files moved to S3 (their ids still name Cloudinary).
       await Promise.all([
-        destroyCloudinaryAsset(previous.signedPdfPublicId || assetIds.signedPdf, 'raw'),
-        destroyCloudinaryAsset(assetIds.custSig, 'image'),
-        destroyCloudinaryAsset(assetIds.driverSig, 'image')
+        removeStoredFile(previous.signedPdfPublicId || assetIds.signedPdf, 'raw'),
+        removeStoredFile(assetIds.custSig, 'image'),
+        removeStoredFile(assetIds.driverSig, 'image'),
+        ...[previous.signedPdfUrl, previous.customerSignature, previous.driverSignature]
+          .filter((url): url is string => typeof url === 'string' && /^https?:\/\//.test(url))
+          .map((url) => removeStoredFile(url))
       ]);
 
       delivery.pod = {

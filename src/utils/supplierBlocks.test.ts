@@ -203,6 +203,14 @@ describe('purchasing entering a block for its supplier', () => {
     expect(isStoredPhotoUrl('data:image/jpeg;base64,xx')).toBe(false);
   });
 
+  it('also takes photos on this deployment’s CDN (S3), and only that one', () => {
+    const bases = ['https://d1abc.cloudfront.net'];
+    expect(isStoredPhotoUrl('https://d1abc.cloudfront.net/SupplierBlocks/img_1.webp', bases)).toBe(true);
+    expect(isStoredPhotoUrl('https://d2other.cloudfront.net/SupplierBlocks/img_1.webp', bases)).toBe(false);
+    expect(isStoredPhotoUrl('https://d1abc.cloudfront.net/a b.webp', bases)).toBe(false);
+    expect(isStoredPhotoUrl('https://d1abc.cloudfront.net/SupplierBlocks/img_1.webp', [])).toBe(false);
+  });
+
   it('a new block: every bundle numbered in order, as drafts ready to send', () => {
     const { bundles, problem } = applyEntry([], [{ id: hex(1), slabs: 8, photoUrl: CDN('1') }, { id: hex(2), slabs: '7', photoUrl: CDN('2') }], at);
     expect(problem).toBeNull();

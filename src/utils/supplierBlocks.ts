@@ -24,6 +24,7 @@
  *   - The supplier sees material and quantities only: there are no prices
  *     anywhere in this module.
  */
+import { filesCdnBases, isFilesCdnUrl } from './fileUrls.ts';
 import { SAME_PERSON_BOTH_STEPS, SUPPLIER_POS } from './supplierAccess.ts';
 
 // ── Small helpers ───────────────────────────────────────────────────────────
@@ -204,9 +205,15 @@ export function withNewPhoto<B extends BundleLike>(b: B, url: string, at: Date):
 
 // ── Purchasing enters a block for its supplier (2026-11-07) ─────────────────
 
-/** A photo purchasing uploaded (POST /api/suppliers/block-photos): our own Cloudinary, nothing else. */
-export const isStoredPhotoUrl = (v: unknown): v is string =>
-  typeof v === 'string' && v.length <= 500 && /^https:\/\/res\.cloudinary\.com\/[^\s"'<>]+$/.test(v);
+/**
+ * A photo purchasing uploaded (POST /api/suppliers/block-photos): our own file store,
+ * nothing else — Cloudinary, or (since 2026-11) this deployment's CDN, FILES_CDN_URL.
+ */
+export const isStoredPhotoUrl = (v: unknown, cdnBases: string[] = filesCdnBases()): v is string =>
+  typeof v === 'string' &&
+  v.length <= 500 &&
+  !/[\s"'<>]/.test(v) &&
+  (/^https:\/\/res\.cloudinary\.com\/[^\s"'<>]+$/.test(v) || (isFilesCdnUrl(v, cdnBases) && v.startsWith('https://')));
 
 export type EntryBundle = { id: string; slabs?: unknown; photoUrl?: unknown };
 const isBundleId = (v: unknown) => typeof v === 'string' && /^[a-f0-9]{24}$/i.test(v);

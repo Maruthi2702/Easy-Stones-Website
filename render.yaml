@@ -17,6 +17,27 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      # File storage (src/services/fileStore.ts). FILE_STORE=s3 sends new uploads to
+      # the S3 bucket behind CloudFront (aws-infra files stack outputs BucketName and
+      # CdnUrl); unset or "cloudinary" keeps them on Cloudinary. Keep the CLOUDINARY_*
+      # keys while old files are still there: deletes of those still go to Cloudinary.
+      # VITE_FILES_CDN_URL is read at build time (redeploy after changing it).
+      - key: FILE_STORE
+        sync: false
+      - key: FILES_BUCKET
+        sync: false
+      - key: FILES_CDN_URL
+        sync: false
+      - key: VITE_FILES_CDN_URL
+        sync: false
+      - key: AWS_REGION
+        value: us-east-2
+      # The files stack's IAM user (easy-surfaces-dev-files-uploader): create its
+      # access key in the AWS console and paste both halves here.
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
       - key: RESEND_API_KEY
         sync: false
       - key: RESEND_FROM_EMAIL

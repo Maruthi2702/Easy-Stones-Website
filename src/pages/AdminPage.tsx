@@ -1,3 +1,4 @@
+import { isHostedFileUrl } from '../utils/fileUrls.ts';
 import type { Loose } from '../types/records.ts';
 import type { UserRecord, AccessAction } from '../features/users/types.ts';
 import React, { useState, useEffect, useCallback } from 'react';
@@ -189,8 +190,8 @@ const AdminPage = () => {
   };
 
   const handleDeleteImage = async (imageUrl: string, type = 'main', index: number | null = null) => {
-    if (!imageUrl || !imageUrl.includes('cloudinary.com')) {
-      // If it's not a Cloudinary URL, just clear it locally
+    if (!imageUrl || !isHostedFileUrl(imageUrl)) {
+      // Not a file we stored (Cloudinary or our CDN): just clear it locally
       if (type === 'main') {
         handleChange('image', '');
       } else {
