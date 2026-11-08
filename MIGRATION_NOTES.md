@@ -17,7 +17,8 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 | Frontend | React 19 + Vite 5, JavaScript | Stay on React; JS → TypeScript gradually | Started; SalesPage split done (A1–A7, 2026-10-24) |
 | Backend | Node + Express 5, `node server.ts` on Render | Stay on Node; Node 24, split `server.ts` | Node 24 approved 2026-10-23; split started |
 | Django | — | **Not recommended** | Answered |
-| Database | MongoDB (Mongoose 9) | PostgreSQL (not DynamoDB), one area at a time | Proposed |
+| Database | MongoDB (Mongoose 9, Atlas in AWS Mumbai) | PostgreSQL on **AWS RDS** (no Aurora) | Approved 2026-11-08; customer area's tables + copy built (`src/db/`) |
+| Server hosting | Render | **AWS Lambda** behind API Gateway (owner, 2026-11-08; no ECS) | Planned, after the database |
 | Staging | None (deferred by the owner 2026-10-07) | Needed before any database move | Owner to decide |
 
 ## Overall order
@@ -38,7 +39,7 @@ hand on the screens it touches as well as by `npm test` and `vite build`.
 - Approve the TypeScript plan and its pace (foundations as dedicated work,
   screens converted as they're touched — my recommendation).
 - ~~Move Render to Node 24.~~ Approved 2026-10-23.
-- PostgreSQL as the target, hosted on Render.
+- ~~PostgreSQL as the target, hosted on Render.~~ **RDS Postgres on AWS, no Aurora** (owner, 2026-11-08).
 - Bring staging back before any data moves.
 - Short early-morning write pauses, one per area as it moves to Postgres.
 
@@ -143,6 +144,22 @@ that could change the answer.
 ---
 
 ## 3. Database: MongoDB → PostgreSQL
+
+### Owner's calls, 2026-11-08 (these replace the plan further down where they differ)
+
+- **Postgres on AWS RDS**, every environment; no Aurora. Not Render Postgres.
+- **MongoDB and Postgres run side by side** until AWS is tested; MongoDB is
+  disconnected after. MongoDB stays the only database the app writes; Postgres is
+  refreshed by a copy and checked row by row (`scripts/pg-copy-customers.ts`), and
+  the cutover locks it against further copies.
+- **No clean-up of the MongoDB data now** — the copy reports what's wrong instead.
+- **Customers first, split into their own tables**: a visit's id is its primary key
+  and its `customer_id` the foreign key, and the same for resources and contacts —
+  then everything linked to a customer. Built: `src/db/README.md`.
+- The server moves to **Lambda** after the database (the next step), not ECS.
+- Found while reading the database: Atlas runs in AWS **Mumbai** (ap-south-1), far
+  from Render — every query crosses the Pacific until the move.
+
 
 The owner asked to move off MongoDB to PostgreSQL or DynamoDB. **PostgreSQL.**
 DynamoDB only answers questions designed into its keys in advance: the

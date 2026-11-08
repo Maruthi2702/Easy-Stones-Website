@@ -1254,6 +1254,17 @@ old value up in `cloudinarytos3backups`, and skips a record edited mid-write. Ru
 a local copy first — the local `.env` is the live database. The login page's two
 resized slabs are now `public/images/login/`.
 
+## Postgres on AWS RDS: customers first (2026-11-08, on `feat/postgres-customers`)
+
+MongoDB → **PostgreSQL on AWS RDS** (no Aurora), owner's calls; the server goes to
+Lambda after. MongoDB stays the live database until AWS is tested — nothing writes to
+both. Postgres is a copy: `scripts/pg-copy-customers.ts` (reads MongoDB only; dry run,
+`--write`, `--verify`, `--lock` at cutover). Customers are split into tables linked by
+id (visits keyed by visit id with `customer_id`, likewise resources and contacts); the
+tables, the time rules and what the first copy found are in `src/db/README.md`. A new
+field on a customer, visit, resource, contact, schedule or the activity log needs its
+column (`src/db/schema/`, then `npx drizzle-kit generate`) and its line in the copy
+(`src/db/copy/`), or the copy silently leaves it behind.
 ## Email: Amazon SES first, Gmail as the backup (2026-11-08, on `feat/ses-email`)
 
 Every email goes through `sendEmail` in `src/services/emailService.ts` (owner's call):
