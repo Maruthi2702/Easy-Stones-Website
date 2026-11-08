@@ -4,7 +4,7 @@ import { Resend } from 'resend';
 import type { CreateEmailOptions } from 'resend';
 import type { SendMailOptions } from 'nodemailer';
 import { DEFAULT_LETTERHEAD } from '../utils/locationForm.ts';
-import { sheetDoc, docRowsFromSelections, sheetPriceLabel, HOLD_POLICY } from '../utils/selectionSheet.ts';
+import { sheetDoc, docRowsFromSelections, sheetPriceLabel, HOLD_POLICY, SHEET_LABELS } from '../utils/selectionSheet.ts';
 import { checkInZone } from '../utils/checkInClock.ts';
 
 // The check-in emails below interpolate visitor-supplied fields (name, notes,
@@ -205,7 +205,7 @@ export async function sendCheckInAlertEmail(checkIn: Loose) {
 // Fluid at every width without media queries (many mail apps drop <style>),
 // and built so a forward keeps it: the three people side by side while they
 // fit (two and one on a phone); each material is one row — number, material and price,
-// then lot · slabs · size under it — instead of a wide table that ran past a
+// then Lot # / Slab # / Size (in), each under its own label — instead of a wide table that ran past a
 // phone's edge. Outlook for Windows ignores max-width, so it gets a fixed
 // 600px table in a conditional comment.
 const SHEET_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
@@ -251,7 +251,13 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
   const rowsHtml = doc.rows.length === 0
     ? '<p style="margin: 0; padding: 14px 0; text-align: center; color: #5B616B; font-style: italic; font-size: 14px; border-bottom: 1px solid #D9D4C7;">No selections registered.</p>'
     : doc.rows.map((r, i) => {
-      const facts = [r.lot && `Lot ${r.lot}`, r.details && `Slabs ${r.details}`, r.size && `${r.size} in`].filter(Boolean).map((f) => e(f)).join(' &middot; ');
+      // Each figure under its own small label (Lot # / Slab # / Size (in)) —
+      // "Lot 14873 · Slabs 7 · 126 * 63 in" read as one run of numbers.
+      // Blocks side by side that wrap on a narrow phone, no space between them.
+      const fact = (label: string, value: string) => `<div style="display: inline-block; vertical-align: top; margin: 0 22px 4px 0;">`
+        + `<div style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: #5B616B; white-space: nowrap;">${e(label.toUpperCase())}</div>`
+        + `<div style="margin-top: 1px; font-size: 14px; color: #1F2328; white-space: nowrap;">${e(value)}</div></div>`;
+      const facts = [r.lot && fact(SHEET_LABELS.lot, r.lot), r.details && fact(SHEET_LABELS.slabs, r.details), r.size && fact(SHEET_LABELS.size, r.size)].filter(Boolean).join('');
       return `
           <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; border-bottom: 1px solid #D9D4C7;">
             <tr>
@@ -261,7 +267,7 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
             </tr>
             <tr>
               <td></td>
-              <td colspan="${doc.showPrices ? 2 : 1}" style="padding: 3px 0 12px 0; font-size: 14px; color: #3D434B; word-break: break-word; overflow-wrap: anywhere;">${facts || '&nbsp;'}</td>
+              <td colspan="${doc.showPrices ? 2 : 1}" align="left" style="padding: 6px 0 10px 0; text-align: left;">${facts || '&nbsp;'}</td>
             </tr>
           </table>`;
     }).join('');

@@ -51,7 +51,10 @@ describe('sendSelectionSheetEmail', () => {
     expect(html).not.toContain('<th');
     expect(html).toContain('max-width: 600px');
     expect(html).toContain('CALACATTA GOLD');
-    expect(html).toContain('Lot 13845 &middot; Slabs 7 &middot; 126 * 63 in');
+    // Each figure under its own label, so a slab number isn't read as a count.
+    for (const [label, value] of [['LOT #', '13845'], ['SLAB #', '7'], ['SIZE (IN)', '126 * 63']])
+      expect(html).toMatch(new RegExp(`>${label.replace(/[()#]/g, '\\$&')}</div><div[^>]*>${value.replace(/[*]/g, '\\*')}</div>`));
+    expect(html).not.toContain('Slabs 7');
   });
 
   // The printed sheet's template (owner, 2026-11-07).

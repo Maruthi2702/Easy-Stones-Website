@@ -274,6 +274,14 @@ export const holdSteps = (rep: unknown): string[] => [
   str(rep).trim() ? `Questions? Ask ${str(rep).trim()} or call the showroom.` : 'Questions? Call the showroom.'
 ];
 
+/**
+ * What each figure on a material is called, the same on paper and in the
+ * email (owner, 2026-11-08: "Lot 14873 · Slabs 7 · 126 * 63 in" read as one
+ * run of numbers — is 7 a count or a slab?). Slab # is the slab numbers off
+ * the tags, never a count.
+ */
+export const SHEET_LABELS = { lot: 'Lot #', slabs: 'Slab #', size: 'Size (in)' } as const;
+
 /** A material's price on the customer's sheet: "$68.00", or "Ask your rep" when it has none. */
 export const sheetPriceLabel = (cents: unknown): string => (isPriceCents(cents) ? formatCents(cents) : 'Ask your rep');
 
@@ -452,9 +460,9 @@ export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, le
             <tr>
               <th>#</th>
               <th>Material</th>
-              <th>Lot / bundle</th>
-              <th>Slabs</th>
-              <th>Size (in)</th>
+              <th>${SHEET_LABELS.lot}</th>
+              <th>${SHEET_LABELS.slabs}</th>
+              <th>${SHEET_LABELS.size}</th>
               ${doc.showPrices ? '<th class="price">Price / SF</th>' : ''}
             </tr>
           </thead>

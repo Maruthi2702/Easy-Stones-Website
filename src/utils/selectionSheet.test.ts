@@ -3,7 +3,7 @@ import {
   sheetValuesFromCheckIn, countSheetChanges, sheetPayload, buildSelectionSheetHtml,
   rowHasData, MIN_VISIBLE_ROWS, SHEET_ROWS, priceCentsOf, tidyPrice, formatSheetPrice, sheetPriceErrors,
   sheetPriceSummary, cleanSelections, repEmailSnapshot, PRICE_ERROR, formatSlabSize,
-  sheetDoc, docRowsFromValues, docRowsFromSelections, sheetPriceLabel, holdSteps, HOLD_POLICY, escapeHtml
+  sheetDoc, docRowsFromValues, docRowsFromSelections, sheetPriceLabel, holdSteps, HOLD_POLICY, escapeHtml, SHEET_LABELS
 } from './selectionSheet.ts';
 
 const checkIn = {
@@ -206,6 +206,12 @@ describe('buildSelectionSheetHtml', () => {
   });
 
   // Direction A of the "Selection Sheet — customer copy" canvas (2026-11-07).
+  it('heads the figures Lot # / Slab # / Size (in), the email\'s labels too', () => {
+    const html = buildSelectionSheetHtml({ checkIn, values: sheetValuesFromCheckIn(checkIn), letterhead });
+    for (const h of ['<th>Lot #</th>', '<th>Slab #</th>', '<th>Size (in)</th>']) expect(html).toContain(h);
+    expect(SHEET_LABELS).toEqual({ lot: 'Lot #', slabs: 'Slab #', size: 'Size (in)' });
+  });
+
   it('leaves the browser no margin for its own header and footer', () => {
     const html = buildSelectionSheetHtml({ checkIn, dateStr: 'Oct 4, 2026', values: sheetValuesFromCheckIn(checkIn), letterhead });
     expect(html).toContain('@page { size: letter; margin: 0; }');
