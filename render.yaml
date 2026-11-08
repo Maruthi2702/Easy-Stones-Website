@@ -33,15 +33,20 @@ services:
       - key: AWS_REGION
         value: us-east-2
       # The files stack's IAM user (easy-surfaces-dev-files-uploader): create its
-      # access key in the AWS console and paste both halves here.
+      # access key in the AWS console and paste both halves here. The email stack
+      # lets the same user send through SES.
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
         sync: false
-      - key: RESEND_API_KEY
+      # Email (src/services/emailService.ts): Amazon SES first, the Gmail SMTP
+      # account below as the backup. SES is off until SES_FROM_EMAIL is set — an
+      # address on the domain the aws-infra email stack verifies (output FromAddress);
+      # SES_CONFIGURATION_SET is its ConfigurationSetName output.
+      - key: SES_FROM_EMAIL
         sync: false
-      - key: RESEND_FROM_EMAIL
-        value: onboarding@resend.dev
+      - key: SES_CONFIGURATION_SET
+        sync: false
       - key: SMTP_USER
         sync: false
       - key: SMTP_PASS

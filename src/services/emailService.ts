@@ -1,7 +1,6 @@
 import type { Loose } from '../types/records.ts';
 import nodemailer from 'nodemailer';
-import { Resend } from 'resend';
-import type { CreateEmailOptions } from 'resend';
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import type { SendMailOptions } from 'nodemailer';
 import { DEFAULT_LETTERHEAD } from '../utils/locationForm.ts';
 import { sheetDoc, docRowsFromSelections, sheetPriceLabel, HOLD_POLICY, SHEET_LABELS } from '../utils/selectionSheet.ts';
@@ -16,11 +15,25 @@ const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[ch]!));
 
-// Helper to send general mail using Resend API with SMTP fallback
 /**
- * `attachments` is [{ filename, content }] where content is a Buffer or
- * Uint8Array. Resend wants base64, nodemailer wants the Buffer — the two
- * transports are fed accordingly rather than making callers care.
+ * Every email the app sends goes through sendEmail: **Amazon SES first, Gmail
+ * SMTP as the backup** (owner, 2026-11-08). Gmail is tried when SES isn't set
+ * up, or refuses or fails to take the message — including while the SES
+ * account is still in the sandbox, where it only sends to verified addresses.
+ *
+ *   SES_FROM_EMAIL           the sender, an address on the SES-verified domain
+ *                            (e.g. noreply@easystones.com); unset = SES is off
+ *   SES_REGION               default AWS_REGION, else us-east-2
+ *   SES_CONFIGURATION_SET    optional: the aws-infra email stack's set (bounce /
+ *                            complaint tracking)
+ *   AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY   the server's IAM user (Render);
+ *                            on AWS the function's own role
+ *   SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS   the Gmail backup, as before
+ *
+ * Both are fed the same message by nodemailer (SES through its SESv2
+ * transport), so attachments, Reply-To and the sender's name work the same
+ * either way. `attachments` is [{ filename, content }], content a Buffer or
+ * Uint8Array.
  */
 type EmailOptions = {
   to: string | string[];
@@ -31,95 +44,89 @@ type EmailOptions = {
   attachments?: { filename: string; content: Uint8Array }[];
 };
 
-export async function sendEmail({ to, subject, html, replyTo, defaultSenderName, attachments = [] }: EmailOptions) {
-  let sent = false;
+/** Which way an email went: SES, or the Gmail backup. */
+export type EmailVia = 'ses' | 'smtp';
+export type EmailResult = { success: boolean; error: string | null; via: EmailVia | null };
+
+const DEFAULT_SENDER_NAME = 'Easy Stones';
+
+/** One SES client per region for the life of the server. */
+const sesClients = new Map<string, SESv2Client>();
+function sesClient(region: string): SESv2Client {
+  let client = sesClients.get(region);
+  if (!client) {
+    client = new SESv2Client({ region });
+    sesClients.set(region, client);
+  }
+  return client;
+}
+
+function messageFrom(address: string, { to, subject, html, replyTo, defaultSenderName, attachments = [] }: EmailOptions): SendMailOptions {
+  const message: SendMailOptions = {
+    from: { name: defaultSenderName || DEFAULT_SENDER_NAME, address },
+    to: Array.isArray(to) ? to.join(', ') : to,
+    subject,
+    html
+  };
+  if (replyTo) message.replyTo = replyTo;
+  if (attachments.length) message.attachments = attachments.map(a => ({ filename: a.filename, content: Buffer.from(a.content) }));
+  return message;
+}
+
+async function sendViaSes(options: EmailOptions): Promise<void> {
+  const region = process.env.SES_REGION || process.env.AWS_REGION || 'us-east-2';
+  const transport = nodemailer.createTransport({ SES: { sesClient: sesClient(region), SendEmailCommand } });
+  // nodemailer copies `ses` onto the SendEmail request.
+  const message: SendMailOptions & { ses?: { ConfigurationSetName: string } } = messageFrom(process.env.SES_FROM_EMAIL!, options);
+  if (process.env.SES_CONFIGURATION_SET) message.ses = { ConfigurationSetName: process.env.SES_CONFIGURATION_SET };
+  await transport.sendMail(message);
+}
+
+async function sendViaSmtp(options: EmailOptions): Promise<void> {
+  const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
+  const transport = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: Number(process.env.SMTP_PORT) || 587,
+    secure: isSecure,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+  });
+  await transport.sendMail(messageFrom(process.env.SMTP_USER!, options));
+}
+
+export async function sendEmail(options: EmailOptions): Promise<EmailResult> {
+  const { to } = options;
   const errorDetails: string[] = [];
 
-  // 1. Try Resend
-  if (process.env.RESEND_API_KEY) {
+  // 1. Amazon SES
+  if (process.env.SES_FROM_EMAIL) {
     try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const fromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
-      const payload: CreateEmailOptions = {
-        from: `${defaultSenderName} <${fromEmail}>`,
-        to: Array.isArray(to) ? to : [to],
-        subject,
-        html
-      };
-      if (replyTo) {
-        payload.replyTo = replyTo;
-      }
-      if (attachments.length) {
-        payload.attachments = attachments.map(a => ({
-          filename: a.filename,
-          content: Buffer.from(a.content).toString('base64')
-        }));
-      }
-
-      const {  error } = await resend.emails.send(payload);
-      if (error) {
-        const errMsg = error.message || JSON.stringify(error);
-        console.error(`⚠️ Resend failed to send email to ${to}: ${errMsg}`);
-        errorDetails.push(`Resend error: ${errMsg}`);
-      } else {
-        sent = true;
-        console.log(`✅ Email sent via Resend to ${to}`);
-      }
+      await sendViaSes(options);
+      console.log(`✅ Email sent via SES to ${to}`);
+      return { success: true, error: null, via: 'ses' };
     } catch (err) {
-      console.error(`⚠️ Resend exception sending email to ${to}: ${(err as Error).message}`);
-      errorDetails.push(`Resend exception: ${(err as Error).message}`);
+      const message = (err as Error).message;
+      console.error(`⚠️ SES failed to send email to ${to}: ${message} — trying Gmail`);
+      errorDetails.push(`SES error: ${message}`);
     }
   } else {
-    errorDetails.push('Resend API key missing');
+    errorDetails.push('SES not set up (SES_FROM_EMAIL)');
   }
 
-  // 2. Try SMTP Fallback
-  if (!sent) {
-    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
-      try {
-        const isSecure = Number(process.env.SMTP_PORT) === 465 || process.env.SMTP_SECURE === 'true';
-        const transporter = nodemailer.createTransport({
-          host: process.env.SMTP_HOST || 'smtp.gmail.com',
-          port: Number(process.env.SMTP_PORT) || 587,
-          secure: isSecure,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASS
-          }
-        });
-
-        const payload: SendMailOptions = {
-          from: `"${defaultSenderName}" <${process.env.SMTP_USER}>`,
-          to: Array.isArray(to) ? to.join(', ') : to,
-          subject,
-          html
-        };
-        if (replyTo) {
-          payload.replyTo = replyTo;
-        }
-        if (attachments.length) {
-          payload.attachments = attachments.map(a => ({
-            filename: a.filename,
-            content: Buffer.from(a.content)
-          }));
-        }
-
-        await transporter.sendMail(payload);
-        sent = true;
-        console.log(`✅ Email sent via SMTP to ${to}`);
-      } catch (smtpError) {
-        console.error(`⚠️ SMTP failed to send email to ${to}: ${(smtpError as Error).message}`);
-        errorDetails.push(`SMTP error: ${(smtpError as Error).message}`);
-      }
-    } else {
-      errorDetails.push('SMTP auth details missing');
+  // 2. Gmail SMTP backup
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    try {
+      await sendViaSmtp(options);
+      console.log(`✅ Email sent via SMTP to ${to}`);
+      return { success: true, error: null, via: 'smtp' };
+    } catch (smtpError) {
+      console.error(`⚠️ SMTP failed to send email to ${to}: ${(smtpError as Error).message}`);
+      errorDetails.push(`SMTP error: ${(smtpError as Error).message}`);
     }
+  } else {
+    errorDetails.push('SMTP auth details missing');
   }
 
-  return {
-    success: sent,
-    error: sent ? null : errorDetails.join(' | ')
-  };
+  return { success: false, error: errorDetails.join(' | '), via: null };
 }
 
 // 1. Send Check-In Alert Notification

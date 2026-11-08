@@ -3,7 +3,7 @@ import type { Loose } from '../types/records.ts';
 // for, printed notes always, internal notes never.
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 
-const sendMail = vi.fn<(message: { html: string; subject?: string; from?: string; replyTo?: string }) => Promise<unknown>>(async () => ({}));
+const sendMail = vi.fn<(message: { html: string; subject?: string; from?: { name: string; address: string }; replyTo?: string }) => Promise<unknown>>(async () => ({}));
 vi.mock('nodemailer', () => ({ default: { createTransport: () => ({ sendMail }) } }));
 
 const { sendSelectionSheetEmail } = await import('./emailService.ts');
@@ -26,7 +26,7 @@ const messageOf = async (opts: { showPrices?: boolean; markUrl?: string } = {}, 
 const htmlOf = async (opts: { showPrices?: boolean; markUrl?: string } = {}) => (await messageOf(opts)).html;
 
 beforeAll(() => {
-  delete process.env.RESEND_API_KEY;
+  delete process.env.SES_FROM_EMAIL;
   process.env.SMTP_USER = 'test@example.com';
   process.env.SMTP_PASS = 'x';
   vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -99,10 +99,10 @@ describe('sendSelectionSheetEmail', () => {
   it('is titled "Selection Sheet: <name>", from Easy Stones, replies to the rep', async () => {
     const message = await messageOf();
     expect(message.subject).toBe('Selection Sheet: Pat Visitor');
-    expect(message.from).toMatch(/^"?Easy Stones"? </);
+    expect(message.from?.name).toBe('Easy Stones');
     expect(message.replyTo).toBe('rita@x.com');
     const noRep = await messageOf({}, { ...checkIn, salesRep: '', salesRepEmail: 'old@x.com' });
-    expect(noRep.from).toMatch(/^"?Easy Stones"? </);
+    expect(noRep.from?.name).toBe('Easy Stones');
     expect(noRep.replyTo).toBeUndefined();
   });
 

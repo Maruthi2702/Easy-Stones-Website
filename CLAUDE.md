@@ -1254,6 +1254,16 @@ old value up in `cloudinarytos3backups`, and skips a record edited mid-write. Ru
 a local copy first — the local `.env` is the live database. The login page's two
 resized slabs are now `public/images/login/`.
 
+## Email: Amazon SES first, Gmail as the backup (2026-11-08, on `feat/ses-email`)
+
+Every email goes through `sendEmail` in `src/services/emailService.ts` (owner's call):
+SES (`SES_FROM_EMAIL`, an address on the domain the aws-infra `email` stack verifies;
+`SES_CONFIGURATION_SET`; the AWS_* key on Render) and, if SES isn't set up or refuses
+or fails, the Gmail SMTP account (`SMTP_*`). Resend is gone. Both get the same
+nodemailer message, so attachments and Reply-To behave alike; the result says `via`.
+While SES is in its sandbox it refuses unverified recipients and Gmail sends them. A
+new email goes through `sendEmail` — never its own transport. Tests: `emailSend.test.ts`.
+
 ## Forms: one template, everywhere
 
 Every form (add/edit modals, Delivery, Visit, Lost Sale, imports, POD,

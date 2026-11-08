@@ -4,11 +4,8 @@ import { monthOf } from '../../components/shared/calendar/calendarDates';
 import { longDate } from './reportFigures';
 import type { MoreItem } from './components/MoreMenu';
 
-// Resend has no verified domain to send transactional mail from yet, so its
-// default onboarding@resend.dev sender only delivers to the account's own
-// signup address — every other recipient bounces. Sending falls through to
-// the Gmail SMTP account instead (see emailService.js) until a domain is set
-// up as RESEND_FROM_EMAIL.
+// Email goes out through Amazon SES, with the Gmail SMTP account as the backup
+// (sendEmail in src/services/emailService.ts).
 const EMAIL_EXPORT_ENABLED = true;
 
 type Scope = { view: string; date: string; location: string };
