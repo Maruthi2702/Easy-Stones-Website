@@ -1,6 +1,7 @@
 import type { PdfDayReport } from './dailyReportPdf.ts';
 import { buildDayPdf, dayPdfFileName } from './dailyReportPdf.ts';
 import { sendEmail } from '../services/emailService.ts';
+import { SENDER_NAME } from './emailSender.ts';
 import Location from '../models/Location.ts';
 import User from '../models/User.ts';
 import DailyReport from '../models/DailyReport.ts';
@@ -66,7 +67,7 @@ export async function notifyDailyReportSubmission(report: PdfDayReport) {
       to,
       subject: `Daily Work Report — ${report.location}, ${report.date}`,
       html,
-      defaultSenderName: 'Easy Stones',
+      defaultSenderName: SENDER_NAME,
       attachments: [{ filename: dayPdfFileName(report), content: Buffer.from(bytes) }]
     });
 

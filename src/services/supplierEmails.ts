@@ -5,6 +5,7 @@
  * failed email never undoes the save that triggered it.
  */
 import { sendEmail } from './emailService.ts';
+import { SENDER_NAME } from '../utils/emailSender.ts';
 import { t, reasonText, type StringKey } from '../utils/supplierI18n.ts';
 import { noteFor, type Note } from '../utils/supplierBlocks.ts';
 
@@ -25,7 +26,7 @@ const shell = (lang: string, body: string, button?: { href: string; label: strin
 async function send(to: string, subject: string, html: string, tag: string) {
   if (!to) return false;
   try {
-    const result = await sendEmail({ to, subject, html, defaultSenderName: 'Easy Stones' });
+    const result = await sendEmail({ to, subject, html, defaultSenderName: SENDER_NAME });
     return (result as { success?: boolean } | undefined)?.success !== false;
   } catch (error) {
     console.error(`[supplier-email] ${tag} failed:`, (error as Error)?.message || error);

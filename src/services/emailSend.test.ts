@@ -17,7 +17,7 @@ vi.mock('nodemailer', () => ({
 
 const { sendEmail } = await import('./emailService.ts');
 
-const mail = { to: ['a@x.com', 'b@x.com'], subject: 'Daily report', html: '<p>hi</p>', replyTo: 'rep@easystones.com', defaultSenderName: 'Easy Stones Seattle', attachments: [{ filename: 'report.pdf', content: new Uint8Array([1, 2, 3]) }] };
+const mail = { to: ['a@x.com', 'b@x.com'], subject: 'Daily report', html: '<p>hi</p>', replyTo: 'rep@easystones.com', defaultSenderName: 'Easy Surfaces Seattle', attachments: [{ filename: 'report.pdf', content: new Uint8Array([1, 2, 3]) }] };
 
 beforeEach(() => {
   sesSend.mockReset().mockResolvedValue({});
@@ -38,7 +38,7 @@ describe('sendEmail', () => {
     expect(result).toEqual({ success: true, error: null, via: 'ses' });
     expect(smtpSend).not.toHaveBeenCalled();
     const sent = sesSend.mock.calls[0]![0];
-    expect(sent.from).toEqual({ name: 'Easy Stones Seattle', address: 'noreply@easystones.com' });
+    expect(sent.from).toEqual({ name: 'Easy Surfaces Seattle', address: 'noreply@easystones.com' });
     expect(sent.to).toBe('a@x.com, b@x.com');
     expect(sent.replyTo).toBe('rep@easystones.com');
     expect(sent.attachments?.[0]).toEqual({ filename: 'report.pdf', content: Buffer.from([1, 2, 3]) });
@@ -58,7 +58,7 @@ describe('sendEmail', () => {
     const result = await sendEmail(mail);
     expect(result).toEqual({ success: true, error: null, via: 'smtp' });
     const sent = smtpSend.mock.calls[0]![0];
-    expect(sent.from).toEqual({ name: 'Easy Stones Seattle', address: 'backup@gmail.com' });
+    expect(sent.from).toEqual({ name: 'Easy Surfaces Seattle', address: 'backup@gmail.com' });
     expect(sent.attachments?.[0]?.filename).toBe('report.pdf');
     expect(sent.ses).toBeUndefined();
   });
@@ -84,8 +84,8 @@ describe('sendEmail', () => {
     expect(result).toEqual({ success: false, via: null, error: 'SES not set up (SES_FROM_EMAIL) | SMTP auth details missing' });
   });
 
-  it('signs as Easy Stones when no sender name is given', async () => {
+  it('signs as Easy Surfaces when no sender name is given', async () => {
     await sendEmail({ to: 'a@x.com', subject: 's', html: 'h' });
-    expect(sesSend.mock.calls[0]![0].from).toEqual({ name: 'Easy Stones', address: 'noreply@easystones.com' });
+    expect(sesSend.mock.calls[0]![0].from).toEqual({ name: 'Easy Surfaces', address: 'noreply@easystones.com' });
   });
 });

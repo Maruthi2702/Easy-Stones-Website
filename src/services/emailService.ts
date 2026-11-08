@@ -5,6 +5,7 @@ import type { SendMailOptions } from 'nodemailer';
 import { DEFAULT_LETTERHEAD } from '../utils/locationForm.ts';
 import { sheetDoc, docRowsFromSelections, sheetPriceLabel, HOLD_POLICY, SHEET_LABELS } from '../utils/selectionSheet.ts';
 import { checkInZone } from '../utils/checkInClock.ts';
+import { SENDER_NAME } from '../utils/emailSender.ts';
 
 // The check-in emails below interpolate visitor-supplied fields (name, notes,
 // selections...) straight into HTML. The self check-in endpoint that produces
@@ -48,7 +49,7 @@ type EmailOptions = {
 export type EmailVia = 'ses' | 'smtp';
 export type EmailResult = { success: boolean; error: string | null; via: EmailVia | null };
 
-const DEFAULT_SENDER_NAME = 'Easy Stones';
+const DEFAULT_SENDER_NAME = SENDER_NAME;
 
 /** One SES client per region for the life of the server. */
 const sesClients = new Map<string, SESv2Client>();
@@ -177,7 +178,7 @@ export async function sendCheckInAlertEmail(checkIn: Loose) {
     to: 'krish@easystones.com',
     subject,
     html: emailHtml,
-    defaultSenderName: 'Easy Stones Check-In'
+    defaultSenderName: `${SENDER_NAME} Check-In`
   });
 
   if (!sentToKrish.success) {
@@ -186,7 +187,7 @@ export async function sendCheckInAlertEmail(checkIn: Loose) {
       to: 'krisheasystones@gmail.com',
       subject,
       html: emailHtml,
-      defaultSenderName: 'Easy Stones Check-In'
+      defaultSenderName: `${SENDER_NAME} Check-In`
     });
   }
 }
@@ -355,7 +356,7 @@ export async function sendSelectionSheetEmail(checkIn: Loose, recipientEmail: st
     subject: `Selection Sheet: ${checkIn.name}`,
     html: selectionSheetEmailHtml(checkIn, letterhead, { showPrices, markUrl }),
     // Sent as plain "Easy Stones" (owner, 2026-11-07); replies still go to the rep.
-    defaultSenderName: 'Easy Stones',
+    defaultSenderName: SENDER_NAME,
     ...(checkIn.salesRep && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(repEmail) ? { replyTo: repEmail } : {})
   });
 }
@@ -408,7 +409,7 @@ export async function sendContactFormEmail(contactSubmission: Loose) {
       subject,
       html: emailHtml,
       replyTo: email,
-      defaultSenderName: 'Easy Stones Contact'
+      defaultSenderName: `${SENDER_NAME} Contact`
     });
     if (success) {
       sent = true;
