@@ -305,13 +305,13 @@ const bustUserCaches = () => {
   memoryCache.salesreps.lastFetched = 0;
 };
 
-// Base64 to Cloudinary Upload Utility (persistent across restarts)
-// Falls back to disk only if Cloudinary is not configured (local dev without .env)
-// A PDF attached to a visit: uploaded as a Cloudinary raw file named *.pdf (so
+// Base64 upload to the file store (S3 or Cloudinary — src/services/fileStore.ts)
+// Falls back to disk only if no store is configured (local dev without .env)
+// A PDF attached to a visit: uploaded as a file named *.pdf (so
 // isPdfSource in src/utils/attachments.js recognises the URL), the same file
 // type delivery packing lists use. These used to fall through
 // processBase64Image's image-only check and stay inline in the customer
-// document — 6 of them, up to 269 KB each, by Feb 2026. Without Cloudinary, or
+// document — 6 of them, up to 269 KB each, by Feb 2026. Without a file store, or
 // if the upload fails, it stays inline as before rather than being lost.
 const processBase64Pdf = async (dataUrl: string, subDir: string) => {
   const store = getFileStore();
@@ -1056,8 +1056,6 @@ async function startServer() {
 
 startServer();
 
-// Cloudinary config removed - using local storage
-// Cloudinary config removed - using local storage
 const memoryStorage = multer.memoryStorage();
 const uploadMemory = multer({
   storage: memoryStorage,

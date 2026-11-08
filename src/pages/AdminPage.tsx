@@ -200,7 +200,7 @@ const AdminPage = () => {
       return;
     }
 
-    const confirmed = window.confirm('Delete this image from Cloudinary? This cannot be undone.');
+    const confirmed = window.confirm('Delete this image from file storage? This cannot be undone.');
     if (!confirmed) return;
 
     try {
@@ -1402,7 +1402,7 @@ const AdminPage = () => {
                       animation: 'spin 1s linear infinite'
                     }}></div>
                     <h3 style={{ margin: 0, color: '#1f2937', fontSize: '1.25rem' }}>Uploading Image</h3>
-                    <p style={{ margin: 0, color: '#6b7280' }}>Sending to Cloudinary. Please wait...</p>
+                    <p style={{ margin: 0, color: '#6b7280' }}>Uploading the image. Please wait...</p>
                   </div>
                 </div>
               )}
