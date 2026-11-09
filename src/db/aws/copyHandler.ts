@@ -14,7 +14,7 @@ import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import * as schema from '../schema/index.ts';
-import { copyCustomerArea, verifyCustomerArea, lockCopies, CopyLockedError, type Db } from '../copy/customerArea.ts';
+import { copyFromMongo, verifyCopy, lockCopies, CopyLockedError, type Db } from '../copy/plan.ts';
 import { unpackSnapshot } from './snapshot.ts';
 
 export type CopyAction = 'dry-run' | 'write' | 'verify' | 'lock';
@@ -84,12 +84,12 @@ export const handler = async (event: CopyEvent): Promise<CopyResult> => {
       s3.send(new PutObjectCommand({ Bucket: bucket, Key: reportKey, Body: JSON.stringify(body, null, 1), ContentType: 'application/json' }));
 
     if (event.action === 'verify') {
-      const diffs = await verifyCustomerArea(db, src);
+      const diffs = await verifyCopy(db, src);
       await saveReport({ verifiedAt: new Date().toISOString(), diffs });
       return { ok: diffs.length === 0, action: 'verify', diffs: diffs.slice(0, 200), reportKey, seconds: seconds() };
     }
 
-    const report = await copyCustomerArea(db, src, { write: event.action === 'write' });
+    const report = await copyFromMongo(db, src, { write: event.action === 'write' });
     await saveReport(report);
     return {
       ok: true, action: event.action,

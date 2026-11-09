@@ -8,26 +8,34 @@
  * Postgres holds the live data and a copy would overwrite it.
  */
 import { sql, getTableName, getTableColumns, eq } from 'drizzle-orm';
-import type { PgDatabase, PgQueryResultHKT, PgTable } from 'drizzle-orm/pg-core';
+import { getTableConfig, type PgDatabase, type PgQueryResultHKT, type PgTable } from 'drizzle-orm/pg-core';
 import type { Loose } from '../../types/records.ts';
 import * as schema from '../schema/index.ts';
 import { referenceRows, type ReferenceSource } from './referenceRows.ts';
 import { customerRows } from './customerRows.ts';
 import { linkedRows, type LinkedSource } from './linkedRows.ts';
+import { operationsRows, type OperationsSource } from './operationsRows.ts';
+import { COPY_COLLECTIONS } from './readMongo.ts';
 import type { CopyProblem } from './values.ts';
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export interface CustomerAreaSource extends ReferenceSource, LinkedSource {
+export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource {
   customers: Loose[];
 }
 
+/** A source with every collection empty: tests spread their own records over it. */
+export function emptySource(): CopySource {
+  return Object.fromEntries(Object.keys(COPY_COLLECTIONS).map(k => [k, []])) as unknown as CopySource;
+}
+
 /** Every table this copy fills, parents before children (the insert order). */
-export function customerAreaPlan(src: CustomerAreaSource, problems: CopyProblem[]) {
+export function copyPlan(src: CopySource, problems: CopyProblem[]) {
   const ref = referenceRows(src, problems);
   const cust = customerRows(src.customers, ref.index, problems);
   const linked = linkedRows(src, ref.index, cust.index, problems);
-  const r = ref.rows, c = cust.rows;
+  const ops = operationsRows(src, ref.index, cust.index, problems);
+  const r = ref.rows, c = cust.rows, o = ops.rows;
   const steps: [PgTable, Loose[]][] = [
     [schema.locations, r.locations],
     [schema.roles, r.roles],
@@ -50,7 +58,16 @@ export function customerAreaPlan(src: CustomerAreaSource, problems: CopyProblem[
     [schema.schedules, linked.schedules],
     [schema.activityLogs, linked.activityLogs],
     [schema.customerDeleteBackups, linked.customerDeleteBackups],
-    [schema.customerMergeBackups, linked.customerMergeBackups]
+    [schema.customerMergeBackups, linked.customerMergeBackups],
+    // Operations
+    [schema.deliveries, o.deliveries],
+    [schema.trucks, o.trucks],
+    [schema.dailyReports, o.dailyReports],
+    [schema.dailyReportTransfers, o.dailyReportTransfers],
+    [schema.dailyReportContainers, o.dailyReportContainers],
+    [schema.dailyReportLog, o.dailyReportLog],
+    [schema.paymentsReceived, o.paymentsReceived],
+    [schema.paymentHistory, o.paymentHistory]
   ];
   return steps;
 }
@@ -83,9 +100,9 @@ export class CopyLockedError extends Error {
 const CHUNK = 500;
 
 /** Map everything first (no writes), then replace the tables in one transaction. */
-export async function copyCustomerArea(db: Db, src: CustomerAreaSource, options: { write: boolean }): Promise<CopyReport> {
+export async function copyFromMongo(db: Db, src: CopySource, options: { write: boolean }): Promise<CopyReport> {
   const problems: CopyProblem[] = [];
-  const steps = customerAreaPlan(src, problems);
+  const steps = copyPlan(src, problems);
   const report: CopyReport = {
     copiedAt: new Date().toISOString(),
     source: Object.fromEntries(Object.entries(src).map(([k, v]) => [k, (v as unknown[]).length])),
@@ -112,6 +129,16 @@ export async function copyCustomerArea(db: Db, src: CustomerAreaSource, options:
   return report;
 }
 
+/** A table's primary key, as the property names its rows use. */
+function primaryKeyOf(table: PgTable): string[] {
+  const columns = Object.entries(getTableColumns(table));
+  const single = columns.filter(([, col]) => col.primary).map(([key]) => key);
+  if (single.length) return single;
+  const composite = getTableConfig(table).primaryKeys[0];
+  if (!composite) throw new Error(`${getTableName(table)} has no primary key`);
+  return composite.columns.map(col => columns.find(([, c]) => c.name === col.name)![0]);
+}
+
 /** Normalize a value read back from either side so equal data compares equal. */
 function norm(v: unknown): unknown {
   if (v instanceof Date) return v.toISOString();
@@ -130,16 +157,17 @@ function norm(v: unknown): unknown {
  * Check Postgres holds exactly what MongoDB maps to: same rows per table and
  * every column equal. Returns the differences (empty = verified).
  */
-export async function verifyCustomerArea(db: Db, src: CustomerAreaSource, limitPerTable = 20): Promise<string[]> {
+export async function verifyCopy(db: Db, src: CopySource, limitPerTable = 20): Promise<string[]> {
   const diffs: string[] = [];
-  for (const [table, expected] of customerAreaPlan(src, [])) {
+  for (const [table, expected] of copyPlan(src, [])) {
     const name = getTableName(table);
     // numeric columns come back at their scale ('10.00'): compare those as numbers, nothing else.
     const numeric = new Set(Object.entries(getTableColumns(table)).filter(([, col]) => col.columnType === 'PgNumeric').map(([key]) => key));
     const value = (col: string, v: unknown) => numeric.has(col) && v != null ? Number(v) : norm(v);
     const actual = (await db.select().from(table)) as Loose[];
     if (actual.length !== expected.length) diffs.push(`${name}: ${actual.length} rows in Postgres, ${expected.length} expected`);
-    const keyOf = (row: Loose) => JSON.stringify(row.id ?? [row.customerId, row.visitId, row.resourceId, row.userId, row.locationId, row.kind, row.otherCustomerId, row.position]);
+    const pk = primaryKeyOf(table);
+    const keyOf = (row: Loose) => JSON.stringify(pk.length === 1 ? row[pk[0]] : pk.map(k => row[k]));
     const byKey = new Map(actual.map(row => [keyOf(row), row]));
     let shown = 0;
     for (const want of expected) {

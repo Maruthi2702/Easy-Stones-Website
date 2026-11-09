@@ -155,3 +155,52 @@ export function rowConverter(problems: CopyProblem[], table: string, id: string)
     problem: (field: string, reason: string, outcome: CopyProblem['outcome']) => problems.push({ table, id, field, reason, outcome })
   };
 }
+
+/* ---- Shared by every area's rows (operations, holds, inventory, …) ---- */
+
+export const numOrNull = (v: unknown): number | null => typeof v === 'number' && Number.isFinite(v) ? v : null;
+/** A number for a numeric column, as text so nothing is rounded on the way. */
+export const decimalOf = (v: unknown): string | null => numOrNull(v) == null ? null : String(v);
+export const stringsOf = (v: unknown): string[] => Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+export const boolOf = (v: unknown, fallback = false): boolean => typeof v === 'boolean' ? v : fallback;
+
+type Converter = ReturnType<typeof rowConverter>;
+
+/** A whole number for an integer column; a fraction is rounded and reported. */
+export function intOf(c: Converter, field: string, v: unknown): number | null {
+  const n = numOrNull(v);
+  if (n == null) {
+    if (v != null && v !== '') c.problem(field, `not a number: ${typeof v}`, 'blanked');
+    return null;
+  }
+  if (Number.isInteger(n)) return n;
+  c.problem(field, 'fraction rounded to a whole number', 'converted');
+  return Math.round(n);
+}
+
+/** One of a fixed list; blank → `fallback`, anything else → `fallback`, reported. */
+export function pickOf<T extends string>(c: Converter, field: string, v: unknown, allowed: readonly T[], fallback: T): T;
+export function pickOf<T extends string>(c: Converter, field: string, v: unknown, allowed: readonly T[], fallback: null): T | null;
+export function pickOf<T extends string>(c: Converter, field: string, v: unknown, allowed: readonly T[], fallback: T | null): T | null {
+  if (v == null || v === '') return fallback;
+  if ((allowed as readonly string[]).includes(String(v))) return String(v) as T;
+  c.problem(field, `not an allowed value (${shape(String(v))})`, fallback == null ? 'blanked' : 'converted');
+  return fallback;
+}
+
+/** A branch named on a record → its id. Unknown names are reported (blanked). */
+export function locationIdOf(c: Converter, field: string, name: unknown, byName: Map<string, string>): string | null {
+  if (name == null || name === '') return null;
+  const id = byName.get(String(name));
+  if (!id) c.problem(field, 'not a location', 'blanked');
+  return id ?? null;
+}
+
+/** A link to a record that must exist (customer, user…); a dangling one is blanked and reported. */
+export function linkOf(c: Converter, field: string, v: unknown, ids: Set<string>, what: string): string | null {
+  if (v == null || v === '') return null;
+  const id = idOf(v);
+  if (!id) { c.problem(field, `not an id (${shape(String(v))})`, 'blanked'); return null; }
+  if (!ids.has(id)) { c.problem(field, `${what} does not exist`, 'blanked'); return null; }
+  return id;
+}

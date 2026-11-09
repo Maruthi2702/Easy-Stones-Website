@@ -4,13 +4,13 @@
  */
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { EJSON } from 'bson';
-import type { CustomerAreaSource } from '../copy/customerArea.ts';
+import type { CopySource } from '../copy/plan.ts';
 
-export function packSnapshot(src: CustomerAreaSource): Buffer {
+export function packSnapshot(src: CopySource): Buffer {
   return gzipSync(Buffer.from(EJSON.stringify(src, { relaxed: false }), 'utf8'));
 }
 
-export function unpackSnapshot(body: Uint8Array): CustomerAreaSource {
+export function unpackSnapshot(body: Uint8Array): CopySource {
   // relaxed: numbers come back as plain numbers, as the MongoDB driver hands them out.
-  return EJSON.parse(gunzipSync(body).toString('utf8'), { relaxed: true }) as unknown as CustomerAreaSource;
+  return EJSON.parse(gunzipSync(body).toString('utf8'), { relaxed: true }) as unknown as CopySource;
 }

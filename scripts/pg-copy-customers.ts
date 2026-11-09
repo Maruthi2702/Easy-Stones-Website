@@ -14,7 +14,7 @@
  */
 import fs from 'node:fs';
 import { openDb, migrateDb } from '../src/db/client.ts';
-import { copyCustomerArea, verifyCustomerArea, lockCopies } from '../src/db/copy/customerArea.ts';
+import { copyFromMongo, verifyCopy, lockCopies } from '../src/db/copy/plan.ts';
 import { readMongo } from '../src/db/copy/readMongo.ts';
 
 const args = process.argv.slice(2);
@@ -38,12 +38,12 @@ try {
     const started = Date.now();
     const src = await readMongo(mongoUri);
     if (flag('--verify')) {
-      const diffs = await verifyCustomerArea(db, src);
+      const diffs = await verifyCopy(db, src);
       console.log(diffs.length ? diffs.join('\n') : 'Verified: Postgres matches MongoDB, every table, every row, every column.');
       process.exitCode = diffs.length ? 1 : 0;
     } else {
       const write = flag('--write');
-      const report = await copyCustomerArea(db, src, { write });
+      const report = await copyFromMongo(db, src, { write });
       console.log(write ? 'Copied.' : 'Dry run — nothing written.');
       console.log('\nMongoDB records read:'); console.table(report.source);
       console.log('Postgres rows:'); console.table(report.tables);

@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { openDb, migrateDb, type OpenDb } from '../client.ts';
 import * as schema from '../schema/index.ts';
-import { copyCustomerArea, verifyCustomerArea, lockCopies, CopyLockedError, type CustomerAreaSource } from './customerArea.ts';
+import { copyFromMongo, verifyCopy, lockCopies, CopyLockedError, type CopySource, emptySource } from './plan.ts';
 import { contactIdFor } from './customerRows.ts';
 
 const oid = () => new ObjectId();
@@ -17,8 +17,9 @@ const v1 = oid(), v2 = oid(), v3 = oid(), r1 = oid(), contact = oid(), reaction 
 const deletedCustomer = oid(), stranger = oid();
 const s1 = oid(), s2 = oid(), log1 = oid(), log2 = oid(), del1 = oid(), merge1 = oid();
 
-function source(): CustomerAreaSource {
+function source(): CopySource {
   return {
+    ...emptySource(),
     locations: [
       { _id: seattle, name: 'Seattle', shortCode: 'SEA', dailyReportEmail: { userIds: [String(boss), String(stranger)], extraEmails: ['ops@example.com'] }, createdAt: new Date('2026-07-21T00:00:00Z'), updatedAt: new Date('2026-08-01T00:00:00Z') },
       { _id: dallas, name: 'Dallas', salesDefaults: { salesRep: 'Jo Rep', priceLevel: 2, salesTaxRate: 8.25 } }
@@ -84,15 +85,15 @@ afterAll(async () => { await open?.close(); });
 
 const count = async (table: PgTable) => (await open.db.select().from(table)).length;
 
-describe('copyCustomerArea', () => {
+describe('copyFromMongo', () => {
   it('maps without writing on a dry run', async () => {
-    const report = await copyCustomerArea(open.db, source(), { write: false });
+    const report = await copyFromMongo(open.db, source(), { write: false });
     expect(report.tables).toMatchObject({ customers: 2, visits: 2, resources: 1, schedules: 2 });
     expect(await count(schema.customers)).toBe(0);
   });
 
   it('copies the customer area into its own tables, linked by id', async () => {
-    const report = await copyCustomerArea(open.db, source(), { write: true });
+    const report = await copyFromMongo(open.db, source(), { write: true });
     expect(report.tables).toMatchObject({
       locations: 2, roles: 2, users: 2, user_locations: 2, location_report_recipients: 1,
       customers: 2, customer_logins: 1, customer_contacts: 2, customer_links: 3,
@@ -143,7 +144,7 @@ describe('copyCustomerArea', () => {
   });
 
   it('reports every row and field it could not take, never silently', async () => {
-    const { summary } = await copyCustomerArea(open.db, source(), { write: false });
+    const { summary } = await copyFromMongo(open.db, source(), { write: false });
     expect(summary).toMatchObject({
       'customers.email · email already used by another customer · skipped': 1,
       'customers.customer_links.associated · linked customer does not exist · skipped': 1,
@@ -158,16 +159,16 @@ describe('copyCustomerArea', () => {
   });
 
   it('gives the same result when run again, and verifies clean', async () => {
-    const first = await copyCustomerArea(open.db, source(), { write: true });
-    const second = await copyCustomerArea(open.db, source(), { write: true });
+    const first = await copyFromMongo(open.db, source(), { write: true });
+    const second = await copyFromMongo(open.db, source(), { write: true });
     expect(second.tables).toEqual(first.tables);
-    expect(await verifyCustomerArea(open.db, source())).toEqual([]);
+    expect(await verifyCopy(open.db, source())).toEqual([]);
   });
 
   it('finds a row changed in Postgres behind its back', async () => {
-    await copyCustomerArea(open.db, source(), { write: true });
+    await copyFromMongo(open.db, source(), { write: true });
     await open.db.execute(sql`update visits set notes = 'edited' where id = ${String(v1)}`);
-    const diffs = await verifyCustomerArea(open.db, source());
+    const diffs = await verifyCopy(open.db, source());
     expect(diffs).toEqual([`visits "${String(v1)}": differs in notes`]);
   });
 
@@ -178,13 +179,13 @@ describe('copyCustomerArea', () => {
   });
 
   it('refuses a customer delete while it still has visits', async () => {
-    await copyCustomerArea(open.db, source(), { write: true });
+    await copyFromMongo(open.db, source(), { write: true });
     await expect(open.db.execute(sql`delete from customers where id = ${String(acme)}`)).rejects.toThrow();
   });
 
   it('refuses to copy once the database is locked at cutover', async () => {
     await lockCopies(open.db, 'cutover test');
-    await expect(copyCustomerArea(open.db, source(), { write: true })).rejects.toBeInstanceOf(CopyLockedError);
+    await expect(copyFromMongo(open.db, source(), { write: true })).rejects.toBeInstanceOf(CopyLockedError);
     expect(await count(schema.customers)).toBe(2);
   });
 });

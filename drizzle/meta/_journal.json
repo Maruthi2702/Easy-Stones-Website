@@ -15,6 +15,13 @@
       "when": 1794172380057,
       "tag": "0001_schedules_customer_optional",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794185166195,
+      "tag": "0002_operations",
+      "breakpoints": true
     }
   ]
 }

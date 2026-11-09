@@ -8,7 +8,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as schema from './schema/index.ts';
-import type { Db } from './copy/customerArea.ts';
+import type { Db } from './copy/plan.ts';
 
 const MIGRATIONS = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'drizzle');
 
