@@ -22,10 +22,12 @@
     "typecheck": "tsc -p . && node scripts/check-server-ts.ts && node scripts/audit-typescript.ts --check",
     "typecheck:inventory": "tsc -p tsconfig.inventory.json",
     "audit:typescript": "node scripts/audit-typescript.ts",
+    "lambda:deploy": "node scripts/lambda-deploy.ts",
     "pg:ping": "node scripts/pg-ping.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1164.0",
+    "@aws-sdk/client-secrets-manager": "3.1164.0",
     "@aws-sdk/client-sesv2": "3.1156.0",
     "@aws-sdk/rds-signer": "^3.1164.0",
     "@react-google-maps/api": "^2.20.7",

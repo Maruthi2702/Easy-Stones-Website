@@ -30,6 +30,7 @@ import type { Loose } from '../types/records.ts';
  * error, which the Permits page shows. Nothing is ever deleted.
  */
 import { Permit, PermitRun, PermitCheck } from './models.ts';
+import { STALE_RUN_MS } from './staleRun.ts';
 import {
   RULES, SOURCE_IDS, categoryFor, isUnsortedBuildingType, pacificNow, isDailyRunDue, runSince,
   reconcileReport, compareMonthToDate, permitPrefix, monthBounds, fullMonthsBetween
@@ -38,8 +39,6 @@ import { reconcileKingReport, kingReportFill, kingReportPermit } from './rules/k
 
 const TICK_MS = 5 * 60 * 1000;
 const RETRY_GAP_MS = 30 * 60 * 1000;
-// A run still "going" after this long died with its server; the next one may start.
-const STALE_RUN_MS = 45 * 60 * 1000;
 // Reports checked per run, so one morning never turns into an hour of downloads.
 const REPORTS_PER_RUN = 2;
 // Whatcom County's permit-number codes for lead types, even before the app holds one of each.

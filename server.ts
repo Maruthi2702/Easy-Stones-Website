@@ -3,7 +3,11 @@ import { scalarQuery, scalarParams, validateScalarRequest } from './src/server/s
 import type { Loose } from './src/types/records.ts';
 import type { Response, Request, NextFunction } from 'express';
 import dotenv from 'dotenv';
-dotenv.config();
+// RUNTIME=lambda: src/lambda/handler.ts runs this app on AWS Lambda — MongoDB
+// only; Render keeps Socket.IO, the timers and the start-up seeds
+// (src/lambda/README.md). Its settings come from Secrets Manager, never a .env.
+const IS_LAMBDA = process.env.RUNTIME === 'lambda';
+if (!IS_LAMBDA) dotenv.config();
 // Trigger restart for schema update (v2)
 
 import dns from 'dns';
@@ -14,6 +18,8 @@ import { createPresence, deviceFromUserAgent } from './src/services/presence.ts'
 import { resolveStaffToken } from './src/services/staffIdentity.ts';
 import { registerBranchRoomJoins } from './src/services/socketAccess.ts';
 import createPublicProductsRouter from './src/routes/publicProducts.ts';
+import { createLambdaForward } from './src/server/lambdaForward.ts';
+import { createSocketRelayRouter } from './src/server/socketRelay.ts';
 import { createTeamAccess, requireAction, requireArea } from './src/services/teamAccess.ts';
 import { USERS, ROLES, LOCATIONS, canOpenArea, can } from './src/utils/usersAccess.ts';
 import { TEAM_PERMISSION, cleanManageableRoles } from './src/utils/teamAccess.ts';
@@ -27,7 +33,7 @@ import mongoose from 'mongoose';
 // even though `dig`/the OS resolver handle the exact same query fine.
 // Pointing Node at public resolvers sidesteps that host-network quirk
 // entirely rather than depending on whatever nameserver DHCP handed out.
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+if (!IS_LAMBDA) dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 // MOVED TO TOP to ensure settings apply to all models
 mongoose.set('debug', process.env.NODE_ENV === 'development'); // Only log queries in development
@@ -173,6 +179,8 @@ import {
 import { usernameProblem, isValidEmail, isValidDateInput, PASSWORD_MIN } from './src/utils/userForm.ts';
 import Delivery from './src/models/Delivery.ts';
 import { insertInBatches, withDbRetry, hasRowErrorsOnly } from './src/utils/dbRetry.ts';
+import { relay } from './src/lambda/relay.ts';
+import { permitSyncOnLambda } from './src/permits/syncOnLambda.ts';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -267,20 +275,25 @@ const memoryCache: Record<CacheKey, { data: Loose[] | Loose | null; lastFetched:
 
 function cacheHit(key: 'customerMap'): Loose | null;
 function cacheHit(key: Exclude<CacheKey, 'customerMap'>): Loose[] | null;
+// On Lambda every read is fresh: each instance would hold its own copy, and a
+// write on another instance (or on Render) couldn't empty it.
 function cacheHit(key: CacheKey): Loose[] | Loose | null { return (
-  memoryCache[key].data && (Date.now() - memoryCache[key].lastFetched) < memoryCache.TTL
+  !IS_LAMBDA && memoryCache[key].data && (Date.now() - memoryCache[key].lastFetched) < memoryCache.TTL
     ? memoryCache[key].data
     : null);
 }
 
 const cachePut = <T extends Loose[] | Loose>(key: CacheKey, data: T): T => {
+  if (IS_LAMBDA) return data;
   memoryCache[key].data = data;
   memoryCache[key].lastFetched = Date.now();
   return data;
 };
 
 // Helper to bust the product cache after any write
+// On Lambda a bust empties Render's caches (relayed: src/server/socketRelay.ts).
 const bustProductCache = () => {
+  if (IS_LAMBDA) return relay.bust('products');
   memoryCache.products.data = null;
   memoryCache.products.lastFetched = 0;
   console.log('🗑️ Product cache invalidated');
@@ -288,6 +301,7 @@ const bustProductCache = () => {
 
 // Customer writes change both the dropdown and, via role edits, the staff list.
 const bustCustomerCaches = () => {
+  if (IS_LAMBDA) return relay.bust('customers');
   memoryCache.customerDropdown.data = null;
   memoryCache.customerDropdown.lastFetched = 0;
   memoryCache.customerMap.data = null;
@@ -301,6 +315,7 @@ onCustomersGeocoded(() => {
 });
 
 const bustUserCaches = () => {
+  if (IS_LAMBDA) return relay.bust('users');
   memoryCache.salesreps.data = null;
   memoryCache.salesreps.lastFetched = 0;
 };
@@ -374,7 +389,7 @@ const processBase64Image = async (base64String: string, subDir: string = 'Visits
 
 const app = express();
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
+const io = IS_LAMBDA ? null : new Server(httpServer, {
   cors: {
     origin: (origin, callback) => {
       callback(null, true);
@@ -382,7 +397,8 @@ const io = new Server(httpServer, {
     credentials: true
   }
 });
-app.set('io', io);
+// On Lambda, emits are queued and sent to Render's Socket.IO (src/lambda/relay.ts).
+app.set('io', IS_LAMBDA ? relay.io : io);
 
 // ── Who is online ────────────────────────────────────────────────────────────
 const presence = createPresence();
@@ -426,10 +442,10 @@ function announcePresence() {
     const sent = JSON.stringify(list.map(({ userId, status, device, tabs }) => [userId, status, device, tabs]));
     if (sent === lastPresenceSent) return;
     lastPresenceSent = sent;
-    io.to(PRESENCE_VIEWERS_ROOM).emit('presence_update', list);
+    io?.to(PRESENCE_VIEWERS_ROOM).emit('presence_update', list);
   }, 1000);
 }
-setInterval(announcePresence, 60 * 1000).unref();
+if (!IS_LAMBDA) setInterval(announcePresence, 60 * 1000).unref();
 
 // A tab closed (or signed in as someone else). When it was their last one the
 // moment they last used the app is their "last seen".
@@ -441,7 +457,7 @@ function forgetPresenceTab(socket: Loose) {
   announcePresence();
 }
 
-io.on('connection', (socket) => {
+io?.on('connection', (socket) => {
   if (process.env.NODE_ENV === 'development') {
     console.log(`🔌 WebSockets: Client connected (${socket.id})`);
   }
@@ -548,7 +564,8 @@ mongoose.connection.on('fullsetup', () => {
   console.log('🌐 MongoDB connection: All nodes in replica set reachable');
 });
 
-// GLOBAL ERROR HANDLERS
+// GLOBAL ERROR HANDLERS (on Lambda, the Lambda runtime's own)
+if (!IS_LAMBDA) {
 process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
 });
@@ -558,6 +575,7 @@ process.on('uncaughtException', (err) => {
   // Give time for logs to flush before exiting if needed
   setTimeout(() => process.exit(1), 1000);
 });
+}
 
 // STARTUP WRAPPER
 async function startServer() {
@@ -1016,6 +1034,9 @@ async function startServer() {
     httpServer.listen(PORT, () => {
       console.log(`🚀 Backend server running on port ${PORT}`);
 
+      // JOBS=off (a local test server): none of the timers and jobs below.
+      if (process.env.JOBS === 'off') return console.log('⏸️ JOBS=off: no freight, holds, auto-submit, permit, SPS resume or keep-alive jobs');
+
       // Accounting's freight catch-up: now, then every 10 minutes.
       reconcileFreight();
       setInterval(reconcileFreight, 10 * 60 * 1000).unref();
@@ -1054,7 +1075,17 @@ async function startServer() {
   }
 }
 
-startServer();
+// Render: connect, index, seed, migrate, listen and start the jobs. Lambda:
+// connect only, when the handler asks (databaseReady; a failed connect is
+// tried again on the next request).
+const started: Promise<unknown> = IS_LAMBDA ? Promise.resolve() : startServer();
+let lambdaConnection: Promise<unknown> | null = null;
+export function databaseReady(): Promise<unknown> {
+  if (!IS_LAMBDA) return started;
+  lambdaConnection ??= mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/easy-stones', mongoOptions)
+    .catch((err) => { lambdaConnection = null; throw err; });
+  return lambdaConnection;
+}
 
 const memoryStorage = multer.memoryStorage();
 const uploadMemory = multer({
@@ -1096,18 +1127,13 @@ app.use(cors({
   credentials: true // Allow cookies
 }));
 
-// Compression middleware - reduces response sizes by 70-90%
-app.use(compression());
-
-app.use(express.json({ limit: '200mb' })); // Increase limit for large payloads (multiple images)
-app.use(cookieParser());
-
 // A backstop for the other 130+ routes, which had no rate limiting of any
 // kind before this — only /api/auth/login and /api/customer/login did.
 // Deliberately generous (loginLimiter's own "Increased limit for debugging"
 // comment is a reminder that a limiter tuned too tight just becomes a
 // support ticket for real staff on a shared office IP) — this exists to stop
 // a client hammering the API, not to police normal multi-user traffic.
+// Declared here, above the Lambda forwarder, which runs it on what it forwards.
 const apiLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
   max: 500,
@@ -1115,6 +1141,31 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests. Please slow down and try again shortly.' }
 });
+
+// The server on Lambda (src/lambda/README.md): the Lambdas' socket emits and
+// cache busts arrive here, and the /api prefixes in LAMBDA_ROUTES go to API
+// Gateway. Both sit before the body parsers: the relay keeps its own 1 MB limit
+// and the forwarder streams the request body untouched. Render only.
+if (!IS_LAMBDA) {
+  app.use('/api', createSocketRelayRouter({
+    secret: process.env.RELAY_SECRET,
+    io: io!,
+    bust: { customers: bustCustomerCaches, users: bustUserCaches, products: bustProductCache },
+  }));
+  app.use(createLambdaForward({
+    apiUrl: process.env.LAMBDA_API_URL,
+    routes: process.env.LAMBDA_ROUTES,
+    secret: process.env.FORWARD_SECRET,
+    before: [apiLimiter],
+  }));
+}
+
+// Compression middleware - reduces response sizes by 70-90%
+app.use(compression());
+
+app.use(express.json({ limit: '200mb' })); // Increase limit for large payloads (multiple images)
+app.use(cookieParser());
+
 app.use('/api', apiLimiter);
 
 // Prevent caching for all API routes to ensure fresh data after logout/login
@@ -4424,7 +4475,7 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAn
 // Lives in src/routes/schedule.ts: planner entries, the route planner's bulk
 // writes, the .ics feed, and Google/iCloud sync. emitScheduleUpdate is created
 // here because the visit routes above announce calendar changes too.
-const emitScheduleUpdate = createScheduleEmitter(io);
+const emitScheduleUpdate = createScheduleEmitter(app.get('io'));
 app.use('/api', createScheduleRouter({
   authenticate,
   requirePermission,
@@ -4548,7 +4599,9 @@ const permitSync = createPermitSync({
   kingReports: createKingReports(),
   contractors: contractorRegistry
 });
-app.use('/api/permits', createPermitsRouter({ authenticate, sync: permitSync, contractors: contractorRegistry }));
+// On Lambda the pull is Render's: "running" is read from the database, and
+// /refresh answers 503 (it isn't forwarded).
+app.use('/api/permits', createPermitsRouter({ authenticate, sync: IS_LAMBDA ? permitSyncOnLambda(permitSync) : permitSync, contractors: contractorRegistry }));
 
 // Toggle reaction on visit
 app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requirePermission('view_customers'), validateScalarRequest, async (req: Request, res: Response) => {
@@ -6124,3 +6177,5 @@ if (fs.existsSync(distPath)) {
   });
 }
 
+// For src/lambda/handler.ts.
+export { app };

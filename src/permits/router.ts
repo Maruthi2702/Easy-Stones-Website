@@ -269,7 +269,7 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
       checks: checks.map(({ _id, __v, ...c }) => c),
       categories: CATEGORIES,
       cities,
-      running: Boolean(sync?.isRunning()),
+      running: Boolean(await sync?.isRunning()),
       canRefresh,
       canExport: can(req.user, PERMITS.EXPORT)
     });
@@ -376,8 +376,9 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
   }, { label: LABEL }));
 
   router.post('/refresh', authenticate, requireAll(PERMITS.VIEW, PERMITS.REFRESH), handle(async (req: Loose, res: Loose) => {
-    if (!sync) throw new HttpError(503, 'The permit pull isn’t running on this server.');
-    if (sync.isRunning()) return res.status(202).json({ running: true, started: false });
+    // No `run` on Lambda (src/permits/syncOnLambda.ts): the pull is Render's.
+    if (!sync?.run) throw new HttpError(503, 'The permit pull isn’t running on this server.');
+    if (await sync.isRunning()) return res.status(202).json({ running: true, started: false });
     sync.run({ kind: 'manual', by: actorOf(req as Parameters<typeof actorOf>[0]).name }).catch(() => {});
     return res.status(202).json({ running: true, started: true });
   }, { label: LABEL }));
