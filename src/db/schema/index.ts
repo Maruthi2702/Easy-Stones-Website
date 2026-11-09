@@ -7,3 +7,4 @@ export * from './inventory.ts';
 export * from './purchasing.ts';
 export * from './accounting.ts';
 export * from './cardsSuppliers.ts';
+export * from './permits.ts';

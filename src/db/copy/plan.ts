@@ -20,12 +20,13 @@ import { inventoryRows, type InventorySource } from './inventoryRows.ts';
 import { purchasingRows, type PurchasingSource } from './purchasingRows.ts';
 import { accountingRows, type AccountingSource } from './accountingRows.ts';
 import { cardsSuppliersRows, type CardsSuppliersSource } from './cardsSuppliersRows.ts';
+import { permitsRows, type PermitsSource } from './permitsRows.ts';
 import { COPY_COLLECTIONS } from './readMongo.ts';
 import type { CopyProblem } from './values.ts';
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource, PurchasingSource, AccountingSource, CardsSuppliersSource {
+export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource, PurchasingSource, AccountingSource, CardsSuppliersSource, PermitsSource {
   customers: Loose[];
 }
 
@@ -45,6 +46,7 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
   const pur = purchasingRows(src, problems);
   const acc = accountingRows(src, ref.index, ops.index, problems);
   const cs = cardsSuppliersRows(src, ref.index, cust.index, problems);
+  const per = permitsRows(src, problems);
   const r = ref.rows, c = cust.rows, o = ops.rows;
   const steps: [PgTable, Loose[]][] = [
     [schema.locations, r.locations],
@@ -139,7 +141,14 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
     [schema.supplierPoHistory, cs.supplierPoHistory],
     [schema.supplierBlocks, cs.supplierBlocks],
     [schema.supplierBundles, cs.supplierBundles],
-    [schema.supplierBlockHistory, cs.supplierBlockHistory]
+    [schema.supplierBlockHistory, cs.supplierBlockHistory],
+    // Permits
+    [schema.permits, per.permits],
+    [schema.permitContacts, per.permitContacts],
+    [schema.permitRuns, per.permitRuns],
+    [schema.permitChecks, per.permitChecks],
+    [schema.permitContractors, per.permitContractors],
+    [schema.permitContractorNames, per.permitContractorNames]
   ];
   return steps;
 }

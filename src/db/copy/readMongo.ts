@@ -68,7 +68,13 @@ export const COPY_COLLECTIONS: Record<keyof CopySource, string> = {
   suppliers: 'suppliers',
   supplierLogins: 'supplierlogins',
   supplierPos: 'supplierpos',
-  supplierBlocks: 'supplierblocks'
+  supplierBlocks: 'supplierblocks',
+  // Permits
+  permits: 'permits',
+  permitRuns: 'permit_runs',
+  permitChecks: 'permit_checks',
+  permitContractors: 'permit_contractors',
+  permitContractorNames: 'permit_contractor_names'
 };
 
 export async function readMongo(uri: string, appName = 'pg-copy-customers'): Promise<CopySource> {

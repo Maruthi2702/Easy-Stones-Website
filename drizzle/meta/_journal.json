@@ -57,6 +57,13 @@
       "when": 1794186543863,
       "tag": "0007_cards_suppliers",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794186690833,
+      "tag": "0008_permits",
+      "breakpoints": true
     }
   ]
 }
