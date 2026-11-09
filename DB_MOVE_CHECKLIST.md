@@ -84,6 +84,7 @@ writes until then. Each still moves through the data layer first, switch off.
 
 ## 4. Customer area cutover
 
+- [ ] RDS schema up to date: `pg-copy-aws.ts --deploy` after any change in `drizzle/` (the copy applies migrations)
 - [ ] Rehearse on a copy: every customer screen opened with `DB_CUSTOMERS=postgres` (local, PGlite or local Postgres)
 - [ ] Early morning: pause customer writes
 - [ ] `pg-copy-aws.ts --write`, then `--verify`: equal

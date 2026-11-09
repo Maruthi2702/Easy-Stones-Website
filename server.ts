@@ -86,7 +86,7 @@ import { groupDuplicates, STRONG, withoutSeparated, buildSignalIndex, matchAgain
 // The customer list's saved views, A–Z jump and "incomplete" rule, shared with
 // the screen (PartnersSheet) so the ⚠ it shows and the view that finds those
 // rows can't disagree.
-import { savedViewQuery, isSavedView, letterQuery, STATUSES, SAVED_VIEWS } from './src/utils/customerList.ts';
+import { savedViewQuery, isSavedView, STATUSES, SAVED_VIEWS } from './src/utils/customerList.ts';
 // Merging one customer into another, shared with scripts/merge-duplicate-customers.ts.
 import { planFields, contactsFromLosers, snapshotMerge, executeMerge, undoMerge, markSeparate } from './src/services/customerMerge.ts';
 // The customer import decides what it would do before it does any of it, in a
@@ -130,7 +130,7 @@ import { ALL_PERMIT_PERMISSIONS } from './src/permits/permissions.ts';
 import { CHECKIN_MIGRATION } from './src/utils/checkInAccess.ts';
 import {
   CUSTOMER_MIGRATION, CUSTOMER_ADMIN_GRANTS, canViewCustomerProfile, canExportCustomers, canDeleteCustomers,
-  basicCustomer, BASIC_CUSTOMER_PROJECTION
+  basicCustomer
 } from './src/utils/customerAccess.ts';
 import { seedSeattleRecipients } from './src/utils/dailyReportSubmissionEmail.ts';
 import { hasSalesPage } from './src/utils/navPins.ts';
@@ -3778,267 +3778,15 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
     const filterView = mayProfile && isSavedView(requestQuery.view) ? requestQuery.view : '';
     const filterLetter = requestQuery.letter || '';
     const filterModa = mayProfile ? (requestQuery.moda || '') : '';
-    const skip = (page - 1) * limit;
-
-    let query: Loose = {};
-
-    // Build filter conditions
-    const filterConditions: Loose[] = [];
-
-    if (search) {
-      const safeSearch = escapeRegex(search);
-      filterConditions.push({
-        $or: [
-          { company: { $regex: safeSearch, $options: 'i' } },
-          { contactName: { $regex: safeSearch, $options: 'i' } },
-          { name: { $regex: safeSearch, $options: 'i' } },
-          { email: { $regex: safeSearch, $options: 'i' } },
-          { phone: { $regex: safeSearch, $options: 'i' } },
-          { city: { $regex: safeSearch, $options: 'i' } },
-          { 'address.city': { $regex: safeSearch, $options: 'i' } },
-          { 'address.street': { $regex: safeSearch, $options: 'i' } },
-          { status: { $regex: safeSearch, $options: 'i' } }
-        ]
-      });
-    }
-
-    // Saved views (My accounts, Follow-ups due, …) — one preset filter each,
-    // defined with the screen in src/utils/customerList.ts.
-    if (filterView) {
-      filterConditions.push(savedViewQuery(filterView, {
-        userId: req.userId,
-        today: pacificToday(),
-        toId: (id: string) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null)
-      })!);
-    }
-
-    // A–Z jump strip.
-    const letterCondition = letterQuery(filterLetter);
-    if (letterCondition) filterConditions.push(letterCondition);
-
-    // Moda Resources: display = 'Yes'/'No', binders = a count stored as a string.
-    if (filterModa) {
-      const wanted = filterModa.split(',').map(m => m.trim());
-      const modaOrs: Loose[] = [];
-      if (wanted.includes('display')) modaOrs.push({ modaDisplay: 'Yes' });
-      if (wanted.includes('noDisplay')) modaOrs.push({ modaDisplay: { $ne: 'Yes' } });
-      if (wanted.includes('binders')) modaOrs.push({ modaBinder: { $nin: [null, '', '0'] } });
-      if (wanted.includes('noBinders')) modaOrs.push({ modaBinder: { $in: [null, '', '0'] } });
-      if (modaOrs.length) filterConditions.push(modaOrs.length === 1 ? modaOrs[0] : { $or: modaOrs });
-    }
-
-    if (filterStatus) {
-      const statuses = filterStatus.split(',').map(s => s.trim()).filter(Boolean);
-      if (statuses.length > 0) {
-        filterConditions.push({ status: { $in: statuses } });
-      }
-    }
-
-    if (filterLevel) {
-      const levels = filterLevel.split(',').map(l => l.trim()).filter(Boolean);
-      if (levels.length > 0) {
-        filterConditions.push({ level: { $in: levels } });
-      }
-    }
-    if (filterType) {
-      const types = filterType.split(',').map(t => t.trim()).filter(Boolean);
-      if (types.length > 0) {
-        const orConditions: Loose[] = [];
-        const nonFabricatorTypes: string[] = [];
-        let hasFabricator = false;
-
-        types.forEach(t => {
-          if (t.toLowerCase() === 'fabricator') {
-            hasFabricator = true;
-          } else {
-            nonFabricatorTypes.push(t);
-          }
-        });
-
-        if (hasFabricator) {
-          orConditions.push(
-            { customerType: { $regex: /^fabricator$/i } },
-            { customerType: null },
-            { customerType: { $exists: false } },
-            { customerType: '' }
-          );
-        }
-        if (nonFabricatorTypes.length > 0) {
-          orConditions.push({ customerType: { $in: nonFabricatorTypes } });
-        }
-
-        if (orConditions.length > 0) {
-          filterConditions.push(orConditions.length === 1 ? orConditions[0] : { $or: orConditions });
-        }
-      }
-    }
-    if (filterTypeExclude) {
-      const excludeList = filterTypeExclude.split(',').map(t => t.trim()).filter(Boolean);
-      if (excludeList.length > 0) {
-        // When excluding 'Fabricator', also exclude records where customerType is null/empty/missing
-        // because the UI renders those as "Fabricator" by default.
-        const isFabricatorExcluded = excludeList.some(t => t.toLowerCase() === 'fabricator');
-        if (isFabricatorExcluded) {
-          // Must have a non-null, non-empty customerType that is not a Fabricator (case-insensitive)
-          filterConditions.push({
-            $and: [
-              { customerType: { $exists: true } },
-              { customerType: { $ne: null } },
-              { customerType: { $ne: '' } },
-              { customerType: { $not: { $regex: /^fabricator$/i } } }
-            ]
-          });
-        } else {
-          filterConditions.push({ customerType: { $nin: excludeList } });
-        }
-      }
-    }
-    if (filterCity) {
-      const cities = filterCity.split(',').map(c => c.trim()).filter(Boolean);
-      if (cities.length > 0) {
-        const cityOrs: Loose[] = [];
-        cities.forEach(c => {
-          cityOrs.push(
-            { city: { $regex: c, $options: 'i' } },
-            { 'address.city': { $regex: c, $options: 'i' } }
-          );
-        });
-        filterConditions.push({ $or: cityOrs });
-      }
-    }
-
-    // Owning rep. The literal 'unassigned' is a selectable value, not an id —
-    // it is how someone pulls up the accounts still waiting to be claimed, so
-    // it has to match records where the field is null, missing or was cleared.
-    if (filterSalesRep) {
-      const reps = filterSalesRep.split(',').map(r => r.trim()).filter(Boolean);
-      const wantsUnassigned = reps.some(r => r.toLowerCase() === 'unassigned');
-      const repIds = reps
-        .filter(r => mongoose.Types.ObjectId.isValid(r))
-        .map(r => new mongoose.Types.ObjectId(r));
-
-      const repOrs: Loose[] = [];
-      if (repIds.length > 0) repOrs.push({ salesRep: { $in: repIds } });
-      if (wantsUnassigned) repOrs.push({ salesRep: { $in: [null] } });
-
-      if (repOrs.length > 0) {
-        filterConditions.push(repOrs.length === 1 ? repOrs[0] : { $or: repOrs });
-      }
-    }
-
-    // Branch. Records predating the field are Seattle's — the startup migration
-    // backfills them, but match a missing value to Seattle regardless so a
-    // Seattle filter is right even on a database that has not been migrated yet.
-    if (filterLocation) {
-      const locations = filterLocation.split(',').map(l => l.trim()).filter(Boolean);
-      if (locations.length > 0) {
-        const locationOrs: Loose[] = [{ location: { $in: locations } }];
-        if (locations.some(l => l.toLowerCase() === 'seattle')) {
-          locationOrs.push({ location: { $in: [null, ''] } }, { location: { $exists: false } });
-        }
-        filterConditions.push(locationOrs.length === 1 ? locationOrs[0] : { $or: locationOrs });
-      }
-    }
-
-    if (filterConditions.length > 0) {
-      query = filterConditions.length === 1 ? filterConditions[0] : { $and: filterConditions };
-    }
-
     const sortBy = mayProfile ? (requestQuery.sortBy || 'level') : (requestQuery.sortBy === 'level' || !requestQuery.sortBy ? 'company' : requestQuery.sortBy);
     const sortOrder = requestQuery.sortOrder === 'desc' ? -1 : 1;
 
-    // Build the dynamic sort stage. Low-priority statuses always float to the bottom,
-    // and we sort by the chosen sortBy field within those groupings.
-    const sortStage: Record<string, 1 | -1> = { sortPriority: 1 };
-    if (sortBy === 'company') {
-      sortStage.normalizedCompany = sortOrder;
-    } else if (sortBy === 'level') {
-      sortStage.level = sortOrder;
-      sortStage.normalizedCompany = 1;
-    } else if (sortBy === 'city') {
-      sortStage.normalizedCity = sortOrder;
-    } else if (sortBy === 'salesRep') {
-      // Unassigned accounts hold '' and so group together at one end, which is
-      // the useful reading of this sort — the backlog in one block.
-      sortStage.salesRepName = sortOrder;
-      sortStage.normalizedCompany = 1;
-    } else if (sortBy === 'location') {
-      sortStage.normalizedLocation = sortOrder;
-      sortStage.normalizedCompany = 1;
-    } else {
-      sortStage.createdAt = -1; // Default fallback to newest first
-    }
-
-    const totalCount = await Customer.countDocuments(query);
-
-    // The fields the sort reads but the documents do not carry directly. Held in
-    // one place because the paginated and export pipelines below must agree on
-    // them exactly — when they were written out twice they were one edit away
-    // from sorting the export differently from the page it was exported from.
-    const sortFields = {
-      $addFields: {
-        sortPriority: {
-          $cond: {
-            if: {
-              $in: ["$status", ["Different Sales Person", "Not Interested"]]
-            },
-            then: 1,
-            else: 0
-          }
-        },
-        normalizedCity: {
-          $cond: {
-            if: { $and: [{ $gt: ["$city", null] }, { $ne: ["$city", ""] }] },
-            then: "$city",
-            else: { $ifNull: ["$address.city", ""] }
-          }
-        },
-        // A record with no branch is a Seattle record that predates the field,
-        // so it sorts with Seattle rather than ahead of everything.
-        normalizedLocation: {
-          $cond: {
-            if: { $and: [{ $gt: ["$location", null] }, { $ne: ["$location", ""] }] },
-            then: "$location",
-            else: "Seattle"
-          }
-        },
-        normalizedCompany: {
-          $cond: {
-            if: { $and: [{ $gt: ["$company", null] }, { $ne: ["$company", ""] }] },
-            then: "$company",
-            else: {
-              $cond: {
-                if: { $and: [{ $gt: ["$name", null] }, { $ne: ["$name", ""] }] },
-                then: "$name",
-                else: { $ifNull: ["$contactName", ""] }
-              }
-            }
-          }
-        }
-      }
-    };
-
-    // Without Full profile a row is the basic card only (customerAccess.js).
-    const hideHeavyFields = mayProfile
-      ? { $project: { password: 0, contacts: 0, visits: 0, resources: 0 } }
-      : { $project: BASIC_CUSTOMER_PROJECTION };
-
-    // The list shows "+N" for extra contacts without shipping the contacts
-    // themselves, so count them before they're projected away.
-    const countContacts = { $addFields: { contactsCount: { $size: { $ifNull: ['$contacts', []] } } } };
-
-    const customers = await Customer.aggregate(
-      (limit === -1
-        ? [{ $match: query }, sortFields, { $sort: sortStage }, countContacts, hideHeavyFields]
-        : [{ $match: query }, sortFields, { $sort: sortStage }, { $skip: skip }, { $limit: limit }, countContacts, hideHeavyFields] as mongoose.PipelineStage[])
-    );
-
-    res.json({
-      partners: customers,
-      totalCount,
-      totalPages: Math.ceil(totalCount / (limit === -1 ? totalCount || 1 : limit)),
-      currentPage: page
-    });
+    res.json(await customerData.customerList({
+      page, limit, search, mayProfile, userId: req.userId, today: pacificToday(), sortBy, sortOrder,
+      level: filterLevel, type: filterType, typeExclude: filterTypeExclude, city: filterCity,
+      status: filterStatus, salesRep: filterSalesRep, location: filterLocation, view: filterView,
+      letter: filterLetter, moda: filterModa
+    }));
   } catch (error) {
     console.error('Error fetching customer list:', error);
     res.status(500).json({ message: 'Failed to fetch customer list' });

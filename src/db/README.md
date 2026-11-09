@@ -180,31 +180,53 @@ Every read is checked twice:
   parity test and this script together.
 
 Customer area so far: the dropdown (`GET /api/customers/dropdown`), the cities list
-(`/cities`) and `GET /api/customers` (newest first, paged, searched). On live data
-2026-11-10: all the same.
+(`/cities`), `GET /api/customers` (newest first, paged, searched) and the Customers page
+list (`GET /api/customers/list` and its `/api/partners` alias: every filter, saved view,
+A–Z, Moda, sort, page, export and the basic card; SQL in `customers/listSql.ts`). The list
+has its own parity test, `customers/customerList.parity.test.ts`, which also calls the real
+route (sign-in, permissions, export) on both databases. On live data 2026-11-10: all 57
+reads the same, every list sort in exactly the same order.
+
+**Every sort ends on the id** (MongoDB `_id`, Postgres `id collate "C"`, the same order):
+customers with equal sort values (a city, a branch, a level) come in one fixed order, so a
+page never repeats or skips a customer, and both databases list them identically.
+
+**Schema changes reach RDS through the copy**: the copy Lambda applies `drizzle/`
+migrations before it writes. After any change there, `pg-copy-aws.ts --deploy`, then
+`--write` and `--verify`, before an area is switched on.
 
 ### Known differences (live data, 2026-11-10)
 
-What `pg:compare` sets aside (`KNOWN_DIFFERENCES` in `customers/parity.ts`; anything else
-fails it):
+What `pg:compare` sets aside (`KNOWN_DIFFERENCES` in `customers/parity.ts`, and the
+set-asides in its sort checks; anything else fails it):
 
 - 27 customers saved with no createdAt / updatedAt: MongoDB lists them last on
   newest-first lists, Postgres has their real time (from the id) and lists them in place.
 - 5 customers whose stored rep name is "krish" for a user now named "Krish": Postgres reads
-  the user's current name (the stored copy is gone, as planned).
+  the user's current name (the stored copy is gone, as planned), so the Rep sort places
+  them with "Krish".
+- 4 customers saved with no rep name at all (not even ''): MongoDB's Rep sort puts them
+  first; on Postgres they sort with the other unassigned customers.
 - 6 old customers with no geocode block: Postgres says "pending" (the model's default).
 - firstName / lastName (2 old records, both have a company name) and lastLoginIp (written
   on a website sign-in, read by nothing; the last of `loginIps`) aren't copied.
 - 1 link to a deleted customer isn't copied.
-- Customers imported in the same millisecond can come in another order (same dates).
+- `GET /api/customers` (the older paged list): customers imported in the same millisecond
+  can come in another order there (same dates; that route has no id tie-break in MongoDB).
+
+Rules that differ only on data live doesn't have (checked 2026-11-10):
+
+- A customer whose rep's user record was deleted: MongoDB keeps the dangling id (not
+  "Unassigned"); Postgres's foreign key blanks it, so it is Unassigned. 0 on live.
+- A customer with no branch: the copy can't take it (a branch is required), so it would be
+  missing on Postgres; the copy reports it. 0 on live (Mongoose fills "Seattle").
 
 ## Next
 
 The full list, one box per route and step: [`DB_MOVE_CHECKLIST.md`](../../DB_MOVE_CHECKLIST.md).
 
-1. The rest of the customer routes through the data layer: the Customers page list
-   (`GET /api/customers/list`, its filters and sorts), the profile, the map, then the
-   writes (create / edit / delete / visits / resources / contacts) — writes need the
+1. The rest of the customer routes through the data layer: the saved-view counts, the
+   profile, the map, then the writes (create / edit / delete / visits / resources / contacts) — writes need the
    cutover plan, since MongoDB stays the database written until then.
 2. The other areas that point at customers — deliveries, payments, holds, lost sales,
    card expenses, the SPS import — get `customer_id` foreign keys when they move.

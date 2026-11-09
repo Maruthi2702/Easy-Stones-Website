@@ -9,7 +9,9 @@ import { customers, customerLinks, customerLogins } from '../schema/customers.ts
 import { locations, users } from '../schema/reference.ts';
 import type { Loose } from '../../types/records.ts';
 import { customerDoc, repNameOf, type CustomerLinks } from './customerDoc.ts';
-import type { CustomerPage, CustomerPageQuery } from './types.ts';
+import type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery } from './types.ts';
+import { basicCustomer } from '../../utils/customerAccess.ts';
+import { listFields, listWhere, listOrder } from './listSql.ts';
 
 /** `%text%` for ILIKE, with the user's own % _ \ taken literally (MongoDB's escaped regex). */
 export const containsPattern = (text: string) => `%${text.replace(/[\\%_]/g, '\\$&')}%`;
@@ -93,5 +95,43 @@ export async function customerPage(db: Db, { page, limit, search }: CustomerPage
       if (r.lastVisitDate != null) doc.lastVisitDate = r.lastVisitDate;
       return doc;
     })
+  };
+}
+
+/** GET /api/customers/list: filter/count/page in SQL, then restore the API's shape. */
+export async function customerList(db: Db, q: CustomerListQuery): Promise<CustomerList> {
+  if (q.limit !== -1 && q.limit <= 0) throw new Error('Customer list limit must be positive or -1.');
+  const where = listWhere(q);
+  // Use the shared name rule even for username fallbacks; don't recreate it in SQL.
+  // Only the rep sort needs this small directory query (all other sorts use columns).
+  let repName: SQL = sql`''`;
+  if (q.sortBy === 'salesRep') {
+    const reps = await db.select({ id: users.id, repUsername: users.username, repDisplayName: users.displayName }).from(users);
+    if (reps.length) repName = sql`case ${sql.join(reps.map(r => sql`when ${customers.salesRepId} = ${r.id} then ${repNameOf(r)}`), sql` `)} else '' end`;
+  }
+  const [{ total }] = await db.select({ total: count() }).from(customers)
+    .leftJoin(locations, eq(locations.id, customers.locationId)).where(where);
+  const query = db.select({
+    c: customers, login: customerLogins, locationName: locations.name,
+    repUsername: users.username, repDisplayName: users.displayName,
+    ...listFields,
+    contactsCount: sql<number>`(select count(*)::integer from customer_contacts cc where cc.customer_id = ${customers.id})`
+  }).from(customers)
+    .leftJoin(locations, eq(locations.id, customers.locationId))
+    .leftJoin(users, eq(users.id, customers.salesRepId))
+    .leftJoin(customerLogins, eq(customerLogins.customerId, customers.id))
+    .where(where).orderBy(...listOrder(q, repName)).$dynamic();
+  const rows = await (q.limit === -1 ? query : query.limit(q.limit).offset((q.page - 1) * q.limit));
+  const links = q.mayProfile ? await linksOf(db, rows.map(r => r.c.id)) : new Map<string, CustomerLinks>();
+  return {
+    partners: rows.map(r => {
+      const doc = customerDoc(r.c, r, links.get(r.c.id) ?? { associated: [], notDuplicate: [] }, r.login);
+      if (!q.mayProfile) return basicCustomer(doc);
+      return { ...doc, sortPriority: r.sortPriority, normalizedCompany: r.normalizedCompany,
+        normalizedCity: r.normalizedCity, normalizedLocation: r.normalizedLocation, contactsCount: r.contactsCount };
+    }),
+    totalCount: total,
+    totalPages: Math.ceil(total / (q.limit === -1 ? total || 1 : q.limit)),
+    currentPage: q.page
   };
 }

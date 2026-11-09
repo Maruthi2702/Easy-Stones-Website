@@ -17,6 +17,7 @@ import { readMongo } from '../src/db/copy/readMongo.ts';
 import { useAppDbForTests } from '../src/db/appDb.ts';
 import * as customers from '../src/db/customers/index.ts';
 import { normalize, diffEntries, describeDifference, knownWhy } from '../src/db/customers/parity.ts';
+import type { CustomerList, CustomerListQuery } from '../src/db/customers/types.ts';
 
 const mongoUri = process.env.MONGO_URI;
 if (!mongoUri) { console.error('MONGO_URI is not set.'); process.exit(1); }
@@ -31,7 +32,7 @@ if (!noCopy) {
   console.log(`Copied ${Object.values(report.tables).reduce((a, b) => a + b, 0)} rows (${report.problems.length} problems reported by the copy).`);
 }
 useAppDbForTests(pg.db);
-await mongoose.connect(mongoUri, { readPreference: 'secondaryPreferred', appName: 'pg-compare', autoIndex: false });
+await mongoose.connect(mongoUri, { readPreference: 'secondaryPreferred', appName: 'pg-compare', autoIndex: false, autoCreate: false });
 
 type Rec = { _id: string; createdAt?: string };
 type Page = { total: number; customers: Rec[] };
@@ -62,6 +63,53 @@ const reads: { name: string; read: () => Promise<unknown>; prepare?: (v: unknown
   { name: 'customers: search "N/A"', read: () => customers.customerPage({ page: 1, limit: ALL, search: 'N/A' }), prepare: pageById }
 ];
 
+// The Customers page: compare every field and membership for each filter;
+// check the actual sort keys separately so ties cannot hide an ordering bug.
+const owner = await mongoose.connection.db!.collection('customers').findOne(
+  { salesRep: { $type: 'objectId' } }, { projection: { salesRep: 1 } });
+const listBase: CustomerListQuery = {
+  page: 1, limit: -1, search: '', mayProfile: true, userId: owner?.salesRep?.toString(),
+  today: new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date()),
+  sortBy: 'company', sortOrder: 1
+};
+const listById = (v: unknown) => ({ ...(v as CustomerList), partners: sortById(((v as CustomerList).partners ?? []) as Rec[]) });
+const listCases: [string, Partial<CustomerListQuery>][] = [
+  ['all rows', {}], ['basic-card rows', { mayProfile: false }],
+  ['page 1', { limit: 50 }], ['page 2', { page: 2, limit: 50 }],
+  ['empty result', { search: 'no-match-customer-list-987654321' }],
+  ...['stone', '@gmail', '206', 'Seattle', '%', '_', '\\'].map(search => [`search ${JSON.stringify(search)}`, { search }] as [string, Partial<CustomerListQuery>]),
+  ...['mine', 'followups', 'onboarding', 'noModa', 'unassigned', 'incomplete'].map(view => [`view ${view}`, { view }] as [string, Partial<CustomerListQuery>]),
+  ...['A', 'S', '#'].map(letter => [`letter ${letter}`, { letter }] as [string, Partial<CustomerListQuery>]),
+  ...['display', 'noDisplay', 'binders', 'noBinders', 'display,binders'].map(moda => [`Moda ${moda}`, { moda }] as [string, Partial<CustomerListQuery>]),
+  ['multiple levels', { level: 'Level - 1,Level - 3' }], ['multiple statuses', { status: 'New Lead,Trying to Onboard' }],
+  ['Fabricators', { type: 'fabricator' }], ['partners', { typeExclude: 'Fabricator' }],
+  ['multiple types', { type: 'Designer,Builder' }], ['exclude types', { typeExclude: 'Designer,Builder' }],
+  ['city regex', { city: '^Kent$' }], ['multiple cities', { city: 'Kent,Dallas' }],
+  ['multiple branches', { location: 'Seattle,Dallas' }], ['unassigned reps', { salesRep: 'unassigned' }],
+  ['owner and unassigned', { salesRep: `${listBase.userId || ''},unassigned` }],
+  ['combined filters', { type: 'fabricator', location: 'Seattle', moda: 'noDisplay', level: 'Level - 3' }]
+];
+for (const [name, query] of listCases) reads.push({
+  name: `customer list: ${name}`, read: () => customers.customerList({ ...listBase, ...query }), prepare: listById
+});
+// Customers MongoDB holds with no rep name at all (missing sorts before '' there).
+const noRepName = new Set((await mongoose.connection.db!.collection('customers')
+  .find({ salesRepName: { $exists: false } }, { projection: { _id: 1 } }).toArray()).map(c => String(c._id)));
+// The exact order, row by row (the id is the last sort key on both databases), setting
+// aside only the customers a documented difference places elsewhere (README Known differences).
+for (const sortBy of ['company', 'level', 'city', 'salesRep', 'location', 'createdAt']) {
+  for (const sortOrder of [1, -1] as const) reads.push({
+    name: `customer list: ${sortBy} ${sortOrder === 1 ? 'ascending' : 'descending'}, exact order`,
+    read: () => customers.customerList({ ...listBase, sortBy, sortOrder }),
+    prepare: (v, mongo) => {
+      const omitted = new Set(((mongo as CustomerList).partners ?? []).filter(c =>
+        sortBy === 'createdAt' ? !c.createdAt
+          : sortBy === 'salesRep' && (c.salesRepName === 'krish' || noRepName.has(c._id))).map(c => c._id));
+      return ((v as CustomerList).partners ?? []).filter(c => !omitted.has(c._id)).map(c => c._id);
+    }
+  });
+}
+
 let failed = 0;
 const known = new Map<string, { count: number; example: string }>();
 for (const { name, read, prepare } of reads) {
@@ -80,7 +128,7 @@ for (const { name, read, prepare } of reads) {
     known.set(why, k);
     return false;
   });
-  const list = Array.isArray(p) ? p : (p as Page)?.customers;
+  const list = Array.isArray(p) ? p : (p as Page)?.customers ?? (p as CustomerList)?.partners;
   const size = Array.isArray(list) ? `(${list.length} rows)` : '';
   const knownNote = all.length > unknown.length ? `, ${all.length - unknown.length} known differences` : '';
   if (unknown.length) {
