@@ -28,7 +28,7 @@ the owner's decisions: [`MIGRATION_NOTES.md`](MIGRATION_NOTES.md) §3 and §5.
 
 ## 1. Customer area: reads
 
-- [ ] `GET /api/customers/list` — the Customers page (filters, saved views, A–Z, sorts, Moda) · server.ts
+- [x] `GET /api/customers/list` — the Customers page (filters, saved views, A–Z, sorts, Moda) — ca03b24
 - [ ] `GET /api/customers/view-counts` — the saved-view counts · server.ts
 - [ ] `GET /api/customers/:id` + `/:customerId/{visits,resources,contacts}/:entryId` — the profile (`customerHistoryResponse`) · src/routes/customerHistory.ts
 - [ ] `GET /api/customers/:id/vcard` · server.ts
