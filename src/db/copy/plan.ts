@@ -17,12 +17,13 @@ import { linkedRows, type LinkedSource } from './linkedRows.ts';
 import { operationsRows, type OperationsSource } from './operationsRows.ts';
 import { checkInsHoldsRows, type CheckInsHoldsSource } from './checkInsHoldsRows.ts';
 import { inventoryRows, type InventorySource } from './inventoryRows.ts';
+import { purchasingRows, type PurchasingSource } from './purchasingRows.ts';
 import { COPY_COLLECTIONS } from './readMongo.ts';
 import type { CopyProblem } from './values.ts';
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource {
+export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource, PurchasingSource {
   customers: Loose[];
 }
 
@@ -39,6 +40,7 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
   const ops = operationsRows(src, ref.index, cust.index, problems);
   const ch = checkInsHoldsRows(src, ref.index, cust.index, problems);
   const inv = inventoryRows(src, problems);
+  const pur = purchasingRows(src, problems);
   const r = ref.rows, c = cust.rows, o = ops.rows;
   const steps: [PgTable, Loose[]][] = [
     [schema.locations, r.locations],
@@ -92,7 +94,16 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
     [schema.inventoryRevision, inv.inventoryRevision],
     [schema.inventoryStockImports, inv.inventoryStockImports],
     [schema.inventoryStockBackups, inv.inventoryStockBackups],
-    [schema.inventoryStockState, inv.inventoryStockState]
+    [schema.inventoryStockState, inv.inventoryStockState],
+    // Purchasing
+    [schema.purchasingScopes, pur.purchasingScopes],
+    [schema.purchasingScopeAliases, pur.purchasingScopeAliases],
+    [schema.purchasingScopePolicies, pur.purchasingScopePolicies],
+    [schema.purchasingInbound, pur.purchasingInbound],
+    [schema.purchasingDrafts, pur.purchasingDrafts],
+    [schema.purchasingDraftHistory, pur.purchasingDraftHistory],
+    [schema.purchasingLocks, pur.purchasingLocks],
+    [schema.purchasingPoLinks, pur.purchasingPoLinks]
   ];
   return steps;
 }

@@ -40,7 +40,13 @@ export const COPY_COLLECTIONS: Record<keyof CopySource, string> = {
   inventoryRevision: 'inventory_revision',
   inventoryStockImports: 'inventory_stock_imports',
   inventoryStockBackups: 'inventory_stock_backups',
-  inventoryStockState: 'inventory_stock_state'
+  inventoryStockState: 'inventory_stock_state',
+  // Purchasing
+  purchasingScopes: 'purchasing_scopes',
+  purchasingInbound: 'purchasing_inbound',
+  purchasingDrafts: 'purchasing_drafts',
+  purchasingLocks: 'purchasing_locks',
+  purchasingPoLinks: 'purchasing_po_links'
 };
 
 export async function readMongo(uri: string, appName = 'pg-copy-customers'): Promise<CopySource> {
