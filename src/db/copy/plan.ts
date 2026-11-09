@@ -18,12 +18,13 @@ import { operationsRows, type OperationsSource } from './operationsRows.ts';
 import { checkInsHoldsRows, type CheckInsHoldsSource } from './checkInsHoldsRows.ts';
 import { inventoryRows, type InventorySource } from './inventoryRows.ts';
 import { purchasingRows, type PurchasingSource } from './purchasingRows.ts';
+import { accountingRows, type AccountingSource } from './accountingRows.ts';
 import { COPY_COLLECTIONS } from './readMongo.ts';
 import type { CopyProblem } from './values.ts';
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource, PurchasingSource {
+export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource, PurchasingSource, AccountingSource {
   customers: Loose[];
 }
 
@@ -41,6 +42,7 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
   const ch = checkInsHoldsRows(src, ref.index, cust.index, problems);
   const inv = inventoryRows(src, problems);
   const pur = purchasingRows(src, problems);
+  const acc = accountingRows(src, ref.index, ops.index, problems);
   const r = ref.rows, c = cust.rows, o = ops.rows;
   const steps: [PgTable, Loose[]][] = [
     [schema.locations, r.locations],
@@ -103,7 +105,25 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
     [schema.purchasingDrafts, pur.purchasingDrafts],
     [schema.purchasingDraftHistory, pur.purchasingDraftHistory],
     [schema.purchasingLocks, pur.purchasingLocks],
-    [schema.purchasingPoLinks, pur.purchasingPoLinks]
+    [schema.purchasingPoLinks, pur.purchasingPoLinks],
+    // Accounting, Fuel Man
+    [schema.acctCarriers, acc.acctCarriers],
+    [schema.acctCarrierInvoices, acc.acctCarrierInvoices],
+    [schema.acctFreightCharges, acc.acctFreightCharges],
+    [schema.acctFreightChargeFlags, acc.acctFreightChargeFlags],
+    [schema.acctInvoiceCharges, acc.acctInvoiceCharges],
+    [schema.acctPayments, acc.acctPayments],
+    [schema.acctPaymentCharges, acc.acctPaymentCharges],
+    [schema.acctAudit, acc.acctAudit],
+    [schema.fuelReports, acc.fuelReports],
+    [schema.fuelAssignments, acc.fuelAssignments],
+    [schema.fuelAssignmentAllocations, acc.fuelAssignmentAllocations],
+    [schema.fuelProfiles, acc.fuelProfiles],
+    [schema.fuelSources, acc.fuelSources],
+    [schema.fuelExpenses, acc.fuelExpenses],
+    [schema.fuelState, acc.fuelState],
+    [schema.fuelPeriods, acc.fuelPeriods],
+    [schema.fuelHistory, acc.fuelHistory]
   ];
   return steps;
 }
@@ -178,6 +198,7 @@ function primaryKeyOf(table: PgTable): string[] {
 /** Normalize a value read back from either side so equal data compares equal. */
 function norm(v: unknown): unknown {
   if (v instanceof Date) return v.toISOString();
+  if (v instanceof Uint8Array) return `bytes:${Buffer.from(v).toString('base64')}`;
   if (v === undefined) return null;
   if (typeof v === 'string') {
     // Postgres prints a local time without trailing zero milliseconds, and numerics at their scale.

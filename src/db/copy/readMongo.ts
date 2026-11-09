@@ -46,7 +46,21 @@ export const COPY_COLLECTIONS: Record<keyof CopySource, string> = {
   purchasingInbound: 'purchasing_inbound',
   purchasingDrafts: 'purchasing_drafts',
   purchasingLocks: 'purchasing_locks',
-  purchasingPoLinks: 'purchasing_po_links'
+  purchasingPoLinks: 'purchasing_po_links',
+  // Accounting, Fuel Man
+  acctCarriers: 'acct_carriers',
+  acctCarrierInvoices: 'acct_carrier_invoices',
+  acctFreightCharges: 'acct_freight_charges',
+  acctPayments: 'acct_payments',
+  acctAudit: 'acct_audit',
+  fuelReports: 'acct_fuelman_reports',
+  fuelAssignments: 'acct_fuelman_assignments',
+  fuelProfiles: 'acct_fuelman_profiles',
+  fuelSources: 'acct_fuelman_sources',
+  fuelExpenses: 'acct_fuelman_expenses',
+  fuelState: 'acct_fuelman_state',
+  fuelPeriods: 'acct_fuelman_periods',
+  fuelHistory: 'acct_fuelman_history'
 };
 
 export async function readMongo(uri: string, appName = 'pg-copy-customers'): Promise<CopySource> {
