@@ -16,12 +16,13 @@ import { customerRows } from './customerRows.ts';
 import { linkedRows, type LinkedSource } from './linkedRows.ts';
 import { operationsRows, type OperationsSource } from './operationsRows.ts';
 import { checkInsHoldsRows, type CheckInsHoldsSource } from './checkInsHoldsRows.ts';
+import { inventoryRows, type InventorySource } from './inventoryRows.ts';
 import { COPY_COLLECTIONS } from './readMongo.ts';
 import type { CopyProblem } from './values.ts';
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource {
+export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource {
   customers: Loose[];
 }
 
@@ -37,6 +38,7 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
   const linked = linkedRows(src, ref.index, cust.index, problems);
   const ops = operationsRows(src, ref.index, cust.index, problems);
   const ch = checkInsHoldsRows(src, ref.index, cust.index, problems);
+  const inv = inventoryRows(src, problems);
   const r = ref.rows, c = cust.rows, o = ops.rows;
   const steps: [PgTable, Loose[]][] = [
     [schema.locations, r.locations],
@@ -79,7 +81,18 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
     [schema.salesHoldLines, ch.salesHoldLines],
     [schema.salesSlabReservations, ch.salesSlabReservations],
     [schema.salesCounters, ch.salesCounters],
-    [schema.salesHoldHistory, ch.salesHoldHistory]
+    [schema.salesHoldHistory, ch.salesHoldHistory],
+    // Inventory
+    [schema.inventoryItems, inv.inventoryItems],
+    [schema.inventorySalesRecords, inv.inventorySalesRecords],
+    [schema.inventoryTransitShipments, inv.inventoryTransitShipments],
+    [schema.inventoryTransitLines, inv.inventoryTransitLines],
+    [schema.inventoryTransitReports, inv.inventoryTransitReports],
+    [schema.inventoryTransitEvents, inv.inventoryTransitEvents],
+    [schema.inventoryRevision, inv.inventoryRevision],
+    [schema.inventoryStockImports, inv.inventoryStockImports],
+    [schema.inventoryStockBackups, inv.inventoryStockBackups],
+    [schema.inventoryStockState, inv.inventoryStockState]
   ];
   return steps;
 }
