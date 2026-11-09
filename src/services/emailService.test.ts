@@ -89,11 +89,23 @@ describe('sendSelectionSheetEmail', () => {
     expect(await htmlOf()).not.toContain('<img');
   });
 
-  it('links phones and emails in the text\'s own colour (a phone app would turn them blue)', async () => {
+  // A phone app turned them blue; so did a forward, which ignores `color: inherit`.
+  it('links phones and emails in the text\'s own colour, named outright', async () => {
     const html = await htmlOf();
-    expect(html).toContain('<a href="tel:+12065550142" style="color: inherit; text-decoration: none;">(206) 555-0142</a>');
+    expect(html).toContain('<a href="tel:+12065550142" style="color: #3D434B; text-decoration: none;"><span style="color: #3D434B;">(206) 555-0142</span></a>');
     expect(html).toContain('<a href="tel:+14253068522"');
-    expect(html).toContain('<a href="mailto:rita@x.com" style="color: inherit; text-decoration: none;">rita@x.com</a>');
+    expect(html).toContain('<a href="mailto:rita@x.com" style="color: #3D434B; text-decoration: none;"><span style="color: #3D434B;">rita@x.com</span></a>');
+    expect(html).not.toContain('inherit');
+  });
+
+  // A forward dropped a sized div's width / height: the step rings stretched into
+  // the words, and the people lost their widths and sat 12px apart.
+  it('keeps the step rings round and apart from their words, and the people apart, after a forward', async () => {
+    const html = await htmlOf();
+    expect(html).toMatch(/<td width="20" height="20" align="center" valign="middle" style="[^"]*border-radius: 11px;[^"]*">1<\/td>/);
+    expect(html).toMatch(/<td style="padding: 8px 0 0 10px;[^"]*">Give this sheet to your fabricator\.<\/td>/);
+    expect(html).not.toMatch(/<div style="width: 20px; height: 20px/);
+    expect(html.match(/display: inline-block; vertical-align: top; width: \d+px; max-width: 100%; margin: 0 20px 14px 0;/g)).toHaveLength(3);
   });
 
   it('is titled "Selection Sheet: <name>", from Easy Surfaces, replies to the rep', async () => {

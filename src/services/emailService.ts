@@ -228,17 +228,21 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
     notes: checkIn.specialNotes, letterhead, date, showPrices: showPrices === true
   });
   const e = escapeHtml;
+  const PEOPLE_SUB = '#3D434B';
   const LABEL = 'font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #5B616B; white-space: nowrap;';
   const H2 = 'margin: 0; font-size: 16px; font-weight: 700; color: #1F2328;';
   const heading = [doc.date, doc.location].filter(Boolean).join(' · ');
-  // A phone or email as a link in the surrounding text's colour.
-  const LINK = 'color: inherit; text-decoration: none;';
-  const phoneLink = (phone: string) => {
+  // A phone or email as a link in the surrounding text's colour, named
+  // outright on the link and on a span inside it: a forward (Outlook's
+  // editor) doesn't know `color: inherit` and turned them blue.
+  const link = (href: string, text: string, color: string) =>
+    `<a href="${href}" style="color: ${color}; text-decoration: none;"><span style="color: ${color};">${e(text)}</span></a>`;
+  const phoneLink = (phone: string, color = PEOPLE_SUB) => {
     const digits = phone.replace(/\D/g, '');
     const tel = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith('1') ? `+${digits}` : '';
-    return tel ? `<a href="tel:${tel}" style="${LINK}">${e(phone)}</a>` : e(phone);
+    return tel ? link(`tel:${tel}`, phone, color) : e(phone);
   };
-  const emailLink = (email: string) => `<a href="mailto:${e(email)}" style="${LINK}">${e(email)}</a>`;
+  const emailLink = (email: string) => link(`mailto:${e(email)}`, email, PEOPLE_SUB);
 
   // The three people: blocks that sit side by side while they fit and wrap
   // when they don't — three across at 600px; on a phone Prepared for and
@@ -247,13 +251,16 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
   // two). They sit in a cell with align="left" and are written with no
   // space between them: a forward (Outlook, Apple Mail) dropped our
   // text-align and centred them, and a space would add a gap. Labels are
-  // typed in capitals — a forward dropped text-transform too.
-  const person = (label: string, name: string, sub: string, width: number) => `<div style="display: inline-block; vertical-align: top; width: ${width}px; max-width: 100%; margin: 0 12px 14px 0; text-align: left;">`
+  // typed in capitals — a forward dropped text-transform too. A forward
+  // also dropped their widths, so the gap between them is the margin alone
+  // (20px): it's what's left between them when the widths go. Prepared for
+  // and Fabricator are 124px so the pair still fits a 360px phone side by side.
+  const person = (label: string, name: string, sub: string, width: number) => `<div style="display: inline-block; vertical-align: top; width: ${width}px; max-width: 100%; margin: 0 20px 14px 0; text-align: left;">`
     + `<div style="${LABEL}">${label}</div>`
     + `<div style="margin-top: 3px; font-size: 15px; font-weight: 600; color: #1F2328; word-break: break-word; overflow-wrap: anywhere;">${e(name) || '—'}</div>`
     + (sub ? (sub.includes('@')
-      ? `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; white-space: nowrap;">${emailLink(sub)}</div>`
-      : `<div style="margin-top: 1px; font-size: 13px; color: #3D434B; white-space: nowrap;">${phoneLink(sub)}</div>`) : '')
+      ? `<div style="margin-top: 1px; font-size: 13px; color: ${PEOPLE_SUB}; white-space: nowrap;">${emailLink(sub)}</div>`
+      : `<div style="margin-top: 1px; font-size: 13px; color: ${PEOPLE_SUB}; white-space: nowrap;">${phoneLink(sub)}</div>`) : '')
     + '</div>';
 
   const rowsHtml = doc.rows.length === 0
@@ -280,10 +287,15 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
           </table>`;
     }).join('');
 
+  // Each step's number in a ring. The ring is a table cell sized by its
+  // width / height attributes, not a sized <div>: a forward dropped the
+  // div's size and the ring stretched across its column into the words.
+  // The words have their own left padding so they never touch it. (Outlook
+  // on Windows draws no border-radius: a square there.)
   const steps = doc.steps.map((t, i) => `
               <tr>
-                <td style="width: 30px; padding: 6px 0 0 0; vertical-align: top;"><div style="width: 20px; height: 20px; line-height: 20px; border-radius: 10px; border: 1px solid #7A5C10; color: #7A5C10; font-size: 12px; font-weight: 700; text-align: center;">${i + 1}</div></td>
-                <td style="padding: 7px 0 0 0; vertical-align: top; font-size: 13px; line-height: 1.45; color: #1F2328;">${e(t)}</td>
+                <td width="22" style="width: 22px; padding: 6px 0 0 0; vertical-align: top;"><table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: separate;"><tr><td width="20" height="20" align="center" valign="middle" style="width: 20px; height: 20px; padding: 0; border: 1px solid #7A5C10; border-radius: 11px; color: #7A5C10; font-size: 12px; line-height: 20px; font-weight: 700; text-align: center;">${i + 1}</td></tr></table></td>
+                <td style="padding: 8px 0 0 10px; vertical-align: top; font-size: 13px; line-height: 1.45; color: #1F2328;">${e(t)}</td>
               </tr>`).join('');
 
   return `
@@ -310,7 +322,7 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
       <div style="height: 2px; line-height: 2px; font-size: 0; background: #C9A13B; margin: 16px 0 20px 0;">&nbsp;</div>
 
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
-        <tr><td align="left" style="padding: 0; text-align: left;">${person('PREPARED FOR', doc.customer.name, doc.customer.phone, 132)}${person('FABRICATOR', doc.fabricator.name, doc.fabricator.phone, 132)}${person('YOUR SALES REP', doc.rep.name, doc.rep.email, 180)}</td></tr>
+        <tr><td align="left" style="padding: 0; text-align: left;">${person('PREPARED FOR', doc.customer.name, doc.customer.phone, 124)}${person('FABRICATOR', doc.fabricator.name, doc.fabricator.phone, 124)}${person('YOUR SALES REP', doc.rep.name, doc.rep.email, 180)}</td></tr>
       </table>
 
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; margin-top: 26px;">
@@ -339,7 +351,7 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; margin-top: 24px; border-top: 1px solid #D9D4C7;">
         <tr>
           <td style="padding: 12px 12px 0 0; vertical-align: top; font-size: 12px; line-height: 1.6; color: #5B616B;">${e(doc.footer)}</td>
-          <td style="padding: 12px 0 0 0; vertical-align: top; text-align: right; white-space: nowrap; font-size: 12px; line-height: 1.6; color: #5B616B;">${phoneLink(doc.phone)}</td>
+          <td style="padding: 12px 0 0 0; vertical-align: top; text-align: right; white-space: nowrap; font-size: 12px; line-height: 1.6; color: #5B616B;">${phoneLink(doc.phone, '#5B616B')}</td>
         </tr>
       </table>
     </div>
