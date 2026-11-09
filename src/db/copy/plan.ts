@@ -15,12 +15,13 @@ import { referenceRows, type ReferenceSource } from './referenceRows.ts';
 import { customerRows } from './customerRows.ts';
 import { linkedRows, type LinkedSource } from './linkedRows.ts';
 import { operationsRows, type OperationsSource } from './operationsRows.ts';
+import { checkInsHoldsRows, type CheckInsHoldsSource } from './checkInsHoldsRows.ts';
 import { COPY_COLLECTIONS } from './readMongo.ts';
 import type { CopyProblem } from './values.ts';
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource {
+export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource {
   customers: Loose[];
 }
 
@@ -35,6 +36,7 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
   const cust = customerRows(src.customers, ref.index, problems);
   const linked = linkedRows(src, ref.index, cust.index, problems);
   const ops = operationsRows(src, ref.index, cust.index, problems);
+  const ch = checkInsHoldsRows(src, ref.index, cust.index, problems);
   const r = ref.rows, c = cust.rows, o = ops.rows;
   const steps: [PgTable, Loose[]][] = [
     [schema.locations, r.locations],
@@ -67,7 +69,17 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
     [schema.dailyReportContainers, o.dailyReportContainers],
     [schema.dailyReportLog, o.dailyReportLog],
     [schema.paymentsReceived, o.paymentsReceived],
-    [schema.paymentHistory, o.paymentHistory]
+    [schema.paymentHistory, o.paymentHistory],
+    // Check In, Cart & Holds
+    [schema.officeCheckIns, ch.officeCheckIns],
+    [schema.checkInSelections, ch.checkInSelections],
+    [schema.salesCarts, ch.salesCarts],
+    [schema.salesCartLines, ch.salesCartLines],
+    [schema.salesHolds, ch.salesHolds],
+    [schema.salesHoldLines, ch.salesHoldLines],
+    [schema.salesSlabReservations, ch.salesSlabReservations],
+    [schema.salesCounters, ch.salesCounters],
+    [schema.salesHoldHistory, ch.salesHoldHistory]
   ];
   return steps;
 }

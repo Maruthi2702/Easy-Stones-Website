@@ -23,7 +23,14 @@ export const COPY_COLLECTIONS: Record<keyof CopySource, string> = {
   deliveries: 'deliveries',
   trucks: 'trucks',
   dailyReports: 'dailyreports',
-  paymentsReceived: 'paymentreceiveds'
+  paymentsReceived: 'paymentreceiveds',
+  // Check In, Cart & Holds
+  officeCheckIns: 'officecheckins',
+  salesCarts: 'sales_carts',
+  salesHolds: 'sales_holds',
+  salesSlabReservations: 'sales_slab_reservations',
+  salesCounters: 'sales_counters',
+  salesHoldHistory: 'sales_hold_history'
 };
 
 export async function readMongo(uri: string, appName = 'pg-copy-customers'): Promise<CopySource> {
