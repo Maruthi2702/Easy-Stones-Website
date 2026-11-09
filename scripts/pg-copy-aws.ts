@@ -1,6 +1,6 @@
 /**
- * Copy the customer area from MongoDB into the RDS Postgres on AWS, or check it —
- * pg-copy-customers.ts for a database a laptop can't reach. MongoDB is only READ.
+ * Copy MongoDB into the RDS Postgres on AWS (every area), or check it —
+ * pg-copy.ts for a database a laptop can't reach. MongoDB is only READ.
  *
  *   node scripts/pg-copy-aws.ts --deploy             upload the copy Lambda's code (after a change to src/db)
  *   node scripts/pg-copy-aws.ts                      dry run: map and report, write nothing

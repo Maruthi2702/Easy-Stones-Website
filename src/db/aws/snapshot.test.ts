@@ -1,14 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { BSON, ObjectId, Decimal128 } from 'mongodb';
 import { openDb, migrateDb } from '../client.ts';
-import { copyCustomerArea, verifyCustomerArea, type CustomerAreaSource } from '../copy/customerArea.ts';
+import { copyFromMongo, verifyCopy, type CopySource, emptySource } from '../copy/plan.ts';
 import { packSnapshot, unpackSnapshot } from './snapshot.ts';
 
 const oid = () => new ObjectId();
 const dallas = oid(), role = oid(), rep = oid(), acme = oid(), visit = oid(), contact = oid(), log = oid(), backup = oid();
 
-function source(): CustomerAreaSource {
+function source(): CopySource {
   return {
+    ...emptySource(),
     locations: [{ _id: dallas, name: 'Dallas', salesDefaults: { priceLevel: 2, salesTaxRate: 8.25 }, createdAt: new Date('2026-07-21T00:00:00Z') }],
     roles: [{ _id: role, name: 'sales_rep', displayName: 'Sales Rep', permissions: ['view_customers'] }],
     users: [{ _id: rep, username: 'jo', displayName: 'Jo Rep', role: 'sales_rep', location: 'Dallas', assignedLocations: ['Dallas'] }],
@@ -44,11 +45,11 @@ describe('MongoDB snapshot for the copy Lambda', () => {
     const { db, close } = await openDb('pglite:memory');
     try {
       await migrateDb(db, 'pglite:memory');
-      const viaSnapshot = await copyCustomerArea(db, unpackSnapshot(packSnapshot(source())), { write: true });
-      const direct = await copyCustomerArea(db, source(), { write: false });
+      const viaSnapshot = await copyFromMongo(db, unpackSnapshot(packSnapshot(source())), { write: true });
+      const direct = await copyFromMongo(db, source(), { write: false });
       expect(viaSnapshot.tables).toEqual(direct.tables);
       expect(viaSnapshot.summary).toEqual(direct.summary);
-      expect(await verifyCustomerArea(db, source())).toEqual([]);
+      expect(await verifyCopy(db, source())).toEqual([]);
     } finally {
       await close();
     }

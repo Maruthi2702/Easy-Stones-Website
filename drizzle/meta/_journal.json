@@ -15,6 +15,62 @@
       "when": 1794172380057,
       "tag": "0001_schedules_customer_optional",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794185166195,
+      "tag": "0002_operations",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794185476999,
+      "tag": "0003_checkins_holds",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794185732438,
+      "tag": "0004_inventory",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794185976163,
+      "tag": "0005_purchasing",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794186268196,
+      "tag": "0006_accounting",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794186543863,
+      "tag": "0007_cards_suppliers",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794186690833,
+      "tag": "0008_permits",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794186923047,
+      "tag": "0009_misc",
+      "breakpoints": true
     }
   ]
 }

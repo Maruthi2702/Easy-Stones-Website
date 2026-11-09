@@ -1,7 +1,7 @@
 /**
  * The copy Lambda (aws-infra: `<project>-<env>-db-copy`, in the VPC, no internet).
  * Loads a MongoDB snapshot from S3 into Postgres, checks one, or locks the database
- * against copies — the same steps as scripts/pg-copy-customers.ts, run where RDS is.
+ * against copies — the same steps as scripts/pg-copy.ts, run where RDS is.
  * Started by scripts/pg-copy-aws.ts, which also uploads this code (`--deploy`).
  *
  * Logs in as the IAM-auth user (a token signed here, no password, no Secrets Manager).
@@ -14,7 +14,7 @@ import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import * as schema from '../schema/index.ts';
-import { copyCustomerArea, verifyCustomerArea, lockCopies, CopyLockedError, type Db } from '../copy/customerArea.ts';
+import { copyFromMongo, verifyCopy, lockCopies, CopyLockedError, type Db } from '../copy/plan.ts';
 import { unpackSnapshot } from './snapshot.ts';
 
 export type CopyAction = 'dry-run' | 'write' | 'verify' | 'lock';
@@ -84,12 +84,12 @@ export const handler = async (event: CopyEvent): Promise<CopyResult> => {
       s3.send(new PutObjectCommand({ Bucket: bucket, Key: reportKey, Body: JSON.stringify(body, null, 1), ContentType: 'application/json' }));
 
     if (event.action === 'verify') {
-      const diffs = await verifyCustomerArea(db, src);
+      const diffs = await verifyCopy(db, src);
       await saveReport({ verifiedAt: new Date().toISOString(), diffs });
       return { ok: diffs.length === 0, action: 'verify', diffs: diffs.slice(0, 200), reportKey, seconds: seconds() };
     }
 
-    const report = await copyCustomerArea(db, src, { write: event.action === 'write' });
+    const report = await copyFromMongo(db, src, { write: event.action === 'write' });
     await saveReport(report);
     return {
       ok: true, action: event.action,

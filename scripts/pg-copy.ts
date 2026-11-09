@@ -1,12 +1,12 @@
 /**
- * Copy the customer area from MongoDB into Postgres, or check a copy.
+ * Copy MongoDB into Postgres (every area, src/db/README.md), or check a copy.
  * Only READS MongoDB (secondary preferred); writes only to DATABASE_URL.
  * See src/db/README.md.
  *
- *   node scripts/pg-copy-customers.ts                 dry run: map and report, write nothing
- *   node scripts/pg-copy-customers.ts --write         replace the copied tables in one transaction
- *   node scripts/pg-copy-customers.ts --verify        compare Postgres with MongoDB row by row
- *   node scripts/pg-copy-customers.ts --lock "name"   at cutover: refuse every copy from now on
+ *   node scripts/pg-copy.ts                 dry run: map and report, write nothing
+ *   node scripts/pg-copy.ts --write         replace the copied tables in one transaction
+ *   node scripts/pg-copy.ts --verify        compare Postgres with MongoDB row by row
+ *   node scripts/pg-copy.ts --lock "name"   at cutover: refuse every copy from now on
  *   --report <file>   write the full report (every problem, by id) as JSON
  *
  * MONGO_URI is the source, DATABASE_URL the target (postgres://…?sslmode=require
@@ -14,7 +14,7 @@
  */
 import fs from 'node:fs';
 import { openDb, migrateDb } from '../src/db/client.ts';
-import { copyCustomerArea, verifyCustomerArea, lockCopies } from '../src/db/copy/customerArea.ts';
+import { copyFromMongo, verifyCopy, lockCopies } from '../src/db/copy/plan.ts';
 import { readMongo } from '../src/db/copy/readMongo.ts';
 
 const args = process.argv.slice(2);
@@ -38,12 +38,12 @@ try {
     const started = Date.now();
     const src = await readMongo(mongoUri);
     if (flag('--verify')) {
-      const diffs = await verifyCustomerArea(db, src);
+      const diffs = await verifyCopy(db, src);
       console.log(diffs.length ? diffs.join('\n') : 'Verified: Postgres matches MongoDB, every table, every row, every column.');
       process.exitCode = diffs.length ? 1 : 0;
     } else {
       const write = flag('--write');
-      const report = await copyCustomerArea(db, src, { write });
+      const report = await copyFromMongo(db, src, { write });
       console.log(write ? 'Copied.' : 'Dry run — nothing written.');
       console.log('\nMongoDB records read:'); console.table(report.source);
       console.log('Postgres rows:'); console.table(report.tables);
