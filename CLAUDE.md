@@ -570,8 +570,9 @@ print page sets `@page { margin: 0 }` so browsers print no date / about:blank /
 page count of their own. The email is fluid with no media queries and survives a **forward** (an
 Outlook forward dropped our text-align and text-transform): the three people
 are blocks in an `align="left"` cell, written with no space between them,
-three across at 600px and on a phone two then the rep (so an email address
-stays on one line), labels typed in capitals; one row per material. A forward
+three across the 600px email's width and on a phone one per line (so an email
+address stays on one line; each width is a table's width attribute, which a
+forward keeps — 2026-11-09), labels typed in capitals; one row per material. A forward
 also ignores `color: inherit` (links went blue) and a `<div>`'s width / height
 (the step rings stretched into their words; the people lost their widths):
 name colours outright, size with table-cell attributes, space with margins

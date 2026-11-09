@@ -69,15 +69,15 @@ describe('sendSelectionSheetEmail', () => {
   // A forward (Outlook, Apple Mail) dropped our text-align and text-transform.
   it('lays the people out left-aligned, labels in capitals, so a forward keeps them', async () => {
     const html = await htmlOf();
-    expect(html).toMatch(/<td align="left"[^>]*><div style="display: inline-block;[^"]*text-align: left;"><div[^>]*>PREPARED FOR<\/div>/);
-    expect(html).toContain('</div></div><div style="display: inline-block;');
+    expect(html).toMatch(/<td align="left"[^>]*><div style="display: inline-block;[^"]*text-align: left;"><table[^>]*><tr><td align="left"[^>]*><div[^>]*>PREPARED FOR<\/div>/);
+    expect(html).toContain('</td></tr></table></div><div style="display: inline-block;');
   });
 
   // Three phone-width columns broke the rep's email in two.
   it('keeps a phone or an email on one line', async () => {
     const html = await htmlOf();
     expect(html).toMatch(/white-space: nowrap;"><a href="mailto:rita@x\.com"/);
-    expect(html).toMatch(/width: 180px;[^>]*>(?:<div[^>]*>[^<]*<\/div>)*<div[^>]*>YOUR SALES REP/);
+    expect(html).toMatch(/<table role="presentation" width="180"[^>]*><tr><td[^>]*><div[^>]*>YOUR SALES REP/);
   });
 
   // Dark mode repaints the email; the logo image's dark lettering vanished there.
@@ -105,7 +105,10 @@ describe('sendSelectionSheetEmail', () => {
     expect(html).toMatch(/<td width="20" height="20" align="center" valign="middle" style="[^"]*border-radius: 11px;[^"]*">1<\/td>/);
     expect(html).toMatch(/<td style="padding: 8px 0 0 10px;[^"]*">Give this sheet to your fabricator\.<\/td>/);
     expect(html).not.toMatch(/<div style="width: 20px; height: 20px/);
-    expect(html.match(/display: inline-block; vertical-align: top; width: \d+px; max-width: 100%; margin: 0 20px 14px 0;/g)).toHaveLength(3);
+    // Each person's width is a table's width attribute, which a forward keeps.
+    for (const [width, label] of [[165, 'PREPARED FOR'], [165, 'FABRICATOR'], [180, 'YOUR SALES REP']] as const)
+      expect(html, label).toMatch(new RegExp(`<table role="presentation" width="${width}"[^>]*><tr><td[^>]*><div[^>]*>${label}<`));
+    expect(html.match(/margin: 0 20px 14px 0;/g)).toHaveLength(2);
   });
 
   it('is titled "Selection Sheet: <name>", from Easy Surfaces, replies to the rep', async () => {
