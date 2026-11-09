@@ -25,6 +25,33 @@ node scripts/pg-copy-customers.ts --verify
 for RDS, or `pglite:<folder>` for a local try-out (PGlite is Postgres inside Node, a dev
 dependency; the tests use `pglite:memory`).
 
+### Copying into RDS on AWS
+
+RDS sits in the VPC's isolated subnets: no laptop, NAT or EC2 reaches it (owner: no EC2).
+`scripts/pg-copy-aws.ts` takes the same flags and does the run in two halves:
+
+```
+laptop ── reads MongoDB ──► snapshot (Extended JSON, gzipped) in the copy bucket
+laptop ── invokes ──► easy-surfaces-<env>-db-copy (Lambda in the VPC)
+                       ├─ reads the snapshot (S3 gateway endpoint)
+                       ├─ writes / checks Postgres as app_iam (IAM token, no password)
+                       └─ writes the report to the bucket
+laptop ── deletes the snapshot (the bucket forgets anything left after a day)
+```
+
+```
+node scripts/pg-copy-aws.ts --deploy              # upload the Lambda's code (after any change in src/db)
+node scripts/pg-copy-aws.ts                       # dry run
+node scripts/pg-copy-aws.ts --write --report report.json
+node scripts/pg-copy-aws.ts --verify
+```
+
+`MONGO_URI` is the source; AWS credentials are the default profile; `PG_COPY_ENV`
+(dev by default) picks the function. The function, its bucket and permissions are in
+aws-infra (`lib/constructs/mongo-copy.ts`); its code is `aws/copyHandler.ts`, uploaded by
+`--deploy` (CloudFormation leaves uploaded code alone). The snapshot format is
+`aws/snapshot.ts` (tested: a round trip copies the same as reading MongoDB).
+
 ## Tables (drizzle schema in `schema/`, SQL in `/drizzle`)
 
 Each record keeps its MongoDB id (24 hex characters) as its primary key, so links,

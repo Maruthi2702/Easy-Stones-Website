@@ -441,10 +441,16 @@ us-west regions).
 
 ## Open items for next week (2026-11-08)
 
-1. **RDS in dev** isn't deployed. The database stack puts RDS in isolated subnets,
-   so `scripts/pg-copy-customers.ts` can't reach it from a laptop — needs an SSM
-   tunnel / bastion, or the copy run as a Lambda inside the VPC. Decide, deploy,
-   then copy + `--verify` against RDS.
+1. **RDS in dev — done 2026-11-08.** Network and RDS were already deployed; the copy runs
+   through a Lambda in the VPC with a snapshot in a private bucket (no EC2, no NAT):
+   `scripts/pg-copy-aws.ts`, aws-infra `lib/constructs/mongo-copy.ts`, see src/db/README.md.
+   `--write` then `--verify` against live data: 4,502 customers, 553 visits, 84 resources,
+   541 calendar entries — **verified equal** (7.6 s copy, 2.2 s check).
+   **Order decided by the owner the same day:** RDS stays private (no public endpoint), so
+   the server moves to Lambda first, still on MongoDB (outside the VPC, no NAT; Render keeps
+   serving the site and forwards /api to API Gateway), then areas move to Postgres one at a
+   time on Lambda (users / locations / roles copied one way from MongoDB until they move).
+   Route 53 and Amplify wait until the database has fully moved.
 2. **Prod RDS size**: `prod.yaml` asks for an m7g.large Multi-AZ (~$250+/month) for
    a 32 MB database; suggested t4g.medium Multi-AZ — owner hasn't answered.
 3. **Customer routes on Postgres** behind a switch (data layer per area), then the

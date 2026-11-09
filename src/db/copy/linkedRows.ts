@@ -3,7 +3,7 @@
  * document: calendar entries (schedules), the activity log, and the delete /
  * merge backups (src/db/schema/customers.ts).
  */
-import { BSON } from 'mongodb';
+import { EJSON } from 'bson';
 import type { Loose } from '../../types/records.ts';
 import type { schedules, activityLogs, customerDeleteBackups, customerMergeBackups } from '../schema/customers.ts';
 import type { ReferenceIndex } from './referenceRows.ts';
@@ -43,7 +43,7 @@ export function plainJson(value: unknown): unknown {
 }
 
 /** A whole snapshot in MongoDB extended JSON, so Undo can rebuild exactly what was there. */
-export const snapshotJson = (value: unknown) => BSON.EJSON.serialize(value as Loose, { relaxed: true }) as Loose;
+export const snapshotJson = (value: unknown) => EJSON.serialize(value as Loose, { relaxed: true }) as Loose;
 
 export function linkedRows(src: LinkedSource, ref: ReferenceIndex, cust: CustomerIndex, problems: CopyProblem[]): LinkedRows {
   const rows: LinkedRows = { schedules: [], activityLogs: [], customerDeleteBackups: [], customerMergeBackups: [] };

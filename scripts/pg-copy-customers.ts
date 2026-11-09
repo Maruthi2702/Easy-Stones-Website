@@ -13,9 +13,9 @@
  * for RDS, or pglite:<folder> for a local try-out).
  */
 import fs from 'node:fs';
-import { MongoClient } from 'mongodb';
 import { openDb, migrateDb } from '../src/db/client.ts';
-import { copyCustomerArea, verifyCustomerArea, lockCopies, type CustomerAreaSource } from '../src/db/copy/customerArea.ts';
+import { copyCustomerArea, verifyCustomerArea, lockCopies } from '../src/db/copy/customerArea.ts';
+import { readMongo } from '../src/db/copy/readMongo.ts';
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(name);
@@ -24,20 +24,6 @@ const valueOf = (name: string) => { const i = args.indexOf(name); return i >= 0 
 const mongoUri = process.env.MONGO_URI;
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) { console.error('DATABASE_URL is not set.'); process.exit(1); }
-
-async function readMongo(uri: string): Promise<CustomerAreaSource> {
-  const client = new MongoClient(uri, { readPreference: 'secondaryPreferred', appName: 'pg-copy-customers' });
-  await client.connect();
-  try {
-    const db = client.db();
-    const all = (name: string) => db.collection(name).find({}).toArray();
-    const [locations, roles, users, visitTypes, resourceFamilies, resourceTypes, customers, schedules, activityLogs, customerDeleteBackups, customerMergeBackups] =
-      await Promise.all(['locations', 'roles', 'users', 'visittypes', 'resourcefamilies', 'resourcetypes', 'customers', 'schedules', 'activitylogs', 'customerdeletebackups', 'customermergebackups'].map(all));
-    return { locations, roles, users, visitTypes, resourceFamilies, resourceTypes, customers, schedules, activityLogs, customerDeleteBackups, customerMergeBackups };
-  } finally {
-    await client.close();
-  }
-}
 
 const { db, close } = await openDb(databaseUrl);
 try {

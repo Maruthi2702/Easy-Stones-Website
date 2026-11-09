@@ -32,13 +32,16 @@ export async function openDb(url: string): Promise<OpenDb> {
   return { db: drizzle(pool, { schema, casing: 'snake_case' }) as unknown as Db, close: () => pool.end() };
 }
 
-/** Apply drizzle/ migrations not yet run on this database. */
-export async function migrateDb(db: Db, url: string): Promise<void> {
+/**
+ * Apply drizzle/ migrations not yet run on this database. `migrationsFolder` is for a
+ * bundle (the copy Lambda ships drizzle/ beside its code).
+ */
+export async function migrateDb(db: Db, url: string, migrationsFolder = MIGRATIONS): Promise<void> {
   if (url.startsWith('pglite:')) {
     const { migrate } = await import('drizzle-orm/pglite/migrator');
-    await migrate(db as never, { migrationsFolder: MIGRATIONS });
+    await migrate(db as never, { migrationsFolder });
   } else {
     const { migrate } = await import('drizzle-orm/node-postgres/migrator');
-    await migrate(db as never, { migrationsFolder: MIGRATIONS });
+    await migrate(db as never, { migrationsFolder });
   }
 }
