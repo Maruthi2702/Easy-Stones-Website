@@ -200,6 +200,8 @@ fails it):
 
 ## Next
 
+The full list, one box per route and step: [`DB_MOVE_CHECKLIST.md`](../../DB_MOVE_CHECKLIST.md).
+
 1. The rest of the customer routes through the data layer: the Customers page list
    (`GET /api/customers/list`, its filters and sorts), the profile, the map, then the
    writes (create / edit / delete / visits / resources / contacts) — writes need the
