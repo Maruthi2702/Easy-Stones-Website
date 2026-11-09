@@ -2,13 +2,16 @@
 
 The move from MongoDB (Atlas, AWS Mumbai) to **PostgreSQL on AWS RDS** (no Aurora),
 owner's calls 2026-11-08. The plan and its order are in `MIGRATION_NOTES.md` §3.
-First area: **customers and everything linked to a customer**.
+First area: **customers and everything linked to a customer**; since 2026-11-09 **every
+other area too** — 74 of MongoDB's 76 collections (the other two are empty and unused,
+`NOT_COPIED` in `copy/readMongo.ts`). A collection with records the copy doesn't know
+stops the copy, so nothing a new feature adds can be left behind.
 
 ## How the two databases run side by side
 
 - **MongoDB stays the live database** until AWS is tested. The app keeps reading and
   writing it; nothing writes to both.
-- Postgres is filled by a **copy** (`scripts/pg-copy-customers.ts`): MongoDB is only
+- Postgres is filled by a **copy** (`scripts/pg-copy.ts`): MongoDB is only
   read, Postgres is emptied and refilled in one transaction, so a re-run gives the same
   result. `--verify` compares every table, row and column.
 - **Cutover**: pause writes, copy once more, verify, switch the app to Postgres, then
@@ -16,9 +19,9 @@ First area: **customers and everything linked to a customer**.
   copy can never overwrite live Postgres data. MongoDB is disconnected after that.
 
 ```
-node scripts/pg-copy-customers.ts                 # dry run: map + report, writes nothing
-node scripts/pg-copy-customers.ts --write --report report.json
-node scripts/pg-copy-customers.ts --verify
+node scripts/pg-copy.ts                 # dry run: map + report, writes nothing
+node scripts/pg-copy.ts --write --report report.json
+node scripts/pg-copy.ts --verify
 ```
 
 `MONGO_URI` is the source; `DATABASE_URL` the target — `postgres://…?sslmode=require`
@@ -86,6 +89,45 @@ was deleted there (the calendar shows it with no name).
 customer name and its `location` (blank on all 84), the visit's `resourceId` (the
 resource's `placement_visit_id` is the one link). Customer `followUpDate` and
 `lockUntil` were empty on every record and are gone / moved to the login.
+
+## Every other area (2026-11-09)
+
+One schema file and one rows file per area; `copy/plan.ts` runs them all in one
+transaction (one truncate of every table, inserts parents first), and the check keys
+each table on its own primary key.
+
+| Area | Schema | Tables |
+|---|---|---|
+| Operations | `schema/operations.ts` | `deliveries` (ticket id `del_…` kept as `ticket_id`; branch and transfer destination by location id; the ePOD as `pod_*`), `trucks`, `daily_reports` + `_transfers` / `_containers` / `_log`, `payments_received` + `payment_history` |
+| Check In, Cart & Holds | `schema/checkInsHolds.ts` | `office_check_ins` + `check_in_selections`, `sales_carts` + lines, `sales_holds` + lines, `sales_slab_reservations`, `sales_counters`, `sales_hold_history` |
+| Inventory | `schema/inventory.ts` | `inventory_items`, `inventory_sales_records`, `inventory_transit_shipments` + lines, transit reports / events, `inventory_revision`, the stock import's imports / backups / state |
+| Purchasing | `schema/purchasing.ts` | `purchasing_scopes` + aliases / policies, `purchasing_inbound`, `purchasing_drafts` + history, locks, PO links |
+| Accounting, Fuel Man | `schema/accounting.ts` | `acct_carriers`, `acct_freight_charges` + flags, `acct_carrier_invoices` + charges, `acct_payments` + charges, `acct_audit`; `acct_fuelman_*` (reports, assignments + splits, profiles, PDFs as bytea, costs, state, periods, history) |
+| Card receipts, Suppliers | `schema/cardsSuppliers.ts` | `company_cards`, `receipt_categories`, `card_expenses` + history; `suppliers`, `supplier_logins`, `supplier_pos` + lines, `supplier_blocks` + `supplier_bundles`, three history tables |
+| Permits | `schema/permits.ts` | `permits` + `permit_contacts`, `permit_runs`, `permit_checks`, `permit_contractors`, `permit_contractor_names` |
+| The rest | `schema/misc.ts` | `lost_sales`, `products` + colours / bundles, `easy_stones_colors`, `crossover_colors` + `crossovers`, `app_settings`, `import_memories`, `contact_submissions`, `team_files`, `sales_resources`, `sps_import_runs` + items, `cloudinary_to_s3_backups`, `legacy_leads`, `legacy_sales_customers` |
+
+Rules the areas follow (my defaults, 2026-11-09):
+
+- **Links that must hold are foreign keys** (a delivery's customer, a payment's
+  branch, a hold's customer, a bundle's block…); a dangling one is blanked and
+  reported, the name stored beside it stays.
+- **History and records of who did what are not**: audit lines, hold history, a
+  charge's delivery (`delivery_ticket_id`), an import's customer — they outlive what
+  they describe. People there are id + name as stored (the hold job acts as `system`).
+- **StoneProfits' and Fuel Man's location labels stay text** — many are fabricators
+  holding consigned stock or labels like "FWB", not branches.
+- **Free-form fields stay jsonb** (Mixed in MongoDB: import rows, draft lines, Fuel Man's
+  parsed statement, SPS plans, a supplier note with its translations). Backups meant
+  for an undo keep MongoDB extended JSON (`snapshotJson`) so an undo writes back exactly.
+- **Ids grow with the app, so no fixed list**: permit sources and categories, Lost Sale
+  reasons, Daily Report log actions. Fixed lists the models enforce are `check`s.
+- Model defaults fill a missing field as Mongoose would (e.g. `delivery_type` jobsite);
+  a field with no default stays null.
+
+Live data into PGlite on 2026-11-09: 75,057 rows, verified equal; 15 more problems than
+the customer area's 387 (13 deliveries naming a customer that isn't a record, one
+freight charge for a deleted ticket — kept, one Team File time saved with no zone).
 
 ## Kinds of time
 

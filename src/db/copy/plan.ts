@@ -21,12 +21,13 @@ import { purchasingRows, type PurchasingSource } from './purchasingRows.ts';
 import { accountingRows, type AccountingSource } from './accountingRows.ts';
 import { cardsSuppliersRows, type CardsSuppliersSource } from './cardsSuppliersRows.ts';
 import { permitsRows, type PermitsSource } from './permitsRows.ts';
+import { miscRows, type MiscSource } from './miscRows.ts';
 import { COPY_COLLECTIONS } from './readMongo.ts';
 import type { CopyProblem } from './values.ts';
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource, PurchasingSource, AccountingSource, CardsSuppliersSource, PermitsSource {
+export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource, PurchasingSource, AccountingSource, CardsSuppliersSource, PermitsSource, MiscSource {
   customers: Loose[];
 }
 
@@ -47,6 +48,7 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
   const acc = accountingRows(src, ref.index, ops.index, problems);
   const cs = cardsSuppliersRows(src, ref.index, cust.index, problems);
   const per = permitsRows(src, problems);
+  const misc = miscRows(src, ref.index, cust.index, problems);
   const r = ref.rows, c = cust.rows, o = ops.rows;
   const steps: [PgTable, Loose[]][] = [
     [schema.locations, r.locations],
@@ -148,7 +150,25 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
     [schema.permitRuns, per.permitRuns],
     [schema.permitChecks, per.permitChecks],
     [schema.permitContractors, per.permitContractors],
-    [schema.permitContractorNames, per.permitContractorNames]
+    [schema.permitContractorNames, per.permitContractorNames],
+    // Everything else
+    [schema.lostSales, misc.lostSales],
+    [schema.products, misc.products],
+    [schema.productColors, misc.productColors],
+    [schema.productBundles, misc.productBundles],
+    [schema.easyStonesColors, misc.easyStonesColors],
+    [schema.crossoverColors, misc.crossoverColors],
+    [schema.crossovers, misc.crossovers],
+    [schema.appSettings, misc.appSettings],
+    [schema.importMemories, misc.importMemories],
+    [schema.contactSubmissions, misc.contactSubmissions],
+    [schema.teamFiles, misc.teamFiles],
+    [schema.salesResources, misc.salesResources],
+    [schema.spsImportRuns, misc.spsImportRuns],
+    [schema.spsImportItems, misc.spsImportItems],
+    [schema.cloudinaryToS3Backups, misc.cloudinaryToS3Backups],
+    [schema.legacyLeads, misc.legacyLeads],
+    [schema.legacySalesCustomers, misc.legacySalesCustomers]
   ];
   return steps;
 }

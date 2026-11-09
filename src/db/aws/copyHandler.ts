@@ -1,7 +1,7 @@
 /**
  * The copy Lambda (aws-infra: `<project>-<env>-db-copy`, in the VPC, no internet).
  * Loads a MongoDB snapshot from S3 into Postgres, checks one, or locks the database
- * against copies — the same steps as scripts/pg-copy-customers.ts, run where RDS is.
+ * against copies — the same steps as scripts/pg-copy.ts, run where RDS is.
  * Started by scripts/pg-copy-aws.ts, which also uploads this code (`--deploy`).
  *
  * Logs in as the IAM-auth user (a token signed here, no password, no Secrets Manager).

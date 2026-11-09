@@ -150,7 +150,7 @@ that could change the answer.
 - **Postgres on AWS RDS**, every environment; no Aurora. Not Render Postgres.
 - **MongoDB and Postgres run side by side** until AWS is tested; MongoDB is
   disconnected after. MongoDB stays the only database the app writes; Postgres is
-  refreshed by a copy and checked row by row (`scripts/pg-copy-customers.ts`), and
+  refreshed by a copy and checked row by row (`scripts/pg-copy.ts`), and
   the cutover locks it against further copies.
 - **No clean-up of the MongoDB data now** — the copy reports what's wrong instead.
 - **Customers first, split into their own tables**: a visit's id is its primary key
@@ -453,7 +453,9 @@ us-west regions).
    Route 53 and Amplify wait until the database has fully moved.
 2. **Prod RDS size**: `prod.yaml` asks for an m7g.large Multi-AZ (~$250+/month) for
    a 32 MB database; suggested t4g.medium Multi-AZ — owner hasn't answered.
-3. **Customer routes on Postgres** behind a switch (data layer per area), then the
+3. **Every area's tables and copy — done 2026-11-09** (owner: "proper tables now"): 74 of
+   76 collections, 75,057 rows, verified equal into PGlite (src/db/README.md, "Every other
+   area"). Then: **customer routes on Postgres** behind a switch (data layer per area), then the
    areas that point at customers: deliveries, payments, holds, lost sales, card
    expenses, SPS import.
 4. **Lambda foundations** (section 5): NAT, WebSocket API, schedules, queue, the

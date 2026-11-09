@@ -1258,7 +1258,7 @@ resized slabs are now `public/images/login/`.
 
 MongoDB → **PostgreSQL on AWS RDS** (no Aurora), owner's calls; the server goes to
 Lambda after. MongoDB stays the live database until AWS is tested — nothing writes to
-both. Postgres is a copy: `scripts/pg-copy-customers.ts` (reads MongoDB only; dry run,
+both. Postgres is a copy: `scripts/pg-copy.ts` (reads MongoDB only; dry run,
 `--write`, `--verify`, `--lock` at cutover). Customers are split into tables linked by
 id (visits keyed by visit id with `customer_id`, likewise resources and contacts); the
 tables, the time rules and what the first copy found are in `src/db/README.md`. A new

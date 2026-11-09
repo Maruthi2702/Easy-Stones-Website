@@ -1,12 +1,12 @@
 /**
- * Copy the customer area from MongoDB into Postgres, or check a copy.
+ * Copy MongoDB into Postgres (every area, src/db/README.md), or check a copy.
  * Only READS MongoDB (secondary preferred); writes only to DATABASE_URL.
  * See src/db/README.md.
  *
- *   node scripts/pg-copy-customers.ts                 dry run: map and report, write nothing
- *   node scripts/pg-copy-customers.ts --write         replace the copied tables in one transaction
- *   node scripts/pg-copy-customers.ts --verify        compare Postgres with MongoDB row by row
- *   node scripts/pg-copy-customers.ts --lock "name"   at cutover: refuse every copy from now on
+ *   node scripts/pg-copy.ts                 dry run: map and report, write nothing
+ *   node scripts/pg-copy.ts --write         replace the copied tables in one transaction
+ *   node scripts/pg-copy.ts --verify        compare Postgres with MongoDB row by row
+ *   node scripts/pg-copy.ts --lock "name"   at cutover: refuse every copy from now on
  *   --report <file>   write the full report (every problem, by id) as JSON
  *
  * MONGO_URI is the source, DATABASE_URL the target (postgres://…?sslmode=require

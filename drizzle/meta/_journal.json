@@ -64,6 +64,13 @@
       "when": 1794186690833,
       "tag": "0008_permits",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794186923047,
+      "tag": "0009_misc",
+      "breakpoints": true
     }
   ]
 }
