@@ -50,6 +50,13 @@
       "when": 1794186268196,
       "tag": "0006_accounting",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794186543863,
+      "tag": "0007_cards_suppliers",
+      "breakpoints": true
     }
   ]
 }

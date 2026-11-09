@@ -60,7 +60,15 @@ export const COPY_COLLECTIONS: Record<keyof CopySource, string> = {
   fuelExpenses: 'acct_fuelman_expenses',
   fuelState: 'acct_fuelman_state',
   fuelPeriods: 'acct_fuelman_periods',
-  fuelHistory: 'acct_fuelman_history'
+  fuelHistory: 'acct_fuelman_history',
+  // Credit Card Receipts, Suppliers
+  companyCards: 'companycards',
+  receiptCategories: 'receiptcategories',
+  cardExpenses: 'cardexpenses',
+  suppliers: 'suppliers',
+  supplierLogins: 'supplierlogins',
+  supplierPos: 'supplierpos',
+  supplierBlocks: 'supplierblocks'
 };
 
 export async function readMongo(uri: string, appName = 'pg-copy-customers'): Promise<CopySource> {

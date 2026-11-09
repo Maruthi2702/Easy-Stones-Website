@@ -19,12 +19,13 @@ import { checkInsHoldsRows, type CheckInsHoldsSource } from './checkInsHoldsRows
 import { inventoryRows, type InventorySource } from './inventoryRows.ts';
 import { purchasingRows, type PurchasingSource } from './purchasingRows.ts';
 import { accountingRows, type AccountingSource } from './accountingRows.ts';
+import { cardsSuppliersRows, type CardsSuppliersSource } from './cardsSuppliersRows.ts';
 import { COPY_COLLECTIONS } from './readMongo.ts';
 import type { CopyProblem } from './values.ts';
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
-export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource, PurchasingSource, AccountingSource {
+export interface CopySource extends ReferenceSource, LinkedSource, OperationsSource, CheckInsHoldsSource, InventorySource, PurchasingSource, AccountingSource, CardsSuppliersSource {
   customers: Loose[];
 }
 
@@ -43,6 +44,7 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
   const inv = inventoryRows(src, problems);
   const pur = purchasingRows(src, problems);
   const acc = accountingRows(src, ref.index, ops.index, problems);
+  const cs = cardsSuppliersRows(src, ref.index, cust.index, problems);
   const r = ref.rows, c = cust.rows, o = ops.rows;
   const steps: [PgTable, Loose[]][] = [
     [schema.locations, r.locations],
@@ -123,7 +125,21 @@ export function copyPlan(src: CopySource, problems: CopyProblem[]) {
     [schema.fuelExpenses, acc.fuelExpenses],
     [schema.fuelState, acc.fuelState],
     [schema.fuelPeriods, acc.fuelPeriods],
-    [schema.fuelHistory, acc.fuelHistory]
+    [schema.fuelHistory, acc.fuelHistory],
+    // Credit Card Receipts, Suppliers
+    [schema.companyCards, cs.companyCards],
+    [schema.receiptCategories, cs.receiptCategories],
+    [schema.cardExpenses, cs.cardExpenses],
+    [schema.cardExpenseHistory, cs.cardExpenseHistory],
+    [schema.suppliers, cs.suppliers],
+    [schema.supplierHistory, cs.supplierHistory],
+    [schema.supplierLogins, cs.supplierLogins],
+    [schema.supplierPos, cs.supplierPos],
+    [schema.supplierPoLines, cs.supplierPoLines],
+    [schema.supplierPoHistory, cs.supplierPoHistory],
+    [schema.supplierBlocks, cs.supplierBlocks],
+    [schema.supplierBundles, cs.supplierBundles],
+    [schema.supplierBlockHistory, cs.supplierBlockHistory]
   ];
   return steps;
 }
