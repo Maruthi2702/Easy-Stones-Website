@@ -5089,7 +5089,8 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
       const docs: Loose[] = [];
       const docRows: Loose[] = [];
       for (const row of creates) {
-        const doc = new Customer({ ...row.create });
+        // Whoever runs the import is who created the customers it adds (2026-11-08).
+        const doc = new Customer({ ...row.create, createdBy: req.userId });
         const invalid = doc.validateSync();
         if (invalid) { rowError(row, invalid.message); continue; }
         docs.push(doc);

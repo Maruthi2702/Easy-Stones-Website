@@ -27,9 +27,10 @@ const load = async () => ({
   customers: await Customer.find({}, 'company contactName email phone address quickNote salesRep salesRepName location sps').lean(),
   deleted: (await CustomerDeleteBackup.find().lean())!.map((d) => ({ ...d, deletedAt: d.createdAt }))
 });
-const newRun = () => SpsImportRun.create({ createdBy: 'krish', fileName: 'x.xls' });
-const start = async (rows: Loose[], answers: Loose = {}) => {
-  const run = await newRun();
+const KRISH_ID = new mongoose.Types.ObjectId().toString();
+const newRun = (extra: Loose = {}) => SpsImportRun.create({ createdBy: 'krish', fileName: 'x.xls', ...extra });
+const start = async (rows: Loose[], answers: Loose = {}, runFields: Loose = {}) => {
+  const run = await newRun(runFields);
   const plan = planSpsImport({ rows, mapping, branchByKey, repByKey, answers, finalize: true, ...(await load()) });
   await freezePlan(run, plan, 'krish');
   await runItems(run._id);
@@ -63,6 +64,19 @@ describe('SPS import writer', () => {
     const zed = (await Customer.findOne({ 'sps.key': 'zed tile' }).lean())!;
     expect(zed).toMatchObject({ company: 'Zed Tile', email: 'z@zed.com', isVerified: true });
     expect(zed.sps?.runId).toBe(String(fresh._id));
+  });
+
+  it('saves whoever started the run as the creator of the customers it adds, and only those', async () => {
+    await start([row('Acme Stone', { 'Sales Person1': 'Steve Watson' }), row('Zed Tile')], {}, { createdById: KRISH_ID });
+    const zed = (await Customer.findOne({ 'sps.key': 'zed tile' }).lean())!;
+    expect(String(zed.createdBy)).toBe(KRISH_ID);
+    const acme = (await Customer.findById(A).lean())!;
+    expect(acme.createdBy).toBeUndefined(); // an update never claims an existing customer
+  });
+
+  it('leaves the creator blank on a run saved before it was recorded', async () => {
+    await start([row('Zed Tile')]);
+    expect((await Customer.findOne({ 'sps.key': 'zed tile' }).lean())!.createdBy).toBeUndefined();
   });
 
   it('is safe to run twice: the same file adds nothing the second time', async () => {
