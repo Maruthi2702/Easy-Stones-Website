@@ -156,9 +156,53 @@ entries — **verified equal**. Reported, not fixed (the Mongo clean-up waits, o
   customer — blanked.
 - Visit photos saved as `/uploads/...` paths (34) point at the old server disk.
 
+## The data layer and the switch (2026-11-10)
+
+Routes read an area through `src/db/<area>/index.ts`, which asks MongoDB (`mongo.ts`, the
+queries the routes used to run inline, moved unchanged) or Postgres (`postgres.ts`) by the
+area's switch: `DB_CUSTOMERS=postgres` on the server (`appDb.ts`; anything else or nothing
+is MongoDB, so a deploy changes nothing until it's set). The start-up log names the areas
+on Postgres. Postgres responses keep MongoDB's shape (`customers/customerDoc.ts`), so no
+screen changes.
+
+**While MongoDB is still the database the app writes, an area is switched on the live
+server only at its cutover** — before that Postgres holds only what the last copy put
+there. Try it on a copy: `DATABASE_URL=pglite:<folder>` after a `pg-copy.ts --write`, or a
+local Postgres.
+
+Every read is checked twice:
+
+- `customers/customers.parity.test.ts` (in `npm test`): the same records in an in-memory
+  MongoDB and, through the real copy, in PGlite; each read asked of both.
+- `npm run pg:compare` (`scripts/pg-compare.ts`): live MongoDB, **read only**, copied into
+  PGlite in memory, each read asked of both, differences printed. Exit 0 = the same apart
+  from the known differences below. A new read goes into `mongo.ts`, `postgres.ts`, the
+  parity test and this script together.
+
+Customer area so far: the dropdown (`GET /api/customers/dropdown`), the cities list
+(`/cities`) and `GET /api/customers` (newest first, paged, searched). On live data
+2026-11-10: all the same.
+
+### Known differences (live data, 2026-11-10)
+
+What `pg:compare` sets aside (`KNOWN_DIFFERENCES` in `customers/parity.ts`; anything else
+fails it):
+
+- 27 customers saved with no createdAt / updatedAt: MongoDB lists them last on
+  newest-first lists, Postgres has their real time (from the id) and lists them in place.
+- 5 customers whose stored rep name is "krish" for a user now named "Krish": Postgres reads
+  the user's current name (the stored copy is gone, as planned).
+- 6 old customers with no geocode block: Postgres says "pending" (the model's default).
+- firstName / lastName (2 old records, both have a company name) and lastLoginIp (written
+  on a website sign-in, read by nothing; the last of `loginIps`) aren't copied.
+- 1 link to a deleted customer isn't copied.
+- Customers imported in the same millisecond can come in another order (same dates).
+
 ## Next
 
-1. The customer routes read and write Postgres through a data layer (`src/db/…`),
-   behind a switch, still copying from MongoDB until cutover.
+1. The rest of the customer routes through the data layer: the Customers page list
+   (`GET /api/customers/list`, its filters and sorts), the profile, the map, then the
+   writes (create / edit / delete / visits / resources / contacts) — writes need the
+   cutover plan, since MongoDB stays the database written until then.
 2. The other areas that point at customers — deliveries, payments, holds, lost sales,
    card expenses, the SPS import — get `customer_id` foreign keys when they move.

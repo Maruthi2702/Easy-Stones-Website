@@ -1,0 +1,26 @@
+/**
+ * The customer area's data layer: every route that reads customers calls these, and
+ * each picks MongoDB or Postgres by the area's switch (`DB_CUSTOMERS`, src/db/appDb.ts).
+ * Both versions answer the same (customers.parity.test.ts); a new customer read is
+ * added to mongo.ts, postgres.ts and the parity test together.
+ */
+import { appDb, areaOn } from '../appDb.ts';
+import * as mongo from './mongo.ts';
+import * as pg from './postgres.ts';
+import type { CustomerPageQuery } from './types.ts';
+
+export type { CustomerPage, CustomerPageQuery } from './types.ts';
+
+const onPostgres = () => areaOn('customers') === 'postgres';
+
+export async function dropdownCustomers() {
+  return onPostgres() ? pg.dropdownCustomers(await appDb()) : mongo.dropdownCustomers();
+}
+
+export async function customerCities() {
+  return onPostgres() ? pg.customerCities(await appDb()) : mongo.customerCities();
+}
+
+export async function customerPage(q: CustomerPageQuery) {
+  return onPostgres() ? pg.customerPage(await appDb(), q) : mongo.customerPage(q);
+}

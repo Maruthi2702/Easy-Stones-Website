@@ -19,7 +19,8 @@ export interface OpenDb {
   close: () => Promise<void>;
 }
 
-export async function openDb(url: string): Promise<OpenDb> {
+/** `max`: connections in the pool (2 for scripts; the server asks for more, src/db/appDb.ts). */
+export async function openDb(url: string, { max = 2 }: { max?: number } = {}): Promise<OpenDb> {
   if (url.startsWith('pglite:')) {
     const where = url.slice('pglite:'.length);
     const { PGlite } = await import('@electric-sql/pglite');
@@ -32,7 +33,7 @@ export async function openDb(url: string): Promise<OpenDb> {
   // RDS from Render: `?auth=iam` signs IAM tokens and verifies TLS (rdsConnection.ts).
   // Any other URL goes to pg as written (sslmode in the URL).
   const target = iamTargetFrom(url, process.env.AWS_REGION);
-  const pool = target ? new pg.Pool({ ...(await iamPoolConfig(target)), max: 2 }) : new pg.Pool({ connectionString: url, max: 2 });
+  const pool = target ? new pg.Pool({ ...(await iamPoolConfig(target)), max }) : new pg.Pool({ connectionString: url, max });
   return { db: drizzle(pool, { schema, casing: 'snake_case' }) as unknown as Db, close: () => pool.end() };
 }
 

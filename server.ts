@@ -54,6 +54,8 @@ import DailyReport from './src/models/DailyReport.ts';
 import Location from './src/models/Location.ts';
 import ContactSubmission from './src/models/ContactSubmission.ts';
 import Customer from './src/models/Customer.ts';
+import * as customerData from './src/db/customers/index.ts';
+import { areasOnPostgres } from './src/db/appDb.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
 import SalesResource from './src/models/SalesResource.ts';
@@ -1033,6 +1035,9 @@ async function startServer() {
 
     httpServer.listen(PORT, () => {
       console.log(`🚀 Backend server running on port ${PORT}`);
+      // Which areas read Postgres instead of MongoDB (DB_<AREA>=postgres, src/db/appDb.ts).
+      const pgAreas = areasOnPostgres();
+      if (pgAreas.length) console.log(`🐘 On Postgres: ${pgAreas.join(', ')} (${process.env.DATABASE_URL ? 'DATABASE_URL set' : 'DATABASE_URL MISSING — those routes will fail'})`);
 
       // JOBS=off (a local test server): none of the timers and jobs below.
       if (process.env.JOBS === 'off') return console.log('⏸️ JOBS=off: no freight, holds, auto-submit, permit, SPS resume or keep-alive jobs');
@@ -2791,42 +2796,10 @@ app.get('/api/customers', authenticate, requirePermission('view_customers'), val
   try {
     const page = parseInt(String(requestQuery.page)) || 1;
     const limit = parseInt(String(requestQuery.limit)) || 50;
-    const skip = (page - 1) * limit;
-    const search = requestQuery.search || '';
+    const search = String(requestQuery.search || '');
 
-    let query: Loose = {};
-    if (search) {
-      const safeSearch = escapeRegex(search);
-      query = {
-        $or: [
-          { contactName: { $regex: safeSearch, $options: 'i' } },
-          { company: { $regex: safeSearch, $options: 'i' } },
-          { email: { $regex: safeSearch, $options: 'i' } }
-        ]
-      };
-    }
-
-    const total = await Customer.countDocuments(query);
-
-    const customers = await Customer.aggregate(([
-      { $match: query },
-      {
-        $addFields: {
-          lastVisitDate: { $max: "$visits.date" }
-        }
-      },
-      {
-        $project: {
-          password: 0,
-          contacts: 0,
-          "visits": 0,
-          "resources": 0
-        }
-      },
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: limit }
-    ] as mongoose.PipelineStage[]));
+    // src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
+    const { customers, total } = await customerData.customerPage({ page, limit, search });
 
     res.json({
       customers,
@@ -2848,14 +2821,8 @@ app.get('/api/customers/dropdown', authenticate, requireSalesPage, async (req: R
     const cached = cacheHit('customerDropdown');
     if (cached) return res.json(cached);
 
-    const customers = await Customer.find({})
-      // salesRepName rides along so a screen that picks a customer can fill in
-      // the account's owning rep without a second round trip — the delivery
-      // modal does exactly that. The cached label is enough; the id is not
-      // needed, as nothing here writes back to the customer.
-      .select('_id company contactName firstName lastName email customerType city address street state zip shippingAddress shippingCity billingAddress billingCity salesRepName')
-      .sort({ company: 1, contactName: 1 })
-      .lean();
+    // The fields and the rep's name: src/db/customers (MongoDB or Postgres).
+    const customers = await customerData.dropdownCustomers();
 
     res.json(cachePut('customerDropdown', customers));
   } catch (error) {
@@ -3775,13 +3742,7 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermissio
 // GET DISTINCT CITIES (For dropdown checklists)
 app.get(['/api/customers/cities', '/api/partners/cities'], authenticate, requirePermission('view_customers'), async (req: Request, res: Response) => {
   try {
-    const cities1 = await Customer.distinct('city');
-    const cities2 = await Customer.distinct('address.city');
-    const mergedCities = Array.from(new Set([...cities1, ...cities2]))
-      .filter((city): city is string => typeof city === 'string' && Boolean(city))
-      .map(c => c.trim())
-      .sort();
-    res.json(mergedCities);
+    res.json(await customerData.customerCities());
   } catch (error) {
     console.error('Error fetching distinct cities:', error);
     res.status(500).json({ message: 'Failed to fetch distinct cities' });
