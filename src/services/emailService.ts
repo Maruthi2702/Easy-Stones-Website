@@ -246,17 +246,19 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
 
   // The three people: blocks that sit side by side while they fit and wrap
   // when they don't — three across the 600px email, filling its width
-  // (165 + 20 + 165 + 20 + 180 = 550 of the 558px inside); on a phone each
-  // on its own line, so the rep's email has the width to stay on one line
-  // (three phone-width columns broke it in two). They sit in a cell with
+  // (165 + 20 + 165 + 20, then the rep in the 188px left of the 558px
+  // inside); on a phone each on its own line, so the rep's email has the
+  // width to stay on one line (three phone-width columns broke it in two).
+  // The rep, last, has no set width: it is as wide as its email, so a long
+  // one moves under the other two instead of running past the card. They sit in a cell with
   // align="left" and are written with no space between them: a forward
   // (Outlook, Apple Mail) dropped our text-align and centred them, and a
   // space would add a gap. Labels are typed in capitals — a forward dropped
   // text-transform too. A forward also dropped the blocks' CSS widths and
   // bunched them on the left, so each holds a table whose width attribute
   // keeps the width.
-  const person = (label: string, name: string, sub: string, width: number, last = false) => `<div style="display: inline-block; vertical-align: top; width: ${width}px; max-width: 100%; margin: 0 ${last ? 0 : 20}px 14px 0; text-align: left;">`
-    + `<table role="presentation" width="${width}" cellpadding="0" cellspacing="0" border="0" style="width: ${width}px; max-width: 100%; border-collapse: collapse;"><tr><td align="left" style="padding: 0; text-align: left;">`
+  const person = (label: string, name: string, sub: string, width?: number) => `<div style="display: inline-block; vertical-align: top;${width ? ` width: ${width}px;` : ''} max-width: 100%; margin: 0 ${width ? 20 : 0}px 14px 0; text-align: left;">`
+    + `<table role="presentation"${width ? ` width="${width}"` : ''} cellpadding="0" cellspacing="0" border="0" style="${width ? `width: ${width}px; ` : ''}max-width: 100%; border-collapse: collapse;"><tr><td align="left" style="padding: 0; text-align: left;">`
     + `<div style="${LABEL}">${label}</div>`
     + `<div style="margin-top: 3px; font-size: 15px; font-weight: 600; color: #1F2328; word-break: break-word; overflow-wrap: anywhere;">${e(name) || '—'}</div>`
     + (sub ? (sub.includes('@')
@@ -323,7 +325,7 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
       <div style="height: 2px; line-height: 2px; font-size: 0; background: #C9A13B; margin: 16px 0 20px 0;">&nbsp;</div>
 
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
-        <tr><td align="left" style="padding: 0; text-align: left;">${person('PREPARED FOR', doc.customer.name, doc.customer.phone, 165)}${person('FABRICATOR', doc.fabricator.name, doc.fabricator.phone, 165)}${person('YOUR SALES REP', doc.rep.name, doc.rep.email, 180, true)}</td></tr>
+        <tr><td align="left" style="padding: 0; text-align: left;">${person('PREPARED FOR', doc.customer.name, doc.customer.phone, 165)}${person('FABRICATOR', doc.fabricator.name, doc.fabricator.phone, 165)}${person('YOUR SALES REP', doc.rep.name, doc.rep.email)}</td></tr>
       </table>
 
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse; margin-top: 26px;">
