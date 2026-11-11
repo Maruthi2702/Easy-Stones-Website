@@ -9,7 +9,8 @@ import type { Loose } from '../../../types/records.ts';
 import { displayNameOf } from '../../../utils/salesReps.ts';
 import { typedModaFields } from '../../../utils/modaTotals.ts';
 import { loadFamilies } from '../../../services/modaCount.ts';
-import type { CreateCustomerInput, EditCustomerInput, EditResult, ResolvedRep } from './coreTypes.ts';
+import CustomerDeleteBackup from '../../../models/CustomerDeleteBackup.ts';
+import type { BulkDeleteResult, CreateCustomerInput, EditCustomerInput, EditResult, ResolvedRep, UndoDeleteResult } from './coreTypes.ts';
 
 /** PATCH /api/customers/:id/quick-note. null = no such customer. */
 export async function setQuickNote(id: string, quickNote: unknown): Promise<{ quickNote: string } | null> {
@@ -94,7 +95,69 @@ export async function setCustomerActive(id: string, isActive: unknown): Promise<
  * Returns how many customers were relabelled.
  */
 export async function renameRepOnCustomers(userId: unknown, nameAfter: string): Promise<number> {
-  const { modifiedCount } = await Customer.updateMany({ salesRep: userId }, { $set: { salesRepName: nameAfter } });
+  const { modifiedCount } = await Customer.updateMany({ salesRep: userId as mongoose.Types.ObjectId }, { $set: { salesRepName: nameAfter } });
   return modifiedCount;
 }
 
+
+/* ---- Delete, bulk delete and Undo (saved whole to customerdeletebackups first) ---- */
+
+/**
+ * Delete one customer, saving it whole first (source 'single'). Returns the saved
+ * copy's batch id, or null when there was no such customer.
+ */
+export async function backupAndDeleteCustomer(id: string, deletedBy = '', source = 'single'): Promise<string | null> {
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
+  const raw = await Customer.collection.findOne({ _id: new mongoose.Types.ObjectId(id) });
+  if (!raw) return null;
+  const batchId = new mongoose.Types.ObjectId().toString();
+  await CustomerDeleteBackup.create({ batchId, customerId: raw._id, customer: raw, source, deletedBy });
+  await Customer.collection.deleteOne({ _id: raw._id });
+  return batchId;
+}
+
+/** POST /bulk-delete. null = none of them exist. */
+export async function bulkDeleteCustomers(ids: string[], deletedBy: string): Promise<BulkDeleteResult | null> {
+  const oids = ids.map((id) => new mongoose.Types.ObjectId(id));
+  const docs = await Customer.collection.find({ _id: { $in: oids } }).toArray();
+  if (docs.length === 0) return null;
+
+  const batchId = new mongoose.Types.ObjectId().toString();
+  await CustomerDeleteBackup.insertMany(
+    docs.map((customer) => ({ batchId, customerId: customer._id, customer, source: 'bulk', deletedBy }))
+  );
+  const { deletedCount } = await Customer.collection.deleteMany({ _id: { $in: docs.map((d) => d._id) } });
+  return { deleted: deletedCount, missing: ids.length - docs.length, batchId };
+}
+
+/** POST /bulk-delete/undo. null = this delete has already been undone. */
+export async function undoBulkDelete(batchId: string, undoneBy: string): Promise<UndoDeleteResult | null> {
+  const backups = await CustomerDeleteBackup.find({ batchId, undoneAt: null }).lean();
+  if (backups.length === 0) return null;
+
+  // Put them all back; one that clashes (still there, or its email taken
+  // since) fails alone and the rest go in.
+  try {
+    await Customer.collection.insertMany(backups.map((b) => b.customer), { ordered: false });
+  } catch (err) {
+    if (!Array.isArray((err as Error & Loose).writeErrors) && !(err as Error & Loose).result) throw err;
+  }
+
+  // What's there now is back — restored just now, or never deleted.
+  const ids = backups.map((b) => b.customerId);
+  const present = new Set(
+    (await Customer.collection.find({ _id: { $in: ids } }, { projection: { _id: 1 } }).toArray()).map((d) => String(d._id))
+  );
+  const back = backups.filter((b) => present.has(String(b.customerId)));
+  const failed = backups
+    .filter((b) => !present.has(String(b.customerId)))
+    .map((b) => ({ id: String(b.customerId), company: String(b.customer?.company || b.customer?.contactName || '') }));
+
+  if (back.length) {
+    await CustomerDeleteBackup.updateMany(
+      { _id: { $in: back.map((b) => b._id) } },
+      { $set: { undoneAt: new Date(), undoneBy } }
+    );
+  }
+  return { restored: back.length, failed };
+}

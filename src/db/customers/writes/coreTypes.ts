@@ -31,3 +31,6 @@ export interface EditCustomerInput {
 
 /** Not found, a refusal with its reason, or the saved customer (in MongoDB's shape: a document or a plain record). */
 export type EditResult = { notFound: true } | { error: string } | { customer: Loose };
+
+export interface BulkDeleteResult { deleted: number; missing: number; batchId: string }
+export interface UndoDeleteResult { restored: number; failed: { id: string; company: string }[] }

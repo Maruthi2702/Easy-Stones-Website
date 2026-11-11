@@ -1,9 +1,7 @@
-import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request, Response, NextFunction } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
-import Customer from '../models/Customer.ts';
-import CustomerDeleteBackup from '../models/CustomerDeleteBackup.ts';
+import * as customerData from '../db/customers/index.ts';
 import { canDeleteCustomers } from '../utils/customerAccess.ts';
 import { bulkDeleteIds } from '../utils/customerBulkDelete.ts';
 
@@ -34,13 +32,7 @@ import { bulkDeleteIds } from '../utils/customerBulkDelete.ts';
  * record the SPS import reads ("deleted by … on …").
  */
 export async function backupAndDeleteCustomer(id: string, deletedBy = '', source = 'single') {
-  if (!mongoose.Types.ObjectId.isValid(id)) return null;
-  const raw = await Customer.collection.findOne({ _id: new mongoose.Types.ObjectId(id) });
-  if (!raw) return null;
-  const batchId = new mongoose.Types.ObjectId().toString();
-  await CustomerDeleteBackup.create({ batchId, customerId: raw._id, customer: raw, source, deletedBy });
-  await Customer.collection.deleteOne({ _id: raw._id });
-  return batchId;
+  return customerData.backupAndDeleteCustomer(id, deletedBy, source);
 }
 
 export default function createCustomerBulkDeleteRouter({ authenticate }: { authenticate: RequestHandler }) {
@@ -57,21 +49,13 @@ export default function createCustomerBulkDeleteRouter({ authenticate }: { authe
     const { ids, error } = bulkDeleteIds(req.body?.ids);
     if (error) return res.status(400).json({ message: error });
     try {
-      const oids = ids!.map((id) => new mongoose.Types.ObjectId(id));
-      const docs = await Customer.collection.find({ _id: { $in: oids } }).toArray();
-      if (docs.length === 0) {
+      const done = await customerData.bulkDeleteCustomers(ids!, who(req));
+      if (!done) {
         return res.status(404).json({ message: 'None of these customers exist any more — refresh the list.' });
       }
 
-      const batchId = new mongoose.Types.ObjectId().toString();
-      const deletedBy = who(req);
-      await CustomerDeleteBackup.insertMany(
-        docs.map((customer) => ({ batchId, customerId: customer._id, customer, source: 'bulk', deletedBy }))
-      );
-      const { deletedCount } = await Customer.collection.deleteMany({ _id: { $in: docs.map((d) => d._id) } });
-
       req.app.get('io')?.emit('customer_update');
-      res.json({ deleted: deletedCount, missing: ids!.length - docs.length, batchId });
+      res.json({ deleted: done.deleted, missing: done.missing, batchId: done.batchId });
     } catch (err) {
       console.error('Bulk delete customers error:', err);
       res.status(500).json({ message: `Could not delete the customers: ${(err as Error).message}` });
@@ -82,35 +66,11 @@ export default function createCustomerBulkDeleteRouter({ authenticate }: { authe
     const batchId = String(req.body?.batchId || '');
     if (!mongoose.Types.ObjectId.isValid(batchId)) return res.status(400).json({ message: 'Nothing to undo.' });
     try {
-      const backups = await CustomerDeleteBackup.find({ batchId, undoneAt: null }).lean();
-      if (backups.length === 0) return res.status(409).json({ message: 'This delete has already been undone.' });
-
-      // Put them all back; one that clashes (still there, or its email taken
-      // since) fails alone and the rest go in.
-      try {
-        await Customer.collection.insertMany(backups.map((b) => b.customer), { ordered: false });
-      } catch (err) {
-        if (!Array.isArray((err as Error & Loose).writeErrors) && !(err as Error & Loose).result) throw err;
-      }
-
-      // What's there now is back — restored just now, or never deleted.
-      const ids = backups.map((b) => b.customerId);
-      const present = new Set(
-        (await Customer.collection.find({ _id: { $in: ids } }, { projection: { _id: 1 } }).toArray()).map((d) => String(d._id))
-      );
-      const back = backups.filter((b) => present.has(String(b.customerId)));
-      const failed = backups
-        .filter((b) => !present.has(String(b.customerId)))
-        .map((b) => ({ id: String(b.customerId), company: b.customer?.company || b.customer?.contactName || '' }));
-
-      if (back.length) {
-        await CustomerDeleteBackup.updateMany(
-          { _id: { $in: back.map((b) => b._id) } },
-          { $set: { undoneAt: new Date(), undoneBy: who(req) } }
-        );
-      }
+      const undone = await customerData.undoBulkDelete(batchId, who(req));
+      if (!undone) return res.status(409).json({ message: 'This delete has already been undone.' });
+      const { restored: back, failed } = undone;
       req.app.get('io')?.emit('customer_update');
-      res.json({ restored: back.length, failed });
+      res.json({ restored: back, failed });
     } catch (err) {
       console.error('Undo bulk delete error:', err);
       res.status(500).json({ message: `Undo failed: ${(err as Error).message}` });

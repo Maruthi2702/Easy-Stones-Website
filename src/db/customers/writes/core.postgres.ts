@@ -3,16 +3,18 @@
  * record after the same save (src/db/copy/customerRows.ts), and answers what its
  * MongoDB twin in core.mongo.ts answers (core.parity.test.ts proves both).
  */
-import { eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../../copy/plan.ts';
-import { customers } from '../../schema/customers.ts';
+import { customers, customerDeleteBackups } from '../../schema/customers.ts';
+import { newId } from '../../ids.ts';
+import { removeCustomerWithBackup, restoreCustomerFromBackup } from './customerRemoval.postgres.ts';
 import Customer from '../../../models/Customer.ts';
 import type { Loose } from '../../../types/records.ts';
 import { customerRows } from '../../copy/customerRows.ts';
 import type { CopyProblem } from '../../copy/values.ts';
 import { resourceTypes } from '../../schema/reference.ts';
 import { familyLookup, typedModaFields } from '../../../utils/modaTotals.ts';
-import type { CreateCustomerInput, EditCustomerInput, EditResult, ResolvedRep } from './coreTypes.ts';
+import type { BulkDeleteResult, CreateCustomerInput, EditCustomerInput, EditResult, ResolvedRep, UndoDeleteResult } from './coreTypes.ts';
 import {
   idForQuery, referenceIndexOf, resolveSalesRep as resolveRep, loadCustomerRecord
 } from './coreSupport.postgres.ts';
@@ -54,19 +56,31 @@ const isUniqueViolation = (e: unknown): boolean => {
   return false;
 };
 
-/** The customers row the copy would make of this MongoDB-shaped record (no visits, resources, contacts or links). */
+/** The branch a customer falls back to when the one named isn't a Location (the model's own default). */
+const FALLBACK_BRANCH = 'Seattle';
+
+/**
+ * The customers row the copy would make of this MongoDB-shaped record (no visits, resources,
+ * contacts or links). A branch that isn't a Location can't be stored (the row points at a
+ * location): MongoDB keeps the typed name, Postgres files the customer under Seattle
+ * (`location` in the result says where) and the typed name is lost.
+ */
 async function customerRowOf(db: Db, record: Loose) {
   const { visits: _v, resources: _r, contacts: _c, associatedCustomers: _a, notDuplicateOf: _n, ...own } = record;
+  const ref = await referenceIndexOf(db);
+  const asked = String(own.location ?? '').trim();
+  let location = asked;
+  if (!ref.locationIdByName.has(asked) && ref.locationIdByName.has(FALLBACK_BRANCH)) location = FALLBACK_BRANCH;
   const problems: CopyProblem[] = [];
-  const { rows } = customerRows([own], await referenceIndexOf(db), problems);
+  const { rows } = customerRows([{ ...own, location }], ref, problems);
   const row = rows.customers[0];
   if (!row) {
     const why = problems.find(p => p.outcome === 'skipped');
     throw new Error(why?.field === 'location_id'
-      ? `"${String(record.location)}" is not one of the branches (Locations).`
+      ? `"${asked}" is not one of the branches (Locations).`
       : `The customer can't be saved: ${why?.reason ?? 'unknown reason'}.`);
   }
-  return { row, login: rows.customerLogins[0] ?? null };
+  return { row, login: rows.customerLogins[0] ?? null, location };
 }
 
 /** POST /api/customers. */
@@ -77,7 +91,8 @@ export async function createCustomer(db: Db, input: CreateCustomerInput) {
   const now = new Date();
   doc.createdAt = now;
   doc.updatedAt = now;
-  const { row } = await customerRowOf(db, doc.toObject({ virtuals: false }) as Loose);
+  const { row, location } = await customerRowOf(db, doc.toObject({ virtuals: false }) as Loose);
+  if (location !== doc.location) doc.location = location; // an unknown branch is filed under the fallback
 
   try {
     await db.transaction(async tx => {
@@ -152,7 +167,8 @@ export async function editCustomer(db: Db, rawId: string, input: EditCustomerInp
   const set = await castUpdate(id, updateData);
   const now = new Date();
   const next = applySet(existing, { ...set, updatedAt: now });
-  const { row } = await customerRowOf(db, next);
+  const { row, location } = await customerRowOf(db, next);
+  next.location = location;
 
   try {
     await db.transaction(async tx => {
@@ -205,4 +221,57 @@ export async function renameRepOnCustomers(db: Db, userId: unknown, _nameAfter: 
   if (!HEX.test(id)) return 0;
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(customers).where(eq(customers.salesRepId, id.toLowerCase()));
   return n;
+}
+
+/* ---- Delete, bulk delete and Undo ---- */
+
+/** DELETE /api/customers/:id: the batch id of the saved copy, or null when there was no such customer. */
+export async function backupAndDeleteCustomer(db: Db, id: string, deletedBy = '', source = 'single'): Promise<string | null> {
+  if (!HEX.test(id)) return null;
+  const batchId = newId();
+  const done = await db.transaction(tx => removeCustomerWithBackup(tx, id.toLowerCase(), { batchId, deletedBy, source }));
+  return done ? batchId : null;
+}
+
+/** POST /bulk-delete (valid ids, no repeats). null = none of them exist. */
+export async function bulkDeleteCustomers(db: Db, ids: string[], deletedBy: string): Promise<BulkDeleteResult | null> {
+  const wanted = ids.map(i => i.toLowerCase());
+  const batchId = newId();
+  return db.transaction(async tx => {
+    const found = (await tx.select({ id: customers.id }).from(customers).where(inArray(customers.id, wanted))).map(r => r.id);
+    if (!found.length) return null;
+    for (const id of found) await removeCustomerWithBackup(tx, id, { batchId, deletedBy, source: 'bulk' });
+    return { deleted: found.length, missing: wanted.length - found.length, batchId };
+  });
+}
+
+/** POST /bulk-delete/undo. null = this delete has already been undone. */
+export async function undoBulkDelete(db: Db, batchId: string, undoneBy: string): Promise<UndoDeleteResult | null> {
+  return db.transaction(async tx => {
+    const backups = await tx.select().from(customerDeleteBackups)
+      .where(and(eq(customerDeleteBackups.batchId, batchId), isNull(customerDeleteBackups.undoneAt)));
+    if (!backups.length) return null;
+
+    // One that clashes (its email or SPS key was taken since) fails alone and the rest go in.
+    // Newest delete first: a customer deleted after another is back before the other needs it.
+    for (const b of [...backups].sort((x, y) => (x.id < y.id ? 1 : -1))) {
+      if ((await tx.select({ id: customers.id }).from(customers).where(eq(customers.id, b.customerId))).length) continue;
+      try {
+        await tx.transaction(sp => restoreCustomerFromBackup(sp, b.customer as Loose, b.customerId));
+      } catch (e) {
+        if (!isUniqueViolation(e) && !(e as Loose)?.cannotRestore) throw e;
+      }
+    }
+
+    const present = new Set((await tx.select({ id: customers.id }).from(customers)
+      .where(inArray(customers.id, backups.map(b => b.customerId)))).map(r => r.id));
+    const back = backups.filter(b => present.has(b.customerId));
+    const failed = backups.filter(b => !present.has(b.customerId))
+      .map(b => ({ id: b.customerId, company: String((b.customer as Loose)?.company || (b.customer as Loose)?.contactName || '') }));
+    if (back.length) {
+      await tx.update(customerDeleteBackups).set({ undoneAt: new Date(), undoneBy, updatedAt: new Date() })
+        .where(inArray(customerDeleteBackups.id, back.map(b => b.id)));
+    }
+    return { restored: back.length, failed };
+  });
 }

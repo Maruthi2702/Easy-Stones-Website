@@ -18,7 +18,8 @@ import { deliveries, paymentsReceived } from '../../schema/operations.ts';
 import { spsImportRuns, spsImportItems } from '../../schema/misc.ts';
 import { newId } from '../../ids.ts';
 import type { Loose } from '../../../types/records.ts';
-import { insertCustomerDoc, customerPatch, isUniqueViolation, violatedConstraint, referenceIndexFromPg } from './customerDocPg.ts';
+import { insertCustomerDoc, customerPatch, isUniqueViolation, violatedConstraint } from './customerDocPg.ts';
+import { removeCustomerWithBackup, restoreCustomerFromBackup } from './customerRemoval.postgres.ts';
 import {
   snapshotCustomer, restoreCustomer, listOf, setLinkList, linkList, customerShape, type CustomerSnapshot
 } from './merge.postgres.ts';
@@ -291,40 +292,11 @@ export async function writeItem(db: Db, item: Loose, runId: string, createdBy?: 
 
 // ── removing and bringing back a customer ────────────────────────────────────
 
-/** Put a backed-up customer back: from the rows under `pg`, or from a MongoDB-shaped snapshot. */
-async function restoreFromBackup(tx: Db, saved: Loose, customerId: string): Promise<void> {
-  if (saved?.pg) {
-    const snap = saved.pg as CustomerSnapshot;
-    await restoreCustomer(tx, snap);
-    for (const kind of KINDS) await setLinkList(tx, customerId, kind, listOf(snap, kind));
-    return;
-  }
-  const doc = EJSON.deserialize(saved) as Loose;
-  await insertCustomerDoc(tx, { ...doc, createdAt: doc.createdAt, updatedAt: doc.updatedAt }, await referenceIndexFromPg(tx));
-}
+/** backupAndDeleteCustomer's twin (customerRemoval.postgres.ts): saved whole, with what pointed at it, then removed. */
+const removeCustomer = (tx: Db, id: string, deletedBy: string, source: string) =>
+  removeCustomerWithBackup(tx, id, { batchId: newId(), deletedBy, source });
 
-/** backupAndDeleteCustomer's twin: the customer, saved whole, then removed with what depended on it. */
-async function removeCustomer(tx: Db, id: string, deletedBy: string, source: string): Promise<boolean> {
-  const [there] = await tx.select({ id: customers.id }).from(customers).where(eq(customers.id, id));
-  if (!there) return false;
-  const snap = await snapshotCustomer(tx, id);
-  const shape = await customerShape(tx, id);
-  const now = new Date();
-  await tx.insert(customerDeleteBackups).values({
-    id: newId(), batchId: newId(), customerId: id, customer: JSON.parse(JSON.stringify({ ...shape, pg: snap })), source, deletedBy,
-    createdAt: now, updatedAt: now
-  });
-  const linkers = (await tx.select({ id: customerLinks.customerId }).from(customerLinks).where(eq(customerLinks.otherCustomerId, id))).map(r => r.id);
-  // Calendar entries, tickets and payments keep their (now blank) customer, as on MongoDB.
-  await tx.update(schedules).set({ customerId: null }).where(eq(schedules.customerId, id));
-  await tx.update(deliveries).set({ customerId: null }).where(eq(deliveries.customerId, id));
-  await tx.update(paymentsReceived).set({ customerId: null }).where(eq(paymentsReceived.customerId, id));
-  await tx.delete(resources).where(eq(resources.customerId, id));
-  await tx.delete(visits).where(eq(visits.customerId, id));
-  await tx.delete(customers).where(eq(customers.id, id));
-  for (const other of new Set(linkers)) for (const kind of KINDS) await setLinkList(tx, other, kind, await linkList(tx, other, kind));
-  return true;
-}
+const restoreFromBackup = restoreCustomerFromBackup;
 
 export async function undoRun(db: Db, runId: string, by = ''): Promise<UndoOutcome> {
   const items = await db.select().from(spsImportItems)

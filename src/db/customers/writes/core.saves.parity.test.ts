@@ -12,6 +12,8 @@ import { normalize } from '../parity.ts';
 import { newId } from '../../ids.ts';
 import { newCustomerFields, customerUpdateFields, addressFrom } from '../../../utils/customerRecord.ts';
 import { basicCustomer } from '../../../utils/customerAccess.ts';
+import { eq } from 'drizzle-orm';
+import { customers } from '../../schema/customers.ts';
 import { openWriteParity, type WriteParity } from './writeParity.ts';
 import type { Loose } from '../../../types/records.ts';
 import type { GeocodePatch } from './coreTypes.ts';
@@ -21,6 +23,8 @@ const seattle = oid(), kent = oid(), rep = oid(), rep2 = oid(), ghost = oid();
 const acme = newId(), plain = newId(), towered = newId(), pat = newId();
 const visitId = newId(), resourceId = newId(), contactId = oid();
 let t: WriteParity;
+/** What a save threw (or what it answered, if it didn't). */
+const caught = (p: Promise<unknown>): Promise<Loose> => p.catch((e: unknown) => e) as Promise<Loose>;
 let tick = 0;
 /** A new moment per call, so MongoDB never sees "nothing changed" because a save landed on the same millisecond. */
 const later = () => new Date(Date.UTC(2026, 10, 10, 18, 0, ++tick));
@@ -128,8 +132,8 @@ describe('create', () => {
 
   it('another customer with the same email (any case) is refused by both with code 11000', async () => {
     const body = { company: 'Dup Co', email: 'ANN@acme.example' };
-    const m = await t.on('mongo', () => create(body)).catch((e: Loose) => e);
-    const p = await t.on('postgres', () => create(body)).catch((e: Loose) => e);
+    const m = await caught(t.on('mongo', () => create(body)));
+    const p = await caught(t.on('postgres', () => create(body)));
     expect(m.code).toBe(11000);
     expect(p.code).toBe(11000);
     expect(await t.differences()).toEqual([]);
@@ -138,12 +142,12 @@ describe('create', () => {
   it('what Mongoose refuses is refused with the same words', async () => {
     for (const bad of [{ status: 'Nope' }, { customerType: 'Alien' }, { level: 'Level - 9' }]) {
       const body = { company: 'Bad Co', email: `bad${Math.random()}@co.example`, ...bad };
-      const m = await t.on('mongo', () => create(body)).catch((e: Loose) => e);
-      const p = await t.on('postgres', () => create(body)).catch((e: Loose) => e);
+      const m = await caught(t.on('mongo', () => create(body)));
+      const p = await caught(t.on('postgres', () => create(body)));
       expect(p.message).toBe(m.message);
     }
-    const m = await t.on('mongo', () => create({ company: 'X', email: 'x@y.example' }, { createdBy: 'not an id' })).catch((e: Loose) => e);
-    const p = await t.on('postgres', () => create({ company: 'X', email: 'x@y.example' }, { createdBy: 'not an id' })).catch((e: Loose) => e);
+    const m = await caught(t.on('mongo', () => create({ company: 'X', email: 'x@y.example' }, { createdBy: 'not an id' })));
+    const p = await caught(t.on('postgres', () => create({ company: 'X', email: 'x@y.example' }, { createdBy: 'not an id' })));
     expect(p.message).toBe(m.message);
     expect(await t.differences()).toEqual([]);
   });
@@ -155,9 +159,12 @@ describe('create', () => {
     expect(await t.differences()).toEqual([]);
   });
 
-  it('a branch that is not a location is refused on Postgres (MongoDB would save a customer the copy leaves out)', async () => {
-    await expect(t.on('postgres', () => create({ company: 'Lost Co', email: 'lost@co.example', location: 'Narnia' }))).rejects.toThrow(/Narnia/);
-    expect(await t.differences()).toEqual([]);
+  it('a branch that is not a location: Postgres files the customer under Seattle (MongoDB keeps the typed name, which the copy would leave out)', async () => {
+    const answer = await t.on('postgres', () => create({ company: 'Lost Co', email: 'lost@co.example', location: 'Narnia' })) as Loose;
+    expect(answer.location).toBe('Seattle');
+    const [row] = await t.pg.db.select().from(customers).where(eq(customers.email, 'lost@co.example'));
+    expect(row.locationId).toBeTruthy();
+    await t.resync();
   });
 });
 
@@ -217,10 +224,12 @@ describe('edit', () => {
   });
   it('a branch change', async () => { await same(plain, { location: 'Kent' }); });
   it('a blank branch falls back to Seattle', async () => { await same(plain, { location: '' }); });
-  it('a branch that is not a location is refused on Postgres only', async () => {
-    await expect(t.on('postgres', () => edit(plain, { location: 'Narnia' }))).rejects.toThrow(/Narnia/);
-    expect(await t.differences()).toEqual([]);
+  it('a branch that is not a location: Postgres files the customer under Seattle', async () => {
+    const answer = await t.on('postgres', () => edit(plain, { location: 'Narnia' })) as Loose;
+    expect(answer.customer.location).toBe('Seattle');
+    await t.resync();
   });
+
   it('keys that are not customer fields, and protected ones, change nothing', async () => {
     await same(plain, { foo: 'bar', password: 'secret', isActive: false, createdAt: '2001-01-01', sps: { key: 'x' }, phone: '555-0500' });
   });
@@ -234,8 +243,8 @@ describe('edit', () => {
     expect(await t.differences()).toEqual([]);
   });
   it('a garbage id is refused with the same words', async () => {
-    const m = await t.on('mongo', () => edit('zzz', { phone: '1' })).catch((e: Loose) => e);
-    const p = await t.on('postgres', () => edit('zzz', { phone: '1' })).catch((e: Loose) => e);
+    const m = await caught(t.on('mongo', () => edit('zzz', { phone: '1' })));
+    const p = await caught(t.on('postgres', () => edit('zzz', { phone: '1' })));
     expect(p.message).toBe(m.message);
   });
 
@@ -247,8 +256,8 @@ describe('edit', () => {
     ['a company that is a list', { company: ['a', 'b'] }],
     ['a marketing flag that is not true / false', { receiveMarketing: 'x' }]
   ])('refused with the same words: %s', async (_l, body) => {
-    const m = await t.on('mongo', () => edit(acme, body)).catch((e: Loose) => e);
-    const p = await t.on('postgres', () => edit(acme, body)).catch((e: Loose) => e);
+    const m = await caught(t.on('mongo', () => edit(acme, body)));
+    const p = await caught(t.on('postgres', () => edit(acme, body)));
     expect(m).toBeInstanceOf(Error);
     expect(p.message).toBe(m.message);
     expect(await t.differences()).toEqual([]);

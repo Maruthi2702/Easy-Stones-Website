@@ -9,7 +9,7 @@ import * as pg from './core.postgres.ts';
 import type { Loose } from '../../../types/records.ts';
 import type { CreateCustomerInput, EditCustomerInput } from './coreTypes.ts';
 
-export type { CreateCustomerInput, EditCustomerInput, EditResult, GeocodePatch, ResolvedRep } from './coreTypes.ts';
+export type { BulkDeleteResult, CreateCustomerInput, EditCustomerInput, EditResult, GeocodePatch, ResolvedRep, UndoDeleteResult } from './coreTypes.ts';
 
 const onPostgres = () => areaOn('customers') === 'postgres';
 
@@ -45,4 +45,19 @@ export async function setCustomerActive(id: string, isActive: unknown) {
 /** A user was renamed: relabel the customers they own (MongoDB) — Postgres reads the name by a join and writes nothing. */
 export async function renameRepOnCustomers(userId: unknown, nameAfter: string) {
   return onPostgres() ? pg.renameRepOnCustomers(await appDb(), userId, nameAfter) : mongo.renameRepOnCustomers(userId, nameAfter);
+}
+
+/** Delete one customer, saved whole first. The saved copy's batch id, or null when there was no such customer. */
+export async function backupAndDeleteCustomer(id: string, deletedBy = '', source = 'single') {
+  return onPostgres() ? pg.backupAndDeleteCustomer(await appDb(), id, deletedBy, source) : mongo.backupAndDeleteCustomer(id, deletedBy, source);
+}
+
+/** Bulk delete (valid ids, no repeats). null = none of them exist. */
+export async function bulkDeleteCustomers(ids: string[], deletedBy: string) {
+  return onPostgres() ? pg.bulkDeleteCustomers(await appDb(), ids, deletedBy) : mongo.bulkDeleteCustomers(ids, deletedBy);
+}
+
+/** Undo a bulk delete. null = already undone. */
+export async function undoBulkDelete(batchId: string, undoneBy: string) {
+  return onPostgres() ? pg.undoBulkDelete(await appDb(), batchId, undoneBy) : mongo.undoBulkDelete(batchId, undoneBy);
 }

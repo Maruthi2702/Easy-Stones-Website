@@ -159,7 +159,7 @@ const REFERENCES: { collection: string; field: string; type: string; table: PgTa
  * Not moved by MongoDB: they keep pointing at the removed record (the copy blanks them),
  * and point at it again once Undo brings it back. Postgres blanks them and remembers which.
  */
-const LEFT_POINTING: Record<string, { table: PgTable; id: PgColumn; column: PgColumn }> = {
+export const LEFT_POINTING: Record<string, { table: PgTable; id: PgColumn; column: PgColumn }> = {
   payments_received: { table: paymentsReceived, id: paymentsReceived.id, column: paymentsReceived.customerId },
   sales_carts: { table: salesCarts, id: salesCarts.id, column: salesCarts.customerId },
   sales_holds: { table: salesHolds, id: salesHolds.id, column: salesHolds.customerId },
@@ -169,10 +169,10 @@ const LEFT_POINTING: Record<string, { table: PgTable; id: PgColumn; column: PgCo
   visit_reactions: { table: visitReactions, id: visitReactions.id, column: visitReactions.customerId }
 };
 
-interface Detached { kind: string; ids: string[]; value: string }
+export interface Detached { kind: string; ids: string[]; value: string }
 interface NotDuplicateMark { customerId: string; other: string; index: number }
 
-async function idsWhere(tx: Db, idCol: PgColumn, table: PgTable, column: PgColumn, value: string): Promise<string[]> {
+export async function idsWhere(tx: Db, idCol: PgColumn, table: PgTable, column: PgColumn, value: string): Promise<string[]> {
   const rows = await tx.select({ id: idCol }).from(table).where(eq(column, value)) as { id: string }[];
   return rows.map(r => String(r.id));
 }
@@ -371,7 +371,7 @@ function modaCustomer(c: Loose) {
   };
 }
 
-function columnKey(table: PgTable, column: PgColumn): string {
+export function columnKey(table: PgTable, column: PgColumn): string {
   for (const [key, col] of Object.entries(table as unknown as Record<string, unknown>)) if (col === column) return key;
   throw new Error(`column ${column.name} is not on its table`);
 }
