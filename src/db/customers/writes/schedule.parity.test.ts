@@ -232,6 +232,8 @@ describe('the Google and iCloud syncs (their database halves)', () => {
     expect(await t.differences()).toEqual([]);
     // Events that need no new customer (cancelled, or with no start) are fine.
     expect((await withIds(ids => data.importGoogleEvent(String(rep), { ...google, status: 'cancelled' }, ids))).postgres).toBe(false);
+    // Google can send a cancelled event with only its id and status: no start, no end.
+    expect((await withIds(ids => data.importGoogleEvent(String(rep), { id: 'g1', status: 'cancelled', startTime: undefined, endTime: undefined } as never, ids))).postgres).toBe(false);
     expect((await withIds(ids => data.importICloudEvent(String(rep), { ...icloud, startTime: null }, ids))).postgres).toBe(false);
 
     // The stand-in customers exist from here on (as they do on the live database).

@@ -524,8 +524,8 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
           continue;
         }
 
-        const startTime = gEvent.start.dateTime || gEvent.start.date;
-        const endTime = gEvent.end.dateTime || gEvent.end.date;
+        const startTime = gEvent.start?.dateTime || gEvent.start?.date;
+        const endTime = gEvent.end?.dateTime || gEvent.end?.date;
 
         // src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
         if (await calendarData.importGoogleEvent(String(userId), {
