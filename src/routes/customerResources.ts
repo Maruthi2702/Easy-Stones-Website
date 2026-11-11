@@ -2,15 +2,16 @@ import { Router } from 'express';
 import type { Request, RequestHandler, Response } from 'express';
 import mongoose from 'mongoose';
 import Customer from '../models/Customer.ts';
-import Schedule from '../models/Schedule.ts';
 import ResourceType from '../models/ResourceType.ts';
 import { canModifyVisit, canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from '../utils/visitAccess.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
 import { normalizeVisitDate } from '../utils/visitDates.ts';
 import { parseResourceQty, RESOURCE_QTY_MAX } from '../utils/resourceForm.ts';
-import { placementVisit, PlacementConflict } from '../services/resourcePlacement.ts';
-import { linkVisitToSchedule, moveVisitOnSchedule, unlinkVisitFromSchedule } from '../services/visitSchedule.ts';
-import { loadFamilies, resourcesOf, recountModa } from '../services/modaCount.ts';
+import { PlacementConflict } from '../services/resourcePlacement.ts';
+import { loadFamilies } from '../services/modaCount.ts';
+import * as customerData from '../db/customers/index.ts';
+import { ResourceError } from '../db/customers/writes/resources.rules.ts';
+import { newId } from '../db/ids.ts';
 import { modaSummary } from '../utils/modaTotals.ts';
 import { canViewCustomerProfile } from '../utils/customerAccess.ts';
 import type { Loose } from '../types/records.ts';
@@ -25,15 +26,9 @@ type Deps = {
   processBase64Images: (images: unknown, folder: string) => Promise<unknown>;
   emitScheduleUpdate: (event: Loose) => void;
 };
-class ResourceError extends Error {
-  status: number;
-  constructor(status: number, message: string) { super(message); this.status = status; }
-}
 const MUTABLE = ['title', 'date', 'location', 'resourceType', 'qty', 'image', 'description', 'notes', 'status', 'url'] as const;
-const asObject = (record: Loose): Loose => record.toObject ? record.toObject() : { ...record };
 const actorOf = (req: StaffRequest) => ({ id: req.userId, permissions: req.user?.permissions });
 const ownerOf = (resource: Loose) => ({ createdBy: resource.uploadedBy || resource.createdBy });
-const nameOf = (customer: Loose) => customer.company || customer.contactName || '';
 
 /** Resource, placement history and linked calendar changes commit together. */
 export default function createCustomerResourcesRouter(deps: Deps) {
@@ -97,31 +92,11 @@ export default function createCustomerResourcesRouter(deps: Deps) {
     try {
       const fields = await fieldsOf(req.body, true);
       const performer = await getPerformerInfo(req);
-      const resourceId = new mongoose.Types.ObjectId(), visitId = new mongoose.Types.ObjectId();
-      const result = await mongoose.connection.transaction(async session => {
-        const customer = await Customer.findById(req.params.customerId).session(session);
-        if (!customer) throw new ResourceError(404, 'Customer not found');
-        const createdAt = getNowLocalISO();
-        const resource = {
-          ...fields, _id: resourceId, visitId, uploadedBy: performer.id,
-          customer: nameOf(customer), createdAt, image: fields.image || [], status: fields.status || 'Active'
-        };
-        const visit = {
-          _id: visitId, resourceId, date: fields.date, purpose: `Resource Placement: ${fields.resourceType || fields.title}`,
-          notes: fields.notes || fields.description || `Added resource: ${fields.title}`,
-          image: resource.image, createdBy: performer.id, createdByName: performer.name,
-          customerContactName: nameOf(customer), createdAt, followUp: '', followUpDate: ''
-        };
-        const before = resourcesOf(customer);
-        customer.resources.push(resource);
-        customer.visits.push(visit);
-        recountModa(customer, before, await loadFamilies(session));
-        await customer.save({ session });
-        const events: Loose[] = [];
-        await linkVisitToSchedule({ customerId: customer._id as mongoose.Types.ObjectId, visitId, visitDate: fields.date,
-          userId: req.authType === 'admin' ? performer.id : null, purpose: visit.purpose,
-          session, emit: (event: Loose) => { events.push(event); } });
-        return { resource, visit, events };
+      // src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
+      const result = await customerData.addResource({
+        customerId: String(req.params.customerId), fields, performer, now: getNowLocalISO,
+        scheduleUserId: req.authType === 'admin' ? performer.id : null,
+        ids: { resourceId: newId(), visitId: newId(), dropInId: newId() }
       });
       notify(req, result.events);
       res.status(201).json({ success: true, resource: result.resource, visit: result.visit });
@@ -132,55 +107,13 @@ export default function createCustomerResourcesRouter(deps: Deps) {
     try {
       const team = await teamOfRequest(req);
       // Authorize before processing attachments, and recheck inside the transaction.
-      const existing = await Customer.findOne({ 'resources._id': req.params.resourceId });
-      const before = existing?.resources.id(String(req.params.resourceId));
+      const before = await customerData.resourceForEdit(String(req.params.resourceId));
       if (!before) throw new ResourceError(404, 'Resource not found');
       if (!canModifyVisit(actorOf(req), ownerOf(before), team)) throw new ResourceError(403, 'You do not have permission to edit this resource.');
       const fields = await fieldsOf(req.body, false, before.resourceType);
-      const result = await mongoose.connection.transaction(async session => {
-        const source = await Customer.findOne({ 'resources._id': req.params.resourceId }).session(session);
-        const resource = source?.resources.id(String(req.params.resourceId));
-        if (!source || !resource) throw new ResourceError(404, 'Resource not found');
-        if (!canModifyVisit(actorOf(req), ownerOf(resource), team)) throw new ResourceError(403, 'You do not have permission to edit this resource.');
-        const moving = String(source._id) !== String(req.params.customerId);
-        const target = moving ? await Customer.findById(req.params.customerId).session(session) : source;
-        if (!target) throw new ResourceError(404, 'Customer not found');
-        const visit = placementVisit(source, resource);
-        if (visit && !canModifyVisit(actorOf(req), visit, team)) throw new ResourceError(403, 'You do not have permission to edit the linked placement visit.');
-        const oldDate = visit?.date;
-        const carried: Loose = { ...asObject(resource), ...fields, customer: nameOf(target) };
-        const carriedVisit: Loose | null = visit ? {
-          ...asObject(visit), resourceId: resource._id, date: carried.date,
-          purpose: `Resource Placement: ${carried.resourceType || carried.title}`,
-          notes: carried.notes || carried.description || `Added resource: ${carried.title}`,
-          image: carried.image, customerContactName: nameOf(target)
-        } : null;
-        if (visit) carried.visitId = visit._id;
-        const sourceBefore = resourcesOf(source), targetBefore = resourcesOf(target);
-        source.resources.pull({ _id: resource._id });
-        if (visit) source.visits.pull({ _id: visit._id });
-        target.resources.push(carried);
-        if (carriedVisit) target.visits.push(carriedVisit);
-        const families = await loadFamilies(session);
-        if (moving) recountModa(source, sourceBefore, families);
-        recountModa(target, targetBefore, families);
-        // Even when the second save fails, neither removal is published.
-        if (moving) await source.save({ session });
-        await target.save({ session });
-        const events: Loose[] = [];
-        if (carriedVisit) {
-          const linked = await Schedule.find({ linkedVisitId: carriedVisit._id }).select('_id userId').session(session).lean();
-          await Schedule.updateMany({ linkedVisitId: carriedVisit._id },
-            { $set: { customerId: target._id, notes: carriedVisit.purpose } }, { session });
-          if (oldDate !== carriedVisit.date) {
-            await moveVisitOnSchedule({ customerId: target._id as mongoose.Types.ObjectId, visitId: carriedVisit._id, newDate: carriedVisit.date,
-              userId: carriedVisit.createdBy, purpose: carriedVisit.purpose, session,
-              emit: (event: Loose) => { events.push(event); } });
-          } else {
-            for (const entry of linked) events.push({ type: 'upsert', userId: entry.userId, id: String(entry._id) });
-          }
-        }
-        return { moving, events };
+      const result = await customerData.updateResource({
+        customerId: String(req.params.customerId), resourceId: String(req.params.resourceId), fields,
+        actor: actorOf(req), team, dropInId: newId()
       });
       notify(req, result.events);
       res.json({ success: true, message: result.moving ? 'Resource moved to the selected customer' : 'Resource updated successfully', moved: result.moving });
@@ -190,21 +123,8 @@ export default function createCustomerResourcesRouter(deps: Deps) {
   router.delete('/:customerId/resources/:resourceId', authenticate, requireAnyPermission(...ANY_DELETE_VISIT_PERMISSIONS), async (req: StaffRequest, res) => {
     try {
       const team = await teamOfRequest(req);
-      const events = await mongoose.connection.transaction(async session => {
-        const customer = await Customer.findById(req.params.customerId).session(session);
-        const resource = customer?.resources.id(String(req.params.resourceId));
-        if (!customer || !resource) throw new ResourceError(404, 'Resource not found');
-        if (!canDeleteVisit(actorOf(req), ownerOf(resource), team)) throw new ResourceError(403, 'You do not have permission to delete this resource.');
-        const visit = placementVisit(customer, resource);
-        if (visit && !canDeleteVisit(actorOf(req), visit, team)) throw new ResourceError(403, 'You do not have permission to delete the linked placement visit.');
-        const before = resourcesOf(customer);
-        customer.resources.pull({ _id: resource._id });
-        if (visit) customer.visits.pull({ _id: visit._id });
-        recountModa(customer, before, await loadFamilies(session));
-        await customer.save({ session });
-        const events: Loose[] = [];
-        if (visit) await unlinkVisitFromSchedule({ visitId: visit._id, session, emit: (event: Loose) => { events.push(event); } });
-        return events;
+      const events = await customerData.deleteResource({
+        customerId: String(req.params.customerId), resourceId: String(req.params.resourceId), actor: actorOf(req), team
       });
       notify(req, events);
       res.json({ success: true, message: 'Resource deleted successfully' });
