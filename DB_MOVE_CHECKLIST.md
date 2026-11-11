@@ -76,6 +76,10 @@ writes until then. Each still moves through the data layer first, switch off.
 ## 3. Before anything is written to RDS
 
 - [x] Prod RDS size: db.t4g.small Multi-AZ, 20 GB growing to a 100 GB cap, 7-day backups, ~$55/mo; size up when the CPU-credit or free-memory alarm fires (owner, 2026-11-10) — aws-infra 63e962d
+- [x] Prod without NAT gateways, master-password rotation off (~$65/mo saved) — aws-infra 9e29b41
+- [x] Prod in the same AWS account as dev; its $150 budget covers the account — aws-infra 4f36c4c
+- [ ] Prod RDS lets the website on Render in (`database.publicAccess`, Render's 2 Virginia ranges, as dev) — owner: later
+- [ ] Deploy prod (owner runs it), then turn dev's $10 budget off (dev.yaml `monitoring.budget.enabled: false`)
 - [ ] Dev RDS: raise backups from 1 day, turn off delete-on-teardown (aws-infra)
 - [ ] Tables for the 2 collections not copied yet (`admins`, `crossoversheets`), or confirm they stay empty
 - [ ] Users, roles, locations, visit / resource types copied MongoDB → Postgres on every change until they move (customers point at them)
