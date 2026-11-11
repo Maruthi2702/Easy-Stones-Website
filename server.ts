@@ -55,8 +55,10 @@ import Location from './src/models/Location.ts';
 import ContactSubmission from './src/models/ContactSubmission.ts';
 import Customer from './src/models/Customer.ts';
 import * as customerData from './src/db/customers/index.ts';
+const { resolveDuplicates, undoDuplicates } = customerData;
 import { areasOnPostgres } from './src/db/appDb.ts';
-import { isId } from './src/db/ids.ts';
+import { isId, newId } from './src/db/ids.ts';
+import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
 import SalesResource from './src/models/SalesResource.ts';
@@ -4657,54 +4659,25 @@ app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/
       return res.status(403).json({ message: 'Merging or deleting a customer needs the delete_customers permission.' });
     }
 
-    const db = mongoose.connection.db!;
     const ids = [keepId, ...entries.map(([id]) => id)];
-    if (!ids.every((id: string) => mongoose.Types.ObjectId.isValid(id))) {
+    if (!ids.every((id: string) => isId(id))) {
       return res.status(400).json({ message: 'Unknown customer id' });
     }
-    const docs = await db.collection('customers')
-      .find({ _id: { $in: ids.map(id => new mongoose.Types.ObjectId(id)) } }).toArray();
-    const byId = new Map(docs.map(d => [String(d._id), d]));
-    const missing = ids.find(id => !byId.has(id));
-    if (missing) {
+    const out = await resolveDuplicates({
+      keepId, actions: entries as [string, DuplicateAction][], who: req.user?.username || '',
+      backupIds: { delete: newId(), merge: newId() }
+    });
+    if ('missing' in out) {
       return res.status(409).json({ message: 'One of these customers no longer exists — refresh the preview.' });
     }
-
-    const survivor = byId.get(keepId)!;
-    const merging = entries.filter(([, a]) => a === 'merge').map(([id]) => byId.get(id)!);
-    const deleting = entries.filter(([, a]) => a === 'delete').map(([id]) => byId.get(id)!);
-    const separate = entries.filter(([, a]) => a === 'separate').map(([id]) => id);
-    const who = req.user?.username || '';
-    const undoIds: string[] = [];
-
-    // Delete runs first and the merge snapshots after it, so an undo of the
-    // merge restores the survivor as it was after the delete — the two undo
-    // in reverse order and each puts back exactly what it changed.
-    if (deleting.length) {
-      const snap = await snapshotMerge(db, survivor, deleting);
-      const backup = await CustomerMergeBackup.create({ group: snap, action: 'delete', createdBy: who });
-      await executeMerge(db, survivor, deleting, { copyDetails: false });
-      undoIds.push(String(backup._id));
-    }
-    if (merging.length) {
-      const current = (await db.collection('customers').findOne({ _id: survivor._id }))!;
-      const { set } = planFields(current, merging);
-      const newContacts = contactsFromLosers(set.email ?? current.email, current, merging);
-      const snap = await snapshotMerge(db, current, merging);
-      const backup = await CustomerMergeBackup.create({ group: snap, action: 'merge', createdBy: who });
-      await executeMerge(db, current, merging, { set, newContacts, copyDetails: true });
-      undoIds.push(String(backup._id));
-    }
-    // "These are all different accounts" — the kept one and every member
-    // marked separate, each pair recorded, so none of them is asked about again.
-    if (separate.length) await markSeparate(db, [keepId, ...separate]);
+    const { merged, deleted, separate, undoIds } = out;
 
     req.app.get('io')?.emit('customer_update');
     res.json({
       success: true,
-      merged: merging.length,
-      deleted: deleting.length,
-      separate: separate.length,
+      merged,
+      deleted,
+      separate,
       undoIds
     });
   } catch (error) {
@@ -4721,19 +4694,12 @@ app.post(['/api/customers/duplicates/undo', '/api/admin/customers/duplicates/und
     if (!ids.length || !ids.every((id: string) => mongoose.Types.ObjectId.isValid(id))) {
       return res.status(400).json({ message: 'Nothing to undo' });
     }
-    // By _id, not createdAt: both backups from one click can share a millisecond.
-    const backups = await CustomerMergeBackup.find({ _id: { $in: ids }, undoneAt: null }).sort({ _id: -1 });
-    if (backups.length !== ids.length) {
+    const out = await undoDuplicates(ids);
+    if ('alreadyUndone' in out) {
       return res.status(409).json({ message: 'This has already been undone.' });
     }
-    const db = mongoose.connection.db!;
-    for (const b of backups) {
-      await undoMerge(db, b.group);
-      b.undoneAt = new Date();
-      await b.save();
-    }
     req.app.get('io')?.emit('customer_update');
-    res.json({ success: true, restored: backups.reduce((n, b) => n + (b.group.losers?.length || 0), 0) });
+    res.json({ success: true, restored: out.restored });
   } catch (error) {
     console.error('Undo duplicate resolve error:', error);
     res.status(500).json({ message: `Undo failed: ${(error as Error).message}` });
