@@ -43,7 +43,7 @@ export async function createCalendarEntry(userId: string, id: string, fields: En
     }
     throw saveError;
   }
-  return { kind: 'created', entry: await populate(created._id) };
+  return { kind: 'created', entry: (await populate(created._id))! };
 }
 
 /** POST /api/schedule/bulk, from the one-stop repeat check on. */
