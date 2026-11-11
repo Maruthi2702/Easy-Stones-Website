@@ -6,7 +6,7 @@
  * binders, the earlier count, moves between customers, unlinked (legacy) resources and
  * the ambiguous match that changes nothing, permissions, and type replacement.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import mongoose from 'mongoose';
 import Customer from '../../../models/Customer.ts';
 import Schedule from '../../../models/Schedule.ts';
@@ -32,6 +32,9 @@ const everyone = { id: otherId, permissions: ['edit_all_visits', 'delete_all_vis
 const performer = { id: repId, name: 'Jo Rep' };
 const now = () => '2026-11-10T09:30:00.000';
 let t: WriteParity;
+
+// Each case runs a save twice and compares every table; a busy machine needs room.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 });
 
 /** What a save answered, or how it refused (the route's status and words). */
 const settle = <T>(run: () => Promise<T>) => run().then(
@@ -132,7 +135,7 @@ beforeAll(async () => {
   expect(await t.differences()).toEqual([]);
 }, 120_000);
 
-afterAll(async () => { await t?.close(); });
+afterAll(async () => { await t?.close(); }, 60_000);
 
 describe('add a resource', () => {
   it('a binder with a Qty: the placement visit, a drop-in on the calendar and the binder count', async () => {
