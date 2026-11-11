@@ -188,7 +188,8 @@ export async function setCustomerActive(db: Db, rawId: string, isActive: unknown
   const cast = (Customer.castObject({ isActive }) as Loose).isActive as boolean | null | undefined;
   const set: Partial<typeof customers.$inferInsert> = { updatedAt: new Date() };
   // MongoDB stores null as null, which the copy reads as active.
-  if (cast !== undefined) set.isActive = cast ?? true;
+  if (isActive === null) set.isActive = true;
+  else if (cast !== undefined) set.isActive = cast ?? true;
   const done = await db.update(customers).set(set).where(eq(customers.id, id)).returning({ id: customers.id });
   return done.length > 0;
 }

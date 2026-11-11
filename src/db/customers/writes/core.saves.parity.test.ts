@@ -314,7 +314,7 @@ describe('bulk', () => {
 });
 
 describe('active', () => {
-  it.each([[false], [true], ['no'], ['yes'], [0], [1], [null], [undefined]])('isActive %j: same data', async value => {
+  it.each([[false], [null], ['no'], [undefined], [true], ['no'], ['yes'], [0], [1]])('isActive %j: same data', async value => {
     const { mongo, postgres } = await t.both(() => data.setCustomerActive(plain, value), later());
     expect(postgres).toBe(mongo);
     expect(mongo).toBe(true);
