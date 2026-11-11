@@ -17,7 +17,7 @@ import { BASIC_CUSTOMER_FIELDS } from '../../utils/customerAccess.ts';
 
 const oid = () => new mongoose.Types.ObjectId();
 const me = oid(), inactive = oid(), outside = oid(), global = oid(), manager = oid(), all = oid(), basic = oid(), denied = oid();
-const cid = oid(), partner = oid(), empty = oid(), deletedCustomer = oid();
+const cid = oid(), partner = oid(), empty = oid(), deletedCustomer = oid(), ghostCid = oid(), ghostUser = oid();
 const visitIds = Array.from({ length: 6 }, oid), resourceIds = Array.from({ length: 5 }, oid);
 const clock = '2026-11-09T14:05:06.090';
 const secret = 'local-profile-parity-secret';
@@ -72,7 +72,10 @@ beforeAll(async () => {
       associatedCustomers: [partner, deletedCustomer, empty], notDuplicateOf: [empty], quickNote: 'Private', priceLevel: 3 },
     { _id: partner, contactName: 'Partner', company: 'Partner company', email: 'partner@example.test', location: 'Seattle',
       visits: owners.slice(0, 4).map((owner, i) => ({ _id: oid(), date: `2026-10-${21 + i}`, createdBy: String(owner), createdAt: clock })) },
-    { _id: empty, contactName: 'Empty', email: 'empty@example.test', location: 'Seattle' }
+    { _id: empty, contactName: 'Empty', email: 'empty@example.test', location: 'Seattle' },
+    // Every resource was logged by someone since deleted: the copy has no uploader left to name.
+    { _id: ghostCid, contactName: 'Ghost', email: 'ghost@example.test', location: 'Seattle',
+      resources: [{ _id: oid(), title: 'Orphan', customer: 'Ghost', date: '2026-11-09', uploadedBy: String(ghostUser), createdAt: clock }] }
   ]);
   pg = await openDb('pglite:memory');
   await migrateDb(pg.db, 'pglite:memory');
@@ -107,6 +110,30 @@ it.each(['*', new Set([String(me)]), new Set([String(me), String(inactive)]), ne
       expect(result.visits).toEqual([]); expect(result.resources).toEqual([]); expect(result.lastVisitDate).toBeNull();
     }
   });
+
+it('names every resource\'s uploader on both databases, even when none is left to name', async () => {
+  // Not `both`: the copy blanks a deleted user's id (a known difference); the name must still be '' on each side.
+  for (const database of ['mongo', 'postgres']) {
+    process.env.DB_CUSTOMERS = database;
+    const result = await data.customerProfile(String(ghostCid), { mayProfile: true, people: '*' });
+    expect(result!.resources.map((r: Loose) => r.uploadedByName)).toEqual(['']);
+  }
+  process.env.DB_CUSTOMERS = 'postgres';
+  const named = await data.customerProfile(String(cid), { mayProfile: true, people: '*' });
+  expect(named!.resources.every((r: Loose) => typeof r.uploadedByName === 'string')).toBe(true);
+});
+
+it('leaves out a linked partner\'s empty fields exactly as MongoDB does (not null), keeping lastVisitDate', async () => {
+  for (const database of ['mongo', 'postgres']) {
+    process.env.DB_CUSTOMERS = database;
+    const profile = await data.customerProfile(String(cid), { mayProfile: true, people: '*' });
+    const emptyPartner = profile!.associatedCustomers.find((p: Loose) => String(p._id) === String(empty));
+    const { lastVisitDate, ...fields } = emptyPartner;
+    expect(Object.values(fields).includes(null)).toBe(false);
+    expect('company' in emptyPartner).toBe(false); expect('phone' in emptyPartner).toBe(false);
+    expect(lastVisitDate).toBeNull();
+  }
+});
 
 it('matches empty, missing and uppercase profiles and basic-field allowlists', async () => {
   for (const id of [String(empty), String(cid).toUpperCase(), String(oid())]) {
@@ -168,7 +195,8 @@ describe.each(['mongo', 'postgres'])('%s profile HTTP permissions and scope', da
         }
         await get(`/api/customers/${empty}/${kind}/${ids[0]}`, user).expect(404);
         await get(`${path}/${kind}/${oid()}`, user).expect(404);
-        await get(`${path}/${kind}/malformed`, user).expect(500);
+        await get(`${path}/${kind}/malformed`, user).expect(404);
+        await get(`/api/customers/malformed/${kind}/${ids[0]}`, user).expect(404);
       }
     }
     await get(`/api/customers/${oid()}`).expect(404);

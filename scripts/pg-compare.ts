@@ -14,7 +14,7 @@ import mongoose from 'mongoose';
 import { openDb, migrateDb } from '../src/db/client.ts';
 import { copyFromMongo } from '../src/db/copy/plan.ts';
 import { readMongo } from '../src/db/copy/readMongo.ts';
-import { useAppDbForTests as injectAppDb } from '../src/db/appDb.ts';
+import { useAppDbForTests } from '../src/db/appDb.ts';
 import * as customers from '../src/db/customers/index.ts';
 import { normalize, diffEntries, describeDifference, knownWhy, profileParityContext } from '../src/db/customers/parity.ts';
 import type { CustomerList, CustomerListQuery } from '../src/db/customers/types.ts';
@@ -36,7 +36,7 @@ if (!noCopy) {
   const report = await copyFromMongo(pg.db, source, { write: true });
   console.log(`Copied ${Object.values(report.tables).reduce((a, b) => a + b, 0)} rows (${report.problems.length} problems reported by the copy).`);
 }
-injectAppDb(pg.db);
+useAppDbForTests(pg.db);
 await mongoose.connect(mongoUri, { readPreference: 'secondaryPreferred', appName: 'pg-compare', autoIndex: false, autoCreate: false });
 
 type Rec = { _id: string; createdAt?: string };
@@ -137,7 +137,8 @@ for (const tab of ['fabricators', 'partners']) {
 }
 
 // Check every customer with nested history, contacts or links, plus a plain profile.
-// Small batches keep the source reads and local SQL bounded without serial network round trips.
+// Small batches keep the source reads and local SQL bounded without serial network round trips
+// (PG_COMPARE_CONCURRENCY, default 16, for a big database).
 const profileSource = await mongoose.connection.db!.collection('customers').find({ $or: [
   { 'visits.0': { $exists: true } }, { 'resources.0': { $exists: true } },
   { 'contacts.0': { $exists: true } }, { 'associatedCustomers.0': { $exists: true } }
@@ -147,11 +148,15 @@ const plainProfile = await mongoose.connection.db!.collection('customers').findO
   'contacts.0': { $exists: false }, 'associatedCustomers.0': { $exists: false }
 }, { projection: { _id: 1 } });
 const profileIds = [...new Set([...profileSource.map(c => String(c._id)), ...(plainProfile ? [String(plainProfile._id)] : [])])];
-const profileFacts = profileParityContext(copiedCustomers ?? await mongoose.connection.db!.collection('customers').find({}).toArray());
+// Only the fields the parity facts read, so a big database is not held whole in memory.
+const profileFacts = profileParityContext(copiedCustomers ?? await mongoose.connection.db!.collection('customers').find({}, { projection: {
+  location: 1, company: 1, contactName: 1, 'contacts._id': 1, 'visits._id': 1, 'visits.createdBy': 1, 'visits.reactions._id': 1, 'resources._id': 1
+} }).toArray());
 const profileReads: typeof reads = [];
 async function batched<T, R>(items: T[], read: (item: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
-  for (let start = 0; start < items.length; start += 8) out.push(...await Promise.all(items.slice(start, start + 8).map(read)));
+  const size = Math.max(1, Number(process.env.PG_COMPARE_CONCURRENCY) || 16);
+  for (let start = 0; start < items.length; start += size) out.push(...await Promise.all(items.slice(start, start + size).map(read)));
   return out;
 }
 for (const [label, people] of [['all', '*'], ['own', new Set(listBase.userId ? [listBase.userId] : [])], ['empty', new Set<string>()]] as const) {

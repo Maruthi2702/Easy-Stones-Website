@@ -121,6 +121,14 @@ export function differences(a: unknown, b: unknown, limit = 20): string[] {
  * Differences between live MongoDB and its Postgres copy that are understood, each with
  * why (src/db/README.md, "Known differences"). Anything not matched here is a bug.
  */
+/** A field of a visit or resource: the whole response is that record, or it sits under visits.N / resources.N. */
+const entryField = (field: string, kinds: ('visits' | 'resources')[]) => (path: string) =>
+  path === field || new RegExp(`(^|\\.)(${kinds.join('|')})\\.\\d+\\.${field}$`).test(path);
+const isVisitFollowUpDate = entryField('followUpDate', ['visits']);
+const isEntryImage = entryField('image', ['visits', 'resources']);
+const isResourceCustomer = entryField('customer', ['resources']);
+const isVisitCreatedBy = entryField('createdBy', ['visits']);
+
 export const KNOWN_DIFFERENCES: { why: string; matches: (d: Difference, context?: ParityContext) => boolean }[] = [
   {
     why: 'saved without createdAt / updatedAt in MongoDB; Postgres has the time from its id',
@@ -155,22 +163,22 @@ export const KNOWN_DIFFERENCES: { why: string; matches: (d: Difference, context?
   },
   {
     why: 'old follow-up day saved as midnight UTC, copied as the same calendar day',
-    matches: d => /(^|\.)followUpDate$/.test(d.path) && typeof d.mongo === 'string' &&
+    matches: d => isVisitFollowUpDate(d.path) && typeof d.mongo === 'string' &&
       /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/.test(d.mongo) && d.postgres === d.mongo.slice(0, 10)
   },
   {
     why: 'legacy single photo URL, copied as a one-element attachment array with the same URL',
-    matches: d => /(^|\.)image$/.test(d.path) && typeof d.mongo === 'string' &&
+    matches: d => isEntryImage(d.path) && typeof d.mongo === 'string' &&
       Array.isArray(d.postgres) && d.postgres.length === 1 && d.postgres[0] === d.mongo
   },
   {
     why: 'resource customer name is the current parent name, rather than an old stored copy',
-    matches: (d, context) => /(^|\.)customer$/.test(d.path) && typeof d.postgres === 'string' &&
+    matches: (d, context) => isResourceCustomer(d.path) && typeof d.postgres === 'string' &&
       context?.profiles.customerNameByResource.get(String(containingRecord(d, context)?._id)) === d.postgres
   },
   {
     why: 'a legacy visit author is not an account id, blanked by the copy (the author name stays)',
-    matches: (d, context) => /(^|\.)createdBy$/.test(d.path) && d.postgres === undefined && typeof d.mongo === 'string' &&
+    matches: (d, context) => isVisitCreatedBy(d.path) && d.postgres === undefined && typeof d.mongo === 'string' &&
       context?.profiles.invalidVisitAuthors.get(String(containingRecord(d, context)?._id)) === d.mongo
   },
   {

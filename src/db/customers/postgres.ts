@@ -8,18 +8,18 @@ import type { Db } from '../copy/plan.ts';
 import { customers, customerLinks, customerLogins, visits } from '../schema/customers.ts';
 import { locations, users } from '../schema/reference.ts';
 import type { Loose } from '../../types/records.ts';
-import { customerDoc, repNameOf, type CustomerLinks } from './customerDoc.ts';
+import { customerDoc, repNameOf, nonNull, type CustomerLinks } from './customerDoc.ts';
 import type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery } from './types.ts';
 import { basicCustomer } from '../../utils/customerAccess.ts';
 import { listFields, listWhere, listOrder, savedViewWhere, fabricatorWhere } from './listSql.ts';
 import { SAVED_VIEWS } from '../../utils/customerList.ts';
 import type { CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
 import { customerVisits, customerResources, customerContacts, historyScope } from './profileSql.ts';
-import { lastVisit } from './profileShape.ts';
+import { lastVisit, isHistoryId } from './profileShape.ts';
 
-/** MongoDB casts these route parameters to ObjectIds (and rejects malformed ids). */
+/** MongoDB casts these route parameters to ObjectIds; the routes answer 404 to anything else before reading. */
 function historyId(id: string): string {
-  if (!/^[a-f0-9]{24}$/i.test(id)) throw new Error('Invalid customer history id');
+  if (!isHistoryId(id)) throw new Error('Invalid customer history id');
   return id.toLowerCase();
 }
 
@@ -32,18 +32,24 @@ export async function customerProfile(db: Db, id: string, scope: CustomerHistory
   if (!row) return null;
   const doc = customerDoc(row.c, row, { associated: [], notDuplicate: [] }, row.login);
   if (!scope.mayProfile) return basicCustomer(doc);
-  const [links, history, resourceList, contacts] = await Promise.all([
-    linksOf(db, [id]), customerVisits(db, [id], scope.people), customerResources(db, id, scope.people, undefined, true), customerContacts(db, id)
+  const visibleVisits = historyScope(sql`coalesce(${visits.createdById}, ${visits.createdByCustomerId})`, scope.people);
+  // Partners are read in the same round trip as everything else (joined through the link table).
+  const [links, history, resourceList, contacts, partners] = await Promise.all([
+    linksOf(db, [id]), customerVisits(db, [id], scope.people), customerResources(db, id, scope.people, undefined, true), customerContacts(db, id),
+    db.select({ _id: customers.id, contactName: customers.contactName, company: customers.company, customerType: customers.customerType,
+      status: customers.status, phone: customers.phone,
+      lastVisitDate: sql<string | null>`(select max(${visits.visitDate})::text from ${visits} where ${and(eq(visits.customerId, customers.id), visibleVisits)})` })
+      .from(customerLinks).innerJoin(customers, eq(customers.id, customerLinks.otherCustomerId))
+      .where(and(eq(customerLinks.customerId, id), eq(customerLinks.kind, 'associated')))
+      .orderBy(customerLinks.position, bytewise(customerLinks.otherCustomerId))
   ]);
   const ownLinks = links.get(id)!;
-  const partners = ownLinks.associated.length ? await db.select({ _id: customers.id, contactName: customers.contactName,
-    company: customers.company, customerType: customers.customerType, status: customers.status, phone: customers.phone,
-    lastVisitDate: sql<string | null>`(select max(${visits.visitDate})::text from ${visits} where ${and(
-      eq(visits.customerId, customers.id), historyScope(sql`coalesce(${visits.createdById}, ${visits.createdByCustomerId})`, scope.people)
-    )})` }).from(customers).where(inArray(customers.id, ownLinks.associated)) : [];
-  const byId = new Map(partners.map(p => [p._id, p]));
+  // MongoDB's populate leaves out a field a partner never had; the copy stores that as null or '',
+  // so both are left out here. Only lastVisitDate is always sent.
+  const associatedCustomers = partners.map(({ lastVisitDate, ...partner }) => ({
+    ...Object.fromEntries(Object.entries(nonNull(partner)).filter(([, value]) => value !== '')), lastVisitDate }));
   return { ...doc, visits: history, resources: resourceList, contacts, lastVisitDate: lastVisit(history),
-    associatedCustomers: ownLinks.associated.map(id => byId.get(id)).filter(Boolean), notDuplicateOf: ownLinks.notDuplicate };
+    associatedCustomers, notDuplicateOf: ownLinks.notDuplicate };
 }
 
 export async function customerHistoryEntry(db: Db, customerId: string, kind: CustomerHistoryKind, entryId: string,

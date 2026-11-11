@@ -22,11 +22,9 @@ export async function customerRecordResponse(record: Loose, scope: CustomerHisto
   if (!scope.mayProfile) return customer;
   const resources: Loose[] = customer.resources;
   const ids = [...new Set(resources.map((r) => String(r.uploadedBy || '')).filter((id) => /^[a-f0-9]{24}$/i.test(id)))];
-  if (ids.length) {
-    const users = await User.find({ _id: { $in: ids } }).select('username displayName').lean() as Loose[];
-    const nameById = new Map(users.map((u) => [String(u._id), displayNameOf(u)]));
-    resources.forEach((r) => { r.uploadedByName = nameById.get(String(r.uploadedBy || '')) || ''; });
-  }
+  const users = ids.length ? await User.find({ _id: { $in: ids } }).select('username displayName').lean() as Loose[] : [];
+  const nameById = new Map(users.map((u) => [String(u._id), displayNameOf(u)]));
+  resources.forEach((r) => { r.uploadedByName = nameById.get(String(r.uploadedBy || '')) || ''; });
   return customer;
 }
 

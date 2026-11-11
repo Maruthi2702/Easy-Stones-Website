@@ -186,7 +186,13 @@ list (`GET /api/customers/list` and its `/api/partners` alias: every filter, sav
 A–Z, Moda, sort, page, export and the basic card; SQL in `customers/listSql.ts`). The list
 has its own parity test, `customers/customerList.parity.test.ts`, which also calls the real
 route (sign-in, permissions, export) on both databases. `pg:compare` checks the read
-responses and exact list order against the live source.
+responses and exact list order against the live source. On live data 2026-11-10 (78 reads,
+before the profile reads below): all 21 saved-view count reads the same, every list sort in
+exactly the same order; the only differences besides the known ones below came from one
+customer edited while the run was going (its contact name, and the search results it moved
+between). The profile reads have **not** had a live run yet; the counts in the profile
+"known differences" below come from the copy's own report, so rerun `pg:compare` and
+replace them with its result before cutover.
 
 Saved-view counts use the original MongoDB tab predicate and count queries, or a single
 SQL statement sharing the list's saved-view predicates. Only `tab`, the authenticated
@@ -204,7 +210,9 @@ and follow-up events, resources with attachments, and contacts in their saved or
 The route supplies the existing Visits scope; SQL filters histories by the author,
 including linked customers' last-visit dates, rather than the customer's branch. Basic
 cards retain their field allowlist. `customerHistoryResponse` still accepts the saved
-MongoDB record for create/edit replies, even if Postgres reads are selected.
+MongoDB record for create/edit replies, even if Postgres reads are selected: the facade's
+`customerRecordResponse` always runs on MongoDB (it shapes the record just saved), and
+moves with customer create/edit — it is a box on `DB_MOVE_CHECKLIST.md`.
 `customers/profile.parity.test.ts` covers nested fields, scopes, HTTP permissions and
 mutation replies; `pg:compare` checks every profile with history, contacts or links and
 every individual visit/resource. The profile read adds no schema migration.

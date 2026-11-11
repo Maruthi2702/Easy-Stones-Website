@@ -35,6 +35,14 @@ it('allows only the same midnight-UTC follow-up day and same single photo URL', 
   expect(unknown(m, { ...m, image: ['/uploads/same.jpg', '/uploads/extra.jpg'] })).toHaveLength(1);
 });
 
+it('applies the photo, follow-up and name allowances only to visits and resources', () => {
+  const photo = { mongo: '/a.jpg', postgres: ['/a.jpg'] };
+  expect(unknown([{ _id: cid, resources: [{ _id: rid, image: photo.mongo }] }], [{ _id: cid, resources: [{ _id: rid, image: photo.postgres }] }])).toEqual([]);
+  expect(unknown({ _id: cid, partner: { image: photo.mongo } }, { _id: cid, partner: { image: photo.postgres } })).toHaveLength(1);
+  expect(unknown({ _id: cid, login: { followUpDate: '2026-01-01T00:00:00.000Z' } }, { _id: cid, login: { followUpDate: '2026-01-01' } })).toHaveLength(1);
+  expect(unknown({ _id: cid, associatedCustomers: [{ _id: rid, customer: 'Old' }] }, { _id: cid, associatedCustomers: [{ _id: rid, customer: 'Current company' }] })).toHaveLength(1);
+});
+
 it('allows only the source parent name for a resource, for profile and standalone responses', () => {
   const doc = (customer: string) => ({ _id: rid, customer });
   for (const wrap of [(r: Loose) => r, (r: Loose) => [{ _id: cid, resources: [r] }]]) {

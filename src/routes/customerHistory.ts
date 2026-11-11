@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Request, RequestHandler } from 'express';
-import { customerProfile, customerHistoryEntry, customerRecordResponse } from '../db/customers/index.ts';
+import { customerProfile, customerHistoryEntry, customerRecordResponse, isHistoryId } from '../db/customers/index.ts';
 import { canViewCustomerProfile } from '../utils/customerAccess.ts';
 import { visiblePeopleOfRequest } from '../services/teamDirectory.ts';
 import type { Loose } from '../types/records.ts';
@@ -40,6 +40,10 @@ export default function createCustomerHistoryRouter({ authenticate, requirePermi
     const singular = kind === 'visits' ? 'visit' : 'resource';
     router.get(`/:customerId/${kind}/:entryId`, ...view, profile, async (req: StaffRequest, res) => {
       try {
+        // A malformed id is a bad link, not a server failure.
+        if (!isHistoryId(String(req.params.customerId)) || !isHistoryId(String(req.params.entryId))) {
+          return res.status(404).json({ message: `${singular === 'visit' ? 'Visit' : 'Resource'} not found` });
+        }
         const entry = await customerHistoryEntry(String(req.params.customerId), kind, String(req.params.entryId),
           await visiblePeopleOfRequest(req));
         if (!entry) {

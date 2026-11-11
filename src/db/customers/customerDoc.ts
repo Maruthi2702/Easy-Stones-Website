@@ -97,7 +97,7 @@ const localClock = (value: string | null) => {
   const [clock, fraction = ''] = value.replace(' ', 'T').split('.');
   return `${clock}.${fraction.padEnd(3, '0')}`;
 };
-const nonNull = (doc: Loose): Loose => Object.fromEntries(Object.entries(doc).filter(([, value]) => value != null));
+export const nonNull = (doc: Loose): Loose => Object.fromEntries(Object.entries(doc).filter(([, value]) => value != null));
 
 export function contactDoc(c: typeof customerContacts.$inferSelect): Loose {
   return nonNull({ _id: c.id, name: c.name, phone: c.phone, email: c.email, role: c.role, notes: c.notes,

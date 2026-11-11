@@ -3,6 +3,9 @@ import type { CustomerHistoryScope } from './types.ts';
 import { basicCustomer } from '../../utils/customerAccess.ts';
 import { inTeam } from '../../utils/teamScope.ts';
 
+/** A customer, visit or resource id as the routes accept it (a MongoDB ObjectId in hex). */
+export const isHistoryId = (id: string) => /^[a-f0-9]{24}$/i.test(id);
+
 export const lastVisit = (visits: Loose[] = []) => visits.reduce<string | null>((last, visit) =>
   visit.date && (!last || visit.date > last) ? visit.date : last, null);
 

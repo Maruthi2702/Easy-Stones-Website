@@ -9,6 +9,13 @@ import { visitDoc, resourceDoc, contactDoc, reactionDoc, followUpEventDoc, repNa
 
 const bytewise = (column: unknown) => sql`${column} collate "C"`;
 
+/** Group once by parent id so attaching children is linear, not a scan per parent. */
+function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const item of items) { const k = key(item); const list = out.get(k); if (list) list.push(item); else out.set(k, [item]); }
+  return out;
+}
+
 export const historyScope = (owner: SQL | typeof resources.uploadedById, people: CustomerHistoryScope['people']): SQL =>
   people === '*' ? sql`true` : people.size ? inArray(sql`${owner}`, [...people]) : sql`false`;
 
@@ -26,8 +33,9 @@ export async function customerVisits(db: Db, customerIds: string[], people: Cust
     db.select().from(visitReactions).where(inArray(visitReactions.visitId, ids)).orderBy(visitReactions.position, bytewise(visitReactions.id)),
     db.select().from(visitFollowUpEvents).where(inArray(visitFollowUpEvents.visitId, ids)).orderBy(visitFollowUpEvents.position)
   ]);
-  return rows.map(({ v, resourceId }) => visitDoc(v, images.filter(i => i.visitId === v.id).map(i => i.url),
-    reactions.filter(r => r.visitId === v.id).map(reactionDoc), history.filter(h => h.visitId === v.id).map(followUpEventDoc), resourceId));
+  const imagesOf = groupBy(images, i => i.visitId), reactionsOf = groupBy(reactions, r => r.visitId), historyOf = groupBy(history, h => h.visitId);
+  return rows.map(({ v, resourceId }) => visitDoc(v, (imagesOf.get(v.id) ?? []).map(i => i.url),
+    (reactionsOf.get(v.id) ?? []).map(reactionDoc), (historyOf.get(v.id) ?? []).map(followUpEventDoc), resourceId));
 }
 
 export async function customerResources(db: Db, customerId: string, people: CustomerHistoryScope['people'], entryId?: string,
@@ -41,9 +49,10 @@ export async function customerResources(db: Db, customerId: string, people: Cust
   if (!rows.length) return [];
   const images = await db.select().from(resourceAttachments).where(inArray(resourceAttachments.resourceId, rows.map(r => r.r.id)))
     .orderBy(resourceAttachments.position);
-  const hasUploader = nameUploaders && rows.some(({ r }) => r.uploadedById);
-  return rows.map(row => ({ ...resourceDoc(row.r, images.filter(i => i.resourceId === row.r.id).map(i => i.url),
-    row.company || row.contactName), ...(hasUploader ? { uploadedByName: repNameOf(row) } : {}) }));
+  const imagesOf = groupBy(images, i => i.resourceId);
+  // Always named on the profile ('' when nobody is left to name), as MongoDB's reply does.
+  return rows.map(row => ({ ...resourceDoc(row.r, (imagesOf.get(row.r.id) ?? []).map(i => i.url),
+    row.company || row.contactName), ...(nameUploaders ? { uploadedByName: repNameOf(row) } : {}) }));
 }
 
 export async function customerContacts(db: Db, customerId: string): Promise<Loose[]> {

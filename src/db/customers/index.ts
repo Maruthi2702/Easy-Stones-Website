@@ -7,12 +7,13 @@
 import { appDb, areaOn } from '../appDb.ts';
 import * as mongo from './mongo.ts';
 import * as pg from './postgres.ts';
-import type { CustomerPageQuery, CustomerListQuery, CustomerViewCountsQuery } from './types.ts';
-import type { CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
+import type { CustomerPageQuery, CustomerListQuery, CustomerViewCountsQuery, CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
 import type { Loose } from '../../types/records.ts';
 
 export type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery,
   CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
+
+export { isHistoryId } from './profileShape.ts';
 
 const onPostgres = () => areaOn('customers') === 'postgres';
 
