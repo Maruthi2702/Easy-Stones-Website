@@ -3,9 +3,9 @@
  * mongo.ts answers (customers.parity.test.ts loads the same records into both and
  * compares). Pick between the two through index.ts, never directly.
  */
-import { sql, eq, or, ilike, desc, count, inArray, asc, type SQL } from 'drizzle-orm';
+import { sql, eq, and, or, ilike, desc, count, inArray, asc, type SQL } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
-import { customers, customerLinks, customerLogins } from '../schema/customers.ts';
+import { customers, customerLinks, customerLogins, visits } from '../schema/customers.ts';
 import { locations, users } from '../schema/reference.ts';
 import type { Loose } from '../../types/records.ts';
 import { customerDoc, repNameOf, type CustomerLinks } from './customerDoc.ts';
@@ -13,6 +13,46 @@ import type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, 
 import { basicCustomer } from '../../utils/customerAccess.ts';
 import { listFields, listWhere, listOrder, savedViewWhere, fabricatorWhere } from './listSql.ts';
 import { SAVED_VIEWS } from '../../utils/customerList.ts';
+import type { CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
+import { customerVisits, customerResources, customerContacts, historyScope } from './profileSql.ts';
+import { lastVisit } from './profileShape.ts';
+
+/** MongoDB casts these route parameters to ObjectIds (and rejects malformed ids). */
+function historyId(id: string): string {
+  if (!/^[a-f0-9]{24}$/i.test(id)) throw new Error('Invalid customer history id');
+  return id.toLowerCase();
+}
+
+export async function customerProfile(db: Db, id: string, scope: CustomerHistoryScope): Promise<Loose | null> {
+  id = historyId(id);
+  const [row] = await db.select({ c: customers, login: customerLogins, locationName: locations.name,
+    repUsername: users.username, repDisplayName: users.displayName }).from(customers)
+    .leftJoin(locations, eq(locations.id, customers.locationId)).leftJoin(users, eq(users.id, customers.salesRepId))
+    .leftJoin(customerLogins, eq(customerLogins.customerId, customers.id)).where(eq(customers.id, id));
+  if (!row) return null;
+  const doc = customerDoc(row.c, row, { associated: [], notDuplicate: [] }, row.login);
+  if (!scope.mayProfile) return basicCustomer(doc);
+  const [links, history, resourceList, contacts] = await Promise.all([
+    linksOf(db, [id]), customerVisits(db, [id], scope.people), customerResources(db, id, scope.people, undefined, true), customerContacts(db, id)
+  ]);
+  const ownLinks = links.get(id)!;
+  const partners = ownLinks.associated.length ? await db.select({ _id: customers.id, contactName: customers.contactName,
+    company: customers.company, customerType: customers.customerType, status: customers.status, phone: customers.phone,
+    lastVisitDate: sql<string | null>`(select max(${visits.visitDate})::text from ${visits} where ${and(
+      eq(visits.customerId, customers.id), historyScope(sql`coalesce(${visits.createdById}, ${visits.createdByCustomerId})`, scope.people)
+    )})` }).from(customers).where(inArray(customers.id, ownLinks.associated)) : [];
+  const byId = new Map(partners.map(p => [p._id, p]));
+  return { ...doc, visits: history, resources: resourceList, contacts, lastVisitDate: lastVisit(history),
+    associatedCustomers: ownLinks.associated.map(id => byId.get(id)).filter(Boolean), notDuplicateOf: ownLinks.notDuplicate };
+}
+
+export async function customerHistoryEntry(db: Db, customerId: string, kind: CustomerHistoryKind, entryId: string,
+  people: CustomerHistoryScope['people']): Promise<Loose | null> {
+  customerId = historyId(customerId); entryId = historyId(entryId);
+  const entries = kind === 'visits' ? await customerVisits(db, [customerId], people, entryId)
+    : await customerResources(db, customerId, people, entryId);
+  return entries[0] ?? null;
+}
 
 /** `%text%` for ILIKE, with the user's own % _ \ taken literally (MongoDB's escaped regex). */
 export const containsPattern = (text: string) => `%${text.replace(/[\\%_]/g, '\\$&')}%`;
@@ -56,7 +96,7 @@ async function linksOf(db: Db, ids: string[]): Promise<Map<string, CustomerLinks
   if (!ids.length) return out;
   const rows = await db.select().from(customerLinks)
     .where(inArray(customerLinks.customerId, ids))
-    .orderBy(customerLinks.customerId, customerLinks.kind, customerLinks.position);
+    .orderBy(customerLinks.customerId, customerLinks.kind, customerLinks.position, bytewise(customerLinks.otherCustomerId));
   for (const r of rows) {
     const l = out.get(r.customerId)!;
     (r.kind === 'associated' ? l.associated : l.notDuplicate).push(r.otherCustomerId);

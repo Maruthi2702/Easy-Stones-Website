@@ -8,10 +8,26 @@ import { appDb, areaOn } from '../appDb.ts';
 import * as mongo from './mongo.ts';
 import * as pg from './postgres.ts';
 import type { CustomerPageQuery, CustomerListQuery, CustomerViewCountsQuery } from './types.ts';
+import type { CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
+import type { Loose } from '../../types/records.ts';
 
-export type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery } from './types.ts';
+export type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery,
+  CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
 
 const onPostgres = () => areaOn('customers') === 'postgres';
+
+export async function customerProfile(id: string, scope: CustomerHistoryScope) {
+  return onPostgres() ? pg.customerProfile(await appDb(), id, scope) : mongo.customerProfile(id, scope);
+}
+
+export async function customerHistoryEntry(customerId: string, kind: CustomerHistoryKind, entryId: string,
+  people: CustomerHistoryScope['people']) {
+  return onPostgres() ? pg.customerHistoryEntry(await appDb(), customerId, kind, entryId, people)
+    : mongo.customerHistoryEntry(customerId, kind, entryId, people);
+}
+
+/** Customer writes still use MongoDB; shape the actual saved record, never an older Postgres copy. */
+export const customerRecordResponse = (record: Loose, scope: CustomerHistoryScope) => mongo.customerRecordResponse(record, scope);
 
 export async function dropdownCustomers() {
   return onPostgres() ? pg.dropdownCustomers(await appDb()) : mongo.dropdownCustomers();

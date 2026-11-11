@@ -186,10 +186,7 @@ list (`GET /api/customers/list` and its `/api/partners` alias: every filter, sav
 A–Z, Moda, sort, page, export and the basic card; SQL in `customers/listSql.ts`). The list
 has its own parity test, `customers/customerList.parity.test.ts`, which also calls the real
 route (sign-in, permissions, export) on both databases. `pg:compare` checks the read
-responses and exact list order against the live source. On live data 2026-11-10 (78 reads):
-all 21 saved-view count reads the same, every list sort in exactly the same order; the
-only differences besides the known ones below came from one customer edited while the
-run was going (its contact name, and the search results it moved between).
+responses and exact list order against the live source.
 
 Saved-view counts use the original MongoDB tab predicate and count queries, or a single
 SQL statement sharing the list's saved-view predicates. Only `tab`, the authenticated
@@ -200,6 +197,17 @@ follow-up boundaries, empty results, badge/list consistency and both HTTP aliase
 It also pins the existing copy differences for deleted reps and invalid/missing branches
 described below. Live badge-count comparisons are strict: any numeric difference fails
 `pg:compare` and needs investigation before cutover. This read adds no schema migration.
+
+Customer profiles (`GET /api/customers/:id`) and individual visit/resource details also
+use the facade. `customers/profileSql.ts` loads visits with their attachments, reactions
+and follow-up events, resources with attachments, and contacts in their saved order.
+The route supplies the existing Visits scope; SQL filters histories by the author,
+including linked customers' last-visit dates, rather than the customer's branch. Basic
+cards retain their field allowlist. `customerHistoryResponse` still accepts the saved
+MongoDB record for create/edit replies, even if Postgres reads are selected.
+`customers/profile.parity.test.ts` covers nested fields, scopes, HTTP permissions and
+mutation replies; `pg:compare` checks every profile with history, contacts or links and
+every individual visit/resource. The profile read adds no schema migration.
 
 **Every sort ends on the id** (MongoDB `_id`, Postgres `id collate "C"`, the same order):
 customers with equal sort values (a city, a branch, a level) come in one fixed order, so a
@@ -225,6 +233,20 @@ set-asides in its sort checks; anything else fails it):
 - firstName / lastName (2 old records, both have a company name) and lastLoginIp (written
   on a website sign-in, read by nothing; the last of `loginIps`) aren't copied.
 - 1 link to a deleted customer isn't copied.
+- Profile history exposes conversions already made by the copy: 10 contact times and
+  1 resource time saved as instants use their branch's clock; 21 visit update times and
+  6 reaction times saved as `Date.toString()` use the clock written in that string;
+  6 history/contact times written with hour `24` use `00` on the same day. Comparisons
+  validate the exact converted value and source branch, including milliseconds.
+- 29 visit follow-up days stored as midnight-UTC Dates become the same `YYYY-MM-DD` day.
+- 2 visits with a single photo URL return a one-item array containing that exact URL.
+- 23 resource customer-name copies are stale; Postgres joins the parent's current
+  company/contact name. The comparator checks that name against the source parent.
+- 1 visit's `createdBy` is `test_script`, not an account id: the copy blanks it and keeps
+  the author name. No staff scope can include this non-account; all-history scope still
+  includes the visit. Valid account ids disappearing are not allowed by this exception.
+- 1 contact without an id gets the deterministic `contactIdFor(customerId, position)`
+  id. 1 old contact explicitly stores `isPrimary: false`; this unused default is omitted.
 - `GET /api/customers` (the older paged list): customers imported in the same millisecond
   can come in another order there (same dates; that route has no id tie-break in MongoDB).
 

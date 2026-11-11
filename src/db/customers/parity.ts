@@ -8,6 +8,56 @@
  * - `__v` (Mongoose's own counter);
  * - Binders '0' (MongoDB's default) and no Binders.
  */
+import type { Loose } from '../../types/records.ts';
+import { branchZone } from '../../config/branches.ts';
+import { contactIdFor } from '../copy/customerRows.ts';
+import { toLocalTime } from '../copy/values.ts';
+
+/** Source facts for the few profile conversions; never infer an allowance from SQL output alone. */
+export function profileParityContext(customers: Loose[]) {
+  const zoneByEntry = new Map<string, string>();
+  const customerNameByResource = new Map<string, string>();
+  const generatedContactIds = new Set<string>();
+  const invalidVisitAuthors = new Map<string, string>();
+  for (const c of customers) {
+    const zone = branchZone(c.location);
+    for (const [position, contact] of (c.contacts || []).entries()) {
+      const id = contact._id ? String(contact._id) : contactIdFor(String(c._id), position);
+      zoneByEntry.set(id, zone);
+      if (!contact._id) generatedContactIds.add(id);
+    }
+    for (const visit of c.visits || []) {
+      zoneByEntry.set(String(visit._id), zone);
+      for (const r of visit.reactions || []) zoneByEntry.set(String(r._id), zone);
+      if (typeof visit.createdBy === 'string' && visit.createdBy && !/^[a-f0-9]{24}$/i.test(visit.createdBy)) {
+        invalidVisitAuthors.set(String(visit._id), visit.createdBy);
+      }
+    }
+    for (const resource of c.resources || []) {
+      zoneByEntry.set(String(resource._id), zone);
+      customerNameByResource.set(String(resource._id), c.company || c.contactName || '');
+    }
+  }
+  return { zoneByEntry, customerNameByResource, generatedContactIds, invalidVisitAuthors };
+}
+
+export interface ParityContext {
+  postgres: unknown;
+  profiles: ReturnType<typeof profileParityContext>;
+}
+
+/** Closest containing record, including a visit around an id-less follow-up event. */
+function containingRecord(d: Difference, context?: ParityContext): Loose | undefined {
+  if (!context) return undefined;
+  let value = context.postgres as Loose;
+  let record = value?._id ? value : undefined;
+  for (const key of d.path.split('.').slice(0, -1)) {
+    value = value?.[key];
+    if (value?._id) record = value;
+  }
+  return record;
+}
+
 export function normalize(value: unknown): unknown {
   const v = JSON.parse(JSON.stringify(value ?? null));
   return clean(v);
@@ -71,7 +121,7 @@ export function differences(a: unknown, b: unknown, limit = 20): string[] {
  * Differences between live MongoDB and its Postgres copy that are understood, each with
  * why (src/db/README.md, "Known differences"). Anything not matched here is a bug.
  */
-export const KNOWN_DIFFERENCES: { why: string; matches: (d: Difference) => boolean }[] = [
+export const KNOWN_DIFFERENCES: { why: string; matches: (d: Difference, context?: ParityContext) => boolean }[] = [
   {
     why: 'saved without createdAt / updatedAt in MongoDB; Postgres has the time from its id',
     matches: d => /(^|\.)(createdAt|updatedAt)$/.test(d.path) && d.mongo === undefined && typeof d.postgres === 'string'
@@ -92,7 +142,46 @@ export const KNOWN_DIFFERENCES: { why: string; matches: (d: Difference) => boole
     why: 'a link to a deleted customer, which the copy leaves out',
     matches: d => /(^|\.)(associatedCustomers|notDuplicateOf)$/.test(d.path) && Array.isArray(d.mongo) &&
       ((d.postgres === undefined) || (Array.isArray(d.postgres) && d.postgres.every(id => (d.mongo as unknown[]).includes(id))))
+  },
+  {
+    why: 'legacy history clock converted by the copy, on its source branch (or its own Date.toString clock)',
+    matches: (d, context) => {
+      if (!/(^|\.)(createdAt|updatedAt|followUpDoneAt|at)$/.test(d.path) || typeof d.mongo !== 'string' || typeof d.postgres !== 'string') return false;
+      const zone = context?.profiles.zoneByEntry.get(String(containingRecord(d, context)?._id));
+      if (!zone) return false;
+      const converted = toLocalTime(d.mongo, zone);
+      return converted.ok && converted.value?.replace(' ', 'T') === d.postgres;
+    }
+  },
+  {
+    why: 'old follow-up day saved as midnight UTC, copied as the same calendar day',
+    matches: d => /(^|\.)followUpDate$/.test(d.path) && typeof d.mongo === 'string' &&
+      /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/.test(d.mongo) && d.postgres === d.mongo.slice(0, 10)
+  },
+  {
+    why: 'legacy single photo URL, copied as a one-element attachment array with the same URL',
+    matches: d => /(^|\.)image$/.test(d.path) && typeof d.mongo === 'string' &&
+      Array.isArray(d.postgres) && d.postgres.length === 1 && d.postgres[0] === d.mongo
+  },
+  {
+    why: 'resource customer name is the current parent name, rather than an old stored copy',
+    matches: (d, context) => /(^|\.)customer$/.test(d.path) && typeof d.postgres === 'string' &&
+      context?.profiles.customerNameByResource.get(String(containingRecord(d, context)?._id)) === d.postgres
+  },
+  {
+    why: 'a legacy visit author is not an account id, blanked by the copy (the author name stays)',
+    matches: (d, context) => /(^|\.)createdBy$/.test(d.path) && d.postgres === undefined && typeof d.mongo === 'string' &&
+      context?.profiles.invalidVisitAuthors.get(String(containingRecord(d, context)?._id)) === d.mongo
+  },
+  {
+    why: 'a contact without an id gets the copy\'s deterministic id',
+    matches: (d, context) => /(^|\.)contacts\.\d+\._id$/.test(d.path) && d.mongo === undefined && typeof d.postgres === 'string' &&
+      context?.profiles.generatedContactIds.has(d.postgres) === true
+  },
+  {
+    why: 'a legacy contact explicitly stored isPrimary=false; the profile omits this unused default',
+    matches: d => /(^|\.)contacts\.\d+\.isPrimary$/.test(d.path) && d.mongo === false && d.postgres === undefined
   }
 ];
 
-export const knownWhy = (d: Difference) => KNOWN_DIFFERENCES.find(k => k.matches(d))?.why ?? null;
+export const knownWhy = (d: Difference, context?: ParityContext) => KNOWN_DIFFERENCES.find(k => k.matches(d, context))?.why ?? null;

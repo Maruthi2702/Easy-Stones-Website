@@ -7,9 +7,45 @@ import mongoose from 'mongoose';
 import { savedViewQuery, letterQuery, SAVED_VIEWS } from '../../utils/customerList.ts';
 import { BASIC_CUSTOMER_PROJECTION } from '../../utils/customerAccess.ts';
 import Customer from '../../models/Customer.ts';
+import User from '../../models/User.ts';
+import { displayNameOf } from '../../utils/salesReps.ts';
+import { inTeam } from '../../utils/teamScope.ts';
+import { shapeCustomerHistory } from './profileShape.ts';
+import type { CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
 import { escapeRegex } from '../../server/http.ts';
 import type { Loose } from '../../types/records.ts';
 import type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery } from './types.ts';
+
+/** Kept on MongoDB for create/edit replies until customer writes move too. */
+export async function customerRecordResponse(record: Loose, scope: CustomerHistoryScope): Promise<Loose> {
+  const customer = shapeCustomerHistory(record, scope);
+  if (!scope.mayProfile) return customer;
+  const resources: Loose[] = customer.resources;
+  const ids = [...new Set(resources.map((r) => String(r.uploadedBy || '')).filter((id) => /^[a-f0-9]{24}$/i.test(id)))];
+  if (ids.length) {
+    const users = await User.find({ _id: { $in: ids } }).select('username displayName').lean() as Loose[];
+    const nameById = new Map(users.map((u) => [String(u._id), displayNameOf(u)]));
+    resources.forEach((r) => { r.uploadedByName = nameById.get(String(r.uploadedBy || '')) || ''; });
+  }
+  return customer;
+}
+
+export async function customerProfile(id: string, scope: CustomerHistoryScope): Promise<Loose | null> {
+  const customer = await Customer.findById(id)
+    .populate('associatedCustomers', 'contactName company customerType status phone visits')
+    .select('-password').lean() as Loose | null;
+  return customer ? customerRecordResponse(customer, scope) : null;
+}
+
+export async function customerHistoryEntry(customerId: string, kind: CustomerHistoryKind, entryId: string,
+  people: CustomerHistoryScope['people']): Promise<Loose | null> {
+  const customer = await Customer.findOne(
+    { _id: customerId, [`${kind}._id`]: entryId }, { [`${kind}.$`]: 1 }
+  ).lean() as Loose | null;
+  const entry = customer?.[kind]?.[0];
+  const owner = kind === 'visits' ? entry?.createdBy : entry?.uploadedBy || entry?.createdBy;
+  return entry && inTeam(people, owner) ? entry : null;
+}
 
 /** GET /api/customers/dropdown: every customer, the fields a dropdown shows. */
 export async function dropdownCustomers(): Promise<Loose[]> {
