@@ -38,3 +38,4 @@ export async function customerViewCounts(q: CustomerViewCountsQuery) {
 export * from './writes/core.ts';
 export * from './writes/merge.ts';
 export * from './writes/imports.ts';
+export * from './writes/sps.ts';

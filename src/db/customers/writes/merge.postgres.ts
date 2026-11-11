@@ -39,7 +39,7 @@ const KINDS: LinkKind[] = ['associated', 'not_duplicate'];
 
 // ── link lists, as MongoDB arrays ────────────────────────────────────────────
 
-async function linkList(tx: Db, customerId: string, kind: LinkKind): Promise<string[]> {
+export async function linkList(tx: Db, customerId: string, kind: LinkKind): Promise<string[]> {
   const rows = await tx.select({ other: customerLinks.otherCustomerId }).from(customerLinks)
     .where(and(eq(customerLinks.customerId, customerId), eq(customerLinks.kind, kind)))
     .orderBy(asc(customerLinks.position));
@@ -47,7 +47,7 @@ async function linkList(tx: Db, customerId: string, kind: LinkKind): Promise<str
 }
 
 /** Write a customer's list as the copy would make it: existing customers only, no self, no repeats, numbered from 0. */
-async function setLinkList(tx: Db, customerId: string, kind: LinkKind, ids: string[]): Promise<void> {
+export async function setLinkList(tx: Db, customerId: string, kind: LinkKind, ids: string[]): Promise<void> {
   await tx.delete(customerLinks).where(and(eq(customerLinks.customerId, customerId), eq(customerLinks.kind, kind)));
   const wanted = [...new Set(ids.filter(id => id !== customerId))];
   if (!wanted.length) return;
@@ -62,7 +62,7 @@ async function exists(tx: Db, id: string): Promise<boolean> {
 
 // ── what a customer is, as rows (the backup's `pg`) ──────────────────────────
 
-interface CustomerSnapshot {
+export interface CustomerSnapshot {
   customer: Loose;
   login: Loose | null;
   contacts: Loose[];
@@ -75,7 +75,7 @@ interface CustomerSnapshot {
   resourceAttachments: Loose[];
 }
 
-async function snapshotCustomer(tx: Db, id: string): Promise<CustomerSnapshot> {
+export async function snapshotCustomer(tx: Db, id: string): Promise<CustomerSnapshot> {
   const [customer] = await tx.select().from(customers).where(eq(customers.id, id));
   const [login] = await tx.select().from(customerLogins).where(eq(customerLogins.customerId, id));
   const contacts = await tx.select().from(customerContacts).where(eq(customerContacts.customerId, id)).orderBy(asc(customerContacts.position));
@@ -103,7 +103,7 @@ const revive = (row: Loose, moments: string[]) => {
 const withoutKey = (row: Loose, key: string) => { const { [key]: _, ...rest } = row; return rest; };
 
 /** Put a customer's own rows back as the snapshot had them (its links are set apart, once every customer is back). */
-async function restoreCustomer(tx: Db, s: CustomerSnapshot): Promise<void> {
+export async function restoreCustomer(tx: Db, s: CustomerSnapshot): Promise<void> {
   const id = s.customer.id as string;
   const row = revive(s.customer, CUSTOMER_MOMENTS);
   await tx.insert(customers).values(row as typeof customers.$inferInsert)
@@ -142,7 +142,7 @@ async function restoreCustomer(tx: Db, s: CustomerSnapshot): Promise<void> {
   if (s.resourceAttachments.length) await tx.insert(resourceAttachments).values(s.resourceAttachments as (typeof resourceAttachments.$inferInsert)[]);
 }
 
-const listOf = (s: CustomerSnapshot, kind: LinkKind) =>
+export const listOf = (s: CustomerSnapshot, kind: LinkKind) =>
   s.links.filter(l => l.kind === kind).sort((a, b) => a.position - b.position).map(l => l.otherCustomerId as string);
 
 // ── what points at a customer ────────────────────────────────────────────────
@@ -188,7 +188,7 @@ interface Snapshot {
 }
 
 /** The customer as the API sends it (the backup's readable part). */
-async function customerShape(tx: Db, id: string): Promise<Loose> {
+export async function customerShape(tx: Db, id: string): Promise<Loose> {
   const [r] = await tx.select({ c: customers, locationName: locations.name, repUsername: users.username, repDisplayName: users.displayName })
     .from(customers)
     .leftJoin(locations, eq(locations.id, customers.locationId))
