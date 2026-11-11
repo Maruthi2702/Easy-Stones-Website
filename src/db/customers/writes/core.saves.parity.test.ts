@@ -128,8 +128,8 @@ describe('create', () => {
 
   it('another customer with the same email (any case) is refused by both with code 11000', async () => {
     const body = { company: 'Dup Co', email: 'ANN@acme.example' };
-    const m = await t.on('mongo', () => create(body)).catch((e: Loose) => e);
-    const p = await t.on('postgres', () => create(body)).catch((e: Loose) => e);
+    const m = (await t.on('mongo', () => create(body)).catch((e: Loose) => e)) as Loose;
+    const p = (await t.on('postgres', () => create(body)).catch((e: Loose) => e)) as Loose;
     expect(m.code).toBe(11000);
     expect(p.code).toBe(11000);
     expect(await t.differences()).toEqual([]);
@@ -138,12 +138,12 @@ describe('create', () => {
   it('what Mongoose refuses is refused with the same words', async () => {
     for (const bad of [{ status: 'Nope' }, { customerType: 'Alien' }, { level: 'Level - 9' }]) {
       const body = { company: 'Bad Co', email: `bad${Math.random()}@co.example`, ...bad };
-      const m = await t.on('mongo', () => create(body)).catch((e: Loose) => e);
-      const p = await t.on('postgres', () => create(body)).catch((e: Loose) => e);
+      const m = (await t.on('mongo', () => create(body)).catch((e: Loose) => e)) as Loose;
+      const p = (await t.on('postgres', () => create(body)).catch((e: Loose) => e)) as Loose;
       expect(p.message).toBe(m.message);
     }
-    const m = await t.on('mongo', () => create({ company: 'X', email: 'x@y.example' }, { createdBy: 'not an id' })).catch((e: Loose) => e);
-    const p = await t.on('postgres', () => create({ company: 'X', email: 'x@y.example' }, { createdBy: 'not an id' })).catch((e: Loose) => e);
+    const m = (await t.on('mongo', () => create({ company: 'X', email: 'x@y.example' }, { createdBy: 'not an id' })).catch((e: Loose) => e)) as Loose;
+    const p = (await t.on('postgres', () => create({ company: 'X', email: 'x@y.example' }, { createdBy: 'not an id' })).catch((e: Loose) => e)) as Loose;
     expect(p.message).toBe(m.message);
     expect(await t.differences()).toEqual([]);
   });
@@ -234,8 +234,8 @@ describe('edit', () => {
     expect(await t.differences()).toEqual([]);
   });
   it('a garbage id is refused with the same words', async () => {
-    const m = await t.on('mongo', () => edit('zzz', { phone: '1' })).catch((e: Loose) => e);
-    const p = await t.on('postgres', () => edit('zzz', { phone: '1' })).catch((e: Loose) => e);
+    const m = (await t.on('mongo', () => edit('zzz', { phone: '1' })).catch((e: Loose) => e)) as Loose;
+    const p = (await t.on('postgres', () => edit('zzz', { phone: '1' })).catch((e: Loose) => e)) as Loose;
     expect(p.message).toBe(m.message);
   });
 
@@ -247,8 +247,8 @@ describe('edit', () => {
     ['a company that is a list', { company: ['a', 'b'] }],
     ['a marketing flag that is not true / false', { receiveMarketing: 'x' }]
   ])('refused with the same words: %s', async (_l, body) => {
-    const m = await t.on('mongo', () => edit(acme, body)).catch((e: Loose) => e);
-    const p = await t.on('postgres', () => edit(acme, body)).catch((e: Loose) => e);
+    const m = (await t.on('mongo', () => edit(acme, body)).catch((e: Loose) => e)) as Loose;
+    const p = (await t.on('postgres', () => edit(acme, body)).catch((e: Loose) => e)) as Loose;
     expect(m).toBeInstanceOf(Error);
     expect(p.message).toBe(m.message);
     expect(await t.differences()).toEqual([]);

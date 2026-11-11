@@ -84,7 +84,7 @@ export async function registerCustomer(id: string, input: RegisterInput): Promis
   const { contactName, email, password, phone, company } = input;
 
   // Check if customer already exists
-  const existingCustomer = await Customer.findOne({ email });
+  const existingCustomer = await Customer.findOne({ email: email as string });
   if (existingCustomer) return 'taken';
 
   // Create new customer

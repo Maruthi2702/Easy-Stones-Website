@@ -2,6 +2,7 @@
  * Contacts, partners, website sign-in / passwords and the geocoding job's map point
  * leave MongoDB and Postgres the same (writeParity.ts).
  */
+import type { Loose } from '../../../types/records.ts';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
@@ -26,7 +27,7 @@ const later = (minutes: number) => new Date(T0.getTime() + minutes * 60_000);
 
 beforeAll(async () => {
   // A fixed salt: both databases hash the same password to the same text.
-  vi.spyOn(bcrypt, 'genSalt').mockResolvedValue('$2b$10$abcdefghijklmnopqrstuu');
+  vi.spyOn(bcrypt, 'genSalt').mockResolvedValue('$2b$10$abcdefghijklmnopqrstuu' as never);
   t = await openWriteParity(async db => {
     await db.collection('locations').insertMany([{ _id: seattle, name: 'Seattle' }, { _id: dallas, name: 'Dallas' }]);
     await Customer.insertMany([
@@ -195,7 +196,7 @@ describe('password reset', () => {
     await t.resync();
     // The reset changes the password only: the lock stays until it runs out or they sign in.
     await same(async () => shape(await data.resetCustomerPassword(locked, 'after-lock-password')));
-    const after = await t.on('postgres', async () => (await t.pg.db.execute(`select login_attempts, lock_until from customer_logins where customer_id = '${locked}'`)).rows[0]);
+    const after = await t.on('postgres', async () => ((await t.pg.db.execute(`select login_attempts, lock_until from customer_logins where customer_id = '${locked}'`)) as unknown as { rows: Loose[] }).rows[0]);
     expect(after).toMatchObject({ login_attempts: 4 });
     expect(after!.lock_until).not.toBeNull();
   });

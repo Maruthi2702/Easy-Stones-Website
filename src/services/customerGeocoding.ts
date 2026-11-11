@@ -27,12 +27,12 @@ async function geocodeIds(ids: string[]) {
   if (!hasGeocodingKey()) return;
   // src/db/customers: the ones still pending, from MongoDB or Postgres by the area's switch.
   const rows = await customerData.customersToGeocode(ids);
-  const todo = rows.filter((c) => addressKeyOf(c.address) && addressKeyOf(c.address) !== (c.geocode?.addressKey || ''));
+  const todo = rows.filter((c) => addressKeyOf(c.address ?? undefined) && addressKeyOf(c.address ?? undefined) !== (c.geocode?.addressKey || ''));
 
   let wrote = 0;
   let unasked = 0;
   for (const customer of todo) {
-    const result = await geocodeAddress(customer.address);
+    const result = await geocodeAddress(customer.address ?? {});
     await customerData.saveCustomerGeocode(customer._id, result);
     if (result.geocode.status === 'pending') {
       if (++unasked >= GIVE_UP_AFTER && !wrote) break;

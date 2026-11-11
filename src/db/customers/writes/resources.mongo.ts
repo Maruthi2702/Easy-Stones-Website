@@ -218,7 +218,7 @@ export async function deleteVisitWithResource({ customerId, visitId, actor, team
           action: 'DELETE',
           performedBy: performer.id,
           performedByName: performer.name,
-          performedByRole,
+          performedByRole: performedByRole as 'admin' | 'customer' | null,
           details: { visitDate: visit ? visit.date : null, purpose: visit ? visit.purpose : null }
         });
       } catch (logError) {
