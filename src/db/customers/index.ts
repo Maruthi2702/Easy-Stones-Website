@@ -7,9 +7,9 @@
 import { appDb, areaOn } from '../appDb.ts';
 import * as mongo from './mongo.ts';
 import * as pg from './postgres.ts';
-import type { CustomerPageQuery, CustomerListQuery } from './types.ts';
+import type { CustomerPageQuery, CustomerListQuery, CustomerViewCountsQuery } from './types.ts';
 
-export type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery } from './types.ts';
+export type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery } from './types.ts';
 
 const onPostgres = () => areaOn('customers') === 'postgres';
 
@@ -27,4 +27,8 @@ export async function customerPage(q: CustomerPageQuery) {
 
 export async function customerList(q: CustomerListQuery) {
   return onPostgres() ? pg.customerList(await appDb(), q) : mongo.customerList(q);
+}
+
+export async function customerViewCounts(q: CustomerViewCountsQuery) {
+  return onPostgres() ? pg.customerViewCounts(await appDb(), q) : mongo.customerViewCounts(q);
 }

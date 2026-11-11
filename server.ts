@@ -83,10 +83,9 @@ import { vcardPersonFor, buildVCard, vcardFileName } from './src/utils/vcard.ts'
 // One definition of "these two records are the same business", shared by the
 // import, the duplicate audit and the merge script.
 import { groupDuplicates, STRONG, withoutSeparated, buildSignalIndex, matchAgainst } from './src/utils/customerMatch.ts';
-// The customer list's saved views, A–Z jump and "incomplete" rule, shared with
-// the screen (PartnersSheet) so the ⚠ it shows and the view that finds those
-// rows can't disagree.
-import { savedViewQuery, isSavedView, STATUSES, SAVED_VIEWS } from './src/utils/customerList.ts';
+// Customer list view names and statuses, shared with the screen; its queries
+// and saved-view counts live in src/db/customers.
+import { isSavedView, STATUSES } from './src/utils/customerList.ts';
 // Merging one customer into another, shared with scripts/merge-duplicate-customers.ts.
 import { planFields, contactsFromLosers, snapshotMerge, executeMerge, undoMerge, markSeparate } from './src/services/customerMerge.ts';
 // The customer import decides what it would do before it does any of it, in a
@@ -3793,42 +3792,15 @@ app.get(['/api/customers/list', '/api/partners'], authenticate, requirePermissio
   }
 });
 
-// The Fabricators / Partners tab, as a query. Same rule as the type/typeExclude
-// handling in GET /api/partners: a record with no type is a Fabricator.
-const partnersTabQuery = (tab: string | undefined) => (tab === 'partners'
-  ? {
-    $and: [
-      { customerType: { $exists: true } },
-      { customerType: { $ne: null } },
-      { customerType: { $ne: '' as const } },
-      { customerType: { $not: { $regex: /^fabricator$/i } } }
-    ]
-  }
-  : {
-    $or: [
-      { customerType: { $regex: /^fabricator$/i } },
-      { customerType: null },
-      { customerType: { $exists: false } },
-      { customerType: '' as const }
-    ]
-  });
-
 // Counts for the customer list's saved views, within one tab.
 app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticate, requirePermission('view_customers'), validateScalarRequest, async (req: Request, res: Response) => {
   const requestQuery = scalarQuery(req);
   try {
     // Saved views read the profile (follow-ups, levels), so they're Full profile's.
     if (!canViewCustomerProfile(req.user)) return res.json({});
-    const base = partnersTabQuery(requestQuery.tab);
-    const opts = {
-      userId: req.userId,
-      today: pacificToday(),
-      toId: (id: string) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null)
-    };
-    const entries = await Promise.all(SAVED_VIEWS.map(async ({ key }) =>
-      [key, await Customer.countDocuments({ $and: [base, savedViewQuery(key, opts)!] })]
-    ));
-    res.json(Object.fromEntries(entries));
+    res.json(await customerData.customerViewCounts({
+      tab: requestQuery.tab, userId: req.userId, today: pacificToday()
+    }));
   } catch (error) {
     console.error('Error counting customer views:', error);
     res.status(500).json({ message: 'Failed to count customer views' });

@@ -5,7 +5,7 @@ import { locations } from '../schema/reference.ts';
 import { idOf } from '../copy/values.ts';
 import { addDays, FOLLOW_UP_WINDOW_DAYS, letterQuery } from '../../utils/customerList.ts';
 import { PLACEHOLDER_EMAIL_RE, OWN_DOMAIN_RE } from '../../utils/customerMatch.ts';
-import type { CustomerListQuery } from './types.ts';
+import type { CustomerListQuery, CustomerViewCountsQuery } from './types.ts';
 
 const parts = (value = '') => value.split(',').map(v => v.trim()).filter(Boolean);
 const pattern = (value: string) => `%${value.replace(/[\\%_]/g, '\\$&')}%`;
@@ -17,6 +17,9 @@ export const listFields = {
   normalizedLocation: sql<string>`coalesce(nullif(${locations.name}, ''), 'Seattle')`
 };
 
+/** A missing/empty type is a Fabricator on both the list and saved-view badges. */
+export const fabricatorWhere = () => sql`(${customers.customerType} is null or ${customers.customerType} = '' or ${customers.customerType} ~* '^fabricator$')`;
+
 /** Kept in step with incompleteQuery(), including its delimiter exceptions. */
 const incomplete = () => sql`(
   ${customers.phone} !~ ${'\\d'} or ${customers.email} !~ ${'\\S'} or
@@ -25,6 +28,20 @@ const incomplete = () => sql`(
   ${customers.street} !~ ${'\\S'} or ${customers.geocodeStatus} = 'failed'
 )`;
 
+/** The same saved-view predicates serve rows and badges; no second set of rules. */
+export function savedViewWhere(view: string, q: Pick<CustomerViewCountsQuery, 'userId' | 'today'>): SQL | undefined {
+  switch (view) {
+    case 'mine': return idOf(q.userId) ? eq(customers.salesRepId, idOf(q.userId)!) : sql`false`;
+    case 'followups':
+      return sql`exists (select 1 from visits v where v.customer_id = ${customers.id}
+        and v.follow_up_date >= ${q.today}::date and v.follow_up_date <= ${addDays(q.today, FOLLOW_UP_WINDOW_DAYS)}::date)`;
+    case 'onboarding': return eq(customers.status, 'Trying to Onboard');
+    case 'noModa': return sql`${customers.modaDisplay} is distinct from true`;
+    case 'unassigned': return sql`${customers.salesRepId} is null`;
+    case 'incomplete': return incomplete();
+  }
+}
+
 export function listWhere(q: CustomerListQuery): SQL | undefined {
   const filters: (SQL | undefined)[] = [];
   if (q.search) {
@@ -32,17 +49,7 @@ export function listWhere(q: CustomerListQuery): SQL | undefined {
     filters.push(or(...[customers.company, customers.contactName, customers.email, customers.phone,
       customers.city, customers.street, customers.status].map(c => ilike(c, p))));
   }
-  switch (q.view) {
-    case 'mine': filters.push(idOf(q.userId) ? eq(customers.salesRepId, idOf(q.userId)!) : sql`false`); break;
-    case 'followups':
-      filters.push(sql`exists (select 1 from visits v where v.customer_id = ${customers.id}
-        and v.follow_up_date >= ${q.today}::date and v.follow_up_date <= ${addDays(q.today, FOLLOW_UP_WINDOW_DAYS)}::date)`);
-      break;
-    case 'onboarding': filters.push(eq(customers.status, 'Trying to Onboard')); break;
-    case 'noModa': filters.push(sql`${customers.modaDisplay} is distinct from true`); break;
-    case 'unassigned': filters.push(sql`${customers.salesRepId} is null`); break;
-    case 'incomplete': filters.push(incomplete()); break;
-  }
+  filters.push(savedViewWhere(q.view || '', q));
   // Legacy `name` and top-level `city` are absent in the source data. The A–Z
   // rule deliberately does NOT fall back to contactName (unlike the sort).
   if (letterQuery(q.letter)) {
@@ -60,7 +67,7 @@ export function listWhere(q: CustomerListQuery): SQL | undefined {
   if (parts(q.status).length) filters.push(inArray(customers.status, parts(q.status)));
   if (parts(q.level).length) filters.push(inArray(customers.level, parts(q.level)));
 
-  const fabricator = sql`(${customers.customerType} is null or ${customers.customerType} = '' or ${customers.customerType} ~* '^fabricator$')`;
+  const fabricator = fabricatorWhere();
   const types = parts(q.type);
   if (types.length) {
     const includesFabricator = types.some(t => t.toLowerCase() === 'fabricator');

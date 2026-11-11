@@ -18,6 +18,7 @@ import { useAppDbForTests } from '../src/db/appDb.ts';
 import * as customers from '../src/db/customers/index.ts';
 import { normalize, diffEntries, describeDifference, knownWhy } from '../src/db/customers/parity.ts';
 import type { CustomerList, CustomerListQuery } from '../src/db/customers/types.ts';
+import { addDays } from '../src/utils/customerList.ts';
 
 const mongoUri = process.env.MONGO_URI;
 if (!mongoUri) { console.error('MONGO_URI is not set.'); process.exit(1); }
@@ -107,6 +108,27 @@ for (const sortBy of ['company', 'level', 'city', 'salesRep', 'location', 'creat
           : sortBy === 'salesRep' && (c.salesRepName === 'krish' || noRepName.has(c._id))).map(c => c._id));
       return ((v as CustomerList).partners ?? []).filter(c => !omitted.has(c._id)).map(c => c._id);
     }
+  });
+}
+
+// Badge counts are compared strictly, without normalizing numeric differences.
+// A dangling rep or a skipped branch in the source must surface before cutover.
+for (const tab of [undefined, 'fabricators', 'partners', 'Partners', 'unknown']) {
+  for (const [label, userId] of [['owner', listBase.userId], ['no owner', undefined], ['invalid owner', 'invalid']] as const) {
+    reads.push({
+      name: `saved-view counts: ${tab ?? 'default tab'}, ${label}`,
+      read: () => customers.customerViewCounts({ tab, userId, today: listBase.today })
+    });
+  }
+}
+for (const tab of ['fabricators', 'partners']) {
+  reads.push({
+    name: `saved-view counts: ${tab}, uppercase owner`,
+    read: () => customers.customerViewCounts({ tab, userId: listBase.userId?.toUpperCase(), today: listBase.today })
+  });
+  for (const shift of [-7, 1]) reads.push({
+    name: `saved-view counts: ${tab}, day offset ${shift}`,
+    read: () => customers.customerViewCounts({ tab, userId: listBase.userId, today: addDays(listBase.today, shift) })
   });
 }
 

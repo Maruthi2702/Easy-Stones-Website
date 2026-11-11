@@ -9,9 +9,10 @@ import { customers, customerLinks, customerLogins } from '../schema/customers.ts
 import { locations, users } from '../schema/reference.ts';
 import type { Loose } from '../../types/records.ts';
 import { customerDoc, repNameOf, type CustomerLinks } from './customerDoc.ts';
-import type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery } from './types.ts';
+import type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery } from './types.ts';
 import { basicCustomer } from '../../utils/customerAccess.ts';
-import { listFields, listWhere, listOrder } from './listSql.ts';
+import { listFields, listWhere, listOrder, savedViewWhere, fabricatorWhere } from './listSql.ts';
+import { SAVED_VIEWS } from '../../utils/customerList.ts';
 
 /** `%text%` for ILIKE, with the user's own % _ \ taken literally (MongoDB's escaped regex). */
 export const containsPattern = (text: string) => `%${text.replace(/[\\%_]/g, '\\$&')}%`;
@@ -134,4 +135,14 @@ export async function customerList(db: Db, q: CustomerListQuery): Promise<Custom
     totalPages: Math.ceil(total / (q.limit === -1 ? total || 1 : q.limit)),
     currentPage: q.page
   };
+}
+
+/** Six badges in one SQL statement, all counted against the same snapshot. */
+export async function customerViewCounts(db: Db, q: CustomerViewCountsQuery): Promise<CustomerViewCounts> {
+  const fields = Object.fromEntries(SAVED_VIEWS.map(({ key }) =>
+    [key, sql<number>`count(*) filter (where ${savedViewWhere(key, q)})`.mapWith(Number)]));
+  const fabricator = fabricatorWhere();
+  const [counts] = await db.select(fields).from(customers)
+    .where(q.tab === 'partners' ? sql`not ${fabricator}` : fabricator);
+  return counts;
 }

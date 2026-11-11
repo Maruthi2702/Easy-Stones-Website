@@ -36,3 +36,12 @@ export interface CustomerList {
   totalPages: number;
   currentPage: number;
 }
+
+/** Saved-view badges depend only on the tab, signed-in owner and Pacific day. */
+export interface CustomerViewCountsQuery {
+  tab?: string;
+  userId?: string;
+  today: string;
+}
+
+export type CustomerViewCounts = Record<string, number>;

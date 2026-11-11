@@ -180,12 +180,23 @@ Every read is checked twice:
   parity test and this script together.
 
 Customer area so far: the dropdown (`GET /api/customers/dropdown`), the cities list
-(`/cities`), `GET /api/customers` (newest first, paged, searched) and the Customers page
+(`/cities`), `GET /api/customers` (newest first, paged, searched), saved-view counts
+(`GET /api/customers/view-counts` and `/api/partners/view-counts`), and the Customers page
 list (`GET /api/customers/list` and its `/api/partners` alias: every filter, saved view,
 A–Z, Moda, sort, page, export and the basic card; SQL in `customers/listSql.ts`). The list
 has its own parity test, `customers/customerList.parity.test.ts`, which also calls the real
-route (sign-in, permissions, export) on both databases. On live data 2026-11-10: all 57
-reads the same, every list sort in exactly the same order.
+route (sign-in, permissions, export) on both databases. `pg:compare` checks the read
+responses and exact list order against the live source.
+
+Saved-view counts use the original MongoDB tab predicate and count queries, or a single
+SQL statement sharing the list's saved-view predicates. Only `tab`, the authenticated
+owner and the server's Pacific day affect the badges; unrelated list filters are ignored.
+Authentication and Full profile checks stay in the route, including `{}` for a basic
+viewer. `customers/viewCounts.parity.test.ts` checks the six numeric keys, tab variants,
+follow-up boundaries, empty results, badge/list consistency and both HTTP aliases.
+It also pins the existing copy differences for deleted reps and invalid/missing branches
+described below. Live badge-count comparisons are strict: any numeric difference fails
+`pg:compare` and needs investigation before cutover. This read adds no schema migration.
 
 **Every sort ends on the id** (MongoDB `_id`, Postgres `id collate "C"`, the same order):
 customers with equal sort values (a city, a branch, a level) come in one fixed order, so a
@@ -225,8 +236,8 @@ Rules that differ only on data live doesn't have (checked 2026-11-10):
 
 The full list, one box per route and step: [`DB_MOVE_CHECKLIST.md`](../../DB_MOVE_CHECKLIST.md).
 
-1. The rest of the customer routes through the data layer: the saved-view counts, the
-   profile, the map, then the writes (create / edit / delete / visits / resources / contacts) — writes need the
+1. The rest of the customer routes through the data layer: the profile, the map, then the
+   writes (create / edit / delete / visits / resources / contacts) — writes need the
    cutover plan, since MongoDB stays the database written until then.
 2. The other areas that point at customers — deliveries, payments, holds, lost sales,
    card expenses, the SPS import — get `customer_id` foreign keys when they move.

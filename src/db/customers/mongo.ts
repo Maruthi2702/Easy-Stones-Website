@@ -4,12 +4,12 @@
  * (customers.parity.test.ts). Pick between the two through index.ts, never directly.
  */
 import mongoose from 'mongoose';
-import { savedViewQuery, letterQuery } from '../../utils/customerList.ts';
+import { savedViewQuery, letterQuery, SAVED_VIEWS } from '../../utils/customerList.ts';
 import { BASIC_CUSTOMER_PROJECTION } from '../../utils/customerAccess.ts';
 import Customer from '../../models/Customer.ts';
 import { escapeRegex } from '../../server/http.ts';
 import type { Loose } from '../../types/records.ts';
-import type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery } from './types.ts';
+import type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery } from './types.ts';
 
 /** GET /api/customers/dropdown: every customer, the fields a dropdown shows. */
 export async function dropdownCustomers(): Promise<Loose[]> {
@@ -325,4 +325,38 @@ export async function customerList(q: CustomerListQuery): Promise<CustomerList> 
     totalPages: Math.ceil(totalCount / (limit === -1 ? totalCount || 1 : limit)),
     currentPage: page
   };
+}
+
+// The Fabricators / Partners tab, as a query. Same rule as the type/typeExclude
+// handling in GET /api/partners: a record with no type is a Fabricator.
+const partnersTabQuery = (tab: string | undefined) => (tab === 'partners'
+  ? {
+    $and: [
+      { customerType: { $exists: true } },
+      { customerType: { $ne: null } },
+      { customerType: { $ne: '' as const } },
+      { customerType: { $not: { $regex: /^fabricator$/i } } }
+    ]
+  }
+  : {
+    $or: [
+      { customerType: { $regex: /^fabricator$/i } },
+      { customerType: null },
+      { customerType: { $exists: false } },
+      { customerType: '' as const }
+    ]
+  });
+
+/** GET /api/customers/view-counts: the original tab filter and six MongoDB counts. */
+export async function customerViewCounts({ tab, userId, today }: CustomerViewCountsQuery): Promise<CustomerViewCounts> {
+  const base = partnersTabQuery(tab);
+  const opts = {
+    userId: userId,
+    today: today,
+    toId: (id: string) => (mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : null)
+  };
+  const entries = await Promise.all(SAVED_VIEWS.map(async ({ key }) =>
+    [key, await Customer.countDocuments({ $and: [base, savedViewQuery(key, opts)!] })]
+  ));
+  return Object.fromEntries(entries);
 }
