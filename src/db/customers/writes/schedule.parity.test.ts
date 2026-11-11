@@ -3,6 +3,7 @@
  * runs on both, answers the same, and afterwards every table equals the copy of MongoDB.
  * Apple and Google are never called: the syncs' database halves are tested alone.
  */
+import type { Loose } from '../../../types/records.ts';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import mongoose from 'mongoose';
 import Customer from '../../../models/Customer.ts';
@@ -260,7 +261,7 @@ describe('the Google and iCloud syncs (their database halves)', () => {
   });
 
   it('the sync note is written on the planner entries to send, and they leave the list once synced', async () => {
-    const toSend = async () => (await data.entriesToSync(String(rep), 'google')).map((e: { _id: unknown }) => String(e._id)).sort();
+    const toSend = async () => (await data.entriesToSync(String(rep), 'google')).map((e: Loose) => String(e._id)).sort();
     const first = await t.on('mongo', toSend);
     expect(first.length).toBeGreaterThan(1);
     expect(await t.on('postgres', toSend)).toEqual(first);

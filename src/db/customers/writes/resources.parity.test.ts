@@ -226,7 +226,7 @@ describe('edit a resource', () => {
 describe('delete a resource', () => {
   it('takes its placement visit and calendar entry, and the count follows', async () => {
     const created = await same(add({ qty: 2 }));
-    const id = String((created as { ok: { resource: { _id: string } } }).ok.resource._id);
+    const id = String((created as unknown as { ok: { resource: { _id: string } } }).ok.resource._id);
     await same(remove(id));
   });
 
@@ -253,7 +253,7 @@ describe('delete a resource', () => {
 describe('delete a visit', () => {
   it('a placement visit takes its resource, recounts, comes off the calendar and is logged', async () => {
     const created = await same(add({ qty: 3, date: '2026-11-11' }));
-    const visitId = String((created as { ok: { visit: { _id: string } } }).ok.visit._id);
+    const visitId = String((created as unknown as { ok: { visit: { _id: string } } }).ok.visit._id);
     await same(removeVisit(visitId));
   });
 

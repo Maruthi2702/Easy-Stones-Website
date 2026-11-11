@@ -75,6 +75,9 @@ export async function resetCustomerPassword(id: string, password: string): Promi
   if (!customer) return null;
 
   customer.password = password;
+  // A reset also lifts the sign-in lock and the failed-attempt count (owner, 2026-11-11).
+  customer.loginAttempts = 0;
+  customer.lockUntil = undefined;
   await customer.save();
   return { id: String(customer._id), contactName: customer.contactName, email: customer.email };
 }
@@ -84,7 +87,7 @@ export async function registerCustomer(id: string, input: RegisterInput): Promis
   const { contactName, email, password, phone, company } = input;
 
   // Check if customer already exists
-  const existingCustomer = await Customer.findOne({ email });
+  const existingCustomer = await Customer.findOne({ email: email as string });
   if (existingCustomer) return 'taken';
 
   // Create new customer

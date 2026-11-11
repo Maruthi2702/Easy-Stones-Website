@@ -266,7 +266,7 @@ export default function createVisitsRouter({
       if (before && !canModifyVisit({ id: req.userId, permissions: req.user?.permissions }, before, await teamOfRequest(req))) {
         return res.status(403).json({ message: "You don't have permission to change this follow-up. You can change follow-ups on visits you logged; anything else needs a Visits permission under Users & Roles." });
       }
-      const { id: userId, name: userName } = await (getPerformerInfo as (r: unknown) => Promise<{ id?: string; name?: string }>)(req);
+      const { id: userId, name: userName } = await (getPerformerInfo as (r: unknown) => Promise<{ id: string; name: string }>)(req);
       const now = (getNowLocalISO as () => string)();
       const today = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.today || '')) ? req.body.today : now.slice(0, 10);
       const update = followUpUpdate(before, req.body || {}, { now, today, userId: String(userId || ''), userName: userName || '' });

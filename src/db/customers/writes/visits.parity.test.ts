@@ -70,7 +70,7 @@ async function settle(r: unknown) {
   const events: ScheduleEvent[] = [];
   const { afterAnswer, ...rest } = (r ?? {}) as { afterAnswer?: (e: (ev: ScheduleEvent) => void) => Promise<void> };
   await afterAnswer?.(e => events.push(e));
-  return { ...rest, events };
+  return { ...rest, events } as { events: ScheduleEvent[] } & Record<string, any>;
 }
 
 /** What the route builds and hands the save. Ids are made once so both databases get the same. */
@@ -273,7 +273,7 @@ describe('follow-up', () => {
       snooze1: await patch(id, { action: 'snooze', until: '2026-11-20' }, logs[3]),
       snooze2: await patch(id, { action: 'snooze', until: '2026-12-02' }, logs[4])
     }));
-    const history = (mongo.snooze2 as { visit: { followUpHistory: { action: string }[] } }).visit.followUpHistory;
+    const history = (mongo.snooze2 as unknown as { visit: { followUpHistory: { action: string }[] } }).visit.followUpHistory;
     expect(history.map(h => h.action)).toEqual(['done', 'reopen', 'snooze', 'snooze']);
   });
 

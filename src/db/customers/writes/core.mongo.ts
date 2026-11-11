@@ -95,7 +95,7 @@ export async function setCustomerActive(id: string, isActive: unknown): Promise<
  * Returns how many customers were relabelled.
  */
 export async function renameRepOnCustomers(userId: unknown, nameAfter: string): Promise<number> {
-  const { modifiedCount } = await Customer.updateMany({ salesRep: userId as mongoose.Types.ObjectId }, { $set: { salesRepName: nameAfter } });
+  const { modifiedCount } = await Customer.updateMany({ salesRep: userId as string }, { $set: { salesRepName: nameAfter } });
   return modifiedCount;
 }
 
