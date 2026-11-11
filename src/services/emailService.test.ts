@@ -77,7 +77,8 @@ describe('sendSelectionSheetEmail', () => {
   it('keeps a phone or an email on one line', async () => {
     const html = await htmlOf();
     expect(html).toMatch(/white-space: nowrap;"><a href="mailto:rita@x\.com"/);
-    expect(html).toMatch(/<table role="presentation" width="180"[^>]*><tr><td[^>]*><div[^>]*>YOUR SALES REP/);
+    // The rep has no set width, so a long email moves under the other two instead of past the card.
+    expect(html).toMatch(/<div style="display: inline-block; vertical-align: top; max-width: 100%; margin: 0 0px 14px 0;[^"]*"><table role="presentation" cellpadding[^>]*><tr><td[^>]*><div[^>]*>YOUR SALES REP/);
   });
 
   // Dark mode repaints the email; the logo image's dark lettering vanished there.
@@ -106,7 +107,7 @@ describe('sendSelectionSheetEmail', () => {
     expect(html).toMatch(/<td style="padding: 8px 0 0 10px;[^"]*">Give this sheet to your fabricator\.<\/td>/);
     expect(html).not.toMatch(/<div style="width: 20px; height: 20px/);
     // Each person's width is a table's width attribute, which a forward keeps.
-    for (const [width, label] of [[165, 'PREPARED FOR'], [165, 'FABRICATOR'], [180, 'YOUR SALES REP']] as const)
+    for (const [width, label] of [[165, 'PREPARED FOR'], [165, 'FABRICATOR']] as const)
       expect(html, label).toMatch(new RegExp(`<table role="presentation" width="${width}"[^>]*><tr><td[^>]*><div[^>]*>${label}<`));
     expect(html.match(/margin: 0 20px 14px 0;/g)).toHaveLength(2);
   });
