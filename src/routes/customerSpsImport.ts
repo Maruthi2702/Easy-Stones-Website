@@ -3,10 +3,8 @@ import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request, Response, NextFunction } from 'express';
 import express from 'express';
 import crypto from 'node:crypto';
-import Customer from '../models/Customer.ts';
-import CustomerDeleteBackup from '../models/CustomerDeleteBackup.ts';
-import SpsImportRun from '../models/SpsImportRun.ts';
-import SpsImportItem from '../models/SpsImportItem.ts';
+import * as data from '../db/customers/index.ts';
+import { newId } from '../db/ids.ts';
 import { canAddCustomer, canDeleteCustomers, canEditCustomers, canImportCustomers } from '../utils/customerAccess.ts';
 import { checkSheet } from '../utils/spsSheet.ts';
 import { planSpsImport, blockersFor, switchesNeeded } from '../utils/spsImportPlan.ts';
@@ -69,15 +67,15 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
 
   /** The plan for a run, read fresh from its saved file and the database as it is now. */
   const computePlan = async (run: Loose, { finalize = false }: Loose = {}) => {
-    const withFile = await SpsImportRun.findById(run._id).select('+file').lean();
-    if (!withFile?.file) throw new Error('This import has already started, so it has no file to plan from.');
-    const { headers, rows, parse } = await readSheet(Buffer.from(withFile.file.buffer || withFile.file));
+    const file = await data.spsGetRunFile(String(run._id));
+    if (!file) throw new Error('This import has already started, so it has no file to plan from.');
+    const { headers, rows, parse } = await readSheet(file);
     const mapping = resolveMapping(headers, run.mapping || {});
     const fileCheck = checkSheet({ rows, mapping, parse });
     if (!fileCheck.ok) return { fileCheck, headers, mapping };
     const ref = await buildReference({ repAliases: run.repAliases || {}, branchAliases: run.branchAliases || {} });
-    const customers = await Customer.find({}, 'company contactName email phone address quickNote salesRep salesRepName location sps').lean();
-    const deleted = (await CustomerDeleteBackup.find({ undoneAt: null }).lean()).map((d) => ({ ...d, deletedAt: d.createdAt }));
+    const customers = await data.customersForPlan('company contactName email phone address quickNote salesRep salesRepName location sps');
+    const deleted = await data.spsDeletedBackups();
     const plan = planSpsImport({
       rows, mapping, customers, deleted,
       branchByKey: ref.reference.branchByKey, repByKey: ref.reference.repByKey,
@@ -117,8 +115,8 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
         return bad(res, 422, `${fileCheck.blocking.map((b) => b.message).join(' ')} Nothing has been imported.`, { fileCheck });
       }
       const fingerprint = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
-      const run = await SpsImportRun.create({
-        fileName: req.file.originalname || 'SPS export', fingerprint, file: req.file.buffer,
+      const run = await data.spsCreateRun({
+        id: newId(), fileName: req.file.originalname || 'SPS export', fingerprint, file: req.file.buffer,
         createdBy: who(req), createdById: req.userId || '', mapping: json(req.body.mapping), fileCheck, rowsRead: rows.length
       });
       res.json({ run: summary(run), fileCheck, headers, mapping, fields });
@@ -129,29 +127,26 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   });
 
   router.get(`${BASE}/current`, authenticate, mayImport, async (req, res) => {
-    const running = await SpsImportRun.findOne({ status: 'running' }).lean();
-    const draft = await SpsImportRun.findOne({ status: 'draft', createdBy: who(req) }).sort({ createdAt: -1 }).lean();
+    const { running, draft } = await data.spsCurrentRuns(who(req));
     res.json({ running: running ? summary(running) : null, draft: draft ? summary(draft) : null });
   });
 
   router.get(`${BASE}`, authenticate, mayImport, async (req, res) => {
-    const runs = await SpsImportRun.find({ status: { $ne: 'draft' } }).sort({ createdAt: -1 }).limit(100).lean();
+    const runs = await data.spsRunHistory();
     res.json({ runs: runs.map(summary) });
   });
 
   router.get(`${BASE}/:id`, authenticate, mayImport, validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
-    const run = await SpsImportRun.findById(requestParams.id).lean().catch(() => null);
+    const run = await data.spsGetRun(requestParams.id);
     if (!run) return bad(res, 404, 'No such import.');
-    const failed = await SpsImportItem.find({ runId: String(run._id), state: 'failed' }).select('name rowNumber reason').limit(100).lean();
+    const failed = await data.spsFailedItems(String(run._id));
     res.json({ run: summary(run), failed });
   });
 
   router.delete(`${BASE}/:id`, authenticate, mayImport, validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
-    const run = await SpsImportRun.findOne({ _id: requestParams.id, status: 'draft' }).catch(() => null);
-    if (!run) return bad(res, 404, 'No such draft import.');
-    await SpsImportRun.deleteOne({ _id: run._id });
+    if (!(await data.spsDeleteDraft(requestParams.id))) return bad(res, 404, 'No such draft import.');
     res.json({ ok: true });
   });
 
@@ -159,19 +154,17 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   router.post(`${BASE}/:id/plan`, authenticate, mayImport, express.json({ limit: '5mb' }), validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
     try {
-      const run = await SpsImportRun.findOne({ _id: requestParams.id, status: 'draft' });
-      if (!run) return bad(res, 404, 'No such draft import — it may have started or been discarded.');
       const set: Loose = {};
       for (const f of ['mapping', 'repAliases', 'branchAliases', 'answers']) {
         if (req.body?.[f] && typeof req.body[f] === 'object') set[f] = req.body[f];
       }
-      if (Object.keys(set).length) await SpsImportRun.updateOne({ _id: run._id }, { $set: set });
-      const fresh = await SpsImportRun.findById(run._id).lean();
-      const out = await computePlan(fresh!);
+      const fresh = await data.spsSaveRunAnswers(requestParams.id, set);
+      if (!fresh) return bad(res, 404, 'No such draft import — it may have started or been discarded.');
+      const out = await computePlan(fresh);
       if (!out.plan) return bad(res, 422, out.fileCheck.blocking.map((b) => b.message).join(' '), { fileCheck: out.fileCheck });
       const { plan } = out;
       res.json({
-        run: summary(fresh!),
+        run: summary(fresh),
         fileCheck: out.fileCheck, headers: out.headers, mapping: out.mapping, fields,
         reps: out.reps, branches: out.branches,
         counts: plan.counts, rowsRead: plan.rowsRead, distinct: plan.distinct, skipped: plan.skipped, adds: plan.adds,
@@ -190,13 +183,13 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   router.post(`${BASE}/:id/start`, authenticate, mayImport, validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
     try {
-      const busy = await SpsImportRun.findOne({ status: 'running' }).lean();
+      const busy = await data.spsFindRunning();
       if (busy) {
         return bad(res, 409, `${ownerOf(busy)} is importing right now (${busy.done} of ${busy.total}). Try again when it’s finished.`);
       }
-      const run = await SpsImportRun.findOne({ _id: requestParams.id, status: 'draft' });
+      const run = await data.spsFindDraft(requestParams.id);
       if (!run) return bad(res, 404, 'No such draft import — it may have started already.');
-      const out = await computePlan(run.toObject(), { finalize: true });
+      const out = await computePlan(run, { finalize: true });
       if (!out.plan) return bad(res, 422, out.fileCheck.blocking.map((b) => b.message).join(' '), { fileCheck: out.fileCheck });
 
       const blockers = blockersFor(out.plan);
@@ -206,14 +199,14 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
       if (needs.add && !canAddCustomer(req.user)) return bad(res, 403, 'Bringing back a deleted customer needs the Add customer switch.');
 
       // Claim the run before anything else so two Starts can't both go.
-      const claimed = await SpsImportRun.findOneAndUpdate({ _id: run._id, status: 'draft' }, { $set: { status: 'running', createdBy: run.createdBy || who(req), createdById: run.createdById || req.userId || '' } });
+      const claimed = await data.spsClaimRun(String(run._id), { status: 'running', createdBy: run.createdBy || who(req), createdById: run.createdById || req.userId || '' });
       if (!claimed) return bad(res, 409, 'This import has already started.');
 
       await freezePlan(run, out.plan, who(req));
       await rememberAliases({ repAliases: run.repAliases || {}, branchAliases: run.branchAliases || {}, repIds: new Set(out.reps.map((r) => r._id)), branches: out.branches, by: who(req) });
       req.app.get('io')?.emit('customer_update');
       runItems(run._id).then(() => req.app.get('io')?.emit('customer_update'));
-      res.json({ run: summary((await SpsImportRun.findById(run._id).lean())!) });
+      res.json({ run: summary((await data.spsGetRun(String(run._id)))!) });
     } catch (err) {
       console.error('SPS import start error:', err);
       bad(res, 500, `Could not start the import: ${(err as Error).message}`);
@@ -222,7 +215,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
 
   router.post(`${BASE}/:id/retry`, authenticate, mayImport, validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
-    const run = await SpsImportRun.findOne({ _id: requestParams.id, status: { $in: ['done', 'failed'] } }).catch(() => null);
+    const run = await data.spsFindFinished(requestParams.id);
     if (!run) return bad(res, 404, 'Nothing to retry.');
     const n = await retryFailed(run._id);
     res.json({ retrying: n });
@@ -231,7 +224,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   router.post(`${BASE}/:id/undo`, authenticate, mayImport, validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
     if (!canDeleteCustomers(req.user)) return bad(res, 403, 'Undoing an import needs the Delete customer switch.');
-    const run = await SpsImportRun.findOne({ _id: requestParams.id, status: { $in: ['done', 'failed'] } }).catch(() => null);
+    const run = await data.spsFindFinished(requestParams.id);
     if (!run) return bad(res, 404, 'This import can’t be undone (it isn’t finished, or already was).');
     try {
       const out = await undoRun(run._id, who(req));
@@ -250,9 +243,9 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   };
   router.get(`${BASE}/:id/report.csv`, authenticate, mayImport, validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
-    const run = await SpsImportRun.findById(requestParams.id).lean().catch(() => null);
+    const run = await data.spsGetRun(requestParams.id);
     if (!run) return bad(res, 404, 'No such import.');
-    const items = await SpsImportItem.find({ runId: String(run._id) }).sort({ seq: 1 }).lean();
+    const items = await data.spsReportItems(String(run._id));
     const lines = [['Row', 'SPS customer', 'What happened', 'Easy Stones customer id', 'Changes', 'Note'].map(csvCell).join(',')];
     const words: Record<string, string> = { added: 'Added', updated: 'Updated', unchanged: 'No changes', restored: 'Brought back', keptDeleted: 'Kept deleted', failed: 'Failed' };
     for (const i of items) {
@@ -272,18 +265,13 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   router.get(`${BASE}/:id/items`, authenticate, mayImport, validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
   const requestQuery = scalarQuery(req);
-    const run = await SpsImportRun.findById(requestParams.id).select('_id').lean().catch(() => null);
+    const run = await data.spsGetRun(requestParams.id);
     if (!run) return bad(res, 404, 'No such import.');
     const result = String(requestQuery.result || '');
     if (result && !RESULTS.includes(result)) return bad(res, 400, 'Unknown result.');
     const limit = Math.min(100, Math.max(1, Number(requestQuery.limit) || 50));
     const page = Math.max(1, Number(requestQuery.page) || 1);
-    const filter = { runId: String(run._id), ...(result ? { result } : { result: { $ne: '' } }) };
-    const [total, items] = await Promise.all([
-      SpsImportItem.countDocuments(filter),
-      SpsImportItem.find(filter).sort({ seq: 1 }).skip((page - 1) * limit).limit(limit)
-        .select('rowNumber name result reason changes warnings createdId customerId connect create.company create.location create.salesRepName create.address.city').lean()
-    ]);
+    const { total, items } = await data.spsItemsPage(String(run._id), result, page, limit);
     res.json({
       total,
       items: items.map((i) => ({
@@ -300,7 +288,7 @@ export default function createCustomerSpsImportRouter({ authenticate, uploadMemo
   const requestQuery = scalarQuery(req);
   const requestParams = scalarParams(req);
     const results = requestQuery.outcome === 'added' ? ['added', 'restored'] : requestQuery.outcome === 'updated' ? ['updated'] : ['added', 'restored', 'updated'];
-    const items = await SpsImportItem.find({ runId: requestParams.id, result: { $in: results } }).select('createdId customerId').lean();
+    const items = await data.spsCustomerIdsOf(requestParams.id, results);
     res.json({ ids: items.map((i) => i.createdId || i.customerId).filter(Boolean) });
   });
 

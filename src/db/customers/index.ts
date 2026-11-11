@@ -40,3 +40,6 @@ export * from './writes/visits.ts';
 export * from './writes/accounts.ts';
 export * from './writes/resources.ts';
 export * from './writes/schedule.ts';
+export * from './writes/merge.ts';
+export * from './writes/imports.ts';
+export * from './writes/sps.ts';

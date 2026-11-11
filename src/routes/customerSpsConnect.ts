@@ -1,8 +1,7 @@
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request, Response, NextFunction } from 'express';
 import express from 'express';
-import mongoose from 'mongoose';
-import Customer from '../models/Customer.ts';
+import * as customerData from '../db/customers/index.ts';
 import { canEditCustomers, canImportCustomers } from '../utils/customerAccess.ts';
 import { checkSheet } from '../utils/spsSheet.ts';
 import { planConnect, resolveAnswers, spsRowsOf } from '../utils/spsConnect.ts';
@@ -38,7 +37,7 @@ export default function createCustomerSpsConnectRouter({ authenticate, uploadMem
     const mapping = resolveMapping(headers, json(req.body.mapping));
     const fileCheck = checkSheet({ rows, mapping, parse });
     if (!fileCheck.ok) return { fileCheck };
-    const customers = await Customer.find({}, 'company contactName email phone location address salesRepName sps').lean();
+    const customers = await customerData.customersForPlan('company contactName email phone location address salesRepName sps');
     const plan = planConnect({ rows, mapping, customers });
     const spsByKey = new Map(spsRowsOf({ rows, mapping }).map((r) => [r.key, r]));
     return { fileCheck, mapping, plan, spsByKey };
@@ -75,45 +74,13 @@ export default function createCustomerSpsConnectRouter({ authenticate, uploadMem
 
       const answers = resolveAnswers(plan, json(req.body.answers), spsByKey);
       const connectAuto = req.body.connectAuto === 'true';
-      const now = new Date();
-      const by = who(req);
-      const stamp = (key: string) => ({
-        'sps.key': key,
-        'sps.name': spsByKey.get(key).name,
-        'sps.firstImportedAt': now,
-        'sps.lastSeenAt': now,
-        'sps.connectedAt': now,
-        'sps.connectedBy': by
-      });
       const toConnect = [...(connectAuto ? plan.auto : []), ...answers.connect];
-      const idOf = (customerId: string) => new mongoose.Types.ObjectId(customerId);
-      const connectOps = toConnect.map(({ customerId, key }) => ({
-        updateOne: { filter: { _id: idOf(customerId), 'sps.key': { $exists: false } }, update: { $set: stamp(key) } }
-      }));
-      const notInSpsOps = answers.notInSps.map((customerId) => ({
-        updateOne: {
-          filter: { _id: idOf(customerId), 'sps.key': { $exists: false } },
-          update: { $set: { 'sps.reviewedAs': 'none', 'sps.connectedAt': now, 'sps.connectedBy': by } }
-        }
-      }));
-
-      // ordered:false — one name taken in the meantime must not stop the rest.
-      const failed: Loose[] = [];
-      const run = async (ops: Parameters<typeof Customer.collection.bulkWrite>[0]) => {
-        if (!ops.length) return 0;
-        try {
-          return (await Customer.collection.bulkWrite(ops, { ordered: false })).modifiedCount;
-        } catch (err) {
-          if (!(err as Error & Loose).writeErrors && !(err as Error & Loose).result) throw err;
-          for (const e of (err as Error & Loose).writeErrors || []) {
-            const op = ops[e.index ?? e.err?.index] as Loose | undefined;
-            failed.push({ customerId: String(op?.updateOne?.filter?._id || ''), reason: e.code === 11000 ? 'another customer took that SPS name first' : (e.errmsg || 'could not be saved') });
-          }
-          return (err as Error & Loose).result?.modifiedCount ?? (err as Error & Loose).result?.nModified ?? 0;
-        }
-      };
-      const connected = await run(connectOps);
-      const markedNotInSps = await run(notInSpsOps);
+      const { connected, notInSps: markedNotInSps, failed } = await customerData.connectSps({
+        connect: toConnect.map(({ customerId, key }: Loose) => ({ customerId, key })),
+        notInSps: answers.notInSps,
+        nameByKey: Object.fromEntries(toConnect.map(({ key }: Loose) => [key, spsByKey.get(key).name])),
+        by: who(req), now: new Date()
+      });
 
       req.app.get('io')?.emit('customer_update');
       res.json({ connected, notInSps: markedNotInSps, failed, rejected: answers.rejected });

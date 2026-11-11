@@ -55,9 +55,11 @@ import Location from './src/models/Location.ts';
 import ContactSubmission from './src/models/ContactSubmission.ts';
 import Customer from './src/models/Customer.ts';
 import * as customerData from './src/db/customers/index.ts';
+const { resolveDuplicates, undoDuplicates } = customerData;
 import { areasOnPostgres } from './src/db/appDb.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
+import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
 import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
 import SalesResource from './src/models/SalesResource.ts';
 import SalesDashboardResource from './src/models/SalesDashboardResource.ts';
@@ -177,7 +179,7 @@ import {
 } from './src/services/staffSession.ts';
 import { usernameProblem, isValidEmail, isValidDateInput, PASSWORD_MIN } from './src/utils/userForm.ts';
 import Delivery from './src/models/Delivery.ts';
-import { insertInBatches, withDbRetry, hasRowErrorsOnly } from './src/utils/dbRetry.ts';
+import { withDbRetry } from './src/utils/dbRetry.ts';
 import { relay } from './src/lambda/relay.ts';
 import { permitSyncOnLambda } from './src/permits/syncOnLambda.ts';
 import path from 'path';
@@ -4286,10 +4288,9 @@ const loadImportReferenceData = async () => {
 
   // quickNote is here for the "fill blanks only" update (buildImportPlan's
   // planUpdate), which has to see what the record already holds.
-  const existing = await Customer.find(
-    {},
+  const existing = await customerData.customersForPlan(
     'company contactName email phone address quickNote salesRep salesRepName location isActive createdAt notDuplicateOf sps.key'
-  ).lean();
+  );
 
   return { branchByKey, repByKey, existing };
 };
@@ -4301,7 +4302,7 @@ const loadImportReferenceData = async () => {
  */
 const buildImportReference = async ({ repAliases = {}, branchAliases = {} }: { repAliases?: Loose; branchAliases?: Loose } = {}) => {
   const reference = await loadImportReferenceData();
-  const memory = await ImportMemory.findOne({ kind: 'customer' }).lean();
+  const memory = await customerData.readImportMemory();
   // A lean() Map field can come back as either, depending on the driver.
   const asObject = (m: Loose | Map<string, unknown> | null | undefined) => (m instanceof Map ? Object.fromEntries(m) : (m || {}));
   const savedReps = asObject(memory?.repAliases);
@@ -4442,11 +4443,7 @@ const saveImportMemory = async (req: Request, plan: Loose, createdByRow: Map<num
   }
 
   if (!Object.keys(set).length) return;
-  await ImportMemory.updateOne(
-    { kind: 'customer' },
-    { $set: { ...set, updatedBy: req.user?.username || '' } },
-    { upsert: true }
-  );
+  await customerData.saveImportMemory({ set, by: req.user?.username || '', id: newId() });
 };
 
 /**
@@ -4469,7 +4466,7 @@ const rememberImportAliases = async ({ repAliases = {}, branchAliases = {}, repI
     else if (branches.includes(branch)) set[`branchAliases.${key}`] = branch;
   }
   if (!Object.keys(set).length) return;
-  await ImportMemory.updateOne({ kind: 'customer' }, { $set: { ...set, updatedBy: by } }, { upsert: true });
+  await customerData.saveImportMemory({ set, by, id: newId() });
 };
 
 /**
@@ -4535,54 +4532,25 @@ app.post(['/api/customers/duplicates/resolve', '/api/admin/customers/duplicates/
       return res.status(403).json({ message: 'Merging or deleting a customer needs the delete_customers permission.' });
     }
 
-    const db = mongoose.connection.db!;
     const ids = [keepId, ...entries.map(([id]) => id)];
-    if (!ids.every((id: string) => mongoose.Types.ObjectId.isValid(id))) {
+    if (!ids.every((id: string) => isId(id))) {
       return res.status(400).json({ message: 'Unknown customer id' });
     }
-    const docs = await db.collection('customers')
-      .find({ _id: { $in: ids.map(id => new mongoose.Types.ObjectId(id)) } }).toArray();
-    const byId = new Map(docs.map(d => [String(d._id), d]));
-    const missing = ids.find(id => !byId.has(id));
-    if (missing) {
+    const out = await resolveDuplicates({
+      keepId, actions: entries as [string, DuplicateAction][], who: req.user?.username || '',
+      backupIds: { delete: newId(), merge: newId() }
+    });
+    if ('missing' in out) {
       return res.status(409).json({ message: 'One of these customers no longer exists — refresh the preview.' });
     }
-
-    const survivor = byId.get(keepId)!;
-    const merging = entries.filter(([, a]) => a === 'merge').map(([id]) => byId.get(id)!);
-    const deleting = entries.filter(([, a]) => a === 'delete').map(([id]) => byId.get(id)!);
-    const separate = entries.filter(([, a]) => a === 'separate').map(([id]) => id);
-    const who = req.user?.username || '';
-    const undoIds: string[] = [];
-
-    // Delete runs first and the merge snapshots after it, so an undo of the
-    // merge restores the survivor as it was after the delete — the two undo
-    // in reverse order and each puts back exactly what it changed.
-    if (deleting.length) {
-      const snap = await snapshotMerge(db, survivor, deleting);
-      const backup = await CustomerMergeBackup.create({ group: snap, action: 'delete', createdBy: who });
-      await executeMerge(db, survivor, deleting, { copyDetails: false });
-      undoIds.push(String(backup._id));
-    }
-    if (merging.length) {
-      const current = (await db.collection('customers').findOne({ _id: survivor._id }))!;
-      const { set } = planFields(current, merging);
-      const newContacts = contactsFromLosers(set.email ?? current.email, current, merging);
-      const snap = await snapshotMerge(db, current, merging);
-      const backup = await CustomerMergeBackup.create({ group: snap, action: 'merge', createdBy: who });
-      await executeMerge(db, current, merging, { set, newContacts, copyDetails: true });
-      undoIds.push(String(backup._id));
-    }
-    // "These are all different accounts" — the kept one and every member
-    // marked separate, each pair recorded, so none of them is asked about again.
-    if (separate.length) await markSeparate(db, [keepId, ...separate]);
+    const { merged, deleted, separate, undoIds } = out;
 
     req.app.get('io')?.emit('customer_update');
     res.json({
       success: true,
-      merged: merging.length,
-      deleted: deleting.length,
-      separate: separate.length,
+      merged,
+      deleted,
+      separate,
       undoIds
     });
   } catch (error) {
@@ -4599,19 +4567,12 @@ app.post(['/api/customers/duplicates/undo', '/api/admin/customers/duplicates/und
     if (!ids.length || !ids.every((id: string) => mongoose.Types.ObjectId.isValid(id))) {
       return res.status(400).json({ message: 'Nothing to undo' });
     }
-    // By _id, not createdAt: both backups from one click can share a millisecond.
-    const backups = await CustomerMergeBackup.find({ _id: { $in: ids }, undoneAt: null }).sort({ _id: -1 });
-    if (backups.length !== ids.length) {
+    const out = await undoDuplicates(ids);
+    if ('alreadyUndone' in out) {
       return res.status(409).json({ message: 'This has already been undone.' });
     }
-    const db = mongoose.connection.db!;
-    for (const b of backups) {
-      await undoMerge(db, b.group);
-      b.undoneAt = new Date();
-      await b.save();
-    }
     req.app.get('io')?.emit('customer_update');
-    res.json({ success: true, restored: backups.reduce((n, b) => n + (b.group.losers?.length || 0), 0) });
+    res.json({ success: true, restored: out.restored });
   } catch (error) {
     console.error('Undo duplicate resolve error:', error);
     res.status(500).json({ message: `Undo failed: ${(error as Error).message}` });
@@ -4652,7 +4613,7 @@ app.post(['/api/customers/import/preview', '/api/admin/customers/import/preview'
 // stops being asked about and so has no dropdown left to change it in.
 app.delete(['/api/customers/import/memory', '/api/admin/customers/import/memory'], verifyToken, requirePermission('view_customers', 'import_customers'), async (req: Request, res: Response) => {
   try {
-    await ImportMemory.deleteOne({ kind: 'customer' });
+    await customerData.forgetImportMemory();
     res.json({ success: true });
   } catch (error) {
     console.error('Customer import memory reset error:', error);
@@ -4713,10 +4674,10 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
       // already has its _id, so a resend can't create anyone twice
       // (src/utils/dbRetry.ts). Rows refused for their data (a duplicate
       // email, say) come back by index and don't stop the rest.
-      const refused = await insertInBatches(Customer, docs, { batchSize: IMPORT_WRITE_BATCH });
+      const refused = await customerData.insertImportedCustomers(docs, IMPORT_WRITE_BATCH);
       docs.forEach((doc, i) => {
         const row = docRows[i];
-        if (refused.has(i)) { rowError(row, refused.get(i)); return; }
+        if (refused.has(i)) { rowError(row, refused.get(i) ?? 'Could not be saved'); return; }
         createdByRow.set(row.rowNumber, String(doc._id));
         results.created++;
       });
@@ -4724,24 +4685,9 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
 
     for (let start = 0; start < updates.length; start += IMPORT_WRITE_BATCH) {
       const batch = updates.slice(start, start + IMPORT_WRITE_BATCH);
-      const failed = new Map();
-      // $set is safe to send twice, so a dropped connection just resends it.
-      await withDbRetry(async () => {
-        failed.clear();
-        try {
-          await Customer.bulkWrite(
-            batch.map(row => ({ updateOne: { filter: { _id: row.targetId }, update: { $set: row.apply } } })),
-            { ordered: false }
-          );
-        } catch (err) {
-          // A dropped connection (a bulk write error listing no rows) fails
-          // the whole batch — throw, so withDbRetry resends it.
-          if (!hasRowErrorsOnly(err)) throw err;
-          for (const we of (err as Error & Loose).writeErrors) failed.set(we.index ?? we.err?.index, we.errmsg || we.err?.errmsg || 'Could not be saved');
-        }
-      });
+      const failed = await customerData.updateImportedCustomers(batch.map(row => ({ targetId: String(row.targetId), apply: row.apply })));
       batch.forEach((row, i) => {
-        if (failed.has(i)) rowError(row, failed.get(i));
+        if (failed.has(i)) rowError(row, failed.get(i) ?? 'Could not be saved');
         else results.updated++;
       });
     }
