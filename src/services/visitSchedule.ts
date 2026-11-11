@@ -40,6 +40,8 @@ type VisitOptions = {
   startTime?: string;
   emit?: (event: ScheduleEvent) => void;
   session?: mongoose.ClientSession | null;
+  /** The drop-in's id when one is added (the caller's newId(), so Postgres gets the same); MongoDB makes one without it. */
+  dropInId?: Id;
 };
 type UnlinkOptions = Pick<VisitOptions, 'visitId' | 'emit' | 'session'>;
 
@@ -91,7 +93,7 @@ export const activityTypeForVisit = (purpose = '') =>
  * computed start — used when a visit moves day and keeps its time of day.
  * `emit` is server.ts's emitScheduleUpdate, so open calendars refresh live.
  */
-export async function linkVisitToSchedule({ customerId, visitId, visitDate, userId, purpose, startTime = undefined, emit = () => {}, session = null }: VisitOptions) {
+export async function linkVisitToSchedule({ customerId, visitId, visitDate, userId, purpose, startTime = undefined, emit = () => {}, session = null, dropInId }: VisitOptions) {
   // visitDate goes into a startTime prefix $regex below: only ever a real date.
   if (!userId || !mongoose.isValidObjectId(userId) || !YMD_RE.test(String(visitDate || ''))) return null;
 
@@ -111,6 +113,7 @@ export async function linkVisitToSchedule({ customerId, visitId, visitDate, user
   const start = startTime || dropInStartTime(visitDate, branch);
 
   const [dropIn] = await Schedule.create([{
+    ...(dropInId ? { _id: dropInId } : {}),
     userId,
     customerId,
     startTime: start,
@@ -155,8 +158,8 @@ export async function unlinkVisitFromSchedule({ visitId, emit = () => {}, sessio
  * logger (visit.createdBy), not whoever edited it — the entry belongs on the
  * calendar of the person who made the stop.
  */
-export async function moveVisitOnSchedule({ customerId, visitId, newDate, userId, purpose, emit = () => {}, session = null }: Omit<VisitOptions, 'visitDate' | 'startTime'> & { newDate: string }) {
+export async function moveVisitOnSchedule({ customerId, visitId, newDate, userId, purpose, emit = () => {}, session = null, dropInId }: Omit<VisitOptions, 'visitDate' | 'startTime'> & { newDate: string }) {
   const oldStart = await unlinkVisitFromSchedule({ visitId, emit, session });
   const keptTime = oldStart ? `${newDate}T${String(oldStart).split('T')[1]}` : undefined;
-  return linkVisitToSchedule({ customerId, visitId, visitDate: newDate, userId, purpose, startTime: keptTime, emit, session });
+  return linkVisitToSchedule({ customerId, visitId, visitDate: newDate, userId, purpose, startTime: keptTime, emit, session, dropInId });
 }

@@ -3,14 +3,12 @@ import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
-import Customer from '../models/Customer.ts';
-import ActivityLog from '../models/ActivityLog.ts';
+import * as customerData from '../db/customers/index.ts';
+import { newId } from '../db/ids.ts';
 import { normalizeVisitDate, normalizeOptionalDate } from '../utils/visitDates.ts';
 import { canModifyVisit, ANY_EDIT_VISIT_PERMISSIONS } from '../utils/visitAccess.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
-import VisitType from '../models/VisitType.ts';
 import { cleanVisitFields } from '../utils/visitForm.ts';
-import { linkVisitToSchedule, moveVisitOnSchedule } from '../services/visitSchedule.ts';
 import { followUpUpdate } from '../utils/followUpList.ts';
 
 /**
@@ -51,10 +49,10 @@ export default function createVisitsRouter({
     return image;
   };
 
-  const visitOf = async (customerId: string, visitId: string | mongoose.Types.ObjectId) => {
-    const doc = await Customer.findOne({ _id: customerId, 'visits._id': visitId }, { 'visits.$': 1 }).lean();
-    return doc?.visits?.[0] || null;
-  };
+  // The data layer (src/db/customers/writes/visits.ts) does every read and write of a
+  // visit: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
+  const visitOf = (customerId: string, visitId: string | mongoose.Types.ObjectId) =>
+    customerData.savedVisit(customerId, visitId);
 
   const announceVisit = (req: Request, customerId: string, visitId: string | mongoose.Types.ObjectId) => {
     const mutationId = typeof req.body?._mutationId === 'string' && /^[0-9a-f]{24}$/i.test(req.body._mutationId)
@@ -95,7 +93,7 @@ export default function createVisitsRouter({
         return res.status(400).json({ message: 'A visit date (YYYY-MM-DD) and a purpose are required' });
       }
       // The list is Admin → Visit Types; a hidden type can't start a new visit.
-      const visitType = await VisitType.findOne({ name: String(purpose) }).lean();
+      const visitType = await customerData.visitTypeNamed(String(purpose));
       if (!visitType || visitType.active === false) {
         return res.status(400).json({ message: 'Choose one of the visit types.' });
       }
@@ -109,11 +107,11 @@ export default function createVisitsRouter({
       if (sentId && !/^[0-9a-f]{24}$/i.test(sentId)) {
         return res.status(400).json({ message: 'Visit id is not valid.' });
       }
-      const visitId = new mongoose.Types.ObjectId(sentId || undefined);
+      const visitId = sentId ? sentId.toLowerCase() : newId();
 
       // The customer and who is saving are independent reads.
       const [customerInfo, performer] = await Promise.all([
-        Customer.findById(customerId).select('contactName company').lean(),
+        customerData.visitCustomer(customerId),
         getPerformerInfo(req)
       ]);
       if (!customerInfo) {
@@ -145,15 +143,18 @@ export default function createVisitsRouter({
         createdAt: getNowLocalISO()
       };
 
-      // $ne on the id: two tries racing can't both push.
       const updateStart = Date.now();
-      const result = await Customer.updateOne(
-        { _id: customerId, 'visits._id': { $ne: visitId } },
-        { $push: { visits: visitData } }
-      );
-      if (result.matchedCount === 0) {
-        const existing = await visitOf(customerId, visitId);
-        if (existing) return res.status(200).json({ success: true, visit: existing, alreadySaved: true });
+      const saved = await customerData.addVisit({
+        customerId, visit: visitData,
+        calendar: { userId: req.authType === 'admin' ? createdBy : null, dropInId: newId() },
+        log: {
+          id: newId(), performedBy: createdBy, performedByName: createdByName, performedByRole: req.authType,
+          details: { purpose: visitData.purpose, date: visitData.date }
+        },
+        now: getNowLocalISO
+      });
+      if (saved.kind === 'alreadySaved') return res.status(200).json({ success: true, visit: saved.visit, alreadySaved: true });
+      if (saved.kind === 'notFound') {
         console.error(`[Add Visit] Atomic update matched zero docs for customer: ${customerId}`);
         return res.status(404).json({ message: 'Customer not found during update' });
       }
@@ -163,36 +164,10 @@ export default function createVisitsRouter({
       announceVisit(req, customerId, visitId);
       res.status(201).json({ success: true, visit: visitData });
 
-      // Background: put the visit on the logger's calendar — completing their
-      // own Scheduled entry for this customer that day, or adding a drop-in if
-      // they had nothing planned (see src/services/visitSchedule.ts). Only
-      // 'Scheduled' entries are completed, so this can't resurrect a Cancelled
-      // stop or relink an already-Completed one.
-      try {
-        await linkVisitToSchedule({
-          customerId, visitId, visitDate: processedDate,
-          userId: req.authType === 'admin' ? createdBy : null,
-          purpose, emit: emitScheduleUpdate
-        });
-      } catch (linkError) {
-        console.error('Failed to link visit to schedule:', linkError);
-      }
-
-      try {
-        await ActivityLog.create({
-          entityType: 'Visit',
-          entityId: visitId,
-          customerId,
-          action: 'CREATE',
-          performedBy: createdBy,
-          performedByName: createdByName,
-          performedByRole: req.authType,
-          timestamp: getNowLocalISO(),
-          details: { purpose: visitData.purpose, date: visitData.date }
-        });
-      } catch (logError) {
-        console.error('Failed to log visit creation:', logError);
-      }
+      // After answering: on MongoDB the visit goes on the logger's calendar (completing
+      // their own Scheduled entry that day, else a drop-in; src/services/visitSchedule.ts)
+      // and the log line is written; on Postgres both were saved with the visit.
+      await saved.afterAnswer(emitScheduleUpdate);
     } catch (error) {
       console.error('Add visit error:', error);
       if (!res.headersSent) res.status(500).json({ message: 'Failed to add visit: ' + (error as Error).message });
@@ -209,7 +184,7 @@ export default function createVisitsRouter({
       if (date) {
         const processedDate = normalizeVisitDate(date);
         if (!processedDate) return res.status(400).json({ message: 'Visit date must be a date (YYYY-MM-DD)' });
-        updateData['visits.$.date'] = processedDate;
+        updateData.date = processedDate;
       }
       let followUpDate!: string | null;
       if (req.body.followUpDate !== undefined) {
@@ -220,18 +195,14 @@ export default function createVisitsRouter({
       // Who may change this visit (src/utils/visitAccess.ts) — checked before
       // any image upload or write. The same read tells the calendar sync below
       // whether the date moved and who logged the visit.
-      const existing = await Customer.findOne(
-        { _id: customerId, 'visits._id': visitId },
-        { 'visits.$': 1, location: 1 }
-      ).lean();
-      const before = existing?.visits?.[0];
+      const before = await visitOf(customerId, visitId);
       if (!before) return res.status(404).json({ message: 'Customer or visit not found' });
       if (!canModifyVisit({ id: req.userId, permissions: req.user?.permissions }, before, await teamOfRequest(req))) {
         return res.status(403).json({ message: "You don't have permission to edit this visit. You can edit visits you logged; anything else needs a Visits permission under Users & Roles." });
       }
       // A type that has since been hidden or removed stays valid on the visit that has it.
       const typeName = String(purpose ?? before.purpose ?? '');
-      const visitType = await VisitType.findOne({ name: typeName }).lean();
+      const visitType = await customerData.visitTypeNamed(typeName);
       if (purpose !== undefined && purpose !== before.purpose && (!visitType || visitType.active === false)) {
         return res.status(400).json({ message: 'Choose one of the visit types.' });
       }
@@ -239,60 +210,40 @@ export default function createVisitsRouter({
       const clean = cleanVisitFields(visitType, { followUp: req.body.followUp, followUpDate });
       const { id: updatedBy, name: updatedByName } = await getPerformerInfo(req);
 
-      if (clean.followUpDate !== undefined) updateData['visits.$.followUpDate'] = clean.followUpDate;
-      if (purpose !== undefined) updateData['visits.$.purpose'] = purpose;
-      if (notes !== undefined) updateData['visits.$.notes'] = notes;
-      if (outcome !== undefined) updateData['visits.$.outcome'] = outcome;
-      if (clean.followUp !== undefined) updateData['visits.$.followUp'] = clean.followUp;
-      if (managerComment !== undefined) updateData['visits.$.managerComment'] = managerComment;
-      if (headquartersComment !== undefined) updateData['visits.$.headquartersComment'] = headquartersComment;
-      if (image !== undefined) updateData['visits.$.image'] = await processImages(image);
+      if (clean.followUpDate !== undefined) updateData.followUpDate = clean.followUpDate;
+      if (purpose !== undefined) updateData.purpose = purpose;
+      if (notes !== undefined) updateData.notes = notes;
+      if (outcome !== undefined) updateData.outcome = outcome;
+      if (clean.followUp !== undefined) updateData.followUp = clean.followUp;
+      if (managerComment !== undefined) updateData.managerComment = managerComment;
+      if (headquartersComment !== undefined) updateData.headquartersComment = headquartersComment;
+      if (image !== undefined) updateData.image = await processImages(image);
 
-      updateData['visits.$.updatedBy'] = updatedBy;
-      updateData['visits.$.updatedByName'] = updatedByName;
-      updateData['visits.$.updatedAt'] = getNowLocalISO();
+      updateData.updatedBy = updatedBy;
+      updateData.updatedByName = updatedByName;
+      updateData.updatedAt = getNowLocalISO();
 
-      const result = await Customer.updateOne(
-        { _id: customerId, 'visits._id': visitId },
-        { $set: updateData }
-      );
-      if (result.matchedCount === 0) {
+      const result = await customerData.editVisit({
+        customerId, visitId, before, set: updateData,
+        calendar: { userId: before.createdBy, purpose: purpose ?? before.purpose, dropInId: newId() },
+        log: {
+          id: newId(), performedBy: updatedBy, performedByName: updatedByName, performedByRole: req.authType,
+          details: { fields: Object.keys(req.body) }
+        },
+        now: getNowLocalISO
+      });
+      if (!result) {
         return res.status(404).json({ message: 'Customer or visit not found' });
       }
 
       // The stored visit (image links and all), as POST answers — the screen
       // shows this, not a guess from what it sent.
-      const saved = await visitOf(customerId, visitId);
       announceVisit(req, customerId, visitId);
-      res.json({ success: true, message: 'Visit updated successfully', visit: saved });
+      res.json({ success: true, message: 'Visit updated successfully', visit: result.visit });
 
-      // Background: a visit moved to another day takes its calendar entry along.
-      if (updateData['visits.$.date'] && before.date !== updateData['visits.$.date']) {
-        try {
-          await moveVisitOnSchedule({
-            customerId, visitId, newDate: updateData['visits.$.date'],
-            userId: before.createdBy, purpose: purpose ?? before.purpose, emit: emitScheduleUpdate
-          });
-        } catch (moveError) {
-          console.error('Failed to move visit on schedule:', moveError);
-        }
-      }
-
-      try {
-        await ActivityLog.create({
-          entityType: 'Visit',
-          entityId: visitId,
-          customerId,
-          action: 'UPDATE',
-          performedBy: updatedBy,
-          performedByName: updatedByName,
-          performedByRole: req.authType,
-          timestamp: getNowLocalISO(),
-          details: { fields: Object.keys(req.body) }
-        });
-      } catch (logError) {
-        console.error('Failed to log visit update:', logError);
-      }
+      // After answering: a visit moved to another day takes its calendar entry along
+      // (MongoDB; Postgres did it with the save), and the log line is written.
+      await result.afterAnswer(emitScheduleUpdate);
     } catch (error) {
       console.error('Update visit error:', error);
       if (!res.headersSent) res.status(500).json({ message: 'Failed to update visit' });
@@ -321,28 +272,19 @@ export default function createVisitsRouter({
       const update = followUpUpdate(before, req.body || {}, { now, today, userId: String(userId || ''), userName: userName || '' });
       if (!update.ok) return res.status(update.status).json({ message: update.message });
 
-      const set = Object.fromEntries(Object.entries(update.set).map(([k, v]) => [`visits.$.${k}`, v]));
-      const write = update.event ? { $set: set, $push: { 'visits.$.followUpHistory': update.event } } : { $set: set };
-      const result = await Customer.updateOne({ _id: customerId, 'visits._id': visitId }, write);
-      if (result.matchedCount === 0) return res.status(404).json({ message: 'Customer or visit not found' });
+      const result = await customerData.setFollowUp({
+        customerId, visitId, set: update.set, event: update.event as Record<string, string> | undefined,
+        log: {
+          id: newId(), performedBy: userId, performedByName: userName, performedByRole: (req as Loose).authType,
+          details: { followUp: req.body.action, ...(req.body.action === 'snooze' ? { until: update.set.followUpDate } : {}) },
+          timestamp: now
+        }
+      });
+      if (!result) return res.status(404).json({ message: 'Customer or visit not found' });
       req.app.get('io')?.emit('customer_update');
-      res.json({ visit: await visitOf(customerId, visitId) });
+      res.json({ visit: result.visit });
 
-      try {
-        await ActivityLog.create({
-          entityType: 'Visit',
-          entityId: visitId,
-          customerId,
-          action: 'UPDATE',
-          performedBy: userId,
-          performedByName: userName,
-          performedByRole: (req as Loose).authType,
-          timestamp: now,
-          details: { followUp: req.body.action, ...(req.body.action === 'snooze' ? { until: update.set.followUpDate } : {}) }
-        });
-      } catch (logError) {
-        console.error('Failed to log follow-up change:', logError);
-      }
+      await result.afterAnswer(emitScheduleUpdate);
     } catch (error) {
       console.error('Follow-up change error:', error);
       if (!res.headersSent) res.status(500).json({ message: 'Failed to change the follow-up' });

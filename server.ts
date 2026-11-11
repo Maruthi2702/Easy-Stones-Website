@@ -56,7 +56,7 @@ import ContactSubmission from './src/models/ContactSubmission.ts';
 import Customer from './src/models/Customer.ts';
 import * as customerData from './src/db/customers/index.ts';
 import { areasOnPostgres } from './src/db/appDb.ts';
-import { isId } from './src/db/ids.ts';
+import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
 import SalesResource from './src/models/SalesResource.ts';
@@ -4303,58 +4303,21 @@ app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requi
       const user = await User.findById(userId);
       userName = user ? displayNameOf(user) : 'Admin';
     } else {
-      const customer = await Customer.findById(userId);
-      userName = customer ? (customer.contactName || customer.email) : 'Customer';
+      userName = (await customerData.reactorCustomerName(String(userId))) ?? 'Customer';
     }
 
-    // Find the customer and specific visit
-    const customer = await Customer.findById(customerId);
-    if (!customer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-
-    const visit = customer.visits.id(visitId);
-    if (!visit) {
-      return res.status(404).json({ message: 'Visit not found' });
-    }
-
-    // Initialize reactions array if it doesn't exist (legacy support)
-    if (!visit.reactions) {
-      visit.reactions = [];
-    }
-
-    // Check if user already reacted with this type
-    const existingIndex = visit.reactions.findIndex(
-      (r: Loose) => r.userId === userId!.toString() && r.type === type
-    );
-
-    if (existingIndex > -1) {
-      // Remove reaction (toggle off)
-      visit.reactions.splice(existingIndex, 1);
-    } else {
-      // Add reaction (toggle on)
-      // Optionally remove other reactions by same user if we want single-reaction logic
-      // But requested feature implies "Like", "Love", etc. which could theoretically co-exist,
-      // though typically mutually exclusive. Let's make them mutually exclusive for simplicity.
-      const otherReactionIndex = visit.reactions.findIndex((r: Loose) => r.userId === userId!.toString());
-      if (otherReactionIndex > -1) {
-        visit.reactions.splice(otherReactionIndex, 1);
-      }
-
-      visit.reactions.push({ _id: new mongoose.Types.ObjectId(),
-        type,
-        userId: userId!.toString(),
-        userName,
-        createdAt: getNowLocalISO()
-      });
-    }
-
-    await customer.save();
+    // src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
+    const saved = await customerData.toggleReaction({
+      customerId, visitId, type, userId: userId!.toString(), userName,
+      reactionId: newId(), createdAt: getNowLocalISO()
+    });
+    if (saved.kind === 'noCustomer') return res.status(404).json({ message: 'Customer not found' });
+    if (saved.kind === 'noVisit') return res.status(404).json({ message: 'Visit not found' });
 
     res.json({
       success: true,
       message: 'Reaction updated',
-      reactions: visit.reactions
+      reactions: saved.reactions
     });
   } catch (error) {
     console.error('Reaction error:', error);
