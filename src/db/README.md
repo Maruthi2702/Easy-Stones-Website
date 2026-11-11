@@ -186,7 +186,10 @@ list (`GET /api/customers/list` and its `/api/partners` alias: every filter, sav
 A–Z, Moda, sort, page, export and the basic card; SQL in `customers/listSql.ts`). The list
 has its own parity test, `customers/customerList.parity.test.ts`, which also calls the real
 route (sign-in, permissions, export) on both databases. `pg:compare` checks the read
-responses and exact list order against the live source.
+responses and exact list order against the live source. On live data 2026-11-10 (78 reads):
+all 21 saved-view count reads the same, every list sort in exactly the same order; the
+only differences besides the known ones below came from one customer edited while the
+run was going (its contact name, and the search results it moved between).
 
 Saved-view counts use the original MongoDB tab predicate and count queries, or a single
 SQL statement sharing the list's saved-view predicates. Only `tab`, the authenticated
