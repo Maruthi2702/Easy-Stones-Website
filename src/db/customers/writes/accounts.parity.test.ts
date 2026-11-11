@@ -194,11 +194,10 @@ describe('password reset', () => {
     await same(async () => shape(await data.resetCustomerPassword(plain, 'first-password')));
     await t.on('mongo', () => Customer.updateOne({ _id: locked }, { $set: { lockUntil: new Date('2026-11-10T17:45:00.000Z') } }));
     await t.resync();
-    // The reset changes the password only: the lock stays until it runs out or they sign in.
+    // A reset also lifts the lock and the failed-attempt count.
     await same(async () => shape(await data.resetCustomerPassword(locked, 'after-lock-password')));
     const after = await t.on('postgres', async () => ((await t.pg.db.execute(`select login_attempts, lock_until from customer_logins where customer_id = '${locked}'`)) as unknown as { rows: Loose[] }).rows[0]);
-    expect(after).toMatchObject({ login_attempts: 4 });
-    expect(after!.lock_until).not.toBeNull();
+    expect(after).toMatchObject({ login_attempts: 0, lock_until: null });
   });
 
   it('no such customer: null from both', async () => {

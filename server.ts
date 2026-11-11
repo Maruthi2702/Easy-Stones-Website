@@ -2472,6 +2472,11 @@ app.post('/api/customer/register', async (req: Request, res: Response) => {
   try {
     const { contactName, email, password, phone, company } = req.body;
 
+    // A non-text email (an object like {"$ne":null}) would run as a query operator.
+    if (typeof email !== 'string') {
+      return res.status(400).json({ message: 'Invalid input format' });
+    }
+
     // Check if the email is taken, then create the customer (src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres).
     const customer = await customerData.registerCustomer(newId(), { contactName, email, password, phone, company });
     if (customer === 'taken') {
