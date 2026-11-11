@@ -1,8 +1,7 @@
 import type { Loose } from '../types/records.ts';
 import User from '../models/User.ts';
-import Schedule from '../models/Schedule.ts';
-import Customer from '../models/Customer.ts';
-import type { CustomerData } from '../models/Customer.ts';
+import * as calendarData from '../db/customers/writes/schedule.ts';
+import { newId } from '../db/ids.ts';
 import https from 'https';
 import { zonedTimeToUtc } from '../utils/dateUtils.ts';
 
@@ -254,51 +253,14 @@ export const syncICloudCalendar = async (userId: string, timeZone?: string) => {
         continue;
       }
 
-      const existingImport = await Schedule.findOne({
-        userId,
-        notes: new RegExp(`iCloud ID: ${event.uid}`)
-      });
-
-      if (!event.startTime) continue;
-
-      if (existingImport) {
-        existingImport.startTime = event.startTime.toISOString();
-        existingImport.endTime = event.endTime ? event.endTime.toISOString() : event.startTime.toISOString();
-        existingImport.notes = `iCloud Event\n[iCloud ID: ${event.uid}]\n\n${event.description || ''}`;
-        await existingImport.save();
-      } else {
-        let syncCustomer = await Customer.findOne({ company: 'iCloud Calendar Sync' });
-        if (!syncCustomer) {
-          syncCustomer = new Customer({
-            company: 'iCloud Calendar Sync',
-            contactName: 'iCloud Event Sync',
-            phone: '000-000-0000',
-            email: 'icloud-sync@easystones.com',
-            status: 'Lead'
-          });
-          await syncCustomer.save();
-        }
-
-        const newItem = new Schedule({
-          userId,
-          customerId: syncCustomer._id,
-          startTime: event.startTime.toISOString(),
-          endTime: event.endTime ? event.endTime.toISOString() : event.startTime.toISOString(),
-          activityType: 'Other',
-          notes: `iCloud Event\n[iCloud ID: ${event.uid}]\n\n${event.description || ''}`,
-          status: 'Scheduled'
-        });
-        await newItem.save();
-        plannerChanged = true;
-      }
+      // src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
+      if (await calendarData.importICloudEvent(userId, {
+        uid: event.uid, description: event.description, startTime: event.startTime, endTime: event.endTime
+      }, { entryId: newId(), customerId: newId() })) plannerChanged = true;
     }
 
     // 2. Sales Planner -> iCloud Sync (Upload app schedules to iCloud)
-    const appSchedules = await Schedule.find({
-      userId,
-      notes: { $not: /iCloud ID:/ },
-      status: { $ne: 'Cancelled' }
-    }).populate<{ customerId: Pick<CustomerData, 'contactName' | 'company'> | null }>('customerId', 'contactName company');
+    const appSchedules = await calendarData.entriesToSync(userId, 'icloud');
 
     // Formats an already-real instant (a Date, or a raw epoch ms number —
     // both unambiguous) as iCal's UTC date-time. schedule.startTime/endTime
@@ -352,7 +314,7 @@ export const syncICloudCalendar = async (userId: string, timeZone?: string) => {
 
       if (!syncedMatch) {
         schedule.notes = `${schedule.notes || ''}\n\n[Synced to iCloud UID: ${uid}]`;
-        await schedule.save();
+        await calendarData.markEntrySynced(String(schedule._id), schedule.notes);
         plannerChanged = true;
       }
     }

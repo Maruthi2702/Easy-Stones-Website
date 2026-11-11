@@ -39,3 +39,4 @@ export * from './writes/core.ts';
 export * from './writes/visits.ts';
 export * from './writes/accounts.ts';
 export * from './writes/resources.ts';
+export * from './writes/schedule.ts';
