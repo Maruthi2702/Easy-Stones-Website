@@ -189,7 +189,7 @@ export async function resetCustomerPassword(db: Db, id: string, password: string
       customerType: c.customerType ?? 'Fabricator', modaDisplay: c.modaDisplay ?? false, updatedAt: new Date()
     }).where(eq(customers.id, customerId));
     await tx.insert(customerLogins).values({ customerId, passwordHash: hash, loginAttempts: 0, loginIps: [] })
-      .onConflictDoUpdate({ target: customerLogins.customerId, set: { passwordHash: hash } });
+      .onConflictDoUpdate({ target: customerLogins.customerId, set: { passwordHash: hash, loginAttempts: 0, lockUntil: null } });
     return { id: c.id, contactName: c.contactName, email: c.email };
   });
 }
