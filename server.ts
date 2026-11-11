@@ -56,6 +56,7 @@ import ContactSubmission from './src/models/ContactSubmission.ts';
 import Customer from './src/models/Customer.ts';
 import * as customerData from './src/db/customers/index.ts';
 import { areasOnPostgres } from './src/db/appDb.ts';
+import { isId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
 import SalesResource from './src/models/SalesResource.ts';
@@ -5013,17 +5014,13 @@ app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('vie
       return res.status(403).json({ message: 'Only staff can update quick notes' });
     }
 
-    const customer = await Customer.findByIdAndUpdate(
-      requestParams.id,
-      { quickNote },
-      { new: true }
-    );
-
-    if (!customer) {
+    // src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
+    const saved = isId(requestParams.id) ? await customerData.setQuickNote(requestParams.id, quickNote) : null;
+    if (!saved) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
-    res.json({ success: true, message: 'Quick note updated successfully', quickNote: customer.quickNote });
+    res.json({ success: true, message: 'Quick note updated successfully', quickNote: saved.quickNote });
   } catch (error) {
     console.error('Update quick note error:', error);
     res.status(500).json({ message: 'Failed to update quick note' });

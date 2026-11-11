@@ -32,3 +32,7 @@ export async function customerList(q: CustomerListQuery) {
 export async function customerViewCounts(q: CustomerViewCountsQuery) {
   return onPostgres() ? pg.customerViewCounts(await appDb(), q) : mongo.customerViewCounts(q);
 }
+
+// Saves: one file per group in ./writes (core, visits, resources, …), each picking
+// MongoDB or Postgres itself. One line per group, so groups built in parallel merge cleanly.
+export * from './writes/core.ts';
