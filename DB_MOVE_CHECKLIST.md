@@ -30,7 +30,8 @@ the owner's decisions: [`MIGRATION_NOTES.md`](MIGRATION_NOTES.md) §3 and §5.
 
 - [x] `GET /api/customers/list` — the Customers page (filters, saved views, A–Z, sorts, Moda) — ca03b24
 - [x] `GET /api/customers/view-counts` — the saved-view counts — 8ecace4
-- [ ] `GET /api/customers/:id` + `/:customerId/{visits,resources,contacts}/:entryId` — the profile (`customerHistoryResponse`) · src/routes/customerHistory.ts
+- [ ] `GET /api/customers/:id` + `/:customerId/{visits,resources}/:entryId` — the profile, including nested contacts (`customerHistoryResponse`) · src/routes/customerHistory.ts
+- [ ] `customerRecordResponse` (the profile-shaped reply of create/edit; always MongoDB until customer writes move) · src/db/customers/index.ts
 - [ ] `GET /api/customers/:id/vcard` · server.ts
 - [ ] `GET /api/customers/:customerId/moda` · src/routes/customerResources.ts
 - [ ] `GET /api/customers/map`, `/map/rep-counts`, `/map/:id` — Route Planner · src/routes/customerMap.ts

@@ -7,7 +7,7 @@
  * branch name from `locations`, the rep's name from `users` (displayNameOf, the
  * rule every rep name follows).
  */
-import type { customers, customerLogins } from '../schema/customers.ts';
+import type { customers, customerLogins, customerContacts, visits, resources, visitReactions, visitFollowUpEvents } from '../schema/customers.ts';
 import type { Loose } from '../../types/records.ts';
 import { displayNameOf } from '../../utils/salesReps.ts';
 
@@ -89,4 +89,41 @@ export function customerDoc(c: CustomerRow, j: CustomerJoins, links: CustomerLin
   }
   for (const k of Object.keys(doc)) if (doc[k] === undefined) delete doc[k];
   return doc;
+}
+
+/** Timestamp-without-zone is the writer's clock, not a UTC instant. */
+const localClock = (value: string | null) => {
+  if (value == null) return null;
+  const [clock, fraction = ''] = value.replace(' ', 'T').split('.');
+  return `${clock}.${fraction.padEnd(3, '0')}`;
+};
+export const nonNull = (doc: Loose): Loose => Object.fromEntries(Object.entries(doc).filter(([, value]) => value != null));
+
+export function contactDoc(c: typeof customerContacts.$inferSelect): Loose {
+  return nonNull({ _id: c.id, name: c.name, phone: c.phone, email: c.email, role: c.role, notes: c.notes,
+    ...(c.isPrimary ? { isPrimary: true } : {}), createdAt: localClock(c.createdAt) });
+}
+
+export function reactionDoc(r: typeof visitReactions.$inferSelect): Loose {
+  return nonNull({ _id: r.id, type: r.type, userId: r.userId ?? r.customerId, userName: r.userName, createdAt: localClock(r.createdAt) });
+}
+
+export function followUpEventDoc(h: typeof visitFollowUpEvents.$inferSelect): Loose {
+  return nonNull({ action: h.action, at: localClock(h.at), on: h.onDay, by: h.byId, byName: h.byName, from: h.fromDay, to: h.toDay });
+}
+
+export function visitDoc(v: typeof visits.$inferSelect, image: string[], reactions: Loose[], followUpHistory: Loose[], resourceId: string | null): Loose {
+  return nonNull({ _id: v.id, resourceId, date: v.visitDate, purpose: v.visitType, customerContactName: v.customerContactName,
+    notes: v.notes, outcome: v.outcome, managerComment: v.managerComment, headquartersComment: v.headquartersComment,
+    followUp: v.followUp, followUpDate: v.followUpDate, followUpDoneAt: localClock(v.followUpDoneAt),
+    followUpDoneOn: v.followUpDoneOn, followUpDoneBy: v.followUpDoneById, followUpDoneByName: v.followUpDoneByName,
+    followUpOutcome: v.followUpOutcome, followUpHistory, image, reactions,
+    createdBy: v.createdById ?? v.createdByCustomerId, createdByName: v.createdByName, createdAt: localClock(v.createdAt),
+    updatedBy: v.updatedById ?? v.updatedByCustomerId, updatedByName: v.updatedByName, updatedAt: localClock(v.updatedAt) });
+}
+
+export function resourceDoc(r: typeof resources.$inferSelect, image: string[], customer: string): Loose {
+  return nonNull({ _id: r.id, visitId: r.placementVisitId, date: r.resourceDate, customer,
+    resourceType: r.resourceType, qty: r.qty, title: r.title, image, description: r.description, notes: r.notes,
+    status: r.status, url: r.url, uploadedBy: r.uploadedById, createdAt: localClock(r.createdAt) });
 }

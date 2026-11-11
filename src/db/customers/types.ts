@@ -45,3 +45,11 @@ export interface CustomerViewCountsQuery {
 }
 
 export type CustomerViewCounts = Record<string, number>;
+
+/** Chosen by the route's existing Full profile and Visits permission rules. */
+export interface CustomerHistoryScope {
+  mayProfile: boolean;
+  people: '*' | ReadonlySet<string>;
+}
+
+export type CustomerHistoryKind = 'visits' | 'resources';

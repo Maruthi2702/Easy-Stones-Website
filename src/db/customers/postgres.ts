@@ -3,16 +3,62 @@
  * mongo.ts answers (customers.parity.test.ts loads the same records into both and
  * compares). Pick between the two through index.ts, never directly.
  */
-import { sql, eq, or, ilike, desc, count, inArray, asc, type SQL } from 'drizzle-orm';
+import { sql, eq, and, or, ilike, desc, count, inArray, asc, type SQL } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
-import { customers, customerLinks, customerLogins } from '../schema/customers.ts';
+import { customers, customerLinks, customerLogins, visits } from '../schema/customers.ts';
 import { locations, users } from '../schema/reference.ts';
 import type { Loose } from '../../types/records.ts';
-import { customerDoc, repNameOf, type CustomerLinks } from './customerDoc.ts';
+import { customerDoc, repNameOf, nonNull, type CustomerLinks } from './customerDoc.ts';
 import type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery } from './types.ts';
 import { basicCustomer } from '../../utils/customerAccess.ts';
 import { listFields, listWhere, listOrder, savedViewWhere, fabricatorWhere } from './listSql.ts';
 import { SAVED_VIEWS } from '../../utils/customerList.ts';
+import type { CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
+import { customerVisits, customerResources, customerContacts, historyScope } from './profileSql.ts';
+import { lastVisit, isHistoryId } from './profileShape.ts';
+
+/** MongoDB casts these route parameters to ObjectIds; the routes answer 404 to anything else before reading. */
+function historyId(id: string): string {
+  if (!isHistoryId(id)) throw new Error('Invalid customer history id');
+  return id.toLowerCase();
+}
+
+export async function customerProfile(db: Db, id: string, scope: CustomerHistoryScope): Promise<Loose | null> {
+  id = historyId(id);
+  const [row] = await db.select({ c: customers, login: customerLogins, locationName: locations.name,
+    repUsername: users.username, repDisplayName: users.displayName }).from(customers)
+    .leftJoin(locations, eq(locations.id, customers.locationId)).leftJoin(users, eq(users.id, customers.salesRepId))
+    .leftJoin(customerLogins, eq(customerLogins.customerId, customers.id)).where(eq(customers.id, id));
+  if (!row) return null;
+  const doc = customerDoc(row.c, row, { associated: [], notDuplicate: [] }, row.login);
+  if (!scope.mayProfile) return basicCustomer(doc);
+  const visibleVisits = historyScope(sql`coalesce(${visits.createdById}, ${visits.createdByCustomerId})`, scope.people);
+  // Partners are read in the same round trip as everything else (joined through the link table).
+  const [links, history, resourceList, contacts, partners] = await Promise.all([
+    linksOf(db, [id]), customerVisits(db, [id], scope.people), customerResources(db, id, scope.people, undefined, true), customerContacts(db, id),
+    db.select({ _id: customers.id, contactName: customers.contactName, company: customers.company, customerType: customers.customerType,
+      status: customers.status, phone: customers.phone,
+      lastVisitDate: sql<string | null>`(select max(${visits.visitDate})::text from ${visits} where ${and(eq(visits.customerId, customers.id), visibleVisits)})` })
+      .from(customerLinks).innerJoin(customers, eq(customers.id, customerLinks.otherCustomerId))
+      .where(and(eq(customerLinks.customerId, id), eq(customerLinks.kind, 'associated')))
+      .orderBy(customerLinks.position, bytewise(customerLinks.otherCustomerId))
+  ]);
+  const ownLinks = links.get(id)!;
+  // MongoDB's populate leaves out a field a partner never had; the copy stores that as null or '',
+  // so both are left out here. Only lastVisitDate is always sent.
+  const associatedCustomers = partners.map(({ lastVisitDate, ...partner }) => ({
+    ...Object.fromEntries(Object.entries(nonNull(partner)).filter(([, value]) => value !== '')), lastVisitDate }));
+  return { ...doc, visits: history, resources: resourceList, contacts, lastVisitDate: lastVisit(history),
+    associatedCustomers, notDuplicateOf: ownLinks.notDuplicate };
+}
+
+export async function customerHistoryEntry(db: Db, customerId: string, kind: CustomerHistoryKind, entryId: string,
+  people: CustomerHistoryScope['people']): Promise<Loose | null> {
+  customerId = historyId(customerId); entryId = historyId(entryId);
+  const entries = kind === 'visits' ? await customerVisits(db, [customerId], people, entryId)
+    : await customerResources(db, customerId, people, entryId);
+  return entries[0] ?? null;
+}
 
 /** `%text%` for ILIKE, with the user's own % _ \ taken literally (MongoDB's escaped regex). */
 export const containsPattern = (text: string) => `%${text.replace(/[\\%_]/g, '\\$&')}%`;
@@ -56,7 +102,7 @@ async function linksOf(db: Db, ids: string[]): Promise<Map<string, CustomerLinks
   if (!ids.length) return out;
   const rows = await db.select().from(customerLinks)
     .where(inArray(customerLinks.customerId, ids))
-    .orderBy(customerLinks.customerId, customerLinks.kind, customerLinks.position);
+    .orderBy(customerLinks.customerId, customerLinks.kind, customerLinks.position, bytewise(customerLinks.otherCustomerId));
   for (const r of rows) {
     const l = out.get(r.customerId)!;
     (r.kind === 'associated' ? l.associated : l.notDuplicate).push(r.otherCustomerId);

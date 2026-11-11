@@ -16,8 +16,9 @@ import { copyFromMongo } from '../src/db/copy/plan.ts';
 import { readMongo } from '../src/db/copy/readMongo.ts';
 import { useAppDbForTests } from '../src/db/appDb.ts';
 import * as customers from '../src/db/customers/index.ts';
-import { normalize, diffEntries, describeDifference, knownWhy } from '../src/db/customers/parity.ts';
+import { normalize, diffEntries, describeDifference, knownWhy, profileParityContext } from '../src/db/customers/parity.ts';
 import type { CustomerList, CustomerListQuery } from '../src/db/customers/types.ts';
+import type { Loose } from '../src/types/records.ts';
 import { addDays } from '../src/utils/customerList.ts';
 
 const mongoUri = process.env.MONGO_URI;
@@ -27,9 +28,12 @@ const noCopy = process.argv.includes('--no-copy');
 
 const pg = await openDb(pgUrl);
 await migrateDb(pg.db, pgUrl);
+let copiedCustomers: Loose[] | undefined;
 if (!noCopy) {
   console.log('Reading MongoDB and copying into', pgUrl, '…');
-  const report = await copyFromMongo(pg.db, await readMongo(mongoUri, 'pg-compare'), { write: true });
+  const source = await readMongo(mongoUri, 'pg-compare');
+  copiedCustomers = source.customers;
+  const report = await copyFromMongo(pg.db, source, { write: true });
   console.log(`Copied ${Object.values(report.tables).reduce((a, b) => a + b, 0)} rows (${report.problems.length} problems reported by the copy).`);
 }
 useAppDbForTests(pg.db);
@@ -132,6 +136,43 @@ for (const tab of ['fabricators', 'partners']) {
   });
 }
 
+// Check every customer with nested history, contacts or links, plus a plain profile.
+// Small batches keep the source reads and local SQL bounded without serial network round trips
+// (PG_COMPARE_CONCURRENCY, default 16, for a big database).
+const profileSource = await mongoose.connection.db!.collection('customers').find({ $or: [
+  { 'visits.0': { $exists: true } }, { 'resources.0': { $exists: true } },
+  { 'contacts.0': { $exists: true } }, { 'associatedCustomers.0': { $exists: true } }
+] }, { projection: { _id: 1, visits: { _id: 1 }, resources: { _id: 1 } } }).sort({ _id: 1 }).toArray();
+const plainProfile = await mongoose.connection.db!.collection('customers').findOne({
+  'visits.0': { $exists: false }, 'resources.0': { $exists: false },
+  'contacts.0': { $exists: false }, 'associatedCustomers.0': { $exists: false }
+}, { projection: { _id: 1 } });
+const profileIds = [...new Set([...profileSource.map(c => String(c._id)), ...(plainProfile ? [String(plainProfile._id)] : [])])];
+// Only the fields the parity facts read, so a big database is not held whole in memory.
+const profileFacts = profileParityContext(copiedCustomers ?? await mongoose.connection.db!.collection('customers').find({}, { projection: {
+  location: 1, company: 1, contactName: 1, 'contacts._id': 1, 'visits._id': 1, 'visits.createdBy': 1, 'visits.reactions._id': 1, 'resources._id': 1
+} }).toArray());
+const profileReads: typeof reads = [];
+async function batched<T, R>(items: T[], read: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = [];
+  const size = Math.max(1, Number(process.env.PG_COMPARE_CONCURRENCY) || 16);
+  for (let start = 0; start < items.length; start += size) out.push(...await Promise.all(items.slice(start, start + size).map(read)));
+  return out;
+}
+for (const [label, people] of [['all', '*'], ['own', new Set(listBase.userId ? [listBase.userId] : [])], ['empty', new Set<string>()]] as const) {
+  profileReads.push({ name: `customer profiles: ${label}, all nested fields and linked last-visits`,
+    read: () => batched(profileIds, id => customers.customerProfile(id, { mayProfile: true, people })) });
+}
+profileReads.push({ name: 'customer profiles: basic cards', read: () => batched(profileIds, id => customers.customerProfile(id, { mayProfile: false, people: '*' })) });
+for (const kind of ['visits', 'resources'] as const) {
+  const entries = profileSource.flatMap(c => (c[kind] ?? []).map((entry: { _id: unknown }) => ({ customerId: String(c._id), entryId: String(entry._id) })));
+  for (const [label, people] of [['all', '*'], ['own', new Set(listBase.userId ? [listBase.userId] : [])]] as const) {
+    profileReads.push({ name: `customer ${kind} details: ${label}, every saved entry`,
+      read: () => batched(entries, entry => customers.customerHistoryEntry(entry.customerId, kind, entry.entryId, people)) });
+  }
+}
+reads.unshift(...profileReads);
+
 let failed = 0;
 const known = new Map<string, { count: number; example: string }>();
 for (const { name, read, prepare } of reads) {
@@ -143,7 +184,7 @@ for (const { name, read, prepare } of reads) {
   const p = prepare ? prepare(rawP, rawM) : rawP;
   const all = diffEntries(m, p, 1_000_000);
   const unknown = all.filter(d => {
-    const why = knownWhy(d);
+    const why = knownWhy(d, { postgres: p, profiles: profileFacts });
     if (!why) return true;
     const k = known.get(why) ?? { count: 0, example: `${name} → ${describeDifference(d)}` };
     k.count++;

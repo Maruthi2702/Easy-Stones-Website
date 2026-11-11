@@ -1,42 +1,15 @@
 import { Router } from 'express';
 import type { Request, RequestHandler } from 'express';
-import Customer from '../models/Customer.ts';
-import User from '../models/User.ts';
-import { displayNameOf } from '../utils/salesReps.ts';
-import { basicCustomer, canViewCustomerProfile } from '../utils/customerAccess.ts';
-import { inTeam } from '../utils/teamScope.ts';
+import { customerProfile, customerHistoryEntry, customerRecordResponse, isHistoryId } from '../db/customers/index.ts';
+import { canViewCustomerProfile } from '../utils/customerAccess.ts';
 import { visiblePeopleOfRequest } from '../services/teamDirectory.ts';
 import type { Loose } from '../types/records.ts';
 
 type StaffRequest = Request & { user?: Loose; userId?: string };
-/** Who logged each resource, by name — the Resources tab's "Logged by" (as Dashboard → Resources sends it). */
-async function nameUploaders(resources: Loose[]) {
-  const ids = [...new Set(resources.map((r) => String(r.uploadedBy || '')).filter((id) => /^[a-f0-9]{24}$/i.test(id)))];
-  if (!ids.length) return;
-  const users = await User.find({ _id: { $in: ids } }).select('username displayName').lean() as Loose[];
-  const nameById = new Map(users.map((u) => [String(u._id), displayNameOf(u)]));
-  resources.forEach((r) => { r.uploadedByName = nameById.get(String(r.uploadedBy || '')) || ''; });
-}
-
-const lastVisit = (visits: Loose[] = []) => visits.reduce<string | null>((last, visit) =>
-  visit.date && (!last || visit.date > last) ? visit.date : last, null);
-
-/** Used by reads and mutation responses so editing cannot bypass history scope. */
+/** Used by mutation responses so editing cannot bypass history scope. */
 export async function customerHistoryResponse(req: StaffRequest, record: Loose): Promise<Loose> {
-  const customer: Loose = record.toObject ? record.toObject() : { ...record };
-  delete customer.password;
-  if (!canViewCustomerProfile(req.user)) return basicCustomer(customer);
-  const people = await visiblePeopleOfRequest(req);
-  customer.visits = (customer.visits || []).filter((visit: Loose) => inTeam(people, visit.createdBy));
-  customer.resources = (customer.resources || []).filter((resource: Loose) => inTeam(people, resource.uploadedBy || resource.createdBy));
-  await nameUploaders(customer.resources);
-  customer.lastVisitDate = lastVisit(customer.visits);
-  customer.associatedCustomers = (customer.associatedCustomers || []).map((partner: Loose) => {
-    if (!partner || typeof partner !== 'object' || !('visits' in partner)) return partner;
-    const { visits = [], ...publicPartner } = partner;
-    return { ...publicPartner, lastVisitDate: lastVisit(visits.filter((v: Loose) => inTeam(people, v.createdBy))) };
-  });
-  return customer;
+  const mayProfile = canViewCustomerProfile(req.user);
+  return customerRecordResponse(record, { mayProfile, people: mayProfile ? await visiblePeopleOfRequest(req) : new Set() });
 }
 
 /** Full-profile access does not widen the separate Visits read permissions. */
@@ -51,11 +24,12 @@ export default function createCustomerHistoryRouter({ authenticate, requirePermi
   router.get('/:id', (req, _res, next) => /^[a-f0-9]{24}$/i.test(String(req.params.id)) ? next() : next('route'),
     ...view, async (req: StaffRequest, res) => {
       try {
-        const customer = await Customer.findById(req.params.id)
-          .populate('associatedCustomers', 'contactName company customerType status phone visits')
-          .select('-password').lean() as Loose | null;
+        const mayProfile = canViewCustomerProfile(req.user);
+        const customer = await customerProfile(String(req.params.id), {
+          mayProfile, people: mayProfile ? await visiblePeopleOfRequest(req) : new Set()
+        });
         if (!customer) return res.status(404).json({ message: 'Customer not found' });
-        res.json(await customerHistoryResponse(req, customer));
+        res.json(customer);
       } catch (error) {
         console.error('Customer history read failed:', error);
         res.status(500).json({ message: 'Failed to fetch customer details' });
@@ -66,12 +40,13 @@ export default function createCustomerHistoryRouter({ authenticate, requirePermi
     const singular = kind === 'visits' ? 'visit' : 'resource';
     router.get(`/:customerId/${kind}/:entryId`, ...view, profile, async (req: StaffRequest, res) => {
       try {
-        const customer = await Customer.findOne(
-          { _id: req.params.customerId, [`${kind}._id`]: req.params.entryId }, { [`${kind}.$`]: 1 }
-        ).lean() as Loose | null;
-        const entry = customer?.[kind]?.[0];
-        const owner = kind === 'visits' ? entry?.createdBy : entry?.uploadedBy || entry?.createdBy;
-        if (!entry || !inTeam(await visiblePeopleOfRequest(req), owner)) {
+        // A malformed id is a bad link, not a server failure.
+        if (!isHistoryId(String(req.params.customerId)) || !isHistoryId(String(req.params.entryId))) {
+          return res.status(404).json({ message: `${singular === 'visit' ? 'Visit' : 'Resource'} not found` });
+        }
+        const entry = await customerHistoryEntry(String(req.params.customerId), kind, String(req.params.entryId),
+          await visiblePeopleOfRequest(req));
+        if (!entry) {
           return res.status(404).json({ message: `${singular === 'visit' ? 'Visit' : 'Resource'} not found` });
         }
         res.json({ [singular]: entry });
