@@ -4798,7 +4798,7 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
       const refused = await customerData.insertImportedCustomers(docs, IMPORT_WRITE_BATCH);
       docs.forEach((doc, i) => {
         const row = docRows[i];
-        if (refused.has(i)) { rowError(row, refused.get(i)); return; }
+        if (refused.has(i)) { rowError(row, refused.get(i) ?? 'Could not be saved'); return; }
         createdByRow.set(row.rowNumber, String(doc._id));
         results.created++;
       });
@@ -4808,7 +4808,7 @@ app.post(['/api/customers/import/apply', '/api/admin/customers/import/apply'], v
       const batch = updates.slice(start, start + IMPORT_WRITE_BATCH);
       const failed = await customerData.updateImportedCustomers(batch.map(row => ({ targetId: String(row.targetId), apply: row.apply })));
       batch.forEach((row, i) => {
-        if (failed.has(i)) rowError(row, failed.get(i));
+        if (failed.has(i)) rowError(row, failed.get(i) ?? 'Could not be saved');
         else results.updated++;
       });
     }
