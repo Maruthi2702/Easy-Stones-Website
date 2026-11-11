@@ -1,6 +1,5 @@
 import type { Loose } from '../types/records.ts';
-import mongoose from 'mongoose';
-import Customer from '../models/Customer.ts';
+import * as customerData from '../db/customers/index.ts';
 import { geocodeAddress, addressKeyOf, hasGeocodingKey } from '../utils/geocode.ts';
 
 /**
@@ -26,22 +25,15 @@ let queue = Promise.resolve();
 
 async function geocodeIds(ids: string[]) {
   if (!hasGeocodingKey()) return;
-  const objectIds = [...new Set(ids.map(String))]
-    .filter((id) => mongoose.Types.ObjectId.isValid(id))
-    .map((id) => new mongoose.Types.ObjectId(id));
-  if (!objectIds.length) return;
-
-  const rows = await Customer.collection.find(
-    { _id: { $in: objectIds }, 'geocode.status': { $in: ['pending', null] } },
-    { projection: { address: 1, geocode: 1 } }
-  ).toArray();
+  // src/db/customers: the ones still pending, from MongoDB or Postgres by the area's switch.
+  const rows = await customerData.customersToGeocode(ids);
   const todo = rows.filter((c) => addressKeyOf(c.address) && addressKeyOf(c.address) !== (c.geocode?.addressKey || ''));
 
   let wrote = 0;
   let unasked = 0;
   for (const customer of todo) {
     const result = await geocodeAddress(customer.address);
-    await Customer.collection.updateOne({ _id: customer._id }, { $set: result });
+    await customerData.saveCustomerGeocode(customer._id, result);
     if (result.geocode.status === 'pending') {
       if (++unasked >= GIVE_UP_AFTER && !wrote) break;
     } else {
