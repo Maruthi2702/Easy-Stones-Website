@@ -61,7 +61,6 @@ import ImportMemory from './src/models/ImportMemory.ts';
 import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
 import SalesResource from './src/models/SalesResource.ts';
 import SalesDashboardResource from './src/models/SalesDashboardResource.ts';
-import ActivityLog from './src/models/ActivityLog.ts';
 // Unified Model: Customer (now handles both Leads & Active Customers)
 import LostSale from './src/models/LostSale.ts';
 import CrossoverSheet from './src/models/CrossoverSheet.ts';
@@ -144,7 +143,6 @@ import VisitType from './src/models/VisitType.ts';
 import ResourceType from './src/models/ResourceType.ts';
 import ResourceFamily from './src/models/ResourceFamily.ts';
 import { seedTypeLists } from './src/services/seedTypeLists.ts';
-import { countVisitTypeUses, countResourceTypeUses, replaceVisitType, replaceResourceType, countFamilyUses, replaceFamily } from './src/services/typeReplacement.ts';
 import { VISIT_TYPES as VISIT_TYPE_ACTIONS, RESOURCE_TYPES as RESOURCE_TYPE_ACTIONS } from './src/utils/usersAccess.ts';
 import { checkSheet, spsCoverage } from './src/utils/spsSheet.ts';
 import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.ts';
@@ -153,15 +151,14 @@ import { resumeRunningImports } from './src/services/spsImportRunner.ts';
 import createVisitsRouter from './src/routes/visits.ts';
 import createCustomerHistoryRouter, { customerHistoryResponse } from './src/routes/customerHistory.ts';
 import createCustomerResourcesRouter from './src/routes/customerResources.ts';
-import { loadFamilies, resourcesOf, recountModa, recountForFamilyChange } from './src/services/modaCount.ts';
+import { loadFamilies } from './src/services/modaCount.ts';
 import { typedModaFields } from './src/utils/modaTotals.ts';
-import { placementResource, PlacementConflict } from './src/services/resourcePlacement.ts';
+import { PlacementConflict } from './src/services/resourcePlacement.ts';
 import { geocodeCustomersInBackground, onCustomersGeocoded } from './src/services/customerGeocoding.ts';
 import createCustomerBulkDeleteRouter, { backupAndDeleteCustomer } from './src/routes/customerBulkDelete.ts';
 import createGeocodeRouter from './src/routes/geocode.ts';
 import { startAutoSubmitDailyReports } from './src/jobs/autoSubmitDailyReports.ts';
-import { unlinkVisitFromSchedule } from './src/services/visitSchedule.ts';
-import { canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from './src/utils/visitAccess.ts';
+import { ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from './src/utils/visitAccess.ts';
 import { homeLocationOf, homeLocationProblem, fallbackHomeLocation } from './src/utils/locationFilter.ts';
 import {
   getAggregationRangeMatch, getFollowUpRangeMatch, dashboardRangeDates, rangePrefilter, followUpDatePrefilter, slimForUnwind,
@@ -2389,8 +2386,8 @@ app.use('/api/user/me/pinned-tabs', createPinnedTabsRouter({ authenticate }));
 app.use('/api/visit-types', createTypeListRouter({
   kind: 'visit',
   Model: VisitType,
-  countUses: countVisitTypeUses,
-  replaceUses: replaceVisitType,
+  countUses: customerData.countVisitTypeUses,
+  replaceUses: customerData.replaceVisitType,
   actions: { add: VISIT_TYPE_ACTIONS.ADD, edit: VISIT_TYPE_ACTIONS.EDIT, reorder: VISIT_TYPE_ACTIONS.REORDER, delete: VISIT_TYPE_ACTIONS.DELETE },
   authenticate: [authenticate, requireSalesPage],
   requireAction
@@ -2398,9 +2395,9 @@ app.use('/api/visit-types', createTypeListRouter({
 app.use('/api/resource-types', createTypeListRouter({
   kind: 'resource',
   Model: ResourceType,
-  countUses: countResourceTypeUses,
-  replaceUses: replaceResourceType,
-  onFamilyChange: recountForFamilyChange,
+  countUses: customerData.countResourceTypeUses,
+  replaceUses: customerData.replaceResourceType,
+  onFamilyChange: customerData.recountForFamilyChange,
   families: () => ResourceFamily.find({}).select('name active').lean() as Promise<{ name: string; active?: boolean }[]>,
   actions: { add: RESOURCE_TYPE_ACTIONS.ADD, edit: RESOURCE_TYPE_ACTIONS.EDIT, reorder: RESOURCE_TYPE_ACTIONS.REORDER, delete: RESOURCE_TYPE_ACTIONS.DELETE },
   authenticate: [authenticate, requireSalesPage],
@@ -2411,8 +2408,8 @@ app.use('/api/resource-types', createTypeListRouter({
 app.use('/api/resource-families', createTypeListRouter({
   kind: 'family',
   Model: ResourceFamily,
-  countUses: countFamilyUses,
-  replaceUses: replaceFamily,
+  countUses: customerData.countFamilyUses,
+  replaceUses: customerData.replaceFamily,
   actions: { add: RESOURCE_TYPE_ACTIONS.ADD, edit: RESOURCE_TYPE_ACTIONS.EDIT, reorder: RESOURCE_TYPE_ACTIONS.REORDER, delete: RESOURCE_TYPE_ACTIONS.DELETE },
   authenticate: [authenticate, requireSalesPage],
   requireAction
@@ -4040,60 +4037,30 @@ app.delete('/api/customers/:customerId/visits/:visitId', authenticate, requireAn
     const { customerId, visitId } = requestParams;
 
     // Get performer information
-    // Get performer information
     const { id: performedBy, name: performedByName } = await getPerformerInfo(req);
 
-    const customer = await Customer.findById(customerId);
-    if (!customer) {
+    // src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
+    const result = await customerData.deleteVisitWithResource({
+      customerId, visitId, actor: { id: req.userId, permissions: req.user?.permissions },
+      team: () => teamOfRequest(req), performer: { id: performedBy, name: performedByName },
+      performedByRole: req.authType, logId: newId()
+    });
+    if (result.outcome === 'no-customer') {
       return res.status(404).json({ message: 'Customer not found' });
     }
-
-    const visit = customer.visits ? customer.visits.id(visitId) : null;
-    // Delete has its own permissions (src/utils/visitAccess.ts).
-    if (visit && !canDeleteVisit({ id: req.userId, permissions: req.user?.permissions }, visit, await teamOfRequest(req))) {
+    if (result.outcome === 'forbidden-visit') {
       return res.status(403).json({ message: "You don't have permission to delete this visit. You can delete visits you logged; anything else needs a Visits permission under Users & Roles." });
     }
-    const resource = visit && /^Resource Placement:/i.test(visit.purpose || '')
-      ? placementResource(customer, visit) : null;
-    if (resource && !canDeleteVisit({ id: req.userId, permissions: req.user?.permissions },
-      { createdBy: resource.uploadedBy || resource.createdBy }, await teamOfRequest(req))) {
+    if (result.outcome === 'forbidden-resource') {
       return res.status(403).json({ message: 'You do not have permission to delete the linked resource.' });
     }
-    const resourcesBefore = resourcesOf(customer);
-    customer.visits.pull({ _id: visitId });
-    if (resource) {
-      customer.resources.pull({ _id: resource._id });
-      recountModa(customer, resourcesBefore, await loadFamilies());
-    }
-
-    await customer.save();
 
     req.app.get('io')?.emit('customer_update');
     res.json({ success: true, message: 'Visit deleted successfully' });
 
-    // Background: its drop-in comes off the calendar; a planned entry it had
-    // completed goes back to Scheduled.
-    try {
-      await unlinkVisitFromSchedule({ visitId, emit: emitScheduleUpdate });
-    } catch (unlinkError) {
-      console.error('Failed to unlink visit from schedule:', unlinkError);
-    }
-
-    // Background: Log the activity
-    try {
-      await ActivityLog.create({
-        entityType: 'Visit',
-        entityId: visitId,
-        customerId: customerId,
-        action: 'DELETE',
-        performedBy: performedBy,
-        performedByName: performedByName,
-        performedByRole: req.authType,
-        details: { visitDate: visit ? visit.date : null, purpose: visit ? visit.purpose : null }
-      });
-    } catch (logError) {
-      console.error('Failed to log visit deletion:', logError);
-    }
+    // Background: its drop-in comes off the calendar, a planned entry it had
+    // completed goes back to Scheduled, and the deletion is logged.
+    await result.after(emitScheduleUpdate);
   } catch (error) {
     if (error instanceof PlacementConflict) return res.status((error as Error & Loose).status).json({ message: (error as Error).message });
     console.error('Delete visit error:', error);
