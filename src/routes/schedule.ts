@@ -24,6 +24,8 @@ import { cleanScheduleFields, isObjectId, DEFAULT_VISIT_MINUTES } from '../utils
 import { calendarPeopleOf, idVariants } from '../services/teamDirectory.ts';
 import { ALL_PEOPLE } from '../utils/teamScope.ts';
 import { discoverICloudCalendars, syncICloudCalendar } from '../services/icloudSyncService.ts';
+import * as calendarData from '../db/customers/writes/schedule.ts';
+import { newId } from '../db/ids.ts';
 
 /**
  * Tell every open planner that this user's schedule moved.
@@ -63,28 +65,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   // revisited.
   router.post('/admin/schedule/backfill-completed', authenticate, requirePermission('manage_customers'), async (req, res) => {
     try {
-      const pending = await Schedule.find({ status: 'Scheduled' }).select('_id customerId startTime userId');
-      let linked = 0;
-      for (const entry of pending) {
-        const day = String(entry.startTime).slice(0, 10);
-        const customerWithVisit = await Customer.findOne(
-          { _id: entry.customerId, 'visits.date': day },
-          { 'visits.$': 1 }
-        ).lean();
-        const visit = customerWithVisit?.visits?.[0];
-        if (!visit) continue;
-
-        const updated = await Schedule.findOneAndUpdate(
-          { _id: entry._id, status: 'Scheduled' },
-          { $set: { status: 'Completed', linkedVisitId: visit._id } },
-          { new: true }
-        );
-        if (updated) {
-          linked++;
-          emitScheduleUpdate({ type: 'upsert', userId: updated.userId, id: String(updated._id) });
-        }
-      }
-      res.json({ success: true, checked: pending.length, linked });
+      // src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
+      const { checked, linked: linkedEntries } = await calendarData.backfillCompletedEntries();
+      for (const entry of linkedEntries) emitScheduleUpdate({ type: 'upsert', userId: entry.userId, id: entry.id });
+      const linked = linkedEntries.length;
+      res.json({ success: true, checked, linked });
     } catch (error) {
       console.error('Schedule backfill error:', error);
       res.status(500).json({ message: `Backfill failed: ${(error as Error).message}` });
@@ -146,37 +131,14 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       if (wantedId !== undefined && !isObjectId(wantedId)) {
         return res.status(400).json({ message: 'That entry id is not valid' });
       }
-      if (!(await Customer.exists({ _id: fields!.customerId }))) {
-        return res.status(400).json({ message: 'That customer no longer exists' });
-      }
+      const saved = await calendarData.createCalendarEntry(String(userId), wantedId !== undefined ? wantedId : newId(), fields!, wantedId !== undefined);
+      if (saved.kind === 'noCustomer') return res.status(400).json({ message: 'That customer no longer exists' });
+      if (saved.kind === 'idTaken') return res.status(409).json({ message: 'That entry id is already used' });
+      if (saved.kind === 'alreadySaved') return res.status(200).json({ ...saved.entry, alreadySaved: true });
 
-      const populate = (id: unknown) => Schedule.findById(id).populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company');
-      const alreadySaved = async () => {
-        const existing = await populate(wantedId);
-        if (!existing) return null;
-        if (String(existing.userId) !== String(userId)) {
-          res.status(409).json({ message: 'That entry id is already used' });
-          return true;
-        }
-        res.status(200).json({ ...existing.toObject(), alreadySaved: true });
-        return true;
-      };
-      if (wantedId !== undefined && await alreadySaved()) return;
+      emitScheduleUpdate({ type: 'upsert', userId, id: String(saved.entry._id) });
 
-      const created = new Schedule({ ...(wantedId !== undefined ? { _id: wantedId } : {}), userId, ...fields });
-      try {
-        await created.save();
-      } catch (saveError) {
-        // Two identical sends racing: the other one won, so answer with its entry.
-        if ((saveError as Error & Loose)?.code === 11000 && wantedId !== undefined && await alreadySaved()) return;
-        throw saveError;
-      }
-
-      const populatedItem = await populate(created._id);
-
-      emitScheduleUpdate({ type: 'upsert', userId, id: String(populatedItem!._id) });
-
-      res.status(201).json(populatedItem);
+      res.status(201).json(saved.entry);
     } catch (error) {
       console.error('Create schedule error:', error);
       res.status(500).json({ message: 'Failed to create schedule entry' });
@@ -236,65 +198,24 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       // One stop sent with its own `_id` can be repeated safely (a double tap):
       // the second answers with the entry already saved.
       const wantedId = items.length === 1 ? items[0]._id : undefined;
-      if (wantedId !== undefined) {
-        if (!isObjectId(wantedId)) return res.status(400).json({ message: 'That entry id is not valid' });
-        const existing = await Schedule.findById(wantedId).populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company');
-        if (existing) {
-          if (String(existing.userId) !== String(userId)) return res.status(409).json({ message: 'That entry id is already used' });
-          return res.status(200).json({ stops: [existing], replaced: 0, alreadySaved: true });
-        }
-      }
+      if (wantedId !== undefined && !isObjectId(wantedId)) return res.status(400).json({ message: 'That entry id is not valid' });
 
-      const known = await Customer.find({ _id: { $in: wanted } }).select('_id').lean();
-      if (known.length !== new Set(wanted.map(String)).size) {
-        return res.status(400).json({ message: 'One or more stops name a customer that no longer exists' });
-      }
-
-      // Only ever the planner's own stops for that date, never a meeting someone
-      // typed in by hand — re-planning a day is not permission to erase the rest
-      // of it. The date is matched on the stored 'YYYY-MM-DDTHH:mm:ss.000' prefix.
-      // `date` goes into a startTime prefix $regex: only ever a real date.
-      if (replace && !/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
-        return res.status(400).json({ message: 'A date (YYYY-MM-DD) is required to replace a day' });
-      }
-
-      const documents = cleaned.map(fields => new Schedule({
-        ...(wantedId !== undefined ? { _id: wantedId } : {}),
-        userId,
-        ...fields,
-        source: 'route_planner'
-      }));
-      // insertMany's validation occurs after the old plan would be deleted.
-      // Do it now as well, returning bad input without starting a transaction.
-      await Promise.all(documents.map(document => document.validate()));
-      if (replace && documents.some(document => !document.startTime.startsWith(`${date}T`))) {
-        return res.status(400).json({ message: 'Every replacement stop must be on the selected date' });
-      }
-
-      let replaced = 0;
-      let created!: Loose;
-      await mongoose.connection.transaction(async session => {
-        replaced = 0; // A transient transaction failure may retry this callback.
-        if (replace) {
-          const result = await Schedule.deleteMany({
-            userId,
-            source: 'route_planner',
-            startTime: { $regex: `^${date}` }
-          }, { session });
-          replaced = result.deletedCount;
-        }
-        created = await Schedule.insertMany(documents, { ordered: true, session });
+      const saved = await calendarData.planRouteDay(String(userId), {
+        stops: cleaned.map(fields => ({ id: wantedId !== undefined ? wantedId : newId(), fields })),
+        replace: !!replace, date, retry: wantedId !== undefined
       });
+      if (saved.kind === 'idTaken') return res.status(409).json({ message: 'That entry id is already used' });
+      if (saved.kind === 'alreadySaved') return res.status(200).json({ stops: saved.stops, replaced: 0, alreadySaved: true });
+      if (saved.kind === 'unknownCustomer') return res.status(400).json({ message: 'One or more stops name a customer that no longer exists' });
+      if (saved.kind === 'needDate') return res.status(400).json({ message: 'A date (YYYY-MM-DD) is required to replace a day' });
+      if (saved.kind === 'offDate') return res.status(400).json({ message: 'Every replacement stop must be on the selected date' });
+      const { stops: populated, replaced, created } = saved;
 
       // One signal for the day rather than one per stop: every open planner
       // reloads the range once instead of redrawing twelve times.
-      emitScheduleUpdate({ type: 'bulk', userId, count: created.length });
+      emitScheduleUpdate({ type: 'bulk', userId, count: created });
 
-      const populated = await Schedule.find({ _id: { $in: created.map((item: Loose) => item._id) } })
-        .populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company')
-        .sort({ startTime: 1 });
-
-      console.log(`🗺️ Route planned: ${created.length} stops for user ${userId}${replaced ? ` (replaced ${replaced})` : ''}`);
+      console.log(`🗺️ Route planned: ${created} stops for user ${userId}${replaced ? ` (replaced ${replaced})` : ''}`);
       res.status(201).json({ stops: populated, replaced });
     } catch (error) {
       console.error('Bulk schedule error:', error);
@@ -322,11 +243,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         return res.status(400).json({ message: 'A date (YYYY-MM-DD) is required' });
       }
 
-      const { deletedCount } = await Schedule.deleteMany({
-        userId,
-        source: 'route_planner',
-        startTime: { $regex: `^${date}` }
-      });
+      const deletedCount = await calendarData.clearPlannedDay(String(userId), String(date));
 
       emitScheduleUpdate({ type: 'bulk', userId, count: deletedCount });
       console.log(`🗺️ Route cleared: ${deletedCount} planned stops on ${date} for user ${userId}`);
@@ -347,24 +264,11 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       const { id } = requestParams;
       if (!isObjectId(id)) return res.status(404).json({ message: 'Schedule item not found' });
 
-      const existing = await Schedule.findOne({ _id: id, userId }).lean();
-      if (!existing) return res.status(404).json({ message: 'Schedule item not found' });
-
-      const { fields, error } = cleanScheduleFields(req.body, existing);
-      if (error) return res.status(400).json({ message: error });
-      if (fields!.customerId && !(await Customer.exists({ _id: fields!.customerId }))) {
-        return res.status(400).json({ message: 'That customer no longer exists' });
-      }
-
-      const item = await Schedule.findOneAndUpdate(
-        { _id: id, userId },
-        { $set: fields },
-        { new: true }
-      ).populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company');
-
-      if (!item) {
-        return res.status(404).json({ message: 'Schedule item not found' });
-      }
+      const saved = await calendarData.updateCalendarEntry(String(userId), id, req.body);
+      if (saved.kind === 'notFound') return res.status(404).json({ message: 'Schedule item not found' });
+      if (saved.kind === 'invalid') return res.status(400).json({ message: saved.message });
+      if (saved.kind === 'noCustomer') return res.status(400).json({ message: 'That customer no longer exists' });
+      const item = saved.entry;
 
       emitScheduleUpdate({ type: 'upsert', userId, id: String(item._id) });
 
@@ -382,9 +286,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       const userId = req.userId || req.customerId;
       const { id } = requestParams;
 
-      const result = await Schedule.deleteOne({ _id: id, userId });
-
-      if (result.deletedCount === 0) {
+      if (!(await calendarData.deleteCalendarEntry(String(userId), id))) {
         return res.status(404).json({ message: 'Schedule item not found' });
       }
 
@@ -622,70 +524,17 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
           continue;
         }
 
-        const existingImport = await Schedule.findOne({
-          userId,
-          notes: new RegExp(`Google ID: ${gEvent.id}`)
-        });
-
-        if (gEvent.status === 'cancelled') {
-          if (existingImport) {
-            await Schedule.deleteOne({ _id: existingImport._id });
-            plannerChanged = true;
-          }
-          continue;
-        }
-
         const startTime = gEvent.start.dateTime || gEvent.start.date;
         const endTime = gEvent.end.dateTime || gEvent.end.date;
 
-        if (!startTime) continue;
-
-        if (existingImport) {
-          const notes = `Google Calendar Event\n[Google ID: ${gEvent.id}]\n\n${gEvent.description || ''}`;
-          if (
-            String(existingImport.startTime) !== String(startTime) ||
-            String(existingImport.endTime) !== String(endTime) ||
-            existingImport.notes !== notes
-          ) {
-            existingImport.startTime = startTime;
-            existingImport.endTime = endTime;
-            existingImport.notes = notes;
-            await existingImport.save();
-            plannerChanged = true;
-          }
-        } else {
-          let syncCustomer = await Customer.findOne({ company: 'Google Calendar Sync' });
-          if (!syncCustomer) {
-            syncCustomer = new Customer({
-              company: 'Google Calendar Sync',
-              contactName: 'Google Event Sync',
-              phone: '000-000-0000',
-              email: 'sync@easystones.com',
-              status: 'Lead'
-            });
-            await syncCustomer.save();
-          }
-
-          const newItem = new Schedule({
-            userId,
-            customerId: syncCustomer._id,
-            startTime,
-            endTime,
-            activityType: 'Other',
-            notes: `Google Calendar Event\n[Google ID: ${gEvent.id}]\n\n${gEvent.description || ''}`,
-            status: 'Scheduled'
-          });
-          await newItem.save();
-          plannerChanged = true;
-        }
+        // src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
+        if (await calendarData.importGoogleEvent(String(userId), {
+          id: gEvent.id, status: gEvent.status, description: gEvent.description, startTime, endTime
+        }, { entryId: newId(), customerId: newId() })) plannerChanged = true;
       }
 
       // 2. Sales Planner -> Google Sync
-      const appSchedules = await Schedule.find({
-        userId,
-        notes: { $not: /Google ID:/ },
-        status: { $ne: 'Cancelled' }
-      }).populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company');
+      const appSchedules = await calendarData.entriesToSync(String(userId), 'google');
 
       // schedule.startTime/endTime are naive wall-clock strings (no zone) —
       // whatever time the rep meant in THEIR OWN zone, not the server's. This
@@ -742,7 +591,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
           if (createRes.ok) {
             const createdEvent = await createRes.json();
             schedule.notes = `${schedule.notes || ''}\n\n[Synced to Google ID: ${createdEvent.id}]`;
-            await schedule.save();
+            await calendarData.markEntrySynced(String(schedule._id), schedule.notes);
             plannerChanged = true;
           }
         }

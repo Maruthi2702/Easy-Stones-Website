@@ -36,3 +36,4 @@ export async function customerViewCounts(q: CustomerViewCountsQuery) {
 // Saves: one file per group in ./writes (core, visits, resources, …), each picking
 // MongoDB or Postgres itself. One line per group, so groups built in parallel merge cleanly.
 export * from './writes/core.ts';
+export * from './writes/schedule.ts';
