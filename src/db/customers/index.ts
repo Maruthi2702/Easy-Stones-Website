@@ -37,3 +37,4 @@ export async function customerViewCounts(q: CustomerViewCountsQuery) {
 // MongoDB or Postgres itself. One line per group, so groups built in parallel merge cleanly.
 export * from './writes/core.ts';
 export * from './writes/visits.ts';
+export * from './writes/accounts.ts';

@@ -2476,22 +2476,11 @@ app.post('/api/customer/register', async (req: Request, res: Response) => {
   try {
     const { contactName, email, password, phone, company } = req.body;
 
-    // Check if customer already exists
-    const existingCustomer = await Customer.findOne({ email });
-    if (existingCustomer) {
+    // Check if the email is taken, then create the customer (src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres).
+    const customer = await customerData.registerCustomer(newId(), { contactName, email, password, phone, company });
+    if (customer === 'taken') {
       return res.status(400).json({ message: 'Email already registered' });
     }
-
-    // Create new customer
-    const customer = new Customer({
-      contactName,
-      email,
-      password,
-      phone,
-      company
-    });
-
-    await customer.save();
 
     // Generate JWT token
     const token = jwt.sign(
@@ -2558,7 +2547,7 @@ app.post('/api/customer/login', loginLimiter, async (req: Request, res: Response
       // with an email field that has no "@". A customer match still wins,
       // as before, if somehow both match.
       const [customerAccount, staffAccount] = await Promise.all([
-        Customer.findOne({ email: loginIdentifier }).select('-visits -resources'),
+        customerData.findCustomerForSignIn(loginIdentifier),
         User.findOne({
           $or: [
             { email: loginIdentifier },
@@ -2627,19 +2616,7 @@ app.post('/api/customer/login', loginLimiter, async (req: Request, res: Response
 
     if (accountType === 'customer') {
       console.log(`💾 Updating customer login info (IP: ${ip}) for ${email}`);
-      await Customer.updateOne({ _id: account._id }, {
-        $set: {
-          loginAttempts: 0,
-          lastLoginIp: ip
-        },
-        $unset: { lockUntil: 1 },
-        $push: {
-          loginIps: {
-            $each: [ip],
-            $slice: -3
-          }
-        }
-      });
+      await customerData.recordCustomerSignIn(String(account._id), ip);
     } else {
       await User.updateOne({ _id: account._id }, {
         $set: { loginAttempts: 0, lastLoginAt: new Date() },
@@ -2728,7 +2705,7 @@ app.get('/api/customer/me', verifyCustomer, async (req: Request, res: Response) 
         return res.status(401).json({ message: 'Please sign in again.' });
       }
     } else {
-      account = await Customer.findById(req.customerId).select('-password -visits -resources');
+      account = await customerData.customerAccount(req.customerId!);
     }
 
     if (!account) {
@@ -3348,21 +3325,10 @@ app.post('/api/customers/:customerId/associations', authenticate, requirePermiss
       return res.status(400).json({ message: 'Cannot link a customer to themselves' });
     }
 
-    // Check if both exist
-    const [customer, partner] = await Promise.all([
-      Customer.findById(customerId),
-      Customer.findById(partnerId)
-    ]);
-
-    if (!customer || !partner) {
+    // Both must exist; linked both ways, never twice (src/db/customers).
+    if (!await customerData.linkPartners(customerId, partnerId)) {
       return res.status(404).json({ message: 'One or both customers not found' });
     }
-
-    // Bi-directional link using $addToSet to avoid duplicates
-    await Promise.all([
-      Customer.findByIdAndUpdate(customerId, { $addToSet: { associatedCustomers: partnerId } }),
-      Customer.findByIdAndUpdate(partnerId, { $addToSet: { associatedCustomers: customerId } })
-    ]);
 
     res.json({ message: 'Association established successfully' });
   } catch (error) {
@@ -3380,11 +3346,8 @@ app.delete('/api/customers/:customerId/associations/:partnerId', authenticate, r
   try {
     const { customerId, partnerId } = requestParams;
 
-    // Bi-directional unlink using $pull
-    await Promise.all([
-      Customer.findByIdAndUpdate(customerId, { $pull: { associatedCustomers: partnerId } }),
-      Customer.findByIdAndUpdate(partnerId, { $pull: { associatedCustomers: customerId } })
-    ]);
+    // Unlinked both ways (src/db/customers).
+    await customerData.unlinkPartners(customerId, partnerId);
 
     res.json({ message: 'Association removed successfully' });
   } catch (error) {
@@ -3414,12 +3377,8 @@ app.post('/api/customers/:customerId/contacts', authenticate, requirePermission(
       createdBy: (await getPerformerInfo(req)).id
     };
 
-    const result = await Customer.updateOne(
-      { _id: customerId },
-      { $push: { contacts: newContact } }
-    );
-
-    if (result.matchedCount === 0) {
+    // The contact's id is made here, so both databases hold the same one (src/db/customers).
+    if (!await customerData.addContact(customerId, newId(), newContact)) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
@@ -3484,20 +3443,9 @@ app.put('/api/customers/:customerId/contacts/:contactId', authenticate, requireP
     const { customerId, contactId } = requestParams;
     const fields = req.body;
 
-    const updateData: Loose = {};
     const { id: updatedBy } = await getPerformerInfo(req);
-    updateData[`contacts.$.updatedBy`] = updatedBy;
 
-    Object.keys(fields).forEach(key => {
-      updateData[`contacts.$.${key}`] = fields[key];
-    });
-
-    const result = await Customer.updateOne(
-      { _id: customerId, 'contacts._id': contactId },
-      { $set: updateData }
-    );
-
-    if (result.matchedCount === 0) {
+    if (!await customerData.updateContact(customerId, contactId, fields, updatedBy)) {
       return res.status(404).json({ message: 'Customer or contact not found' });
     }
 
@@ -4945,19 +4893,17 @@ app.put(['/api/customers/:id/password', '/api/admin/customers/:id'], verifyToken
       return res.status(400).json({ message: 'Password is required' });
     }
 
-    const customer = await Customer.findById(requestParams.id);
+    // Hashed and saved in src/db/customers (MongoDB's bcrypt hook, or the same hash on Postgres).
+    const customer = await customerData.resetCustomerPassword(requestParams.id, password);
     if (!customer) {
       return res.status(404).json({ message: 'Customer not found' });
     }
-
-    customer.password = password;
-    await customer.save();
     req.app.get('io').emit('customer_update');
 
     res.json({
       success: true,
       message: 'Password updated successfully',
-      customer: { id: customer._id, contactName: customer.contactName, email: customer.email }
+      customer
     });
   } catch (error) {
     console.error('Reset customer password error:', error);
