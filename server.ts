@@ -56,7 +56,7 @@ import ContactSubmission from './src/models/ContactSubmission.ts';
 import Customer from './src/models/Customer.ts';
 import * as customerData from './src/db/customers/index.ts';
 import { areasOnPostgres } from './src/db/appDb.ts';
-import { isId } from './src/db/ids.ts';
+import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
 import SalesResource from './src/models/SalesResource.ts';
@@ -1911,10 +1911,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), validat
     // stale name further. Re-point them here, where the rename happens.
     const nameAfter = displayNameOf(user);
     if (nameAfter !== nameBefore) {
-      const { modifiedCount } = await Customer.updateMany(
-        { salesRep: user._id },
-        { $set: { salesRepName: nameAfter } }
-      );
+      const modifiedCount = await customerData.renameRepOnCustomers(user._id, nameAfter);
       if (modifiedCount > 0) {
         // The dropdown carries salesRepName, and only /api/customers writes bust
         // its cache — a rename reaches those records from a different route.
@@ -3833,7 +3830,7 @@ app.use('/api/customers', createCustomerSpsImportRouter({
 app.patch(['/api/customers/bulk', '/api/partners/bulk'], authenticate, requirePermission('manage_customers'), async (req: Request, res: Response) => {
   try {
     const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
-    const validIds = ids.filter((id: string) => mongoose.Types.ObjectId.isValid(id));
+    const validIds = ids.filter((id: string) => isId(id));
     if (validIds.length === 0) {
       return res.status(400).json({ message: 'Choose at least one customer' });
     }
@@ -3853,7 +3850,7 @@ app.patch(['/api/customers/bulk', '/api/partners/bulk'], authenticate, requirePe
       // and an empty value hands the accounts back (unassigns them). An id that
       // names nobody is refused — resolveSalesRep would read it as "unassign",
       // and across a whole selection that mistake is expensive.
-      const rep = await resolveSalesRep(req.body.salesRep);
+      const rep = await customerData.resolveSalesRep(req.body.salesRep);
       if (req.body.salesRep && !rep.salesRep) {
         return res.status(400).json({ message: 'That sales rep was not found' });
       }
@@ -3863,9 +3860,9 @@ app.patch(['/api/customers/bulk', '/api/partners/bulk'], authenticate, requirePe
       return res.status(400).json({ message: 'Nothing to change' });
     }
 
-    const result = await Customer.updateMany({ _id: { $in: validIds } }, { $set: update });
+    const result = await customerData.bulkUpdateCustomers(validIds, update);
     req.app.get('io').emit('customer_update');
-    res.json({ matched: result.matchedCount, modified: result.modifiedCount });
+    res.json({ matched: result.matched, modified: result.modified });
   } catch (error) {
     console.error('Error bulk-updating customers:', error);
     res.status(500).json({ message: 'Failed to update customers' });
@@ -3921,7 +3918,7 @@ app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authentica
     const { fields, error } = newCustomerFields(req.body);
     if (error) return res.status(400).json({ message: error });
 
-    const rep = await resolveSalesRep(req.body.salesRep);
+    const rep = await customerData.resolveSalesRep(req.body.salesRep);
 
     // A point the caller already has (the route planner's Places result) is
     // used as is; otherwise the address is geocoded. An address that can't be
@@ -3941,8 +3938,7 @@ app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authentica
       }
       : await geocodeAddress(fields!.address);
 
-    const newCustomer = new Customer({ ...fields, ...rep, ...geo, createdBy: req.userId });
-    await newCustomer.save();
+    const newCustomer = await customerData.createCustomer({ id: newId(), fields: fields!, rep, geo, createdBy: req.userId });
     req.app.get('io').emit('customer_update');
     res.status(201).json(await customerHistoryResponse(req, newCustomer));
   } catch (error) {
@@ -3966,59 +3962,20 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
     // never saw level, Moda or marketing must not write them back.
     const updateData = canViewCustomerProfile(req.user) ? allUpdates : basicCustomer(allUpdates);
 
-    // Only touch the rep when the edit actually carried one, so a partial update
-    // cannot silently unassign an account. When it did, both halves are rewritten
-    // together — including clearing the cached name as the rep is cleared, rather
-    // than leaving a name behind pointing at nobody.
-    if (req.body.salesRep !== undefined) {
-      Object.assign(updateData, await resolveSalesRep(req.body.salesRep));
-    }
-
-    // Needed twice below: the stored address, because findByIdAndUpdate replaces
-    // a nested object wholesale and a city-only edit would otherwise drop the
-    // street; and the key the stored point came from, because re-geocoding is
-    // only worth paying for when the address actually moved.
-    const existing = await Customer.findById(requestParams.id).select('address geocode').lean();
-    if (!existing) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
-
-    if (req.body.address) {
-      updateData.address = addressFrom(req.body);
-    } else if (req.body.city) {
-      updateData.address = {
-        ...existing.address,
-        city: req.body.city
-      };
-    }
-
-    if (updateData.address) {
-      const geo = await geocodePatchFor(updateData.address, existing.geocode?.addressKey || '');
-      if (geo) Object.assign(updateData, geo);
-    }
-
-    // A typed Moda display / binders is the new total; the resources' share
-    // stays counted (src/utils/modaTotals.ts), and it can't go below them.
-    if (updateData.modaDisplay !== undefined || updateData.modaBinder !== undefined) {
-      const moda = await Customer.findById(requestParams.id)
-        .select('modaDisplay modaBinder modaEarlier resources.resourceType resources.title resources.qty resources.status').lean();
-      const typed = typedModaFields(moda || {}, { modaDisplay: updateData.modaDisplay, modaBinder: updateData.modaBinder },
-        (moda as Loose)?.resources, await loadFamilies());
-      if ('error' in typed) return res.status(400).json({ message: typed.error });
-      delete updateData.modaDisplay;
-      delete updateData.modaBinder;
-      if (typed.fields) Object.assign(updateData, typed.fields);
-    }
-
-    const updatedCustomer = await Customer.findByIdAndUpdate(
-      requestParams.id,
+    // The save (src/db/customers/writes/core.*): the rep is only touched when the edit
+    // carried one, the stored address is kept for a city-only edit, the address is
+    // re-geocoded only when it moved (the Google call is ours, handed in), and a typed
+    // Moda display / binders can't go below what the resources hold.
+    const saved = await customerData.editCustomer(requestParams.id, {
       updateData,
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedCustomer) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
+      salesRep: req.body.salesRep,
+      address: req.body.address ? addressFrom(req.body) : null,
+      city: req.body.city,
+      geocode: geocodePatchFor
+    });
+    if ('notFound' in saved) return res.status(404).json({ message: 'Customer not found' });
+    if ('error' in saved) return res.status(400).json({ message: saved.error });
+    const updatedCustomer = saved.customer;
 
     req.app.get('io').emit('customer_update');
     res.json(await customerHistoryResponse(req, updatedCustomer));
@@ -5469,13 +5426,9 @@ app.patch(['/api/customers/:id/active', '/api/admin/customers/:id/status'], veri
   const requestParams = scalarParams(req);
   try {
     const { isActive } = req.body;
-    const customer = await Customer.findByIdAndUpdate(
-      requestParams.id,
-      { isActive },
-      { new: true }
-    );
+    const found = await customerData.setCustomerActive(requestParams.id, isActive);
 
-    if (!customer) {
+    if (!found) {
       return res.status(404).json({ message: 'Customer not found' });
     }
 
