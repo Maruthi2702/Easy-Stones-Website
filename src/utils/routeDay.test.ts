@@ -91,4 +91,13 @@ describe('planDayRoute', () => {
   it('has no finish leg when none was asked for', () => {
     expect(planDayRoute([stop('a', 0, 9), stop('b', 4, 10)]).finish).toBeNull();
   });
+
+  it('a longer stop pushes the rest of the day later, and a length change alone is a change', () => {
+    const short = planDayRoute([stop('a', 0, 9), stop('b', 4, 10)], { origin: null });
+    const long = planDayRoute([stop('a', 0, 9, { minutes: 60, wasMinutes: 30 }), stop('b', 4, 10, { minutes: 60, wasMinutes: 30 })], { origin: null });
+    expect(long.stops[1].start.getTime()).toBeGreaterThan(short.stops[1].start.getTime());
+    const only = planDayRoute([stop('a', 0, 9, { minutes: 60, wasMinutes: 30 })], { origin: null });
+    expect(only.unchanged).toBe(false);
+    expect(only.stops[0].patch.endTime).toBeDefined();
+  });
 });

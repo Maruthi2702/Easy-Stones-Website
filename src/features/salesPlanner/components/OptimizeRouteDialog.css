@@ -18,7 +18,7 @@
 .opt-error { font-size: .84rem; margin: 10px 0 0; color: var(--fm-err-tx, #ef4444); }
 @media (max-width: 639px) { .opt-modes { grid-template-columns: 1fr; } }
 
-.opt-where { display: grid; grid-template-columns: 1fr 1.4fr 1.4fr; gap: 10px; margin-bottom: 10px; }
+.opt-where { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
 @media (max-width: 639px) { .opt-where { grid-template-columns: 1fr; } }
 
 .opt-add { display: grid; gap: 10px; margin: 0 0 12px; padding: 10px; border: 1px dashed var(--fm-bd2, rgba(128,128,128,.35)); border-radius: 10px; }

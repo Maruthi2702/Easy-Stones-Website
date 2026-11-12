@@ -12,7 +12,7 @@ import { forgetLocationOk, readLastPosition, rememberPosition } from '../../../u
 import { moveActivity } from '../salesPlannerApi';
 import { readPlaces, savePlace, type SavedPlace } from '../savedPlaces';
 import { patchPlannerItem, refreshPlannerSchedule, type PlannerItem } from '../plannerSchedule';
-import { customerName, customerOf, timeLabel } from '../salesPlanner';
+import { customerName, customerOf, durationText, timeLabel } from '../salesPlanner';
 import './OptimizeRouteDialog.css';
 
 export type OptimizeRouteDialogProps = {
@@ -30,6 +30,10 @@ const pointOf = (item: PlannerItem): LatLng | null => {
 
 const TIMES = timeOptions();
 const ADD = '__add__';
+const LENGTHS = [
+    { value: 'keep', label: "Each stop's own length" },
+    ...[15, 30, 45].map((m) => ({ value: String(m), label: durationText(m) }))
+];
 
 const toStop = (item: PlannerItem): DayStop => {
     const start = new Date(item.startTime).getTime();
@@ -76,7 +80,11 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
     const [applied, setApplied] = useState<{ id: string; startTime: string; endTime?: string }[] | null>(null);
 
     const byId = useMemo(() => new Map(items.map((i) => [String(i._id), i])), [items]);
-    const stops = useMemo(() => items.map(toStop), [items]);
+    // How long each stop takes: its own length (30 min when it has none), or one length for all.
+    const [length, setLength] = useState('keep');
+    const stops = useMemo(() => items.map(toStop).map((s) => (
+        length === 'keep' ? s : { ...s, wasMinutes: s.minutes, minutes: Number(length), hasEnd: true }
+    )), [items, length]);
     // When the day starts: 9:00, or the next quarter hour when it is today and later than that.
     const dayMs = stops[0]?.start;
     const [startTime, setStartTime] = useState(() => {
@@ -139,16 +147,33 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
         setFinding(true); setFindError(''); setMatches([]);
         try {
             if (!window.google?.maps) throw new Error('The map is still loading — try again in a moment.');
-            const { Place } = await window.google.maps.importLibrary('places') as google.maps.PlacesLibrary;
-            const { places } = await Place.searchByText({
-                textQuery: addressText.trim(),
-                fields: ['displayName', 'formattedAddress', 'location'],
-                maxResultCount: 5,
-                region: 'us'
-            });
-            const found = (places || []).filter((p) => p.location).map((p) => ({
-                name: p.displayName || '', address: p.formattedAddress || '', lat: p.location!.lat(), lng: p.location!.lng()
-            }));
+            const query = addressText.trim();
+            let found: { name: string; address: string; lat: number; lng: number }[] = [];
+            try {
+                const { Place } = await window.google.maps.importLibrary('places') as google.maps.PlacesLibrary;
+                const { places } = await Place.searchByText({
+                    textQuery: query,
+                    fields: ['displayName', 'formattedAddress', 'location'],
+                    maxResultCount: 5,
+                    region: 'us'
+                });
+                found = (places || []).filter((p) => p.location).map((p) => ({
+                    name: p.displayName || '', address: p.formattedAddress || '', lat: p.location!.lat(), lng: p.location!.lng()
+                }));
+            } catch (placesError) {
+                // Places isn't allowed on this key (or is down): a street address still works through the Geocoder.
+                console.warn('[Optimize route] Places search failed, using the Geocoder:', placesError);
+                try {
+                    const { results } = await new window.google.maps.Geocoder().geocode({ address: query, componentRestrictions: { country: 'US' } });
+                    found = results.slice(0, 5).map((r) => ({
+                        name: '', address: r.formatted_address, lat: r.geometry.location.lat(), lng: r.geometry.location.lng()
+                    }));
+                } catch (geocodeError) {
+                    const code = String((geocodeError as { code?: string }).code || '');
+                    if (code === 'ZERO_RESULTS') found = [];
+                    else throw new Error(`Google refused the address search (${code || (geocodeError as Error).message}). The Maps key needs Places API (New) or Geocoding API allowed.`);
+                }
+            }
             if (!found.length) setFindError('No match — try the street, city and state.');
             setMatches(found);
         } catch (e) { setFindError((e as Error).message || 'Could not look that up.'); } finally { setFinding(false); }
@@ -251,6 +276,9 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
                 <FormField name="start" id="opt-start" label="Start time">
                     <FormPicker id="opt-start" value={startTime} onChange={setStartTime} options={TIMES} sheetTitle="Start time" keepInForm />
                 </FormField>
+                <FormField name="length" id="opt-length" label="Time at each stop">
+                    <FormPicker id="opt-length" value={length} onChange={setLength} options={LENGTHS} sheetTitle="Time at each stop" keepInForm />
+                </FormField>
                 <FormField name="from" id="opt-from" label="Start from">
                     <FormPicker id="opt-from" value={from} onChange={pick('from')} options={fromOptions} sheetTitle="Start from" keepInForm />
                 </FormField>
@@ -301,7 +329,7 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
                                 <div className="opt-sub">
                                     {s.kept === 'no-point'
                                         ? <><MapPinOff size={12} aria-hidden="true" /> No map location — kept at its time</>
-                                        : s.driveMinutes > 0 ? `${s.miles} mi · ${s.driveMinutes} min drive` : 'First stop'}
+                                        : `${s.driveMinutes > 0 ? `${s.miles} mi · ${s.driveMinutes} min drive` : 'First stop'} · ${durationText(Math.round((s.end.getTime() - s.start.getTime()) / 60000))} there`}
                                 </div>
                             </div>
                             <div className="opt-time">

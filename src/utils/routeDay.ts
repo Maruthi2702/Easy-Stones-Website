@@ -25,6 +25,8 @@ export type DayStop = {
   /** The booking has an end time, so a move should carry one too. */
   hasEnd: boolean;
   point: LatLng | null;
+  /** Set when the length was overridden: what it was, so a length change alone counts as a change. */
+  wasMinutes?: number;
 };
 
 export type RouteMode = 'all' | 'fixed';
@@ -150,10 +152,10 @@ export function planDayRoute(
   while (pi < pinned.length) { place(pinned[pi], keptReason(pinned[pi])); pi += 1; }
 
   // Changed = a different place in the day, or a different time.
-  const before = new Map(byTime.map((s, i) => [s.id, { i, start: s.start }]));
+  const before = new Map(byTime.map((s, i) => [s.id, { i, start: s.start, longer: s.wasMinutes !== undefined && s.wasMinutes !== s.minutes }]));
   rows.forEach((r, i) => {
     const was = before.get(r.id)!;
-    r.changed = was.i !== i || was.start !== r.start.getTime();
+    r.changed = was.i !== i || was.start !== r.start.getTime() || was.longer;
   });
 
   let finish: RoutePlan['finish'] = null;
