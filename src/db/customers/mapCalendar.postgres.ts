@@ -43,7 +43,7 @@ export async function mapCustomerRecord(db: Db, id: string): Promise<Loose | nul
 export async function duplicateSignals(db: Db): Promise<Loose[]> {
   const [rows, links] = await Promise.all([
     db.select({ _id: customers.id, company: customers.company, phone: customers.phone, email: customers.email })
-      .from(customers).orderBy(customers.id),
+      .from(customers).orderBy(customers.matchOrder, customers.id),
     db.select().from(customerLinks).where(eq(customerLinks.kind, 'not_duplicate'))
       .orderBy(customerLinks.customerId, customerLinks.position, customerLinks.otherCustomerId)
   ]);

@@ -52,7 +52,8 @@ export function attachmentUrls(image: unknown): string[] {
   return [];
 }
 
-export function customerRows(docs: Loose[], ref: ReferenceIndex, problems: CopyProblem[]): { rows: CustomerRows; index: CustomerIndex } {
+export function customerRows(docs: Loose[], ref: ReferenceIndex, problems: CopyProblem[],
+  options: { preserveSourceOrder?: boolean } = {}): { rows: CustomerRows; index: CustomerIndex } {
   const rows: CustomerRows = {
     customers: [], customerLogins: [], customerContacts: [], customerLinks: [], visits: [],
     visitAttachments: [], visitReactions: [], visitFollowUpEvents: [], resources: [], resourceAttachments: []
@@ -122,6 +123,9 @@ export function customerRows(docs: Loose[], ref: ReferenceIndex, problems: CopyP
     const sps = d.sps || {};
     rows.customers.push({
       id, company: textOf(d.company), contactName: textOf(d.contactName), email: textOf(d.email).trim().toLowerCase(),
+      // Only a snapshot copy assigns source ordinals. Saves leave this out: updates
+      // retain their order and inserts/restores take the identity's next position.
+      ...(options.preserveSourceOrder ? { matchOrder: rows.customers.length + 1 } : {}),
       marketingEmail: textOf(d.marketingEmail), receiveMarketing: d.receiveMarketing !== false, phone: textOf(d.phone),
       status: textOf(d.status) || 'Onboarded', customerType: d.customerType ? String(d.customerType) : null,
       level: textOf(d.level) || 'Level - 3', priceLevel: numOrNull(d.priceLevel) ?? 1,

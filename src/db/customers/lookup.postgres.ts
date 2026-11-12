@@ -57,7 +57,7 @@ export async function customerById(db: Db, id: string): Promise<Loose | null> {
 export async function customerContactsForMatching(db: Db): Promise<Loose[]> {
   const [rows, contactRows] = await Promise.all([
     db.select({ _id: customers.id, company: customers.company, contactName: customers.contactName,
-      email: customers.email, phone: customers.phone }).from(customers).orderBy(customers.id),
+      email: customers.email, phone: customers.phone }).from(customers).orderBy(customers.matchOrder, customers.id),
     db.select({ customerId: contacts.customerId, name: contacts.name, phone: contacts.phone, email: contacts.email })
       .from(contacts).orderBy(contacts.customerId, contacts.position, sql`${contacts.id} collate "C"`)
   ]);

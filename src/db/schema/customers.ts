@@ -32,6 +32,8 @@ const textArray = (name: string) => text(name).array().notNull().default(sql`'{}
 
 export const customers = pgTable('customers', {
   id: objectId('id').primaryKey(),
+  /** MongoDB's saved collection order for first-match lookups; new/restored customers append. */
+  matchOrder: integer('match_order').notNull().generatedByDefaultAsIdentity(),
   company: text('company').notNull().default(''),
   contactName: text('contact_name').notNull(),
   email: text('email').notNull(),
@@ -93,6 +95,7 @@ export const customers = pgTable('customers', {
   idFormat('customers'),
   uniqueIndex('customers_email_key').on(t.email),
   uniqueIndex('customers_sps_key_key').on(t.spsKey),
+  uniqueIndex('customers_match_order_key').on(t.matchOrder),
   check('customers_price_level', sql`price_level between 1 and 4`),
   check('customers_moda_binders', sql`moda_binders >= 0`),
   index('customers_location_status_idx').on(t.locationId, t.status),

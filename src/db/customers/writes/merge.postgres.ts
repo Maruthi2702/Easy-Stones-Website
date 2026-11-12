@@ -105,7 +105,9 @@ const withoutKey = (row: Loose, key: string) => { const { [key]: _, ...rest } = 
 /** Put a customer's own rows back as the snapshot had them (its links are set apart, once every customer is back). */
 export async function restoreCustomer(tx: Db, s: CustomerSnapshot): Promise<void> {
   const id = s.customer.id as string;
-  const row = revive(s.customer, CUSTOMER_MOMENTS);
+  // Replacing an existing survivor keeps its position; a deleted record restored
+  // by Undo appends, just as MongoDB's insert does. Never reuse snapshot ordinals.
+  const row = withoutKey(revive(s.customer, CUSTOMER_MOMENTS), 'matchOrder');
   await tx.insert(customers).values(row as typeof customers.$inferInsert)
     .onConflictDoUpdate({ target: customers.id, set: withoutKey(row, 'id') });
   await tx.delete(customerLogins).where(eq(customerLogins.customerId, id));
