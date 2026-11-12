@@ -19,7 +19,7 @@
     "test:coverage": "vitest run --coverage --maxWorkers=2 --testTimeout=15000 --hookTimeout=30000",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "typecheck": "tsc -p . && node scripts/check-server-ts.ts && node scripts/audit-typescript.ts --check",
+    "typecheck": "node --max-old-space-size=4096 node_modules/typescript/bin/tsc -p . && node scripts/check-server-ts.ts && node scripts/audit-typescript.ts --check",
     "typecheck:inventory": "tsc -p tsconfig.inventory.json",
     "audit:typescript": "node scripts/audit-typescript.ts",
     "lambda:deploy": "node scripts/lambda-deploy.ts",
