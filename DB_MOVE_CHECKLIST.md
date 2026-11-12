@@ -21,11 +21,11 @@ flips with `DB_CUSTOMERS=postgres` (src/db/customers/writes/README.md). So the w
 below is **one short pause at cutover**, not per-route switching (per-route would mean two
 databases each holding half the writes). Approving this ticks "Agree the write plan" in §2.
 
-1. **Customer reads (§1) are complete on `feat/pg-customer-reads`** (2026-11-12),
-   ready for one combined review. All 11 items have Mongo/Postgres implementations,
-   parity/HTTP checks and read-only live comparisons. Results and per-item commits:
+1. **Customer reads (§1) are complete and on main** (merged 2026-11-12, PR #2).
+   All 11 items have Mongo/Postgres implementations, parity/HTTP checks and read-only
+   live comparisons. Results and per-item commits:
    [`docs/db/customer-reads-report.md`](docs/db/customer-reads-report.md).
-   Merge and production cutover still need the owner’s go-ahead.
+   Merged is not switched on: `DB_CUSTOMERS` stays unset until cutover.
 2. **Close the start-up jobs (§2):** retire the location backfill; move marketing-email
    migration into `/api/customer/register` and calendar sync, then retire it.
 3. **Prerequisites (§3), the ones that block a rehearsal:** copy users / roles / locations /
@@ -62,17 +62,17 @@ Parallel, not database: set a real `JWT_SECRET` on Render and rotate the pasted 
 - [x] `GET /api/customers/list` — the Customers page (filters, saved views, A–Z, sorts, Moda) — ca03b24
 - [x] `GET /api/customers/view-counts` — the saved-view counts — 8ecace4
 - [x] `GET /api/customers/:id` + `/:customerId/{visits,resources}/:entryId` — the profile, including nested contacts (`customerHistoryResponse`) · src/routes/customerHistory.ts — 2c73456, ebb6bd4
-- [x] `customerRecordResponse` (the profile-shaped reply of create/edit; shapes the saved record using the selected database) · src/db/customers/index.ts — on feat/pg-customer-reads, d9a9b54
-- [x] `GET /api/customers/:id/vcard` · server.ts — on feat/pg-customer-reads, d9a9b54
-- [x] `GET /api/customers/:customerId/moda` · src/routes/customerResources.ts — on feat/pg-customer-reads, d9a9b54
-- [x] `GET /api/customers/map`, `/map/rep-counts`, `/map/:id` — Route Planner · src/routes/customerMap.ts — on feat/pg-customer-reads, bb22ed8
-- [x] `POST /api/customers/possible-duplicates` · server.ts — on feat/pg-customer-reads, bb22ed8, 677f0ec
-- [x] `GET /api/dashboard/stats` — tiles and follow-up counts · server.ts — on feat/pg-customer-reads, 7d6639e
-- [x] `GET /api/dashboard/visits` · server.ts — on feat/pg-customer-reads, 7d6639e
-- [x] `GET /api/dashboard/followups` + `/followups/panel` · server.ts — on feat/pg-customer-reads, 7d6639e
-- [x] `GET /api/dashboard/resources` · server.ts — on feat/pg-customer-reads, 7d6639e
-- [x] `GET /api/schedule` + the calendar `.ics` feed (`schedules` + customer names) · src/routes/schedule.ts — on feat/pg-customer-reads, bb22ed8, d945d55
-- [x] Customer lookups in other areas: Cart & Holds (`holds/router.ts`), Permits' "is a customer" (`permits/router.ts`), public product prices (`routes/publicProducts.ts`) — on feat/pg-customer-reads, d9a9b54, 677f0ec
+- [x] `customerRecordResponse` (the profile-shaped reply of create/edit; shapes the saved record using the selected database) · src/db/customers/index.ts — on main, d9a9b54
+- [x] `GET /api/customers/:id/vcard` · server.ts — on main, d9a9b54
+- [x] `GET /api/customers/:customerId/moda` · src/routes/customerResources.ts — on main, d9a9b54
+- [x] `GET /api/customers/map`, `/map/rep-counts`, `/map/:id` — Route Planner · src/routes/customerMap.ts — on main, bb22ed8
+- [x] `POST /api/customers/possible-duplicates` · server.ts — on main, bb22ed8, 677f0ec
+- [x] `GET /api/dashboard/stats` — tiles and follow-up counts · server.ts — on main, 7d6639e
+- [x] `GET /api/dashboard/visits` · server.ts — on main, 7d6639e
+- [x] `GET /api/dashboard/followups` + `/followups/panel` · server.ts — on main, 7d6639e
+- [x] `GET /api/dashboard/resources` · server.ts — on main, 7d6639e
+- [x] `GET /api/schedule` + the calendar `.ics` feed (`schedules` + customer names) · src/routes/schedule.ts — on main, bb22ed8, d945d55
+- [x] Customer lookups in other areas: Cart & Holds (`holds/router.ts`), Permits' "is a customer" (`permits/router.ts`), public product prices (`routes/publicProducts.ts`) — on main, d9a9b54, 677f0ec
 
 Verified on Node 24.22.1: 3,762 tests passed (4 skipped), typecheck and health check
 passed, independent review found no MongoDB behavior changes, and all 160 live read
