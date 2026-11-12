@@ -38,11 +38,11 @@ beforeAll(async () => {
     { _id: oid(), name: 'dash_all', permissions: ['view_dashboard', 'view_all_visits'] },
     { _id: oid(), name: 'dash_denied', permissions: [] }
   ]);
-  await db.collection('users').insertMany([
+  await db.collection('users').insertMany(([
     [own, 'Own', 'Seattle', 'dash_own', true], [teammate, 'Teammate', 'Seattle', 'dash_own', false],
     [outside, 'Outside', 'Dallas', 'dash_own', true], [manager, 'Manager', 'Seattle', 'dash_branch', true],
     [all, 'All', 'Seattle', 'dash_all', true], [denied, 'Denied', 'Seattle', 'dash_denied', true]
-  ].map(([_id, username, location, role, isActive]) => ({ _id, username, location, role, isActive,
+  ] as const).map(([_id, username, location, role, isActive]) => ({ _id, username, location, role, isActive,
     assignedLocations: [location], password: 'x', sessionVersion: 0 })));
   await db.collection('resourcefamilies').insertOne({ _id: oid(), name: 'Samples' });
   await db.collection('resourcetypes').insertOne({ _id: oid(), name: 'Samples', family: 'Samples', active: true });
@@ -170,7 +170,7 @@ describe('dashboard read parity', () => {
   it('retains the legacy all-visit follow-up load while shared rules decide which rows are follow-ups', async () => {
     const rows = await both('dashboardVisits', { filterType: 'followup' });
     expect(rows).toHaveLength(7);
-    const view = followUpsInView(rows, { range: 'all' }, today);
+    const view = followUpsInView(rows, { range: 'all', from: '', to: '' }, today);
     const counts = followUpCounts(view, today);
     expect(counts.pending).toBe(withStatus(view, 'pending').length);
   });

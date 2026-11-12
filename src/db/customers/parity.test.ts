@@ -4,8 +4,10 @@ import { contactIdFor } from '../copy/customerRows.ts';
 import type { Loose } from '../../types/records.ts';
 
 const cid = '100000000000000000000001', vid = '100000000000000000000002', rid = '100000000000000000000003', ct = '100000000000000000000004';
+const emptyCompanyId = '100000000000000000000005', dashboardVisitId = '100000000000000000000006';
 const source = [{ _id: cid, company: 'Current company', location: 'Dallas', visits: [{ _id: vid, createdBy: 'test_script' }],
-  resources: [{ _id: rid }], contacts: [{}, { _id: ct }] }];
+  resources: [{ _id: rid }], contacts: [{}, { _id: ct }] },
+  { _id: emptyCompanyId, company: '', contactName: 'Contact', visits: [{ _id: dashboardVisitId }] }];
 const profiles = profileParityContext(source);
 const unknown = (mongo: unknown, postgres: unknown) => diffEntries(normalize(mongo), normalize(postgres))
   .filter(d => !knownWhy(d, { postgres: normalize(postgres), profiles }));
@@ -33,6 +35,22 @@ it('allows only the same midnight-UTC follow-up day and same single photo URL', 
   expect(unknown(m, { ...m, followUpDate: '2026-01-01', image: ['/uploads/same.jpg'] })).toEqual([]);
   expect(unknown(m, { ...m, followUpDate: '2026-01-02', image: ['/uploads/different.jpg'] })).toHaveLength(2);
   expect(unknown(m, { ...m, image: ['/uploads/same.jpg', '/uploads/extra.jpg'] })).toHaveLength(1);
+});
+
+it('recognizes the same source-proven conversions in batched standalone detail responses', () => {
+  expect(unknown([{ _id: vid, image: '/same.jpg', followUpDate: '2026-01-01T00:00:00.000Z', createdBy: 'test_script' }],
+    [{ _id: vid, image: ['/same.jpg'], followUpDate: '2026-01-01' }])).toEqual([]);
+  expect(unknown([{ _id: rid, customer: 'Old' }], [{ _id: rid, customer: 'Current company' }])).toEqual([]);
+  expect(unknown([{ _id: cid, image: '/same.jpg' }], [{ _id: cid, image: ['/same.jpg'] }])).toHaveLength(1);
+  expect(unknown([{ _id: vid, image: '/same.jpg' }], [{ _id: vid, image: ['/different.jpg'] }])).toHaveLength(1);
+});
+
+it('allows only the exact leading-separator change proved by the source empty-company customer', () => {
+  const row = { _id: dashboardVisitId, customerId: emptyCompanyId, customerName: ' - Contact' };
+  expect(unknown([row], [{ ...row, customerName: 'Contact' }])).toEqual([]);
+  expect(unknown([row], [{ ...row, customerName: 'Wrong contact' }])).toHaveLength(1);
+  expect(unknown([{ ...row, customerId: cid }], [{ ...row, customerId: cid, customerName: 'Contact' }])).toHaveLength(1);
+  expect(unknown([{ ...row, _id: cid }], [{ ...row, _id: cid, customerName: 'Contact' }])).toHaveLength(1);
 });
 
 it('applies the photo, follow-up and name allowances only to visits and resources', () => {

@@ -21,6 +21,10 @@ import type { CustomerList, CustomerListQuery } from '../src/db/customers/types.
 import type { Loose } from '../src/types/records.ts';
 import { addDays } from '../src/utils/customerList.ts';
 import { lookupCompareReads } from './pg-compare-lookups.ts';
+import { mapCalendarReads } from './pg-compare-map-calendar.ts';
+import { dashboardCompareReads } from './pg-compare-dashboard.ts';
+import { customerReadPreflight } from '../src/db/customers/readPreflight.ts';
+import { calendarParityContext } from '../src/db/customers/calendarParity.ts';
 
 const mongoUri = process.env.MONGO_URI;
 if (!mongoUri) { console.error('MONGO_URI is not set.'); process.exit(1); }
@@ -30,10 +34,14 @@ const noCopy = process.argv.includes('--no-copy');
 const pg = await openDb(pgUrl);
 await migrateDb(pg.db, pgUrl);
 let copiedCustomers: Loose[] | undefined;
+let copiedSchedules: Loose[] | undefined;
+let copiedUsers: Loose[] | undefined;
 if (!noCopy) {
   console.log('Reading MongoDB and copying into', pgUrl, '…');
   const source = await readMongo(mongoUri, 'pg-compare');
   copiedCustomers = source.customers;
+  copiedSchedules = source.schedules;
+  copiedUsers = source.users;
   const report = await copyFromMongo(pg.db, source, { write: true });
   console.log(`Copied ${Object.values(report.tables).reduce((a, b) => a + b, 0)} rows (${report.problems.length} problems reported by the copy).`);
 }
@@ -50,7 +58,7 @@ const ALL = 100_000;
  * Each read, with what it's asked. `prepare` evens out the order where equal sort keys
  * may tie differently, or where a known difference is set aside (README "Known differences").
  */
-const reads: { name: string; read: () => Promise<unknown>; prepare?: (v: unknown, mongo: unknown) => unknown }[] = [
+const reads: { name: string; read: () => Promise<unknown>; prepare?: (v: unknown, mongo: unknown) => unknown; calendarFeed?: boolean }[] = [
   { name: 'customers: dropdown, every field by id', read: () => customers.dropdownCustomers(), prepare: v => sortById(v as Rec[]) },
   { name: 'customers: cities', read: () => customers.customerCities() },
   { name: 'customers: every customer, every field by id', read: () => customers.customerPage({ page: 1, limit: ALL, search: '' }), prepare: pageById },
@@ -176,6 +184,15 @@ reads.unshift(...profileReads);
 const allCustomerIds = (await mongoose.connection.db!.collection('customers').find({}, { projection: { _id: 1 } })
   .sort({ _id: 1 }).toArray()).map(c => String(c._id));
 reads.push(...lookupCompareReads(profileIds, allCustomerIds, batched));
+const calendarFacts = calendarParityContext(copiedSchedules ?? await mongoose.connection.db!.collection('schedules').find({}).toArray(),
+  copiedUsers ?? await mongoose.connection.db!.collection('users').find({}, { projection: { _id: 1, location: 1 } }).toArray());
+console.log('Calendar source facts:', JSON.stringify({
+  convertedStartClocks: [...calendarFacts.bySchedule.values()].filter(s => s.startTime.normalized).length,
+  convertedEndClocks: [...calendarFacts.bySchedule.values()].filter(s => s.endTime.normalized).length,
+  missingSourceDefaults: [...calendarFacts.bySchedule.values()].filter(s => s.sourceMissing).length,
+  emptyCompanyCustomers: profileFacts.emptyCompanyNames.size
+}));
+reads.push(...await mapCalendarReads(calendarFacts), ...dashboardCompareReads(listBase.userId, listBase.today));
 // The response to a save shapes that saved record, so both twins get the same
 // source record here; only their uploader-name lookup reaches their database.
 const responseRecords = (copiedCustomers ?? await mongoose.connection.db!.collection('customers').find({}, { projection: { password: 0 } }).toArray())
@@ -185,9 +202,14 @@ for (const [label, people] of [['all', '*'], ['own', new Set(listBase.userId ? [
     read: () => batched(responseRecords, record => customers.customerRecordResponse(JSON.parse(record), { mayProfile: true, people })) });
 }
 
-let failed = 0;
+const preflight = customerReadPreflight(copiedCustomers ?? await mongoose.connection.db!.collection('customers').find({}).toArray());
+let failed = preflight.length ? 1 : 0;
+if (preflight.length) {
+  console.log(`✗ customer read cutover preconditions (${preflight.length} source problems; no numeric/range allowances)`);
+  for (const problem of preflight.slice(0, Number(process.env.DIFF_LIMIT || 15))) console.log(`    ${problem}`);
+} else console.log('✓ customer read cutover preconditions (no missing status or changed dashboard range days)');
 const known = new Map<string, { count: number; example: string }>();
-for (const { name, read, prepare } of reads) {
+for (const { name, read, prepare, calendarFeed } of reads) {
   process.env.DB_CUSTOMERS = 'mongo';
   const rawM = normalize(await read());
   process.env.DB_CUSTOMERS = 'postgres';
@@ -196,7 +218,7 @@ for (const { name, read, prepare } of reads) {
   const p = prepare ? prepare(rawP, rawM) : rawP;
   const all = diffEntries(m, p, 1_000_000);
   const unknown = all.filter(d => {
-    const why = knownWhy(d, { postgres: p, profiles: profileFacts });
+    const why = knownWhy(d, { postgres: p, profiles: profileFacts, calendar: calendarFacts, calendarFeed });
     if (!why) return true;
     const k = known.get(why) ?? { count: 0, example: `${name} → ${describeDifference(d)}` };
     k.count++;
@@ -222,5 +244,5 @@ if (known.size) {
 
 await mongoose.disconnect();
 await pg.close();
-console.log(failed ? `\n${failed} of ${reads.length} reads differ.` : `\nAll ${reads.length} reads answer the same.`);
+console.log(failed ? `\n${failed} of ${reads.length + 1} checks differ.` : `\nAll ${reads.length} reads answer the same; source preconditions pass.`);
 process.exit(failed ? 1 : 0);

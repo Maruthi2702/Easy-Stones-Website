@@ -19,7 +19,8 @@ const day = (value: Date | null) => value?.toISOString().slice(0, 10);
 const resourceDay = sql<string>`coalesce(${resources.resourceDate}::text, to_char(${resources.createdAt}, 'YYYY-MM-DD'), '')`;
 function dateWhere(column: SQL | typeof visits.visitDate, q: DashboardReadQuery): SQL | undefined {
   const start = day(q.startDate), end = day(q.endDate);
-  return and(start ? gte(column, start) : undefined, end ? lte(column, end) : undefined);
+  const expression = sql`${column}`;
+  return and(start ? gte(expression, start) : undefined, end ? lte(expression, end) : undefined);
 }
 
 export async function dashboardVisits(db: Db, q: DashboardReadQuery): Promise<Loose[]> {
