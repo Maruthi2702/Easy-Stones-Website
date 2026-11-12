@@ -29,3 +29,9 @@ are Add resource (the six reads after its commit rebuild the list) and Delete cu
 visits, resources and calendar entries one table at a time). Not changed: those twins are proved equal to the
 MongoDB saves by parity tests, and a guess at merging their statements isn't worth that. Measure on the real RDS
 before deciding (`npm run pg:ping`, then this count with the 38 ms replaced by what it shows).
+
+## Measured on production RDS (2026-11-12)
+
+`npm run pg:ping` on Render (Virginia) → prod RDS (Ohio): **12 ms per query** (not the 38 ms above), TLS 1.3,
+first connection 193 ms. With the same query counts: a screen load of 6 queries is about 0.1 s, Add resource
+(22) about 0.3 s, Delete customer (40) about 0.5 s. Nothing needs batching.

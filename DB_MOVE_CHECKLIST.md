@@ -115,13 +115,13 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [x] Prod RDS size: db.t4g.small Multi-AZ, 20 GB growing to a 100 GB cap, 7-day backups, ~$55/mo; size up when the CPU-credit or free-memory alarm fires (owner, 2026-11-10) — aws-infra 63e962d
 - [x] Prod without NAT gateways, master-password rotation off (~$65/mo saved) — aws-infra 9e29b41
 - [x] Prod in the same AWS account as dev; its $150 budget covers the account — aws-infra 4f36c4c
-- [x] Prod RDS lets the website on Render in (`database.publicAccess`, Render's 2 Virginia ranges, as dev) — aws-infra feat/prod-render-access; prod deployed 2026-11-12 (db `easy-surfaces-prod-db.cjukgckwuvzb.us-east-2.rds.amazonaws.com`; prod API / front end / CI stacks left off). Render not yet pointed at it: `npm run pg:ping` from Render still to do
+- [x] Prod RDS lets the website on Render in (`database.publicAccess`, Render's 2 Virginia ranges, as dev) — aws-infra feat/prod-render-access; prod deployed 2026-11-12 (db `easy-surfaces-prod-db.cjukgckwuvzb.us-east-2.rds.amazonaws.com`; prod API / front end / CI stacks left off). Render's `DATABASE_URL` now points at it; `npm run pg:ping` from Render: connected, 12 ms per query, 111 tables, 4,506 customers (2026-11-12)
 - [x] Deploy prod (owner ran it 2026-11-12); dev's $10 budget off in aws-infra config, waits for `make deploy ENV=dev` (owner)
 - [ ] Dev RDS: raise backups from 1 day, turn off delete-on-teardown (aws-infra)
 - [ ] Tables for the 2 collections not copied yet (`admins`, `crossoversheets`), or confirm they stay empty
 - [x] Users, roles, locations, visit / resource types copied MongoDB → Postgres on every change until they move (customers point at them) · src/db/reference/ (change stream + 10-minute safety net, started with `DB_CUSTOMERS=postgres`) — tested; not yet run against RDS
 - [x] A reverse copy script (Postgres → MongoDB) for going back during the 2 weeks after cutover · scripts/pg-reverse.ts, src/db/reverse/ — round trip proved on the live copy 2026-11-12 (README lists the few spellings that differ); not yet run against a real Atlas
-- [x] Speed: 38 ms per query Render (Virginia) → RDS (Ohio). Counted 2026-11-12 ([docs/db/customer-query-counts.md](docs/db/customer-query-counts.md)): every screen ≤ 6 queries (≈ 0.3 s at most); saves 6–22, delete customer 40 (≈ 1.6 s). Re-measure on the real RDS
+- [x] Speed: 38 ms per query Render (Virginia) → RDS (Ohio). Counted 2026-11-12 ([docs/db/customer-query-counts.md](docs/db/customer-query-counts.md)): every screen ≤ 6 queries (≈ 0.3 s at most); saves 6–22, delete customer 40 (≈ 1.6 s). Real RDS: 12 ms per query, so ≈ 0.1 s per screen and ≤ 0.5 s per save (docs/db/customer-query-counts.md)
 
 ## 4. Customer area cutover
 
