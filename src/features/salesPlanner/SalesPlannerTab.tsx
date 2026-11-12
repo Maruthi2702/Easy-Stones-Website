@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { toCustomerOptions, type CustomerOption } from '../../utils/customerOptions';
 import type { Loose } from '../../types/records';
@@ -7,7 +7,8 @@ import type { PlannerItem } from './plannerSchedule';
 import useActivityEditor from './useActivityEditor';
 import useEdgeFlip from './useEdgeFlip';
 import useMoveStop from './useMoveStop';
-import { ACTIVITY_COLORS, activityColor, customerName, dayKey, isCurrentPeriod, isSameDay, relativeDayLabel, timeLabel, titleFor } from './salesPlanner';
+import OptimizeRouteDialog from './components/OptimizeRouteDialog';
+import { ACTIVITY_COLORS, activityColor, customerName, dayKey, isCurrentPeriod, isSameDay, relativeDayLabel, shortDayTitle, timeLabel, titleFor } from './salesPlanner';
 import PlannerToolbar from './components/PlannerToolbar';
 import DayColumn from './components/DayColumn';
 import WeekendRail from './components/WeekendRail';
@@ -90,6 +91,13 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
         [itemsFor, justMe, me]
     );
     const onAdd = includesMe ? editor.openAdd : undefined;
+    // Optimize route: the day's stops that are yours (others' can't be moved) and still on.
+    const [optimizing, setOptimizing] = useState(false);
+    const optimizeItems = useMemo(
+        () => itemsFor(currentDate).filter((i) => isMine(i) && i.status !== 'Cancelled'),
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- isMine reads `me`
+        [itemsFor, currentDate, me]
+    );
     // The dashboard's + → Schedule activity: open the form once (only if it's your calendar too).
     // Once per request: the form's opener changes every render, so the ref stops a loop.
     const { openAdd: openAddForm } = editor;
@@ -136,6 +144,8 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 onViewMode={setViewMode}
                 onDate={setCurrentDate}
                 searchBox={searchBox}
+                onOptimize={includesMe ? () => setOptimizing(true) : undefined}
+                canOptimize={optimizeItems.length >= 2}
             />
 
             {loadError && (
@@ -216,6 +226,15 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
             {editor.showAddModal && (
                 <ActivityDialog editor={editor} customerOptions={effectiveCustomerOptions} isDropdownLoading={isDropdownLoading} itemsFor={ownItemsFor} />
+            )}
+
+            {optimizing && (
+                <OptimizeRouteDialog
+                    items={optimizeItems}
+                    dayTitle={relativeDayLabel(currentDate, today) || shortDayTitle(currentDate)}
+                    onClose={() => setOptimizing(false)}
+                    onChanged={onScheduleChange}
+                />
             )}
 
             {editor.showDeleteModal && (

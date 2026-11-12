@@ -102,7 +102,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       }
 
       const schedule = await Schedule.find(query)
-        .populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company')
+        .populate<{ customerId: Pick<CustomerData, 'company' | 'contactName' | 'coordinates'> | null }>('customerId', 'contactName company coordinates')
         .sort({ startTime: 1 });
 
       if (!nameOf) return res.json(schedule);
