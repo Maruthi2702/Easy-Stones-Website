@@ -26,6 +26,7 @@ import { ALL_PEOPLE } from '../utils/teamScope.ts';
 import { discoverICloudCalendars, syncICloudCalendar } from '../services/icloudSyncService.ts';
 import * as calendarData from '../db/customers/writes/schedule.ts';
 import { newId } from '../db/ids.ts';
+import { geocodePlace, hasGeocodingKey } from '../utils/geocode.ts';
 
 /**
  * Tell every open planner that this user's schedule moved.
@@ -114,6 +115,16 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       console.error('Fetch schedule error:', error);
       res.status(500).json({ message: 'Failed to fetch schedule' });
     }
+  });
+
+  // A typed place (home, a hotel, any address) as a point, for Optimize route's
+  // start / finish. Staff only; nothing is saved.
+  router.get('/schedule/place', verifyAnyAuth, validateScalarRequest, async (req, res) => {
+    if (!req.userId || req.user?.type === 'customer') return res.status(403).json({ message: 'Not allowed' });
+    if (!hasGeocodingKey()) return res.status(503).json({ message: 'Address lookup is not set up' });
+    const place = await geocodePlace(scalarQuery(req).q);
+    if (!place) return res.status(404).json({ message: 'Could not find that address — add the city and state.' });
+    res.json(place);
   });
 
   // Create schedule item. The rules are the server's (utils/scheduleRecord.js):

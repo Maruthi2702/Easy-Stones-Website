@@ -174,3 +174,21 @@ export const zipToCityState = async (zip: unknown) => {
     return { status: 'pending', error: String((error as Loose)?.message || error) };
   }
 };
+
+/**
+ * One typed place — "123 Main St, Kent WA", a hotel's name — as a point, for the
+ * planner's start / finish of a day. Not stored anywhere; null when Google has
+ * no answer or no key is set. Never throws.
+ */
+export const geocodePlace = async (text: unknown): Promise<{ lat: number; lng: number; formatted: string } | null> => {
+  const query = String(text || '').trim().slice(0, 200);
+  if (query.length < 4 || !hasGeocodingKey()) return null;
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&components=${encodeURIComponent('country:US')}&key=${geocodingKey()}`;
+    const body = await (await fetch(url, { signal: AbortSignal.timeout(8000) })).json();
+    const hit = body.status === 'OK' ? body.results?.[0] : null;
+    return hit ? { lat: hit.geometry.location.lat, lng: hit.geometry.location.lng, formatted: hit.formatted_address || query } : null;
+  } catch {
+    return null;
+  }
+};

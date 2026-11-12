@@ -46,6 +46,8 @@ export type RoutedStop = {
 
 export type RoutePlan = {
   stops: RoutedStop[];
+  /** The drive on to the finishing place, when one was asked for. */
+  finish: { miles: number; driveMinutes: number; arrive: Date } | null;
   milesBefore: number;
   milesAfter: number;
   /** Nothing would change (already the best order this finds). */
@@ -53,11 +55,12 @@ export type RoutePlan = {
 };
 
 const MINUTE = 60_000;
+export const DAY_START_HOUR = 9;
 /** Times are tidied to 5 minutes (rounded up) so the day reads cleanly. */
 const roundUp = (ms: number, step = 5 * MINUTE) => Math.ceil(ms / step) * step;
 
 /** Total miles driving the stops in this order, from `origin` when there is one. */
-export const routeMiles = (points: (LatLng | null)[], origin: LatLng | null): number => {
+export const routeMiles = (points: (LatLng | null)[], origin: LatLng | null, end: LatLng | null = null): number => {
   let from = origin;
   let total = 0;
   for (const p of points) {
@@ -65,12 +68,13 @@ export const routeMiles = (points: (LatLng | null)[], origin: LatLng | null): nu
     if (from) total += milesBetween(from, p);
     from = p;
   }
+  if (end && from) total += milesBetween(from, end);
   return Math.round(total * 10) / 10;
 };
 
 export function planDayRoute(
   stops: DayStop[],
-  { origin = null, mode = 'all', fixedIds = [] }: { origin?: LatLng | null; mode?: RouteMode; fixedIds?: string[] } = {},
+  { origin = null, end = null, mode = 'all', fixedIds = [], startAt }: { origin?: LatLng | null; end?: LatLng | null; mode?: RouteMode; fixedIds?: string[]; startAt?: number } = {},
 ): RoutePlan {
   const byTime = [...stops].sort((a, b) => a.start - b.start || a.id.localeCompare(b.id));
   const fixedSet = new Set(mode === 'fixed' ? fixedIds : []);
@@ -82,9 +86,27 @@ export function planDayRoute(
   const free = byTime.filter((s) => !keptReason(s));
 
   // The nearest-first order (with 2-opt) for the stops that can move.
-  const ordered = orderStops(free.map((s) => ({ s, coordinates: s.point })), origin).map((x) => x.s as DayStop);
+  let ordered = orderStops(free.map((s) => ({ s, coordinates: s.point })), origin).map((x) => x.s as DayStop);
+  // Finishing somewhere (back at the branch, say) changes which order is
+  // shortest: a 2-opt pass that counts the last leg too.
+  if (end && ordered.length > 1) {
+    const cost = (list: DayStop[]) => routeMiles(list.map((s) => s.point), origin, end);
+    for (let pass = 0; pass < 12; pass += 1) {
+      let improved = false;
+      for (let i = 0; i < ordered.length - 1; i += 1) {
+        for (let k = i + 1; k < ordered.length; k += 1) {
+          const candidate = [...ordered.slice(0, i), ...ordered.slice(i, k + 1).reverse(), ...ordered.slice(k + 1)];
+          if (cost(candidate) < cost(ordered) - 0.01) { ordered = candidate; improved = true; }
+        }
+      }
+      if (!improved) break;
+    }
+  }
 
-  const dayStart = byTime.length ? byTime[0].start : 0;
+  // The day opens at 9:00 AM (or `startAt`, e.g. now), never at whatever odd
+  // time an existing stop was saved at (a 1:38 AM stop used to start the day).
+  const nineAm = byTime.length ? new Date(byTime[0].start).setHours(DAY_START_HOUR, 0, 0, 0) : 0;
+  const dayStart = startAt ?? nineAm;
   let cursor = dayStart;
   let pos: LatLng | null = origin;
 
@@ -134,10 +156,18 @@ export function planDayRoute(
     r.changed = was.i !== i || was.start !== r.start.getTime();
   });
 
+  let finish: RoutePlan['finish'] = null;
+  if (end && pos) {
+    const miles = milesBetween(pos, end);
+    const drive = driveMinutes(miles);
+    finish = { miles: Math.round(miles * 10) / 10, driveMinutes: drive, arrive: new Date(roundUp(cursor + drive * MINUTE)) };
+  }
+
   return {
     stops: rows,
-    milesBefore: routeMiles(byTime.map((s) => s.point), origin),
-    milesAfter: routeMiles(rows.map((r) => stops.find((s) => s.id === r.id)!.point), origin),
+    finish,
+    milesBefore: routeMiles(byTime.map((s) => s.point), origin, end),
+    milesAfter: routeMiles(rows.map((r) => stops.find((s) => s.id === r.id)!.point), origin, end),
     unchanged: rows.every((r) => !r.changed),
   };
 }

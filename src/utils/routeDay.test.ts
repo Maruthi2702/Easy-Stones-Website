@@ -14,6 +14,16 @@ describe('planDayRoute', () => {
     expect(plan.milesAfter).toBeLessThan(plan.milesBefore);
   });
 
+  it('opens the day at 9 AM even when a stop was saved at an odd hour', () => {
+    const plan = planDayRoute([stop('a', 0, 1), stop('b', 4, 23)], { origin: null });
+    expect(plan.stops[0].start.getTime()).toBe(at(9));
+  });
+
+  it('opens at startAt when given (today, from now)', () => {
+    const plan = planDayRoute([stop('a', 0, 9), stop('b', 4, 10)], { origin: null, startAt: at(14, 20) });
+    expect(plan.stops[0].start.getTime()).toBe(at(14, 20));
+  });
+
   it('starts at the day\'s first time and lays times down with drive time between', () => {
     const plan = planDayRoute([stop('a', 0, 9), stop('b', 4, 11)], { origin: null });
     expect(plan.stops[0].start.getTime()).toBe(at(9));
@@ -63,5 +73,22 @@ describe('planDayRoute', () => {
     expect(planDayRoute([stop('a', 0, 9), stop('b', 4, 10)], { origin: p(-1) }).unchanged).toBe(false); // times tighten
     const plan = planDayRoute([stop('a', 0, 9)], { origin: null });
     expect(plan.unchanged).toBe(true);
+  });
+
+  it('counts the finishing place: the last stop is the one nearest it, and the drive there is reported', () => {
+    // Start and finish both at the west end: the far stop should come last... or the loop is shortest either way.
+    const plan = planDayRoute([stop('a', 2, 9), stop('b', 10, 10), stop('c', 5, 11)], { origin: p(0), end: p(0) });
+    expect(plan.finish).not.toBeNull();
+    expect(plan.finish!.arrive.getTime()).toBeGreaterThan(plan.stops[plan.stops.length - 1].end.getTime());
+    expect(plan.milesAfter).toBeLessThanOrEqual(plan.milesBefore);
+  });
+
+  it('ends the day at a far finishing place by ending on the stop nearest it', () => {
+    const plan = planDayRoute([stop('west', 1, 9), stop('east', 9, 10), stop('mid', 5, 11)], { origin: p(0), end: p(12) });
+    expect(plan.stops.map((s) => s.id)).toEqual(['west', 'mid', 'east']);
+  });
+
+  it('has no finish leg when none was asked for', () => {
+    expect(planDayRoute([stop('a', 0, 9), stop('b', 4, 10)]).finish).toBeNull();
   });
 });

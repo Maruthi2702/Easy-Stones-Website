@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigation, Lock, MapPinOff } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
-import { planDayRoute, type DayStop, type LatLng, type RouteMode } from '../../../utils/routeDay';
+import { FormField, FormPicker } from '../../../components/shared/form/FormControls';
+import { authFetch } from '../../../api/authFetch';
+import { API_URL } from '../../../config/api';
+import { timeOptions, timeText } from '../../../utils/visitSlots';
+import { DAY_START_HOUR, planDayRoute, type DayStop, type LatLng, type RouteMode } from '../../../utils/routeDay';
 import { DEFAULT_VISIT_MINUTES } from '../../../utils/scheduleRecord';
 import { forgetLocationOk, readLastPosition, rememberPosition } from '../../../utils/geolocationAccess';
 import { moveActivity } from '../salesPlannerApi';
+import { readPlaces, savePlace, type SavedPlace } from '../savedPlaces';
 import { patchPlannerItem, refreshPlannerSchedule, type PlannerItem } from '../plannerSchedule';
 import { customerName, customerOf, timeLabel } from '../salesPlanner';
 import './OptimizeRouteDialog.css';
@@ -21,6 +26,9 @@ const pointOf = (item: PlannerItem): LatLng | null => {
     const c = customerOf(item)?.coordinates as { lat?: unknown; lng?: unknown } | undefined;
     return Number.isFinite(c?.lat) && Number.isFinite(c?.lng) ? { lat: c!.lat as number, lng: c!.lng as number } : null;
 };
+
+const TIMES = timeOptions();
+const ADD = '__add__';
 
 const toStop = (item: PlannerItem): DayStop => {
     const start = new Date(item.startTime).getTime();
@@ -68,9 +76,76 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
 
     const byId = useMemo(() => new Map(items.map((i) => [String(i._id), i])), [items]);
     const stops = useMemo(() => items.map(toStop), [items]);
+    // When the day starts: 9:00, or the next quarter hour when it is today and later than that.
+    const dayMs = stops[0]?.start;
+    const [startTime, setStartTime] = useState(() => {
+        if (dayMs === undefined || new Date(dayMs).toDateString() !== new Date().toDateString()) return timeText(DAY_START_HOUR * 60);
+        const now = new Date();
+        const next = Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15;
+        return timeText(Math.min(20 * 60, Math.max(DAY_START_HOUR * 60, next)));
+    });
+    const startAt = useMemo(() => {
+        if (dayMs === undefined) return undefined;
+        const [h, m] = startTime.split(':').map(Number);
+        return new Date(dayMs).setHours(h, m, 0, 0);
+    }, [dayMs, startTime]);
+
+    // Where it starts and where it finishes: the rep's position, a branch, or (start) the day's first stop / (finish) wherever the last stop is.
+    const [branches, setBranches] = useState<{ name: string; point: LatLng }[]>([]);
+    const [from, setFrom] = useState('here');
+    const [to, setTo] = useState('last');
+    useEffect(() => {
+        let gone = false;
+        authFetch(`${API_URL}/api/admin/locations`)
+            .then((r) => (r.ok ? r.json() : []))
+            .then((list: { name?: string; coordinates?: { lat?: unknown; lng?: unknown } }[]) => {
+                if (gone || !Array.isArray(list)) return;
+                setBranches(list
+                    .filter((l) => l.name && Number.isFinite(l.coordinates?.lat) && Number.isFinite(l.coordinates?.lng))
+                    .map((l) => ({ name: l.name!, point: { lat: l.coordinates!.lat as number, lng: l.coordinates!.lng as number } }))
+                    .sort((a, b) => a.name.localeCompare(b.name)));
+            })
+            .catch(() => { /* the branch choices just aren't offered */ });
+        return () => { gone = true; };
+    }, []);
+    // Places the rep typed before (home, a hotel…), on this device; "Another address…" adds one.
+    const [places, setPlaces] = useState<SavedPlace[]>(() => readPlaces());
+    const [adding, setAdding] = useState<'from' | 'to' | null>(null);
+    const [addressText, setAddressText] = useState('');
+    const [labelText, setLabelText] = useState('');
+    const [finding, setFinding] = useState(false);
+    const [findError, setFindError] = useState('');
+    const pointFor = (value: string): LatLng | null => {
+        const place = places.find((p) => p.id === value);
+        return place ? { lat: place.lat, lng: place.lng } : branches.find((b) => b.name === value)?.point ?? null;
+    };
+    const startPoint = from === 'here' ? origin : from === 'first' ? null : pointFor(from);
+    const endPoint = to === 'last' ? null : pointFor(to);
+    const placeOptions = places.map((p) => ({ value: p.id, label: p.label }));
+    const fromOptions = [{ value: 'here', label: 'My current location' }, { value: 'first', label: 'The first stop' }, ...placeOptions, ...branches.map((b) => ({ value: b.name, label: b.name })), { value: ADD, label: 'Another address…' }];
+    const toOptions = [{ value: 'last', label: 'The last stop' }, ...placeOptions, ...branches.map((b) => ({ value: b.name, label: `Back to ${b.name}` })), { value: ADD, label: 'Another address…' }];
+    const pick = (which: 'from' | 'to') => (value: string) => {
+        if (value === ADD) { setAdding(which); setFindError(''); return; }
+        setAdding(null);
+        (which === 'from' ? setFrom : setTo)(value);
+    };
+    const findAddress = async () => {
+        setFinding(true); setFindError('');
+        try {
+            const res = await authFetch(`${API_URL}/api/schedule/place?q=${encodeURIComponent(addressText.trim())}`);
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) { setFindError(body.message || 'Could not find that address.'); return; }
+            const label = labelText.trim() || String(body.formatted).split(',').slice(0, 2).join(',');
+            const next = savePlace({ label, address: String(body.formatted), lat: body.lat, lng: body.lng });
+            setPlaces(next);
+            (adding === 'from' ? setFrom : setTo)(next[0].id);
+            setAdding(null); setAddressText(''); setLabelText('');
+        } catch { setFindError('Could not look that up — check your connection.'); } finally { setFinding(false); }
+    };
+
     const plan = useMemo(
-        () => planDayRoute(stops, { origin, mode, fixedIds: [...fixed] }),
-        [stops, origin, mode, fixed]
+        () => planDayRoute(stops, { origin: startPoint, end: endPoint, mode, fixedIds: [...fixed], startAt }),
+        [stops, startPoint, endPoint, mode, fixed, startAt]
     );
     const saved = Math.max(0, Math.round((plan.milesBefore - plan.milesAfter) * 10) / 10);
 
@@ -130,7 +205,7 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
         state === 'locating' ? 'Finding where you are…'
         : state === 'gps' ? 'Starting from where you are now.'
         : state === 'last' ? 'Location is off — starting from where you were last time.'
-        : 'Location is off — starting from the stop that fits the day best.';
+        : 'Location is off — pick a branch to start from, or the first stop.';
 
     return (
         <FormModal
@@ -141,7 +216,7 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
             submitLabel={plan.unchanged ? 'Already the best order' : 'Apply this order'}
             savingLabel="Applying…"
             saving={saving}
-            submitDisabled={plan.unchanged || state === 'locating'}
+            submitDisabled={plan.unchanged || (from === 'here' && state === 'locating')}
         >
             <div className="opt-modes" role="radiogroup" aria-label="How to order the day">
                 <button type="button" role="radio" aria-checked={mode === 'all'} className={`opt-mode${mode === 'all' ? ' is-on' : ''}`} onClick={() => setMode('all')}>
@@ -154,7 +229,35 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
                 </button>
             </div>
 
-            <p className="opt-note"><Navigation size={14} aria-hidden="true" /> {startNote}</p>
+            <div className="opt-where">
+                <FormField name="start" id="opt-start" label="Start time">
+                    <FormPicker id="opt-start" value={startTime} onChange={setStartTime} options={TIMES} sheetTitle="Start time" keepInForm />
+                </FormField>
+                <FormField name="from" id="opt-from" label="Start from">
+                    <FormPicker id="opt-from" value={from} onChange={pick('from')} options={fromOptions} sheetTitle="Start from" keepInForm />
+                </FormField>
+                <FormField name="to" id="opt-to" label="Finish at">
+                    <FormPicker id="opt-to" value={to} onChange={pick('to')} options={toOptions} sheetTitle="Finish at" keepInForm />
+                </FormField>
+            </div>
+            {adding && (
+                <div className="opt-add">
+                    <FormField name="addr" id="opt-addr" label={adding === 'from' ? 'Start address' : 'Finish address'}>
+                        <input id="opt-addr" className="fm-input no-capitalize" value={addressText} onChange={(e) => setAddressText(e.target.value)}
+                            placeholder="Street, city, state — or a hotel's name and city" autoFocus
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (addressText.trim().length >= 4 && !finding) findAddress(); } }} />
+                    </FormField>
+                    <FormField name="lbl" id="opt-lbl" label="Name it (optional)">
+                        <input id="opt-lbl" className="fm-input" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} value={labelText} onChange={(e) => setLabelText(e.target.value)} placeholder="Home, Hotel…" />
+                    </FormField>
+                    <div className="opt-add-actions">
+                        <button type="button" className="btn-secondary" onClick={() => setAdding(null)}>Cancel</button>
+                        <button type="button" className="btn-primary" onClick={findAddress} disabled={finding || addressText.trim().length < 4}>{finding ? 'Finding…' : 'Use this address'}</button>
+                    </div>
+                    {findError && <p className="opt-error" role="alert">{findError}</p>}
+                </div>
+            )}
+            {from === 'here' && <p className="opt-note"><Navigation size={14} aria-hidden="true" /> {startNote}</p>}
 
             <ol className="opt-list">
                 {plan.stops.map((s, i) => {
@@ -191,6 +294,9 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
                     ? <>Driving: {plan.milesBefore} mi now → <strong>{plan.milesAfter} mi</strong>{saved > 0 && <> (saves {saved} mi)</>}. Straight-line distances; real roads run a little longer.</>
                     : 'Straight-line distances; real roads run a little longer.'}
             </p>
+            {plan.finish && (
+                <p className="opt-summary">Last stop to {places.find((p) => p.id === to)?.label || to}: {plan.finish.miles} mi · {plan.finish.driveMinutes} min — you're there by <strong>{timeLabel(plan.finish.arrive)}</strong>.</p>
+            )}
             {error && <p className="opt-error" role="alert">{error}</p>}
         </FormModal>
     );
