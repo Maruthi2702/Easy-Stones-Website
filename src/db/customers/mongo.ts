@@ -398,3 +398,4 @@ export async function customerViewCounts({ tab, userId, today }: CustomerViewCou
 }
 
 export { mapCustomerPins, mapCustomerRecord, duplicateSignals, duplicateCustomers, calendarEntries } from './mapCalendar.mongo.ts';
+export { dashboardVisits, dashboardResources, dashboardRollups } from './dashboard.mongo.ts';

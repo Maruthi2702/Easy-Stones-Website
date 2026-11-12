@@ -100,3 +100,15 @@ export async function duplicateCustomers(ids: string[]) {
 export async function calendarEntries(query: import('./types.ts').CalendarReadQuery) {
   return onPostgres() ? pg.calendarEntries(await appDb(), query) : mongo.calendarEntries(query);
 }
+
+// Dashboard reads: scope and date boundaries are decided by the HTTP routes.
+export type { DashboardReadQuery, DashboardRollupQuery, DashboardRollups } from './types.ts';
+export async function dashboardVisits(q: import('./types.ts').DashboardReadQuery) {
+  return onPostgres() ? pg.dashboardVisits(await appDb(), q) : mongo.dashboardVisits(q);
+}
+export async function dashboardResources(q: import('./types.ts').DashboardReadQuery) {
+  return onPostgres() ? pg.dashboardResources(await appDb(), q) : mongo.dashboardResources(q);
+}
+export async function dashboardRollups(q: import('./types.ts').DashboardRollupQuery) {
+  return onPostgres() ? pg.dashboardRollups(await appDb(), q) : mongo.dashboardRollups(q);
+}

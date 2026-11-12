@@ -209,3 +209,4 @@ export async function customerViewCounts(db: Db, q: CustomerViewCountsQuery): Pr
 }
 
 export { mapCustomerPins, mapCustomerRecord, duplicateSignals, duplicateCustomers, calendarEntries } from './mapCalendar.postgres.ts';
+export { dashboardVisits, dashboardResources, dashboardRollups } from './dashboard.postgres.ts';

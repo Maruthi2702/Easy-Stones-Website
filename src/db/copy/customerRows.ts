@@ -250,8 +250,10 @@ export function customerRows(docs: Loose[], ref: ReferenceIndex, problems: CopyP
       }
       if (placement && placed.has(placement)) { rc.problem('placement_visit_id', 'visit already places another resource', 'blanked'); placement = null; }
       if (placement) placed.add(placement);
-      const uploader = idOf(r.uploadedBy);
-      if (r.uploadedBy && !(uploader && ref.userIds.has(uploader))) rc.problem('uploaded_by_id', 'not a user', 'blanked');
+      // Dashboard/profile ownership accepts legacy createdBy when uploadedBy is null/missing.
+      const uploaderValue = r.uploadedBy ?? r.createdBy;
+      const uploader = idOf(uploaderValue);
+      if (uploaderValue && !(uploader && ref.userIds.has(uploader))) rc.problem('uploaded_by_id', 'not a user', 'blanked');
       rows.resources.push({
         id: rid, customerId: id, position, placementVisitId: placement, resourceType,
         resourceDate: rc.day('resource_date', r.date, zone), title: textOf(r.title), description: textOf(r.description),
