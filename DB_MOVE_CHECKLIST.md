@@ -140,13 +140,15 @@ a module moves after the ones it reads. Only the tiny ones share a cutover. The 
 reading of the code: re-check each module's reads before starting it. Rough build time in
 brackets; Mongo's 2-week read-only soak for one module overlaps the build of the next.
 
-- [ ] Deliveries + Delivery Schedule (3–4 days; gets `customer_id` foreign keys)
-- [ ] Payments (1 day)
+- [ ] **Operations batch, one build and one cutover** (owner, 2026-11-12: "in 1 go"; about 9–11 days one after another, 4–5 with parallel agents). Daily Reports derives from the other three, so moving them together removes the half-and-half period. Each keeps its own switch (`DB_DELIVERIES`, `DB_PAYMENTS`, `DB_CHECKIN`, `DB_DAILY_REPORTS`) and all four flip in the same early-morning window; Daily Reports is verified last.
+  - [ ] Deliveries + Delivery Schedule (3–4 days; gets `customer_id` foreign keys)
+  - [ ] Payments (1 day)
+  - [ ] Check In + Selection Sheet (2 days)
+  - [ ] Daily Reports (3–4 days; the August 2026 incident applies, re-check `applyDerived` and submit)
+  - [ ] Rehearse all four together, then the cutover
 - [ ] Lost Sales (1 day)
 - [ ] Credit Card Receipts (1–2 days)
 - [ ] SPS import (1–2 days; runs and the runner)
-- [ ] Check In + Selection Sheet (2 days)
-- [ ] Daily Reports (3–4 days; after Deliveries, Payments and Check In, which it derives from; the August 2026 incident applies)
 - [ ] Inventory + Purchasing (3–4 days; stock imports use a transaction)
 - [ ] Cart & Holds (1–2 days; after Inventory, since holds lock slabs in `InventoryItems`)
 - [ ] Suppliers + supplier portal (2 days; after Inventory, since POs fill from transit shipments)
