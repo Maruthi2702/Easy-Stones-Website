@@ -133,18 +133,19 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [ ] `--lock` the copy so it can never overwrite live Postgres data
 - [ ] MongoDB customers kept read-only for 2 weeks; then removed
 
-## 5. The other areas, in order (each: data layer → parity → cutover, as above)
+## 5. The other areas, in batches (each: data layer → parity → cutover, as above)
 
-- [ ] Areas that point at customers: Deliveries + Delivery Schedule, Payments, Cart & Holds, Lost Sales, Credit Card Receipts, SPS import (get `customer_id` foreign keys)
-- [ ] Logs, backups, settings, imports
-- [ ] Accounting + Fuel Man
-- [ ] Inventory + Purchasing
-- [ ] Suppliers + supplier portal
-- [ ] Permits (already on Lambda)
-- [ ] Check In + Selection Sheet
-- [ ] Daily Reports
-- [ ] Team Files, products, colours, crossovers, contact form
-- [ ] Last: Users, Roles, Locations, sign-in, who's online (every request reads them)
+Drafted 2026-11-12 (my grouping, for the owner to confirm): the small areas share **one**
+cutover so there are 6 early-morning pauses, not 10. Mongo's 2-week read-only soak for one
+batch overlaps the build of the next. Rough build time per batch in brackets.
+
+- [ ] **Batch A, customer-linked** (4–6 days): Deliveries + Delivery Schedule, Payments, Cart & Holds, Lost Sales, Credit Card Receipts, SPS import (get `customer_id` foreign keys)
+- [ ] **Batch B, small areas, one cutover** (5–7 days): Logs, backups, settings, imports · Suppliers + supplier portal · Permits (already on Lambda) · Team Files, products, colours, crossovers, contact form
+- [ ] **Batch C, Check In + Selection Sheet** (2 days)
+- [ ] **Batch D, Daily Reports** (3–4 days; its own cutover after the August 2026 incident)
+- [ ] **Batch E, Accounting + Fuel Man** (3–4 days; transactions)
+- [ ] **Batch F, Inventory + Purchasing** (3–4 days; stock imports use a transaction)
+- [ ] **Last, Batch G: Users, Roles, Locations, sign-in, who's online** (3–5 days; every request reads them)
 
 ## 6. After every area has moved
 
