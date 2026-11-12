@@ -71,6 +71,13 @@
       "when": 1794186923047,
       "tag": "0009_misc",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794445200000,
+      "tag": "0010_schedule_legacy_clocks",
+      "breakpoints": true
     }
   ]
 }

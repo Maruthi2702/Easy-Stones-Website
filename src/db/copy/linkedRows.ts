@@ -4,6 +4,7 @@
  * merge backups (src/db/schema/customers.ts).
  */
 import { EJSON } from 'bson';
+import { scheduleClockMetadata } from '../customers/scheduleStart.ts';
 import type { Loose } from '../../types/records.ts';
 import type { schedules, activityLogs, customerDeleteBackups, customerMergeBackups } from '../schema/customers.ts';
 import type { ReferenceIndex } from './referenceRows.ts';
@@ -67,8 +68,9 @@ export function linkedRows(src: LinkedSource, ref: ReferenceIndex, cust: Custome
       c.problem(field, 'not an allowed value', 'converted');
       return fallback;
     };
+    const endsAt = c.localTime('ends_at', d.endTime, zone);
     rows.schedules.push({
-      id, userId, customerId, startsAt, endsAt: c.localTime('ends_at', d.endTime, zone),
+      id, userId, customerId, startsAt, legacyStartTime: scheduleClockMetadata(d.startTime, startsAt), endsAt, legacyEndTime: scheduleClockMetadata(d.endTime, endsAt),
       activityType: pick('activity_type', d.activityType, ACTIVITY_TYPES, 'Visit'), notes: textOf(d.notes),
       status: pick('status', d.status, STATUSES, 'Scheduled'), visitId, source: pick('source', d.source, SOURCES, 'manual'),
       ...stamp(c, d)

@@ -250,6 +250,11 @@ export const resourceAttachments = pgTable('resource_attachments', {
   url: text('url').notNull()
 }, t => [primaryKey({ columns: [t.resourceId, t.position] })]);
 
+export interface LegacyScheduleClock {
+  kind: 'string' | 'date';
+  value: string;
+}
+
 /** A rep's calendar entry at a customer (Sales Planner, Route Planner, visit log). */
 export const schedules = pgTable('schedules', {
   id: objectId('id').primaryKey(),
@@ -257,8 +262,12 @@ export const schedules = pgTable('schedules', {
   /** Null when the customer was deleted: the entry stays on the rep's calendar, as it does on MongoDB. */
   customerId: objectId('customer_id').references(() => customers.id),
   startsAt: localTime('starts_at').notNull(),
+  /** Raw legacy clock spelling/type keeps MongoDB's range membership and BSON sort order. */
+  legacyStartTime: jsonb('legacy_start_time').$type<LegacyScheduleClock>(),
   /** Null on old entries: counted as 30 minutes (DEFAULT_VISIT_MINUTES). */
   endsAt: localTime('ends_at'),
+  /** Raw end spelling is required by the ICS feed so a UTC instant cannot become a local time. */
+  legacyEndTime: jsonb('legacy_end_time').$type<LegacyScheduleClock>(),
   activityType: text('activity_type').notNull().default('Visit'),
   notes: text('notes').notNull().default(''),
   status: text('status').notNull().default('Scheduled'),

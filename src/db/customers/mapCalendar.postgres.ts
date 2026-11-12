@@ -5,6 +5,7 @@ import { customers, customerLinks, schedules, visits } from '../schema/customers
 import { locations, users } from '../schema/reference.ts';
 import { customerDoc, nonNull, repNameOf } from './customerDoc.ts';
 import { appLocalTime } from './writes/schedule.postgres.ts';
+import { scheduleClockText, scheduleClockIsString, scheduleClockKind } from './scheduleStart.ts';
 import type { CalendarReadQuery } from './types.ts';
 import type { Loose } from '../../types/records.ts';
 
@@ -69,18 +70,19 @@ export async function duplicateCustomers(db: Db, ids: string[]): Promise<Loose[]
 export async function calendarEntries(db: Db, { people, start, end, feed = false }: CalendarReadQuery): Promise<Loose[]> {
   const owner = people === '*' ? undefined : people.size ? inArray(schedules.userId, [...people].map(castId)) : sql`false`;
   // MongoDB compares the app's local clock strings lexically, including malformed query bounds.
-  const clock = sql`to_char(${schedules.startsAt}, 'YYYY-MM-DD"T"HH24:MI:SS.MS') collate "C"`;
+  const clock = scheduleClockText(), clockKind = scheduleClockKind();
   const rows = await db.select({ s: schedules, company: customers.company, contactName: customers.contactName })
     .from(schedules).leftJoin(customers, eq(customers.id, schedules.customerId))
-    .where(and(owner, start && end ? sql`${clock} >= ${start} and ${clock} <= ${end}` : undefined,
+    .where(and(owner, start && end ? and(scheduleClockIsString(), sql`${clock} >= ${start} and ${clock} <= ${end}`) : undefined,
       feed ? ne(schedules.status, 'Cancelled') : undefined))
-    .orderBy(...(feed ? [asc(schedules.id)] : [asc(schedules.startsAt), asc(schedules.id)]));
+    .orderBy(...(feed ? [asc(schedules.id)] : [asc(clockKind), asc(clock), asc(schedules.id)]));
   return rows.map(({ s, company, contactName }) => ({
     _id: s.id, userId: s.userId,
     customerId: contactName == null || !s.customerId ? null : {
       _id: s.customerId, company, contactName, ...(feed ? {} : { id: s.customerId })
     },
-    startTime: appLocalTime(s.startsAt), endTime: appLocalTime(s.endsAt), activityType: s.activityType,
+    startTime: feed && s.legacyStartTime ? s.legacyStartTime.value : appLocalTime(s.startsAt),
+    endTime: feed && s.legacyEndTime ? s.legacyEndTime.value : appLocalTime(s.endsAt), activityType: s.activityType,
     notes: s.notes, status: s.status, linkedVisitId: s.visitId ?? undefined, source: s.source,
     createdAt: s.createdAt, updatedAt: s.updatedAt
   }));
