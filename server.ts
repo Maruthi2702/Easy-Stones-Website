@@ -655,30 +655,6 @@ async function startServer() {
       console.error('Error closing up delivery stop numbers:', migError);
     }
 
-    // Database migration: assign every pre-existing customer to Seattle.
-    // The schema default only applies to documents created after it, so without
-    // this the records imported before the branch field existed would carry no
-    // location at all and drop out of every branch filter. Only fills records
-    // that have none, so it is a no-op on every boot after the first and can
-    // never overwrite a branch a rep has chosen.
-    //
-    // salesRep is deliberately left unset. Only a fraction of these records
-    // carry a createdBy, and "whoever typed it in" is not the same fact as "who
-    // owns the account" — a guess would put a wrong name on hundreds of records
-    // nobody would think to check. They read as Unassigned until someone says
-    // otherwise, which is what makes the Unassigned filter worth having.
-    try {
-      const seededLocations = await Customer.updateMany(
-        { $or: [{ location: { $exists: false } }, { location: null }, { location: '' }] },
-        { $set: { location: 'Seattle' } }
-      );
-      if (seededLocations.modifiedCount > 0) {
-        console.log(`🔄 Assigned ${seededLocations.modifiedCount} customers to the Seattle branch`);
-      }
-    } catch (migError) {
-      console.error('Error running customer location migration:', migError);
-    }
-
     // Database seeding: Default Locations
     try {
       const locationCount = await Location.countDocuments();
@@ -2757,7 +2733,7 @@ const getPerformerInfo = async (req: Request) => {
     name = user ? displayNameOf(user) : `Unknown User (${req.userId})`;
   } else if (req.authType === 'customer') {
     id = req.customerId!;
-    const customer = await Customer.findById(req.customerId).select('contactName email');
+    const customer = await customerData.customerAttribution(req.customerId!);
     name = customer ? (customer.contactName || customer.email) : `Unknown Customer (${req.customerId})`;
   }
 

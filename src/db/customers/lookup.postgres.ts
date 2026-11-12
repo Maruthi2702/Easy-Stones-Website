@@ -74,3 +74,9 @@ export async function customerPriceLevel(db: Db, id: string): Promise<Loose | nu
     .from(customers).where(eq(customers.id, idForQuery(id)));
   return row ?? null;
 }
+
+export async function customerAttribution(db: Db, id: string): Promise<Loose | null> {
+  const [row] = await db.select({ _id: customers.id, contactName: customers.contactName, email: customers.email })
+    .from(customers).where(eq(customers.id, idForQuery(id)));
+  return row ?? null;
+}

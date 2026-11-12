@@ -49,6 +49,10 @@ export async function customerContactsForMatching() {
   return onPostgres() ? pg.customerContactsForMatching(await appDb()) : mongo.customerContactsForMatching();
 }
 
+export async function customerAttribution(id: string) {
+  return onPostgres() ? pg.customerAttribution(await appDb(), id) : mongo.customerAttribution(id);
+}
+
 export async function customerPriceLevel(id: string) {
   return onPostgres() ? pg.customerPriceLevel(await appDb(), id) : mongo.customerPriceLevel(id);
 }
