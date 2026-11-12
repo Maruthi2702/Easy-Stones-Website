@@ -53,3 +53,32 @@ export interface CustomerHistoryScope {
 }
 
 export type CustomerHistoryKind = 'visits' | 'resources';
+
+/** Calendar visibility is resolved by the route (including team and People filters). */
+export interface CalendarReadQuery {
+  people: '*' | ReadonlySet<string>;
+  start?: string;
+  end?: string;
+  /** Private ICS feed: omit cancelled entries and use the original lean response shape. */
+  feed?: boolean;
+}
+
+/** Dashboard permission and People/location decisions stay in the route. Dates are inclusive calendar days. */
+export interface DashboardReadQuery {
+  people: CustomerHistoryScope['people'];
+  startDate: Date | null;
+  endDate: Date | null;
+  filterType?: string;
+}
+export interface DashboardRollupQuery extends DashboardReadQuery {
+  today: string;
+  userId?: string;
+}
+export interface DashboardRollups {
+  visits: number;
+  keyVisits: number;
+  bids: number;
+  resources: number;
+  leads: number;
+  todayScheduleCount: number;
+}

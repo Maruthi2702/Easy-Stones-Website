@@ -1,18 +1,15 @@
 import { Router } from 'express';
 import type { Request, RequestHandler, Response } from 'express';
 import mongoose from 'mongoose';
-import Customer from '../models/Customer.ts';
 import ResourceType from '../models/ResourceType.ts';
 import { canModifyVisit, canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from '../utils/visitAccess.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
 import { normalizeVisitDate } from '../utils/visitDates.ts';
 import { parseResourceQty, RESOURCE_QTY_MAX } from '../utils/resourceForm.ts';
 import { PlacementConflict } from '../services/resourcePlacement.ts';
-import { loadFamilies } from '../services/modaCount.ts';
 import * as customerData from '../db/customers/index.ts';
 import { ResourceError } from '../db/customers/writes/resources.rules.ts';
 import { newId } from '../db/ids.ts';
-import { modaSummary } from '../utils/modaTotals.ts';
 import { canViewCustomerProfile } from '../utils/customerAccess.ts';
 import type { Loose } from '../types/records.ts';
 
@@ -78,10 +75,9 @@ export default function createCustomerResourcesRouter(deps: Deps) {
       const allowed = canViewCustomerProfile(req.user) || ['add_visits', ...ANY_EDIT_VISIT_PERMISSIONS].some(key => permissions.includes(key));
       if (!allowed) return res.status(403).json({ message: 'You do not have access to this customer.' });
       if (!mongoose.isValidObjectId(req.params.customerId)) return res.status(404).json({ message: 'Customer not found' });
-      const customer = await Customer.findById(req.params.customerId)
-        .select('modaDisplay modaBinder modaEarlier resources._id resources.resourceType resources.title resources.qty resources.status resources.date').lean();
-      if (!customer) return res.status(404).json({ message: 'Customer not found' });
-      res.json(modaSummary(customer as Loose, (customer as Loose).resources, await loadFamilies()));
+      const summary = await customerData.customerModa(String(req.params.customerId));
+      if (!summary) return res.status(404).json({ message: 'Customer not found' });
+      res.json(summary);
     } catch (error) {
       console.error('Moda summary failed:', error);
       res.status(500).json({ message: 'Could not load the Moda counts.' });

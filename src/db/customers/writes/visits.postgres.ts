@@ -18,6 +18,7 @@ import { toLocalTime } from '../../copy/values.ts';
 import { attachmentUrls } from '../../copy/customerRows.ts';
 import { isId } from '../../ids.ts';
 import type { Loose } from '../../../types/records.ts';
+import { scheduleOnDay } from '../scheduleStart.ts';
 import { insertActivityLog } from './activityLog.ts';
 import type { ActivityEntry } from './activityLog.ts';
 import {
@@ -173,7 +174,7 @@ async function linkToSchedule(tx: Tx, o: {
   const [planned] = await tx.select().from(schedules)
     .where(and(
       eq(schedules.userId, uid), eq(schedules.customerId, o.customerId), eq(schedules.status, 'Scheduled'),
-      sql`${schedules.startsAt}::text like ${`${o.visitDate}%`}`
+      scheduleOnDay(o.visitDate)
     ))
     .orderBy(asc(schedules.startsAt), asc(schedules.id)).limit(1);
   if (planned) {

@@ -24,7 +24,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import type { ZodType } from 'zod';
 import InventoryItem from '../models/InventoryItem.ts';
-import Customer from '../models/Customer.ts';
+import { customerById } from '../db/customers/index.ts';
 import Location from '../models/Location.ts';
 import { letterheadFor } from '../utils/locationForm.ts';
 import { companyOf, contactOf, realEmailsOf } from '../utils/customerList.ts';
@@ -97,9 +97,7 @@ const lockedReason = (r: Loose) => `On Hold #${r.holdNumber}${r.by?.name ? ` (${
 // ── Customers ────────────────────────────────────────────────────────────
 
 async function customerSnapshot(customerId: string, session: mongoose.ClientSession | null = null) {
-  const q = Customer.findById(customerId).lean();
-  if (session) q.session(session);
-  const c = await q;
+  const c = await customerById(customerId, session);
   if (!c) throw new HttpError(400, 'That customer doesn’t exist.');
   const a = c.address || {};
   const cityLine = [a.city, [a.state, a.zipCode].filter(Boolean).join(' ')].filter(Boolean).join(', ');

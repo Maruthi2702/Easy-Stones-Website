@@ -32,6 +32,8 @@ const textArray = (name: string) => text(name).array().notNull().default(sql`'{}
 
 export const customers = pgTable('customers', {
   id: objectId('id').primaryKey(),
+  /** MongoDB's saved collection order for first-match lookups; new/restored customers append. */
+  matchOrder: integer('match_order').notNull().generatedByDefaultAsIdentity(),
   company: text('company').notNull().default(''),
   contactName: text('contact_name').notNull(),
   email: text('email').notNull(),
@@ -93,6 +95,7 @@ export const customers = pgTable('customers', {
   idFormat('customers'),
   uniqueIndex('customers_email_key').on(t.email),
   uniqueIndex('customers_sps_key_key').on(t.spsKey),
+  uniqueIndex('customers_match_order_key').on(t.matchOrder),
   check('customers_price_level', sql`price_level between 1 and 4`),
   check('customers_moda_binders', sql`moda_binders >= 0`),
   index('customers_location_status_idx').on(t.locationId, t.status),
@@ -250,6 +253,11 @@ export const resourceAttachments = pgTable('resource_attachments', {
   url: text('url').notNull()
 }, t => [primaryKey({ columns: [t.resourceId, t.position] })]);
 
+export interface LegacyScheduleClock {
+  kind: 'string' | 'date';
+  value: string;
+}
+
 /** A rep's calendar entry at a customer (Sales Planner, Route Planner, visit log). */
 export const schedules = pgTable('schedules', {
   id: objectId('id').primaryKey(),
@@ -257,8 +265,12 @@ export const schedules = pgTable('schedules', {
   /** Null when the customer was deleted: the entry stays on the rep's calendar, as it does on MongoDB. */
   customerId: objectId('customer_id').references(() => customers.id),
   startsAt: localTime('starts_at').notNull(),
+  /** Raw legacy clock spelling/type keeps MongoDB's range membership and BSON sort order. */
+  legacyStartTime: jsonb('legacy_start_time').$type<LegacyScheduleClock>(),
   /** Null on old entries: counted as 30 minutes (DEFAULT_VISIT_MINUTES). */
   endsAt: localTime('ends_at'),
+  /** Raw end spelling is required by the ICS feed so a UTC instant cannot become a local time. */
+  legacyEndTime: jsonb('legacy_end_time').$type<LegacyScheduleClock>(),
   activityType: text('activity_type').notNull().default('Visit'),
   notes: text('notes').notNull().default(''),
   status: text('status').notNull().default('Scheduled'),

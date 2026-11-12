@@ -238,7 +238,10 @@ export async function bulkDeleteCustomers(db: Db, ids: string[], deletedBy: stri
   const wanted = ids.map(i => i.toLowerCase());
   const batchId = newId();
   return db.transaction(async tx => {
-    const found = (await tx.select({ id: customers.id }).from(customers).where(inArray(customers.id, wanted))).map(r => r.id);
+    // The MongoDB _id/$in lookup yields the primary-index order used to create
+    // the backup batch. Preserve it so Undo's insertion precedence stays equal.
+    const found = (await tx.select({ id: customers.id }).from(customers).where(inArray(customers.id, wanted))
+      .orderBy(customers.id)).map(r => r.id);
     if (!found.length) return null;
     for (const id of found) await removeCustomerWithBackup(tx, id, { batchId, deletedBy, source: 'bulk' });
     return { deleted: found.length, missing: wanted.length - found.length, batchId };
@@ -249,8 +252,20 @@ export async function bulkDeleteCustomers(db: Db, ids: string[], deletedBy: stri
 export async function undoBulkDelete(db: Db, batchId: string, undoneBy: string): Promise<UndoDeleteResult | null> {
   return db.transaction(async tx => {
     const backups = await tx.select().from(customerDeleteBackups)
-      .where(and(eq(customerDeleteBackups.batchId, batchId), isNull(customerDeleteBackups.undoneAt)));
+      .where(and(eq(customerDeleteBackups.batchId, batchId), isNull(customerDeleteBackups.undoneAt)))
+      .orderBy(customerDeleteBackups.id).for('update');
     if (!backups.length) return null;
+
+    // MongoDB inserts this batch in backup creation order. Reserve positions in
+    // that order while retaining the reverse restoration needed by foreign keys.
+    const alreadyThere = new Set((await tx.select({ id: customers.id }).from(customers)
+      .where(inArray(customers.id, backups.map(b => b.customerId)))).map(r => r.id));
+    const wanted = backups.filter(b => !alreadyThere.has(b.customerId));
+    const reserved = wanted.length ? (await tx.execute(sql`select
+      nextval(pg_get_serial_sequence('customers', 'match_order'))::integer as ordinal
+      from generate_series(1, ${wanted.length}) as position order by position`) as unknown as { rows: { ordinal: number }[] }).rows : [];
+    const orderOf = new Map(wanted.map((b, i) => [b.customerId, reserved[i].ordinal]));
+    const restored: string[] = [];
 
     // One that clashes (its email or SPS key was taken since) fails alone and the rest go in.
     // Newest delete first: a customer deleted after another is back before the other needs it.
@@ -258,10 +273,14 @@ export async function undoBulkDelete(db: Db, batchId: string, undoneBy: string):
       if ((await tx.select({ id: customers.id }).from(customers).where(eq(customers.id, b.customerId))).length) continue;
       try {
         await tx.transaction(sp => restoreCustomerFromBackup(sp, b.customer as Loose, b.customerId));
+        restored.push(b.customerId);
       } catch (e) {
         if (!isUniqueViolation(e) && !(e as Loose)?.cannotRestore) throw e;
       }
     }
+    if (restored.length) await tx.update(customers).set({ matchOrder: sql`case ${customers.id}
+      ${sql.join(restored.map(id => sql`when ${id} then ${orderOf.get(id)!}::integer`), sql` `)}
+      else ${customers.matchOrder} end` }).where(inArray(customers.id, restored));
 
     const present = new Set((await tx.select({ id: customers.id }).from(customers)
       .where(inArray(customers.id, backups.map(b => b.customerId)))).map(r => r.id));

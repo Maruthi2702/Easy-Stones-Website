@@ -52,7 +52,8 @@ export function attachmentUrls(image: unknown): string[] {
   return [];
 }
 
-export function customerRows(docs: Loose[], ref: ReferenceIndex, problems: CopyProblem[]): { rows: CustomerRows; index: CustomerIndex } {
+export function customerRows(docs: Loose[], ref: ReferenceIndex, problems: CopyProblem[],
+  options: { preserveSourceOrder?: boolean } = {}): { rows: CustomerRows; index: CustomerIndex } {
   const rows: CustomerRows = {
     customers: [], customerLogins: [], customerContacts: [], customerLinks: [], visits: [],
     visitAttachments: [], visitReactions: [], visitFollowUpEvents: [], resources: [], resourceAttachments: []
@@ -122,6 +123,9 @@ export function customerRows(docs: Loose[], ref: ReferenceIndex, problems: CopyP
     const sps = d.sps || {};
     rows.customers.push({
       id, company: textOf(d.company), contactName: textOf(d.contactName), email: textOf(d.email).trim().toLowerCase(),
+      // Only a snapshot copy assigns source ordinals. Saves leave this out: updates
+      // retain their order and inserts/restores take the identity's next position.
+      ...(options.preserveSourceOrder ? { matchOrder: rows.customers.length + 1 } : {}),
       marketingEmail: textOf(d.marketingEmail), receiveMarketing: d.receiveMarketing !== false, phone: textOf(d.phone),
       status: textOf(d.status) || 'Onboarded', customerType: d.customerType ? String(d.customerType) : null,
       level: textOf(d.level) || 'Level - 3', priceLevel: numOrNull(d.priceLevel) ?? 1,
@@ -250,8 +254,10 @@ export function customerRows(docs: Loose[], ref: ReferenceIndex, problems: CopyP
       }
       if (placement && placed.has(placement)) { rc.problem('placement_visit_id', 'visit already places another resource', 'blanked'); placement = null; }
       if (placement) placed.add(placement);
-      const uploader = idOf(r.uploadedBy);
-      if (r.uploadedBy && !(uploader && ref.userIds.has(uploader))) rc.problem('uploaded_by_id', 'not a user', 'blanked');
+      // Dashboard/profile ownership accepts legacy createdBy when uploadedBy is null/missing.
+      const uploaderValue = r.uploadedBy ?? r.createdBy;
+      const uploader = idOf(uploaderValue);
+      if (uploaderValue && !(uploader && ref.userIds.has(uploader))) rc.problem('uploaded_by_id', 'not a user', 'blanked');
       rows.resources.push({
         id: rid, customerId: id, position, placementVisitId: placement, resourceType,
         resourceDate: rc.day('resource_date', r.date, zone), title: textOf(r.title), description: textOf(r.description),

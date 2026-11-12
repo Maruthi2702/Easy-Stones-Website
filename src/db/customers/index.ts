@@ -9,6 +9,7 @@ import * as mongo from './mongo.ts';
 import * as pg from './postgres.ts';
 import type { CustomerPageQuery, CustomerListQuery, CustomerViewCountsQuery, CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
 import type { Loose } from '../../types/records.ts';
+import type { ClientSession } from 'mongoose';
 
 export type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery,
   CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
@@ -27,8 +28,30 @@ export async function customerHistoryEntry(customerId: string, kind: CustomerHis
     : mongo.customerHistoryEntry(customerId, kind, entryId, people);
 }
 
-/** Customer writes still use MongoDB; shape the actual saved record, never an older Postgres copy. */
-export const customerRecordResponse = (record: Loose, scope: CustomerHistoryScope) => mongo.customerRecordResponse(record, scope);
+/** Shape the actual saved record; uploader names come from the database that saved it. */
+export const customerRecordResponse = async (record: Loose, scope: CustomerHistoryScope) =>
+  onPostgres() ? pg.customerRecordResponse(await appDb(), record, scope) : mongo.customerRecordResponse(record, scope);
+
+// Small reads shared by customer routes and the other areas' customer lookups.
+export async function customerVCard(id: string) {
+  return onPostgres() ? pg.customerVCard(await appDb(), id) : mongo.customerVCard(id);
+}
+
+export async function customerModa(id: string) {
+  return onPostgres() ? pg.customerModa(await appDb(), id) : mongo.customerModa(id);
+}
+
+export async function customerById(id: string, session: ClientSession | null = null) {
+  return onPostgres() ? pg.customerById(await appDb(), id) : mongo.customerById(id, session);
+}
+
+export async function customerContactsForMatching() {
+  return onPostgres() ? pg.customerContactsForMatching(await appDb()) : mongo.customerContactsForMatching();
+}
+
+export async function customerPriceLevel(id: string) {
+  return onPostgres() ? pg.customerPriceLevel(await appDb(), id) : mongo.customerPriceLevel(id);
+}
 
 export async function dropdownCustomers() {
   return onPostgres() ? pg.dropdownCustomers(await appDb()) : mongo.dropdownCustomers();
@@ -60,3 +83,32 @@ export * from './writes/schedule.ts';
 export * from './writes/merge.ts';
 export * from './writes/imports.ts';
 export * from './writes/sps.ts';
+
+// Route Planner, duplicate checks and calendar reads.
+export async function mapCustomerPins() {
+  return onPostgres() ? pg.mapCustomerPins(await appDb()) : mongo.mapCustomerPins();
+}
+export async function mapCustomerRecord(id: string) {
+  return onPostgres() ? pg.mapCustomerRecord(await appDb(), id) : mongo.mapCustomerRecord(id);
+}
+export async function duplicateSignals() {
+  return onPostgres() ? pg.duplicateSignals(await appDb()) : mongo.duplicateSignals();
+}
+export async function duplicateCustomers(ids: string[]) {
+  return onPostgres() ? pg.duplicateCustomers(await appDb(), ids) : mongo.duplicateCustomers(ids);
+}
+export async function calendarEntries(query: import('./types.ts').CalendarReadQuery) {
+  return onPostgres() ? pg.calendarEntries(await appDb(), query) : mongo.calendarEntries(query);
+}
+
+// Dashboard reads: scope and date boundaries are decided by the HTTP routes.
+export type { DashboardReadQuery, DashboardRollupQuery, DashboardRollups } from './types.ts';
+export async function dashboardVisits(q: import('./types.ts').DashboardReadQuery) {
+  return onPostgres() ? pg.dashboardVisits(await appDb(), q) : mongo.dashboardVisits(q);
+}
+export async function dashboardResources(q: import('./types.ts').DashboardReadQuery) {
+  return onPostgres() ? pg.dashboardResources(await appDb(), q) : mongo.dashboardResources(q);
+}
+export async function dashboardRollups(q: import('./types.ts').DashboardRollupQuery) {
+  return onPostgres() ? pg.dashboardRollups(await appDb(), q) : mongo.dashboardRollups(q);
+}

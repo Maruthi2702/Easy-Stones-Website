@@ -12,6 +12,8 @@ import type { Loose } from '../../types/records.ts';
 import { branchZone } from '../../config/branches.ts';
 import { contactIdFor } from '../copy/customerRows.ts';
 import { toLocalTime } from '../copy/values.ts';
+import { knownCalendarClock, knownCalendarDefault } from './calendarParity.ts';
+import type { calendarParityContext } from './calendarParity.ts';
 
 /** Source facts for the few profile conversions; never infer an allowance from SQL output alone. */
 export function profileParityContext(customers: Loose[]) {
@@ -19,14 +21,19 @@ export function profileParityContext(customers: Loose[]) {
   const customerNameByResource = new Map<string, string>();
   const generatedContactIds = new Set<string>();
   const invalidVisitAuthors = new Map<string, string>();
+  const visitIds = new Set<string>();
+  const resourceIds = new Set<string>();
+  const emptyCompanyNames = new Map<string, string>();
   for (const c of customers) {
     const zone = branchZone(c.location);
+    if (c.company === '' && c.contactName) emptyCompanyNames.set(String(c._id), String(c.contactName));
     for (const [position, contact] of (c.contacts || []).entries()) {
       const id = contact._id ? String(contact._id) : contactIdFor(String(c._id), position);
       zoneByEntry.set(id, zone);
       if (!contact._id) generatedContactIds.add(id);
     }
     for (const visit of c.visits || []) {
+      visitIds.add(String(visit._id));
       zoneByEntry.set(String(visit._id), zone);
       for (const r of visit.reactions || []) zoneByEntry.set(String(r._id), zone);
       if (typeof visit.createdBy === 'string' && visit.createdBy && !/^[a-f0-9]{24}$/i.test(visit.createdBy)) {
@@ -34,16 +41,19 @@ export function profileParityContext(customers: Loose[]) {
       }
     }
     for (const resource of c.resources || []) {
+      resourceIds.add(String(resource._id));
       zoneByEntry.set(String(resource._id), zone);
       customerNameByResource.set(String(resource._id), c.company || c.contactName || '');
     }
   }
-  return { zoneByEntry, customerNameByResource, generatedContactIds, invalidVisitAuthors };
+  return { zoneByEntry, customerNameByResource, generatedContactIds, invalidVisitAuthors, visitIds, resourceIds, emptyCompanyNames };
 }
 
 export interface ParityContext {
   postgres: unknown;
   profiles: ReturnType<typeof profileParityContext>;
+  calendar?: ReturnType<typeof calendarParityContext>;
+  calendarFeed?: boolean;
 }
 
 /** Closest containing record, including a visit around an id-less follow-up event. */
@@ -122,14 +132,29 @@ export function differences(a: unknown, b: unknown, limit = 20): string[] {
  * why (src/db/README.md, "Known differences"). Anything not matched here is a bug.
  */
 /** A field of a visit or resource: the whole response is that record, or it sits under visits.N / resources.N. */
-const entryField = (field: string, kinds: ('visits' | 'resources')[]) => (path: string) =>
-  path === field || new RegExp(`(^|\\.)(${kinds.join('|')})\\.\\d+\\.${field}$`).test(path);
+const entryField = (field: string, kinds: ('visits' | 'resources')[]) => (d: Difference, context?: ParityContext) => {
+  if (new RegExp(`(^|\\.)(${kinds.join('|')})\\.\\d+\\.${field}$`).test(d.path)) return true;
+  // A detail can be compared by itself or in the live comparator's batched array.
+  // Source ids prove its kind; a partner or an unrelated object's field is never allowed.
+  if (!new RegExp(`^(?:\\d+\\.)?${field}$`).test(d.path)) return false;
+  if (!context) return d.path === field;
+  const id = String(containingRecord(d, context)?._id);
+  return kinds.some(kind => (kind === 'visits' ? context.profiles.visitIds : context.profiles.resourceIds).has(id));
+};
 const isVisitFollowUpDate = entryField('followUpDate', ['visits']);
 const isEntryImage = entryField('image', ['visits', 'resources']);
 const isResourceCustomer = entryField('customer', ['resources']);
 const isVisitCreatedBy = entryField('createdBy', ['visits']);
 
 export const KNOWN_DIFFERENCES: { why: string; matches: (d: Difference, context?: ParityContext) => boolean }[] = [
+  {
+    why: 'legacy calendar clock copied to its source user branch, checked against the exact source value (normal reads only)',
+    matches: (d, context) => knownCalendarClock(d, context)
+  },
+  {
+    why: 'calendar lean feed exposes the exact model default for a field missing on that source entry',
+    matches: (d, context) => knownCalendarDefault(d, context)
+  },
   {
     why: 'saved without createdAt / updatedAt in MongoDB; Postgres has the time from its id',
     matches: d => /(^|\.)(createdAt|updatedAt)$/.test(d.path) && d.mongo === undefined && typeof d.postgres === 'string'
@@ -163,23 +188,33 @@ export const KNOWN_DIFFERENCES: { why: string; matches: (d: Difference, context?
   },
   {
     why: 'old follow-up day saved as midnight UTC, copied as the same calendar day',
-    matches: d => isVisitFollowUpDate(d.path) && typeof d.mongo === 'string' &&
+    matches: (d, context) => isVisitFollowUpDate(d, context) && typeof d.mongo === 'string' &&
       /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/.test(d.mongo) && d.postgres === d.mongo.slice(0, 10)
   },
   {
     why: 'legacy single photo URL, copied as a one-element attachment array with the same URL',
-    matches: d => isEntryImage(d.path) && typeof d.mongo === 'string' &&
+    matches: (d, context) => isEntryImage(d, context) && typeof d.mongo === 'string' &&
       Array.isArray(d.postgres) && d.postgres.length === 1 && d.postgres[0] === d.mongo
   },
   {
     why: 'resource customer name is the current parent name, rather than an old stored copy',
-    matches: (d, context) => isResourceCustomer(d.path) && typeof d.postgres === 'string' &&
+    matches: (d, context) => isResourceCustomer(d, context) && typeof d.postgres === 'string' &&
       context?.profiles.customerNameByResource.get(String(containingRecord(d, context)?._id)) === d.postgres
   },
   {
     why: 'a legacy visit author is not an account id, blanked by the copy (the author name stays)',
-    matches: (d, context) => isVisitCreatedBy(d.path) && d.postgres === undefined && typeof d.mongo === 'string' &&
+    matches: (d, context) => isVisitCreatedBy(d, context) && d.postgres === undefined && typeof d.mongo === 'string' &&
       context?.profiles.invalidVisitAuthors.get(String(containingRecord(d, context)?._id)) === d.mongo
+  },
+  {
+    why: 'dashboard customer name omits the old leading separator on an explicitly empty company',
+    matches: (d, context) => {
+      if (!/(^|\.)customerName$/.test(d.path) || !context) return false;
+      const record = containingRecord(d, context);
+      if (!context.profiles.visitIds.has(String(record?._id)) && !context.profiles.resourceIds.has(String(record?._id))) return false;
+      const name = context.profiles.emptyCompanyNames.get(String(record?.customerId));
+      return name !== undefined && d.mongo === ` - ${name}` && d.postgres === name;
+    }
   },
   {
     why: 'a contact without an id gets the copy\'s deterministic id',

@@ -15,16 +15,15 @@ import express from 'express';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import { randomBytes } from 'node:crypto';
-import Schedule from '../models/Schedule.ts';
-import Customer, { type CustomerData } from '../models/Customer.ts';
 import User from '../models/User.ts';
 import { calendarFeedToken, validCalendarFeedToken } from '../services/calendarFeed.ts';
 import { zonedTimeToUtc } from '../utils/dateUtils.ts';
 import { cleanScheduleFields, isObjectId, DEFAULT_VISIT_MINUTES } from '../utils/scheduleRecord.ts';
-import { calendarPeopleOf, idVariants } from '../services/teamDirectory.ts';
-import { ALL_PEOPLE } from '../utils/teamScope.ts';
+import { calendarPeopleOf } from '../services/teamDirectory.ts';
 import { discoverICloudCalendars, syncICloudCalendar } from '../services/icloudSyncService.ts';
 import * as calendarData from '../db/customers/writes/schedule.ts';
+import { calendarEntries } from '../db/customers/index.ts';
+import type { CalendarReadQuery } from '../db/customers/types.ts';
 import { newId } from '../db/ids.ts';
 
 /**
@@ -89,25 +88,19 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       const userId = req.userId || req.customerId;
       const { start, end } = requestQuery;
 
-      let query: Loose = { userId };
+      let people: CalendarReadQuery['people'] = new Set([String(userId)]);
       let nameOf = null;
       if (requestQuery.scope === 'team' && req.userId && req.user?.type !== 'customer') {
         const team = await calendarPeopleOf(req);
         nameOf = team.nameOf;
-        query = team.people === ALL_PEOPLE ? {} : { userId: { $in: [...team.people].flatMap(idVariants) } };
+        people = team.people;
       }
 
-      if (start && end) {
-        query.startTime = { $gte: start, $lte: end };
-      }
-
-      const schedule = await Schedule.find(query)
-        .populate<{ customerId: Pick<CustomerData, 'company' | 'contactName' | 'coordinates'> | null }>('customerId', 'contactName company coordinates')
-        .sort({ startTime: 1 });
+      const schedule = await calendarEntries({ people, start, end });
 
       if (!nameOf) return res.json(schedule);
       res.json(schedule.map((item) => {
-        const doc = item.toObject();
+        const doc = item.toObject ? item.toObject() : item;
         return { ...doc, ownerName: nameOf.get(String(doc.userId)) || '' };
       }));
     } catch (error) {
@@ -342,12 +335,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
       }
 
       // Find all scheduled activities for this user (exclude cancelled ones)
-      const schedules = await Schedule.find({
-        userId,
-        status: { $ne: 'Cancelled' }
-      })
-        .populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company')
-        .lean();
+      const schedules = await calendarEntries({ people: new Set([userId]), feed: true });
 
       // Helper to format Date objects / strings to iCal date format (YYYYMMDDTHHmmssZ)
       const formatIcsDate = (dateVal: Date | string | null | undefined) => {

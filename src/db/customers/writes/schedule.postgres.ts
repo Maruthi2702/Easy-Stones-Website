@@ -7,15 +7,16 @@
  * Times: an entry's start / end are local clock strings. The copy keeps a local
  * string's clock as written and reads one with a zone (a Google or iCloud import) on
  * the rep's home branch's clock — `toLocalTime`, the copy's own converter, does both
- * here too. Postgres keeps no spelling of the time, so an answer gives it as
- * 'YYYY-MM-DDTHH:mm:ss.SSS', the shape every screen sends.
+ * here too. Ordinary replies use 'YYYY-MM-DDTHH:mm:ss.SSS'. Legacy source
+ * spellings/types are retained separately for exact range matching and ICS feeds.
  */
-import { and, asc, eq, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../../copy/plan.ts';
 import { schedules, customers, visits } from '../../schema/customers.ts';
 import { users, locations } from '../../schema/reference.ts';
 import { toLocalTime } from '../../copy/values.ts';
 import { customerRows } from '../../copy/customerRows.ts';
+import { scheduleClockMetadata, scheduleOnDay, scheduleValidationClock } from '../scheduleStart.ts';
 import { branchZone } from '../../../config/branches.ts';
 import Customer from '../../../models/Customer.ts';
 import { cleanScheduleFields } from '../../../utils/scheduleRecord.ts';
@@ -43,8 +44,9 @@ export function appLocalTime(value: string | null): string | undefined {
   return `${day}T${hms}.${fraction.padEnd(3, '0').slice(0, 3)}`;
 }
 
-/** Two stored times are the same moment on the clock (Postgres drops trailing zeros when it reads one back). */
-const sameTime = (a: string | null, b: string | null) => appLocalTime(a) === appLocalTime(b);
+/** A sync compares the saved String path spelling, not merely the normalized clock. */
+const sameSpelling = (legacy: Row['legacyStartTime'], stored: string | null, raw: unknown) =>
+  scheduleValidationClock(legacy, appLocalTime(stored)) === raw;
 
 /** A rep's clock: their home branch's (the copy's `zoneOfUser`). */
 async function zoneOfUser(db: Db, userId: string): Promise<string> {
@@ -95,8 +97,14 @@ const readEntry = async (db: Db, id: string) => (await readEntries(db, eq(schedu
 function columnsFor(fields: EntryFields, zone: string): Partial<typeof schedules.$inferInsert> {
   const out: Partial<typeof schedules.$inferInsert> = {};
   if (fields.customerId !== undefined) out.customerId = castId(fields.customerId, 'customerId');
-  if (fields.startTime !== undefined) out.startsAt = localTime(fields.startTime, zone)!;
-  if (fields.endTime !== undefined) out.endsAt = localTime(fields.endTime, zone);
+  if (fields.startTime !== undefined) {
+    out.startsAt = localTime(fields.startTime, zone)!;
+    out.legacyStartTime = scheduleClockMetadata(fields.startTime, out.startsAt);
+  }
+  if (fields.endTime !== undefined) {
+    out.endsAt = localTime(fields.endTime, zone);
+    out.legacyEndTime = scheduleClockMetadata(fields.endTime, out.endsAt);
+  }
   if (fields.activityType !== undefined) out.activityType = fields.activityType;
   if (fields.notes !== undefined) out.notes = fields.notes ?? '';
   if (fields.status !== undefined) out.status = fields.status;
@@ -133,19 +141,9 @@ export async function createCalendarEntry(db: Db, userId: string, id: string, fi
   });
 }
 
-/** The day's range on a local clock: [date 00:00, next day 00:00). */
-const dayRange = (date: string) => {
-  const next = new Date(`${date}T00:00:00Z`);
-  next.setUTCDate(next.getUTCDate() + 1);
-  return [`${date} 00:00:00`, `${next.toISOString().slice(0, 10)} 00:00:00`] as const;
-};
-
-/** The route planner's own stops on a day (never an entry typed in by hand). */
-const plannedOn = (userId: string, date: string) => {
-  const [from, to] = dayRange(date);
-  return and(eq(schedules.userId, userId), eq(schedules.source, 'route_planner'),
-    gte(schedules.startsAt, from), lt(schedules.startsAt, to));
-};
+/** The planner's own raw string-day prefix, as MongoDB's anchored regex matches it. */
+const plannedOn = (userId: string, date: string) =>
+  and(eq(schedules.userId, userId), eq(schedules.source, 'route_planner'), scheduleOnDay(date));
 
 /** POST /api/schedule/bulk, from the one-stop repeat check on. */
 export async function planRouteDay(db: Db, userId: string, input: PlanDayInput): Promise<PlanDayResult> {
@@ -197,7 +195,10 @@ export async function updateCalendarEntry(db: Db, userId: string, id: string, bo
       .where(and(eq(schedules.id, castId(id)), eq(schedules.userId, owner))).for('update');
     if (!row) return { kind: 'notFound' } as const;
 
-    const { fields, error } = cleanScheduleFields(body, { startTime: appLocalTime(row.startsAt), endTime: appLocalTime(row.endsAt) });
+    const { fields, error } = cleanScheduleFields(body, {
+      startTime: scheduleValidationClock(row.legacyStartTime, appLocalTime(row.startsAt)),
+      endTime: scheduleValidationClock(row.legacyEndTime, appLocalTime(row.endsAt))
+    });
     if (error) return { kind: 'invalid', message: error } as const;
     if (fields!.customerId && !(await customerExists(tx, fields!.customerId))) return { kind: 'noCustomer' } as const;
 
@@ -220,12 +221,15 @@ export async function deleteCalendarEntry(db: Db, userId: string, id: string): P
 
 /** POST /api/admin/schedule/backfill-completed: one transaction per entry, as MongoDB saves each alone. */
 export async function backfillCompletedEntries(db: Db): Promise<BackfillResult> {
-  const pending = await db.select({ id: schedules.id, customerId: schedules.customerId, startsAt: schedules.startsAt })
+  const pending = await db.select({ id: schedules.id, customerId: schedules.customerId, startsAt: schedules.startsAt, legacyStartTime: schedules.legacyStartTime })
     .from(schedules).where(eq(schedules.status, 'Scheduled')).orderBy(asc(schedules.id));
   const linked: BackfillResult['linked'] = [];
   for (const entry of pending) {
     if (!entry.customerId) continue;
-    const day = entry.startsAt.slice(0, 10);
+    // A hydrated legacy BSON Date becomes Date.toString(), whose first ten characters are not a visit day.
+    if (entry.legacyStartTime?.kind === 'date') continue;
+    const day = (entry.legacyStartTime?.value ?? entry.startsAt).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
     const [visit] = await db.select({ id: visits.id }).from(visits)
       .where(and(eq(visits.customerId, entry.customerId), eq(visits.visitDate, day)))
       .orderBy(asc(visits.position)).limit(1);
@@ -301,15 +305,15 @@ export async function importGoogleEvent(db: Db, userId: string, gEvent: GoogleEv
     const endsAt = localTime(endTime, zone);
 
     if (existingImport) {
-      if (sameTime(existingImport.startsAt, startsAt) && sameTime(existingImport.endsAt, endsAt) && existingImport.notes === notes) return false;
-      await tx.update(schedules).set({ startsAt, endsAt, notes, updatedAt: new Date() }).where(eq(schedules.id, existingImport.id));
+      if (sameSpelling(existingImport.legacyStartTime, existingImport.startsAt, startTime) && sameSpelling(existingImport.legacyEndTime, existingImport.endsAt, endTime) && existingImport.notes === notes) return false;
+      await tx.update(schedules).set({ startsAt, legacyStartTime: scheduleClockMetadata(startTime, startsAt), endsAt, legacyEndTime: scheduleClockMetadata(endTime, endsAt), notes, updatedAt: new Date() }).where(eq(schedules.id, existingImport.id));
       return true;
     }
 
     const now = new Date();
     await tx.insert(schedules).values({
       id: castId(ids.entryId), userId: owner, customerId: await syncCustomerId(tx, 'google', castId(ids.customerId)),
-      startsAt, endsAt, activityType: 'Other', notes, status: 'Scheduled', createdAt: now, updatedAt: now
+      startsAt, legacyStartTime: scheduleClockMetadata(startTime, startsAt), endsAt, legacyEndTime: scheduleClockMetadata(endTime, endsAt), activityType: 'Other', notes, status: 'Scheduled', createdAt: now, updatedAt: now
     });
     return true;
   });
@@ -329,8 +333,8 @@ export async function importICloudEvent(db: Db, userId: string, event: ICloudEve
 
     if (existingImport) {
       // MongoDB saves only what changed, and nothing (not even updatedAt) when nothing did.
-      if (!sameTime(existingImport.startsAt, startsAt) || !sameTime(existingImport.endsAt, endsAt) || existingImport.notes !== notes) {
-        await tx.update(schedules).set({ startsAt, endsAt, notes, updatedAt: new Date() }).where(eq(schedules.id, existingImport.id));
+      if (!sameSpelling(existingImport.legacyStartTime, existingImport.startsAt, event.startTime.toISOString()) || !sameSpelling(existingImport.legacyEndTime, existingImport.endsAt, (event.endTime ?? event.startTime).toISOString()) || existingImport.notes !== notes) {
+        await tx.update(schedules).set({ startsAt, legacyStartTime: scheduleClockMetadata(event.startTime.toISOString(), startsAt), endsAt, legacyEndTime: scheduleClockMetadata((event.endTime ?? event.startTime).toISOString(), endsAt), notes, updatedAt: new Date() }).where(eq(schedules.id, existingImport.id));
       }
       return false;
     }
@@ -338,7 +342,7 @@ export async function importICloudEvent(db: Db, userId: string, event: ICloudEve
     const now = new Date();
     await tx.insert(schedules).values({
       id: castId(ids.entryId), userId: owner, customerId: await syncCustomerId(tx, 'icloud', castId(ids.customerId)),
-      startsAt, endsAt, activityType: 'Other', notes, status: 'Scheduled', createdAt: now, updatedAt: now
+      startsAt, legacyStartTime: scheduleClockMetadata(event.startTime.toISOString(), startsAt), endsAt, legacyEndTime: scheduleClockMetadata((event.endTime ?? event.startTime).toISOString(), endsAt), activityType: 'Other', notes, status: 'Scheduled', createdAt: now, updatedAt: now
     });
     return true;
   });

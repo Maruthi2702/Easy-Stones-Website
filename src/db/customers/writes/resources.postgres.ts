@@ -27,6 +27,7 @@ import {
 } from '../../../utils/modaTotals.ts';
 import { YMD_RE } from '../../../utils/visitDates.ts';
 import type { Loose } from '../../../types/records.ts';
+import { scheduleOnDay } from '../scheduleStart.ts';
 import { insertActivityLog } from './activityLog.ts';
 import {
   ResourceError, type AddResourceInput, type UpdateResourceInput, type DeleteResourceInput,
@@ -166,7 +167,7 @@ async function linkVisit(tx: Db, o: { customerId: string; visitId: string; visit
 
   const [planned] = await tx.select({ id: schedules.id, userId: schedules.userId }).from(schedules)
     .where(and(eq(schedules.userId, userId), eq(schedules.customerId, customerId), eq(schedules.status, 'Scheduled'),
-      sql`${schedules.startsAt}::date = ${visitDate}::date`)).orderBy(asc(schedules.id)).limit(1);
+      scheduleOnDay(visitDate))).orderBy(asc(schedules.id)).limit(1);
   if (planned) {
     await tx.update(schedules).set({ status: 'Completed', visitId, updatedAt: new Date() }).where(eq(schedules.id, planned.id));
     events.push({ type: 'upsert', userId: planned.userId, id: planned.id });

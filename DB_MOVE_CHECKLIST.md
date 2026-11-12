@@ -21,15 +21,11 @@ flips with `DB_CUSTOMERS=postgres` (src/db/customers/writes/README.md). So the w
 below is **one short pause at cutover**, not per-route switching (per-route would mean two
 databases each holding half the writes). Approving this ticks "Agree the write plan" in §2.
 
-1. **Finish customer reads (§1) — another agent has this** (all 11 remaining reads in one batch on one
-   branch: shared loaders built once, existing permissions kept, each endpoint tested, full checks plus
-   read-only live comparison across the batch; one combined change to review, production stays on
-   MongoDB until cutover is authorised; estimation only so far, nothing changed). Don't start these in
-   another session. Suggested order within it, each by the 6-step pattern above:
-   vCard, Moda summary, possible-duplicates, then Route Planner map (3 routes), then
-   dashboard stats / visits / follow-ups / resources, then schedule + `.ics`, then the
-   lookups in Cart & Holds, Permits and public product prices. Tick `customerRecordResponse`
-   once create/edit answer from the data layer.
+1. **Customer reads (§1) are complete on `feat/pg-customer-reads`** (2026-11-12),
+   ready for one combined review. All 11 items have Mongo/Postgres implementations,
+   parity/HTTP checks and read-only live comparisons. Results and per-item commits:
+   [`docs/db/customer-reads-report.md`](docs/db/customer-reads-report.md).
+   Merge and production cutover still need the owner’s go-ahead.
 2. **Close the start-up jobs (§2):** retire the location backfill; move marketing-email
    migration into `/api/customer/register` and calendar sync, then retire it.
 3. **Prerequisites (§3), the ones that block a rehearsal:** copy users / roles / locations /
@@ -66,17 +62,21 @@ Parallel, not database: set a real `JWT_SECRET` on Render and rotate the pasted 
 - [x] `GET /api/customers/list` — the Customers page (filters, saved views, A–Z, sorts, Moda) — ca03b24
 - [x] `GET /api/customers/view-counts` — the saved-view counts — 8ecace4
 - [x] `GET /api/customers/:id` + `/:customerId/{visits,resources}/:entryId` — the profile, including nested contacts (`customerHistoryResponse`) · src/routes/customerHistory.ts — 2c73456, ebb6bd4
-- [ ] `customerRecordResponse` (the profile-shaped reply of create/edit; always MongoDB until customer writes move) · src/db/customers/index.ts
-- [ ] `GET /api/customers/:id/vcard` · server.ts
-- [ ] `GET /api/customers/:customerId/moda` · src/routes/customerResources.ts
-- [ ] `GET /api/customers/map`, `/map/rep-counts`, `/map/:id` — Route Planner · src/routes/customerMap.ts
-- [ ] `POST /api/customers/possible-duplicates` · server.ts
-- [ ] `GET /api/dashboard/stats` — tiles and follow-up counts · server.ts
-- [ ] `GET /api/dashboard/visits` · server.ts
-- [ ] `GET /api/dashboard/followups` + `/followups/panel` · server.ts
-- [ ] `GET /api/dashboard/resources` · server.ts
-- [ ] `GET /api/schedule` + the calendar `.ics` feed (`schedules` + customer names) · src/routes/schedule.ts
-- [ ] Customer lookups in other areas: Cart & Holds (`holds/router.ts`), Permits' "is a customer" (`permits/router.ts`), public product prices (`routes/publicProducts.ts`)
+- [x] `customerRecordResponse` (the profile-shaped reply of create/edit; shapes the saved record using the selected database) · src/db/customers/index.ts — on feat/pg-customer-reads, d9a9b54
+- [x] `GET /api/customers/:id/vcard` · server.ts — on feat/pg-customer-reads, d9a9b54
+- [x] `GET /api/customers/:customerId/moda` · src/routes/customerResources.ts — on feat/pg-customer-reads, d9a9b54
+- [x] `GET /api/customers/map`, `/map/rep-counts`, `/map/:id` — Route Planner · src/routes/customerMap.ts — on feat/pg-customer-reads, bb22ed8
+- [x] `POST /api/customers/possible-duplicates` · server.ts — on feat/pg-customer-reads, bb22ed8, 677f0ec
+- [x] `GET /api/dashboard/stats` — tiles and follow-up counts · server.ts — on feat/pg-customer-reads, 7d6639e
+- [x] `GET /api/dashboard/visits` · server.ts — on feat/pg-customer-reads, 7d6639e
+- [x] `GET /api/dashboard/followups` + `/followups/panel` · server.ts — on feat/pg-customer-reads, 7d6639e
+- [x] `GET /api/dashboard/resources` · server.ts — on feat/pg-customer-reads, 7d6639e
+- [x] `GET /api/schedule` + the calendar `.ics` feed (`schedules` + customer names) · src/routes/schedule.ts — on feat/pg-customer-reads, bb22ed8, d945d55
+- [x] Customer lookups in other areas: Cart & Holds (`holds/router.ts`), Permits' "is a customer" (`permits/router.ts`), public product prices (`routes/publicProducts.ts`) — on feat/pg-customer-reads, d9a9b54, 677f0ec
+
+Verified on Node 24.22.1: 3,762 tests passed (4 skipped), typecheck and health check
+passed, independent review found no MongoDB behavior changes, and all 160 live read
+comparisons matched with documented conversions only. No RDS writes or cutover.
 
 ## 2. Customer area: writes
 
@@ -106,6 +106,7 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [x] Type lists: moving / deleting a visit or resource type rewrites customers · src/services/typeReplacement.ts, seedTypeLists.ts — on main, ac96de3
 - [x] Geocoding job (fills a customer's map point) · src/services/customerGeocoding.ts — on main, 966e5cf
 - [x] iCloud / Google calendar sync · src/services/icloudSyncService.ts, schedule.ts — on main, 7737178
+- [ ] Customer-write attribution: `getPerformerInfo` in server.ts still reads a customer name directly from MongoDB; route it through the existing customer data layer before cutover
 - [ ] Start-up jobs that touch customers · server.ts — location backfill: finished, retire it; marketing-email migration: keep on MongoDB until cutover, then retire it and have `/api/customer/register` and the calendar-sync customer set `marketingEmail` themselves
 - [x] A user renamed → customers' rep name (gone in Postgres: it's a join) · server.ts — on main, 66a5b31
 
@@ -124,7 +125,7 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 
 ## 4. Customer area cutover
 
-- [ ] RDS schema up to date: `pg-copy-aws.ts --deploy` after any change in `drizzle/` (the copy applies migrations)
+- [ ] RDS schema up to date: `pg-copy-aws.ts --deploy` after any change in `drizzle/` (the copy applies migrations; this read batch adds 0010 calendar clocks and 0011 customer matching order)
 - [ ] Rehearse on a copy: every customer screen opened with `DB_CUSTOMERS=postgres` (local, PGlite or local Postgres)
 - [ ] Early morning: pause customer writes
 - [ ] `pg-copy-aws.ts --write`, then `--verify`: equal

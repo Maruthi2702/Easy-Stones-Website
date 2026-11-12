@@ -39,7 +39,7 @@ export function emptySource(): CopySource {
 /** Every table this copy fills, parents before children (the insert order). */
 export function copyPlan(src: CopySource, problems: CopyProblem[]) {
   const ref = referenceRows(src, problems);
-  const cust = customerRows(src.customers, ref.index, problems);
+  const cust = customerRows(src.customers, ref.index, problems, { preserveSourceOrder: true });
   const linked = linkedRows(src, ref.index, cust.index, problems);
   const ops = operationsRows(src, ref.index, cust.index, problems);
   const ch = checkInsHoldsRows(src, ref.index, cust.index, problems);
@@ -223,6 +223,13 @@ export async function copyFromMongo(db: Db, src: CopySource, options: { write: b
     for (const [table, rows] of steps) {
       for (let i = 0; i < rows.length; i += CHUNK) await tx.insert(table).values(rows.slice(i, i + CHUNK));
     }
+    // Explicit copy ordinals don't advance an identity sequence. The next app
+    // insert must follow every copied customer, including after an empty/repeated copy.
+    const nextOrder = report.tables.customers + 1;
+    if (!Number.isSafeInteger(nextOrder) || nextOrder < 1 || nextOrder > 2_147_483_647) throw new Error('Customer match order exceeds the identity range');
+    // RESTART is transactional, unlike setval(): a failed copy restores both the
+    // old rows and their generator, so the next customer cannot collide or move up.
+    await tx.execute(sql`alter table customers alter column match_order restart with ${sql.raw(String(nextOrder))}`);
     const brief = { ...report, problems: undefined, problemCount: problems.length };
     await tx.insert(schema.mongoCopyState).values({ id: 1, lastCopyAt: new Date(report.copiedAt), lastCopyReport: brief })
       .onConflictDoUpdate({ target: schema.mongoCopyState.id, set: { lastCopyAt: new Date(report.copiedAt), lastCopyReport: brief } });
@@ -267,6 +274,23 @@ export async function verifyCopy(db: Db, src: CopySource, limitPerTable = 20): P
     const numeric = new Set(Object.entries(getTableColumns(table)).filter(([, col]) => col.columnType === 'PgNumeric').map(([key]) => key));
     const value = (col: string, v: unknown) => numeric.has(col) && v != null ? Number(v) : norm(v);
     const actual = (await db.select().from(table)) as Loose[];
+    // A copy numbers the source collection densely; normal deletes leave identity
+    // gaps. Compare this internal ordering column by rank, not by its arbitrary
+    // numeric labels. Every row's relative position is checked, not omitted.
+    const matchRank = name === 'customers' ? new Map([...actual]
+      .sort((a, b) => a.matchOrder - b.matchOrder || String(a.id).localeCompare(String(b.id)))
+      .map((row, position) => [row.id, position + 1])) : undefined;
+    if (matchRank) {
+      // Relative ranks alone are insufficient if the next generated ordinal
+      // would collide or sort before existing rows. Inspect without consuming it.
+      const sequence = await db.execute(sql`select last_value, is_called from customers_match_order_seq`) as unknown as {
+        rows: { last_value: number | string; is_called: boolean }[];
+      };
+      const state = sequence.rows[0];
+      const nextOrder = Number(state.last_value) + (state.is_called ? 1 : 0);
+      const maxOrder = actual.reduce((max, row) => Math.max(max, row.matchOrder), 0);
+      if (nextOrder <= maxOrder) diffs.push('customers: matchOrder generator does not append after existing customers');
+    }
     if (actual.length !== expected.length) diffs.push(`${name}: ${actual.length} rows in Postgres, ${expected.length} expected`);
     const pk = primaryKeyOf(table);
     const keyOf = (row: Loose) => JSON.stringify(pk.length === 1 ? row[pk[0]] : pk.map(k => row[k]));
@@ -275,7 +299,8 @@ export async function verifyCopy(db: Db, src: CopySource, limitPerTable = 20): P
     for (const want of expected) {
       const got = byKey.get(keyOf(want));
       const problem = !got ? 'missing' : Object.entries(want)
-        .filter(([col, v]) => JSON.stringify(value(col, v)) !== JSON.stringify(value(col, got[col])))
+        .filter(([col, v]) => JSON.stringify(value(col, v)) !== JSON.stringify(value(col,
+          col === 'matchOrder' && matchRank ? matchRank.get(got.id) : got[col])))
         .map(([col]) => col).join(', ');
       if (problem && shown++ < limitPerTable) diffs.push(`${name} ${keyOf(want)}: ${problem === 'missing' ? 'missing' : `differs in ${problem}`}`);
     }

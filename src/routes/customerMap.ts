@@ -3,7 +3,7 @@ import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
-import Customer from '../models/Customer.ts';
+import { mapCustomerPins, mapCustomerRecord } from '../db/customers/index.ts';
 import User from '../models/User.ts';
 import { inScopePins, pinsForReps, repCountsOf, parseRepKeys } from '../utils/routePlannerScope.ts';
 
@@ -32,26 +32,7 @@ import { inScopePins, pinsForReps, repCountsOf, parseRepKeys } from '../utils/ro
  */
 
 /** Every customer we hold a point for, as slim pins. Visit dates are 'YYYY-MM-DD', so the newest is the largest string. */
-export const buildMapPins = () => Customer.aggregate([
-  { $match: { 'coordinates.lat': { $ne: null } } },
-  {
-    $project: {
-      company: 1,
-      contactName: 1,
-      city: '$address.city',
-      coordinates: 1,
-      precision: '$geocode.precision',
-      salesRep: 1,
-      salesRepName: 1,
-      customerType: 1,
-      status: 1,
-      location: 1,
-      lastVisitAt: { $max: '$visits.date' },
-      visitCount: { $size: { $ifNull: ['$visits', []] } }
-    }
-  },
-  { $sort: { company: 1, contactName: 1 } }
-]);
+export const buildMapPins = mapCustomerPins;
 
 /** What opening a customer adds to its pin. */
 export const mapDetailsOf = (c: Loose) => ({
@@ -122,9 +103,7 @@ export default function createCustomerMapRouter({ authenticate, requirePermissio
     if (!mongoose.Types.ObjectId.isValid(requestParams.id)) return res.status(400).json({ message: 'Not a customer id' });
     try {
       const [customer, { user, staff }] = await Promise.all([
-        Customer.findById(requestParams.id)
-          .select('phone email marketingEmail address level modaDisplay modaBinder quickNote salesRep location')
-          .lean(),
+        mapCustomerRecord(requestParams.id),
         scopeFor(req)
       ]);
       // Outside the scope reads the same as not there.
