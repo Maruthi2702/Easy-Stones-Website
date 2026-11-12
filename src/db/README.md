@@ -156,74 +156,100 @@ entries — **verified equal**. Reported, not fixed (the Mongo clean-up waits, o
   customer — blanked.
 - Visit photos saved as `/uploads/...` paths (34) point at the old server disk.
 
-## The data layer and the switch (2026-11-10)
+## The data layer and the switch (2026-11-11)
 
-Routes read an area through `src/db/<area>/index.ts`, which asks MongoDB (`mongo.ts`, the
-queries the routes used to run inline, moved unchanged) or Postgres (`postgres.ts`) by the
-area's switch: `DB_CUSTOMERS=postgres` on the server (`appDb.ts`; anything else or nothing
-is MongoDB, so a deploy changes nothing until it's set). The start-up log names the areas
-on Postgres. Postgres responses keep MongoDB's shape (`customers/customerDoc.ts`), so no
-screen changes.
+Routes call `src/db/customers/index.ts`. It selects the MongoDB or Postgres twin
+with `DB_CUSTOMERS=postgres` (`appDb.ts`); an unset or other value stays on MongoDB.
+The switch changes no production setting by itself. SQL replies retain `_id`, nested
+addresses, branch names, rep names and the API's existing date strings through
+`customerDoc.ts` and the nested record loaders.
 
-**While MongoDB is still the database the app writes, an area is switched on the live
-server only at its cutover** — before that Postgres holds only what the last copy put
-there. Try it on a copy: `DATABASE_URL=pglite:<folder>` after a `pg-copy.ts --write`, or a
-local Postgres.
+**Keep the production switch off until the customer cutover.** Before the final copy,
+Postgres contains the older snapshot. These reads use the existing schema; the remaining
+customer read batch adds no SQL migration and makes no AWS or live database changes.
 
-Every read is checked twice:
+The customer reads now include the previously moved dropdown, cities, paged customers,
+Customers list and saved-view counts, plus all 11 remaining read checklist items:
 
-- `customers/customers.parity.test.ts` (in `npm test`): the same records in an in-memory
-  MongoDB and, through the real copy, in PGlite; each read asked of both.
-- `npm run pg:compare` (`scripts/pg-compare.ts`): live MongoDB, **read only**, copied into
-  PGlite in memory, each read asked of both, differences printed. Exit 0 = the same apart
-  from the known differences below. A new read goes into `mongo.ts`, `postgres.ts`, the
-  parity test and this script together.
+| Group | Relational implementation | Reads and replies |
+|---|---|---|
+| Profiles | `postgres.ts`, `profileSql.ts`, `customerDoc.ts` | Customer profiles, scoped visit/resource details, contacts and linked customers' last visits |
+| Small customer reads | `lookup.postgres.ts` | vCards, Moda summaries, and the customer snapshots, contact matching and price tiers used by Holds, Permits and the public catalog |
+| Map, duplicate checks and calendar | `mapCalendar.postgres.ts` | Slim map pins, rep counts and details; duplicate signals, separation links and matched records; schedule and calendar-feed entries |
+| Dashboard | `dashboard.postgres.ts` | Visits, follow-up loading, resources and statistics rollups |
 
-Customer area so far: the dropdown (`GET /api/customers/dropdown`), the cities list
-(`/cities`), `GET /api/customers` (newest first, paged, searched), saved-view counts
-(`GET /api/customers/view-counts` and `/api/partners/view-counts`), and the Customers page
-list (`GET /api/customers/list` and its `/api/partners` alias: every filter, saved view,
-A–Z, Moda, sort, page, export and the basic card; SQL in `customers/listSql.ts`). The list
-has its own parity test, `customers/customerList.parity.test.ts`, which also calls the real
-route (sign-in, permissions, export) on both databases. `pg:compare` checks the read
-responses and exact list order against the live source. On live data 2026-11-10 (78 reads,
-before the profile reads below): all 21 saved-view count reads the same, every list sort in
-exactly the same order; the only differences besides the known ones below came from one
-customer edited while the run was going (its contact name, and the search results it moved
-between). The profile reads have **not** had a live run yet; the counts in the profile
-"known differences" below come from the copy's own report, so rerun `pg:compare` and
-replace them with its result before cutover.
+`mongo.ts` and `postgres.ts` expose the matching functions through the facade; the
+small, map/calendar and dashboard groups keep their query bodies in corresponding
+`.mongo.ts` / `.postgres.ts` helpers. The MongoDB query bodies are moved from the
+routes without changing their predicates or projections. Authentication, validation,
+Full profile access, team and map scope remain at the HTTP boundary. SQL receives the
+scope already decided there and never widens it.
 
-Saved-view counts use the original MongoDB tab predicate and count queries, or a single
-SQL statement sharing the list's saved-view predicates. Only `tab`, the authenticated
-owner and the server's Pacific day affect the badges; unrelated list filters are ignored.
-Authentication and Full profile checks stay in the route, including `{}` for a basic
-viewer. `customers/viewCounts.parity.test.ts` checks the six numeric keys, tab variants,
-follow-up boundaries, empty results, badge/list consistency and both HTTP aliases.
-It also pins the existing copy differences for deleted reps and invalid/missing branches
-described below. Live badge-count comparisons are strict: any numeric difference fails
-`pg:compare` and needs investigation before cutover. This read adds no schema migration.
+Profiles use `profileSql.ts` to fetch visits with their attachments, reactions and
+follow-up history, resources with attachments, and contacts in saved order. History
+follows its author's team, including linked customers' last visits; a customer's branch
+does not widen access. Basic cards retain their allowlist.
 
-Customer profiles (`GET /api/customers/:id`) and individual visit/resource details also
-use the facade. `customers/profileSql.ts` loads visits with their attachments, reactions
-and follow-up events, resources with attachments, and contacts in their saved order.
-The route supplies the existing Visits scope; SQL filters histories by the author,
-including linked customers' last-visit dates, rather than the customer's branch. Basic
-cards retain their field allowlist. `customerHistoryResponse` still accepts the saved
-MongoDB record for create/edit replies, even if Postgres reads are selected: the facade's
-`customerRecordResponse` always runs on MongoDB (it shapes the record just saved), and
-moves with customer create/edit — it is a box on `DB_MOVE_CHECKLIST.md`.
-`customers/profile.parity.test.ts` covers nested fields, scopes, HTTP permissions and
-mutation replies; `pg:compare` checks every profile with history, contacts or links and
-every individual visit/resource. The profile read adds no schema migration.
+`customerHistoryResponse` / `customerRecordResponse` shape the **actual record just
+saved** for create/edit replies. The shared shape helper removes the password and
+applies history scope; uploader names now come from the database selected by
+`DB_CUSTOMERS`. It does not fetch an older customer snapshot to construct the reply.
 
-**Every sort ends on the id** (MongoDB `_id`, Postgres `id collate "C"`, the same order):
-customers with equal sort values (a city, a branch, a level) come in one fixed order, so a
-page never repeats or skips a customer, and both databases list them identically.
+Moda summaries retain the shared `modaSummary` rules: only Active resources contribute
+to the totals, with the same earlier counts and resource-family lookup. Map scope and
+rep filters remain in `routePlannerScope.ts`. Duplicate scoring stays in the existing
+matcher, with "not a duplicate" links supplied by `customer_links`. Calendar reads
+reuse the write layer's clock conversion; entries for a deleted customer still have no
+customer name. The `.ics` route retains its token and output handling.
+
+Dashboard routes keep `dashboardPeopleOf`, range decisions, the shared follow-up
+selection/status/count rules, and panel selection. Their data layer loads scoped rows
+and performs the existing rollups. The old "today schedule" tile still counts pending
+follow-ups due today, as it did on MongoDB; it is not silently changed to a calendar
+entry count. The resource copier now preserves a legacy resource's `createdBy` owner
+when `uploadedBy` is null or missing, matching MongoDB's fallback and keeping scoped
+resource lists and counts consistent. No numeric comparison allowance covers this fix.
+
+### How the reads are verified
+
+Parity suites seed in-memory MongoDB, copy through the real `copyFromMongo` into
+PGlite, then compare both answers with `normalize()` from `parity.ts`. Authenticated
+HTTP cases cover permitted and denied users and attempts to widen scope. The small,
+map/calendar and dashboard suites also keep the existing route tests running.
+
+`npm run pg:compare` reads live MongoDB **read only**, copies into disposable PGlite,
+and checks each registered read. The main script retains the original customer-list,
+count and profile comparisons, and adds group registrations from
+`pg-compare-lookups.ts`, `pg-compare-map-calendar.ts`, and `pg-compare-dashboard.ts`.
+It also checks mutation response shaping against the saved source record. An RDS URL
+is never used as the disposable copy target by this comparison script.
+
+Postgres text sorts use `COLLATE "C"` and an id tie-break. Existing MongoDB sorts stay
+unchanged, including older endpoints that have no id tie-break. The dashboard live
+comparator canonicalizes only ties proved by the source's identical `(date, createdAt)`
+keys; it preserves the order between different keys and compares every returned field.
+A missing row or a different chronological group order still fails. Existing list
+comparisons retain their documented, narrower sort preparations.
+
+`customers/readPreflight.ts` checks source shapes that would otherwise alter numeric
+results or range membership after the copy. A customer with no saved `status` would
+change the dashboard lead count; a visit/resource whose copied day differs from the
+original dashboard range day would move between ranges. Either condition makes
+`pg:compare` fail and blocks readiness for cutover until source cleanup or an explicit
+schema decision resolves it. There are **no numeric or range-membership allowances**.
+Saved-view badges and dashboard rollups must compare exactly.
+
+Integrated live validation for the full batch is in progress. Earlier live checks on
+2026-11-10 covered 78 customer/list/count reads; the current pass includes profile and
+all newly implemented reads. **TODO: record the final integrated live comparison
+result, source preflight result and current known-difference counts.** Per-item commits,
+focused tests and remaining checks are in
+[`customer-reads-report.md`](../../docs/db/customer-reads-report.md).
 
 **Schema changes reach RDS through the copy**: the copy Lambda applies `drizzle/`
-migrations before it writes. After any change there, `pg-copy-aws.ts --deploy`, then
-`--write` and `--verify`, before an area is switched on.
+migrations before it writes. This read batch introduces no schema changes. Any future
+schema change still requires the separate deployment/copy/verify procedure before an
+area is switched on.
 
 ### Known differences (live data, 2026-11-10)
 
@@ -255,6 +281,14 @@ set-asides in its sort checks; anything else fails it):
   includes the visit. Valid account ids disappearing are not allowed by this exception.
 - 1 contact without an id gets the deterministic `contactIdFor(customerId, position)`
   id. 1 old contact explicitly stores `isPrimary: false`; this unused default is omitted.
+- Dashboard customer labels have one exact separator conversion: when source
+  `company` is explicitly `''`, MongoDB's aggregation treats that string as truthy
+  and can return `" - Contact"`; Postgres's concatenation returns `"Contact"`.
+  Missing/null/empty company values share the same SQL default, so their original
+  presence cannot be reconstructed there. This cosmetic exception must be checked
+  against the source parent and the exact expected strings; arbitrary customer-name
+  differences are not allowed. **Live count: PENDING integrated comparison.** The
+  dashboard parity suite pins explicit-empty and missing-company cases separately.
 - `GET /api/customers` (the older paged list): customers imported in the same millisecond
   can come in another order there (same dates; that route has no id tie-break in MongoDB).
 
@@ -267,10 +301,14 @@ Rules that differ only on data live doesn't have (checked 2026-11-10):
 
 ## Next
 
-The full list, one box per route and step: [`DB_MOVE_CHECKLIST.md`](../../DB_MOVE_CHECKLIST.md).
+The full migration steps and cutover gates remain in
+[`DB_MOVE_CHECKLIST.md`](../../DB_MOVE_CHECKLIST.md).
 
-1. The rest of the customer routes through the data layer: the profile, the map, then the
-   writes (create / edit / delete / visits / resources / contacts) — writes need the
-   cutover plan, since MongoDB stays the database written until then.
-2. The other areas that point at customers — deliveries, payments, holds, lost sales,
-   card expenses, the SPS import — get `customer_id` foreign keys when they move.
+1. Complete the integrated test, typecheck, read-only live comparison and local
+   MongoDB server-health verification for the customer read batch; record their
+   results in [`customer-reads-report.md`](../../docs/db/customer-reads-report.md).
+2. Rehearse customer screens and write/rollback workflows on a copy, measure real
+   RDS performance, and resolve the remaining cutover prerequisites. Production
+   stays on MongoDB until the owner authorizes its switch.
+3. Move the other areas that point at customers—deliveries, payments, holds, lost
+   sales, card expenses and SPS imports—through their own data layers and checks.
