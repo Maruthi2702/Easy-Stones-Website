@@ -29,7 +29,7 @@ export async function mapCalendarReads(calendarFacts?: CalendarParityContext): P
   const ids = (await db.collection('customers').find({}, { projection: { _id: 1 } }).toArray()).map(c => String(c._id));
   const owners = (await db.collection('schedules').distinct('userId')).map(String);
   const probes = await db.collection('customers').find({ $or: [{ company: { $exists: true } }, { phone: { $exists: true } }] },
-    { projection: { _id: 1, company: 1, phone: 1, email: 1 } }).limit(24).toArray();
+    { projection: { _id: 1, company: 1, phone: 1, email: 1 } }).toArray();
   const reads: MapCalendarComparisonRead[] = [
     { name: 'map pins: every slim field, newest visit and visit count, exact order', read: () => customers.mapCustomerPins() },
     { name: 'map pins: all rep counts', read: async () => repCountsOf(await customers.mapCustomerPins()) },
@@ -45,7 +45,7 @@ export async function mapCalendarReads(calendarFacts?: CalendarParityContext): P
       for (let start = 0; start < ids.length; start += 16) out.push(...await Promise.all(ids.slice(start, start + 16).map(id => customers.mapCustomerRecord(id))));
       return out;
     } },
-    { name: 'duplicate matcher: selected matches in score order for 24 source probes', read: async () => {
+    { name: 'duplicate matcher: selected top-three matches in score order for every source customer', read: async () => {
       const rows = await customers.duplicateSignals();
       const index = buildSignalIndex(rows);
       return probes.map(probe => {

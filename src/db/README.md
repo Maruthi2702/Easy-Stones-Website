@@ -165,8 +165,9 @@ addresses, branch names, rep names and the API's existing date strings through
 `customerDoc.ts` and the nested record loaders.
 
 **Keep the production switch off until the customer cutover.** Before the final copy,
-Postgres contains the older snapshot. These reads use the existing schema; the remaining
-customer read batch adds no SQL migration and makes no AWS or live database changes.
+Postgres contains the older snapshot. This batch requires the calendar-clock and
+customer-order compatibility migrations described below. It makes no AWS or live
+database changes.
 
 The customer reads now include the previously moved dropdown, cities, paged customers,
 Customers list and saved-view counts, plus all 11 remaining read checklist items:
@@ -201,6 +202,25 @@ rep filters remain in `routePlannerScope.ts`. Duplicate scoring stays in the exi
 matcher, with "not a duplicate" links supplied by `customer_links`. Calendar reads
 reuse the write layer's clock conversion; entries for a deleted customer still have no
 customer name. The `.ics` route retains its token and output handling.
+
+Legacy calendar clocks also retain their original type and spelling in nullable
+`schedules.legacy_start_time` / `legacy_end_time` metadata (`0010_schedule_legacy_clocks.sql`).
+This preserves MongoDB's string-range filtering and BSON type ordering: the live
+audit found 34 BSON-Date starts, which MongoDB excludes from a string-bounded year
+query. The read must preserve that membership. Normal replies use the copied local
+clock; feeds retain the original legacy clock so `.ics` instants cannot shift with
+the server timezone. Calendar edits and syncs replace metadata only for clock fields
+they write; note/status changes retain it. Planner replacement/clearing, visit links
+and backfill use the same source-compatible day predicates.
+
+Permit contact matching and equal-score duplicate choices preserve the source
+customer scan order using internal `customers.match_order` identity metadata
+(`0011_customer_match_order.sql`). The copy records source order; ordinary saves
+leave this field to the database so creates and restored customers append, while
+edits retain their position. Copy verification compares the complete relative
+customer order, allowing sequence gaps after deletes while rejecting permutations;
+all other customer columns are compared exactly. No matcher or MongoDB query changes
+are needed to preserve which customer wins an ambiguous match.
 
 Dashboard routes keep `dashboardPeopleOf`, range decisions, the shared follow-up
 selection/status/count rules, and panel selection. Their data layer loads scoped rows
@@ -239,17 +259,20 @@ original dashboard range day would move between ranges. Either condition makes
 schema decision resolves it. There are **no numeric or range-membership allowances**.
 Saved-view badges and dashboard rollups must compare exactly.
 
-Integrated live validation for the full batch is in progress. Earlier live checks on
-2026-11-10 covered 78 customer/list/count reads; the current pass includes profile and
-all newly implemented reads. **TODO: record the final integrated live comparison
-result, source preflight result and current known-difference counts.** Per-item commits,
-focused tests and remaining checks are in
+Integrated validation passed on **2026-11-12** under Node 24.22.1: **160 live
+read comparisons matched**, with **0 unexpected differences** and **0 source
+preflight failures** (78,679 rows copied into disposable PGlite). The full regression
+suite passed **3,762 tests** across **294 suites**, with 4 skipped; typecheck, normal
+server health and independent read-only review passed. Per-item commits, focused
+tests, observed conversion counts and unverified cutover work are in
 [`customer-reads-report.md`](../../docs/db/customer-reads-report.md).
 
 **Schema changes reach RDS through the copy**: the copy Lambda applies `drizzle/`
-migrations before it writes. This read batch introduces no schema changes. Any future
-schema change still requires the separate deployment/copy/verify procedure before an
-area is switched on.
+migrations before it writes. This batch includes `0010_schedule_legacy_clocks.sql`
+and `0011_customer_match_order.sql`;
+the copy Lambda must be rebuilt/deployed and the schema/copy verified before these
+Postgres calendar reads are used on RDS. That deployment/copy is separate work; this
+branch has not applied the migration or written data to RDS.
 
 ### Known differences (live data, 2026-11-10)
 
@@ -287,8 +310,16 @@ set-asides in its sort checks; anything else fails it):
   Missing/null/empty company values share the same SQL default, so their original
   presence cannot be reconstructed there. This cosmetic exception must be checked
   against the source parent and the exact expected strings; arbitrary customer-name
-  differences are not allowed. **Live count: PENDING integrated comparison.** The
+  differences are not allowed. The 2026-11-11 source audit found **0** such customers. The
   dashboard parity suite pins explicit-empty and missing-company cases separately.
+- Normal calendar reads convert legacy source clocks to their user's branch clock;
+  the comparator proves the exact conversion against the source schedule and user.
+  Calendar-feed clocks have no such allowance: their original values must match
+  exactly so the subscription's UTC event instants cannot change. The lean feed can
+  expose `source: 'manual'` only when that exact source entry lacked the model default.
+  Source facts verified on 2026-11-12: **34** normalized starts, **1** normalized end,
+  **239** entries missing the source default. Filtering, event membership and order
+  remain strict; the metadata preserves them rather than exempting the old entries.
 - `GET /api/customers` (the older paged list): customers imported in the same millisecond
   can come in another order there (same dates; that route has no id tie-break in MongoDB).
 
