@@ -396,3 +396,5 @@ export async function customerViewCounts({ tab, userId, today }: CustomerViewCou
   ));
   return Object.fromEntries(entries);
 }
+
+export { mapCustomerPins, mapCustomerRecord, duplicateSignals, duplicateCustomers, calendarEntries } from './mapCalendar.mongo.ts';

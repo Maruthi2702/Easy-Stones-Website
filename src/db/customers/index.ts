@@ -83,3 +83,20 @@ export * from './writes/schedule.ts';
 export * from './writes/merge.ts';
 export * from './writes/imports.ts';
 export * from './writes/sps.ts';
+
+// Route Planner, duplicate checks and calendar reads.
+export async function mapCustomerPins() {
+  return onPostgres() ? pg.mapCustomerPins(await appDb()) : mongo.mapCustomerPins();
+}
+export async function mapCustomerRecord(id: string) {
+  return onPostgres() ? pg.mapCustomerRecord(await appDb(), id) : mongo.mapCustomerRecord(id);
+}
+export async function duplicateSignals() {
+  return onPostgres() ? pg.duplicateSignals(await appDb()) : mongo.duplicateSignals();
+}
+export async function duplicateCustomers(ids: string[]) {
+  return onPostgres() ? pg.duplicateCustomers(await appDb(), ids) : mongo.duplicateCustomers(ids);
+}
+export async function calendarEntries(query: import('./types.ts').CalendarReadQuery) {
+  return onPostgres() ? pg.calendarEntries(await appDb(), query) : mongo.calendarEntries(query);
+}

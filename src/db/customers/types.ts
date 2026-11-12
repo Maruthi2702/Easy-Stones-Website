@@ -53,3 +53,12 @@ export interface CustomerHistoryScope {
 }
 
 export type CustomerHistoryKind = 'visits' | 'resources';
+
+/** Calendar visibility is resolved by the route (including team and People filters). */
+export interface CalendarReadQuery {
+  people: '*' | ReadonlySet<string>;
+  start?: string;
+  end?: string;
+  /** Private ICS feed: omit cancelled entries and use the original lean response shape. */
+  feed?: boolean;
+}

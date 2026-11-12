@@ -207,3 +207,5 @@ export async function customerViewCounts(db: Db, q: CustomerViewCountsQuery): Pr
     .where(q.tab === 'partners' ? sql`not ${fabricator}` : fabricator);
   return counts;
 }
+
+export { mapCustomerPins, mapCustomerRecord, duplicateSignals, duplicateCustomers, calendarEntries } from './mapCalendar.postgres.ts';

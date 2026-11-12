@@ -3830,7 +3830,7 @@ app.post(['/api/customers/possible-duplicates', '/api/partners/possible-duplicat
       email: String(req.body?.email || '')
     };
     const excludeId = String(req.body?.excludeId || '');
-    const rows = await Customer.find({}, 'company phone email notDuplicateOf').lean();
+    const rows = await customerData.duplicateSignals();
     const index = buildSignalIndex(rows);
     const separated = new Set(
       (rows.find(r => String(r._id) === excludeId)?.notDuplicateOf || []).map(String)
@@ -3840,10 +3840,7 @@ app.post(['/api/customers/possible-duplicates', '/api/partners/possible-duplicat
       .slice(0, 3);
     if (hits.length === 0) return res.json({ matches: [] });
 
-    const found = await Customer.find(
-      { _id: { $in: hits.map(h => h.id) } },
-      'company contactName name phone email status location salesRepName address city'
-    ).lean();
+    const found = await customerData.duplicateCustomers(hits.map(h => h.id));
     const byId = new Map(found.map(c => [String(c._id), c]));
     res.json({
       matches: hits
