@@ -107,7 +107,7 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [x] Geocoding job (fills a customer's map point) · src/services/customerGeocoding.ts — on main, 966e5cf
 - [x] iCloud / Google calendar sync · src/services/icloudSyncService.ts, schedule.ts — on main, 7737178
 - [x] Customer-write attribution: `getPerformerInfo` in server.ts still reads a customer name directly from MongoDB; route it through the existing customer data layer before cutover
-- [ ] Start-up jobs that touch customers · server.ts — location backfill retired (done); still open: marketing-email migration: keep on MongoDB until cutover, then retire it and have `/api/customer/register` and the calendar-sync customer set `marketingEmail` themselves
+- [ ] Start-up jobs that touch customers · server.ts — location backfill retired (done); `/api/customer/register` now sets `marketingEmail` / `receiveMarketing` itself on MongoDB and Postgres (accounts.parity test); still open: the start-up marketing-email migration in server.ts stays until cutover, then retire it (no calendar-sync customer creates customers — nothing to change there)
 - [x] A user renamed → customers' rep name (gone in Postgres: it's a join) · server.ts — on main, 66a5b31
 
 ## 3. Before anything is written to RDS
@@ -119,14 +119,14 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [ ] Deploy prod (owner runs it), then turn dev's $10 budget off (dev.yaml `monitoring.budget.enabled: false`)
 - [ ] Dev RDS: raise backups from 1 day, turn off delete-on-teardown (aws-infra)
 - [ ] Tables for the 2 collections not copied yet (`admins`, `crossoversheets`), or confirm they stay empty
-- [ ] Users, roles, locations, visit / resource types copied MongoDB → Postgres on every change until they move (customers point at them)
-- [ ] A reverse copy script (Postgres → MongoDB) for going back during the 2 weeks after cutover
-- [ ] Speed: 38 ms per query Render (Virginia) → RDS (Ohio). Check the Customers page and profile load times on Postgres; batch queries where slow
+- [x] Users, roles, locations, visit / resource types copied MongoDB → Postgres on every change until they move (customers point at them) · src/db/reference/ (change stream + 10-minute safety net, started with `DB_CUSTOMERS=postgres`) — tested; not yet run against RDS
+- [x] A reverse copy script (Postgres → MongoDB) for going back during the 2 weeks after cutover · scripts/pg-reverse.ts, src/db/reverse/ — round trip proved on the live copy 2026-11-12 (README lists the few spellings that differ); not yet run against a real Atlas
+- [x] Speed: 38 ms per query Render (Virginia) → RDS (Ohio). Counted 2026-11-12 ([docs/db/customer-query-counts.md](docs/db/customer-query-counts.md)): every screen ≤ 6 queries (≈ 0.3 s at most); saves 6–22, delete customer 40 (≈ 1.6 s). Re-measure on the real RDS
 
 ## 4. Customer area cutover
 
 - [ ] RDS schema up to date: `pg-copy-aws.ts --deploy` after any change in `drizzle/` (the copy applies migrations; this read batch adds 0010 calendar clocks and 0011 customer matching order)
-- [ ] Rehearse on a copy: every customer screen opened with `DB_CUSTOMERS=postgres` (local, PGlite or local Postgres)
+- [ ] Rehearse on a copy: every customer screen opened with `DB_CUSTOMERS=postgres` (local, PGlite or local Postgres) — API level done 2026-11-12 ([docs/db/customer-rehearsal.md](docs/db/customer-rehearsal.md)); the browser click-through is still open
 - [ ] Early morning: pause customer writes
 - [ ] `pg-copy-aws.ts --write`, then `--verify`: equal
 - [ ] Set `DB_CUSTOMERS=postgres` on Render; open each customer screen live

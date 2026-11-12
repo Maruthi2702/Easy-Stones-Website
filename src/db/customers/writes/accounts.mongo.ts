@@ -95,6 +95,8 @@ export async function registerCustomer(id: string, input: RegisterInput): Promis
     _id: id,
     contactName,
     email,
+    marketingEmail: email,
+    receiveMarketing: true,
     password,
     phone,
     company
