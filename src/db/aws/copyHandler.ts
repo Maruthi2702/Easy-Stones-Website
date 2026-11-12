@@ -26,6 +26,8 @@ export interface CopyEvent {
   snapshotKey?: string;
   /** lock: who is locking it. */
   lockedBy?: string;
+  /** verify: 'customers' = only the customer area's tables (what cutover needs; the rest of MongoDB keeps changing). */
+  scope?: 'customers';
 }
 
 export interface CopyResult {
@@ -84,7 +86,7 @@ export const handler = async (event: CopyEvent): Promise<CopyResult> => {
       s3.send(new PutObjectCommand({ Bucket: bucket, Key: reportKey, Body: JSON.stringify(body, null, 1), ContentType: 'application/json' }));
 
     if (event.action === 'verify') {
-      const diffs = await verifyCopy(db, src);
+      const diffs = await verifyCopy(db, src, 20, { scope: event.scope });
       await saveReport({ verifiedAt: new Date().toISOString(), diffs });
       return { ok: diffs.length === 0, action: 'verify', diffs: diffs.slice(0, 200), reportKey, seconds: seconds() };
     }

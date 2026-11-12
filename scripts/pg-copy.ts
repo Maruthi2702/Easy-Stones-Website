@@ -6,6 +6,7 @@
  *   node scripts/pg-copy.ts                 dry run: map and report, write nothing
  *   node scripts/pg-copy.ts --write         replace the copied tables in one transaction
  *   node scripts/pg-copy.ts --verify        compare Postgres with MongoDB row by row
+ *   --scope customers   with --verify: only the customer area's tables (what cutover needs)
  *   node scripts/pg-copy.ts --lock "name"   at cutover: refuse every copy from now on
  *   --report <file>   write the full report (every problem, by id) as JSON
  *
@@ -38,7 +39,7 @@ try {
     const started = Date.now();
     const src = await readMongo(mongoUri);
     if (flag('--verify')) {
-      const diffs = await verifyCopy(db, src);
+      const diffs = await verifyCopy(db, src, 20, { scope: valueOf('--scope') === 'customers' ? 'customers' : undefined });
       console.log(diffs.length ? diffs.join('\n') : 'Verified: Postgres matches MongoDB, every table, every row, every column.');
       process.exitCode = diffs.length ? 1 : 0;
     } else {

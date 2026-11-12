@@ -172,6 +172,20 @@ describe('copyFromMongo', () => {
     expect(diffs).toEqual([`visits "${String(v1)}": differs in notes`]);
   });
 
+  it("the customer-area check ignores what keeps moving on MongoDB (other areas, who's online) and still catches a customer change", async () => {
+    await copyFromMongo(open.db, source(), { write: true });
+    // MongoDB moves on after the copy: someone signs in, a permit run is logged.
+    const moved = source();
+    moved.users = moved.users.map((u, i) => (i === 0 ? { ...u, lastSeenAt: new Date('2026-11-12T20:00:00Z') } : u));
+    moved.permitRuns = [{ _id: oid(), source: 'x', startedAt: new Date() }];
+    expect((await verifyCopy(open.db, moved)).length).toBeGreaterThan(0); // the whole-database check sees it
+    expect(await verifyCopy(open.db, moved, 20, { scope: 'customers' })).toEqual([]);
+    // …but a customer change after the copy is still found.
+    const edited = source();
+    edited.customers = edited.customers.map((c, i) => (i === 0 ? { ...c, company: 'Changed Co' } : c));
+    expect(await verifyCopy(open.db, edited, 20, { scope: 'customers' })).toEqual([expect.stringMatching(/^customers ".*": differs in company$/)]);
+  });
+
   it('enforces the links: a visit for a customer that does not exist is refused', async () => {
     await expect(open.db.insert(schema.visits).values({
       id: String(oid()), customerId: String(oid()), position: 0, visitDate: '2026-11-01', createdAt: '2026-11-01 10:00:00'

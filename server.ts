@@ -58,6 +58,7 @@ import * as customerData from './src/db/customers/index.ts';
 const { resolveDuplicates, undoDuplicates } = customerData;
 import { areasOnPostgres } from './src/db/appDb.ts';
 import { startReferenceSync } from './src/db/reference/referenceSync.ts';
+import { customerWritesPauseGate, customerWritesPaused } from './src/utils/customerWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1145,6 +1146,9 @@ app.use(compression());
 
 app.use(express.json({ limit: '200mb' })); // Increase limit for large payloads (multiple images)
 app.use(cookieParser());
+
+// Cutover pause (CUSTOMER_WRITES_PAUSED=true): customer-area writes answer 503 (src/utils/customerWritesPause.ts).
+app.use(customerWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -5269,7 +5273,10 @@ app.get('/api/health', async (req: Request, res: Response) => {
     dbHost: mongoose.connection.host,
     // Which commit is running (Render sets RENDER_GIT_COMMIT): a failed deploy
     // leaves the old build serving, so this is how a push is seen to be live.
-    commit: process.env.RENDER_GIT_COMMIT ? process.env.RENDER_GIT_COMMIT.slice(0, 7) : null
+    commit: process.env.RENDER_GIT_COMMIT ? process.env.RENDER_GIT_COMMIT.slice(0, 7) : null,
+    // Which database the customer area reads and writes, and whether the cutover pause is on (the runbook checks both).
+    customersOn: areasOnPostgres().includes('customers') ? 'postgres' : 'mongo',
+    customerWritesPaused: customerWritesPaused()
   });
 });
 

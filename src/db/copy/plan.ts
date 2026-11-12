@@ -263,13 +263,35 @@ function norm(v: unknown): unknown {
 }
 
 /**
+ * The tables the customer area owns once `DB_CUSTOMERS=postgres` — the customer, its children, calendar, activity log,
+ * backups, import state — plus the reference tables customers point at (users, roles, locations, type lists).
+ * Everything else (deliveries, payments, permits…) is still written live on MongoDB and keeps drifting.
+ */
+export const CUSTOMER_AREA_TABLES = new Set([
+  'customers', 'customer_logins', 'customer_contacts', 'customer_links', 'visits', 'visit_attachments', 'visit_reactions',
+  'visit_follow_up_events', 'resources', 'resource_attachments', 'schedules', 'activity_logs', 'customer_delete_backups',
+  'customer_merge_backups', 'import_memories', 'sps_import_runs', 'sps_import_items',
+  'locations', 'roles', 'users', 'user_locations', 'location_report_recipients', 'visit_types', 'resource_families', 'resource_types'
+]);
+
+/** Columns that change by the minute on MongoDB (who is online) and say nothing about customers: not compared in the customer-area check. */
+const CUSTOMER_SCOPE_IGNORES: Record<string, string[]> = { users: ['lastSeenAt', 'lastLoginAt', 'updatedAt'] };
+
+export interface VerifyOptions {
+  /** 'customers': only CUSTOMER_AREA_TABLES, and not the by-the-minute columns above. Default: every table, every column. */
+  scope?: 'customers';
+}
+
+/**
  * Check Postgres holds exactly what MongoDB maps to: same rows per table and
  * every column equal. Returns the differences (empty = verified).
  */
-export async function verifyCopy(db: Db, src: CopySource, limitPerTable = 20): Promise<string[]> {
+export async function verifyCopy(db: Db, src: CopySource, limitPerTable = 20, options: VerifyOptions = {}): Promise<string[]> {
   const diffs: string[] = [];
   for (const [table, expected] of copyPlan(src, [])) {
     const name = getTableName(table);
+    if (options.scope === 'customers' && !CUSTOMER_AREA_TABLES.has(name)) continue;
+    const ignored = new Set(options.scope === 'customers' ? CUSTOMER_SCOPE_IGNORES[name] ?? [] : []);
     // numeric columns come back at their scale ('10.00'): compare those as numbers, nothing else.
     const numeric = new Set(Object.entries(getTableColumns(table)).filter(([, col]) => col.columnType === 'PgNumeric').map(([key]) => key));
     const value = (col: string, v: unknown) => numeric.has(col) && v != null ? Number(v) : norm(v);
@@ -299,6 +321,7 @@ export async function verifyCopy(db: Db, src: CopySource, limitPerTable = 20): P
     for (const want of expected) {
       const got = byKey.get(keyOf(want));
       const problem = !got ? 'missing' : Object.entries(want)
+        .filter(([col]) => !ignored.has(col))
         .filter(([col, v]) => JSON.stringify(value(col, v)) !== JSON.stringify(value(col,
           col === 'matchOrder' && matchRank ? matchRank.get(got.id) : got[col])))
         .map(([col]) => col).join(', ');
