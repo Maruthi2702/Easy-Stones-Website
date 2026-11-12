@@ -57,6 +57,7 @@ import Customer from './src/models/Customer.ts';
 import * as customerData from './src/db/customers/index.ts';
 const { resolveDuplicates, undoDuplicates } = customerData;
 import { areasOnPostgres } from './src/db/appDb.ts';
+import { startReferenceSync } from './src/db/reference/referenceSync.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1010,6 +1011,8 @@ async function startServer() {
       // Which areas read Postgres instead of MongoDB (DB_<AREA>=postgres, src/db/appDb.ts).
       const pgAreas = areasOnPostgres();
       if (pgAreas.length) console.log(`🐘 On Postgres: ${pgAreas.join(', ')} (${process.env.DATABASE_URL ? 'DATABASE_URL set' : 'DATABASE_URL MISSING — those routes will fail'})`);
+      // Users, roles, locations and the type lists stay on MongoDB; Postgres's copy follows every change (src/db/reference/README.md).
+      if (pgAreas.length && mongoose.connection.db) startReferenceSync(mongoose.connection.db);
 
       // JOBS=off (a local test server): none of the timers and jobs below.
       if (process.env.JOBS === 'off') return console.log('⏸️ JOBS=off: no freight, holds, auto-submit, permit, SPS resume or keep-alive jobs');
