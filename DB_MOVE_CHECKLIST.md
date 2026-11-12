@@ -133,19 +133,27 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [ ] `--lock` the copy so it can never overwrite live Postgres data
 - [ ] MongoDB customers kept read-only for 2 weeks; then removed
 
-## 5. The other areas, in batches (each: data layer → parity → cutover, as above)
+## 5. The other areas, one module at a time (each: data layer → parity → cutover, as above)
 
-Drafted 2026-11-12 (my grouping, for the owner to confirm): the small areas share **one**
-cutover so there are 6 early-morning pauses, not 10. Mongo's 2-week read-only soak for one
-batch overlaps the build of the next. Rough build time per batch in brackets.
+Redrafted 2026-11-12 (owner: "by each module"). One cutover per module, in an order where
+a module moves after the ones it reads. Only the tiny ones share a cutover. The order is my
+reading of the code: re-check each module's reads before starting it. Rough build time in
+brackets; Mongo's 2-week read-only soak for one module overlaps the build of the next.
 
-- [ ] **Batch A, customer-linked** (4–6 days): Deliveries + Delivery Schedule, Payments, Cart & Holds, Lost Sales, Credit Card Receipts, SPS import (get `customer_id` foreign keys)
-- [ ] **Batch B, small areas, one cutover** (5–7 days): Logs, backups, settings, imports · Suppliers + supplier portal · Permits (already on Lambda) · Team Files, products, colours, crossovers, contact form
-- [ ] **Batch C, Check In + Selection Sheet** (2 days)
-- [ ] **Batch D, Daily Reports** (3–4 days; its own cutover after the August 2026 incident)
-- [ ] **Batch E, Accounting + Fuel Man** (3–4 days; transactions)
-- [ ] **Batch F, Inventory + Purchasing** (3–4 days; stock imports use a transaction)
-- [ ] **Last, Batch G: Users, Roles, Locations, sign-in, who's online** (3–5 days; every request reads them)
+- [ ] Deliveries + Delivery Schedule (3–4 days; gets `customer_id` foreign keys)
+- [ ] Payments (1 day)
+- [ ] Lost Sales (1 day)
+- [ ] Credit Card Receipts (1–2 days)
+- [ ] SPS import (1–2 days; runs and the runner)
+- [ ] Check In + Selection Sheet (2 days)
+- [ ] Daily Reports (3–4 days; after Deliveries, Payments and Check In, which it derives from; the August 2026 incident applies)
+- [ ] Inventory + Purchasing (3–4 days; stock imports use a transaction)
+- [ ] Cart & Holds (1–2 days; after Inventory, since holds lock slabs in `InventoryItems`)
+- [ ] Suppliers + supplier portal (2 days; after Inventory, since POs fill from transit shipments)
+- [ ] Accounting + Fuel Man (3–4 days; transactions)
+- [ ] Logs, backups, settings, imports (1–2 days)
+- [ ] One cutover for the tiny ones: Permits (already on Lambda), Team Files, products, colours, crossovers, contact form (1–2 days)
+- [ ] Last: Users, Roles, Locations, sign-in, who's online (3–5 days; every request reads them)
 
 ## 6. After every area has moved
 
