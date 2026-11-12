@@ -116,8 +116,8 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [x] Prod without NAT gateways, master-password rotation off (~$65/mo saved) — aws-infra 9e29b41
 - [x] Prod in the same AWS account as dev; its $150 budget covers the account — aws-infra 4f36c4c
 - [x] Prod RDS lets the website on Render in (`database.publicAccess`, Render's 2 Virginia ranges, as dev) — aws-infra feat/prod-render-access; prod deployed 2026-11-12 (db `easy-surfaces-prod-db.cjukgckwuvzb.us-east-2.rds.amazonaws.com`; prod API / front end / CI stacks left off). Render's `DATABASE_URL` now points at it; `npm run pg:ping` from Render: connected, 12 ms per query, 111 tables, 4,506 customers (2026-11-12)
-- [x] Deploy prod (owner ran it 2026-11-12); dev's $10 budget off in aws-infra config, waits for `make deploy ENV=dev` (owner)
-- [ ] Dev RDS: raise backups from 1 day, turn off delete-on-teardown (aws-infra)
+- [x] Deploy prod (owner ran it 2026-11-12); dev's $10 budget turned off by `make deploy ENV=dev` (owner, 2026-11-12)
+- [x] Dev RDS: backups raised to 7 days and dev's $10 budget off (aws-infra `make deploy ENV=dev`, 2026-11-12). Not done on purpose: dev's delete-on-teardown (`removalPolicy: destroy` is shared with dev's buckets); dev holds only test copies
 - [ ] Tables for the 2 collections not copied yet (`admins`, `crossoversheets`), or confirm they stay empty
 - [x] Users, roles, locations, visit / resource types copied MongoDB → Postgres on every change until they move (customers point at them) · src/db/reference/ (change stream + 10-minute safety net, started with `DB_CUSTOMERS=postgres`) — tested; not yet run against RDS
 - [x] A reverse copy script (Postgres → MongoDB) for going back during the 2 weeks after cutover · scripts/pg-reverse.ts, src/db/reverse/ — round trip proved on the live copy 2026-11-12 (README lists the few spellings that differ); run on Render from prod RDS into a scratch database on Atlas 2026-11-12 with `pg-reverse-check.ts`: every live document rebuilt, only the known spellings differ
