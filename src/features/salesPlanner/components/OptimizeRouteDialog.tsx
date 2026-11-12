@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Navigation, Lock, MapPinOff } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormField, FormPicker } from '../../../components/shared/form/FormControls';
+import { useJsApiLoader } from '@react-google-maps/api';
 import { authFetch } from '../../../api/authFetch';
 import { API_URL } from '../../../config/api';
 import { timeOptions, timeText } from '../../../utils/visitSlots';
@@ -129,18 +130,35 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
         setAdding(null);
         (which === 'from' ? setFrom : setTo)(value);
     };
+    // Same Google Maps loader and Places search as the Route Planner's Find new leads
+    // (the browser key); the server's geocoding key isn't used for this.
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const { isLoaded: mapsReady, loadError: mapsError } = useJsApiLoader({ id: 'google-map-script', googleMapsApiKey: apiKey || '' });
+    const [matches, setMatches] = useState<{ name: string; address: string; lat: number; lng: number }[]>([]);
     const findAddress = async () => {
-        setFinding(true); setFindError('');
+        setFinding(true); setFindError(''); setMatches([]);
         try {
-            const res = await authFetch(`${API_URL}/api/schedule/place?q=${encodeURIComponent(addressText.trim())}`);
-            const body = await res.json().catch(() => ({}));
-            if (!res.ok) { setFindError(body.message || 'Could not find that address.'); return; }
-            const label = labelText.trim() || String(body.formatted).split(',').slice(0, 2).join(',');
-            const next = savePlace({ label, address: String(body.formatted), lat: body.lat, lng: body.lng });
-            setPlaces(next);
-            (adding === 'from' ? setFrom : setTo)(next[0].id);
-            setAdding(null); setAddressText(''); setLabelText('');
-        } catch { setFindError('Could not look that up — check your connection.'); } finally { setFinding(false); }
+            if (!window.google?.maps) throw new Error('The map is still loading — try again in a moment.');
+            const { Place } = await window.google.maps.importLibrary('places') as google.maps.PlacesLibrary;
+            const { places } = await Place.searchByText({
+                textQuery: addressText.trim(),
+                fields: ['displayName', 'formattedAddress', 'location'],
+                maxResultCount: 5,
+                region: 'us'
+            });
+            const found = (places || []).filter((p) => p.location).map((p) => ({
+                name: p.displayName || '', address: p.formattedAddress || '', lat: p.location!.lat(), lng: p.location!.lng()
+            }));
+            if (!found.length) setFindError('No match — try the street, city and state.');
+            setMatches(found);
+        } catch (e) { setFindError((e as Error).message || 'Could not look that up.'); } finally { setFinding(false); }
+    };
+    const choosePlace = (m: { name: string; address: string; lat: number; lng: number }) => {
+        const label = labelText.trim() || m.name || m.address.split(',').slice(0, 2).join(',');
+        const next = savePlace({ label, address: m.address, lat: m.lat, lng: m.lng });
+        setPlaces(next);
+        (adding === 'from' ? setFrom : setTo)(next[0].id);
+        setAdding(null); setAddressText(''); setLabelText(''); setMatches([]);
     };
 
     const plan = useMemo(
@@ -245,16 +263,28 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
                     <FormField name="addr" id="opt-addr" label={adding === 'from' ? 'Start address' : 'Finish address'}>
                         <input id="opt-addr" className="fm-input no-capitalize" value={addressText} onChange={(e) => setAddressText(e.target.value)}
                             placeholder="Street, city, state — or a hotel's name and city" autoFocus
-                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (addressText.trim().length >= 4 && !finding) findAddress(); } }} />
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (addressText.trim().length >= 4 && !finding && mapsReady) findAddress(); } }} />
                     </FormField>
                     <FormField name="lbl" id="opt-lbl" label="Name it (optional)">
                         <input id="opt-lbl" className="fm-input" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} value={labelText} onChange={(e) => setLabelText(e.target.value)} placeholder="Home, Hotel…" />
                     </FormField>
                     <div className="opt-add-actions">
                         <button type="button" className="btn-secondary" onClick={() => setAdding(null)}>Cancel</button>
-                        <button type="button" className="btn-primary" onClick={findAddress} disabled={finding || addressText.trim().length < 4}>{finding ? 'Finding…' : 'Use this address'}</button>
+                        <button type="button" className="btn-primary" onClick={findAddress} disabled={finding || !mapsReady || addressText.trim().length < 4}>{finding ? 'Finding…' : 'Find'}</button>
                     </div>
+                    {mapsError && <p className="opt-error" role="alert">Google Maps failed to load: {mapsError.message}</p>}
                     {findError && <p className="opt-error" role="alert">{findError}</p>}
+                    {matches.length > 0 && (
+                        <ul className="opt-matches" role="listbox" aria-label="Matches">
+                            {matches.map((m) => (
+                                <li key={`${m.lat},${m.lng}`}>
+                                    <button type="button" role="option" aria-selected="false" onClick={() => choosePlace(m)}>
+                                        <strong>{m.name}</strong><span>{m.address}</span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </div>
             )}
             {from === 'here' && <p className="opt-note"><Navigation size={14} aria-hidden="true" /> {startNote}</p>}

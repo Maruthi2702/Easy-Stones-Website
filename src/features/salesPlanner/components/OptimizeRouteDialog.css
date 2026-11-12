@@ -23,3 +23,8 @@
 
 .opt-add { display: grid; gap: 10px; margin: 0 0 12px; padding: 10px; border: 1px dashed var(--fm-bd2, rgba(128,128,128,.35)); border-radius: 10px; }
 .opt-add-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.opt-matches { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.opt-matches button { width: 100%; text-align: left; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--fm-bd, rgba(128,128,128,.25)); background: transparent; color: var(--fm-tx, inherit); font: inherit; cursor: pointer; display: flex; flex-direction: column; }
+.opt-matches button span { font-size: .78rem; color: var(--fm-mut, inherit); }
+.opt-matches button:hover { border-color: var(--fm-gold, #e5c04a); }
