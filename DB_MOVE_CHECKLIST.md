@@ -107,7 +107,7 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [x] Geocoding job (fills a customer's map point) · src/services/customerGeocoding.ts — on main, 966e5cf
 - [x] iCloud / Google calendar sync · src/services/icloudSyncService.ts, schedule.ts — on main, 7737178
 - [x] Customer-write attribution: `getPerformerInfo` in server.ts still reads a customer name directly from MongoDB; route it through the existing customer data layer before cutover
-- [ ] Start-up jobs that touch customers · server.ts — location backfill: finished, retire it; marketing-email migration: keep on MongoDB until cutover, then retire it and have `/api/customer/register` and the calendar-sync customer set `marketingEmail` themselves
+- [ ] Start-up jobs that touch customers · server.ts — location backfill retired (done); still open: marketing-email migration: keep on MongoDB until cutover, then retire it and have `/api/customer/register` and the calendar-sync customer set `marketingEmail` themselves
 - [x] A user renamed → customers' rep name (gone in Postgres: it's a join) · server.ts — on main, 66a5b31
 
 ## 3. Before anything is written to RDS
