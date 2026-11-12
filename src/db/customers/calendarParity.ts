@@ -57,6 +57,7 @@ export function calendarParityContext(schedules: Loose[], users: Loose[]): Calen
 /** Accepts the comparison's broader parity context; only a direct calendar record's two clocks qualify. */
 export function knownCalendarClock(difference: Difference, context?: { postgres: unknown; calendar?: CalendarParityContext; calendarFeed?: boolean }): boolean {
   if (!context?.calendar || context.calendarFeed) return false;
+  if (!/^(?:\d+\.)?(?:startTime|endTime)$/.test(difference.path)) return false;
   const keys = difference.path.split('.');
   const field = keys.pop();
   if (field !== 'startTime' && field !== 'endTime') return false;
@@ -85,6 +86,7 @@ export function calendarOrderIds(value: unknown, facts: CalendarParityContext): 
 /** The lean feed exposes the copy's model default only when this exact source row lacked it. */
 export function knownCalendarDefault(difference: Difference, context?: { postgres: unknown; calendar?: CalendarParityContext; calendarFeed?: boolean }): boolean {
   if (!context?.calendar || !context.calendarFeed || difference.mongo !== undefined || difference.postgres !== 'manual') return false;
+  if (!/^(?:\d+\.)?source$/.test(difference.path)) return false;
   const keys = difference.path.split('.');
   if (keys.pop() !== 'source') return false;
   let record = context.postgres as Loose | undefined;

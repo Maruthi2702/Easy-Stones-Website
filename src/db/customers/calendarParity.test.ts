@@ -39,6 +39,8 @@ describe('source-proven calendar clock differences', () => {
     const mongo = { _id: date, notes: at.toISOString(), customerId: { startTime: at.toISOString() } };
     const postgres = { _id: date, notes: '2026-01-01T06:34:56.090', customerId: { startTime: '2026-01-01T06:34:56.090' } };
     expect(unknown(mongo, postgres)).toHaveLength(2);
+    expect(unknown({ customerId: { _id: date, startTime: at.toISOString() } },
+      { customerId: { _id: date, startTime: '2026-01-01T06:34:56.090' } })).toHaveLength(1);
     expect(unknown([{ _id: date, startTime: at.toISOString() }], [])).not.toHaveLength(0);
     expect(unknown({ _id: first, startTime: raw[2].startTime }, { _id: first, startTime: '2026-01-03T09:01:00.000' })).toHaveLength(1);
     expect(knownCalendarClock({ path: 'startTime', mongo: at.toISOString(), postgres: '2026-01-01T06:34:56.090' }, { postgres: { _id: date } })).toBe(false);
@@ -84,6 +86,8 @@ it('allows only the source-proven missing model source default, with no unrelate
   expect(knownCalendarDifference(d, { postgres: [{ _id: date }], calendar: explicit, calendarFeed: true })).toBe(false);
   expect(knownCalendarDifference({ ...d, path: '0.status' }, { postgres: [{ _id: date }], calendar: facts, calendarFeed: true })).toBe(false);
   expect(knownCalendarDifference({ ...d, postgres: 'route_planner' }, { postgres: [{ _id: date }], calendar: facts, calendarFeed: true })).toBe(false);
+  expect(knownCalendarDifference({ ...d, path: '0.customerId.source' },
+    { postgres: [{ customerId: { _id: date } }], calendar: facts, calendarFeed: true })).toBe(false);
 });
 
 it('never permits changed ICS clocks even when they equal the otherwise-known copy conversion', () => {

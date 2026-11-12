@@ -105,6 +105,7 @@ it('matches own, team, all and empty calendar scopes, inclusive bounds and delet
     await both(() => data.calendarEntries({ people, start: '2026-11-12T00:00:00.000', end: '2026-11-12T23:59:59.999' }));
   }
   const own = await both(() => data.calendarEntries({ people: new Set([String(owner)]) }));
+  expect(own.find(e => String(e._id) === String(entries[0]))!.customerId.coordinates).toEqual({ lat: 47.38, lng: -122.23 });
   expect(own.find(e => String(e._id) === String(entries[3]))!.customerId).toBeNull();
   expect((await both(() => data.calendarEntries({ people: '*', start: '2026-11-12T09:00:00.000', end: '2026-11-12T09:00:00.000' })))).toHaveLength(1);
   expect((await both(() => data.calendarEntries({ people: '*', start: 'not-a-time', end: 'zzz' })))).toEqual([]);
@@ -112,6 +113,7 @@ it('matches own, team, all and empty calendar scopes, inclusive bounds and delet
 it('matches the feed projection, omitting cancelled entries and populated customer virtuals', async () => {
   const feed = await both(() => data.calendarEntries({ people: new Set([String(owner)]), feed: true }), byId);
   expect(feed).toHaveLength(2); expect(feed[0].customerId).not.toHaveProperty('id');
+  expect(feed[0].customerId).not.toHaveProperty('coordinates');
 });
 it('keeps HTTP map permissions and branch scope, rep filtering and details boundaries on both databases', async () => {
   for (const database of ['mongo', 'postgres']) {
