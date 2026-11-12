@@ -30,3 +30,8 @@ export async function customerContactsForMatching(): Promise<Loose[]> {
 export async function customerPriceLevel(id: string): Promise<Loose | null> {
   return Customer.findById(id, 'priceLevel isActive').lean();
 }
+
+/** Who a customer login is, for "created by" / "updated by" attribution. */
+export async function customerAttribution(id: string): Promise<Loose | null> {
+  return Customer.findById(id).select('contactName email').lean();
+}

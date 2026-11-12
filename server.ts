@@ -2757,7 +2757,7 @@ const getPerformerInfo = async (req: Request) => {
     name = user ? displayNameOf(user) : `Unknown User (${req.userId})`;
   } else if (req.authType === 'customer') {
     id = req.customerId!;
-    const customer = await Customer.findById(req.customerId).select('contactName email');
+    const customer = await customerData.customerAttribution(req.customerId!);
     name = customer ? (customer.contactName || customer.email) : `Unknown Customer (${req.customerId})`;
   }
 

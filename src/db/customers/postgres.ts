@@ -17,7 +17,7 @@ import type { CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
 import { customerVisits, customerResources, customerContacts, historyScope } from './profileSql.ts';
 import { lastVisit, isHistoryId, shapeCustomerHistory } from './profileShape.ts';
 
-export { customerVCard, customerModa, customerById, customerContactsForMatching, customerPriceLevel } from './lookup.postgres.ts';
+export { customerVCard, customerModa, customerById, customerContactsForMatching, customerPriceLevel, customerAttribution } from './lookup.postgres.ts';
 
 /** The create/edit response must use the record just saved, even if a copy is older. */
 export async function customerRecordResponse(db: Db, record: Loose, scope: CustomerHistoryScope): Promise<Loose> {
