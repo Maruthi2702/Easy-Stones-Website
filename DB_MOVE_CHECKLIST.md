@@ -14,6 +14,37 @@ the owner's decisions: [`MIGRATION_NOTES.md`](MIGRATION_NOTES.md) §3 and §5.
 
 ---
 
+## Plan: from here to the customer cutover (drafted 2026-11-11, for the owner to approve)
+
+Writes are already built one-step: every save goes through the data layer and the whole area
+flips with `DB_CUSTOMERS=postgres` (src/db/customers/writes/README.md). So the write plan
+below is **one short pause at cutover**, not per-route switching (per-route would mean two
+databases each holding half the writes). Approving this ticks "Agree the write plan" in §2.
+
+1. **Finish customer reads (§1)**, in this order, each by the 6-step pattern above:
+   vCard, Moda summary, possible-duplicates, then Route Planner map (3 routes), then
+   dashboard stats / visits / follow-ups / resources, then schedule + `.ics`, then the
+   lookups in Cart & Holds, Permits and public product prices. Tick `customerRecordResponse`
+   once create/edit answer from the data layer.
+2. **Close the start-up jobs (§2):** retire the location backfill; move marketing-email
+   migration into `/api/customer/register` and calendar sync, then retire it.
+3. **Prerequisites (§3), the ones that block a rehearsal:** copy users / roles / locations /
+   types to Postgres on every change; write the reverse copy script (Postgres → MongoDB);
+   decide `admins` / `crossoversheets`. Owner-only items (prod RDS access for Render, deploy
+   prod, dev backups) can wait until just before cutover.
+4. **Rehearse (§4):** run every customer screen against a copy with `DB_CUSTOMERS=postgres`;
+   time the Customers page and profile (38 ms per query Render → Ohio; batch where slow).
+   Fix what the rehearsal finds before any live step.
+5. **Cutover, early morning:** pause customer writes → copy `--write` + `--verify` equal →
+   set `DB_CUSTOMERS=postgres` on Render → open each screen → `--lock`. MongoDB customers
+   stay read-only 2 weeks, with the reverse script as the way back.
+6. **Then §5 area by area**, customer-linked areas first (Deliveries, Payments, Holds, Lost
+   Sales, Card Receipts, SPS), Users / Roles / Locations / sign-in last.
+
+Parallel, not database: set a real `JWT_SECRET` on Render and rotate the pasted passwords.
+
+---
+
 ## 0. Done
 
 - [x] RDS Postgres in dev (Ohio), IAM sign-in, TLS — aws-infra 72e1318
@@ -30,7 +61,7 @@ the owner's decisions: [`MIGRATION_NOTES.md`](MIGRATION_NOTES.md) §3 and §5.
 
 - [x] `GET /api/customers/list` — the Customers page (filters, saved views, A–Z, sorts, Moda) — ca03b24
 - [x] `GET /api/customers/view-counts` — the saved-view counts — 8ecace4
-- [ ] `GET /api/customers/:id` + `/:customerId/{visits,resources}/:entryId` — the profile, including nested contacts (`customerHistoryResponse`) · src/routes/customerHistory.ts
+- [x] `GET /api/customers/:id` + `/:customerId/{visits,resources}/:entryId` — the profile, including nested contacts (`customerHistoryResponse`) · src/routes/customerHistory.ts — 2c73456, ebb6bd4
 - [ ] `customerRecordResponse` (the profile-shaped reply of create/edit; always MongoDB until customer writes move) · src/db/customers/index.ts
 - [ ] `GET /api/customers/:id/vcard` · server.ts
 - [ ] `GET /api/customers/:customerId/moda` · src/routes/customerResources.ts
@@ -46,33 +77,33 @@ the owner's decisions: [`MIGRATION_NOTES.md`](MIGRATION_NOTES.md) §3 and §5.
 ## 2. Customer area: writes
 
 These go to Postgres only at cutover (§4), because MongoDB stays the database the app
-writes until then. Each still moves through the data layer first, switch off. Built 2026-11-11 by parallel agents on `feat/pg-customer-writes` (rules and test harness: `src/db/customers/writes/README.md`); not on main yet.
+writes until then. Each still moves through the data layer first, switch off. Built 2026-11-11 by parallel agents on `feat/pg-customer-writes` (rules and test harness: `src/db/customers/writes/README.md`); on main (314c506).
 
 - [ ] Agree the write plan with the owner: one short pause at cutover, or per-route switch-over
-- [x] `POST /api/customers` — create (also `/api/sales/customers`, `/api/partners` aliases) — on feat/pg-customer-writes, 66a5b31
-- [x] `PUT /api/customers/:id` — edit (geocoding, rep name, Moda typed values) — on feat/pg-customer-writes, 66a5b31
-- [x] `DELETE /api/customers/:id` — delete with backup (`customer_delete_backups`) — on feat/pg-customer-writes, d2b7d97
-- [x] `POST /api/customers/bulk-delete` + `/bulk-delete/undo` · src/routes/customerBulkDelete.ts — on feat/pg-customer-writes, d2b7d97
-- [x] `PATCH /api/customers/bulk` · server.ts — on feat/pg-customer-writes, 66a5b31
-- [x] `PATCH /api/customers/:id/active` · server.ts — on feat/pg-customer-writes, 66a5b31
-- [x] `PATCH /api/customers/:id/quick-note` · server.ts — on feat/pg-customer-writes, 347e64b
-- [x] `PUT /api/customers/:id/password` + website sign-in: `/api/customer/register`, `/login`, `/me` (`customer_logins`) · server.ts — on feat/pg-customer-writes, 966e5cf (+9acfc28: reset lifts the lock)
-- [x] Contacts: `POST /:customerId/contacts`, `PUT /:customerId/contacts/:contactId` · server.ts — on feat/pg-customer-writes, 966e5cf
-- [x] Partners: `POST` / `DELETE /:customerId/associations` · server.ts — on feat/pg-customer-writes, 966e5cf
-- [x] Visits: `POST`, `PUT`, `PATCH …/follow-up` · src/routes/visits.ts — on feat/pg-customer-writes, 1e024e6
-- [x] Visits: `DELETE /:customerId/visits/:visitId` (with its placement resource) · server.ts — on feat/pg-customer-writes, ac96de3
-- [x] Visits: `POST …/visits/:visitId/react` · server.ts — on feat/pg-customer-writes, 1e024e6
-- [x] Resources: `POST`, `PUT`, `DELETE` (+ Moda recount in the same save) · src/routes/customerResources.ts, src/services/modaCount.ts — on feat/pg-customer-writes, ac96de3
-- [x] Calendar: `POST /schedule`, `/schedule/bulk`, `PUT` / `DELETE /schedule/:id`, `DELETE /schedule/route`, backfill · src/routes/schedule.ts — on feat/pg-customer-writes, 7737178
-- [x] Activity log writes (every customer / visit / resource change) · `activity_logs` — on feat/pg-customer-writes, inside each save (activityLog.ts, 347e64b)
-- [x] Duplicates: `/duplicates/resolve` + `/undo` (merge, `customer_merge_backups`) · src/services/customerMerge.ts — on feat/pg-customer-writes, 37e9a91
-- [x] Excel import: `/import/preview`, `/import/apply`, `DELETE /import/memory` · server.ts — on feat/pg-customer-writes, 36d94dc
-- [x] SPS: `/sps-connect/*` and the SPS import runs (`/sps-import/*`, the runner) · src/routes/customerSps*.ts, src/services/spsImportRunner.ts — on feat/pg-customer-writes, 36d94dc, 4d2828c
-- [x] Type lists: moving / deleting a visit or resource type rewrites customers · src/services/typeReplacement.ts, seedTypeLists.ts — on feat/pg-customer-writes, ac96de3
-- [x] Geocoding job (fills a customer's map point) · src/services/customerGeocoding.ts — on feat/pg-customer-writes, 966e5cf
-- [x] iCloud / Google calendar sync · src/services/icloudSyncService.ts, schedule.ts — on feat/pg-customer-writes, 7737178
+- [x] `POST /api/customers` — create (also `/api/sales/customers`, `/api/partners` aliases) — on main, 66a5b31
+- [x] `PUT /api/customers/:id` — edit (geocoding, rep name, Moda typed values) — on main, 66a5b31
+- [x] `DELETE /api/customers/:id` — delete with backup (`customer_delete_backups`) — on main, d2b7d97
+- [x] `POST /api/customers/bulk-delete` + `/bulk-delete/undo` · src/routes/customerBulkDelete.ts — on main, d2b7d97
+- [x] `PATCH /api/customers/bulk` · server.ts — on main, 66a5b31
+- [x] `PATCH /api/customers/:id/active` · server.ts — on main, 66a5b31
+- [x] `PATCH /api/customers/:id/quick-note` · server.ts — on main, 347e64b
+- [x] `PUT /api/customers/:id/password` + website sign-in: `/api/customer/register`, `/login`, `/me` (`customer_logins`) · server.ts — on main, 966e5cf (+9acfc28: reset lifts the lock)
+- [x] Contacts: `POST /:customerId/contacts`, `PUT /:customerId/contacts/:contactId` · server.ts — on main, 966e5cf
+- [x] Partners: `POST` / `DELETE /:customerId/associations` · server.ts — on main, 966e5cf
+- [x] Visits: `POST`, `PUT`, `PATCH …/follow-up` · src/routes/visits.ts — on main, 1e024e6
+- [x] Visits: `DELETE /:customerId/visits/:visitId` (with its placement resource) · server.ts — on main, ac96de3
+- [x] Visits: `POST …/visits/:visitId/react` · server.ts — on main, 1e024e6
+- [x] Resources: `POST`, `PUT`, `DELETE` (+ Moda recount in the same save) · src/routes/customerResources.ts, src/services/modaCount.ts — on main, ac96de3
+- [x] Calendar: `POST /schedule`, `/schedule/bulk`, `PUT` / `DELETE /schedule/:id`, `DELETE /schedule/route`, backfill · src/routes/schedule.ts — on main, 7737178
+- [x] Activity log writes (every customer / visit / resource change) · `activity_logs` — on main, inside each save (activityLog.ts, 347e64b)
+- [x] Duplicates: `/duplicates/resolve` + `/undo` (merge, `customer_merge_backups`) · src/services/customerMerge.ts — on main, 37e9a91
+- [x] Excel import: `/import/preview`, `/import/apply`, `DELETE /import/memory` · server.ts — on main, 36d94dc
+- [x] SPS: `/sps-connect/*` and the SPS import runs (`/sps-import/*`, the runner) · src/routes/customerSps*.ts, src/services/spsImportRunner.ts — on main, 36d94dc, 4d2828c
+- [x] Type lists: moving / deleting a visit or resource type rewrites customers · src/services/typeReplacement.ts, seedTypeLists.ts — on main, ac96de3
+- [x] Geocoding job (fills a customer's map point) · src/services/customerGeocoding.ts — on main, 966e5cf
+- [x] iCloud / Google calendar sync · src/services/icloudSyncService.ts, schedule.ts — on main, 7737178
 - [ ] Start-up jobs that touch customers · server.ts — location backfill: finished, retire it; marketing-email migration: keep on MongoDB until cutover, then retire it and have `/api/customer/register` and the calendar-sync customer set `marketingEmail` themselves
-- [x] A user renamed → customers' rep name (gone in Postgres: it's a join) · server.ts — on feat/pg-customer-writes, 66a5b31
+- [x] A user renamed → customers' rep name (gone in Postgres: it's a join) · server.ts — on main, 66a5b31
 
 ## 3. Before anything is written to RDS
 
