@@ -120,7 +120,7 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [ ] Dev RDS: raise backups from 1 day, turn off delete-on-teardown (aws-infra)
 - [ ] Tables for the 2 collections not copied yet (`admins`, `crossoversheets`), or confirm they stay empty
 - [x] Users, roles, locations, visit / resource types copied MongoDB → Postgres on every change until they move (customers point at them) · src/db/reference/ (change stream + 10-minute safety net, started with `DB_CUSTOMERS=postgres`) — tested; not yet run against RDS
-- [x] A reverse copy script (Postgres → MongoDB) for going back during the 2 weeks after cutover · scripts/pg-reverse.ts, src/db/reverse/ — round trip proved on the live copy 2026-11-12 (README lists the few spellings that differ); not yet run against a real Atlas
+- [x] A reverse copy script (Postgres → MongoDB) for going back during the 2 weeks after cutover · scripts/pg-reverse.ts, src/db/reverse/ — round trip proved on the live copy 2026-11-12 (README lists the few spellings that differ); run on Render from prod RDS into a scratch database on Atlas 2026-11-12 with `pg-reverse-check.ts`: every live document rebuilt, only the known spellings differ
 - [x] Speed: 38 ms per query Render (Virginia) → RDS (Ohio). Counted 2026-11-12 ([docs/db/customer-query-counts.md](docs/db/customer-query-counts.md)): every screen ≤ 6 queries (≈ 0.3 s at most); saves 6–22, delete customer 40 (≈ 1.6 s). Real RDS: 12 ms per query, so ≈ 0.1 s per screen and ≤ 0.5 s per save (docs/db/customer-query-counts.md)
 
 ## 4. Customer area cutover

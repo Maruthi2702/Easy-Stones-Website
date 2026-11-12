@@ -23,3 +23,10 @@ back to MongoDB, `scripts/pg-reverse.ts` rebuilds its collections from Postgres.
   back as the day; `salesRepName` is the rep's display name; a resource's `customer` is the company (or
   contact) name; a link to a deleted customer, an unknown `createdBy` and the stray `firstName` /
   `lastName` fields are gone; schedules gain `source: 'manual'`; `lastLoginIp` is the latest of `loginIps`.
+
+## Tried on the real stack (2026-11-12)
+
+From the Render shell: `pg-reverse.ts --apply` from production RDS into a scratch database (`reverse_test`) on the live Atlas
+cluster, then `scripts/pg-reverse-check.ts` against the live database. All 4,506 customers and every other document were rebuilt;
+only the spellings above differed. One to know: about 11 old contacts whose `createdAt` MongoDB held as a real UTC date come back
+as the branch's wall-clock text (8 hours earlier when read as UTC). The scratch database was dropped afterwards.
