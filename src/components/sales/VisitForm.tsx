@@ -5,6 +5,8 @@ import FormModal from '../shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker, SegmentedToggle } from '../shared/form/FormControls';
 import { goToField } from '../shared/form/formFocus';
 import useTouched from '../shared/form/useTouched';
+import DictationButton from '../shared/form/DictationButton';
+import { appendSpoken } from '../../utils/dictation';
 import { API_URL } from '../../config/api';
 import { isPdfSource } from '../../utils/attachments';
 import {
@@ -96,15 +98,21 @@ export default function VisitForm({
 
     const textarea = (name: string, label: string, { placeholder, rows = 3, large = false }: { placeholder?: string; rows?: number; large?: boolean } = {}) => (
         <FormField name={name} id={`vf-${name}`} label={label}>
-            <textarea
-                id={`vf-${name}`}
-                className={`fm-input${large ? ' vf-notes' : ''}`}
-                rows={rows}
-                value={values[name] || ''}
-                placeholder={placeholder}
-                autoCapitalize="sentences"
-                onChange={(e) => set({ [name]: e.target.value })}
-            />
+            <div className="dictate-wrap">
+                <textarea
+                    id={`vf-${name}`}
+                    className={`fm-input${large ? ' vf-notes' : ''}`}
+                    rows={rows}
+                    value={values[name] || ''}
+                    placeholder={placeholder}
+                    autoCapitalize="sentences"
+                    onChange={(e) => set({ [name]: e.target.value })}
+                />
+                <DictationButton
+                    disabled={saving}
+                    onText={(spoken) => setValues((v) => ({ ...v, [name]: appendSpoken(String(v[name] || ''), spoken) }))}
+                />
+            </div>
         </FormField>
     );
 
