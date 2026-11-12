@@ -16,6 +16,8 @@ import { escapeRegex } from '../../server/http.ts';
 import type { Loose } from '../../types/records.ts';
 import type { CustomerPage, CustomerPageQuery, CustomerList, CustomerListQuery, CustomerViewCounts, CustomerViewCountsQuery } from './types.ts';
 
+export { customerVCard, customerModa, customerById, customerContactsForMatching, customerPriceLevel } from './lookup.mongo.ts';
+
 /** Kept on MongoDB for create/edit replies until customer writes move too. */
 export async function customerRecordResponse(record: Loose, scope: CustomerHistoryScope): Promise<Loose> {
   const customer = shapeCustomerHistory(record, scope);

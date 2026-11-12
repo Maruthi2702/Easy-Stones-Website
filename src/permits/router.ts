@@ -26,7 +26,7 @@ import type { Loose } from '../types/records.ts';
  * contact is never changed.
  */
 import express from 'express';
-import Customer from '../models/Customer.ts';
+import { customerContactsForMatching } from '../db/customers/index.ts';
 import { HttpError, handle, requireAll, actorOf, escapeRegex } from '../server/http.ts';
 import { companyOf, realEmailsOf } from '../utils/customerList.ts';
 import { PERMITS, can } from './permissions.ts';
@@ -117,15 +117,10 @@ export async function fullFilter(query: Loose = {}, opts: Loose = {}) {
 }
 
 /** Existing customers by email, phone and company / contact name — rebuilt every 10 minutes. */
-function createCustomerIndex(maxAgeMs = CUSTOMER_INDEX_MS) {
-  let built: { byEmail: Map<string, Loose>; byPhone: Map<string, Loose>; byName: Map<string, Loose> } | null = null;
-  let at = 0;
-  return async function index(fresh = false) {
-    if (!fresh && built && Date.now() - at < maxAgeMs) return built;
+export function indexCustomerContacts(customers: Loose[]) {
     const byEmail = new Map();
     const byPhone = new Map();
     const byName = new Map();
-    const customers = await Customer.find({}, 'company name contactName email phone contacts.name contacts.phone contacts.email').lean();
     for (const c of customers) {
       const ref = { id: String(c._id), name: companyOf(c) };
       for (const e of [...realEmailsOf(c), ...(c.contacts || []).map((x: Loose) => x.email)]) {
@@ -141,7 +136,15 @@ function createCustomerIndex(maxAgeMs = CUSTOMER_INDEX_MS) {
         if (k.length >= MIN_NAME_KEY && !byName.has(k)) byName.set(k, ref);
       }
     }
-    built = { byEmail, byPhone, byName };
+    return { byEmail, byPhone, byName };
+}
+
+function createCustomerIndex(maxAgeMs = CUSTOMER_INDEX_MS) {
+  let built: ReturnType<typeof indexCustomerContacts> | null = null;
+  let at = 0;
+  return async function index(fresh = false) {
+    if (!fresh && built && Date.now() - at < maxAgeMs) return built;
+    built = indexCustomerContacts(await customerContactsForMatching());
     at = Date.now();
     return built;
   };

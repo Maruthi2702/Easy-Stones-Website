@@ -15,7 +15,22 @@ import { listFields, listWhere, listOrder, savedViewWhere, fabricatorWhere } fro
 import { SAVED_VIEWS } from '../../utils/customerList.ts';
 import type { CustomerHistoryScope, CustomerHistoryKind } from './types.ts';
 import { customerVisits, customerResources, customerContacts, historyScope } from './profileSql.ts';
-import { lastVisit, isHistoryId } from './profileShape.ts';
+import { lastVisit, isHistoryId, shapeCustomerHistory } from './profileShape.ts';
+
+export { customerVCard, customerModa, customerById, customerContactsForMatching, customerPriceLevel } from './lookup.postgres.ts';
+
+/** The create/edit response must use the record just saved, even if a copy is older. */
+export async function customerRecordResponse(db: Db, record: Loose, scope: CustomerHistoryScope): Promise<Loose> {
+  const customer = shapeCustomerHistory(record, scope);
+  if (!scope.mayProfile) return customer;
+  const resources: Loose[] = customer.resources;
+  const ids = [...new Set(resources.map(r => String(r.uploadedBy || '')).filter(isHistoryId))];
+  const people = ids.length ? await db.select({ id: users.id, repUsername: users.username, repDisplayName: users.displayName })
+    .from(users).where(inArray(users.id, ids.map(id => id.toLowerCase()))) : [];
+  const names = new Map(people.map(p => [p.id, repNameOf(p)]));
+  customer.resources = resources.map(r => ({ ...r, uploadedByName: names.get(String(r.uploadedBy || '')) || '' }));
+  return customer;
+}
 
 /** MongoDB casts these route parameters to ObjectIds; the routes answer 404 to anything else before reading. */
 function historyId(id: string): string {

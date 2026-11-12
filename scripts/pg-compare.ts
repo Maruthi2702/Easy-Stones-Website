@@ -20,6 +20,7 @@ import { normalize, diffEntries, describeDifference, knownWhy, profileParityCont
 import type { CustomerList, CustomerListQuery } from '../src/db/customers/types.ts';
 import type { Loose } from '../src/types/records.ts';
 import { addDays } from '../src/utils/customerList.ts';
+import { lookupCompareReads } from './pg-compare-lookups.ts';
 
 const mongoUri = process.env.MONGO_URI;
 if (!mongoUri) { console.error('MONGO_URI is not set.'); process.exit(1); }
@@ -172,6 +173,17 @@ for (const kind of ['visits', 'resources'] as const) {
   }
 }
 reads.unshift(...profileReads);
+const allCustomerIds = (await mongoose.connection.db!.collection('customers').find({}, { projection: { _id: 1 } })
+  .sort({ _id: 1 }).toArray()).map(c => String(c._id));
+reads.push(...lookupCompareReads(profileIds, allCustomerIds, batched));
+// The response to a save shapes that saved record, so both twins get the same
+// source record here; only their uploader-name lookup reaches their database.
+const responseRecords = (copiedCustomers ?? await mongoose.connection.db!.collection('customers').find({}, { projection: { password: 0 } }).toArray())
+  .filter(c => profileIds.includes(String(c._id))).map(c => JSON.stringify(c));
+for (const [label, people] of [['all', '*'], ['own', new Set(listBase.userId ? [listBase.userId] : [])], ['empty', new Set<string>()]] as const) {
+  reads.push({ name: `customer mutation responses: ${label}, actual record and uploader names`,
+    read: () => batched(responseRecords, record => customers.customerRecordResponse(JSON.parse(record), { mayProfile: true, people })) });
+}
 
 let failed = 0;
 const known = new Map<string, { count: number; example: string }>();
