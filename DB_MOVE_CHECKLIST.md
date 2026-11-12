@@ -115,8 +115,8 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [x] Prod RDS size: db.t4g.small Multi-AZ, 20 GB growing to a 100 GB cap, 7-day backups, ~$55/mo; size up when the CPU-credit or free-memory alarm fires (owner, 2026-11-10) — aws-infra 63e962d
 - [x] Prod without NAT gateways, master-password rotation off (~$65/mo saved) — aws-infra 9e29b41
 - [x] Prod in the same AWS account as dev; its $150 budget covers the account — aws-infra 4f36c4c
-- [ ] Prod RDS lets the website on Render in (`database.publicAccess`, Render's 2 Virginia ranges, as dev) — owner: later
-- [ ] Deploy prod (owner runs it), then turn dev's $10 budget off (dev.yaml `monitoring.budget.enabled: false`)
+- [x] Prod RDS lets the website on Render in (`database.publicAccess`, Render's 2 Virginia ranges, as dev) — aws-infra feat/prod-render-access; prod deployed 2026-11-12 (db `easy-surfaces-prod-db.cjukgckwuvzb.us-east-2.rds.amazonaws.com`; prod API / front end / CI stacks left off). Render not yet pointed at it: `npm run pg:ping` from Render still to do
+- [x] Deploy prod (owner ran it 2026-11-12); dev's $10 budget off in aws-infra config, waits for `make deploy ENV=dev` (owner)
 - [ ] Dev RDS: raise backups from 1 day, turn off delete-on-teardown (aws-infra)
 - [ ] Tables for the 2 collections not copied yet (`admins`, `crossoversheets`), or confirm they stay empty
 - [x] Users, roles, locations, visit / resource types copied MongoDB → Postgres on every change until they move (customers point at them) · src/db/reference/ (change stream + 10-minute safety net, started with `DB_CUSTOMERS=postgres`) — tested; not yet run against RDS
@@ -125,7 +125,7 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 
 ## 4. Customer area cutover
 
-- [ ] RDS schema up to date: `pg-copy-aws.ts --deploy` after any change in `drizzle/` (the copy applies migrations; this read batch adds 0010 calendar clocks and 0011 customer matching order)
+- [x] RDS schema up to date (prod, 2026-11-12): `pg-copy-aws.ts --deploy` after any change in `drizzle/` (the copy applies migrations; this read batch adds 0010 calendar clocks and 0011 customer matching order)
 - [x] Rehearse on a copy: every customer screen opened with `DB_CUSTOMERS=postgres` (local, PGlite or local Postgres) — API level 2026-11-12 ([docs/db/customer-rehearsal.md](docs/db/customer-rehearsal.md)) and owner's browser click-through 2026-11-12: all screens working; the 2026-01-28 resource's time zone to be checked by the owner
 - [ ] Early morning: pause customer writes
 - [ ] `pg-copy-aws.ts --write`, then `--verify`: equal
