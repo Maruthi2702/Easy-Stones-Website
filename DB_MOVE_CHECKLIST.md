@@ -126,7 +126,7 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 ## 4. Customer area cutover
 
 - [ ] RDS schema up to date: `pg-copy-aws.ts --deploy` after any change in `drizzle/` (the copy applies migrations; this read batch adds 0010 calendar clocks and 0011 customer matching order)
-- [ ] Rehearse on a copy: every customer screen opened with `DB_CUSTOMERS=postgres` (local, PGlite or local Postgres)
+- [ ] Rehearse on a copy: every customer screen opened with `DB_CUSTOMERS=postgres` (local, PGlite or local Postgres) — API level done 2026-11-12 ([docs/db/customer-rehearsal.md](docs/db/customer-rehearsal.md)); the browser click-through is still open
 - [ ] Early morning: pause customer writes
 - [ ] `pg-copy-aws.ts --write`, then `--verify`: equal
 - [ ] Set `DB_CUSTOMERS=postgres` on Render; open each customer screen live
