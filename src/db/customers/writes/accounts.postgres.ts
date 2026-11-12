@@ -216,7 +216,7 @@ export async function registerCustomer(db: Db, id: string, input: RegisterInput)
     if (!seattle) throw new Error('No Seattle location for a new customer');
     const now = new Date();
     await tx.insert(customers).values({
-      id, contactName, email: email.trim(), phone: textOrBlank(phone), company: textOrBlank(company),
+      id, contactName, email: email.trim(), marketingEmail: email.trim(), receiveMarketing: true, phone: textOrBlank(phone), company: textOrBlank(company),
       customerType: 'Fabricator', modaDisplay: false, locationId: seattle.id, createdAt: now, updatedAt: now
     });
     await tx.insert(customerLogins).values({ customerId: id, passwordHash: hash, loginAttempts: 0, loginIps: [] });
