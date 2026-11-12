@@ -21,7 +21,11 @@ flips with `DB_CUSTOMERS=postgres` (src/db/customers/writes/README.md). So the w
 below is **one short pause at cutover**, not per-route switching (per-route would mean two
 databases each holding half the writes). Approving this ticks "Agree the write plan" in §2.
 
-1. **Finish customer reads (§1)**, in this order, each by the 6-step pattern above:
+1. **Finish customer reads (§1) — another agent has this** (all 11 remaining reads in one batch on one
+   branch: shared loaders built once, existing permissions kept, each endpoint tested, full checks plus
+   read-only live comparison across the batch; one combined change to review, production stays on
+   MongoDB until cutover is authorised; estimation only so far, nothing changed). Don't start these in
+   another session. Suggested order within it, each by the 6-step pattern above:
    vCard, Moda summary, possible-duplicates, then Route Planner map (3 routes), then
    dashboard stats / visits / follow-ups / resources, then schedule + `.ics`, then the
    lookups in Cart & Holds, Permits and public product prices. Tick `customerRecordResponse`

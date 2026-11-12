@@ -1,0 +1,54 @@
+/* Mic for a text box (DictationButton.tsx). The wrapper holds the box and the
+   button; the button sits in the box's bottom-right corner. */
+.dictate-wrap { position: relative; }
+.dictate-wrap > textarea { padding-right: 52px; }
+
+.dictate-btn {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--fm-bd);
+    border-radius: 50%;
+    background: var(--fm-dis);
+    color: var(--fm-gold-tx);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.dictate-btn:hover:not(:disabled) { background: var(--fm-bd); }
+.dictate-btn:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 1px; }
+.dictate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.dictate-btn.is-listening {
+    background: #c62828;
+    border-color: #c62828;
+    color: #fff;
+    animation: dictate-pulse 1.4s ease-in-out infinite;
+}
+@keyframes dictate-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(198, 40, 40, 0.45); }
+    50% { box-shadow: 0 0 0 7px rgba(198, 40, 40, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .dictate-btn.is-listening { animation: none; }
+}
+
+/* On the label's line, at the right, so the box and button never move. */
+.dictate-status {
+    position: absolute;
+    right: 0;
+    top: -22px;
+    font-size: 12px;
+    color: var(--fm-mut);
+}
+.dictate-status[data-tone='error'] { color: #c62828; }
+
+/* Phones: a bigger target. */
+@media (max-width: 640px) {
+    .dictate-btn { width: 44px; height: 44px; }
+    .dictate-wrap > textarea { padding-right: 60px; }
+}

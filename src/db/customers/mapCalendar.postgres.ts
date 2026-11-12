@@ -71,15 +71,16 @@ export async function calendarEntries(db: Db, { people, start, end, feed = false
   const owner = people === '*' ? undefined : people.size ? inArray(schedules.userId, [...people].map(castId)) : sql`false`;
   // MongoDB compares the app's local clock strings lexically, including malformed query bounds.
   const clock = scheduleClockText(), clockKind = scheduleClockKind();
-  const rows = await db.select({ s: schedules, company: customers.company, contactName: customers.contactName })
+  const rows = await db.select({ s: schedules, company: customers.company, contactName: customers.contactName,
+    lat: customers.lat, lng: customers.lng })
     .from(schedules).leftJoin(customers, eq(customers.id, schedules.customerId))
     .where(and(owner, start && end ? and(scheduleClockIsString(), sql`${clock} >= ${start} and ${clock} <= ${end}`) : undefined,
       feed ? ne(schedules.status, 'Cancelled') : undefined))
     .orderBy(...(feed ? [asc(schedules.id)] : [asc(clockKind), asc(clock), asc(schedules.id)]));
-  return rows.map(({ s, company, contactName }) => ({
+  return rows.map(({ s, company, contactName, lat, lng }) => ({
     _id: s.id, userId: s.userId,
     customerId: contactName == null || !s.customerId ? null : {
-      _id: s.customerId, company, contactName, ...(feed ? {} : { id: s.customerId })
+      _id: s.customerId, company, contactName, ...(feed ? {} : { id: s.customerId, coordinates: { lat, lng } })
     },
     startTime: feed && s.legacyStartTime ? s.legacyStartTime.value : appLocalTime(s.startsAt),
     endTime: feed && s.legacyEndTime ? s.legacyEndTime.value : appLocalTime(s.endsAt), activityType: s.activityType,

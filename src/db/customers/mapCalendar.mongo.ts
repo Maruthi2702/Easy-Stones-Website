@@ -29,6 +29,7 @@ export async function calendarEntries({ people, start, end, feed = false }: Cale
   if (start && end) query.startTime = { $gte: start, $lte: end };
   if (feed) query.status = { $ne: 'Cancelled' };
   const found = Schedule.find(query)
-    .populate<{ customerId: Pick<CustomerData, 'company' | 'contactName'> | null }>('customerId', 'contactName company');
+    .populate<{ customerId: Pick<CustomerData, 'company' | 'contactName' | 'coordinates'> | null }>('customerId',
+      feed ? 'contactName company' : 'contactName company coordinates');
   return feed ? found.lean() : found.sort({ startTime: 1 });
 }

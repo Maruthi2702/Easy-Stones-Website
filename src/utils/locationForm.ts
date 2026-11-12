@@ -344,6 +344,8 @@ export const publicLocationFields = (loc: Loose = {}, { staff = false }: Loose =
   shortCode: loc.shortCode || '',
   fullName: loc.fullName || '',
   primaryContact: loc.primaryContact,
+  // The branch's map point (its address is already here) — the planner can start or finish a day there.
+  coordinates: loc.coordinates,
   createdAt: loc.createdAt,
   updatedAt: loc.updatedAt
 });

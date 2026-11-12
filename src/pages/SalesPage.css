@@ -6977,3 +6977,8 @@ body.light-theme-active .partner-action-btn.view-btn:hover,
 @media (max-width: 639px) {
   .pl-search { margin: 10px 0 0; }
 }
+
+/* Optimize route (Day view): a pill beside Today with a small route icon. */
+.pl-optimize { display: inline-flex; align-items: center; gap: 6px; }
+.pl-optimize:disabled { opacity: .45; cursor: not-allowed; }
+.pl-optimize:disabled:hover { border-color: var(--pl-line); color: var(--pl-text); }

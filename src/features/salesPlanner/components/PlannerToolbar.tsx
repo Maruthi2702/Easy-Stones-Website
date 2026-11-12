@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Route } from 'lucide-react';
 import { DatePicker, MonthPicker } from '../../../components/shared/calendar/Calendar';
 import { withMonth } from '../../../components/shared/calendar/calendarDates';
 import type { StopMove } from '../useMoveStop';
@@ -20,10 +20,14 @@ export type PlannerToolbarProps = {
      * on a phone). Adding is the dashboard's round +, not a button here (owner, 2026-10-31).
      */
     searchBox?: React.ReactNode;
+    /** Day view only: re-order the day's stops by location. Absent when the day isn't yours to arrange. */
+    onOptimize?: () => void;
+    /** The day holds at least two of your stops. */
+    canOptimize?: boolean;
 };
 
 /** Back / Day·Week·Month / forward, Today, the title's calendar, today's count, and the search box. */
-export default function PlannerToolbar({ viewMode, currentDate, titleLabel, todayCount, edgeDir, dayLabel, dayCount, isCurrent, navHoverProps, onPrev, onNext, onToday, onViewMode, onDate, searchBox = null }: PlannerToolbarProps) {
+export default function PlannerToolbar({ viewMode, currentDate, titleLabel, todayCount, edgeDir, dayLabel, dayCount, isCurrent, navHoverProps, onPrev, onNext, onToday, onViewMode, onDate, searchBox = null, onOptimize, canOptimize = false }: PlannerToolbarProps) {
     // The long day ("Thursday, October 29, 2026") doesn't fit between the arrows on a phone.
     const phone = useIsPhone();
     const shownTitle = phone && viewMode === 'day' ? shortDayTitle(currentDate) : titleLabel;
@@ -98,6 +102,13 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
                         {dayLabel === 'Today' ? <span className="pl-sub-tag">Today</span> : dayLabel && <>{dayLabel} · </>}
                         {dayCount === 0 ? 'No stops' : `${dayCount} ${dayCount === 1 ? 'stop' : 'stops'}`}
                     </span>
+                )}
+
+                {viewMode === 'day' && onOptimize && (
+                    <button type="button" className="pl-today pl-optimize" onClick={onOptimize} disabled={!canOptimize}
+                        title={canOptimize ? 'Put this day\'s stops in driving order' : 'Needs two or more of your stops on this day'}>
+                        <Route size={14} aria-hidden="true" /> Optimize route
+                    </button>
                 )}
 
                 {todayCount !== null && todayCount > 0 && (
