@@ -120,7 +120,7 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 - [ ] Dev RDS: raise backups from 1 day, turn off delete-on-teardown (aws-infra)
 - [ ] Tables for the 2 collections not copied yet (`admins`, `crossoversheets`), or confirm they stay empty
 - [ ] Users, roles, locations, visit / resource types copied MongoDB → Postgres on every change until they move (customers point at them)
-- [ ] A reverse copy script (Postgres → MongoDB) for going back during the 2 weeks after cutover
+- [x] A reverse copy script (Postgres → MongoDB) for going back during the 2 weeks after cutover · scripts/pg-reverse.ts, src/db/reverse/ — round trip proved on the live copy 2026-11-12 (README lists the few spellings that differ); not yet run against a real Atlas
 - [ ] Speed: 38 ms per query Render (Virginia) → RDS (Ohio). Check the Customers page and profile load times on Postgres; batch queries where slow
 
 ## 4. Customer area cutover
