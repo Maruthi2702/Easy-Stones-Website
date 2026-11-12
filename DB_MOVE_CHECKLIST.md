@@ -14,6 +14,37 @@ the owner's decisions: [`MIGRATION_NOTES.md`](MIGRATION_NOTES.md) §3 and §5.
 
 ---
 
+## Plan: from here to the customer cutover (drafted 2026-11-11, for the owner to approve)
+
+Writes are already built one-step: every save goes through the data layer and the whole area
+flips with `DB_CUSTOMERS=postgres` (src/db/customers/writes/README.md). So the write plan
+below is **one short pause at cutover**, not per-route switching (per-route would mean two
+databases each holding half the writes). Approving this ticks "Agree the write plan" in §2.
+
+1. **Finish customer reads (§1)**, in this order, each by the 6-step pattern above:
+   vCard, Moda summary, possible-duplicates, then Route Planner map (3 routes), then
+   dashboard stats / visits / follow-ups / resources, then schedule + `.ics`, then the
+   lookups in Cart & Holds, Permits and public product prices. Tick `customerRecordResponse`
+   once create/edit answer from the data layer.
+2. **Close the start-up jobs (§2):** retire the location backfill; move marketing-email
+   migration into `/api/customer/register` and calendar sync, then retire it.
+3. **Prerequisites (§3), the ones that block a rehearsal:** copy users / roles / locations /
+   types to Postgres on every change; write the reverse copy script (Postgres → MongoDB);
+   decide `admins` / `crossoversheets`. Owner-only items (prod RDS access for Render, deploy
+   prod, dev backups) can wait until just before cutover.
+4. **Rehearse (§4):** run every customer screen against a copy with `DB_CUSTOMERS=postgres`;
+   time the Customers page and profile (38 ms per query Render → Ohio; batch where slow).
+   Fix what the rehearsal finds before any live step.
+5. **Cutover, early morning:** pause customer writes → copy `--write` + `--verify` equal →
+   set `DB_CUSTOMERS=postgres` on Render → open each screen → `--lock`. MongoDB customers
+   stay read-only 2 weeks, with the reverse script as the way back.
+6. **Then §5 area by area**, customer-linked areas first (Deliveries, Payments, Holds, Lost
+   Sales, Card Receipts, SPS), Users / Roles / Locations / sign-in last.
+
+Parallel, not database: set a real `JWT_SECRET` on Render and rotate the pasted passwords.
+
+---
+
 ## 0. Done
 
 - [x] RDS Postgres in dev (Ohio), IAM sign-in, TLS — aws-infra 72e1318
