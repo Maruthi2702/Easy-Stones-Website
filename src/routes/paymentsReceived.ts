@@ -2,7 +2,7 @@ import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
-import PaymentReceived from '../models/PaymentReceived.ts';
+import { listPayments, findPayment, paymentFigures, addPayment, changePayment } from '../db/payments/index.ts';
 import DailyReport from '../models/DailyReport.ts';
 import { BRANCH_NAMES, isBranch, branchNow } from '../config/branches.ts';
 import {
@@ -85,7 +85,7 @@ export default function createPaymentsReceivedRouter({ authenticate, requirePerm
     if (!locations.length) return res.status(403).json({ message: 'That branch is not assigned to you.' });
     try {
       const [rows, report] = await Promise.all([
-        PaymentReceived.find({ location: all ? { $in: locations } : location, date }).sort({ createdAt: 1, _id: 1 }).lean(),
+        listPayments(locations, date),
         // Report locks belong to individual branches. The combined view is
         // read-only; choose a branch before making changes.
         all ? Promise.resolve(null) : DailyReport.findOne({ location, date }, 'status submittedBy submittedAt autoSubmitted').lean()
@@ -113,7 +113,7 @@ export default function createPaymentsReceivedRouter({ authenticate, requirePerm
     if (!isDay(date)) return res.status(400).json({ message: 'Provide a date as YYYY-MM-DD.' });
     if (!canSeeLocation(req, location)) return res.status(403).json({ message: 'That branch is not assigned to you.' });
     try {
-      const rows = await PaymentReceived.find({ location, date }, 'method cents voidedAt').lean();
+      const rows = await paymentFigures(location as string, date);
       const list = rows.map(r => ({ method: r.method, cents: r.cents, voided: r.voidedAt }));
       const t = paymentTotals(list);
       res.json({ count: t.count, net: t.net, taken: t.taken, returned: t.returned, grid: reportGridFrom(list) });
@@ -129,7 +129,7 @@ export default function createPaymentsReceivedRouter({ authenticate, requirePerm
     if (!canSeeLocation(req, location)) return res.status(403).json({ message: 'That branch is not assigned to you.' });
     if (!mongoose.isValidObjectId(body.id)) return res.status(400).json({ message: 'The payment has no id. Reload the page and try again.' });
     try {
-      const existing = await PaymentReceived.findById(body.id).lean();
+      const existing = await findPayment(body.id);
       if (existing) {
         if (existing.location !== location) return res.status(409).json({ message: 'That id belongs to another payment.' });
         return res.json({ payment: view(existing), alreadySaved: true });
@@ -138,16 +138,14 @@ export default function createPaymentsReceivedRouter({ authenticate, requirePerm
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
       if (await isSubmitted(location, value.date)) return res.status(409).json({ message: LOCKED });
       const by = actor(req);
-      const saved = await PaymentReceived.create({
-        _id: body.id, location, ...value, enteredBy: by, updatedBy: by,
-        history: [{ at: new Date(), by, action: 'added' }]
-      });
-      res.status(201).json({ payment: view(saved) });
-    } catch (error) {
-      if ((error as { code?: number }).code === 11000) {
-        const again = await PaymentReceived.findById(body.id).lean();
+      const saved = await addPayment(body.id, location, value, by, new Date());
+      if (!saved) {
+        // The same save landed first (a double tap): answer with what it stored.
+        const again = await findPayment(body.id);
         if (again) return res.json({ payment: view(again), alreadySaved: true });
       }
+      res.status(201).json({ payment: view(saved as Record<string, unknown>) });
+    } catch (error) {
       console.error('[payments-received] add failed:', error);
       res.status(500).json({ message: 'Could not save the payment.' });
     }
@@ -157,7 +155,7 @@ export default function createPaymentsReceivedRouter({ authenticate, requirePerm
     const { id } = scalarParams(req);
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Payment not found.' });
     try {
-      const payment = await PaymentReceived.findById(id);
+      const payment = await findPayment(id);
       if (!payment || !canSeeLocation(req, payment.location)) return res.status(404).json({ message: 'Payment not found.' });
       if (payment.voidedAt) return res.status(409).json({ message: 'A voided payment can’t be edited.' });
       const { value, problems } = cleanPayment(req.body || {}, branchNow(payment.location).date);
@@ -166,13 +164,12 @@ export default function createPaymentsReceivedRouter({ authenticate, requirePerm
       for (const day of days) {
         if (await isSubmitted(payment.location, day)) return res.status(409).json({ message: LOCKED });
       }
-      const changes = changeSummary(cleanOf(payment.toObject()), value);
+      const changes = changeSummary(cleanOf(payment), value);
       if (!changes.length) return res.json({ payment: view(payment), unchanged: true });
       const by = actor(req);
-      payment.set({ ...value, updatedBy: by });
-      payment.history.push({ at: new Date(), by, action: 'edited', changes: changes.join(', ') });
-      await payment.save();
-      res.json({ payment: view(payment) });
+      const saved = await changePayment(id, { ...value, updatedBy: by }, { at: new Date(), by, action: 'edited', changes: changes.join(', ') });
+      if (!saved) return res.status(404).json({ message: 'Payment not found.' });
+      res.json({ payment: view(saved) });
     } catch (error) {
       console.error('[payments-received] edit failed:', error);
       res.status(500).json({ message: 'Could not save the change.' });
@@ -185,15 +182,15 @@ export default function createPaymentsReceivedRouter({ authenticate, requirePerm
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Payment not found.' });
     if (!reason) return res.status(400).json({ message: 'Say why it’s being voided.', problems: { reason: 'Say why it’s being voided' } });
     try {
-      const payment = await PaymentReceived.findById(id);
+      const payment = await findPayment(id);
       if (!payment || !canSeeLocation(req, payment.location)) return res.status(404).json({ message: 'Payment not found.' });
       if (payment.voidedAt) return res.json({ payment: view(payment), alreadyVoided: true });
       if (await isSubmitted(payment.location, payment.date)) return res.status(409).json({ message: LOCKED });
       const by = actor(req);
-      payment.set({ voidedAt: new Date(), voidedBy: by, voidReason: reason, updatedBy: by });
-      payment.history.push({ at: new Date(), by, action: 'voided', changes: reason });
-      await payment.save();
-      res.json({ payment: view(payment) });
+      const at = new Date();
+      const saved = await changePayment(id, { voidedAt: at, voidedBy: by, voidReason: reason, updatedBy: by }, { at, by, action: 'voided', changes: reason });
+      if (!saved) return res.status(404).json({ message: 'Payment not found.' });
+      res.json({ payment: view(saved) });
     } catch (error) {
       console.error('[payments-received] void failed:', error);
       res.status(500).json({ message: 'Could not void the payment.' });

@@ -86,6 +86,40 @@ export function deliveryRowOf(d: Loose, ref: ReferenceIndex, cust: Pick<Customer
   };
 }
 
+/**
+ * One MongoDB payment → its Postgres rows (the payment and its history lines), or null when
+ * it can't be one (no id, branch, day, method or amount). The copy and the Postgres saves
+ * both build rows here, so a save writes exactly what a re-copy of MongoDB would make.
+ */
+export function paymentRowsOf(d: Loose, ref: ReferenceIndex, cust: Pick<CustomerIndex, 'customerIds'>, problems: CopyProblem[]):
+  { payment: Row<typeof paymentsReceived>; history: Row<typeof paymentHistory>[] } | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'payments_received', id);
+  const locationId = locationIdOf(c, 'location_id', d.location, ref.locationIdByName);
+  const payDay = c.day('day', d.date, ref.zoneOfLocation(d.location));
+  const method = pickOf(c, 'method', d.method, PAYMENT_METHODS, null);
+  const cents = intOf(c, 'cents', d.cents);
+  if (!locationId || !payDay || !method || cents == null) { c.problem('id', 'no branch, day, method or amount', 'skipped'); return null; }
+  const history: Row<typeof paymentHistory>[] = [];
+  (Array.isArray(d.history) ? d.history : []).forEach((h: Loose, position: number) => {
+    const at = c.moment('history.at', h.at);
+    const action = pickOf(c, 'history.action', h.action, ['added', 'edited', 'voided'] as const, null);
+    if (!at || !action) { c.problem('history', 'history line with no time or action', 'skipped'); return; }
+    history.push({ paymentId: id, position, at, by: textOf(h.by), action, changes: textOf(h.changes) });
+  });
+  return {
+    payment: {
+      id, locationId, day: payDay, customerId: linkOf(c, 'customer_id', d.customerId, cust.customerIds, 'customer'),
+      customerName: textOf(d.customerName), method, cents, invoice: textOf(d.invoice), reference: textOf(d.reference),
+      note: textOf(d.note), enteredBy: textOf(d.enteredBy), updatedBy: textOf(d.updatedBy),
+      voidedAt: c.moment('voided_at', d.voidedAt), voidedBy: textOf(d.voidedBy), voidReason: textOf(d.voidReason),
+      ...stamp(c, d)
+    },
+    history
+  };
+}
+
 export function operationsRows(src: OperationsSource, ref: ReferenceIndex, cust: CustomerIndex, problems: CopyProblem[]):
   { rows: OperationsRows; index: OperationsIndex } {
   const rows: OperationsRows = {
@@ -175,27 +209,10 @@ export function operationsRows(src: OperationsSource, ref: ReferenceIndex, cust:
   }
 
   for (const d of src.paymentsReceived) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'payments_received', id);
-    const locationId = locationIdOf(c, 'location_id', d.location, ref.locationIdByName);
-    const payDay = c.day('day', d.date, ref.zoneOfLocation(d.location));
-    const method = pickOf(c, 'method', d.method, PAYMENT_METHODS, null);
-    const cents = intOf(c, 'cents', d.cents);
-    if (!locationId || !payDay || !method || cents == null) { c.problem('id', 'no branch, day, method or amount', 'skipped'); continue; }
-    rows.paymentsReceived.push({
-      id, locationId, day: payDay, customerId: linkOf(c, 'customer_id', d.customerId, cust.customerIds, 'customer'),
-      customerName: textOf(d.customerName), method, cents, invoice: textOf(d.invoice), reference: textOf(d.reference),
-      note: textOf(d.note), enteredBy: textOf(d.enteredBy), updatedBy: textOf(d.updatedBy),
-      voidedAt: c.moment('voided_at', d.voidedAt), voidedBy: textOf(d.voidedBy), voidReason: textOf(d.voidReason),
-      ...stamp(c, d)
-    });
-    (Array.isArray(d.history) ? d.history : []).forEach((h: Loose, position: number) => {
-      const at = c.moment('history.at', h.at);
-      const action = pickOf(c, 'history.action', h.action, ['added', 'edited', 'voided'] as const, null);
-      if (!at || !action) { c.problem('history', 'history line with no time or action', 'skipped'); return; }
-      rows.paymentHistory.push({ paymentId: id, position, at, by: textOf(h.by), action, changes: textOf(h.changes) });
-    });
+    const built = paymentRowsOf(d, ref, cust, problems);
+    if (!built) continue;
+    rows.paymentsReceived.push(built.payment);
+    rows.paymentHistory.push(...built.history);
   }
 
   return { rows, index: { deliveryIdByTicket } };

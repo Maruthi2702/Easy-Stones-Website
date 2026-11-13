@@ -19,7 +19,7 @@ import { logEntry, reportLog, entriesFromFields } from '../utils/dailyReportLog.
 import type { LogEntry } from '../utils/dailyReportLog.ts';
 import { groupContainers, groupSlabs } from '../utils/dailyReportContainers.ts';
 import { PAYMENT_METHODS, paymentAmount, paymentsSaid, paymentsFromPage } from '../utils/dailyReportPayments.ts';
-import PaymentReceived from '../models/PaymentReceived.ts';
+import { paymentFigures } from '../db/payments/index.ts';
 import { reportGridFrom } from '../utils/paymentsReceived.ts';
 import { ticketSlabs, arrivalsShippedEarlier } from '../utils/dailyReportTransfers.ts';
 import { manualTransferDirection, transferCountOf, transferLineKey, mergeTypedTransferSlabs, upgradeHandSetKeys, cleanTransferNumber } from '../utils/transferDirection.ts';
@@ -278,7 +278,7 @@ export async function deriveFromSystem(date: string, location: string, { deliver
     }),
     // From PAYMENTS_FROM_PAGE_SINCE the day's payments are the Payments
     // page's entries (voided ones never count); before it, what was typed.
-    paymentsFromPage(date) ? PaymentReceived.find({ location, date, voidedAt: null }, 'method cents').lean() : null
+    paymentsFromPage(date) ? paymentFigures(location, date, true) : null
   ]);
 
   // Only tickets filed under this branch. A ticket with no branch (or '*')
