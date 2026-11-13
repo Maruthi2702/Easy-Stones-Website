@@ -150,7 +150,8 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
     - [x] Packing-list upload route has no database write of its own (checked); nothing else left in this module
     - [x] **Cutover done 2026-11-13** (deliveries on their own, ahead of the rest of the batch): `DELIVERIES_WRITES_PAUSED` on, `pg-copy-aws.ts --scope deliveries --write` then `--verify` into prod (1,148 tickets, 0 trucks, equal), `DB_DELIVERIES=postgres` on Render, `--lock … --scope deliveries` (28de283). Owner confirmed a saved ticket sticks. Never run the scoped copy again. Mongo deliveries kept read-only for 2 weeks; then removed. Daily Reports still read them through the data layer until Payments / Check-In / Daily Reports move.
   - [x] Payments: data layer `src/db/payments/` (switch `DB_PAYMENTS`); the route and the Daily Report's payment read go through it; parity test `payments.parity.test.ts` (7 cases, the copy's own `paymentRowsOf` as the spec) — 001bf55. Intended difference: a payment whose customer isn't a customer keeps no link on Postgres. The Daily Report's submitted-day lock still reads MongoDB's DailyReport until that module moves.
-    - [ ] Read-only comparison on live data, and a local click-through with `DB_PAYMENTS=postgres`
+    - [x] Read-only comparison on live data (`scripts/pg-compare-payments.ts`, 2026-11-13): 83 requests (101 payments, 24 branch-days: list and summary per branch-day, all-branches list per day) — 0 differences
+    - [ ] Local click-through with `DB_PAYMENTS=postgres`
   - [ ] Check In + Selection Sheet (2 days)
   - [ ] Daily Reports (3–4 days; the August 2026 incident applies, re-check `applyDerived` and submit)
   - [ ] Rehearse all four together, then the cutover
