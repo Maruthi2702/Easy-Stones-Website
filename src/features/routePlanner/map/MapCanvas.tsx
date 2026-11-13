@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import { GoogleMap, Marker, DirectionsRenderer, TrafficLayer } from '@react-google-maps/api';
+import { GoogleMap, Marker, Polyline, TrafficLayer } from '@react-google-maps/api';
 import { Lasso, LocateFixed } from 'lucide-react';
 import FilterPanel from '../panels/FilterPanel';
 import type { FilterPanelProps } from '../panels/FilterPanel';
@@ -162,7 +162,7 @@ const MapCanvas = ({
     const selectPin = useCallback((pin: Customer) => onSelectPinRef.current(pin), []);
 
     const { lassoPreviewCount } = useDrawGestures({ mapRef, mapReady, drawMode, selectionShape, onRadiusSelect, onLassoSelect, selectedPins, unselectedPins });
-    const { directions, directionsRequest } = useDirections({ day, origin, mapReady });
+    const { path: routePath, directionsRequest } = useDirections({ day, origin, mapReady });
     const markerIcon = usePinIcons(colors, colorMode);
 
     return (
@@ -251,26 +251,19 @@ const MapCanvas = ({
                         below it. */}
                     {showTraffic && <TrafficLayer />}
 
-                    {/* Gated on directionsRequest too, not just directions —
-                        directions itself only ever updates from inside the
-                        effect's async callback, so the instant the request
-                        goes invalid (day cleared, etc.) it would otherwise
-                        still be holding the previous route's stale result
-                        for a render or two. suppressMarkers: we already draw
-                        our own numbered/recency-coloured pins for every
-                        stop; Google's own A/B/C markers would just
-                        duplicate them. preserveViewport: a route
-                        recomputing (adding/dropping a stop) shouldn't yank
-                        the map back to fit the new line — the rep's own
-                        pan/zoom wins. */}
-                    {directions && directionsRequest && (
-                        <DirectionsRenderer
-                            directions={directions}
-                            options={{
-                                suppressMarkers: true,
-                                preserveViewport: true,
-                                polylineOptions: { strokeColor: '#2a78d6', strokeWeight: 4, strokeOpacity: 0.85 }
-                            }}
+                    {/* Gated on directionsRequest too, not just the path: the
+                        path only updates from inside the effect's async
+                        callback, so the instant the request goes invalid (day
+                        cleared, etc.) it would otherwise still hold the
+                        previous route's stale line for a render or two. A plain
+                        Polyline, so no A/B/C markers (our own numbered,
+                        recency-coloured pins mark each stop) and no viewport
+                        change: a route recomputing shouldn't yank the map back
+                        to fit the line — the rep's own pan/zoom wins. */}
+                    {routePath && directionsRequest && (
+                        <Polyline
+                            path={routePath}
+                            options={{ strokeColor: '#2a78d6', strokeWeight: 4, strokeOpacity: 0.85, clickable: false }}
                         />
                     )}
 

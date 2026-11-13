@@ -1,64 +1,68 @@
 import { useEffect, useMemo, useState } from 'react';
+import { ROUTES_URL, decodePolyline, routesRequestBody } from './routeLine';
 import type { DayStop, LatLng } from '../types';
 
+type RouteRequest = { origin: LatLng; destination: LatLng; waypoints: { location: LatLng }[] };
+
 /**
- * The road-following route line for the day being planned — a real
- * DirectionsService result, drawn by <DirectionsRenderer> in MapCanvas.
+ * The road-following route line for the day being planned: a Routes API
+ * (computeRoutes) answer decoded to points and drawn as a <Polyline> in
+ * MapCanvas. The Directions API this used to call can't be enabled on new
+ * Google Cloud projects. The browser key (VITE_GOOGLE_MAPS_API_KEY) needs
+ * "Routes API" enabled and in its API restriction list.
  */
 export function useDirections({ day, origin, mapReady }: { day: DayStop[]; origin: LatLng | null; mapReady: boolean }) {
-    // The road-following route line — a real DirectionsService result,
-    // rendered by <DirectionsRenderer> below. Distinct from the numbered
-    // pins above, which only mark each stop's location; this is what draws
-    // the actual driving path between them (see the effect below it).
-    const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+    // Distinct from the numbered pins, which only mark each stop's location;
+    // this is the actual driving path between them.
+    const [path, setPath] = useState<LatLng[] | null>(null);
 
-    // What a Directions request for `day`'s stops would look like — a plain
-    // derived value, computed synchronously from props/state alone, kept
-    // separate from the effect below that actually fires it. This is what
-    // lets that effect skip ever calling setDirections(null) itself to
-    // reflect the params going invalid (day cleared, too few stops, over
-    // the API's waypoint cap): with the render gated on this instead (see
-    // the DirectionsRenderer below), a stale `directions` value sitting
-    // unused in state when the request is null is harmless — nothing ever
-    // reads it — rather than needing to be actively reset. Same order as
-    // the numbered pins (day[i].order === orderById's values, both from the
-    // same orderStops() call upstream); optimizeWaypoints is off on purpose
-    // — that order is already ours, and letting Google re-sequence the
-    // waypoints would desync the line from the numbers sitting on top of it.
-    const directionsRequest = useMemo((): Pick<google.maps.DirectionsRequest, 'origin' | 'destination' | 'waypoints'> | null => {
+    // What a request for `day`'s stops would look like, derived from props
+    // alone and kept apart from the effect that sends it, so the effect never
+    // has to reset state when the params go invalid — the render is gated on
+    // this instead. Same order as the numbered pins; stops are never
+    // re-sequenced, which would desync the line from the numbers on top of it.
+    const directionsRequest = useMemo((): RouteRequest | null => {
         if (day.length === 0 || (!origin && day.length < 2)) return null;
 
         const routeOrigin = origin || day[0].coordinates;
         const routeStops = origin ? day : day.slice(1);
         const destination = routeStops[routeStops.length - 1].coordinates;
-        const waypoints = routeStops.slice(0, -1).map(stop => ({ location: stop.coordinates, stopover: true }));
+        const waypoints = routeStops.slice(0, -1).map(stop => ({ location: stop.coordinates }));
 
-        // The Directions API caps a single request at 25 points (origin +
-        // destination + 23 waypoints) — bail instead of silently dropping
-        // stops off an unusually large day.
+        // A single request holds up to 25 intermediates; bail instead of
+        // silently dropping stops off an unusually large day. (Kept at the
+        // old 23 so nothing about which days draw a line changes.)
         if (waypoints.length > 23) return null;
 
         return { origin: routeOrigin, destination, waypoints };
     }, [day, origin]);
 
-    // The only genuinely async part — everything about whether to request
-    // at all already lives in directionsRequest above, so this effect's one
-    // job is making the call and recording its result.
     useEffect(() => {
-        if (!mapReady || !window.google || !directionsRequest) return;
+        const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+        if (!mapReady || !directionsRequest || !key) return;
 
         let cancelled = false;
-        new window.google.maps.DirectionsService().route({
-            ...directionsRequest,
-            optimizeWaypoints: false,
-            travelMode: window.google.maps.TravelMode.DRIVING
-        }, (result, status) => {
-            if (!cancelled) setDirections(status === 'OK' ? result : null);
-        });
+        (async () => {
+            try {
+                const res = await fetch(ROUTES_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Goog-Api-Key': key,
+                        'X-Goog-FieldMask': 'routes.polyline.encodedPolyline'
+                    },
+                    body: JSON.stringify(routesRequestBody(directionsRequest))
+                });
+                const data = res.ok ? await res.json() : null;
+                const encoded: string | undefined = data?.routes?.[0]?.polyline?.encodedPolyline;
+                if (!cancelled) setPath(encoded ? decodePolyline(encoded) : null);
+            } catch {
+                if (!cancelled) setPath(null);
+            }
+        })();
 
         return () => { cancelled = true; };
     }, [mapReady, directionsRequest]);
 
-
-    return { directions, directionsRequest };
+    return { path, directionsRequest };
 }

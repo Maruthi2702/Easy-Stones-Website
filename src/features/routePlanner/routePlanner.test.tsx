@@ -59,7 +59,7 @@ vi.mock('@react-google-maps/api', async () => {
       return h('div', { className: mapContainerClassName }, children);
     },
     Marker: ({ title, onClick }: P) => h('button', { type: 'button', className: 'mk', title, onClick }),
-    DirectionsRenderer: () => null,
+    Polyline: () => null,
     TrafficLayer: () => null
   };
 });
@@ -71,8 +71,7 @@ const googleFake = {
     TravelMode: { DRIVING: 'DRIVING' },
     event: { trigger() {}, removeListener() {} },
     Circle: class { r: number; constructor(o: { radius: number }) { this.r = o.radius; } setRadius(r: number) { this.r = r; } getRadius() { return this.r; } setMap() {} },
-    Polygon: class { setPath() {} setMap() {} },
-    DirectionsService: class { route(_r: unknown, cb: (res: unknown, status: string) => void) { cb(null, 'ZERO_RESULTS'); } }
+    Polygon: class { setPath() {} setMap() {} }
   }
 };
 if (!Element.prototype.scrollTo) Element.prototype.scrollTo = function scrollTo() {};
