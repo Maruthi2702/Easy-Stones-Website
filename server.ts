@@ -5279,6 +5279,7 @@ app.get('/api/health', async (req: Request, res: Response) => {
     commit: process.env.RENDER_GIT_COMMIT ? process.env.RENDER_GIT_COMMIT.slice(0, 7) : null,
     // Which database the customer area reads and writes, and whether the cutover pause is on (the runbook checks both).
     customersOn: areasOnPostgres().includes('customers') ? 'postgres' : 'mongo',
+    deliveriesOn: areasOnPostgres().includes('deliveries') ? 'postgres' : 'mongo',
     customerWritesPaused: customerWritesPaused()
   });
 });
