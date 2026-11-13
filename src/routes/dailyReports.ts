@@ -12,7 +12,7 @@ import { sendEmail } from '../services/emailService.ts';
 import { SENDER_NAME } from '../utils/emailSender.ts';
 import { findDeliveries } from '../db/deliveries/index.ts';
 import { BRANCH_NAMES, branchCode, isBranch, branchDayWindow } from '../config/branches.ts';
-import OfficeCheckIn from '../models/OfficeCheckIn.ts';
+import { countCheckIns } from '../db/checkins/index.ts';
 import Location from '../models/Location.ts';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.ts';
 import { logEntry, reportLog, entriesFromFields } from '../utils/dailyReportLog.ts';
@@ -267,7 +267,7 @@ export async function deriveFromSystem(date: string, location: string, { deliver
   const { start: dayStart, end: dayEnd } = branchDayWindow(location, date);
 
   const [checkIns, allDeliveryRows, incomingRows, paymentRows] = await Promise.all([
-    OfficeCheckIn.countDocuments({
+    countCheckIns({
       location,
       createdAt: { $gte: dayStart, $lt: dayEnd }
     }),

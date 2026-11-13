@@ -3,7 +3,7 @@ import type { Loose } from '../types/records.ts';
 import type { Request, RequestHandler } from 'express';
 import express from 'express';
 
-import OfficeCheckIn from '../models/OfficeCheckIn.ts';
+import { countCheckIns, listCheckIns, newestCheckIn, findCheckIn, createCheckIn, saveCheckIn, deleteCheckIn } from '../db/checkins/index.ts';
 import Location from '../models/Location.ts';
 import User from '../models/User.ts';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail } from '../services/emailService.ts';
@@ -254,11 +254,11 @@ const validZone = (tz: unknown) => {
 const DUPLICATE_CHECKIN_WINDOW_MS = 2 * 60 * 1000;
 async function findRecentDuplicateCheckIn(phone: unknown, location: string) {
   if (!phone || !location) return null;
-  return OfficeCheckIn.findOne({
+  return newestCheckIn({
     phone,
     location,
     createdAt: { $gte: new Date(Date.now() - DUPLICATE_CHECKIN_WINDOW_MS) }
-  }).sort({ createdAt: -1 }).lean();
+  });
 }
 
 // The self check-in QR/NFC route is the only unauthenticated write in the
@@ -354,7 +354,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         });
       }
 
-      const checkIn = new OfficeCheckIn({
+      const checkIn = await createCheckIn({
         name,
         phone: normalizedPhone,
         email,
@@ -370,7 +370,6 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         }
       });
 
-      await checkIn.save();
       console.log(`✅ New office check-in ${checkIn._id} at ${checkIn.location} (logged by ${req.user?.displayName || req.user?.username}), phone ${maskPhone(normalizedPhone)}`);
 
       // Send email alert to staff with priority fallback logic
@@ -459,7 +458,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         });
       }
 
-      const checkIn = new OfficeCheckIn({
+      const checkIn = await createCheckIn({
         name,
         phone: normalizedPhone,
         email,
@@ -474,7 +473,6 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         }
       });
 
-      await checkIn.save();
       console.log(`✅ New self check-in ${checkIn._id} at ${checkIn.location}, phone ${maskPhone(normalizedPhone)}`);
 
       (async () => {
@@ -523,10 +521,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       const userLocations = req.user.assignedLocations || [];
       const lookupQuery = { phone: formatted, ...locationFilterFor(userLocations, null) };
 
-      const lastVisit = await OfficeCheckIn.findOne(
-        lookupQuery,
-        'name fabricatorCompany fabricatorPhone location createdAt'
-      ).sort({ createdAt: -1 }).lean();
+      const lastVisit = await newestCheckIn(lookupQuery, 'name fabricatorCompany fabricatorPhone location createdAt');
 
       if (!lastVisit) {
         return res.json({ found: false });
@@ -559,9 +554,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
 
       // If query parameters are not supplied, return standard raw array for backward compatibility
       if (!page && !limit && !search && !month && !year) {
-        const checkIns = await OfficeCheckIn.find(locFilter)
-          .sort({ createdAt: -1 })
-          .limit(50);
+        const checkIns = await listCheckIns(locFilter, 0, 50);
         return res.json(checkIns);
       }
 
@@ -572,11 +565,8 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       // filtered month at any single location.
       const limitNum = Math.min(parseInt(limit as string) || 20, 1000);
 
-      const total = await OfficeCheckIn.countDocuments(query);
-      const checkIns = await OfficeCheckIn.find(query)
-        .sort({ createdAt: -1 })
-        .skip((pageNum - 1) * limitNum)
-        .limit(limitNum);
+      const total = await countCheckIns(query);
+      const checkIns = await listCheckIns(query, (pageNum - 1) * limitNum, limitNum);
 
       res.json({
         checkIns,
@@ -603,8 +593,8 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       if (built.forbidden) return fail(403, 'You don’t have access to that branch’s check-ins.');
 
       const [total, list] = await Promise.all([
-        OfficeCheckIn.countDocuments(built.query),
-        OfficeCheckIn.find(built.query).sort({ createdAt: -1 }).limit(CHECKIN_PDF_MAX_ROWS).lean()
+        countCheckIns(built.query),
+        listCheckIns(built.query, 0, CHECKIN_PDF_MAX_ROWS)
       ]);
       const viewerZone = validZone(tz);
       const generated = `Generated ${new Intl.DateTimeFormat('en-US', {
@@ -651,9 +641,9 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       const queryAllTime = { ...locFilter };
 
       const [todayCount, monthCount, allTimeCount] = await Promise.all([
-        OfficeCheckIn.countDocuments(queryToday),
-        OfficeCheckIn.countDocuments(queryMonth),
-        OfficeCheckIn.countDocuments(queryAllTime)
+        countCheckIns(queryToday),
+        countCheckIns(queryMonth),
+        countCheckIns(queryAllTime)
       ]);
 
       res.json({ todayCount, monthCount, allTimeCount });
@@ -667,7 +657,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   router.get('/:id', authenticate, requirePermission(P.VIEW_LOG), validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
     try {
-      const checkIn = await OfficeCheckIn.findById(requestParams.id);
+      const checkIn = await findCheckIn(requestParams.id as string);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in not found' });
       }
@@ -716,7 +706,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         location,
         expectedUpdatedAt
       } = req.body;
-      const checkIn = await OfficeCheckIn.findById(requestParams.id);
+      const checkIn = await findCheckIn(requestParams.id as string);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in not found' });
       }
@@ -804,7 +794,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         checkIn.sheetEditedBy = req.user?.username || '';
         checkIn.sheetEditedAt = new Date();
       }
-      await checkIn.save();
+      await saveCheckIn(checkIn);
       console.log(`✅ Office check-in ${checkIn._id} updated by ${req.user?.displayName || req.user?.username}`);
 
       // Background alert to the sales rep — only when the selections, prices,
@@ -852,7 +842,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         return res.status(400).json({ message: 'Recipient email is required' });
       }
 
-      const checkIn = await OfficeCheckIn.findById(requestParams.id);
+      const checkIn = await findCheckIn(requestParams.id as string);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in record not found' });
       }
@@ -882,7 +872,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
   router.delete('/:id', authenticate, requirePermission(P.DELETE), validateScalarRequest, async (req, res) => {
   const requestParams = scalarParams(req);
     try {
-      const checkIn = await OfficeCheckIn.findById(requestParams.id);
+      const checkIn = await findCheckIn(requestParams.id as string);
       if (!checkIn) {
         return res.status(404).json({ message: 'Check-in not found' });
       }
@@ -890,7 +880,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       if (!hasLocationAccess(userLocations, checkIn.location)) {
         return res.status(403).json({ message: 'Access denied to delete this check-in' });
       }
-      await OfficeCheckIn.findByIdAndDelete(requestParams.id);
+      await deleteCheckIn(requestParams.id as string);
       console.log(`🗑️ Office check-in ${checkIn._id} deleted by ${req.user?.displayName || req.user?.username}`);
       emitCheckInUpdate(req, checkIn.location);
 

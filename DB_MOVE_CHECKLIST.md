@@ -152,7 +152,10 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - [x] Payments: data layer `src/db/payments/` (switch `DB_PAYMENTS`); the route and the Daily Report's payment read go through it; parity test `payments.parity.test.ts` (7 cases, the copy's own `paymentRowsOf` as the spec) — 001bf55. Intended difference: a payment whose customer isn't a customer keeps no link on Postgres. The Daily Report's submitted-day lock still reads MongoDB's DailyReport until that module moves.
     - [x] Read-only comparison on live data (`scripts/pg-compare-payments.ts`, 2026-11-13): 83 requests (101 payments, 24 branch-days: list and summary per branch-day, all-branches list per day) — 0 differences
     - [ ] Local click-through with `DB_PAYMENTS=postgres`
-  - [ ] Check In + Selection Sheet (2 days)
+  - [ ] Check In + Selection Sheet (2 days). Data layer `src/db/checkins/` (switch `DB_CHECKIN`; the Selection Sheet is the check-in's own fields); the routes and the Daily Report's visitor count go through it; parity test `checkins.parity.test.ts` (21 cases through the real router; `checkInRowsOf` is the spec)
+    - [x] Read-only comparison on live data (`scripts/pg-compare-checkins.ts`, 2026-11-13): 1,707 requests (540 check-ins, 3 branches: log, pages, months, searches, lookups, each by id, PDF) — 0 differences
+    - [ ] Local click-through with `DB_CHECKIN=postgres` (owner)
+    - [ ] `CHECKIN_WRITES_PAUSED` for the cutover window
   - [ ] Daily Reports (3–4 days; the August 2026 incident applies, re-check `applyDerived` and submit)
   - [ ] Rehearse all four together, then the cutover
 - [ ] Lost Sales (1 day)

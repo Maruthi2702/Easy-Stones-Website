@@ -39,18 +39,29 @@ export interface CheckInsHoldsRows {
 
 const obj = (v: unknown): Loose => (v && typeof v === 'object' ? v : {}) as Loose;
 
-export function checkInsHoldsRows(src: CheckInsHoldsSource, ref: ReferenceIndex, cust: CustomerIndex, problems: CopyProblem[]): CheckInsHoldsRows {
-  const rows: CheckInsHoldsRows = {
-    officeCheckIns: [], checkInSelections: [], salesCarts: [], salesCartLines: [], salesHolds: [], salesHoldLines: [],
-    salesSlabReservations: [], salesCounters: [], salesHoldHistory: []
-  };
-
-  for (const d of src.officeCheckIns) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'office_check_ins', id);
-    const logged = obj(d.loggedBy);
-    rows.officeCheckIns.push({
+/**
+ * The rows for one check-in and its Selection Sheet lines, or null when it has no id. The copy
+ * and the Postgres saves (src/db/checkins/) both build rows here, so a save writes exactly what
+ * a re-copy of MongoDB would make.
+ */
+export function checkInRowsOf(d: Loose, ref: ReferenceIndex, problems: CopyProblem[]):
+  { checkIn: Row<typeof officeCheckIns>; selections: Row<typeof checkInSelections>[] } | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'office_check_ins', id);
+  const logged = obj(d.loggedBy);
+  const selections: Row<typeof checkInSelections>[] = [];
+  (Array.isArray(d.selections) ? d.selections : []).forEach((s: Loose, position: number) => {
+    const sid = idOf(s._id);
+    if (!sid) { c.problem('selections.id', 'selection line with no id', 'skipped'); return; }
+    const price = intOf(c, 'selections.price_cents_per_sf', s.priceCentsPerSf);
+    selections.push({
+      id: sid, checkInId: id, position, material: textOf(s.material), details: textOf(s.details),
+      size: textOf(s.size), lot: textOf(s.lot), priceCentsPerSf: price != null && price >= 1 ? price : null
+    });
+  });
+  return {
+    checkIn: {
       id, name: textOf(d.name), locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName),
       phone: textOf(d.phone), email: textOf(d.email), fabricatorCompany: textOf(d.fabricatorCompany),
       fabricatorName: textOf(d.fabricatorName), fabricatorPhone: textOf(d.fabricatorPhone),
@@ -62,16 +73,22 @@ export function checkInsHoldsRows(src: CheckInsHoldsSource, ref: ReferenceIndex,
       loggedByUserId: linkOf(c, 'logged_by_user_id', logged.userId, ref.userIds, 'user'),
       loggedByUsername: textOf(logged.username), loggedByDisplayName: textOf(logged.displayName),
       ...stamp(c, d)
-    });
-    (Array.isArray(d.selections) ? d.selections : []).forEach((s: Loose, position: number) => {
-      const sid = idOf(s._id);
-      if (!sid) { c.problem('selections.id', 'selection line with no id', 'skipped'); return; }
-      const price = intOf(c, 'selections.price_cents_per_sf', s.priceCentsPerSf);
-      rows.checkInSelections.push({
-        id: sid, checkInId: id, position, material: textOf(s.material), details: textOf(s.details),
-        size: textOf(s.size), lot: textOf(s.lot), priceCentsPerSf: price != null && price >= 1 ? price : null
-      });
-    });
+    },
+    selections
+  };
+}
+
+export function checkInsHoldsRows(src: CheckInsHoldsSource, ref: ReferenceIndex, cust: CustomerIndex, problems: CopyProblem[]): CheckInsHoldsRows {
+  const rows: CheckInsHoldsRows = {
+    officeCheckIns: [], checkInSelections: [], salesCarts: [], salesCartLines: [], salesHolds: [], salesHoldLines: [],
+    salesSlabReservations: [], salesCounters: [], salesHoldHistory: []
+  };
+
+  for (const d of src.officeCheckIns) {
+    const built = checkInRowsOf(d, ref, problems);
+    if (!built) continue;
+    rows.officeCheckIns.push(built.checkIn);
+    rows.checkInSelections.push(...built.selections);
   }
 
   for (const d of src.salesCarts) {
