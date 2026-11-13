@@ -145,7 +145,7 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
     - [x] Reads: `GET /api/deliveries` (board week, Pending, Cancelled, a branch's view of a transfer), `/search`, `/:id` — parity test through the real router
     - [x] Reads: trucks; the board's runs and the startup renumber; driver orders (server.ts); Daily Reports' three delivery reads; Accounting's freight sync (through `freightDeliveries`). `delivery-columns` stays with Locations (that area moves last)
     - [x] Writes: save (POST + ePOD), status, assignment, order, receiving, arrivals, receive, delete, clear ePOD, trucks, driver "move to Pending"; stop renumbering. A Postgres save builds the ticket as MongoDB would hold it, then the copy's own `deliveryRowOf` makes the row — parity test `deliveries.writes.parity.test.ts` (13 cases)
-    - [ ] Read-only comparison on live data (`npm run pg:compare`), including tickets whose stored branch isn't a location
+    - [x] Read-only comparison on live data (`scripts/pg-compare-deliveries.ts`, 2026-11-13): 1,779 requests (every branch login, an admin, Pending, Cancelled, search, each ticket by id, trucks) — only the documented differences in `src/db/deliveries/README.md`; no ticket has a branch that isn't a location
     - [ ] Packing-list upload route has no database write of its own (checked); nothing else left in this module
 - [ ] Lost Sales (1 day)
 - [ ] Credit Card Receipts (1–2 days)
