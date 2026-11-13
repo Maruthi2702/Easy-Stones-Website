@@ -146,7 +146,8 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
     - [x] Reads: trucks; the board's runs and the startup renumber; driver orders (server.ts); Daily Reports' three delivery reads; Accounting's freight sync (through `freightDeliveries`). `delivery-columns` stays with Locations (that area moves last)
     - [x] Writes: save (POST + ePOD), status, assignment, order, receiving, arrivals, receive, delete, clear ePOD, trucks, driver "move to Pending"; stop renumbering. A Postgres save builds the ticket as MongoDB would hold it, then the copy's own `deliveryRowOf` makes the row — parity test `deliveries.writes.parity.test.ts` (13 cases)
     - [x] Read-only comparison on live data (`scripts/pg-compare-deliveries.ts`, 2026-11-13): 1,779 requests (every branch login, an admin, Pending, Cancelled, search, each ticket by id, trucks) — only the documented differences in `src/db/deliveries/README.md`; no ticket has a branch that isn't a location
-    - [ ] Packing-list upload route has no database write of its own (checked); nothing else left in this module
+    - [x] Browser click-through on a local copy with `DB_DELIVERIES=postgres` (owner, 2026-11-13): everything looked fine. Not covered: real ePOD signature images and packing-list files (file store off locally)
+    - [x] Packing-list upload route has no database write of its own (checked); nothing else left in this module
 - [ ] Lost Sales (1 day)
 - [ ] Credit Card Receipts (1–2 days)
 - [ ] SPS import (1–2 days; runs and the runner)
