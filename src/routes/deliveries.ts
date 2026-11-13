@@ -15,6 +15,7 @@ import multer from 'multer';
 import { getFileStore } from '../services/fileStore.ts';
 
 import Delivery from '../models/Delivery.ts';
+import { findDeliveries, findDelivery } from '../db/deliveries/index.ts';
 import Truck from '../models/Truck.ts';
 import User from '../models/User.ts';
 import Location from '../models/Location.ts';
@@ -663,8 +664,8 @@ export default function createDeliveriesRouter({
       // more each time it's asked.
       const UNBOUNDED_LIST_CAP = 500;
       const list = (pending === 'true' || cancelled === 'true')
-        ? await Delivery.find(query, DELIVERY_LIST_PROJECTION).sort({ createdAt: 1 }).limit(UNBOUNDED_LIST_CAP).lean()
-        : await Delivery.find(query, DELIVERY_LIST_PROJECTION).sort({ createdAt: -1 }).lean();
+        ? await findDeliveries({ filter: query, projection: DELIVERY_LIST_PROJECTION, sort: { createdAt: 1 }, limit: UNBOUNDED_LIST_CAP })
+        : await findDeliveries({ filter: query, projection: DELIVERY_LIST_PROJECTION, sort: { createdAt: -1 } });
 
       // A transfer's stored `date` is its ship date — correct for the origin
       // branch's own week view, but meaningless to a branch that only relates
@@ -731,10 +732,7 @@ export default function createDeliveriesRouter({
 
       // One extra row tells us whether there are more than SEARCH_SCAN_LIMIT
       // matches without paying for a separate count query.
-      const matches = await Delivery.find(filter, SEARCH_RESULT_PROJECTION)
-        .sort({ date: -1 })
-        .limit(SEARCH_SCAN_LIMIT + 1)
-        .lean();
+      const matches = await findDeliveries({ filter, projection: SEARCH_RESULT_PROJECTION, sort: { date: -1 }, limit: SEARCH_SCAN_LIMIT + 1 });
       const sorted = sortSearchResults(matches.slice(0, SEARCH_SCAN_LIMIT));
       res.json({
         results: sorted.slice(0, SEARCH_RESULT_LIMIT),
@@ -751,7 +749,7 @@ export default function createDeliveriesRouter({
   const requestParams = scalarParams(req);
     try {
       const { id } = requestParams;
-      const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id }, req)).lean();
+      const delivery = await findDelivery(scopeDeliveryQueryToLocations({ id }, req));
       if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
       res.json(delivery);
     } catch (err) {

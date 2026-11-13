@@ -41,9 +41,8 @@ export interface WriteParity {
   close(): Promise<void>;
 }
 
-const AREA = 'DB_CUSTOMERS';
-
-export async function openWriteParity(seed: (db: MongoDb) => Promise<void>): Promise<WriteParity> {
+/** `area` is the switch the test flips: DB_CUSTOMERS unless another area's test says so (DB_DELIVERIES…). */
+export async function openWriteParity(seed: (db: MongoDb) => Promise<void>, AREA = 'DB_CUSTOMERS'): Promise<WriteParity> {
   const prior = process.env[AREA];
   const rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
   const uri = rs.getUri();

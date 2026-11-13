@@ -13,7 +13,7 @@
 import { openDb, type OpenDb } from './client.ts';
 import type { Db } from './copy/plan.ts';
 
-export type DbArea = 'customers';
+export type DbArea = 'customers' | 'deliveries';
 export type AreaDatabase = 'mongo' | 'postgres';
 
 const envName = (area: DbArea) => `DB_${area.toUpperCase()}`;
