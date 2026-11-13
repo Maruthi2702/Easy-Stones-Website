@@ -77,6 +77,7 @@ import { INDEXED_MODELS } from './src/config/indexedModels.ts';
 import { parseLocationBody, publicLocationFields } from './src/utils/locationForm.ts';
 import { prettifyUsername } from './src/utils/textUtils.ts';
 import { sendContactFormEmail } from './src/services/emailService.ts';
+import { alertGeocodeFailure } from './src/services/geocodeAlert.ts';
 import { scrapeErpCustomers, scrapeErpInventory, scrapeErpSales } from './src/services/erpImportService.ts';
 // Shared with the client so an import can only assign a customer to someone the
 // Sales Rep dropdown would also have offered.
@@ -3601,6 +3602,8 @@ app.post(['/api/customers', '/api/sales/customers', '/api/partners'], authentica
       : await geocodeAddress(fields!.address);
 
     const newCustomer = await customerData.createCustomer({ id: newId(), fields: fields!, rep, geo, createdBy: req.userId });
+    // A lookup that failed (Google, not a point the caller supplied): tell the owner, without waiting.
+    if (!point) void alertGeocodeFailure({ company: fields!.company, address: fields!.address, geocode: geo.geocode, customerId: String(newCustomer._id) });
     req.app.get('io').emit('customer_update');
     res.status(201).json(await customerHistoryResponse(req, newCustomer));
   } catch (error) {
