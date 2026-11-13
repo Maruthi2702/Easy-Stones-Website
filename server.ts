@@ -3634,9 +3634,10 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
     const saved = await customerData.editCustomer(requestParams.id, {
       updateData,
       salesRep: req.body.salesRep,
+    const looked: { geo?: Awaited<ReturnType<typeof geocodePatchFor>> } = {};
       address: req.body.address ? addressFrom(req.body) : null,
       city: req.body.city,
-      geocode: geocodePatchFor
+      geocode: async (address: Parameters<typeof geocodePatchFor>[0], storedKey?: string) => (looked.geo = await geocodePatchFor(address, storedKey))
     });
     if ('notFound' in saved) return res.status(404).json({ message: 'Customer not found' });
     if ('error' in saved) return res.status(400).json({ message: saved.error });
@@ -3644,6 +3645,8 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
 
     req.app.get('io').emit('customer_update');
     res.json(await customerHistoryResponse(req, updatedCustomer));
+    // The address moved and Google couldn't place it: tell the owner, without waiting.
+    if (looked.geo) void alertGeocodeFailure({ company: updatedCustomer.company, address: updatedCustomer.address, geocode: looked.geo.geocode, customerId: String(updatedCustomer._id) });
   } catch (error) {
     console.error('Error updating unified lead:', error);
     res.status(400).json({ message: (error as Error).message });

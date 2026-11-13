@@ -60,3 +60,29 @@ describe('alertGeocodeFailure', () => {
     await expect(alertGeocodeFailure({ company: 'A', address, geocode: billing })).resolves.toBeUndefined();
   });
 });
+
+describe('alertGeocodeBatch', () => {
+  beforeEach(() => { sendEmail.mockClear(); resetGeocodeAlertThrottle(); process.env.GEOCODE_ALERT_EMAIL = 'a@example.com'; });
+  const bad = (street: string, geocode: Record<string, unknown>) => ({ address: { street, city: 'Kennewick', state: 'WA' }, geocode, customerId: street });
+
+  it('sends one email for a whole import, not one per row', async () => {
+    const { alertGeocodeBatch } = await import('./geocodeAlert.ts');
+    await alertGeocodeBatch([bad('1 A St', noResult), bad('2 B St', noResult), bad('3 C St', noResult)], 40);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const mail = sendEmail.mock.calls[0][0] as unknown as { subject: string; html: string };
+    expect(mail.subject).toContain('3 imported customers');
+    expect(mail.html).toContain('3 of 40');
+    expect(mail.html).toContain('2 B St');
+  });
+  it('says nothing when every row was placed or had no address', async () => {
+    const { alertGeocodeBatch } = await import('./geocodeAlert.ts');
+    await alertGeocodeBatch([{ address: { street: '1 A St', city: 'X' }, geocode: { status: 'ok' } }, { address: {}, geocode: { status: 'failed' } }], 2);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+  it('limits a setup problem to one batch email an hour', async () => {
+    const { alertGeocodeBatch } = await import('./geocodeAlert.ts');
+    await alertGeocodeBatch([bad('1 A St', billing)], 5, 0);
+    await alertGeocodeBatch([bad('2 B St', billing)], 5, 10 * 60_000);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+});
