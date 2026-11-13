@@ -143,12 +143,10 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
 - [ ] **Operations batch, one build and one cutover** (owner, 2026-11-12: "in 1 go"; about 9–11 days one after another, 4–5 with parallel agents). Daily Reports derives from the other three, so moving them together removes the half-and-half period. Each keeps its own switch (`DB_DELIVERIES`, `DB_PAYMENTS`, `DB_CHECKIN`, `DB_DAILY_REPORTS`) and all four flip in the same early-morning window; Daily Reports is verified last.
   - [ ] Deliveries + Delivery Schedule (3–4 days; gets `customer_id` foreign keys). Data layer `src/db/deliveries/` (switch `DB_DELIVERIES`); routes keep their MongoDB filters and `filter.ts` turns them into SQL.
     - [x] Reads: `GET /api/deliveries` (board week, Pending, Cancelled, a branch's view of a transfer), `/search`, `/:id` — parity test through the real router
-    - [ ] Reads: trucks, `delivery-columns`, driver orders and the other reads in server.ts / dailyReports.ts / accounting sync
-    - [ ] Writes: save, status, assignment, order, receiving, arrivals, receive, ePOD, delete, packing-list; stop renumbering; startup pass
-  - [ ] Payments (1 day)
-  - [ ] Check In + Selection Sheet (2 days)
-  - [ ] Daily Reports (3–4 days; the August 2026 incident applies, re-check `applyDerived` and submit)
-  - [ ] Rehearse all four together, then the cutover
+    - [x] Reads: trucks; the board's runs and the startup renumber; driver orders (server.ts); Daily Reports' three delivery reads; Accounting's freight sync (through `freightDeliveries`). `delivery-columns` stays with Locations (that area moves last)
+    - [x] Writes: save (POST + ePOD), status, assignment, order, receiving, arrivals, receive, delete, clear ePOD, trucks, driver "move to Pending"; stop renumbering. A Postgres save builds the ticket as MongoDB would hold it, then the copy's own `deliveryRowOf` makes the row — parity test `deliveries.writes.parity.test.ts` (13 cases)
+    - [ ] Read-only comparison on live data (`npm run pg:compare`), including tickets whose stored branch isn't a location
+    - [ ] Packing-list upload route has no database write of its own (checked); nothing else left in this module
 - [ ] Lost Sales (1 day)
 - [ ] Credit Card Receipts (1–2 days)
 - [ ] SPS import (1–2 days; runs and the runner)

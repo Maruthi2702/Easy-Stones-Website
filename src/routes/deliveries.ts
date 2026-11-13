@@ -14,12 +14,10 @@ import fs from 'fs';
 import multer from 'multer';
 import { getFileStore } from '../services/fileStore.ts';
 
-import Delivery from '../models/Delivery.ts';
-import { findDeliveries, findDelivery } from '../db/deliveries/index.ts';
-import Truck from '../models/Truck.ts';
+import { findDeliveries, findDelivery, saveDelivery, updateDelivery, createDelivery, deleteDelivery, setRouteNumbers, findTrucks, saveTruck, logDeliveryActivity } from '../db/deliveries/index.ts';
+import { newId } from '../db/ids.ts';
 import User from '../models/User.ts';
 import Location from '../models/Location.ts';
-import ActivityLog from '../models/ActivityLog.ts';
 
 import { stampSignaturesOnPdfBytes } from '../utils/pdfSigner.ts';
 import { signedPackingListFileName } from '../utils/packingList.ts';
@@ -354,20 +352,17 @@ const DELIVERY_LIST_PROJECTION = {
 // phone all show, so every write that adds a ticket to a run, takes one out
 // or deletes one closes the numbers back up to 1, 2, 3… (compactStopNumbers
 // in src/utils/stopGrouping.ts) — a deleted Stop #2 used to leave 1, 3.
-const RUN_FIELDS = 'id truckId date routeNumber deliveryType customerDropOff status';
+const RUN_FIELDS = { id: 1, truckId: 1, date: 1, routeNumber: 1, deliveryType: 1, customerDropOff: 1, status: 1 };
 
 /** The run a ticket was or is saved in, judged by its truck and day alone. */
 const runOf = (d: { truckId?: string | null; date?: string | null } | null | undefined) => (d?.truckId && d?.date ? { truckId: d.truckId, date: d.date } : null);
 
 /** What's on the board in a run: not cancelled, not a will call left pointing at the truck. */
 const ticketsInRun = async ({ truckId, date }: { truckId: string; date: string }) =>
-  (await Delivery.find({ truckId, date, status: { $ne: 'cancelled' } }, RUN_FIELDS).lean())
+  (await findDeliveries({ filter: { truckId, date, status: { $ne: 'cancelled' } }, projection: RUN_FIELDS }))
     .filter(d => columnIdFor(d) === truckId);
 
-const writeStopNumbers = (changes: Loose[]) => Delivery.bulkWrite(
-  changes.map((c: Loose) => ({ updateOne: { filter: { id: c.id }, update: { $set: { routeNumber: c.routeNumber } } } })),
-  { ordered: false }
-);
+const writeStopNumbers = (changes: Loose[]) => setRouteNumbers(changes.map((c: Loose) => ({ id: c.id, routeNumber: c.routeNumber })));
 
 /** Closes up each run given (nulls and repeats skipped); returns the tickets it renumbered. */
 async function renumberRuns(runs: (Loose | null)[]) {
@@ -382,7 +377,7 @@ async function renumberRuns(runs: (Loose | null)[]) {
   }
   if (!changes.length) return [];
   await writeStopNumbers(changes);
-  return Delivery.find({ id: { $in: changes.map(c => c.id) } }, DELIVERY_LIST_PROJECTION).lean();
+  return findDeliveries({ filter: { id: { $in: changes.map(c => c.id) } }, projection: DELIVERY_LIST_PROJECTION });
 }
 
 /**
@@ -391,10 +386,10 @@ async function renumberRuns(runs: (Loose | null)[]) {
  * finds nothing to change. Returns how many tickets it renumbered.
  */
 export async function renumberAllRuns() {
-  const tickets = await Delivery.find(
-    { truckId: { $nin: ['', null] }, date: { $nin: ['', null] }, status: { $ne: 'cancelled' } },
-    RUN_FIELDS
-  ).lean();
+  const tickets = await findDeliveries({
+    filter: { truckId: { $nin: ['', null] }, date: { $nin: ['', null] }, status: { $ne: 'cancelled' } },
+    projection: RUN_FIELDS
+  });
   const runs = new Map();
   for (const d of tickets) {
     if (columnIdFor(d) !== d.truckId) continue;
@@ -505,7 +500,7 @@ export default function createDeliveriesRouter({
 
   router.get('/trucks', authenticate, canViewDeliveries, async (req, res) => {
     try {
-      const trucks = await Truck.find().lean();
+      const trucks = await findTrucks();
       res.json(trucks);
     } catch {
       res.status(500).json({ error: 'Failed to fetch trucks' });
@@ -518,11 +513,11 @@ export default function createDeliveriesRouter({
       if (Array.isArray(trucks)) {
         for (const t of trucks) {
           if (t.id) {
-            await Truck.findOneAndUpdate({ id: t.id }, { $set: t }, { upsert: true });
+            await saveTruck(t);
           }
         }
       }
-      const updated = await Truck.find().lean();
+      const updated = await findTrucks();
       req.app.get('io')?.emit('truck_update', updated);
       res.json(updated);
     } catch {
@@ -765,10 +760,10 @@ export default function createDeliveriesRouter({
 
       // This route upserts by id, so it's the one write path every create AND
       // edit goes through.
-      const existing = await Delivery.findOne(
-        { id: delivery.id },
-        'location deliveryType transferDestination pod packingListUrl packingListFilename truckId date expectedArrivalDate customerDropOff status routeNumber'
-      ).lean();
+      const existing = await findDelivery({ id: delivery.id }, {
+        location: 1, deliveryType: 1, transferDestination: 1, pod: 1, packingListUrl: 1, packingListFilename: 1,
+        truckId: 1, date: 1, expectedArrivalDate: 1, customerDropOff: 1, status: 1, routeNumber: 1
+      });
 
       // Editing a record that already exists: its CURRENT location has to be
       // one this user can reach.
@@ -971,11 +966,7 @@ export default function createDeliveriesRouter({
         }
       }
 
-      const saved = await Delivery.findOneAndUpdate(
-        { id: delivery.id },
-        { $set: updateData },
-        { upsert: true, new: true }
-      ).lean().orFail();
+      const saved = await saveDelivery(delivery.id, updateData);
       // The run it left (if it moved) and the one it's in now.
       const updated = withNumberFrom(saved, await renumberAfter(req, [runOf(existing), runOf(saved)], saved.id));
 
@@ -1024,7 +1015,7 @@ export default function createDeliveriesRouter({
       if (!keys.length || keys.some(key => !['expectedArrivalDate', 'numberOfSlabs', 'status'].includes(key))) {
         return res.status(400).json({ error: 'Only expected delivery date, slab count and status can be changed here.' });
       }
-      const delivery = await Delivery.findOne(scopeDeliveryQueryToLocations({ id: requestParams.id, deliveryType: 'transfer' }, req)).lean();
+      const delivery = await findDelivery(scopeDeliveryQueryToLocations({ id: requestParams.id, deliveryType: 'transfer' }, req));
       if (!delivery) return res.status(404).json({ error: 'Transfer not found' });
       const changes: Loose = {};
       if (fields.expectedArrivalDate !== undefined) {
@@ -1052,14 +1043,14 @@ export default function createDeliveriesRouter({
         }));
       }
       if (!Object.keys(changes).length) {
-        const unchanged = await Delivery.findOne({ _id: delivery._id }, DELIVERY_LIST_PROJECTION).lean();
+        const unchanged = await findDelivery({ _id: delivery._id }, DELIVERY_LIST_PROJECTION);
         return res.json(unchanged);
       }
       // A status change also needs the status and truck it was judged on: the
       // sender may have cancelled it or taken it off its truck meanwhile.
       const unchangedSince = changes.status ? { status: delivery.status, truckId: delivery.truckId } : {};
-      const saved = await Delivery.findOneAndUpdate({ _id: delivery._id, location: delivery.location, transferDestination: delivery.transferDestination, ...unchangedSince },
-        { $set: changes }, { new: true, projection: DELIVERY_LIST_PROJECTION }).lean();
+      const saved = await updateDelivery({ _id: delivery._id, location: delivery.location, transferDestination: delivery.transferDestination, ...unchangedSince },
+        changes, DELIVERY_LIST_PROJECTION);
       if (!saved) return res.status(409).json({ error: 'The transfer changed; refresh and try again.' });
       // Cancelling takes it out of its run, so the stops after it move up.
       const updated = changes.status === 'cancelled' ? withNumberFrom(saved, await renumberAfter(req, [runOf(saved)], saved.id)) : saved;
@@ -1088,7 +1079,7 @@ export default function createDeliveriesRouter({
       const id = typeof body.id === 'string' ? body.id.trim() : '';
       if (!/^[\w-]{6,64}$/.test(id)) return res.status(400).json({ error: 'Invalid arrival id.' });
 
-      const already = await Delivery.findOne({ id }, DELIVERY_LIST_PROJECTION).lean();
+      const already = await findDelivery({ id }, DELIVERY_LIST_PROJECTION);
       if (already) {
         if (already.arrivalLogged) return res.json({ ...already, alreadySaved: true });
         return res.status(409).json({ error: 'That ticket id is already in use. Refresh and try again.' });
@@ -1112,10 +1103,10 @@ export default function createDeliveriesRouter({
 
       // The sender may have logged it after all, or someone here beat us to it.
       if (payload.transferNumber) {
-        const twin = await Delivery.findOne({
+        const twin = await findDelivery({
           deliveryType: 'transfer', location: payload.from, transferDestination: payload.to,
           soNumber: payload.transferNumber, status: { $ne: 'cancelled' }
-        }, 'id date expectedArrivalDate').lean();
+        }, { id: 1, date: 1, expectedArrivalDate: 1 });
         if (twin) {
           return res.status(409).json({
             error: `Transfer # ${payload.transferNumber} from ${payload.from} is already on the schedule (arriving ${twin.expectedArrivalDate || twin.date}). Open it there instead.`,
@@ -1127,8 +1118,9 @@ export default function createDeliveriesRouter({
       const { id: performedBy, name: performedByName } = await getPerformerInfo(req);
       const byName = performedByName || req.user?.displayName || req.user?.username || '';
       const at = new Date();
-      await Delivery.create(arrivalTicket(payload, { byName, at }));
-      const saved = await Delivery.findOne({ id }, DELIVERY_LIST_PROJECTION).lean().orFail();
+      await createDelivery(arrivalTicket(payload, { byName, at }));
+      const saved = await findDelivery({ id }, DELIVERY_LIST_PROJECTION);
+      if (!saved) throw new Error('The arrival was saved but could not be read back');
       const updated = withNumberFrom(saved, await renumberAfter(req, [runOf(saved)], saved.id));
 
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
@@ -1140,8 +1132,8 @@ export default function createDeliveriesRouter({
         .then((driverName) => notifyArrivalLogged(updated, { byName, driverName, reportsChanged }));
 
       try {
-        await ActivityLog.create({
-          entityType: 'Delivery', entityId: updated._id, action: 'CREATE',
+        await logDeliveryActivity({
+          id: newId(), entityType: 'Delivery', entityId: String(updated._id), action: 'CREATE',
           performedBy: performedBy || req.userId || byName || 'unknown', performedByName: byName, performedByRole: req.authType,
           timestamp: getNowLocalISO(),
           details: { scope: 'arrival_logged', deliveryId: id, from: payload.from, to: payload.to, arrivedOn: payload.arrivedOn, transferNumber: payload.transferNumber, reportsChanged }
@@ -1167,11 +1159,7 @@ export default function createDeliveriesRouter({
         return res.status(400).json({ error: `Status must be one of: ${DELIVERY_STATUSES.join(', ')}` });
       }
 
-      const saved = await Delivery.findOneAndUpdate(
-        scopeShipmentWrites({ id }, req),
-        { $set: { status } },
-        { new: true, projection: DELIVERY_LIST_PROJECTION }
-      ).lean();
+      const saved = await updateDelivery(scopeShipmentWrites({ id }, req), { status }, DELIVERY_LIST_PROJECTION);
 
       if (!saved) return res.status(404).json({ error: 'Delivery not found' });
       // Cancelling takes it out of its run, so the stops after it move up.
@@ -1254,10 +1242,7 @@ export default function createDeliveriesRouter({
       // placement (no old status), so it always recomputes a fresh
       // pending/scheduled rather than reusing 'cancelled'. Every other
       // starting status is left exactly as this endpoint has always left it.
-      const existing = await Delivery.findOne(
-        scopeShipmentWrites({ id }, req),
-        { status: 1, expectedArrivalDate: 1, truckId: 1, date: 1 }
-      ).lean();
+      const existing = await findDelivery(scopeShipmentWrites({ id }, req), { status: 1, expectedArrivalDate: 1, truckId: 1, date: 1 });
       if (!existing) return res.status(404).json({ error: 'Delivery not found' });
       const statusUpdate = existing.status === 'cancelled'
         ? { status: defaultStatusFor({ truckId, deliveryType, customerDropOff, date }) }
@@ -1281,11 +1266,11 @@ export default function createDeliveriesRouter({
         ? { routeNumber: nextStopNumber((await ticketsInRun(newRun)).filter(d => d.id !== id)) }
         : {};
 
-      const saved = await Delivery.findOneAndUpdate(
+      const saved = await updateDelivery(
         scopeShipmentWrites({ id }, req),
-        { $set: { truckId, deliveryType, date, customerDropOff, ...statusUpdate, ...arrivalUpdate, ...stopUpdate } },
-        { new: true, projection: DELIVERY_LIST_PROJECTION }
-      ).lean();
+        { truckId, deliveryType, date, customerDropOff, ...statusUpdate, ...arrivalUpdate, ...stopUpdate },
+        DELIVERY_LIST_PROJECTION
+      );
 
       if (!saved) return res.status(404).json({ error: 'Delivery not found' });
       const updated = withNumberFrom(saved, await renumberAfter(req, [oldRun, runOf(saved)], saved.id));
@@ -1342,9 +1327,10 @@ export default function createDeliveriesRouter({
       // than failing the whole request, so one stale id in a list cannot block a
       // dispatcher from fixing the run in front of them.
       const ids = clean.map(u => u.id);
-      const writable = await Delivery.find(
-        scopeShipmentWrites({ id: { $in: ids } }, req), 'id truckId date deliveryType customerDropOff status'
-      ).lean();
+      const writable = await findDeliveries({
+        filter: scopeShipmentWrites({ id: { $in: ids } }, req),
+        projection: { id: 1, truckId: 1, date: 1, deliveryType: 1, customerDropOff: 1, status: 1 }
+      });
       const writableById = new Map(writable.map(d => [d.id, d]));
       const applicable = clean.filter(u => writableById.has(u.id));
       if (!applicable.length) return res.status(404).json({ error: 'None of those deliveries were found' });
@@ -1379,11 +1365,11 @@ export default function createDeliveriesRouter({
         const [truckId, date] = key.split('||');
         return { truckId, date };
       });
-      const siblings = (await Delivery.find(
+      const siblings = (await findDeliveries({
         // $and: the location scoping owns the top-level $or.
-        scopeDeliveryQueryToLocations({ $and: [{ $or: cellFilters }], id: { $nin: [...applicableIds] }, status: { $ne: 'cancelled' } }, req),
-        'id truckId date routeNumber deliveryType customerDropOff status'
-      ).lean()).filter(d => cellRouteNumbers.has(cellKeyOf(d)));
+        filter: scopeDeliveryQueryToLocations({ $and: [{ $or: cellFilters }], id: { $nin: [...applicableIds] }, status: { $ne: 'cancelled' } }, req),
+        projection: { id: 1, truckId: 1, date: 1, routeNumber: 1, deliveryType: 1, customerDropOff: 1, status: 1 }
+      })).filter(d => cellRouteNumbers.has(cellKeyOf(d)));
       for (const sibling of siblings) {
         if (cellRouteNumbers.get(cellKeyOf(sibling))?.has(Number(sibling.routeNumber) || 1)) {
           return res.status(409).json({
@@ -1392,15 +1378,11 @@ export default function createDeliveriesRouter({
         }
       }
 
-      await Delivery.bulkWrite(applicable.map(u => ({
-        updateOne: { filter: { id: u.id }, update: { $set: { routeNumber: u.routeNumber } } }
-      })));
+      await setRouteNumbers(applicable.map(u => ({ id: u.id, routeNumber: u.routeNumber })));
 
       // A reorder sent from a searched board covers only the cards on show,
       // which can leave a gap among the rest.
-      const reordered = await Delivery.find(
-        { id: { $in: applicable.map(u => u.id) } }, DELIVERY_LIST_PROJECTION
-      ).lean();
+      const reordered = await findDeliveries({ filter: { id: { $in: applicable.map(u => u.id) } }, projection: DELIVERY_LIST_PROJECTION });
       const reorderedIds = new Set(reordered.map(d => d.id));
       const moved = await renumberRuns(cellFilters).catch((err) => {
         console.error('[server] renumber stops error:', err);
@@ -1435,7 +1417,7 @@ export default function createDeliveriesRouter({
   const requestParams = scalarParams(req);
     try {
       const { id } = requestParams;
-      const delivery = await Delivery.findOne({ id, deliveryType: 'transfer' });
+      const delivery = await findDelivery({ id, deliveryType: 'transfer' });
       if (!delivery) return res.status(404).json({ error: 'Transfer ticket not found' });
 
       const userLocations = req.user?.assignedLocations || [];
@@ -1452,12 +1434,10 @@ export default function createDeliveriesRouter({
       // received also completes it once it's on a truck (statusForReceived).
       const { name: performedByName } = await getPerformerInfo(req);
       const completes = statusForReceived(delivery);
-      delivery.receivedAt = new Date();
-      delivery.receivedBy = performedByName || '';
-      if (completes.status) delivery.status = completes.status;
-      await delivery.save();
-
-      const updated = await Delivery.findOne({ id }, DELIVERY_LIST_PROJECTION).lean().orFail();
+      const updated = await updateDelivery({ id }, {
+        receivedAt: new Date(), receivedBy: performedByName || '', ...(completes.status ? { status: completes.status } : {})
+      }, DELIVERY_LIST_PROJECTION);
+      if (!updated) return res.status(404).json({ error: 'Transfer ticket not found' });
 
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
       if (completes.status) deliveriesChanged([updated.id]);
@@ -1476,7 +1456,7 @@ export default function createDeliveriesRouter({
       // Scoped the same way every other :id route here is (GET/status/
       // assignment) — anyone with delete rights could otherwise delete any
       // branch's delivery by guessing an id.
-      const deleted = await Delivery.findOneAndDelete(scopeShipmentWrites({ id }, req));
+      const deleted = await deleteDelivery(scopeShipmentWrites({ id }, req));
       if (!deleted) {
         return res.status(404).json({ error: 'Delivery not found' });
       }
@@ -1499,12 +1479,12 @@ export default function createDeliveriesRouter({
         return res.status(400).json({ error: 'A reason is required to clear an ePOD.' });
       }
 
-      const delivery = await Delivery.findOne(scopeShipmentWrites({ id }, req));
+      const delivery = await findDelivery(scopeShipmentWrites({ id }, req));
       if (!delivery) return res.status(404).json({ error: 'Delivery not found' });
 
       const { id: performedBy, name: performedByName } = await getPerformerInfo(req);
       const assetIds = podAssetIds(id);
-      const previous: Partial<NonNullable<typeof delivery.pod>> = delivery.pod || {};
+      const previous: Loose = delivery.pod || {};
 
       // Destroy by stored id where we have one, falling back to the derived id for
       // records written before publicIds were tracked — and by the stored URLs too,
@@ -1518,7 +1498,7 @@ export default function createDeliveriesRouter({
           .map((url) => removeStoredFile(url))
       ]);
 
-      delivery.pod = {
+      const updated = await updateDelivery({ _id: delivery._id }, { pod: {
         signeeName: '',
         driverName: '',
         customerSignature: '',
@@ -1535,13 +1515,14 @@ export default function createDeliveriesRouter({
         clearedAt: new Date(),
         clearedBy: performedByName,
         clearReason: reason
-      };
-      await delivery.save();
+      } });
+      if (!updated) return res.status(404).json({ error: 'Delivery not found' });
 
       try {
-        await ActivityLog.create({
+        await logDeliveryActivity({
+          id: newId(),
           entityType: 'Delivery',
-          entityId: delivery._id,
+          entityId: String(delivery._id),
           action: 'DELETE',
           performedBy,
           performedByName,
@@ -1561,7 +1542,6 @@ export default function createDeliveriesRouter({
         console.error('Failed to log ePOD clear:', logErr);
       }
 
-      const updated = delivery.toObject();
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
 
       res.json({ success: true, delivery: updated });
@@ -1595,9 +1575,7 @@ export default function createDeliveriesRouter({
         // be accepted — it would replace that branch's packing list. A ticket
         // that doesn't exist yet (the form's own new id) is fine.
         if (deliveryId) {
-          const owner = await Delivery.findOne(
-            { id: deliveryId }, 'location deliveryType transferDestination'
-          ).lean();
+          const owner = await findDelivery({ id: deliveryId }, { location: 1, deliveryType: 1, transferDestination: 1 });
           if (owner && !canManageShipment(req.user, owner)) {
             return res.status(403).json({ error: 'You do not have access to that delivery.' });
           }

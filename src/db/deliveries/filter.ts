@@ -11,7 +11,7 @@
  * - `date` / `expectedArrivalDate` are real days; no day reads as '';
  * - `location` / `transferDestination` are branch NAMES, read through the locations table.
  */
-import { and, or, not, sql, eq, type SQL } from 'drizzle-orm';
+import { and, or, not, sql, eq, inArray, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { deliveries } from '../schema/operations.ts';
 import { locations } from '../schema/reference.ts';
@@ -67,7 +67,9 @@ function fieldCondition(name: string, f: Field, spec: unknown): SQL {
       case '$in': parts.push((arg as unknown[]).length ? sql`${f.value} in (${sql.join(list(), sql`, `)})` : sql`false`); break;
       case '$nin': parts.push((arg as unknown[]).length ? sql`${f.value} not in (${sql.join(list(), sql`, `)})` : sql`true`); break;
       case '$ne': parts.push(sql`${f.value} <> ${scalar(f, arg)}`); break;
+      case '$gt': parts.push(sql`${f.value} > ${scalar(f, arg)}`); break;
       case '$gte': parts.push(sql`${f.value} >= ${scalar(f, arg)}`); break;
+      case '$lt': parts.push(sql`${f.value} < ${scalar(f, arg)}`); break;
       case '$lte': parts.push(sql`${f.value} <= ${scalar(f, arg)}`); break;
       // Missing and '' are one thing here: a field "exists" when it has something.
       case '$exists': parts.push(arg ? sql`${f.value} <> ''` : sql`${f.value} = ''`); break;
@@ -84,7 +86,11 @@ export function deliveryWhere(filter: Loose | null | undefined): SQL {
     if (key === '$or') parts.push((spec as Loose[]).length ? or(...(spec as Loose[]).map(deliveryWhere))! : sql`false`);
     else if (key === '$and') parts.push((spec as Loose[]).length ? and(...(spec as Loose[]).map(deliveryWhere))! : sql`true`);
     else if (key === '$nor') parts.push((spec as Loose[]).length ? not(or(...(spec as Loose[]).map(deliveryWhere))!) : sql`true`);
-    else if (key === '_id') parts.push(eq(deliveries.id, String(spec)));
+    else if (key === '_id') {
+      const ids = isOperatorObject(spec) && Array.isArray(spec.$in) ? (spec.$in as unknown[]).map(String) : null;
+      if (isOperatorObject(spec) && !ids) throw new Error('Delivery filter: _id supports only a value or $in');
+      parts.push(ids ? (ids.length ? inArray(deliveries.id, ids) : sql`false`) : eq(deliveries.id, String(spec)));
+    }
     else {
       const f = FIELDS[key];
       if (!f) throw new Error(`Delivery filter: ${key} is not supported on Postgres`);

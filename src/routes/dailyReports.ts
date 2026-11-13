@@ -10,7 +10,7 @@ import DailyReport from '../models/DailyReport.ts';
 import { buildDayPdf, buildMonthPdf, dayPdfFileName, monthPdfFileName } from '../utils/dailyReportPdf.ts';
 import { sendEmail } from '../services/emailService.ts';
 import { SENDER_NAME } from '../utils/emailSender.ts';
-import Delivery from '../models/Delivery.ts';
+import { findDeliveries } from '../db/deliveries/index.ts';
 import { BRANCH_NAMES, branchCode, isBranch, branchDayWindow } from '../config/branches.ts';
 import OfficeCheckIn from '../models/OfficeCheckIn.ts';
 import Location from '../models/Location.ts';
@@ -137,8 +137,8 @@ export const incomingTransferQuery = (date: string, location: string) => ({
  * the day counts material that never moved. The board draws no card for one,
  * and neither does this report.
  */
-export const deliveriesOnDate = (date: string) => Delivery.find(
-  {
+export const deliveriesOnDate = (date: string) => findDeliveries({
+  filter: {
     date,
     status: { $ne: 'cancelled' },
     $or: [
@@ -147,8 +147,8 @@ export const deliveriesOnDate = (date: string) => Delivery.find(
       { deliveryType: 'return' }
     ]
   },
-  'id deliveryType transferDestination location numberOfSlabs soNumber invoiceNumber'
-).lean();
+  projection: { id: 1, deliveryType: 1, transferDestination: 1, location: 1, numberOfSlabs: 1, soNumber: 1, invoiceNumber: 1 }
+});
 
 /**
  * Stored reports as they should be read for display or export. A draft is
@@ -272,10 +272,10 @@ export async function deriveFromSystem(date: string, location: string, { deliver
       createdAt: { $gte: dayStart, $lt: dayEnd }
     }),
     deliveryRows || deliveriesOnDate(date),
-    Delivery.find(
-      incomingTransferQuery(date, location),
-      'id location numberOfSlabs receivedAt receivedBy soNumber invoiceNumber'
-    ).lean(),
+    findDeliveries({
+      filter: incomingTransferQuery(date, location),
+      projection: { id: 1, location: 1, numberOfSlabs: 1, receivedAt: 1, receivedBy: 1, soNumber: 1, invoiceNumber: 1 }
+    }),
     // From PAYMENTS_FROM_PAGE_SINCE the day's payments are the Payments
     // page's entries (voided ones never count); before it, what was typed.
     paymentsFromPage(date) ? PaymentReceived.find({ location, date, voidedAt: null }, 'method cents').lean() : null
@@ -334,16 +334,16 @@ export async function deriveFromSystem(date: string, location: string, { deliver
  * this, so the month export and auto-submit don't pay for the extra queries.
  */
 async function transfersShippedEarlier(date: string, location: string) {
-  const rows = await Delivery.find(
-    {
+  const rows = await findDeliveries({
+    filter: {
       deliveryType: 'transfer',
       expectedArrivalDate: date,
       date: { $lt: date },
       status: { $ne: 'cancelled' },
       truckId: { $nin: ['', null] }
     },
-    'date expectedArrivalDate location numberOfSlabs'
-  ).lean();
+    projection: { date: 1, expectedArrivalDate: 1, location: 1, numberOfSlabs: 1 }
+  });
   // Filed under this branch only — same rule as deriveFromSystem.
   const mine = rows.filter(d => d.location === location);
   const groups = arrivalsShippedEarlier(mine, date);

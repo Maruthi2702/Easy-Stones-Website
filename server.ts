@@ -177,7 +177,7 @@ import {
   startStaffSession, clearPasswordSetup, readSetupToken, clearSignInLock
 } from './src/services/staffSession.ts';
 import { usernameProblem, isValidEmail, isValidDateInput, PASSWORD_MIN } from './src/utils/userForm.ts';
-import Delivery from './src/models/Delivery.ts';
+import { findDeliveries, movePending, freightDeliveries } from './src/db/deliveries/index.ts';
 import { withDbRetry } from './src/utils/dbRetry.ts';
 import { relay } from './src/lambda/relay.ts';
 import { permitSyncOnLambda } from './src/permits/syncOnLambda.ts';
@@ -1951,18 +1951,21 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), validat
 // driver away — deactivating or deleting them — would otherwise leave these
 // on a column nobody is driving.
 const DRIVER_ORDER_PROJECTION = { 'pod.customerSignature': 0, 'pod.driverSignature': 0, 'pod.photos': 0 };
-const upcomingDriverOrders = (user: Loose) => Delivery.find({
-  truckId: `drv_${user.username}`,
-  status: { $nin: ['completed', 'cancelled'] },
-  $or: [{ date: { $gte: pacificToday() } }, { date: '' }, { date: null }]
-}, '_id').lean();
+const upcomingDriverOrders = (user: Loose) => findDeliveries({
+  filter: {
+    truckId: `drv_${user.username}`,
+    status: { $nin: ['completed', 'cancelled'] },
+    $or: [{ date: { $gte: pacificToday() } }, { date: '' }, { date: null }]
+  },
+  projection: { _id: 1 }
+});
 
 /** Move orders to Pending (no driver, same date) and tell open boards, branch by branch. */
 const moveOrdersToPending = async (req: Request, orders: Loose[]) => {
   if (!orders.length) return;
-  const ids = orders.map(o => o._id);
-  await withDbRetry(() => Delivery.updateMany({ _id: { $in: ids } }, { $set: { truckId: '', status: 'pending' } }));
-  const updated = await Delivery.find({ _id: { $in: ids } }, DRIVER_ORDER_PROJECTION).lean();
+  const ids = orders.map(o => String(o._id));
+  await withDbRetry(() => movePending(ids));
+  const updated = await findDeliveries({ filter: { _id: { $in: ids } }, projection: DRIVER_ORDER_PROJECTION });
   const io = req.app.get('io');
   for (const delivery of updated) {
     for (const room of new Set(deliveryRoomsFor(delivery, io))) io?.to(room).emit('delivery_update', { type: 'upsert', delivery });
@@ -3817,7 +3820,7 @@ app.use('/api/checkin', createCheckInRouter({ authenticate, requirePermission })
 // and by a catch-up run at boot and every 10 minutes. Deliveries dated before
 // FREIGHT_CHARGES_FROM were settled the old way and never become charges.
 const freightSync = createFreightSync({
-  Delivery, User, startDate: process.env.FREIGHT_CHARGES_FROM || '2026-10-01'
+  Delivery: freightDeliveries, User, startDate: process.env.FREIGHT_CHARGES_FROM || '2026-10-01'
 });
 setDeliveriesChangedHandler((ids) => freightSync.syncDeliveryIds(ids));
 app.use('/api/accounting/fuel-man', createFuelManRouter({ authenticate }));

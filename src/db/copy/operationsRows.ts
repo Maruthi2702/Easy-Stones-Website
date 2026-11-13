@@ -40,6 +40,52 @@ export interface OperationsIndex {
   deliveryIdByTicket: Map<string, string>;
 }
 
+/**
+ * One MongoDB delivery → its Postgres row. The copy and the Postgres saves both build rows
+ * here, so a save writes exactly what a re-copy of MongoDB would make. `d._id` and `d.id`
+ * must be real (the copy checks them first); anything else a ticket lacks takes its default.
+ */
+export function deliveryRowOf(d: Loose, ref: ReferenceIndex, cust: Pick<CustomerIndex, 'customerIds'>, problems: CopyProblem[]): Row<typeof deliveries> {
+  const id = idOf(d._id)!;
+  const ticketId = textOf(d.id);
+  const c = rowConverter(problems, 'deliveries', id);
+  const zone = ref.zoneOfLocation(d.location);
+  const pod: Loose = d.pod && typeof d.pod === 'object' ? d.pod : {};
+  const arrival: Loose | null = d.arrivalLogged && typeof d.arrivalLogged === 'object' ? d.arrivalLogged : null;
+  return {
+    id, ticketId,
+    customerId: linkOf(c, 'customer_id', d.customerId, cust.customerIds, 'customer'),
+    customerName: textOf(d.customerName), address: textOf(d.address), salesRepName: textOf(d.salesRepName),
+    truckKey: textOf(d.truckId), day: c.day('day', d.date, zone), time: d.time == null ? '09:00 AM' : textOf(d.time),
+    status: pickOf(c, 'status', d.status, DELIVERY_STATUSES, 'pending'), notes: textOf(d.notes),
+    soNumber: textOf(d.soNumber), invoiceNumber: textOf(d.invoiceNumber),
+    routeNumber: intOf(c, 'route_number', d.routeNumber) ?? 1,
+    locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName), driver: textOf(d.driver),
+    deliveryType: pickOf(c, 'delivery_type', d.deliveryType, DELIVERY_TYPES, 'jobsite'),
+    customerDropOff: boolOf(d.customerDropOff),
+    transferDestinationId: locationIdOf(c, 'transfer_destination_id', d.transferDestination, ref.locationIdByName),
+    expectedArrivalDay: c.day('expected_arrival_day', d.expectedArrivalDate, zone),
+    receivedAt: c.moment('received_at', d.receivedAt), receivedBy: textOf(d.receivedBy),
+    arrivalLoggedByName: arrival ? textOf(arrival.byName) : null,
+    arrivalLoggedByLocation: arrival ? textOf(arrival.byLocation) : null,
+    arrivalLoggedAt: arrival ? c.moment('arrival_logged_at', arrival.at) : null,
+    pickupInfo: textOf(d.pickupInfo), carrierName: textOf(d.carrierName), proNumber: textOf(d.proNumber),
+    freightFee: decimalOf(d.freightFee) ?? '0', numberOfSlabs: intOf(c, 'number_of_slabs', d.numberOfSlabs) ?? 0,
+    packingListUrl: textOf(d.packingListUrl), packingListFilename: textOf(d.packingListFilename),
+    packingListPublicId: textOf(d.packingListPublicId),
+    podSigneeName: textOf(pod.signeeName), podDriverName: textOf(pod.driverName),
+    podCustomerSignature: textOf(pod.customerSignature), podDriverSignature: textOf(pod.driverSignature),
+    podCustomerSignedAt: c.moment('pod_customer_signed_at', pod.customerSignedAt),
+    podDriverSignedAt: c.moment('pod_driver_signed_at', pod.driverSignedAt),
+    podSignedAt: c.moment('pod_signed_at', pod.signedAt), podPhotos: stringsOf(pod.photos), podNotes: textOf(pod.notes),
+    podSignedPdfUrl: textOf(pod.signedPdfUrl), podSignedPdfFilename: textOf(pod.signedPdfFilename),
+    podSignedPdfPublicId: textOf(pod.signedPdfPublicId), podVerified: boolOf(pod.verified),
+    podClearedAt: c.moment('pod_cleared_at', pod.clearedAt), podClearedBy: textOf(pod.clearedBy),
+    podClearReason: textOf(pod.clearReason),
+    ...stamp(c, d)
+  };
+}
+
 export function operationsRows(src: OperationsSource, ref: ReferenceIndex, cust: CustomerIndex, problems: CopyProblem[]):
   { rows: OperationsRows; index: OperationsIndex } {
   const rows: OperationsRows = {
@@ -56,41 +102,7 @@ export function operationsRows(src: OperationsSource, ref: ReferenceIndex, cust:
     if (!ticketId) { c.problem('ticket_id', 'no ticket id', 'skipped'); continue; }
     if (deliveryIdByTicket.has(ticketId)) { c.problem('ticket_id', 'ticket id held twice', 'skipped'); continue; }
     deliveryIdByTicket.set(ticketId, id);
-    const zone = ref.zoneOfLocation(d.location);
-    const pod: Loose = d.pod && typeof d.pod === 'object' ? d.pod : {};
-    const arrival: Loose | null = d.arrivalLogged && typeof d.arrivalLogged === 'object' ? d.arrivalLogged : null;
-    rows.deliveries.push({
-      id, ticketId,
-      customerId: linkOf(c, 'customer_id', d.customerId, cust.customerIds, 'customer'),
-      customerName: textOf(d.customerName), address: textOf(d.address), salesRepName: textOf(d.salesRepName),
-      truckKey: textOf(d.truckId), day: c.day('day', d.date, zone), time: d.time == null ? '09:00 AM' : textOf(d.time),
-      status: pickOf(c, 'status', d.status, DELIVERY_STATUSES, 'pending'), notes: textOf(d.notes),
-      soNumber: textOf(d.soNumber), invoiceNumber: textOf(d.invoiceNumber),
-      routeNumber: intOf(c, 'route_number', d.routeNumber) ?? 1,
-      locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName), driver: textOf(d.driver),
-      deliveryType: pickOf(c, 'delivery_type', d.deliveryType, DELIVERY_TYPES, 'jobsite'),
-      customerDropOff: boolOf(d.customerDropOff),
-      transferDestinationId: locationIdOf(c, 'transfer_destination_id', d.transferDestination, ref.locationIdByName),
-      expectedArrivalDay: c.day('expected_arrival_day', d.expectedArrivalDate, zone),
-      receivedAt: c.moment('received_at', d.receivedAt), receivedBy: textOf(d.receivedBy),
-      arrivalLoggedByName: arrival ? textOf(arrival.byName) : null,
-      arrivalLoggedByLocation: arrival ? textOf(arrival.byLocation) : null,
-      arrivalLoggedAt: arrival ? c.moment('arrival_logged_at', arrival.at) : null,
-      pickupInfo: textOf(d.pickupInfo), carrierName: textOf(d.carrierName), proNumber: textOf(d.proNumber),
-      freightFee: decimalOf(d.freightFee) ?? '0', numberOfSlabs: intOf(c, 'number_of_slabs', d.numberOfSlabs) ?? 0,
-      packingListUrl: textOf(d.packingListUrl), packingListFilename: textOf(d.packingListFilename),
-      packingListPublicId: textOf(d.packingListPublicId),
-      podSigneeName: textOf(pod.signeeName), podDriverName: textOf(pod.driverName),
-      podCustomerSignature: textOf(pod.customerSignature), podDriverSignature: textOf(pod.driverSignature),
-      podCustomerSignedAt: c.moment('pod_customer_signed_at', pod.customerSignedAt),
-      podDriverSignedAt: c.moment('pod_driver_signed_at', pod.driverSignedAt),
-      podSignedAt: c.moment('pod_signed_at', pod.signedAt), podPhotos: stringsOf(pod.photos), podNotes: textOf(pod.notes),
-      podSignedPdfUrl: textOf(pod.signedPdfUrl), podSignedPdfFilename: textOf(pod.signedPdfFilename),
-      podSignedPdfPublicId: textOf(pod.signedPdfPublicId), podVerified: boolOf(pod.verified),
-      podClearedAt: c.moment('pod_cleared_at', pod.clearedAt), podClearedBy: textOf(pod.clearedBy),
-      podClearReason: textOf(pod.clearReason),
-      ...stamp(c, d)
-    });
+    rows.deliveries.push(deliveryRowOf(d, ref, cust, problems));
   }
 
   for (const d of src.trucks) {
