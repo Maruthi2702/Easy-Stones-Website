@@ -127,10 +127,10 @@ writes until then. Each still moves through the data layer first, switch off. Bu
 
 - [x] RDS schema up to date (prod, 2026-11-12): `pg-copy-aws.ts --deploy` after any change in `drizzle/` (the copy applies migrations; this read batch adds 0010 calendar clocks and 0011 customer matching order)
 - [x] Rehearse on a copy: every customer screen opened with `DB_CUSTOMERS=postgres` (local, PGlite or local Postgres) — API level 2026-11-12 ([docs/db/customer-rehearsal.md](docs/db/customer-rehearsal.md)) and owner's browser click-through 2026-11-12: all screens working; the 2026-01-28 resource's time zone to be checked by the owner
-- [ ] Early morning: pause customer writes
-- [ ] `pg-copy-aws.ts --write`, then `--verify`: equal
-- [ ] Set `DB_CUSTOMERS=postgres` on Render; open each customer screen live
-- [ ] `--lock` the copy so it can never overwrite live Postgres data
+- [x] Pause customer writes (2026-11-12, ~9:50 PM Pacific, `CUSTOMER_WRITES_PAUSED`; about 30 minutes in all)
+- [x] `pg-copy-aws.ts --write`, then `--verify --scope customers`: equal (the first verify showed ~2,600 `matchOrder` differences, cause not found; two re-runs were clean)
+- [x] Set `DB_CUSTOMERS=postgres` on Render; opened each customer screen live; `ZZ Cutover Test` created, edited, deleted, nothing in MongoDB (2026-11-12)
+- [x] `--lock "cutover 2026-11-12"` the copy so it can never overwrite live Postgres data
 - [ ] MongoDB customers kept read-only for 2 weeks; then removed
 
 ## 5. The other areas, one module at a time (each: data layer → parity → cutover, as above)
