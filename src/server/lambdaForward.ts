@@ -287,9 +287,34 @@ export function createLambdaForward(options: LambdaForwardOptions): RequestHandl
 
     upReq.on('response', (upRes) => {
       if (settled) { upRes.destroy(); return; }
+      const status = upRes.statusCode ?? 502;
+      // API Gateway's own "no route" answer ({"message":"Not Found"}) means the
+      // module isn't deployed there: a read is served on Render instead.
+      if (status === 404 && readOnly && !hasBody && upRes.headers['apigw-requestid'] !== undefined) {
+        const chunks: Buffer[] = [];
+        upRes.on('data', (c: Buffer) => { if (chunks.length < 8) chunks.push(c); });
+        upRes.on('error', (err) => fail(err));
+        upRes.on('end', () => {
+          if (settled) return;
+          const body = Buffer.concat(chunks);
+          const text = upRes.headers['content-encoding'] ? '' : body.toString('utf8');
+          if (text === '{"message":"Not Found"}') {
+            settled = true;
+            cleanup();
+            log.warn(`[lambda-forward] API Gateway has no route for ${req.originalUrl}; serving it on Render.`);
+            next();
+            return;
+          }
+          answered = true;
+          settled = true;
+          cleanup();
+          res.writeHead(status, answerHeaders(upRes));
+          res.end(body);
+        });
+        return;
+      }
       answered = true;
       upstreamRes = upRes;
-      const status = upRes.statusCode ?? 502;
       if (upRes.statusMessage) res.writeHead(status, upRes.statusMessage, answerHeaders(upRes));
       else res.writeHead(status, answerHeaders(upRes));
       upRes.on('error', (err) => fail(err));
