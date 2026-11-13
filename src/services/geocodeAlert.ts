@@ -1,9 +1,9 @@
 import type { Loose } from '../types/records.ts';
 import { sendEmail } from './emailService.ts';
-import { geocodeAlertFor } from '../utils/geocodeAlert.ts';
+import { geocodeAlertFor, geocodeBatchAlertFor, type GeocodeAlert, type GeocodeFailure } from '../utils/geocodeAlert.ts';
 
 /**
- * Tell the owner when a new customer's map lookup fails (owner's ask,
+ * Tell the owner when a customer's map lookup fails (Add, Edit, and a bulk import) (owner's ask,
  * 2026-11-13: Google billing was off for a day and nobody knew, so new
  * customers silently had no pin). Recipients: GEOCODE_ALERT_EMAIL, one or more
  * addresses separated by commas — nothing is sent while it is unset.
@@ -15,13 +15,12 @@ import { geocodeAlertFor } from '../utils/geocodeAlert.ts';
 const SETUP_REPEAT_MS = 60 * 60 * 1000;
 const lastSent = new Map<string, number>();
 
-export async function alertGeocodeFailure(args: { company?: string; address?: Loose; geocode?: Loose; customerId?: string }, now = Date.now()) {
+async function deliver(alert: GeocodeAlert | null, now: number) {
   try {
-    const alert = geocodeAlertFor(args);
     if (!alert) return;
     const to = String(process.env.GEOCODE_ALERT_EMAIL || '').split(',').map(s => s.trim()).filter(Boolean);
     if (!to.length) {
-      console.warn('Map location failed for a new customer, and GEOCODE_ALERT_EMAIL is not set — no email sent.');
+      console.warn('Map location failed for new customers, and GEOCODE_ALERT_EMAIL is not set — no email sent.');
       return;
     }
     const last = lastSent.get(alert.throttleKey);
@@ -36,6 +35,14 @@ export async function alertGeocodeFailure(args: { company?: string; address?: Lo
     console.error('Map location alert failed:', error);
   }
 }
+
+/** One customer, from Add or Edit customer. */
+export const alertGeocodeFailure = (args: { company?: string; address?: Loose; geocode?: Loose; customerId?: string }, now = Date.now()) =>
+  deliver((() => { try { return geocodeAlertFor(args); } catch { return null; } })(), now);
+
+/** A bulk write's failures (Excel / SPS import), as one email. */
+export const alertGeocodeBatch = (failures: GeocodeFailure[], total: number, now = Date.now()) =>
+  deliver((() => { try { return geocodeBatchAlertFor(failures, total); } catch { return null; } })(), now);
 
 /** For tests. */
 export const resetGeocodeAlertThrottle = () => lastSent.clear();

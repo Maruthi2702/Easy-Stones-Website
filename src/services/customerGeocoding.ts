@@ -1,6 +1,7 @@
 import type { Loose } from '../types/records.ts';
 import * as customerData from '../db/customers/index.ts';
 import { geocodeAddress, addressKeyOf, hasGeocodingKey } from '../utils/geocode.ts';
+import { alertGeocodeBatch } from './geocodeAlert.ts';
 
 /**
  * Map pins for customers that a bulk write created or moved (Excel import, SPS
@@ -31,9 +32,11 @@ async function geocodeIds(ids: string[]) {
 
   let wrote = 0;
   let unasked = 0;
+  const failures: { address?: Loose; geocode?: Loose; customerId?: string }[] = [];
   for (const customer of todo) {
     const result = await geocodeAddress(customer.address ?? {});
     await customerData.saveCustomerGeocode(customer._id, result);
+    if (result.geocode.status !== 'ok') failures.push({ address: customer.address ?? {}, geocode: result.geocode, customerId: String(customer._id) });
     if (result.geocode.status === 'pending') {
       if (++unasked >= GIVE_UP_AFTER && !wrote) break;
     } else {
@@ -43,6 +46,8 @@ async function geocodeIds(ids: string[]) {
     await sleep(PAUSE_MS);
   }
   if (wrote) afterBatch();
+  // One email for the whole batch (owner's ask, 2026-11-13), never one per row.
+  if (failures.length) void alertGeocodeBatch(failures, todo.length);
 }
 
 /** Queue pins for these customers. Returns at once; errors are logged, never thrown. */

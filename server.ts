@@ -3631,16 +3631,19 @@ app.put(['/api/customers/:id', '/api/partners/:id'], authenticate, requirePermis
     // carried one, the stored address is kept for a city-only edit, the address is
     // re-geocoded only when it moved (the Google call is ours, handed in), and a typed
     // Moda display / binders can't go below what the resources hold.
+    const looked: { geo?: Awaited<ReturnType<typeof geocodePatchFor>> } = {};
     const saved = await customerData.editCustomer(requestParams.id, {
       updateData,
       salesRep: req.body.salesRep,
       address: req.body.address ? addressFrom(req.body) : null,
       city: req.body.city,
-      geocode: geocodePatchFor
+      geocode: async (address: Parameters<typeof geocodePatchFor>[0], storedKey?: string) => (looked.geo = await geocodePatchFor(address, storedKey))
     });
     if ('notFound' in saved) return res.status(404).json({ message: 'Customer not found' });
     if ('error' in saved) return res.status(400).json({ message: saved.error });
     const updatedCustomer = saved.customer;
+    // The address moved and Google couldn't place it: tell the owner, without waiting.
+    if (looked.geo) void alertGeocodeFailure({ company: updatedCustomer.company, address: updatedCustomer.address, geocode: looked.geo.geocode, customerId: String(updatedCustomer._id) });
 
     req.app.get('io').emit('customer_update');
     res.json(await customerHistoryResponse(req, updatedCustomer));
