@@ -227,5 +227,7 @@ export const mongoCopyState = pgTable('mongo_copy_state', {
   lastCopyReport: jsonb('last_copy_report'),
   /** Set at cutover: from then on Postgres is the live data and a copy would overwrite it. */
   lockedAt: moment('locked_at'),
-  lockedBy: text('locked_by').notNull().default('')
+  lockedBy: text('locked_by').notNull().default(''),
+  /** Areas that moved on their own (DB_MOVE_CHECKLIST.md §5), e.g. 'deliveries': a scoped copy of one refuses from then on. */
+  lockedAreas: text('locked_areas').array().notNull().default(sql`'{}'::text[]`)
 }, () => [check('mongo_copy_state_single_row', sql`id = 1`)]);

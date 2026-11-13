@@ -59,6 +59,7 @@ const { resolveDuplicates, undoDuplicates } = customerData;
 import { areasOnPostgres } from './src/db/appDb.ts';
 import { startReferenceSync } from './src/db/reference/referenceSync.ts';
 import { customerWritesPauseGate, customerWritesPaused } from './src/utils/customerWritesPause.ts';
+import { deliveriesWritesPauseGate, deliveriesWritesPaused } from './src/utils/deliveriesWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1150,6 +1151,8 @@ app.use(cookieParser());
 
 // Cutover pause (CUSTOMER_WRITES_PAUSED=true): customer-area writes answer 503 (src/utils/customerWritesPause.ts).
 app.use(customerWritesPauseGate);
+// Deliveries cutover pause (DELIVERIES_WRITES_PAUSED=true): delivery and truck writes answer 503 (src/utils/deliveriesWritesPause.ts).
+app.use(deliveriesWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -5286,7 +5289,8 @@ app.get('/api/health', async (req: Request, res: Response) => {
     // Which database the customer area reads and writes, and whether the cutover pause is on (the runbook checks both).
     customersOn: areasOnPostgres().includes('customers') ? 'postgres' : 'mongo',
     deliveriesOn: areasOnPostgres().includes('deliveries') ? 'postgres' : 'mongo',
-    customerWritesPaused: customerWritesPaused()
+    customerWritesPaused: customerWritesPaused(),
+    deliveriesWritesPaused: deliveriesWritesPaused()
   });
 });
 

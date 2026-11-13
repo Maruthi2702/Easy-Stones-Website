@@ -7,6 +7,7 @@
  *   node scripts/pg-copy-aws.ts --write              replace the copied tables in one transaction
  *   node scripts/pg-copy-aws.ts --verify             compare Postgres with MongoDB row by row
  *   node scripts/pg-copy-aws.ts --verify --scope customers   only the customer area's tables (cutover: the rest is still live on MongoDB)
+ *   --scope deliveries   with --write / --verify / --lock: only the deliveries and trucks tables (its own cutover; customers stay untouched)
  *   node scripts/pg-copy-aws.ts --lock "name"        at cutover: refuse every copy from now on
  *   --report <file>   save the full report (every problem, by id) here
  *
@@ -76,7 +77,7 @@ async function run(what: CopyAction): Promise<CopyResult> {
   const bucket = fnConfig.Environment?.Variables?.COPY_BUCKET;
   if (!bucket) throw new Error(`${functionName} has no COPY_BUCKET: is the aws-infra database stack deployed?`);
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${what}`;
-  const event: CopyEvent = { action: what, runId, ...(valueOf('--scope') === 'customers' ? { scope: 'customers' as const } : {}) };
+  const event: CopyEvent = { action: what, runId, ...(['customers', 'deliveries'].includes(valueOf('--scope') ?? '') ? { scope: valueOf('--scope') as 'customers' | 'deliveries' } : {}) };
   let snapshotKey: string | undefined;
   try {
     if (what === 'lock') {

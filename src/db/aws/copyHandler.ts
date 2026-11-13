@@ -14,7 +14,7 @@ import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import * as schema from '../schema/index.ts';
-import { copyFromMongo, verifyCopy, lockCopies, CopyLockedError, type Db } from '../copy/plan.ts';
+import { copyFromMongo, verifyCopy, lockCopies, copyAreaFromMongo, verifyArea, lockArea, CopyLockedError, AreaLockedError, type CopyArea, type Db } from '../copy/plan.ts';
 import { unpackSnapshot } from './snapshot.ts';
 
 export type CopyAction = 'dry-run' | 'write' | 'verify' | 'lock';
@@ -27,7 +27,7 @@ export interface CopyEvent {
   /** lock: who is locking it. */
   lockedBy?: string;
   /** verify: 'customers' = only the customer area's tables (what cutover needs; the rest of MongoDB keeps changing). */
-  scope?: 'customers';
+  scope?: 'customers' | 'deliveries';
 }
 
 export interface CopyResult {
@@ -74,7 +74,8 @@ export const handler = async (event: CopyEvent): Promise<CopyResult> => {
 
     if (event.action === 'lock') {
       if (!event.lockedBy) throw new Error('lock needs lockedBy: who is locking it.');
-      await lockCopies(db, event.lockedBy);
+      if (event.scope === 'deliveries') await lockArea(db, 'deliveries', event.lockedBy);
+      else await lockCopies(db, event.lockedBy);
       return { ok: true, action: 'lock', seconds: seconds() };
     }
 
@@ -86,12 +87,16 @@ export const handler = async (event: CopyEvent): Promise<CopyResult> => {
       s3.send(new PutObjectCommand({ Bucket: bucket, Key: reportKey, Body: JSON.stringify(body, null, 1), ContentType: 'application/json' }));
 
     if (event.action === 'verify') {
-      const diffs = await verifyCopy(db, src, 20, { scope: event.scope });
+      const diffs = event.scope === 'deliveries'
+        ? await verifyArea(db, src, event.scope as CopyArea)
+        : await verifyCopy(db, src, 20, { scope: event.scope });
       await saveReport({ verifiedAt: new Date().toISOString(), diffs });
       return { ok: diffs.length === 0, action: 'verify', diffs: diffs.slice(0, 200), reportKey, seconds: seconds() };
     }
 
-    const report = await copyFromMongo(db, src, { write: event.action === 'write' });
+    const report = event.scope === 'deliveries'
+      ? await copyAreaFromMongo(db, src, event.scope as CopyArea, { write: event.action === 'write' })
+      : await copyFromMongo(db, src, { write: event.action === 'write' });
     await saveReport(report);
     return {
       ok: true, action: event.action,
@@ -100,7 +105,7 @@ export const handler = async (event: CopyEvent): Promise<CopyResult> => {
     };
   } catch (err) {
     // A lock is an answer, not a crash: the database holds live data.
-    if (err instanceof CopyLockedError) return { ok: false, action: event.action, error: err.message, seconds: seconds() };
+    if (err instanceof CopyLockedError || err instanceof AreaLockedError) return { ok: false, action: event.action, error: err.message, seconds: seconds() };
     throw err;
   } finally {
     await pool.end();

@@ -8,6 +8,7 @@
  *   node scripts/pg-copy.ts --verify        compare Postgres with MongoDB row by row
  *   --scope customers   with --verify: only the customer area's tables (what cutover needs)
  *   node scripts/pg-copy.ts --lock "name"   at cutover: refuse every copy from now on
+ *   --scope deliveries  with --write / --verify / --lock: only the deliveries and trucks tables (own cutover)
  *   --report <file>   write the full report (every problem, by id) as JSON
  *
  * MONGO_URI is the source, DATABASE_URL the target (postgres://…?sslmode=require
@@ -15,7 +16,7 @@
  */
 import fs from 'node:fs';
 import { openDb, migrateDb } from '../src/db/client.ts';
-import { copyFromMongo, verifyCopy, lockCopies } from '../src/db/copy/plan.ts';
+import { copyFromMongo, verifyCopy, lockCopies, copyAreaFromMongo, verifyArea, lockArea } from '../src/db/copy/plan.ts';
 import { readMongo } from '../src/db/copy/readMongo.ts';
 
 const args = process.argv.slice(2);
@@ -32,19 +33,19 @@ try {
   if (flag('--lock')) {
     const by = valueOf('--lock');
     if (!by) throw new Error('--lock needs a name: who is locking it.');
-    await lockCopies(db, by);
+    if (valueOf('--scope') === 'deliveries') await lockArea(db, 'deliveries', by); else await lockCopies(db, by);
     console.log('Locked: this database will refuse every copy from MongoDB from now on.');
   } else {
     if (!mongoUri) throw new Error('MONGO_URI is not set.');
     const started = Date.now();
     const src = await readMongo(mongoUri);
     if (flag('--verify')) {
-      const diffs = await verifyCopy(db, src, 20, { scope: valueOf('--scope') === 'customers' ? 'customers' : undefined });
+      const diffs = valueOf('--scope') === 'deliveries' ? await verifyArea(db, src, 'deliveries') : await verifyCopy(db, src, 20, { scope: valueOf('--scope') === 'customers' ? 'customers' : undefined });
       console.log(diffs.length ? diffs.join('\n') : 'Verified: Postgres matches MongoDB, every table, every row, every column.');
       process.exitCode = diffs.length ? 1 : 0;
     } else {
       const write = flag('--write');
-      const report = await copyFromMongo(db, src, { write });
+      const report = valueOf('--scope') === 'deliveries' ? await copyAreaFromMongo(db, src, 'deliveries', { write }) : await copyFromMongo(db, src, { write });
       console.log(write ? 'Copied.' : 'Dry run — nothing written.');
       console.log('\nMongoDB records read:'); console.table(report.source);
       console.log('Postgres rows:'); console.table(report.tables);

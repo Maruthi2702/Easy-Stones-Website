@@ -85,6 +85,13 @@
       "when": 1794546000000,
       "tag": "0011_customer_match_order",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794557829153,
+      "tag": "0012_deliveries_area_lock",
+      "breakpoints": true
     }
   ]
 }

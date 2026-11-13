@@ -332,6 +332,90 @@ export async function verifyCopy(db: Db, src: CopySource, limitPerTable = 20, op
   return diffs;
 }
 
+/** The tables an area owns once it moves on its own (deliveries are the first). */
+export const COPY_AREAS = { deliveries: ['deliveries', 'trucks'] } as const;
+export type CopyArea = keyof typeof COPY_AREAS;
+
+export class AreaLockedError extends Error {
+  constructor(area: string) {
+    super(`The ${area} area is locked for copies: Postgres holds its live data now.`);
+    this.name = 'AreaLockedError';
+  }
+}
+
+/**
+ * One area's tables, as MongoDB maps to them. Links to customers are checked against the customers
+ * **in Postgres** (live since 2026-11-12), not MongoDB's stale list, so a ticket for a customer made
+ * since then keeps its link.
+ */
+async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyProblem[]): Promise<[PgTable, Loose[]][]> {
+  const ref = referenceRows(src, problems);
+  const customerIds = new Set((await db.select({ id: schema.customers.id }).from(schema.customers)).map(r => r.id));
+  const ops = operationsRows(src, ref.index, { customerIds } as never, problems);
+  const names = new Set<string>(COPY_AREAS[area]);
+  const all: [PgTable, Loose[]][] = [[schema.deliveries, ops.rows.deliveries], [schema.trucks, ops.rows.trucks]];
+  return all.filter(([t]) => names.has(getTableName(t)));
+}
+
+/** Replace only this area's tables (one transaction). The global lock does not apply; the area's own lock does. */
+export async function copyAreaFromMongo(db: Db, src: CopySource, area: CopyArea, options: { write: boolean }): Promise<CopyReport> {
+  const problems: CopyProblem[] = [];
+  const steps = await areaPlan(db, src, area, problems);
+  const report: CopyReport = {
+    copiedAt: new Date().toISOString(),
+    source: { [area]: steps.reduce((n, [, rows]) => n + rows.length, 0) },
+    tables: Object.fromEntries(steps.map(([t, rows]) => [getTableName(t), rows.length])),
+    summary: summarize(problems),
+    problems
+  };
+  if (!options.write) return report;
+  await db.transaction(async tx => {
+    const [state] = await tx.select().from(schema.mongoCopyState).where(eq(schema.mongoCopyState.id, 1)).for('update');
+    if (state?.lockedAreas?.includes(area)) throw new AreaLockedError(area);
+    // Re-read the customers inside the lock so a customer added a moment ago is seen.
+    const fresh = await areaPlan(tx as unknown as Db, src, area, []);
+    const names = fresh.map(([t]) => sql.identifier(getTableName(t)));
+    await tx.execute(sql`truncate table ${sql.join(names, sql`, `)}`);
+    for (const [table, rows] of fresh) {
+      for (let i = 0; i < rows.length; i += CHUNK) await tx.insert(table).values(rows.slice(i, i + CHUNK));
+    }
+  });
+  return report;
+}
+
+/** Compare only this area's tables, every row and column. Empty = equal. */
+export async function verifyArea(db: Db, src: CopySource, area: CopyArea, limitPerTable = 20): Promise<string[]> {
+  const diffs: string[] = [];
+  for (const [table, expected] of await areaPlan(db, src, area, [])) {
+    const name = getTableName(table);
+    const actual = (await db.select().from(table)) as Loose[];
+    if (actual.length !== expected.length) diffs.push(`${name}: ${actual.length} rows in Postgres, ${expected.length} expected`);
+    const pk = primaryKeyOf(table);
+    const keyOf = (row: Loose) => JSON.stringify(pk.length === 1 ? row[pk[0]] : pk.map(k => row[k]));
+    const byKey = new Map(actual.map(row => [keyOf(row), row]));
+    const numeric = new Set(Object.entries(getTableColumns(table)).filter(([, col]) => col.columnType === 'PgNumeric').map(([key]) => key));
+    const value = (col: string, v: unknown) => numeric.has(col) && v != null ? Number(v) : norm(v);
+    let shown = 0;
+    for (const want of expected) {
+      const got = byKey.get(keyOf(want));
+      const problem = !got ? 'missing' : Object.entries(want)
+        .filter(([col, v]) => JSON.stringify(value(col, v)) !== JSON.stringify(value(col, got[col]))).map(([col]) => col).join(', ');
+      if (problem && shown++ < limitPerTable) diffs.push(`${name} ${keyOf(want)}: ${problem === 'missing' ? 'missing' : `differs in ${problem}`}`);
+    }
+    if (shown > limitPerTable) diffs.push(`${name}: ${shown - limitPerTable} more differences`);
+  }
+  return diffs;
+}
+
+/** After this area's cutover: its scoped copy refuses for good. */
+export async function lockArea(db: Db, area: CopyArea, by: string): Promise<void> {
+  const [state] = await db.select().from(schema.mongoCopyState).where(eq(schema.mongoCopyState.id, 1));
+  const areas = [...new Set([...(state?.lockedAreas ?? []), area])];
+  await db.insert(schema.mongoCopyState).values({ id: 1, lockedAreas: areas })
+    .onConflictDoUpdate({ target: schema.mongoCopyState.id, set: { lockedAreas: areas } });
+  console.log(`${area} locked by ${by}`);
+}
+
 /** At cutover: stop copies for good on this database. */
 export async function lockCopies(db: Db, by: string): Promise<void> {
   await db.insert(schema.mongoCopyState).values({ id: 1, lockedAt: new Date(), lockedBy: by })
