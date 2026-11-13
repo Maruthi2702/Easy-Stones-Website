@@ -112,7 +112,7 @@ if (process.env.ONLY_SEARCH) {
   const idsOf = (b: Loose) => b.results.map((r: Loose) => `${r.date || '(none)'} ${r.id}`);
   const mine = new Set(idsOf(m.body)), theirs = new Set(idsOf(p.body));
   console.log(`total mongo ${m.body.total} / postgres ${p.body.total}; more ${m.body.more} / ${p.body.more}`);
-  console.log('oldest date shown: mongo', idsOf(m.body).map(x => x.split(' ')[0]).sort()[0], '· postgres', idsOf(p.body).map(x => x.split(' ')[0]).sort()[0]);
+  console.log('oldest date shown: mongo', idsOf(m.body).map((x: string) => x.split(' ')[0]).sort()[0], '· postgres', idsOf(p.body).map((x: string) => x.split(' ')[0]).sort()[0]);
   console.log('only in mongo:', [...mine].filter(x => !theirs.has(x)).sort());
   console.log('only in postgres:', [...theirs].filter(x => !mine.has(x)).sort());
   process.exit(0);
