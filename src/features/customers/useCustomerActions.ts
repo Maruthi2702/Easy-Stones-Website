@@ -37,12 +37,15 @@ export function useCustomerActions({ selectedCustomer, selectedCustomerId, selec
     const [showLinkPartnerModal, setShowLinkPartnerModal] = useState(false);
     const [linkingPartnerId, setLinkingPartnerId] = useState('');
     const [isLinkingInProgress, setIsLinkingInProgress] = useState(false);
+    // Why the last Link partner try failed, shown under the field (not an alert).
+    const [linkPartnerError, setLinkPartnerError] = useState('');
 
     const handleLinkPartner = async (e?: FormEvent) => {
         if (e) e.preventDefault();
         if (!linkingPartnerId) return;
 
         setIsLinkingInProgress(true);
+        setLinkPartnerError('');
         try {
             const res = await authFetch(`${API_URL}/api/customers/${selectedCustomer!._id}/associations`, {
                 method: 'POST',
@@ -60,7 +63,7 @@ export function useCustomerActions({ selectedCustomer, selectedCustomerId, selec
             setLinkingPartnerId('');
         } catch (err) {
             console.error('Error linking partner:', err);
-            alert((err as Error).message || 'Failed to link partner');
+            setLinkPartnerError((err as Error).message || 'Couldn’t link this partner. Try again.');
         } finally {
             setIsLinkingInProgress(false);
         }
@@ -284,6 +287,8 @@ export function useCustomerActions({ selectedCustomer, selectedCustomerId, selec
         linkingPartnerId,
         setLinkingPartnerId,
         isLinkingInProgress,
+        linkPartnerError,
+        setLinkPartnerError,
         handleLinkPartner,
         handleUnlinkPartner,
         quickNote,

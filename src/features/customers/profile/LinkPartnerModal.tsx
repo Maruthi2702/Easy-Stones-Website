@@ -1,64 +1,62 @@
 import type { FormEvent } from 'react';
-import { X } from 'lucide-react';
-import SearchableSelect from '../../../components/SearchableSelect';
+import FormModal from '../../../components/shared/form/FormModal';
+import { FormField, FormSearchPicker } from '../../../components/shared/form/FormControls';
+import './LinkPartnerModal.css';
 
 export type LinkPartnerModalProps = {
     /** Customers that can be linked (not this one, not already linked). */
-    options: { value: string; label: string }[];
+    options: { value: string; label: string; description?: string; keywords?: string }[];
     value: string;
     onChange: (partnerId: string) => void;
     loading: boolean;
+    /** Why the last try failed; shown under the field. */
+    error?: string;
     linking: boolean;
     onSubmit: (e?: FormEvent) => void;
     onClose: () => void;
 };
 
-/** Customer profile → Network → Link Partner. */
-export default function LinkPartnerModal({ options, value, onChange, loading, linking, onSubmit, onClose }: LinkPartnerModalProps) {
+/**
+ * Customer profile → Network → Link a partner. On the form template
+ * (FORM_TEMPLATE.md, size S): title only, no Cancel (the ✕ closes), the main
+ * button names the action and waits for a pick. The list is the shared
+ * customer list (name, then type · city) in FormSearchPicker.
+ *
+ * Opens short; on desktop / tablet the window grows downward when the list
+ * opens (LinkPartnerModal.css; `keepInForm` keeps the list from becoming a
+ * bottom sheet, owner 2026-11-02). Phones use the full-screen form and the
+ * picker's bottom sheet as usual.
+ */
+export default function LinkPartnerModal({ options, value, onChange, loading, error = '', linking, onSubmit, onClose }: LinkPartnerModalProps) {
     return (
-        <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: '500px', minHeight: '300px', overflow: 'visible' }}>
-                <div className="modal-header" style={{ borderRadius: '12px 12px 0 0' }}>
-                    <h2>LINK PARTNER</h2>
-                    <button
-                        type="button"
-                        className="close-btn"
-                        onClick={onClose}
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
-                <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', overflow: 'visible' }}>
-                    <div className="modal-body" style={{ overflow: 'visible' }}>
-                        <div className="form-group" style={{ marginBottom: 0 }}>
-                            <label>Select Partner to Link</label>
-                            <SearchableSelect
-                                options={options}
-                                value={value}
-                                onChange={(val: string) => onChange(val)}
-                                placeholder="Search by company or contact name..."
-                                isLoading={loading}
-                            />
-                        </div>
-                    </div>
-                    <div className="modal-footer" style={{ borderRadius: '0 0 12px 12px' }}>
-                        <button
-                            type="button"
-                            className="btn-secondary"
-                            onClick={onClose}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            className="btn-primary"
-                            disabled={!value || linking}
-                        >
-                            {linking ? 'Linking...' : 'Link Partner'}
-                        </button>
-                    </div>
-                </form>
+        <FormModal
+            title="Link a partner"
+            size="s"
+            onClose={onClose}
+            onSubmit={(e) => { e.preventDefault(); onSubmit(e); }}
+            submitLabel="Link partner"
+            savingLabel="Linking…"
+            saving={linking}
+            submitDisabled={!value}
+            // Closing with a partner picked but not linked asks first.
+            dirtyCount={value ? 1 : 0}
+        >
+            <div className="lp-room">
+                <FormField name="partner" id="link-partner" label="Partner" required error={error}>
+                    <FormSearchPicker
+                        id="link-partner"
+                        value={value}
+                        onChange={onChange}
+                        options={options}
+                        loading={loading}
+                        placeholder="Search by company or contact name"
+                        searchPlaceholder="Search customers"
+                        sheetTitle="Select partner"
+                        error={error}
+                        keepInForm
+                    />
+                </FormField>
             </div>
-        </div>
+        </FormModal>
     );
 }

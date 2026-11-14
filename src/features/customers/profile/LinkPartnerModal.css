@@ -1,0 +1,15 @@
+/*
+ * Link a partner (Option A, owner's pick 2026-11-14): the window opens short
+ * and grows downward when the list opens, so the field never moves.
+ * Desktop and tablet only — on a phone the form is full screen and the list is
+ * the picker's bottom sheet.
+ *
+ * The room is only there while the picker is expanded (:has on its trigger),
+ * and it is in place before the picker measures where to put its list.
+ */
+@media (min-width: 641px) {
+    .lp-room:has(.fm-picker-trigger[aria-expanded="true"]) { min-height: 330px; }
+    /* The shell centres a window; one that grows would move the field up.
+       Anchor this one's top instead. */
+    .fm-overlay:has(.lp-room) .fm-dialog { margin-top: clamp(24px, 14vh, 140px); margin-bottom: auto; }
+}

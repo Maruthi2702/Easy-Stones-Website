@@ -158,11 +158,12 @@ export default function SalesModals(p: SalesModalsProps) {
                 <LinkPartnerModal
                     options={p.linkableCustomerOptions as never}
                     value={actions.linkingPartnerId}
-                    onChange={actions.setLinkingPartnerId}
+                    onChange={(id) => { actions.setLinkPartnerError(''); actions.setLinkingPartnerId(id); }}
+                    error={actions.linkPartnerError}
                     loading={p.isDropdownLoading}
                     linking={actions.isLinkingInProgress}
                     onSubmit={actions.handleLinkPartner}
-                    onClose={() => { actions.setShowLinkPartnerModal(false); actions.setLinkingPartnerId(''); }}
+                    onClose={() => { actions.setShowLinkPartnerModal(false); actions.setLinkingPartnerId(''); actions.setLinkPartnerError(''); }}
                 />
             )}
 
