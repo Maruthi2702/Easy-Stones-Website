@@ -77,6 +77,24 @@ function createdMoment(c: ReturnType<typeof rowConverter>, d: Loose): Date {
   return c.moment('created_at', v) ?? idTime(d._id);
 }
 
+/** One lost sale as its row (the copy's mapping; a Postgres save builds the same row from the document MongoDB would hold). */
+export function lostSaleRowOf(d: Loose, ref: ReferenceIndex, cust: Pick<CustomerIndex, 'customerIds'>, problems: CopyProblem[]): Row<typeof lostSales> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'lost_sales', id);
+  return {
+    id, customerName: textOf(d.customerName), customerId: linkOf(c, 'customer_id', d.customerId, cust.customerIds, 'customer'),
+    productName: textOf(d.productName), productId: optText(d.productId),
+    lengthInches: decimalOf(d.lengthInches), widthInches: decimalOf(d.widthInches), sfPerSlab: decimalOf(d.sfPerSlab),
+    slabsCount: decimalOf(d.slabsCount), totalSf: decimalOf(d.totalSf), pricePerSf: decimalOf(d.pricePerSf),
+    totalLostValue: decimalOf(d.totalLostValue), reason: textOf(d.reason),
+    locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName), competitorName: textOf(d.competitorName),
+    notes: textOf(d.notes), salesRepName: textOf(d.salesRepName),
+    salesRepId: linkOf(c, 'sales_rep_id', d.salesRepId, ref.userIds, 'user'),
+    lostAt: c.moment('lost_at', d.date) ?? idTime(d._id), ...stamp(c, d)
+  };
+}
+
 export function miscRows(src: MiscSource, ref: ReferenceIndex, cust: CustomerIndex, problems: CopyProblem[]): MiscRows {
   const rows: MiscRows = {
     lostSales: [], products: [], productColors: [], productBundles: [], easyStonesColors: [], crossoverColors: [], crossovers: [],
@@ -85,20 +103,8 @@ export function miscRows(src: MiscSource, ref: ReferenceIndex, cust: CustomerInd
   };
 
   for (const d of src.lostSales) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'lost_sales', id);
-    rows.lostSales.push({
-      id, customerName: textOf(d.customerName), customerId: linkOf(c, 'customer_id', d.customerId, cust.customerIds, 'customer'),
-      productName: textOf(d.productName), productId: optText(d.productId),
-      lengthInches: decimalOf(d.lengthInches), widthInches: decimalOf(d.widthInches), sfPerSlab: decimalOf(d.sfPerSlab),
-      slabsCount: decimalOf(d.slabsCount), totalSf: decimalOf(d.totalSf), pricePerSf: decimalOf(d.pricePerSf),
-      totalLostValue: decimalOf(d.totalLostValue), reason: textOf(d.reason),
-      locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName), competitorName: textOf(d.competitorName),
-      notes: textOf(d.notes), salesRepName: textOf(d.salesRepName),
-      salesRepId: linkOf(c, 'sales_rep_id', d.salesRepId, ref.userIds, 'user'),
-      lostAt: c.moment('lost_at', d.date) ?? idTime(d._id), ...stamp(c, d)
-    });
+    const row = lostSaleRowOf(d, ref, cust, problems);
+    if (row) rows.lostSales.push(row);
   }
 
   for (const d of src.products) {

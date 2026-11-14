@@ -14,7 +14,7 @@ import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import * as schema from '../schema/index.ts';
-import { copyFromMongo, verifyCopy, lockCopies, copyAreaFromMongo, verifyArea, lockArea, isCopyArea, CopyLockedError, AreaLockedError, type CopyArea, type Db } from '../copy/plan.ts';
+import { copyFromMongo, verifyCopy, lockCopies, copyAreaFromMongo, verifyArea, lockArea, CopyLockedError, AreaLockedError, isCopyArea, type CopyArea, type Db } from '../copy/plan.ts';
 import { unpackSnapshot } from './snapshot.ts';
 
 export type CopyAction = 'dry-run' | 'write' | 'verify' | 'lock';

@@ -341,7 +341,9 @@ export const COPY_AREAS = {
     'daily_reports', 'daily_report_transfers', 'daily_report_containers', 'daily_report_log'
   ],
   /** Credit Card Receipts: cards, the category list and the expenses with their history. */
-  card_receipts: ['company_cards', 'receipt_categories', 'card_expenses', 'card_expense_history']
+  card_receipts: ['company_cards', 'receipt_categories', 'card_expenses', 'card_expense_history'],
+  /** Lost Sales: one table, its own small cutover. */
+  lost_sales: ['lost_sales']
 } as const;
 export type CopyArea = keyof typeof COPY_AREAS;
 export const isCopyArea = (v: unknown): v is CopyArea => typeof v === 'string' && Object.hasOwn(COPY_AREAS, v);
@@ -381,6 +383,7 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.cardExpenses, cs.cardExpenses], [schema.cardExpenseHistory, cs.cardExpenseHistory]
     );
   }
+  if (area === 'lost_sales') all.push([schema.lostSales, miscRows(src, ref.index, { customerIds } as never, problems).lostSales]);
   return all.filter(([t]) => names.has(getTableName(t)));
 }
 

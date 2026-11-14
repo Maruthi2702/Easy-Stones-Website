@@ -9,6 +9,7 @@
  *   node scripts/pg-copy-aws.ts --verify --scope customers   only the customer area's tables (cutover: the rest is still live on MongoDB)
  *   --scope operations   with --write / --verify / --lock: Payments, Check In + Selection Sheet and Daily Reports tables (their one cutover)
  *   --scope card_receipts  with --write / --verify / --lock: only Credit Card Receipts' four tables (its own cutover)
+ *   --scope lost_sales   with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries   with --write / --verify / --lock: only the deliveries and trucks tables (its own cutover; customers stay untouched)
  *   node scripts/pg-copy-aws.ts --lock "name"        at cutover: refuse every copy from now on
  *   --report <file>   save the full report (every problem, by id) here
