@@ -16,6 +16,10 @@ describe('daily reports pause', () => {
     expect(isDailyReportWrite('GET', '/api/daily-reports/2026-11-13')).toBe(false);
     expect(isDailyReportWrite('GET', '/api/daily-reports/2026-11-13/log')).toBe(false);
     expect(isDailyReportWrite('PATCH', '/api/deliveries/abc/status')).toBe(false);
-    expect(isDailyReportWrite('POST', '/api/payments-received')).toBe(false);
+    // Payments and Check In move in the same window
+    expect(isDailyReportWrite('POST', '/api/payments-received')).toBe(true);
+    expect(isDailyReportWrite('PUT', '/api/checkin/abc')).toBe(true);
+    expect(isDailyReportWrite('GET', '/api/checkin')).toBe(false);
+    expect(isDailyReportWrite('POST', '/api/customers')).toBe(false);
   });
 });

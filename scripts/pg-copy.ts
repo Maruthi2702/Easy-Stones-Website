@@ -33,19 +33,19 @@ try {
   if (flag('--lock')) {
     const by = valueOf('--lock');
     if (!by) throw new Error('--lock needs a name: who is locking it.');
-    if (valueOf('--scope') === 'deliveries') await lockArea(db, 'deliveries', by); else await lockCopies(db, by);
+    if (valueOf('--scope') === 'deliveries' || valueOf('--scope') === 'operations') await lockArea(db, valueOf('--scope') as 'deliveries' | 'operations', by); else await lockCopies(db, by);
     console.log('Locked: this database will refuse every copy from MongoDB from now on.');
   } else {
     if (!mongoUri) throw new Error('MONGO_URI is not set.');
     const started = Date.now();
     const src = await readMongo(mongoUri);
     if (flag('--verify')) {
-      const diffs = valueOf('--scope') === 'deliveries' ? await verifyArea(db, src, 'deliveries') : await verifyCopy(db, src, 20, { scope: valueOf('--scope') === 'customers' ? 'customers' : undefined });
+      const diffs = (valueOf('--scope') === 'deliveries' || valueOf('--scope') === 'operations') ? await verifyArea(db, src, valueOf('--scope') as 'deliveries' | 'operations') : await verifyCopy(db, src, 20, { scope: valueOf('--scope') === 'customers' ? 'customers' : undefined });
       console.log(diffs.length ? diffs.join('\n') : 'Verified: Postgres matches MongoDB, every table, every row, every column.');
       process.exitCode = diffs.length ? 1 : 0;
     } else {
       const write = flag('--write');
-      const report = valueOf('--scope') === 'deliveries' ? await copyAreaFromMongo(db, src, 'deliveries', { write }) : await copyFromMongo(db, src, { write });
+      const report = (valueOf('--scope') === 'deliveries' || valueOf('--scope') === 'operations') ? await copyAreaFromMongo(db, src, valueOf('--scope') as 'deliveries' | 'operations', { write }) : await copyFromMongo(db, src, { write });
       console.log(write ? 'Copied.' : 'Dry run — nothing written.');
       console.log('\nMongoDB records read:'); console.table(report.source);
       console.log('Postgres rows:'); console.table(report.tables);

@@ -65,3 +65,51 @@ describe('the deliveries-only copy', () => {
     expect(state.lockedAt).toBeTruthy();
   });
 });
+
+describe('the operations copy (Payments, Check In + Selection Sheet, Daily Reports)', () => {
+  const at = new Date('2026-11-13T21:05:00Z');
+  const report = oid(), payment = oid(), checkIn = oid(), selection = oid();
+  const withOps = (): CopySource => {
+    const src = source();
+    return {
+      ...src,
+      dailyReports: [{
+        _id: report, date: '2026-11-13', location: 'Seattle', status: 'submitted', visitors: { homeowners: 3, fabricators: null },
+        payments: { cash: { count: 1, amount: 20.25 } }, transfers: [{ fromTo: 'SEA — SLC', count: 1, slabs: 4, auto: true, ticketIds: ['del_1'] }],
+        containers: [{ poNumber: 'PO1', material: 'Calacatta', slabs: 12 }], log: [{ at, by: 'Jo', action: 'submitted', note: '' }],
+        submittedAt: at, createdAt: at, updatedAt: at
+      }],
+      paymentsReceived: [{
+        _id: payment, location: 'Seattle', date: '2026-11-13', customerId: String(oldCustomer), customerName: 'Old Co', method: 'return',
+        cents: -100000, history: [{ at, by: 'Jo', action: 'added' }], createdAt: at, updatedAt: at
+      }],
+      officeCheckIns: [{
+        _id: checkIn, name: 'Visitor', phone: '555', location: 'Seattle', status: 'New',
+        selections: [{ _id: selection, material: 'Taj', priceCentsPerSf: 2500 }], createdAt: at, updatedAt: at
+      }]
+    } as unknown as CopySource;
+  };
+
+  it('fills only its eight tables and leaves customers and deliveries alone', async () => {
+    const deliveriesBefore = (await open.db.select().from(schema.deliveries)).length;
+    const report1 = await copyAreaFromMongo(open.db, withOps(), 'operations', { write: true });
+    expect(report1.tables).toEqual({
+      payments_received: 1, payment_history: 1, office_check_ins: 1, check_in_selections: 1,
+      daily_reports: 1, daily_report_transfers: 1, daily_report_containers: 1, daily_report_log: 1
+    });
+    expect((await open.db.select().from(schema.deliveries)).length).toBe(deliveriesBefore);
+    expect((await open.db.select().from(schema.customers)).length).toBeGreaterThan(0);
+    expect(await verifyArea(open.db, withOps(), 'operations')).toEqual([]);
+  });
+
+  it('verify reports a report that differs, then refuses for good once locked', async () => {
+    const src = withOps();
+    (src.dailyReports as Record<string, unknown>[])[0].status = 'draft';
+    expect((await verifyArea(open.db, src, 'operations')).join('\n')).toMatch(/daily_reports/);
+    await lockArea(open.db, 'operations', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'operations', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.dailyReports)).length).toBe(1);
+    const [state] = await open.db.select().from(schema.mongoCopyState);
+    expect(state.lockedAreas).toContain('operations');
+  });
+});

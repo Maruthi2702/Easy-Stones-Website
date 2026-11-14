@@ -27,7 +27,7 @@ export interface CopyEvent {
   /** lock: who is locking it. */
   lockedBy?: string;
   /** verify: 'customers' = only the customer area's tables (what cutover needs; the rest of MongoDB keeps changing). */
-  scope?: 'customers' | 'deliveries';
+  scope?: 'customers' | 'deliveries' | 'operations';
 }
 
 export interface CopyResult {
@@ -74,7 +74,7 @@ export const handler = async (event: CopyEvent): Promise<CopyResult> => {
 
     if (event.action === 'lock') {
       if (!event.lockedBy) throw new Error('lock needs lockedBy: who is locking it.');
-      if (event.scope === 'deliveries') await lockArea(db, 'deliveries', event.lockedBy);
+      if (event.scope === 'deliveries' || event.scope === 'operations') await lockArea(db, event.scope, event.lockedBy);
       else await lockCopies(db, event.lockedBy);
       return { ok: true, action: 'lock', seconds: seconds() };
     }
@@ -87,14 +87,14 @@ export const handler = async (event: CopyEvent): Promise<CopyResult> => {
       s3.send(new PutObjectCommand({ Bucket: bucket, Key: reportKey, Body: JSON.stringify(body, null, 1), ContentType: 'application/json' }));
 
     if (event.action === 'verify') {
-      const diffs = event.scope === 'deliveries'
+      const diffs = event.scope === 'deliveries' || event.scope === 'operations'
         ? await verifyArea(db, src, event.scope as CopyArea)
         : await verifyCopy(db, src, 20, { scope: event.scope });
       await saveReport({ verifiedAt: new Date().toISOString(), diffs });
       return { ok: diffs.length === 0, action: 'verify', diffs: diffs.slice(0, 200), reportKey, seconds: seconds() };
     }
 
-    const report = event.scope === 'deliveries'
+    const report = event.scope === 'deliveries' || event.scope === 'operations'
       ? await copyAreaFromMongo(db, src, event.scope as CopyArea, { write: event.action === 'write' })
       : await copyFromMongo(db, src, { write: event.action === 'write' });
     await saveReport(report);

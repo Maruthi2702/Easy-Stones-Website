@@ -333,7 +333,14 @@ export async function verifyCopy(db: Db, src: CopySource, limitPerTable = 20, op
 }
 
 /** The tables an area owns once it moves on its own (deliveries are the first). */
-export const COPY_AREAS = { deliveries: ['deliveries', 'trucks'] } as const;
+export const COPY_AREAS = {
+  deliveries: ['deliveries', 'trucks'],
+  /** Payments, Check In + Selection Sheet and Daily Reports move in one window (Daily Reports derives from the other two). */
+  operations: [
+    'payments_received', 'payment_history', 'office_check_ins', 'check_in_selections',
+    'daily_reports', 'daily_report_transfers', 'daily_report_containers', 'daily_report_log'
+  ]
+} as const;
 export type CopyArea = keyof typeof COPY_AREAS;
 
 export class AreaLockedError extends Error {
@@ -354,6 +361,16 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
   const ops = operationsRows(src, ref.index, { customerIds } as never, problems);
   const names = new Set<string>(COPY_AREAS[area]);
   const all: [PgTable, Loose[]][] = [[schema.deliveries, ops.rows.deliveries], [schema.trucks, ops.rows.trucks]];
+  if (area === 'operations') {
+    const ch = checkInsHoldsRows(src, ref.index, { customerIds } as never, problems);
+    // Parents before children (the insert order).
+    all.push(
+      [schema.paymentsReceived, ops.rows.paymentsReceived], [schema.paymentHistory, ops.rows.paymentHistory],
+      [schema.officeCheckIns, ch.officeCheckIns], [schema.checkInSelections, ch.checkInSelections],
+      [schema.dailyReports, ops.rows.dailyReports], [schema.dailyReportTransfers, ops.rows.dailyReportTransfers],
+      [schema.dailyReportContainers, ops.rows.dailyReportContainers], [schema.dailyReportLog, ops.rows.dailyReportLog]
+    );
+  }
   return all.filter(([t]) => names.has(getTableName(t)));
 }
 

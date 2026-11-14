@@ -165,7 +165,8 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
     - [x] `DAILY_REPORTS_WRITES_PAUSED` for the cutover window (2026-11-13, `src/utils/dailyReportsWritesPause.ts`, tested): report writes and `POST /api/deliveries/arrivals` answer 503, the 11:59 PM pass reads and writes nothing (it catches up on the first tick after); `/api/health` shows `dailyReportsWritesPaused` and `dailyReportsOn`
     - [x] All three together (`src/db/operationsTogether.parity.test.ts`, 8 cases: Payments + Check In + Daily Reports on Postgres at once, rows of all three checked against the copy) and `TOGETHER=1 node --env-file=.env scripts/pg-compare-daily-reports.ts` on live data — 575 requests, 0 differences
     - [ ] Verified last in the rehearsal: Daily Reports derives from the other three, so it is checked after they are on Postgres
-  - [ ] Rehearse all four together, then the cutover
+  - [x] The operations copy (2026-11-14): `pg-copy-aws.ts --scope operations` with `--write` / `--verify` / `--lock` — only the eight tables of Payments, Check In + Selection Sheet and Daily Reports, customers linked to the live Postgres ones; tested in `src/db/copy/areaCopy.test.ts`. `DAILY_REPORTS_WRITES_PAUSED` now also holds Payments and Check In writes (one window). **Needs `pg-copy-aws.ts --deploy` once before the first real run** (uploads the copy Lambda's new code).
+  - [ ] Rehearse all four together, then the cutover (order: pause on → `--scope operations --write` → `--verify` empty → `DB_PAYMENTS`, `DB_CHECKIN`, `DB_DAILY_REPORTS` = postgres → pause off → `--lock … --scope operations`)
 - [ ] Lost Sales (1 day)
 - [ ] Credit Card Receipts (1–2 days)
 - [ ] SPS import (1–2 days; runs and the runner)
