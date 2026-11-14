@@ -61,6 +61,7 @@ import { startReferenceSync } from './src/db/reference/referenceSync.ts';
 import { customerWritesPauseGate, customerWritesPaused } from './src/utils/customerWritesPause.ts';
 import { deliveriesWritesPauseGate, deliveriesWritesPaused } from './src/utils/deliveriesWritesPause.ts';
 import { dailyReportsWritesPauseGate, dailyReportsWritesPaused } from './src/utils/dailyReportsWritesPause.ts';
+import { lostSalesWritesPauseGate, lostSalesWritesPaused } from './src/utils/lostSalesWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -68,7 +69,7 @@ import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
 import SalesResource from './src/models/SalesResource.ts';
 import SalesDashboardResource from './src/models/SalesDashboardResource.ts';
 // Unified Model: Customer (now handles both Leads & Active Customers)
-import LostSale from './src/models/LostSale.ts';
+import createLostSalesRouter from './src/routes/lostSales.ts';
 import CrossoverSheet from './src/models/CrossoverSheet.ts';
 import EasyStonesColor from './src/models/EasyStonesColor.ts';
 import { EASY_STONES_COLORS } from './src/data/easyStonesColors.ts';
@@ -140,7 +141,6 @@ import {
 } from './src/utils/customerAccess.ts';
 import { seedSeattleRecipients } from './src/utils/dailyReportSubmissionEmail.ts';
 import { hasSalesPage } from './src/utils/navPins.ts';
-import { canViewLostSales, canEditLostSales, canDeleteLostSales } from './src/utils/lostSaleAccess.ts';
 import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.ts';
 import createCustomerMapRouter from './src/routes/customerMap.ts';
 import createPinnedTabsRouter from './src/routes/pinnedTabs.ts';
@@ -1156,6 +1156,8 @@ app.use(customerWritesPauseGate);
 app.use(deliveriesWritesPauseGate);
 // Daily Reports cutover pause (DAILY_REPORTS_WRITES_PAUSED=true): report writes answer 503, the 11:59 PM job skips (src/utils/dailyReportsWritesPause.ts).
 app.use(dailyReportsWritesPauseGate);
+// Lost Sales cutover pause (LOST_SALES_WRITES_PAUSED=true): lost-sale writes answer 503 (src/utils/lostSalesWritesPause.ts).
+app.use(lostSalesWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -4533,153 +4535,8 @@ app.patch('/api/customers/:id/quick-note', verifyAnyAuth, requirePermission('vie
   }
 });
 
-// ── LOST SALES API ROUTES ──
-
-// Lost sales are scoped to the branches a person is assigned ('*' = all), like
-// the rest of the location filters. A record with no location is shown to
-// everyone rather than to no one, the same call the delivery board makes.
-const lostSaleLocationQuery = (user: Loose) => {
-  const assigned = user?.assignedLocations || [];
-  if (assigned.includes('*')) return {};
-  return { $or: [{ location: { $in: [...assigned, ''] } }, { location: null }, { location: { $exists: false } }] };
-};
-const canAccessLostSaleLocation = (user: Loose, location: string) => {
-  const assigned = user?.assignedLocations || [];
-  return assigned.includes('*') || !location || assigned.includes(location);
-};
-
-// Users & Roles → Lost Sales, by the screen's own rules (lostSaleAccess.js).
-// These routes used to answer any login, a customer's or a kiosk's included.
-const allowLostSales = (may: (user: Loose) => boolean) => (req: Request, res: Response, next: NextFunction) => (
-  req.user?.type !== 'customer' && may(req.user) ? next() : res.status(403).json({ error: 'Access denied.' })
-);
-
-// GET /api/lost-sales: Fetch the lost sales for the branches this person may see
-app.get('/api/lost-sales', verifyAnyAuth, allowLostSales(canViewLostSales), async (req: Request, res: Response) => {
-  try {
-    const list = await LostSale.find(lostSaleLocationQuery(req.user)).sort({ date: -1, createdAt: -1 }).lean();
-    res.json(list);
-  } catch (error) {
-    console.error('Error fetching lost sales:', error);
-    res.status(500).json({ message: 'Failed to fetch lost sales' });
-  }
-});
-
-// POST /api/lost-sales: Create a lost sale entry
-app.post('/api/lost-sales', verifyAnyAuth, allowLostSales(canEditLostSales), async (req: Request, res: Response) => {
-  try {
-    const data = req.body;
-    const slabsCount = Number(data.slabsCount) || 1;
-    const sfPerSlab = Number(data.sfPerSlab) || 0;
-    const pricePerSf = Number(data.pricePerSf) || 0;
-    const totalSf = data.totalSf ? Number(data.totalSf) : (slabsCount * sfPerSlab);
-    const totalLostValue = data.totalLostValue ? Number(data.totalLostValue) : (totalSf * pricePerSf);
-
-    if (!canAccessLostSaleLocation(req.user, data.location || 'Seattle')) {
-      return res.status(403).json({ message: 'You do not have access to that location' });
-    }
-
-    const lostSale = new LostSale({
-      customerName: data.customerName,
-      customerId: data.customerId || null,
-      productName: data.productName,
-      productId: data.productId || null,
-      lengthInches: Number(data.lengthInches) || 0,
-      widthInches: Number(data.widthInches) || 0,
-      sfPerSlab: sfPerSlab,
-      slabsCount: slabsCount,
-      totalSf: totalSf,
-      pricePerSf: pricePerSf,
-      totalLostValue: totalLostValue,
-      reason: data.reason || 'Out of Stock',
-      location: data.location || 'Seattle',
-      competitorName: data.competitorName || '',
-      notes: data.notes || '',
-      salesRepName: data.salesRepName || req.user?.displayName || req.user?.contactName || 'Sales Rep',
-      // authenticate() exposes the user's id as `id`, not `_id` — this read used
-      // to always be undefined, so every lost sale was stored with a null rep id.
-      salesRepId: data.salesRepId || req.user?.id || null,
-      date: data.date ? new Date(data.date) : new Date()
-    });
-
-    await lostSale.save();
-    req.app.get('io').emit('lost_sale_update');
-    res.status(201).json(lostSale);
-  } catch (error) {
-    console.error('Error creating lost sale:', error);
-    res.status(500).json({ message: 'Failed to create lost sale record', error: (error as Error).message });
-  }
-});
-
-// PUT /api/lost-sales/:id: Update a lost sale entry
-app.put('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canEditLostSales), validateScalarRequest, async (req: Request, res: Response) => {
-  const requestParams = scalarParams(req);
-  try {
-    const data = req.body;
-    const slabsCount = Number(data.slabsCount) || 1;
-    const sfPerSlab = Number(data.sfPerSlab) || 0;
-    const pricePerSf = Number(data.pricePerSf) || 0;
-    const totalSf = data.totalSf ? Number(data.totalSf) : (slabsCount * sfPerSlab);
-    const totalLostValue = data.totalLostValue ? Number(data.totalLostValue) : (totalSf * pricePerSf);
-
-    const updateObj: Loose = {
-      customerName: data.customerName,
-      productName: data.productName,
-      lengthInches: Number(data.lengthInches) || 0,
-      widthInches: Number(data.widthInches) || 0,
-      sfPerSlab: sfPerSlab,
-      slabsCount: slabsCount,
-      totalSf: totalSf,
-      pricePerSf: pricePerSf,
-      totalLostValue: totalLostValue,
-      reason: data.reason,
-      location: data.location,
-      competitorName: data.competitorName || '',
-      notes: data.notes || ''
-    };
-    if (data.salesRepName) updateObj.salesRepName = data.salesRepName;
-    if (data.date) updateObj.date = new Date(data.date);
-
-    if (!canAccessLostSaleLocation(req.user, data.location)) {
-      return res.status(403).json({ message: 'You do not have access to that location' });
-    }
-
-    // findByIdAndUpdate skips validators by default, so an edit could store a
-    // `reason` outside the schema enum that POST would have rejected.
-    // Only a record this person can see — one at another branch reads as missing.
-    const updated = await LostSale.findOneAndUpdate(
-      { _id: requestParams.id, ...lostSaleLocationQuery(req.user) },
-      updateObj,
-      { new: true, runValidators: true }
-    );
-
-    if (!updated) {
-      return res.status(404).json({ message: 'Lost sale record not found' });
-    }
-
-    req.app.get('io').emit('lost_sale_update');
-    res.json(updated);
-  } catch (error) {
-    console.error('Error updating lost sale:', error);
-    res.status(500).json({ message: 'Failed to update lost sale record', error: (error as Error).message });
-  }
-});
-
-// DELETE /api/lost-sales/:id: Delete a lost sale entry
-app.delete('/api/lost-sales/:id', verifyAnyAuth, allowLostSales(canDeleteLostSales), validateScalarRequest, async (req: Request, res: Response) => {
-  const requestParams = scalarParams(req);
-  try {
-    const deleted = await LostSale.findOneAndDelete({ _id: requestParams.id, ...lostSaleLocationQuery(req.user) });
-    if (!deleted) {
-      return res.status(404).json({ message: 'Lost sale record not found' });
-    }
-    req.app.get('io').emit('lost_sale_update');
-    res.json({ success: true, message: 'Lost sale record deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting lost sale:', error);
-    res.status(500).json({ message: 'Failed to delete lost sale record' });
-  }
-});
+// ── LOST SALES API ROUTES ── (src/routes/lostSales.ts)
+app.use('/api/lost-sales', createLostSalesRouter({ verifyAnyAuth }));
 
 // ── CROSSOVER SHEET API ROUTES ──
 // Maps a distributor's color name to its Easy Stones equivalent, and how
@@ -5295,6 +5152,8 @@ app.get('/api/health', async (req: Request, res: Response) => {
     customerWritesPaused: customerWritesPaused(),
     deliveriesWritesPaused: deliveriesWritesPaused(),
     dailyReportsOn: areasOnPostgres().includes('daily_reports') ? 'postgres' : 'mongo',
+    lostSalesOn: areasOnPostgres().includes('lost_sales') ? 'postgres' : 'mongo',
+    lostSalesWritesPaused: lostSalesWritesPaused(),
     dailyReportsWritesPaused: dailyReportsWritesPaused()
   });
 });

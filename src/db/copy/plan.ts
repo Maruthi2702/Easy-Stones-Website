@@ -339,9 +339,12 @@ export const COPY_AREAS = {
   operations: [
     'payments_received', 'payment_history', 'office_check_ins', 'check_in_selections',
     'daily_reports', 'daily_report_transfers', 'daily_report_containers', 'daily_report_log'
-  ]
+  ],
+  /** Lost Sales: one table, its own small cutover. */
+  lost_sales: ['lost_sales']
 } as const;
 export type CopyArea = keyof typeof COPY_AREAS;
+export const isCopyArea = (v: unknown): v is CopyArea => typeof v === 'string' && Object.hasOwn(COPY_AREAS, v);
 
 export class AreaLockedError extends Error {
   constructor(area: string) {
@@ -371,6 +374,7 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.dailyReportContainers, ops.rows.dailyReportContainers], [schema.dailyReportLog, ops.rows.dailyReportLog]
     );
   }
+  if (area === 'lost_sales') all.push([schema.lostSales, miscRows(src, ref.index, { customerIds } as never, problems).lostSales]);
   return all.filter(([t]) => names.has(getTableName(t)));
 }
 

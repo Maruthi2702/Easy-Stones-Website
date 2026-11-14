@@ -113,3 +113,36 @@ describe('the operations copy (Payments, Check In + Selection Sheet, Daily Repor
     expect(state.lockedAreas).toContain('operations');
   });
 });
+
+describe('the Lost Sales copy', () => {
+  const at = new Date('2026-11-14T18:00:00Z');
+  const sale = oid(), liveOnly = oid();
+  const withSales = (): CopySource => ({
+    ...source(),
+    lostSales: [{
+      _id: sale, customerName: 'New Co', customerId: String(liveOnly), productName: 'Taj', lengthInches: 126, widthInches: 63, sfPerSlab: 55, slabsCount: 2,
+      totalSf: 110, pricePerSf: 12.5, totalLostValue: 1375, reason: 'Price Too High', location: 'Seattle', date: at, createdAt: at, updatedAt: at
+    }]
+  } as unknown as CopySource);
+
+  it('fills only the lost_sales table, linking to a customer that exists only in Postgres, and verifies', async () => {
+    await open.db.insert(schema.customers).values({ id: String(liveOnly), company: 'Live Only', contactName: 'Cy', email: 'c@live.example', locationId: String(seattle) });
+    const before = (await open.db.select().from(schema.deliveries)).length;
+    const report = await copyAreaFromMongo(open.db, withSales(), 'lost_sales', { write: true });
+    expect(report.tables).toEqual({ lost_sales: 1 });
+    expect((await open.db.select().from(schema.deliveries)).length).toBe(before);
+    const [row] = await open.db.select().from(schema.lostSales);
+    expect(row.customerId).toBe(String(liveOnly));
+    expect(row.locationId).toBe(String(seattle));
+    expect(await verifyArea(open.db, withSales(), 'lost_sales')).toEqual([]);
+  });
+
+  it('refuses for good once locked', async () => {
+    const src = withSales();
+    (src.lostSales as Record<string, unknown>[])[0].notes = 'changed in Mongo';
+    expect((await verifyArea(open.db, src, 'lost_sales')).join('\n')).toMatch(/lost_sales/);
+    await lockArea(open.db, 'lost_sales', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'lost_sales', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.lostSales)).length).toBe(1);
+  });
+});

@@ -8,6 +8,7 @@
  *   node scripts/pg-copy.ts --verify        compare Postgres with MongoDB row by row
  *   --scope customers   with --verify: only the customer area's tables (what cutover needs)
  *   node scripts/pg-copy.ts --lock "name"   at cutover: refuse every copy from now on
+ *   --scope lost_sales  with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries  with --write / --verify / --lock: only the deliveries and trucks tables (own cutover)
  *   --report <file>   write the full report (every problem, by id) as JSON
  *
@@ -16,7 +17,7 @@
  */
 import fs from 'node:fs';
 import { openDb, migrateDb } from '../src/db/client.ts';
-import { copyFromMongo, verifyCopy, lockCopies, copyAreaFromMongo, verifyArea, lockArea } from '../src/db/copy/plan.ts';
+import { copyFromMongo, verifyCopy, lockCopies, copyAreaFromMongo, verifyArea, lockArea, isCopyArea, type CopyArea } from '../src/db/copy/plan.ts';
 import { readMongo } from '../src/db/copy/readMongo.ts';
 
 const args = process.argv.slice(2);
@@ -33,19 +34,19 @@ try {
   if (flag('--lock')) {
     const by = valueOf('--lock');
     if (!by) throw new Error('--lock needs a name: who is locking it.');
-    if (valueOf('--scope') === 'deliveries' || valueOf('--scope') === 'operations') await lockArea(db, valueOf('--scope') as 'deliveries' | 'operations', by); else await lockCopies(db, by);
+    if (isCopyArea(valueOf('--scope'))) await lockArea(db, valueOf('--scope') as CopyArea, by); else await lockCopies(db, by);
     console.log('Locked: this database will refuse every copy from MongoDB from now on.');
   } else {
     if (!mongoUri) throw new Error('MONGO_URI is not set.');
     const started = Date.now();
     const src = await readMongo(mongoUri);
     if (flag('--verify')) {
-      const diffs = (valueOf('--scope') === 'deliveries' || valueOf('--scope') === 'operations') ? await verifyArea(db, src, valueOf('--scope') as 'deliveries' | 'operations') : await verifyCopy(db, src, 20, { scope: valueOf('--scope') === 'customers' ? 'customers' : undefined });
+      const diffs = isCopyArea(valueOf('--scope')) ? await verifyArea(db, src, valueOf('--scope') as CopyArea) : await verifyCopy(db, src, 20, { scope: valueOf('--scope') === 'customers' ? 'customers' : undefined });
       console.log(diffs.length ? diffs.join('\n') : 'Verified: Postgres matches MongoDB, every table, every row, every column.');
       process.exitCode = diffs.length ? 1 : 0;
     } else {
       const write = flag('--write');
-      const report = (valueOf('--scope') === 'deliveries' || valueOf('--scope') === 'operations') ? await copyAreaFromMongo(db, src, valueOf('--scope') as 'deliveries' | 'operations', { write }) : await copyFromMongo(db, src, { write });
+      const report = isCopyArea(valueOf('--scope')) ? await copyAreaFromMongo(db, src, valueOf('--scope') as CopyArea, { write }) : await copyFromMongo(db, src, { write });
       console.log(write ? 'Copied.' : 'Dry run — nothing written.');
       console.log('\nMongoDB records read:'); console.table(report.source);
       console.log('Postgres rows:'); console.table(report.tables);
