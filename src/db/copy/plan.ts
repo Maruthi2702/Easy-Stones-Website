@@ -339,9 +339,12 @@ export const COPY_AREAS = {
   operations: [
     'payments_received', 'payment_history', 'office_check_ins', 'check_in_selections',
     'daily_reports', 'daily_report_transfers', 'daily_report_containers', 'daily_report_log'
-  ]
+  ],
+  /** Credit Card Receipts: cards, the category list and the expenses with their history. */
+  card_receipts: ['company_cards', 'receipt_categories', 'card_expenses', 'card_expense_history']
 } as const;
 export type CopyArea = keyof typeof COPY_AREAS;
+export const isCopyArea = (v: unknown): v is CopyArea => typeof v === 'string' && Object.hasOwn(COPY_AREAS, v);
 
 export class AreaLockedError extends Error {
   constructor(area: string) {
@@ -369,6 +372,13 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.officeCheckIns, ch.officeCheckIns], [schema.checkInSelections, ch.checkInSelections],
       [schema.dailyReports, ops.rows.dailyReports], [schema.dailyReportTransfers, ops.rows.dailyReportTransfers],
       [schema.dailyReportContainers, ops.rows.dailyReportContainers], [schema.dailyReportLog, ops.rows.dailyReportLog]
+    );
+  }
+  if (area === 'card_receipts') {
+    const cs = cardsSuppliersRows(src, ref.index, { customerIds } as never, problems);
+    all.push(
+      [schema.companyCards, cs.companyCards], [schema.receiptCategories, cs.receiptCategories],
+      [schema.cardExpenses, cs.cardExpenses], [schema.cardExpenseHistory, cs.cardExpenseHistory]
     );
   }
   return all.filter(([t]) => names.has(getTableName(t)));

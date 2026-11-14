@@ -2,7 +2,8 @@ import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
-import { CompanyCard, ReceiptCategory, CardExpense } from '../models/CardReceipts.ts';
+import * as db from '../db/cardReceipts/index.ts';
+import { newId } from '../db/ids.ts';
 import Role from '../models/Role.ts';
 import User from '../models/User.ts';
 import {
@@ -67,11 +68,10 @@ const expenseView = (e: Loose, viewer: { id: string; approvable: Set<string> }) 
 
 /** Seeds the starting list into an empty collection, once. */
 async function categoriesList() {
-  let list = await ReceiptCategory.find({}).sort({ order: 1, _id: 1 }).lean();
+  let list = await db.listCategories();
   if (!list.length) {
-    const docs = STARTING_CATEGORIES.map((c, i) => ({ name: categoryKey(c.label), label: c.label, order: i, fields: { ...c.fields } }));
-    await ReceiptCategory.insertMany(docs, { ordered: false }).catch(() => undefined);
-    list = await ReceiptCategory.find({}).sort({ order: 1, _id: 1 }).lean();
+    await db.seedCategories(STARTING_CATEGORIES.map((c, i) => ({ _id: newId(), name: categoryKey(c.label), label: c.label, order: i, fields: { ...c.fields } })));
+    list = await db.listCategories();
   }
   return list;
 }
@@ -104,7 +104,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     try {
       const me = userIdOf(req);
       const [card, categories, roles] = await Promise.all([
-        CompanyCard.findOne({ userId: me, active: true }).lean(), categoriesList(), approverRolesOf(req)
+        db.activeCardOf(me), categoriesList(), approverRolesOf(req)
       ]);
       const u = userOf(req);
       res.json({
@@ -140,8 +140,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       let name = categoryKey(value.label) || 'category';
       for (let n = 2; list.some((c) => c.name === name); n += 1) name = `${categoryKey(value.label)}_${n}`;
       const order = Math.max(-1, ...list.map((c) => c.order ?? 0)) + 1;
-      const saved = await ReceiptCategory.create({ name, ...value, order, updatedBy: actor(req) });
-      res.status(201).json({ category: categoryView(saved.toObject()) });
+      const saved = await db.addCategory(newId(), { name, ...value, order, updatedBy: actor(req) });
+      res.status(201).json({ category: categoryView(saved) });
     } catch (error) {
       console.error('[card-receipts] add category failed:', error);
       res.status(500).json({ message: 'Could not add the category.' });
@@ -151,12 +151,11 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   router.patch('/categories/reorder', authenticate, anyOf(CARD_RECEIPTS.CATEGORY_REORDER), async (req: Request, res: Response) => {
     const ids: unknown = req.body?.ids;
     try {
-      const list = await ReceiptCategory.find({}, '_id').lean();
-      const known = list.map((c) => String(c._id)).sort();
+      const known = (await db.categoryIds()).sort();
       if (!Array.isArray(ids) || [...new Set(ids.map(String))].sort().join() !== known.join()) {
         return res.status(400).json({ message: 'Send the whole list in its new order.' });
       }
-      await ReceiptCategory.bulkWrite(ids.map((id, i) => ({ updateOne: { filter: { _id: String(id) }, update: { $set: { order: i } } } })));
+      await db.reorderCategories(ids.map(String));
       res.json({ categories: (await categoriesList()).map(categoryView) });
     } catch (error) {
       console.error('[card-receipts] reorder failed:', error);
@@ -168,14 +167,13 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const { id } = scalarParams(req);
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Category not found.' });
     try {
-      const category = await ReceiptCategory.findById(id);
-      if (!category) return res.status(404).json({ message: 'Category not found.' });
-      const others = await ReceiptCategory.find({}, 'label').lean();
+      if (!(await db.findCategory(id))) return res.status(404).json({ message: 'Category not found.' });
+      const others = await db.listCategories();
       const { value, problems } = cleanCategory(req.body || {}, others as never, id);
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      category.set({ ...value, ...(typeof req.body?.active === 'boolean' ? { active: req.body.active } : {}), updatedBy: actor(req) });
-      await category.save();
-      res.json({ category: categoryView(category.toObject()) });
+      const category = await db.changeCategory(id, { ...value, ...(typeof req.body?.active === 'boolean' ? { active: req.body.active } : {}), updatedBy: actor(req) });
+      if (!category) return res.status(404).json({ message: 'Category not found.' });
+      res.json({ category: categoryView(category) });
     } catch (error) {
       console.error('[card-receipts] edit category failed:', error);
       res.status(500).json({ message: 'Could not save the category.' });
@@ -185,32 +183,30 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   router.get('/categories/:id/uses', authenticate, anyOf(CARD_RECEIPTS.CATEGORY_DELETE), validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Category not found.' });
-    const category = await ReceiptCategory.findById(id).lean();
+    const category = await db.findCategory(id);
     if (!category) return res.status(404).json({ message: 'Category not found.' });
-    res.json({ uses: await CardExpense.countDocuments({ category: category.name }) });
+    res.json({ uses: await db.categoryUses(category.name) });
   });
 
   router.delete('/categories/:id', authenticate, anyOf(CARD_RECEIPTS.CATEGORY_DELETE), validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Category not found.' });
     try {
-      const category = await ReceiptCategory.findById(id).lean();
+      const category = await db.findCategory(id);
       if (!category) return res.status(404).json({ message: 'Category not found.' });
-      const uses = await CardExpense.countDocuments({ category: category.name });
+      const uses = await db.categoryUses(category.name);
+      let move: { to: string; entry: db.ExpenseHistoryEntry } | null = null;
       if (uses) {
         const targetId = String(req.body?.replaceWith || '');
-        const target = mongoose.isValidObjectId(targetId) ? await ReceiptCategory.findById(targetId).lean() : null;
+        const target = mongoose.isValidObjectId(targetId) ? await db.findCategory(targetId) : null;
         if (!target || String(target._id) === id || target.active === false) {
           return res.status(409).json({ message: `${uses} expense${uses === 1 ? ' uses' : 's use'} it. Choose a shown category to move them to.`, uses });
         }
         // Moved before the category goes: a stop in between leaves the
         // expenses on the new category and the old one still listed — nothing lost.
-        await CardExpense.updateMany({ category: category.name }, {
-          $set: { category: target.name },
-          $push: { history: { at: new Date(), by: actor(req), action: 'edited', changes: `category ${category.label} → ${target.label} (deleted)` } }
-        });
+        move = { to: target.name, entry: { at: new Date(), by: actor(req), action: 'edited', changes: `category ${category.label} → ${target.label} (deleted)` } };
       }
-      await ReceiptCategory.deleteOne({ _id: id });
+      await db.deleteCategory(id, category.name, move);
       res.json({ deleted: true, moved: uses });
     } catch (error) {
       console.error('[card-receipts] delete category failed:', error);
@@ -223,7 +219,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   router.get('/cards', authenticate, anyOf(CARD_RECEIPTS.MANAGE_CARDS, CARD_RECEIPTS.VIEW_ALL), async (_req: Request, res: Response) => {
     try {
       const [cards, people] = await Promise.all([
-        CompanyCard.find({}).sort({ active: -1, label: 1 }).lean(),
+        db.listCards(),
         User.find({}, 'username displayName role location assignedLocations isActive').sort({ displayName: 1 }).lean()
       ]);
       res.json({
@@ -238,24 +234,24 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     }
   });
 
-  const saveCard = async (req: Request, res: Response, card: mongoose.HydratedDocument<Loose> | null) => {
-    const { value, problems } = cleanCard({ ...(card ? cardView(card.toObject()) : {}), ...(req.body || {}) });
+  const saveCard = async (req: Request, res: Response, card: Loose | null) => {
+    const { value, problems } = cleanCard({ ...(card ? cardView(card) : {}), ...(req.body || {}) });
     if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
     const active = typeof req.body?.active === 'boolean' ? req.body.active : (card ? card.active !== false : true);
     if (!mongoose.isValidObjectId(value.userId) || !(await User.exists({ _id: value.userId }))) {
       return res.status(400).json({ message: 'Some fields need attention.', problems: { userId: 'Choose the cardholder' } });
     }
     if (active) {
-      const clash = await CompanyCard.findOne({ active: true, _id: { $ne: card?._id }, $or: [{ userId: value.userId }, { label: value.label }] }).lean();
+      const clash = await db.activeCardClash(value.userId, value.label, card ? String(card._id) : null);
       if (clash) {
         const problems = clash.userId === value.userId ? { userId: `They already have card ${clash.label}. Deactivate it first.` } : { label: 'Another active card has that ID' };
         return res.status(409).json({ message: 'One card per person.', problems });
       }
     }
-    const doc = card || new CompanyCard();
-    doc.set({ ...value, active, updatedBy: actor(req) });
-    await doc.save();
-    res.status(card ? 200 : 201).json({ card: cardView(doc.toObject()) });
+    const fields = { ...value, active, updatedBy: actor(req) };
+    const saved = card ? await db.changeCard(String(card._id), fields) : await db.addCard(newId(), fields);
+    if (!saved) return res.status(404).json({ message: 'Card not found.' });
+    res.status(card ? 200 : 201).json({ card: cardView(saved) });
   };
 
   router.post('/cards', authenticate, anyOf(CARD_RECEIPTS.MANAGE_CARDS), async (req: Request, res: Response) => {
@@ -269,9 +265,9 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const { id } = scalarParams(req);
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Card not found.' });
     try {
-      const card = await CompanyCard.findById(id);
+      const card = await db.findCard(id);
       if (!card) return res.status(404).json({ message: 'Card not found.' });
-      await saveCard(req, res, card as never);
+      await saveCard(req, res, card);
     } catch (error) {
       console.error('[card-receipts] edit card failed:', error);
       res.status(500).json({ message: 'Could not save the card.' });
@@ -302,19 +298,19 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const me = userIdOf(req);
     try {
       const approvable = await approvableIds(req);
-      let filter: Record<string, unknown>;
+      let filter: db.ExpenseFilter;
       if (scope === 'waiting') {
-        filter = { status: 'waiting', voidedAt: null, userId: { $in: [...approvable] } };
+        filter = { kind: 'waiting', userIds: [...approvable] };
       } else {
         if (!isMonth(month)) return res.status(400).json({ message: 'Provide a month as YYYY-MM.' });
         if (scope === 'all') {
           if (!has(req, CARD_RECEIPTS.VIEW_ALL)) return res.status(403).json({ message: 'You can see your own expenses only.' });
-          filter = { month };
+          filter = { kind: 'month', month };
         } else {
-          filter = { month, userId: me };
+          filter = { kind: 'month', month, userId: me };
         }
       }
-      const rows = await CardExpense.find(filter).sort({ date: -1, createdAt: -1 }).limit(5000).lean();
+      const rows = await db.listExpenses(filter);
       res.json({ expenses: rows.map((e) => expenseView(e, { id: me, approvable })) });
     } catch (error) {
       console.error('[card-receipts] list failed:', error);
@@ -329,12 +325,12 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const me = userIdOf(req);
     if (!mongoose.isValidObjectId(body.id)) return res.status(400).json({ message: 'The receipt has no id. Reload the page and try again.' });
     try {
-      const existing = await CardExpense.findById(body.id).lean();
+      const existing = await db.findExpense(body.id);
       if (existing) {
         if (existing.userId !== me) return res.status(409).json({ message: 'That id belongs to another expense.' });
         return res.json({ expense: expenseView(existing, { id: me, approvable: new Set() }), alreadySaved: true });
       }
-      const card = await CompanyCard.findOne({ userId: me, active: true }).lean();
+      const card = await db.activeCardOf(me);
       if (!card) return res.status(409).json({ message: 'You don’t have a company card set up yet. Ask accounting to add it.' });
       const categories = await categoriesForSave();
       // A hidden category can't start a new expense.
@@ -342,24 +338,26 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const { value, problems, missing } = cleanExpense(body, { today: todayOf(), categories: shown });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
       if (body.confirmRepeat !== true) {
-        const same = await CardExpense.find({ userId: me, date: value.date, cents: value.cents, voidedAt: null }).lean();
-        const repeat = possibleRepeat(same.map((e) => ({ ...e, id: String(e._id) })), { userId: me, date: value.date, cents: value.cents });
+        const same = await db.sameDayAmount(me, value.date, value.cents);
+        const repeat = possibleRepeat(same.map((e) => ({ ...e, id: String(e._id) })) as never, { userId: me, date: value.date, cents: value.cents }) as Loose | null | undefined;
         if (repeat) return res.status(409).json({ message: 'This receipt looks already uploaded.', repeat: { id: String(repeat._id), merchant: repeat.merchant, date: repeat.date, cents: repeat.cents } });
       }
       const u = userOf(req);
       const by = actor(req);
       const status = statusAfterSave(Object.keys(missing).length === 0);
-      const saved = await CardExpense.create({
-        _id: body.id, userId: me, holderName: nameOf(u), cardId: String(card._id), cardLabel: card.label, location: homeOf(u),
+      const saved = await db.addExpense(body.id, {
+        userId: me, holderName: nameOf(u), cardId: String(card._id), cardLabel: card.label, location: homeOf(u),
         ...value, month: monthOf(value.date), status, createdBy: by,
         history: [{ at: new Date(), by, action: 'added', changes: status === 'waiting' ? 'sent for approval' : '' }]
       });
-      res.status(201).json({ expense: expenseView(saved.toObject(), { id: me, approvable: new Set() }) });
-    } catch (error) {
-      if ((error as { code?: number }).code === 11000) {
-        const again = await CardExpense.findById(body.id).lean();
+      if (!saved) {
+        // The same save arrived twice at once: the other one got there first.
+        const again = await db.findExpense(body.id);
         if (again) return res.json({ expense: expenseView(again, { id: me, approvable: new Set() }), alreadySaved: true });
+        return res.status(500).json({ message: 'Could not save the receipt.' });
       }
+      res.status(201).json({ expense: expenseView(saved, { id: me, approvable: new Set() }) });
+    } catch (error) {
       console.error('[card-receipts] add failed:', error);
       res.status(500).json({ message: 'Could not save the receipt.' });
     }
@@ -377,7 +375,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const me = userIdOf(req);
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Expense not found.' });
     try {
-      const expense = await CardExpense.findById(id);
+      const expense = await db.findExpense(id);
       if (!expense || expense.userId !== me) return res.status(404).json({ message: 'Expense not found.' });
       if (!holderMayEdit({ status: expense.status, voided: expense.voidedAt })) {
         return res.status(409).json({ message: expense.voidedAt ? 'A voided expense can’t be changed.' : 'It’s approved, so it can’t be changed.' });
@@ -387,15 +385,15 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const allowed = categories.filter((c) => c.active || c.name === expense.category);
       const { value, problems, missing } = cleanExpense(req.body || {}, { today: todayOf(), categories: allowed });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      const changes = changeSummary(cleanOf(expense.toObject()), value);
+      const changes = changeSummary(cleanOf(expense), value);
       const status = statusAfterSave(Object.keys(missing).length === 0, expense.status);
-      if (!changes.length && status === expense.status) return res.json({ expense: expenseView(expense.toObject(), { id: me, approvable: new Set() }), unchanged: true });
+      if (!changes.length && status === expense.status) return res.json({ expense: expenseView(expense, { id: me, approvable: new Set() }), unchanged: true });
       const by = actor(req);
       const sentForApproval = status === 'waiting' && expense.status !== 'waiting';
-      expense.set({ ...value, month: monthOf(value.date), status });
-      expense.history.push({ at: new Date(), by, action: 'edited', changes: [changes.join(', '), sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
-      await expense.save();
-      res.json({ expense: expenseView(expense.toObject(), { id: me, approvable: new Set() }) });
+      const saved = await db.changeExpense(id, { ...value, month: monthOf(value.date), status },
+        { at: new Date(), by, action: 'edited', changes: [changes.join(', '), sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
+      if (!saved) return res.status(404).json({ message: 'Expense not found.' });
+      res.json({ expense: expenseView(saved, { id: me, approvable: new Set() }) });
     } catch (error) {
       console.error('[card-receipts] edit failed:', error);
       res.status(500).json({ message: 'Could not save the change.' });
@@ -407,7 +405,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const comment = String(req.body?.comment ?? '').trim().slice(0, 500);
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Expense not found.' });
     try {
-      const expense = await CardExpense.findById(id);
+      const expense = await db.findExpense(id);
       if (!expense) return res.status(404).json({ message: 'Expense not found.' });
       const holder = await User.findById(expense.userId, 'role').lean();
       const approver = { id: userIdOf(req), permissions: userOf(req).permissions || [] };
@@ -418,11 +416,10 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       if (problem) return res.status(expense.status === 'waiting' ? 400 : 409).json({ message: problem, problems: { comment: problem } });
       const by = actor(req);
       const decision = { by: approver.id, byName: by, at: new Date(), comment };
-      if (action === 'approve') expense.set({ status: 'approved', approval: decision });
-      else expense.set({ status: 'sent_back', sentBack: decision, approval: null });
-      expense.history.push({ at: new Date(), by, action: action === 'approve' ? 'approved' : 'sent back', changes: comment });
-      await expense.save();
-      res.json({ expense: expenseView(expense.toObject(), { id: approver.id, approvable: new Set() }) });
+      const saved = await db.changeExpense(id, action === 'approve' ? { status: 'approved', approval: decision } : { status: 'sent_back', sentBack: decision, approval: null },
+        { at: new Date(), by, action: action === 'approve' ? 'approved' : 'sent back', changes: comment });
+      if (!saved) return res.status(404).json({ message: 'Expense not found.' });
+      res.json({ expense: expenseView(saved, { id: approver.id, approvable: new Set() }) });
     } catch (error) {
       console.error(`[card-receipts] ${action} failed:`, error);
       res.status(500).json({ message: 'Could not save your decision.' });
@@ -438,15 +435,14 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Expense not found.' });
     if (!reason) return res.status(400).json({ message: 'Say why it’s being voided.', problems: { reason: 'Say why it’s being voided' } });
     try {
-      const expense = await CardExpense.findById(id);
+      const expense = await db.findExpense(id);
       if (!expense || expense.userId !== me) return res.status(404).json({ message: 'Expense not found.' });
-      if (expense.voidedAt) return res.json({ expense: expenseView(expense.toObject(), { id: me, approvable: new Set() }), alreadyVoided: true });
+      if (expense.voidedAt) return res.json({ expense: expenseView(expense, { id: me, approvable: new Set() }), alreadyVoided: true });
       if (expense.status === 'approved') return res.status(409).json({ message: 'It’s approved, so it can’t be voided.' });
       const by = actor(req);
-      expense.set({ voidedAt: new Date(), voidedBy: by, voidReason: reason });
-      expense.history.push({ at: new Date(), by, action: 'voided', changes: reason });
-      await expense.save();
-      res.json({ expense: expenseView(expense.toObject(), { id: me, approvable: new Set() }) });
+      const saved = await db.changeExpense(id, { voidedAt: new Date(), voidedBy: by, voidReason: reason }, { at: new Date(), by, action: 'voided', changes: reason });
+      if (!saved) return res.status(404).json({ message: 'Expense not found.' });
+      res.json({ expense: expenseView(saved, { id: me, approvable: new Set() }) });
     } catch (error) {
       console.error('[card-receipts] void failed:', error);
       res.status(500).json({ message: 'Could not void the expense.' });

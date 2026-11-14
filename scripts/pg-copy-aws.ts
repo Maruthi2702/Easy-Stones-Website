@@ -8,6 +8,7 @@
  *   node scripts/pg-copy-aws.ts --verify             compare Postgres with MongoDB row by row
  *   node scripts/pg-copy-aws.ts --verify --scope customers   only the customer area's tables (cutover: the rest is still live on MongoDB)
  *   --scope operations   with --write / --verify / --lock: Payments, Check In + Selection Sheet and Daily Reports tables (their one cutover)
+ *   --scope card_receipts  with --write / --verify / --lock: only Credit Card Receipts' four tables (its own cutover)
  *   --scope deliveries   with --write / --verify / --lock: only the deliveries and trucks tables (its own cutover; customers stay untouched)
  *   node scripts/pg-copy-aws.ts --lock "name"        at cutover: refuse every copy from now on
  *   --report <file>   save the full report (every problem, by id) here
@@ -29,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 import { LambdaClient, InvokeCommand, UpdateFunctionCodeCommand, GetFunctionConfigurationCommand, waitUntilFunctionUpdatedV2 } from '@aws-sdk/client-lambda';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { readMongo } from '../src/db/copy/readMongo.ts';
+import { isCopyArea, type CopyArea } from '../src/db/copy/plan.ts';
 import { packSnapshot } from '../src/db/aws/snapshot.ts';
 import type { CopyAction, CopyEvent, CopyResult } from '../src/db/aws/copyHandler.ts';
 
@@ -78,7 +80,7 @@ async function run(what: CopyAction): Promise<CopyResult> {
   const bucket = fnConfig.Environment?.Variables?.COPY_BUCKET;
   if (!bucket) throw new Error(`${functionName} has no COPY_BUCKET: is the aws-infra database stack deployed?`);
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${what}`;
-  const event: CopyEvent = { action: what, runId, ...(['customers', 'deliveries', 'operations'].includes(valueOf('--scope') ?? '') ? { scope: valueOf('--scope') as 'customers' | 'deliveries' | 'operations' } : {}) };
+  const event: CopyEvent = { action: what, runId, ...(valueOf('--scope') === 'customers' || isCopyArea(valueOf('--scope')) ? { scope: valueOf('--scope') as 'customers' | CopyArea } : {}) };
   let snapshotKey: string | undefined;
   try {
     if (what === 'lock') {

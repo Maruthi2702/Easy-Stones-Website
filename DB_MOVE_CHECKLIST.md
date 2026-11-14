@@ -170,7 +170,12 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - Note: `DB_DAILY_REPORTS=postgres` was set on Render before its copy (2026-11-13, owner's choice) and reverted ~07:45 UTC 2026-11-14; MongoDB-only reports from before and a one-hour window of Postgres-only saves were never checked (the Render-shell query to list them was offered and not run); the cutover copy then replaced Postgres from MongoDB.
   - [x] (the plan that was followed) Rehearse all four together, then the cutover (order: pause on → `--scope operations --write` → `--verify` empty → `DB_PAYMENTS`, `DB_CHECKIN`, `DB_DAILY_REPORTS` = postgres → pause off → `--lock … --scope operations`)
 - [ ] Lost Sales (1 day)
-- [ ] Credit Card Receipts (1–2 days)
+- [ ] Credit Card Receipts (1–2 days). Data layer `src/db/cardReceipts/` (switch `DB_CARD_RECEIPTS`, README there), on `feat/card-receipts-pg`
+  - [x] Routes go through the layer; parity test `cardReceipts.parity.test.ts` (16 cases through the real router + the copy's own check of every table); the copy's row builders pulled out (`companyCardRowOf`, `receiptCategoryRowOf`, `cardExpenseRowsOf`)
+  - [x] Read-only comparison on live data (`scripts/pg-compare-card-receipts.ts`, 2026-11-14): 6 requests (2 expenses, 1 card in live so far), 0 differences
+  - [x] `CARD_RECEIPTS_WRITES_PAUSED` (503 on its writes, on `/api/health`); scoped copy `--scope card_receipts` (`COPY_AREAS`, tested)
+  - [ ] Merge to main, `pg-copy-aws.ts --deploy`, local click-through with `DB_CARD_RECEIPTS=postgres` (owner)
+  - [ ] Cutover: pause on → `--scope card_receipts --write` → `--verify` → `DB_CARD_RECEIPTS=postgres` → pause off → `--lock … --scope card_receipts`
 - [ ] SPS import (1–2 days; runs and the runner)
 - [ ] Inventory + Purchasing (3–4 days; stock imports use a transaction)
 - [ ] Cart & Holds (1–2 days; after Inventory, since holds lock slabs in `InventoryItems`)

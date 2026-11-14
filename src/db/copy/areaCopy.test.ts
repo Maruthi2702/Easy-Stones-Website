@@ -66,6 +66,38 @@ describe('the deliveries-only copy', () => {
   });
 });
 
+describe('the Credit Card Receipts copy', () => {
+  const at = new Date('2026-11-13T21:05:00Z');
+  const user = oid(), card = oid(), cat = oid(), exp = oid();
+  const withCards = (): CopySource => ({
+    ...source(),
+    roles: [{ _id: oid(), name: 'staff', displayName: 'Staff', permissions: [] }],
+    users: [{ _id: user, username: 'maru', displayName: 'Maru', password: 'x', role: 'staff', isActive: true }],
+    companyCards: [{ _id: card, userId: String(user), label: 'MARU92069', issuer: 'amex', lastDigits: '92069', active: true, createdAt: at, updatedAt: at }],
+    receiptCategories: [{ _id: cat, name: 'fuel', label: 'Fuel', order: 0, active: true, fields: {}, createdAt: at, updatedAt: at }],
+    cardExpenses: [{
+      _id: exp, userId: String(user), holderName: 'Maru', cardId: String(card), cardLabel: 'MARU92069', location: 'Seattle', date: '2026-11-13', month: '2026-11',
+      merchant: 'Shell', cents: 6120, category: 'fuel', status: 'waiting', createdAt: at, updatedAt: at, history: [{ at, by: 'Maru', action: 'added', changes: '' }]
+    }]
+  } as unknown as CopySource);
+
+  it('fills only its four tables, leaves the rest alone, then refuses for good once locked', async () => {
+    await open.db.insert(schema.roles).values({ id: String(oid()), name: 'staff', displayName: 'Staff' } as never).onConflictDoNothing();
+    await open.db.insert(schema.users).values({ id: String(user), username: 'maru', displayName: 'Maru', passwordHash: 'x', role: 'staff' } as never);
+    const deliveriesBefore = (await open.db.select().from(schema.deliveries)).length;
+    const report = await copyAreaFromMongo(open.db, withCards(), 'card_receipts', { write: true });
+    expect(report.tables).toEqual({ company_cards: 1, receipt_categories: 1, card_expenses: 1, card_expense_history: 1 });
+    expect((await open.db.select().from(schema.deliveries)).length).toBe(deliveriesBefore);
+    expect(await verifyArea(open.db, withCards(), 'card_receipts')).toEqual([]);
+    const src = withCards();
+    (src.cardExpenses as Record<string, unknown>[])[0].status = 'approved';
+    expect((await verifyArea(open.db, src, 'card_receipts')).join('\n')).toMatch(/card_expenses/);
+    await lockArea(open.db, 'card_receipts', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'card_receipts', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.cardExpenses)).length).toBe(1);
+  });
+});
+
 describe('the operations copy (Payments, Check In + Selection Sheet, Daily Reports)', () => {
   const at = new Date('2026-11-13T21:05:00Z');
   const report = oid(), payment = oid(), checkIn = oid(), selection = oid();

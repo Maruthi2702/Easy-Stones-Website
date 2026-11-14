@@ -59,6 +59,72 @@ function historyRows(c: Converter, parentId: string, history: unknown) {
   return out;
 }
 
+/**
+ * The row for one company card, or null when it has no id or no user. The copy and the Postgres
+ * saves (src/db/cardReceipts/) both build rows here, so a save writes what a re-copy of MongoDB would.
+ */
+export function companyCardRowOf(d: Loose, ref: ReferenceIndex, problems: CopyProblem[]): Row<typeof companyCards> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'company_cards', id);
+  const userId = linkOf(c, 'user_id', d.userId, ref.userIds, 'user');
+  if (!userId) { c.problem('user_id', 'card of no user', 'skipped'); return null; }
+  return {
+    id, userId, label: textOf(d.label), issuer: pickOf(c, 'issuer', d.issuer, ['amex', 'other'] as const, 'amex'),
+    lastDigits: textOf(d.lastDigits), active: boolOf(d.active, true), updatedBy: textOf(d.updatedBy), ...stamp(c, d)
+  };
+}
+
+/** The row for one receipt category, or null when it has no id. */
+export function receiptCategoryRowOf(d: Loose, problems: CopyProblem[]): Row<typeof receiptCategories> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'receipt_categories', id);
+  const f = obj(d.fields);
+  return {
+    id, name: textOf(d.name), label: textOf(d.label), order: intOf(c, 'order', d.order) ?? 0, active: boolOf(d.active, true),
+    needsCustomer: boolOf(f.customer), needsAttendees: boolOf(f.attendees), needsPurpose: boolOf(f.purpose),
+    needsRecurring: boolOf(f.recurring), updatedBy: textOf(d.updatedBy), ...stamp(c, d)
+  };
+}
+
+/** What a card expense's links are checked against: the cards, categories and customers that exist. */
+export interface ExpenseLinks { cardIds: Set<string>; categoryNames: Set<string>; customerIds: Set<string> }
+
+/** The rows for one card expense and its history lines, or null when it has no id, day, amount or status. */
+export function cardExpenseRowsOf(d: Loose, ref: ReferenceIndex, links: ExpenseLinks, problems: CopyProblem[]):
+  { expense: Row<typeof cardExpenses>; history: Row<typeof cardExpenseHistory>[] } | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'card_expenses', id);
+  const expenseDay = c.day('day', d.date, ref.zoneOfLocation(d.location));
+  const cents = intOf(c, 'cents', d.cents);
+  const status = pickOf(c, 'status', d.status, CARD_EXPENSE_STATUSES, null);
+  if (!expenseDay || cents == null || !status) { c.problem('id', 'no day, amount or status', 'skipped'); return null; }
+  let category: string | null = textOf(d.category) || null;
+  if (category && !links.categoryNames.has(category)) { c.problem('category', 'not a receipt category', 'blanked'); category = null; }
+  const approval = optObj(d.approval), sentBack = optObj(d.sentBack);
+  return {
+    expense: {
+      id, userId: linkOf(c, 'user_id', d.userId, ref.userIds, 'user'), holderName: textOf(d.holderName),
+      cardId: linkOf(c, 'card_id', d.cardId, links.cardIds, 'card'), cardLabel: textOf(d.cardLabel),
+      locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName), day: expenseDay, month: textOf(d.month),
+      merchant: textOf(d.merchant), cents, subtotalCents: intOf(c, 'subtotal_cents', d.subtotalCents),
+      taxCents: intOf(c, 'tax_cents', d.taxCents), tipCents: intOf(c, 'tip_cents', d.tipCents), category,
+      customerId: linkOf(c, 'customer_id', d.customerId, links.customerIds, 'customer'), customerName: textOf(d.customerName),
+      attendees: stringsOf(d.attendees), purpose: textOf(d.purpose), note: textOf(d.note), recurring: boolOf(d.recurring),
+      receiptUrl: textOf(d.receiptUrl), lostReason: textOf(d.lostReason), status,
+      approvedById: approval ? textOf(approval.by) : null, approvedByName: approval ? textOf(approval.byName) : null,
+      approvedAt: approval ? c.moment('approved_at', approval.at) : null, approvalComment: approval ? textOf(approval.comment) : null,
+      sentBackById: sentBack ? textOf(sentBack.by) : null, sentBackByName: sentBack ? textOf(sentBack.byName) : null,
+      sentBackAt: sentBack ? c.moment('sent_back_at', sentBack.at) : null, sentBackComment: sentBack ? textOf(sentBack.comment) : null,
+      createdBy: textOf(d.createdBy), voidedAt: c.moment('voided_at', d.voidedAt), voidedBy: textOf(d.voidedBy),
+      voidReason: textOf(d.voidReason), ...stamp(c, d)
+    },
+    history: historyRows(c, id, d.history).map(h => ({ expenseId: id, position: h.position, at: h.at, by: h.by, action: h.action, changes: h.changes }))
+  };
+}
+
 export function cardsSuppliersRows(src: CardsSuppliersSource, ref: ReferenceIndex, cust: CustomerIndex, problems: CopyProblem[]): CardsSuppliersRows {
   const rows: CardsSuppliersRows = {
     companyCards: [], receiptCategories: [], cardExpenses: [], cardExpenseHistory: [], suppliers: [], supplierHistory: [],
@@ -68,61 +134,24 @@ export function cardsSuppliersRows(src: CardsSuppliersSource, ref: ReferenceInde
   const cardIds = new Set<string>(), categoryNames = new Set<string>(), supplierIds = new Set<string>(), poIds = new Set<string>();
 
   for (const d of src.companyCards) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'company_cards', id);
-    const userId = linkOf(c, 'user_id', d.userId, ref.userIds, 'user');
-    if (!userId) { c.problem('user_id', 'card of no user', 'skipped'); continue; }
-    cardIds.add(id);
-    rows.companyCards.push({
-      id, userId, label: textOf(d.label), issuer: pickOf(c, 'issuer', d.issuer, ['amex', 'other'] as const, 'amex'),
-      lastDigits: textOf(d.lastDigits), active: boolOf(d.active, true), updatedBy: textOf(d.updatedBy), ...stamp(c, d)
-    });
+    const row = companyCardRowOf(d, ref, problems);
+    if (!row) continue;
+    cardIds.add(row.id);
+    rows.companyCards.push(row);
   }
 
   for (const d of src.receiptCategories) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'receipt_categories', id);
-    categoryNames.add(textOf(d.name));
-    const f = obj(d.fields);
-    rows.receiptCategories.push({
-      id, name: textOf(d.name), label: textOf(d.label), order: intOf(c, 'order', d.order) ?? 0, active: boolOf(d.active, true),
-      needsCustomer: boolOf(f.customer), needsAttendees: boolOf(f.attendees), needsPurpose: boolOf(f.purpose),
-      needsRecurring: boolOf(f.recurring), updatedBy: textOf(d.updatedBy), ...stamp(c, d)
-    });
+    const row = receiptCategoryRowOf(d, problems);
+    if (!row) continue;
+    categoryNames.add(row.name);
+    rows.receiptCategories.push(row);
   }
 
   for (const d of src.cardExpenses) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'card_expenses', id);
-    const expenseDay = c.day('day', d.date, ref.zoneOfLocation(d.location));
-    const cents = intOf(c, 'cents', d.cents);
-    const status = pickOf(c, 'status', d.status, CARD_EXPENSE_STATUSES, null);
-    if (!expenseDay || cents == null || !status) { c.problem('id', 'no day, amount or status', 'skipped'); continue; }
-    let category: string | null = textOf(d.category) || null;
-    if (category && !categoryNames.has(category)) { c.problem('category', 'not a receipt category', 'blanked'); category = null; }
-    const approval = optObj(d.approval), sentBack = optObj(d.sentBack);
-    rows.cardExpenses.push({
-      id, userId: linkOf(c, 'user_id', d.userId, ref.userIds, 'user'), holderName: textOf(d.holderName),
-      cardId: linkOf(c, 'card_id', d.cardId, cardIds, 'card'), cardLabel: textOf(d.cardLabel),
-      locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName), day: expenseDay, month: textOf(d.month),
-      merchant: textOf(d.merchant), cents, subtotalCents: intOf(c, 'subtotal_cents', d.subtotalCents),
-      taxCents: intOf(c, 'tax_cents', d.taxCents), tipCents: intOf(c, 'tip_cents', d.tipCents), category,
-      customerId: linkOf(c, 'customer_id', d.customerId, cust.customerIds, 'customer'), customerName: textOf(d.customerName),
-      attendees: stringsOf(d.attendees), purpose: textOf(d.purpose), note: textOf(d.note), recurring: boolOf(d.recurring),
-      receiptUrl: textOf(d.receiptUrl), lostReason: textOf(d.lostReason), status,
-      approvedById: approval ? textOf(approval.by) : null, approvedByName: approval ? textOf(approval.byName) : null,
-      approvedAt: approval ? c.moment('approved_at', approval.at) : null, approvalComment: approval ? textOf(approval.comment) : null,
-      sentBackById: sentBack ? textOf(sentBack.by) : null, sentBackByName: sentBack ? textOf(sentBack.byName) : null,
-      sentBackAt: sentBack ? c.moment('sent_back_at', sentBack.at) : null, sentBackComment: sentBack ? textOf(sentBack.comment) : null,
-      createdBy: textOf(d.createdBy), voidedAt: c.moment('voided_at', d.voidedAt), voidedBy: textOf(d.voidedBy),
-      voidReason: textOf(d.voidReason), ...stamp(c, d)
-    });
-    for (const h of historyRows(c, id, d.history)) {
-      rows.cardExpenseHistory.push({ expenseId: id, position: h.position, at: h.at, by: h.by, action: h.action, changes: h.changes });
-    }
+    const built = cardExpenseRowsOf(d, ref, { cardIds, categoryNames, customerIds: cust.customerIds }, problems);
+    if (!built) continue;
+    rows.cardExpenses.push(built.expense);
+    rows.cardExpenseHistory.push(...built.history);
   }
 
   for (const d of src.suppliers) {
