@@ -4,7 +4,7 @@ import { sendEmail } from '../services/emailService.ts';
 import { SENDER_NAME } from './emailSender.ts';
 import Location from '../models/Location.ts';
 import User from '../models/User.ts';
-import DailyReport from '../models/DailyReport.ts';
+import { pushReportLog } from '../db/dailyReports/index.ts';
 import { logEntry } from './dailyReportLog.ts';
 import { recipientEmails, seedFromAddresses, SEATTLE_RECIPIENTS_BEFORE_2026_10_15 } from './dailyReportRecipients.ts';
 
@@ -87,7 +87,7 @@ export async function notifyDailyReportSubmission(report: PdfDayReport) {
 /** The send goes in the report's log (More → View Log), so a second email has a visible reason. */
 async function logEmail(report: PdfDayReport, entry: ReturnType<typeof logEntry>) {
   try {
-    await DailyReport.updateOne({ date: report.date, location: report.location }, { $push: { log: entry } });
+    await pushReportLog(report.date, report.location, entry);
   } catch (error) {
     console.error(`⚠️ ${report.location} daily report email log failed for ${report.date}:`, error);
   }

@@ -3,7 +3,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import { listPayments, findPayment, paymentFigures, addPayment, changePayment } from '../db/payments/index.ts';
-import DailyReport from '../models/DailyReport.ts';
+import { isDaySubmitted, reportDayStatus } from '../db/dailyReports/index.ts';
 import { BRANCH_NAMES, isBranch, branchNow } from '../config/branches.ts';
 import {
   PAYMENTS, cleanPayment, changeSummary, isDay, paymentTotals, reportGridFrom, type CleanPayment
@@ -40,7 +40,7 @@ const canSeeLocation = (req: Request, location: unknown) =>
 const LOCKED = 'That day’s Daily Report is submitted, so its payments are locked. Reopen the report to change them.';
 
 const isSubmitted = async (location: string, date: string) =>
-  Boolean(await DailyReport.exists({ location, date, status: 'submitted' }));
+  isDaySubmitted(location, date);
 
 /** The record as the screen reads it. */
 const view = (p: mongoose.HydratedDocument<unknown> | Record<string, unknown>) => {
@@ -88,7 +88,7 @@ export default function createPaymentsReceivedRouter({ authenticate, requirePerm
         listPayments(locations, date),
         // Report locks belong to individual branches. The combined view is
         // read-only; choose a branch before making changes.
-        all ? Promise.resolve(null) : DailyReport.findOne({ location, date }, 'status submittedBy submittedAt autoSubmitted').lean()
+        all ? Promise.resolve(null) : reportDayStatus(location as string, date)
       ]);
       res.json({
         payments: rows.map(view),

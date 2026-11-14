@@ -60,6 +60,7 @@ import { areasOnPostgres } from './src/db/appDb.ts';
 import { startReferenceSync } from './src/db/reference/referenceSync.ts';
 import { customerWritesPauseGate, customerWritesPaused } from './src/utils/customerWritesPause.ts';
 import { deliveriesWritesPauseGate, deliveriesWritesPaused } from './src/utils/deliveriesWritesPause.ts';
+import { dailyReportsWritesPauseGate, dailyReportsWritesPaused } from './src/utils/dailyReportsWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1153,6 +1154,8 @@ app.use(cookieParser());
 app.use(customerWritesPauseGate);
 // Deliveries cutover pause (DELIVERIES_WRITES_PAUSED=true): delivery and truck writes answer 503 (src/utils/deliveriesWritesPause.ts).
 app.use(deliveriesWritesPauseGate);
+// Daily Reports cutover pause (DAILY_REPORTS_WRITES_PAUSED=true): report writes answer 503, the 11:59 PM job skips (src/utils/dailyReportsWritesPause.ts).
+app.use(dailyReportsWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -5290,7 +5293,9 @@ app.get('/api/health', async (req: Request, res: Response) => {
     customersOn: areasOnPostgres().includes('customers') ? 'postgres' : 'mongo',
     deliveriesOn: areasOnPostgres().includes('deliveries') ? 'postgres' : 'mongo',
     customerWritesPaused: customerWritesPaused(),
-    deliveriesWritesPaused: deliveriesWritesPaused()
+    deliveriesWritesPaused: deliveriesWritesPaused(),
+    dailyReportsOn: areasOnPostgres().includes('daily_reports') ? 'postgres' : 'mongo',
+    dailyReportsWritesPaused: dailyReportsWritesPaused()
   });
 });
 

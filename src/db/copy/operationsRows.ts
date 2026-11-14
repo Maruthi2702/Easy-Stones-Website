@@ -120,6 +120,77 @@ export function paymentRowsOf(d: Loose, ref: ReferenceIndex, cust: Pick<Customer
   };
 }
 
+/**
+ * The rows for one Daily Report and its transfer, container and log lines, or null when it has no
+ * id, branch or day. The copy and the Postgres saves (src/db/dailyReports/) both build rows here,
+ * so a save writes exactly what a re-copy of MongoDB would.
+ */
+export function dailyReportRowsOf(d: Loose, ref: ReferenceIndex, problems: CopyProblem[]): {
+  report: Row<typeof dailyReports>; transfers: Row<typeof dailyReportTransfers>[];
+  containers: Row<typeof dailyReportContainers>[]; log: Row<typeof dailyReportLog>[];
+} | null {
+  const transfers: Row<typeof dailyReportTransfers>[] = [];
+  const containers: Row<typeof dailyReportContainers>[] = [];
+  const log: Row<typeof dailyReportLog>[] = [];
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'daily_reports', id);
+  const locationId = locationIdOf(c, 'location_id', d.location, ref.locationIdByName);
+  const zone = ref.zoneOfLocation(d.location);
+  const reportDay = c.day('day', d.date, zone);
+  if (!locationId || !reportDay) { c.problem('location_id', 'no branch or no day', 'skipped'); return null; }
+  const pair = (v: unknown): Loose => (v && typeof v === 'object' ? v : {}) as Loose;
+  const visitors = pair(d.visitors), del = pair(d.deliveries), pick = pair(d.pickups), pay = pair(d.payments);
+  const method = (m: string) => pair(pay[m]);
+  const report: Row<typeof dailyReports> = {
+    id, day: reportDay, locationId,
+    status: pickOf(c, 'status', d.status, DAILY_REPORT_STATUSES, 'draft'),
+    visitorsHomeowners: intOf(c, 'visitors_homeowners', visitors.homeowners) ?? 0,
+    visitorsFabricators: intOf(c, 'visitors_fabricators', visitors.fabricators),
+    visitorsDesigners: intOf(c, 'visitors_designers', visitors.designers),
+    deliveriesAssigned: intOf(c, 'deliveries_assigned', del.assigned) ?? 0,
+    deliveriesCapacity: intOf(c, 'deliveries_capacity', del.capacity),
+    pickupsAssigned: intOf(c, 'pickups_assigned', pick.assigned) ?? 0,
+    pickupsCapacity: intOf(c, 'pickups_capacity', pick.capacity),
+    returns: intOf(c, 'returns', d.returns), returnsSlabs: intOf(c, 'returns_slabs', d.returnsSlabs),
+    sinks: intOf(c, 'sinks', d.sinks),
+    paymentAchCount: intOf(c, 'payment_ach_count', method('ach').count), paymentAchAmount: decimalOf(method('ach').amount),
+    paymentCashCount: intOf(c, 'payment_cash_count', method('cash').count), paymentCashAmount: decimalOf(method('cash').amount),
+    paymentCardCount: intOf(c, 'payment_card_count', method('card').count), paymentCardAmount: decimalOf(method('card').amount),
+    paymentCheckCount: intOf(c, 'payment_check_count', method('check').count), paymentCheckAmount: decimalOf(method('check').amount),
+    paymentReturnCount: intOf(c, 'payment_return_count', method('return').count), paymentReturnAmount: decimalOf(method('return').amount),
+    notes: textOf(d.notes), submittedBy: textOf(d.submittedBy), submittedAt: c.moment('submitted_at', d.submittedAt),
+    autoSubmitted: boolOf(d.autoSubmitted), reopenedBy: textOf(d.reopenedBy), reopenedAt: c.moment('reopened_at', d.reopenedAt),
+    reopenReason: textOf(d.reopenReason), updatedBy: textOf(d.updatedBy),
+    ...stamp(c, d)
+  };
+  (Array.isArray(d.transfers) ? d.transfers : []).forEach((t: Loose, position: number) => {
+    transfers.push({
+      reportId: id, position, fromTo: textOf(t.fromTo), transferNumber: textOf(t.transferNumber),
+      count: intOf(c, 'transfers.count', t.count) ?? 0, slabs: intOf(c, 'transfers.slabs', t.slabs) ?? 0,
+      auto: boolOf(t.auto), direction: pickOf(c, 'transfers.direction', t.direction, ['out', 'in'] as const, null),
+      received: typeof t.received === 'boolean' ? t.received : null,
+      receivedAt: c.moment('transfers.received_at', t.receivedAt), receivedBy: textOf(t.receivedBy),
+      ticketIds: stringsOf(t.ticketIds), addedAfterSubmitAt: c.moment('transfers.added_after_submit_at', t.addedAfterSubmitAt)
+    });
+  });
+  (Array.isArray(d.containers) ? d.containers : []).forEach((t: Loose, position: number) => {
+    containers.push({
+      reportId: id, position, poNumber: textOf(t.poNumber), material: textOf(t.material),
+      slabs: intOf(c, 'containers.slabs', t.slabs) ?? 0
+    });
+  });
+  (Array.isArray(d.log) ? d.log : []).forEach((t: Loose, position: number) => {
+    const at = c.moment('log.at', t.at);
+    if (!at) { c.problem('log.at', 'log line with no time', 'skipped'); return; }
+    log.push({
+      reportId: id, position, at, by: textOf(t.by), action: textOf(t.action), note: textOf(t.note),
+      earlier: typeof t.earlier === 'boolean' ? t.earlier : null
+    });
+  });
+  return { report, transfers, containers, log };
+}
+
 export function operationsRows(src: OperationsSource, ref: ReferenceIndex, cust: CustomerIndex, problems: CopyProblem[]):
   { rows: OperationsRows; index: OperationsIndex } {
   const rows: OperationsRows = {
@@ -150,62 +221,12 @@ export function operationsRows(src: OperationsSource, ref: ReferenceIndex, cust:
   }
 
   for (const d of src.dailyReports) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'daily_reports', id);
-    const locationId = locationIdOf(c, 'location_id', d.location, ref.locationIdByName);
-    const zone = ref.zoneOfLocation(d.location);
-    const reportDay = c.day('day', d.date, zone);
-    if (!locationId || !reportDay) { c.problem('location_id', 'no branch or no day', 'skipped'); continue; }
-    const pair = (v: unknown): Loose => (v && typeof v === 'object' ? v : {}) as Loose;
-    const visitors = pair(d.visitors), del = pair(d.deliveries), pick = pair(d.pickups), pay = pair(d.payments);
-    const method = (m: string) => pair(pay[m]);
-    rows.dailyReports.push({
-      id, day: reportDay, locationId,
-      status: pickOf(c, 'status', d.status, DAILY_REPORT_STATUSES, 'draft'),
-      visitorsHomeowners: intOf(c, 'visitors_homeowners', visitors.homeowners) ?? 0,
-      visitorsFabricators: intOf(c, 'visitors_fabricators', visitors.fabricators),
-      visitorsDesigners: intOf(c, 'visitors_designers', visitors.designers),
-      deliveriesAssigned: intOf(c, 'deliveries_assigned', del.assigned) ?? 0,
-      deliveriesCapacity: intOf(c, 'deliveries_capacity', del.capacity),
-      pickupsAssigned: intOf(c, 'pickups_assigned', pick.assigned) ?? 0,
-      pickupsCapacity: intOf(c, 'pickups_capacity', pick.capacity),
-      returns: intOf(c, 'returns', d.returns), returnsSlabs: intOf(c, 'returns_slabs', d.returnsSlabs),
-      sinks: intOf(c, 'sinks', d.sinks),
-      paymentAchCount: intOf(c, 'payment_ach_count', method('ach').count), paymentAchAmount: decimalOf(method('ach').amount),
-      paymentCashCount: intOf(c, 'payment_cash_count', method('cash').count), paymentCashAmount: decimalOf(method('cash').amount),
-      paymentCardCount: intOf(c, 'payment_card_count', method('card').count), paymentCardAmount: decimalOf(method('card').amount),
-      paymentCheckCount: intOf(c, 'payment_check_count', method('check').count), paymentCheckAmount: decimalOf(method('check').amount),
-      paymentReturnCount: intOf(c, 'payment_return_count', method('return').count), paymentReturnAmount: decimalOf(method('return').amount),
-      notes: textOf(d.notes), submittedBy: textOf(d.submittedBy), submittedAt: c.moment('submitted_at', d.submittedAt),
-      autoSubmitted: boolOf(d.autoSubmitted), reopenedBy: textOf(d.reopenedBy), reopenedAt: c.moment('reopened_at', d.reopenedAt),
-      reopenReason: textOf(d.reopenReason), updatedBy: textOf(d.updatedBy),
-      ...stamp(c, d)
-    });
-    (Array.isArray(d.transfers) ? d.transfers : []).forEach((t: Loose, position: number) => {
-      rows.dailyReportTransfers.push({
-        reportId: id, position, fromTo: textOf(t.fromTo), transferNumber: textOf(t.transferNumber),
-        count: intOf(c, 'transfers.count', t.count) ?? 0, slabs: intOf(c, 'transfers.slabs', t.slabs) ?? 0,
-        auto: boolOf(t.auto), direction: pickOf(c, 'transfers.direction', t.direction, ['out', 'in'] as const, null),
-        received: typeof t.received === 'boolean' ? t.received : null,
-        receivedAt: c.moment('transfers.received_at', t.receivedAt), receivedBy: textOf(t.receivedBy),
-        ticketIds: stringsOf(t.ticketIds), addedAfterSubmitAt: c.moment('transfers.added_after_submit_at', t.addedAfterSubmitAt)
-      });
-    });
-    (Array.isArray(d.containers) ? d.containers : []).forEach((t: Loose, position: number) => {
-      rows.dailyReportContainers.push({
-        reportId: id, position, poNumber: textOf(t.poNumber), material: textOf(t.material),
-        slabs: intOf(c, 'containers.slabs', t.slabs) ?? 0
-      });
-    });
-    (Array.isArray(d.log) ? d.log : []).forEach((t: Loose, position: number) => {
-      const at = c.moment('log.at', t.at);
-      if (!at) { c.problem('log.at', 'log line with no time', 'skipped'); return; }
-      rows.dailyReportLog.push({
-        reportId: id, position, at, by: textOf(t.by), action: textOf(t.action), note: textOf(t.note),
-        earlier: typeof t.earlier === 'boolean' ? t.earlier : null
-      });
-    });
+    const built = dailyReportRowsOf(d, ref, problems);
+    if (!built) continue;
+    rows.dailyReports.push(built.report);
+    rows.dailyReportTransfers.push(...built.transfers);
+    rows.dailyReportContainers.push(...built.containers);
+    rows.dailyReportLog.push(...built.log);
   }
 
   for (const d of src.paymentsReceived) {

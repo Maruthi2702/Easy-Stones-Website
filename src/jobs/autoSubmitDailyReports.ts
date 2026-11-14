@@ -1,5 +1,7 @@
 import type { Loose } from '../types/records.ts';
+import { dailyReportsWritesPaused } from '../utils/dailyReportsWritesPause.ts';
 import DailyReport from '../models/DailyReport.ts';
+import { draftReportCandidates, existingReportDates, insertReport } from '../db/dailyReports/index.ts';
 import { BRANCH_NAMES, branchNow, shiftDate } from '../config/branches.ts';
 import { deriveFromSystem, applyDerived, claimSubmission, submitLogFor } from '../routes/dailyReports.ts';
 import type { DerivedFigures } from '../routes/dailyReports.ts';
@@ -117,12 +119,7 @@ export async function fileUnopenedDay(date: string, location: string, now = new 
   report.submittedBy = AUTO_SUBMITTED_BY;
   report.autoSubmitted = true;
   report.log.push(logEntry('auto_submitted', '', '', now));
-  try {
-    return await report.save();
-  } catch (error) {
-    if ((error as { code?: number } | null)?.code === 11000) return null;
-    throw error;
-  }
+  return insertReport(report);
 }
 
 /**
@@ -131,6 +128,8 @@ export async function fileUnopenedDay(date: string, location: string, now = new 
  */
 export async function autoSubmitDueDays(now = new Date()) {
   const submitted: Loose[] = [];
+  // Cutover window: nothing may write a report while the copy runs. The next tick after the pause catches up.
+  if (dailyReportsWritesPaused()) return submitted;
 
   for (const location of BRANCH_NAMES) {
     const { date } = branchNow(location, now);
@@ -146,11 +145,7 @@ export async function autoSubmitDueDays(now = new Date()) {
     // before it can be written back, unlike the old single updateMany that
     // could flip every due draft in one call because it never had to look at
     // what was actually in any of them.
-    const candidates = await DailyReport.find({
-      location,
-      status: 'draft',
-      $or: [{ date: { $in: dates } }, { reopenedAt: { $ne: null }, date: { $lt: date } }]
-    });
+    const candidates = await draftReportCandidates(location, dates, date);
     const drafts = candidates.filter((r) => isDueForAutoSubmit(r, location, now));
 
     let count = 0;
@@ -185,7 +180,7 @@ export async function autoSubmitDueDays(now = new Date()) {
     // Days that are over with no report at all — nobody opened the sheet.
     // Filed if the branch had any activity that day (hasActivity).
     const dueDates = dates.filter((d) => isDueForAutoSubmit({ date: d }, location, now));
-    const existing = new Set((await DailyReport.find({ location, date: { $in: dueDates } }, 'date').lean()).map((r) => r.date));
+    const existing = new Set(await existingReportDates(location, dueDates));
     for (const day of dueDates.filter((d) => !existing.has(d))) {
       const created = await fileUnopenedDay(day, location, now);
       if (!created) continue;

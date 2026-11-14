@@ -7,6 +7,7 @@ type SentTransferLine = TransferLineLike & { received?: unknown; receivedAt?: st
 import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import express from 'express';
 import DailyReport from '../models/DailyReport.ts';
+import * as reports from '../db/dailyReports/index.ts';
 import { buildDayPdf, buildMonthPdf, dayPdfFileName, monthPdfFileName } from '../utils/dailyReportPdf.ts';
 import { sendEmail } from '../services/emailService.ts';
 import { SENDER_NAME } from '../utils/emailSender.ts';
@@ -244,11 +245,9 @@ export async function addTransferToSubmittedReports(ticket: TransferTicketRow & 
   for (const side of sides) {
     const line = { ...transferLineFor(ticket, side.location, side.direction), addedAfterSubmitAt: at };
     const what = `${side.direction === 'in' ? 'Incoming' : 'Outgoing'} transfer${line.transferNumber ? ` #${line.transferNumber}` : ''} ${line.fromTo}`.replace(/\s+/g, ' ').trim();
-    const result = await DailyReport.updateOne(
-      { date: side.date, location: side.location, status: 'submitted', 'transfers.ticketIds': { $ne: ticket.id } },
-      { $push: { transfers: line, log: logEntry('transfer_added', by, `${what}, logged on arrival`, at) } }
-    );
-    if (result.modifiedCount) changed.push({ location: side.location, date: side.date });
+    const added = await reports.addTransferIfSubmitted(side.date, side.location, ticket.id, line,
+      logEntry('transfer_added', by, `${what}, logged on arrival`, at));
+    if (added) changed.push({ location: side.location, date: side.date });
   }
   return changed;
 }
@@ -349,11 +348,8 @@ async function transfersShippedEarlier(date: string, location: string) {
   const groups = arrivalsShippedEarlier(mine, date);
   if (!groups.length) return [];
 
-  const reports = await DailyReport.find(
-    { location, date: { $in: groups.map(g => g.shipDate) } },
-    'date status'
-  ).lean();
-  const statusOf = new Map(reports.map(r => [r.date, r.status]));
+  const filed = await reports.reportStatuses(location, groups.map(g => g.shipDate));
+  const statusOf = new Map(filed.map(r => [r.date, r.status]));
   return groups.map(g => ({ ...g, reportStatus: statusOf.get(g.shipDate) || 'missing' }));
 }
 
@@ -387,17 +383,7 @@ async function transfersShippedEarlier(date: string, location: string) {
  * only a winner should send the email.
  */
 export async function claimSubmission(report: Loose, log: LogEntry[]) {
-  const payload = report.toObject();
-  // _id can't move and shouldn't be restated in $set; __v is left for Mongo;
-  // the log is only ever pushed to.
-  delete payload._id;
-  delete payload.__v;
-  delete payload.log;
-  return DailyReport.findOneAndUpdate(
-    { _id: report._id, status: 'draft' },
-    { $set: payload, $push: { log: { $each: log } } },
-    { returnDocument: 'after' }
-  );
+  return reports.claimSubmission(report, log);
 }
 
 /**
@@ -418,16 +404,7 @@ export const submitLogFor = (report: Loose, entry: LogEntry): LogEntry[] => [...
  * null when the day was submitted.
  */
 export async function writeDraft(date: string, location: string, update: Loose) {
-  try {
-    return await DailyReport.findOneAndUpdate(
-      { date, location, status: { $ne: 'submitted' } },
-      { $set: update },
-      { returnDocument: 'after', upsert: true, setDefaultsOnInsert: true }
-    );
-  } catch (error) {
-    if ((error as { code?: number } | null)?.code === 11000) return null;
-    throw error;
-  }
+  return reports.writeDraft(date, location, update);
 }
 
 /**
@@ -550,10 +527,7 @@ export function applyDerived<T extends DerivedReport>(report: T, derived: Omit<D
 const TYPICAL_CONTAINER_SLABS = 100;
 
 async function slabExpectation(locations: string[]) {
-  const docs = await DailyReport.find(
-    { location: { $in: locations } },
-    'containers.poNumber containers.slabs'
-  ).sort({ date: -1 }).limit(60).lean();
+  const docs = await reports.recentContainerLines(locations, 60);
 
   // Grouped back into physical containers first — a container split across a
   // few colors would otherwise contribute several small per-line samples
@@ -685,10 +659,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         locations = allowed === '*' ? BRANCH_NAMES : allowed;
       }
 
-      const rows = await DailyReport.find({
-        location: { $in: locations },
-        date: { $regex: `^${month}-` }
-      }).sort({ date: -1 }).lean();
+      const rows = await reports.reportsInMonth(locations, String(month), 'newest');
 
       res.json({ month, locations, reports: (await withDraftsDerived(rows)).map(summarise) });
     } catch (error) {
@@ -718,7 +689,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       // put a branch in the list that doesn't exist.
       const locations = (allowed === '*' ? BRANCH_NAMES : allowed).filter(isBranch);
 
-      const saved = await DailyReport.find({ date, location: { $in: locations } });
+      const saved = await reports.reportsOnDay(date, locations);
       const byLocation = new Map(saved.map(r => [r.location, r]));
       // Every branch's tickets for the day in one query, shared below — it
       // used to run once per branch, the same all-branch query 13 times.
@@ -762,10 +733,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         .map((p) => { const [location, date] = p.split('|'); return { location, date }; })
         .filter((p) => isBranch(p.location) && isValidDate(p.date));
       if (!pairs.length) return res.json({ days: [] });
-      const found = await DailyReport.find(
-        { status: 'submitted', $or: pairs.map((p) => ({ location: p.location, date: p.date })) },
-        'date location submittedAt submittedBy autoSubmitted'
-      ).lean();
+      const found = await reports.submittedReportsOn(pairs);
       res.json({
         days: found.map((r) => ({
           location: r.location, date: r.date, submittedAt: r.submittedAt,
@@ -791,7 +759,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         return res.status(403).json({ message: 'That branch is not assigned to you.' });
       }
 
-      let report = await DailyReport.findOne({ date, location });
+      let report = await reports.findReport(date, location);
       if (!report) {
         // Not saved yet — build the day in memory so it opens pre-filled without
         // writing a row for a day nobody ends up reporting on.
@@ -852,7 +820,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         return res.status(403).json({ message: 'That branch is not assigned to you.' });
       }
 
-      const existing = await DailyReport.findOne({ date, location });
+      const existing = await reports.findReport(date, location);
       if (existing && existing.status === 'submitted') {
         return res.status(409).json({ message: 'This day has been submitted. Reopen it to make changes.' });
       }
@@ -938,10 +906,8 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       if (!canSeeLocation(req, location)) {
         return res.status(403).json({ message: 'That branch is not assigned to you.' });
       }
-      const report = await DailyReport.findOne(
-        { date, location },
-        'status log submittedBy submittedAt autoSubmitted reopenedBy reopenedAt reopenReason'
-      ).lean();
+      const report = await reports.findReportLean(date, location,
+        'status log submittedBy submittedAt autoSubmitted reopenedBy reopenedAt reopenReason');
       res.json({ status: report?.status || 'none', ...reportLog(report as Parameters<typeof reportLog>[0]) });
     } catch (error) {
       console.error('[daily-reports] log failed:', error);
@@ -962,7 +928,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         return res.status(403).json({ message: 'That branch is not assigned to you.' });
       }
 
-      const report = await DailyReport.findOne({ date, location });
+      const report = await reports.findReport(date, location);
       if (!report) return res.status(404).json({ message: 'Save the day before submitting it.' });
       if (report.status === 'submitted') {
         return res.status(409).json({ message: 'This day was already submitted.' });
@@ -1025,7 +991,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         return res.status(400).json({ message: 'Give a reason for reopening this day.' });
       }
 
-      const report = await DailyReport.findOne({ date, location });
+      const report = await reports.findReport(date, location);
       if (!report) return res.status(404).json({ message: 'No report for that day.' });
 
       // Into the log first: the older submit / reopen these fields held
@@ -1038,7 +1004,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       report.reopenedBy = by;
       report.reopenedAt = now;
       report.reopenReason = String(reason).trim();
-      await report.save();
+      await reports.saveReport(report);
 
       if (logActivity) {
         logActivity(req, 'daily_report_reopened', `${location} · ${date} — ${report.reopenReason}`);
@@ -1075,10 +1041,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         locations = allowed === '*' ? BRANCH_NAMES : allowed;
       }
 
-      const rows = await withDraftsDerived(await DailyReport.find({
-        location: { $in: locations },
-        date: { $regex: `^${month}-` }
-      }).sort({ location: 1, date: 1 }).lean());
+      const rows = await withDraftsDerived(await reports.reportsInMonth(locations, String(month), 'branch'));
 
       const head = [
         'Date', 'Branch', 'Status',
@@ -1149,7 +1112,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
     if (!location) { res.status(400).json({ message: 'Provide a branch.' }); return null; }
     if (!canSeeLocation(req, location)) { res.status(403).json({ message: 'That branch is not assigned to you.' }); return null; }
 
-    let report = await DailyReport.findOne({ date, location }).lean();
+    let report = await reports.findReportLean(date, location);
     // A saved draft prints with the system's figures as of now, like the sheet.
     if (report) [report] = await withDraftsDerived([report]);
     if (!report) {
@@ -1182,10 +1145,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       scopeLabel = locations.length === 1 ? locations[0] : 'All branches';
     }
 
-    const docs = await DailyReport.find({
-      location: { $in: locations },
-      date: { $regex: `^${month}-` }
-    }).sort({ location: 1, date: 1 }).lean();
+    const docs = await reports.reportsInMonth(locations, String(month), 'branch');
 
     return { month, rows: (await withDraftsDerived(docs)).map(summarise), scopeLabel };
   };
@@ -1272,10 +1232,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
         filename: dayPdfFileName(report),
         bytes,
         // A day never saved has no record to log on; updateOne just finds nothing.
-        onSent: (to, sender) => DailyReport.updateOne(
-          { date: report.date, location: report.location },
-          { $push: { log: logEntry('emailed', sender, `To ${to.join(', ')}`) } }
-        )
+        onSent: (to, sender) => reports.pushReportLog(report.date, report.location, logEntry('emailed', sender, `To ${to.join(', ')}`))
       });
     } catch (error) {
       console.error('[daily-reports] day email failed:', error);

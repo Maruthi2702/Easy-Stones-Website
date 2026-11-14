@@ -1,6 +1,6 @@
 import type { Loose } from '../types/records.ts';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { isDueForAutoSubmit, hasActivity, fileUnopenedDay } from './autoSubmitDailyReports.ts';
+import { isDueForAutoSubmit, hasActivity, fileUnopenedDay, autoSubmitDueDays } from './autoSubmitDailyReports.ts';
 import DailyReport from '../models/DailyReport.ts';
 import Delivery from '../models/Delivery.ts';
 import OfficeCheckIn from '../models/OfficeCheckIn.ts';
@@ -85,5 +85,18 @@ describe('filing a day nobody opened', () => {
     checkInCount = 3;
     vi.spyOn(DailyReport.prototype, 'save').mockRejectedValue(Object.assign(new Error('dup'), { code: 11000 }));
     expect(await fileUnopenedDay('2026-09-24', 'Spokane', new Date('2026-09-25T07:00:00Z'))).toBe(null);
+  });
+});
+
+describe('cutover pause', () => {
+  afterEach(() => { delete process.env.DAILY_REPORTS_WRITES_PAUSED; });
+
+  it('a pass during DAILY_REPORTS_WRITES_PAUSED reads and writes nothing', async () => {
+    process.env.DAILY_REPORTS_WRITES_PAUSED = 'true';
+    const find = vi.spyOn(DailyReport, 'find');
+    const save = vi.spyOn(DailyReport.prototype, 'save');
+    expect(await autoSubmitDueDays(new Date('2026-10-07T07:00:00Z'))).toEqual([]);
+    expect(find).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
   });
 });
