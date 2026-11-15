@@ -1,8 +1,9 @@
 import type { Request, RequestHandler, Response } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
+import { suppliersStore, type HistoryLine } from '../db/suppliers/index.ts';
+import { isId, newId } from '../db/ids.ts';
 import { validateScalarRequest, scalarParams } from '../server/scalarRequest.ts';
-import { Supplier, SupplierLogin, SupplierPO, SupplierBlock } from '../models/Suppliers.ts';
 import User from '../models/User.ts';
 import {
   STARTING_BUNDLES, MAX_BUNDLES, supplierMayEdit, slabsProblem, parseSize, cleanBlockNumber, sendProblems, applySend,
@@ -46,8 +47,7 @@ import type { Loose } from '../types/records.ts';
 const FORGOT_EVERY_MS = 2 * 60 * 1000;
 const MAX_PHOTO_CHARS = 15_000_000;
 const siteBase = (req: Request) => (process.env.FRONTEND_URL || req.get('origin') || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
-const isVersionError = (e: unknown) => (e as { name?: string })?.name === 'VersionError';
-const toPlain = (raw: unknown): Loose => (raw as { toObject: () => Loose }).toObject();
+const supplierLine = (by: string, action: string, changes = ''): HistoryLine => ({ at: new Date(), by, side: 'supplier', action, changes });
 
 export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, processBase64Image }: {
   jwtSecret: string;
@@ -61,8 +61,9 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
     res.status(500).json({ message: 'Something went wrong. Try again.', code: 'serverError' });
   };
   const meOf = async (loginId: string) => {
-    const login = await SupplierLogin.findById(loginId).lean();
-    const supplier = login ? await Supplier.findById(login.supplierId, 'name').lean() : null;
+    const store = await suppliersStore();
+    const login = await store.loginById(loginId);
+    const supplier = login ? await store.supplierById(login.supplierId) : null;
     return login ? { name: login.name, email: login.email, language: login.language || 'en', supplierName: supplier?.name || '' } : null;
   };
 
@@ -73,16 +74,17 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
     const password = String(req.body?.password || '');
     if (!email || !password) return res.status(400).json({ message: 'Enter your email and password.', code: 'wrongPassword' });
     try {
-      const login = await SupplierLogin.findOne({ email });
+      const store = await suppliersStore();
+      const login = await store.loginByEmail(email);
       if (!login) return res.status(401).json({ message: 'That email and password don’t match.', code: 'wrongPassword' });
-      const supplier = await Supplier.findById(login.supplierId, 'active').lean();
+      const supplier = await store.supplierById(login.supplierId);
       const result = await checkPassword(login as never, password);
       if (result === 'locked') return res.status(423).json({ message: 'Too many tries. Try again in 15 minutes.', code: 'locked' });
       if (result === 'wrong') return res.status(401).json({ message: 'That email and password don’t match.', code: 'wrongPassword' });
       if (result === 'off' || !supplier || supplier.active === false) return res.status(403).json({ message: 'This login is turned off.', code: 'loginOff' });
-      login.set({ loginAttempts: 0, lockUntil: null, lastLoginAt: new Date(), lastSeenAt: new Date() });
-      await login.save();
-      startSupplierSession(res, login, jwtSecret);
+      // (The answer the check above left on the login is stale: read the login again for its session version.)
+      const signed = await store.updateLogin(String(login._id), { loginAttempts: 0, lockUntil: null, lastLoginAt: new Date(), lastSeenAt: new Date() });
+      startSupplierSession(res, (signed || login) as never, jwtSecret);
       res.json({ me: await meOf(String(login._id)) });
     } catch (error) { fail(res, 'sign-in', error); }
   });
@@ -91,7 +93,7 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
 
   const loginForLink = async (token: unknown) => {
     if (typeof token !== 'string' || token.length < 20 || token.length > 200) return null;
-    const login = await SupplierLogin.findOne({ linkTokenHash: hashLinkToken(token) });
+    const login = await (await suppliersStore()).loginByLinkHash(hashLinkToken(token));
     if (!login || !login.linkExpiresAt || new Date(login.linkExpiresAt).getTime() <= Date.now() || login.active === false) return null;
     return login;
   };
@@ -111,12 +113,11 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
     try {
       const login = await loginForLink(req.body?.token);
       if (!login) return res.status(410).json({ message: 'This link has expired or was already used.', code: 'linkBad' });
-      login.set({
+      const saved = await (await suppliersStore()).updateLogin(String(login._id), {
         password, linkTokenHash: '', linkExpiresAt: null, loginAttempts: 0, lockUntil: null,
         sessionVersion: (login.sessionVersion || 0) + 1, lastLoginAt: new Date(), lastSeenAt: new Date()
       });
-      await login.save();
-      startSupplierSession(res, login, jwtSecret);
+      startSupplierSession(res, (saved || login) as never, jwtSecret);
       res.json({ me: await meOf(String(login._id)) });
     } catch (error) { fail(res, 'choose password', error); }
   });
@@ -125,14 +126,14 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
   router.post('/forgot', loginLimiter, async (req: Request, res: Response) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     try {
-      const login = email ? await SupplierLogin.findOne({ email, active: true }) : null;
+      const store = await suppliersStore();
+      const login = email ? await store.loginByEmail(email, { activeOnly: true }) : null;
       const recent = login?.linkExpiresAt && new Date(login.linkExpiresAt).getTime() - (7 * 24 * 3_600_000) + FORGOT_EVERY_MS > Date.now();
       if (login && !recent && !isLocked(login)) {
-        const supplier = await Supplier.findById(login.supplierId, 'name active').lean();
+        const supplier = await store.supplierById(login.supplierId);
         if (supplier && supplier.active !== false) {
           const { token, fields } = newLink();
-          login.set(fields);
-          await login.save();
+          await store.updateLogin(String(login._id), fields);
           await sendSupplierLink({ to: login.email, name: login.name, supplierName: supplier.name, lang: login.language || 'en', link: `${siteBase(req)}/supplier/set-password?token=${encodeURIComponent(token)}`, reset: true });
         }
       }
@@ -149,7 +150,7 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
     const language = String(req.body?.language || '');
     if (!LANGUAGE_CODES.includes(language)) return res.status(400).json({ message: 'Choose a language.' });
     try {
-      await SupplierLogin.updateOne({ _id: supplierOf(req).loginId }, { $set: { language } });
+      await (await suppliersStore()).updateLogin(supplierOf(req).loginId, { language });
       res.json({ me: await meOf(supplierOf(req).loginId) });
     } catch (error) { fail(res, 'language', error); }
   });
@@ -160,8 +161,9 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
     const { supplierId } = supplierOf(req);
     try {
       const since = new Date(Date.now() - 90 * 24 * 3_600_000);
-      const pos = await SupplierPO.find({ supplierId, $or: [{ status: 'open' }, { updatedAt: { $gte: since } }] }, '-history').sort({ updatedAt: -1 }).limit(1000).lean();
-      const blocks = await SupplierBlock.find({ supplierId, poId: { $in: pos.map((p) => String(p._id)) } }, 'poId lineId blockNumber size bundles sentAt').lean();
+      const store = await suppliersStore();
+      const pos = await store.listPos({ supplierId, openOrSince: since, limit: 1000 });
+      const blocks = await store.blocksOfPos(pos.map((p) => String(p._id)), { supplierId });
       const byPo = new Map<string, Loose[]>();
       for (const b of blocks) byPo.set(b.poId, [...(byPo.get(b.poId) || []), b]);
       res.json({ pos: pos.map((p) => supplierPoView(p, byPo.get(String(p._id)) || [])) });
@@ -170,8 +172,8 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
 
   /** The PO if it's this supplier's; never says whether another supplier's exists. */
   const myPo = async (req: Request, id: string) => {
-    if (!mongoose.isValidObjectId(id)) return null;
-    const po = await SupplierPO.findById(id, '-history').lean();
+    if (!isId(id)) return null;
+    const po = await (await suppliersStore()).poById(id, { history: false });
     return po && po.supplierId === supplierOf(req).supplierId ? po : null;
   };
 
@@ -179,7 +181,7 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
     try {
       const po = await myPo(req, scalarParams(req).id!);
       if (!po) return res.status(404).json({ message: 'PO not found.' });
-      const blocks = await SupplierBlock.find({ poId: String(po._id), supplierId: supplierOf(req).supplierId }).sort({ createdAt: 1 }).lean();
+      const blocks = await (await suppliersStore()).blocksOfPo(String(po._id), { supplierId: supplierOf(req).supplierId, order: 'created' });
       res.json({ po: supplierPoView(po, blocks, true) });
     } catch (error) { fail(res, 'PO', error); }
   });
@@ -190,9 +192,10 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
     const me = supplierOf(req);
     const blockId = String(req.body?.id || '');
     const lineId = String(req.body?.lineId || '');
-    if (!mongoose.isValidObjectId(blockId)) return res.status(400).json({ message: 'Reload the page and try again.' });
+    if (!isId(blockId)) return res.status(400).json({ message: 'Reload the page and try again.' });
     try {
-      const again = await SupplierBlock.findById(blockId).lean();
+      const store = await suppliersStore();
+      const again = await store.blockById(blockId);
       if (again) {
         if (again.supplierId !== me.supplierId) return res.status(409).json({ message: 'Reload the page and try again.' });
         return res.json({ block: supplierBlockView(again), alreadySaved: true });
@@ -200,18 +203,18 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
       const po = await myPo(req, scalarParams(req).id!);
       if (!po) return res.status(404).json({ message: 'PO not found.' });
       if (po.status !== 'open') return res.status(409).json({ message: 'This PO is closed.', code: po.status === 'cancelled' ? 'poCancelled' : 'poClosed' });
-      const line = (po.lines || []).find((l) => String(l._id) === lineId);
+      const line = ((po.lines || []) as Loose[]).find((l) => String(l._id) === lineId);
       if (!line) return res.status(400).json({ message: 'Choose a material of the PO.' });
-      const bundles = Array.from({ length: STARTING_BUNDLES }, (_, i) => ({ _id: new mongoose.Types.ObjectId().toString(), n: i + 1, slabs: null, status: 'draft' }));
-      const block = await SupplierBlock.create({
+      const bundles = Array.from({ length: STARTING_BUNDLES }, (_, i) => ({ _id: newId(), n: i + 1, slabs: null, status: 'draft' }));
+      const block = await store.createBlock({
         _id: blockId, poId: String(po._id), poNumber: po.poNumber, supplierId: me.supplierId, lineId,
         material: line.material, thickness: line.thickness || '', finish: line.finish || '', bundles, stage: 'draft', createdBy: me.name,
-        history: [{ at: new Date(), by: me.name, side: 'supplier', action: 'started', changes: '' }]
+        history: [supplierLine(me.name, 'started')]
       });
-      res.status(201).json({ block: supplierBlockView(block.toObject(), po) });
+      res.status(201).json({ block: supplierBlockView(block, po) });
     } catch (error) {
       if ((error as { code?: number }).code === 11000) {
-        const dup = await SupplierBlock.findById(blockId).lean();
+        const dup = await (await suppliersStore()).blockById(blockId);
         if (dup && dup.supplierId === me.supplierId) return res.json({ block: supplierBlockView(dup), alreadySaved: true });
       }
       fail(res, 'start block', error);
@@ -221,16 +224,20 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
   /** The block if it's this supplier's, with its PO. */
   const myBlock = async (req: Request) => {
     const id = scalarParams(req).id!;
-    if (!mongoose.isValidObjectId(id)) return null;
-    const block = await SupplierBlock.findById(id);
+    if (!isId(id)) return null;
+    const store = await suppliersStore();
+    const block = await store.blockById(id);
     if (!block || block.supplierId !== supplierOf(req).supplierId) return null;
-    const po = await SupplierPO.findById(block.poId, '-history').lean();
-    return po ? { block, po } : null;
+    const po = await store.poById(block.poId, { history: false });
+    return po ? { block, po, store } : null;
   };
-  const answer = async (res: Response, block: mongoose.HydratedDocument<Loose>, po: Loose) => {
-    block.set({ stage: blockStage({ bundles: blockLike(block.toObject()).bundles, sentAt: block.sentAt }) });
-    await block.save();
-    res.json({ block: supplierBlockView(block.toObject(), po) });
+  /** Saves a change to the block (its stage follows from what it holds) and answers with the block; false if it moved on meanwhile. */
+  const answer = async (res: Response, found: { block: Loose; po: Loose; store: Awaited<ReturnType<typeof suppliersStore>> }, set: Loose, add: HistoryLine[] = [], sentAt: unknown = found.block.sentAt) => {
+    const merged = { ...found.block, ...set };
+    const saved = await found.store.updateBlock(String(found.block._id), found.block.__v, { ...set, stage: blockStage({ bundles: blockLike(merged).bundles, sentAt: sentAt as string | Date | null | undefined }) }, add);
+    if (!saved) { versionClash(res); return null; }
+    res.json({ block: supplierBlockView(saved, found.po) });
+    return saved;
   };
   const versionClash = (res: Response) => res.status(409).json({ message: 'This block just changed. Reload it and try again.', code: 'serverError' });
   /** The supplier may change the block while it's a draft or something on it waits for them. */
@@ -240,7 +247,7 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
     try {
       const found = await myBlock(req);
       if (!found) return res.status(404).json({ message: 'Block not found.' });
-      res.json({ block: supplierBlockView(found.block.toObject(), found.po) });
+      res.json({ block: supplierBlockView(found.block, found.po) });
     } catch (error) { fail(res, 'block', error); }
   });
 
@@ -263,9 +270,8 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
         const text = String(body.note || '').trim();
         if (text !== (block.note?.text || '')) patch.note = await makeNote(text, me.language, ['en'], me.name);
       }
-      block.set(patch);
-      await answer(res, block as never, po);
-    } catch (error) { if (isVersionError(error)) return versionClash(res); fail(res, 'edit block', error); }
+      await answer(res, found, patch);
+    } catch (error) { fail(res, 'edit block', error); }
   });
 
   router.post('/blocks/:id/bundles', auth, validateScalarRequest, async (req: Request, res: Response) => {
@@ -275,30 +281,29 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
       const { block, po } = found;
       if (po.status !== 'open') return res.status(409).json({ message: 'This PO is closed.', code: 'poClosed' });
       const id = String(req.body?.id || '');
-      if (mongoose.isValidObjectId(id) && block.bundles.some((b) => b._id === id)) return res.json({ block: supplierBlockView(block.toObject(), po), alreadySaved: true });
-      if (block.bundles.length >= MAX_BUNDLES) return res.status(409).json({ message: `A block has up to ${MAX_BUNDLES} bundles.` });
-      const n = Math.max(0, ...block.bundles.map((b) => b.n)) + 1;
-      block.bundles.push({ _id: mongoose.isValidObjectId(id) ? id : new mongoose.Types.ObjectId().toString(), n, slabs: null, status: 'draft' } as never);
-      if (block.sentAt) block.history.push({ at: new Date(), by: supplierOf(req).name, side: 'supplier', action: 'added a bundle', changes: `bundle ${n}` });
-      await answer(res, block as never, po);
-    } catch (error) { if (isVersionError(error)) return versionClash(res); fail(res, 'add bundle', error); }
+      const have = block.bundles as Loose[];
+      if (mongoose.isValidObjectId(id) && have.some((b) => b._id === id)) return res.json({ block: supplierBlockView(block, po), alreadySaved: true });
+      if (have.length >= MAX_BUNDLES) return res.status(409).json({ message: `A block has up to ${MAX_BUNDLES} bundles.` });
+      const n = Math.max(0, ...have.map((b) => b.n)) + 1;
+      const added = { _id: mongoose.isValidObjectId(id) ? id : newId(), n, slabs: null, status: 'draft' };
+      await answer(res, found, { bundles: [...have, added] }, block.sentAt ? [supplierLine(supplierOf(req).name, 'added a bundle', `bundle ${n}`)] : []);
+    } catch (error) { fail(res, 'add bundle', error); }
   });
 
-  const findBundle = (block: mongoose.HydratedDocument<Loose>, bid: string) => block.bundles.find((b: Loose) => b._id === bid) as Loose | undefined;
+  const findBundle = (block: Loose, bid: string) => (block.bundles as Loose[]).find((b) => b._id === bid);
 
   router.put('/blocks/:id/bundles/:bid', auth, validateScalarRequest, async (req: Request, res: Response) => {
     try {
       const found = await myBlock(req);
       if (!found) return res.status(404).json({ message: 'Block not found.' });
       const { block, po } = found;
-      const bundle = findBundle(block as never, scalarParams(req).bid!);
+      const bundle = findBundle(block, scalarParams(req).bid!);
       if (!bundle) return res.status(404).json({ message: 'Bundle not found.' });
       if (po.status !== 'open' || !supplierMayEdit(bundle)) return res.status(409).json({ message: 'This bundle is locked.', code: 'lockNote' });
       const slabs = req.body?.slabs;
       if (slabs !== null && slabsProblem(slabs)) return res.status(400).json({ message: 'How many slabs?', code: 'needSlabs' });
-      bundle.slabs = slabs === null ? null : Number(slabs);
-      await answer(res, block as never, po);
-    } catch (error) { if (isVersionError(error)) return versionClash(res); fail(res, 'slabs', error); }
+      await answer(res, found, { bundles: (block.bundles as Loose[]).map((b) => (b === bundle ? { ...b, slabs: slabs === null ? null : Number(slabs) } : b)) });
+    } catch (error) { fail(res, 'slabs', error); }
   });
 
   router.delete('/blocks/:id/bundles/:bid', auth, validateScalarRequest, async (req: Request, res: Response) => {
@@ -306,13 +311,12 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
       const found = await myBlock(req);
       if (!found) return res.status(404).json({ message: 'Block not found.' });
       const { block, po } = found;
-      const bundle = findBundle(block as never, scalarParams(req).bid!);
-      if (!bundle) return res.json({ block: supplierBlockView(block.toObject(), po), alreadyRemoved: true });
+      const bundle = findBundle(block, scalarParams(req).bid!);
+      if (!bundle) return res.json({ block: supplierBlockView(block, po), alreadyRemoved: true });
       if (bundle.status !== 'draft' || bundle.round) return res.status(409).json({ message: 'Only a bundle never sent can be removed.' });
       if (block.bundles.length <= 1) return res.status(409).json({ message: 'A block needs at least one bundle.' });
-      block.set({ bundles: block.bundles.filter((b) => b._id !== bundle._id).map(toPlain) });
-      await answer(res, block as never, po);
-    } catch (error) { if (isVersionError(error)) return versionClash(res); fail(res, 'remove bundle', error); }
+      await answer(res, found, { bundles: (block.bundles as Loose[]).filter((b) => b._id !== bundle._id) });
+    } catch (error) { fail(res, 'remove bundle', error); }
   });
 
   router.post('/blocks/:id/bundles/:bid/photo', auth, validateScalarRequest, async (req: Request, res: Response) => {
@@ -325,23 +329,22 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
       if (!found) return res.status(404).json({ message: 'Block not found.' });
       const { po } = found;
       const bid = scalarParams(req).bid!;
-      const first = findBundle(found.block as never, bid);
+      const first = findBundle(found.block, bid);
       if (!first) return res.status(404).json({ message: 'Bundle not found.' });
       if (po.status !== 'open' || !supplierMayEdit(first)) return res.status(409).json({ message: 'This bundle is locked.', code: 'lockNote' });
       // 1800px on the long side: enough to see a crack across a slab, small enough for a yard's signal.
       const url = await processBase64Image(data, 'SupplierBlocks', 1800);
       if (typeof url !== 'string' || url.startsWith('data:')) return res.status(502).json({ message: 'The photo could not be stored. Try again.', code: 'serverError' });
       // Read again after the upload (it takes seconds): another photo may have been saved meanwhile.
-      const block = await SupplierBlock.findById(found.block._id);
-      const bundle = block ? findBundle(block as never, bid) : null;
+      const block = await found.store.blockById(String(found.block._id));
+      const bundle = block ? findBundle(block, bid) : null;
       if (!block || !bundle || !supplierMayEdit(bundle)) return res.status(409).json({ message: 'This bundle is locked.', code: 'lockNote' });
       const at = new Date();
-      const after = withNewPhoto({ ...toPlain(bundle), id: bid, previousPhotos: (bundle.previousPhotos || []).map(toPlainSafe) } as never, url, at) as Loose;
-      bundle.photoUrl = after.photoUrl;
-      bundle.photoAt = at;
-      bundle.previousPhotos = after.previousPhotos;
-      await answer(res, block as never, po);
-    } catch (error) { if (isVersionError(error)) return versionClash(res); fail(res, 'photo', error); }
+      const after = withNewPhoto({ ...bundle, id: bid } as never, url, at) as Loose;
+      await answer(res, { ...found, block }, {
+        bundles: (block.bundles as Loose[]).map((b) => (b === bundle ? { ...b, photoUrl: after.photoUrl, photoAt: at, previousPhotos: after.previousPhotos } : b))
+      });
+    } catch (error) { fail(res, 'photo', error); }
   });
 
   router.post('/blocks/:id/send', auth, validateScalarRequest, async (req: Request, res: Response) => {
@@ -351,23 +354,22 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
       if (!found) return res.status(404).json({ message: 'Block not found.' });
       const { block, po } = found;
       if (po.status !== 'open') return res.status(409).json({ message: 'This PO is closed.', code: po.status === 'cancelled' ? 'poCancelled' : 'poClosed' });
-      const like = blockLike(block.toObject());
+      const like = blockLike(block);
       const check = sendProblems(like);
       if (!check.ok) return res.status(400).json({ message: 'Check what’s marked in red.', code: 'checkMarked', problems: check.problems });
       const at = new Date();
       const resent = Boolean(block.sentAt);
       const sentBundles = applySend(like.bundles, at);
-      const next = block.bundles.map((raw) => {
-        const plain = toPlain(raw);
+      const next = (block.bundles as Loose[]).map((plain) => {
         const after = sentBundles.find((b) => b.id === plain._id)!;
         return check.toSend.includes(plain._id)
           ? { ...plain, status: after.status, round: after.round, step1: null, step2: null, reason: '', comment: null, sentAt: at }
           : plain;
       });
-      block.set({ bundles: next, sentAt: at, ...(block.firstSentAt ? {} : { firstSentAt: at }) });
       const slabs = next.filter((b) => check.toSend.includes(b._id)).reduce((s, b) => s + (Number(b.slabs) || 0), 0);
-      block.history.push({ at, by: me.name, side: 'supplier', action: resent ? 'sent changes' : 'sent for review', changes: `${check.toSend.length} bundle${check.toSend.length === 1 ? '' : 's'}, ${slabs} slabs` });
-      await answer(res, block as never, po);
+      const saved = await answer(res, found, { bundles: next, sentAt: at, ...(block.firstSentAt ? {} : { firstSentAt: at }) },
+        [{ at, by: me.name, side: 'supplier', action: resent ? 'sent changes' : 'sent for review', changes: `${check.toSend.length} bundle${check.toSend.length === 1 ? '' : 's'}, ${slabs} slabs` }], at);
+      if (!saved) return;
       // The PO's buyer hears about it (after the answer: an email never holds up the supplier).
       const buyer = po.buyerId && mongoose.isValidObjectId(po.buyerId) ? await User.findById(po.buyerId, 'email displayName username').lean() : null;
       if (buyer?.email) {
@@ -378,7 +380,7 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
           link: `${base}/sales?tab=supplier_pos&block=${String(block._id)}`, resent
         }).catch(() => undefined);
       }
-    } catch (error) { if (isVersionError(error)) return versionClash(res); fail(res, 'send', error); }
+    } catch (error) { fail(res, 'send', error); }
   });
 
   router.delete('/blocks/:id', auth, validateScalarRequest, async (req: Request, res: Response) => {
@@ -386,7 +388,7 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
       const found = await myBlock(req);
       if (!found) return res.json({ deleted: true });
       if (found.block.firstSentAt) return res.status(409).json({ message: 'A block that was sent stays on record.' });
-      await SupplierBlock.deleteOne({ _id: found.block._id, firstSentAt: null });
+      await found.store.deleteUnsentBlock(String(found.block._id));
       res.json({ deleted: true });
     } catch (error) { fail(res, 'delete block', error); }
   });
@@ -394,4 +396,3 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
   return router;
 }
 
-const toPlainSafe = (p: unknown) => (p && typeof (p as { toObject?: unknown }).toObject === 'function' ? (p as { toObject: () => Loose }).toObject() : p);

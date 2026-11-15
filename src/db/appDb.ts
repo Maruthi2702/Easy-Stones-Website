@@ -30,7 +30,7 @@ export function areaOn(area: DbArea): AreaDatabase {
 }
 
 /** Areas switched to Postgres, for the start-up log line. */
-export function areasOnPostgres(areas: DbArea[] = ['customers', 'deliveries', 'payments', 'checkin', 'daily_reports', 'card_receipts', 'lost_sales', 'inventory_transit', 'purchasing', 'inventory', 'holds', 'fuelman', 'settings']): DbArea[] {
+export function areasOnPostgres(areas: DbArea[] = ['customers', 'deliveries', 'payments', 'checkin', 'daily_reports', 'card_receipts', 'lost_sales', 'inventory_transit', 'purchasing', 'inventory', 'holds', 'fuelman', 'suppliers', 'settings']): DbArea[] {
   return areas.filter(a => areaOn(a) === 'postgres');
 }
 

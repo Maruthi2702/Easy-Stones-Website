@@ -2,7 +2,8 @@ import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
-import { Supplier, SupplierLogin, SupplierPO, SupplierBlock } from '../models/Suppliers.ts';
+import { suppliersStore, inSuppliersTransaction, type HistoryLine } from '../db/suppliers/index.ts';
+import { isId, newId } from '../db/ids.ts';
 import { findShipmentsByPo } from '../db/inventoryTransit/index.ts';
 import Role from '../models/Role.ts';
 import User from '../models/User.ts';
@@ -58,13 +59,10 @@ const has = (req: Request, perm: string) => (userOf(req).permissions || []).incl
 const anyOf = (...perms: readonly string[]) => (req: Request, res: Response, next: NextFunction) =>
   (perms.some((p) => has(req, p)) ? next() : res.status(403).json({ message: 'Access denied.' }));
 const todayOf = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-const newId = () => new mongoose.Types.ObjectId().toString();
-const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** Where emailed links point: the staff member's own site when they sent it, else the configured one. */
 const siteBase = (req: Request) => (req.get('origin') || process.env.FRONTEND_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
-/** A bundle subdocument as a plain object (its _id is the bundle's string id). */
-const toPlain = (raw: unknown): Loose => (raw as { toObject: () => Loose }).toObject();
-const isVersionError = (e: unknown) => (e as { name?: string })?.name === 'VersionError';
+const staffLine = (by: string, action: string, changes = ''): HistoryLine => ({ at: new Date(), by, side: 'staff', action, changes });
+const STALE_PO = 'Someone else just changed this PO. Reload it and try again.';
 
 const loginView = (l: Loose) => ({
   id: String(l._id), name: l.name, email: l.email, language: l.language || 'en', active: l.active !== false,
@@ -80,10 +78,8 @@ const supplierView = (s: Loose) => ({
 
 /** The languages a supplier's people read: each active login's, and the supplier's own. */
 async function readerLanguages(supplierId: string) {
-  const [supplier, logins] = await Promise.all([
-    Supplier.findById(supplierId, 'language').lean(),
-    SupplierLogin.find({ supplierId, active: true }, 'language').lean()
-  ]);
+  const store = await suppliersStore();
+  const [supplier, logins] = await Promise.all([store.supplierById(supplierId), store.loginsOf(supplierId, { activeOnly: true })]);
   return [...new Set([supplier?.language || 'en', ...logins.map((l) => l.language || 'en')])];
 }
 
@@ -94,9 +90,10 @@ async function readerLanguages(supplierId: string) {
  * photos in the email instead of a link.
  */
 async function supplierRecipients(supplierId: string): Promise<{ to: string; lang: string; portal: boolean }[]> {
-  const logins = await SupplierLogin.find({ supplierId, active: true, password: { $gt: '' } }, 'email language').lean();
+  const store = await suppliersStore();
+  const logins = await store.loginsOf(supplierId, { reachable: true });
   if (logins.length) return logins.map((l) => ({ to: l.email, lang: l.language || 'en', portal: true }));
-  const supplier = await Supplier.findById(supplierId, 'email language active').lean();
+  const supplier = await store.supplierById(supplierId);
   return supplier?.email && supplier.active !== false ? [{ to: supplier.email, lang: supplier.language || 'en', portal: false }] : [];
 }
 
@@ -138,11 +135,9 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
   router.get('/suppliers', pageOpen, async (_req: Request, res: Response) => {
     try {
       const since = new Date(Date.now() - 180 * 24 * 3_600_000);
+      const store = await suppliersStore();
       const [suppliers, logins, pos, blocks] = await Promise.all([
-        Supplier.find({}).sort({ active: -1, name: 1 }).lean(),
-        SupplierLogin.find({}).lean(),
-        SupplierPO.find({ $or: [{ status: 'open' }, { updatedAt: { $gte: since } }] }, 'supplierId status assignedAt').lean(),
-        SupplierBlock.find({ firstSentAt: { $gte: since } }, 'supplierId poId firstSentAt bundles').lean()
+        store.listSuppliers(), store.allLogins(), store.listPos({ openOrSince: since, limit: 100_000 }), store.blocksFirstSentSince(since)
       ]);
       res.json({
         suppliers: suppliers.map((s) => {
@@ -152,32 +147,41 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
             ...supplierView(s),
             logins: logins.filter((l) => l.supplierId === id).map(loginView),
             openPos: mine.filter((p) => p.status === 'open').length,
-            score: scorecard(mine, blocks.filter((b) => b.supplierId === id).map((b) => ({ ...b, bundles: blockLike(b).bundles })))
+            score: scorecard(mine as never, blocks.filter((b) => b.supplierId === id).map((b) => ({ ...b, bundles: blockLike(b).bundles })) as never)
           };
         })
       });
     } catch (error) { fail(res, 'suppliers', error, 'Could not load the suppliers.'); }
   });
 
-  const saveSupplier = async (req: Request, res: Response, existing: mongoose.HydratedDocument<Loose> | null) => {
+  const saveSupplier = async (req: Request, res: Response, existing: Loose | null) => {
     const { value, problems } = cleanSupplier(req.body || {}, LANGUAGE_CODES);
     if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
     const key = value.spsName ? spsKey(value.spsName) : '';
-    const sameName = await Supplier.findOne({ _id: { $ne: existing?._id }, name: new RegExp(`^${escapeRegex(value.name)}$`, 'i') }, 'name').lean();
+    const store = await suppliersStore();
+    const exceptId = existing ? String(existing._id) : null;
+    const sameName = await store.supplierNamed(value.name, exceptId);
     if (sameName) return res.status(409).json({ message: 'Some fields need attention.', problems: { name: 'A supplier already has that name' } });
     if (key) {
-      const sameSps = await Supplier.findOne({ _id: { $ne: existing?._id }, spsKey: key }, 'name').lean();
+      const sameSps = await store.supplierBySpsKey(key, exceptId);
       if (sameSps) return res.status(409).json({ message: 'Some fields need attention.', problems: { spsName: `${sameSps.name} already has that SPS name` } });
     }
     const by = actor(req).name;
-    const doc = existing || new Supplier({ createdBy: by });
     const active = typeof req.body?.active === 'boolean' ? req.body.active : (existing ? existing.active !== false : true);
-    doc.set({ ...value, spsKey: key, active });
-    doc.history.push({ at: new Date(), by, side: 'staff', action: existing ? 'edited' : 'added', changes: existing && existing.active !== active ? (active ? 'made active' : 'made inactive') : '' });
-    await doc.save();
+    const line = staffLine(by, existing ? 'edited' : 'added', existing && existing.active !== active ? (active ? 'made active' : 'made inactive') : '');
+    const fields = { ...value, spsKey: key, active };
+    if (!existing) {
+      const created = await store.createSupplier({ _id: newId(), createdBy: by, ...fields, history: [line] });
+      return res.status(201).json({ supplier: supplierView(created) });
+    }
     // A supplier made inactive can't sign in either: its logins' sessions end now.
-    if (existing && !active) await SupplierLogin.updateMany({ supplierId: String(doc._id) }, { $inc: { sessionVersion: 1 } });
-    res.status(existing ? 200 : 201).json({ supplier: supplierView(doc.toObject()) });
+    const saved = await inSuppliersTransaction(async tx => {
+      const doc = await tx.updateSupplier(exceptId!, fields, [line]);
+      if (doc && !active) await tx.endSessionsOf(exceptId!);
+      return doc;
+    });
+    if (!saved) return res.status(404).json({ message: 'Supplier not found.' });
+    res.json({ supplier: supplierView(saved) });
   };
 
   router.post('/suppliers', authenticate, anyOf(SUPPLIER_POS.MANAGE_SUPPLIERS), async (req: Request, res: Response) => {
@@ -185,42 +189,43 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
   });
   router.put('/suppliers/:id', authenticate, anyOf(SUPPLIER_POS.MANAGE_SUPPLIERS), validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
-    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Supplier not found.' });
+    if (!isId(id)) return res.status(404).json({ message: 'Supplier not found.' });
     try {
-      const s = await Supplier.findById(id);
+      const s = await (await suppliersStore()).supplierById(id);
       if (!s) return res.status(404).json({ message: 'Supplier not found.' });
-      await saveSupplier(req, res, s as never);
+      await saveSupplier(req, res, s);
     } catch (error) { fail(res, 'edit supplier', error, 'Could not save the supplier.'); }
   });
 
   // ── Logins ────────────────────────────────────────────────────────────────
 
-  const emailLink = async (req: Request, login: mongoose.HydratedDocument<Loose>, supplierName: string, reset: boolean) => {
+  /** A fresh invite / reset link for a login: what to save on it, and the email that carries it. */
+  const newInvite = (req: Request) => {
     const { token, fields } = newLink();
-    login.set({ ...fields, invitedAt: new Date(), invitedBy: actor(req).name });
-    await login.save();
-    const link = `${siteBase(req)}/supplier/set-password?token=${encodeURIComponent(token)}`;
-    const sent = await sendSupplierLink({ to: login.email, name: login.name, supplierName, lang: login.language || 'en', link, reset });
-    return { sent, link };
+    return { fields: { ...fields, invitedAt: new Date(), invitedBy: actor(req).name }, link: `${siteBase(req)}/supplier/set-password?token=${encodeURIComponent(token)}` };
   };
+  const mailInvite = async (login: Loose, supplierName: string, link: string, reset: boolean) =>
+    sendSupplierLink({ to: login.email, name: login.name, supplierName, lang: login.language || 'en', link, reset });
 
   router.post('/suppliers/:id/logins', authenticate, anyOf(SUPPLIER_POS.MANAGE_SUPPLIERS), validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
-    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Supplier not found.' });
+    if (!isId(id)) return res.status(404).json({ message: 'Supplier not found.' });
     try {
-      const supplier = await Supplier.findById(id).lean();
+      const store = await suppliersStore();
+      const supplier = await store.supplierById(id);
       if (!supplier) return res.status(404).json({ message: 'Supplier not found.' });
       const { value, problems } = cleanLogin({ language: supplier.language, ...(req.body || {}) }, LANGUAGE_CODES);
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      if (await SupplierLogin.countDocuments({ supplierId: id }) >= MAX_LOGINS_PER_SUPPLIER) {
+      if (await store.loginCount(id) >= MAX_LOGINS_PER_SUPPLIER) {
         return res.status(409).json({ message: `A supplier has ${MAX_LOGINS_PER_SUPPLIER === 1 ? 'one login' : `up to ${MAX_LOGINS_PER_SUPPLIER} logins`}. Edit the one it has.` });
       }
-      if (await SupplierLogin.exists({ email: value.email })) {
+      if (await store.emailTaken(value.email, null)) {
         return res.status(409).json({ message: 'Some fields need attention.', problems: { email: 'Another supplier login uses that email' } });
       }
-      const login = new SupplierLogin({ supplierId: id, ...value });
-      const { sent, link } = await emailLink(req, login as never, supplier.name, false);
-      res.status(201).json({ login: loginView(login.toObject()), emailed: sent, ...(sent ? {} : { link }) });
+      const invite = newInvite(req);
+      const login = await store.createLogin({ _id: newId(), supplierId: id, ...value, ...invite.fields });
+      const sent = await mailInvite(login, supplier.name, invite.link, false);
+      res.status(201).json({ login: loginView(login), emailed: sent, ...(sent ? {} : { link: invite.link }) });
     } catch (error) {
       if ((error as { code?: number }).code === 11000) return res.status(409).json({ message: 'Some fields need attention.', problems: { email: 'Another supplier login uses that email' } });
       fail(res, 'add login', error, 'Could not add the login.');
@@ -229,10 +234,11 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
 
   const findLogin = async (req: Request, res: Response) => {
     const { id, lid } = scalarParams(req);
-    if (!mongoose.isValidObjectId(id) || !mongoose.isValidObjectId(lid)) { res.status(404).json({ message: 'Login not found.' }); return null; }
-    const [supplier, login] = await Promise.all([Supplier.findById(id).lean(), SupplierLogin.findById(lid)]);
-    if (!supplier || !login || login.supplierId !== id) { res.status(404).json({ message: 'Login not found.' }); return null; }
-    return { supplier, login };
+    if (!isId(id) || !isId(lid)) { res.status(404).json({ message: 'Login not found.' }); return null; }
+    const store = await suppliersStore();
+    const [supplier, login] = await Promise.all([store.supplierById(id), store.loginById(lid)]);
+    if (!supplier || !login || String(login.supplierId) !== String(supplier._id)) { res.status(404).json({ message: 'Login not found.' }); return null; }
+    return { supplier, login, store };
   };
 
   router.put('/suppliers/:id/logins/:lid', authenticate, anyOf(SUPPLIER_POS.MANAGE_SUPPLIERS), validateScalarRequest, async (req: Request, res: Response) => {
@@ -241,14 +247,13 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
       if (!found) return;
       const { value, problems } = cleanLogin(req.body || {}, LANGUAGE_CODES);
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      if (value.email !== found.login.email && await SupplierLogin.exists({ email: value.email, _id: { $ne: found.login._id } })) {
+      if (value.email !== found.login.email && await found.store.emailTaken(value.email, String(found.login._id))) {
         return res.status(409).json({ message: 'Some fields need attention.', problems: { email: 'Another supplier login uses that email' } });
       }
       // A new email is a new person's inbox: sessions on the old one end.
-      if (value.email !== found.login.email) found.login.set({ sessionVersion: (found.login.sessionVersion || 0) + 1 });
-      found.login.set(value);
-      await found.login.save();
-      res.json({ login: loginView(found.login.toObject()) });
+      const ends = value.email !== found.login.email ? { sessionVersion: (found.login.sessionVersion || 0) + 1 } : {};
+      const saved = await found.store.updateLogin(String(found.login._id), { ...ends, ...value });
+      res.json({ login: loginView(saved || found.login) });
     } catch (error) { fail(res, 'edit login', error, 'Could not save the login.'); }
   });
 
@@ -257,8 +262,10 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
       const found = await findLogin(req, res);
       if (!found) return;
       if (found.login.active === false) return res.status(409).json({ message: 'Turn the login on first.' });
-      const { sent, link } = await emailLink(req, found.login as never, found.supplier.name, Boolean(found.login.password));
-      res.json({ login: loginView(found.login.toObject()), emailed: sent, ...(sent ? {} : { link }) });
+      const invite = newInvite(req);
+      const saved = await found.store.updateLogin(String(found.login._id), invite.fields);
+      const sent = await mailInvite(found.login, found.supplier.name, invite.link, Boolean(found.login.password));
+      res.json({ login: loginView(saved || found.login), emailed: sent, ...(sent ? {} : { link: invite.link }) });
     } catch (error) { fail(res, 'invite', error, 'Could not send the link.'); }
   });
 
@@ -267,9 +274,8 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
       const found = await findLogin(req, res);
       if (!found) return;
       const active = req.body?.active === true;
-      found.login.set({ active, ...(active ? {} : { sessionVersion: (found.login.sessionVersion || 0) + 1, linkTokenHash: '', linkExpiresAt: null }) });
-      await found.login.save();
-      res.json({ login: loginView(found.login.toObject()) });
+      const saved = await found.store.updateLogin(String(found.login._id), { active, ...(active ? {} : { sessionVersion: (found.login.sessionVersion || 0) + 1, linkTokenHash: '', linkExpiresAt: null }) });
+      res.json({ login: loginView(saved || found.login) });
     } catch (error) { fail(res, 'login on/off', error, 'Could not save the login.'); }
   });
 
@@ -277,25 +283,24 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
     try {
       const found = await findLogin(req, res);
       if (!found) return;
-      found.login.set({ loginAttempts: 0, lockUntil: null });
-      await found.login.save();
-      res.json({ login: loginView(found.login.toObject()) });
+      const saved = await found.store.updateLogin(String(found.login._id), { loginAttempts: 0, lockUntil: null });
+      res.json({ login: loginView(saved || found.login) });
     } catch (error) { fail(res, 'unlock login', error, 'Could not unlock the login.'); }
   });
 
   // ── POs ───────────────────────────────────────────────────────────────────
 
   const suppliersById = async (ids: string[]) => {
-    const list = await Supplier.find({ _id: { $in: [...new Set(ids)].filter((x) => mongoose.isValidObjectId(x)) } }).lean();
+    const list = await (await suppliersStore()).suppliersByIds(ids);
     return new Map(list.map((s) => [String(s._id), s as Loose]));
   };
 
   router.get('/pos', pageOpen, validateScalarRequest, async (req: Request, res: Response) => {
     const { status = 'open' } = scalarQuery(req) as { status?: string };
     try {
-      const filter: Record<string, unknown> = status === 'all' ? {} : { status: ['open', 'closed', 'cancelled'].includes(status) ? status : 'open' };
-      const pos = await SupplierPO.find(filter, '-history').sort({ updatedAt: -1 }).limit(3000).lean();
-      const blocks = await SupplierBlock.find({ poId: { $in: pos.map((p) => String(p._id)) } }, 'poId lineId blockNumber size bundles sentAt updatedAt').lean();
+      const store = await suppliersStore();
+      const pos = await store.listPos(status === 'all' ? {} : { status: (['open', 'closed', 'cancelled'].includes(status) ? status : 'open') as 'open' | 'closed' | 'cancelled' });
+      const blocks = await store.blocksOfPos(pos.map((p) => String(p._id)));
       const byPo = new Map<string, Loose[]>();
       for (const b of blocks) byPo.set(b.poId, [...(byPo.get(b.poId) || []), b]);
       const suppliers = await suppliersById(pos.map((p) => p.supplierId));
@@ -304,18 +309,16 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
   });
 
   const poDetail = async (id: string, viewerId: string) => {
-    const po = await SupplierPO.findById(id).lean();
+    const store = await suppliersStore();
+    const po = await store.poById(id);
     if (!po) return null;
-    const [blocks, supplier] = await Promise.all([
-      SupplierBlock.find({ poId: id }).sort({ firstSentAt: 1, createdAt: 1 }).lean(),
-      Supplier.findById(po.supplierId).lean()
-    ]);
+    const [blocks, supplier] = await Promise.all([store.blocksOfPo(id, { order: 'sent', history: true }), store.supplierById(po.supplierId)]);
     return staffPoView(po, blocks, { supplier, withBlocks: true, viewerId });
   };
 
   router.get('/pos/:id', pageOpen, validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
-    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'PO not found.' });
+    if (!isId(id)) return res.status(404).json({ message: 'PO not found.' });
     try {
       const po = await poDetail(id, userIdOf(req));
       if (!po) return res.status(404).json({ message: 'PO not found.' });
@@ -333,7 +336,7 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
   };
 
   const notifySupplier = async (req: Request, po: Loose) => {
-    const logins = await SupplierLogin.find({ supplierId: po.supplierId, active: true, password: { $gt: '' } }).lean();
+    const logins = await (await suppliersStore()).loginsOf(po.supplierId, { reachable: true });
     const link = `${siteBase(req)}/supplier/po/${String(po._id)}`;
     const results = await Promise.all(logins.map((l) => sendPoAssigned({ to: l.email, lang: l.language || 'en', poNumber: po.poNumber, lines: po.lines, link, note: po.note || null })));
     return { emailed: results.filter(Boolean).length, logins: logins.length };
@@ -341,29 +344,31 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
 
   router.post('/pos', authenticate, anyOf(SUPPLIER_POS.MANAGE_POS), async (req: Request, res: Response) => {
     const body = req.body || {};
-    if (!mongoose.isValidObjectId(body.id)) return res.status(400).json({ message: 'The PO has no id. Reload the page and try again.' });
+    if (!isId(body.id)) return res.status(400).json({ message: 'The PO has no id. Reload the page and try again.' });
     try {
-      const again = await SupplierPO.findById(body.id).lean();
+      const store = await suppliersStore();
+      const again = await store.poById(body.id, { history: false });
       if (again) return res.json({ po: await poDetail(String(again._id), userIdOf(req)), alreadySaved: true });
       const { value, problems } = cleanPo(body, { newId, today: todayOf() });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      const existing = await SupplierPO.findOne({ poNumber: value.poNumber }, 'poNumber').lean();
+      const existing = await store.poByNumber(value.poNumber);
       if (existing) return res.status(409).json({ message: `PO ${value.poNumber} is already here.`, existingId: String(existing._id), problems: { poNumber: 'This PO # is already here' } });
-      const supplier = mongoose.isValidObjectId(value.supplierId) ? await Supplier.findById(value.supplierId).lean() : null;
+      const supplier = isId(value.supplierId) ? await store.supplierById(value.supplierId) : null;
       if (!supplier || supplier.active === false) return res.status(400).json({ message: 'Some fields need attention.', problems: { supplierId: 'Choose an active supplier' } });
       const by = actor(req).name;
       const note = await makeNote(value.note, 'en', await readerLanguages(value.supplierId), by);
-      const po = await SupplierPO.create({
+      const po = await store.createPo({
         _id: body.id, poNumber: value.poNumber, supplierId: value.supplierId, supplierName: supplier.name, shipTo: value.shipTo, readyBy: value.readyBy,
         ...(await buyerFor(req, value.buyerId)), lines: value.lines.map((l) => ({ _id: l.id, ...l })), note,
         source: body.source === 'sps' ? 'sps' : 'typed', status: 'open', assignedAt: new Date(), createdBy: by,
-        history: [{ at: new Date(), by, side: 'staff', action: 'added', changes: `assigned to ${supplier.name}${body.source === 'sps' ? ' · filled from SPS' : ''}` }]
+        history: [staffLine(by, 'added', `assigned to ${supplier.name}${body.source === 'sps' ? ' · filled from SPS' : ''}`)]
       });
-      const notified = body.notify === false ? { emailed: 0, logins: 0 } : await notifySupplier(req, po.toObject());
+      const notified = body.notify === false ? { emailed: 0, logins: 0 } : await notifySupplier(req, po);
       res.status(201).json({ po: await poDetail(String(po._id), userIdOf(req)), notified });
     } catch (error) {
       if ((error as { code?: number }).code === 11000) {
-        const dup = await SupplierPO.findById(body.id).lean() || await SupplierPO.findOne({ poNumber: poKey(body.poNumber) }).lean();
+        const store = await suppliersStore();
+        const dup = await store.poById(body.id, { history: false }) || await store.poByNumber(poKey(body.poNumber));
         if (dup && String(dup._id) === String(body.id)) return res.json({ po: await poDetail(String(dup._id), userIdOf(req)), alreadySaved: true });
         if (dup) return res.status(409).json({ message: `PO ${dup.poNumber} is already here.`, existingId: String(dup._id), problems: { poNumber: 'This PO # is already here' } });
       }
@@ -373,25 +378,26 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
 
   router.put('/pos/:id', authenticate, anyOf(SUPPLIER_POS.MANAGE_POS), validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
-    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'PO not found.' });
+    if (!isId(id)) return res.status(404).json({ message: 'PO not found.' });
     try {
-      const po = await SupplierPO.findById(id);
+      const store = await suppliersStore();
+      const po = await store.poById(id);
       if (!po) return res.status(404).json({ message: 'PO not found.' });
       if (po.status === 'cancelled') return res.status(409).json({ message: 'A cancelled PO can’t be changed. Reopen it first.' });
       const { value, problems } = cleanPo({ ...req.body, poNumber: req.body?.poNumber ?? po.poNumber }, { newId, today: todayOf() });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      const blocks = await SupplierBlock.find({ poId: id }, 'lineId sentAt').lean();
+      const blocks = await store.blocksOfPo(id);
       if (value.poNumber !== po.poNumber) {
         if (blocks.length) return res.status(409).json({ message: 'Blocks were offered on this PO, so its number can’t change.', problems: { poNumber: 'Can’t change once blocks are offered' } });
-        if (await SupplierPO.exists({ poNumber: value.poNumber, _id: { $ne: id } })) return res.status(409).json({ message: 'Some fields need attention.', problems: { poNumber: 'This PO # is already here' } });
+        if (await store.poNumberTaken(value.poNumber, id)) return res.status(409).json({ message: 'Some fields need attention.', problems: { poNumber: 'This PO # is already here' } });
       }
       const reassigned = value.supplierId !== po.supplierId;
       if (reassigned && blocks.length) return res.status(409).json({ message: 'The supplier already offered blocks on this PO, so it can’t move to another supplier. Cancel it and add a new one.', problems: { supplierId: 'Can’t change once blocks are offered' } });
-      const supplier = reassigned ? await Supplier.findById(value.supplierId).lean() : await Supplier.findById(po.supplierId).lean();
+      const supplier = await store.supplierById(reassigned ? value.supplierId : po.supplierId);
       if (!supplier || (reassigned && supplier.active === false)) return res.status(400).json({ message: 'Some fields need attention.', problems: { supplierId: 'Choose an active supplier' } });
       const byLine: Record<string, number> = {};
       for (const b of blocks) byLine[b.lineId] = (byLine[b.lineId] || 0) + 1;
-      const before = linesOf(po.toObject());
+      const before = linesOf(po);
       const removal = lineRemovalProblem(before, value.lines, byLine);
       if (removal) return res.status(409).json({ message: removal, problems: { lines: removal } });
       const buyer = await buyerFor(req, value.buyerId || po.buyerId || '');
@@ -405,22 +411,22 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
       );
       if (value.poNumber !== po.poNumber) changes.unshift(`PO # ${po.poNumber} → ${value.poNumber}`);
       if (!changes.length) return res.json({ po: await poDetail(id, userIdOf(req)), unchanged: true });
-      po.set({
+      const set = {
         poNumber: value.poNumber, supplierId: value.supplierId, supplierName: supplier.name, shipTo: value.shipTo, readyBy: value.readyBy, ...buyer,
         lines: value.lines.map((l) => ({ _id: l.id, ...l })),
         ...(noteChanged ? { note: await makeNote(noteText, 'en', await readerLanguages(value.supplierId), by) } : {}),
         ...(reassigned ? { assignedAt: new Date() } : {})
+      };
+      const saved = await inSuppliersTransaction(async tx => {
+        const doc = await tx.updatePo(id, po.__v, set, [staffLine(by, 'edited', changes.join(', '))]);
+        // Block lines copied the material when offered; a rename follows to blocks not yet sent.
+        if (doc) for (const l of value.lines) await tx.renameUnsentBlocks(id, l.id, { material: l.material, thickness: l.thickness, finish: l.finish });
+        return doc;
       });
-      po.history.push({ at: new Date(), by, side: 'staff', action: 'edited', changes: changes.join(', ') });
-      await po.save();
-      // Block lines copied the material when offered; a rename follows to blocks not yet sent.
-      for (const l of value.lines) {
-        await SupplierBlock.updateMany({ poId: id, lineId: l.id, sentAt: null }, { $set: { material: l.material, thickness: l.thickness, finish: l.finish } });
-      }
-      const notified = reassigned ? await notifySupplier(req, po.toObject()) : null;
+      if (!saved) return res.status(409).json({ message: STALE_PO });
+      const notified = reassigned ? await notifySupplier(req, saved) : null;
       res.json({ po: await poDetail(id, userIdOf(req)), notified });
     } catch (error) {
-      if (isVersionError(error)) return res.status(409).json({ message: 'Someone else just changed this PO. Reload it and try again.' });
       fail(res, 'edit PO', error, 'Could not save the PO.');
     }
   });
@@ -429,32 +435,33 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
     const { id } = scalarParams(req);
     const status = String(req.body?.status || '');
     const reason = String(req.body?.reason || '').trim().slice(0, 300);
-    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'PO not found.' });
+    if (!isId(id)) return res.status(404).json({ message: 'PO not found.' });
     if (!['open', 'closed', 'cancelled'].includes(status)) return res.status(400).json({ message: 'Choose open, closed or cancelled.' });
     if (status === 'cancelled' && !reason) return res.status(400).json({ message: 'Say why it’s being cancelled.', problems: { reason: 'Say why it’s being cancelled' } });
     try {
-      const po = await SupplierPO.findById(id);
+      const store = await suppliersStore();
+      const po = await store.poById(id);
       if (!po) return res.status(404).json({ message: 'PO not found.' });
       if (po.status === status) return res.json({ po: await poDetail(id, userIdOf(req)), unchanged: true });
       const by = actor(req).name;
       const action = status === 'open' ? 'reopened' : status;
-      po.set({ status, statusReason: status === 'open' ? '' : reason });
-      po.history.push({ at: new Date(), by, side: 'staff', action, changes: reason });
-      await po.save();
+      const saved = await store.updatePo(id, po.__v, { status, statusReason: status === 'open' ? '' : reason }, [staffLine(by, action, reason)]);
+      if (!saved) return res.status(409).json({ message: STALE_PO });
       res.json({ po: await poDetail(id, userIdOf(req)) });
     } catch (error) { fail(res, 'PO status', error, 'Could not save the PO.'); }
   });
 
   router.post('/pos/:id/notify', authenticate, anyOf(SUPPLIER_POS.MANAGE_POS), validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
-    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'PO not found.' });
+    if (!isId(id)) return res.status(404).json({ message: 'PO not found.' });
     try {
-      const po = await SupplierPO.findById(id).lean();
+      const store = await suppliersStore();
+      const po = await store.poById(id, { history: false });
       if (!po) return res.status(404).json({ message: 'PO not found.' });
       if (po.status !== 'open') return res.status(409).json({ message: 'Only an open PO is emailed.' });
       const notified = await notifySupplier(req, po);
       if (!notified.logins) return res.status(409).json({ message: 'The supplier has no login that’s set up yet. Send their invite first (Suppliers tab).' });
-      await SupplierPO.updateOne({ _id: id }, { $push: { history: { at: new Date(), by: actor(req).name, side: 'staff', action: 'emailed the supplier', changes: '' } } });
+      await store.addPoHistory(id, staffLine(actor(req).name, 'emailed the supplier'));
       res.json({ notified });
     } catch (error) { fail(res, 'notify', error, 'Could not email the supplier.'); }
   });
@@ -464,10 +471,8 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
     const po = poKey((scalarQuery(req) as { po?: string }).po);
     if (!po) return res.status(400).json({ message: 'Enter a PO #.' });
     try {
-      const [shipments, existing] = await Promise.all([
-        findShipmentsByPo(po),
-        SupplierPO.findOne({ poNumber: po }, 'poNumber').lean()
-      ]);
+      const store = await suppliersStore();
+      const [shipments, existing] = await Promise.all([findShipmentsByPo(po), store.poByNumber(po)]);
       if (!shipments.length) return res.json({ found: false, existingId: existing ? String(existing._id) : null });
       const lines = new Map<string, { material: string; slabs: number }>();
       let supplierName = '';
@@ -486,7 +491,7 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
           if (when && !eta) eta = new Date(when).toISOString().slice(0, 10);
         }
       }
-      const match = supplierName ? await Supplier.findOne({ spsKey: spsKey(supplierName) }, 'name').lean() : null;
+      const match = supplierName ? await store.supplierBySpsKey(spsKey(supplierName), null) : null;
       res.json({
         found: true, poNumber: po, supplierName, supplierId: match ? String(match._id) : '', location, eta,
         lines: [...lines.values()].filter((l) => l.slabs > 0), existingId: existing ? String(existing._id) : null
@@ -497,7 +502,8 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
   // ── Blocks ────────────────────────────────────────────────────────────────
 
   const blockDetail = async (b: Loose, viewerId: string) => {
-    const [po, supplier] = await Promise.all([SupplierPO.findById(b.poId, '-history').lean(), Supplier.findById(b.supplierId).lean()]);
+    const store = await suppliersStore();
+    const [po, supplier] = await Promise.all([store.poById(b.poId, { history: false }), store.supplierById(b.supplierId)]);
     return staffBlockView(b, { viewerId, supplier, po });
   };
 
@@ -505,11 +511,9 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
     const { queue = 'review' } = scalarQuery(req) as { queue?: string };
     try {
       const status = queue === 'final' ? 'final' : 'review';
-      const blocks = await SupplierBlock.find({ 'bundles.status': status }, '-history').sort({ sentAt: 1 }).limit(1000).lean();
-      const [pos, suppliers] = await Promise.all([
-        SupplierPO.find({ _id: { $in: [...new Set(blocks.map((b) => b.poId))] } }, '-history').lean(),
-        suppliersById(blocks.map((b) => b.supplierId))
-      ]);
+      const store = await suppliersStore();
+      const blocks = await store.blocksWithBundleStatus(status, 1000);
+      const [pos, suppliers] = await Promise.all([store.posByIds([...new Set(blocks.map((b) => b.poId))]), suppliersById(blocks.map((b) => b.supplierId))]);
       const poById = new Map(pos.map((p) => [String(p._id), p]));
       res.json({ blocks: blocks.map((b) => staffBlockView(b, { viewerId: userIdOf(req), supplier: suppliers.get(b.supplierId), po: poById.get(b.poId) })) });
     } catch (error) { fail(res, 'queue', error, 'Could not load the blocks.'); }
@@ -517,9 +521,9 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
 
   router.get('/blocks/:id', pageOpen, validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
-    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Block not found.' });
+    if (!isId(id)) return res.status(404).json({ message: 'Block not found.' });
     try {
-      const b = await SupplierBlock.findById(id).lean();
+      const b = await (await suppliersStore()).blockById(id);
       if (!b || !b.sentAt) return res.status(404).json({ message: 'Block not found.' });
       res.json({ block: await blockDetail(b, userIdOf(req)) });
     } catch (error) { fail(res, 'block', error, 'Could not load the block.'); }
@@ -532,18 +536,19 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
     if (!has(req, step === 1 ? SUPPLIER_POS.REVIEW : SUPPLIER_POS.FINAL)) {
       return res.status(403).json({ message: step === 1 ? 'You can’t review supplier blocks.' : 'You can’t give final approval.' });
     }
-    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Block not found.' });
+    if (!isId(id)) return res.status(404).json({ message: 'Block not found.' });
     const decisions: DecisionInput[] = (Array.isArray(req.body?.decisions) ? req.body.decisions : []).slice(0, 50).map((d: Loose) => ({
       bundleId: String(d?.bundleId || ''), decision: String(d?.decision || '') as DecisionInput['decision'],
       reason: d?.reason ? String(d.reason) : '', comment: String(d?.comment || '').trim().slice(0, 500)
     }));
     try {
-      const block = await SupplierBlock.findById(id);
+      const store = await suppliersStore();
+      const block = await store.blockById(id);
       if (!block || !block.sentAt) return res.status(404).json({ message: 'Block not found.' });
-      const po = await SupplierPO.findById(block.poId, 'status poNumber').lean();
+      const po = await store.poById(block.poId, { history: false });
       if (po?.status === 'cancelled') return res.status(409).json({ message: 'This PO was cancelled.' });
       const who = actor(req);
-      const bundles = blockLike(block.toObject()).bundles;
+      const bundles = blockLike(block).bundles;
       const problem = decisionProblem(step, bundles, decisions, who);
       if (problem) return res.status(409).json({ message: problem });
       const at = new Date();
@@ -553,21 +558,18 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
         comments.set(d.bundleId, await makeNote(d.comment || '', 'en', readers, who.name));
       }));
       const note = await makeNote(String(req.body?.note || ''), 'en', readers, who.name);
-      const next = block.bundles.map((raw) => {
-        const plain = toPlain(raw);
+      const next = (block.bundles as Loose[]).map((plain) => {
         const d = decisions.find((x) => x.bundleId === plain._id);
         if (!d) return plain;
         const after = applyDecision(bundles.find((x) => x.id === plain._id)!, step, d, who, at, comments.get(d.bundleId) || null);
         return { ...plain, status: after.status, step1: after.step1, step2: after.step2, reason: after.reason, comment: after.comment };
       });
-      block.set({ bundles: next });
-      if (note) block.set({ decisionNote: note });
-      block.set({ stage: blockStage({ bundles: blockLike(block.toObject()).bundles, sentAt: block.sentAt }) });
+      const set: Loose = { bundles: next, ...(note ? { decisionNote: note } : {}), stage: blockStage({ bundles: blockLike({ ...block, bundles: next }).bundles, sentAt: block.sentAt }) };
       const counts = { approve: 0, reject: 0, retake: 0 };
       for (const d of decisions) counts[d.decision] += 1;
       const summary = [counts.approve && `${counts.approve} ${step === 1 ? 'approved' : 'final approved'}`, counts.reject && `${counts.reject} rejected`, counts.retake && `${counts.retake} new photo asked`].filter(Boolean).join(', ');
-      block.history.push({ at, by: who.name, side: 'staff', action: step === 1 ? 'step 1' : 'step 2', changes: summary + (note ? ` · note: ${note.text}` : '') });
-      await block.save();
+      const saved = await store.updateBlock(id, block.__v, set, [{ at, by: who.name, side: 'staff', action: step === 1 ? 'step 1' : 'step 2', changes: summary + (note ? ` · note: ${note.text}` : '') }]);
+      if (!saved) return res.status(409).json({ message: 'Someone else just decided on this block. Reload it to see where it is.' });
 
       // The supplier hears about what needs them (a rejection, a new photo) and
       // about final approvals; a step-1 approval alone shows in the portal.
@@ -583,44 +585,41 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
           emailed = sent.filter(Boolean).length;
         }
       }
-      res.json({ block: await blockDetail(block.toObject(), who.id), emailed });
+      res.json({ block: await blockDetail(saved, who.id), emailed });
     } catch (error) {
-      if (isVersionError(error)) return res.status(409).json({ message: 'Someone else just decided on this block. Reload it to see where it is.' });
       fail(res, 'decide', error, 'Could not save the decisions.');
     }
   });
 
   router.post('/blocks/:id/unlock', authenticate, anyOf(SUPPLIER_POS.UNLOCK), validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
-    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Block not found.' });
+    if (!isId(id)) return res.status(404).json({ message: 'Block not found.' });
     const ids: string[] = (Array.isArray(req.body?.bundleIds) ? req.body.bundleIds : []).map(String).slice(0, 50);
     const reason = String(req.body?.reason || '').trim().slice(0, 300);
     try {
-      const block = await SupplierBlock.findById(id);
+      const store = await suppliersStore();
+      const block = await store.blockById(id);
       if (!block || !block.sentAt) return res.status(404).json({ message: 'Block not found.' });
-      const po = await SupplierPO.findById(block.poId, 'status').lean();
+      const po = await store.poById(block.poId, { history: false });
       if (po?.status !== 'open') return res.status(409).json({ message: 'Reopen the PO first.' });
-      const problem = unlockProblem(blockLike(block.toObject()).bundles, ids, reason);
+      const problem = unlockProblem(blockLike(block).bundles, ids, reason);
       if (problem) return res.status(problem.startsWith('Say why') ? 400 : 409).json({ message: problem, problems: problem.startsWith('Say why') ? { reason: problem } : undefined });
       const who = actor(req);
       const at = new Date();
-      const next = block.bundles.map((raw) => {
-        const plain = toPlain(raw);
+      const next = (block.bundles as Loose[]).map((plain) => {
         return ids.includes(plain._id) ? { ...plain, status: 'unlocked', unlock: { by: who.name, at, reason } } : plain;
       });
-      block.set({ bundles: next });
-      block.set({ stage: blockStage({ bundles: blockLike(block.toObject()).bundles, sentAt: block.sentAt }) });
       const list = next.filter((b) => ids.includes(b._id)).map((b) => String(b.n)).join(', ');
-      block.history.push({ at, by: who.name, side: 'staff', action: 'unlocked', changes: `bundle${ids.length === 1 ? '' : 's'} ${list} · ${reason}` });
-      await block.save();
+      const saved = await store.updateBlock(id, block.__v, { bundles: next, stage: blockStage({ bundles: blockLike({ ...block, bundles: next }).bundles, sentAt: block.sentAt }) },
+        [{ at, by: who.name, side: 'staff', action: 'unlocked', changes: `bundle${ids.length === 1 ? '' : 's'} ${list} · ${reason}` }]);
+      if (!saved) return res.status(409).json({ message: 'Someone else just changed this block. Reload it and try again.' });
       const readers = await readerLanguages(block.supplierId);
       const why = await makeNote(reason, 'en', readers, who.name);
       const recipients = await supplierRecipients(block.supplierId);
       const link = `${siteBase(req)}/supplier/block/${String(block._id)}`;
       await Promise.all(recipients.map((r) => sendUnlocked({ to: r.to, lang: r.lang, blockNumber: block.blockNumber, poNumber: block.poNumber, list, reason: why, link: r.portal ? link : undefined })));
-      res.json({ block: await blockDetail(block.toObject(), who.id) });
+      res.json({ block: await blockDetail(saved, who.id) });
     } catch (error) {
-      if (isVersionError(error)) return res.status(409).json({ message: 'Someone else just changed this block. Reload it and try again.' });
       fail(res, 'unlock', error, 'Could not unlock the bundles.');
     }
   });
@@ -633,9 +632,10 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
   router.get('/incoming', authenticate, anyOf(SUPPLIER_POS.INCOMING), async (_req: Request, res: Response) => {
     try {
       const since = new Date(Date.now() - 120 * 24 * 3_600_000);
-      const pos = await SupplierPO.find({ status: { $ne: 'cancelled' }, $or: [{ status: 'open' }, { updatedAt: { $gte: since } }] }, 'shipTo readyBy status').lean();
+      const store = await suppliersStore();
+      const pos = await store.listPos({ notCancelled: true, openOrSince: since, limit: 100_000 });
       const poById = new Map(pos.map((p) => [String(p._id), p]));
-      const blocks = await SupplierBlock.find({ poId: { $in: [...poById.keys()] }, 'bundles.status': 'approved' }, 'poId material thickness finish blockNumber size bundles').lean();
+      const blocks = await store.blocksWithApproved([...poById.keys()]);
       const items = blocks.map((b) => incomingView(b, poById.get(b.poId)!)).filter((x) => x.bundles.length)
         .sort((a, b) => String(b.approvedAt || '').localeCompare(String(a.approvedAt || '')));
       res.json({ items });

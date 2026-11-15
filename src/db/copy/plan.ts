@@ -361,6 +361,11 @@ export const COPY_AREAS = {
     'acct_fuelman_reports', 'acct_fuelman_sources', 'acct_fuelman_assignments', 'acct_fuelman_assignment_allocations',
     'acct_fuelman_profiles', 'acct_fuelman_expenses', 'acct_fuelman_state', 'acct_fuelman_periods', 'acct_fuelman_history'
   ],
+  /** Suppliers and the supplier portal: suppliers, their logins, POs with lines, blocks with bundles, and the history lines. */
+  suppliers: [
+    'suppliers', 'supplier_history', 'supplier_logins', 'supplier_pos', 'supplier_po_lines', 'supplier_po_history',
+    'supplier_blocks', 'supplier_bundles', 'supplier_block_history'
+  ],
   /**
    * App settings (the side nav's order, `DB_SETTINGS`) plus three tables no code reads any more — the file-move
    * backups and the two legacy lists — so the cutover copies them once. Import memory, the activity log and the
@@ -442,6 +447,15 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.fuelReports, acc.fuelReports], [schema.fuelSources, acc.fuelSources], [schema.fuelAssignments, acc.fuelAssignments],
       [schema.fuelAssignmentAllocations, acc.fuelAssignmentAllocations], [schema.fuelProfiles, acc.fuelProfiles],
       [schema.fuelExpenses, acc.fuelExpenses], [schema.fuelState, acc.fuelState], [schema.fuelPeriods, acc.fuelPeriods], [schema.fuelHistory, acc.fuelHistory]
+    );
+  }
+  if (area === 'suppliers') {
+    const cs = cardsSuppliersRows(src, ref.index, { customerIds } as never, problems);
+    // Parents before children (the insert order).
+    all.push(
+      [schema.suppliers, cs.suppliers], [schema.supplierHistory, cs.supplierHistory], [schema.supplierLogins, cs.supplierLogins],
+      [schema.supplierPos, cs.supplierPos], [schema.supplierPoLines, cs.supplierPoLines], [schema.supplierPoHistory, cs.supplierPoHistory],
+      [schema.supplierBlocks, cs.supplierBlocks], [schema.supplierBundles, cs.supplierBundles], [schema.supplierBlockHistory, cs.supplierBlockHistory]
     );
   }
   if (area === 'settings') {
