@@ -394,7 +394,7 @@ export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, le
       p { margin: 0; }
       h1, h2 { margin: 0; font-family: Montserrat, Inter, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-weight: 700; }
       .head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
-      .logo { height: 46px; width: auto; display: block; }
+      .logo { height: 40px; width: auto; display: block; }
       .wordmark { font-size: 24px; font-weight: 800; letter-spacing: 0.12em; }
       .head-right { text-align: right; }
       .head-right h1 { font-size: 26px; }
@@ -439,7 +439,7 @@ export const buildSelectionSheetHtml = ({ checkIn = {}, dateStr = '', values, le
   <body>
     <div class="page">
       <header class="head">
-        ${logoUrl ? `<img class="logo" src="${e(logoUrl)}" alt="Easy Stones">` : '<div class="wordmark">EASY STONES</div>'}
+        ${logoUrl ? `<img class="logo" src="${e(logoUrl)}" alt="Easy Surfaces">` : '<div class="wordmark">EASY SURFACES</div>'}
         <div class="head-right">
           <h1>Stone Selection</h1>
           ${heading ? `<p>${e(heading)}</p>` : ''}
