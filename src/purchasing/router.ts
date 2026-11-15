@@ -1,12 +1,12 @@
 import type { Request, Response } from 'express';
-import type { ClientSession } from 'mongoose';
 import type { RouterDependencies } from './serverContracts.ts';
 import { handle, parse } from './serverContracts.ts';
 import express from 'express';
-import { inInventoryTransaction, inInventorySnapshot, inventoryRevision } from '../services/inventoryTransaction.ts';
+import { inventoryRevision } from '../services/inventoryTransaction.ts';
+import { inPurchasingTransaction, inPurchasingSnapshot, type PurchasingStore } from '../db/purchasing/index.ts';
+import { newId } from '../db/ids.ts';
 import { reportSalesPeriod } from './salesPeriod.ts';
 import { requireAll, HttpError, actorOf } from '../server/http.ts';
-import { PurchasingScope, PurchasingInbound, PurchasingDraft, PurchasingLock } from './models.ts';
 import { sourceData, getScope, loadInputs } from './data.ts';
 import { buildPlan, stockId } from './buildPlan.ts';
 import { z } from 'zod';
@@ -24,19 +24,19 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
   router.get(
     '/metadata',
     handle(async (req, res) => {
-      const result = await inInventorySnapshot(async session => {
-        const data = await sourceData(req.user, session);
+      const result = await inPurchasingSnapshot(async store => {
+        const data = await sourceData(req.user, store);
         return { branches: data.branches, cohorts: data.cohorts.map(({ records, legacyId, ...rest }) => ({ ...rest,
           products: [...new Set(records.filter(r => r.uom === 'SF').map(r => r.product))].sort() })),
           scopes: data.scopes, stockSnapshotId: data.stockSnapshotId, stockImportedAt: data.stockImportedAt,
-          revision: await inventoryRevision(session) };
+          revision: await inventoryRevision(store.session) };
       });
       res.json(result);
     }),
   );
-  async function saveScopeInSession(req: Request, id: string | undefined, session: ClientSession) {
+  async function saveScopeInSession(req: Request, id: string | undefined, store: PurchasingStore) {
     const value = parse(scopeSchema, req.body),
-      data = await sourceData(req.user, session);
+      data = await sourceData(req.user, store);
     if (value.branches.some((b) => !data.branches.includes(b)))
       throw new HttpError(403, 'Choose only branches in your access');
     const cohort = data.cohorts.find((c) => c.id === value.cohortId || c.legacyId === value.cohortId);
@@ -59,13 +59,13 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
     if (value.stockCoverageConfirmed && value.stockSnapshotId !== data.stockSnapshotId)
       throw new HttpError(409, 'Stock changed while editing; refresh before confirming coverage');
     value.stockSnapshotId = stockId(data.stock.filter((s) => value.branches.includes(s.location)));
-    const previousScope = id ? await getScope(id, req.user, session) : null;
+    const previousScope = id ? await getScope(id, req.user, store) : null;
     if (previousScope && (previousScope.branches.length !== value.branches.length || previousScope.branches.some(branch => !value.branches.includes(branch)))) {
-      if (await PurchasingDraft.exists({ scopeId: id, lines: { $elemMatch: { branch: { $nin: value.branches } } } }).session(session))
+      if (await store.draftUsesOtherBranch(id!, value.branches))
         throw new HttpError(409, 'Purchase history uses a warehouse being removed. Create a new warehouse view to keep that history with its destination.');
       // Legacy source snapshots inherit their original branch coverage before
       // the view changes; an empty old report cannot establish zero at a new branch.
-      await PurchasingInbound.updateMany({ scopeId: id, branches: { $exists: false } }, { $set: { branches: previousScope.branches } }, { session });
+      await store.stampLegacyInboundBranches(id!, previousScope.branches);
     }
     for (const alias of value.aliases) {
       if (!cohort.records.some((r) => variantKey(r.product) === variantKey(alias.salesProduct)))
@@ -101,18 +101,14 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
     const savedFields = { ...fields, updatedBy: actor.name, cohortRevision: value.fullSalesCoverage ? cohort.revision : null };
     let scope;
     if (id) {
-      await getScope(id, req.user, session);
-      scope = await PurchasingScope.findOneAndUpdate(
-        { _id: id, __v: version },
-        { $set: savedFields, $inc: { __v: 1 } },
-        { session, returnDocument: 'after' },
-      );
+      await getScope(id, req.user, store);
+      scope = await store.updateScope(id, version, savedFields);
       if (!scope) throw new HttpError(409, 'Scope changed; reload before saving');
-    } else [scope] = await PurchasingScope.create([savedFields], { session });
+    } else scope = await store.createScope(newId(), savedFields);
     return scope;
   }
   async function writeScope(req: Request, res: Response, id?: string) {
-    const scope = await inInventoryTransaction(session => saveScopeInSession(req, id, session));
+    const scope = await inPurchasingTransaction(store => saveScopeInSession(req, id, store));
     req.app.get('io')?.emit('inventory_analysis_update');
     res.status(id ? 200 : 201).json(scope);
   }
@@ -128,19 +124,19 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
   );
   router.get(
     '/scopes/:id/plan',
-    handle(async (req, res) => res.json(await inInventorySnapshot(async session => ({ ...buildPlan(await loadInputs(String(req.params.id), req.user, session), now()), revision: await inventoryRevision(session) })))),
+    handle(async (req, res) => res.json(await inPurchasingSnapshot(async store => ({ ...buildPlan(await loadInputs(String(req.params.id), req.user, store), now()), revision: await inventoryRevision(store.session) })))),
   );
   router.post(
     '/scopes/:id/inbound',
     requireAll(P.EDIT),
     handle(async (req, res) => {
-      const saved = await inInventoryTransaction(async session => {
-        const scope = await getScope(String(req.params.id), req.user, session), body = parse(inboundSchema, req.body);
+      const saved = await inPurchasingTransaction(async store => {
+        const scope = await getScope(String(req.params.id), req.user, store), body = parse(inboundSchema, req.body);
         if (body.rows.some(r => !scope.branches.includes(r.branch))) throw new HttpError(400, 'Incoming supply must belong to this scope');
         let receipts;
         try { receipts = normalizeInbound(body.rows); } catch (error) { throw new HttpError(400, error instanceof Error ? error.message : 'Invalid incoming supply'); }
-        const [result] = await PurchasingInbound.create([{ scopeId: scope._id, ...body, branches: scope.branches, receipts,
-          createdAt: now(), importedBy: actorOf(req).name }], { session });
+        const result = await store.createInbound(newId(), { scopeId: scope._id, ...body, branches: scope.branches, receipts,
+          createdAt: now(), importedBy: actorOf(req).name });
         return { id: result._id, rows: body.rows.length, remainingSlabs: receipts.reduce((n, r) => n + r.slabs, 0) };
       });
       req.app.get('io')?.emit('inventory_analysis_update');
@@ -150,10 +146,9 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
   router.get(
     '/scopes/:id/inbound',
     handle(async (req, res) => {
-      const latest = await inInventorySnapshot(async session => {
-        const scope = await getScope(String(req.params.id), req.user, session);
-        const source = await PurchasingInbound.findOne({ scopeId: String(req.params.id) }).session(session)
-          .sort({ createdAt: -1, _id: -1 }).lean();
+      const latest = await inPurchasingSnapshot(async store => {
+        const scope = await getScope(String(req.params.id), req.user, store);
+        const source = await store.latestInbound(String(req.params.id));
         if (source?.branches && (source.branches.length !== scope.branches.length || source.branches.some((branch: string) => !scope.branches.includes(branch)))) return null;
         return source;
       });
@@ -164,8 +159,9 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
     const body = parse(z.object({ date: z.string().refine(validDay), signature: z.string().length(64) }).strict(), req.body);
     if (!/^[a-f\d]{24}$/i.test(String(req.params.shipmentId))) throw new HttpError(400, 'Invalid shipment');
     if (body.date < todayPacific(now())) throw new HttpError(400, 'Choose a current or future expected warehouse receipt date');
-    const result = await inInventoryTransaction(async session => {
-      const scope = await getScope(String(req.params.id), req.user, session);
+    const result = await inPurchasingTransaction(async store => {
+      const session = store.session;
+      const scope = await getScope(String(req.params.id), req.user, store);
       const shipment = await InventoryTransitShipment.findOne({ _id: String(req.params.shipmentId),
         location: { $in: scope.branches }, active: { $ne: false } }).session(session).lean();
       if (!shipment) throw new HttpError(404, 'Shipment not found in this warehouse view');

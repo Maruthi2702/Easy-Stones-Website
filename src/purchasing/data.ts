@@ -1,48 +1,32 @@
-import type { ScopeRecord, PurchasingUser, StockSource, SaleSource, ReservationSource, InboundSource, Session } from './serverContracts.ts';
+import type { ScopeRecord, PurchasingUser, StockSource, SaleSource, ReservationSource, InboundSource } from './serverContracts.ts';
+import type { PurchasingStore } from '../db/purchasing/index.ts';
+import { readBranchNames, readStockForPurchasing, readSalesRecordsForPurchasing, readReservationsForPurchasing } from '../db/purchasing/sources.ts';
 import type { PlanningCohort, PlanInputs } from './planInputs.ts';
 import { reportIdentity } from './reportIdentity.ts';
 import { createHash } from 'node:crypto';
-import InventoryItem from '../models/InventoryItem.ts';
-import InventorySalesRecord from '../models/InventorySalesRecord.ts';
-import Location from '../models/Location.ts';
 import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
-import { SlabReservation } from '../holds/models.ts';
-import { PurchasingScope, PurchasingInbound, PurchasingLock } from './models.ts';
 import { HttpError } from '../server/http.ts';
 export const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const allowed = (user: PurchasingUser, branches: string[]) =>
   branches.every(
     (branch) => user.assignedLocations?.includes('*') || user.assignedLocations?.includes(branch),
   );
-export async function getScope(id: string, user: PurchasingUser, session: Session = null): Promise<ScopeRecord> {
+export async function getScope(id: string, user: PurchasingUser, store: PurchasingStore): Promise<ScopeRecord> {
   if (!/^[a-f\d]{24}$/i.test(id)) throw new HttpError(400, 'Invalid purchasing scope');
-  const scope = await PurchasingScope.findById(id).session(session).lean();
+  const scope = await store.findScope(id);
   if (!scope) throw new HttpError(404, 'Purchasing scope not found');
   if (!allowed(user, scope.branches))
     throw new HttpError(403, 'This purchasing scope includes branches outside your access');
   return scope as ScopeRecord;
 }
-export async function sourceData(user: PurchasingUser, session: Session = null) {
-  const branches = (await Location.find({}, 'name').session(session).sort({ name: 1 }).lean())
-    .map((row) => row.name)
-    .filter((name) => allowed(user, [name]));
+export async function sourceData(user: PurchasingUser, store: PurchasingStore) {
+  const session = store.session;
+  const branches = (await readBranchNames(session)).filter((name) => allowed(user, [name]));
   const reads = [
-    () => InventoryItem.find(
-      { location: { $in: branches } },
-      'product location units type instockQty availableSlabs availableQuantity slabStatus remnant serialNumber importedAt',
-    )
-      .session(session).sort({ _id: 1 })
-      .lean(),
-    () => InventorySalesRecord.find(
-      {},
-      'product uom slabsSold quantitySold location periodStart periodEnd importedAt',
-    )
-      .session(session).sort({ _id: 1 })
-      .lean(),
-    () => PurchasingScope.find({}).session(session).sort({ name: 1 }).lean(),
-    () => SlabReservation.find({ branch: { $in: branches } }, 'slabKey branch holdId updatedAt')
-      .session(session).sort({ _id: 1 })
-      .lean(),
+    () => readStockForPurchasing(branches, session),
+    () => readSalesRecordsForPurchasing(session),
+    () => store.listScopes(),
+    () => readReservationsForPurchasing(branches, session),
   ];
   const loaded: unknown[] = [];
   if (session) { for (const read of reads) loaded.push(await read()); }
@@ -101,13 +85,14 @@ export async function sourceData(user: PurchasingUser, session: Session = null) 
     }),
   };
 }
-export async function loadInputs(id: string, user: PurchasingUser, session: Session = null): Promise<PlanInputs> {
-  const stored = await getScope(id, user, session), sources = await sourceData(user, session);
+export async function loadInputs(id: string, user: PurchasingUser, store: PurchasingStore): Promise<PlanInputs> {
+  const session = store.session;
+  const stored = await getScope(id, user, store), sources = await sourceData(user, store);
   const scope = sources.scopes.find(s => String(s._id) === String(id)) || stored;
   const cohort = sources.cohorts.find((c) => c.id === scope.cohortId) || null;
-  const storedInbound = await PurchasingInbound.findOne({ scopeId: id }).session(session).sort({ createdAt: -1, _id: -1 }).lean();
+  const storedInbound = await store.latestInbound(id);
   const inbound = storedInbound && (!storedInbound.branches || (storedInbound.branches.length === scope.branches.length && storedInbound.branches.every((branch: string) => scope.branches.includes(branch)))) ? storedInbound : null;
-  const locks = await PurchasingLock.find({}).session(session).lean();
+  const locks = await store.listLocks();
   const transitShipments = await InventoryTransitShipment.find({ location: { $in: scope.branches }, active: { $ne: false } }).session(session).sort({ _id: 1 }).lean();
-  return { ...sources, scope, cohort, inbound: inbound as InboundSource | null, locks: locks.map(lock => ({ _id: String(lock._id), draftId: lock.draftId })), transitShipments };
+  return { ...sources, scope, cohort, inbound: inbound as InboundSource | null, locks, transitShipments };
 }

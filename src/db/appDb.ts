@@ -13,8 +13,7 @@
 import { openDb, type OpenDb } from './client.ts';
 import type { Db } from './copy/plan.ts';
 
-export type DbArea = 'customers' | 'deliveries' | 'payments' | 'checkin' | 'daily_reports' | 'card_receipts' | 'lost_sales' | 'inventory_transit';
-export type AreaDatabase = 'mongo' | 'postgres';
+export type DbArea = 'customers' | 'deliveries' | 'payments' | 'checkin' | 'daily_reports' | 'card_receipts' | 'lost_sales' | 'inventory_transit' | 'purchasing';export type AreaDatabase = 'mongo' | 'postgres';
 
 const envName = (area: DbArea) => `DB_${area.toUpperCase()}`;
 
@@ -24,7 +23,7 @@ export function areaOn(area: DbArea): AreaDatabase {
 }
 
 /** Areas switched to Postgres, for the start-up log line. */
-export function areasOnPostgres(areas: DbArea[] = ['customers', 'deliveries', 'payments', 'checkin', 'daily_reports', 'card_receipts', 'lost_sales', 'inventory_transit']): DbArea[] {
+export function areasOnPostgres(areas: DbArea[] = ['customers', 'deliveries', 'payments', 'checkin', 'daily_reports', 'card_receipts', 'lost_sales', 'inventory_transit', 'purchasing']): DbArea[] {
   return areas.filter(a => areaOn(a) === 'postgres');
 }
 

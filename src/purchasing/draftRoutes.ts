@@ -1,10 +1,10 @@
 import type { Request, Router } from 'express';
 import type { InboundRow, DraftLine } from './types.ts';
 import { handle, parse } from './serverContracts.ts';
-import { inInventoryTransaction, inInventorySnapshot } from '../services/inventoryTransaction.ts';
+import { inPurchasingTransaction, inPurchasingSnapshot } from '../db/purchasing/index.ts';
+import { newId } from '../db/ids.ts';
 import { transitParentIdentity, existingTransitParents } from './purchaseIdentity.ts';
 import { requireAll, HttpError, actorOf } from '../server/http.ts';
-import { PurchasingDraft, PurchasingLock, PurchasingPoLink } from './models.ts';
 import { getScope, loadInputs } from './data.ts';
 import { buildPlan } from './buildPlan.ts';
 import { draftSchema, actionSchema } from './schemas.ts';
@@ -20,11 +20,11 @@ export function registerDraftRoutes(router: Router, { now }: { now: () => Date }
     '/drafts/:draftId/export',
     approve,
     handle(async (req, res) => {
-      const result = await inInventorySnapshot(async session => {
-      const draft = await PurchasingDraft.findById(idOf(req)).session(session).lean();
+      const result = await inPurchasingSnapshot(async store => {
+      const draft = await store.findDraft(idOf(req));
       if (!draft || draft.status !== 'approved')
         throw new HttpError(409, 'Only approved drafts can be exported');
-      const inputs = await loadInputs(String(draft.scopeId), req.user, session);
+      const inputs = await loadInputs(String(draft.scopeId), req.user, store);
       inputs.locks = inputs.locks.filter((l) => String(l.draftId) !== String(draft._id));
       const current = buildPlan(inputs, now());
       if (
@@ -40,20 +40,19 @@ export function registerDraftRoutes(router: Router, { now }: { now: () => Date }
   router.get(
     '/scopes/:id/drafts',
     handle(async (req, res) => {
-      const result = await inInventorySnapshot(async session => {
-      await getScope(String(req.params.id), req.user, session);
+      const result = await inPurchasingSnapshot(async store => {
+      await getScope(String(req.params.id), req.user, store);
       const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
       if (req.query.cursor && !/^[a-f\d]{24}$/i.test(String(req.query.cursor))) throw new HttpError(400, 'Invalid draft cursor');
-      const filter = { scopeId: String(req.params.id), ...(req.query.cursor ? { _id: { $lt: String(req.query.cursor) } } : {}) };
       if (req.query.paginated === 'true') {
-        const active = req.query.cursor ? [] : await PurchasingDraft.find({ scopeId: String(req.params.id), status: { $in: ['draft', 'approved'] } }).session(session).sort({ _id: -1 }).lean();
-        const found = await PurchasingDraft.find({ ...filter, status: { $nin: ['draft', 'approved'] } }).session(session).sort({ _id: -1 }).limit(limit + 1).lean();
+        const active = req.query.cursor ? [] : await store.activeDrafts(String(req.params.id));
+        const found = await store.pastDrafts(String(req.params.id), { before: req.query.cursor ? String(req.query.cursor) : undefined, limit: limit + 1 });
         const hasMore = found.length > limit, history = found.slice(0, limit);
         return { items: [...active, ...history], nextCursor: hasMore ? String(history.at(-1)!._id) : null };
       } else {
         // Compatibility for cached clients: never hide an older active draft.
-        const active = await PurchasingDraft.find({ scopeId: String(req.params.id), status: { $in: ['draft', 'approved'] } }).session(session).sort({ _id: -1 }).lean();
-        const history = await PurchasingDraft.find({ scopeId: String(req.params.id), status: { $nin: ['draft', 'approved'] } }).session(session).sort({ _id: -1 }).limit(100).lean();
+        const active = await store.activeDrafts(String(req.params.id));
+        const history = await store.pastDrafts(String(req.params.id), { limit: 100 });
         return [...active, ...history];
       }
       });
@@ -65,8 +64,8 @@ export function registerDraftRoutes(router: Router, { now }: { now: () => Date }
     edit,
     handle(async (req, res) => {
       const body = parse(draftSchema, req.body);
-      const draft = await inInventoryTransaction(async session => {
-      const inputs = await loadInputs(String(req.params.id), req.user, session),
+      const draft = await inPurchasingTransaction(async store => {
+      const inputs = await loadInputs(String(req.params.id), req.user, store),
         plan = buildPlan(inputs, now());
       if (body.fingerprint !== plan.fingerprint)
         throw new HttpError(409, 'Planning inputs changed; refresh the recommendations');
@@ -104,9 +103,8 @@ export function registerDraftRoutes(router: Router, { now }: { now: () => Date }
         throw new HttpError(400, error instanceof Error ? error.message : 'Invalid container load');
       }
       const actor = actorOf(req);
-        const [doc] = await PurchasingDraft.create(
-          [
-            {
+        const draftId = newId();
+        const doc = await store.createDraft(draftId, {
               scopeId: plan.scope._id,
               fingerprint: plan.fingerprint,
               inputSnapshot: {
@@ -140,10 +138,6 @@ export function registerDraftRoutes(router: Router, { now }: { now: () => Date }
               createdBy: actor,
               history: [{ action: 'draft', at: now(), name: actor.name, note: body.note }],
             },
-          ],
-          { session },
-        );
-        await PurchasingLock.insertMany(
           lines.flatMap((line) =>
             plan.scope.branches.map((branch) => ({
               _id: JSON.stringify([
@@ -154,10 +148,8 @@ export function registerDraftRoutes(router: Router, { now }: { now: () => Date }
                 ),
               ]),
               scopeId: plan.scope._id,
-              draftId: doc._id,
             })),
           ),
-          { session },
         );
         return doc;
       });
@@ -171,11 +163,11 @@ export function registerDraftRoutes(router: Router, { now }: { now: () => Date }
       approve,
       handle(async (req, res) => {
         const body = parse(actionSchema, req.body);
-        const updated = await inInventoryTransaction(async session => {
-        const draft = await PurchasingDraft.findById(idOf(req)).session(session).lean();
+        const updated = await inPurchasingTransaction(async store => {
+        const draft = await store.findDraft(idOf(req));
         if (!draft) throw new HttpError(404, 'Draft not found');
-        const scope = await getScope(String(draft.scopeId), req.user, session);
-        const inputs = action === 'cancel' ? null : await loadInputs(String(scope._id), req.user, session);
+        const scope = await getScope(String(draft.scopeId), req.user, store);
+        const inputs = action === 'cancel' ? null : await loadInputs(String(scope._id), req.user, store);
         // Own draft locks are deliberately ignored for revalidation; other buyers'
         // locks remain blockers. Data/policy changes always invalidate approval.
         if (inputs) inputs.locks = inputs.locks.filter((l) => String(l.draftId) !== String(draft._id));
@@ -233,22 +225,14 @@ export function registerDraftRoutes(router: Router, { now }: { now: () => Date }
         }
         const status = { approve: 'approved', cancel: 'cancelled', link: 'ordered' }[action],
           actor = actorOf(req);
-          const doc = await PurchasingDraft.findOneAndUpdate(
-            { _id: draft._id, __v: body.version, status: draft.status },
-            {
-              $set: { status, ...(action === 'link' ? { linkedPoLines: [...new Set(linked)] } : {}) },
-              $inc: { __v: 1 },
-              $push: { history: { action, at: now(), name: actor.name, note: body.note } },
-            },
-            { session, returnDocument: 'after' },
-          );
+          const doc = await store.changeDraft(String(draft._id), {
+            version: body.version, fromStatus: draft.status, status,
+            ...(action === 'link' ? { linkedPoLines: [...new Set(linked)] } : {}),
+            entry: { action, at: now(), name: actor.name, note: body.note },
+          });
           if (!doc) throw new HttpError(409, 'This draft changed; reload before trying again');
-          if (action === 'link')
-            await PurchasingPoLink.insertMany(
-              [...new Set(linked)].map((key) => ({ _id: key, draftId: draft._id })),
-              { session },
-            );
-          if (action !== 'approve') await PurchasingLock.deleteMany({ draftId: draft._id }, { session });
+          if (action === 'link') await store.insertPoLinks([...new Set(linked)], String(draft._id));
+          if (action !== 'approve') await store.releaseLocks(String(draft._id));
           return doc;
         });
         req.app.get('io')?.emit('inventory_analysis_update');
