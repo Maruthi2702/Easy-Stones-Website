@@ -73,7 +73,7 @@ import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
 import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
-import SalesDashboardResource from './src/models/SalesDashboardResource.ts';
+import * as teamFiles from './src/db/teamFiles/index.ts';
 // Unified Model: Customer (now handles both Leads & Active Customers)
 import createLostSalesRouter from './src/routes/lostSales.ts';
 import { EASY_STONES_COLORS } from './src/data/easyStonesColors.ts';
@@ -3196,16 +3196,11 @@ app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view
   const requestQuery = scalarQuery(req);
   try {
     const { parentId } = requestQuery;
-    const query = parentId ? { parentId } : { parentId: null };
 
 
     // Also support getting ALL resources if specifically requested (for search maybe?) - avoiding for now to keep simple
-    const resources = await SalesDashboardResource.find(query)
-      .select('-content')
-      .populate('uploadedBy', 'username') // Populate username
-      .sort({ isFolder: -1, createdAt: -1 }); // Folders first, exclude content
-
-    res.json(resources);
+    // Folders first, newest first, without the content; each with its uploader's username.
+    res.json(await teamFiles.listResources(parentId ? String(parentId) : null));
   } catch (error) {
     console.error('❌ Error fetching dashboard resources:', error);
     res.status(500).json({ message: 'Failed to fetch dashboard resources' });
@@ -3216,7 +3211,7 @@ app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view
 app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
-    const resource = await SalesDashboardResource.findById(requestParams.id).populate('uploadedBy', 'username');
+    const resource = await teamFiles.getResource(String(requestParams.id));
     if (!resource) {
       return res.status(404).json({ message: 'Resource not found' });
     }
@@ -3273,7 +3268,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_d
       return res.status(400).json({ message: 'Invalid resource data' });
     }
 
-    const newResource = new SalesDashboardResource({
+    const newResource = await teamFiles.createResource({
       name,
       type: isFolder === 'true' || isFolder === true ? 'folder' : type,
       content,
@@ -3284,12 +3279,6 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_d
       uploadedBy: req.userId, // Save the user who uploaded/created
       createdAt: getNowLocalISO()
     });
-
-    
-    await newResource.save();
-
-    // Populate before returning
-    await newResource.populate('uploadedBy', 'username');
     req.app.get('io').emit('resource_update');
     res.status(201).json(newResource);
   } catch (error) {
@@ -3305,17 +3294,18 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
     const { id } = requestParams;
     const { name, type, content: linkContent, parentId, thumbnail } = req.body;
 
-    const resource = await SalesDashboardResource.findById(id);
+    const resource = await teamFiles.getResource(String(id));
     if (!resource) {
       return res.status(404).json({ message: 'Resource not found' });
     }
 
-    if (name) resource.name = name;
-    if (parentId !== undefined) resource.parentId = parentId || null;
+    const patch: Loose = {};
+    if (name) patch.name = name;
+    if (parentId !== undefined) patch.parentId = parentId || null;
 
     // Update modified by
     if (req.userId) {
-      resource.uploadedBy = new mongoose.Types.ObjectId(req.userId);
+      patch.uploadedBy = req.userId;
     }
 
     // If a new file is uploaded
@@ -3339,26 +3329,26 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
       if (isImage) {
 
         const result = await uploadFile(req.file!.buffer, 'Resources', `res_${uniqueSuffix}`);
-        resource.content = result.url;
-        resource.contentType = 'image/webp';
+        patch.content = result.url;
+        patch.contentType = 'image/webp';
       } else {
         filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}${path.extname(req.file.originalname)}`;
-        resource.contentType = req.file.mimetype;
+        patch.contentType = req.file.mimetype;
 
         const filePath = path.join(uploadDir, filename);
         fs.writeFileSync(filePath, req.file!.buffer);
-        resource.content = `/uploads/resources/${filename}`;
+        patch.content = `/uploads/resources/${filename}`;
       }
     } else if (type === 'link' && linkContent) {
-      resource.content = linkContent;
-      resource.contentType = 'text/uri-list';
+      patch.content = linkContent;
+      patch.contentType = 'text/uri-list';
     }
 
-    if (thumbnail) resource.thumbnail = thumbnail;
+    if (thumbnail) patch.thumbnail = thumbnail;
 
-    await resource.save();
+    const saved = await teamFiles.updateResource(String(id), patch);
     req.app.get('io').emit('resource_update');
-    res.json(resource);
+    res.json(saved);
   } catch (error) {
     console.error('Error updating dashboard resource:', error);
     res.status(500).json({ message: 'Failed to update resource' });
@@ -3370,42 +3360,20 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermissio
   const requestParams = scalarParams(req);
   try {
     const resourceId = requestParams.id;
-    const resource = await SalesDashboardResource.findById(resourceId);
+    const resource = await teamFiles.getResource(String(resourceId));
 
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
-    if (resource.isFolder) {
-      // Recursive delete: Find all children and delete them
-      // Note: For deep nesting, this should be recursive function, but 
-      // typically MongoDB $graphLookup or separate logic is used. 
-      // For simplicity, we'll just delete direct children or use a recursive function.
-      // Let's implement a helper function for recursive delete.
-
-      const deleteFolderContents = async (folderId: string | mongoose.Types.ObjectId) => {
-        const children = await SalesDashboardResource.find({ parentId: folderId });
-        for (const child of children) {
-          if (child.isFolder) {
-            await deleteFolderContents(child._id);
-          } else if (child.content && child.content.startsWith('/uploads/')) {
-            // Delete file from disk
-            const filePath = path.join(__dirname, 'public', child.content);
-            if (fs.existsSync(filePath)) {
-              try { fs.unlinkSync(filePath); } catch { /* not fatal — carry on */ }
-            }
-          }
-          await SalesDashboardResource.findByIdAndDelete(child._id);
+    // The records go (a folder takes everything inside it); then any file we stored on disk.
+    for (const content of await teamFiles.removeResourceTree(String(resourceId))) {
+      if (content.startsWith('/uploads/')) {
+        const filePath = path.join(__dirname, 'public', content);
+        if (fs.existsSync(filePath)) {
+          try { fs.unlinkSync(filePath); } catch { /* not fatal — carry on */ }
         }
-      };
-      await deleteFolderContents(resourceId);
-    } else if (resource.content && resource.content.startsWith('/uploads/')) {
-      // Delete file from disk
-      const filePath = path.join(__dirname, 'public', resource.content);
-      if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch { /* not fatal — carry on */ }
       }
     }
 
-    await SalesDashboardResource.findByIdAndDelete(resourceId);
     req.app.get('io').emit('resource_update');
     res.json({ message: 'Resource deleted successfully' });
   } catch (error) {
