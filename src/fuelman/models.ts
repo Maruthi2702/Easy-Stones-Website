@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
 import type { Model } from 'mongoose';
 import type { Assignment, CategoryOverride, CostFact, Disposition, ParsedReport, ReportReview } from './types.ts';
-export interface Actor { id: string; name: string }
+import type { Actor } from '../db/fuelman/types.ts';
+export type { Actor };
 export interface ReportRecord {
   _id: mongoose.Types.ObjectId; __v: number; scopeKey: string; fileHash: string; contentHash: string; periodKey: string;
   filename: string; parsed: ParsedReport; revision: number; status: 'draft' | 'posted' | 'superseded' | 'reversed';

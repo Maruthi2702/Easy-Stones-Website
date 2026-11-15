@@ -65,6 +65,7 @@ import { cardReceiptsWritesPauseGate, cardReceiptsWritesPaused } from './src/uti
 import { lostSalesWritesPauseGate, lostSalesWritesPaused } from './src/utils/lostSalesWritesPause.ts';
 import { inventoryWritesPauseGate, inventoryWritesPaused } from './src/utils/inventoryWritesPause.ts';
 import { holdsWritesPauseGate, holdsWritesPaused } from './src/utils/holdsWritesPause.ts';
+import { fuelmanWritesPauseGate, fuelmanWritesPaused } from './src/utils/fuelmanWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1167,6 +1168,8 @@ app.use(lostSalesWritesPauseGate);
 app.use(inventoryWritesPauseGate);
 // Cart & Holds cutover pause (HOLDS_WRITES_PAUSED=true): cart and hold writes answer 503, the expiry job waits (src/utils/holdsWritesPause.ts).
 app.use(holdsWritesPauseGate);
+// Fuel Man cutover pause (FUELMAN_WRITES_PAUSED=true): its writes answer 503 (src/utils/fuelmanWritesPause.ts).
+app.use(fuelmanWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -5167,6 +5170,8 @@ app.get('/api/health', async (req: Request, res: Response) => {
     inventoryWritesPaused: inventoryWritesPaused(),
     holdsOn: areasOnPostgres().includes('holds') ? 'postgres' : 'mongo',
     holdsWritesPaused: holdsWritesPaused(),
+    fuelmanOn: areasOnPostgres().includes('fuelman') ? 'postgres' : 'mongo',
+    fuelmanWritesPaused: fuelmanWritesPaused(),
     dailyReportsWritesPaused: dailyReportsWritesPaused(),
     cardReceiptsOn: areasOnPostgres().includes('card_receipts') ? 'postgres' : 'mongo',
     cardReceiptsWritesPaused: cardReceiptsWritesPaused()
