@@ -78,6 +78,14 @@ function createdMoment(c: ReturnType<typeof rowConverter>, d: Loose): Date {
 }
 
 /** One lost sale as its row (the copy's mapping; a Postgres save builds the same row from the document MongoDB would hold). */
+/** One app setting as a row; the settings data layer (src/db/settings/) writes with this too, so a save equals a re-copy. */
+export function appSettingRowOf(d: Loose, problems: CopyProblem[]): Row<typeof appSettings> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'app_settings', id);
+  return { id, key: textOf(d.key), value: optJson(d.value), updatedBy: textOf(d.updatedBy), ...stamp(c, d) };
+}
+
 export function lostSaleRowOf(d: Loose, ref: ReferenceIndex, cust: Pick<CustomerIndex, 'customerIds'>, problems: CopyProblem[]): Row<typeof lostSales> | null {
   const id = idOf(d._id);
   if (!id) return null;
@@ -163,10 +171,8 @@ export function miscRows(src: MiscSource, ref: ReferenceIndex, cust: CustomerInd
   }
 
   for (const d of src.appSettings) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'app_settings', id);
-    rows.appSettings.push({ id, key: textOf(d.key), value: optJson(d.value), updatedBy: textOf(d.updatedBy), ...stamp(c, d) });
+    const row = appSettingRowOf(d, problems);
+    if (row) rows.appSettings.push(row);
   }
 
   for (const d of src.importMemories) {

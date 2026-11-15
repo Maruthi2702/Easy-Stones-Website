@@ -179,6 +179,37 @@ describe('the Lost Sales copy', () => {
   });
 });
 
+describe('the Settings copy (app settings and the three archive tables)', () => {
+  const at = new Date('2026-11-14T18:00:00Z');
+  const setting = oid(), backup = oid(), lead = oid(), legacyCustomer = oid(), backedUpDoc = oid();
+  const withSettings = (): CopySource => ({
+    ...source(),
+    appSettings: [{ _id: setting, key: 'navOrder', value: { sections: ['sales'], items: {} }, updatedBy: 'root', createdAt: at, updatedAt: at }],
+    cloudinaryToS3Backups: [{ _id: backup, runId: 'run1', collection: 'customers', docId: backedUpDoc, fields: { photo: 'https://res.cloudinary.com/x/a.jpg' }, at }],
+    legacyLeads: [{ _id: lead, name: 'Old Lead', company: 'Old Co', email: 'l@old.example', createdAt: at, updatedAt: at }],
+    legacySalesCustomers: [{ _id: legacyCustomer, customerName: 'Old', company: 'Old Co', createdAt: at, updatedAt: at }]
+  } as unknown as CopySource);
+
+  it('fills only the four settings tables and verifies', async () => {
+    const before = (await open.db.select().from(schema.deliveries)).length;
+    const report = await copyAreaFromMongo(open.db, withSettings(), 'settings', { write: true });
+    expect(report.tables).toEqual({ app_settings: 1, cloudinary_to_s3_backups: 1, legacy_leads: 1, legacy_sales_customers: 1 });
+    expect((await open.db.select().from(schema.deliveries)).length).toBe(before);
+    const [row] = await open.db.select().from(schema.appSettings);
+    expect(row.key).toBe('navOrder');
+    expect(await verifyArea(open.db, withSettings(), 'settings')).toEqual([]);
+  });
+
+  it('refuses for good once locked', async () => {
+    const src = withSettings();
+    (src.appSettings as Record<string, unknown>[])[0].updatedBy = 'someone else';
+    expect((await verifyArea(open.db, src, 'settings')).join('\n')).toMatch(/app_settings/);
+    await lockArea(open.db, 'settings', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'settings', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.appSettings)).length).toBe(1);
+  });
+});
+
 describe('the Inventory copy (stock, in-transit and Purchasing, one switch)', () => {
   const at = new Date('2026-11-14T18:00:00Z');
   const item = oid(), ship = oid(), scope = oid(), draft = oid();

@@ -355,7 +355,13 @@ export const COPY_AREAS = {
   /** Cart & Holds: carts, holds with their slabs, the slab locks, the hold counter and the history. */
   holds: [
     'sales_carts', 'sales_cart_lines', 'sales_holds', 'sales_hold_lines', 'sales_slab_reservations', 'sales_counters', 'sales_hold_history'
-  ]
+  ],
+  /**
+   * App settings (the side nav's order, `DB_SETTINGS`) plus three tables no code reads any more — the file-move
+   * backups and the two legacy lists — so the cutover copies them once. Import memory, the activity log and the
+   * customer backups moved with Customers; stock-import backups with Inventory.
+   */
+  settings: ['app_settings', 'cloudinary_to_s3_backups', 'legacy_leads', 'legacy_sales_customers']
 } as const;
 export type CopyArea = keyof typeof COPY_AREAS;
 export const isCopyArea = (v: unknown): v is CopyArea => typeof v === 'string' && Object.hasOwn(COPY_AREAS, v);
@@ -420,6 +426,11 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.salesSlabReservations, ch.salesSlabReservations], [schema.salesCounters, ch.salesCounters],
       [schema.salesHoldHistory, ch.salesHoldHistory]
     );
+  }
+  if (area === 'settings') {
+    const misc = miscRows(src, ref.index, { customerIds } as never, problems);
+    all.push([schema.appSettings, misc.appSettings], [schema.cloudinaryToS3Backups, misc.cloudinaryToS3Backups],
+      [schema.legacyLeads, misc.legacyLeads], [schema.legacySalesCustomers, misc.legacySalesCustomers]);
   }
   if (area === 'lost_sales') all.push([schema.lostSales, miscRows(src, ref.index, { customerIds } as never, problems).lostSales]);
   return all.filter(([t]) => names.has(getTableName(t)));

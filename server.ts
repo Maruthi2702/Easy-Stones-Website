@@ -65,6 +65,7 @@ import { cardReceiptsWritesPauseGate, cardReceiptsWritesPaused } from './src/uti
 import { lostSalesWritesPauseGate, lostSalesWritesPaused } from './src/utils/lostSalesWritesPause.ts';
 import { inventoryWritesPauseGate, inventoryWritesPaused } from './src/utils/inventoryWritesPause.ts';
 import { holdsWritesPauseGate, holdsWritesPaused } from './src/utils/holdsWritesPause.ts';
+import { settingsWritesPauseGate, settingsWritesPaused } from './src/utils/settingsWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1167,6 +1168,8 @@ app.use(lostSalesWritesPauseGate);
 app.use(inventoryWritesPauseGate);
 // Cart & Holds cutover pause (HOLDS_WRITES_PAUSED=true): cart and hold writes answer 503, the expiry job waits (src/utils/holdsWritesPause.ts).
 app.use(holdsWritesPauseGate);
+// Settings cutover pause (SETTINGS_WRITES_PAUSED=true): the side nav order can't be saved (src/utils/settingsWritesPause.ts).
+app.use(settingsWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -5167,6 +5170,8 @@ app.get('/api/health', async (req: Request, res: Response) => {
     inventoryWritesPaused: inventoryWritesPaused(),
     holdsOn: areasOnPostgres().includes('holds') ? 'postgres' : 'mongo',
     holdsWritesPaused: holdsWritesPaused(),
+    settingsOn: areasOnPostgres().includes('settings') ? 'postgres' : 'mongo',
+    settingsWritesPaused: settingsWritesPaused(),
     dailyReportsWritesPaused: dailyReportsWritesPaused(),
     cardReceiptsOn: areasOnPostgres().includes('card_receipts') ? 'postgres' : 'mongo',
     cardReceiptsWritesPaused: cardReceiptsWritesPaused()
