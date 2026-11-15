@@ -52,6 +52,7 @@ import User from './src/models/User.ts';
 import Role from './src/models/Role.ts';
 import DailyReport from './src/models/DailyReport.ts';
 import Location from './src/models/Location.ts';
+import * as staffData from './src/db/staff/index.ts';
 import ContactSubmission from './src/models/ContactSubmission.ts';
 import Customer from './src/models/Customer.ts';
 import * as customerData from './src/db/customers/index.ts';
@@ -1674,7 +1675,7 @@ const resolveHomeLocation = async ({ requested, current, assignedLocations }: { 
   const assigned = Array.isArray(assignedLocations) ? assignedLocations : [];
   const loc = typeof requested === 'string' ? requested.trim() : undefined;
   if (loc !== undefined && loc !== (current || '')) {
-    const known = assigned.includes('*') ? await Location.find().select('name').lean() : [];
+    const known = assigned.includes('*') ? await staffData.locationBriefs() : [];
     const problem = homeLocationProblem(loc, assigned, known);
     if (problem) return { error: problem };
     if (loc || assigned.includes('*')) return { location: loc };
@@ -2179,7 +2180,7 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), v
 // what the filters need (publicLocationFields).
 app.get('/api/admin/locations', verifyAnyAuth, async (req: Request, res: Response) => {
   try {
-    const locations = await Location.find().sort({ name: 1 }).lean();
+    const locations = await staffData.locationsList();
     const full = canOpenArea(req.user, 'locations');
     const staff = req.user?.type !== 'customer';
     res.json(full ? locations : locations.map((l) => publicLocationFields(l, { staff })));
@@ -2190,7 +2191,7 @@ app.get('/api/admin/locations', verifyAnyAuth, async (req: Request, res: Respons
 
 // The map pin for a location's primary address — only looked up again when
 // the address changed (geocodePatchFor), and never blocks the save.
-const applyLocationGeocode = async (location: Loose) => {
+const applyLocationGeocode: staffData.Geocoder = async (location: Loose) => {
   const a = location.primaryContact?.address || {};
   const patch = await geocodePatchFor(
     { street: a.street, city: a.city, state: a.state, zipCode: a.zipCode },
@@ -2213,22 +2214,16 @@ const locationError = (res: Response, errors: Loose) => {
 // Create a new location (manage_users permission needed)
 app.post('/api/admin/locations', verifyAnyAuth, requireAction(LOCATIONS.ADD), async (req: Request, res: Response) => {
   try {
-    const others = await Location.find({}, { name: 1, shortCode: 1 }).lean();
+    const others = await staffData.locationBriefs();
     const { record, errors } = parseLocationBody(req.body, { others });
     if (errors) return locationError(res, errors);
 
-    const location = new Location({ ...record, editedBy: req.user?.username || '', editedAt: new Date() });
-    await applyLocationGeocode(location);
-    try {
-      await location.save();
-    } catch (err) {
-      // Two people adding the same short name at once — the unique index wins.
-      if ((err as Error & Loose)?.code === 11000) return locationError(res, { name: `${record.name} already exists` });
-      throw err;
-    }
+    // Two people adding the same short name at once — the unique index wins.
+    const saved = await staffData.createLocation(record, req.user?.username || '', applyLocationGeocode);
+    if (!saved.ok) return locationError(res, { name: `${record.name} already exists` });
 
     req.app.get('io').emit('location_update');
-    res.status(201).json(location);
+    res.status(201).json(saved.location);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create location', error: (error as Error).message });
   }
@@ -2240,24 +2235,20 @@ app.post('/api/admin/locations', verifyAnyAuth, requireAction(LOCATIONS.ADD), as
 app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDIT), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
-    if (!mongoose.isValidObjectId(requestParams.id)) {
-      return res.status(404).json({ message: 'Location not found' });
-    }
-    const location = await Location.findById(requestParams.id);
+    const location = await staffData.locationById(String(requestParams.id));
     if (!location) {
       return res.status(404).json({ message: 'Location not found' });
     }
 
-    const others = await Location.find({}, { name: 1, shortCode: 1 }).lean();
+    const others = await staffData.locationBriefs();
     const { record, errors } = parseLocationBody(req.body, { isEdit: true, current: location, others });
     if (errors) return locationError(res, errors);
 
-    location.set({ ...record, editedBy: req.user?.username || '', editedAt: new Date() });
-    await applyLocationGeocode(location);
-    await location.save();
+    const updated = await staffData.updateLocation(String(requestParams.id), record, req.user?.username || '', applyLocationGeocode);
+    if (!updated) return res.status(404).json({ message: 'Location not found' });
 
     req.app.get('io').emit('location_update');
-    res.json(location);
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update location', error: (error as Error).message });
   }
@@ -2267,15 +2258,10 @@ app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDI
 app.delete('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.DELETE), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
-    const locationId = requestParams.id;
-    const location = await Location.findById(locationId);
-    if (!location) {
+    // Also clears every other branch's RDC that named it.
+    if (!(await staffData.deleteLocation(String(requestParams.id)))) {
       return res.status(404).json({ message: 'Location not found' });
     }
-
-    await Location.findByIdAndDelete(locationId);
-    // Nothing may keep pointing at it as their regional distribution center.
-    await Location.updateMany({ rdc: location.name }, { $set: { rdc: '' } });
     
     // Emit websocket update so frontend updates dynamically
     req.app.get('io').emit('location_update');
@@ -3981,7 +3967,7 @@ app.use('/api/customers', createCustomerResourcesRouter({
  */
 const loadImportReferenceData = async () => {
   const branchByKey = new Map(
-    (await Location.find().select('name').lean()).map(b => [importNormalize(b.name), b.name])
+    (await staffData.locationBriefs()).map(b => [importNormalize(b.name), b.name])
   );
 
   const repByKey = new Map();
