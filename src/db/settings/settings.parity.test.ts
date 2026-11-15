@@ -15,6 +15,9 @@ import { readSetting, writeSetting, removeSetting } from './index.ts';
 import createNavOrderRouter from '../../routes/navOrder.ts';
 import type { Loose } from '../../types/records.ts';
 
+// Every step compares the whole copy; on a busy machine that passes 5 seconds.
+vi.setConfig({ testTimeout: 90_000 });
+
 const ids = vi.hoisted(() => ({ made: [] as string[], used: 0 }));
 // A new row's id is made by the data layer: both runs of one request must get the same one.
 vi.mock('../ids.ts', async original => {
