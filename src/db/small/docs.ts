@@ -43,7 +43,7 @@ export function productDoc(
     isNewArrival: p.isNewArrival, showInSlider: p.showInSlider, thickness: p.thickness ?? [], sizes: p.sizes ?? [],
     description: orUndef(p.description), primaryColor: orUndef(p.primaryColor), accentColor: orUndef(p.accentColor), style: orUndef(p.style),
     variations: p.variations, finishes: p.finishes ?? [], applications: p.applications ?? [], bookMatch: p.bookMatch,
-    landingCost: num(p.landingCost),
+    landingCost: num(p.landingCost), price: orUndef(p.price),
     priceLevels: { level1: num(p.priceLevel1), level2: num(p.priceLevel2), level3: num(p.priceLevel3), level4: num(p.priceLevel4) },
     createdAt: p.createdAt, updatedAt: p.updatedAt, __v: 0
   };
