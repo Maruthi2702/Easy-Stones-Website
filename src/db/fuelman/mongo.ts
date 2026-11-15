@@ -17,6 +17,7 @@ const periodOf = (d: { publishedReportId?: unknown }) => ({ ...d, publishedRepor
 const byLocations = (locations?: string[]) => (locations ? { location: { $in: locations } } : {});
 
 export function mongoStore(session: ClientSession | null): FuelStore {
+  const opt = { session: session ?? undefined };
   return {
     session,
 
@@ -49,8 +50,8 @@ export function mongoStore(session: ClientSession | null): FuelStore {
       const update: Record<string, unknown> = {};
       if (Object.keys(set).length) update.$set = set;
       if (bump) update.$inc = { __v: 1 };
-      const filter = version === undefined ? { _id: id } : { _id: id, __v: version };
-      const result = await FuelReport.updateOne(filter, update, { session });
+      const filter = (version === undefined ? { _id: id } : { _id: id, __v: version }) as Record<string, unknown>;
+      const result = await FuelReport.updateOne(filter, update, opt);
       return result.matchedCount > 0;
     },
     async listReports({ ids, page, limit }) {
@@ -96,16 +97,16 @@ export function mongoStore(session: ClientSession | null): FuelStore {
     },
     async setAssignmentEnd(ids, to, actor) {
       if (!ids.length) return;
-      await FuelAssignment.updateMany({ _id: { $in: oids(ids) } }, { $set: { to, updatedBy: actor, updatedAt: new Date() } }, { session });
+      await FuelAssignment.updateMany({ _id: { $in: oids(ids) } }, { $set: { to, updatedBy: actor, updatedAt: new Date() } }, opt);
     },
     async saveAssignment(id, a) {
-      await FuelAssignment.findOneAndUpdate({ scopeKey: a.scopeKey, externalId: a.externalId, from: a.from }, { $set: a, $setOnInsert: { _id: id } }, { session, upsert: true });
+      await FuelAssignment.findOneAndUpdate({ scopeKey: a.scopeKey, externalId: a.externalId, from: a.from }, { $set: a, $setOnInsert: { _id: id } }, { ...opt, upsert: true });
     },
     async addAssignmentsIfAbsent(list) {
       if (!list.length) return;
       await FuelAssignment.bulkWrite(list.map(({ id, a }) => ({ updateOne: {
         filter: { scopeKey: a.scopeKey, externalId: a.externalId, from: a.from },
-        update: { $setOnInsert: { _id: id, ...a } }, upsert: true } })), { session });
+        update: { $setOnInsert: { _id: id, ...a } }, upsert: true } })) as never, opt);
     },
 
     async factsOfReport(reportId, locations) {
@@ -142,10 +143,10 @@ export function mongoStore(session: ClientSession | null): FuelStore {
       return d ? periodOf(d) : null;
     },
     async ensurePeriod(id, scopeKey, month) {
-      await FuelPeriod.updateOne({ _id: id }, { $setOnInsert: { scopeKey, month, closed: false } }, { upsert: true, session });
+      await FuelPeriod.updateOne({ _id: id }, { $setOnInsert: { scopeKey, month, closed: false } }, { upsert: true, ...opt });
     },
     async updatePeriod(id, change) {
-      await FuelPeriod.updateOne({ _id: id }, { $set: change }, { session });
+      await FuelPeriod.updateOne({ _id: id }, { $set: change }, opt);
     },
     async publishedReportIds(month) {
       return (await FuelPeriod.distinct('publishedReportId', { month, publishedReportId: { $ne: null } }).session(session)).map(String);
