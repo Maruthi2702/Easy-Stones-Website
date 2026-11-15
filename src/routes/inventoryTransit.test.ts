@@ -8,6 +8,7 @@ import InventorySalesRecord from '../models/InventorySalesRecord.ts';
 import { PurchasingScope } from '../purchasing/models.ts';
 import Location from '../models/Location.ts';
 import { sourceData } from '../purchasing/data.ts';
+import { mongoStore } from '../db/purchasing/mongo.ts';
 import { reportIdentity } from '../purchasing/reportIdentity.ts';
 import express from 'express';
 import multer from 'multer';
@@ -133,7 +134,7 @@ describe('atomic sales report replacement', () => {
     await apply().expect(200);
     const saved = await PurchasingScope.findById(scope._id).lean();
     expect(saved!.cohortId).toBe(identity.id);
-    const source = await sourceData({ assignedLocations: ['*'] });
+    const source = await sourceData({ assignedLocations: ['*'] }, mongoStore(null));
     expect(source.cohorts[0].id).toBe(identity.id);
     expect(source.scopes[0].fullSalesCoverage).toBe(false);
     expect(source.cohorts[0].records[0].quantitySold).toBe(375);

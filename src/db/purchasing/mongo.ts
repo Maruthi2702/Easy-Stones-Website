@@ -21,7 +21,7 @@ export function mongoStore(session: ClientSession | null): PurchasingStore {
       return !!(await PurchasingDraft.exists({ scopeId, lines: { $elemMatch: { branch: { $nin: branches } } } }).session(session));
     },
     async stampLegacyInboundBranches(scopeId, branches) {
-      await PurchasingInbound.updateMany({ scopeId, branches: { $exists: false } }, { $set: { branches } }, { session });
+      await PurchasingInbound.updateMany({ scopeId, branches: { $exists: false } }, { $set: { branches } }, { session: session ?? undefined });
     },
 
     async createInbound(id, doc) {
@@ -49,7 +49,7 @@ export function mongoStore(session: ClientSession | null): PurchasingStore {
     async insertPoLinks(keys, draftId) {
       await PurchasingPoLink.insertMany(keys.map(key => ({ _id: key, draftId })), { session });
     },
-    async releaseLocks(draftId) { await PurchasingLock.deleteMany({ draftId }, { session }); },
+    async releaseLocks(draftId) { await PurchasingLock.deleteMany({ draftId }, { session: session ?? undefined }); },
     async listLocks() {
       return (await PurchasingLock.find({}).session(session).lean()).map(lock => ({ _id: String(lock._id), draftId: lock.draftId }));
     }

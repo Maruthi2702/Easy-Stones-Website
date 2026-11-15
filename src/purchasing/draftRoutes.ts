@@ -147,7 +147,7 @@ export function registerDraftRoutes(router: Router, { now }: { now: () => Date }
                     ?.stockProduct || line.product,
                 ),
               ]),
-              scopeId: plan.scope._id,
+              scopeId: String(plan.scope._id),
             })),
           ),
         );
@@ -226,7 +226,7 @@ export function registerDraftRoutes(router: Router, { now }: { now: () => Date }
         const status = { approve: 'approved', cancel: 'cancelled', link: 'ordered' }[action],
           actor = actorOf(req);
           const doc = await store.changeDraft(String(draft._id), {
-            version: body.version, fromStatus: draft.status, status,
+            version: body.version, fromStatus: String(draft.status), status,
             ...(action === 'link' ? { linkedPoLines: [...new Set(linked)] } : {}),
             entry: { action, at: now(), name: actor.name, note: body.note },
           });

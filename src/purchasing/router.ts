@@ -169,7 +169,7 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
       if (signature !== body.signature) throw new HttpError(409, 'The shipment changed; review its current report before confirming a receiving date');
       const actor = actorOf(req);
       await InventoryTransitShipment.updateOne({ _id: shipment._id }, { $set: { usableReceiptDate: new Date(body.date),
-        receiptConfirmedAt: now(), receiptConfirmedBy: actor.name, confirmedSignature: signature }, $inc: { __v: 1 } }, { session });
+        receiptConfirmedAt: now(), receiptConfirmedBy: actor.name, confirmedSignature: signature }, $inc: { __v: 1 } }, { session: session ?? undefined });
       await InventoryTransitEvent.create([{ shipmentId: String(shipment._id), at: now(), actor: actor.name,
         action: 'receipt-confirmed', snapshot: { date: body.date, signature } }], { session });
       return { success: true, date: body.date };
