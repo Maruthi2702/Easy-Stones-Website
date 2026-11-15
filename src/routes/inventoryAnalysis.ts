@@ -27,7 +27,7 @@ import { PurchasingScope } from '../purchasing/models.ts';
 import { importInventoryStock } from '../services/inventoryStockImport.ts';
 import InventoryItem from '../models/InventoryItem.ts';
 import InventorySalesRecord from '../models/InventorySalesRecord.ts';
-import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
+import { listActiveShipments } from '../db/inventoryTransit/index.ts';
 import { groupTransitShipments } from '../utils/inventoryTransitImport.ts';
 import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.ts';
 // Parses run in a worker thread — see runWorkbookParse.ts for why an uploaded
@@ -373,7 +373,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
 
   router.get('/in-transit', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
     try {
-      const shipments = await InventoryTransitShipment.find({ active: { $ne: false } }).sort({ poNumber: 1, containerNumber: 1 }).lean();
+      const shipments = await listActiveShipments();
       res.json({ shipments });
     } catch (error) {
       console.error('In-transit inventory error:', error);
