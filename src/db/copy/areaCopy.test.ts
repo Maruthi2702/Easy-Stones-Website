@@ -179,6 +179,37 @@ describe('the Lost Sales copy', () => {
   });
 });
 
+describe('the Settings copy (app settings and the three archive tables)', () => {
+  const at = new Date('2026-11-14T18:00:00Z');
+  const setting = oid(), backup = oid(), lead = oid(), legacyCustomer = oid(), backedUpDoc = oid();
+  const withSettings = (): CopySource => ({
+    ...source(),
+    appSettings: [{ _id: setting, key: 'navOrder', value: { sections: ['sales'], items: {} }, updatedBy: 'root', createdAt: at, updatedAt: at }],
+    cloudinaryToS3Backups: [{ _id: backup, runId: 'run1', collection: 'customers', docId: backedUpDoc, fields: { photo: 'https://res.cloudinary.com/x/a.jpg' }, at }],
+    legacyLeads: [{ _id: lead, name: 'Old Lead', company: 'Old Co', email: 'l@old.example', createdAt: at, updatedAt: at }],
+    legacySalesCustomers: [{ _id: legacyCustomer, customerName: 'Old', company: 'Old Co', createdAt: at, updatedAt: at }]
+  } as unknown as CopySource);
+
+  it('fills only the four settings tables and verifies', async () => {
+    const before = (await open.db.select().from(schema.deliveries)).length;
+    const report = await copyAreaFromMongo(open.db, withSettings(), 'settings', { write: true });
+    expect(report.tables).toEqual({ app_settings: 1, cloudinary_to_s3_backups: 1, legacy_leads: 1, legacy_sales_customers: 1 });
+    expect((await open.db.select().from(schema.deliveries)).length).toBe(before);
+    const [row] = await open.db.select().from(schema.appSettings);
+    expect(row.key).toBe('navOrder');
+    expect(await verifyArea(open.db, withSettings(), 'settings')).toEqual([]);
+  });
+
+  it('refuses for good once locked', async () => {
+    const src = withSettings();
+    (src.appSettings as Record<string, unknown>[])[0].updatedBy = 'someone else';
+    expect((await verifyArea(open.db, src, 'settings')).join('\n')).toMatch(/app_settings/);
+    await lockArea(open.db, 'settings', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'settings', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.appSettings)).length).toBe(1);
+  });
+});
+
 describe('the Inventory copy (stock, in-transit and Purchasing, one switch)', () => {
   const at = new Date('2026-11-14T18:00:00Z');
   const item = oid(), ship = oid(), scope = oid(), draft = oid();
@@ -249,5 +280,39 @@ describe('the Cart & Holds copy', () => {
     await lockArea(open.db, 'holds', 'cutover');
     await expect(copyAreaFromMongo(open.db, emptySource(), 'holds', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
     expect((await open.db.select().from(schema.salesHolds)).length).toBe(1);
+  });
+});
+
+describe('the Suppliers copy', () => {
+  const at = new Date('2026-11-14T18:00:00Z');
+  const supplier = oid(), login = oid(), po = oid(), block = oid();
+  const withSuppliers = (): CopySource => ({
+    ...source(),
+    suppliers: [{ _id: supplier, name: 'Marmores do Sul', spsKey: 'marmores do sul', language: 'pt', createdAt: at, updatedAt: at, history: [{ at, by: 'Ana', side: 'staff', action: 'added' }] }],
+    supplierLogins: [{ _id: login, supplierId: String(supplier), name: 'Marcos', email: 'm@sul.test', password: 'hash', createdAt: at, updatedAt: at }],
+    supplierPos: [{
+      _id: po, poNumber: '41872', supplierId: String(supplier), readyBy: '2026-12-01', __v: 3, createdAt: at, updatedAt: at,
+      lines: [{ _id: 'l1', material: 'Taj', slabs: 56 }], history: [{ at, by: 'Dana', side: 'staff', action: 'added' }]
+    }],
+    supplierBlocks: [{
+      _id: block, poId: String(po), poNumber: '41872', supplierId: String(supplier), lineId: 'l1', size: { length: 124, height: 76.5, unit: 'in' }, __v: 2, createdAt: at, updatedAt: at,
+      bundles: [{ _id: 'b1', n: 1, slabs: 8, status: 'review', step1: { decision: 'approve', by: 'x', byName: 'Ravi', at, reason: '' } }], history: []
+    }]
+  } as unknown as CopySource);
+
+  it('fills only the 9 suppliers tables, verifies, and refuses for good once locked', async () => {
+    const report = await copyAreaFromMongo(open.db, withSuppliers(), 'suppliers', { write: true });
+    expect(report.tables).toEqual({
+      suppliers: 1, supplier_history: 1, supplier_logins: 1, supplier_pos: 1, supplier_po_lines: 1, supplier_po_history: 1,
+      supplier_blocks: 1, supplier_bundles: 1, supplier_block_history: 0
+    });
+    expect((await open.db.select().from(schema.supplierPos))[0].version).toBe(3);
+    expect(await verifyArea(open.db, withSuppliers(), 'suppliers')).toEqual([]);
+    const src = withSuppliers();
+    (src.suppliers as Record<string, unknown>[])[0].name = 'Other';
+    expect((await verifyArea(open.db, src, 'suppliers')).join('\n')).toMatch(/suppliers/);
+    await lockArea(open.db, 'suppliers', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'suppliers', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.suppliers)).length).toBe(1);
   });
 });

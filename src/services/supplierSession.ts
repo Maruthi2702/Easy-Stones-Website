@@ -18,8 +18,8 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import type { CookieOptions, NextFunction, Request, Response } from 'express';
-import type mongoose from 'mongoose';
-import { Supplier, SupplierLogin } from '../models/Suppliers.ts';
+import { suppliersStore } from '../db/suppliers/index.ts';
+import { suppliersWritesPaused } from '../utils/suppliersWritesPause.ts';
 
 export const SUPPLIER_COOKIE = 'supplierToken';
 export const SUPPLIER_COOKIE_PATH = '/api/supplier-portal';
@@ -81,12 +81,13 @@ export const authenticateSupplier = (secret: string) => async (req: Request, res
   const read = readSupplierToken(req, secret);
   if (!read) return res.status(401).json({ message: 'Sign in again.', code: 'signin' });
   try {
-    const login = await SupplierLogin.findById(read.loginId).lean();
+    const store = await suppliersStore();
+    const login = await store.loginById(read.loginId);
     if (!login || login.supplierId !== read.supplierId || (Number(login.sessionVersion) || 0) !== read.sv || login.active === false) {
       endSupplierSession(res);
       return res.status(401).json({ message: 'Sign in again.', code: login?.active === false ? 'loginOff' : 'signin' });
     }
-    const supplier = await Supplier.findById(login.supplierId, 'name language active').lean();
+    const supplier = await store.supplierById(login.supplierId);
     if (!supplier || supplier.active === false) {
       endSupplierSession(res);
       return res.status(401).json({ message: 'Sign in again.', code: 'loginOff' });
@@ -96,8 +97,9 @@ export const authenticateSupplier = (secret: string) => async (req: Request, res
       language: login.language || supplier.language || 'en', supplierName: supplier.name, supplierLanguage: supplier.language || 'en'
     };
     // "Last seen" on the Suppliers tab, written at most every 5 minutes.
-    if (!login.lastSeenAt || Date.now() - new Date(login.lastSeenAt).getTime() > SEEN_EVERY_MS) {
-      SupplierLogin.updateOne({ _id: login._id }, { $set: { lastSeenAt: new Date() } }).catch(() => undefined);
+    // (Not while the cutover pause is on: a write now would spoil the copy's check.)
+    if ((!login.lastSeenAt || Date.now() - new Date(login.lastSeenAt).getTime() > SEEN_EVERY_MS) && !suppliersWritesPaused()) {
+      store.updateLogin(String(login._id), { lastSeenAt: new Date() }).catch(() => undefined);
     }
     next();
   } catch (error) {
@@ -119,14 +121,13 @@ export const isLocked = (login: { lockUntil?: Date | null }, now = Date.now()) =
  * 'wrong', 'locked' or 'off'. A login with no password yet (invite not
  * accepted) is 'wrong', never a way in.
  */
-export async function checkPassword(login: mongoose.HydratedDocument<{ password?: string | null; active?: boolean | null; loginAttempts?: number | null; lockUntil?: Date | null }>, password: string, now = Date.now()) {
+export async function checkPassword(login: { _id: unknown; password?: string | null; active?: boolean | null; loginAttempts?: number | null; lockUntil?: Date | null }, password: string, now = Date.now()) {
   if (isLocked(login, now)) return 'locked' as const;
   const ok = Boolean(login.password) && await bcrypt.compare(String(password || ''), String(login.password));
   if (!ok) {
     const expired = login.lockUntil && new Date(login.lockUntil).getTime() <= now;
     const attempts = (expired ? 0 : Number(login.loginAttempts) || 0) + 1;
-    login.set({ loginAttempts: attempts, lockUntil: attempts >= MAX_ATTEMPTS ? new Date(now + LOCK_MS) : (expired ? null : login.lockUntil) });
-    await login.save();
+    await (await suppliersStore()).updateLogin(String(login._id), { loginAttempts: attempts, lockUntil: attempts >= MAX_ATTEMPTS ? new Date(now + LOCK_MS) : (expired ? null : login.lockUntil) });
     return attempts >= MAX_ATTEMPTS ? 'locked' as const : 'wrong' as const;
   }
   if (login.active === false) return 'off' as const;

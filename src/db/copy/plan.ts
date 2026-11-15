@@ -356,6 +356,17 @@ export const COPY_AREAS = {
   holds: [
     'sales_carts', 'sales_cart_lines', 'sales_holds', 'sales_hold_lines', 'sales_slab_reservations', 'sales_counters', 'sales_hold_history'
   ],
+  /** Suppliers and the supplier portal: suppliers, their logins, POs with lines, blocks with bundles, and the history lines. */
+  suppliers: [
+    'suppliers', 'supplier_history', 'supplier_logins', 'supplier_pos', 'supplier_po_lines', 'supplier_po_history',
+    'supplier_blocks', 'supplier_bundles', 'supplier_block_history'
+  ],
+  /**
+   * App settings (the side nav's order, `DB_SETTINGS`) plus three tables no code reads any more — the file-move
+   * backups and the two legacy lists — so the cutover copies them once. Import memory, the activity log and the
+   * customer backups moved with Customers; stock-import backups with Inventory.
+   */
+  settings: ['app_settings', 'cloudinary_to_s3_backups', 'legacy_leads', 'legacy_sales_customers'],
   /** Accounting's 3rd-party freight (Fuel Man is its own area): carriers, charges with flags, carrier invoices, payments, the audit. */
   accounting: [
     'acct_carriers', 'acct_carrier_invoices', 'acct_freight_charges', 'acct_freight_charge_flags', 'acct_invoice_charges',
@@ -435,6 +446,20 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.acctInvoiceCharges, acc.acctInvoiceCharges], [schema.acctPayments, acc.acctPayments],
       [schema.acctPaymentCharges, acc.acctPaymentCharges], [schema.acctAudit, acc.acctAudit]
     );
+  }
+  if (area === 'suppliers') {
+    const cs = cardsSuppliersRows(src, ref.index, { customerIds } as never, problems);
+    // Parents before children (the insert order).
+    all.push(
+      [schema.suppliers, cs.suppliers], [schema.supplierHistory, cs.supplierHistory], [schema.supplierLogins, cs.supplierLogins],
+      [schema.supplierPos, cs.supplierPos], [schema.supplierPoLines, cs.supplierPoLines], [schema.supplierPoHistory, cs.supplierPoHistory],
+      [schema.supplierBlocks, cs.supplierBlocks], [schema.supplierBundles, cs.supplierBundles], [schema.supplierBlockHistory, cs.supplierBlockHistory]
+    );
+  }
+  if (area === 'settings') {
+    const misc = miscRows(src, ref.index, { customerIds } as never, problems);
+    all.push([schema.appSettings, misc.appSettings], [schema.cloudinaryToS3Backups, misc.cloudinaryToS3Backups],
+      [schema.legacyLeads, misc.legacyLeads], [schema.legacySalesCustomers, misc.legacySalesCustomers]);
   }
   if (area === 'lost_sales') all.push([schema.lostSales, miscRows(src, ref.index, { customerIds } as never, problems).lostSales]);
   return all.filter(([t]) => names.has(getTableName(t)));

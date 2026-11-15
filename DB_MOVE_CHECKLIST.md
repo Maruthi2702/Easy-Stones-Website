@@ -205,7 +205,14 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - [ ] Local click-through with `DB_HOLDS=postgres` (owner): cart add / scan / note / remove, create a hold from the cart, edit, swap, extend, release, the PDF, the Holds list filters
   - [ ] Cutover: `HOLDS_WRITES_PAUSED=true` → `--scope holds --write` → `--verify` → `DB_HOLDS=postgres` on Render → pause off → `--lock … --scope holds`; then Mongo cart / hold collections kept read-only for 2 weeks
   - Known: a hold's customer id is lost if the customer is deleted (name kept); a new branch added in MongoDB needs the next Locations move before it can take a hold on Postgres
-- [ ] Suppliers + supplier portal (2 days; after Inventory, since POs fill from transit shipments)
+- [ ] Suppliers + supplier portal (2 days; after Inventory, since POs fill from transit shipments) — **built 2026-11-15 on `feat/pg-suppliers`, not merged, not cut over.** Switch `DB_SUPPLIERS` (its own). Data layer `src/db/suppliers/` (README): suppliers, portal logins, POs with lines, blocks with bundles, history. Staff routes, Purchasing's block entry, the portal routes and the portal sign-in (`supplierSession.ts`) all go through the store.
+  - [x] Store with a MongoDB and a Postgres side; every route (staff and portal) run on both by `suppliers.parity.test.ts` (11 tests: suppliers, logins and invites, POs, the portal's block bundle by bundle, step 1 / 2, reject / new photo, unlock, Incoming, Purchasing entering a block, stale entry) — answers and every table equal. The existing `suppliers.test.ts` (10) still passes on the MongoDB path
+  - [x] Own copy scope `pg-copy-aws.ts --scope suppliers` (`--write` / `--verify` / `--lock`; 9 tables, tested in `areaCopy.test.ts`; the copy's supplier row builders were split out per record so a save writes what a re-copy would) and write pause `SUPPLIERS_WRITES_PAUSED=true` (503 on every write under `/api/suppliers` and `/api/supplier-portal`, sign-in included; the portal stops writing "last seen"; `/api/health` shows `suppliersOn`, `suppliersWritesPaused`; tested). **Needs `pg-copy-aws.ts --deploy` once before the first real run.**
+  - [x] Read-only comparison script `scripts/pg-compare-suppliers.ts` written — **not run yet** (needs the live MONGO_URI; you run it): `node --env-file=.env scripts/pg-compare-suppliers.ts`
+  - [ ] Merge to main (after the comparison shows 0 differences)
+  - [ ] Local click-through with `DB_SUPPLIERS=postgres` (owner): add a supplier and its login (invite link), assign a PO, then in the portal choose a password, start a block, photos, send; back in Supplier POs approve step 1 and 2, reject one, unlock; Purchasing enters a block; Incoming material
+  - [ ] Cutover: `SUPPLIERS_WRITES_PAUSED=true` → `--scope suppliers --write` → `--verify` → `DB_SUPPLIERS=postgres` on Render → pause off → `--lock … --scope suppliers`; then Mongo supplier collections kept read-only for 2 weeks
+  - Known: the buyers list (`/meta`) and a buyer's email still read MongoDB users until Users moves (last); a supplier's name sorts by character code as MongoDB did; suppliers and logins have no version column (last write wins, as before)
 - [ ] Accounting + Fuel Man (3–4 days; transactions) — two areas, two switches
   - [ ] **Accounting (freight)** on `feat/pg-accounting`: data layer `src/db/accounting/` (switch `DB_ACCOUNTING`, README there); router and delivery sync go through a store; per-record copy builders; scoped copy (`--scope accounting`, 8 tables); `ACCOUNTING_WRITES_PAUSED`
     - [x] Parity test `accounting.parity.test.ts` (10 cases: every route, the sync, the cutover copy; every `acct_*` table compared) and the existing MongoDB `router.test.ts` (31) unchanged and green
@@ -213,7 +220,16 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
     - [ ] Local click-through with `DB_ACCOUNTING=postgres` (owner)
     - [ ] Cutover steps (pause → scoped copy → verify → switch → unpause → lock) — ready, not run
   - [ ] Fuel Man (own agent, `feat/pg-fuelman`)
-- [ ] Logs, backups, settings, imports (1–2 days)
+- [ ] Logs, backups, settings, imports (1–2 days) — **built 2026-11-15 on `feat/pg-logs-settings`, not merged, not cut over.** Most of this area had already moved: the activity log, customer delete / merge backups, import memory and SPS runs went with Customers (2026-11-12), stock-import backups with Inventory, the Daily Report log with Operations. What is left is one live setting and three archive tables:
+  - [x] Switch `DB_SETTINGS`. Data layer `src/db/settings/` (read / write / remove a setting by key); `src/routes/navOrder.ts` (the side nav order, the only app setting) goes through it. A Postgres save is built by the copy's own `appSettingRowOf`, upserts on the key (id and created time stay), and a new row gets the id the layer made on both databases.
+  - [x] Parity test `settings.parity.test.ts` (7 cases through the real router: read before any save, save / overwrite, refusals, clear with null, saving the default order clears, other keys untouched, any key through the layer incl. a null value); rows compared with the copy's check after every request
+  - [x] Own copy scope `--scope settings` (`app_settings`, `cloudinary_to_s3_backups`, `legacy_leads`, `legacy_sales_customers`; tested in `areaCopy.test.ts`). **Needs `pg-copy-aws.ts --deploy` once before the first real run.** The last three tables have no code reading them: copied once so MongoDB can go
+  - [x] Write pause `SETTINGS_WRITES_PAUSED=true` (only `PUT /api/nav-order`); `/api/health` shows `settingsOn` and `settingsWritesPaused`
+  - [x] `scripts/pg-compare-settings.ts` written
+  - [ ] Run the comparison on live data
+  - [ ] Click-through (owner): Admin → Users & Roles → Side Nav Order: change, save, reload, reset to default, with `DB_SETTINGS=postgres` locally
+  - [ ] **Cutover (not run):** pause on → `--scope settings --write` → `--verify` → `DB_SETTINGS=postgres` on Render → pause off → `--lock "<name>" --scope settings`; MongoDB `appsettings` kept read-only 2 weeks
+  - [ ] Open question: `scripts/migrate-cloudinary-to-s3.ts` / `src/services/cloudinaryToS3.ts` (the finished file move and its Undo) read MongoDB's raw collections directly. They stay on MongoDB; once MongoDB is removed Undo can't run, and the 578 rewritten URLs' backups live only in `cloudinary_to_s3_backups` (copied by this scope)
 - [ ] One cutover for the tiny ones: Permits (already on Lambda), Team Files, products, colours, crossovers, contact form (1–2 days)
 - [ ] Last: Users, Roles, Locations, sign-in, who's online (3–5 days; every request reads them)
 

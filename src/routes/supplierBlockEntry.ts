@@ -2,7 +2,8 @@ import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarParams } from '../server/scalarRequest.ts';
-import { Supplier, SupplierLogin, SupplierPO, SupplierBlock } from '../models/Suppliers.ts';
+import { suppliersStore } from '../db/suppliers/index.ts';
+import { isId } from '../db/ids.ts';
 import User from '../models/User.ts';
 import { SUPPLIER_POS } from '../utils/supplierAccess.ts';
 import {
@@ -38,8 +39,6 @@ import type { Loose } from '../types/records.ts';
 type ReqUser = { id?: string; _id?: string; username?: string; displayName?: string; permissions?: string[] };
 const userOf = (req: Request) => ((req as Request & { user?: ReqUser }).user || {}) as ReqUser;
 const actorOf = (req: Request) => ({ id: String(userOf(req).id || userOf(req)._id || ''), name: userOf(req).displayName || userOf(req).username || '' });
-const toPlain = (raw: unknown): Loose => (raw as { toObject: () => Loose }).toObject();
-const isVersionError = (e: unknown) => (e as { name?: string })?.name === 'VersionError';
 const MAX_PHOTO_CHARS = 15_000_000;
 const siteBase = (req: Request) => (req.get('origin') || process.env.FRONTEND_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
 
@@ -79,14 +78,15 @@ export default function createBlockEntryRoutes({ authenticate, processBase64Imag
     res.status(500).json({ message });
   };
   const view = async (b: Loose, viewerId: string) => {
-    const [po, supplier] = await Promise.all([SupplierPO.findById(b.poId, '-history').lean(), Supplier.findById(b.supplierId).lean()]);
+    const store = await suppliersStore();
+    const [po, supplier] = await Promise.all([store.poById(b.poId, { history: false }), store.supplierById(b.supplierId)]);
     return staffBlockView(b, { viewerId, supplier, po });
   };
   /** The buyer hears about it unless they entered it themselves (after the answer: an email never holds up the save). */
   const tellBuyer = async (req: Request, po: Loose, block: Loose, bundles: number, slabs: number, resent: boolean) => {
     const who = actorOf(req);
     if (!po.buyerId || po.buyerId === who.id || !mongoose.isValidObjectId(po.buyerId)) return;
-    const [buyer, supplier] = await Promise.all([User.findById(po.buyerId, 'email displayName username').lean(), Supplier.findById(po.supplierId, 'name').lean()]);
+    const [buyer, supplier] = await Promise.all([User.findById(po.buyerId, 'email displayName username').lean(), (await suppliersStore()).supplierById(po.supplierId)]);
     if (!buyer?.email) return;
     sendBlockOffered({
       to: buyer.email, buyerName: buyer.displayName || buyer.username || '', supplierName: supplier?.name || po.supplierName || '', poNumber: po.poNumber,
@@ -96,7 +96,8 @@ export default function createBlockEntryRoutes({ authenticate, processBase64Imag
   };
   /** The languages the supplier's people read, for the note purchasing types. */
   const readers = async (supplierId: string) => {
-    const [s, logins] = await Promise.all([Supplier.findById(supplierId, 'language').lean(), SupplierLogin.find({ supplierId, active: true }, 'language').lean()]);
+    const store = await suppliersStore();
+    const [s, logins] = await Promise.all([store.supplierById(supplierId), store.loginsOf(supplierId, { activeOnly: true })]);
     return [...new Set([s?.language || 'en', ...logins.map((l) => l.language || 'en')])];
   };
   /** Block # and size from the body; a size typed wrong is a problem. */
@@ -125,19 +126,20 @@ export default function createBlockEntryRoutes({ authenticate, processBase64Imag
   router.post('/pos/:id/blocks', ...guard, validateScalarRequest, async (req: Request, res: Response) => {
     const body = req.body || {};
     const blockId = String(body.id || '');
-    if (!mongoose.isValidObjectId(blockId)) return res.status(400).json({ message: 'Reload the page and try again.' });
+    if (!isId(blockId)) return res.status(400).json({ message: 'Reload the page and try again.' });
     const who = actorOf(req);
     try {
-      const again = await SupplierBlock.findById(blockId).lean();
+      const store = await suppliersStore();
+      const again = await store.blockById(blockId);
       if (again) {
         if (again.poId !== scalarParams(req).id) return res.status(409).json({ message: 'Reload the page and try again.' });
         return res.json({ block: await view(again, who.id), alreadySaved: true });
       }
       const { id } = scalarParams(req);
-      const po = mongoose.isValidObjectId(id) ? await SupplierPO.findById(id, '-history').lean() : null;
+      const po = isId(id) ? await store.poById(id, { history: false }) : null;
       if (!po) return res.status(404).json({ message: 'PO not found.' });
       if (po.status !== 'open') return res.status(409).json({ message: po.status === 'cancelled' ? 'This PO was cancelled.' : 'This PO is closed. Reopen it first.' });
-      const line = (po.lines || []).find((l) => String(l._id) === String(body.lineId || ''));
+      const line = ((po.lines || []) as Loose[]).find((l) => String(l._id) === String(body.lineId || ''));
       if (!line) return res.status(400).json({ message: 'Some fields need attention.', problems: { lineId: 'Choose the material' } });
       const fields = blockFields(body, { blockNumber: '', size: null });
       const at = new Date();
@@ -151,18 +153,18 @@ export default function createBlockEntryRoutes({ authenticate, processBase64Imag
       const slabs = sent.reduce((s, b) => s + (Number(b.slabs) || 0), 0);
       const noteText = String(body.note || '').trim().slice(0, 1500);
       const note = noteText ? await makeNote(noteText, 'en', await readers(po.supplierId), who.name) : null;
-      const doc = await SupplierBlock.create({
+      const doc = await store.createBlock({
         _id: blockId, poId: String(po._id), poNumber: po.poNumber, supplierId: po.supplierId, lineId: String(line._id),
         material: line.material, thickness: line.thickness || '', finish: line.finish || '',
         blockNumber: fields.blockNumber, size: fields.size, note, bundles: sent.map((b) => storedBundle(b)),
         stage: blockStage({ bundles: sent, sentAt: at }), firstSentAt: at, sentAt: at, createdBy: who.name, enteredBy: who.name, enteredById: who.id,
         history: [{ at, by: who.name, side: 'staff', action: 'entered for the supplier', changes: `${sent.length} bundle${sent.length === 1 ? '' : 's'}, ${slabs} slabs` }]
       });
-      res.status(201).json({ block: await view(doc.toObject(), who.id) });
-      tellBuyer(req, po, doc.toObject(), sent.length, slabs, false).catch(() => undefined);
+      res.status(201).json({ block: await view(doc, who.id) });
+      tellBuyer(req, po, doc, sent.length, slabs, false).catch(() => undefined);
     } catch (error) {
       if ((error as { code?: number }).code === 11000) {
-        const dup = await SupplierBlock.findById(blockId).lean();
+        const dup = await (await suppliersStore()).blockById(blockId);
         if (dup) return res.json({ block: await view(dup, who.id), alreadySaved: true });
       }
       fail(res, 'enter block', error, 'Could not save the block.');
@@ -172,20 +174,21 @@ export default function createBlockEntryRoutes({ authenticate, processBase64Imag
   router.put('/blocks/:id/entry', ...guard, validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
     const body = req.body || {};
-    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Block not found.' });
+    if (!isId(id)) return res.status(404).json({ message: 'Block not found.' });
     const who = actorOf(req);
     try {
-      const block = await SupplierBlock.findById(id);
+      const store = await suppliersStore();
+      const block = await store.blockById(id);
       if (!block) return res.status(404).json({ message: 'Block not found.' });
       // The supplier is still putting a block together in the portal: it's theirs until they send it.
       if (!block.sentAt) return res.status(409).json({ message: 'The supplier is still putting this block together in the portal.' });
-      const po = await SupplierPO.findById(block.poId, '-history').lean();
+      const po = await store.poById(block.poId, { history: false });
       if (!po || po.status !== 'open') return res.status(409).json({ message: po?.status === 'cancelled' ? 'This PO was cancelled.' : 'This PO is closed. Reopen it first.' });
       // Saved over something newer (the supplier sent a photo, someone decided): reload first.
       if (body.expectedUpdatedAt && block.updatedAt && new Date(String(body.expectedUpdatedAt)).getTime() !== new Date(block.updatedAt).getTime()) {
         return res.status(409).json({ message: 'This block changed since you opened it. Close it and open it again.', code: 'stale' });
       }
-      const before = blockLike(block.toObject());
+      const before = blockLike(block);
       const fields = blockFields(body, { blockNumber: before.blockNumber, size: before.size });
       const at = new Date();
       const entered = applyEntry(before.bundles, entryOf(body), at);
@@ -195,21 +198,19 @@ export default function createBlockEntryRoutes({ authenticate, processBase64Imag
         return res.status(400).json({ message: 'Some fields need attention.', problems: { ...problemsText(check.problems), ...(fields.sizeProblem ? { size: ENTRY_PROBLEM_TEXT.size } : {}) } });
       }
       const sent = applySend(entered.bundles, at);
-      const plain = new Map(block.bundles.map((raw) => { const p = toPlain(raw); return [String(p._id), p]; }));
-      block.set({ blockNumber: fields.blockNumber, size: fields.size, bundles: sent.map((b) => storedBundle(b, plain.get(b.id))), sentAt: at });
-      block.set({ stage: blockStage({ bundles: sent, sentAt: at }) });
+      const plain = new Map((block.bundles as Loose[]).map((p) => [String(p._id), p]));
+      const set = { blockNumber: fields.blockNumber, size: fields.size, bundles: sent.map((b) => storedBundle(b, plain.get(b.id))), sentAt: at, stage: blockStage({ bundles: sent, sentAt: at }) };
       const goes = sent.filter((b) => check.toSend.includes(b.id));
       const slabs = goes.reduce((s, b) => s + (Number(b.slabs) || 0), 0);
       const photos = goes.filter((b) => (b.round || 0) > 1 && b.photoAt && new Date(b.photoAt).getTime() === at.getTime()).length;
-      block.history.push({
+      const saved = await store.updateBlock(id, block.__v, set, [{
         at, by: who.name, side: 'staff', action: 'entered changes for the supplier',
         changes: `${goes.length} bundle${goes.length === 1 ? '' : 's'}, ${slabs} slabs${photos ? ` · ${photos} new photo${photos === 1 ? '' : 's'}` : ''}`
-      });
-      await block.save();
-      res.json({ block: await view(block.toObject(), who.id) });
-      tellBuyer(req, po, block.toObject(), goes.length, slabs, true).catch(() => undefined);
+      }]);
+      if (!saved) return res.status(409).json({ message: 'This block changed since you opened it. Close it and open it again.', code: 'stale' });
+      res.json({ block: await view(saved, who.id) });
+      tellBuyer(req, po, saved, goes.length, slabs, true).catch(() => undefined);
     } catch (error) {
-      if (isVersionError(error)) return res.status(409).json({ message: 'This block changed since you opened it. Close it and open it again.', code: 'stale' });
       fail(res, 'enter changes', error, 'Could not save the block.');
     }
   });
