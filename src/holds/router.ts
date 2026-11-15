@@ -25,7 +25,7 @@ import { findSlabsByKeys, findSlabByBarcode } from '../db/inventory/index.ts';
 import { inHoldsTransaction, holdsStore, type HoldsStore } from '../db/holds/index.ts';
 import { newId, isId } from '../db/ids.ts';
 import { customerById } from '../db/customers/index.ts';
-import Location from '../models/Location.ts';
+import * as staffData from '../db/staff/index.ts';
 import { letterheadFor } from '../utils/locationForm.ts';
 import { companyOf, contactOf, realEmailsOf } from '../utils/customerList.ts';
 import { homeLocationOf } from '../utils/locationFilter.ts';
@@ -356,7 +356,7 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
   router.get('/:id/pdf', requireAll(HOLDS.PRINT), h(async (req: Request, res: Response) => {
     const hold = await holdFor(req, req.params.id, await holdsStore());
     // The branch's own address on the letterhead, as on its selection sheets (Kent when it has none).
-    const letterhead = letterheadFor(await Location.findOne({ name: hold.branch }).lean().catch(() => null));
+    const letterhead = letterheadFor(await staffData.locationByName(hold.branch).catch(() => null));
     const bytes = await buildHoldPdf(present(hold), { hide: parseHide(req.query.hide), letterhead });
     res.set('Content-Type', 'application/pdf');
     res.set('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${holdPdfFileName(hold)}"`);

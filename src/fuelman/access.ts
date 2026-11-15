@@ -1,16 +1,15 @@
 import type { ClientSession } from 'mongoose';
-import LocationModel from '../models/Location.ts';
+import * as staffData from '../db/staff/index.ts';
 import UserModel from '../models/User.ts';
 import RoleModel from '../models/Role.ts';
 import { displayNameOf } from '../utils/salesReps.ts';
 import { HttpError } from './http.ts';
 import type { DriverOption } from './types.ts';
 interface UserAccess { assignedLocations?: string[]; permissions?: string[] }
-const Location = LocationModel;
 const User = UserModel;
 const Role = RoleModel;
 export async function access(user: UserAccess, session: ClientSession | null = null) {
-  const all = (await Location.find({}, 'name').session(session).sort({ name: 1 }).lean()).map(l => l.name);
+  const all = await staffData.locationNames();
   const assigned = user.assignedLocations || [];
   const global = assigned.includes('*') || (all.length > 0 && all.every(name => assigned.includes(name)));
   return { global, locations: global ? all : all.filter(name => assigned.includes(name)), permissions: user.permissions || [] };

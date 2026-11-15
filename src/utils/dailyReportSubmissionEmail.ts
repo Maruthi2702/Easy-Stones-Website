@@ -3,6 +3,7 @@ import { buildDayPdf, dayPdfFileName } from './dailyReportPdf.ts';
 import { sendEmail } from '../services/emailService.ts';
 import { SENDER_NAME } from './emailSender.ts';
 import Location from '../models/Location.ts';
+import * as staffData from '../db/staff/index.ts';
 import User from '../models/User.ts';
 import { pushReportLog } from '../db/dailyReports/index.ts';
 import { logEntry } from './dailyReportLog.ts';
@@ -17,7 +18,7 @@ import { recipientEmails, seedFromAddresses, SEATTLE_RECIPIENTS_BEFORE_2026_10_1
  * no email. (Until 2026-10-15 this was Seattle only, to a list in the code.)
  */
 export async function recipientsFor(locationName: unknown) {
-  const location = await Location.findOne({ name: String(locationName ?? "") }, 'dailyReportEmail').lean();
+  const location = await staffData.locationByName(String(locationName ?? ""));
   const setting = location?.dailyReportEmail;
   const ids = setting?.userIds || [];
   const users = ids.length ? await User.find({ _id: { $in: ids } }, 'email isActive').lean() : [];

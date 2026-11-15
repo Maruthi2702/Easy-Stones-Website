@@ -12,7 +12,7 @@ import Role from '../../models/Role.ts';
 import Location from '../../models/Location.ts';
 import {
   authIdentity, roleByName, rolesList, locationsList, locationNames, locationByName, locationById,
-  createLocation, updateLocation, deleteLocation
+  createLocation, updateLocation, deleteLocation, locationByNameAnyCase, setDeliveryColumns
 } from './index.ts';
 import type { Loose } from '../../types/records.ts';
 
@@ -153,6 +153,19 @@ describe('locations', () => {
     expect(gone).toEqual({ mongo: true, postgres: true });
     expect((await both(() => locationByName('Spokane'))).postgres!.rdc).toBe('');
     expect((await both(() => deleteLocation(seattle))).postgres).toBe(false);
+    expect(await t.differences()).toEqual([]);
+  });
+});
+
+describe('location look-ups the other screens use', () => {
+  it('finds a name in any case, and saves a delivery column order', async () => {
+    const found = await both(() => locationByNameAnyCase('kENT'));
+    expect(found.mongo!.name).toBe('Kent');
+    expect(found.postgres!.name).toBe('Kent');
+    expect((await both(() => locationByNameAnyCase('nowhere'))).postgres).toBeNull();
+    const set = await both(() => setDeliveryColumns('Kent', ['drv_dee', '__will_call__']));
+    expect(set.postgres).toEqual(set.mongo);
+    expect((await both(() => setDeliveryColumns('nowhere', ['x']))).postgres).toBeNull();
     expect(await t.differences()).toEqual([]);
   });
 });

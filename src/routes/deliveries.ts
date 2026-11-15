@@ -17,7 +17,7 @@ import { getFileStore } from '../services/fileStore.ts';
 import { findDeliveries, findDelivery, saveDelivery, updateDelivery, createDelivery, deleteDelivery, setRouteNumbers, findTrucks, saveTruck, logDeliveryActivity } from '../db/deliveries/index.ts';
 import { newId } from '../db/ids.ts';
 import User from '../models/User.ts';
-import Location from '../models/Location.ts';
+import * as staffData from '../db/staff/index.ts';
 
 import { stampSignaturesOnPdfBytes } from '../utils/pdfSigner.ts';
 import { signedPackingListFileName } from '../utils/packingList.ts';
@@ -534,7 +534,7 @@ export default function createDeliveriesRouter({
   // the branch name, so it says nothing to a socket that can't read the board.
   router.get('/delivery-columns', authenticate, canViewDeliveries, async (req, res) => {
     try {
-      const locations = await Location.find({}, { name: 1, deliveryColumns: 1 }).lean();
+      const locations = await staffData.locationsList();
       res.json(Object.fromEntries(locations.map((l) => [l.name, l.deliveryColumns || []])));
     } catch {
       res.status(500).json({ error: 'Failed to load the column order' });
@@ -549,11 +549,7 @@ export default function createDeliveriesRouter({
       }
       const columns = cleanColumnOrder(req.body?.columns);
       if (!columns) return res.status(400).json({ error: 'columns must be a list of column ids' });
-      const location = await Location.findOneAndUpdate(
-        { name: requestParams.location },
-        { $set: { deliveryColumns: columns } },
-        { new: true, projection: { name: 1, deliveryColumns: 1 } }
-      ).lean();
+      const location = await staffData.setDeliveryColumns(String(requestParams.location), columns.map(String));
       if (!location) return res.status(404).json({ error: 'Location not found' });
       req.app.get('io')?.emit('delivery_columns_update', { location: location.name });
       res.json({ location: location.name, columns: location.deliveryColumns });
@@ -1087,7 +1083,7 @@ export default function createDeliveriesRouter({
 
       // Every location the transfer form's From / To offers, not only the
       // branches with a Daily Report clock.
-      const branches = (await Location.find({}, 'name').lean()).map((l) => String(l.name || '')).filter(Boolean);
+      const branches = (await staffData.locationNames()).map((n) => String(n || '')).filter(Boolean);
       const receivingBranches = arrivalBranchesFor(req.user?.assignedLocations, branches);
       const to = typeof body.to === 'string' ? body.to.trim() : '';
       // The receiving branch's own day (Pacific for a location with no clock set).

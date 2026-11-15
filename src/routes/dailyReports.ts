@@ -14,7 +14,7 @@ import { SENDER_NAME } from '../utils/emailSender.ts';
 import { findDeliveries } from '../db/deliveries/index.ts';
 import { BRANCH_NAMES, branchCode, isBranch, branchDayWindow } from '../config/branches.ts';
 import { countCheckIns } from '../db/checkins/index.ts';
-import Location from '../models/Location.ts';
+import * as staffData from '../db/staff/index.ts';
 import { notifyDailyReportSubmission } from '../utils/dailyReportSubmissionEmail.ts';
 import { logEntry, reportLog, entriesFromFields } from '../utils/dailyReportLog.ts';
 import type { LogEntry } from '../utils/dailyReportLog.ts';
@@ -627,7 +627,7 @@ export default function createDailyReportsRouter({ authenticate, requirePermissi
       // the delivery board already hands to every logged-in user for the
       // same reason (see GET /api/admin/locations in server.ts) — no figures
       // or report data from those branches comes with it.
-      const allLocationDocs = await Location.find().sort({ name: 1 }).lean();
+      const allLocationDocs = (await staffData.locationNames()).map(name => ({ name }));
       res.json({
         locations: allowed === '*' ? BRANCH_NAMES : allowed,
         allLocations: allLocationDocs.map(l => l.name),

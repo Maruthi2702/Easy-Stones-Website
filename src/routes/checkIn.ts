@@ -4,7 +4,7 @@ import type { Request, RequestHandler } from 'express';
 import express from 'express';
 
 import { countCheckIns, listCheckIns, newestCheckIn, findCheckIn, createCheckIn, saveCheckIn, deleteCheckIn } from '../db/checkins/index.ts';
-import Location from '../models/Location.ts';
+import * as staffData from '../db/staff/index.ts';
 import User from '../models/User.ts';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail } from '../services/emailService.ts';
 import { stripPhone, formatPhoneForDisplay, maskPhone } from '../utils/phoneUtils.ts';
@@ -85,7 +85,7 @@ const startingRepForCheckIn = async (location: string, creatorId: string | null 
   if (!NEW_VISITS_START_WITH_REP) return {};
   try {
     const [loc, users] = await Promise.all([
-      Location.findOne({ name: location }, 'salesDefaults.salesRep').lean(),
+      staffData.locationByName(location),
       User.find({}, 'username displayName email role isActive').lean()
     ]);
     const staff = users.map((u) => ({ ...u, name: displayNameOf(u) }));
@@ -286,7 +286,7 @@ const sheetMarkUrl = (req: Request) => {
 // check-in's own location's, or the Kent default when it has none yet.
 const letterheadForCheckIn = async (checkIn: Loose) => {
   try {
-    return letterheadFor(await Location.findOne({ name: checkIn.location }).lean());
+    return letterheadFor(await staffData.locationByName(String(checkIn.location ?? '')));
   } catch {
     return letterheadFor(null);
   }
@@ -443,7 +443,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       if (!bodyLocation) {
         return res.status(400).json({ error: 'A location is required.' });
       }
-      const realLocation = await Location.findOne({ name: { $regex: new RegExp(`^${escapeRegex(bodyLocation)}$`, 'i') } }).lean();
+      const realLocation = await staffData.locationByNameAnyCase(bodyLocation);
       if (!realLocation) {
         return res.status(400).json({ error: 'Invalid location.' });
       }

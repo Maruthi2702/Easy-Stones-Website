@@ -12,6 +12,15 @@ export const locationsList = async () => (await Location.find().sort({ name: 1 }
 export const locationNames = async () => (await Location.find().select('name').sort({ name: 1 }).lean()).map(l => String(l.name));
 export const locationBriefs = async () => (await Location.find({}, { name: 1, shortCode: 1 }).lean()) as Loose[];
 export const locationByName = async (name: string) => (await Location.findOne({ name }).lean()) as Loose | null;
+export async function locationByNameAnyCase(name: string): Promise<Loose | null> {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return (await Location.findOne({ name: { $regex: new RegExp(`^${escaped}$`, 'i') } }).lean()) as Loose | null;
+}
+/** The Delivery Schedule's column order for a branch; null when there is no such branch. */
+export async function setDeliveryColumns(name: string, columns: string[]): Promise<{ name: string; deliveryColumns: string[] } | null> {
+  const l = await Location.findOneAndUpdate({ name }, { $set: { deliveryColumns: columns } }, { new: true, projection: { name: 1, deliveryColumns: 1 } }).lean();
+  return l ? { name: String(l.name), deliveryColumns: (l.deliveryColumns as string[]) || [] } : null;
+}
 export async function locationById(id: string): Promise<Loose | null> {
   if (!mongoose.isValidObjectId(id)) return null;
   return (await Location.findById(id).lean()) as Loose | null;

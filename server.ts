@@ -1330,46 +1330,10 @@ const authenticate = async (req: Request, res: Response, next: NextFunction) => 
     }
 
     // ALWAYS read the user AND the role's permissions from the DB — never trust
-    // anything in the JWT. This used to be two awaits (findById, then findOne on
-    // the role name it returned), which meant two sequential Atlas round trips on
-    // EVERY authenticated request. Joining them server-side halves that: same
-    // freshness, same result, one trip.
-    const [dbUser] = await User.aggregate<AuthenticatedStaffDocument>(([
-      { $match: { _id: new mongoose.Types.ObjectId(userId) } },
-      { $limit: 1 },
-      // Role.name is stored trimmed + lower-cased by its schema setters, and
-      // Role.findOne() used to apply those setters to the query for us.
-      // Aggregation does no casting, so normalise the key explicitly.
-      { $addFields: { _roleKey: { $toLower: { $trim: { input: { $ifNull: ['$role', ''] } } } } } },
-      {
-        $lookup: {
-          from: Role.collection.name,
-          localField: '_roleKey',
-          foreignField: 'name',   // unique index — this is an indexed join
-          as: '_role'
-        }
-      },
-      // Named fields only: keeps the password hash and the stored Google/iCloud
-      // tokens out of the auth payload entirely.
-      {
-        $project: {
-          username: 1,
-          displayName: 1,
-          email: 1,
-          role: 1,
-          assignedLocations: 1,
-          // For GET /api/user/me, which answers from this instead of a
-          // second findById — one round trip fewer on every page load.
-          location: 1,
-          routePlannerFilters: 1,
-          pinnedTabs: 1,
-          isActive: 1,
-          mustChangePassword: 1,
-          sessionVersion: 1,
-          permissions: { $ifNull: [{ $arrayElemAt: ['$_role.permissions', 0] }, []] }
-        }
-      }
-    ] as mongoose.PipelineStage[]));
+    // anything in the JWT. One trip (a join / lookup), on either database:
+    // named fields only, so the password hash and the stored Google / iCloud
+    // tokens stay out of the auth payload (src/db/staff/).
+    const dbUser = await staffData.authIdentity(userId) as AuthenticatedStaffDocument | null;
 
     if (!dbUser) {
       return res.status(401).json({ error: 'User account not found or has been removed.' });
