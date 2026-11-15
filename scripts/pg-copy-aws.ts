@@ -11,6 +11,7 @@
  *   --scope card_receipts  with --write / --verify / --lock: only Credit Card Receipts' four tables (its own cutover)
  *   --scope inventory   with --write / --verify / --lock: Inventory, in-transit and Purchasing's 18 tables (one cutover, DB_INVENTORY)
  *   --scope holds       with --write / --verify / --lock: carts, holds, slab locks, hold numbers and history (DB_HOLDS)
+ *   --scope fuelman     with --write / --verify / --lock: Fuel Man's 9 tables (statements, card assignments, published costs, months, history; DB_FUELMAN)
  *   --scope lost_sales   with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries   with --write / --verify / --lock: only the deliveries and trucks tables (its own cutover; customers stay untouched)
  *   node scripts/pg-copy-aws.ts --lock "name"        at cutover: refuse every copy from now on

@@ -8,7 +8,7 @@ import { readFuelManPdf } from './readPdf.ts';
 import type { ParsedReport } from './types.ts';
 import { CATEGORIES } from './types.ts';
 import { importReport } from './importReport.ts';
-import { FuelAudit, FuelPeriod, FuelSource, FuelState } from './models.ts';
+import { fuelStore } from '../db/fuelman/index.ts';
 import { reportFor, requireReport, snapshot } from './storage.ts';
 import { detailFor, linesFor, listReports, pnlFor } from './queries.ts';
 import { saveAssignment, saveAssignments, saveClassifications, saveDisposition } from './commands.ts';
@@ -29,16 +29,13 @@ export default function createFuelManRouter({ authenticate, parsePdf = readFuelM
   const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
   router.use(authenticate, requireAll(P.VIEW));
   const changed = (req: express.Request) => req.app.get('io')?.emit('fuel_man_update');
-  router.get('/metadata', handle(async (req, res) => res.json(await snapshot(async session => {
-    const a = await access(req.user, session);
-    return { ...a, drivers: a.global ? await driverOptions(session) : [] };
+  router.get('/metadata', handle(async (req, res) => res.json(await snapshot(async store => {
+    const a = await access(req.user, store.session);
+    return { ...a, drivers: a.global ? await driverOptions(store.session) : [] };
   }))));
-  router.get('/revision', handle(async (_req, res) => {
-    const states = await FuelState.find({}, 'revision').lean();
-    res.json({ revision: states.reduce((n, s) => n + s.revision, 0) });
-  }));
-  router.get('/reports', handle(async (req, res) => res.json(await snapshot(async session =>
-    listReports(await access(req.user, session), session, pageOf(req.query.page), limitOf(req.query.limit))))));
+  router.get('/revision', handle(async (_req, res) => res.json({ revision: await (await fuelStore()).revisionTotal() })));
+  router.get('/reports', handle(async (req, res) => res.json(await snapshot(async store =>
+    listReports(await access(req.user, store.session), store, pageOf(req.query.page), limitOf(req.query.limit))))));
   router.post('/reports', requireAll(P.IMPORT), (req, res, next) => {
     // Authorization precedes parsing or buffering a company-wide source.
     void requireGlobal(req.user).then(() => upload.single('file')(req, res, error => {
@@ -52,24 +49,23 @@ export default function createFuelManRouter({ authenticate, parsePdf = readFuelM
     const result = await importReport(parsed, req.file.buffer, req.file.originalname, actor(req));
     changed(req); res.status(result.duplicate ? 200 : 201).json(result);
   }));
-  router.get('/reports/:id', handle(async (req, res) => res.json(await snapshot(async session =>
-    detailFor(await reportFor(idParam(req), session), await access(req.user, session), session)))));
-  router.get('/reports/:id/lines', handle(async (req, res) => res.json(await snapshot(async session =>
-    linesFor(await reportFor(idParam(req), session), await access(req.user, session), session, {
+  router.get('/reports/:id', handle(async (req, res) => res.json(await snapshot(async store =>
+    detailFor(await reportFor(idParam(req), store), await access(req.user, store.session), store)))));
+  router.get('/reports/:id/lines', handle(async (req, res) => res.json(await snapshot(async store =>
+    linesFor(await reportFor(idParam(req), store), await access(req.user, store.session), store, {
       externalId: String(req.query.externalId || ''), unknownOnly: req.query.unknown === 'true', page: pageOf(req.query.page), limit: limitOf(req.query.limit),
       search: String(req.query.q || '').slice(0, 100), category: CATEGORIES.find(c => c === req.query.category) || '', priorOnly: req.query.prior === 'true',
     })))));
   router.get('/reports/:id/source', handle(async (req, res) => {
     await requireGlobal(req.user); await requireReport(idParam(req));
-    const source = await FuelSource.findOne({ reportId: idParam(req) }).select('+pdf');
-    if (!source) throw new HttpError(404, 'Original file not found');
-    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="fuelman-report.pdf"', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' }).send(source.pdf);
+    const pdf = await (await fuelStore()).sourcePdf(idParam(req));
+    if (!pdf) throw new HttpError(404, 'Original file not found');
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="fuelman-report.pdf"', 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff' }).send(pdf);
   }));
   router.get('/reports/:id/history', requireAll(P.HISTORY), handle(async (req, res) => {
     await requireGlobal(req.user); await requireReport(idParam(req));
     const page = pageOf(req.query.page), limit = limitOf(req.query.limit);
-    res.json(await snapshot(async session => ({ total: await FuelAudit.countDocuments({ reportId: idParam(req) }).session(session),
-      items: await FuelAudit.find({ reportId: idParam(req) }).session(session).sort({ at: -1, _id: -1 }).skip((page - 1) * limit).limit(limit).lean(), page, limit })));
+    res.json(await snapshot(async store => ({ ...await store.auditPage(idParam(req), page, limit), page, limit })));
   }));
   router.post('/reports/:id/assignments', requireAll(P.RECONCILE), handle(async (req, res) => {
     const a = await requireGlobal(req.user), body = parse(assignmentSchema, req.body);
@@ -98,10 +94,10 @@ export default function createFuelManRouter({ authenticate, parsePdf = readFuelM
     const month = String(req.query.month || '');
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new HttpError(400, 'Choose a reporting month');
     if (req.query.format === 'csv' && !req.user.permissions.includes(P.EXPORT)) throw new HttpError(403, 'Export permission is required');
-    const result = await snapshot(async session => {
-      const a = await access(req.user, session), location = String(req.query.location || '');
+    const result = await snapshot(async store => {
+      const a = await access(req.user, store.session), location = String(req.query.location || '');
       if (location && !a.locations.includes(location)) throw new HttpError(403, 'Choose a location in your access');
-      return pnlFor(month, location ? { global: false, locations: [location] } : a, session);
+      return pnlFor(month, location ? { global: false, locations: [location] } : a, store);
     });
     if (req.query.format !== 'csv') return res.json(result);
     const rows = [['Month', 'Source', 'Accounting basis', 'Location', 'Category', 'Amount USD'],
