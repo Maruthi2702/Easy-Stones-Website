@@ -12,6 +12,7 @@
  *   --scope inventory   with --write / --verify / --lock: Inventory, in-transit and Purchasing's 18 tables (one cutover, DB_INVENTORY)
  *   --scope holds       with --write / --verify / --lock: carts, holds, slab locks, hold numbers and history (DB_HOLDS)
  *   --scope suppliers   with --write / --verify / --lock: suppliers, their logins, POs and blocks with their history (DB_SUPPLIERS)
+ *   --scope settings    with --write / --verify / --lock: app settings and three archive tables (DB_SETTINGS)
  *   --scope lost_sales  with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries  with --write / --verify / --lock: only the deliveries and trucks tables (own cutover)
  *   --report <file>   write the full report (every problem, by id) as JSON
