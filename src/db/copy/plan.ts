@@ -355,6 +355,11 @@ export const COPY_AREAS = {
   /** Cart & Holds: carts, holds with their slabs, the slab locks, the hold counter and the history. */
   holds: [
     'sales_carts', 'sales_cart_lines', 'sales_holds', 'sales_hold_lines', 'sales_slab_reservations', 'sales_counters', 'sales_hold_history'
+  ],
+  /** Accounting's 3rd-party freight (Fuel Man is its own area): carriers, charges with flags, carrier invoices, payments, the audit. */
+  accounting: [
+    'acct_carriers', 'acct_carrier_invoices', 'acct_freight_charges', 'acct_freight_charge_flags', 'acct_invoice_charges',
+    'acct_payments', 'acct_payment_charges', 'acct_audit'
   ]
 } as const;
 export type CopyArea = keyof typeof COPY_AREAS;
@@ -419,6 +424,16 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.salesHolds, ch.salesHolds], [schema.salesHoldLines, ch.salesHoldLines],
       [schema.salesSlabReservations, ch.salesSlabReservations], [schema.salesCounters, ch.salesCounters],
       [schema.salesHoldHistory, ch.salesHoldHistory]
+    );
+  }
+  if (area === 'accounting') {
+    const acc = accountingRows(src as never, ref.index, ops.index, problems);
+    // Parents before children (the insert order): invoices before the charges that sit on them.
+    all.push(
+      [schema.acctCarriers, acc.acctCarriers], [schema.acctCarrierInvoices, acc.acctCarrierInvoices],
+      [schema.acctFreightCharges, acc.acctFreightCharges], [schema.acctFreightChargeFlags, acc.acctFreightChargeFlags],
+      [schema.acctInvoiceCharges, acc.acctInvoiceCharges], [schema.acctPayments, acc.acctPayments],
+      [schema.acctPaymentCharges, acc.acctPaymentCharges], [schema.acctAudit, acc.acctAudit]
     );
   }
   if (area === 'lost_sales') all.push([schema.lostSales, miscRows(src, ref.index, { customerIds } as never, problems).lostSales]);

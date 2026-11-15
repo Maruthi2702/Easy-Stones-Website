@@ -14,9 +14,9 @@ import type { Loose } from '../types/records.ts';
  * Both are safe to run again: one charge per delivery (a unique index), and a
  * plan that has nothing to change does nothing.
  */
-import mongoose from 'mongoose';
 import { THIRD_PARTY_TRUCK_ID, THIRD_PARTY_NAME } from '../utils/deliveryPickup.ts';
-import { Carrier, FreightCharge, AccountingAudit } from './models.ts';
+import { inAccountingTransaction, accountingStore } from '../db/accounting/index.ts';
+import { newId } from '../db/ids.ts';
 import { planSync, matchCarrier, DERIVED_FIELDS } from './freightRules.ts';
 
 const SYSTEM = { id: 'system', name: 'Delivery Schedule' };
@@ -63,13 +63,13 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
   async function syncOne(deliveryId: string, ctx: Loose) {
     const [delivery, charge] = await Promise.all([
       Delivery.findOne({ id: deliveryId }, DELIVERY_FIELDS).lean(),
-      FreightCharge.findOne({ deliveryId })
+      accountingStore().then(store => store.chargeForDelivery(deliveryId))
     ]);
     if (!delivery && !charge) return 'none';
     const thirdParty = delivery ? await isThirdPartyTruck(delivery.truckId, ctx) : false;
     const carrier = delivery ? matchCarrier(ctx.carriers, delivery.carrierName) : null;
     const plan = planSync({
-      charge: charge ? charge.toObject() : null,
+      charge,
       delivery,
       thirdParty,
       carrierId: carrier?._id || null,
@@ -77,50 +77,45 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
     });
     if (plan.op === 'none') return 'none';
 
-    const session = await mongoose.startSession();
-    try {
-      await session.withTransaction(async () => {
-        if (plan.op === 'create') {
-          const [created] = await FreightCharge.create([{ ...plan.doc, createdBy: SYSTEM, updatedBy: SYSTEM }], { session });
-          await AccountingAudit.create([{
-            entityType: 'charge', entityId: String(created._id), action: 'created', by: SYSTEM,
-            note: `From delivery SO# ${created.soNumber || '—'} (completed on the 3rd-party truck)`,
-            changes: DERIVED_FIELDS.map((f) => ({ field: f, from: null, to: created.get(f) ?? null })).filter((c) => c.to !== null && c.to !== '')
-          }], { session });
-          return;
-        }
-        if (!charge) throw new Error('Freight charge was missing while applying a delivery update');
-        const doc = await FreightCharge.findById(charge._id).session(session);
-        if (!doc) throw new Error('Freight charge was removed while applying a delivery update');
-        const changes: Loose[] = [];
-        for (const [field, value] of Object.entries(plan.set)) {
-          if (field !== 'sourceSnapshot') changes.push({ field, from: doc.get(field) ?? null, to: value ?? null });
-          doc.set(field, value);
-        }
-        if (plan.clearReopened) {
-          for (const f of doc.flags) if (f.code === 'delivery_reopened' && !f.resolvedAt) { f.resolvedAt = new Date(); f.resolvedBy = SYSTEM; }
-        }
-        if (plan.flag) doc.flags.push(plan.flag);
-        doc.updatedBy = SYSTEM;
-        await doc.save({ session });
-        const notes: string[] = [];
-        if (plan.flag) notes.push(`Flagged for review: ${plan.flag.detail}`);
-        if (plan.clearReopened) notes.push('The delivery is completed on the 3rd-party truck again');
-        if (changes.length || notes.length) {
-          await AccountingAudit.create([{
-            entityType: 'charge', entityId: String(doc._id), action: plan.flag ? 'flagged' : 'updated_from_delivery',
-            by: SYSTEM, changes, note: notes.join('. ')
-          }], { session });
-        }
-      });
-    } finally {
-      await session.endSession();
-    }
+    await inAccountingTransaction(async (store) => {
+      if (plan.op === 'create') {
+        const created = await store.createCharge({ ...plan.doc, createdBy: SYSTEM, updatedBy: SYSTEM });
+        await store.addAudit([{
+          entityType: 'charge', entityId: String(created._id), action: 'created', by: SYSTEM,
+          note: `From delivery SO# ${created.soNumber || '—'} (completed on the 3rd-party truck)`,
+          changes: DERIVED_FIELDS.map((f) => ({ field: f, from: null, to: created[f] ?? null })).filter((c) => c.to !== null && c.to !== '')
+        }]);
+        return;
+      }
+      if (!charge) throw new Error('Freight charge was missing while applying a delivery update');
+      const doc = await store.charge(charge._id);
+      if (!doc) throw new Error('Freight charge was removed while applying a delivery update');
+      const changes: Loose[] = [];
+      for (const [field, value] of Object.entries(plan.set)) {
+        if (field !== 'sourceSnapshot') changes.push({ field, from: doc[field] ?? null, to: value ?? null });
+        doc[field] = value;
+      }
+      if (plan.clearReopened) {
+        for (const f of doc.flags) if (f.code === 'delivery_reopened' && !f.resolvedAt) { f.resolvedAt = new Date(); f.resolvedBy = SYSTEM; }
+      }
+      if (plan.flag) doc.flags = [...doc.flags, { _id: newId(), ...plan.flag }];
+      doc.updatedBy = SYSTEM;
+      if (!(await store.saveCharge(doc))) throw new Error('Freight charge was changed by someone else while applying a delivery update');
+      const notes: string[] = [];
+      if (plan.flag) notes.push(`Flagged for review: ${plan.flag.detail}`);
+      if (plan.clearReopened) notes.push('The delivery is completed on the 3rd-party truck again');
+      if (changes.length || notes.length) {
+        await store.addAudit([{
+          entityType: 'charge', entityId: String(doc._id), action: plan.flag ? 'flagged' : 'updated_from_delivery',
+          by: SYSTEM, changes, note: notes.join('. ')
+        }]);
+      }
+    });
     return plan.op;
   }
 
   async function context() {
-    const [truckIds, carriers] = await Promise.all([thirdPartyTruckIds(), Carrier.find({}, 'name aliases active').lean()]);
+    const [truckIds, carriers] = await Promise.all([thirdPartyTruckIds(), accountingStore().then(store => store.carriers(null))]);
     return { truckIds: new Set(truckIds), carriers };
   }
 
@@ -150,9 +145,9 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
     if (startDate) query.date = { $gte: startDate };
     const [owed, open] = await Promise.all([
       Delivery.find(query, 'id').lean(),
-      FreightCharge.find({ source: 'delivery', status: { $ne: 'void' } }, 'deliveryId').lean()
+      accountingStore().then(store => store.openDeliveryChargeIds())
     ]);
-    const ids = new Set<string>([...owed.map((d: Loose) => d.id), ...open.map((c: Loose) => c.deliveryId)].filter(Boolean));
+    const ids = new Set<string>([...owed.map((d: Loose) => d.id), ...open].filter(Boolean));
     const results = await syncDeliveryIds([...ids]);
     const counts = Object.values(results).reduce((acc, r) => ({ ...acc, [r]: (acc[r] || 0) + 1 }), {});
     return { checked: ids.size, ...counts };
@@ -160,33 +155,30 @@ export function createFreightSync({ Delivery, User, startDate = '', log = consol
 
   /** A carrier was added or renamed: charges waiting without a carrier get matched. */
   async function matchUnassigned(by = SYSTEM) {
-    const carriers = await Carrier.find({}, 'name aliases active').lean();
-    const waiting = await FreightCharge.find({ status: 'draft', carrierId: null, carrierNameRaw: { $ne: '' } });
+    const store = await accountingStore();
+    const carriers = await store.carriers(null);
+    const waiting = await store.chargesWaitingForCarrier();
     let matched = 0;
     for (const charge of waiting) {
       const carrier = matchCarrier(carriers, charge.carrierNameRaw);
       if (!carrier) continue;
-      const session = await mongoose.startSession();
       try {
-        await session.withTransaction(async () => {
-          if (!charge) throw new Error('Freight charge was missing while applying a delivery update');
-        const doc = await FreightCharge.findById(charge._id).session(session);
-        if (!doc) throw new Error('Freight charge was removed while applying a delivery update');
-          if (!doc || doc.carrierId || doc.status !== 'draft') return;
+        await inAccountingTransaction(async (tx) => {
+          const doc = await tx.charge(charge._id);
+          if (!doc) throw new Error('Freight charge was removed while matching its carrier');
+          if (doc.carrierId || doc.status !== 'draft') return;
           doc.carrierId = carrier._id;
           doc.updatedBy = by;
-          await doc.save({ session });
-          await AccountingAudit.create([{
+          if (!(await tx.saveCharge(doc))) throw new Error('Freight charge was changed by someone else while matching its carrier');
+          await tx.addAudit([{
             entityType: 'charge', entityId: String(doc._id), action: 'carrier_matched', by,
             changes: [{ field: 'carrierId', from: null, to: String(carrier._id) }],
             note: `“${doc.carrierNameRaw}” matched to ${carrier.name}`
-          }], { session });
+          }]);
           matched += 1;
         });
       } catch (err) {
         log.error?.(`[accounting] matching carrier for charge ${charge._id} failed:`, (err as Error)?.message);
-      } finally {
-        await session.endSession();
       }
     }
     return matched;

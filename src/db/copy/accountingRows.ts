@@ -72,6 +72,146 @@ const bytesOf = (v: unknown): Buffer | null => {
 };
 const ZONE = 'America/Los_Angeles';
 
+/** What a record's links are checked against: the ids that exist, and the places a charge may name. */
+export interface AccountingLinks {
+  ref: ReferenceIndex;
+  deliveryIdByTicket: { has(ticket: string): boolean };
+  carrierIds: { has(id: string): boolean };
+  invoiceIds: { has(id: string): boolean };
+  chargeIds: { has(id: string): boolean };
+}
+
+const paymentOf = (c: ReturnType<typeof rowConverter>, v: unknown) => {
+  const p = obj(v);
+  return {
+    paymentId: textOf(p.paymentId), paidOn: c.day('paid_on', p.paidOn, ZONE),
+    paymentMethod: p.method ? pickOf(c, 'payment_method', p.method, ACCT_PAYMENT_METHODS, null) ?? '' : '',
+    paymentReference: textOf(p.reference), paymentRecordedAt: c.moment('payment_recorded_at', p.recordedAt),
+    ...who(p.recordedBy, 'paymentRecordedBy')
+  } as const;
+};
+
+/** One carrier's row (null = skipped). Every builder below is the copy's rule for one record, which a Postgres save uses too. */
+export function carrierRowOf(d: Loose, problems: CopyProblem[]): Row<typeof acctCarriers> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'acct_carriers', id);
+  return {
+    id, name: textOf(d.name), nameKey: textOf(d.nameKey), aliases: stringsOf(d.aliases),
+    paymentTerms: pickOf(c, 'payment_terms', d.paymentTerms, PAYMENT_TERMS, 'per_delivery'), active: boolOf(d.active, true),
+    notes: textOf(d.notes), ...who(d.createdBy, 'createdBy'), ...who(d.updatedBy, 'updatedBy'),
+    version: intOf(c, 'version', d.__v) ?? 0, ...stamp(c, d)
+  } as Row<typeof acctCarriers>;
+}
+
+export function invoiceRowOf(d: Loose, links: Pick<AccountingLinks, 'carrierIds'>, problems: CopyProblem[]): Row<typeof acctCarrierInvoices> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'acct_carrier_invoices', id);
+  const carrierId = linkOf(c, 'carrier_id', d.carrierId, links.carrierIds, 'carrier');
+  const totalCents = intOf(c, 'total_cents', d.totalCents);
+  if (!carrierId || totalCents == null) { c.problem('id', 'no carrier or total', 'skipped'); return null; }
+  return {
+    id, carrierId, invoiceNumber: textOf(d.invoiceNumber), invoiceDate: c.day('invoice_date', d.invoiceDate, ZONE), totalCents,
+    locations: stringsOf(d.locations), status: pickOf(c, 'status', d.status, CHARGE_STATUSES, 'draft'), notes: textOf(d.notes),
+    approvedAt: c.moment('approved_at', d.approvedAt), ...who(d.approvedBy, 'approvedBy'), ...paymentOf(c, d.payment),
+    voidedAt: c.moment('voided_at', d.voidedAt), ...who(d.voidedBy, 'voidedBy'), voidReason: textOf(d.voidReason),
+    ...who(d.createdBy, 'createdBy'), ...who(d.updatedBy, 'updatedBy'), version: intOf(c, 'version', d.__v) ?? 0,
+    ...stamp(c, d)
+  } as Row<typeof acctCarrierInvoices>;
+}
+
+export function chargeRowsOf(d: Loose, links: Pick<AccountingLinks, 'ref' | 'deliveryIdByTicket' | 'carrierIds' | 'invoiceIds'>, problems: CopyProblem[]): { row: Row<typeof acctFreightCharges>; flags: Row<typeof acctFreightChargeFlags>[] } | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const { ref } = links;
+  const c = rowConverter(problems, 'acct_freight_charges', id);
+  const sourceKind = pickOf(c, 'source', d.source, ['delivery', 'manual'] as const, null);
+  if (!sourceKind) { c.problem('source', 'no source', 'skipped'); return null; }
+  const ticket = typeof d.deliveryId === 'string' ? d.deliveryId : null;
+  if (ticket && !links.deliveryIdByTicket.has(ticket)) c.problem('delivery_ticket_id', 'delivery no longer exists', 'kept');
+  const snap = d.sourceSnapshot && typeof d.sourceSnapshot === 'object' ? d.sourceSnapshot as Loose : {};
+  const row = {
+    id, source: sourceKind, deliveryTicketId: ticket, soNumber: textOf(d.soNumber), customerName: textOf(d.customerName),
+    deliveryDay: c.day('delivery_day', d.deliveryDate, ref.zoneOfLocation(d.location)),
+    locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName),
+    carrierId: linkOf(c, 'carrier_id', d.carrierId, links.carrierIds, 'carrier'), carrierNameRaw: textOf(d.carrierNameRaw),
+    bolNumber: textOf(d.bolNumber), amountCents: intOf(c, 'amount_cents', d.amountCents), description: textOf(d.description),
+    notes: textOf(d.notes), status: pickOf(c, 'status', d.status, CHARGE_STATUSES, 'draft'),
+    invoiceId: linkOf(c, 'invoice_id', d.invoiceId, links.invoiceIds, 'invoice'),
+    sourceSoNumber: optText(snap.soNumber), sourceCustomerName: optText(snap.customerName),
+    sourceDeliveryDate: optText(snap.deliveryDate), sourceLocation: optText(snap.location),
+    sourceCarrierNameRaw: optText(snap.carrierNameRaw), sourceBolNumber: optText(snap.bolNumber),
+    sourceAmountCents: intOf(c, 'source_amount_cents', snap.amountCents), handSet: stringsOf(d.handSet),
+    approvedAt: c.moment('approved_at', d.approvedAt), ...who(d.approvedBy, 'approvedBy'), ...paymentOf(c, d.payment),
+    voidedAt: c.moment('voided_at', d.voidedAt), ...who(d.voidedBy, 'voidedBy'), voidReason: textOf(d.voidReason),
+    ...who(d.createdBy, 'createdBy'), ...who(d.updatedBy, 'updatedBy'), version: intOf(c, 'version', d.__v) ?? 0,
+    ...stamp(c, d)
+  } as Row<typeof acctFreightCharges>;
+  const flags: Row<typeof acctFreightChargeFlags>[] = [];
+  list(d.flags).forEach((f, position) => {
+    const x = obj(f), fid = idOf(x._id);
+    const code = pickOf(c, 'flags.code', x.code, ['delivery_reopened', 'delivery_changed'] as const, null);
+    if (!fid || !code) { c.problem('flags', 'flag with no id or code', 'skipped'); return; }
+    flags.push({
+      id: fid, chargeId: id, position, code, detail: textOf(x.detail), at: c.moment('flags.at', x.at) ?? idTime(x._id),
+      resolvedAt: c.moment('flags.resolved_at', x.resolvedAt), ...who(x.resolvedBy, 'resolvedBy')
+    } as Row<typeof acctFreightChargeFlags>);
+  });
+  return { row, flags };
+}
+
+/** An invoice's charge list, joined once every charge is known. */
+export function invoiceChargeRowsOf(d: Loose, links: Pick<AccountingLinks, 'chargeIds'>, problems: CopyProblem[]): Row<typeof acctInvoiceCharges>[] {
+  const id = idOf(d._id);
+  if (!id) return [];
+  const c = rowConverter(problems, 'acct_carrier_invoices', id);
+  const out: Row<typeof acctInvoiceCharges>[] = [];
+  list(d.chargeIds).forEach((v, position) => {
+    const chargeId = linkOf(c, 'charge_ids', v, links.chargeIds, 'charge');
+    if (chargeId) out.push({ invoiceId: id, position, chargeId });
+  });
+  return out;
+}
+
+export function paymentRowsOf(d: Loose, links: Pick<AccountingLinks, 'carrierIds' | 'invoiceIds' | 'chargeIds'>, problems: CopyProblem[]): { row: Row<typeof acctPayments>; charges: Row<typeof acctPaymentCharges>[] } | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'acct_payments', id);
+  const kind = pickOf(c, 'kind', d.kind, ['charges', 'invoice'] as const, null);
+  const method = pickOf(c, 'method', d.method, ACCT_PAYMENT_METHODS, null);
+  const totalCents = intOf(c, 'total_cents', d.totalCents), paidOn = c.day('paid_on', d.paidOn, ZONE);
+  if (!kind || !method || totalCents == null || !paidOn) { c.problem('id', 'no kind, method, total or day', 'skipped'); return null; }
+  const row = {
+    id, paymentId: textOf(d.paymentId), requestId: typeof d.requestId === 'string' ? d.requestId : null, kind,
+    carrierId: linkOf(c, 'carrier_id', d.carrierId, links.carrierIds, 'carrier'),
+    invoiceId: linkOf(c, 'invoice_id', d.invoiceId, links.invoiceIds, 'invoice'),
+    locations: stringsOf(d.locations), totalCents, paidOn, method, reference: textOf(d.reference),
+    approvedInSameStep: boolOf(d.approvedInSameStep), recordedAt: c.moment('recorded_at', d.recordedAt) ?? idTime(d._id),
+    ...who(d.recordedBy, 'recordedBy')
+  } as Row<typeof acctPayments>;
+  const charges: Row<typeof acctPaymentCharges>[] = [];
+  list(d.chargeIds).forEach((v, position) => {
+    const chargeId = linkOf(c, 'charge_ids', v, links.chargeIds, 'charge');
+    if (chargeId) charges.push({ paymentRowId: id, position, chargeId });
+  });
+  return { row, charges };
+}
+
+export function auditRowOf(d: Loose, problems: CopyProblem[]): Row<typeof acctAudit> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'acct_audit', id);
+  const entityType = pickOf(c, 'entity_type', d.entityType, ['charge', 'invoice', 'carrier'] as const, null);
+  if (!entityType || !d.txnId) { c.problem('id', 'no entity type or transaction id', 'skipped'); return null; }
+  return {
+    id, txnId: textOf(d.txnId), paymentId: textOf(d.paymentId), entityType, entityId: textOf(idOf(d.entityId) ?? d.entityId),
+    action: textOf(d.action), ...who(d.by, 'by'), at: c.moment('at', d.at) ?? idTime(d._id),
+    changes: list(d.changes).map(x => plainJson({ field: obj(x).field ?? null, from: obj(x).from ?? null, to: obj(x).to ?? null })),
+    note: textOf(d.note)
+  } as Row<typeof acctAudit>;
+}
+
 export function accountingRows(src: AccountingSource, ref: ReferenceIndex, ops: OperationsIndex, problems: CopyProblem[]): AccountingRows {
   const rows: AccountingRows = {
     acctCarriers: [], acctCarrierInvoices: [], acctFreightCharges: [], acctFreightChargeFlags: [], acctInvoiceCharges: [],
@@ -79,130 +219,41 @@ export function accountingRows(src: AccountingSource, ref: ReferenceIndex, ops: 
     fuelProfiles: [], fuelSources: [], fuelExpenses: [], fuelState: [], fuelPeriods: [], fuelHistory: []
   };
   const carrierIds = new Set<string>(), invoiceIds = new Set<string>(), chargeIds = new Set<string>(), reportIds = new Set<string>();
-  const payment = (c: ReturnType<typeof rowConverter>, v: unknown) => {
-    const p = obj(v);
-    return {
-      paymentId: textOf(p.paymentId), paidOn: c.day('paid_on', p.paidOn, ZONE),
-      paymentMethod: p.method ? pickOf(c, 'payment_method', p.method, ACCT_PAYMENT_METHODS, null) ?? '' : '',
-      paymentReference: textOf(p.reference), paymentRecordedAt: c.moment('payment_recorded_at', p.recordedAt),
-      ...who(p.recordedBy, 'paymentRecordedBy')
-    } as const;
-  };
+  const links: AccountingLinks = { ref, deliveryIdByTicket: ops.deliveryIdByTicket, carrierIds, invoiceIds, chargeIds };
 
   for (const d of src.acctCarriers) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'acct_carriers', id);
-    carrierIds.add(id);
-    rows.acctCarriers.push({
-      id, name: textOf(d.name), nameKey: textOf(d.nameKey), aliases: stringsOf(d.aliases),
-      paymentTerms: pickOf(c, 'payment_terms', d.paymentTerms, PAYMENT_TERMS, 'per_delivery'), active: boolOf(d.active, true),
-      notes: textOf(d.notes), ...who(d.createdBy, 'createdBy'), ...who(d.updatedBy, 'updatedBy'),
-      version: intOf(c, 'version', d.__v) ?? 0, ...stamp(c, d)
-    } as Row<typeof acctCarriers>);
+    const row = carrierRowOf(d, problems);
+    if (!row) continue;
+    carrierIds.add(row.id);
+    rows.acctCarriers.push(row);
   }
-
   for (const d of src.acctCarrierInvoices) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'acct_carrier_invoices', id);
-    const carrierId = linkOf(c, 'carrier_id', d.carrierId, carrierIds, 'carrier');
-    const totalCents = intOf(c, 'total_cents', d.totalCents);
-    if (!carrierId || totalCents == null) { c.problem('id', 'no carrier or total', 'skipped'); continue; }
-    invoiceIds.add(id);
-    rows.acctCarrierInvoices.push({
-      id, carrierId, invoiceNumber: textOf(d.invoiceNumber), invoiceDate: c.day('invoice_date', d.invoiceDate, ZONE), totalCents,
-      locations: stringsOf(d.locations), status: pickOf(c, 'status', d.status, CHARGE_STATUSES, 'draft'), notes: textOf(d.notes),
-      approvedAt: c.moment('approved_at', d.approvedAt), ...who(d.approvedBy, 'approvedBy'), ...payment(c, d.payment),
-      voidedAt: c.moment('voided_at', d.voidedAt), ...who(d.voidedBy, 'voidedBy'), voidReason: textOf(d.voidReason),
-      ...who(d.createdBy, 'createdBy'), ...who(d.updatedBy, 'updatedBy'), version: intOf(c, 'version', d.__v) ?? 0,
-      ...stamp(c, d)
-    } as Row<typeof acctCarrierInvoices>);
+    const row = invoiceRowOf(d, links, problems);
+    if (!row) continue;
+    invoiceIds.add(row.id);
+    rows.acctCarrierInvoices.push(row);
   }
-
   for (const d of src.acctFreightCharges) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'acct_freight_charges', id);
-    const sourceKind = pickOf(c, 'source', d.source, ['delivery', 'manual'] as const, null);
-    if (!sourceKind) { c.problem('source', 'no source', 'skipped'); continue; }
-    chargeIds.add(id);
-    const ticket = typeof d.deliveryId === 'string' ? d.deliveryId : null;
-    if (ticket && !ops.deliveryIdByTicket.has(ticket)) c.problem('delivery_ticket_id', 'delivery no longer exists', 'kept');
-    const snap = d.sourceSnapshot && typeof d.sourceSnapshot === 'object' ? d.sourceSnapshot as Loose : {};
-    rows.acctFreightCharges.push({
-      id, source: sourceKind, deliveryTicketId: ticket, soNumber: textOf(d.soNumber), customerName: textOf(d.customerName),
-      deliveryDay: c.day('delivery_day', d.deliveryDate, ref.zoneOfLocation(d.location)),
-      locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName),
-      carrierId: linkOf(c, 'carrier_id', d.carrierId, carrierIds, 'carrier'), carrierNameRaw: textOf(d.carrierNameRaw),
-      bolNumber: textOf(d.bolNumber), amountCents: intOf(c, 'amount_cents', d.amountCents), description: textOf(d.description),
-      notes: textOf(d.notes), status: pickOf(c, 'status', d.status, CHARGE_STATUSES, 'draft'),
-      invoiceId: linkOf(c, 'invoice_id', d.invoiceId, invoiceIds, 'invoice'),
-      sourceSoNumber: optText(snap.soNumber), sourceCustomerName: optText(snap.customerName),
-      sourceDeliveryDate: optText(snap.deliveryDate), sourceLocation: optText(snap.location),
-      sourceCarrierNameRaw: optText(snap.carrierNameRaw), sourceBolNumber: optText(snap.bolNumber),
-      sourceAmountCents: intOf(c, 'source_amount_cents', snap.amountCents), handSet: stringsOf(d.handSet),
-      approvedAt: c.moment('approved_at', d.approvedAt), ...who(d.approvedBy, 'approvedBy'), ...payment(c, d.payment),
-      voidedAt: c.moment('voided_at', d.voidedAt), ...who(d.voidedBy, 'voidedBy'), voidReason: textOf(d.voidReason),
-      ...who(d.createdBy, 'createdBy'), ...who(d.updatedBy, 'updatedBy'), version: intOf(c, 'version', d.__v) ?? 0,
-      ...stamp(c, d)
-    } as Row<typeof acctFreightCharges>);
-    list(d.flags).forEach((f, position) => {
-      const x = obj(f), fid = idOf(x._id);
-      const code = pickOf(c, 'flags.code', x.code, ['delivery_reopened', 'delivery_changed'] as const, null);
-      if (!fid || !code) { c.problem('flags', 'flag with no id or code', 'skipped'); return; }
-      rows.acctFreightChargeFlags.push({
-        id: fid, chargeId: id, position, code, detail: textOf(x.detail), at: c.moment('flags.at', x.at) ?? idTime(x._id),
-        resolvedAt: c.moment('flags.resolved_at', x.resolvedAt), ...who(x.resolvedBy, 'resolvedBy')
-      } as Row<typeof acctFreightChargeFlags>);
-    });
+    const made = chargeRowsOf(d, links, problems);
+    if (!made) continue;
+    chargeIds.add(made.row.id);
+    rows.acctFreightCharges.push(made.row);
+    rows.acctFreightChargeFlags.push(...made.flags);
   }
-
   // Invoices list their charges; joined after every charge is known.
   for (const d of src.acctCarrierInvoices) {
     const id = idOf(d._id);
-    if (!id || !invoiceIds.has(id)) continue;
-    const c = rowConverter(problems, 'acct_carrier_invoices', id);
-    list(d.chargeIds).forEach((v, position) => {
-      const chargeId = linkOf(c, 'charge_ids', v, chargeIds, 'charge');
-      if (chargeId) rows.acctInvoiceCharges.push({ invoiceId: id, position, chargeId });
-    });
+    if (id && invoiceIds.has(id)) rows.acctInvoiceCharges.push(...invoiceChargeRowsOf(d, links, problems));
   }
-
   for (const d of src.acctPayments) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'acct_payments', id);
-    const kind = pickOf(c, 'kind', d.kind, ['charges', 'invoice'] as const, null);
-    const method = pickOf(c, 'method', d.method, ACCT_PAYMENT_METHODS, null);
-    const totalCents = intOf(c, 'total_cents', d.totalCents), paidOn = c.day('paid_on', d.paidOn, ZONE);
-    if (!kind || !method || totalCents == null || !paidOn) { c.problem('id', 'no kind, method, total or day', 'skipped'); continue; }
-    rows.acctPayments.push({
-      id, paymentId: textOf(d.paymentId), requestId: typeof d.requestId === 'string' ? d.requestId : null, kind,
-      carrierId: linkOf(c, 'carrier_id', d.carrierId, carrierIds, 'carrier'),
-      invoiceId: linkOf(c, 'invoice_id', d.invoiceId, invoiceIds, 'invoice'),
-      locations: stringsOf(d.locations), totalCents, paidOn, method, reference: textOf(d.reference),
-      approvedInSameStep: boolOf(d.approvedInSameStep), recordedAt: c.moment('recorded_at', d.recordedAt) ?? idTime(d._id),
-      ...who(d.recordedBy, 'recordedBy')
-    } as Row<typeof acctPayments>);
-    list(d.chargeIds).forEach((v, position) => {
-      const chargeId = linkOf(c, 'charge_ids', v, chargeIds, 'charge');
-      if (chargeId) rows.acctPaymentCharges.push({ paymentRowId: id, position, chargeId });
-    });
+    const made = paymentRowsOf(d, links, problems);
+    if (!made) continue;
+    rows.acctPayments.push(made.row);
+    rows.acctPaymentCharges.push(...made.charges);
   }
-
   for (const d of src.acctAudit) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'acct_audit', id);
-    const entityType = pickOf(c, 'entity_type', d.entityType, ['charge', 'invoice', 'carrier'] as const, null);
-    if (!entityType || !d.txnId) { c.problem('id', 'no entity type or transaction id', 'skipped'); continue; }
-    rows.acctAudit.push({
-      id, txnId: textOf(d.txnId), paymentId: textOf(d.paymentId), entityType, entityId: textOf(idOf(d.entityId) ?? d.entityId),
-      action: textOf(d.action), ...who(d.by, 'by'), at: c.moment('at', d.at) ?? idTime(d._id),
-      changes: list(d.changes).map(x => plainJson({ field: obj(x).field ?? null, from: obj(x).from ?? null, to: obj(x).to ?? null })),
-      note: textOf(d.note)
-    } as Row<typeof acctAudit>);
+    const row = auditRowOf(d, problems);
+    if (row) rows.acctAudit.push(row);
   }
 
   for (const d of src.fuelReports) {

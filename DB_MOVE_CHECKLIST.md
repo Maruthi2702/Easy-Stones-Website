@@ -206,7 +206,13 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - [ ] Cutover: `HOLDS_WRITES_PAUSED=true` → `--scope holds --write` → `--verify` → `DB_HOLDS=postgres` on Render → pause off → `--lock … --scope holds`; then Mongo cart / hold collections kept read-only for 2 weeks
   - Known: a hold's customer id is lost if the customer is deleted (name kept); a new branch added in MongoDB needs the next Locations move before it can take a hold on Postgres
 - [ ] Suppliers + supplier portal (2 days; after Inventory, since POs fill from transit shipments)
-- [ ] Accounting + Fuel Man (3–4 days; transactions)
+- [ ] Accounting + Fuel Man (3–4 days; transactions) — two areas, two switches
+  - [ ] **Accounting (freight)** on `feat/pg-accounting`: data layer `src/db/accounting/` (switch `DB_ACCOUNTING`, README there); router and delivery sync go through a store; per-record copy builders; scoped copy (`--scope accounting`, 8 tables); `ACCOUNTING_WRITES_PAUSED`
+    - [x] Parity test `accounting.parity.test.ts` (10 cases: every route, the sync, the cutover copy; every `acct_*` table compared) and the existing MongoDB `router.test.ts` (31) unchanged and green
+    - [ ] Read-only comparison on live data (`scripts/pg-compare-accounting.ts`) — owner to run
+    - [ ] Local click-through with `DB_ACCOUNTING=postgres` (owner)
+    - [ ] Cutover steps (pause → scoped copy → verify → switch → unpause → lock) — ready, not run
+  - [ ] Fuel Man (own agent, `feat/pg-fuelman`)
 - [ ] Logs, backups, settings, imports (1–2 days)
 - [ ] One cutover for the tiny ones: Permits (already on Lambda), Team Files, products, colours, crossovers, contact form (1–2 days)
 - [ ] Last: Users, Roles, Locations, sign-in, who's online (3–5 days; every request reads them)

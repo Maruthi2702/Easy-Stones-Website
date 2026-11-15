@@ -17,10 +17,9 @@ import type { Request, Response, NextFunction } from 'express';
  * each charge it paid — see ids.js.
  */
 import express from 'express';
-import mongoose from 'mongoose';
 import type { ZodType } from 'zod';
 import { FREIGHT, CARRIERS, can } from './permissions.ts';
-import { Carrier, FreightCharge, CarrierInvoice, AccountingAudit, Payment } from './models.ts';
+import { inAccountingTransaction, accountingStore, type AccountingStore, type ChargeQuery } from '../db/accounting/index.ts';
 import {
   normalizeCarrierName, editProblem, approveProblem, unapproveProblem, payProblem, voidProblem,
   invoiceChargesProblem, invoiceApproveProblem, invoicePayProblem, invoiceVoidProblem,
@@ -31,7 +30,6 @@ import { sumCents } from './money.ts';
 import * as S from './schemas.ts';
 
 const EXPORT_MAX_ROWS = 5000;
-const escapeRegex = (s: unknown) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 class HttpError extends Error {
   declare status: number;
@@ -61,19 +59,10 @@ const parse = (schema: ZodType<Loose>, data: unknown) => {
   return r.data;
 };
 
-/** Runs `fn(session)` as one transaction: all of it lands, or none of it. */
-async function inTransaction<T>(fn: (session: mongoose.ClientSession) => Promise<T>): Promise<T> {
-  const session = await mongoose.startSession();
-  try {
-    let out!: T;
-    await session.withTransaction(async () => { out = await fn(session); });
-    return out;
-  } finally {
-    await session.endSession();
-  }
-}
+/** Runs `fn(store)` as one transaction: all of it lands, or none of it. */
+const inTransaction = inAccountingTransaction;
 
-const history = (session: mongoose.ClientSession, entries: Loose[]) => AccountingAudit.create(entries, { session, ordered: true });
+const history = (store: AccountingStore, entries: Loose[]) => store.addAudit(entries);
 
 const diff = (doc: Loose, set: Loose) => Object.entries(set)
   .filter(([f, v]) => String(doc[f] ?? '') !== String(v ?? ''))
@@ -83,21 +72,24 @@ const checkVersion = (doc: Loose, version: unknown, what = 'This charge') => {
   if (doc.__v !== version) throw new HttpError(409, `${what} was changed by someone else. Reload to see the latest, then try again.`);
 };
 
+const CHANGED_AT_THE_SAME_MOMENT = 'Someone else changed this at the same moment. Reload and try again.';
+
+/** Saves a record that was read in this request; someone else saving it first is the same 409 as a stale screen. */
+async function saved(write: Promise<Loose | null>): Promise<Loose> {
+  const out = await write;
+  if (!out) throw new HttpError(409, CHANGED_AT_THE_SAME_MOMENT);
+  return out;
+}
+
 /** The charge if it exists and is in one of the person's branches. */
-async function chargeFor(req: Request, id: unknown, session: mongoose.ClientSession | null = null) {
-  if (!mongoose.isValidObjectId(id)) throw new HttpError(404, 'Charge not found.');
-  const q = FreightCharge.findById(id);
-  if (session) q.session(session);
-  const doc = await q;
+async function chargeFor(req: Request, id: unknown, store: AccountingStore) {
+  const doc = await store.charge(id);
   if (!doc || !canSeeBranch(branchesOf(req), doc.location)) throw new HttpError(404, 'Charge not found.');
   return doc;
 }
 
-async function invoiceFor(req: Request, id: unknown, session: mongoose.ClientSession | null = null) {
-  if (!mongoose.isValidObjectId(id)) throw new HttpError(404, 'Invoice not found.');
-  const q = CarrierInvoice.findById(id);
-  if (session) q.session(session);
-  const doc = await q;
+async function invoiceFor(req: Request, id: unknown, store: AccountingStore) {
+  const doc = await store.invoice(id);
   const mine = doc && (doc.locations || []).every((l: string) => canSeeBranch(branchesOf(req), l));
   if (!mine) throw new HttpError(404, 'Invoice not found.');
   return doc;
@@ -108,16 +100,17 @@ const handle = (fn: (req: Request, res: Response) => unknown) => async (req: Req
     await fn(req, res);
   } catch (err) {
     if (err instanceof HttpError) return res.status((err as Error & Loose).status).json({ error: (err as Error).message, ...(err as Error & Loose).extra });
+    // Postgres only: a branch that isn't on the Locations list can't be linked (MongoDB kept any text).
+    if ((err as Error & Loose)?.code === 'UNKNOWN_BRANCH') return res.status(400).json({ error: (err as Error).message });
     if ((err as Error & Loose)?.code === 11000) return res.status(409).json({ error: 'That already exists — check for a duplicate.' });
-    if ((err as Error)?.name === 'VersionError') return res.status(409).json({ error: 'Someone else changed this at the same moment. Reload and try again.' });
+    if ((err as Error)?.name === 'VersionError') return res.status(409).json({ error: CHANGED_AT_THE_SAME_MOMENT });
     console.error('[accounting]', req.method, req.originalUrl, err);
     return res.status(500).json({ error: 'Something went wrong on our side. Nothing was changed.' });
   }
 };
 
 /** A charge for the screens, with its carrier's name and terms. */
-const present = (charge: Loose, carriersById: Loose) => {
-  const c = charge.toObject ? charge.toObject() : charge;
+const present = (c: Loose, carriersById: Loose) => {
   const carrier = c.carrierId ? carriersById.get(String(c.carrierId)) : null;
   return {
     ...c,
@@ -127,11 +120,8 @@ const present = (charge: Loose, carriersById: Loose) => {
   };
 };
 
-const carriersMap = async (ids: readonly unknown[] | null = null) => {
-  const q = ids ? { _id: { $in: ids } } : {};
-  const list = await Carrier.find(q).lean();
-  return new Map(list.map((c) => [String(c._id), c]));
-};
+const carriersMap = async (store: AccountingStore, ids: readonly unknown[] | null = null) =>
+  new Map((await store.carriers(ids)).map((c) => [String(c._id), c]));
 
 /**
  * Record a payment on a charge or invoice: approve it first if it's a draft
@@ -157,45 +147,22 @@ function markPaid(doc: Loose, body: Loose, by: Loose, now: Date, paymentId: stri
 }
 
 /** The payment an earlier copy of this same request already recorded. */
-const priorPayment = async (requestId: string | undefined, session: mongoose.ClientSession) => (requestId
-  ? Payment.findOne({ requestId }).session(session).lean()
+const priorPayment = async (requestId: string | undefined, store: AccountingStore) => (requestId
+  ? store.paymentByRequestId(requestId)
   : null);
 
 /** The answer to a repeated request: what the first one paid, as it is now. */
 async function replayed(req: Request, payment: Loose) {
   if (!(payment.locations || []).every((l: string) => canSeeBranch(branchesOf(req), l))) throw new HttpError(404, 'Payment not found.');
-  const [charges, carriers] = await Promise.all([
-    FreightCharge.find({ _id: { $in: payment.chargeIds } }).lean(),
-    carriersMap()
-  ]);
+  const store = await accountingStore();
+  const [charges, carriers] = await Promise.all([store.chargesByIds(payment.chargeIds), carriersMap(store)]);
   return { items: charges.map((c) => present(c, carriers)), payment, replayed: true };
 }
 
-/** A charge with an open review flag that still matters (not void). */
-const NEEDS_REVIEW = Object.freeze({ flags: { $elemMatch: { resolvedAt: null } }, status: { $ne: 'void' } });
-
-/** The Mongo filter for the charge list, from its (parsed) query. */
-function chargeFilter(req: Request, q: Loose, { ignoreStatus = false }: Loose = {}) {
-  const branch = branchClause(branchesOf(req), q.location);
-  if (!branch) throw new HttpError(403, 'You don’t have access to that branch.');
-  const clauses: Loose[] = [branch];
-  if (!ignoreStatus) {
-    if (['draft', 'approved', 'paid', 'void'].includes(q.status)) clauses.push({ status: q.status });
-    if (q.status === 'flagged') clauses.push(NEEDS_REVIEW);
-    // The To approve tab: everything waiting on someone — a draft, or any
-    // charge flagged for review (an approved or even paid one whose delivery
-    // changed afterwards). An approved, flagged charge shows here and under
-    // Approved.
-    if (q.status === 'to_approve') clauses.push({ $or: [{ status: 'draft' }, NEEDS_REVIEW] });
-    if (q.status === 'missing_price') clauses.push({ amountCents: null, status: 'draft' });
-  }
-  if (q.carrierId) clauses.push({ carrierId: new mongoose.Types.ObjectId(q.carrierId) });
-  if (q.from || q.to) clauses.push({ deliveryDate: { ...(q.from && { $gte: q.from }), ...(q.to && { $lte: q.to }) } });
-  if (q.search) {
-    const rx = new RegExp(escapeRegex(q.search), 'i');
-    clauses.push({ $or: [{ soNumber: rx }, { customerName: rx }, { bolNumber: rx }, { carrierNameRaw: rx }, { description: rx }, { 'payment.paymentId': rx }, { 'payment.reference': rx }] });
-  }
-  return { $and: clauses };
+/** The charge list's query: the person's branches, the screen's filters. A branch they can't see is a 403. */
+function chargeQuery(req: Request, q: Loose): ChargeQuery {
+  if (!branchClause(branchesOf(req), q.location)) throw new HttpError(403, 'You don’t have access to that branch.');
+  return { branches: branchesOf(req), location: q.location, status: q.status, carrierId: q.carrierId, from: q.from, to: q.to, search: q.search };
 }
 
 export default function createAccountingRouter({ authenticate, sync = null }: Loose = {}) {
@@ -206,80 +173,65 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
 
   router.get('/freight-charges', requireAll(FREIGHT.VIEW), handle(async (req: Request, res: Response) => {
     const q = parse(S.listQuery, req.query);
-    const filter = chargeFilter(req, q);
-    const [total, docs, summaryRows, flagged, missing, toApprove] = await Promise.all([
-      FreightCharge.countDocuments(filter),
-      FreightCharge.find(filter).sort({ deliveryDate: -1, createdAt: -1 }).skip((q.page - 1) * q.limit).limit(q.limit).lean(),
-      FreightCharge.aggregate([
-        { $match: chargeFilter(req, { ...q, status: 'all' }, { ignoreStatus: true }) },
-        { $group: { _id: '$status', count: { $sum: 1 }, cents: { $sum: { $ifNull: ['$amountCents', 0] } } } }
-      ]),
-      FreightCharge.countDocuments(chargeFilter(req, { ...q, status: 'flagged' })),
-      FreightCharge.countDocuments(chargeFilter(req, { ...q, status: 'missing_price' })),
-      FreightCharge.countDocuments(chargeFilter(req, { ...q, status: 'to_approve' }))
-    ]);
-    const carriers = await carriersMap();
-    const summary = Object.fromEntries(['draft', 'approved', 'paid', 'void'].map((s) => {
-      const row = summaryRows.find((r) => r._id === s);
-      return [s, { count: row?.count || 0, cents: row?.cents || 0 }];
-    }));
-    res.json({ items: docs.map((d) => present(d, carriers)), total, page: q.page, limit: q.limit, summary: { ...summary, flagged, missingPrice: missing, toApprove } });
+    const store = await accountingStore();
+    const [found, carriers] = await Promise.all([store.list(chargeQuery(req, q), q.page, q.limit), carriersMap(store)]);
+    res.json({
+      items: found.items.map((d) => present(d, carriers)), total: found.total, page: q.page, limit: q.limit,
+      summary: { ...found.summary, flagged: found.flagged, missingPrice: found.missingPrice, toApprove: found.toApprove }
+    });
   }));
 
   // Every row matching the filters, for PDF / Excel. (SPS has no import, so no
   // SPS file — owner, 2026-10-09; the Excel sheet is what gets keyed into it.)
   router.get('/freight-charges/export', requireAll(FREIGHT.VIEW, FREIGHT.EXPORT), handle(async (req: Request, res: Response) => {
     const q = parse(S.listQuery, { ...req.query, page: 1, limit: 100 });
-    const filter = chargeFilter(req, q);
-    const [total, docs] = await Promise.all([
-      FreightCharge.countDocuments(filter),
-      FreightCharge.find(filter).sort({ deliveryDate: -1, createdAt: -1 }).limit(EXPORT_MAX_ROWS).lean()
-    ]);
-    const carriers = await carriersMap();
-    res.json({ items: docs.map((d) => present(d, carriers)), total, truncated: total > docs.length });
+    const store = await accountingStore();
+    const [found, carriers] = await Promise.all([store.exportCharges(chargeQuery(req, q), EXPORT_MAX_ROWS), carriersMap(store)]);
+    res.json({ items: found.items.map((d) => present(d, carriers)), total: found.total, truncated: found.total > found.items.length });
   }));
 
   router.get('/freight-charges/:id', requireAll(FREIGHT.VIEW), handle(async (req: Request, res: Response) => {
-    const doc = await chargeFor(req, req.params.id);
-    const carriers = await carriersMap(doc.carrierId ? [doc.carrierId] : []);
-    const invoice = doc.invoiceId ? await CarrierInvoice.findById(doc.invoiceId, 'invoiceNumber status').lean() : null;
+    const store = await accountingStore();
+    const doc = await chargeFor(req, req.params.id, store);
+    const carriers = await carriersMap(store, doc.carrierId ? [doc.carrierId] : []);
+    const found = doc.invoiceId ? await store.invoice(doc.invoiceId) : null;
+    const invoice = found ? { _id: found._id, invoiceNumber: found.invoiceNumber, status: found.status } : null;
     const out = { ...present(doc, carriers), invoice };
-    if (can(req.user, FREIGHT.HISTORY)) {
-      out.history = await AccountingAudit.find({ entityType: 'charge', entityId: String(doc._id) }).sort({ at: -1, _id: -1 }).limit(200).lean();
-    }
+    if (can(req.user, FREIGHT.HISTORY)) out.history = await store.auditFor('charge', String(doc._id), 200);
     res.json(out);
   }));
 
   router.get('/freight-charges/:id/history', requireAll(FREIGHT.VIEW, FREIGHT.HISTORY), handle(async (req: Request, res: Response) => {
-    const doc = await chargeFor(req, req.params.id);
-    res.json(await AccountingAudit.find({ entityType: 'charge', entityId: String(doc._id) }).sort({ at: -1, _id: -1 }).limit(500).lean());
+    const store = await accountingStore();
+    const doc = await chargeFor(req, req.params.id, store);
+    res.json(await store.auditFor('charge', String(doc._id), 500));
   }));
 
   router.post('/freight-charges', requireAll(FREIGHT.VIEW, FREIGHT.ADD), handle(async (req: Request, res: Response) => {
     const body = parse(S.manualCharge, req.body);
     if (!canSeeBranch(branchesOf(req), body.location)) throw new HttpError(403, 'You don’t have access to that branch.');
-    const carrier = await Carrier.findById(body.carrierId).lean();
+    const carrier = await (await accountingStore()).carrier(body.carrierId);
     if (!carrier) throw new HttpError(400, 'That carrier doesn’t exist.');
     if (!carrier.active) throw new HttpError(400, `${carrier.name} is deactivated.`);
     const by = actor(req);
-    const created = await inTransaction(async (session: mongoose.ClientSession) => {
-      const [doc] = await FreightCharge.create([{
+    const created = await inTransaction(async (store) => {
+      const doc = await store.createCharge({
         source: 'manual', location: body.location, deliveryDate: body.deliveryDate, carrierId: carrier._id,
         amountCents: body.amount, description: body.description, soNumber: body.soNumber,
         customerName: body.customerName, bolNumber: body.bolNumber, notes: body.notes,
         status: 'draft', createdBy: by, updatedBy: by
-      }], { session });
-      await history(session, [{ entityType: 'charge', entityId: String(doc._id), action: 'created', by, note: `Added by hand: ${body.description}` }]);
+      });
+      await history(store, [{ entityType: 'charge', entityId: String(doc._id), action: 'created', by, note: `Added by hand: ${body.description}` }]);
       return doc;
     });
-    res.status(201).json(present(created, await carriersMap([carrier._id])));
+    res.status(201).json(present(created, await carriersMap(await accountingStore(), [carrier._id])));
   }));
 
   router.patch('/freight-charges/:id', requireAll(FREIGHT.VIEW, FREIGHT.EDIT), handle(async (req: Request, res: Response) => {
     const body = parse(S.chargeEdit, req.body);
     const by = actor(req);
-    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
-      const doc = await chargeFor(req, req.params.id, session);
+    const done = await inTransaction(async (store) => {
+      const doc = await chargeFor(req, req.params.id, store);
       checkVersion(doc, body.version);
       const problem = editProblem(doc);
       if (problem) throw new HttpError(400, problem);
@@ -287,7 +239,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       if (body.amount !== undefined) set.amountCents = body.amount;
       if (body.carrierId !== undefined) {
         if (body.carrierId) {
-          const carrier = await Carrier.findById(body.carrierId).session(session).lean();
+          const carrier = await store.carrier(body.carrierId);
           if (!carrier) throw new HttpError(400, 'That carrier doesn’t exist.');
           set.carrierId = carrier._id;
         } else set.carrierId = null;
@@ -297,18 +249,19 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       }
       const changes = diff(doc, set);
       if (!changes.length) return doc;
-      for (const c of changes) doc.set(c.field, set[c.field]);
+      for (const c of changes) doc[c.field] = set[c.field];
       // On a schedule-made charge, a field corrected by hand stops following the delivery.
       if (doc.source === 'delivery') {
         const followed = new Set(['amountCents', 'carrierId', 'bolNumber', 'soNumber', 'customerName', 'deliveryDate']);
         doc.handSet = [...new Set([...(doc.handSet || []), ...changes.map((c) => c.field).filter((f) => followed.has(f))])];
       }
       doc.updatedBy = by;
-      await doc.save({ session });
-      await history(session, [{ entityType: 'charge', entityId: String(doc._id), action: 'edited', by, changes }]);
-      return doc;
+      const out = await saved(store.saveCharge(doc));
+      await history(store, [{ entityType: 'charge', entityId: String(doc._id), action: 'edited', by, changes }]);
+      return out;
     });
-    res.json(present(saved, await carriersMap(saved.carrierId ? [saved.carrierId] : [])));
+    const store = await accountingStore();
+    res.json(present(done, await carriersMap(store, done.carrierId ? [done.carrierId] : [])));
   }));
 
   /**
@@ -318,14 +271,14 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
   const bulk = ({ schema, problemFor, apply, action, note }: { schema: ZodType<Loose>; problemFor: (doc: Loose, carrier: Loose | undefined) => string | null; apply: (doc: Loose, body: Loose, by: Loose) => void; action: string; note?: (body: Loose) => string }) => handle(async (req: Request, res: Response) => {
     const body = parse(schema, req.body);
     const by = actor(req);
-    const done = await inTransaction(async (session: mongoose.ClientSession) => {
+    const done = await inTransaction(async (store) => {
       const docs: Loose[] = [];
       for (const item of body.items) {
-        const doc = await chargeFor(req, item.id, session);
+        const doc = await chargeFor(req, item.id, store);
         checkVersion(doc, item.version, `SO# ${doc.soNumber || '—'}`);
         docs.push(doc);
       }
-      const carriers = await carriersMap(docs.map((d) => d.carrierId).filter(Boolean));
+      const carriers = await carriersMap(store, docs.map((d) => d.carrierId).filter(Boolean));
       const problems = docs
         .map((d) => ({ id: String(d._id), soNumber: d.soNumber, problem: problemFor(d, carriers.get(String(d.carrierId))) }))
         .filter((p) => p.problem);
@@ -334,17 +287,19 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
         throw new HttpError(400, `${first.soNumber ? `SO# ${first.soNumber}: ` : ''}${first.problem}`, { problems });
       }
       const entries: Loose[] = [];
+      const out: Loose[] = [];
       for (const doc of docs) {
         const before = { status: doc.status };
         apply(doc, body, by);
         doc.updatedBy = by;
-        await doc.save({ session });
-        entries.push({ entityType: 'charge', entityId: String(doc._id), action, by, changes: [{ field: 'status', from: before.status, to: doc.status }], note: note ? note(body) : '' });
+        const next = await saved(store.saveCharge(doc));
+        out.push(next);
+        entries.push({ entityType: 'charge', entityId: String(doc._id), action, by, changes: [{ field: 'status', from: before.status, to: next.status }], note: note ? note(body) : '' });
       }
-      await history(session, entries);
-      return docs;
+      await history(store, entries);
+      return out;
     });
-    const carriers = await carriersMap();
+    const carriers = await carriersMap(await accountingStore());
     res.json({ items: done.map((d: Loose) => present(d, carriers)) });
   });
 
@@ -372,18 +327,18 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const body = parse(S.bulkPay, req.body);
     const by = actor(req);
     const canApprove = can(req.user, FREIGHT.APPROVE);
-    const out = await inTransaction(async (session: mongoose.ClientSession) => {
-      const prior = await priorPayment(body.requestId, session);
+    const out = await inTransaction(async (store) => {
+      const prior = await priorPayment(body.requestId, store);
       if (prior) return { prior };
       const docs: Loose[] = [];
       for (const item of body.items) {
-        const doc = await chargeFor(req, item.id, session);
+        const doc = await chargeFor(req, item.id, store);
         checkVersion(doc, item.version, `SO# ${doc.soNumber || '—'}`);
         docs.push(doc);
       }
       const batch = paymentBatchProblem(docs);
       if (batch) throw new HttpError(400, batch);
-      const carriers = await carriersMap(docs.map((d) => d.carrierId).filter(Boolean));
+      const carriers = await carriersMap(store, docs.map((d) => d.carrierId).filter(Boolean));
       const problems = docs
         .map((d) => ({ id: String(d._id), soNumber: d.soNumber, problem: payProblem(d, { carrier: carriers.get(String(d.carrierId)), canApprove }) }))
         .filter((p) => p.problem);
@@ -395,30 +350,31 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       const paymentId = newPaymentId(now);
       const entries: Loose[] = [];
       const oneStep = docs.some(approvesWhenPaid);
+      const paid: Loose[] = [];
       for (const doc of docs) {
         entries.push(...markPaid(doc, body, by, now, paymentId, 'charge'));
         doc.updatedBy = by;
-        await doc.save({ session });
+        paid.push(await saved(store.saveCharge(doc)));
       }
-      const [payment] = await Payment.create([{
+      const payment = await store.createPayment({
         paymentId, requestId: body.requestId, kind: 'charges', carrierId: docs[0].carrierId,
         chargeIds: docs.map((d) => d._id), locations: [...new Set(docs.map((d) => d.location))],
         totalCents: sumCents(docs.map((d) => d.amountCents)), paidOn: body.paidOn, method: body.method,
         reference: body.reference, approvedInSameStep: oneStep, recordedAt: now, recordedBy: by
-      }], { session });
-      await history(session, entries);
-      return { docs, payment };
+      });
+      await history(store, entries);
+      return { docs: paid, payment };
     });
     if (out.prior) return res.json(await replayed(req, out.prior));
-    const carriers = await carriersMap();
-    res.json({ items: out.docs!.map((d: Loose) => present(d, carriers)), payment: out.payment.toObject() });
+    const carriers = await carriersMap(await accountingStore());
+    res.json({ items: out.docs!.map((d: Loose) => present(d, carriers)), payment: out.payment });
   }));
 
   router.post('/freight-charges/:id/void', requireAll(FREIGHT.VIEW, FREIGHT.VOID), handle(async (req: Request, res: Response) => {
     const body = parse(S.voidBody, req.body);
     const by = actor(req);
-    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
-      const doc = await chargeFor(req, req.params.id, session);
+    const done = await inTransaction(async (store) => {
+      const doc = await chargeFor(req, req.params.id, store);
       checkVersion(doc, body.version);
       const problem = voidProblem(doc);
       if (problem) throw new HttpError(400, problem);
@@ -428,29 +384,29 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       doc.voidedBy = by;
       doc.voidReason = body.reason;
       doc.updatedBy = by;
-      await doc.save({ session });
-      await history(session, [{ entityType: 'charge', entityId: String(doc._id), action: 'voided', by, changes: [{ field: 'status', from, to: 'void' }], note: body.reason }]);
-      return doc;
+      const out = await saved(store.saveCharge(doc));
+      await history(store, [{ entityType: 'charge', entityId: String(doc._id), action: 'voided', by, changes: [{ field: 'status', from, to: 'void' }], note: body.reason }]);
+      return out;
     });
-    res.json(present(saved, await carriersMap()));
+    res.json(present(done, await carriersMap(await accountingStore())));
   }));
 
   // "I've looked at it": clears the review flags (the history keeps them).
   router.post('/freight-charges/:id/resolve-flags', requireAll(FREIGHT.VIEW, FREIGHT.EDIT), handle(async (req: Request, res: Response) => {
     const body = parse(S.versionOnly, req.body);
     const by = actor(req);
-    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
-      const doc = await chargeFor(req, req.params.id, session);
+    const done = await inTransaction(async (store) => {
+      const doc = await chargeFor(req, req.params.id, store);
       checkVersion(doc, body.version);
       const open = doc.flags.filter((f: Loose) => !f.resolvedAt);
       if (!open.length) return doc;
       for (const f of open) { f.resolvedAt = new Date(); f.resolvedBy = by; }
       doc.updatedBy = by;
-      await doc.save({ session });
-      await history(session, [{ entityType: 'charge', entityId: String(doc._id), action: 'reviewed', by, note: open.map((f: Loose) => f.detail).join('; ') }]);
-      return doc;
+      const out = await saved(store.saveCharge(doc));
+      await history(store, [{ entityType: 'charge', entityId: String(doc._id), action: 'reviewed', by, note: open.map((f: Loose) => f.detail).join('; ') }]);
+      return out;
     });
-    res.json(present(saved, await carriersMap()));
+    res.json(present(done, await carriersMap(await accountingStore())));
   }));
 
   // ── Payments ───────────────────────────────────────────────────────────
@@ -460,13 +416,16 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
   router.get('/payments/:paymentId', requireAll(FREIGHT.VIEW), handle(async (req: Request, res: Response) => {
     const id = S.paymentIdParam.safeParse(req.params.paymentId);
     if (!id.success) throw new HttpError(404, 'Payment not found.');
-    const payment = await Payment.findOne({ paymentId: id.data }).lean();
+    const store = await accountingStore();
+    const payment = await store.paymentByPaymentId(id.data);
     if (!payment || !(payment.locations || []).every((l: string) => canSeeBranch(branchesOf(req), l))) throw new HttpError(404, 'Payment not found.');
-    const [charges, carriers, invoice] = await Promise.all([
-      FreightCharge.find({ _id: { $in: payment.chargeIds } }).sort({ deliveryDate: 1 }).lean(),
-      carriersMap(),
-      payment.invoiceId ? CarrierInvoice.findById(payment.invoiceId, 'invoiceNumber status totalCents').lean() : null
+    const [charges, carriers, found] = await Promise.all([
+      store.chargesByIds(payment.chargeIds),
+      carriersMap(store),
+      payment.invoiceId ? store.invoice(payment.invoiceId) : null
     ]);
+    charges.sort((a, b) => (a.deliveryDate < b.deliveryDate ? -1 : a.deliveryDate > b.deliveryDate ? 1 : 0));
+    const invoice = found ? { _id: found._id, invoiceNumber: found.invoiceNumber, status: found.status, totalCents: found.totalCents } : null;
     const carrier = payment.carrierId ? carriers.get(String(payment.carrierId)) : null;
     res.json({
       ...payment,
@@ -479,15 +438,13 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
   // ── Carriers ───────────────────────────────────────────────────────────
 
   router.get('/carriers', requireAny(CARRIERS.VIEW, FREIGHT.VIEW), handle(async (req: Request, res: Response) => {
-    const list = await Carrier.find().sort({ active: -1, name: 1 }).lean();
+    const list = await (await accountingStore()).carriers(null);
     res.json(list.map((c) => ({ ...c, version: c.__v })));
   }));
 
-  const carrierAliasesClash = async (names: string[], exceptId: unknown = null, session: mongoose.ClientSession | null = null) => {
+  const carrierAliasesClash = async (store: AccountingStore, names: string[], exceptId: unknown = null) => {
     const keys = names.map(normalizeCarrierName).filter(Boolean);
-    const q = Carrier.find(exceptId ? { _id: { $ne: exceptId } } : {}, 'name nameKey aliases');
-    if (session) q.session(session);
-    const others = await q.lean();
+    const others = await store.carriersExcept(exceptId);
     for (const o of others) {
       const theirs = [o.nameKey, ...(o.aliases || []).map(normalizeCarrierName)];
       const hit = keys.find((k: string) => theirs.includes(k));
@@ -501,23 +458,22 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const by = actor(req);
     const nameKey = normalizeCarrierName(body.name);
     if (!nameKey) throw new HttpError(400, 'Enter the carrier name.');
-    const clash = await carrierAliasesClash([body.name, ...body.aliases]);
+    const clash = await carrierAliasesClash(await accountingStore(), [body.name, ...body.aliases]);
     if (clash) throw new HttpError(409, `That name is already used by ${clash}.`);
-    const created = await inTransaction(async (session: mongoose.ClientSession) => {
-      const [doc] = await Carrier.create([{ ...body, nameKey, createdBy: by, updatedBy: by }], { session });
-      await history(session, [{ entityType: 'carrier', entityId: String(doc._id), action: 'created', by, note: `${doc.name} (${doc.paymentTerms === 'per_invoice' ? 'paid per invoice' : 'paid per delivery'})` }]);
+    const created = await inTransaction(async (store) => {
+      const doc = await store.createCarrier({ ...body, nameKey, createdBy: by, updatedBy: by });
+      await history(store, [{ entityType: 'carrier', entityId: String(doc._id), action: 'created', by, note: `${doc.name} (${doc.paymentTerms === 'per_invoice' ? 'paid per invoice' : 'paid per delivery'})` }]);
       return doc;
     });
     if (sync) await sync.matchUnassigned(by).catch(() => {});
-    res.status(201).json({ ...created.toObject(), version: created.__v });
+    res.status(201).json({ ...created, version: created.__v });
   }));
 
   router.patch('/carriers/:id', requireAll(CARRIERS.EDIT), handle(async (req: Request, res: Response) => {
     const body = parse(S.carrierEdit, req.body);
-    if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Carrier not found.');
     const by = actor(req);
-    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
-      const doc = await Carrier.findById(req.params.id).session(session);
+    const done = await inTransaction(async (store) => {
+      const doc = await store.carrier(req.params.id);
       if (!doc) throw new HttpError(404, 'Carrier not found.');
       checkVersion(doc, body.version, 'This carrier');
       const set: Loose = {};
@@ -525,44 +481,42 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       if (body.aliases !== undefined) set.aliases = body.aliases;
       if (body.paymentTerms !== undefined) set.paymentTerms = body.paymentTerms;
       if (body.notes !== undefined) set.notes = body.notes;
-      const clash = await carrierAliasesClash([set.name ?? doc.name, ...(set.aliases ?? doc.aliases)], doc._id, session);
+      const clash = await carrierAliasesClash(store, [set.name ?? doc.name, ...(set.aliases ?? doc.aliases)], doc._id);
       if (clash) throw new HttpError(409, `That name is already used by ${clash}.`);
       const changes = diff(doc, { ...set, aliases: set.aliases ? set.aliases.join(', ') : doc.aliases.join(', ') })
         .filter((c) => c.field !== 'nameKey');
       Object.assign(doc, set);
       doc.updatedBy = by;
-      await doc.save({ session });
-      if (changes.length) await history(session, [{ entityType: 'carrier', entityId: String(doc._id), action: 'edited', by, changes }]);
-      return doc;
+      const out = await saved(store.saveCarrier(doc));
+      if (changes.length) await history(store, [{ entityType: 'carrier', entityId: String(doc._id), action: 'edited', by, changes }]);
+      return out;
     });
     if (sync) await sync.matchUnassigned(by).catch(() => {});
-    res.json({ ...saved.toObject(), version: saved.__v });
+    res.json({ ...done, version: done.__v });
   }));
 
   const setCarrierActive = (active: boolean) => handle(async (req: Request, res: Response) => {
     const body = parse(S.versionOnly, req.body);
-    if (!mongoose.isValidObjectId(req.params.id)) throw new HttpError(404, 'Carrier not found.');
     const by = actor(req);
-    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
-      const doc = await Carrier.findById(req.params.id).session(session);
+    const done = await inTransaction(async (store) => {
+      const doc = await store.carrier(req.params.id);
       if (!doc) throw new HttpError(404, 'Carrier not found.');
       checkVersion(doc, body.version, 'This carrier');
       if (doc.active === active) return doc;
       doc.active = active;
       doc.updatedBy = by;
-      await doc.save({ session });
-      await history(session, [{ entityType: 'carrier', entityId: String(doc._id), action: active ? 'reactivated' : 'deactivated', by }]);
-      return doc;
+      const out = await saved(store.saveCarrier(doc));
+      await history(store, [{ entityType: 'carrier', entityId: String(doc._id), action: active ? 'reactivated' : 'deactivated', by }]);
+      return out;
     });
-    res.json({ ...saved.toObject(), version: saved.__v });
+    res.json({ ...done, version: done.__v });
   });
   router.post('/carriers/:id/deactivate', requireAll(CARRIERS.DEACTIVATE), setCarrierActive(false));
   router.post('/carriers/:id/reactivate', requireAll(CARRIERS.DEACTIVATE), setCarrierActive(true));
 
   // ── Carrier invoices ───────────────────────────────────────────────────
 
-  const presentInvoice = (inv: Loose, carriers: Loose, charges: Loose[] | null = null) => {
-    const o = inv.toObject ? inv.toObject() : inv;
+  const presentInvoice = (o: Loose, carriers: Loose, charges: Loose[] | null = null) => {
     const carrier = carriers.get(String(o.carrierId));
     return {
       ...o, version: o.__v,
@@ -572,9 +526,9 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
   };
 
   /** Load and check charges for an invoice; returns the docs. */
-  async function invoiceCharges(req: Request, ids: string[], carrierId: unknown, invoiceId: unknown, session: mongoose.ClientSession) {
+  async function invoiceCharges(req: Request, ids: string[], carrierId: unknown, invoiceId: unknown, store: AccountingStore) {
     const docs: Loose[] = [];
-    for (const id of [...new Set(ids)]) docs.push(await chargeFor(req, id, session));
+    for (const id of [...new Set(ids)]) docs.push(await chargeFor(req, id, store));
     const problem = invoiceChargesProblem(docs, carrierId, { invoiceId });
     if (problem) throw new HttpError(400, problem);
     return docs;
@@ -582,54 +536,50 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
 
   router.get('/carrier-invoices', requireAll(FREIGHT.VIEW), handle(async (req: Request, res: Response) => {
     const q = parse(S.invoiceListQuery, req.query);
-    const mine = branchesOf(req).includes('*') ? {} : { locations: { $not: { $elemMatch: { $nin: branchesOf(req) } } } };
-    const filter = { ...mine, ...(q.status !== 'all' && { status: q.status }), ...(q.carrierId && { carrierId: q.carrierId }) };
-    const [total, docs] = await Promise.all([
-      CarrierInvoice.countDocuments(filter),
-      CarrierInvoice.find(filter).sort({ invoiceDate: -1, createdAt: -1 }).skip((q.page - 1) * q.limit).limit(q.limit).lean()
+    const store = await accountingStore();
+    const [found, carriers] = await Promise.all([
+      store.listInvoices({ branches: branchesOf(req), status: q.status, carrierId: q.carrierId, page: q.page, limit: q.limit }),
+      carriersMap(store)
     ]);
-    const carriers = await carriersMap();
-    res.json({ items: docs.map((d) => presentInvoice(d, carriers)), total, page: q.page, limit: q.limit });
+    res.json({ items: found.items.map((d) => presentInvoice(d, carriers)), total: found.total, page: q.page, limit: q.limit });
   }));
 
   router.get('/carrier-invoices/:id', requireAll(FREIGHT.VIEW), handle(async (req: Request, res: Response) => {
-    const inv = await invoiceFor(req, req.params.id);
-    const charges = await FreightCharge.find({ _id: { $in: inv.chargeIds } }).lean();
-    const carriers = await carriersMap();
+    const store = await accountingStore();
+    const inv = await invoiceFor(req, req.params.id, store);
+    const [charges, carriers] = await Promise.all([store.chargesByIds(inv.chargeIds), carriersMap(store)]);
     const out = presentInvoice(inv, carriers, charges);
-    if (can(req.user, FREIGHT.HISTORY)) {
-      out.history = await AccountingAudit.find({ entityType: 'invoice', entityId: String(inv._id) }).sort({ at: -1, _id: -1 }).limit(200).lean();
-    }
+    if (can(req.user, FREIGHT.HISTORY)) out.history = await store.auditFor('invoice', String(inv._id), 200);
     res.json(out);
   }));
 
   router.post('/carrier-invoices', requireAll(FREIGHT.VIEW, FREIGHT.ADD), handle(async (req: Request, res: Response) => {
     const body = parse(S.invoiceCreate, req.body);
-    const carrier = await Carrier.findById(body.carrierId).lean();
+    const carrier = await (await accountingStore()).carrier(body.carrierId);
     if (!carrier) throw new HttpError(400, 'That carrier doesn’t exist.');
     const by = actor(req);
-    const created = await inTransaction(async (session: mongoose.ClientSession) => {
-      const charges = await invoiceCharges(req, body.chargeIds, carrier._id, null, session);
-      const [inv] = await CarrierInvoice.create([{
+    const created = await inTransaction(async (store) => {
+      const charges = await invoiceCharges(req, body.chargeIds, carrier._id, null, store);
+      const inv = await store.createInvoice({
         carrierId: carrier._id, invoiceNumber: body.invoiceNumber, invoiceDate: body.invoiceDate,
         totalCents: body.total, chargeIds: charges.map((c) => c._id), locations: [...new Set(charges.map((c) => c.location))],
         notes: body.notes, status: 'draft', createdBy: by, updatedBy: by
-      }], { session });
-      for (const c of charges) { c.invoiceId = inv._id; c.updatedBy = by; await c.save({ session }); }
-      await history(session, [
+      });
+      for (const c of charges) { c.invoiceId = inv._id; c.updatedBy = by; await saved(store.saveCharge(c)); }
+      await history(store, [
         { entityType: 'invoice', entityId: String(inv._id), action: 'created', by, note: `${carrier.name} invoice #${inv.invoiceNumber}, ${charges.length} charge(s)` },
         ...charges.map((c) => ({ entityType: 'charge', entityId: String(c._id), action: 'added_to_invoice', by, note: `Invoice #${inv.invoiceNumber}` }))
       ]);
       return inv;
     });
-    res.status(201).json(presentInvoice(created, await carriersMap()));
+    res.status(201).json(presentInvoice(created, await carriersMap(await accountingStore())));
   }));
 
   router.patch('/carrier-invoices/:id', requireAll(FREIGHT.VIEW, FREIGHT.EDIT), handle(async (req: Request, res: Response) => {
     const body = parse(S.invoiceEdit, req.body);
     const by = actor(req);
-    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
-      const inv = await invoiceFor(req, req.params.id, session);
+    const done = await inTransaction(async (store) => {
+      const inv = await invoiceFor(req, req.params.id, store);
       checkVersion(inv, body.version, 'This invoice');
       if (inv.status !== 'draft') throw new HttpError(400, `A ${(STATUS_LABELS as Record<string,string>)[inv.status].toLowerCase()} invoice can't be edited.`);
       const set: Loose = {};
@@ -640,16 +590,16 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       const changes = diff(inv, set);
       const entries: Loose[] = [];
       if (body.chargeIds) {
-        const next = await invoiceCharges(req, body.chargeIds, inv.carrierId, inv._id, session);
+        const next = await invoiceCharges(req, body.chargeIds, inv.carrierId, inv._id, store);
         const nextIds = new Set(next.map((c) => String(c._id)));
-        const removed = inv.chargeIds.filter((id) => !nextIds.has(String(id)));
+        const removed = inv.chargeIds.filter((id: unknown) => !nextIds.has(String(id)));
         for (const id of removed) {
-          const c = await FreightCharge.findById(id).session(session);
-          if (c) { c.invoiceId = null; c.updatedBy = by; await c.save({ session }); entries.push({ entityType: 'charge', entityId: String(c._id), action: 'removed_from_invoice', by, note: `Invoice #${inv.invoiceNumber}` }); }
+          const c = await store.charge(id);
+          if (c) { c.invoiceId = null; c.updatedBy = by; await saved(store.saveCharge(c)); entries.push({ entityType: 'charge', entityId: String(c._id), action: 'removed_from_invoice', by, note: `Invoice #${inv.invoiceNumber}` }); }
         }
         for (const c of next) {
           if (String(c.invoiceId || '') !== String(inv._id)) {
-            c.invoiceId = inv._id; c.updatedBy = by; await c.save({ session });
+            c.invoiceId = inv._id; c.updatedBy = by; await saved(store.saveCharge(c));
             entries.push({ entityType: 'charge', entityId: String(c._id), action: 'added_to_invoice', by, note: `Invoice #${inv.invoiceNumber}` });
           }
         }
@@ -659,40 +609,40 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       }
       Object.assign(inv, set);
       inv.updatedBy = by;
-      await inv.save({ session });
+      const out = await saved(store.saveInvoice(inv));
       if (changes.length) entries.unshift({ entityType: 'invoice', entityId: String(inv._id), action: 'edited', by, changes });
-      if (entries.length) await history(session, entries);
-      return inv;
+      if (entries.length) await history(store, entries);
+      return out;
     });
-    res.json(presentInvoice(saved, await carriersMap()));
+    res.json(presentInvoice(done, await carriersMap(await accountingStore())));
   }));
 
   /** Move an invoice and all its charges together. */
   const invoiceStep = ({ schema, problem, invoiceTo, chargeTo, action, note }: { schema: ZodType<Loose>; problem: (inv: Loose, charges: Loose[], body: Loose) => string | null; invoiceTo: (inv: Loose, body: Loose, by: Loose) => void; chargeTo: (charge: Loose, body: Loose, by: Loose, inv: Loose) => void; action: string; note?: (body: Loose) => string }) => handle(async (req: Request, res: Response) => {
     const body = parse(schema, req.body);
     const by = actor(req);
-    const saved = await inTransaction(async (session: mongoose.ClientSession) => {
-      const inv = await invoiceFor(req, req.params.id, session);
+    const done = await inTransaction(async (store) => {
+      const inv = await invoiceFor(req, req.params.id, store);
       checkVersion(inv, body.version, 'This invoice');
-      const charges = await FreightCharge.find({ _id: { $in: inv.chargeIds } }).session(session);
+      const charges = await store.chargesByIds(inv.chargeIds);
       const why = problem(inv, charges, body);
       if (why) throw new HttpError(400, why);
       const from = inv.status;
       invoiceTo(inv, body, by);
       inv.updatedBy = by;
-      await inv.save({ session });
+      const out = await saved(store.saveInvoice(inv));
       const entries = [{ entityType: 'invoice', entityId: String(inv._id), action, by, changes: [{ field: 'status', from, to: inv.status }], note: note ? note(body) : '' }];
       for (const c of charges) {
         const cFrom = c.status;
         chargeTo(c, body, by, inv);
         c.updatedBy = by;
-        await c.save({ session });
+        await saved(store.saveCharge(c));
         entries.push({ entityType: 'charge', entityId: String(c._id), action, by, changes: [{ field: 'status', from: cFrom, to: c.status }], note: `Invoice #${inv.invoiceNumber}` });
       }
-      await history(session, entries);
-      return inv;
+      await history(store, entries);
+      return out;
     });
-    res.json(presentInvoice(saved, await carriersMap()));
+    res.json(presentInvoice(done, await carriersMap(await accountingStore())));
   });
 
   router.post('/carrier-invoices/:id/approve', requireAll(FREIGHT.VIEW, FREIGHT.APPROVE), invoiceStep({
@@ -717,12 +667,12 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const body = parse(S.invoicePay, req.body);
     const by = actor(req);
     const canApprove = can(req.user, FREIGHT.APPROVE);
-    const out = await inTransaction(async (session: mongoose.ClientSession) => {
-      const prior = await priorPayment(body.requestId, session);
+    const out = await inTransaction(async (store) => {
+      const prior = await priorPayment(body.requestId, store);
       if (prior) return { prior };
-      const inv = await invoiceFor(req, req.params.id, session);
+      const inv = await invoiceFor(req, req.params.id, store);
       checkVersion(inv, body.version, 'This invoice');
-      const charges = await FreightCharge.find({ _id: { $in: inv.chargeIds } }).session(session);
+      const charges = await store.chargesByIds(inv.chargeIds);
       const why = invoicePayProblem(inv, charges, { canApprove });
       if (why) throw new HttpError(400, why);
       const now = new Date();
@@ -730,26 +680,27 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
       const oneStep = approvesWhenPaid(inv);
       const entries = markPaid(inv, body, by, now, paymentId, 'invoice');
       inv.updatedBy = by;
-      await inv.save({ session });
+      const paidInvoice = await saved(store.saveInvoice(inv));
       for (const c of charges) {
         entries.push(...markPaid(c, body, by, now, paymentId, 'charge', `Invoice #${inv.invoiceNumber}`));
         c.updatedBy = by;
-        await c.save({ session });
+        await saved(store.saveCharge(c));
       }
-      await Payment.create([{
+      await store.createPayment({
         paymentId, requestId: body.requestId, kind: 'invoice', carrierId: inv.carrierId, invoiceId: inv._id,
         chargeIds: charges.map((c) => c._id), locations: inv.locations, totalCents: inv.totalCents,
         paidOn: body.paidOn, method: body.method, reference: body.reference,
         approvedInSameStep: oneStep, recordedAt: now, recordedBy: by
-      }], { session });
-      await history(session, entries);
-      return { inv };
+      });
+      await history(store, entries);
+      return { inv: paidInvoice };
     });
+    const store = await accountingStore();
     if (out.prior) {
-      const inv = out.prior.invoiceId ? await invoiceFor(req, String(out.prior.invoiceId)) : null;
-      return res.json({ ...(inv && presentInvoice(inv, await carriersMap())), payment: out.prior, replayed: true });
+      const inv = out.prior.invoiceId ? await invoiceFor(req, String(out.prior.invoiceId), store) : null;
+      return res.json({ ...(inv && presentInvoice(inv, await carriersMap(store))), payment: out.prior, replayed: true });
     }
-    res.json(presentInvoice(out.inv, await carriersMap()));
+    res.json(presentInvoice(out.inv!, await carriersMap(store)));
   }));
 
   router.post('/carrier-invoices/:id/void', requireAll(FREIGHT.VIEW, FREIGHT.VOID), invoiceStep({

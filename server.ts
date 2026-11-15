@@ -65,6 +65,7 @@ import { cardReceiptsWritesPauseGate, cardReceiptsWritesPaused } from './src/uti
 import { lostSalesWritesPauseGate, lostSalesWritesPaused } from './src/utils/lostSalesWritesPause.ts';
 import { inventoryWritesPauseGate, inventoryWritesPaused } from './src/utils/inventoryWritesPause.ts';
 import { holdsWritesPauseGate, holdsWritesPaused } from './src/utils/holdsWritesPause.ts';
+import { accountingWritesPauseGate, accountingWritesPaused } from './src/utils/accountingWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1167,6 +1168,8 @@ app.use(lostSalesWritesPauseGate);
 app.use(inventoryWritesPauseGate);
 // Cart & Holds cutover pause (HOLDS_WRITES_PAUSED=true): cart and hold writes answer 503, the expiry job waits (src/utils/holdsWritesPause.ts).
 app.use(holdsWritesPauseGate);
+// Accounting (freight) cutover pause (ACCOUNTING_WRITES_PAUSED=true): carrier / charge / invoice / payment writes answer 503, the freight sync waits (src/utils/accountingWritesPause.ts).
+app.use(accountingWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -3845,12 +3848,12 @@ app.use('/api/checkin', createCheckInRouter({ authenticate, requirePermission })
 const freightSync = createFreightSync({
   Delivery: freightDeliveries, User, startDate: process.env.FREIGHT_CHARGES_FROM || '2026-10-01'
 });
-setDeliveriesChangedHandler((ids) => freightSync.syncDeliveryIds(ids));
+setDeliveriesChangedHandler((ids) => (accountingWritesPaused() ? undefined : freightSync.syncDeliveryIds(ids)));
 app.use('/api/accounting/fuel-man', createFuelManRouter({ authenticate }));
 app.use('/api/accounting', createAccountingRouter({ authenticate, sync: freightSync }));
 let freightReconcileRunning = false;
 const reconcileFreight = async () => {
-  if (freightReconcileRunning) return;
+  if (freightReconcileRunning || accountingWritesPaused()) return;
   freightReconcileRunning = true;
   try {
     const r = await freightSync.reconcile();
@@ -5167,6 +5170,7 @@ app.get('/api/health', async (req: Request, res: Response) => {
     inventoryWritesPaused: inventoryWritesPaused(),
     holdsOn: areasOnPostgres().includes('holds') ? 'postgres' : 'mongo',
     holdsWritesPaused: holdsWritesPaused(),
+    accountingWritesPaused: accountingWritesPaused(),
     dailyReportsWritesPaused: dailyReportsWritesPaused(),
     cardReceiptsOn: areasOnPostgres().includes('card_receipts') ? 'postgres' : 'mongo',
     cardReceiptsWritesPaused: cardReceiptsWritesPaused()
