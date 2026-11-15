@@ -1,15 +1,15 @@
 import type { Loose } from '../types/records.ts';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { Schedule, User } = vi.hoisted(() => ({
+const { Schedule, staffData } = vi.hoisted(() => ({
   Schedule: {
     findOneAndUpdate: vi.fn(), create: vi.fn(), findOneAndDelete: vi.fn(),
     find: vi.fn(), updateMany: vi.fn()
   },
-  User: { findById: vi.fn() }
+  staffData: { userById: vi.fn() }
 }));
 vi.mock('../models/Schedule.ts', () => ({ default: Schedule }));
-vi.mock('../models/User.ts', () => ({ default: User }));
+vi.mock('../db/staff/index.ts', () => staffData);
 
 const {
   dropInStartTime, addMinutesToLocal, activityTypeForVisit,
@@ -27,7 +27,7 @@ beforeEach(() => {
   Schedule.findOneAndDelete.mockResolvedValue(null);
   Schedule.find.mockReturnValue(lean([]));
   Schedule.updateMany.mockResolvedValue({});
-  User.findById.mockReturnValue(lean({ location: 'Seattle' }));
+  staffData.userById.mockResolvedValue({ location: 'Seattle' });
 });
 
 describe('dropInStartTime', () => {

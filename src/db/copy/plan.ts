@@ -12,6 +12,7 @@ import { getTableConfig, type PgDatabase, type PgQueryResultHKT, type PgTable } 
 import type { Loose } from '../../types/records.ts';
 import * as schema from '../schema/index.ts';
 import { referenceRows, type ReferenceSource } from './referenceRows.ts';
+import { syncReference } from '../reference/syncReference.ts';
 import { customerRows } from './customerRows.ts';
 import { linkedRows, type LinkedSource } from './linkedRows.ts';
 import { operationsRows, type OperationsSource } from './operationsRows.ts';
@@ -277,9 +278,15 @@ export const CUSTOMER_AREA_TABLES = new Set([
 /** Columns that change by the minute on MongoDB (who is online) and say nothing about customers: not compared in the customer-area check. */
 const CUSTOMER_SCOPE_IGNORES: Record<string, string[]> = { users: ['lastSeenAt', 'lastLoginAt', 'updatedAt'] };
 
+/** The staff area's tables (Users, Roles, Locations): moved by an in-place sync, never a truncating copy — everything points at them. */
+export const STAFF_AREA_TABLES = new Set(['locations', 'roles', 'users', 'user_locations', 'location_report_recipients']);
+
+/** Sign-in counters and the online stamps keep moving while people sign in: not compared in the staff check. */
+const STAFF_SCOPE_IGNORES: Record<string, string[]> = { users: ['loginAttempts', 'lockUntil', 'lastSeenAt', 'lastLoginAt', 'updatedAt'] };
+
 export interface VerifyOptions {
-  /** 'customers': only CUSTOMER_AREA_TABLES, and not the by-the-minute columns above. Default: every table, every column. */
-  scope?: 'customers';
+  /** 'customers': only CUSTOMER_AREA_TABLES, and not the by-the-minute columns above. 'staff': only STAFF_AREA_TABLES. Default: every table, every column. */
+  scope?: 'customers' | 'staff';
 }
 
 /**
@@ -291,7 +298,8 @@ export async function verifyCopy(db: Db, src: CopySource, limitPerTable = 20, op
   for (const [table, expected] of copyPlan(src, [])) {
     const name = getTableName(table);
     if (options.scope === 'customers' && !CUSTOMER_AREA_TABLES.has(name)) continue;
-    const ignored = new Set(options.scope === 'customers' ? CUSTOMER_SCOPE_IGNORES[name] ?? [] : []);
+    if (options.scope === 'staff' && !STAFF_AREA_TABLES.has(name)) continue;
+    const ignored = new Set(options.scope === 'customers' ? CUSTOMER_SCOPE_IGNORES[name] ?? [] : options.scope === 'staff' ? STAFF_SCOPE_IGNORES[name] ?? [] : []);
     // numeric columns come back at their scale ('10.00'): compare those as numbers, nothing else.
     const numeric = new Set(Object.entries(getTableColumns(table)).filter(([, col]) => col.columnType === 'PgNumeric').map(([key]) => key));
     const value = (col: string, v: unknown) => numeric.has(col) && v != null ? Number(v) : norm(v);
@@ -532,8 +540,26 @@ export async function verifyArea(db: Db, src: CopySource, area: CopyArea, limitP
   return diffs;
 }
 
+/**
+ * The staff area's cutover copy: Users, Roles and Locations brought in line **in place**
+ * (src/db/reference/syncReference.ts) — a truncating copy can't be used, every other table points at them.
+ * Dry run (write: false) only counts. Refuses once the area is locked.
+ */
+export async function syncStaffFromMongo(db: Db, src: CopySource, options: { write: boolean }): Promise<CopyReport> {
+  const problems: CopyProblem[] = [];
+  const { rows } = referenceRows(src, problems);
+  const counts = { locations: rows.locations.length, roles: rows.roles.length, users: rows.users.length, user_locations: rows.userLocations.length, location_report_recipients: rows.locationReportRecipients.length };
+  const report: CopyReport = { copiedAt: new Date().toISOString(), source: { staff: rows.users.length }, tables: counts, summary: summarize(problems), problems };
+  if (!options.write) return report;
+  const [state] = await db.select().from(schema.mongoCopyState).where(eq(schema.mongoCopyState.id, 1));
+  if (state?.lockedAreas?.includes('staff')) throw new AreaLockedError('staff');
+  const sync = await syncReference(db, src, { staff: true });
+  if (sync.kept.length) report.problems.push(...sync.kept.map(k => ({ table: 'staff', id: k, field: '', reason: 'removed from MongoDB but Postgres still needs it: kept', outcome: 'skipped' as const })));
+  return report;
+}
+
 /** After this area's cutover: its scoped copy refuses for good. */
-export async function lockArea(db: Db, area: CopyArea, by: string): Promise<void> {
+export async function lockArea(db: Db, area: CopyArea | 'staff', by: string): Promise<void> {
   const [state] = await db.select().from(schema.mongoCopyState).where(eq(schema.mongoCopyState.id, 1));
   const areas = [...new Set([...(state?.lockedAreas ?? []), area])];
   await db.insert(schema.mongoCopyState).values({ id: 1, lockedAreas: areas })
