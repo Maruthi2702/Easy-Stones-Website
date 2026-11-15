@@ -112,9 +112,9 @@ describe('sendSelectionSheetEmail', () => {
     expect(html.match(/margin: 0 20px 14px 0;/g)).toHaveLength(2);
   });
 
-  it('is titled "Selection Sheet: <name>", from Easy Surfaces, replies to the rep', async () => {
+  it('is titled "🪨 Selection Sheet: <name>", from Easy Surfaces, replies to the rep', async () => {
     const message = await messageOf();
-    expect(message.subject).toBe('Selection Sheet: Pat Visitor');
+    expect(message.subject).toBe('🪨 Selection Sheet: Pat Visitor');
     expect(message.from?.name).toBe('Easy Surfaces');
     expect(message.replyTo).toBe('rita@x.com');
     const noRep = await messageOf({}, { ...checkIn, salesRep: '', salesRepEmail: 'old@x.com' });

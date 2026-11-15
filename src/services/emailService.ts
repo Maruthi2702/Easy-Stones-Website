@@ -368,7 +368,7 @@ export async function sendSelectionSheetEmail(checkIn: Loose, recipientEmail: st
   const repEmail = String(checkIn.salesRepEmail || '').trim();
   return await sendEmail({
     to: recipientEmail,
-    subject: `Selection Sheet: ${checkIn.name}`,
+    subject: `🪨 Selection Sheet: ${checkIn.name}`,
     html: selectionSheetEmailHtml(checkIn, letterhead, { showPrices, markUrl }),
     // Sent as plain "Easy Stones" (owner, 2026-11-07); replies still go to the rep.
     defaultSenderName: SENDER_NAME,
