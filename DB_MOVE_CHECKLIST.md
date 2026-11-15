@@ -237,7 +237,13 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - [ ] Click-through (owner): Admin → Users & Roles → Side Nav Order: change, save, reload, reset to default, with `DB_SETTINGS=postgres` locally
   - [ ] **Cutover (not run):** pause on → `--scope settings --write` → `--verify` → `DB_SETTINGS=postgres` on Render → pause off → `--lock "<name>" --scope settings`; MongoDB `appsettings` kept read-only 2 weeks
   - [ ] Open question: `scripts/migrate-cloudinary-to-s3.ts` / `src/services/cloudinaryToS3.ts` (the finished file move and its Undo) read MongoDB's raw collections directly. They stay on MongoDB; once MongoDB is removed Undo can't run, and the 578 rewritten URLs' backups live only in `cloudinary_to_s3_backups` (copied by this scope)
-- [ ] One cutover for the tiny ones: Permits (already on Lambda), Team Files, products, colours, crossovers, contact form (1–2 days)
+- [ ] One cutover for the tiny ones: Permits (already on Lambda), Team Files, products, colours, crossovers, contact form (1–2 days) — **started 2026-11-15 on `feat/pg-small`, not merged, not cut over.** One switch `DB_SMALL` and one copy scope `small` (9 tables); Permits is **not** in it (see below).
+  - [x] Products (public list, admin list / detail / save, the one-off collection fill), the Easy Stones colours (incl. the start-up seed), the Crossover Sheet (add / edit / move / delete in one transaction) and the contact form go through `src/db/small/`; the old admin sales-resources list too. `small.parity.test.ts` runs each call on both databases and compares answers and every table. The copy's row builders in `miscRows.ts` are now exported per record so a save writes what a re-copy would.
+  - [x] Own copy scope `pg-copy-aws.ts --scope small` (`--write` / `--verify` / `--lock`; tested in `areaCopy.test.ts`) and write pause `SMALL_WRITES_PAUSED=true` (503 on those writes incl. the public contact form; `/api/health` shows `smallOn`, `smallWritesPaused`). **Needs `pg-copy-aws.ts --deploy` once before the first real run.**
+  - Known: a product's colours have no ids on Postgres (MongoDB made one per colour; nothing reads it); `/api/products/save` still doesn't bust the product cache (as before).
+  - [ ] **Team Files** (`src/routes/teamFiles.ts` + the legacy `/api/sales-dashboard/*` routes in server.ts; table `team_files`, in the scope already, still on MongoDB)
+  - [ ] **Permits**: the API runs on Lambda but every model in `src/permits/models.ts` (permits, runs, checks, contractors) is still Mongoose — its own area and switch, not "tiny"
+  - [ ] Read-only comparison on live data, local click-through (owner), cutover (`SMALL_WRITES_PAUSED=true` → `--scope small --write` → `--verify` → `DB_SMALL=postgres` → pause off → `--lock … --scope small`)
 - [ ] Last: Users, Roles, Locations, sign-in, who's online (3–5 days; every request reads them)
 
 ## 6. After every area has moved

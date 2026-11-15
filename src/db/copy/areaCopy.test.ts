@@ -210,6 +210,40 @@ describe('the Settings copy (app settings and the three archive tables)', () => 
   });
 });
 
+describe('the small ones copy (products, colours, crossovers, contact form, Team Files, sales resources)', () => {
+  const at = new Date('2026-11-14T18:00:00Z');
+  const product = oid(), bundle = oid(), color = oid(), sheet = oid(), cross = oid(), contact = oid(), file = oid(), resource = oid();
+  const withSmall = (): CopySource => ({
+    ...source(),
+    products: [{ _id: product, id: 7, name: 'Taj', category: 'Quartzite', colors: [{ name: 'Cream' }], bundles: [{ _id: bundle, bundleNumber: '1', images: [] }], priceLevels: { level1: 12.5 }, createdAt: at, updatedAt: at }],
+    easyStonesColors: [{ _id: color, name: 'Alpine', order: 0, createdAt: at, updatedAt: at }],
+    crossoverColors: [{ _id: sheet, easyStonesName: 'Alpine', crossovers: [{ _id: cross, distributorName: 'MSI', distributorColorName: 'Grey', matchType: 'Similar', createdAt: at, updatedAt: at }], createdAt: at, updatedAt: at }],
+    contactSubmissions: [{ _id: contact, name: 'Ann', email: 'a@x.test', message: 'Hi', createdAt: at, updatedAt: at }],
+    teamFiles: [{ _id: file, name: 'Price list', type: 'link', content: 'https://x.test', isFolder: false, createdAt: at.toISOString().slice(0, 19) }],
+    salesResources: [{ _id: resource, name: 'Old', type: 'file', content: 'abc', createdAt: at }]
+  } as unknown as CopySource);
+
+  it('fills only the nine small tables and verifies', async () => {
+    const before = (await open.db.select().from(schema.deliveries)).length;
+    const report = await copyAreaFromMongo(open.db, withSmall(), 'small', { write: true });
+    expect(report.tables).toEqual({
+      products: 1, product_colors: 1, product_bundles: 1, easy_stones_colors: 1, crossover_colors: 1, crossovers: 1,
+      contact_submissions: 1, team_files: 1, sales_resources: 1
+    });
+    expect((await open.db.select().from(schema.deliveries)).length).toBe(before);
+    expect(await verifyArea(open.db, withSmall(), 'small')).toEqual([]);
+  });
+
+  it('refuses for good once locked', async () => {
+    const src = withSmall();
+    (src.easyStonesColors as Record<string, unknown>[])[0].name = 'Renamed';
+    expect((await verifyArea(open.db, src, 'small')).join('\n')).toMatch(/easy_stones_colors/);
+    await lockArea(open.db, 'small', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'small', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.easyStonesColors)).length).toBe(1);
+  });
+});
+
 describe('the Inventory copy (stock, in-transit and Purchasing, one switch)', () => {
   const at = new Date('2026-11-14T18:00:00Z');
   const item = oid(), ship = oid(), scope = oid(), draft = oid();

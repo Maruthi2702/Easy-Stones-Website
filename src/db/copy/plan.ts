@@ -373,6 +373,15 @@ export const COPY_AREAS = {
    */
   settings: ['app_settings', 'cloudinary_to_s3_backups', 'legacy_leads', 'legacy_sales_customers'],
   /** Accounting's 3rd-party freight (Fuel Man is its own area): carriers, charges with flags, carrier invoices, payments, the audit. */
+  /**
+   * The small ones, one switch (`DB_SMALL`, owner: "one cutover for the tiny ones"): the public site's products with their
+   * colours and bundles, the Easy Stones colour catalog, the Crossover Sheet, the contact form, Team Files and the old
+   * sales-resources list. Permits is its own area (it runs on Lambda).
+   */
+  small: [
+    'products', 'product_colors', 'product_bundles', 'easy_stones_colors', 'crossover_colors', 'crossovers',
+    'contact_submissions', 'team_files', 'sales_resources'
+  ],
   accounting: [
     'acct_carriers', 'acct_carrier_invoices', 'acct_freight_charges', 'acct_freight_charge_flags', 'acct_invoice_charges',
     'acct_payments', 'acct_payment_charges', 'acct_audit'
@@ -440,6 +449,15 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.salesHolds, ch.salesHolds], [schema.salesHoldLines, ch.salesHoldLines],
       [schema.salesSlabReservations, ch.salesSlabReservations], [schema.salesCounters, ch.salesCounters],
       [schema.salesHoldHistory, ch.salesHoldHistory]
+    );
+  }
+  if (area === 'small') {
+    const misc = miscRows(src, ref.index, { customerIds } as never, problems);
+    // Parents before children (the insert order).
+    all.push(
+      [schema.products, misc.products], [schema.productColors, misc.productColors], [schema.productBundles, misc.productBundles],
+      [schema.easyStonesColors, misc.easyStonesColors], [schema.crossoverColors, misc.crossoverColors], [schema.crossovers, misc.crossovers],
+      [schema.contactSubmissions, misc.contactSubmissions], [schema.teamFiles, misc.teamFiles], [schema.salesResources, misc.salesResources]
     );
   }
   if (area === 'accounting') {

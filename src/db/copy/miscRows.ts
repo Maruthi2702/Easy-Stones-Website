@@ -77,6 +77,100 @@ function createdMoment(c: ReturnType<typeof rowConverter>, d: Loose): Date {
   return c.moment('created_at', v) ?? idTime(d._id);
 }
 
+/** One product with its colours and bundles as rows. The products data layer (src/db/small/) writes with this too, so a save equals a re-copy. */
+export function productRowsOf(d: Loose, problems: CopyProblem[]) {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'products', id);
+  const number = intOf(c, 'product_number', d.id);
+  if (number == null) { c.problem('product_number', 'no product number', 'skipped'); return null; }
+  const levels = obj(d.priceLevels);
+  const product: Row<typeof products> = {
+    id, productNumber: number, name: textOf(d.name), category: textOf(d.category), collectionType: optText(d.collectionType),
+    availability: textOf(d.availability) || 'In Stock', image: optText(d.image), installedImages: stringsOf(d.installedImages),
+    isNewArrival: boolOf(d.isNewArrival), showInSlider: boolOf(d.showInSlider), thickness: stringsOf(d.thickness),
+    sizes: stringsOf(d.sizes), description: optText(d.description), primaryColor: optText(d.primaryColor),
+    accentColor: optText(d.accentColor), style: optText(d.style), variations: textOf(d.variations) || 'Low',
+    finishes: stringsOf(d.finishes), applications: stringsOf(d.applications),
+    bookMatch: pickOf(c, 'book_match', d.bookMatch, ['N/A', 'Yes', 'No'] as const, 'N/A'), landingCost: decimalOf(d.landingCost),
+    priceLevel1: decimalOf(levels.level1), priceLevel2: decimalOf(levels.level2), priceLevel3: decimalOf(levels.level3),
+    priceLevel4: decimalOf(levels.level4), price: optText(d.price), ...stamp(c, d)
+  };
+  const colors = list(d.colors).map((x, position): Row<typeof productColors> => (
+    { productId: id, position, name: textOf(obj(x).name), image: optText(obj(x).image) }));
+  const bundles: Row<typeof productBundles>[] = [];
+  list(d.bundles).forEach((x, position) => {
+    const b = obj(x), bid = idOf(b._id);
+    if (!bid) { c.problem('bundles.id', 'bundle with no id', 'skipped'); return; }
+    bundles.push({
+      id: bid, productId: id, position, bundleNumber: optText(b.bundleNumber), serial: optText(b.serial),
+      avgSize: optText(b.avgSize), qty: optText(b.qty), location: optText(b.location), images: stringsOf(b.images)
+    });
+  });
+  return { product, colors, bundles };
+}
+
+export function easyStonesColorRowOf(d: Loose, problems: CopyProblem[]): Row<typeof easyStonesColors> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'easy_stones_colors', id);
+  return { id, name: textOf(d.name), order: intOf(c, 'order', d.order) ?? 0, ...stamp(c, d) };
+}
+
+/** One Crossover Sheet colour document: its row and one row per distributor mapping, in order. */
+export function crossoverRowsOf(d: Loose, problems: CopyProblem[]) {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'crossover_colors', id);
+  const color: Row<typeof crossoverColors> = { id, easyStonesName: textOf(d.easyStonesName), ...stamp(c, d) };
+  const entries: Row<typeof crossovers>[] = [];
+  list(d.crossovers).forEach((x, position) => {
+    const e = obj(x), eid = idOf(e._id);
+    if (!eid) { c.problem('crossovers.id', 'crossover with no id', 'skipped'); return; }
+    const ec = rowConverter(problems, 'crossovers', eid);
+    entries.push({
+      id: eid, colorId: id, position, distributorName: textOf(e.distributorName), distributorColorName: textOf(e.distributorColorName),
+      matchType: pickOf(ec, 'match_type', e.matchType, ['Direct Crossover', 'Similar'] as const, 'Similar'),
+      notes: textOf(e.notes), addedByName: textOf(e.addedByName), addedById: textOf(e.addedById), ...stamp(ec, e)
+    });
+  });
+  return { color, entries };
+}
+
+export function contactRowOf(d: Loose, problems: CopyProblem[]): Row<typeof contactSubmissions> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'contact_submissions', id);
+  return {
+    id, name: textOf(d.name), company: optText(d.company), email: textOf(d.email), phone: optText(d.phone),
+    message: textOf(d.message), status: pickOf(c, 'status', d.status, ['new', 'read', 'replied'] as const, 'new'),
+    emailSent: boolOf(d.emailSent), ...stamp(c, d)
+  };
+}
+
+export function teamFileRowOf(d: Loose, problems: CopyProblem[]): Row<typeof teamFiles> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'team_files', id);
+  return {
+    id, name: textOf(d.name), type: textOf(d.type), content: textOf(d.content), thumbnail: textOf(d.thumbnail),
+    contentType: textOf(d.contentType), isFolder: boolOf(d.isFolder), parentId: idOf(d.parentId), uploadedBy: idOf(d.uploadedBy),
+    size: intOf(c, 'size', d.size), pinned: boolOf(d.pinned), pinnedAt: optText(d.pinnedAt), pinnedBy: idOf(d.pinnedBy),
+    updatedBy: idOf(d.updatedBy), updatedAt: optText(d.updatedAt),
+    createdAt: createdMoment(c, d)
+  };
+}
+
+export function salesResourceRowOf(d: Loose, problems: CopyProblem[]): Row<typeof salesResources> | null {
+  const id = idOf(d._id);
+  if (!id) return null;
+  const c = rowConverter(problems, 'sales_resources', id);
+  return {
+    id, name: textOf(d.name), type: textOf(d.type), content: textOf(d.content), contentType: textOf(d.contentType),
+    uploadedBy: idOf(d.uploadedBy), createdAt: c.moment('created_at', d.createdAt) ?? idTime(d._id)
+  };
+}
+
 /** One lost sale as its row (the copy's mapping; a Postgres save builds the same row from the document MongoDB would hold). */
 /** One app setting as a row; the settings data layer (src/db/settings/) writes with this too, so a save equals a re-copy. */
 export function appSettingRowOf(d: Loose, problems: CopyProblem[]): Row<typeof appSettings> | null {
@@ -116,58 +210,23 @@ export function miscRows(src: MiscSource, ref: ReferenceIndex, cust: CustomerInd
   }
 
   for (const d of src.products) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'products', id);
-    const number = intOf(c, 'product_number', d.id);
-    if (number == null) { c.problem('product_number', 'no product number', 'skipped'); continue; }
-    const levels = obj(d.priceLevels);
-    rows.products.push({
-      id, productNumber: number, name: textOf(d.name), category: textOf(d.category), collectionType: optText(d.collectionType),
-      availability: textOf(d.availability) || 'In Stock', image: optText(d.image), installedImages: stringsOf(d.installedImages),
-      isNewArrival: boolOf(d.isNewArrival), showInSlider: boolOf(d.showInSlider), thickness: stringsOf(d.thickness),
-      sizes: stringsOf(d.sizes), description: optText(d.description), primaryColor: optText(d.primaryColor),
-      accentColor: optText(d.accentColor), style: optText(d.style), variations: textOf(d.variations) || 'Low',
-      finishes: stringsOf(d.finishes), applications: stringsOf(d.applications),
-      bookMatch: pickOf(c, 'book_match', d.bookMatch, ['N/A', 'Yes', 'No'] as const, 'N/A'), landingCost: decimalOf(d.landingCost),
-      priceLevel1: decimalOf(levels.level1), priceLevel2: decimalOf(levels.level2), priceLevel3: decimalOf(levels.level3),
-      priceLevel4: decimalOf(levels.level4), price: optText(d.price), ...stamp(c, d)
-    });
-    list(d.colors).forEach((x, position) => {
-      rows.productColors.push({ productId: id, position, name: textOf(obj(x).name), image: optText(obj(x).image) });
-    });
-    list(d.bundles).forEach((x, position) => {
-      const b = obj(x), bid = idOf(b._id);
-      if (!bid) { c.problem('bundles.id', 'bundle with no id', 'skipped'); return; }
-      rows.productBundles.push({
-        id: bid, productId: id, position, bundleNumber: optText(b.bundleNumber), serial: optText(b.serial),
-        avgSize: optText(b.avgSize), qty: optText(b.qty), location: optText(b.location), images: stringsOf(b.images)
-      });
-    });
+    const made = productRowsOf(d, problems);
+    if (!made) continue;
+    rows.products.push(made.product);
+    rows.productColors.push(...made.colors);
+    rows.productBundles.push(...made.bundles);
   }
 
   for (const d of src.easyStonesColors) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'easy_stones_colors', id);
-    rows.easyStonesColors.push({ id, name: textOf(d.name), order: intOf(c, 'order', d.order) ?? 0, ...stamp(c, d) });
+    const row = easyStonesColorRowOf(d, problems);
+    if (row) rows.easyStonesColors.push(row);
   }
 
   for (const d of src.crossoverColors) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'crossover_colors', id);
-    rows.crossoverColors.push({ id, easyStonesName: textOf(d.easyStonesName), ...stamp(c, d) });
-    list(d.crossovers).forEach((x, position) => {
-      const e = obj(x), eid = idOf(e._id);
-      if (!eid) { c.problem('crossovers.id', 'crossover with no id', 'skipped'); return; }
-      const ec = rowConverter(problems, 'crossovers', eid);
-      rows.crossovers.push({
-        id: eid, colorId: id, position, distributorName: textOf(e.distributorName), distributorColorName: textOf(e.distributorColorName),
-        matchType: pickOf(ec, 'match_type', e.matchType, ['Direct Crossover', 'Similar'] as const, 'Similar'),
-        notes: textOf(e.notes), addedByName: textOf(e.addedByName), addedById: textOf(e.addedById), ...stamp(ec, e)
-      });
-    });
+    const made = crossoverRowsOf(d, problems);
+    if (!made) continue;
+    rows.crossoverColors.push(made.color);
+    rows.crossovers.push(...made.entries);
   }
 
   for (const d of src.appSettings) {
@@ -186,37 +245,18 @@ export function miscRows(src: MiscSource, ref: ReferenceIndex, cust: CustomerInd
   }
 
   for (const d of src.contactSubmissions) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'contact_submissions', id);
-    rows.contactSubmissions.push({
-      id, name: textOf(d.name), company: optText(d.company), email: textOf(d.email), phone: optText(d.phone),
-      message: textOf(d.message), status: pickOf(c, 'status', d.status, ['new', 'read', 'replied'] as const, 'new'),
-      emailSent: boolOf(d.emailSent), ...stamp(c, d)
-    });
+    const row = contactRowOf(d, problems);
+    if (row) rows.contactSubmissions.push(row);
   }
 
   for (const d of src.teamFiles) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'team_files', id);
-    rows.teamFiles.push({
-      id, name: textOf(d.name), type: textOf(d.type), content: textOf(d.content), thumbnail: textOf(d.thumbnail),
-      contentType: textOf(d.contentType), isFolder: boolOf(d.isFolder), parentId: idOf(d.parentId), uploadedBy: idOf(d.uploadedBy),
-      size: intOf(c, 'size', d.size), pinned: boolOf(d.pinned), pinnedAt: optText(d.pinnedAt), pinnedBy: idOf(d.pinnedBy),
-      updatedBy: idOf(d.updatedBy), updatedAt: optText(d.updatedAt),
-      createdAt: createdMoment(c, d)
-    });
+    const row = teamFileRowOf(d, problems);
+    if (row) rows.teamFiles.push(row);
   }
 
   for (const d of src.salesResources) {
-    const id = idOf(d._id);
-    if (!id) continue;
-    const c = rowConverter(problems, 'sales_resources', id);
-    rows.salesResources.push({
-      id, name: textOf(d.name), type: textOf(d.type), content: textOf(d.content), contentType: textOf(d.contentType),
-      uploadedBy: idOf(d.uploadedBy), createdAt: c.moment('created_at', d.createdAt) ?? idTime(d._id)
-    });
+    const row = salesResourceRowOf(d, problems);
+    if (row) rows.salesResources.push(row);
   }
 
   const runIds = new Set<string>();

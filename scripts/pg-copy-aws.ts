@@ -15,6 +15,7 @@
  *   --scope fuelman     with --write / --verify / --lock: Fuel Man's 9 tables (statements, card assignments, published costs, months, history; DB_FUELMAN)
  *   --scope suppliers   with --write / --verify / --lock: suppliers, their logins, POs and blocks with their history (DB_SUPPLIERS)
  *   --scope settings    with --write / --verify / --lock: app settings and three archive tables (DB_SETTINGS)
+ *   --scope small       with --write / --verify / --lock: products, colours, crossovers, contact form, Team Files, sales resources (DB_SMALL)
  *   --scope lost_sales   with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries   with --write / --verify / --lock: only the deliveries and trucks tables (its own cutover; customers stay untouched)
  *   node scripts/pg-copy-aws.ts --lock "name"        at cutover: refuse every copy from now on
