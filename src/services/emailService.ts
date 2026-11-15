@@ -214,8 +214,9 @@ export async function sendCheckInAlertEmail(checkIn: Loose) {
 // and built so a forward keeps it: the three people side by side while they
 // fit (two and one on a phone); each material is one row — number, material and price,
 // then Lot # / Slab # / Size (in), each under its own label — instead of a wide table that ran past a
-// phone's edge. Outlook for Windows ignores max-width, so it gets a fixed
-// 600px table in a conditional comment.
+// phone's edge. The card is a table with a width="600" attribute (plus
+// max-width / width: 100% for phones): a forward drops a div's max-width and
+// the card stretched to the whole reading pane (2026-11-15).
 const SHEET_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
 export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, markUrl = '' }: Loose = {}) {
@@ -304,8 +305,8 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
     <tr><td align="center" style="padding: 0;">
-    <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-    <div style="max-width: 600px; margin: 0 auto; box-sizing: border-box; padding: 24px 20px; border: 1px solid #E3DED2; border-radius: 12px; background: #ffffff; font-family: ${SHEET_FONT}; color: #1F2328; text-align: left; line-height: 1.4;">
+    <table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 600px; border-collapse: separate; margin: 0 auto;"><tr>
+    <td align="left" style="padding: 24px 20px; border: 1px solid #E3DED2; border-radius: 12px; background: #ffffff; font-family: ${SHEET_FONT}; color: #1F2328; text-align: left; line-height: 1.4;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
         <tr>
           <td style="vertical-align: bottom; padding: 0;">
@@ -357,8 +358,7 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
           <td style="padding: 12px 0 0 0; vertical-align: top; text-align: right; white-space: nowrap; font-size: 12px; line-height: 1.6; color: #5B616B;">${phoneLink(doc.phone, '#5B616B')}</td>
         </tr>
       </table>
-    </div>
-    <!--[if mso]></td></tr></table><![endif]-->
+    </td></tr></table>
     </td></tr>
   </table>
   `;
