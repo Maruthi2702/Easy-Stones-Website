@@ -3,11 +3,12 @@
  * MongoDB records (src/db/copy/accountingRows.ts); fuelman.parity.test.ts compares every table after every
  * request, so a field written here and not there shows up.
  */
-import { and, asc, desc, eq, gt, inArray, isNull, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
 import {
   fuelReports, fuelAssignments, fuelAssignmentAllocations, fuelSources, fuelExpenses, fuelState, fuelPeriods, fuelHistory
 } from '../schema/accounting.ts';
+import { newId } from '../ids.ts';
 import type {
   Actor, AssignmentRecord, AuditRecord, FactRecord, FuelStore, ListRow, PeriodRecord, ReportRecord
 } from './types.ts';
@@ -31,6 +32,12 @@ function reportOf(r: ReportRow): ReportRecord {
     ...(r.note != null && { note: r.note })
   };
 }
+
+/**
+ * JSON as MongoDB keeps what an update sets: a field set to `undefined` is saved as null (BSON). A new document
+ * (Mongoose `create`) drops it instead, which is what jsonb does on its own — so only updates go through this.
+ */
+const asBson = <T>(v: T): T => (v === undefined ? v : JSON.parse(JSON.stringify(v, (_k, x) => (x === undefined ? null : x))));
 
 const COLUMNS = {
   status: 'status', frozenReview: 'frozenReview', publishedAt: 'publishedAt', note: 'note', dispositions: 'dispositions', overrides: 'overrides'
@@ -101,13 +108,13 @@ export function pgStore(q: Q): FuelStore {
         parsed: doc.parsed, revision: doc.revision, status: doc.status, dispositions: doc.dispositions, overrides: doc.overrides,
         importedAt: doc.importedAt, importedById: doc.importedBy.id, importedByName: doc.importedBy.name, version: 0
       }).returning();
-      await q.insert(fuelSources).values({ id: id, reportId: id, pdf });
+      await q.insert(fuelSources).values({ id: newId(), reportId: id, pdf });
       return reportOf(row!);
     },
     async updateReport(id, change) {
       const { bump, version, ...fields } = change;
       const set: Record<string, unknown> = {};
-      for (const key of Object.keys(COLUMNS) as (keyof typeof COLUMNS)[]) if (key in fields) set[COLUMNS[key]] = fields[key] ?? null;
+      for (const key of Object.keys(COLUMNS) as (keyof typeof COLUMNS)[]) if (key in fields) set[COLUMNS[key]] = key === 'publishedAt' || key === 'status' || key === 'note' ? (fields[key] ?? null) : asBson(fields[key] ?? null);
       if (bump) set.version = sql`${fuelReports.version} + 1`;
       const where = version === undefined ? eq(fuelReports.id, id) : and(eq(fuelReports.id, id), eq(fuelReports.version, version));
       if (!Object.keys(set).length) return (await q.select({ id: fuelReports.id }).from(fuelReports).where(where)).length > 0;

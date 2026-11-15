@@ -2,6 +2,7 @@
 import mongoose from 'mongoose';
 import type { ClientSession } from 'mongoose';
 import { FuelReport, FuelAssignment, FuelSource, FuelExpense, FuelState, FuelPeriod, FuelAudit } from '../../fuelman/models.ts';
+import { newId } from '../ids.ts';
 import type {
   AssignmentRecord, AuditRecord, FactRecord, FuelStore, ListRow, PeriodRecord, ReportRecord
 } from './types.ts';
@@ -9,6 +10,8 @@ import type {
 const oid = (id: string) => new mongoose.Types.ObjectId(id);
 const oids = (ids: string[]) => ids.map(oid);
 const withId = <T extends { _id: unknown }>(d: T) => ({ ...d, _id: String(d._id) });
+/** An assignment as the store answers it: no `__v` (Postgres keeps none, and the audit saves these rows). */
+const assignmentOf = (d: { _id: unknown }) => { const { __v: _v, ...rest } = withId(d) as { __v?: number }; return rest as unknown as AssignmentRecord; };
 const factOf = (d: { _id: unknown; reportId: unknown }) => ({ ...d, _id: String(d._id), reportId: String(d.reportId) }) as unknown as FactRecord;
 const periodOf = (d: { publishedReportId?: unknown }) => ({ ...d, publishedReportId: d.publishedReportId ? String(d.publishedReportId) : null }) as unknown as PeriodRecord;
 const byLocations = (locations?: string[]) => (locations ? { location: { $in: locations } } : {});
@@ -38,7 +41,7 @@ export function mongoStore(session: ClientSession | null): FuelStore {
     },
     async createReport(id, doc, pdf) {
       const [report] = await FuelReport.create([{ _id: id, ...doc }], { session });
-      await FuelSource.create([{ reportId: report!._id, pdf }], { session });
+      await FuelSource.create([{ _id: newId(), reportId: report!._id, pdf }], { session });
       return withId(report!.toObject()) as unknown as ReportRecord;
     },
     async updateReport(id, change) {
@@ -70,26 +73,26 @@ export function mongoStore(session: ClientSession | null): FuelStore {
     },
 
     async assignmentsOfScope(scopeKey) {
-      return (await FuelAssignment.find({ scopeKey }).session(session).sort({ externalId: 1, from: 1 }).lean()).map(withId) as unknown as AssignmentRecord[];
+      return (await FuelAssignment.find({ scopeKey }).session(session).sort({ externalId: 1, from: 1 }).lean()).map(assignmentOf);
     },
     async assignmentsOf(scopeKey, externalIds) {
-      return (await FuelAssignment.find({ scopeKey, externalId: { $in: externalIds } }).session(session).sort({ from: 1 }).lean()).map(withId) as unknown as AssignmentRecord[];
+      return (await FuelAssignment.find({ scopeKey, externalId: { $in: externalIds } }).session(session).sort({ from: 1 }).lean()).map(assignmentOf);
     },
     async assignmentById(id, scopeKey, externalId) {
       const d = await FuelAssignment.findOne({ _id: id, scopeKey, externalId }).session(session).lean();
-      return d ? (withId(d) as unknown as AssignmentRecord) : null;
+      return d ? assignmentOf(d) : null;
     },
     async assignmentUpTo(scopeKey, externalId, day) {
       const d = await FuelAssignment.findOne({ scopeKey, externalId, from: { $lte: day } }).session(session).sort({ from: -1 }).lean();
-      return d ? (withId(d) as unknown as AssignmentRecord) : null;
+      return d ? assignmentOf(d) : null;
     },
     async assignmentAfter(scopeKey, externalId, from) {
       const d = await FuelAssignment.findOne({ scopeKey, externalId, from: { $gt: from } }).session(session).sort({ from: 1 }).lean();
-      return d ? (withId(d) as unknown as AssignmentRecord) : null;
+      return d ? assignmentOf(d) : null;
     },
     async assignmentsOpenAt(scopeKey, externalId, day) {
       return (await FuelAssignment.find({ scopeKey, externalId, from: { $lte: day }, $or: [{ to: '' }, { to: { $gt: day } }] }).session(session).lean())
-        .map(withId) as unknown as AssignmentRecord[];
+        .map(assignmentOf);
     },
     async setAssignmentEnd(ids, to, actor) {
       if (!ids.length) return;

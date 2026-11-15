@@ -206,7 +206,15 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - [ ] Cutover: `HOLDS_WRITES_PAUSED=true` → `--scope holds --write` → `--verify` → `DB_HOLDS=postgres` on Render → pause off → `--lock … --scope holds`; then Mongo cart / hold collections kept read-only for 2 weeks
   - Known: a hold's customer id is lost if the customer is deleted (name kept); a new branch added in MongoDB needs the next Locations move before it can take a hold on Postgres
 - [ ] Suppliers + supplier portal (2 days; after Inventory, since POs fill from transit shipments)
-- [ ] Accounting + Fuel Man (3–4 days; transactions)
+- [ ] Accounting (transactions; its own agent and switch)
+- [ ] Fuel Man (1 day) — **built 2026-11-15 on `feat/pg-fuelman`, not merged, not cut over.** Switch `DB_FUELMAN` (its own — Accounting can't hold it up). Data layer `src/db/fuelman/` (README): statements, card assignments, published costs, months, history.
+  - [x] Every `src/fuelman/*` read and write goes through a store; parity test runs every route (import, list, lines, PDF, assign, batch, classify, missing driver, publish, carry-back, correction, reverse, close) on both databases and compares every table (`fuelman.parity.test.ts`); races on a real Postgres (`fuelman.concurrency.test.ts`: eight corrections of one month at once get revisions 1–8, one file sent six times is saved once)
+  - [x] Own copy scope `pg-copy-aws.ts --scope fuelman` (9 tables, tested in `areaCopy.test.ts`) and write pause `FUELMAN_WRITES_PAUSED=true` (503 on every Fuel Man write, reads carry on; `/api/health` shows `fuelmanOn`, `fuelmanWritesPaused`; tested). **Needs `pg-copy-aws.ts --deploy` once before the first real run.**
+  - [x] The review token no longer depends on object key order (Postgres' jsonb reorders keys); open review forms refresh once at deploy
+  - [x] Read-only comparison on live data (`scripts/pg-compare-fuelman.ts`, 2026-11-15): 82 requests (list, every report's detail / lines / history / PDF as finance and as each branch, the P&L and its CSV per month) — 0 differences. Live has only 2 reports (2026-08 draft, 2026-09 posted), 46 card assignments and 422 published costs, so the click-through matters more here
+  - [ ] Local click-through with `DB_FUELMAN=postgres` (owner): upload a statement, match drivers (single and batch), classify a line, resolve a missing driver, approve, correct and replace, reverse, close / reopen a month, the P&L and its Excel, a branch login's list
+  - [ ] Cutover: `FUELMAN_WRITES_PAUSED=true` → `--scope fuelman --write` → `--verify` → `DB_FUELMAN=postgres` on Render → pause off → `--lock … --scope fuelman`; then Mongo `acct_fuelman_*` collections kept read-only for 2 weeks
+  - Known: drivers and branch access still come from MongoDB's users, roles and locations until Users moves (last)
 - [ ] Logs, backups, settings, imports (1–2 days)
 - [ ] One cutover for the tiny ones: Permits (already on Lambda), Team Files, products, colours, crossovers, contact form (1–2 days)
 - [ ] Last: Users, Roles, Locations, sign-in, who's online (3–5 days; every request reads them)
