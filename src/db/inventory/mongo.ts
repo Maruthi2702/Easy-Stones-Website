@@ -271,3 +271,17 @@ export async function replaceSalesPeriod(input: SalesPeriodInput, beforeReplace?
     }
   });
 }
+
+type Session = import('mongoose').ClientSession | null;
+
+/** What Purchasing plans from: the stock rows at these branches, in `_id` order. */
+export const stockForPurchasing = (branches: string[], session: Session): Promise<Loose[]> =>
+  InventoryItem.find(
+    { location: { $in: branches } },
+    'product location units type instockQty availableSlabs availableQuantity slabStatus remnant serialNumber importedAt',
+  ).session(session).sort({ _id: 1 }).lean() as unknown as Promise<Loose[]>;
+
+/** Every sales record Purchasing builds its reports from, in `_id` order. */
+export const salesRecordsForPurchasing = (session: Session): Promise<Loose[]> =>
+  InventorySalesRecord.find({}, 'product uom slabsSold quantitySold location periodStart periodEnd importedAt')
+    .session(session).sort({ _id: 1 }).lean() as unknown as Promise<Loose[]>;

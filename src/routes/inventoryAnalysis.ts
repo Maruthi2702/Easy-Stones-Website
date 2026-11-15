@@ -24,6 +24,8 @@ import { PurchasingScope } from '../purchasing/models.ts';
 import { importInventoryStock } from '../services/inventoryStockImport.ts';
 import { stockSummary, stockFilterValues, listStockItems, stockGroups, velocityInputs, replaceSalesPeriod } from '../db/inventory/index.ts';
 import { listActiveShipments } from '../db/inventoryTransit/index.ts';
+import { areaOn } from '../db/appDb.ts';
+import { rekeyScopeCohorts } from '../db/purchasing/rekey.ts';
 import { groupTransitShipments } from '../utils/inventoryTransitImport.ts';
 import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.ts';
 // Parses run in a worker thread — see runWorkbookParse.ts for why an uploaded
@@ -378,13 +380,15 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       const importedByName = req.user?.displayName || req.user?.contactName || req.user?.username || '';
       const importedById = req.user?.id || null;
 
-      await PurchasingScope.createCollection();
+      if (areaOn('inventory') !== 'postgres') await PurchasingScope.createCollection();
       await replaceSalesPeriod({ location, periodStart, periodEnd, rows, importedAt, importedByName, importedById },
-        async (previous, { session }) => {
+        async (previous, { session, tx }) => {
           const oldAt = previous.map(r => r.importedAt?.toISOString()).filter(Boolean).sort().at(-1) || '';
           const identity = reportIdentity(location, periodStart.toISOString().slice(0, 10), periodEnd.toISOString().slice(0, 10), oldAt, previous as unknown as Parameters<typeof reportIdentity>[4]);
           // Backfill legacy references before replacing their source row IDs.
-          await PurchasingScope.updateMany({ cohortId: identity.legacyId }, { $set: { cohortId: identity.id }, $inc: { __v: 1 } }, session ? { session } : {});
+          // On Postgres this runs inside the replacement's own transaction (`tx`), so it is atomic with it.
+          if (tx) await rekeyScopeCohorts(tx as Parameters<typeof rekeyScopeCohorts>[0], identity.legacyId, identity.id);
+          else await PurchasingScope.updateMany({ cohortId: identity.legacyId }, { $set: { cohortId: identity.id }, $inc: { __v: 1 } }, session ? { session } : {});
         });
 
       req.app.get('io')?.emit('inventory_analysis_update');

@@ -18,6 +18,8 @@ export interface DraftChange {
 export interface PurchasingStore {
   /** The MongoDB session the stock, sales and transit reads join (null outside a transaction). */
   session: ClientSession | null;
+  /** On Postgres: this unit of work's own transaction, which the stock / sales / transit / revision reads join (null on MongoDB). */
+  tx: unknown;
 
   listScopes(): Promise<Loose[]>;
   findScope(id: string): Promise<Loose | null>;

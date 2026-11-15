@@ -77,6 +77,7 @@ export function pgStore(conn: Conn, session: ClientSession | null): PurchasingSt
 
   const store: PurchasingStore = {
     session,
+    tx: conn,
     listScopes: () => scopesWhere(db, undefined),
     async findScope(id) {
       return HEX24.test(id) ? (await scopesWhere(db, eq(purchasingScopes.id, lower(id))))[0] ?? null : null;

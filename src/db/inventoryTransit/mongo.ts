@@ -3,6 +3,7 @@ import InventoryTransitShipment from '../../models/InventoryTransitShipment.ts';
 import InventoryTransitReport, { InventoryTransitEvent } from '../../models/InventoryTransitReport.ts';
 import { inInventoryTransaction } from '../../services/inventoryTransaction.ts';
 import { transitSignature } from '../../purchasing/transitSignature.ts';
+import { newId } from '../ids.ts';
 import type { Loose } from '../../types/records.ts';
 import type { TransitPublish, TransitPublished } from './types.ts';
 
@@ -49,4 +50,26 @@ export async function publishTransit({ importId, importedAt, shipments, coverage
       withdrawnCount: withdrawn.length }], { session });
     return { importId, importedAt, shipmentCount: shipments.length, withdrawnCount: withdrawn.length };
   });
+}
+
+type Session = import('mongoose').ClientSession | null;
+
+/** Purchasing: the shipments still in transit at these branches, in `_id` order. */
+export async function shipmentsForBranches(branches: string[], session: Session): Promise<Loose[]> {
+  return InventoryTransitShipment.find({ location: { $in: branches }, active: { $ne: false } }).session(session).sort({ _id: 1 }).lean() as unknown as Promise<Loose[]>;
+}
+
+/** Purchasing: the one active shipment at these branches a receiving date may be confirmed for. */
+export async function findShipmentForReceipt(id: string, branches: string[], session: Session): Promise<Loose | null> {
+  return InventoryTransitShipment.findOne({ _id: id, location: { $in: branches }, active: { $ne: false } }).session(session).lean() as unknown as Promise<Loose | null>;
+}
+
+export interface ReceiptConfirmation { date: string; signature: string; at: Date; by: string }
+
+/** Purchasing: save the confirmed receiving date and its history line. */
+export async function saveReceiptConfirmation(shipment: Loose, { date, signature, at, by }: ReceiptConfirmation, session: Session): Promise<void> {
+  await InventoryTransitShipment.updateOne({ _id: shipment._id }, { $set: { usableReceiptDate: new Date(date),
+    receiptConfirmedAt: at, receiptConfirmedBy: by, confirmedSignature: signature }, $inc: { __v: 1 } }, { session: session ?? undefined });
+  await InventoryTransitEvent.create([{ _id: newId(), shipmentId: String(shipment._id), at, actor: by,
+    action: 'receipt-confirmed', snapshot: { date, signature } }], { session });
 }

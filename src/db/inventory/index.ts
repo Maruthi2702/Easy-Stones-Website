@@ -8,6 +8,7 @@
  * `inventoryRevision` when they move.
  */
 import { appDb, areaOn } from '../appDb.ts';
+import type { Db } from '../copy/plan.ts';
 import * as mongo from './mongo.ts';
 import * as pg from './postgres.ts';
 import type { StockFilter } from './rules.ts';
@@ -65,4 +66,14 @@ export async function findSlabByBarcode(value: string): Promise<Loose | null> {
 /** The counter the screens poll to know stock changed. */
 export async function inventoryRevision(): Promise<number> {
   return onPostgres() ? pg.inventoryRevision(await appDb()) : mongo.inventoryRevision();
+}
+
+/** Purchasing's stock read. `session` is the MongoDB snapshot it is reading in, `tx` its Postgres transaction: the read joins whichever database is in use. */
+export async function stockForPurchasing(branches: string[], session: import('mongoose').ClientSession | null = null, tx: unknown = null): Promise<Loose[]> {
+  return onPostgres() ? pg.stockForPurchasing((tx as Db | null) ?? await appDb(), branches) : mongo.stockForPurchasing(branches, session);
+}
+
+/** Purchasing's sales-report read. */
+export async function salesRecordsForPurchasing(session: import('mongoose').ClientSession | null = null, tx: unknown = null): Promise<Loose[]> {
+  return onPostgres() ? pg.salesRecordsForPurchasing((tx as Db | null) ?? await appDb()) : mongo.salesRecordsForPurchasing(session);
 }

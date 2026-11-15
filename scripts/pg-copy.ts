@@ -9,6 +9,7 @@
  *   --scope customers   with --verify: only the customer area's tables (what cutover needs)
  *   node scripts/pg-copy.ts --lock "name"   at cutover: refuse every copy from now on
  *   --scope card_receipts  with --write / --verify / --lock: only Credit Card Receipts' four tables (own cutover)
+ *   --scope inventory   with --write / --verify / --lock: Inventory, in-transit and Purchasing's 18 tables (one cutover, DB_INVENTORY)
  *   --scope lost_sales  with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries  with --write / --verify / --lock: only the deliveries and trucks tables (own cutover)
  *   --report <file>   write the full report (every problem, by id) as JSON

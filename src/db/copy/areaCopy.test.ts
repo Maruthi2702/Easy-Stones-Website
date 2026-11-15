@@ -178,3 +178,34 @@ describe('the Lost Sales copy', () => {
     expect((await open.db.select().from(schema.lostSales)).length).toBe(1);
   });
 });
+
+describe('the Inventory copy (stock, in-transit and Purchasing, one switch)', () => {
+  const at = new Date('2026-11-14T18:00:00Z');
+  const item = oid(), ship = oid(), scope = oid(), draft = oid();
+  const withInventory = (): CopySource => ({
+    ...source(),
+    inventoryItems: [{ _id: item, product: 'Quartz 3CM', sku: 'Q3', location: 'Seattle', instockQty: 10, importedAt: at }],
+    inventoryTransitShipments: [{
+      _id: ship, location: 'Seattle', poNumber: 'PO1', containerNumber: 'C1', active: true, importedAt: at,
+      lines: [{ product: 'Quartz 3CM', quantity: 4 }]
+    }],
+    inventoryRevision: [{ _id: 'inventory', revision: 3 }],
+    purchasingScopes: [{ _id: scope, name: 'Seattle', branches: ['Seattle'], cohortId: 'c1', createdAt: at, updatedAt: at }],
+    purchasingDrafts: [{ _id: draft, scopeId: scope, status: 'draft', createdAt: at, updatedAt: at }]
+  } as unknown as CopySource);
+
+  it('fills only the 18 inventory tables, verifies, and refuses for good once locked', async () => {
+    const deliveriesBefore = (await open.db.select().from(schema.deliveries)).length;
+    const report = await copyAreaFromMongo(open.db, withInventory(), 'inventory', { write: true });
+    expect(Object.keys(report.tables)).toHaveLength(18);
+    expect(report.tables).toMatchObject({ inventory_items: 1, inventory_transit_shipments: 1, inventory_transit_lines: 1, purchasing_scopes: 1, purchasing_drafts: 1 });
+    expect((await open.db.select().from(schema.deliveries)).length).toBe(deliveriesBefore);
+    expect(await verifyArea(open.db, withInventory(), 'inventory')).toEqual([]);
+    const src = withInventory();
+    (src.inventoryItems as Record<string, unknown>[])[0].instockQty = 11;
+    expect((await verifyArea(open.db, src, 'inventory')).join('\n')).toMatch(/inventory_items/);
+    await lockArea(open.db, 'inventory', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'inventory', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.inventoryItems)).length).toBe(1);
+  });
+});

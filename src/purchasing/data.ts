@@ -4,7 +4,7 @@ import { readBranchNames, readStockForPurchasing, readSalesRecordsForPurchasing,
 import type { PlanningCohort, PlanInputs } from './planInputs.ts';
 import { reportIdentity } from './reportIdentity.ts';
 import { createHash } from 'node:crypto';
-import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
+import { shipmentsForBranches } from '../db/inventoryTransit/index.ts';
 import { HttpError } from '../server/http.ts';
 export const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const allowed = (user: PurchasingUser, branches: string[]) =>
@@ -23,8 +23,8 @@ export async function sourceData(user: PurchasingUser, store: PurchasingStore) {
   const session = store.session;
   const branches = (await readBranchNames(session)).filter((name) => allowed(user, [name]));
   const reads = [
-    () => readStockForPurchasing(branches, session),
-    () => readSalesRecordsForPurchasing(session),
+    () => readStockForPurchasing(branches, session, store.tx),
+    () => readSalesRecordsForPurchasing(session, store.tx),
     () => store.listScopes(),
     () => readReservationsForPurchasing(branches, session),
   ];
@@ -93,6 +93,6 @@ export async function loadInputs(id: string, user: PurchasingUser, store: Purcha
   const storedInbound = await store.latestInbound(id);
   const inbound = storedInbound && (!storedInbound.branches || (storedInbound.branches.length === scope.branches.length && storedInbound.branches.every((branch: string) => scope.branches.includes(branch)))) ? storedInbound : null;
   const locks = await store.listLocks();
-  const transitShipments = await InventoryTransitShipment.find({ location: { $in: scope.branches }, active: { $ne: false } }).session(session).sort({ _id: 1 }).lean();
+  const transitShipments = await shipmentsForBranches(scope.branches, session, store.tx) as unknown as PlanInputs['transitShipments'];
   return { ...sources, scope, cohort, inbound: inbound as InboundSource | null, locks, transitShipments };
 }

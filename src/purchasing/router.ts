@@ -10,8 +10,7 @@ import { requireAll, HttpError, actorOf } from '../server/http.ts';
 import { sourceData, getScope, loadInputs } from './data.ts';
 import { buildPlan, stockId } from './buildPlan.ts';
 import { z } from 'zod';
-import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
-import { InventoryTransitEvent } from '../models/InventoryTransitReport.ts';
+import { findShipmentForReceipt, saveReceiptConfirmation } from '../db/inventoryTransit/index.ts';
 import { transitSignature } from './transitSignature.ts';
 import { normalizeInbound, variantKey, todayPacific, validDay } from './planning.ts';
 import { scopeSchema, inboundSchema } from './schemas.ts';
@@ -29,7 +28,7 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
         return { branches: data.branches, cohorts: data.cohorts.map(({ records, legacyId, ...rest }) => ({ ...rest,
           products: [...new Set(records.filter(r => r.uom === 'SF').map(r => r.product))].sort() })),
           scopes: data.scopes, stockSnapshotId: data.stockSnapshotId, stockImportedAt: data.stockImportedAt,
-          revision: await inventoryRevision(store.session) };
+          revision: await inventoryRevision(store.session, store.tx) };
       });
       res.json(result);
     }),
@@ -124,7 +123,7 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
   );
   router.get(
     '/scopes/:id/plan',
-    handle(async (req, res) => res.json(await inPurchasingSnapshot(async store => ({ ...buildPlan(await loadInputs(String(req.params.id), req.user, store), now()), revision: await inventoryRevision(store.session) })))),
+    handle(async (req, res) => res.json(await inPurchasingSnapshot(async store => ({ ...buildPlan(await loadInputs(String(req.params.id), req.user, store), now()), revision: await inventoryRevision(store.session, store.tx) })))),
   );
   router.post(
     '/scopes/:id/inbound',
@@ -162,16 +161,12 @@ export default function createPurchasingRouter({ authenticate, now = () => new D
     const result = await inPurchasingTransaction(async store => {
       const session = store.session;
       const scope = await getScope(String(req.params.id), req.user, store);
-      const shipment = await InventoryTransitShipment.findOne({ _id: String(req.params.shipmentId),
-        location: { $in: scope.branches }, active: { $ne: false } }).session(session).lean();
+      const shipment = await findShipmentForReceipt(String(req.params.shipmentId), scope.branches, session, store.tx);
       if (!shipment) throw new HttpError(404, 'Shipment not found in this warehouse view');
-      const signature = shipment.sourceSignature || transitSignature(shipment);
+      const signature = shipment.sourceSignature || transitSignature(shipment as unknown as Parameters<typeof transitSignature>[0]);
       if (signature !== body.signature) throw new HttpError(409, 'The shipment changed; review its current report before confirming a receiving date');
       const actor = actorOf(req);
-      await InventoryTransitShipment.updateOne({ _id: shipment._id }, { $set: { usableReceiptDate: new Date(body.date),
-        receiptConfirmedAt: now(), receiptConfirmedBy: actor.name, confirmedSignature: signature }, $inc: { __v: 1 } }, { session: session ?? undefined });
-      await InventoryTransitEvent.create([{ shipmentId: String(shipment._id), at: now(), actor: actor.name,
-        action: 'receipt-confirmed', snapshot: { date: body.date, signature } }], { session });
+      await saveReceiptConfirmation(shipment, { date: body.date, signature, at: now(), by: actor.name }, session, store.tx);
       return { success: true, date: body.date };
     });
     req.app.get('io')?.emit('inventory_analysis_update');

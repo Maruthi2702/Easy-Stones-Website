@@ -16,7 +16,13 @@ import type { Db } from './copy/plan.ts';
 export type DbArea = 'customers' | 'deliveries' | 'payments' | 'checkin' | 'daily_reports' | 'card_receipts' | 'lost_sales' | 'inventory_transit' | 'purchasing' | 'inventory';
 export type AreaDatabase = 'mongo' | 'postgres';
 
-const envName = (area: DbArea) => `DB_${area.toUpperCase()}`;
+/**
+ * Inventory, in-transit shipments and Purchasing share stock and receipt rows, so they move
+ * together: one switch, `DB_INVENTORY`, covers all three (owner, 2026-11-14).
+ */
+const SWITCH_OF: Partial<Record<DbArea, DbArea>> = { inventory_transit: 'inventory', purchasing: 'inventory' };
+
+const envName = (area: DbArea) => `DB_${(SWITCH_OF[area] ?? area).toUpperCase()}`;
 
 /** Which database an area reads and writes now. Read on every call, so a test can flip it. */
 export function areaOn(area: DbArea): AreaDatabase {

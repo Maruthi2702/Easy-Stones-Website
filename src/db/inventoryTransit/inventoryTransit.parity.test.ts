@@ -39,7 +39,7 @@ const ship = (po: string, container: string, location = 'Richmond', lines: Parti
 const base = { sourceFilename: 'SPS.xls', sourceHash: 'abc', importedByName: 'Krish', complete: true };
 
 beforeAll(async () => {
-  t = await openWriteParity(async () => {}, 'DB_INVENTORY_TRANSIT');
+  t = await openWriteParity(async () => {}, 'DB_INVENTORY');
   app = express();
   app.use(express.json());
   app.use(createRouter({

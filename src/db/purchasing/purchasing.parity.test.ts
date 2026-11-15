@@ -15,6 +15,8 @@ import { normalize } from '../customers/parity.ts';
 import createPurchasingRouter from '../../purchasing/router.ts';
 import InventoryItem from '../../models/InventoryItem.ts';
 import InventorySalesRecord from '../../models/InventorySalesRecord.ts';
+import { inventoryRows } from '../copy/inventoryRows.ts';
+import { inventoryTransitShipments, inventoryTransitLines } from '../schema/inventory.ts';
 import InventoryTransitShipment from '../../models/InventoryTransitShipment.ts';
 import { inPurchasingTransaction } from './index.ts';
 import type { Loose } from '../../types/records.ts';
@@ -70,7 +72,7 @@ beforeAll(async () => {
         periodStart: new Date('2026-10-12T00:00:00Z'), periodEnd: new Date('2026-11-17T00:00:00Z'), importedAt: new Date('2026-11-10T16:00:00Z') }
     ]);
     await seedLegacy(db);
-  }, 'DB_PURCHASING');
+  }, 'DB_INVENTORY');
 
   app = express();
   app.use(express.json());
@@ -301,7 +303,7 @@ describe('plan and drafts', () => {
   });
 });
 
-describe('receiving date of an in-transit container (transit itself stays on MongoDB)', () => {
+describe('receiving date of an in-transit container (the shipment is read and saved through the transit layer)', () => {
   it('confirms a date through the Postgres scope', async () => {
     const out = await same(async () => {
       const s = await setup();
@@ -310,6 +312,11 @@ describe('receiving date of an in-transit container (transit itself stays on Mon
     expect(out.plan).toBe(0);
     const shipment = await InventoryTransitShipment.create({ poNumber: 'P2', containerNumber: 'CONT2', location: 'Seattle', importedAt: at,
       lines: [{ product: 'Quartz 3CM', poNumber: 'P2', containerNumber: 'CONT2', location: 'Seattle', units: 'SF', slabs: 24, quantity: 24, etaDate: new Date('2026-12-08'), status: 'INTRANSIT', supplier: 'ABC' }] });
+    // The shipment exists in both databases (as the copy would have made it).
+    const built = inventoryRows({ inventoryItems: [], inventorySalesRecords: [], inventoryTransitShipments: [shipment.toObject() as Loose], inventoryTransitReports: [],
+      inventoryTransitEvents: [], inventoryRevision: [], inventoryStockImports: [], inventoryStockBackups: [], inventoryStockState: [] }, []);
+    await t.pg.db.insert(inventoryTransitShipments).values(built.inventoryTransitShipments);
+    await t.pg.db.insert(inventoryTransitLines).values(built.inventoryTransitLines);
     await same(async () => {
       const s = await setup();
       const plan = (await call(ADMIN, 'get', `/scopes/${s.id}/plan`)).body;

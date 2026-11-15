@@ -1,11 +1,11 @@
 /**
  * Purchasing's data layer: its routes read and write through a store, one per unit of work,
- * and each picks MongoDB or Postgres by the area's switch (`DB_PURCHASING`, src/db/appDb.ts).
+ * and each picks MongoDB or Postgres by the area's switch (`DB_INVENTORY`, shared with stock and in-transit, src/db/appDb.ts).
  * Both answer the same (purchasing.parity.test.ts).
  *
- * Stock, sales reports, reservations and transit stay on MongoDB (sources.ts), so on
- * Postgres a unit of work is a MongoDB snapshot session (for those reads) around one
- * Postgres transaction (for Purchasing's own rows).
+ * Stock, sales reports and transit shipments come from their own layers (sources.ts), which join the unit of
+ * work's Postgres transaction (`store.tx`) when the switch is on; holds' reservations still read MongoDB, so on
+ * Postgres a unit of work is a MongoDB snapshot session (for those) around one Postgres transaction.
  */
 import { appDb, areaOn } from '../appDb.ts';
 import { inInventoryTransaction, inInventorySnapshot } from '../../services/inventoryTransaction.ts';

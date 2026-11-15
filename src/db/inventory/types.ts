@@ -33,7 +33,7 @@ export interface SalesPeriodInput {
  * the callback writes elsewhere (Purchasing's cohort links) is not in that transaction
  * until Purchasing moves too.
  */
-export type BeforeReplace = (previous: Loose[], ctx: { session?: ClientSession }) => Promise<void>;
+export type BeforeReplace = (previous: Loose[], ctx: { session?: ClientSession; tx?: unknown }) => Promise<void>;
 
 /** One product's row on the grouped Stock Detail: totals over its slabs. */
 export interface StockGroup {

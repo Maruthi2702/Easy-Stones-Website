@@ -63,6 +63,7 @@ import { deliveriesWritesPauseGate, deliveriesWritesPaused } from './src/utils/d
 import { dailyReportsWritesPauseGate, dailyReportsWritesPaused } from './src/utils/dailyReportsWritesPause.ts';
 import { cardReceiptsWritesPauseGate, cardReceiptsWritesPaused } from './src/utils/cardReceiptsWritesPause.ts';
 import { lostSalesWritesPauseGate, lostSalesWritesPaused } from './src/utils/lostSalesWritesPause.ts';
+import { inventoryWritesPauseGate, inventoryWritesPaused } from './src/utils/inventoryWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1161,6 +1162,8 @@ app.use(dailyReportsWritesPauseGate);
 app.use(cardReceiptsWritesPauseGate);
 // Lost Sales cutover pause (LOST_SALES_WRITES_PAUSED=true): lost-sale writes answer 503 (src/utils/lostSalesWritesPause.ts).
 app.use(lostSalesWritesPauseGate);
+// Inventory cutover pause (INVENTORY_WRITES_PAUSED=true): stock / sales / in-transit imports and Purchasing writes answer 503 (src/utils/inventoryWritesPause.ts).
+app.use(inventoryWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -5157,6 +5160,8 @@ app.get('/api/health', async (req: Request, res: Response) => {
     dailyReportsOn: areasOnPostgres().includes('daily_reports') ? 'postgres' : 'mongo',
     lostSalesOn: areasOnPostgres().includes('lost_sales') ? 'postgres' : 'mongo',
     lostSalesWritesPaused: lostSalesWritesPaused(),
+    inventoryOn: areasOnPostgres().includes('inventory') ? 'postgres' : 'mongo',
+    inventoryWritesPaused: inventoryWritesPaused(),
     dailyReportsWritesPaused: dailyReportsWritesPaused(),
     cardReceiptsOn: areasOnPostgres().includes('card_receipts') ? 'postgres' : 'mongo',
     cardReceiptsWritesPaused: cardReceiptsWritesPaused()

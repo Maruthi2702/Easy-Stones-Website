@@ -243,8 +243,29 @@ export async function replaceSalesPeriod(db: Db, input: SalesPeriodInput, before
   await db.transaction(async tx => {
     await touchRevision(tx);
     const previous = await tx.select().from(S).where(period).orderBy(asc(S.id));
-    if (previous.length && beforeReplace) await beforeReplace(previous.map(salesDoc), {});
+    if (previous.length && beforeReplace) await beforeReplace(previous.map(salesDoc), { tx });
     await tx.delete(S).where(period);
     for (let start = 0; start < newRows.length; start += INSERT_BATCH_SIZE) await tx.insert(S).values(newRows.slice(start, start + INSERT_BATCH_SIZE));
   });
+}
+
+/** What Purchasing plans from: the stock rows at these branches, in id order (MongoDB's `_id` order). */
+export async function stockForPurchasing(db: Db, branches: string[]): Promise<Loose[]> {
+  if (!branches.length) return [];
+  const rows = await db.select({
+    _id: I.id, product: I.product, location: I.location, units: I.units, type: I.type, instockQty: I.instockQty,
+    availableSlabs: I.availableSlabs, availableQuantity: I.availableQuantity, slabStatus: I.slabStatus,
+    remnant: I.remnant, serialNumber: I.serialNumber, importedAt: I.importedAt
+  }).from(I).where(inArray(I.location, branches)).orderBy(sql`${I.id} collate "C"`);
+  return rows.map(r => ({ ...r, instockQty: Number(r.instockQty), availableSlabs: Number(r.availableSlabs), availableQuantity: Number(r.availableQuantity) }));
+}
+
+/** Every sales record Purchasing builds its reports from, in id order. */
+export async function salesRecordsForPurchasing(db: Db): Promise<Loose[]> {
+  const S = inventorySalesRecords;
+  const rows = await db.select({
+    _id: S.id, product: S.product, uom: S.uom, slabsSold: S.slabsSold, quantitySold: S.quantitySold, location: S.location,
+    periodStart: S.periodStart, periodEnd: S.periodEnd, importedAt: S.importedAt
+  }).from(S).orderBy(sql`${S.id} collate "C"`);
+  return rows.map(r => ({ ...r, slabsSold: Number(r.slabsSold), quantitySold: Number(r.quantitySold) }));
 }

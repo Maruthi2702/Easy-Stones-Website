@@ -7,6 +7,7 @@ import type { PurchasingStore } from './types.ts';
 export function mongoStore(session: ClientSession | null): PurchasingStore {
   return {
     session,
+    tx: null,
     listScopes: () => PurchasingScope.find({}).session(session).sort({ name: 1 }).lean() as unknown as Promise<Loose[]>,
     findScope: async id => (await PurchasingScope.findById(id).session(session).lean()) as Loose | null,
     async createScope(id, fields) {

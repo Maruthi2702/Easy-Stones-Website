@@ -3,7 +3,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import { Supplier, SupplierLogin, SupplierPO, SupplierBlock } from '../models/Suppliers.ts';
-import InventoryTransitShipment from '../models/InventoryTransitShipment.ts';
+import { findShipmentsByPo } from '../db/inventoryTransit/index.ts';
 import Role from '../models/Role.ts';
 import User from '../models/User.ts';
 import { SUPPLIER_POS, SUPPLIER_PAGE_PERMISSIONS, MAX_LOGINS_PER_SUPPLIER, SAME_PERSON_BOTH_STEPS } from '../utils/supplierAccess.ts';
@@ -465,7 +465,7 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
     if (!po) return res.status(400).json({ message: 'Enter a PO #.' });
     try {
       const [shipments, existing] = await Promise.all([
-        InventoryTransitShipment.find({ poNumber: new RegExp(`^\\s*${escapeRegex(po)}\\s*$`, 'i') }).sort({ active: -1, importedAt: -1 }).limit(50).lean(),
+        findShipmentsByPo(po),
         SupplierPO.findOne({ poNumber: po }, 'poNumber').lean()
       ]);
       if (!shipments.length) return res.json({ found: false, existingId: existing ? String(existing._id) : null });

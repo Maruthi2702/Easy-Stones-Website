@@ -343,7 +343,15 @@ export const COPY_AREAS = {
   /** Credit Card Receipts: cards, the category list and the expenses with their history. */
   card_receipts: ['company_cards', 'receipt_categories', 'card_expenses', 'card_expense_history'],
   /** Lost Sales: one table, its own small cutover. */
-  lost_sales: ['lost_sales']
+  lost_sales: ['lost_sales'],
+  /** Inventory, in-transit shipments and Purchasing: one switch (`DB_INVENTORY`), one cutover. */
+  inventory: [
+    'inventory_items', 'inventory_sales_records', 'inventory_transit_shipments', 'inventory_transit_lines',
+    'inventory_transit_reports', 'inventory_transit_events', 'inventory_revision', 'inventory_stock_imports',
+    'inventory_stock_backups', 'inventory_stock_state',
+    'purchasing_scopes', 'purchasing_scope_aliases', 'purchasing_scope_policies', 'purchasing_inbound',
+    'purchasing_drafts', 'purchasing_draft_history', 'purchasing_locks', 'purchasing_po_links'
+  ]
 } as const;
 export type CopyArea = keyof typeof COPY_AREAS;
 export const isCopyArea = (v: unknown): v is CopyArea => typeof v === 'string' && Object.hasOwn(COPY_AREAS, v);
@@ -381,6 +389,22 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
     all.push(
       [schema.companyCards, cs.companyCards], [schema.receiptCategories, cs.receiptCategories],
       [schema.cardExpenses, cs.cardExpenses], [schema.cardExpenseHistory, cs.cardExpenseHistory]
+    );
+  }
+  if (area === 'inventory') {
+    const inv = inventoryRows(src as never, problems);
+    const pur = purchasingRows(src as never, problems);
+    // Parents before children (the insert order).
+    all.push(
+      [schema.inventoryItems, inv.inventoryItems], [schema.inventorySalesRecords, inv.inventorySalesRecords],
+      [schema.inventoryTransitShipments, inv.inventoryTransitShipments], [schema.inventoryTransitLines, inv.inventoryTransitLines],
+      [schema.inventoryTransitReports, inv.inventoryTransitReports], [schema.inventoryTransitEvents, inv.inventoryTransitEvents],
+      [schema.inventoryRevision, inv.inventoryRevision], [schema.inventoryStockImports, inv.inventoryStockImports],
+      [schema.inventoryStockBackups, inv.inventoryStockBackups], [schema.inventoryStockState, inv.inventoryStockState],
+      [schema.purchasingScopes, pur.purchasingScopes], [schema.purchasingScopeAliases, pur.purchasingScopeAliases],
+      [schema.purchasingScopePolicies, pur.purchasingScopePolicies], [schema.purchasingInbound, pur.purchasingInbound],
+      [schema.purchasingDrafts, pur.purchasingDrafts], [schema.purchasingDraftHistory, pur.purchasingDraftHistory],
+      [schema.purchasingLocks, pur.purchasingLocks], [schema.purchasingPoLinks, pur.purchasingPoLinks]
     );
   }
   if (area === 'lost_sales') all.push([schema.lostSales, miscRows(src, ref.index, { customerIds } as never, problems).lostSales]);

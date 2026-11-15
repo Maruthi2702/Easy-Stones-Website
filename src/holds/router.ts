@@ -23,7 +23,7 @@ import { inInventoryTransaction as inTransaction } from '../services/inventoryTr
 import express from 'express';
 import mongoose from 'mongoose';
 import type { ZodType } from 'zod';
-import InventoryItem from '../models/InventoryItem.ts';
+import { findSlabsByKeys, findSlabByBarcode } from '../db/inventory/index.ts';
 import { customerById } from '../db/customers/index.ts';
 import Location from '../models/Location.ts';
 import { letterheadFor } from '../utils/locationForm.ts';
@@ -49,34 +49,20 @@ const DAY_MS = 86400000;
 
 // ── Slabs ────────────────────────────────────────────────────────────────
 
-const SERIAL_COLLATION = { locale: 'en', strength: 2 };
-const SLAB_FIELDS = 'type serialNumber barcodeId product category bundle slabNumber block bin location dimensions instockQty slabStatus';
-
 /** Slabs by key. Most serials are stored exactly as their key; the rest are matched normalised. */
 async function findSlabs(keys: string[]) {
   const wanted = [...new Set(keys.map(slabKeyOf).filter(Boolean))];
   if (!wanted.length) return new Map();
   const found = new Map();
-  // Case-insensitive on the serial # index (InventoryItem.ts), so one indexed read finds them.
-  for (const item of await InventoryItem.find({ serialNumber: { $in: wanted } }, SLAB_FIELDS).collation(SERIAL_COLLATION).lean()) {
-    found.set(slabKeyOf(item.serialNumber), item);
-  }
-  const missing = wanted.filter((k) => !found.has(k));
-  if (missing.length) {
-    const rest = await InventoryItem.aggregate([
-      { $addFields: { _key: { $toUpper: { $trim: { input: { $ifNull: ['$serialNumber', ''] } } } } } },
-      { $match: { _key: { $in: missing } } },
-      { $project: { _key: 0 } }
-    ]);
-    for (const item of rest) found.set(slabKeyOf(item.serialNumber), item);
-  }
+  // The inventory data layer reads the serial # index case-insensitively, then the stragglers normalised.
+  for (const item of await findSlabsByKeys(wanted, slabKeyOf)) found.set(slabKeyOf(item.serialNumber), item);
   return found;
 }
 
 /** The one slab a scanned barcode or typed serial # points at. */
 async function findByCode(code: unknown) {
   const value = String(code || '').trim();
-  const byBarcode = await InventoryItem.findOne({ barcodeId: { $regex: `^${escapeRegex(value)}$`, $options: 'i' } }, SLAB_FIELDS).lean();
+  const byBarcode = await findSlabByBarcode(value);
   if (byBarcode) return byBarcode;
   return (await findSlabs([value])).get(slabKeyOf(value)) || null;
 }

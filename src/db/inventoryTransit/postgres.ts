@@ -129,3 +129,30 @@ export async function publishTransit(db: Db, { importId, importedAt, shipments, 
     return { importId, importedAt, shipmentCount: shipments.length, withdrawnCount: withdrawn.length };
   });
 }
+
+const activeAt = (branches: string[]) => and(eq(inventoryTransitShipments.active, true), inArray(inventoryTransitShipments.location, branches));
+
+/** Purchasing: the shipments still in transit at these branches, in id order. */
+export async function shipmentsForBranches(db: Db, branches: string[]): Promise<Loose[]> {
+  if (!branches.length) return [];
+  const rows = await db.select().from(inventoryTransitShipments).where(activeAt(branches)).orderBy(asc(bytes(inventoryTransitShipments.id)));
+  return withLines(db, rows);
+}
+
+/** Purchasing: the one active shipment at these branches a receiving date may be confirmed for. */
+export async function findShipmentForReceipt(db: Db, id: string, branches: string[]): Promise<Loose | null> {
+  if (!branches.length) return null;
+  const rows = await db.select().from(inventoryTransitShipments).where(and(eq(inventoryTransitShipments.id, id), activeAt(branches))).limit(1);
+  return (await withLines(db, rows))[0] ?? null;
+}
+
+/** Purchasing: save the confirmed receiving date and its history line, together. */
+export async function saveReceiptConfirmation(db: Db, shipment: Loose, { date, signature, at, by }: { date: string; signature: string; at: Date; by: string }): Promise<void> {
+  await db.transaction(async tx => {
+    const id = String(shipment._id);
+    await tx.update(inventoryTransitShipments).set({
+      usableReceiptDate: new Date(date), receiptConfirmedAt: at, receiptConfirmedBy: by, confirmedSignature: signature, updatedAt: new Date()
+    }).where(eq(inventoryTransitShipments.id, id));
+    await tx.insert(inventoryTransitEvents).values({ id: newId(), shipmentId: id, at, actor: by, action: 'receipt-confirmed', snapshot: { date, signature } });
+  });
+}
