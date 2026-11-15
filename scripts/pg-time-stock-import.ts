@@ -41,7 +41,7 @@ for (const label of ['first import (empty table)', 'second import (replaces the 
   const result = await importInventoryStock({ rows, sourceFilename: 'timing.xlsx', sourceHash: label, importedByName: 'Timing', importedById: null }) as Loose;
   console.log(`${label}: ${((performance.now() - t0) / 1000).toFixed(2)} s`, JSON.stringify(result).slice(0, 200));
 }
-const [{ n }] = (await pg.db.execute(sql`select count(*)::int as n from inventory_items`)).rows as { n: number }[];
-const [{ b }] = (await pg.db.execute(sql`select count(*)::int as b from inventory_stock_backups`)).rows as { b: number }[];
+const [{ n }] = ((await pg.db.execute(sql`select count(*)::int as n from inventory_items`)) as unknown as { rows: { n: number }[] }).rows;
+const [{ b }] = ((await pg.db.execute(sql`select count(*)::int as b from inventory_stock_backups`)) as unknown as { rows: { b: number }[] }).rows;
 console.log(`${n} items in the table; ${b} backup chunk(s).`);
 await pg.close();
