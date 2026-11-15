@@ -239,6 +239,15 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - [ ] Open question: `scripts/migrate-cloudinary-to-s3.ts` / `src/services/cloudinaryToS3.ts` (the finished file move and its Undo) read MongoDB's raw collections directly. They stay on MongoDB; once MongoDB is removed Undo can't run, and the 578 rewritten URLs' backups live only in `cloudinary_to_s3_backups` (copied by this scope)
 - [ ] One cutover for the tiny ones: Permits (already on Lambda), Team Files, products, colours, crossovers, contact form (1–2 days)
 - [ ] Last: Users, Roles, Locations, sign-in, who's online (3–5 days; every request reads them)
+  Started 2026-11-15 on `feat/pg-users` (in parallel with the other §5 areas; **nothing switched on**, default stays MongoDB). Switch `DB_STAFF`; data layer `src/db/staff/`; Postgres answers in MongoDB's shape (`staffDoc.ts`: `location`, `assignedLocations` with `'*'`). ~115 call sites in 27 files (56 in server.ts). Owner's caution: don't cut over mid-onboarding of next week's new users — build and test only until they say go.
+  - [x] Slice 1: sign-in identity (`authIdentity`, the `authenticate` read) and roles (`roleByName`, `rolesList`) on both databases; parity test `staff.parity.test.ts` (8 cases). Not wired into server.ts yet.
+  - [ ] Wire `authenticate` through `authIdentity` (hot path: every request; Render → RDS is ~38 ms a query, so keep it one join and consider a short cache)
+  - [ ] Locations: Mongo-shaped `locationDoc` (nested contacts / geocode / salesDefaults / dailyReportEmail), reads + the 6 routes at server.ts ~2182–2290; unblocks "a branch added in Mongo after the copy can't take a hold"
+  - [ ] Users: list, create, edit, active / unlock, `comparePassword` / `incLoginAttempts` / lock rules on Postgres (single conditional statements, like `claimSubmission`); invite + setup-session routes (`userOnboarding.ts`), `sessionVersion` bumps
+  - [ ] Roles writes; seeds at start-up (server.ts ~800–990 `Role.create`, permission grants)
+  - [ ] Other readers: schedule.ts (10), checkIn, deliveries, cardReceipts, teamDirectory, staffIdentity, presence `lastSeenAt`, iCloud / Google tokens
+  - [ ] Copy scope `--scope staff` (`pg-copy-aws.ts`) + `STAFF_WRITES_PAUSED`; **stop the Mongo → Postgres reference sync (`src/db/reference/`) at cutover** and drop `company_cards.user_id`'s dependence on it
+  - [ ] Owner's local click-through with `DB_STAFF=postgres`: sign in, wrong password ×5 lock, Users & Roles add / edit / deactivate, Roles, Locations
 
 ## 6. After every area has moved
 
