@@ -5,7 +5,6 @@ import express from 'express';
 
 import { countCheckIns, listCheckIns, newestCheckIn, findCheckIn, createCheckIn, saveCheckIn, deleteCheckIn } from '../db/checkins/index.ts';
 import * as staffData from '../db/staff/index.ts';
-import User from '../models/User.ts';
 import { sendCheckInAlertEmail, sendSelectionSheetEmail } from '../services/emailService.ts';
 import { stripPhone, formatPhoneForDisplay, maskPhone } from '../utils/phoneUtils.ts';
 import { letterheadFor } from '../utils/locationForm.ts';
@@ -86,7 +85,7 @@ const startingRepForCheckIn = async (location: string, creatorId: string | null 
   try {
     const [loc, users] = await Promise.all([
       staffData.locationByName(location),
-      User.find({}, 'username displayName email role isActive').lean()
+      staffData.findUsers({}, { select: 'username displayName email role isActive' })
     ]);
     const staff = users.map((u) => ({ ...u, name: displayNameOf(u) }));
     const rep = startingRepFor({ staff, branch: location, branchReps: { [location]: branchSalesRepOf(loc) }, creator: creatorId ? { id: creatorId } : null });
@@ -782,7 +781,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
         // An address already on the record (a rep since deactivated) is kept.
         const next = String(salesRepEmail || '').trim();
         if (next && next.toLowerCase() !== String(checkIn.salesRepEmail || '').trim().toLowerCase()) {
-          const isStaff = await User.exists({ email: new RegExp(`^${escapeRegex(next)}$`, 'i') });
+          const isStaff = await staffData.userExists({ email: new RegExp(`^${escapeRegex(next)}$`, 'i') });
           if (!isStaff) return res.status(400).json({ message: 'Pick the sales rep from the list.' });
         }
         checkIn.salesRepEmail = next;
@@ -807,7 +806,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       // the same permission POST /:id/send-email requires.
       const canSendSheet = canEmailSelectionSheet(req.user);
       const repIsActiveStaff = checkIn.salesRepEmail
-        ? await User.exists({ email: new RegExp(`^${escapeRegex(checkIn.salesRepEmail)}$`, 'i'), isActive: { $ne: false } })
+        ? await staffData.userExists({ email: new RegExp(`^${escapeRegex(checkIn.salesRepEmail)}$`, 'i'), isActive: { $ne: false } })
         : null;
       if (checkIn.salesRepEmail && repIsActiveStaff && canSendSheet && repEmailChanged) {
         const markUrl = sheetMarkUrl(req);

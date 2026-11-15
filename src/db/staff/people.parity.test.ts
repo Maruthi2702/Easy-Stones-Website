@@ -11,6 +11,7 @@ import User from '../../models/User.ts';
 import Role from '../../models/Role.ts';
 import Location from '../../models/Location.ts';
 import * as staff from './index.ts';
+import * as staffData from './index.ts';
 import type { Loose } from '../../types/records.ts';
 
 vi.setConfig({ testTimeout: 90_000 });
@@ -67,6 +68,14 @@ describe('reading users', () => {
     ]) {
       const r = await both(() => q(filter));
       expect(r.postgres, JSON.stringify(filter)).toEqual(r.mongo);
+    }
+  });
+
+  it('lower-cases and trims a username or email in a filter, as the model’s setters do', async () => {
+    for (const filter of [{ username: '  DEE ' }, { $or: [{ email: ' Dee@X.com' }, { username: 'zzz' }] }]) {
+      const r = await both(async () => (await staffData.findUser(filter, { select: 'username' }))?.username ?? null);
+      expect(r.mongo).toBe('dee');
+      expect(r.postgres).toBe('dee');
     }
   });
 

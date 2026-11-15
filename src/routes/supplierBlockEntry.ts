@@ -1,10 +1,10 @@
 import type { Request, RequestHandler, Response, NextFunction } from 'express';
+import * as staffData from '../db/staff/index.ts';
 import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarParams } from '../server/scalarRequest.ts';
 import { suppliersStore } from '../db/suppliers/index.ts';
 import { isId } from '../db/ids.ts';
-import User from '../models/User.ts';
 import { SUPPLIER_POS } from '../utils/supplierAccess.ts';
 import {
   applyEntry, applySend, sendProblems, blockStage, parseSize, cleanBlockNumber, ENTRY_PROBLEM_TEXT,
@@ -86,7 +86,7 @@ export default function createBlockEntryRoutes({ authenticate, processBase64Imag
   const tellBuyer = async (req: Request, po: Loose, block: Loose, bundles: number, slabs: number, resent: boolean) => {
     const who = actorOf(req);
     if (!po.buyerId || po.buyerId === who.id || !mongoose.isValidObjectId(po.buyerId)) return;
-    const [buyer, supplier] = await Promise.all([User.findById(po.buyerId, 'email displayName username').lean(), (await suppliersStore()).supplierById(po.supplierId)]);
+    const [buyer, supplier] = await Promise.all([staffData.userById(po.buyerId, { select: 'email displayName username' }), (await suppliersStore()).supplierById(po.supplierId)]);
     if (!buyer?.email) return;
     sendBlockOffered({
       to: buyer.email, buyerName: buyer.displayName || buyer.username || '', supplierName: supplier?.name || po.supplierName || '', poNumber: po.poNumber,

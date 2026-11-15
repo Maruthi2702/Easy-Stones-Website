@@ -50,3 +50,4 @@ export const roleExists = async (filter: Loose) => (await Role.exists(filter as 
 export const roleDocFor = async (filter: Loose) => findOne(Role, filter, {});
 export const newRoleDoc = (fields: Loose) => new Role(fields as never);
 export const deleteRole = async (id: string) => !!(mongoose.isValidObjectId(id) && await Role.findByIdAndDelete(id));
+export const roleDocsFor = async (filter: Loose = {}) => find(Role, filter, {});

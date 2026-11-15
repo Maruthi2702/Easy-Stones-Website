@@ -96,3 +96,7 @@ export async function deleteRole(db: Db, id: string): Promise<boolean> {
   if (!isId(id)) return false;
   return (await db.delete(roles).where(eq(roles.id, id)).returning({ id: roles.id })).length > 0;
 }
+
+export async function roleDocsFor(db: Db, filter: Loose = {}): Promise<PgRole[]> {
+  return (await findRoles(db, filter)).map(f => new PgRole(f, async () => db));
+}

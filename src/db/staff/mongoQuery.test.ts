@@ -48,4 +48,8 @@ describe('sortDocs and applyUpdate', () => {
     const out = applyUpdate({ a: 1, b: 2, n: 1 }, { $set: { a: 9 }, $unset: { b: 1 }, $inc: { n: 2 } });
     expect(out).toEqual({ a: 9, n: 3 });
   });
+  it('follows a dotted path, keeping what is beside it', () => {
+    const out = applyUpdate({ f: { a: 1, b: 2 } }, { $set: { 'f.c': 3, 'g.h': 4 }, $unset: { 'f.a': 1 } });
+    expect(out).toEqual({ f: { b: 2, c: 3 }, g: { h: 4 } });
+  });
 });

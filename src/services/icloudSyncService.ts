@@ -1,5 +1,5 @@
 import type { Loose } from '../types/records.ts';
-import User from '../models/User.ts';
+import * as staffData from '../db/staff/index.ts';
 import * as calendarData from '../db/customers/writes/schedule.ts';
 import { newId } from '../db/ids.ts';
 import https from 'https';
@@ -212,7 +212,7 @@ const parseIcsEvents = (icsText: string) => {
 export const syncICloudCalendar = async (userId: string, timeZone?: string) => {
   let plannerChanged = false;
   try {
-    const user = await User.findById(userId);
+    const user = await staffData.userDocById(userId);
     if (!user || !user.icloudSyncEnabled || !user.icloudCalendarUrl) {
       return false;
     }

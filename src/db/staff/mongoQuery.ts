@@ -58,11 +58,25 @@ export function sortDocs<T extends Loose>(docs: T[], sort?: Record<string, 1 | -
   });
 }
 
-/** $set, $unset and $inc on a copy of the document. */
+const setPath = (doc: Loose, path: string, value: unknown): Loose => {
+  const [head, ...rest] = path.split('.');
+  if (!rest.length) return { ...doc, [head!]: value };
+  const inner = doc[head!] && typeof doc[head!] === 'object' && !Array.isArray(doc[head!]) ? doc[head!] : {};
+  return { ...doc, [head!]: setPath(inner, rest.join('.'), value) };
+};
+const unsetPath = (doc: Loose, path: string): Loose => {
+  const [head, ...rest] = path.split('.');
+  if (!rest.length) { const { [head!]: _gone, ...others } = doc; return others; }
+  if (!doc[head!] || typeof doc[head!] !== 'object') return doc;
+  return { ...doc, [head!]: unsetPath(doc[head!], rest.join('.')) };
+};
+const getPath = (doc: Loose, path: string): unknown => path.split('.').reduce<unknown>((v, k) => (v as Loose | undefined)?.[k], doc);
+
+/** $set, $unset and $inc on a copy of the document; a path may be dotted (`routePlannerFilters.reps`). */
 export function applyUpdate(doc: Loose, update: Loose): Loose {
-  const out: Loose = { ...doc };
-  for (const [k, v] of Object.entries(update.$set ?? {})) out[k] = v;
-  for (const k of Object.keys(update.$unset ?? {})) delete out[k];
-  for (const [k, v] of Object.entries(update.$inc ?? {})) out[k] = (Number(out[k]) || 0) + Number(v);
+  let out: Loose = { ...doc };
+  for (const [k, v] of Object.entries(update.$set ?? {})) out = setPath(out, k, v);
+  for (const k of Object.keys(update.$unset ?? {})) out = unsetPath(out, k);
+  for (const [k, v] of Object.entries(update.$inc ?? {})) out = setPath(out, k, (Number(getPath(out, k)) || 0) + Number(v));
   return out;
 }

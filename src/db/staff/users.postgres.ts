@@ -80,12 +80,24 @@ async function writeUser(tx: Tx, doc: Loose): Promise<void> {
   if (links.length) await tx.insert(userLocations).values(links);
 }
 
+/** The model's setters also run on a filter: `username` and `email` are trimmed and lower-cased. */
+function castFilter(f: Loose): Loose {
+  const out: Loose = {};
+  for (const [k, v] of Object.entries(f)) {
+    if ((k === 'username' || k === 'email') && typeof v === 'string') out[k] = v.trim().toLowerCase();
+    else if ((k === '$or' || k === '$and') && Array.isArray(v)) out[k] = v.map(x => castFilter(x));
+    else out[k] = v;
+  }
+  return out;
+}
+
 const present = (doc: Loose, o: ReadOptions) => selectFields(doc, o.select, SECRET_FIELDS);
 
 // ── Plain reads ────────────────────────────────────────────────────────────
 
 export async function findUsers(db: Db, filter: Loose = {}, o: ReadOptions = {}): Promise<Loose[]> {
-  const all = (await loadAll(db)).filter(d => matches(d, filter));
+  const f = castFilter(filter);
+  const all = (await loadAll(db)).filter(d => matches(d, f));
   return sortDocs(all, o.sort).map(d => present(d, o));
 }
 export async function findUser(db: Db, filter: Loose, o: ReadOptions = {}): Promise<Loose | null> {
@@ -119,6 +131,13 @@ function tidy(doc: Loose): Loose {
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** A taken username or email is MongoDB's duplicate-key error (code 11000) to the routes that catch it. */
+const duplicateAsMongo = (err: unknown): never => {
+  const code = (err as Loose)?.cause?.code ?? (err as Loose)?.code;
+  if (code === '23505') throw Object.assign(new Error('E11000 duplicate key error'), { code: 11000 });
+  throw err;
+};
 
 /** A loaded (or new) account: change fields, then `await doc.save()`. */
 export class PgUser {
@@ -166,7 +185,7 @@ export class PgUser {
       doc.updatedAt = now;
       await writeUser(tx, doc);
       return doc;
-    });
+    }).catch(duplicateAsMongo);
     Object.assign(this, saved);
     Object.defineProperty(this, '__snapshot', { value: structuredClone(this.toJSON()), enumerable: false, writable: true });
     Object.defineProperty(this, '__isNew', { value: false, enumerable: false, writable: true });
@@ -186,7 +205,8 @@ export const newUserDoc = (db: Db, fields: Loose): PgUser => new PgUser(tidy({ .
 export async function updateUser(db: Db, filter: Loose, update: Loose): Promise<{ matchedCount: number; modifiedCount: number }> {
   return db.transaction(async tx => {
     await lockUsers(tx);
-    const doc = (await loadAll(tx)).find(d => matches(d, filter));
+    const f = castFilter(filter);
+    const doc = (await loadAll(tx)).find(d => matches(d, f));
     if (!doc) return { matchedCount: 0, modifiedCount: 0 };
     const next = tidy({ ...applyUpdate(doc, update), updatedAt: new Date() });
     const changed = !same({ ...doc, updatedAt: 0 }, { ...next, updatedAt: 0 });
@@ -199,7 +219,8 @@ export async function updateUser(db: Db, filter: Loose, update: Loose): Promise<
 export async function findUserAndUpdate(db: Db, filter: Loose, update: Loose, o: ReadOptions = {}): Promise<Loose | null> {
   return db.transaction(async tx => {
     await lockUsers(tx);
-    const doc = (await loadAll(tx)).find(d => matches(d, filter));
+    const f = castFilter(filter);
+    const doc = (await loadAll(tx)).find(d => matches(d, f));
     if (!doc) return null;
     const next = tidy({ ...applyUpdate(doc, update), updatedAt: new Date() });
     await writeUser(tx, next);

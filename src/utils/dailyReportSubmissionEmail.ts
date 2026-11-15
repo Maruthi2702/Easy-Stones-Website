@@ -21,7 +21,7 @@ export async function recipientsFor(locationName: unknown) {
   const location = await staffData.locationByName(String(locationName ?? ""));
   const setting = location?.dailyReportEmail;
   const ids = setting?.userIds || [];
-  const users = ids.length ? await User.find({ _id: { $in: ids } }, 'email isActive').lean() : [];
+  const users = ids.length ? (await staffData.findUsers({ _id: { $in: ids } }, { select: 'email isActive' })) as never : [];
   return recipientEmails(setting, users);
 }
 

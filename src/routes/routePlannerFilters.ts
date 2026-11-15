@@ -1,7 +1,7 @@
 import type { Loose } from '../types/records.ts';
+import * as staffData from '../db/staff/index.ts';
 import type { RequestHandler } from 'express';
 import express from 'express';
-import User from '../models/User.ts';
 
 /**
  * Route Planner's saved filter preferences — Sales Rep, Customer Type, and
@@ -43,7 +43,7 @@ export default function createRoutePlannerFiltersRouter({ authenticate }: { auth
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: 'No recognized filter fields provided' });
       }
-      await User.findByIdAndUpdate(req.userId, { $set: updates });
+      await staffData.updateUserById(req.userId, { $set: updates });
       res.json({ success: true });
     } catch (error) {
       console.error('Save route planner filters error:', error);

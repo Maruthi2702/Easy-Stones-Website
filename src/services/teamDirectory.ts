@@ -5,12 +5,12 @@ import type { Request } from 'express';
  * and who is on their team for Edit/Delete. Read fresh each time — the users
  * collection is small, and a change in Users & Roles applies at once.
  */
+import * as staffData from '../db/staff/index.ts';
 import mongoose from 'mongoose';
-import User from '../models/User.ts';
 import { teammatesOf, visiblePeople, narrowPeople, parseRepsParam, calendarPeople } from '../utils/teamScope.ts';
 import { displayNameOf } from '../utils/salesReps.ts';
 
-const staffDirectory = () => User.find({}, '_id location assignedLocations displayName username').lean();
+const staffDirectory = () => staffData.findUsers({}, { select: '_id location assignedLocations displayName username' });
 
 /** The signed-in staff member as teamScope.js reads them. */
 export const viewerOf = (req: Request) => ({

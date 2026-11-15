@@ -1,12 +1,11 @@
 import type { Request, RequestHandler, Response, NextFunction } from 'express';
+import * as staffData from '../db/staff/index.ts';
 import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import { suppliersStore, inSuppliersTransaction, type HistoryLine } from '../db/suppliers/index.ts';
 import { isId, newId } from '../db/ids.ts';
 import { findShipmentsByPo } from '../db/inventoryTransit/index.ts';
-import Role from '../models/Role.ts';
-import User from '../models/User.ts';
 import { SUPPLIER_POS, SUPPLIER_PAGE_PERMISSIONS, MAX_LOGINS_PER_SUPPLIER, SAME_PERSON_BOTH_STEPS } from '../utils/supplierAccess.ts';
 import {
   cleanPo, cleanSupplier, cleanLogin, poKey, poChanges, lineRemovalProblem, decisionProblem, applyDecision, unlockProblem,
@@ -114,8 +113,8 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
   router.get('/meta', pageOpen, async (req: Request, res: Response) => {
     try {
       // Buyers: anyone whose role can see or manage supplier POs.
-      const roles = await Role.find({ permissions: { $in: [SUPPLIER_POS.VIEW, SUPPLIER_POS.MANAGE_POS] } }, 'name').lean();
-      const people = await User.find({ role: { $in: roles.map((r) => r.name) }, isActive: { $ne: false } }, 'username displayName').lean();
+      const roles = await staffData.findRoles({ permissions: { $in: [SUPPLIER_POS.VIEW, SUPPLIER_POS.MANAGE_POS] } }, { select: 'name' });
+      const people = await staffData.findUsers({ role: { $in: roles.map((r) => r.name) }, isActive: { $ne: false } }, { select: 'username displayName' });
       res.json({
         me: actor(req),
         today: todayOf(),
@@ -329,7 +328,7 @@ export default function createSuppliersRouter({ authenticate, processBase64Image
   /** The buyer's name from their id (a person with the switches), else the person saving. */
   const buyerFor = async (req: Request, buyerId: string) => {
     if (buyerId && mongoose.isValidObjectId(buyerId)) {
-      const u = await User.findById(buyerId, 'username displayName').lean();
+      const u = await staffData.userById(buyerId, { select: 'username displayName' });
       if (u) return { buyerId, buyerName: nameOf(u) };
     }
     return { buyerId: userIdOf(req), buyerName: actor(req).name };

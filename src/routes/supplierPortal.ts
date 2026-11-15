@@ -1,10 +1,10 @@
 import type { Request, RequestHandler, Response } from 'express';
+import * as staffData from '../db/staff/index.ts';
 import express from 'express';
 import mongoose from 'mongoose';
 import { suppliersStore, type HistoryLine } from '../db/suppliers/index.ts';
 import { isId, newId } from '../db/ids.ts';
 import { validateScalarRequest, scalarParams } from '../server/scalarRequest.ts';
-import User from '../models/User.ts';
 import {
   STARTING_BUNDLES, MAX_BUNDLES, supplierMayEdit, slabsProblem, parseSize, cleanBlockNumber, sendProblems, applySend,
   withNewPhoto, blockStage, passwordProblem
@@ -371,7 +371,7 @@ export default function createSupplierPortalRouter({ jwtSecret, loginLimiter, pr
         [{ at, by: me.name, side: 'supplier', action: resent ? 'sent changes' : 'sent for review', changes: `${check.toSend.length} bundle${check.toSend.length === 1 ? '' : 's'}, ${slabs} slabs` }], at);
       if (!saved) return;
       // The PO's buyer hears about it (after the answer: an email never holds up the supplier).
-      const buyer = po.buyerId && mongoose.isValidObjectId(po.buyerId) ? await User.findById(po.buyerId, 'email displayName username').lean() : null;
+      const buyer = po.buyerId && mongoose.isValidObjectId(po.buyerId) ? await staffData.userById(po.buyerId, { select: 'email displayName username' }) : null;
       if (buyer?.email) {
         const base = (process.env.FRONTEND_URL || req.get('origin') || '').replace(/\/+$/, '');
         sendBlockOffered({

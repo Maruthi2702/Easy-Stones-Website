@@ -16,7 +16,6 @@ import { getFileStore } from '../services/fileStore.ts';
 
 import { findDeliveries, findDelivery, saveDelivery, updateDelivery, createDelivery, deleteDelivery, setRouteNumbers, findTrucks, saveTruck, logDeliveryActivity } from '../db/deliveries/index.ts';
 import { newId } from '../db/ids.ts';
-import User from '../models/User.ts';
 import * as staffData from '../db/staff/index.ts';
 
 import { stampSignaturesOnPdfBytes } from '../utils/pdfSigner.ts';
@@ -197,7 +196,7 @@ const certificateWordingFor = async ({ deliveryType, truckId }: { deliveryType?:
   if (id === THIRD_PARTY_TRUCK_ID) return PICKUP_WORDING;
   if (!/^[0-9a-fA-F]{24}$/.test(id)) return DELIVERY_WORDING;
 
-  const truckUser = await User.findById(id, 'name username').lean<{ name?: string; username?: string } | null>();
+  const truckUser = await staffData.userById(id, { select: 'name username' }) as { name?: string; username?: string } | null;
   return THIRD_PARTY_NAME.test(`${truckUser?.name || ''} ${truckUser?.username || ''}`)
     ? PICKUP_WORDING
     : DELIVERY_WORDING;
@@ -207,7 +206,7 @@ const certificateWordingFor = async ({ deliveryType, truckId }: { deliveryType?:
 const driverNameFor = async (truckId: string) => {
   if (truckId === THIRD_PARTY_TRUCK_ID) return '3rd party freight';
   if (!truckId.startsWith('drv_')) return '';
-  const user = await User.findOne({ username: truckId.slice(4) }, 'name username').lean<{ name?: string; username?: string } | null>()
+  const user = await (staffData.findUser({ username: truckId.slice(4) }, { select: 'name username' }) as Promise<{ name?: string; username?: string } | null>)
     .catch(() => null);
   return user?.name || user?.username || '';
 };

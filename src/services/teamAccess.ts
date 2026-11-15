@@ -1,4 +1,5 @@
 import type { Loose } from '../types/records.ts';
+import * as staffData from '../db/staff/index.ts';
 import type { Response, Request, NextFunction } from 'express';
 /**
  * The server half of Users & Roles access (src/utils/usersAccess.ts for the
@@ -40,7 +41,8 @@ export const requireArea = (area: string, { alsoRoles = false }: Loose = {}) => 
   next();
 };
 
-export const createTeamAccess = ({ Role, User }: { Role: typeof import('../models/Role.ts').default; User: typeof import('../models/User.ts').default }) => {
+/** (The models it used to take are no longer needed: people are read through the staff layer.) */
+export const createTeamAccess = (_models?: unknown) => {
   const usersAccess = (key: string) => async (req: Request, res: Response, next: NextFunction) => {
     try {
       if (!req.user) return res.status(401).json({ error: 'Not authenticated. Please log in.' });
@@ -52,7 +54,7 @@ export const createTeamAccess = ({ Role, User }: { Role: typeof import('../model
       if (!(req.user.permissions || []).includes(TEAM_PERMISSION) || !TEAM_ACTIONS.includes(key)) {
         return deny(res, req.user, key === 'view' ? 'see users' : `do this (${key})`);
       }
-      const role = await Role.findOne({ name: String(req.user.role || '').trim().toLowerCase() }, 'manageableRoles').lean();
+      const role = await staffData.findRole({ name: String(req.user.role || '').trim().toLowerCase() }, { select: 'manageableRoles' });
       req.teamScope = { manageableRoles: role?.manageableRoles || [] };
       next();
     } catch (err) {
@@ -76,8 +78,8 @@ export const createTeamAccess = ({ Role, User }: { Role: typeof import('../model
    */
   const teamUsers = async (req: Request) => {
     const roles = cleanManageableRoles(req.teamScope!.manageableRoles);
-    const people = await User.find({ role: { $in: roles }, _id: { $ne: req.user.id } })
-      .select(TEAM_USER_FIELDS).sort({ createdAt: -1 }).lean();
+    const people = await staffData.findUsers({ role: { $in: roles }, _id: { $ne: req.user.id } },
+      { select: TEAM_USER_FIELDS, sort: { createdAt: -1 } });
     return people.filter((p: Loose) => locationsWithin(req.user.assignedLocations, p.assignedLocations));
   };
 
