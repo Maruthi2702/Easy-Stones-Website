@@ -12,21 +12,17 @@
 import express from 'express';
 import type { Request, RequestHandler } from 'express';
 import type { Multer } from 'multer';
-import type { Model, QueryFilter } from 'mongoose';
-import type { InventoryStockItem } from '../models/InventoryItem.ts';
 import type { parseInventorySalesWorkbook } from '../utils/inventoryImport.ts';
 
 // Authentication request fields are declared centrally in src/types/server.ts.
 import type {} from '../types/server.ts';
 import { randomUUID, createHash } from 'crypto';
-import { inInventoryTransaction } from '../services/inventoryTransaction.ts';
 import { publishTransitReport } from '../services/inventoryTransitImport.ts';
 import { validDay } from '../purchasing/planning.ts';
 import { reportIdentity } from '../purchasing/reportIdentity.ts';
 import { PurchasingScope } from '../purchasing/models.ts';
 import { importInventoryStock } from '../services/inventoryStockImport.ts';
-import InventoryItem from '../models/InventoryItem.ts';
-import InventorySalesRecord from '../models/InventorySalesRecord.ts';
+import { stockSummary, stockFilterValues, listStockItems, stockGroups, velocityInputs, replaceSalesPeriod } from '../db/inventory/index.ts';
 import { listActiveShipments } from '../db/inventoryTransit/index.ts';
 import { groupTransitShipments } from '../utils/inventoryTransitImport.ts';
 import { SLAB_STATUS_BUCKET } from '../utils/inventoryStatus.ts';
@@ -58,95 +54,25 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   //   alongside prior periods (re-importing the same period+location replaces
   //   just that combination) so velocity/reorder math has something to divide by.
 
-  // ?location= on the inventory routes: one branch, or several comma-separated
-  // (Inventory's location filter lets people pick more than one). Empty means
-  // every branch; undefined is returned so callers can skip the clause.
-  const inventoryLocationMatch = (location: unknown) => {
-    const list = String(location || '').split(',').map(s => s.trim()).filter(Boolean);
-    if (!list.length) return undefined;
-    return list.length === 1 ? list[0] : { $in: list };
-  };
-
-  // Shared by /summary and /items so the two never drift apart on what a
-  // given search/category/location/status combination actually matches.
-  const buildInventoryItemQuery = ({ search = '', category = '', location = '', status = '', product = '' } = {}) => {
-    const query: QueryFilter<InventoryStockItem> = {};
-    if (product) query.product = product;
-    if (category) query.category = category;
-    const locationMatch = inventoryLocationMatch(location);
-    if (locationMatch) query.location = locationMatch;
-    if (status === 'available') query.slabStatus = '';
-    else if (status) query.slabStatus = status;
-    if (search) {
-      const re = new RegExp(String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      query.$or = [{ product: re }, { sku: re }, { supplier: re }, { block: re }, { serialNumber: re }];
-    }
-    return query;
-  };
-
   router.get('/summary', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
     try {
-      const filterQuery = buildInventoryItemQuery(req.query);
-      const now = new Date();
-
-      // Independent reads against the same collection — run them concurrently
-      // instead of five serialized round trips (this fires on every filter
-      // change, debounced but still per-keystroke-adjacent).
-      const [[totals], byCategory, agingBuckets, distinctProducts, latest] = await Promise.all([
-        InventoryItem.aggregate([
-          { $match: filterQuery },
-          { $group: {
-              _id: null,
-              totalItems: { $sum: 1 },
-              totalAssetValue: { $sum: '$assetValue' },
-              totalAvailableQty: { $sum: '$availableQuantity' }
-          } }
-        ]),
-        InventoryItem.aggregate([
-          { $match: filterQuery },
-          { $group: {
-              _id: '$category',
-              items: { $sum: 1 },
-              assetValue: { $sum: '$assetValue' },
-              availableQty: { $sum: '$availableQuantity' }
-          } },
-          { $sort: { assetValue: -1 } },
-          { $project: { _id: 0, category: { $ifNull: ['$_id', 'Uncategorized'] }, items: 1, assetValue: 1, availableQty: 1 } }
-        ]),
-        InventoryItem.aggregate([
-          { $match: { ...filterQuery, receivedDate: { $ne: null } } },
-          { $project: {
-              assetValue: 1,
-              ageDays: { $divide: [{ $subtract: [now, '$receivedDate'] }, 1000 * 60 * 60 * 24] }
-          } },
-          { $bucket: {
-              groupBy: '$ageDays',
-              boundaries: [0, 30, 60, 90, 180, 365, Infinity],
-              default: 'unknown',
-              output: { count: { $sum: 1 }, assetValue: { $sum: '$assetValue' } }
-          } }
-        ]),
-        InventoryItem.distinct('product', filterQuery),
-        // "Last synced" always reflects the most recent import overall, not the
-        // filtered subset — a filter narrowing to zero rows shouldn't make the
-        // sync timestamp disappear.
-        InventoryItem.findOne().sort({ importedAt: -1 }).select('importedAt importedByName').lean()
-      ]);
+      const totals = await stockSummary(req.query);
 
       // Asset value is cost-basis data, gated separately from the page itself
       // (view_inventory_analysis) — strip it server-side rather than just
       // hiding it in the UI, since it's sitting right there in the response.
       const canViewPrices = req.user.permissions.includes('view_inventory_prices');
 
+      const { byCategory, agingBuckets } = totals;
       res.json({
-        totalItems: totals?.totalItems || 0,
-        totalAssetValue: canViewPrices ? (totals?.totalAssetValue || 0) : null,
-        totalAvailableQty: totals?.totalAvailableQty || 0,
-        distinctProductCount: distinctProducts.length,
+        totalItems: totals.totalItems,
+        totalAssetValue: canViewPrices ? totals.totalAssetValue : null,
+        totalAvailableQty: totals.totalAvailableQty,
+        distinctProductCount: totals.distinctProductCount,
         byCategory: canViewPrices ? byCategory : byCategory.map(({ assetValue, ...rest }) => rest),
         agingBuckets: canViewPrices ? agingBuckets : agingBuckets.map(({ assetValue, ...rest }) => rest),
-        lastImportedAt: latest?.importedAt || null,
-        lastImportedByName: latest?.importedByName || ''
+        lastImportedAt: totals.lastImportedAt,
+        lastImportedByName: totals.lastImportedByName
       });
     } catch (error) {
       console.error('Inventory analysis summary error:', error);
@@ -156,11 +82,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
 
   router.get('/filters', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
     try {
-      const [categories, locations, statuses] = await Promise.all([
-        InventoryItem.distinct('category'),
-        InventoryItem.distinct('location'),
-        InventoryItem.distinct('slabStatus')
-      ]);
+      const { categories, locations, statuses } = await stockFilterValues();
       res.json({
         categories: categories.filter(Boolean).sort(),
         locations: locations.filter(Boolean).sort(),
@@ -176,12 +98,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
     try {
       const page = Math.max(1, parseInt(String(req.query.page || '')) || 1);
       const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '')) || 25));
-      const query = buildInventoryItemQuery(req.query);
-
-      const [items, total] = await Promise.all([
-        InventoryItem.find(query).sort({ receivedDate: 1 }).skip((page - 1) * limit).limit(limit).lean(),
-        InventoryItem.countDocuments(query)
-      ]);
+      const { items, total } = await listStockItems(req.query, page, limit);
 
       const canViewPrices = req.user.permissions.includes('view_inventory_prices');
       const sanitizedItems = canViewPrices
@@ -205,34 +122,10 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
     try {
       const page = Math.max(1, parseInt(String(req.query.page || '')) || 1);
       const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '')) || 20));
-      const filterQuery = buildInventoryItemQuery(req.query);
-
-      const [result] = await InventoryItem.aggregate([
-        { $match: filterQuery },
-        { $group: {
-            _id: '$product',
-            category: { $first: '$category' },
-            units: { $first: '$units' },
-            slabCount: { $sum: 1 },
-            totalOnHand: { $sum: '$instockQty' },
-            totalAvailable: { $sum: '$availableQuantity' },
-            totalAssetValue: { $sum: '$assetValue' },
-            locations: { $addToSet: '$location' },
-            oldestReceivedDate: { $min: '$receivedDate' },
-            statuses: { $push: '$slabStatus' }
-        } },
-        // Product name breaks ties: products received the same day used to
-        // come back in a different order on every request, so paging could
-        // show one twice and skip another.
-        { $sort: { oldestReceivedDate: 1, _id: 1 } },
-        { $facet: {
-            data: [{ $skip: (page - 1) * limit }, { $limit: limit }],
-            totalCount: [{ $count: 'count' }]
-        } }
-      ]);
+      const { groups: found, total } = await stockGroups(req.query, page, limit);
 
       const canViewPrices = req.user.permissions.includes('view_inventory_prices');
-      const groups = (result?.data || []).map((g: { _id: string; category: string; units: string; slabCount: number; totalOnHand: number; totalAvailable: number; totalAssetValue: number; locations: string[]; oldestReceivedDate: Date | null; statuses: string[] }) => {
+      const groups = found.map(g => {
         // Keys must cover every bucket SLAB_STATUS_BUCKET can return, or that
         // bucket's ++ would land on undefined and ship NaN to the UI.
         const statusCounts: Record<string, number> = { available: 0, hold: 0, so: 0, pickticket: 0, packinglist: 0, transfer: 0, other: 0 };
@@ -251,7 +144,6 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
         };
       });
 
-      const total = result?.totalCount?.[0]?.count || 0;
       res.json({ groups, total, page, totalPages: Math.ceil(total / limit) || 1 });
     } catch (error) {
       console.error('Inventory analysis grouped items error:', error);
@@ -267,31 +159,7 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
   // since "we don't know" is a different, more honest state than "infinite".
   router.get('/velocity', authenticate, requirePermission('view_inventory_analysis'), async (req, res) => {
     try {
-      const locationMatch = inventoryLocationMatch(req.query.location);
-
-      const stockMatch = locationMatch ? { location: locationMatch } : {};
-      const onHand = await InventoryItem.aggregate([
-        { $match: stockMatch },
-        { $group: {
-            _id: { product: '$product', location: '$location' },
-            availableQuantity: { $sum: '$availableQuantity' },
-            assetValue: { $sum: '$assetValue' },
-            units: { $first: '$units' },
-            category: { $first: '$category' }
-        } }
-      ]);
-
-      const salesMatch = locationMatch ? { location: locationMatch } : {};
-      const latestPerKey = await InventorySalesRecord.aggregate([
-        { $match: salesMatch },
-        { $sort: { periodEnd: -1 } },
-        { $group: {
-            _id: { product: '$product', location: '$location' },
-            quantitySold: { $first: '$quantitySold' },
-            periodStart: { $first: '$periodStart' },
-            periodEnd: { $first: '$periodEnd' }
-        } }
-      ]);
+      const { onHand, latestPerKey } = await velocityInputs(req.query.location);
       const salesByKey = new Map(latestPerKey.map(s => [`${s._id.product}::${s._id.location}`, s]));
       const canViewPrices = req.user.permissions.includes('view_inventory_prices');
 
@@ -510,21 +378,14 @@ export default function createInventoryAnalysisRouter({ authenticate, requirePer
       const importedByName = req.user?.displayName || req.user?.contactName || req.user?.username || '';
       const importedById = req.user?.id || null;
 
-      await Promise.all([InventorySalesRecord.createCollection(), PurchasingScope.createCollection()]);
-      await inInventoryTransaction(async session => {
-        const previous = await InventorySalesRecord.find({ location, periodStart, periodEnd }).session(session).sort({ _id: 1 }).lean();
-        if (previous.length) {
+      await PurchasingScope.createCollection();
+      await replaceSalesPeriod({ location, periodStart, periodEnd, rows, importedAt, importedByName, importedById },
+        async (previous, { session }) => {
           const oldAt = previous.map(r => r.importedAt?.toISOString()).filter(Boolean).sort().at(-1) || '';
-          const identity = reportIdentity(location, periodStart.toISOString().slice(0, 10), periodEnd.toISOString().slice(0, 10), oldAt, previous);
+          const identity = reportIdentity(location, periodStart.toISOString().slice(0, 10), periodEnd.toISOString().slice(0, 10), oldAt, previous as unknown as Parameters<typeof reportIdentity>[4]);
           // Backfill legacy references before replacing their source row IDs.
-          await PurchasingScope.updateMany({ cohortId: identity.legacyId }, { $set: { cohortId: identity.id }, $inc: { __v: 1 } }, { session });
-        }
-        await InventorySalesRecord.deleteMany({ location, periodStart, periodEnd }, { session });
-        for (let start = 0; start < rows.length; start += 1000) {
-          await InventorySalesRecord.insertMany(rows.slice(start, start + 1000).map((r: ReturnType<typeof parseInventorySalesWorkbook>['rows'][number]) => ({ ...r,
-            location, periodStart, periodEnd, importedAt, importedByName, importedById })), { session, ordered: true });
-        }
-      });
+          await PurchasingScope.updateMany({ cohortId: identity.legacyId }, { $set: { cohortId: identity.id }, $inc: { __v: 1 } }, session ? { session } : {});
+        });
 
       req.app.get('io')?.emit('inventory_analysis_update');
       res.json({ success: true, count: rows.length, location, periodStart, periodEnd });
