@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import { emptyAmounts } from './types.ts';
 import type { Allocation, Assignment, CategoryOverride, CostFact, Disposition, LocationTotal, ParsedReport, ReportReview } from './types.ts';
-export const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+// Keys are sorted first: Postgres' jsonb keeps an object's keys in its own order, and a token must not depend on it.
+const sorted = (value: unknown): unknown => Array.isArray(value) ? value.map(sorted)
+  : value && typeof value === 'object' && !(value instanceof Date) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([k, v]) => [k, sorted(v)])) : value;
+export const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(sorted(value))).digest('hex');
 export function splitCents(cents: number, allocations: Allocation[]): number[] {
   if (!Number.isSafeInteger(cents) || Math.abs(cents) > 100_000_000_00 || !allocations.length || allocations.some(a => !Number.isSafeInteger(a.basisPoints) || a.basisPoints <= 0) ||
     allocations.reduce((s, a) => s + a.basisPoints, 0) !== 10000) throw new Error('Allocation must add to exactly 100%');

@@ -283,6 +283,45 @@ describe('the Cart & Holds copy', () => {
   });
 });
 
+describe('the Fuel Man copy', () => {
+  const at = new Date('2026-11-13T21:05:00Z');
+  const report = oid(), source1 = oid(), assignment = oid(), cost = oid(), audit = oid();
+  const withFuel = (): CopySource => ({
+    ...source(),
+    fuelReports: [{
+      _id: report, scopeKey: 's', fileHash: 'f', contentHash: 'c', periodKey: 's:2026-10', filename: 'oct.pdf', parsed: { month: '2026-10', totalCents: 4210, company: 'Test Fleet' },
+      revision: 1, status: 'posted', dispositions: [], overrides: [], importedAt: at, importedBy: { id: 'finance', name: 'Finance' }, __v: 2
+    }],
+    fuelSources: [{ _id: source1, reportId: report, pdf: Buffer.from('%PDF-1.4 fake') }],
+    fuelAssignments: [{
+      _id: assignment, scopeKey: 's', externalId: 'A', reportedName: 'Driver Alp', driverKey: 'user:1', driverName: 'Driver Alpha',
+      from: '2026-10-01', to: '', allocations: [{ location: 'Seattle', basisPoints: 10000 }], updatedBy: { id: 'finance', name: 'Finance' }, updatedAt: at
+    }],
+    fuelExpenses: [{ _id: cost, reportId: report, month: '2026-10', scopeKey: 's', externalId: 'A', driverKey: 'user:1', driverName: 'Driver Alpha', location: 'Seattle', category: 'fuel', amountCents: 4210, sourceLine: 3, date: '2026-10-05' }],
+    fuelState: [{ _id: 's', revision: 4 }],
+    fuelPeriods: [{ _id: 's:2026-10', scopeKey: 's', month: '2026-10', publishedReportId: report, closed: false }],
+    fuelHistory: [{ _id: audit, reportId: report, scopeKey: 's', action: 'published', at, actor: { id: 'finance', name: 'Finance' }, note: 'ok', detail: { totalCents: 4210 } }]
+  } as unknown as CopySource);
+
+  it('fills only its nine tables (Accounting\'s stay out), verifies, and refuses for good once locked', async () => {
+    const deliveriesBefore = (await open.db.select().from(schema.deliveries)).length;
+    const copied = await copyAreaFromMongo(open.db, withFuel(), 'fuelman', { write: true });
+    expect(copied.tables).toEqual({
+      acct_fuelman_reports: 1, acct_fuelman_sources: 1, acct_fuelman_assignments: 1, acct_fuelman_assignment_allocations: 1,
+      acct_fuelman_profiles: 0, acct_fuelman_expenses: 1, acct_fuelman_state: 1, acct_fuelman_periods: 1, acct_fuelman_history: 1
+    });
+    expect((await open.db.select().from(schema.deliveries)).length).toBe(deliveriesBefore);
+    expect((await open.db.select().from(schema.fuelReports))[0]!.version).toBe(2);
+    expect(await verifyArea(open.db, withFuel(), 'fuelman')).toEqual([]);
+    const src = withFuel();
+    (src.fuelExpenses as Record<string, unknown>[])[0]!.amountCents = 1;
+    expect((await verifyArea(open.db, src, 'fuelman')).join('\n')).toMatch(/acct_fuelman_expenses/);
+    await lockArea(open.db, 'fuelman', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'fuelman', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.fuelReports)).length).toBe(1);
+  });
+});
+
 describe('the Suppliers copy', () => {
   const at = new Date('2026-11-14T18:00:00Z');
   const supplier = oid(), login = oid(), po = oid(), block = oid();

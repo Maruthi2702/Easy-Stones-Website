@@ -66,6 +66,7 @@ import { lostSalesWritesPauseGate, lostSalesWritesPaused } from './src/utils/los
 import { inventoryWritesPauseGate, inventoryWritesPaused } from './src/utils/inventoryWritesPause.ts';
 import { holdsWritesPauseGate, holdsWritesPaused } from './src/utils/holdsWritesPause.ts';
 import { accountingWritesPauseGate, accountingWritesPaused } from './src/utils/accountingWritesPause.ts';
+import { fuelmanWritesPauseGate, fuelmanWritesPaused } from './src/utils/fuelmanWritesPause.ts';
 import { suppliersWritesPauseGate, suppliersWritesPaused } from './src/utils/suppliersWritesPause.ts';
 import { settingsWritesPauseGate, settingsWritesPaused } from './src/utils/settingsWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
@@ -1172,6 +1173,8 @@ app.use(inventoryWritesPauseGate);
 app.use(holdsWritesPauseGate);
 // Accounting (freight) cutover pause (ACCOUNTING_WRITES_PAUSED=true): carrier / charge / invoice / payment writes answer 503, the freight sync waits (src/utils/accountingWritesPause.ts).
 app.use(accountingWritesPauseGate);
+// Fuel Man cutover pause (FUELMAN_WRITES_PAUSED=true): its writes answer 503 (src/utils/fuelmanWritesPause.ts).
+app.use(fuelmanWritesPauseGate);
 // Supplier POs / supplier portal cutover pause (SUPPLIERS_WRITES_PAUSED=true): every write on both sides answers 503 (src/utils/suppliersWritesPause.ts).
 app.use(suppliersWritesPauseGate);
 // Settings cutover pause (SETTINGS_WRITES_PAUSED=true): the side nav order can't be saved (src/utils/settingsWritesPause.ts).
@@ -5177,6 +5180,8 @@ app.get('/api/health', async (req: Request, res: Response) => {
     holdsOn: areasOnPostgres().includes('holds') ? 'postgres' : 'mongo',
     holdsWritesPaused: holdsWritesPaused(),
     accountingWritesPaused: accountingWritesPaused(),
+    fuelmanOn: areasOnPostgres().includes('fuelman') ? 'postgres' : 'mongo',
+    fuelmanWritesPaused: fuelmanWritesPaused(),
     suppliersOn: areasOnPostgres().includes('suppliers') ? 'postgres' : 'mongo',
     suppliersWritesPaused: suppliersWritesPaused(),
     settingsOn: areasOnPostgres().includes('settings') ? 'postgres' : 'mongo',

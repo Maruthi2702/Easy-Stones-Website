@@ -356,6 +356,11 @@ export const COPY_AREAS = {
   holds: [
     'sales_carts', 'sales_cart_lines', 'sales_holds', 'sales_hold_lines', 'sales_slab_reservations', 'sales_counters', 'sales_hold_history'
   ],
+  /** Fuel Man: statements, who held each card, the published costs, the months and the history (Accounting's tables stay out). */
+  fuelman: [
+    'acct_fuelman_reports', 'acct_fuelman_sources', 'acct_fuelman_assignments', 'acct_fuelman_assignment_allocations',
+    'acct_fuelman_profiles', 'acct_fuelman_expenses', 'acct_fuelman_state', 'acct_fuelman_periods', 'acct_fuelman_history'
+  ],
   /** Suppliers and the supplier portal: suppliers, their logins, POs with lines, blocks with bundles, and the history lines. */
   suppliers: [
     'suppliers', 'supplier_history', 'supplier_logins', 'supplier_pos', 'supplier_po_lines', 'supplier_po_history',
@@ -445,6 +450,18 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.acctFreightCharges, acc.acctFreightCharges], [schema.acctFreightChargeFlags, acc.acctFreightChargeFlags],
       [schema.acctInvoiceCharges, acc.acctInvoiceCharges], [schema.acctPayments, acc.acctPayments],
       [schema.acctPaymentCharges, acc.acctPaymentCharges], [schema.acctAudit, acc.acctAudit]
+    );
+  }
+  if (area === 'fuelman') {
+    // The same builder makes Accounting's rows too; only Fuel Man's problems belong to this area's report.
+    const seen: CopyProblem[] = [];
+    const acc = accountingRows(src as never, ref.index, ops.index, seen);
+    problems.push(...seen.filter(p => p.table.startsWith('acct_fuelman')));
+    // Parents before children (the insert order).
+    all.push(
+      [schema.fuelReports, acc.fuelReports], [schema.fuelSources, acc.fuelSources], [schema.fuelAssignments, acc.fuelAssignments],
+      [schema.fuelAssignmentAllocations, acc.fuelAssignmentAllocations], [schema.fuelProfiles, acc.fuelProfiles],
+      [schema.fuelExpenses, acc.fuelExpenses], [schema.fuelState, acc.fuelState], [schema.fuelPeriods, acc.fuelPeriods], [schema.fuelHistory, acc.fuelHistory]
     );
   }
   if (area === 'suppliers') {
