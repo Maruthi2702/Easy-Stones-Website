@@ -11,8 +11,7 @@ import type { Loose } from '../types/records.ts';
  * servers at once: each hold is re-read inside its own transaction and only
  * changed if it is still due.
  */
-import { inInventoryTransaction as inTransaction } from '../services/inventoryTransaction.ts';
-import { Hold, SlabReservation, HoldHistory } from './models.ts';
+import { inHoldsTransaction, holdsStore } from '../db/holds/index.ts';
 import { GRACE_DAYS } from './holdRules.ts';
 
 const SYSTEM = Object.freeze({ id: 'system', name: 'Hold expiry' });
@@ -22,52 +21,54 @@ export function createHoldExpiry({ io = null, log = console }: Loose = {}) {
   const announce = (slabKeys: Loose) => { if (slabKeys.length) io?.emit('slab_reservations_changed', { slabKeys }); };
 
   async function noteExpired(now: Date) {
-    const due = await Hold.find({ status: 'active', expiresAt: { $lte: now }, releaseAt: { $gt: now }, expiredNotedAt: null }, '_id').limit(BATCH).lean();
+    const due = await (await holdsStore()).holdsToNote(now, BATCH);
     let noted = 0;
-    for (const { _id } of due) {
+    for (const id of due) {
       try {
-        await inTransaction(async (session) => {
-          const hold = await Hold.findById(_id).session(session);
+        await inHoldsTransaction(async (store) => {
+          const hold = await store.findHold(id);
           if (!hold || hold.status !== 'active' || hold.expiredNotedAt || hold.expiresAt > now) return;
           hold.expiredNotedAt = now;
-          await hold.save({ session });
-          await HoldHistory.create([{
+          const saved = await store.saveHold(hold);
+          if (!saved) return; // changed meanwhile: the next pass looks again
+          await store.addHistory([{
             holdId: hold._id, holdNumber: hold.number, action: 'expired', by: SYSTEM,
             note: `Expired on ${hold.expiresOn}. The slabs stay held for ${GRACE_DAYS} more days — extend it to keep them.`
-          }], { session });
+          }]);
           noted += 1;
         });
       } catch (err) {
-        log.error?.(`[holds] noting hold ${_id} expired failed:`, (err as Error)?.message);
+        log.error?.(`[holds] noting hold ${id} expired failed:`, (err as Error)?.message);
       }
     }
     return noted;
   }
 
   async function releaseDue(now: Date) {
-    const due = await Hold.find({ status: 'active', releaseAt: { $lte: now } }, '_id').limit(BATCH).lean();
+    const due = await (await holdsStore()).holdsToRelease(now, BATCH);
     let released = 0;
-    for (const { _id } of due) {
+    for (const id of due) {
       try {
-        const keys = await inTransaction(async (session) => {
-          const hold = await Hold.findById(_id).session(session);
+        const keys = await inHoldsTransaction(async (store) => {
+          const hold = await store.findHold(id);
           if (!hold || hold.status !== 'active' || hold.releaseAt > now) return [];
           hold.status = 'released';
           hold.releasedAt = now;
           hold.releasedBy = SYSTEM;
           hold.releaseReason = `Expired on ${hold.expiresOn}; slabs freed ${GRACE_DAYS} days later.`;
           hold.updatedBy = SYSTEM;
-          await hold.save({ session });
-          await SlabReservation.deleteMany({ holdId: hold._id }, { session });
-          await HoldHistory.create([{
+          const saved = await store.saveHold(hold);
+          if (!saved) return [];
+          await store.unlockHold(hold._id);
+          await store.addHistory([{
             holdId: hold._id, holdNumber: hold.number, action: 'released', by: SYSTEM,
             changes: [{ field: 'status', from: 'active', to: 'released' }], note: hold.releaseReason
-          }], { session });
-          return hold.slabKeys;
+          }]);
+          return hold.slabKeys as string[];
         });
         if (keys.length) { released += 1; announce(keys); }
       } catch (err) {
-        log.error?.(`[holds] releasing hold ${_id} failed:`, (err as Error)?.message);
+        log.error?.(`[holds] releasing hold ${id} failed:`, (err as Error)?.message);
       }
     }
     return released;

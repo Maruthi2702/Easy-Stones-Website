@@ -351,6 +351,10 @@ export const COPY_AREAS = {
     'inventory_stock_backups', 'inventory_stock_state',
     'purchasing_scopes', 'purchasing_scope_aliases', 'purchasing_scope_policies', 'purchasing_inbound',
     'purchasing_drafts', 'purchasing_draft_history', 'purchasing_locks', 'purchasing_po_links'
+  ],
+  /** Cart & Holds: carts, holds with their slabs, the slab locks, the hold counter and the history. */
+  holds: [
+    'sales_carts', 'sales_cart_lines', 'sales_holds', 'sales_hold_lines', 'sales_slab_reservations', 'sales_counters', 'sales_hold_history'
   ]
 } as const;
 export type CopyArea = keyof typeof COPY_AREAS;
@@ -405,6 +409,16 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.purchasingScopePolicies, pur.purchasingScopePolicies], [schema.purchasingInbound, pur.purchasingInbound],
       [schema.purchasingDrafts, pur.purchasingDrafts], [schema.purchasingDraftHistory, pur.purchasingDraftHistory],
       [schema.purchasingLocks, pur.purchasingLocks], [schema.purchasingPoLinks, pur.purchasingPoLinks]
+    );
+  }
+  if (area === 'holds') {
+    const ch = checkInsHoldsRows(src, ref.index, { customerIds } as never, problems);
+    // Parents before children (the insert order).
+    all.push(
+      [schema.salesCarts, ch.salesCarts], [schema.salesCartLines, ch.salesCartLines],
+      [schema.salesHolds, ch.salesHolds], [schema.salesHoldLines, ch.salesHoldLines],
+      [schema.salesSlabReservations, ch.salesSlabReservations], [schema.salesCounters, ch.salesCounters],
+      [schema.salesHoldHistory, ch.salesHoldHistory]
     );
   }
   if (area === 'lost_sales') all.push([schema.lostSales, miscRows(src, ref.index, { customerIds } as never, problems).lostSales]);

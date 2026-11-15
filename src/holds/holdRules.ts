@@ -217,14 +217,14 @@ export function canSeeHold(user: Loose | null, hold: Loose | null) {
   return can(user, HOLDS.VIEW_OWN) && String(hold.createdBy?.id || '') === String(user.id || '');
 }
 
-/** The Mongo filter for a list scope, or null when the person can't use that scope. */
-export function scopeClause(user: Loose, scope: string, branch = ''): Loose | null {
+/** Which holds a list scope shows, as a database-neutral rule (`createdById`, one `branch`, or any of `branches`; {} = all), or null when the person can't use that scope. */
+export function scopeFilter(user: Loose, scope: string, branch = ''): { createdById?: string; branch?: string; branches?: string[] } | null {
   if (!holdScopesFor(user).includes(scope)) return null;
   const assigned = user.assignedLocations || [];
-  if (scope === 'mine') return { 'createdBy.id': String(user.id || '') };
+  if (scope === 'mine') return { createdById: String(user.id || '') };
   if (scope === 'branch') {
     if (branch) return assigned.includes('*') || assigned.includes(branch) ? { branch } : null;
-    return assigned.includes('*') ? {} : { branch: { $in: assigned } };
+    return assigned.includes('*') ? {} : { branches: assigned };
   }
   return branch ? { branch } : {};
 }

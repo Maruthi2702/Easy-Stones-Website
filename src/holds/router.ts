@@ -1,6 +1,5 @@
 import type { Loose } from '../types/records.ts';
 import type { Request, RequestHandler, Response } from 'express';
-import { inInventoryTransaction as inTransaction } from '../services/inventoryTransaction.ts';
 /**
  * Cart & Holds API (2026-10-10) — mounted at /api/holds.
  *
@@ -21,9 +20,10 @@ import { inInventoryTransaction as inTransaction } from '../services/inventoryTr
  * 'slab_reservations_changed' so open inventory screens and carts update.
  */
 import express from 'express';
-import mongoose from 'mongoose';
 import type { ZodType } from 'zod';
 import { findSlabsByKeys, findSlabByBarcode } from '../db/inventory/index.ts';
+import { inHoldsTransaction, holdsStore, type HoldsStore } from '../db/holds/index.ts';
+import { newId, isId } from '../db/ids.ts';
 import { customerById } from '../db/customers/index.ts';
 import Location from '../models/Location.ts';
 import { letterheadFor } from '../utils/locationForm.ts';
@@ -31,13 +31,12 @@ import { companyOf, contactOf, realEmailsOf } from '../utils/customerList.ts';
 import { homeLocationOf } from '../utils/locationFilter.ts';
 import { BRANCH_NAMES } from '../config/branches.ts';
 import {
-  HttpError, handle, requireAll, requireAny, parse, checkVersion, actorOf, escapeRegex
+  HttpError, handle, requireAll, requireAny, parse, checkVersion, actorOf
 } from '../server/http.ts';
 import { CART, HOLDS, HOLD_VIEW_PERMISSIONS, can } from './permissions.ts';
-import { Cart, Hold, SlabReservation, HoldHistory, nextNumber } from './models.ts';
 import {
   slabKeyOf, isHoldableSlab, slabSnapshot, holdTotals, holdState, daysToExpiry, defaultExpiresOn,
-  expiryMoments, expiryProblem, branchProblem, holdScopesFor, canSeeHold, scopeClause, formatDay, formatMoney,
+  expiryMoments, expiryProblem, branchProblem, holdScopesFor, canSeeHold, scopeFilter, formatDay, formatMoney,
   MAX_CART_SLABS, MAX_HOLD_SLABS
 } from './holdRules.ts';
 import { buildHoldPdf, holdPdfFileName } from './holdPdf.ts';
@@ -45,7 +44,6 @@ import { parseHide } from './holdLetter.ts';
 import * as S from './schemas.ts';
 
 const LABEL = 'holds';
-const DAY_MS = 86400000;
 
 // ── Slabs ────────────────────────────────────────────────────────────────
 
@@ -67,11 +65,7 @@ async function findByCode(code: unknown) {
   return (await findSlabs([value])).get(slabKeyOf(value)) || null;
 }
 
-const reservationsFor = async (keys: string[], session: mongoose.ClientSession | null = null) => {
-  const q = SlabReservation.find({ slabKey: { $in: keys } }).lean();
-  if (session) q.session(session);
-  return new Map((await q).map((r) => [r.slabKey, r]));
-};
+const reservationsFor = async (store: HoldsStore, keys: string[]) => new Map((await store.reservationsFor(keys)).map((r) => [r.slabKey, r]));
 
 const announce = (req: Request, slabKeys: string[]) => {
   const keys = [...new Set(slabKeys)].filter(Boolean);
@@ -82,8 +76,8 @@ const lockedReason = (r: Loose) => `On Hold #${r.holdNumber}${r.by?.name ? ` (${
 
 // ── Customers ────────────────────────────────────────────────────────────
 
-async function customerSnapshot(customerId: string, session: mongoose.ClientSession | null = null) {
-  const c = await customerById(customerId, session);
+async function customerSnapshot(customerId: string, store: HoldsStore | null = null) {
+  const c = await customerById(customerId, store?.session ?? null);
   if (!c) throw new HttpError(400, 'That customer doesn’t exist.');
   const a = c.address || {};
   const cityLine = [a.city, [a.state, a.zipCode].filter(Boolean).join(' ')].filter(Boolean).join(', ');
@@ -100,14 +94,11 @@ async function customerSnapshot(customerId: string, session: mongoose.ClientSess
 // ── Holds ────────────────────────────────────────────────────────────────
 
 const historyEntry = (hold: Loose, action: string, by: Loose, extra: Loose = {}) => ({ holdId: hold._id, holdNumber: hold.number, action, by, ...extra });
-const writeHistory = (session: mongoose.ClientSession, entries: Loose[]) => HoldHistory.create(entries, { session, ordered: true });
 
 /** The hold, if it exists and this person may see it — otherwise 404. */
-async function holdFor(req: Request, id: unknown, session: mongoose.ClientSession | null = null) {
-  if (!mongoose.isValidObjectId(id)) throw new HttpError(404, 'Hold not found.');
-  const q = Hold.findById(id);
-  if (session) q.session(session);
-  const hold = await q;
+async function holdFor(req: Request, id: unknown, store: HoldsStore) {
+  if (!isId(id)) throw new HttpError(404, 'Hold not found.');
+  const hold = await store.findHold(id);
   if (!hold || !canSeeHold(req.user, hold)) throw new HttpError(404, 'Hold not found.');
   return hold;
 }
@@ -118,7 +109,7 @@ const mustBeOpen = (hold: Loose) => {
 };
 
 const present = (hold: Loose, now = new Date()) => {
-  const h = hold.toObject ? hold.toObject() : hold;
+  const h = hold;
   return {
     ...h,
     version: h.__v,
@@ -142,27 +133,17 @@ const listRow = (h: Loose, now: Date) => {
 };
 
 /** Lock every slab of `lines` for `hold`; a clash names the slab and the hold that has it. */
-async function lockSlabs(hold: Loose, lines: Loose[], by: Loose, session: mongoose.ClientSession) {
-  if (!lines.length) return;
-  try {
-    await SlabReservation.insertMany(lines.map((l: Loose) => ({
-      slabKey: l.slabKey, holdId: hold._id, holdNumber: hold.number, customerName: hold.customer?.name || '',
-      branch: hold.branch, by, expiresOn: hold.expiresOn
-    })), { session, ordered: true });
-  } catch (err) {
-    if ((err as Error & Loose)?.code !== 11000) throw err;
-    const taken = await SlabReservation.find({ slabKey: { $in: lines.map((l: Loose) => l.slabKey) } }).lean();
-    const other = taken.find((r) => String(r.holdId) !== String(hold._id));
-    throw new HttpError(409, other ? `${other.slabKey} was just put on Hold #${other.holdNumber}. Remove it and try again.` : 'One of these slabs was just held by someone else.', { taken: taken.map((r) => r.slabKey) });
-  }
+async function lockSlabs(store: HoldsStore, hold: Loose, lines: Loose[], by: Loose) {
+  const taken = await store.lockSlabs(hold, lines, by);
+  if (!taken.length) return;
+  const other = taken.find((r) => String(r.holdId) !== String(hold._id));
+  throw new HttpError(409, other ? `${other.slabKey} was just put on Hold #${other.holdNumber}. Remove it and try again.` : 'One of these slabs was just held by someone else.', { taken: taken.map((r) => r.slabKey) });
 }
 
-const unlockSlabs = (holdId: mongoose.Types.ObjectId, slabKeys: string[], session: mongoose.ClientSession) => SlabReservation.deleteMany({ holdId, slabKey: { $in: slabKeys } }, { session });
-
 /** Check new slabs before they go on a hold: in stock, whole slabs, not held elsewhere. */
-async function holdableLines(requested: Loose[], holdId: unknown = null) {
+async function holdableLines(requested: Loose[], holdId: unknown = null, store: HoldsStore | null = null) {
   const slabs = await findSlabs(requested.map((l: Loose) => l.slabKey));
-  const locks = await reservationsFor(requested.map((l: Loose) => l.slabKey));
+  const locks = await reservationsFor(store ?? await holdsStore(), requested.map((l: Loose) => l.slabKey));
   return requested.map((l: Loose) => {
     const item = slabs.get(l.slabKey);
     if (!item) throw new HttpError(400, `${l.slabKey} isn’t in stock any more.`);
@@ -173,18 +154,6 @@ async function holdableLines(requested: Loose[], holdId: unknown = null) {
   });
 }
 
-/** List filter for a status tab. Expiring = still active, ends within 3 days. */
-function statusClause(status: string, now: Date) {
-  switch (status) {
-    case 'active': return { status: 'active', expiresAt: { $gt: now } };
-    case 'expiring': return { status: 'active', expiresAt: { $gt: now, $lte: new Date(now.getTime() + 3 * DAY_MS) } };
-    case 'expired': return { status: 'active', expiresAt: { $lte: now } };
-    case 'released': return { status: 'released' };
-    case 'converted': return { status: 'converted' };
-    default: return {};
-  }
-}
-
 export default function createHoldsRouter({ authenticate }: { authenticate: RequestHandler }) {
   const router = express.Router();
   router.use(authenticate);
@@ -193,18 +162,15 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
   // ── Cart ───────────────────────────────────────────────────────────────
 
   const userIdOf = (req: Request) => String(req.user?.id || '');
+  const userNameOf = (req: Request) => req.user?.displayName || req.user?.username || '';
 
-  async function presentCart(req: Request) {
-    const cart = await Cart.findOne({ userId: userIdOf(req) }).lean();
+  async function presentCart(req: Request, store: HoldsStore) {
+    const cart = await store.getCart(userIdOf(req));
     const lines = cart?.lines || [];
     const keys = lines.map((l: Loose) => l.slabKey);
-    const [slabs, locks, others] = await Promise.all([
-      findSlabs(keys),
-      reservationsFor(keys),
-      keys.length ? Cart.find({ userId: { $ne: userIdOf(req) }, 'lines.slabKey': { $in: keys } }, 'userName lines.slabKey').lean() : []
-    ]);
+    const [slabs, locks, others] = await Promise.all([findSlabs(keys), reservationsFor(store, keys), store.othersWith(userIdOf(req), keys)]);
     const othersByKey = new Map();
-    for (const c of others) for (const l of c.lines) if (keys.includes(l.slabKey)) othersByKey.set(l.slabKey, [...(othersByKey.get(l.slabKey) || []), c.userName || 'Someone']);
+    for (const c of others) for (const key of c.slabKeys) if (keys.includes(key)) othersByKey.set(key, [...(othersByKey.get(key) || []), c.userName || 'Someone']);
     return {
       customer: cart?.customer || null,
       updatedAt: cart?.updatedAt || null,
@@ -224,31 +190,20 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     };
   }
 
-  const ensureCart = (req: Request) => Cart.updateOne(
-    { userId: userIdOf(req) },
-    { $setOnInsert: { userId: userIdOf(req), lines: [] }, $set: { userName: req.user?.displayName || req.user?.username || '' } },
-    { upsert: true }
-  );
-
   /**
    * Add slabs to the person's cart; returns what was added and why anything wasn't.
-   * Everything that can be read at once is (slabs, locks and the cart's keys — one
-   * upsert that also makes the cart), and the slabs that pass go in with a single
-   * write. If a second tab added one of them in the meantime that write matches
-   * nothing, and each is then added on its own, as before, so none is doubled.
+   * Everything that can be read at once is (slabs, locks and the cart's keys — which also makes the
+   * cart), and the slabs that pass go in with a single write. If a second tab added one of them in the
+   * meantime that write adds nothing, and each is then added on its own, so none is doubled.
    */
-  async function addToCart(req: Request, keys: string[]) {
+  async function addToCart(req: Request, store: HoldsStore, keys: string[]) {
     const userId = userIdOf(req);
     const [slabs, locks, cart] = await Promise.all([
       findSlabs(keys),
-      reservationsFor(keys),
-      Cart.findOneAndUpdate(
-        { userId },
-        { $setOnInsert: { userId, lines: [] }, $set: { userName: req.user?.displayName || req.user?.username || '' } },
-        { upsert: true, new: true, projection: 'lines.slabKey' }
-      ).lean()
+      reservationsFor(store, keys),
+      store.ensureCart(userId, userNameOf(req))
     ]);
-    const already = new Set((cart?.lines || []).map((l: Loose) => l.slabKey));
+    const already = new Set(cart.slabKeys);
     let room = MAX_CART_SLABS - already.size;
     const skipped: Loose[] = [];
     const wanted: Loose[] = [];
@@ -266,16 +221,11 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
 
     let added: string[] = [];
     if (wanted.length) {
-      const all = await Cart.updateOne(
-        { userId, 'lines.slabKey': { $nin: wanted.map((w) => w.key) } },
-        { $push: { lines: { $each: wanted.map((w) => w.line) } } }
-      );
-      if (all.modifiedCount) {
+      if (await store.addCartLines(userId, wanted.map((w) => w.line))) {
         added = wanted.map((w) => w.key);
       } else {
         for (const { key, line } of wanted) {
-          const one = await Cart.updateOne({ userId, 'lines.slabKey': { $ne: key } }, { $push: { lines: line } });
-          if (one.modifiedCount) added.push(key); else skipped.push({ slabKey: key, reason: 'Already in your cart' });
+          if (await store.addCartLines(userId, [line])) added.push(key); else skipped.push({ slabKey: key, reason: 'Already in your cart' });
         }
       }
     }
@@ -284,13 +234,14 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
   }
 
   router.get('/cart', requireAll(CART.USE), h(async (req: Request, res: Response) => {
-    res.json(await presentCart(req));
+    res.json(await presentCart(req, await holdsStore()));
   }));
 
   router.post('/cart/slabs', requireAll(CART.USE), h(async (req: Request, res: Response) => {
     const body = parse(S.cartAdd, req.body);
-    const result = await addToCart(req, body.slabKeys);
-    res.json({ ...result, cart: await presentCart(req) });
+    const store = await holdsStore();
+    const result = await addToCart(req, store, body.slabKeys);
+    res.json({ ...result, cart: await presentCart(req, store) });
   }));
 
   router.post('/cart/scan', requireAll(CART.USE), h(async (req: Request, res: Response) => {
@@ -298,62 +249,61 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     const item = await findByCode(body.code);
     if (!item) throw new HttpError(404, `No slab with barcode or serial # “${body.code}”.`);
     if (!isHoldableSlab(item)) throw new HttpError(400, `${item.serialNumber} (${item.product}) isn’t a whole slab — only slabs can go in the cart.`);
-    const result = await addToCart(req, [slabKeyOf(item.serialNumber)]);
-    res.json({ ...result, slab: slabSnapshot(item), cart: await presentCart(req) });
+    const store = await holdsStore();
+    const result = await addToCart(req, store, [slabKeyOf(item.serialNumber)]);
+    res.json({ ...result, slab: slabSnapshot(item), cart: await presentCart(req, store) });
   }));
 
   router.patch('/cart/customer', requireAll(CART.USE), h(async (req: Request, res: Response) => {
     const body = parse(S.cartCustomer, req.body);
+    const store = await holdsStore();
     let customer = null;
     if (body.customerId) {
       const snap = await customerSnapshot(body.customerId);
       customer = { id: snap.id, name: snap.name };
     }
-    await ensureCart(req);
-    await Cart.updateOne({ userId: userIdOf(req) }, { $set: { customer } });
-    res.json(await presentCart(req));
+    await store.setCartCustomer(userIdOf(req), userNameOf(req), customer);
+    res.json(await presentCart(req, store));
   }));
 
   router.patch('/cart/slabs/:slabKey', requireAll(CART.USE), h(async (req: Request, res: Response) => {
     const body = parse(S.cartNote, req.body);
     const key = slabKeyOf(req.params.slabKey);
-    const r = await Cart.updateOne({ userId: userIdOf(req), 'lines.slabKey': key }, { $set: { 'lines.$.note': body.note } });
-    if (!r.matchedCount) throw new HttpError(404, `${key} isn’t in your cart.`);
-    res.json(await presentCart(req));
+    const store = await holdsStore();
+    if (!(await store.setCartNote(userIdOf(req), key, body.note))) throw new HttpError(404, `${key} isn’t in your cart.`);
+    res.json(await presentCart(req, store));
   }));
 
   // Several at once (a bundle ticked off): one write and one answer instead of one each.
   router.post('/cart/slabs/remove', requireAll(CART.USE), h(async (req: Request, res: Response) => {
     const body = parse(S.cartAdd, req.body);
     const keys = [...new Set(body.slabKeys.map(slabKeyOf))].filter(Boolean);
-    await Cart.updateOne({ userId: userIdOf(req) }, { $pull: { lines: { slabKey: { $in: keys } } } });
+    const store = await holdsStore();
+    await store.removeCartSlabs(userIdOf(req), keys);
     announce(req, keys);
-    res.json(await presentCart(req));
+    res.json(await presentCart(req, store));
   }));
 
   router.delete('/cart/slabs/:slabKey', requireAll(CART.USE), h(async (req: Request, res: Response) => {
     const key = slabKeyOf(req.params.slabKey);
-    await Cart.updateOne({ userId: userIdOf(req) }, { $pull: { lines: { slabKey: key } } });
+    const store = await holdsStore();
+    await store.removeCartSlabs(userIdOf(req), [key]);
     announce(req, [key]);
-    res.json(await presentCart(req));
+    res.json(await presentCart(req, store));
   }));
 
   router.delete('/cart', requireAll(CART.USE), h(async (req: Request, res: Response) => {
-    const cart = await Cart.findOne({ userId: userIdOf(req) }, 'lines.slabKey').lean();
-    await Cart.updateOne({ userId: userIdOf(req) }, { $set: { lines: [], customer: null } });
-    announce(req, (cart?.lines || []).map((l: Loose) => l.slabKey));
-    res.json(await presentCart(req));
+    const store = await holdsStore();
+    announce(req, await store.clearCart(userIdOf(req)));
+    res.json(await presentCart(req, store));
   }));
 
   // Locks and carts for the slabs on an inventory screen.
   router.post('/slabs/status', requireAny(CART.USE, ...HOLD_VIEW_PERMISSIONS), h(async (req: Request, res: Response) => {
     const body = parse(S.slabLookup, req.body);
     const keys = body.slabKeys;
-    const [locks, mine, others] = await Promise.all([
-      reservationsFor(keys),
-      Cart.findOne({ userId: userIdOf(req) }, 'lines.slabKey').lean(),
-      Cart.find({ userId: { $ne: userIdOf(req) }, 'lines.slabKey': { $in: keys } }, 'userName lines.slabKey').lean()
-    ]);
+    const store = await holdsStore();
+    const [locks, mine, others] = await Promise.all([reservationsFor(store, keys), store.getCart(userIdOf(req)), store.othersWith(userIdOf(req), keys)]);
     const inMine = new Set((mine?.lines || []).map((l: Loose) => l.slabKey));
     const out: Loose = {};
     for (const key of keys) {
@@ -361,7 +311,7 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
       out[key] = {
         lock: lock ? { holdId: lock.holdId, holdNumber: lock.holdNumber, by: lock.by?.name || '', expiresOn: lock.expiresOn, branch: lock.branch } : null,
         inMyCart: inMine.has(key),
-        othersInCart: others.filter((c) => c.lines.some((l: Loose) => l.slabKey === key)).map((c) => c.userName || 'Someone')
+        othersInCart: others.filter((c) => c.slabKeys.includes(key)).map((c) => c.userName || 'Someone')
       };
     }
     res.json(out);
@@ -386,45 +336,25 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     const q = parse(S.holdList, req.query);
     const scopes = holdScopesFor(req.user);
     const scope = q.scope || (scopes.includes('branch') ? 'branch' : scopes[0]);
-    const visible = scopeClause(req.user, scope, q.branch);
+    const visible = scopeFilter(req.user, scope, q.branch);
     if (!visible) throw new HttpError(403, 'You don’t have access to those holds.');
     const now = new Date();
-    const narrow = [visible];
-    if (q.search) {
-      const term = q.search.trim();
-      const rx = new RegExp(escapeRegex(term), 'i');
-      const or: Loose[] = [{ 'customer.name': rx }, { job: rx }, { slabKeys: term.toUpperCase() }];
-      if (/^\d+$/.test(term)) or.push({ number: Number(term) });
-      narrow.push({ $or: or });
-    }
-    if (q.from || q.to) {
-      narrow.push({ createdAt: { ...(q.from && { $gte: new Date(`${q.from}T00:00:00Z`) }), ...(q.to && { $lt: new Date(new Date(`${q.to}T00:00:00Z`).getTime() + DAY_MS) }) } });
-    }
-    const filter = { $and: [...narrow, statusClause(q.status, now)] };
-    const [total, docs, ...counts] = await Promise.all([
-      Hold.countDocuments(filter),
-      Hold.find(filter).sort({ createdAt: -1 }).skip((q.page - 1) * q.limit).limit(q.limit).lean(),
-      ...['active', 'expiring', 'expired', 'released', 'converted', 'all'].map((s) => Hold.countDocuments({ $and: [...narrow, statusClause(s, now)] }))
-    ]);
-    const [active, expiring, expired, released, converted, all] = counts;
-    res.json({
-      items: docs.map((d) => listRow(d, now)),
-      total, page: q.page, limit: q.limit, scope, scopes,
-      counts: { active, expiring, expired, released, converted, all }
+    const { total, items, counts } = await (await holdsStore()).listHolds({
+      scope: visible, search: q.search, from: q.from, to: q.to, status: q.status, now, page: q.page, limit: q.limit
     });
+    res.json({ items: items.map((d) => listRow(d, now)), total, page: q.page, limit: q.limit, scope, scopes, counts });
   }));
 
   router.get('/:id', requireAny(...HOLD_VIEW_PERMISSIONS), h(async (req: Request, res: Response) => {
-    const hold = await holdFor(req, req.params.id);
-    const out = present(hold);
-    if (can(req.user, HOLDS.HISTORY)) {
-      out.history = await HoldHistory.find({ holdId: hold._id }).sort({ at: -1 }).limit(300).lean();
-    }
+    const store = await holdsStore();
+    const hold = await holdFor(req, req.params.id, store);
+    const out: Loose = present(hold);
+    if (can(req.user, HOLDS.HISTORY)) out.history = await store.history(hold._id, 300);
     res.json(out);
   }));
 
   router.get('/:id/pdf', requireAll(HOLDS.PRINT), h(async (req: Request, res: Response) => {
-    const hold = await holdFor(req, req.params.id);
+    const hold = await holdFor(req, req.params.id, await holdsStore());
     // The branch's own address on the letterhead, as on its selection sheets (Kent when it has none).
     const letterhead = letterheadFor(await Location.findOne({ name: hold.branch }).lean().catch(() => null));
     const bytes = await buildHoldPdf(present(hold), { hide: parseHide(req.query.hide), letterhead });
@@ -437,7 +367,8 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
   router.post('/', requireAll(HOLDS.CREATE), h(async (req: Request, res: Response) => {
     const body = parse(S.holdCreate, req.body);
     const by = actorOf(req);
-    const prior = await Hold.findOne({ requestId: body.requestId });
+    const store = await holdsStore();
+    const prior = await store.findHoldByRequestId(body.requestId);
     if (prior) {
       if (!canSeeHold(req.user, prior)) throw new HttpError(409, 'That request was already used.');
       return res.status(200).json(present(prior));
@@ -452,16 +383,16 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     const lines = await holdableLines(body.lines);
     const { expiresAt, releaseAt } = expiryMoments(body.expiresOn, body.branch);
 
-    const create = () => inTransaction(async (session) => {
-      const number = await nextNumber('hold', session);
-      const [hold] = await Hold.create([{
-        number, status: 'active', branch: body.branch, customer, job: body.job, notes: body.notes,
+    const create = () => inHoldsTransaction(async (tx) => {
+      const number = await tx.nextHoldNumber();
+      const hold = await tx.createHold({
+        _id: newId(), number, status: 'active', branch: body.branch, customer, job: body.job, notes: body.notes,
         chanceToClose: body.chanceToClose, expiresOn: body.expiresOn, expiresAt, releaseAt, lines,
         createdBy: by, updatedBy: by, requestId: body.requestId
-      }], { session });
-      await lockSlabs(hold, lines, by, session);
+      });
+      await lockSlabs(tx, hold, lines, by);
       const totals = holdTotals(lines);
-      await writeHistory(session, [historyEntry(hold, 'created', by, {
+      await tx.addHistory([historyEntry(hold, 'created', by, {
         note: `${lines.length} slab${lines.length === 1 ? '' : 's'} for ${customer.name}, until ${formatDay(body.expiresOn)}${totals.totalCents !== null ? ` · ${formatMoney(totals.totalCents)}` : ''}`
       })]);
       return hold;
@@ -472,41 +403,40 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     } catch (err) {
       // Two taps at the same instant: the second finds the first one's hold.
       if ((err as Error & Loose)?.code === 11000 && (err as Error & Loose)?.keyPattern?.requestId) {
-        const first = await Hold.findOne({ requestId: body.requestId });
+        const first = await store.findHoldByRequestId(body.requestId);
         if (first && canSeeHold(req.user, first)) return res.status(200).json(present(first));
       }
       throw err;
     }
 
     // Out of the cart now that they're held (best effort — the hold is already safe).
-    await Cart.updateOne({ userId: userIdOf(req) }, { $pull: { lines: { slabKey: { $in: keys } } } }).catch(() => {});
-    const cart = await Cart.findOne({ userId: userIdOf(req) }, 'lines').lean();
-    if (cart && !cart.lines.length) await Cart.updateOne({ userId: userIdOf(req) }, { $set: { customer: null } }).catch(() => {});
+    await store.releaseFromCart(userIdOf(req), keys).catch(() => {});
     announce(req, keys);
     res.status(201).json(present(created));
   }));
 
   /** Load, check and save a hold in one transaction; `change` mutates it and returns history entries. */
-  const changeHold = (permission: string, schema: ZodType<Loose>, change: (context: { hold: Loose; body: Loose; by: ReturnType<typeof actorOf>; session: mongoose.ClientSession; req: Request; touched: string[] }) => Loose[] | Promise<Loose[]>) => [requireAll(permission), h(async (req: Request, res: Response) => {
+  const changeHold = (permission: string, schema: ZodType<Loose>, change: (context: { hold: Loose; body: Loose; by: ReturnType<typeof actorOf>; store: HoldsStore; req: Request; touched: string[] }) => Loose[] | Promise<Loose[]>) => [requireAll(permission), h(async (req: Request, res: Response) => {
     const body = parse(schema, req.body);
     const by = actorOf(req);
     const touched: string[] = [];
-    const saved = await inTransaction(async (session) => {
-      const hold = await holdFor(req, req.params.id, session);
+    const saved = await inHoldsTransaction(async (store) => {
+      const hold = await holdFor(req, req.params.id, store);
       checkVersion(hold, body.version, `Hold #${hold.number}`);
       mustBeOpen(hold);
-      const entries = await change({ hold, body, by, session, req, touched });
+      const entries = await change({ hold, body, by, store, req, touched });
       if (!entries.length) return hold;
       hold.updatedBy = by;
-      await hold.save({ session });
-      await writeHistory(session, entries.map((e: Loose) => historyEntry(hold, e.action, by, e)));
-      return hold;
+      const next = await store.saveHold(hold);
+      if (!next) throw new HttpError(409, `Hold #${hold.number} was changed by someone else. Reload to see the latest, then try again.`);
+      await store.addHistory(entries.map((e: Loose) => historyEntry(next, e.action, by, e)));
+      return next;
     });
     announce(req, touched);
     res.json(present(saved));
   })];
 
-  router.patch('/:id/details', ...changeHold(HOLDS.EDIT, S.holdDetails, async ({ hold, body, session }: { hold: Loose; body: Loose; session: mongoose.ClientSession }) => {
+  router.patch('/:id/details', ...changeHold(HOLDS.EDIT, S.holdDetails, async ({ hold, body, store }) => {
     const changes: Loose[] = [];
     const set = (field: string, value: unknown) => {
       if (value === undefined || String(hold[field] ?? '') === String(value ?? '')) return;
@@ -514,10 +444,10 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
       hold[field] = value;
     };
     if (body.customerId && body.customerId !== hold.customer?.id) {
-      const customer = await customerSnapshot(body.customerId, session);
+      const customer = await customerSnapshot(body.customerId, store);
       changes.push({ field: 'customer', from: hold.customer?.name || '', to: customer.name });
       hold.customer = customer;
-      await SlabReservation.updateMany({ holdId: hold._id }, { $set: { customerName: customer.name } }, { session });
+      await store.updateLocks(hold._id, { customerName: customer.name });
     }
     set('job', body.job);
     set('notes', body.notes);
@@ -531,39 +461,39 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     return changes.length ? [{ action: 'edited', changes }] : [];
   }));
 
-  router.post('/:id/slabs', ...changeHold(HOLDS.SLABS, S.holdSlabs, async ({ hold, body, by, session, touched, req }: { hold: Loose; body: Loose; by: Loose; session: mongoose.ClientSession; touched: Loose; req: Request }) => {
+  router.post('/:id/slabs', ...changeHold(HOLDS.SLABS, S.holdSlabs, async ({ hold, body, by, store, touched, req }) => {
     const current = new Set(hold.lines.map((l: Loose) => l.slabKey));
     for (const key of body.remove) if (!current.has(key)) throw new HttpError(400, `${key} isn’t on this hold.`);
     const adding = body.add.filter((l: Loose) => !current.has(l.slabKey));
     if (hold.lines.length - body.remove.length + adding.length > MAX_HOLD_SLABS) throw new HttpError(400, `A hold can have up to ${MAX_HOLD_SLABS} slabs.`);
     if (hold.lines.length - body.remove.length + adding.length < 1) throw new HttpError(400, 'A hold needs at least one slab — release it instead.');
-    const newLines = await holdableLines(adding, hold._id);
-    await unlockSlabs(hold._id, body.remove, session);
-    await lockSlabs(hold, newLines, by, session);
+    const newLines = await holdableLines(adding, hold._id, store);
+    await store.unlockSlabs(hold._id, body.remove);
+    await lockSlabs(store, hold, newLines, by);
     hold.lines = [...hold.lines.filter((l: Loose) => !body.remove.includes(l.slabKey)), ...newLines];
     touched.push(...body.remove, ...newLines.map((l: Loose) => l.slabKey));
     // Added from the cart, as on create: they leave it once they're held.
-    if (newLines.length) await Cart.updateOne({ userId: userIdOf(req) }, { $pull: { lines: { slabKey: { $in: newLines.map((l: Loose) => l.slabKey) } } } }, { session });
+    if (newLines.length) await store.removeCartSlabs(userIdOf(req), newLines.map((l: Loose) => l.slabKey));
     const entries: Loose[] = [];
     if (newLines.length) entries.push({ action: 'slabs_added', note: newLines.map((l: Loose) => l.slabKey).join(', ') });
     if (body.remove.length) entries.push({ action: 'slabs_removed', note: body.remove.join(', ') });
     return entries;
   }));
 
-  router.post('/:id/swap', ...changeHold(HOLDS.SLABS, S.holdSwap, async ({ hold, body, by, session, touched }: { hold: Loose; body: Loose; by: Loose; session: mongoose.ClientSession; touched: Loose }) => {
+  router.post('/:id/swap', ...changeHold(HOLDS.SLABS, S.holdSwap, async ({ hold, body, by, store, touched }) => {
     const index = hold.lines.findIndex((l: Loose) => l.slabKey === body.from);
     if (index < 0) throw new HttpError(400, `${body.from} isn’t on this hold.`);
     if (hold.lines.some((l: Loose) => l.slabKey === body.to)) throw new HttpError(400, `${body.to} is already on this hold.`);
     const old = hold.lines[index];
-    const [replacement] = await holdableLines([{ slabKey: body.to, price: old.priceCentsPerSf, note: old.note }], hold._id);
-    await unlockSlabs(hold._id, [body.from], session);
-    await lockSlabs(hold, [replacement], by, session);
+    const [replacement] = await holdableLines([{ slabKey: body.to, price: old.priceCentsPerSf, note: old.note }], hold._id, store);
+    await store.unlockSlabs(hold._id, [body.from]);
+    await lockSlabs(store, hold, [replacement], by);
     hold.lines.splice(index, 1, replacement);
     touched.push(body.from, body.to);
     return [{ action: 'slab_swapped', changes: [{ field: 'slab', from: body.from, to: body.to }] }];
   }));
 
-  router.patch('/:id/prices', ...changeHold(HOLDS.PRICES, S.holdPrices, async ({ hold, body }: { hold: Loose; body: Loose }) => {
+  router.patch('/:id/prices', ...changeHold(HOLDS.PRICES, S.holdPrices, async ({ hold, body }) => {
     const changes: Loose[] = [];
     for (const p of body.lines) {
       const line = hold.lines.find((l: Loose) => l.slabKey === p.slabKey);
@@ -576,7 +506,7 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     return changes.length ? [{ action: 'prices_changed', changes }] : [];
   }));
 
-  router.post('/:id/extend', ...changeHold(HOLDS.EXTEND, S.holdExtend, async ({ hold, body, session }: { hold: Loose; body: Loose; session: mongoose.ClientSession }) => {
+  router.post('/:id/extend', ...changeHold(HOLDS.EXTEND, S.holdExtend, async ({ hold, body, store }) => {
     if (body.expiresOn === hold.expiresOn) return [];
     const why = expiryProblem({ expiresOn: body.expiresOn, branch: hold.branch, canExtend: true });
     if (why) throw new HttpError(400, why);
@@ -586,16 +516,16 @@ export default function createHoldsRouter({ authenticate }: { authenticate: Requ
     hold.expiresAt = expiresAt;
     hold.releaseAt = releaseAt;
     if (expiresAt > new Date()) hold.expiredNotedAt = null;
-    await SlabReservation.updateMany({ holdId: hold._id }, { $set: { expiresOn: body.expiresOn } }, { session });
+    await store.updateLocks(hold._id, { expiresOn: body.expiresOn });
     return [{ action: 'extended', changes: [{ field: 'expiresOn', from, to: body.expiresOn }] }];
   }));
 
-  router.post('/:id/release', ...changeHold(HOLDS.RELEASE, S.holdRelease, async ({ hold, body, by, session, touched }: { hold: Loose; body: Loose; by: Loose; session: mongoose.ClientSession; touched: Loose }) => {
+  router.post('/:id/release', ...changeHold(HOLDS.RELEASE, S.holdRelease, async ({ hold, body, by, store, touched }) => {
     hold.status = 'released';
     hold.releasedAt = new Date();
     hold.releasedBy = by;
     hold.releaseReason = body.reason;
-    await unlockSlabs(hold._id, hold.slabKeys, session);
+    await store.unlockSlabs(hold._id, hold.slabKeys);
     touched.push(...hold.slabKeys);
     return [{ action: 'released', changes: [{ field: 'status', from: 'active', to: 'released' }], note: body.reason }];
   }));

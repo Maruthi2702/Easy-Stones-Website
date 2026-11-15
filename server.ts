@@ -64,6 +64,7 @@ import { dailyReportsWritesPauseGate, dailyReportsWritesPaused } from './src/uti
 import { cardReceiptsWritesPauseGate, cardReceiptsWritesPaused } from './src/utils/cardReceiptsWritesPause.ts';
 import { lostSalesWritesPauseGate, lostSalesWritesPaused } from './src/utils/lostSalesWritesPause.ts';
 import { inventoryWritesPauseGate, inventoryWritesPaused } from './src/utils/inventoryWritesPause.ts';
+import { holdsWritesPauseGate, holdsWritesPaused } from './src/utils/holdsWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1164,6 +1165,8 @@ app.use(cardReceiptsWritesPauseGate);
 app.use(lostSalesWritesPauseGate);
 // Inventory cutover pause (INVENTORY_WRITES_PAUSED=true): stock / sales / in-transit imports and Purchasing writes answer 503 (src/utils/inventoryWritesPause.ts).
 app.use(inventoryWritesPauseGate);
+// Cart & Holds cutover pause (HOLDS_WRITES_PAUSED=true): cart and hold writes answer 503, the expiry job waits (src/utils/holdsWritesPause.ts).
+app.use(holdsWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -3866,7 +3869,7 @@ app.use('/api/holds', createHoldsRouter({ authenticate }));
 const holdExpiry = createHoldExpiry({ io: { emit: (...args: [string, ...unknown[]]) => app.get('io')?.emit(...args) } });
 let holdExpiryRunning = false;
 const runHoldExpiry = async () => {
-  if (holdExpiryRunning) return;
+  if (holdExpiryRunning || holdsWritesPaused()) return;
   holdExpiryRunning = true;
   try {
     const r = await holdExpiry.run();
@@ -5162,6 +5165,8 @@ app.get('/api/health', async (req: Request, res: Response) => {
     lostSalesWritesPaused: lostSalesWritesPaused(),
     inventoryOn: areasOnPostgres().includes('inventory') ? 'postgres' : 'mongo',
     inventoryWritesPaused: inventoryWritesPaused(),
+    holdsOn: areasOnPostgres().includes('holds') ? 'postgres' : 'mongo',
+    holdsWritesPaused: holdsWritesPaused(),
     dailyReportsWritesPaused: dailyReportsWritesPaused(),
     cardReceiptsOn: areasOnPostgres().includes('card_receipts') ? 'postgres' : 'mongo',
     cardReceiptsWritesPaused: cardReceiptsWritesPaused()

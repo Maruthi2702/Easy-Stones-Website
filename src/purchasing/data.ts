@@ -26,7 +26,7 @@ export async function sourceData(user: PurchasingUser, store: PurchasingStore) {
     () => readStockForPurchasing(branches, session, store.tx),
     () => readSalesRecordsForPurchasing(session, store.tx),
     () => store.listScopes(),
-    () => readReservationsForPurchasing(branches, session),
+    () => readReservationsForPurchasing(branches, session, store.tx),
   ];
   const loaded: unknown[] = [];
   if (session) { for (const read of reads) loaded.push(await read()); }

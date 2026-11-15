@@ -68,7 +68,8 @@ export const checkInSelections = pgTable('check_in_selections', {
 /** One cart per person. */
 export const salesCarts = pgTable('sales_carts', {
   id: objectId('id').primaryKey(),
-  userId: objectId('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** Not a foreign key: staff are added in MongoDB until Users moves (last), and their first cart must save. */
+  userId: objectId('user_id').notNull(),
   userName: text('user_name').notNull().default(''),
   /** The cart's customer, if one is picked (null = none). */
   customerId: objectId('customer_id').references(() => customers.id, { onDelete: 'set null' }),

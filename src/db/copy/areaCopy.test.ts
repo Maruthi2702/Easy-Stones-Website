@@ -209,3 +209,45 @@ describe('the Inventory copy (stock, in-transit and Purchasing, one switch)', ()
     expect((await open.db.select().from(schema.inventoryItems)).length).toBe(1);
   });
 });
+
+describe('the Cart & Holds copy', () => {
+  const at = new Date('2026-11-14T18:00:00Z');
+  const cart = oid(), hold = oid(), lock = oid(), history = oid(), liveOnly = oid(), newStaff = oid();
+  const withHolds = (): CopySource => ({
+    ...source(),
+    salesCarts: [{
+      _id: cart, userId: String(newStaff), userName: 'New Rep', customer: { id: String(liveOnly), name: 'Live Only' },
+      lines: [{ slabKey: '14744-29', product: 'Taj', note: 'Island', addedAt: at }], createdAt: at, updatedAt: at
+    }],
+    salesHolds: [{
+      _id: hold, number: 7, status: 'active', branch: 'Seattle', customer: { id: String(liveOnly), name: 'Live Only', contact: 'Cy' },
+      job: 'Kitchen', expiresOn: '2026-11-21', expiresAt: at, releaseAt: at, createdBy: { id: String(newStaff), name: 'New Rep' },
+      updatedBy: { id: String(newStaff), name: 'New Rep' }, requestId: 'req-1', __v: 2, createdAt: at, updatedAt: at,
+      lines: [{ slabKey: '14744-30', serial: '14744-30', sfHundredths: 6446, priceCentsPerSf: 2450 }], slabKeys: ['14744-30']
+    }],
+    salesSlabReservations: [{ _id: lock, slabKey: '14744-30', holdId: hold, holdNumber: 7, customerName: 'Live Only', branch: 'Seattle', by: { id: String(newStaff), name: 'New Rep' }, expiresOn: '2026-11-21', createdAt: at, updatedAt: at }],
+    salesCounters: [{ _id: 'hold', seq: 7 }],
+    salesHoldHistory: [{ _id: history, holdId: hold, holdNumber: 7, action: 'created', by: { id: String(newStaff), name: 'New Rep' }, at, changes: [], note: 'one slab' }]
+  } as unknown as CopySource);
+
+  it('fills only the 7 holds tables (a cart of a user not in Postgres, a hold of a customer only in Postgres), verifies, and refuses for good once locked', async () => {
+    await open.db.insert(schema.customers).values({ id: String(liveOnly), company: 'Live Only', contactName: 'Cy', email: 'c2@live.example', locationId: String(seattle) });
+    const deliveriesBefore = (await open.db.select().from(schema.deliveries)).length;
+    const report = await copyAreaFromMongo(open.db, withHolds(), 'holds', { write: true });
+    expect(report.tables).toEqual({
+      sales_carts: 1, sales_cart_lines: 1, sales_holds: 1, sales_hold_lines: 1, sales_slab_reservations: 1, sales_counters: 1, sales_hold_history: 1
+    });
+    expect((await open.db.select().from(schema.deliveries)).length).toBe(deliveriesBefore);
+    const [row] = await open.db.select().from(schema.salesHolds);
+    expect(row.customerId).toBe(String(liveOnly));
+    expect(row.version).toBe(2);
+    expect((await open.db.select().from(schema.salesCarts))[0].userId).toBe(String(newStaff));
+    expect(await verifyArea(open.db, withHolds(), 'holds')).toEqual([]);
+    const src = withHolds();
+    (src.salesHolds as Record<string, unknown>[])[0].job = 'Bath';
+    expect((await verifyArea(open.db, src, 'holds')).join('\n')).toMatch(/sales_holds/);
+    await lockArea(open.db, 'holds', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'holds', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.salesHolds)).length).toBe(1);
+  });
+});

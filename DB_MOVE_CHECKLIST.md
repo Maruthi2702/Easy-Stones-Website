@@ -195,8 +195,16 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - [ ] Before cutover: approve or cancel every pending / approved Purchasing draft (its saved fingerprint can fail with "Planning inputs changed" after the switch)
   - [ ] Local click-through with `DB_INVENTORY=postgres` (owner): Inventory Analysis, a stock import, a sales import, in-transit, Purchasing (scope, draft, approve, receiving date), a hold on a slab, Supplier POs "Fill from SPS"
   - [ ] Cutover: `INVENTORY_WRITES_PAUSED=true` → `--scope inventory --write` → `--verify` → `DB_INVENTORY=postgres` on Render → pause off → `--lock … --scope inventory`; then Mongo inventory + purchasing collections kept read-only for 2 weeks
-  - Known: Holds' reservations (`SlabReservation`) still read MongoDB until Cart & Holds moves; the per-agent intended differences are in each layer's README
-- [ ] Cart & Holds (1–2 days; after Inventory, since holds lock slabs in `InventoryItems`)
+  - Known: Holds' reservations are read through the Holds layer (`DB_HOLDS`, its own switch); the per-agent intended differences are in each layer's README
+- [ ] Cart & Holds (1–2 days) — **built 2026-11-14 on `feat/pg-inventory` (same branch, after Inventory), not merged, not cut over.** Switch `DB_HOLDS` (its own — Inventory can move first or after). Data layer `src/db/holds/` (README): carts, holds, slab locks, hold numbers, history, the expiry job.
+  - [x] Router and expiry job read and write through a store; parity test runs every route and the expiry job on both databases and compares every table (`holds.parity.test.ts`); races on a real Postgres (`holds.concurrency.test.ts`: one winner on a contested slab, dense hold numbers, one winner on a same-version save, a slab lands once in a cart)
+  - [x] Own copy scope `pg-copy-aws.ts --scope holds` (7 tables, tested in `areaCopy.test.ts`) and write pause `HOLDS_WRITES_PAUSED=true` (503 on cart and hold writes, the expiry job waits; `/api/slabs/status` lookup and reads carry on; `/api/health` shows `holdsOn`, `holdsWritesPaused`; tested). **Needs `pg-copy-aws.ts --deploy` once before the first real run.**
+  - [x] Purchasing reads the slab locks through the layer (`lockedSlabsAtBranches`); `sales_carts.user_id` is no longer a foreign key to users (migration `0013`) so a user added in MongoDB before Users moves can still save a cart
+  - [ ] Merge to main (smoke-test first, verify-before-main; migration 0013 runs on the next `migrate`)
+  - [ ] Read-only comparison on live data (`scripts/pg-compare-holds.ts` — not written yet): carts, the hold list per scope and status, one hold with history, slab status
+  - [ ] Local click-through with `DB_HOLDS=postgres` (owner): cart add / scan / note / remove, create a hold from the cart, edit, swap, extend, release, the PDF, the Holds list filters
+  - [ ] Cutover: `HOLDS_WRITES_PAUSED=true` → `--scope holds --write` → `--verify` → `DB_HOLDS=postgres` on Render → pause off → `--lock … --scope holds`; then Mongo cart / hold collections kept read-only for 2 weeks
+  - Known: a hold's customer id is lost if the customer is deleted (name kept); a new branch added in MongoDB needs the next Locations move before it can take a hold on Postgres
 - [ ] Suppliers + supplier portal (2 days; after Inventory, since POs fill from transit shipments)
 - [ ] Accounting + Fuel Man (3–4 days; transactions)
 - [ ] Logs, backups, settings, imports (1–2 days)

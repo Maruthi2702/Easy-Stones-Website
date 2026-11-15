@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   slabKeyOf, isHoldableSlab, sfHundredthsOf, slabSnapshot, lotGroups, lineTotalCents, holdTotals,
   todayIn, addDays, daysBetween, zonedMidnight, expiryMoments, holdState, daysToExpiry, defaultExpiresOn,
-  expiryProblem, branchProblem, holdScopesFor, canSeeHold, scopeClause, GRACE_DAYS
+  expiryProblem, branchProblem, holdScopesFor, canSeeHold, scopeFilter, GRACE_DAYS
 } from './holdRules.ts';
 import { HOLDS } from './permissions.ts';
 
@@ -115,10 +115,10 @@ describe('branches and who sees what', () => {
     expect(canSeeHold(user([HOLDS.VIEW_ALL], ['Dallas']), hold)).toBe(true);
   });
   it('turns a scope into a query, refusing what the person can’t use', () => {
-    expect(scopeClause(user([HOLDS.VIEW_OWN]), 'mine')).toEqual({ 'createdBy.id': 'u1' });
-    expect(scopeClause(user([HOLDS.VIEW_OWN]), 'branch')).toBeNull();
-    expect(scopeClause(user([HOLDS.VIEW_BRANCH], ['Seattle', 'Spokane']), 'branch')).toEqual({ branch: { $in: ['Seattle', 'Spokane'] } });
-    expect(scopeClause(user([HOLDS.VIEW_BRANCH]), 'branch', 'Dallas')).toBeNull();
-    expect(scopeClause(user([HOLDS.VIEW_ALL]), 'all')).toEqual({});
+    expect(scopeFilter(user([HOLDS.VIEW_OWN]), 'mine')).toEqual({ createdById: 'u1' });
+    expect(scopeFilter(user([HOLDS.VIEW_OWN]), 'branch')).toBeNull();
+    expect(scopeFilter(user([HOLDS.VIEW_BRANCH], ['Seattle', 'Spokane']), 'branch')).toEqual({ branches: ['Seattle', 'Spokane'] });
+    expect(scopeFilter(user([HOLDS.VIEW_BRANCH]), 'branch', 'Dallas')).toBeNull();
+    expect(scopeFilter(user([HOLDS.VIEW_ALL]), 'all')).toEqual({});
   });
 });

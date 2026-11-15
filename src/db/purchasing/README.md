@@ -22,6 +22,8 @@ unit of work: `inPurchasingTransaction` for a write, `inPurchasingSnapshot` for 
 changes. Transit shipments (`InventoryTransitShipment`, `InventoryTransitEvent`) are read and
 written directly by `data.ts` and the receiving-date route, untouched.
 
+Holds' slab locks (`readReservationsForPurchasing`) are read through the Holds layer (`src/db/holds/`, its own switch `DB_HOLDS`), inside this unit of work's session or Postgres transaction.
+
 On Postgres a unit of work is a MongoDB **snapshot session** (for those reads, and the
 receiving-date write) around one **Postgres transaction** (Purchasing's own rows). After a
 Postgres write commits, the inventory revision is bumped once (`bumpInventoryRevision`); on
