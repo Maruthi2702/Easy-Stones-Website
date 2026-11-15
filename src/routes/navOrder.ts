@@ -1,7 +1,7 @@
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler } from 'express';
 import express from 'express';
-import AppSetting from '../models/AppSetting.ts';
+import { readSetting, writeSetting, removeSetting } from '../db/settings/index.ts';
 import { sanitizeNavOrder, isDefaultNavOrder } from '../utils/navPins.ts';
 
 /**
@@ -24,8 +24,7 @@ export default function createNavOrderRouter({ authenticate, requirePermission, 
 
   router.get('/', authenticate, async (req, res) => {
     try {
-      const doc = await AppSetting.findOne({ key: KEY }).lean();
-      res.json({ order: sanitizeNavOrder(doc?.value) });
+      res.json({ order: sanitizeNavOrder(await readSetting(KEY)) });
     } catch (error) {
       console.error('Get nav order error:', error);
       res.status(500).json({ message: 'Failed to load the side nav order' });
@@ -40,14 +39,10 @@ export default function createNavOrderRouter({ authenticate, requirePermission, 
         return res.status(400).json({ message: 'order must be an object or null' });
       }
       if (!order || isDefaultNavOrder(order)) {
-        await AppSetting.deleteOne({ key: KEY });
+        await removeSetting(KEY);
         return res.json({ order: null });
       }
-      await AppSetting.findOneAndUpdate(
-        { key: KEY },
-        { $set: { value: order, updatedBy: String(req.user?.username || req.userId || '') } },
-        { upsert: true }
-      );
+      await writeSetting(KEY, order, String(req.user?.username || req.userId || ''));
       res.json({ order });
     } catch (error) {
       console.error('Save nav order error:', error);

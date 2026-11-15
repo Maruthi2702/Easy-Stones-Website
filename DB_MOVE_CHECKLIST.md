@@ -215,7 +215,16 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - [ ] Local click-through with `DB_FUELMAN=postgres` (owner): upload a statement, match drivers (single and batch), classify a line, resolve a missing driver, approve, correct and replace, reverse, close / reopen a month, the P&L and its Excel, a branch login's list
   - [ ] Cutover: `FUELMAN_WRITES_PAUSED=true` → `--scope fuelman --write` → `--verify` → `DB_FUELMAN=postgres` on Render → pause off → `--lock … --scope fuelman`; then Mongo `acct_fuelman_*` collections kept read-only for 2 weeks
   - Known: drivers and branch access still come from MongoDB's users, roles and locations until Users moves (last)
-- [ ] Logs, backups, settings, imports (1–2 days)
+- [ ] Logs, backups, settings, imports (1–2 days) — **built 2026-11-15 on `feat/pg-logs-settings`, not merged, not cut over.** Most of this area had already moved: the activity log, customer delete / merge backups, import memory and SPS runs went with Customers (2026-11-12), stock-import backups with Inventory, the Daily Report log with Operations. What is left is one live setting and three archive tables:
+  - [x] Switch `DB_SETTINGS`. Data layer `src/db/settings/` (read / write / remove a setting by key); `src/routes/navOrder.ts` (the side nav order, the only app setting) goes through it. A Postgres save is built by the copy's own `appSettingRowOf`, upserts on the key (id and created time stay), and a new row gets the id the layer made on both databases.
+  - [x] Parity test `settings.parity.test.ts` (7 cases through the real router: read before any save, save / overwrite, refusals, clear with null, saving the default order clears, other keys untouched, any key through the layer incl. a null value); rows compared with the copy's check after every request
+  - [x] Own copy scope `--scope settings` (`app_settings`, `cloudinary_to_s3_backups`, `legacy_leads`, `legacy_sales_customers`; tested in `areaCopy.test.ts`). **Needs `pg-copy-aws.ts --deploy` once before the first real run.** The last three tables have no code reading them: copied once so MongoDB can go
+  - [x] Write pause `SETTINGS_WRITES_PAUSED=true` (only `PUT /api/nav-order`); `/api/health` shows `settingsOn` and `settingsWritesPaused`
+  - [x] `scripts/pg-compare-settings.ts` written
+  - [ ] Run the comparison on live data
+  - [ ] Click-through (owner): Admin → Users & Roles → Side Nav Order: change, save, reload, reset to default, with `DB_SETTINGS=postgres` locally
+  - [ ] **Cutover (not run):** pause on → `--scope settings --write` → `--verify` → `DB_SETTINGS=postgres` on Render → pause off → `--lock "<name>" --scope settings`; MongoDB `appsettings` kept read-only 2 weeks
+  - [ ] Open question: `scripts/migrate-cloudinary-to-s3.ts` / `src/services/cloudinaryToS3.ts` (the finished file move and its Undo) read MongoDB's raw collections directly. They stay on MongoDB; once MongoDB is removed Undo can't run, and the 578 rewritten URLs' backups live only in `cloudinary_to_s3_backups` (copied by this scope)
 - [ ] One cutover for the tiny ones: Permits (already on Lambda), Team Files, products, colours, crossovers, contact form (1–2 days)
 - [ ] Last: Users, Roles, Locations, sign-in, who's online (3–5 days; every request reads them)
 

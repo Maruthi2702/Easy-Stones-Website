@@ -66,6 +66,7 @@ import { lostSalesWritesPauseGate, lostSalesWritesPaused } from './src/utils/los
 import { inventoryWritesPauseGate, inventoryWritesPaused } from './src/utils/inventoryWritesPause.ts';
 import { holdsWritesPauseGate, holdsWritesPaused } from './src/utils/holdsWritesPause.ts';
 import { fuelmanWritesPauseGate, fuelmanWritesPaused } from './src/utils/fuelmanWritesPause.ts';
+import { settingsWritesPauseGate, settingsWritesPaused } from './src/utils/settingsWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1170,6 +1171,8 @@ app.use(inventoryWritesPauseGate);
 app.use(holdsWritesPauseGate);
 // Fuel Man cutover pause (FUELMAN_WRITES_PAUSED=true): its writes answer 503 (src/utils/fuelmanWritesPause.ts).
 app.use(fuelmanWritesPauseGate);
+// Settings cutover pause (SETTINGS_WRITES_PAUSED=true): the side nav order can't be saved (src/utils/settingsWritesPause.ts).
+app.use(settingsWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -5172,6 +5175,8 @@ app.get('/api/health', async (req: Request, res: Response) => {
     holdsWritesPaused: holdsWritesPaused(),
     fuelmanOn: areasOnPostgres().includes('fuelman') ? 'postgres' : 'mongo',
     fuelmanWritesPaused: fuelmanWritesPaused(),
+    settingsOn: areasOnPostgres().includes('settings') ? 'postgres' : 'mongo',
+    settingsWritesPaused: settingsWritesPaused(),
     dailyReportsWritesPaused: dailyReportsWritesPaused(),
     cardReceiptsOn: areasOnPostgres().includes('card_receipts') ? 'postgres' : 'mongo',
     cardReceiptsWritesPaused: cardReceiptsWritesPaused()
