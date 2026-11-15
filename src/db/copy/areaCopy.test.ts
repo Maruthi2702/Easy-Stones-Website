@@ -251,3 +251,37 @@ describe('the Cart & Holds copy', () => {
     expect((await open.db.select().from(schema.salesHolds)).length).toBe(1);
   });
 });
+
+describe('the Suppliers copy', () => {
+  const at = new Date('2026-11-14T18:00:00Z');
+  const supplier = oid(), login = oid(), po = oid(), block = oid();
+  const withSuppliers = (): CopySource => ({
+    ...source(),
+    suppliers: [{ _id: supplier, name: 'Marmores do Sul', spsKey: 'marmores do sul', language: 'pt', createdAt: at, updatedAt: at, history: [{ at, by: 'Ana', side: 'staff', action: 'added' }] }],
+    supplierLogins: [{ _id: login, supplierId: String(supplier), name: 'Marcos', email: 'm@sul.test', password: 'hash', createdAt: at, updatedAt: at }],
+    supplierPos: [{
+      _id: po, poNumber: '41872', supplierId: String(supplier), readyBy: '2026-12-01', __v: 3, createdAt: at, updatedAt: at,
+      lines: [{ _id: 'l1', material: 'Taj', slabs: 56 }], history: [{ at, by: 'Dana', side: 'staff', action: 'added' }]
+    }],
+    supplierBlocks: [{
+      _id: block, poId: String(po), poNumber: '41872', supplierId: String(supplier), lineId: 'l1', size: { length: 124, height: 76.5, unit: 'in' }, __v: 2, createdAt: at, updatedAt: at,
+      bundles: [{ _id: 'b1', n: 1, slabs: 8, status: 'review', step1: { decision: 'approve', by: 'x', byName: 'Ravi', at, reason: '' } }], history: []
+    }]
+  } as unknown as CopySource);
+
+  it('fills only the 9 suppliers tables, verifies, and refuses for good once locked', async () => {
+    const report = await copyAreaFromMongo(open.db, withSuppliers(), 'suppliers', { write: true });
+    expect(report.tables).toEqual({
+      suppliers: 1, supplier_history: 1, supplier_logins: 1, supplier_pos: 1, supplier_po_lines: 1, supplier_po_history: 1,
+      supplier_blocks: 1, supplier_bundles: 1, supplier_block_history: 0
+    });
+    expect((await open.db.select().from(schema.supplierPos))[0].version).toBe(3);
+    expect(await verifyArea(open.db, withSuppliers(), 'suppliers')).toEqual([]);
+    const src = withSuppliers();
+    (src.suppliers as Record<string, unknown>[])[0].name = 'Other';
+    expect((await verifyArea(open.db, src, 'suppliers')).join('\n')).toMatch(/suppliers/);
+    await lockArea(open.db, 'suppliers', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'suppliers', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.suppliers)).length).toBe(1);
+  });
+});

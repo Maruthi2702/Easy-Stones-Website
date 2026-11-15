@@ -355,6 +355,11 @@ export const COPY_AREAS = {
   /** Cart & Holds: carts, holds with their slabs, the slab locks, the hold counter and the history. */
   holds: [
     'sales_carts', 'sales_cart_lines', 'sales_holds', 'sales_hold_lines', 'sales_slab_reservations', 'sales_counters', 'sales_hold_history'
+  ],
+  /** Suppliers and the supplier portal: suppliers, their logins, POs with lines, blocks with bundles, and the history lines. */
+  suppliers: [
+    'suppliers', 'supplier_history', 'supplier_logins', 'supplier_pos', 'supplier_po_lines', 'supplier_po_history',
+    'supplier_blocks', 'supplier_bundles', 'supplier_block_history'
   ]
 } as const;
 export type CopyArea = keyof typeof COPY_AREAS;
@@ -419,6 +424,15 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.salesHolds, ch.salesHolds], [schema.salesHoldLines, ch.salesHoldLines],
       [schema.salesSlabReservations, ch.salesSlabReservations], [schema.salesCounters, ch.salesCounters],
       [schema.salesHoldHistory, ch.salesHoldHistory]
+    );
+  }
+  if (area === 'suppliers') {
+    const cs = cardsSuppliersRows(src, ref.index, { customerIds } as never, problems);
+    // Parents before children (the insert order).
+    all.push(
+      [schema.suppliers, cs.suppliers], [schema.supplierHistory, cs.supplierHistory], [schema.supplierLogins, cs.supplierLogins],
+      [schema.supplierPos, cs.supplierPos], [schema.supplierPoLines, cs.supplierPoLines], [schema.supplierPoHistory, cs.supplierPoHistory],
+      [schema.supplierBlocks, cs.supplierBlocks], [schema.supplierBundles, cs.supplierBundles], [schema.supplierBlockHistory, cs.supplierBlockHistory]
     );
   }
   if (area === 'lost_sales') all.push([schema.lostSales, miscRows(src, ref.index, { customerIds } as never, problems).lostSales]);
