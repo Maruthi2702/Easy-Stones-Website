@@ -98,7 +98,7 @@ export function mongoStore(session: ClientSession | null): AccountingStore {
     invoice: async id => (valid(id) ? (CarrierInvoice.findById(id).session(session).lean() as Promise<Loose | null>) : null),
     async listInvoices(q) {
       const mine = q.branches.includes('*') ? {} : { locations: { $not: { $elemMatch: { $nin: q.branches } } } };
-      const filter = { ...mine, ...(q.status !== 'all' && { status: q.status }), ...(q.carrierId && { carrierId: q.carrierId }) };
+      const filter: Record<string, unknown> = { ...mine, ...(q.status !== 'all' && { status: q.status }), ...(q.carrierId && { carrierId: q.carrierId }) };
       const [total, items] = await Promise.all([
         CarrierInvoice.countDocuments(filter).session(session),
         CarrierInvoice.find(filter).sort({ invoiceDate: -1, createdAt: -1 }).skip((q.page - 1) * q.limit).limit(q.limit).session(session).lean()
@@ -113,6 +113,6 @@ export function mongoStore(session: ClientSession | null): AccountingStore {
     createPayment: doc => created(Payment, doc),
 
     async addAudit(entries) { if (entries.length) await AccountingAudit.create(entries.map(e => ({ _id: newId(), at: new Date(), ...e })), { ...opt, ordered: true }); },
-    auditFor: (entityType, entityId, limit) => AccountingAudit.find({ entityType, entityId }).sort({ at: -1, _id: -1 }).limit(limit).session(session).lean() as Promise<Loose[]>
+    auditFor: (entityType, entityId, limit) => AccountingAudit.find({ entityType, entityId } as Record<string, unknown>).sort({ at: -1, _id: -1 }).limit(limit).session(session).lean() as Promise<Loose[]>
   };
 }

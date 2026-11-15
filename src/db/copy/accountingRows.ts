@@ -76,9 +76,9 @@ const ZONE = 'America/Los_Angeles';
 export interface AccountingLinks {
   ref: ReferenceIndex;
   deliveryIdByTicket: { has(ticket: string): boolean };
-  carrierIds: { has(id: string): boolean };
-  invoiceIds: { has(id: string): boolean };
-  chargeIds: { has(id: string): boolean };
+  carrierIds: Set<string>;
+  invoiceIds: Set<string>;
+  chargeIds: Set<string>;
 }
 
 const paymentOf = (c: ReturnType<typeof rowConverter>, v: unknown) => {

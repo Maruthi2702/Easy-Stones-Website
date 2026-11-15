@@ -196,7 +196,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const carriers = await carriersMap(store, doc.carrierId ? [doc.carrierId] : []);
     const found = doc.invoiceId ? await store.invoice(doc.invoiceId) : null;
     const invoice = found ? { _id: found._id, invoiceNumber: found.invoiceNumber, status: found.status } : null;
-    const out = { ...present(doc, carriers), invoice };
+    const out: Record<string, unknown> = { ...present(doc, carriers), invoice };
     if (can(req.user, FREIGHT.HISTORY)) out.history = await store.auditFor('charge', String(doc._id), 200);
     res.json(out);
   }));
@@ -548,7 +548,7 @@ export default function createAccountingRouter({ authenticate, sync = null }: Lo
     const store = await accountingStore();
     const inv = await invoiceFor(req, req.params.id, store);
     const [charges, carriers] = await Promise.all([store.chargesByIds(inv.chargeIds), carriersMap(store)]);
-    const out = presentInvoice(inv, carriers, charges);
+    const out: Record<string, unknown> = presentInvoice(inv, carriers, charges);
     if (can(req.user, FREIGHT.HISTORY)) out.history = await store.auditFor('invoice', String(inv._id), 200);
     res.json(out);
   }));

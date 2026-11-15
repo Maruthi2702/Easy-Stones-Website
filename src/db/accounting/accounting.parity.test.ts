@@ -66,7 +66,7 @@ beforeAll(async () => {
       delivery('del_a01'), delivery('del_a02', { date: '2026-10-09', freightFee: 0 }), delivery('del_a03', { location: 'Spokane', date: '2026-10-10', freightFee: 800 }),
       delivery('del_a04', { carrierName: 'Somebody New', date: '2026-10-11' }), delivery('del_a05', { deliveryType: 'will_call' }),
       delivery('del_a06', { truckId: 'drv_sergio' }), delivery('del_a07', { date: '2026-09-01' })
-    ]);
+    ] as never[]);
   }, 'DB_ACCOUNTING');
 
   sync = createFreightSync({ Delivery, User, startDate: '2026-10-01', log: { error: () => {} } });
