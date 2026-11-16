@@ -16,6 +16,7 @@
  *   --scope suppliers   with --write / --verify / --lock: suppliers, their logins, POs and blocks with their history (DB_SUPPLIERS)
  *   --scope settings    with --write / --verify / --lock: app settings and three archive tables (DB_SETTINGS)
  *   --scope small       with --write / --verify / --lock: products, colours, crossovers, contact form, Team Files, sales resources (DB_SMALL)
+ *   --scope permits     with --write / --verify / --lock: permits, contacts, pull runs, month checks, contractor registry (DB_PERMITS; refuses while a pull is open)
  *   --scope lost_sales   with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries   with --write / --verify / --lock: only the deliveries and trucks tables (its own cutover; customers stay untouched)
  *   node scripts/pg-copy-aws.ts --lock "name"        at cutover: refuse every copy from now on
@@ -38,6 +39,7 @@ import { fileURLToPath } from 'node:url';
 import { LambdaClient, InvokeCommand, UpdateFunctionCodeCommand, GetFunctionConfigurationCommand, waitUntilFunctionUpdatedV2 } from '@aws-sdk/client-lambda';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { readMongo } from '../src/db/copy/readMongo.ts';
+import { openPermitRuns } from '../src/utils/permitsWritesPause.ts';
 import { isCopyArea, type CopyArea } from '../src/db/copy/plan.ts';
 import { packSnapshot } from '../src/db/aws/snapshot.ts';
 import type { CopyAction, CopyEvent, CopyResult } from '../src/db/aws/copyHandler.ts';
@@ -97,7 +99,10 @@ async function run(what: CopyAction): Promise<CopyResult> {
     } else {
       const mongoUri = process.env.MONGO_URI;
       if (!mongoUri) throw new Error('MONGO_URI is not set.');
-      const body = packSnapshot(await readMongo(mongoUri, 'pg-copy-aws'));
+      const source = await readMongo(mongoUri, 'pg-copy-aws');
+      const open = valueOf('--scope') === 'permits' && what === 'write' ? openPermitRuns(source.permitRuns) : [];
+      if (open.length) throw new Error(`A permit pull is still open (${open.join(', ')}). Wait for it to finish, or stop the server, then copy.`);
+      const body = packSnapshot(source);
       snapshotKey = `snapshots/${runId}.json.gz`;
       await s3.send(new PutObjectCommand({ Bucket: bucket, Key: snapshotKey, Body: body, ContentType: 'application/gzip' }));
       event.snapshotKey = snapshotKey;

@@ -20,7 +20,7 @@ import type { Loose } from '../types/records.ts';
  *
  * Server-only. `fetchImpl` and `now` are injectable for tests.
  */
-import { Contractor, ContractorName } from './models.ts';
+import * as permitsDb from '../db/permits/index.ts';
 import { cleanText, dayOf, licenseKey, isPlaceholderName, money } from './common.ts';
 import { fetchJson } from './sources/http.ts';
 
@@ -111,11 +111,10 @@ export function createContractorRegistry({ dataset = LNI_DATASET, fetchImpl = gl
         const lic = cleanText(r.contractorlicensenumber).toUpperCase();
         if (!byLicense.has(lic)) byLicense.set(lic, r);
       }
-      await Contractor.bulkWrite(batch.map((lic: string) => {
+      await permitsDb.registryUpsertContractors(batch.map((lic: string) => {
         const row = byLicense.get(lic);
-        const set = row ? contractorRecord(row, at) : { license: lic, notFound: true, refreshedAt: at };
-        return { updateOne: { filter: { license: lic }, update: { $set: set }, upsert: true } };
-      }), { ordered: false });
+        return { license: lic, set: row ? contractorRecord(row, at) : { license: lic, notFound: true, refreshedAt: at } };
+      }));
       read += batch.length;
     }
     return read;
@@ -133,10 +132,10 @@ export function createContractorRegistry({ dataset = LNI_DATASET, fetchImpl = gl
       const ops = [];
       for (const [name, list] of byName) {
         const { license, candidates } = licenseForName(list);
-        ops.push({ updateOne: { filter: { name }, update: { $set: { name, license, candidates, checkedAt: at } }, upsert: true } });
+        ops.push({ name, license, candidates, checkedAt: at });
         if (license) found.push(license);
       }
-      await ContractorName.bulkWrite(ops, { ordered: false });
+      await permitsDb.registryUpsertNames(ops);
       // The matched licenses' own records, so the screen has their phone.
       const rowsByLicense = new Map();
       for (const r of rows) {
@@ -144,9 +143,7 @@ export function createContractorRegistry({ dataset = LNI_DATASET, fetchImpl = gl
         if (found.includes(lic) && !rowsByLicense.has(lic)) rowsByLicense.set(lic, r);
       }
       if (rowsByLicense.size) {
-        await Contractor.bulkWrite([...rowsByLicense].map(([lic, r]: [string, Loose]) => ({
-          updateOne: { filter: { license: lic }, update: { $set: contractorRecord(r, at) }, upsert: true }
-        })), { ordered: false });
+        await permitsDb.registryUpsertContractors([...rowsByLicense].map(([lic, r]: [string, Loose]) => ({ license: lic, set: contractorRecord(r, at) })));
       }
     }
     return found.length;
@@ -161,8 +158,8 @@ export function createContractorRegistry({ dataset = LNI_DATASET, fetchImpl = gl
     const { licenses, names } = wantedFrom(contacts);
     const fresh = new Date(now().getTime() - STALE_MS);
     const [knownLicenses, knownNames] = await Promise.all([
-      Contractor.distinct('license', { license: { $in: licenses }, refreshedAt: { $gte: fresh } }),
-      ContractorName.distinct('name', { name: { $in: names }, checkedAt: { $gte: fresh } })
+      permitsDb.registryKnownLicenses(licenses, fresh),
+      permitsDb.registryKnownNames(names, fresh)
     ]);
     const kl = new Set(knownLicenses);
     const kn = new Set(knownNames);
@@ -194,17 +191,17 @@ export function createContractorRegistry({ dataset = LNI_DATASET, fetchImpl = gl
       ]);
       rows = { general, insurance, bonds, principals };
     } catch (err) {
-      const saved = await Contractor.findOne({ license: lic, notFound: { $ne: true } }).lean();
+      const saved = await permitsDb.registrySavedContractor(lic);
       if (!saved) throw err;
       return { ...contractorView(saved), found: true, stale: true, insurance: [], bonds: [], principals: [], verifyUrl: lniVerifyUrl(lic) };
     }
     const at = now();
     if (!rows.general.length) {
-      await Contractor.updateOne({ license: lic }, { $set: { license: lic, notFound: true, refreshedAt: at } }, { upsert: true });
+      await permitsDb.registryUpsertContractors([{ license: lic, set: { license: lic, notFound: true, refreshedAt: at } }]);
       return { license: lic, found: false, verifyUrl: lniVerifyUrl(lic) };
     }
     const record = contractorRecord(rows.general[0], at);
-    await Contractor.updateOne({ license: lic }, { $set: record }, { upsert: true });
+    await permitsDb.registryUpsertContractors([{ license: lic, set: record }]);
     return {
       ...contractorView(record),
       found: true,
@@ -257,7 +254,7 @@ export function contractorView(r: Loose) {
 export async function namesForLicense(license: unknown) {
   const lic = licenseKey(license);
   if (!lic) return [];
-  return ContractorName.distinct('name', { license: lic });
+  return permitsDb.registryNamesForLicense(lic);
 }
 
 /**
@@ -268,10 +265,10 @@ export async function namesForLicense(license: unknown) {
 export async function registryLookup(contacts: Loose[]) {
   const { licenses, names } = wantedFrom(contacts);
   if (!licenses.length && !names.length) return () => null;
-  const named = names.length ? await ContractorName.find({ name: { $in: names }, license: { $ne: '' } }, 'name license').lean() : [];
+  const named = names.length ? await permitsDb.registryNamedLicenses(names) : [];
   const byName = new Map(named.map((n) => [n.name, n.license]));
   const all = [...new Set([...licenses, ...byName.values()])];
-  const records = all.length ? await Contractor.find({ license: { $in: all }, notFound: { $ne: true } }).lean() : [];
+  const records = all.length ? await permitsDb.registryContractorsByLicense(all) : [];
   const byLicense = new Map(records.map((r: Loose) => [r.license, r]));
   return (c: Loose) => {
     if (c.kind !== 'contractor') return null;

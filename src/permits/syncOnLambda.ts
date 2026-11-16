@@ -9,12 +9,12 @@
  * contractor registry; the screen still waits on any source with no finishedAt,
  * and a Refresh pressed then gets "A pull is already running" from Render.
  */
-import { PermitRun } from './models.ts';
+import * as permitsDb from '../db/permits/index.ts';
 import { STALE_RUN_MS } from './staleRun.ts';
 
 export function permitSyncOnLambda(sync: { sourceIds: () => string[] }, now: () => Date = () => new Date()) {
   return {
     sourceIds: () => sync.sourceIds(),
-    isRunning: async () => Boolean(await PermitRun.exists({ finishedAt: null, startedAt: { $gt: new Date(now().getTime() - STALE_RUN_MS) } }))
+    isRunning: async () => await permitsDb.syncOpenRunExists(new Date(now().getTime() - STALE_RUN_MS))
   };
 }

@@ -15,6 +15,7 @@
  *   --scope suppliers   with --write / --verify / --lock: suppliers, their logins, POs and blocks with their history (DB_SUPPLIERS)
  *   --scope settings    with --write / --verify / --lock: app settings and three archive tables (DB_SETTINGS)
  *   --scope small       with --write / --verify / --lock: products, colours, crossovers, contact form, Team Files, sales resources (DB_SMALL)
+ *   --scope permits     with --write / --verify / --lock: permits, contacts, pull runs, month checks, contractor registry (DB_PERMITS; refuses while a pull is open)
  *   --scope lost_sales  with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries  with --write / --verify / --lock: only the deliveries and trucks tables (own cutover)
  *   --report <file>   write the full report (every problem, by id) as JSON
@@ -26,6 +27,7 @@ import fs from 'node:fs';
 import { openDb, migrateDb } from '../src/db/client.ts';
 import { copyFromMongo, verifyCopy, lockCopies, copyAreaFromMongo, verifyArea, lockArea, isCopyArea, type CopyArea } from '../src/db/copy/plan.ts';
 import { readMongo } from '../src/db/copy/readMongo.ts';
+import { openPermitRuns } from '../src/utils/permitsWritesPause.ts';
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(name);
@@ -53,6 +55,8 @@ try {
       process.exitCode = diffs.length ? 1 : 0;
     } else {
       const write = flag('--write');
+      const open = valueOf('--scope') === 'permits' ? openPermitRuns(src.permitRuns) : [];
+      if (write && open.length) throw new Error(`A permit pull is still open (${open.join(', ')}). Wait for it to finish, or stop the server, then copy.`);
       const report = isCopyArea(valueOf('--scope')) ? await copyAreaFromMongo(db, src, valueOf('--scope') as CopyArea, { write }) : await copyFromMongo(db, src, { write });
       console.log(write ? 'Copied.' : 'Dry run — nothing written.');
       console.log('\nMongoDB records read:'); console.table(report.source);

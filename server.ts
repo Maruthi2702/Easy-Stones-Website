@@ -69,6 +69,7 @@ import { fuelmanWritesPauseGate, fuelmanWritesPaused } from './src/utils/fuelman
 import { suppliersWritesPauseGate, suppliersWritesPaused } from './src/utils/suppliersWritesPause.ts';
 import { settingsWritesPauseGate, settingsWritesPaused } from './src/utils/settingsWritesPause.ts';
 import { smallWritesPauseGate, smallWritesPaused } from './src/utils/smallWritesPause.ts';
+import { permitsWritesPauseGate, permitsWritesPaused } from './src/utils/permitsWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1018,6 +1019,8 @@ async function startServer() {
       // Users, roles, locations and the type lists stay on MongoDB; Postgres's copy follows every change (src/db/reference/README.md).
       if (pgAreas.length && mongoose.connection.db) startReferenceSync(mongoose.connection.db);
 
+      if (permitsWritesPaused()) console.log('⏸ PERMITS_WRITES_PAUSED: writes under /api/permits answer 503 and the pull is off.');
+
       // JOBS=off (a local test server): none of the timers and jobs below.
       if (process.env.JOBS === 'off') return console.log('⏸️ JOBS=off: no freight, holds, auto-submit, permit, SPS resume or keep-alive jobs');
 
@@ -1035,7 +1038,9 @@ async function startServer() {
 
       // Permits: the first pull reads six months back straight away; then one
       // pull a day from 5:00 AM Pacific (src/permits/sync.ts).
-      permitSync.start();
+      // Not while Permits is being copied (PERMITS_WRITES_PAUSED): a pull mid-copy would spoil the check.
+      if (permitsWritesPaused()) console.log('⏸ Permits writes are paused: the morning pull is not started.');
+      else permitSync.start();
 
       // An SPS import that was writing when the server stopped carries on
       // from where it left off (src/services/spsImportRunner.ts).
@@ -1174,6 +1179,8 @@ app.use(suppliersWritesPauseGate);
 app.use(settingsWritesPauseGate);
 // Cutover pause for the small ones (SMALL_WRITES_PAUSED=true): products, colours, crossovers, contact form, Team Files (src/utils/smallWritesPause.ts).
 app.use(smallWritesPauseGate);
+// Cutover pause for Permits (PERMITS_WRITES_PAUSED=true): every write under /api/permits, Refresh included (src/utils/permitsWritesPause.ts).
+app.use(permitsWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -4941,6 +4948,8 @@ app.get('/api/health', async (req: Request, res: Response) => {
     settingsWritesPaused: settingsWritesPaused(),
     smallOn: areasOnPostgres().includes('small') ? 'postgres' : 'mongo',
     smallWritesPaused: smallWritesPaused(),
+    permitsOn: areasOnPostgres().includes('permits') ? 'postgres' : 'mongo',
+    permitsWritesPaused: permitsWritesPaused(),
     dailyReportsWritesPaused: dailyReportsWritesPaused(),
     cardReceiptsOn: areasOnPostgres().includes('card_receipts') ? 'postgres' : 'mongo',
     cardReceiptsWritesPaused: cardReceiptsWritesPaused()

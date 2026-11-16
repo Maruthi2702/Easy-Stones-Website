@@ -27,12 +27,13 @@ import type { Loose } from '../types/records.ts';
  */
 import express from 'express';
 import { customerContactsForMatching } from '../db/customers/index.ts';
-import { HttpError, handle, requireAll, actorOf, escapeRegex } from '../server/http.ts';
+import { HttpError, handle, requireAll, actorOf } from '../server/http.ts';
+import * as permitsDb from '../db/permits/index.ts';
+import { SORT_KEYS, type PermitSpec, type SortKey } from '../db/permits/index.ts';
 import { companyOf, realEmailsOf } from '../utils/customerList.ts';
 import { PERMITS, can } from './permissions.ts';
 import { buildPermitsPdf } from './permitsPdf.ts';
 import { permitPdfScope, permitFileName, PERMIT_PDF_MAX_ROWS } from '../utils/permitView.ts';
-import { Permit, PermitRun, PermitCheck } from './models.ts';
 import {
   SOURCES, SOURCE_IDS, CATEGORIES, CATEGORY_IDS, isDay, phoneKey, emailKey, nameKey, isPlaceholderName, sourcesInCounties
 } from './permitRules.ts';
@@ -55,41 +56,34 @@ export function countiesOf(value: unknown) {
   return [...new Set(list)];
 }
 
-/** The Mongo filter for the list's filters; `except` leaves one out (for the per-category counts). */
-export function permitFilter(query: Loose = {}, { except = null }: Loose = {}) {
-  // Keep source-withdrawn records in storage without offering them as leads.
-  const f: Loose = { issuedOn: { $ne: null } };
+/** The list's filters, checked, as the spec the data layer reads (src/db/permits/readTypes.ts). */
+export function permitFilter(query: Loose = {}): PermitSpec {
+  const f: PermitSpec = {};
   const { source, category, from, to, city, minValue, q } = query;
   const counties = countiesOf(query.counties);
   if (source) {
     if (!SOURCE_IDS.includes(source)) throw new HttpError(400, 'Unknown source.');
-    if (counties.length && !counties.includes(SOURCES[source].county)) f.source = { $in: [] };
-    else f.source = source;
+    f.sources = counties.length && !counties.includes(SOURCES[source].county) ? [] : [source];
   } else if (counties.length) {
-    f.source = { $in: sourcesInCounties(counties) };
+    f.sources = sourcesInCounties(counties);
   }
-  if (category && except !== 'category') {
+  if (category) {
     if (!CATEGORY_IDS.includes(category)) throw new HttpError(400, 'Unknown permit category.');
     f.category = category;
   }
   if (from || to) {
     if ((from && !isDay(from)) || (to && !isDay(to))) throw new HttpError(400, 'Dates must be YYYY-MM-DD.');
-    f.issuedOn = { ...(from && { $gte: from }), ...(to && { $lte: to }) };
+    if (from) f.from = from;
+    if (to) f.to = to;
   }
   if (city) f.city = String(city);
   if (minValue !== undefined && minValue !== '') {
     const n = Number(minValue);
     if (!Number.isFinite(n) || n < 0) throw new HttpError(400, 'Minimum value must be a number.');
-    f.valuation = { $gte: n };
+    f.minValue = n;
   }
   const text = String(q || '').trim().slice(0, 100);
-  if (text) {
-    const re = { $regex: escapeRegex(text), $options: 'i' };
-    f.$or = [
-      { permitNumber: re }, { address: re }, { description: re }, { parcel: re },
-      { 'contacts.company': re }, { 'contacts.name': re }, { 'contacts.email': re }, { 'contacts.license': text.toUpperCase() }
-    ];
-  }
+  if (text) f.text = text;
   return f;
 }
 
@@ -101,19 +95,14 @@ export function permitFilter(query: Loose = {}, { except = null }: Loose = {}) {
 export async function licenseClause(license: unknown) {
   const lic = licenseKey(license);
   if (!lic) throw new HttpError(400, 'That isn’t a WA contractor license number.');
-  const names = await namesForLicense(lic);
-  const or: Loose[] = [{ contacts: { $elemMatch: { kind: 'contractor', license: lic } } }];
-  if (names.length) {
-    or.push({ contacts: { $elemMatch: { kind: 'contractor', license: { $exists: false }, company: { $in: names.map((n) => new RegExp(`^${escapeRegex(n)}$`, 'i')) } } } });
-  }
-  return { $or: or };
+  return { license: lic, names: await namesForLicense(lic) };
 }
 
 /** permitFilter plus the license filter, which needs the registry's names. */
-export async function fullFilter(query: Loose = {}, opts: Loose = {}) {
-  const f = permitFilter(query, opts);
+export async function fullFilter(query: Loose = {}): Promise<PermitSpec> {
+  const f = permitFilter(query);
   if (!query.license) return f;
-  return { $and: [f, await licenseClause(query.license)] };
+  return { ...f, license: await licenseClause(query.license) };
 }
 
 /** Existing customers by email, phone and company / contact name — rebuilt every 10 minutes. */
@@ -208,29 +197,11 @@ async function registryFor(items: Loose[]) {
   }
 }
 
-/**
- * The list's orders. A permit with no value always sorts after the ones with
- * one, whichever way value is sorted, so "lowest first" starts at $1, not at
- * the blanks.
- */
-export const SORTS = Object.freeze({
-  issued_desc: { issuedOn: -1, permitNumber: -1 },
-  issued_asc: { issuedOn: 1, permitNumber: 1 },
-  value_desc: { _hasValue: -1, valuation: -1, issuedOn: -1, permitNumber: -1 },
-  value_asc: { _hasValue: -1, valuation: 1, issuedOn: -1, permitNumber: -1 }
-});
-
-function sortedPermits(filter: Loose, sortKey: string | undefined, { skip = 0, limit = null }: Loose = {}) {
-  const sort = (SORTS as Record<string, Record<string, 1 | -1>>)[sortKey || 'issued_desc'];
-  if (!sort) throw new HttpError(400, 'Unknown sort.');
-  return Permit.aggregate([
-    { $match: filter },
-    { $addFields: { _hasValue: { $cond: [{ $gt: ['$valuation', 0] }, 1, 0] } } },
-    { $sort: sort },
-    ...(skip ? [{ $skip: skip }] : []),
-    ...(limit ? [{ $limit: limit }] : []),
-    { $project: { _hasValue: 0 } }
-  ]);
+/** The list's order (the orders themselves are in the data layer: src/db/permits/). */
+function sortOf(value: unknown): SortKey {
+  const key = (value || 'issued_desc') as SortKey;
+  if (!SORT_KEYS.includes(key)) throw new HttpError(400, 'Unknown sort.');
+  return key;
 }
 
 export default function createPermitsRouter({ authenticate, sync = null, contractors = null, customerIndexMs = CUSTOMER_INDEX_MS }: Loose) {
@@ -241,12 +212,11 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
     const canRefresh = can(req.user, PERMITS.REFRESH);
     const sources = [];
     // The sources this server pulls (every source when it isn't pulling at all).
-    for (const id of sync?.sourceIds?.() || SOURCE_IDS) {
-      const [last, lastOk, first] = await Promise.all([
-        PermitRun.findOne({ source: id }).sort({ startedAt: -1 }).lean(),
-        PermitRun.findOne({ source: id, ok: true }).sort({ startedAt: -1 }).lean(),
-        PermitRun.findOne({ source: id, ok: true, kind: 'backfill' }).sort({ startedAt: 1 }).lean()
-      ]);
+    const ids: string[] = sync?.sourceIds?.() || SOURCE_IDS;
+    // About four months of every source's checks: this month's, and the reports behind it.
+    const meta = await permitsDb.permitMeta(ids, SOURCE_IDS.length * 4);
+    for (const id of ids) {
+      const { last, lastOk, first } = meta.runs[id];
       const run = (r: Loose | null) => r && {
         kind: r.kind, since: r.since, startedAt: r.startedAt, finishedAt: r.finishedAt, ok: r.ok, error: r.error,
         seen: r.seen, leads: r.leads, added: r.added, updated: r.updated, detailErrors: r.detailErrors,
@@ -254,17 +224,15 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
       };
       sources.push({ ...SOURCES[id], lastRun: run(last), lastOk: run(lastOk), coverageSince: first?.since || null });
     }
-    // About four months of every source's checks: this month's, and the reports behind it.
-    const checks = await PermitCheck.find({}).sort({ month: -1, source: -1 }).limit(SOURCE_IDS.length * 4).lean();
-    const cities = (await Permit.distinct('city')).filter(Boolean).sort((a, b) => a.localeCompare(b));
+    const { checks } = meta;
+    const cities = meta.cities.filter(Boolean).sort((a, b) => a.localeCompare(b));
     // Each city with the counties its permits come from, so the city list follows the county filter.
-    const bySource = await Permit.aggregate([{ $match: { city: { $nin: ['', null] } } }, { $group: { _id: { city: '$city', source: '$source' } } }]);
     const placeCounties = new Map();
-    for (const { _id } of bySource) {
-      const county = SOURCES[_id.source]?.county;
+    for (const { city, source } of meta.bySource) {
+      const county = SOURCES[source]?.county;
       if (!county) continue;
-      if (!placeCounties.has(_id.city)) placeCounties.set(_id.city, new Set());
-      placeCounties.get(_id.city).add(county);
+      if (!placeCounties.has(city)) placeCounties.set(city, new Set());
+      placeCounties.get(city).add(county);
     }
     res.json({
       sources,
@@ -282,10 +250,9 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
     const filter = await fullFilter(req.query);
     const limit = Math.min(MAX_LIMIT, Math.max(1, Number.parseInt(req.query.limit, 10) || 50));
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-    const [items, total, byCategory, index] = await Promise.all([
-      sortedPermits(filter, req.query.sort, { skip: (page - 1) * limit, limit }),
-      Permit.countDocuments(filter),
-      Permit.aggregate([{ $match: await fullFilter(req.query, { except: 'category' }) }, { $group: { _id: '$category', n: { $sum: 1 } } }]),
+    const sort = sortOf(req.query.sort);
+    const [{ items, total, byCategory }, index] = await Promise.all([
+      permitsDb.permitPage(filter, sort, { skip: (page - 1) * limit, limit, withTotal: true, withCategoryCounts: true }),
       customerIndex()
     ]);
     const counts = Object.fromEntries(CATEGORY_IDS.map((id) => [id, 0]));
@@ -297,9 +264,10 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
 
   router.get('/export', authenticate, requireAll(PERMITS.VIEW, PERMITS.EXPORT), handle(async (req: Loose, res: Loose) => {
     const filter = await fullFilter(req.query);
-    const total = await Permit.countDocuments(filter);
+    const sort = sortOf(req.query.sort);
+    const total = await permitsDb.countPermits(filter);
     if (total > MAX_EXPORT) throw new HttpError(400, `That’s ${total.toLocaleString('en-US')} permits — narrow the filters to ${MAX_EXPORT.toLocaleString('en-US')} or fewer.`);
-    const [items, index] = await Promise.all([sortedPermits(filter, req.query.sort), customerIndex()]);
+    const [{ items }, index] = await Promise.all([permitsDb.permitPage(filter, sort), customerIndex()]);
     const registry = await registryFor(items);
     res.json({ items: items.map((p) => present(p, index, registry)), total });
   }, { label: LABEL }));
@@ -312,9 +280,9 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
     const fail = (status: unknown, message: unknown) => res.status(status).type('text/plain; charset=utf-8').send(message);
     try {
       const filter = await fullFilter(req.query);
-      const [total, items, index] = await Promise.all([
-        Permit.countDocuments(filter),
-        sortedPermits(filter, req.query.sort, { limit: PERMIT_PDF_MAX_ROWS }),
+      const sort = sortOf(req.query.sort);
+      const [{ total, items }, index] = await Promise.all([
+        permitsDb.permitPage(filter, sort, { limit: PERMIT_PDF_MAX_ROWS, withTotal: true }),
         customerIndex()
       ]);
       const registry = await registryFor(items);
@@ -349,15 +317,10 @@ export default function createPermitsRouter({ authenticate, sync = null, contrac
     }
     // Their permits here, whatever the registry said (a license it no longer lists can still be on permits).
     const clause = await fullFilter({ license: lic });
-    const [total, byCategory, recent, index, emailRows] = await Promise.all([
-      Permit.countDocuments(clause),
-      Permit.aggregate([{ $match: clause }, { $group: { _id: '$category', n: { $sum: 1 } } }]),
-      Permit.find(clause, 'source permitNumber category issuedOn address city valuation description').sort({ issuedOn: -1, permitNumber: -1 }).limit(8).lean(),
+    const [{ total, byCategory, recent, emailRows }, index] = await Promise.all([
+      permitsDb.contractorPermitData(clause),
       // Fresh, so a customer created from this pop-up a moment ago is found.
-      customerIndex(true),
-      // The registry has no email; contractors give one on some permits (EnerGov sources).
-      Permit.aggregate([{ $match: clause }, { $unwind: '$contacts' }, { $match: { 'contacts.kind': 'contractor', 'contacts.email': { $nin: ['', null] } } },
-        { $group: { _id: { $toLower: '$contacts.email' }, n: { $sum: 1 } } }, { $sort: { n: -1 } }, { $limit: 5 }])
+      customerIndex(true)
     ]);
     const [customerOf] = profile.found
       ? matchContacts([{ kind: 'contractor', company: profile.businessName, phone: profile.phone, email: emailRows[0]?._id || '' }], index)

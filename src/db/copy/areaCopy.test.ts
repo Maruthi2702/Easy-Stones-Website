@@ -244,6 +244,42 @@ describe('the small ones copy (products, colours, crossovers, contact form, Team
   });
 });
 
+describe('the Permits copy (permits with contacts, runs, checks, contractor registry)', () => {
+  const at = new Date('2026-11-14T18:00:00Z');
+  const permit = oid(), run = oid(), check = oid(), contractor = oid(), name = oid();
+  const withPermits = (): CopySource => ({
+    ...source(),
+    permits: [{
+      _id: permit, source: 'king', permitNumber: 'B1', category: 'new_home', type: 'Single Family', status: 'Issued', issuedOn: at,
+      address: '1 Main St', city: 'Kent', valuation: 250000, firstSeenAt: at, lastSeenAt: at, createdAt: at, updatedAt: at,
+      contacts: [{ role: 'Contractor', kind: 'contractor', company: 'Acme', phone: '2065550100', license: 'ACME123' }]
+    }],
+    permitRuns: [{ _id: run, source: 'king', kind: 'daily', since: at, startedAt: at, finishedAt: at, ok: true, pages: 1, seen: 3, leads: 1, added: 1, updated: 0 }],
+    permitChecks: [{ _id: check, source: 'king', month: '2026-10', checkedAt: at }],
+    permitContractors: [{ _id: contractor, license: 'ACME123', businessName: 'Acme', fetchedAt: at }],
+    permitContractorNames: [{ _id: name, name: 'acme', license: 'ACME123' }]
+  } as unknown as CopySource);
+
+  it('fills only the six permit tables and verifies', async () => {
+    const before = (await open.db.select().from(schema.deliveries)).length;
+    const report = await copyAreaFromMongo(open.db, withPermits(), 'permits', { write: true });
+    expect(Object.keys(report.tables).sort()).toEqual(['permit_checks', 'permit_contacts', 'permit_contractor_names', 'permit_contractors', 'permit_runs', 'permits']);
+    expect(report.tables.permits).toBe(1);
+    expect(report.tables.permit_contacts).toBe(1);
+    expect((await open.db.select().from(schema.deliveries)).length).toBe(before);
+    expect(await verifyArea(open.db, withPermits(), 'permits')).toEqual([]);
+  });
+
+  it('refuses for good once locked', async () => {
+    const src = withPermits();
+    (src.permits as Record<string, unknown>[])[0].city = 'Renton';
+    expect((await verifyArea(open.db, src, 'permits')).join('\n')).toMatch(/permits/);
+    await lockArea(open.db, 'permits', 'cutover');
+    await expect(copyAreaFromMongo(open.db, emptySource(), 'permits', { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+    expect((await open.db.select().from(schema.permits)).length).toBe(1);
+  });
+});
+
 describe('the Inventory copy (stock, in-transit and Purchasing, one switch)', () => {
   const at = new Date('2026-11-14T18:00:00Z');
   const item = oid(), ship = oid(), scope = oid(), draft = oid();

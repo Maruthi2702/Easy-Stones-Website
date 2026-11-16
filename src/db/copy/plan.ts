@@ -382,6 +382,8 @@ export const COPY_AREAS = {
     'products', 'product_colors', 'product_bundles', 'easy_stones_colors', 'crossover_colors', 'crossovers',
     'contact_submissions', 'team_files', 'sales_resources'
   ],
+  /** Permits (`DB_PERMITS`): the permits with their contacts, the pull runs and month checks, the WA contractor registry cache. */
+  permits: ['permits', 'permit_contacts', 'permit_runs', 'permit_checks', 'permit_contractors', 'permit_contractor_names'],
   accounting: [
     'acct_carriers', 'acct_carrier_invoices', 'acct_freight_charges', 'acct_freight_charge_flags', 'acct_invoice_charges',
     'acct_payments', 'acct_payment_charges', 'acct_audit'
@@ -458,6 +460,14 @@ async function areaPlan(db: Db, src: CopySource, area: CopyArea, problems: CopyP
       [schema.products, misc.products], [schema.productColors, misc.productColors], [schema.productBundles, misc.productBundles],
       [schema.easyStonesColors, misc.easyStonesColors], [schema.crossoverColors, misc.crossoverColors], [schema.crossovers, misc.crossovers],
       [schema.contactSubmissions, misc.contactSubmissions], [schema.teamFiles, misc.teamFiles], [schema.salesResources, misc.salesResources]
+    );
+  }
+  if (area === 'permits') {
+    const per = permitsRows(src, problems);
+    // Parents before children (the insert order).
+    all.push(
+      [schema.permits, per.permits], [schema.permitContacts, per.permitContacts], [schema.permitRuns, per.permitRuns],
+      [schema.permitChecks, per.permitChecks], [schema.permitContractors, per.permitContractors], [schema.permitContractorNames, per.permitContractorNames]
     );
   }
   if (area === 'accounting') {

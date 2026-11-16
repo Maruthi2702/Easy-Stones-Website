@@ -29,7 +29,7 @@ import type { Loose } from '../types/records.ts';
  * A source that fails leaves what's already saved untouched and records the
  * error, which the Permits page shows. Nothing is ever deleted.
  */
-import { Permit, PermitRun, PermitCheck } from './models.ts';
+import * as permitsDb from '../db/permits/index.ts';
 import { STALE_RUN_MS } from './staleRun.ts';
 import {
   RULES, SOURCE_IDS, categoryFor, isUnsortedBuildingType, pacificNow, isDailyRunDue, runSince,
@@ -45,8 +45,6 @@ const REPORTS_PER_RUN = 2;
 const LEAD_PREFIXES = ['SFR', 'DET', 'COM'];
 // Detail pages opened at once, unless the source says otherwise.
 const DETAIL_CONCURRENCY = 2;
-
-const withoutUndefined = (o: Loose) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 
 function tallyUnsorted(rows: Loose[], id: string) {
   const rule = RULES[id];
@@ -80,19 +78,8 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
    */
   async function save(source: string, permits: Loose[], { detailsRead = false }: Loose = {}) {
     if (!permits.length) return { added: 0, updated: 0 };
-    const at = now();
-    const r = await Permit.bulkWrite(permits.map((p) => {
-      // `categoryIfNew`: a category only for a permit the app doesn't hold yet
-      // (one that depends on details not read this time — rules/bellevue.js).
-      const { permitNumber, source: _source, categoryIfNew, ...fields } = withoutUndefined(p);
-      const onInsert = { firstSeenAt: at, ...(categoryIfNew && !fields.category && { category: categoryIfNew }) };
-      return { updateOne: { filter: { source, permitNumber }, update: { $set: fields, $setOnInsert: onInsert }, upsert: true } };
-    }), { ordered: false });
-    await Permit.updateMany(
-      { source, permitNumber: { $in: permits.map((p) => p.permitNumber) } },
-      { $set: { lastSeenAt: at, ...(detailsRead && { detailsAt: at }) } }
-    );
-    return { added: r.upsertedCount, updated: r.modifiedCount };
+    // `categoryIfNew` (a category only for a permit the app doesn't hold yet) is handled by the data layer.
+    return permitsDb.savePermits(source, permits, { at: now(), detailsRead });
   }
 
   async function pull(id: string, since: string) {
@@ -117,7 +104,7 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
       let skipped = 0;
       if (rule.detailsFreshDays) {
         const fresh = new Date(now().getTime() - rule.detailsFreshDays * 24 * 3600 * 1000);
-        const recent = new Set(await Permit.distinct('permitNumber', { source: id, permitNumber: { $in: leads.map((r: Loose) => rule.numberOf(r)) }, detailsAt: { $gte: fresh } }));
+        const recent = new Set(await permitsDb.syncPermitNumbersDetailedSince(id, leads.map((r: Loose) => rule.numberOf(r)), fresh));
         const known = leads.filter((r: Loose) => recent.has(rule.numberOf(r)));
         if (known.length) add(await save(id, known.map((row: Loose) => rule.toPermit(row, null))));
         toRead = leads.filter((r: Loose) => !recent.has(rule.numberOf(r)));
@@ -158,31 +145,31 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
     };
   }
 
-  const hasBackfill = async (source: string) => Boolean(await PermitRun.exists({ source, ok: true, kind: 'backfill' }));
+  const hasBackfill = async (source: string) => await permitsDb.syncHasBackfillRun(source);
 
   /** One source, one window. Records the run whether it works or not. */
   async function runSource(source: string, { kind, by = '' }: Loose) {
     const backfilled = await hasBackfill(source);
     const since = runSince(backfilled, now());
     const actualKind = backfilled ? kind : 'backfill';
-    const run = await PermitRun.create({ source, kind: actualKind, since, startedAt: now(), by });
+    const run = await permitsDb.syncStartRun({ source, kind: actualKind, since, startedAt: now(), by });
+    let finished: Loose;
     try {
       const pulled = await pull(source, since);
       const { added, updated } = pulled.saved;
-      Object.assign(run, {
+      finished = await permitsDb.syncFinishRun(run._id, {
         ok: true, finishedAt: now(), pages: pulled.pages, seen: pulled.seen, leads: pulled.leads,
         added, updated, detailErrors: pulled.detailErrors, unsortedTypes: pulled.unsortedTypes, latestIssuedOn: pulled.latestIssuedOn
       });
-      await run.save();
       log.log?.(`[permits] ${source} ${actualKind} since ${since}: ${pulled.seen} permits, ${pulled.leads} leads, ${added} new, ${updated} changed`);
     } catch (err) {
       const error = String((err as Error)?.message || err).slice(0, 500);
       // Written directly, so a run that failed while saving its own counts is still closed.
-      await PermitRun.updateOne({ _id: run._id }, { $set: { ok: false, finishedAt: now(), error } });
+      const failed = await permitsDb.syncFailRun(run._id, error, now());
       log.error?.(`[permits] ${source} ${actualKind} failed:`, error);
-      return (await PermitRun.findById(run._id).lean()) || { source, kind: actualKind, since, ok: false, error };
+      return failed || { source, kind: actualKind, since, ok: false, error };
     }
-    return run.toObject();
+    return finished;
   }
 
   /**
@@ -193,11 +180,11 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
    * permit late.
    */
   async function monthsToCheck(source: string) {
-    const first = await PermitRun.findOne({ source, ok: true, kind: 'backfill' }).sort({ startedAt: 1 }).lean();
+    const first = await permitsDb.syncFirstBackfillRun(source);
     if (!first) return [];
     const thisMonth = pacificNow(now()).day.slice(0, 7);
     // A month-so-far check ('search') doesn't count: only the report is final.
-    const done = new Set((await PermitCheck.find({ source, ok: true, method: { $ne: 'search' } }, 'month').lean()).map((c) => c.month));
+    const done = new Set(await permitsDb.syncReportCheckedMonths(source));
     return fullMonthsBetween(first.since, thisMonth).filter((m) => !done.has(m)).reverse();
   }
 
@@ -223,9 +210,9 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
         const numbers = await reports.permitNumbers(report.url);
         const { rows } = await readers.whatcom.issuedSince(from);
         const [appInMonth, appHas, appNumbers] = await Promise.all([
-          Permit.distinct('permitNumber', { source: 'whatcom', issuedOn: { $gte: from, $lte: to } }),
-          Permit.distinct('permitNumber', { source: 'whatcom', permitNumber: { $in: numbers } }),
-          Permit.distinct('permitNumber', { source: 'whatcom' })
+          permitsDb.syncPermitNumbers('whatcom', { issuedFrom: from, issuedTo: to }),
+          permitsDb.syncPermitNumbers('whatcom', { among: numbers }),
+          permitsDb.syncPermitNumbers('whatcom')
         ]);
         const leadPrefixes = new Set([...LEAD_PREFIXES, ...appNumbers.map(permitPrefix),
           ...rows.filter((r: Loose) => categoryFor('whatcom', r.CaseType)).map((r: Loose) => permitPrefix(r.CaseNumber))]);
@@ -237,7 +224,7 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
       } catch (err) {
         fields = { ...base, method: 'report', ok: false, error: String((err as Error)?.message || err).slice(0, 500) };
       }
-      await PermitCheck.findOneAndUpdate({ source: 'whatcom', month: report.month }, { $set: fields }, { upsert: true });
+      await permitsDb.syncSaveCheck('whatcom', report.month, fields);
       log.log?.(`[permits] county report ${report.month}: ${fields.ok ? 'matches' : fields.error || 'differs'}`);
       results.push(fields);
     }
@@ -265,16 +252,14 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
         const rows = await kingReports.rows(report.url);
         const numbers = rows.map((r: Loose) => r.number);
         const [appInMonth, held] = await Promise.all([
-          Permit.distinct('permitNumber', { source, issuedOn: { $gte: from, $lte: to } }),
-          Permit.find({ source, permitNumber: { $in: numbers } }, 'permitNumber valuation units projectName city zip parcel').lean()
+          permitsDb.syncPermitNumbers(source, { issuedFrom: from, issuedTo: to }),
+          permitsDb.syncPermitsHeld(source, numbers)
         ]);
         const r = reconcileKingReport({ month: report.month, rows, appInMonth, appHas: held.map((p) => p.permitNumber) });
         // What the report adds to permits the app holds (value, units, city…), never over what the pull read.
         const byNumber = new Map<string, Loose>(rows.map((row: Loose) => [row.number, row]));
         const fills = held.map((p) => ({ p, fill: kingReportFill(byNumber.get(p.permitNumber)!, p) })).filter((x) => Object.keys(x.fill).length);
-        if (fills.length) {
-          await Permit.bulkWrite(fills.map(({ p, fill }) => ({ updateOne: { filter: { _id: p._id }, update: { $set: fill } } })), { ordered: false });
-        }
+        if (fills.length) await permitsDb.syncFillPermits(fills.map(({ p, fill }) => ({ id: p._id, fill })));
         // Leads only the report has (MyBuildingPermit lacks a few) are saved from
         // the report, so they're on the list — a month late, but not missed. The
         // check still says the pull missed them; the next morning's finds them all.
@@ -287,7 +272,7 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
       } catch (err) {
         fields = { ...base, method: 'report', ok: false, error: String((err as Error)?.message || err).slice(0, 500) };
       }
-      await PermitCheck.findOneAndUpdate({ source, month: report.month }, { $set: fields }, { upsert: true });
+      await permitsDb.syncSaveCheck(source, report.month, fields);
       log.log?.(`[permits] King County report ${report.month}: ${fields.ok ? 'matches' : fields.error || 'differs'}`);
       results.push(fields);
     }
@@ -324,7 +309,7 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
       try {
         const found = new Set();
         if (source === 'whatcom') {
-          const saved = await Permit.distinct('permitNumber', { source: 'whatcom' });
+          const saved = await permitsDb.syncPermitNumbers('whatcom');
           const prefixes = [...new Set([...LEAD_PREFIXES, ...saved.map(permitPrefix)])];
           for (const prefix of prefixes) {
             for (const y of [year, year - 1]) {
@@ -347,8 +332,7 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
             if (inMonth(r.issuedOn) && categoryFor(source, r.type, r.subtype)) found.add(String(r.number || '').trim());
           }
         }
-        const monthQuery = { source, issuedOn: { $gte: from, $lte: today } };
-        let app = await Permit.distinct('permitNumber', monthQuery);
+        let app = await permitsDb.syncPermitNumbers(source, { issuedFrom: from, issuedTo: today });
         const notIssuedYet = [];
         const datesMoved = [];
         if (reader.findByNumber) {
@@ -364,7 +348,7 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
             if (current.issuedOn) datesMoved.push(number);
             else notIssuedYet.push(number);
           }
-          app = await Permit.distinct('permitNumber', monthQuery);
+          app = await permitsDb.syncPermitNumbers(source, { issuedFrom: from, issuedTo: today });
         }
         const c = compareMonthToDate({ found: [...found], app });
         fields = { ...base, inSearch: c.inSearch, matched: c.matched, missingFromApp: c.missingFromApp, notFoundAgain: c.notFoundAgain, notIssuedYet, datesMoved, ok: c.ok, error: '' };
@@ -372,9 +356,7 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
         fields = { ...base, ok: false, error: String((err as Error)?.message || err).slice(0, 500) };
       }
       // Never over a report check: a month only has one once it's over.
-      await PermitCheck.findOneAndUpdate({ source, month, method: { $ne: 'report' } }, { $set: fields }, { upsert: true }).catch((err) => {
-        if (err?.code !== 11000) throw err;
-      });
+      await permitsDb.syncSaveCheck(source, month, fields, { keepReport: true });
       log.log?.(`[permits] ${source} ${month} so far: ${fields.ok ? `all ${fields.matched} found again` : fields.error || 'differs'}`);
       results.push(fields);
     }
@@ -385,8 +367,7 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
   async function refreshContractors(since: Date) {
     if (!contractors) return null;
     try {
-      const seen = await Permit.find({ lastSeenAt: { $gte: since } }, 'contacts').lean();
-      return await contractors.refreshFor(seen.flatMap((p) => p.contacts || []));
+      return await contractors.refreshFor(await permitsDb.syncContactsSeenSince(since));
     } catch (err) {
       log.warn?.(`[permits] contractor registry: ${(err as Error).message}`);
       return { error: (err as Error).message };
@@ -401,7 +382,7 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
       const out: Loose = {};
       for (const source of ids) {
         const stale = new Date(now().getTime() - STALE_RUN_MS);
-        if (await PermitRun.exists({ source, finishedAt: null, startedAt: { $gt: stale } })) {
+        if (await permitsDb.syncOpenRunExists(stale, source)) {
           out[source] = { skipped: 'another run is going' };
           continue;
         }
@@ -423,14 +404,14 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
     const at = now();
     for (const source of ids) {
       if (!(await hasBackfill(source))) {
-        const last = await PermitRun.findOne({ source }).sort({ startedAt: -1 }).lean();
+        const last = await permitsDb.syncLastRun(source);
         if (!last || at.getTime() - new Date(last.startedAt).getTime() >= RETRY_GAP_MS) return true;
         continue;
       }
-      const lastOk = await PermitRun.findOne({ source, ok: true }).sort({ startedAt: -1 }).lean();
+      const lastOk = await permitsDb.syncLastRun(source, true);
       const lastOkDay = lastOk ? pacificNow(new Date(lastOk.startedAt)).day : null;
       if (!isDailyRunDue(lastOkDay, at)) continue;
-      const last = await PermitRun.findOne({ source }).sort({ startedAt: -1 }).lean();
+      const last = await permitsDb.syncLastRun(source);
       if (!last || at.getTime() - new Date(last.startedAt).getTime() >= RETRY_GAP_MS) return true;
     }
     return false;
@@ -442,12 +423,9 @@ export function createPermitSync({ readers: given = {}, reports = null, kingRepo
    * held back by it — saved permits stay; the next run re-reads the window.
    */
   async function closeInterrupted() {
-    const r = await PermitRun.updateMany(
-      { finishedAt: null },
-      { $set: { finishedAt: now(), ok: false, error: 'The server restarted during this pull — it runs again shortly.' } }
-    );
-    if (r.modifiedCount) log.warn?.(`[permits] closed ${r.modifiedCount} pull(s) cut short by a restart`);
-    return r.modifiedCount;
+    const closed = await permitsDb.syncCloseOpenRuns(now(), 'The server restarted during this pull — it runs again shortly.');
+    if (closed) log.warn?.(`[permits] closed ${closed} pull(s) cut short by a restart`);
+    return closed;
   }
 
   function start() {
