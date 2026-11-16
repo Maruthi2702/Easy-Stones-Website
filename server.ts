@@ -25,6 +25,7 @@ import { USERS, ROLES, LOCATIONS, canOpenArea, can } from './src/utils/usersAcce
 import { TEAM_PERMISSION, cleanManageableRoles } from './src/utils/teamAccess.ts';
 import cors from 'cors';
 import mongoose from 'mongoose';
+import { staffDeletionError } from './src/db/staff/deleteError.ts';
 
 // Node's own DNS resolver (c-ares) mishandles a scoped/link-local IPv6
 // nameserver (fe80::...%en0) — common on a phone hotspot or some routers'
@@ -2038,8 +2039,9 @@ app.delete('/api/admin/users/:id', authenticate, requireAction(USERS.DELETE), va
     bustUserCaches();
     req.app.get('io')?.emit('truck_update');
     res.json({ message: 'User deleted successfully' });
-  } catch {
-    res.status(500).json({ message: 'Failed to delete user' });
+  } catch (error) {
+    const response = staffDeletionError(error, 'user');
+    res.status(response.status).json(response.body);
   }
 });
 
@@ -2238,7 +2240,8 @@ app.delete('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.DE
     
     res.json({ message: 'Location deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: 'Failed to delete location', error: (error as Error).message });
+    const response = staffDeletionError(error, 'location');
+    res.status(response.status).json(response.body);
   }
 });
 

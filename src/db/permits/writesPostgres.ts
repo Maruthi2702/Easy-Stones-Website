@@ -4,7 +4,7 @@
  * so it writes what a re-copy of MongoDB would. A permit and its contacts are saved in one transaction. No automatic
  * updatedAt (it exists only for the 673 permits an older pull stamped); a cleared issue date stays null.
  */
-import { and, asc, desc, eq, gte, inArray, isNull, lte, gt, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, gte, inArray, isNull, lte, gt, ne, sql } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
 import { permits, permitContacts, permitRuns, permitChecks, permitContractors, permitContractorNames } from '../schema/permits.ts';
 import { permitsRows } from '../copy/permitsRows.ts';
@@ -42,43 +42,69 @@ const columnsOf = (row: Loose) => Object.fromEntries(Object.entries(row).filter(
 /** What the source can change in a permit, to tell whether a save changed anything (the pull's "updated"). */
 const comparable = (row: Loose) => ({ ...columnsOf(row), detailsAt: undefined, valuation: num(row.valuation), sqft: num(row.sqft), units: num(row.units) });
 
-async function saveOne(tx: Tx, source: string, p: Loose, id: string, at: Date): Promise<'added' | 'updated' | 'same'> {
-  const { permitNumber, source: _s, categoryIfNew, ...fields } = withoutUndefined(p);
-  const [found] = await tx.select().from(permits).where(and(eq(permits.source, source), eq(permits.permitNumber, String(permitNumber)))).for('update');
-  if (!found) {
-    const doc = cast({ _id: id, source, permitNumber, ...fields, ...(categoryIfNew && !fields.category && { category: categoryIfNew }), firstSeenAt: at, lastSeenAt: at, contacts: fields.contacts ?? [] });
-    const { permit, contacts } = rowsOf(doc);
-    const [made] = await tx.insert(permits).values(permit).onConflictDoNothing().returning({ id: permits.id });
-    if (made) {
-      if (contacts.length) await tx.insert(permitContacts).values(contacts);
-      return 'added';
-    }
-    return saveOne(tx, source, p, id, at); // another save took it first: now it is an update
-  }
-  const before = permitDoc(found, await tx.select().from(permitContacts).where(eq(permitContacts.permitId, found.id)));
-  const after = cast({ ...before, ...fields });
-  const was = rowsOf(before), now = rowsOf(after);
-  const changed = !same(comparable(was.permit), comparable(now.permit)) || !same(was.contacts, now.contacts);
-  if (changed) {
-    await tx.update(permits).set(columnsOf(now.permit)).where(eq(permits.id, found.id));
-    if (!same(was.contacts, now.contacts)) {
-      await tx.delete(permitContacts).where(eq(permitContacts.permitId, found.id));
-      if (now.contacts.length) await tx.insert(permitContacts).values(now.contacts);
-    }
-  }
-  return changed ? 'updated' : 'same';
+// Keep statements below Postgres' parameter limit, including permits with many contacts.
+const SAVE_CHUNK = 500;
+function chunks<T>(items: T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += SAVE_CHUNK) out.push(items.slice(i, i + SAVE_CHUNK));
+  return out;
 }
+const updateColumns = Object.fromEntries(Object.entries(getTableColumns(permits))
+  .filter(([key]) => !KEEP.has(key))
+  .map(([key, col]) => [key, sql`${sql.identifier('excluded')}.${sql.identifier(col.name)}`]));
 
 export async function savePermits(db: Db, source: string, list: Loose[], ids: string[], at: Date, detailsRead: boolean) {
+  if (!list.length) return { added: 0, updated: 0 };
   return db.transaction(async tx => {
+    // Also serialises inserts for permits not present yet; row locks alone can't protect those.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`permit_save:${source}`}))`);
+    const numbers = [...new Set(list.map(p => String(p.permitNumber)))];
+    const stored: PermitRow[] = [];
+    for (const batch of chunks(numbers)) stored.push(...await tx.select().from(permits)
+      .where(and(eq(permits.source, source), inArray(permits.permitNumber, batch))).orderBy(asc(permits.id)).for('update'));
+    const contactsById = new Map<string, ContactRow[]>();
+    for (const batch of chunks(stored.map(p => p.id))) {
+      const contacts = await tx.select().from(permitContacts).where(inArray(permitContacts.permitId, batch));
+      for (const c of contacts) {
+        const group = contactsById.get(c.permitId) ?? [];
+        group.push(c);
+        contactsById.set(c.permitId, group);
+      }
+    }
+    const current = new Map(stored.map(p => [p.permitNumber, permitDoc(p, contactsById.get(p.id) ?? [])]));
+    const pending = new Map<string, ReturnType<typeof rowsOf>>();
     let added = 0, updated = 0;
     for (const [i, p] of list.entries()) {
-      const r = await saveOne(tx, source, p, ids[i], at);
-      if (r === 'added') added++; else if (r === 'updated') updated++;
+      const { permitNumber, source: _s, categoryIfNew, ...fields } = withoutUndefined(p);
+      const number = String(permitNumber);
+      const before = current.get(number);
+      const after = cast(before ? { ...before, ...fields } : {
+        _id: ids[i], source, permitNumber, ...fields,
+        ...(categoryIfNew && !fields.category && { category: categoryIfNew }),
+        firstSeenAt: at, lastSeenAt: at, contacts: fields.contacts ?? []
+      });
+      const now = rowsOf(after);
+      if (!before) { added++; pending.set(number, now); }
+      else {
+        const was = rowsOf(before);
+        if (!same(comparable(was.permit), comparable(now.permit)) || !same(was.contacts, now.contacts)) {
+          updated++;
+          pending.set(number, now);
+        }
+      }
+      // Duplicate numbers in a batch see the previous item, matching the old save loop.
+      current.set(number, after);
     }
-    const numbers = list.map(p => String(p.permitNumber));
-    if (numbers.length) {
-      await tx.update(permits).set({ lastSeenAt: at, ...(detailsRead && { detailsAt: at }) }).where(and(eq(permits.source, source), inArray(permits.permitNumber, numbers)));
+    const writes = [...pending.values()];
+    for (const batch of chunks(writes)) {
+      await tx.insert(permits).values(batch.map(p => p.permit))
+        .onConflictDoUpdate({ target: [permits.source, permits.permitNumber], set: updateColumns });
+      await tx.delete(permitContacts).where(inArray(permitContacts.permitId, batch.map(p => p.permit.id)));
+    }
+    for (const batch of chunks(writes.flatMap(p => p.contacts))) await tx.insert(permitContacts).values(batch);
+    for (const batch of chunks(numbers)) {
+      await tx.update(permits).set({ lastSeenAt: at, ...(detailsRead && { detailsAt: at }) })
+        .where(and(eq(permits.source, source), inArray(permits.permitNumber, batch)));
     }
     return { added, updated };
   });

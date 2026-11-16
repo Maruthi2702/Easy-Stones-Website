@@ -51,6 +51,17 @@ describe('planSecret', () => {
     expect(planSecret({ ...base, EXTRA: '1' }, { relayUrl, keep: ['EXTRA'] }).kept).toContain('EXTRA');
   });
 
+  it('keeps database switches and cutover pauses together with the connection URL', () => {
+    const settings = {
+      DATABASE_URL: 'postgres://app_iam@example.test/app?auth=iam',
+      DB_CUSTOMERS: 'postgres', DB_STAFF: 'postgres', DB_TYPES: 'postgres', DB_PERMITS: 'postgres',
+      CUSTOMER_WRITES_PAUSED: 'true', STAFF_WRITES_PAUSED: 'true', TYPES_WRITES_PAUSED: 'true', PERMITS_WRITES_PAUSED: 'true'
+    };
+    const plan = planSecret({ ...base, ...settings }, { relayUrl });
+    expect(plan.secret).toMatchObject(settings);
+    expect(plan.dropped).toEqual([]);
+  });
+
   it('refuses or warns on bad input', () => {
     expect(() => planSecret(base, { relayUrl: '' })).toThrow(/relay-url/);
     expect(() => planSecret(base, { relayUrl: 'nope' })).toThrow(/not a URL/);

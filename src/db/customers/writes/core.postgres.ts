@@ -140,48 +140,51 @@ export async function editCustomer(db: Db, rawId: string, input: EditCustomerInp
 
   if (input.salesRep !== undefined) Object.assign(updateData, await resolveRep(db, input.salesRep));
 
-  const existing = await loadCustomerRecord(db, id);
+  // Only the address is needed before the external lookup; load history once, under the write lock below.
+  const [existing] = await db.select({ email: customers.email, street: customers.street, city: customers.city,
+    state: customers.state, zipCode: customers.zipCode, addressKey: customers.geocodeAddressKey })
+    .from(customers).where(eq(customers.id, id));
   if (!existing) return { notFound: true };
 
   if (input.address) {
     updateData.address = input.address;
   } else if (input.city) {
-    updateData.address = { ...existing.address, city: input.city };
+    updateData.address = { street: existing.street, city: input.city, state: existing.state, zipCode: existing.zipCode };
   }
 
   if (updateData.address) {
-    const geo = await input.geocode(updateData.address, existing.geocode?.addressKey || '');
+    const geo = await input.geocode(updateData.address, existing.addressKey || '');
     if (geo) Object.assign(updateData, geo);
   }
 
-  if (updateData.modaDisplay !== undefined || updateData.modaBinder !== undefined) {
-    const families = familyLookup(await db.select({ name: resourceTypes.name, family: resourceTypes.family }).from(resourceTypes));
-    const typed = typedModaFields(existing, { modaDisplay: updateData.modaDisplay, modaBinder: updateData.modaBinder },
-      existing.resources, families);
-    if ('error' in typed) return { error: typed.error };
-    delete updateData.modaDisplay;
-    delete updateData.modaBinder;
-    if (typed.fields) Object.assign(updateData, typed.fields);
-  }
-
-  const set = await castUpdate(id, updateData);
-  const now = new Date();
-  const next = applySet(existing, { ...set, updatedAt: now });
-  const { row, location } = await customerRowOf(db, next);
-  next.location = location;
-
   try {
-    await db.transaction(async tx => {
+    return await db.transaction(async tx => {
+      // Geocoding above may take seconds. Merge with the latest row under its lock,
+      // so a quick note, active switch or SPS connection saved meanwhile survives.
+      const [locked] = await tx.select({ id: customers.id }).from(customers).where(eq(customers.id, id)).for('update');
+      if (!locked) return { notFound: true } as const;
+      const current = (await loadCustomerRecord(tx, id))!;
+      const changes = { ...updateData };
+      if (changes.modaDisplay !== undefined || changes.modaBinder !== undefined) {
+        const families = familyLookup(await tx.select({ name: resourceTypes.name, family: resourceTypes.family }).from(resourceTypes));
+        const typed = typedModaFields(current, { modaDisplay: changes.modaDisplay, modaBinder: changes.modaBinder }, current.resources, families);
+        if ('error' in typed) return { error: typed.error };
+        delete changes.modaDisplay;
+        delete changes.modaBinder;
+        if (typed.fields) Object.assign(changes, typed.fields);
+      }
+      const set = await castUpdate(id, changes);
+      const next = applySet(current, { ...set, updatedAt: new Date() });
+      const { row, location } = await customerRowOf(tx, next);
+      next.location = location;
       const { id: _id, createdAt: _created, ...columns } = row;
-      const [saved] = await tx.update(customers).set(columns).where(eq(customers.id, id)).returning({ id: customers.id });
-      if (!saved) throw Object.assign(new Error('gone'), { notFound: true });
+      await tx.update(customers).set(columns).where(eq(customers.id, id));
+      return { customer: next };
     });
   } catch (e) {
-    if ((e as Loose)?.notFound) return { notFound: true };
-    if (isUniqueViolation(e)) throw duplicateEmail(row.email);
+    if (isUniqueViolation(e)) throw duplicateEmail(String(updateData.email ?? existing.email));
     throw e;
   }
-  return { customer: next };
 }
 
 /** PATCH /api/customers/bulk. `update` holds only status and / or salesRep (+ the name copy, which Postgres doesn't store). */
