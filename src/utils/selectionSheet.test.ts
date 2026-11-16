@@ -223,7 +223,7 @@ describe('buildSelectionSheetHtml', () => {
     const values = sheetValuesFromCheckIn(checkIn);
     expect(buildSelectionSheetHtml({ checkIn, values, letterhead, logoUrl: 'https://x.test/logo.png?a=1&b="2"' }))
       .toContain('src="https://x.test/logo.png?a=1&amp;b=&quot;2&quot;"');
-    expect(buildSelectionSheetHtml({ checkIn, values, letterhead })).toContain('EASY STONES');
+    expect(buildSelectionSheetHtml({ checkIn, values, letterhead })).toContain('EASY SURFACES');
   });
 
   it('prints the branch address on the left of the footer and its phone on the right', () => {

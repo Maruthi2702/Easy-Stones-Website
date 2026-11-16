@@ -14,6 +14,7 @@
  *   --scope accounting  with --write / --verify / --lock: 3rd-party freight — carriers, charges, invoices, payments, history (DB_ACCOUNTING; Fuel Man is separate)
  *   --scope suppliers   with --write / --verify / --lock: suppliers, their logins, POs and blocks with their history (DB_SUPPLIERS)
  *   --scope settings    with --write / --verify / --lock: app settings and three archive tables (DB_SETTINGS)
+ *   --scope small       with --write / --verify / --lock: products, colours, crossovers, contact form, Team Files, sales resources (DB_SMALL)
  *   --scope lost_sales  with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries  with --write / --verify / --lock: only the deliveries and trucks tables (own cutover)
  *   --report <file>   write the full report (every problem, by id) as JSON

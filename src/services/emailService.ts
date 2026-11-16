@@ -199,14 +199,14 @@ export async function sendCheckInAlertEmail(checkIn: Loose) {
 // phone (letterheadFor in src/utils/locationForm.ts; without one it's the Kent
 // address). `showPrices` adds each material's Price / SF — always on for the
 // sales rep's automatic copy, the main button for a fabricator, only on
-// request for a home owner. `markUrl` is an absolute address of the gold mark
-// (public/favicon.png); without one only the name shows. Internal notes are
+// request for a home owner. `logoUrl` is an absolute address of the Easy Surfaces
+// logo (public/easy-surfaces-logo.png); without one only the name shows. Internal notes are
 // never in it.
 //
-// Dark mode (Outlook / Gmail on a phone repaint the email dark): the full logo
-// image has dark lettering that vanished there, so the email shows the gold
-// mark (transparent, reads on both) beside "EASY STONES" as text, which the
-// mail app recolours with everything else. Phones and emails are our own
+// Dark mode (Outlook / Gmail on a phone repaint the email dark): the logo's
+// dark lettering would vanish on a darkened card, so the picture carries its
+// own white ground (a white tile there, invisible on the light card) and one
+// file serves both. Phones and emails are our own
 // links in the text's colour — left alone, phones turn them blue and
 // underlined.
 //
@@ -214,11 +214,12 @@ export async function sendCheckInAlertEmail(checkIn: Loose) {
 // and built so a forward keeps it: the three people side by side while they
 // fit (two and one on a phone); each material is one row — number, material and price,
 // then Lot # / Slab # / Size (in), each under its own label — instead of a wide table that ran past a
-// phone's edge. Outlook for Windows ignores max-width, so it gets a fixed
-// 600px table in a conditional comment.
+// phone's edge. The card is a table with a width="600" attribute (plus
+// max-width / width: 100% for phones): a forward drops a div's max-width and
+// the card stretched to the whole reading pane (2026-11-15).
 const SHEET_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
 
-export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, markUrl = '' }: Loose = {}) {
+export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, logoUrl = '' }: Loose = {}) {
   // The day on the branch's own clock (the server runs on UTC).
   const date = checkIn.createdAt
     ? new Date(checkIn.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: checkInZone(checkIn.location) })
@@ -304,17 +305,14 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
   return `
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
     <tr><td align="center" style="padding: 0;">
-    <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-    <div style="max-width: 600px; margin: 0 auto; box-sizing: border-box; padding: 24px 20px; border: 1px solid #E3DED2; border-radius: 12px; background: #ffffff; font-family: ${SHEET_FONT}; color: #1F2328; text-align: left; line-height: 1.4;">
+    <table role="presentation" width="600" align="center" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 600px; border-collapse: separate; margin: 0 auto;"><tr>
+    <td align="left" style="padding: 24px 20px; border: 1px solid #E3DED2; border-radius: 12px; background: #ffffff; font-family: ${SHEET_FONT}; color: #1F2328; text-align: left; line-height: 1.4;">
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width: 100%; border-collapse: collapse;">
         <tr>
           <td style="vertical-align: bottom; padding: 0;">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
-              <tr>
-                ${markUrl ? `<td style="vertical-align: middle; padding: 0 8px 0 0;"><img src="${e(markUrl)}" alt="" width="20" height="26" style="display: block; width: 20px; height: 26px; border: 0;"></td>` : ''}
-                <td style="vertical-align: middle; padding: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.14em; color: #1F2328; white-space: nowrap;">EASY STONES</td>
-              </tr>
-            </table>
+            ${logoUrl
+              ? `<img src="${e(logoUrl)}" alt="Easy Surfaces" width="168" style="display: block; width: 168px; max-width: 100%; height: auto; border: 0; margin-left: -4px;">`
+              : '<div style="font-size: 13px; font-weight: 600; letter-spacing: 0.14em; color: #1F2328; white-space: nowrap;">EASY SURFACES</div>'}
           </td>
           <td style="vertical-align: bottom; padding: 0 0 0 12px; text-align: right;">
             <div style="font-size: 18px; font-weight: 700; color: #1F2328; white-space: nowrap;">Stone Selection</div>
@@ -357,19 +355,18 @@ export function selectionSheetEmailHtml(checkIn: Loose, letterhead: Loose = DEFA
           <td style="padding: 12px 0 0 0; vertical-align: top; text-align: right; white-space: nowrap; font-size: 12px; line-height: 1.6; color: #5B616B;">${phoneLink(doc.phone, '#5B616B')}</td>
         </tr>
       </table>
-    </div>
-    <!--[if mso]></td></tr></table><![endif]-->
+    </td></tr></table>
     </td></tr>
   </table>
   `;
 }
 
-export async function sendSelectionSheetEmail(checkIn: Loose, recipientEmail: string, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, markUrl = '' }: Loose = {}) {
+export async function sendSelectionSheetEmail(checkIn: Loose, recipientEmail: string, letterhead: Loose = DEFAULT_LETTERHEAD, { showPrices = false, logoUrl = '' }: Loose = {}) {
   const repEmail = String(checkIn.salesRepEmail || '').trim();
   return await sendEmail({
     to: recipientEmail,
-    subject: `Selection Sheet: ${checkIn.name}`,
-    html: selectionSheetEmailHtml(checkIn, letterhead, { showPrices, markUrl }),
+    subject: `🪨 Selection Sheet: ${checkIn.name}`,
+    html: selectionSheetEmailHtml(checkIn, letterhead, { showPrices, logoUrl }),
     // Sent as plain "Easy Stones" (owner, 2026-11-07); replies still go to the rep.
     defaultSenderName: SENDER_NAME,
     ...(checkIn.salesRep && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(repEmail) ? { replyTo: repEmail } : {})

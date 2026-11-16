@@ -17,13 +17,13 @@ const checkIn = {
     { material: 'ABSOLUTE BLACK', lot: '22001', details: '1, 2', size: '126x63', priceCentsPerSf: null }
   ]
 };
-const messageOf = async (opts: { showPrices?: boolean; markUrl?: string } = {}, record: typeof checkIn = checkIn) => {
+const messageOf = async (opts: { showPrices?: boolean; logoUrl?: string } = {}, record: typeof checkIn = checkIn) => {
   sendMail.mockClear();
   const result = await sendSelectionSheetEmail(record, 'to@example.com', undefined, opts);
   expect(result.success).toBe(true);
   return sendMail.mock.calls[0]![0];
 };
-const htmlOf = async (opts: { showPrices?: boolean; markUrl?: string } = {}) => (await messageOf(opts)).html;
+const htmlOf = async (opts: { showPrices?: boolean; logoUrl?: string } = {}) => (await messageOf(opts)).html;
 
 beforeAll(() => {
   delete process.env.SES_FROM_EMAIL;
@@ -81,13 +81,14 @@ describe('sendSelectionSheetEmail', () => {
     expect(html).toMatch(/<div style="display: inline-block; vertical-align: top; max-width: 100%; margin: 0 0px 14px 0;[^"]*"><table role="presentation" cellpadding[^>]*><tr><td[^>]*><div[^>]*>YOUR SALES REP/);
   });
 
-  // Dark mode repaints the email; the logo image's dark lettering vanished there.
-  it('shows the gold mark beside the name as text, so it reads in dark mode', async () => {
-    const html = await htmlOf({ markUrl: 'https://easystones.example/favicon.png' });
-    expect(html).toContain('<img src="https://easystones.example/favicon.png"');
-    expect(html).not.toContain('logo.png');
-    expect(html).toMatch(/>EASY STONES<\/td>/);
-    expect(await htmlOf()).not.toContain('<img');
+  // Dark mode repaints the email; the logo carries its own white ground so its lettering reads there.
+  it('shows the Easy Surfaces logo picture, else the name as text', async () => {
+    const html = await htmlOf({ logoUrl: 'https://easystones.example/easy-surfaces-logo.png' });
+    expect(html).toContain('<img src="https://easystones.example/easy-surfaces-logo.png" alt="Easy Surfaces" width="168"');
+    expect(html).not.toContain('EASY STONES');
+    const bare = await htmlOf();
+    expect(bare).not.toContain('<img');
+    expect(bare).toContain('>EASY SURFACES<');
   });
 
   // A phone app turned them blue; so did a forward, which ignores `color: inherit`.
@@ -112,9 +113,9 @@ describe('sendSelectionSheetEmail', () => {
     expect(html.match(/margin: 0 20px 14px 0;/g)).toHaveLength(2);
   });
 
-  it('is titled "Selection Sheet: <name>", from Easy Surfaces, replies to the rep', async () => {
+  it('is titled "🪨 Selection Sheet: <name>", from Easy Surfaces, replies to the rep', async () => {
     const message = await messageOf();
-    expect(message.subject).toBe('Selection Sheet: Pat Visitor');
+    expect(message.subject).toBe('🪨 Selection Sheet: Pat Visitor');
     expect(message.from?.name).toBe('Easy Surfaces');
     expect(message.replyTo).toBe('rita@x.com');
     const noRep = await messageOf({}, { ...checkIn, salesRep: '', salesRepEmail: 'old@x.com' });

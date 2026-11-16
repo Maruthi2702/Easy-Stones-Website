@@ -52,6 +52,7 @@ import DailyReport from './src/models/DailyReport.ts';
 import Location from './src/models/Location.ts';
 import * as staffData from './src/db/staff/index.ts';
 import ContactSubmission from './src/models/ContactSubmission.ts';
+import * as small from './src/db/small/index.ts';
 import Customer from './src/models/Customer.ts';
 import * as customerData from './src/db/customers/index.ts';
 const { resolveDuplicates, undoDuplicates } = customerData;
@@ -70,16 +71,14 @@ import { suppliersWritesPauseGate, suppliersWritesPaused } from './src/utils/sup
 import { settingsWritesPauseGate, settingsWritesPaused } from './src/utils/settingsWritesPause.ts';
 import { staffWritesPauseGate, staffWritesPaused } from './src/utils/staffWritesPause.ts';
 import { typesWritesPauseGate, typesWritesPaused } from './src/utils/typesWritesPause.ts';
+import { smallWritesPauseGate, smallWritesPaused } from './src/utils/smallWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
 import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
-import SalesResource from './src/models/SalesResource.ts';
-import SalesDashboardResource from './src/models/SalesDashboardResource.ts';
+import * as teamFiles from './src/db/teamFiles/index.ts';
 // Unified Model: Customer (now handles both Leads & Active Customers)
 import createLostSalesRouter from './src/routes/lostSales.ts';
-import CrossoverSheet from './src/models/CrossoverSheet.ts';
-import EasyStonesColor from './src/models/EasyStonesColor.ts';
 import { EASY_STONES_COLORS } from './src/data/easyStonesColors.ts';
 // The one list of "every model that needs its indexes created on startup" —
 // see its own comment for why this used to be two hand-maintained arrays
@@ -687,11 +686,7 @@ async function startServer() {
     // admin has since added, renamed, or removed via the Crossover Sheet's
     // manage-colors UI.
     try {
-      const colorCount = await EasyStonesColor.countDocuments();
-      if (colorCount === 0) {
-        await EasyStonesColor.insertMany(
-          EASY_STONES_COLORS.map((name, index) => ({ name, order: index }))
-        );
+      if (await small.seedColorsIfEmpty([...EASY_STONES_COLORS])) {
         console.log('✅ Easy Stones color catalog seeded successfully');
       }
     } catch (colorError) {
@@ -1182,6 +1177,8 @@ app.use(settingsWritesPauseGate);
 app.use(staffWritesPauseGate);
 // Type lists cutover pause (TYPES_WRITES_PAUSED=true): Visit / Resource Types and Families can't be saved (src/utils/typesWritesPause.ts).
 app.use(typesWritesPauseGate);
+// Cutover pause for the small ones (SMALL_WRITES_PAUSED=true): products, colours, crossovers, contact form, Team Files (src/utils/smallWritesPause.ts).
+app.use(smallWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -1232,7 +1229,7 @@ const loginLimiter = rateLimit({
 app.use('/api/products', createPublicProductsRouter({
   jwtSecret: JWT_SECRET,
   getProducts: async () => cacheHit('products')
-    || cachePut('products', await Product.find().sort({ id: -1 }).lean())
+    || cachePut('products', await small.listProducts())
 }));
 
 /**
@@ -2398,24 +2395,13 @@ app.post('/api/contact', async (req: Request, res: Response) => {
     }
 
     // Save to MongoDB
-    const contactSubmission = new ContactSubmission({
-      name,
-      company,
-      email,
-      phone,
-      message,
-      status: 'new',
-      emailSent: false
-    });
-
-    await contactSubmission.save();
+    const contactSubmission = await small.createContact({ name, company, email, phone, message });
     console.log('📧 Contact form saved to database:', contactSubmission._id);
 
     // Try to send email alert
     const emailSentSuccessfully = await sendContactFormEmail(contactSubmission);
     if (emailSentSuccessfully) {
-      contactSubmission.emailSent = true;
-      await contactSubmission.save();
+      await small.markContactEmailSent(String(contactSubmission._id));
     }
 
     // Always return success - the form submission is logged
@@ -3164,16 +3150,11 @@ app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view
   const requestQuery = scalarQuery(req);
   try {
     const { parentId } = requestQuery;
-    const query = parentId ? { parentId } : { parentId: null };
 
 
     // Also support getting ALL resources if specifically requested (for search maybe?) - avoiding for now to keep simple
-    const resources = await SalesDashboardResource.find(query)
-      .select('-content')
-      .populate('uploadedBy', 'username') // Populate username
-      .sort({ isFolder: -1, createdAt: -1 }); // Folders first, exclude content
-
-    res.json(resources);
+    // Folders first, newest first, without the content; each with its uploader's username.
+    res.json(await teamFiles.listResources(parentId ? String(parentId) : null));
   } catch (error) {
     console.error('❌ Error fetching dashboard resources:', error);
     res.status(500).json({ message: 'Failed to fetch dashboard resources' });
@@ -3184,7 +3165,7 @@ app.get('/api/sales-dashboard/resources', verifyAnyAuth, requirePermission('view
 app.get('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('view_dashboard'), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
-    const resource = await SalesDashboardResource.findById(requestParams.id).populate('uploadedBy', 'username');
+    const resource = await teamFiles.getResource(String(requestParams.id));
     if (!resource) {
       return res.status(404).json({ message: 'Resource not found' });
     }
@@ -3241,7 +3222,7 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_d
       return res.status(400).json({ message: 'Invalid resource data' });
     }
 
-    const newResource = new SalesDashboardResource({
+    const newResource = await teamFiles.createResource({
       name,
       type: isFolder === 'true' || isFolder === true ? 'folder' : type,
       content,
@@ -3252,12 +3233,6 @@ app.post('/api/sales-dashboard/upload', verifyAnyAuth, requirePermission('view_d
       uploadedBy: req.userId, // Save the user who uploaded/created
       createdAt: getNowLocalISO()
     });
-
-    
-    await newResource.save();
-
-    // Populate before returning
-    await newResource.populate('uploadedBy', 'username');
     req.app.get('io').emit('resource_update');
     res.status(201).json(newResource);
   } catch (error) {
@@ -3273,17 +3248,18 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
     const { id } = requestParams;
     const { name, type, content: linkContent, parentId, thumbnail } = req.body;
 
-    const resource = await SalesDashboardResource.findById(id);
+    const resource = await teamFiles.getResource(String(id));
     if (!resource) {
       return res.status(404).json({ message: 'Resource not found' });
     }
 
-    if (name) resource.name = name;
-    if (parentId !== undefined) resource.parentId = parentId || null;
+    const patch: Loose = {};
+    if (name) patch.name = name;
+    if (parentId !== undefined) patch.parentId = parentId || null;
 
     // Update modified by
     if (req.userId) {
-      resource.uploadedBy = new mongoose.Types.ObjectId(req.userId);
+      patch.uploadedBy = req.userId;
     }
 
     // If a new file is uploaded
@@ -3307,26 +3283,26 @@ app.put('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermission('
       if (isImage) {
 
         const result = await uploadFile(req.file!.buffer, 'Resources', `res_${uniqueSuffix}`);
-        resource.content = result.url;
-        resource.contentType = 'image/webp';
+        patch.content = result.url;
+        patch.contentType = 'image/webp';
       } else {
         filename = `${path.basename(req.file.originalname, path.extname(req.file.originalname)).replace(/[^a-zA-Z0-9]/g, '_')}_${uniqueSuffix}${path.extname(req.file.originalname)}`;
-        resource.contentType = req.file.mimetype;
+        patch.contentType = req.file.mimetype;
 
         const filePath = path.join(uploadDir, filename);
         fs.writeFileSync(filePath, req.file!.buffer);
-        resource.content = `/uploads/resources/${filename}`;
+        patch.content = `/uploads/resources/${filename}`;
       }
     } else if (type === 'link' && linkContent) {
-      resource.content = linkContent;
-      resource.contentType = 'text/uri-list';
+      patch.content = linkContent;
+      patch.contentType = 'text/uri-list';
     }
 
-    if (thumbnail) resource.thumbnail = thumbnail;
+    if (thumbnail) patch.thumbnail = thumbnail;
 
-    await resource.save();
+    const saved = await teamFiles.updateResource(String(id), patch);
     req.app.get('io').emit('resource_update');
-    res.json(resource);
+    res.json(saved);
   } catch (error) {
     console.error('Error updating dashboard resource:', error);
     res.status(500).json({ message: 'Failed to update resource' });
@@ -3338,42 +3314,20 @@ app.delete('/api/sales-dashboard/resources/:id', verifyAnyAuth, requirePermissio
   const requestParams = scalarParams(req);
   try {
     const resourceId = requestParams.id;
-    const resource = await SalesDashboardResource.findById(resourceId);
+    const resource = await teamFiles.getResource(String(resourceId));
 
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
-    if (resource.isFolder) {
-      // Recursive delete: Find all children and delete them
-      // Note: For deep nesting, this should be recursive function, but 
-      // typically MongoDB $graphLookup or separate logic is used. 
-      // For simplicity, we'll just delete direct children or use a recursive function.
-      // Let's implement a helper function for recursive delete.
-
-      const deleteFolderContents = async (folderId: string | mongoose.Types.ObjectId) => {
-        const children = await SalesDashboardResource.find({ parentId: folderId });
-        for (const child of children) {
-          if (child.isFolder) {
-            await deleteFolderContents(child._id);
-          } else if (child.content && child.content.startsWith('/uploads/')) {
-            // Delete file from disk
-            const filePath = path.join(__dirname, 'public', child.content);
-            if (fs.existsSync(filePath)) {
-              try { fs.unlinkSync(filePath); } catch { /* not fatal — carry on */ }
-            }
-          }
-          await SalesDashboardResource.findByIdAndDelete(child._id);
+    // The records go (a folder takes everything inside it); then any file we stored on disk.
+    for (const content of await teamFiles.removeResourceTree(String(resourceId))) {
+      if (content.startsWith('/uploads/')) {
+        const filePath = path.join(__dirname, 'public', content);
+        if (fs.existsSync(filePath)) {
+          try { fs.unlinkSync(filePath); } catch { /* not fatal — carry on */ }
         }
-      };
-      await deleteFolderContents(resourceId);
-    } else if (resource.content && resource.content.startsWith('/uploads/')) {
-      // Delete file from disk
-      const filePath = path.join(__dirname, 'public', resource.content);
-      if (fs.existsSync(filePath)) {
-        try { fs.unlinkSync(filePath); } catch { /* not fatal — carry on */ }
       }
     }
 
-    await SalesDashboardResource.findByIdAndDelete(resourceId);
     req.app.get('io').emit('resource_update');
     res.json({ message: 'Resource deleted successfully' });
   } catch (error) {
@@ -4424,11 +4378,7 @@ app.use('/api/inventory-analysis', createInventoryAnalysisRouter({
 // Admin: Get lightweight product list (names only)
 app.get('/api/admin/products/list', verifyToken, requireSalesPage, async (req: Request, res: Response) => {
   try {
-    const products = await Product.find()
-      .select('id name category collection availability image') // Include image for sidebar thumbnails
-      .lean()
-      .sort({ id: -1 });
-    res.json(products);
+    res.json(await small.listProductNames()); // Includes image for sidebar thumbnails
   } catch (error) {
     console.error('Error fetching product list:', error);
     res.status(500).json({ message: 'Failed to fetch product list' });
@@ -4439,7 +4389,7 @@ app.get('/api/admin/products/list', verifyToken, requireSalesPage, async (req: R
 app.get('/api/admin/products/:id', verifyToken, authorize('admin'), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
-    const product = await Product.findOne({ id: parseInt(String(requestParams.id)) });
+    const product = await small.getProduct(parseInt(String(requestParams.id)));
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
@@ -4519,195 +4469,69 @@ app.use('/api/lost-sales', createLostSalesRouter({ verifyAnyAuth }));
 // GET /api/crossover-sheet: Fetch all crossover entries
 app.get('/api/crossover-sheet', authenticate, requirePermission('view_crossover_sheet'), async (req: Request, res: Response) => {
   try {
-    const list = await CrossoverSheet.find().sort({ easyStonesName: 1 }).lean();
-    res.json(list);
+    res.json(await small.listCrossovers());
   } catch (error) {
     console.error('Error fetching crossover sheet:', error);
     res.status(500).json({ message: 'Failed to fetch crossover sheet' });
   }
 });
 
-// Resolves a typed Easy Stones name to its canonical stored casing —
-// preferring whatever casing is already on an existing CrossoverSheet
-// document (what's already on the matrix), then the color catalog's
-// casing, then the typed casing as a last resort for a genuinely new/
-// custom name. Without this, "enigma" vs "Enigma" would silently fork
-// into two documents for the same real color — the exact failure mode
-// that motivated moving this list into the database in the first place.
-async function resolveCanonicalEasyStonesName(rawName: string, session: mongoose.ClientSession | null = null) {
-  const regex = { $regex: `^${escapeRegex(rawName)}$`, $options: 'i' };
-  let existingQuery = CrossoverSheet.findOne({ easyStonesName: regex }, { easyStonesName: 1 });
-  if (session) existingQuery = existingQuery.session(session);
-  const [existingDoc, catalogColor] = await Promise.all([
-    existingQuery.lean(),
-    EasyStonesColor.findOne({ name: regex }, { name: 1 }).lean()
-  ]);
-  return existingDoc?.easyStonesName || catalogColor?.name || rawName;
-}
-
-// True if one of `crossovers` already maps the same distributor + distributor
-// color name (case-insensitive), so the same real mapping can't be added
-// twice as duplicate chips in one matrix cell. `excludeId` skips the
-// subdocument being edited in place, so saving it unchanged isn't flagged
-// as a duplicate of itself.
-function hasDuplicateMapping(crossovers: { _id?: unknown; distributorName: string; distributorColorName: string }[] | undefined, distributorName: string, distributorColorName: string, excludeId?: string | mongoose.Types.ObjectId | null) {
-  const dName = distributorName.toLowerCase();
-  const dColor = distributorColorName.toLowerCase();
-  return (crossovers || []).some(c =>
-    (!excludeId || String(c._id) !== String(excludeId)) &&
-    c.distributorName.toLowerCase() === dName &&
-    c.distributorColorName.toLowerCase() === dColor
-  );
-}
-
-// POST /api/crossover-sheet: Add a distributor mapping to a color's document,
-// creating that color's document if this is its first mapping. Upsert+$push
-// is one atomic operation, so two requests simultaneously adding the first
-// mapping for the same color can't create duplicate color documents. (The
-// duplicate-mapping check just above this is a separate, non-atomic
-// check-then-act — an acceptable gap at this app's scale, since it only
-// matters if two people add the exact same mapping within milliseconds of
-// each other.)
+// POST /api/crossover-sheet: Add a distributor mapping to a color's document, creating that color's document if this is its
+// first mapping. The typed name takes the casing already on the matrix, then the catalog's, so "enigma" and "Enigma" never
+// fork into two documents (src/db/small/).
 app.post('/api/crossover-sheet', authenticate, requirePermission('add_crossover_sheet'), async (req: Request, res: Response) => {
   try {
     const rawName = (req.body.easyStonesName || '').trim();
-    const distributorName = (req.body.distributorName || '').trim();
-    const distributorColorName = (req.body.distributorColorName || '').trim();
     if (!rawName) {
       return res.status(400).json({ message: 'Easy Stones crossover name is required' });
     }
-
-    const easyStonesName = await resolveCanonicalEasyStonesName(rawName);
-
-    const existingDoc = await CrossoverSheet.findOne({ easyStonesName }, { crossovers: 1 }).lean();
-    if (hasDuplicateMapping(existingDoc?.crossovers, distributorName, distributorColorName)) {
-      return res.status(409).json({ message: 'This distributor mapping already exists for this color' });
-    }
-
-    const crossoverEntry = {
-      distributorName,
-      distributorColorName,
+    const result = await small.addMapping(rawName, {
+      distributorName: (req.body.distributorName || '').trim(),
+      distributorColorName: (req.body.distributorColorName || '').trim(),
       matchType: req.body.matchType || 'Similar',
       notes: req.body.notes || '',
       addedByName: req.user?.displayName || req.user?.contactName || 'Sales Rep',
       addedById: req.user?.id || null
-    };
-
-    const colorDoc = await CrossoverSheet.findOneAndUpdate(
-      { easyStonesName },
-      { $push: { crossovers: crossoverEntry } },
-      { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true }
-    );
-
+    });
+    if (result.body === undefined) return res.status(result.status).json({ message: result.message });
     req.app.get('io')?.emit('crossover_sheet_update');
-    res.status(201).json(colorDoc);
+    res.status(201).json(result.body);
   } catch (error) {
     console.error('Error creating crossover entry:', error);
     res.status(500).json({ message: 'Failed to create crossover entry', error: (error as Error).message });
   }
 });
 
-// PUT /api/crossover-sheet/:colorId/:crossoverId: Update one distributor
-// mapping. If the edit changes which Easy Stones color it belongs to, the
-// subdocument has to move from one color's document to another's (creating
-// the destination document if it doesn't exist yet, and deleting the source
-// document if that was its last mapping) — done in a transaction so a
-// failure partway through can't delete the mapping from one document
-// without it landing in the other.
+// PUT /api/crossover-sheet/:colorId/:crossoverId: Update one distributor mapping. An edit that changes which Easy Stones
+// color it belongs to moves it between color documents in one transaction (src/db/small/).
 app.put('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('edit_crossover_sheet'), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   const { colorId, crossoverId } = requestParams;
-  const rawNewName = (req.body.easyStonesName || '').trim();
-  const fields = {
-    distributorName: (req.body.distributorName || '').trim(),
-    distributorColorName: (req.body.distributorColorName || '').trim(),
-    matchType: req.body.matchType,
-    notes: req.body.notes || ''
-  };
-
-  const session = await mongoose.startSession();
   try {
-    session.startTransaction();
-
-    const colorDoc = await CrossoverSheet.findById(colorId).session(session);
-    const entry = colorDoc?.crossovers.id(crossoverId);
-    if (!colorDoc || !entry) {
-      await session.abortTransaction();
-      return res.status(404).json({ message: 'Crossover entry not found' });
-    }
-
-    const newEasyStonesName = rawNewName
-      ? await resolveCanonicalEasyStonesName(rawNewName, session)
-      : colorDoc.easyStonesName;
-    const moved = newEasyStonesName !== colorDoc.easyStonesName;
-
-    let colorDocResult!: Loose;
-    if (moved) {
-      const destDoc = await CrossoverSheet.findOne({ easyStonesName: newEasyStonesName }).session(session);
-      if (hasDuplicateMapping(destDoc?.crossovers, fields.distributorName, fields.distributorColorName)) {
-        await session.abortTransaction();
-        return res.status(409).json({ message: 'This distributor mapping already exists for the destination color' });
-      }
-
-      const movedEntry = { ...entry.toObject(), ...fields };
-      entry.deleteOne();
-      if (colorDoc.crossovers.length === 0) {
-        await CrossoverSheet.findByIdAndDelete(colorId, { session });
-      } else {
-        await colorDoc.save({ session });
-      }
-
-      colorDocResult = await CrossoverSheet.findOneAndUpdate(
-        { easyStonesName: newEasyStonesName },
-        { $push: { crossovers: movedEntry } },
-        { new: true, upsert: true, setDefaultsOnInsert: true, session }
-      );
-    } else {
-      if (hasDuplicateMapping(colorDoc.crossovers, fields.distributorName, fields.distributorColorName, crossoverId)) {
-        await session.abortTransaction();
-        return res.status(409).json({ message: 'This distributor mapping already exists for this color' });
-      }
-      Object.assign(entry, fields);
-      await colorDoc.save({ session });
-      colorDocResult = colorDoc;
-    }
-
-    await session.commitTransaction();
+    const result = await small.editMapping(String(colorId), String(crossoverId), (req.body.easyStonesName || '').trim(), {
+      distributorName: (req.body.distributorName || '').trim(),
+      distributorColorName: (req.body.distributorColorName || '').trim(),
+      matchType: req.body.matchType,
+      notes: req.body.notes || ''
+    });
+    if (result.body === undefined) return res.status(result.status).json({ message: result.message });
     req.app.get('io')?.emit('crossover_sheet_update');
-    // `moved`/`sourceColorId` let the frontend patch its cached color docs
-    // locally (drop the entry from the old color's doc, upsert the new one)
-    // instead of refetching the whole crossover sheet after every edit.
-    res.json({ moved, sourceColorId: colorId, colorDoc: colorDocResult });
+    // `moved`/`sourceColorId` let the frontend patch its cached color docs locally instead of refetching the whole sheet.
+    res.json(result.body);
   } catch (error) {
-    await session.abortTransaction().catch(() => {});
     console.error('Error updating crossover entry:', error);
     res.status(500).json({ message: 'Failed to update crossover entry', error: (error as Error).message });
-  } finally {
-    session.endSession();
   }
 });
 
-// DELETE /api/crossover-sheet/:colorId/:crossoverId: Remove one distributor
-// mapping. Deletes the color's document too if that was its last mapping —
-// an empty color document isn't needed for the matrix's empty-row seeding,
-// that comes from the separate EasyStonesColor catalog now.
+// DELETE /api/crossover-sheet/:colorId/:crossoverId: Remove one distributor mapping (and the color's document with its last one).
 app.delete('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePermission('delete_crossover_sheet'), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
     const { colorId, crossoverId } = requestParams;
-    const colorDoc = await CrossoverSheet.findById(colorId);
-    const entry = colorDoc?.crossovers.id(crossoverId);
-    if (!colorDoc || !entry) {
+    if (!await small.deleteMapping(String(colorId), String(crossoverId))) {
       return res.status(404).json({ message: 'Crossover entry not found' });
     }
-
-    entry.deleteOne();
-    if (colorDoc.crossovers.length === 0) {
-      await CrossoverSheet.findByIdAndDelete(colorId);
-    } else {
-      await colorDoc.save();
-    }
-
     req.app.get('io')?.emit('crossover_sheet_update');
     res.json({ success: true, message: 'Crossover entry deleted successfully' });
   } catch (error) {
@@ -4716,36 +4540,25 @@ app.delete('/api/crossover-sheet/:colorId/:crossoverId', authenticate, requirePe
   }
 });
 
-// GET /api/easy-stones-colors: List the Easy Stones color catalog used to
-// seed the Crossover Sheet matrix. Same audience as the sheet itself.
+// GET /api/easy-stones-colors: List the Easy Stones color catalog used to seed the Crossover Sheet matrix.
 app.get('/api/easy-stones-colors', authenticate, requirePermission('view_crossover_sheet'), async (req: Request, res: Response) => {
   try {
-    const colors = await EasyStonesColor.find().sort({ order: 1 }).lean();
-    res.json(colors);
+    res.json(await small.listColors());
   } catch (error) {
     console.error('Error fetching Easy Stones colors:', error);
     res.status(500).json({ message: 'Failed to fetch Easy Stones colors' });
   }
 });
 
-// POST /api/easy-stones-colors: Add a color to the catalog. Gated by a
-// dedicated permission (not a hardcoded admin/director role check) since
-// this list is shared across every rep's Crossover Sheet, not a per-entry
-// edit — see the 'manage_easy_stones_colors' grant in the role seed above.
+// POST /api/easy-stones-colors: Add a color to the catalog ('manage_easy_stones_colors': the list is shared by every rep's sheet).
 app.post('/api/easy-stones-colors', authenticate, requirePermission('manage_easy_stones_colors'), async (req: Request, res: Response) => {
   try {
     const name = (req.body.name || '').trim();
     if (!name) {
       return res.status(400).json({ message: 'Color name is required' });
     }
-
-    const existing = await EasyStonesColor.findOne({ name: { $regex: `^${escapeRegex(name)}$`, $options: 'i' } });
-    if (existing) {
-      return res.status(409).json({ message: 'That color is already in the catalog' });
-    }
-
-    const highest = await EasyStonesColor.findOne().sort({ order: -1 }).lean();
-    const color = await EasyStonesColor.create({ name, order: (highest?.order ?? -1) + 1 });
+    const color = await small.addColor(name);
+    if (color === 'exists') return res.status(409).json({ message: 'That color is already in the catalog' });
     req.app.get('io')?.emit('easy_stones_colors_update');
     res.status(201).json(color);
   } catch (error) {
@@ -4754,9 +4567,7 @@ app.post('/api/easy-stones-colors', authenticate, requirePermission('manage_easy
   }
 });
 
-// PUT /api/easy-stones-colors/:id: Rename a catalog color. Renaming does not
-// touch existing Crossover Sheet entries pointing at the old name — see the
-// note on the frontend's manage-colors modal before assuming otherwise.
+// PUT /api/easy-stones-colors/:id: Rename a catalog color. Existing Crossover Sheet entries keep the old name.
 app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
@@ -4764,12 +4575,7 @@ app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_e
     if (!name) {
       return res.status(400).json({ message: 'Color name is required' });
     }
-
-    const updated = await EasyStonesColor.findByIdAndUpdate(
-      requestParams.id,
-      { name },
-      { new: true, runValidators: true }
-    );
+    const updated = await small.renameColor(String(requestParams.id), name);
     if (!updated) {
       return res.status(404).json({ message: 'Color not found' });
     }
@@ -4781,15 +4587,11 @@ app.put('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_e
   }
 });
 
-// DELETE /api/easy-stones-colors/:id: Remove a color from the catalog. This
-// only stops it being auto-seeded as an empty matrix row — any Crossover
-// Sheet entries already pointing at its name are left as-is (they'll sort to
-// the bottom as "not in the catalog," same as a misspelled name today).
+// DELETE /api/easy-stones-colors/:id: Remove a color from the catalog (entries pointing at its name are left as they are).
 app.delete('/api/easy-stones-colors/:id', authenticate, requirePermission('manage_easy_stones_colors'), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
-    const deleted = await EasyStonesColor.findByIdAndDelete(requestParams.id);
-    if (!deleted) {
+    if (!await small.deleteColor(String(requestParams.id))) {
       return res.status(404).json({ message: 'Color not found' });
     }
     req.app.get('io')?.emit('easy_stones_colors_update');
@@ -4969,34 +4771,7 @@ app.post('/api/products/save', verifyToken, requireSalesPage, async (req: Reques
       return res.status(400).json({ error: 'Invalid products data' });
     }
 
-    // Bulk write operations
-    // Bulk write operations
-    const operations = products.map(product => {
-      // Remove _id and __v to prevent "immutable field" errors during update
-      const { _id, __v, ...productData } = product;
-
-      // Map 'collection' to 'collectionType' for the schema
-      if (productData.collection) {
-        productData.collectionType = productData.collection;
-        delete productData.collection; // Remove the original to avoid conflicts
-      }
-
-      return {
-        updateOne: {
-          filter: { id: product.id },
-          update: { $set: productData },
-          upsert: true
-        }
-      };
-    });
-
-    if (operations.length > 0) {
-      await Product.bulkWrite(operations);
-    }
-
-    // Optional: Delete products not in the list if you want strict sync
-    // const ids = products.map(p => p.id);
-    // await Product.deleteMany({ id: { $nin: ids } });
+    await small.saveProducts(products);
 
     res.json({ success: true, message: 'Products saved successfully' });
   } catch (error) {
@@ -5013,18 +4788,7 @@ app.post('/api/products/save', verifyToken, requireSalesPage, async (req: Reques
 // one-off/introspection routes in this file (see /api/sales-resources).
 app.post('/api/migrate-collection', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
   try {
-    const products = await Product.find({});
-    let updated = 0;
-
-    for (const product of products) {
-      // If collectionType is missing but we have the data in the request or can infer it
-      const legacyCollection: unknown = product.get('collection');
-      if (!product.collectionType && typeof legacyCollection === 'string' && legacyCollection) {
-        product.collectionType = legacyCollection;
-        await product.save();
-        updated++;
-      }
-    }
+    const updated = await small.fillCollectionTypes();
 
     console.log(`✅ Migration complete: Updated ${updated} products`);
     res.json({ success: true, message: `Updated ${updated} products with collectionType` });
@@ -5050,8 +4814,7 @@ app.post('/api/migrate-collection', verifyToken, authorize('admin'), async (req:
 // Get all sales resources
 app.get('/api/sales-resources', verifyToken, authorize('admin'), async (req: Request, res: Response) => {
   try {
-    const resources = await SalesResource.find().sort({ createdAt: -1 });
-    res.json(resources);
+    res.json(await small.listSalesResources());
   } catch (error) {
     console.error('Error fetching sales resources:', error);
     res.status(500).json({ message: 'Failed to fetch resources' });
@@ -5064,15 +4827,7 @@ app.post('/api/sales-resources', verifyToken, authorize('admin'), async (req: Re
   try {
     const { name, type, content, contentType } = req.body;
 
-    const resource = new SalesResource({
-      name,
-      type,
-      content,
-      contentType,
-      uploadedBy: req.userId
-    });
-
-    await resource.save();
+    const resource = await small.createSalesResource({ name, type, content, contentType, uploadedBy: req.userId });
     req.app.get('io').emit('resource_update');
     res.status(201).json(resource);
   } catch (error) {
@@ -5086,7 +4841,7 @@ app.delete('/api/sales-resources/:id', verifyToken, authorize('admin'), validate
   const requestParams = scalarParams(req);
   try {
     const { id } = requestParams;
-    await SalesResource.findByIdAndDelete(id);
+    await small.deleteSalesResource(String(id));
     req.app.get('io').emit('resource_update');
     res.json({ message: 'Resource deleted successfully' });
   } catch (error) {
@@ -5138,6 +4893,8 @@ app.get('/api/health', async (req: Request, res: Response) => {
     suppliersWritesPaused: suppliersWritesPaused(),
     settingsOn: areasOnPostgres().includes('settings') ? 'postgres' : 'mongo',
     settingsWritesPaused: settingsWritesPaused(),
+    smallOn: areasOnPostgres().includes('small') ? 'postgres' : 'mongo',
+    smallWritesPaused: smallWritesPaused(),
     dailyReportsWritesPaused: dailyReportsWritesPaused(),
     cardReceiptsOn: areasOnPostgres().includes('card_receipts') ? 'postgres' : 'mongo',
     cardReceiptsWritesPaused: cardReceiptsWritesPaused(),

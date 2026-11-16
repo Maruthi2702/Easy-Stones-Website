@@ -17,6 +17,7 @@
  *   --scope settings    with --write / --verify / --lock: app settings and three archive tables (DB_SETTINGS)
  *   --scope staff       with --write / --verify / --lock: Users, Roles and Locations (DB_STAFF). --write is an IN-PLACE sync (everything points at these tables, so never a truncating copy); --verify ignores sign-in counters and online stamps
  *   --scope types       with --write / --verify / --lock: Visit Types, Resource Types and Families (DB_TYPES). --write is an IN-PLACE sync (customers' records point at them by name), like staff
+ *   --scope small       with --write / --verify / --lock: products, colours, crossovers, contact form, Team Files, sales resources (DB_SMALL)
  *   --scope lost_sales   with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries   with --write / --verify / --lock: only the deliveries and trucks tables (its own cutover; customers stay untouched)
  *   node scripts/pg-copy-aws.ts --lock "name"        at cutover: refuse every copy from now on
