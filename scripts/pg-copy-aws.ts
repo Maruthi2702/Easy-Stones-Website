@@ -16,6 +16,7 @@
  *   --scope suppliers   with --write / --verify / --lock: suppliers, their logins, POs and blocks with their history (DB_SUPPLIERS)
  *   --scope settings    with --write / --verify / --lock: app settings and three archive tables (DB_SETTINGS)
  *   --scope staff       with --write / --verify / --lock: Users, Roles and Locations (DB_STAFF). --write is an IN-PLACE sync (everything points at these tables, so never a truncating copy); --verify ignores sign-in counters and online stamps
+ *   --scope types       with --write / --verify / --lock: Visit Types, Resource Types and Families (DB_TYPES). --write is an IN-PLACE sync (customers' records point at them by name), like staff
  *   --scope lost_sales   with --write / --verify / --lock: only the lost_sales table (its own cutover)
  *   --scope deliveries   with --write / --verify / --lock: only the deliveries and trucks tables (its own cutover; customers stay untouched)
  *   node scripts/pg-copy-aws.ts --lock "name"        at cutover: refuse every copy from now on
@@ -88,7 +89,7 @@ async function run(what: CopyAction): Promise<CopyResult> {
   const bucket = fnConfig.Environment?.Variables?.COPY_BUCKET;
   if (!bucket) throw new Error(`${functionName} has no COPY_BUCKET: is the aws-infra database stack deployed?`);
   const runId = `${new Date().toISOString().replace(/[:.]/g, '-')}-${what}`;
-  const event: CopyEvent = { action: what, runId, ...(valueOf('--scope') === 'customers' || valueOf('--scope') === 'staff' || isCopyArea(valueOf('--scope')) ? { scope: valueOf('--scope') as 'customers' | 'staff' | CopyArea } : {}) };
+  const event: CopyEvent = { action: what, runId, ...(valueOf('--scope') === 'customers' || valueOf('--scope') === 'staff' || valueOf('--scope') === 'types' || isCopyArea(valueOf('--scope')) ? { scope: valueOf('--scope') as 'customers' | 'staff' | 'types' | CopyArea } : {}) };
   let snapshotKey: string | undefined;
   try {
     if (what === 'lock') {

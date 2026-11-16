@@ -7,7 +7,7 @@ import { ObjectId } from 'mongodb';
 import mongoose from 'mongoose';
 import { openWriteParity, type WriteParity } from '../customers/writes/writeParity.ts';
 import { readMongo } from '../copy/readMongo.ts';
-import { verifyCopy, syncStaffFromMongo, lockArea, AreaLockedError } from '../copy/plan.ts';
+import { verifyCopy, syncStaffFromMongo, syncTypesFromMongo, lockArea, AreaLockedError } from '../copy/plan.ts';
 import { syncReference } from './syncReference.ts';
 import { readReference, startReferenceSync, type ReferenceSyncHandle } from './referenceSync.ts';
 import * as S from '../schema/index.ts';
@@ -157,5 +157,50 @@ describe('the staff cutover', () => {
     expect(users.find(u => u.username === 'cutover')?.displayName).toBe('Edited on Postgres');
     expect(users.some(u => u.username === 'mongo-only')).toBe(false);
     expect((await t.pg.db.select().from(S.visitTypes)).some(v => v.name === 'Video Call')).toBe(true);
+  });
+});
+
+describe('the type lists cutover', () => {
+  it('syncs the lists in place without touching staff; verify (types) is clean; a lock refuses', async () => {
+    await t.resync();
+    const db = mongo();
+    await db.collection('visittypes').insertOne({ _id: oid(), name: 'Site Walk', label: 'Site walk', order: 9, active: true, system: false, fields: { notes: true, outcome: true, followUp: 'optional' } });
+    await db.collection('visittypes').updateOne({ name: 'Showroom Visit' }, { $set: { label: 'Showroom (edited)' } });
+    await db.collection('users').updateOne({ username: 'rae' }, { $set: { displayName: 'Changed on Mongo only' } });
+    await t.pg.db.update(S.users).set({ displayName: 'Held by Postgres' }).where(eq(S.users.username, 'rae'));
+    const src = await readMongo(t.uri, 'types-cutover');
+
+    const dry = await syncTypesFromMongo(t.pg.db, src, { write: false });
+    expect(dry.tables.visit_types).toBeGreaterThan(0);
+    expect((await verifyCopy(t.pg.db, src, 20, { scope: 'types' })).length).toBeGreaterThan(0);   // nothing was written
+
+    await syncTypesFromMongo(t.pg.db, src, { write: true });
+    expect(await verifyCopy(t.pg.db, src, 20, { scope: 'types' })).toEqual([]);
+    expect((await t.pg.db.select().from(S.users).where(eq(S.users.username, 'rae')))[0]!.displayName).toBe('Held by Postgres');
+
+    await lockArea(t.pg.db, 'types', 'test');
+    await expect(syncTypesFromMongo(t.pg.db, src, { write: true })).rejects.toBeInstanceOf(AreaLockedError);
+  });
+
+  it('the staff cutover sync leaves the type lists alone, so either can move first', async () => {
+    await t.pg.db.update(S.mongoCopyState).set({ lockedAreas: [] });   // earlier tests locked areas
+    await t.resync();
+    const db = mongo();
+    await t.pg.db.update(S.visitTypes).set({ label: 'Edited on Postgres' }).where(eq(S.visitTypes.name, 'Showroom Visit'));
+    await db.collection('users').updateOne({ username: 'rae' }, { $set: { displayName: 'Rae Final' } });
+    await syncStaffFromMongo(t.pg.db, await readMongo(t.uri, 'staff-first'), { write: true });
+    expect((await t.pg.db.select().from(S.visitTypes).where(eq(S.visitTypes.name, 'Showroom Visit')))[0]!.label).toBe('Edited on Postgres');
+    expect((await t.pg.db.select().from(S.users).where(eq(S.users.username, 'rae')))[0]!.displayName).toBe('Rae Final');
+  });
+
+  it('with types on Postgres the running sync leaves them alone and still follows staff', async () => {
+    await t.resync();
+    const db = mongo();
+    await t.pg.db.update(S.visitTypes).set({ label: 'Held by Postgres' }).where(eq(S.visitTypes.name, 'Showroom Visit'));
+    await db.collection('visittypes').updateOne({ name: 'Showroom Visit' }, { $set: { label: 'Stale on Mongo' } });
+    await db.collection('users').updateOne({ username: 'rae' }, { $set: { displayName: 'Follows staff' } });
+    await syncReference(t.pg.db, await readReference(db), { types: false });
+    expect((await t.pg.db.select().from(S.visitTypes).where(eq(S.visitTypes.name, 'Showroom Visit')))[0]!.label).toBe('Held by Postgres');
+    expect((await t.pg.db.select().from(S.users).where(eq(S.users.username, 'rae')))[0]!.displayName).toBe('Follows staff');
   });
 });

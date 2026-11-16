@@ -69,6 +69,7 @@ import { fuelmanWritesPauseGate, fuelmanWritesPaused } from './src/utils/fuelman
 import { suppliersWritesPauseGate, suppliersWritesPaused } from './src/utils/suppliersWritesPause.ts';
 import { settingsWritesPauseGate, settingsWritesPaused } from './src/utils/settingsWritesPause.ts';
 import { staffWritesPauseGate, staffWritesPaused } from './src/utils/staffWritesPause.ts';
+import { typesWritesPauseGate, typesWritesPaused } from './src/utils/typesWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
@@ -1179,6 +1180,8 @@ app.use(suppliersWritesPauseGate);
 app.use(settingsWritesPauseGate);
 // Staff cutover pause (STAFF_WRITES_PAUSED=true): users, roles, locations and passwords can't be saved (src/utils/staffWritesPause.ts).
 app.use(staffWritesPauseGate);
+// Type lists cutover pause (TYPES_WRITES_PAUSED=true): Visit / Resource Types and Families can't be saved (src/utils/typesWritesPause.ts).
+app.use(typesWritesPauseGate);
 
 app.use('/api', apiLimiter);
 
@@ -5139,7 +5142,9 @@ app.get('/api/health', async (req: Request, res: Response) => {
     cardReceiptsOn: areasOnPostgres().includes('card_receipts') ? 'postgres' : 'mongo',
     cardReceiptsWritesPaused: cardReceiptsWritesPaused(),
     staffOn: areasOnPostgres().includes('staff') ? 'postgres' : 'mongo',
-    staffWritesPaused: staffWritesPaused()
+    staffWritesPaused: staffWritesPaused(),
+    typesOn: areasOnPostgres().includes('types') ? 'postgres' : 'mongo',
+    typesWritesPaused: typesWritesPaused()
   });
 });
 

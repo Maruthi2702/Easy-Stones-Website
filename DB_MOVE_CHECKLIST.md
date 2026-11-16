@@ -250,6 +250,12 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - [ ] Owner's local click-through with `DB_STAFF=postgres` (sign in, 5 wrong passwords lock, Users & Roles add / edit / deactivate / unlock, temp password + invite link, Roles, Locations, a hold at a branch added after the copy)
   - [ ] **Cutover (owner's go, after next week's users are added):** `STAFF_WRITES_PAUSED=true` → `--scope staff --write` → `--verify --scope staff` → `DB_STAFF=postgres` on Render + pause off → click-through → `--lock … --scope staff`; then Mongo users / roles / locations read-only 2 weeks. Drop `company_cards.user_id`'s dependence on the sync once locked.
 
+- [ ] **Visit Types, Resource Types, Families** (`feat/pg-types`, built 2026-11-15 on top of `feat/pg-users`; not merged, not cut over). Switch `DB_TYPES`; data layer `src/db/types/` (README + cutover runbook). The router goes through a store (MongoDB = its old logic, Postgres = one transaction for a delete-with-move and a family recount); `resourceTypeByName`, Moda's `familyRows` and the seed moved onto it
+  - [x] Parity test `types.parity.test.ts` (real router, both databases, customers' rows compared); `typeLists.test.ts` (26 MongoDB cases) unchanged and green
+  - [x] `--scope types` in-place sync / verify / lock; `TYPES_WRITES_PAUSED` gate; `/api/health` → `typesOn`, `typesWritesPaused`; the running reference sync stops following lists (and stops entirely once staff is on Postgres too)
+  - [ ] Owner's local click-through with `DB_TYPES=postgres` (Admin → Visit Types / Resource Types; family change moves a customer's counts)
+  - [ ] **Cutover (owner's go):** pause on → `--scope types --write` → `--verify --scope types` → `DB_TYPES=postgres` + pause off → click-through → `--lock … --scope types`; Mongo lists read-only 2 weeks. Independent of the staff cutover
+
 ## 6. After every area has moved
 
 - [ ] MongoDB disconnected from the app; Atlas kept read-only, then closed

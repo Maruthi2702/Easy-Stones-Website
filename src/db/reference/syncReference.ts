@@ -43,9 +43,14 @@ const TABLES: { table: PgTable; key: keyof ReturnType<typeof referenceRows>['row
 /** The tables Users, Roles and Locations own: once `DB_STAFF=postgres` Postgres holds them and nothing may overwrite them. */
 export const STAFF_KEYS = new Set<string>(['locations', 'roles', 'users']);
 
+/** The type lists: once `DB_TYPES=postgres` Postgres holds them and nothing may overwrite them. */
+export const TYPE_KEYS = new Set<string>(['visitTypes', 'resourceFamilies', 'resourceTypes']);
+
 export interface SyncReferenceOptions {
-  /** false once the staff area is on Postgres: only the visit / resource type lists follow MongoDB. Default true. */
+  /** false once the staff area is on Postgres: users, roles and locations are Postgres's own. Default true. */
   staff?: boolean;
+  /** false once the type lists are on Postgres. Default true. */
+  types?: boolean;
 }
 
 /** Bring the reference tables in line with `src` (the six MongoDB collections, read whole). */
@@ -53,7 +58,8 @@ export async function syncReference(db: Db, src: ReferenceSource, options: SyncR
   const staff = options.staff !== false;
   const problems: CopyProblem[] = [];
   const { rows } = referenceRows(src, problems);
-  const tables = staff ? TABLES : TABLES.filter(t => !STAFF_KEYS.has(t.key));
+  const types = options.types !== false;
+  const tables = TABLES.filter(t => (staff || !STAFF_KEYS.has(t.key)) && (types || !TYPE_KEYS.has(t.key)));
   const report: ReferenceSyncReport = { upserted: {}, deleted: {}, kept: [], problems };
 
   await db.transaction(async tx => {

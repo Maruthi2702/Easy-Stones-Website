@@ -284,9 +284,12 @@ export const STAFF_AREA_TABLES = new Set(['locations', 'roles', 'users', 'user_l
 /** Sign-in counters and the online stamps keep moving while people sign in: not compared in the staff check. */
 const STAFF_SCOPE_IGNORES: Record<string, string[]> = { users: ['loginAttempts', 'lockUntil', 'lastSeenAt', 'lastLoginAt', 'updatedAt'] };
 
+/** The visit / resource type lists: moved by an in-place sync too (customers' records point at them by name). */
+export const TYPES_AREA_TABLES = new Set(['visit_types', 'resource_families', 'resource_types']);
+
 export interface VerifyOptions {
-  /** 'customers': only CUSTOMER_AREA_TABLES, and not the by-the-minute columns above. 'staff': only STAFF_AREA_TABLES. Default: every table, every column. */
-  scope?: 'customers' | 'staff';
+  /** 'customers': only CUSTOMER_AREA_TABLES, and not the by-the-minute columns above. 'staff' / 'types': only that area's tables. Default: every table, every column. */
+  scope?: 'customers' | 'staff' | 'types';
 }
 
 /**
@@ -299,6 +302,7 @@ export async function verifyCopy(db: Db, src: CopySource, limitPerTable = 20, op
     const name = getTableName(table);
     if (options.scope === 'customers' && !CUSTOMER_AREA_TABLES.has(name)) continue;
     if (options.scope === 'staff' && !STAFF_AREA_TABLES.has(name)) continue;
+    if (options.scope === 'types' && !TYPES_AREA_TABLES.has(name)) continue;
     const ignored = new Set(options.scope === 'customers' ? CUSTOMER_SCOPE_IGNORES[name] ?? [] : options.scope === 'staff' ? STAFF_SCOPE_IGNORES[name] ?? [] : []);
     // numeric columns come back at their scale ('10.00'): compare those as numbers, nothing else.
     const numeric = new Set(Object.entries(getTableColumns(table)).filter(([, col]) => col.columnType === 'PgNumeric').map(([key]) => key));
@@ -553,13 +557,31 @@ export async function syncStaffFromMongo(db: Db, src: CopySource, options: { wri
   if (!options.write) return report;
   const [state] = await db.select().from(schema.mongoCopyState).where(eq(schema.mongoCopyState.id, 1));
   if (state?.lockedAreas?.includes('staff')) throw new AreaLockedError('staff');
-  const sync = await syncReference(db, src, { staff: true });
+  // Only Users, Roles and Locations: the type lists move on their own switch (syncTypesFromMongo).
+  const sync = await syncReference(db, src, { staff: true, types: false });
   if (sync.kept.length) report.problems.push(...sync.kept.map(k => ({ table: 'staff', id: k, field: '', reason: 'removed from MongoDB but Postgres still needs it: kept', outcome: 'skipped' as const })));
   return report;
 }
 
+/**
+ * The type lists' cutover copy: visit types, resource types and families brought in line **in place**
+ * (a truncating copy can't be used — customers' records point at them). Dry run only counts.
+ */
+export async function syncTypesFromMongo(db: Db, src: CopySource, options: { write: boolean }): Promise<CopyReport> {
+  const problems: CopyProblem[] = [];
+  const { rows } = referenceRows(src, problems);
+  const counts = { visit_types: rows.visitTypes.length, resource_families: rows.resourceFamilies.length, resource_types: rows.resourceTypes.length };
+  const report: CopyReport = { copiedAt: new Date().toISOString(), source: { types: rows.visitTypes.length + rows.resourceTypes.length }, tables: counts, summary: summarize(problems), problems };
+  if (!options.write) return report;
+  const [state] = await db.select().from(schema.mongoCopyState).where(eq(schema.mongoCopyState.id, 1));
+  if (state?.lockedAreas?.includes('types')) throw new AreaLockedError('types');
+  const sync = await syncReference(db, src, { staff: false, types: true });
+  if (sync.kept.length) report.problems.push(...sync.kept.map(k => ({ table: 'types', id: k, field: '', reason: 'removed from MongoDB but Postgres still needs it: kept', outcome: 'skipped' as const })));
+  return report;
+}
+
 /** After this area's cutover: its scoped copy refuses for good. */
-export async function lockArea(db: Db, area: CopyArea | 'staff', by: string): Promise<void> {
+export async function lockArea(db: Db, area: CopyArea | 'staff' | 'types', by: string): Promise<void> {
   const [state] = await db.select().from(schema.mongoCopyState).where(eq(schema.mongoCopyState.id, 1));
   const areas = [...new Set([...(state?.lockedAreas ?? []), area])];
   await db.insert(schema.mongoCopyState).values({ id: 1, lockedAreas: areas })

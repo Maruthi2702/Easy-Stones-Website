@@ -14,7 +14,7 @@ import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import * as schema from '../schema/index.ts';
-import { copyFromMongo, verifyCopy, lockCopies, copyAreaFromMongo, verifyArea, lockArea, syncStaffFromMongo, CopyLockedError, AreaLockedError, isCopyArea, type CopyArea, type Db } from '../copy/plan.ts';
+import { copyFromMongo, verifyCopy, lockCopies, copyAreaFromMongo, verifyArea, lockArea, syncStaffFromMongo, syncTypesFromMongo, CopyLockedError, AreaLockedError, isCopyArea, type CopyArea, type Db } from '../copy/plan.ts';
 import { unpackSnapshot } from './snapshot.ts';
 
 export type CopyAction = 'dry-run' | 'write' | 'verify' | 'lock';
@@ -27,7 +27,7 @@ export interface CopyEvent {
   /** lock: who is locking it. */
   lockedBy?: string;
   /** verify: 'customers' = only the customer area's tables (what cutover needs; the rest of MongoDB keeps changing). */
-  scope?: 'customers' | 'staff' | CopyArea;
+  scope?: 'customers' | 'staff' | 'types' | CopyArea;
 }
 
 export interface CopyResult {
@@ -74,7 +74,7 @@ export const handler = async (event: CopyEvent): Promise<CopyResult> => {
 
     if (event.action === 'lock') {
       if (!event.lockedBy) throw new Error('lock needs lockedBy: who is locking it.');
-      if (isCopyArea(event.scope) || event.scope === 'staff') await lockArea(db, event.scope, event.lockedBy);
+      if (isCopyArea(event.scope) || event.scope === 'staff' || event.scope === 'types') await lockArea(db, event.scope, event.lockedBy);
       else await lockCopies(db, event.lockedBy);
       return { ok: true, action: 'lock', seconds: seconds() };
     }
@@ -96,6 +96,8 @@ export const handler = async (event: CopyEvent): Promise<CopyResult> => {
 
     const report = event.scope === 'staff'
       ? await syncStaffFromMongo(db, src, { write: event.action === 'write' })
+      : event.scope === 'types'
+      ? await syncTypesFromMongo(db, src, { write: event.action === 'write' })
       : isCopyArea(event.scope)
       ? await copyAreaFromMongo(db, src, event.scope, { write: event.action === 'write' })
       : await copyFromMongo(db, src, { write: event.action === 'write' });

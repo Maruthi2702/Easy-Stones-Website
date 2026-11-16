@@ -1,6 +1,6 @@
 import type { ClientSession } from 'mongoose';
+import { familyRows } from '../db/types/index.ts';
 import Customer from '../models/Customer.ts';
-import ResourceType from '../models/ResourceType.ts';
 import { familyLookup, earlierCount, modaFields, modaKindOf } from '../utils/modaTotals.ts';
 import type { FamilyOf, ModaResource } from '../utils/modaTotals.ts';
 import type { Loose } from '../types/records.ts';
@@ -14,7 +14,7 @@ import type { Loose } from '../types/records.ts';
 
 /** Type name → family, read inside the caller's transaction. */
 export const loadFamilies = async (session?: ClientSession | null): Promise<FamilyOf> =>
-  familyLookup(await ResourceType.find({}).select('name family').session(session ?? null).lean() as Loose[]);
+  familyLookup(await familyRows(session));
 
 /** The customer's resources as they are now (what the earlier count is worked out against). */
 export const resourcesOf = (customer: Loose): ModaResource[] =>

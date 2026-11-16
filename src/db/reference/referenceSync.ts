@@ -33,8 +33,11 @@ export function startReferenceSync(mongo: MongoDb, options: ReferenceSyncOptions
     try {
       do {
         again = false;
-        // Once Users, Roles and Locations are on Postgres they are Postgres's own: only the type lists follow MongoDB.
-        last = await syncReference(await appDb(), await readReference(mongo), { staff: areaOn('staff') !== 'postgres' });
+        // Once an area is on Postgres it is Postgres's own: only what is still MongoDB's follows it.
+        const staff = areaOn('staff') !== 'postgres';
+        const types = areaOn('types') !== 'postgres';
+        if (!staff && !types) return;
+        last = await syncReference(await appDb(), await readReference(mongo), { staff, types });
         if (last.kept.length) log(`⚠️ Reference sync kept rows Postgres still needs: ${last.kept.join(', ')}`);
       } while (again && !stopped);
     } catch (err) {

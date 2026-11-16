@@ -1,4 +1,5 @@
 import VisitType from '../models/VisitType.ts';
+import { typesOnPostgres } from '../db/types/index.ts';
 import ResourceType from '../models/ResourceType.ts';
 import ResourceFamily from '../models/ResourceFamily.ts';
 import Customer from '../models/Customer.ts';
@@ -75,6 +76,8 @@ const insert = async <T extends object>(Model: Model<T>, docs: Partial<T>[]): Pr
 };
 
 export async function seedTypeLists() {
+  // Once the lists live on Postgres they were copied whole: nothing to fill, and MongoDB's copies are stale.
+  if (typesOnPostgres()) return;
   if ((await VisitType.estimatedDocumentCount()) === 0) {
     const used = clean(await Customer.distinct('visits.purpose'))
       .filter((n) => !/^Resource Placement:/i.test(n));
