@@ -23,9 +23,9 @@ import type { Loose } from '../types/records.ts';
  * Add/Edit/Delete Visit, and Add/Edit/Delete Resource (a resource placement
  * writes its own visit, and is a stop like any other).
  */
+import * as staffData from '../db/staff/index.ts';
 import mongoose from 'mongoose';
 import Schedule from '../models/Schedule.ts';
-import User from '../models/User.ts';
 import { branchNow } from '../config/branches.ts';
 import { YMD_RE } from '../utils/visitDates.ts';
 
@@ -107,7 +107,7 @@ export async function linkVisitToSchedule({ customerId, visitId, visitDate, user
     return planned;
   }
 
-  const user = await User.findById(userId).select('location assignedLocations').session(session).lean();
+  const user = await staffData.userById(userId, { select: 'location assignedLocations', session });
   if (!user) return null;
   const branch = user.location || user.assignedLocations?.[0] || '';
   const start = startTime || dropInStartTime(visitDate, branch);

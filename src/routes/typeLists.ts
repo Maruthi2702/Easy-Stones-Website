@@ -1,7 +1,8 @@
 import express from 'express';
 import type { Request, RequestHandler, Response } from 'express';
-import mongoose from 'mongoose';
 import type { ClientSession, Model } from 'mongoose';
+import { newId } from '../db/ids.ts';
+import { typeStore } from '../db/types/index.ts';
 import { validateTypeBody, reorderedIds } from '../utils/typeLists.ts';
 import type { TypeKind, TypeLike } from '../utils/typeLists.ts';
 import { PlacementConflict } from '../services/resourcePlacement.ts';
@@ -47,6 +48,7 @@ type TypeListData = {
 };
 type Options<T extends TypeListData> = {
   kind: TypeKind;
+  /** The MongoDB side (used while DB_TYPES isn't postgres); Postgres needs none of the four below. */
   Model: Model<T>;
   /** How many records carry this stored name. */
   countUses: (name: string) => Promise<number>;
@@ -69,21 +71,24 @@ type Options<T extends TypeListData> = {
 
 export default function createTypeListRouter<T extends TypeListData>({ kind, Model, countUses, replaceUses, onFamilyChange, families, actions, authenticate, requireAction }: Options<T>) {
   const router = express.Router();
+  // MongoDB or Postgres, by DB_TYPES (src/db/types/).
+  const store = typeStore(kind, { Model: Model as never, countUses, replaceUses, onFamilyChange, families });
   const noun = { visit: 'visit type', resource: 'resource type', family: 'family' }[kind];
   const [one, many] = { visit: ['visit', 'visits'], resource: ['resource', 'resources'], family: ['resource type', 'resource types'] }[kind];
   const notFound = kind === 'family' ? 'Family not found' : 'Type not found';
   const records = (n: number) => `${n} ${n === 1 ? one : many}`;
   /** The families a type may be put in: the shown ones, plus the one it already has. */
   const allowedFamilies = async (current?: string) => {
-    if (!families) return undefined;
-    const list = await families();
+    if (kind !== 'resource') return undefined;
+    const list = await store.families();
     return list.filter((f) => f.active !== false || f.name === current).map((f) => f.name);
   };
   const who = (req: StaffRequest) => String(req.user?.username || req.userId || '');
+  const looksLikeId = (id: unknown) => typeof id === 'string' && /^[0-9a-f]{24}$/i.test(id);
 
   router.get('/', authenticate, async (_req: Request, res: Response) => {
     try {
-      const docs = await Model.find({}).sort({ order: 1, createdAt: 1 }).lean();
+      const docs = await store.list();
       res.json({ types: docs.map((d: Loose) => stored(d)) });
     } catch (error) {
       console.error(`Get ${noun}s error:`, error);
@@ -93,18 +98,17 @@ export default function createTypeListRouter<T extends TypeListData>({ kind, Mod
 
   router.post('/', authenticate, requireAction(actions.add), async (req: StaffRequest, res: Response) => {
     try {
-      const all = await Model.find({}).select('name label order').lean();
+      const all = await store.list();
       const checked = validateTypeBody(kind, { ...req.body, label: req.body?.label ?? req.body?.name }, all as TypeLike[], await allowedFamilies());
       if (checked.error !== undefined) return res.status(400).json({ message: checked.error });
       const value = checked.value;
       if (!value.label) return res.status(400).json({ message: 'Enter a name.' });
       // New types go to the bottom; a manager moves them where they want.
       const order = all.reduce((max: number, t: Loose) => Math.max(max, Number(t.order ?? 0)), -1) + 1;
-      const doc = new Model({ ...value, name: value.label, order, updatedBy: who(req) });
-      await doc.save();
-      res.status(201).json({ type: stored(doc.toObject()) });
+      const added = await store.add(newId(), value, order, who(req));
+      if ('duplicate' in added) return res.status(400).json({ message: `There is already a ${kind === 'family' ? 'family' : 'type'} with that name.` });
+      res.status(201).json({ type: stored(added.type) });
     } catch (error) {
-      if ((error as { code?: number })?.code === 11000) return res.status(400).json({ message: `There is already a ${kind === 'family' ? 'family' : 'type'} with that name.` });
       console.error(`Add ${noun} error:`, error);
       res.status(500).json({ message: `Failed to add the ${noun}` });
     }
@@ -113,13 +117,10 @@ export default function createTypeListRouter<T extends TypeListData>({ kind, Mod
   // Before /:id so "reorder" isn't read as an id.
   router.patch('/reorder', authenticate, requireAction(actions.reorder), async (req: StaffRequest, res: Response) => {
     try {
-      const all = await Model.find({}).select('_id').lean();
+      const all = await store.list();
       const ids = reorderedIds(all.map((d: Loose) => d._id), req.body?.ids);
       if (!ids) return res.status(400).json({ message: 'Send every type once, in the order you want.' });
-      await Model.bulkWrite<TypeListData>(ids.map((id, order) => ({
-        updateOne: { filter: { _id: id }, update: { $set: { order, updatedBy: who(req) } } }
-      })));
-      const docs = await Model.find({}).sort({ order: 1 }).lean();
+      const docs = await store.reorder(ids, who(req));
       res.json({ types: docs.map((d: Loose) => stored(d)) });
     } catch (error) {
       console.error(`Reorder ${noun}s error:`, error);
@@ -129,25 +130,16 @@ export default function createTypeListRouter<T extends TypeListData>({ kind, Mod
 
   router.put('/:id', authenticate, requireAction(actions.edit), async (req: StaffRequest, res: Response) => {
     try {
-      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: notFound });
-      const doc = await Model.findById(req.params.id);
+      const id = String(req.params.id);
+      if (!looksLikeId(id)) return res.status(404).json({ message: notFound });
+      const doc = await store.byId(id);
       if (!doc) return res.status(404).json({ message: notFound });
-      const others = await Model.find({ _id: { $ne: doc._id } }).select('name label').lean();
+      const others = (await store.list()).filter((d: Loose) => String(d._id) !== String(doc._id));
       const checked = validateTypeBody(kind, req.body, others as TypeLike[], await allowedFamilies(doc.family));
       if (checked.error !== undefined) return res.status(400).json({ message: checked.error });
-      const fromFamily = doc.family;
-      const toFamily = checked.value.family;
-      Object.assign(doc, checked.value, { updatedBy: who(req) });
-      if (onFamilyChange && toFamily !== undefined && toFamily !== fromFamily) {
-        const recounted = await mongoose.connection.transaction(async (session) => {
-          const n = await onFamilyChange(doc.name, fromFamily, toFamily, session);
-          await doc.save({ session });
-          return n;
-        });
-        return res.json({ type: stored(doc.toObject()), recounted });
-      }
-      await doc.save();
-      res.json({ type: stored(doc.toObject()) });
+      const saved = await store.edit(id, checked.value, who(req));
+      if (!saved) return res.status(404).json({ message: notFound });
+      res.json(saved.recounted === undefined ? { type: stored(saved.type) } : { type: stored(saved.type), recounted: saved.recounted });
     } catch (error) {
       console.error(`Edit ${noun} error:`, error);
       res.status(500).json({ message: `Failed to save the ${noun}` });
@@ -156,10 +148,11 @@ export default function createTypeListRouter<T extends TypeListData>({ kind, Mod
 
   router.get('/:id/uses', authenticate, requireAction(actions.delete), async (req: StaffRequest, res: Response) => {
     try {
-      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: notFound });
-      const doc = await Model.findById(req.params.id).select('name').lean();
-      if (!doc) return res.status(404).json({ message: notFound });
-      res.json({ uses: await countUses(doc.name) });
+      const id = String(req.params.id);
+      if (!looksLikeId(id)) return res.status(404).json({ message: notFound });
+      const uses = await store.uses(id);
+      if (uses === null) return res.status(404).json({ message: notFound });
+      res.json({ uses });
     } catch (error) {
       console.error(`Count ${noun} uses error:`, error);
       res.status(500).json({ message: `Failed to check where the ${noun} is used` });
@@ -168,27 +161,21 @@ export default function createTypeListRouter<T extends TypeListData>({ kind, Mod
 
   router.delete('/:id', authenticate, requireAction(actions.delete), async (req: StaffRequest, res: Response) => {
     try {
-      if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ message: notFound });
-      const doc = await Model.findById(req.params.id).lean();
+      const id = String(req.params.id);
+      if (!looksLikeId(id)) return res.status(404).json({ message: notFound });
+      const doc = await store.byId(id);
       if (!doc) return res.status(404).json({ message: notFound });
       if (doc.system) return res.status(409).json({ message: `This ${noun} is built in. Hide it instead.` });
       const replaceWith = req.body?.replaceWith;
       let target: Loose | null = null;
       if (replaceWith !== undefined && replaceWith !== null && replaceWith !== '') {
-        target = mongoose.isValidObjectId(replaceWith) ? await Model.findById(replaceWith).lean() : null;
+        target = looksLikeId(replaceWith) ? await store.byId(replaceWith) : null;
         if (!target || String(target._id) === String(doc._id) || target.active === false) {
           return res.status(400).json({ message: `Choose a shown ${noun} to move them to.` });
         }
       }
-      const result = await mongoose.connection.transaction(async (session) => {
-        // Counted inside so a record saved since the check is moved too, or stops the delete.
-        const uses = await countUses(doc.name);
-        if (uses > 0 && !target) return { uses, moved: 0, deleted: false };
-        const moved = uses > 0 && target ? await replaceUses(doc.name, target.name, session) : 0;
-        await Model.deleteOne({ _id: doc._id }, { session });
-        return { uses, moved, deleted: true };
-      });
-      if (!result.deleted) {
+      const result = await store.remove(doc, target);
+      if (result.status === 'uses') {
         return res.status(409).json({ message: `${records(result.uses)} use this ${noun}. Choose ${kind === 'family' ? 'a family' : 'a type'} to move them to, or hide it instead.`, uses: result.uses });
       }
       res.json({ ok: true, moved: result.moved, ...(target ? { movedTo: target.label } : {}) });

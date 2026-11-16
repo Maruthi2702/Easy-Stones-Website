@@ -1,7 +1,7 @@
 import { Router } from 'express';
+import { resourceTypeByName } from '../db/types/index.ts';
 import type { Request, RequestHandler, Response } from 'express';
 import mongoose from 'mongoose';
-import ResourceType from '../models/ResourceType.ts';
 import { canModifyVisit, canDeleteVisit, ANY_EDIT_VISIT_PERMISSIONS, ANY_DELETE_VISIT_PERMISSIONS } from '../utils/visitAccess.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
 import { normalizeVisitDate } from '../utils/visitDates.ts';
@@ -46,7 +46,7 @@ export default function createCustomerResourcesRouter(deps: Deps) {
   const checkType = async (type: unknown, current: unknown) => {
     const name = String(type || '').trim();
     if (!name || name === String(current || '')) return;
-    const found = await ResourceType.findOne({ name }).select('active').lean();
+    const found = await resourceTypeByName(name);
     if (!found || found.active === false) throw new ResourceError(400, 'Choose one of the resource types.');
   };
   const fieldsOf = async (body: Loose, creating: boolean, currentType?: unknown): Promise<Loose> => {

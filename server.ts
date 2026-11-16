@@ -47,11 +47,12 @@ import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
-import * as small from './src/db/small/index.ts';
-import User from './src/models/User.ts';
-import Role from './src/models/Role.ts';
+import Product from './src/models/Product.ts';
 import DailyReport from './src/models/DailyReport.ts';
 import Location from './src/models/Location.ts';
+import * as staffData from './src/db/staff/index.ts';
+import ContactSubmission from './src/models/ContactSubmission.ts';
+import * as small from './src/db/small/index.ts';
 import Customer from './src/models/Customer.ts';
 import * as customerData from './src/db/customers/index.ts';
 const { resolveDuplicates, undoDuplicates } = customerData;
@@ -68,6 +69,8 @@ import { accountingWritesPauseGate, accountingWritesPaused } from './src/utils/a
 import { fuelmanWritesPauseGate, fuelmanWritesPaused } from './src/utils/fuelmanWritesPause.ts';
 import { suppliersWritesPauseGate, suppliersWritesPaused } from './src/utils/suppliersWritesPause.ts';
 import { settingsWritesPauseGate, settingsWritesPaused } from './src/utils/settingsWritesPause.ts';
+import { staffWritesPauseGate, staffWritesPaused } from './src/utils/staffWritesPause.ts';
+import { typesWritesPauseGate, typesWritesPaused } from './src/utils/typesWritesPause.ts';
 import { smallWritesPauseGate, smallWritesPaused } from './src/utils/smallWritesPause.ts';
 import { permitsWritesPauseGate, permitsWritesPaused } from './src/utils/permitsWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
@@ -420,10 +423,10 @@ async function resolveSocketStaff(token: string) {
   const decoded = (jwt.verify(token, process.env.JWT_SECRET!) as jwt.JwtPayload);
   const userId = decoded.userId || decoded.id || decoded.sub;
   if (!userId || decoded.type === 'customer' || !mongoose.isValidObjectId(userId)) return null;
-  const user = await User.findById(userId, 'role isActive mustChangePassword sessionVersion').lean();
+  const user = await staffData.userById(userId, { select: 'role isActive mustChangePassword sessionVersion' });
   if (!user || user.isActive === false || user.mustChangePassword || !sessionIsCurrent(decoded, user)) return null;
-  const role = await Role.findOne({ name: String(user.role || '').trim().toLowerCase() }, 'permissions').lean();
-  const asUser = { permissions: role?.permissions || [] };
+  const role = await staffData.findRole({ name: String(user.role || '').trim().toLowerCase() }, { select: 'permissions' });
+  const asUser = { permissions: (role?.permissions || []) as string[] };
   return {
     userId: String(user._id),
     canSeePresence: canOpenArea(asUser, 'users') || asUser.permissions.includes(TEAM_PERMISSION)
@@ -431,7 +434,7 @@ async function resolveSocketStaff(token: string) {
 }
 
 const writeLastSeen = (userId: string, at: Date) =>
-  User.updateOne({ _id: userId }, { $set: { lastSeenAt: at } }).catch(() => {});
+  staffData.touchLastSeen(userId, at).catch(() => {});
 
 // While online, at most every few minutes (presence.dueToSave).
 const savePresenceLastSeen = (userId: string) => {
@@ -618,19 +621,16 @@ async function startServer() {
 
     // Database migration: Initialize assignedLocations for existing users & upgrade admins to global
     try {
-      const updateUsersResult = await User.updateMany(
-        { assignedLocations: { $exists: false } },
-        { $set: { assignedLocations: ['Seattle'] } }
-      );
-      if (updateUsersResult.modifiedCount > 0) {
-        console.log(`🔄 Initialized assignedLocations for ${updateUsersResult.modifiedCount} users`);
+      // (A person is found, then updated one at a time: the same on MongoDB and Postgres.)
+      const noLocations = await staffData.findUsers({ assignedLocations: { $exists: false } }, { select: '_id' });
+      for (const u of noLocations) await staffData.updateUserById(u._id, { $set: { assignedLocations: ['Seattle'] } });
+      if (noLocations.length > 0) {
+        console.log(`🔄 Initialized assignedLocations for ${noLocations.length} users`);
       }
-      const updateAdminsResult = await User.updateMany(
-        { role: 'admin', assignedLocations: { $ne: '*' } },
-        { $set: { assignedLocations: ['*'] } }
-      );
-      if (updateAdminsResult.modifiedCount > 0) {
-        console.log(`🔄 Upgraded ${updateAdminsResult.modifiedCount} administrators to global location access`);
+      const admins = await staffData.findUsers({ role: 'admin', assignedLocations: { $ne: '*' } }, { select: '_id' });
+      for (const u of admins) await staffData.updateUserById(u._id, { $set: { assignedLocations: ['*'] } });
+      if (admins.length > 0) {
+        console.log(`🔄 Upgraded ${admins.length} administrators to global location access`);
       }
     } catch (migError) {
       console.error('Error running user locations migration:', migError);
@@ -804,9 +804,10 @@ async function startServer() {
 
       for (const roleDef of defaultRoles) {
         // Only seed/create the role if it doesn't already exist.
-        const existing = await Role.findOne({ name: roleDef.name });
+        const existing = await staffData.roleExists({ name: roleDef.name });
         if (!existing) {
-          const created = await Role.create(roleDef);
+          const created = await staffData.newRoleDoc(roleDef);
+          await created.save();
           console.log(`🌱 Seeded standard role: ${created.name} → [${created.permissions.join(', ')}]`);
         } else {
           console.log(`ℹ️ System role '${roleDef.name}' already exists, skipping seed override to preserve custom permissions`);
@@ -914,7 +915,7 @@ async function startServer() {
         }
       }
       for (const [roleName, granted] of grantsByRole) {
-        const role = await Role.findOne({ name: roleName });
+        const role = await staffData.roleDocFor({ name: roleName });
         if (!role) continue;
         const seeded = new Set(role.seededPermissions || []);
         const pending = [...new Set(granted)].filter(p => !seeded.has(p));
@@ -952,7 +953,7 @@ async function startServer() {
         ...PAYMENTS_MIGRATION
       ];
       const migratedPerms = [...new Set(ACTION_MIGRATIONS.flatMap(m => m.grant))];
-      for (const role of await Role.find({})) {
+      for (const role of await staffData.roleDocsFor({})) {
         const seeded = new Set(role.seededPermissions || []);
         const pending = migratedPerms.filter(p => !seeded.has(p));
         if (pending.length === 0) continue;
@@ -973,7 +974,7 @@ async function startServer() {
       // toggle in Users & Roles and never checked by any backend route.
       // Superseded entirely by view_delivery_schedule/edit_delivery_schedule —
       // strip it from any role (existing installs) that still has it.
-      const rolesWithStalePerm = await Role.find({ permissions: 'manage_delivery_schedule' });
+      const rolesWithStalePerm = await staffData.roleDocsFor({ permissions: 'manage_delivery_schedule' });
       for (const role of rolesWithStalePerm) {
         role.permissions = role.permissions.filter((p: string) => p !== 'manage_delivery_schedule');
         await role.save();
@@ -1177,6 +1178,10 @@ app.use(fuelmanWritesPauseGate);
 app.use(suppliersWritesPauseGate);
 // Settings cutover pause (SETTINGS_WRITES_PAUSED=true): the side nav order can't be saved (src/utils/settingsWritesPause.ts).
 app.use(settingsWritesPauseGate);
+// Staff cutover pause (STAFF_WRITES_PAUSED=true): users, roles, locations and passwords can't be saved (src/utils/staffWritesPause.ts).
+app.use(staffWritesPauseGate);
+// Type lists cutover pause (TYPES_WRITES_PAUSED=true): Visit / Resource Types and Families can't be saved (src/utils/typesWritesPause.ts).
+app.use(typesWritesPauseGate);
 // Cutover pause for the small ones (SMALL_WRITES_PAUSED=true): products, colours, crossovers, contact form, Team Files (src/utils/smallWritesPause.ts).
 app.use(smallWritesPauseGate);
 // Cutover pause for Permits (PERMITS_WRITES_PAUSED=true): every write under /api/permits, Refresh included (src/utils/permitsWritesPause.ts).
@@ -1261,7 +1266,7 @@ const resolveSalesRep = async (salesRepId: string | mongoose.Types.ObjectId | nu
     return { salesRep: null, salesRepName: '' };
   }
 
-  const rep = await User.findById(salesRepId).select('username displayName').lean();
+  const rep = await staffData.userById(salesRepId, { select: 'username displayName' });
   return rep
     ? { salesRep: rep._id, salesRepName: displayNameOf(rep) }
     : { salesRep: null, salesRepName: '' };
@@ -1331,46 +1336,10 @@ const authenticate = async (req: Request, res: Response, next: NextFunction) => 
     }
 
     // ALWAYS read the user AND the role's permissions from the DB — never trust
-    // anything in the JWT. This used to be two awaits (findById, then findOne on
-    // the role name it returned), which meant two sequential Atlas round trips on
-    // EVERY authenticated request. Joining them server-side halves that: same
-    // freshness, same result, one trip.
-    const [dbUser] = await User.aggregate<AuthenticatedStaffDocument>(([
-      { $match: { _id: new mongoose.Types.ObjectId(userId) } },
-      { $limit: 1 },
-      // Role.name is stored trimmed + lower-cased by its schema setters, and
-      // Role.findOne() used to apply those setters to the query for us.
-      // Aggregation does no casting, so normalise the key explicitly.
-      { $addFields: { _roleKey: { $toLower: { $trim: { input: { $ifNull: ['$role', ''] } } } } } },
-      {
-        $lookup: {
-          from: Role.collection.name,
-          localField: '_roleKey',
-          foreignField: 'name',   // unique index — this is an indexed join
-          as: '_role'
-        }
-      },
-      // Named fields only: keeps the password hash and the stored Google/iCloud
-      // tokens out of the auth payload entirely.
-      {
-        $project: {
-          username: 1,
-          displayName: 1,
-          email: 1,
-          role: 1,
-          assignedLocations: 1,
-          // For GET /api/user/me, which answers from this instead of a
-          // second findById — one round trip fewer on every page load.
-          location: 1,
-          routePlannerFilters: 1,
-          pinnedTabs: 1,
-          isActive: 1,
-          mustChangePassword: 1,
-          sessionVersion: 1,
-          permissions: { $ifNull: [{ $arrayElemAt: ['$_role.permissions', 0] }, []] }
-        }
-      }
-    ] as mongoose.PipelineStage[]));
+    // anything in the JWT. One trip (a join / lookup), on either database:
+    // named fields only, so the password hash and the stored Google / iCloud
+    // tokens stay out of the auth payload (src/db/staff/).
+    const dbUser = await staffData.authIdentity(userId) as AuthenticatedStaffDocument | null;
 
     if (!dbUser) {
       return res.status(401).json({ error: 'User account not found or has been removed.' });
@@ -1501,14 +1470,14 @@ const authorize = (...roles: (string | undefined)[]) => (req: Request, res: Resp
 app.get('/api/debug/config', verifyToken, authorize('admin'), validateScalarRequest, async (req: Request, res: Response) => {
   const requestQuery = scalarQuery(req);
   try {
-    const adminCount = await User.countDocuments();
+    const adminCount = await staffData.countUsers();
     const dbName = mongoose.connection.name;
     const host = mongoose.connection.host;
 
     // Check for specific user if provided
     let userCheck = null;
     if (requestQuery.username) {
-      const user = await User.findOne({ username: requestQuery.username!.toLowerCase() });
+      const user = await staffData.userDoc({ username: requestQuery.username!.toLowerCase() });
       userCheck = {
         requested_username: requestQuery.username,
         found: !!user,
@@ -1546,7 +1515,7 @@ app.post('/api/auth/login', loginLimiter, async (req: Request, res: Response) =>
     // Find user by username
     console.log(`🔍 Attempting to find User (Admin): ${username} (ReadyState: ${mongoose.connection.readyState})`);
     const startQuery = Date.now();
-    const user = await User.findOne({ username: username.toLowerCase() });
+    const user = await staffData.userDoc({ username: username.toLowerCase() });
     console.log(`⏱️ Query took ${Date.now() - startQuery}ms`);
 
     if (!user) {
@@ -1586,7 +1555,7 @@ app.post('/api/auth/login', loginLimiter, async (req: Request, res: Response) =>
     }
 
     // Reset login attempts on successful login
-    if (user.loginAttempts > 0) {
+    if ((user.loginAttempts ?? 0) > 0) {
       await user.resetLoginAttempts();
     }
 
@@ -1617,7 +1586,7 @@ app.post('/api/auth/login', loginLimiter, async (req: Request, res: Response) =>
       maxAge: SESSION_MS
     });
 
-    const dbRole = await Role.findOne({ name: user.role });
+    const dbRole = await staffData.findRole({ name: user.role });
     const permissions = dbRole?.permissions || [];
 
     res.json({
@@ -1676,7 +1645,7 @@ const resolveHomeLocation = async ({ requested, current, assignedLocations }: { 
   const assigned = Array.isArray(assignedLocations) ? assignedLocations : [];
   const loc = typeof requested === 'string' ? requested.trim() : undefined;
   if (loc !== undefined && loc !== (current || '')) {
-    const known = assigned.includes('*') ? await Location.find().select('name').lean() : [];
+    const known = assigned.includes('*') ? await staffData.locationBriefs() : [];
     const problem = homeLocationProblem(loc, assigned, known);
     if (problem) return { error: problem };
     if (loc || assigned.includes('*')) return { location: loc };
@@ -1688,7 +1657,7 @@ const resolveHomeLocation = async ({ requested, current, assignedLocations }: { 
 };
 
 // Username check, first-sign-in password, emailed invites — see the module.
-const { usersAccess, memberAllowed, teamUsers } = createTeamAccess({ Role, User });
+const { usersAccess, memberAllowed, teamUsers } = createTeamAccess();
 app.use('/api', createUserOnboardingRouter({ authenticate, requirePermission, loginLimiter, jwtSecret: JWT_SECRET, usersAccess, memberAllowed }));
 
 // Who is online right now — the first load of Users & Roles' Online badges;
@@ -1703,7 +1672,7 @@ app.get('/api/admin/users', authenticate, usersAccess('view'), async (req: Reque
     if (req.teamScope) {
       return res.json(await teamUsers(req));
     }
-    const users = await User.find().select('-password').sort({ createdAt: -1 });
+    const users = await staffData.findUsers({}, { select: '-password', sort: { createdAt: -1 } });
     res.json(users);
   } catch {
     res.status(500).json({ message: 'Failed to fetch users' });
@@ -1735,15 +1704,15 @@ app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req:
       return fail('password', `At least ${PASSWORD_MIN} characters`);
     }
     const roleName = String(role || '').trim().toLowerCase();
-    if (!roleName || !(await Role.exists({ name: roleName }))) return fail('role', 'Pick a role');
+    if (!roleName || !(await staffData.roleExists({ name: roleName }))) return fail('role', 'Pick a role');
 
-    if (await User.exists({ username })) return fail('username', 'Someone already has this username');
+    if (await staffData.userExists({ username })) return fail('username', 'Someone already has this username');
 
     const home = await resolveHomeLocation({ requested: location, current: '', assignedLocations });
     if (home.error) return fail('assignedLocations', home.error);
 
     const invite = signInMethod === 'invite' ? newInvite() : null;
-    const newUser = new User({
+    const newUser = await staffData.newUserDoc({
       username,
       displayName: String(displayName).trim(),
       password: invite ? invite.placeholderPassword : password,
@@ -1821,7 +1790,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), validat
     // saves still work; Edit user (features/users/userForm/EditUserForm.tsx) sends them all.
     const fail = (field: string, message: string) => res.status(400).json({ field, message });
 
-    const user = await User.findById(userId);
+    const user = await staffData.userDocById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -1835,7 +1804,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), validat
     let nextRole: string | undefined;
     if (role !== undefined) {
       nextRole = String(role || '').trim().toLowerCase();
-      if (!nextRole || !(await Role.exists({ name: nextRole }))) return fail('role', 'Pick a role');
+      if (!nextRole || !(await staffData.roleExists({ name: nextRole }))) return fail('role', 'Pick a role');
     }
     // A temporary password or an invite link is its own action (Reset sign-in).
     if ((signInReset !== undefined || password !== undefined) && !can(req.user, USERS.RESET_SIGN_IN)) {
@@ -1849,8 +1818,8 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), validat
     // orders still on it would be stranded, exactly as when deactivating.
     if (nextRole && nextRole !== user.role) {
       const [fromRole, toRole] = await Promise.all([
-        Role.findOne({ name: user.role }).select('permissions').lean(),
-        Role.findOne({ name: nextRole }).select('permissions').lean()
+        staffData.findRole({ name: user.role }, { select: 'permissions' }),
+        staffData.findRole({ name: nextRole }, { select: 'permissions' })
       ]);
       const wasDriver = (fromRole?.permissions || []).includes('delivery_driver_view');
       const staysDriver = (toRole?.permissions || []).includes('delivery_driver_view');
@@ -1864,7 +1833,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), validat
 
     // Check if new username is already taken by another user
     if (username && username !== user.username) {
-      const existingUser = await User.findOne({ username });
+      const existingUser = await staffData.userExists({ username });
       if (existingUser) {
         return fail('username', 'Someone already has this username');
       }
@@ -2037,13 +2006,13 @@ app.patch('/api/admin/users/:id/active', authenticate, usersAccess(USERS.DEACTIV
     if (!active && String(requestParams.id) === String(req.user.id)) {
       return res.status(400).json({ message: "You can't deactivate your own account." });
     }
-    const user = await User.findById(requestParams.id).select('username displayName isActive role assignedLocations').lean();
+    const user = await staffData.userById(requestParams.id, { select: 'username displayName isActive role assignedLocations' });
     if (!user) return res.status(404).json({ message: 'User not found' });
     if (!memberAllowed(req, user)) return res.status(403).json({ message: "You can't change this person's account." });
 
     if (!active && !(await clearDriverHandover(req, res, user, 'deactivate'))) return;
 
-    await User.updateOne({ _id: user._id }, active
+    await staffData.updateUserById(user._id, active
       ? { $set: { isActive: true }, $unset: { deactivatedAt: 1, deactivatedBy: 1 } }
       : { $set: { isActive: false, deactivatedAt: new Date(), deactivatedBy: req.user?.username || '' } });
     bustUserCaches();
@@ -2062,10 +2031,10 @@ app.delete('/api/admin/users/:id', authenticate, requireAction(USERS.DELETE), va
       return res.status(400).json({ message: "You can't delete your own account." });
     }
     const user = mongoose.Types.ObjectId.isValid(requestParams.id)
-      ? await User.findById(requestParams.id).select('username displayName').lean()
+      ? await staffData.userById(requestParams.id, { select: 'username displayName' })
       : null;
     if (user && !(await clearDriverHandover(req, res, user, 'delete'))) return;
-    await User.findByIdAndDelete(requestParams.id);
+    await staffData.deleteUser(String(requestParams.id));
     bustUserCaches();
     req.app.get('io')?.emit('truck_update');
     res.json({ message: 'User deleted successfully' });
@@ -2081,7 +2050,7 @@ app.delete('/api/admin/users/:id', authenticate, requireAction(USERS.DELETE), va
 // Get all roles (manage_users permission needed)
 app.get('/api/admin/roles', verifyAnyAuth, requireArea('roles', { alsoRoles: true }), async (req: Request, res: Response) => {
   try {
-    const roles = await Role.find().sort({ name: 1 });
+    const roles = await staffData.findRoles({}, { sort: { name: 1 } });
     res.json(roles);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch roles', error: (error as Error).message });
@@ -2097,12 +2066,12 @@ app.post('/api/admin/roles', verifyAnyAuth, requireAction(ROLES.ADD), async (req
     }
 
     const cleanName = name.trim().toLowerCase().replace(/\s+/g, '_');
-    const existing = await Role.findOne({ name: cleanName });
+    const existing = await staffData.findRole({ name: cleanName });
     if (existing) {
       return res.status(400).json({ message: 'Role name already exists' });
     }
 
-    const newRole = new Role({
+    const newRole = await staffData.newRoleDoc({
       name: cleanName,
       displayName,
       permissions: permissions || [],
@@ -2124,7 +2093,7 @@ app.put('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.EDIT), valida
     const { permissions, displayName, manageableRoles, approvesCardReceiptsOf } = req.body;
     const roleId = requestParams.id;
 
-    const role = await Role.findById(roleId);
+    const role = await staffData.roleDocById(roleId);
     if (!role) {
       return res.status(404).json({ message: 'Role not found' });
     }
@@ -2150,7 +2119,7 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), v
   const requestParams = scalarParams(req);
   try {
     const roleId = requestParams.id;
-    const role = await Role.findById(roleId);
+    const role = await staffData.roleDocById(roleId);
     if (!role) {
       return res.status(404).json({ message: 'Role not found' });
     }
@@ -2159,7 +2128,7 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), v
       return res.status(400).json({ message: 'Cannot delete system roles' });
     }
 
-    await Role.findByIdAndDelete(roleId);
+    await staffData.deleteRole(String(roleId));
     // A role's permissions decide who counts as a delivery driver in the
     // staff list (/api/salesreps), so it can't serve a stale copy.
     bustUserCaches();
@@ -2181,7 +2150,7 @@ app.delete('/api/admin/roles/:id', verifyAnyAuth, requireAction(ROLES.DELETE), v
 // what the filters need (publicLocationFields).
 app.get('/api/admin/locations', verifyAnyAuth, async (req: Request, res: Response) => {
   try {
-    const locations = await Location.find().sort({ name: 1 }).lean();
+    const locations = await staffData.locationsList();
     const full = canOpenArea(req.user, 'locations');
     const staff = req.user?.type !== 'customer';
     res.json(full ? locations : locations.map((l) => publicLocationFields(l, { staff })));
@@ -2192,7 +2161,7 @@ app.get('/api/admin/locations', verifyAnyAuth, async (req: Request, res: Respons
 
 // The map pin for a location's primary address — only looked up again when
 // the address changed (geocodePatchFor), and never blocks the save.
-const applyLocationGeocode = async (location: Loose) => {
+const applyLocationGeocode: staffData.Geocoder = async (location: Loose) => {
   const a = location.primaryContact?.address || {};
   const patch = await geocodePatchFor(
     { street: a.street, city: a.city, state: a.state, zipCode: a.zipCode },
@@ -2215,22 +2184,16 @@ const locationError = (res: Response, errors: Loose) => {
 // Create a new location (manage_users permission needed)
 app.post('/api/admin/locations', verifyAnyAuth, requireAction(LOCATIONS.ADD), async (req: Request, res: Response) => {
   try {
-    const others = await Location.find({}, { name: 1, shortCode: 1 }).lean();
+    const others = await staffData.locationBriefs();
     const { record, errors } = parseLocationBody(req.body, { others });
     if (errors) return locationError(res, errors);
 
-    const location = new Location({ ...record, editedBy: req.user?.username || '', editedAt: new Date() });
-    await applyLocationGeocode(location);
-    try {
-      await location.save();
-    } catch (err) {
-      // Two people adding the same short name at once — the unique index wins.
-      if ((err as Error & Loose)?.code === 11000) return locationError(res, { name: `${record.name} already exists` });
-      throw err;
-    }
+    // Two people adding the same short name at once — the unique index wins.
+    const saved = await staffData.createLocation(record, req.user?.username || '', applyLocationGeocode);
+    if (!saved.ok) return locationError(res, { name: `${record.name} already exists` });
 
     req.app.get('io').emit('location_update');
-    res.status(201).json(location);
+    res.status(201).json(saved.location);
   } catch (error) {
     res.status(500).json({ message: 'Failed to create location', error: (error as Error).message });
   }
@@ -2242,24 +2205,20 @@ app.post('/api/admin/locations', verifyAnyAuth, requireAction(LOCATIONS.ADD), as
 app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDIT), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
-    if (!mongoose.isValidObjectId(requestParams.id)) {
-      return res.status(404).json({ message: 'Location not found' });
-    }
-    const location = await Location.findById(requestParams.id);
+    const location = await staffData.locationById(String(requestParams.id));
     if (!location) {
       return res.status(404).json({ message: 'Location not found' });
     }
 
-    const others = await Location.find({}, { name: 1, shortCode: 1 }).lean();
+    const others = await staffData.locationBriefs();
     const { record, errors } = parseLocationBody(req.body, { isEdit: true, current: location, others });
     if (errors) return locationError(res, errors);
 
-    location.set({ ...record, editedBy: req.user?.username || '', editedAt: new Date() });
-    await applyLocationGeocode(location);
-    await location.save();
+    const updated = await staffData.updateLocation(String(requestParams.id), record, req.user?.username || '', applyLocationGeocode);
+    if (!updated) return res.status(404).json({ message: 'Location not found' });
 
     req.app.get('io').emit('location_update');
-    res.json(location);
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ message: 'Failed to update location', error: (error as Error).message });
   }
@@ -2269,15 +2228,10 @@ app.patch('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.EDI
 app.delete('/api/admin/locations/:id', verifyAnyAuth, requireAction(LOCATIONS.DELETE), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
-    const locationId = requestParams.id;
-    const location = await Location.findById(locationId);
-    if (!location) {
+    // Also clears every other branch's RDC that named it.
+    if (!(await staffData.deleteLocation(String(requestParams.id)))) {
       return res.status(404).json({ message: 'Location not found' });
     }
-
-    await Location.findByIdAndDelete(locationId);
-    // Nothing may keep pointing at it as their regional distribution center.
-    await Location.updateMany({ rdc: location.name }, { $set: { rdc: '' } });
     
     // Emit websocket update so frontend updates dynamically
     req.app.get('io').emit('location_update');
@@ -2361,7 +2315,7 @@ app.get('/api/user/me', authenticate, async (req: Request, res: Response) => {
     // authenticate has just read this user (and their role's permissions)
     // fresh from the DB in one query; reusing it saves a second round trip
     // to Atlas on every page load. Falls back to a lookup if it's missing.
-    const user = req.authUserDoc || await User.findById(req.userId).select('-password').lean();
+    const user = req.authUserDoc || await staffData.userById(req.userId, { select: '-password' });
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
@@ -2553,7 +2507,7 @@ app.post('/api/customer/login', loginLimiter, async (req: Request, res: Response
       // as before, if somehow both match.
       const [customerAccount, staffAccount] = await Promise.all([
         customerData.findCustomerForSignIn(loginIdentifier),
-        User.findOne({
+        staffData.userDoc({
           $or: [
             { email: loginIdentifier },
             { username: loginIdentifier }
@@ -2582,7 +2536,7 @@ app.post('/api/customer/login', loginLimiter, async (req: Request, res: Response
       // the permissions are just discarded.
       const [isMatch, staffRole] = await Promise.all([
         account.comparePassword(password),
-        accountType === 'internal' ? Role.findOne({ name: account.role }) : null
+        accountType === 'internal' ? staffData.findRole({ name: account.role }) : null
       ]);
       permissions = staffRole?.permissions || [];
 
@@ -2623,7 +2577,7 @@ app.post('/api/customer/login', loginLimiter, async (req: Request, res: Response
       console.log(`💾 Updating customer login info (IP: ${ip}) for ${email}`);
       await customerData.recordCustomerSignIn(String(account._id), ip);
     } else {
-      await User.updateOne({ _id: account._id }, {
+      await staffData.updateUserById(account._id, {
         $set: { loginAttempts: 0, lastLoginAt: new Date() },
         $unset: { lockUntil: 1 }
       });
@@ -2704,7 +2658,7 @@ app.get('/api/customer/me', verifyCustomer, async (req: Request, res: Response) 
   try {
     let account: Loose | null;
     if (req.accountType === 'internal') {
-      account = await User.findById(req.customerId).select('-password');
+      account = await staffData.userById(req.customerId, { select: '-password' });
       // The same session rules authenticate applies to staff.
       if (account && (account.isActive === false || account.mustChangePassword || !sessionIsCurrent(req.tokenClaims, account))) {
         return res.status(401).json({ message: 'Please sign in again.' });
@@ -2719,7 +2673,7 @@ app.get('/api/customer/me', verifyCustomer, async (req: Request, res: Response) 
 
     let permissions: string[] = [];
     if (req.accountType === 'internal') {
-      const dbRole = await Role.findOne({ name: account.role });
+      const dbRole = await staffData.findRole({ name: account.role });
       permissions = dbRole?.permissions || [];
     }
 
@@ -2760,7 +2714,7 @@ const getPerformerInfo = async (req: Request) => {
 
   if (req.authType === 'admin') {
     id = req.userId!;
-    const user = await User.findById(req.userId).select('username displayName');
+    const user = await staffData.userById(req.userId, { select: 'username displayName' });
     name = user ? displayNameOf(user) : `Unknown User (${req.userId})`;
   } else if (req.authType === 'customer') {
     id = req.customerId!;
@@ -3141,11 +3095,11 @@ app.get('/api/salesreps', authenticate, requireSalesPage, async (req: Request, r
     if (cached) return res.json(cached);
 
     const [users, driverRoles] = await Promise.all([
-      User.find({}, 'username displayName email role location assignedLocations isActive'),
+      staffData.findUsers({}, { select: 'username displayName email role location assignedLocations isActive' }),
       // Roles with Delivery Schedule → Driver view: their users are the truck
       // columns on the delivery board (src/api/deliverySchedule.js). Sent as a
       // flag per user rather than every user's permission list.
-      Role.find({ permissions: 'delivery_driver_view' }, 'name').lean()
+      staffData.findRoles({ permissions: 'delivery_driver_view' }, { select: 'name' })
     ]);
     const driverRoleNames = new Set(driverRoles.map(r => r.name));
     const formattedUsers = users.map(user => ({
@@ -3814,7 +3768,7 @@ app.use('/api/checkin', createCheckInRouter({ authenticate, requirePermission })
 // and by a catch-up run at boot and every 10 minutes. Deliveries dated before
 // FREIGHT_CHARGES_FROM were settled the old way and never become charges.
 const freightSync = createFreightSync({
-  Delivery: freightDeliveries, User, startDate: process.env.FREIGHT_CHARGES_FROM || '2026-10-01'
+  Delivery: freightDeliveries, User: staffData.userReads, startDate: process.env.FREIGHT_CHARGES_FROM || '2026-10-01'
 });
 setDeliveriesChangedHandler((ids) => (accountingWritesPaused() ? undefined : freightSync.syncDeliveryIds(ids)));
 app.use('/api/accounting/fuel-man', createFuelManRouter({ authenticate }));
@@ -3883,7 +3837,7 @@ app.post('/api/customers/:customerId/visits/:visitId/react', authenticate, requi
 
     let userName = 'Unknown';
     if (!isCustomer) {
-      const user = await User.findById(userId);
+      const user = await staffData.userById(userId);
       userName = user ? displayNameOf(user) : 'Admin';
     } else {
       userName = (await customerData.reactorCustomerName(String(userId))) ?? 'Customer';
@@ -3940,11 +3894,11 @@ app.use('/api/customers', createCustomerResourcesRouter({
  */
 const loadImportReferenceData = async () => {
   const branchByKey = new Map(
-    (await Location.find().select('name').lean()).map(b => [importNormalize(b.name), b.name])
+    (await staffData.locationBriefs()).map(b => [importNormalize(b.name), b.name])
   );
 
   const repByKey = new Map();
-  for (const u of (await User.find().select('username displayName email role').lean()).filter(isSalesRep)) {
+  for (const u of (await staffData.findUsers({}, { select: 'username displayName email role' })).filter(isSalesRep)) {
     const resolved = { salesRep: u._id, salesRepName: displayNameOf(u) };
     for (const alias of [u.displayName, u.username, prettifyUsername(u.username), u.email]) {
       const key = importNormalize(alias);
@@ -4952,7 +4906,11 @@ app.get('/api/health', async (req: Request, res: Response) => {
     permitsWritesPaused: permitsWritesPaused(),
     dailyReportsWritesPaused: dailyReportsWritesPaused(),
     cardReceiptsOn: areasOnPostgres().includes('card_receipts') ? 'postgres' : 'mongo',
-    cardReceiptsWritesPaused: cardReceiptsWritesPaused()
+    cardReceiptsWritesPaused: cardReceiptsWritesPaused(),
+    staffOn: areasOnPostgres().includes('staff') ? 'postgres' : 'mongo',
+    staffWritesPaused: staffWritesPaused(),
+    typesOn: areasOnPostgres().includes('types') ? 'postgres' : 'mongo',
+    typesWritesPaused: typesWritesPaused()
   });
 });
 

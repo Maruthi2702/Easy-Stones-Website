@@ -29,7 +29,7 @@ import type { Request, RequestHandler, Response } from 'express';
 import express from 'express';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import User from '../models/User.ts';
+import * as staffData from '../db/staff/index.ts';
 import { sendEmail } from '../services/emailService.ts';
 import { SENDER_NAME } from '../utils/emailSender.ts';
 import { usernameProblem, PASSWORD_MIN } from '../utils/userForm.ts';
@@ -120,7 +120,7 @@ export default function createUserOnboardingRouter({
     const problem = usernameProblem(username);
     if (problem) return res.json({ available: false, reason: problem });
     try {
-      const taken = await User.exists({ username });
+      const taken = await staffData.userExists({ username });
       res.json(taken ? { available: false, reason: 'Someone already has this username' } : { available: true });
     } catch {
       res.status(500).json({ message: 'Could not check that username' });
@@ -132,7 +132,7 @@ export default function createUserOnboardingRouter({
   const setupUser = async (req: Request) => {
     const setup = readSetupToken(req, jwtSecret);
     if (!setup || !mongoose.isValidObjectId(setup.userId)) return null;
-    const user = await User.findById(setup.userId);
+    const user = await staffData.userDocById(setup.userId);
     if (!user || user.isActive === false || !user.mustChangePassword
       || tempPasswordExpired(user) || sessionVersionOf(user) !== setup.sv) return null;
     return user;
@@ -172,7 +172,7 @@ export default function createUserOnboardingRouter({
           clearPasswordSetup(res);
           return res.status(401).json({ success: false, code: 'setup-expired', message: 'This sign-in timed out. Sign in again with your temporary password.' });
         }
-        user = await User.findOne({ username: String(username).toLowerCase() });
+        user = await staffData.userDoc({ username: String(username).toLowerCase() });
         if (!user) return res.status(401).json({ success: false, message: 'Invalid credentials' });
         if (user.isLocked()) {
           return res.status(423).json({ success: false, message: 'Account locked due to too many failed attempts. Try again in 15 minutes.' });
@@ -207,7 +207,7 @@ export default function createUserOnboardingRouter({
 
   const findInvite = async (token: string) => {
     if (!token) return null;
-    const user = await User.findOne({ inviteTokenHash: hashToken(token) }).select('+inviteTokenHash');
+    const user = await staffData.userDoc({ inviteTokenHash: hashToken(token) }, { select: '+inviteTokenHash' });
     if (!user || !user.inviteExpiresAt || user.inviteExpiresAt.getTime() < Date.now() || user.isActive === false) return null;
     return user;
   };
@@ -236,7 +236,7 @@ export default function createUserOnboardingRouter({
       }
       // Claim it before anything else: of two submits racing on one link,
       // only the one that clears the hash goes on.
-      const claimed = await User.updateOne(
+      const claimed = await staffData.updateUser(
         { _id: user._id, inviteTokenHash: hashToken(token) },
         { $set: { inviteTokenHash: null, inviteExpiresAt: null } }
       );
@@ -262,7 +262,7 @@ export default function createUserOnboardingRouter({
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ success: false, message: 'Current password and new password are required' });
       }
-      const user = await User.findById(req.userId || req.user?.id);
+      const user = await staffData.userDocById(req.userId || req.user?.id);
       if (!user) return res.status(404).json({ success: false, message: 'User not found' });
       if (!(await user.comparePassword(String(currentPassword)))) {
         return res.status(400).json({ success: false, message: 'Current password is incorrect' });
@@ -289,7 +289,7 @@ export default function createUserOnboardingRouter({
   const requestParams = scalarParams(req);
     try {
       if (!mongoose.isValidObjectId(requestParams.id)) return res.status(404).json({ message: 'User not found' });
-      const user = await User.findById(requestParams.id);
+      const user = await staffData.userDocById(requestParams.id);
       if (!user) return res.status(404).json({ message: 'User not found' });
       if (!memberAllowed(req, user)) return res.status(403).json({ message: "You can't change this person's account." });
       clearSignInLock(user);

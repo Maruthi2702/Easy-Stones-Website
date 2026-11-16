@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
+import * as staffData from '../db/staff/index.ts';
 import mongoose from 'mongoose';
-import User from '../models/User.ts';
-import Role from '../models/Role.ts';
+import type { Loose } from '../types/records.ts';
 import { sessionIsCurrent } from './staffSession.ts';
 
 // Optional authentication for public reads and socket joins. Invalid sessions
@@ -19,8 +19,8 @@ export async function resolveStaffToken(token: string | null | undefined, secret
   if (!decoded || (decoded.type !== 'internal' && !(decoded.userId && !decoded.type))) return null;
   const id = decoded.userId || decoded.id;
   if (!mongoose.isValidObjectId(id)) return null;
-  const user = await User.findById(id, 'role assignedLocations isActive mustChangePassword sessionVersion').lean();
+  const user = await staffData.userById(id, { select: 'role assignedLocations isActive mustChangePassword sessionVersion' });
   if (!user || user.isActive === false || user.mustChangePassword || !sessionIsCurrent(decoded, user)) return null;
-  const role = await Role.findOne({ name: String(user.role || '').trim().toLowerCase() }, 'permissions').lean();
-  return { ...user, permissions: role?.permissions || [] };
+  const role = await staffData.findRole({ name: String(user.role || '').trim().toLowerCase() }, { select: 'permissions' });
+  return { ...user, permissions: (role?.permissions || []) as string[] } as Loose & { role?: string; permissions: string[] };
 }

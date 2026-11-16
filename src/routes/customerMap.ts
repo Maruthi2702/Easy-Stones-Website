@@ -1,10 +1,10 @@
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
+import * as staffData from '../db/staff/index.ts';
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request } from 'express';
 import express from 'express';
 import mongoose from 'mongoose';
 import { mapCustomerPins, mapCustomerRecord } from '../db/customers/index.ts';
-import User from '../models/User.ts';
 import { inScopePins, pinsForReps, repCountsOf, parseRepKeys } from '../utils/routePlannerScope.ts';
 
 /**
@@ -61,7 +61,7 @@ export default function createCustomerMapRouter({ authenticate, requirePermissio
   /** The signed-in person as the scope rule reads them, and the staff it checks reps against. */
   const scopeFor = async (req: Request) => {
     const me = req.authUserDoc;
-    const staff = await User.find({}, 'username role location assignedLocations').lean();
+    const staff = await staffData.findUsers({}, { select: 'username role location assignedLocations' });
     return {
       user: {
         id: req.userId ?? req.user?.id,

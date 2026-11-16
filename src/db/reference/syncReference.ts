@@ -40,10 +40,26 @@ const TABLES: { table: PgTable; key: keyof ReturnType<typeof referenceRows>['row
   { table: S.resourceTypes, key: 'resourceTypes' }
 ];
 
+/** The tables Users, Roles and Locations own: once `DB_STAFF=postgres` Postgres holds them and nothing may overwrite them. */
+export const STAFF_KEYS = new Set<string>(['locations', 'roles', 'users']);
+
+/** The type lists: once `DB_TYPES=postgres` Postgres holds them and nothing may overwrite them. */
+export const TYPE_KEYS = new Set<string>(['visitTypes', 'resourceFamilies', 'resourceTypes']);
+
+export interface SyncReferenceOptions {
+  /** false once the staff area is on Postgres: users, roles and locations are Postgres's own. Default true. */
+  staff?: boolean;
+  /** false once the type lists are on Postgres. Default true. */
+  types?: boolean;
+}
+
 /** Bring the reference tables in line with `src` (the six MongoDB collections, read whole). */
-export async function syncReference(db: Db, src: ReferenceSource): Promise<ReferenceSyncReport> {
+export async function syncReference(db: Db, src: ReferenceSource, options: SyncReferenceOptions = {}): Promise<ReferenceSyncReport> {
+  const staff = options.staff !== false;
   const problems: CopyProblem[] = [];
   const { rows } = referenceRows(src, problems);
+  const types = options.types !== false;
+  const tables = TABLES.filter(t => (staff || !STAFF_KEYS.has(t.key)) && (types || !TYPE_KEYS.has(t.key)));
   const report: ReferenceSyncReport = { upserted: {}, deleted: {}, kept: [], problems };
 
   await db.transaction(async tx => {
@@ -56,7 +72,7 @@ export async function syncReference(db: Db, src: ReferenceSource): Promise<Refer
     // row, and again after, so a role whose people have just moved off it can go.
     const removeGone = async () => {
       report.kept = [];
-      for (const { table, key } of [...TABLES].reverse()) {
+      for (const { table, key } of [...tables].reverse()) {
         const want = new Set((rows[key] as Loose[]).map(r => r.id as string));
         const have = (await tx.select({ id: (table as unknown as { id: never }).id }).from(table)) as { id: string }[];
         const gone = have.map(r => r.id).filter(id => !want.has(id));
@@ -74,7 +90,7 @@ export async function syncReference(db: Db, src: ReferenceSource): Promise<Refer
     };
     await removeGone();
 
-    for (const { table, key } of TABLES) {
+    for (const { table, key } of tables) {
       const list = rows[key] as Loose[];
       const columns = getTableColumns(table) as Record<string, { name: string }>;
       const set = Object.fromEntries(Object.entries(columns).filter(([k]) => k !== 'id').map(([k, c]) => [k, sql.raw(`excluded."${c.name}"`)]));
@@ -85,10 +101,12 @@ export async function syncReference(db: Db, src: ReferenceSource): Promise<Refer
     }
 
     // Who works where, and who gets each branch's report: replaced whole (nothing points at them).
-    await tx.delete(S.userLocations);
-    await tx.delete(S.locationReportRecipients);
-    for (let i = 0; i < rows.userLocations.length; i += CHUNK) await tx.insert(S.userLocations).values(rows.userLocations.slice(i, i + CHUNK));
-    for (let i = 0; i < rows.locationReportRecipients.length; i += CHUNK) await tx.insert(S.locationReportRecipients).values(rows.locationReportRecipients.slice(i, i + CHUNK));
+    if (staff) {
+      await tx.delete(S.userLocations);
+      await tx.delete(S.locationReportRecipients);
+      for (let i = 0; i < rows.userLocations.length; i += CHUNK) await tx.insert(S.userLocations).values(rows.userLocations.slice(i, i + CHUNK));
+      for (let i = 0; i < rows.locationReportRecipients.length; i += CHUNK) await tx.insert(S.locationReportRecipients).values(rows.locationReportRecipients.slice(i, i + CHUNK));
+    }
 
     await removeGone();
   });

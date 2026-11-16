@@ -1,11 +1,10 @@
 import type { Request, RequestHandler, Response, NextFunction } from 'express';
+import * as staffData from '../db/staff/index.ts';
 import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import * as db from '../db/cardReceipts/index.ts';
 import { newId } from '../db/ids.ts';
-import Role from '../models/Role.ts';
-import User from '../models/User.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, holderMayEdit, changeSummary, possibleRepeat, canApprove, cleanApproverRoles, decisionProblem,
@@ -79,7 +78,7 @@ async function categoriesList() {
 /** The roles whose receipts this caller's role approves (Roles & Permissions), or none without the switch. */
 async function approverRolesOf(req: Request) {
   if (!has(req, CARD_RECEIPTS.APPROVE)) return [];
-  const role = await Role.findOne({ name: String(userOf(req).role || '').trim().toLowerCase() }, 'approvesCardReceiptsOf').lean();
+  const role = await staffData.findRole({ name: String(userOf(req).role || '').trim().toLowerCase() }, { select: 'approvesCardReceiptsOf' });
   return cleanApproverRoles((role as Loose)?.approvesCardReceiptsOf);
 }
 
@@ -87,7 +86,7 @@ async function approverRolesOf(req: Request) {
 async function approvableIds(req: Request) {
   const roles = await approverRolesOf(req);
   if (!roles.length) return new Set<string>();
-  const people = await User.find({ role: { $in: roles } }, '_id role').lean();
+  const people = await staffData.findUsers({ role: { $in: roles } }, { select: '_id role' });
   const me = userIdOf(req);
   return new Set(people.map((p) => String(p._id)).filter((id) => id !== me));
 }
@@ -220,7 +219,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     try {
       const [cards, people] = await Promise.all([
         db.listCards(),
-        User.find({}, 'username displayName role location assignedLocations isActive').sort({ displayName: 1 }).lean()
+        staffData.findUsers({}, { select: 'username displayName role location assignedLocations isActive', sort: { displayName: 1 } })
       ]);
       res.json({
         cards: cards.map(cardView),
@@ -238,7 +237,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const { value, problems } = cleanCard({ ...(card ? cardView(card) : {}), ...(req.body || {}) });
     if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
     const active = typeof req.body?.active === 'boolean' ? req.body.active : (card ? card.active !== false : true);
-    if (!mongoose.isValidObjectId(value.userId) || !(await User.exists({ _id: value.userId }))) {
+    if (!mongoose.isValidObjectId(value.userId) || !(await staffData.userExists({ _id: value.userId }))) {
       return res.status(400).json({ message: 'Some fields need attention.', problems: { userId: 'Choose the cardholder' } });
     }
     if (active) {
@@ -407,7 +406,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     try {
       const expense = await db.findExpense(id);
       if (!expense) return res.status(404).json({ message: 'Expense not found.' });
-      const holder = await User.findById(expense.userId, 'role').lean();
+      const holder = await staffData.userById(expense.userId, { select: 'role' });
       const approver = { id: userIdOf(req), permissions: userOf(req).permissions || [] };
       if (!canApprove({ approver, approverRoles: await approverRolesOf(req), holder: holder ? { id: expense.userId, role: holder.role } : null })) {
         return res.status(403).json({ message: approver.id === expense.userId ? 'You can’t approve your own expense.' : 'You can’t approve this person’s receipts.' });

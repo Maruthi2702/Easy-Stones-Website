@@ -246,6 +246,22 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
   - [ ] **Permits**: the API runs on Lambda but every model in `src/permits/models.ts` (permits, runs, checks, contractors) is still Mongoose — its own area and switch, not "tiny"
   - [ ] Read-only comparison on live data, local click-through (owner), cutover (`SMALL_WRITES_PAUSED=true` → `--scope small --write` → `--verify` → `DB_SMALL=postgres` → pause off → `--lock … --scope small`)
 - [ ] Last: Users, Roles, Locations, sign-in, who's online (3–5 days; every request reads them)
+  Started 2026-11-15 on `feat/pg-users` (in parallel with the other §5 areas; **nothing switched on**, default stays MongoDB). Switch `DB_STAFF`; data layer `src/db/staff/`; Postgres answers in MongoDB's shape (`staffDoc.ts`: `location`, `assignedLocations` with `'*'`). ~115 call sites in 27 files (56 in server.ts). Owner's caution: don't cut over mid-onboarding of next week's new users — build and test only until they say go.
+  - [x] Slice 1: sign-in identity (`authIdentity`) and roles; **wired**: `authenticate`, the socket's staff check, `resolveStaffToken`
+  - [x] Locations: list, create (geocoded), edit, delete, by id / name / any case, delivery column order; server.ts routes + the other readers (fuelman, holds letterhead, daily-report email, deliveries, daily reports, check-in, purchasing)
+  - [x] Users and Roles: reads (select / sort / filters), documents with `save()` (changed fields only, hashed password, duplicate → 11000), `updateOne` / `findOneAndUpdate`, the atomic wrong-password counter (5 → 15 min lock), delete; every `User.` / `Role.` call in server.ts, schedule (calendar tokens), onboarding (invites, first password, change password), card receipts, check-in, team access / directory, staff identity, suppliers, accounting sync (via `userReads`); start-up role seeds, permission grants and user migrations
+  - [x] Cutover tooling: `STAFF_WRITES_PAUSED` gate (`/api/health` → `staffWritesPaused`, `staffOn`), `pg-copy-aws.ts --scope staff --write | --verify | --lock` (an in-place sync, never a truncating copy), the running reference sync stops touching staff tables once `DB_STAFF=postgres` (it keeps following the type lists). Runbook: `src/db/staff/README.md`
+  - [x] Tests: parity (identity, roles, locations, users, sign-in counting, atomic updates, the lock), query helper, pause, cutover sync
+  - [ ] Known differences to accept (README "Known differences"): assigned locations A–Z; deleting a referenced user / role / location is refused by Postgres; no reverse sync for rollback after the switch
+  - [ ] Latency: `authenticate` is one join, ~38 ms Render → RDS per request; add a short cache if it's noticeable in the click-through
+  - [ ] Owner's local click-through with `DB_STAFF=postgres` (sign in, 5 wrong passwords lock, Users & Roles add / edit / deactivate / unlock, temp password + invite link, Roles, Locations, a hold at a branch added after the copy)
+  - [ ] **Cutover (owner's go, after next week's users are added):** `STAFF_WRITES_PAUSED=true` → `--scope staff --write` → `--verify --scope staff` → `DB_STAFF=postgres` on Render + pause off → click-through → `--lock … --scope staff`; then Mongo users / roles / locations read-only 2 weeks. Drop `company_cards.user_id`'s dependence on the sync once locked.
+
+- [ ] **Visit Types, Resource Types, Families** (`feat/pg-types`, built 2026-11-15 on top of `feat/pg-users`; not merged, not cut over). Switch `DB_TYPES`; data layer `src/db/types/` (README + cutover runbook). The router goes through a store (MongoDB = its old logic, Postgres = one transaction for a delete-with-move and a family recount); `resourceTypeByName`, Moda's `familyRows` and the seed moved onto it
+  - [x] Parity test `types.parity.test.ts` (real router, both databases, customers' rows compared); `typeLists.test.ts` (26 MongoDB cases) unchanged and green
+  - [x] `--scope types` in-place sync / verify / lock; `TYPES_WRITES_PAUSED` gate; `/api/health` → `typesOn`, `typesWritesPaused`; the running reference sync stops following lists (and stops entirely once staff is on Postgres too)
+  - [ ] Owner's local click-through with `DB_TYPES=postgres` (Admin → Visit Types / Resource Types; family change moves a customer's counts)
+  - [ ] **Cutover (owner's go):** pause on → `--scope types --write` → `--verify --scope types` → `DB_TYPES=postgres` + pause off → click-through → `--lock … --scope types`; Mongo lists read-only 2 weeks. Independent of the staff cutover
 
 ## 6. After every area has moved
 

@@ -5,7 +5,7 @@
  */
 import type { ClientSession } from 'mongoose';
 import { stockForPurchasing, salesRecordsForPurchasing } from '../inventory/index.ts';
-import Location from '../../models/Location.ts';
+import * as staffData from '../staff/index.ts';
 import { lockedSlabsAtBranches } from '../holds/index.ts';
 import { inInventoryTransaction } from '../../services/inventoryTransaction.ts';
 
@@ -13,7 +13,7 @@ type Session = ClientSession | null;
 
 /** Branch names, A–Z. */
 export const readBranchNames = async (session: Session): Promise<string[]> =>
-  (await Location.find({}, 'name').session(session).sort({ name: 1 }).lean()).map(row => row.name);
+  await staffData.locationNames();
 
 /** The stock and sales Purchasing plans from: the Inventory data layer (MongoDB or Postgres, by `DB_INVENTORY`). */
 export const readStockForPurchasing = (branches: string[], session: Session, tx: unknown = null) => stockForPurchasing(branches, session, tx);

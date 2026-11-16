@@ -1,16 +1,11 @@
 import type { ClientSession } from 'mongoose';
-import LocationModel from '../models/Location.ts';
-import UserModel from '../models/User.ts';
-import RoleModel from '../models/Role.ts';
+import * as staffData from '../db/staff/index.ts';
 import { displayNameOf } from '../utils/salesReps.ts';
 import { HttpError } from './http.ts';
 import type { DriverOption } from './types.ts';
 interface UserAccess { assignedLocations?: string[]; permissions?: string[] }
-const Location = LocationModel;
-const User = UserModel;
-const Role = RoleModel;
 export async function access(user: UserAccess, session: ClientSession | null = null) {
-  const all = (await Location.find({}, 'name').session(session).sort({ name: 1 }).lean()).map(l => l.name);
+  const all = await staffData.locationNames();
   const assigned = user.assignedLocations || [];
   const global = assigned.includes('*') || (all.length > 0 && all.every(name => assigned.includes(name)));
   return { global, locations: global ? all : all.filter(name => assigned.includes(name)), permissions: user.permissions || [] };
@@ -21,8 +16,8 @@ export async function requireGlobal(user: UserAccess, session: ClientSession | n
   return a;
 }
 export async function driverOptions(session: ClientSession | null = null): Promise<DriverOption[]> {
-  const roles = await Role.find({ permissions: 'delivery_driver_view' }, 'name').session(session).lean();
-  const people = await User.find({ role: { $in: roles.map(r => r.name) } }, 'username displayName location assignedLocations isActive').session(session).sort({ displayName: 1, username: 1 }).lean();
+  const roles = await staffData.findRoles({ permissions: 'delivery_driver_view' }, { select: 'name', session });
+  const people = await staffData.findUsers({ role: { $in: roles.map(r => r.name) } }, { select: 'username displayName location assignedLocations isActive', sort: { displayName: 1, username: 1 }, session });
   return people.map(u => {
     const locations = u.assignedLocations?.length ? u.assignedLocations : u.location ? [u.location] : [];
     const homeLocation = u.location && (locations.includes('*') || locations.includes(u.location)) ? u.location : locations.length === 1 && locations[0] !== '*' ? locations[0]! : '';

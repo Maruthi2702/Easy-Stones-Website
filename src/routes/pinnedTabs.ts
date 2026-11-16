@@ -1,7 +1,7 @@
 import type { Loose } from '../types/records.ts';
+import * as staffData from '../db/staff/index.ts';
 import type { RequestHandler } from 'express';
 import express from 'express';
-import User from '../models/User.ts';
 import { sanitizePinnedTabs } from '../utils/navPins.ts';
 
 /**
@@ -29,7 +29,7 @@ export default function createPinnedTabsRouter({ authenticate }: { authenticate:
       if (!pinnedTabs) {
         return res.status(400).json({ message: 'pinnedTabs must be a list' });
       }
-      await User.findByIdAndUpdate(req.userId, { $set: { pinnedTabs } });
+      await staffData.updateUserById(req.userId, { $set: { pinnedTabs } });
       res.json({ success: true, pinnedTabs });
     } catch (error) {
       console.error('Save pinned tabs error:', error);

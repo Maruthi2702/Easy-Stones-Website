@@ -1,4 +1,5 @@
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
+import * as staffData from '../db/staff/index.ts';
 import type { Loose } from '../types/records.ts';
 import type { RequestHandler, Request, Response } from 'express';
 /**
@@ -15,7 +16,6 @@ import express from 'express';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import { randomBytes } from 'node:crypto';
-import User from '../models/User.ts';
 import { calendarFeedToken, validCalendarFeedToken } from '../services/calendarFeed.ts';
 import { zonedTimeToUtc } from '../utils/dateUtils.ts';
 import { cleanScheduleFields, isObjectId, DEFAULT_VISIT_MINUTES } from '../utils/scheduleRecord.ts';
@@ -297,12 +297,12 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   const subscription = (rotate: boolean) => async (req: Request, res: Response) => {
     if (!req.userId || req.user?.type === 'customer') return res.status(403).json({ message: 'Staff access required' });
     try {
-      let owner = await User.findOneAndUpdate(
+      let owner = await staffData.findUserAndUpdate(
         { _id: req.userId, ...(rotate ? {} : { calendarFeedKey: null }) },
         { $set: { calendarFeedKey: randomBytes(32).toString('hex') } },
-        { returnDocument: 'after' }
-      ).select('+calendarFeedKey').lean();
-      if (!owner) owner = await User.findById(req.userId).select('+calendarFeedKey').lean();
+        { select: '+calendarFeedKey' }
+      );
+      if (!owner) owner = await staffData.userById(req.userId, { select: '+calendarFeedKey' });
       if (!owner || !owner.calendarFeedKey || owner.isActive === false || owner.mustChangePassword) return res.sendStatus(403);
       const token = calendarFeedToken(String(owner._id), owner.calendarFeedKey, JWT_SECRET);
       res.json({ path: `/api/calendar/feed/${owner._id}.ics?token=${token}` });
@@ -328,7 +328,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
 
       // A deactivated user's calendar subscription stops with their account
       // (Users & Roles); so does one for an account that no longer exists.
-      const owner = await User.findById(userId).select('isActive mustChangePassword +calendarFeedKey').lean();
+      const owner = await staffData.userById(userId, { select: 'isActive mustChangePassword +calendarFeedKey' });
       if (!owner || owner.isActive === false || owner.mustChangePassword
           || !validCalendarFeedToken(requestQuery.token, userId, owner.calendarFeedKey, JWT_SECRET)) {
         return res.status(404).send('Calendar not found');
@@ -464,7 +464,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   // Core Helper: Perform Two-Way synchronization between MongoDB Schedules and Google Calendar
   const syncGoogleCalendar = async (userId: string | undefined, timeZone: string | undefined) => {
     try {
-      const user = await User.findById(userId);
+      const user = await staffData.userDocById(userId);
       if (!user || !user.googleCalendarSyncEnabled || !user.googleAccessToken) {
         return;
       }
@@ -703,7 +703,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         googleEmail = profile.email;
       }
 
-      const user = await User.findById(userId);
+      const user = await staffData.userDocById(userId);
       if (!user) {
         return res.status(404).send('User not found');
       }
@@ -730,7 +730,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.get('/auth/google/calendar/status', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
-      const user = await User.findById(userId).select('googleEmail googleCalendarSyncEnabled').lean();
+      const user = await staffData.userById(userId, { select: 'googleEmail googleCalendarSyncEnabled' });
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
@@ -762,7 +762,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.post('/auth/google/calendar/disconnect', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
-      const user = await User.findById(userId);
+      const user = await staffData.userDocById(userId);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
@@ -796,7 +796,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
         return res.json({ success: true, calendars });
       } else {
         // Step 2: Save the user's selected calendar url & name
-        const user = await User.findById(userId);
+        const user = await staffData.userDocById(userId);
         if (!user) {
           return res.status(404).json({ message: 'User not found' });
         }
@@ -829,7 +829,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.get('/auth/icloud/status', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
-      const user = await User.findById(userId).select('icloudUsername icloudCalendarName icloudSyncEnabled').lean();
+      const user = await staffData.userById(userId, { select: 'icloudUsername icloudCalendarName icloudSyncEnabled' });
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
@@ -864,7 +864,7 @@ export default function createScheduleRouter({ authenticate, requirePermission, 
   router.post('/auth/icloud/disconnect', verifyAnyAuth, async (req, res) => {
     try {
       const userId = req.userId || req.customerId;
-      const user = await User.findById(userId);
+      const user = await staffData.userDocById(userId);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
