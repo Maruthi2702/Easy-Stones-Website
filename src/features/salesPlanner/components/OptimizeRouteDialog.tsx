@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigation, Lock, MapPinOff } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormField, FormPicker } from '../../../components/shared/form/FormControls';
@@ -80,12 +80,12 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
     const [applied, setApplied] = useState<{ id: string; startTime: string; endTime?: string }[] | null>(null);
 
     const byId = useMemo(() => new Map(items.map((i) => [String(i._id), i])), [items]);
-    // How long each stop takes: its own length (30 min when it has none), or one length for all.
-    const [length, setLength] = useState('keep');
+    // How long each stop takes: one length for all (15 min by default), or each stop's own length.
+    const [length, setLength] = useState('15');
     const stops = useMemo(() => items.map(toStop).map((s) => (
         length === 'keep' ? s : { ...s, wasMinutes: s.minutes, minutes: Number(length), hasEnd: true }
     )), [items, length]);
-    // When the day starts: 9:00, or the next quarter hour when it is today and later than that.
+    // When the day starts: 8:00, or the next quarter hour when it is today and later than that.
     const dayMs = stops[0]?.start;
     const [startTime, setStartTime] = useState(() => {
         if (dayMs === undefined || new Date(dayMs).toDateString() !== new Date().toDateString()) return timeText(DAY_START_HOUR * 60);
@@ -176,6 +176,39 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
             }
             if (!found.length) setFindError('No match — try the street, city and state.');
             setMatches(found);
+        } catch (e) { setFindError((e as Error).message || 'Could not look that up.'); } finally { setFinding(false); }
+    };
+    // Suggestions while typing, like Google Maps: Places autocomplete, one session per address so it bills as one search.
+    const [suggestions, setSuggestions] = useState<google.maps.places.PlacePrediction[]>([]);
+    const sessionToken = useRef<google.maps.places.AutocompleteSessionToken | null>(null);
+    useEffect(() => {
+        const input = addressText.trim();
+        if (!adding || !mapsReady || input.length < 3) { setSuggestions([]); return; }
+        let gone = false;
+        const timer = window.setTimeout(async () => {
+            try {
+                const lib = await window.google.maps.importLibrary('places') as google.maps.PlacesLibrary;
+                sessionToken.current ||= new lib.AutocompleteSessionToken();
+                const { suggestions: list } = await lib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+                    input, sessionToken: sessionToken.current, includedRegionCodes: ['us']
+                });
+                if (!gone) setSuggestions(list.map((x) => x.placePrediction).filter((x): x is google.maps.places.PlacePrediction => !!x).slice(0, 5));
+            } catch (e) {
+                console.warn('[Optimize route] Suggestions failed; Find still works:', e);
+                if (!gone) setSuggestions([]);
+            }
+        }, 250);
+        return () => { gone = true; window.clearTimeout(timer); };
+    }, [addressText, adding, mapsReady]);
+    const chooseSuggestion = async (prediction: google.maps.places.PlacePrediction) => {
+        setFinding(true); setFindError('');
+        try {
+            const place = prediction.toPlace();
+            await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location'] });
+            sessionToken.current = null;
+            if (!place.location) throw new Error('No location for that place.');
+            setSuggestions([]);
+            choosePlace({ name: place.displayName || '', address: place.formattedAddress || prediction.text.text, lat: place.location.lat(), lng: place.location.lng() });
         } catch (e) { setFindError((e as Error).message || 'Could not look that up.'); } finally { setFinding(false); }
     };
     const choosePlace = (m: { name: string; address: string; lat: number; lng: number }) => {
@@ -289,7 +322,7 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
             {adding && (
                 <div className="opt-add">
                     <FormField name="addr" id="opt-addr" label={adding === 'from' ? 'Start address' : 'Finish address'}>
-                        <input id="opt-addr" className="fm-input no-capitalize" value={addressText} onChange={(e) => setAddressText(e.target.value)}
+                        <input id="opt-addr" className="fm-input no-capitalize" value={addressText} onChange={(e) => { setAddressText(e.target.value); setMatches([]); }}
                             placeholder="Street, city, state — or a hotel's name and city" autoFocus
                             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (addressText.trim().length >= 4 && !finding && mapsReady) findAddress(); } }} />
                     </FormField>
@@ -300,6 +333,17 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
                         <button type="button" className="btn-secondary" onClick={() => setAdding(null)}>Cancel</button>
                         <button type="button" className="btn-primary" onClick={findAddress} disabled={finding || !mapsReady || addressText.trim().length < 4}>{finding ? 'Finding…' : 'Find'}</button>
                     </div>
+                    {suggestions.length > 0 && matches.length === 0 && (
+                        <ul className="opt-matches" role="listbox" aria-label="Suggestions">
+                            {suggestions.map((sg) => (
+                                <li key={sg.placeId}>
+                                    <button type="button" role="option" aria-selected="false" onClick={() => chooseSuggestion(sg)}>
+                                        <strong>{sg.mainText?.text || sg.text.text}</strong><span>{sg.secondaryText?.text || ''}</span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                     {mapsError && <p className="opt-error" role="alert">Google Maps failed to load: {mapsError.message}</p>}
                     {findError && <p className="opt-error" role="alert">{findError}</p>}
                     {matches.length > 0 && (

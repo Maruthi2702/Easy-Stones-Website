@@ -57,7 +57,7 @@ export type RoutePlan = {
 };
 
 const MINUTE = 60_000;
-export const DAY_START_HOUR = 9;
+export const DAY_START_HOUR = 8;
 /** Times are tidied to 5 minutes (rounded up) so the day reads cleanly. */
 const roundUp = (ms: number, step = 5 * MINUTE) => Math.ceil(ms / step) * step;
 
@@ -105,7 +105,7 @@ export function planDayRoute(
     }
   }
 
-  // The day opens at 9:00 AM (or `startAt`, e.g. now), never at whatever odd
+  // The day opens at 8:00 AM (or `startAt`, e.g. now), never at whatever odd
   // time an existing stop was saved at (a 1:38 AM stop used to start the day).
   const nineAm = byTime.length ? new Date(byTime[0].start).setHours(DAY_START_HOUR, 0, 0, 0) : 0;
   const dayStart = startAt ?? nineAm;

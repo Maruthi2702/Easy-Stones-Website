@@ -14,9 +14,9 @@ describe('planDayRoute', () => {
     expect(plan.milesAfter).toBeLessThan(plan.milesBefore);
   });
 
-  it('opens the day at 9 AM even when a stop was saved at an odd hour', () => {
+  it('opens the day at 8 AM even when a stop was saved at an odd hour', () => {
     const plan = planDayRoute([stop('a', 0, 1), stop('b', 4, 23)], { origin: null });
-    expect(plan.stops[0].start.getTime()).toBe(at(9));
+    expect(plan.stops[0].start.getTime()).toBe(at(8));
   });
 
   it('opens at startAt when given (today, from now)', () => {
@@ -26,7 +26,7 @@ describe('planDayRoute', () => {
 
   it('starts at the day\'s first time and lays times down with drive time between', () => {
     const plan = planDayRoute([stop('a', 0, 9), stop('b', 4, 11)], { origin: null });
-    expect(plan.stops[0].start.getTime()).toBe(at(9));
+    expect(plan.stops[0].start.getTime()).toBe(at(8));
     expect(plan.stops[1].start.getTime()).toBeGreaterThan(plan.stops[0].end.getTime());
     expect(plan.stops[1].start.getTime()).toBeLessThan(at(11));
   });
@@ -71,7 +71,7 @@ describe('planDayRoute', () => {
 
   it('says so when the day is already in the best order', () => {
     expect(planDayRoute([stop('a', 0, 9), stop('b', 4, 10)], { origin: p(-1) }).unchanged).toBe(false); // times tighten
-    const plan = planDayRoute([stop('a', 0, 9)], { origin: null });
+    const plan = planDayRoute([stop('a', 0, 8)], { origin: null });
     expect(plan.unchanged).toBe(true);
   });
 
