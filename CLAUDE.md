@@ -346,7 +346,7 @@ dashboard's round +** (`DashboardAddButton`, fixed above `--app-bottom-h`; the
 toolbar's Schedule Activity button and `.pl-new` are gone since 2026-11-01). A stop shows its time in its own column and its length when
 it saved an end; the pencil and bin become one "⋯" (`.pl-kebab`) that opens
 a bottom sheet (`PlannerActionsSheet`: Directions / Open profile / Edit schedule / Delete
-activity). **Calendar redesign (2026-11-16, on `feat/calendar-redesign`):** a phone has
+activity), built on the form template's sheet (`.fm-sheet`, `--fm-*` tokens, 48px `.fm-opt` rows, Cancel in `.fm-sheet-foot`; 2026-11-17). **Calendar redesign (2026-11-16, on `feat/calendar-redesign`):** a phone has
 **Day and Month only** (a left-over Week becomes Day), no ‹ › arrows, no Today button
 and no week strip — the date is the button that opens the shared calendar picker, and
 Month is a number and a stop count per day where a tap opens that day

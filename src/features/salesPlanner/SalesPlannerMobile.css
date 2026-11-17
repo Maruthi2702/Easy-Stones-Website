@@ -152,56 +152,20 @@
     .pl-pnote { margin: 10px 4px 0; font-size: 12px; color: var(--pl-text-2); }
 }
 
-/* A contextual action sheet sits above the app navigation and floating +. */
-.pl-wrap.pl-actions-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 2147483000;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    justify-content: flex-end;
-    isolation: isolate;
-}
-.pl-actions-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.48); z-index: -1; }
-.pl-actions-sheet {
-    max-height: 85dvh;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 10px 20px max(20px, env(safe-area-inset-bottom, 0px));
-    border-radius: 24px 24px 0 0;
-    background: var(--pl-surface);
-    color: var(--pl-text);
-    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.15);
-    outline: none;
-}
-.pl-actions-grip { width: 36px; height: 4px; margin: 0 auto 20px; background: var(--pl-dash); border-radius: 4px; }
-.pl-actions-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding-bottom: 18px; }
-.pl-actions-heading p { margin: 0 0 5px; font-size: 13px; color: var(--pl-text-2); }
-.pl-actions-heading h2 { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
-.pl-actions-close { flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: var(--pl-fill); color: var(--pl-text-2); cursor: pointer; }
-.pl-actions-note { margin: 0 0 16px; font-size: 14px; line-height: 1.5; color: var(--pl-text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
-.pl-actions-list { display: flex; flex-direction: column; border-top: 1px solid var(--pl-line); }
-.pl-actions-list button {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    width: 100%;
-    min-height: 58px;
-    padding: 12px 4px;
-    border: 0;
-    border-bottom: 1px solid var(--pl-line-soft);
-    background: transparent;
-    color: var(--pl-text);
-    font: inherit;
-    font-size: 16px;
-    text-align: left;
-    cursor: pointer;
-}
-.pl-actions-list .pl-actions-directions { color: var(--pl-gold); font-weight: 600; }
-.pl-actions-list .pl-actions-delete { color: var(--pl-danger-ink); margin-top: 8px; }
-.pl-actions-list button:active { background: var(--pl-fill); }
-.pl-actions-cancel { width: 100%; min-height: 50px; margin-top: 18px; border: 1px solid var(--pl-line); border-radius: 12px; background: var(--pl-fill); color: var(--pl-text); font: inherit; font-weight: 600; cursor: pointer; }
+/* A stop's action sheet is the form template's bottom sheet (.fm-sheet, FormModal.css); only what
+   the template doesn't say is here: it sits above the app navigation and the floating +, and the
+   note and the Directions / Delete rows. */
+.pl-actions-overlay { position: fixed; inset: 0; z-index: 2147483000; isolation: isolate; }
+.pl-actions-head { align-items: flex-start; }
+.pl-actions-title { flex: 1; min-width: 0; }
+.pl-actions-title p { margin: 0 0 2px; font-size: 13px; color: var(--fm-mut); }
+.pl-actions-title h2 { overflow-wrap: anywhere; line-height: 1.3; }
+.pl-actions-note { margin: 0 18px 8px; font-size: 13px; line-height: 1.5; color: var(--fm-mut); white-space: pre-wrap; overflow-wrap: anywhere; }
+.pl-actions-list { display: flex; flex-direction: column; }
+.pl-actions-list .pl-actions-directions { color: var(--fm-gold-tx); font-weight: 700; }
+.pl-actions-list .pl-actions-delete { color: var(--fm-err); }
+.pl-actions-list .pl-actions-delete svg { color: var(--fm-err); }
+.pl-actions-cancel { flex: 1; }
 
 /* The NOW line is the phone timeline's; wider screens don't draw it. */
 .pl-now { display: none; }

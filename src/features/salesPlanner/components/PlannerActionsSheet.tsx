@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Edit2, ExternalLink, Navigation, Trash2, X } from 'lucide-react';
+import { CalendarDays, Edit2, ExternalLink, Navigation, Trash2 } from 'lucide-react';
+import '../../../components/shared/form/FormModal.css';
 import { lockPage, unlockPage } from '../../../components/shared/pageLock';
 import { trapTab } from '../../../components/shared/form/formFocus';
 import type { PlannerItem } from '../plannerSchedule';
@@ -30,31 +31,33 @@ export default function PlannerActionsSheet({ item, onClose, onOpenCustomer, onD
     }, []);
 
     const choose = (action: () => void) => { onClose(); action(); };
+    // The form template's phone bottom sheet (FORM_TEMPLATE.md; .fm-sheet in FormModal.css and its --fm-* tokens),
+    // so it looks and behaves like every other sheet: grip, 16px title, 48px rows, Cancel in the footer.
     return createPortal(
-        <div className="pl-wrap pl-actions-overlay">
-            <div className="pl-actions-backdrop" onClick={onClose} aria-hidden="true" />
-            <div ref={dialogRef} className="pl-actions-sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} data-fm-layer=""
+        <div className="fm-tokens pl-actions-overlay">
+            <div className="fm-sheet-backdrop" onClick={onClose} aria-hidden="true" />
+            <div ref={dialogRef} className="fm-sheet pl-actions-sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} data-fm-layer=""
                 onKeyDown={e => {
                     if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); }
                     else if (e.key === 'Tab') trapTab(e, dialogRef.current?.parentElement);
                 }}>
-                <div className="pl-actions-grip" aria-hidden="true" />
-                <div className="pl-actions-heading">
-                    <div>
+                <div className="fm-sheet-head pl-actions-head">
+                    <div className="pl-actions-title">
                         <p>{timeLabel(item.startTime)} · {item.activityType || 'Visit'}</p>
-                        <h2 id={titleId}>{customerName(item)}</h2>
+                        <h2 id={titleId} className="fm-sheet-title">{customerName(item)}</h2>
                     </div>
-                    <button type="button" className="pl-actions-close" aria-label="Close activity actions" onClick={onClose}><X size={20} /></button>
                 </div>
                 {item.notes && <p className="pl-actions-note">{item.notes}</p>}
-                <div className="pl-actions-list">
-                    {onDirections && <button type="button" className="pl-actions-directions" onClick={() => choose(onDirections)}><Navigation size={20} /> Directions</button>}
-                    {onOpenCustomer && <button type="button" onClick={() => choose(onOpenCustomer)}><ExternalLink size={20} /> Open profile</button>}
-                    {onOpenCalendar && <button type="button" onClick={() => choose(onOpenCalendar)}><CalendarDays size={20} /> Edit in Calendar</button>}
-                    {onEdit && <button type="button" onClick={() => choose(onEdit)}><Edit2 size={20} /> Edit schedule</button>}
-                    {onDelete && <button type="button" className="pl-actions-delete" onClick={() => choose(onDelete)}><Trash2 size={20} /> Delete activity</button>}
+                <div className="fm-sheet-body pl-actions-list">
+                    {onDirections && <button type="button" className="fm-opt pl-actions-directions" onClick={() => choose(onDirections)}><Navigation size={18} /> Directions</button>}
+                    {onOpenCustomer && <button type="button" className="fm-opt" onClick={() => choose(onOpenCustomer)}><ExternalLink size={18} /> Open profile</button>}
+                    {onOpenCalendar && <button type="button" className="fm-opt" onClick={() => choose(onOpenCalendar)}><CalendarDays size={18} /> Edit in Calendar</button>}
+                    {onEdit && <button type="button" className="fm-opt" onClick={() => choose(onEdit)}><Edit2 size={18} /> Edit schedule</button>}
+                    {onDelete && <button type="button" className="fm-opt pl-actions-delete" onClick={() => choose(onDelete)}><Trash2 size={18} /> Delete activity</button>}
                 </div>
-                <button type="button" className="pl-actions-cancel" onClick={onClose}>Cancel</button>
+                <div className="fm-sheet-foot">
+                    <button type="button" className="fm-btn pl-actions-cancel" onClick={onClose}>Cancel</button>
+                </div>
             </div>
         </div>, document.body
     );
