@@ -20,7 +20,7 @@ async function openCalendar(page: Page) {
     await expect(page.locator('.pl-grid--day .pl-item')).toHaveCount(names.length);
 }
 
-test('phone agenda navigates dates and keeps actions accessible in a contextual sheet', async ({ page, isMobile }, testInfo) => {
+test('phone agenda switches Day and Month and keeps actions accessible in a contextual sheet', async ({ page, isMobile }, testInfo) => {
     test.skip(!isMobile, 'Phone-specific agenda');
     await openCalendar(page);
     await page.screenshot({ path: testInfo.outputPath('agenda.png') });
@@ -33,17 +33,25 @@ test('phone agenda navigates dates and keeps actions accessible in a contextual 
     await page.getByRole('button', { name: 'Search calendar (filter active)', exact: true }).click();
     await search.fill('');
     await page.getByRole('button', { name: 'Hide calendar search', exact: true }).click();
-    const days = page.getByRole('group', { name: 'Choose a day this week' });
-    await expect(days.getByRole('button')).toHaveCount(7);
-    await days.getByRole('button', { name: 'Thursday, November 19, 2026' }).click();
+    // Day and Month only; the date is the button that opens the calendar (no arrows, no Today).
+    await expect(page.getByRole('group', { name: 'Calendar view' }).getByRole('button')).toHaveText(['Day', 'Month']);
+    await expect(page.getByRole('button', { name: 'Previous', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Today', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Month', exact: true }).click();
+    await expect(page.getByText('7 stops this month')).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('month.png') });
+    await page.getByRole('button', { name: /^Thursday, November 19.*no stops$/ }).click();
     await expect(page.locator('.pl-grid--day .pl-item')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Today', exact: true }).click();
+    await page.getByRole('button', { name: 'Month', exact: true }).click();
+    await page.getByRole('button', { name: /^Wednesday, November 18.*7 stops$/ }).click();
     await expect(page.locator('.pl-grid--day .pl-item')).toHaveCount(7);
 
     const more = page.getByRole('button', { name: 'More for Slusher Luxury Homes', exact: true });
     await more.click();
     const sheet = page.getByRole('dialog', { name: 'Slusher Luxury Homes', exact: true });
     await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Directions', exact: true })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Open profile', exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('activity-actions.png') });
     const rect = await sheet.boundingBox();
     expect(Math.round(rect!.y + rect!.height)).toBe(page.viewportSize()!.height);
@@ -67,7 +75,7 @@ test('narrow phone keeps controls within the viewport and supports dark theme', 
     test.skip(!isMobile, 'Phone-specific layout');
     await page.setViewportSize({ width: 320, height: 740 });
     await openCalendar(page);
-    for (const selector of ['.dfx-head-tools', '.dfx-cards', '.pl-views', '.pl-title-wrap', '.pl-optimize', '.pl-search-toggle', '.pl-week-strip', '.pl-item']) {
+    for (const selector of ['.dfx-head-tools', '.dfx-cards', '.pl-views', '.pl-title-wrap', '.pl-optimize', '.pl-search-toggle', '.pl-item']) {
         const rects = await page.locator(selector).evaluateAll(nodes => nodes.map(node => {
             const rect = node.getBoundingClientRect();
             return { left: rect.left, right: rect.right };
@@ -77,11 +85,6 @@ test('narrow phone keeps controls within the viewport and supports dark theme', 
             expect(rect.right, selector).toBeLessThanOrEqual(320);
         }
     }
-    const last = page.getByRole('group', { name: 'Choose a day this week' }).getByRole('button').last();
-    await last.scrollIntoViewIfNeeded();
-    await last.click();
-    await expect(last).toHaveAttribute('aria-pressed', 'true');
-    await page.getByRole('button', { name: 'Today', exact: true }).click();
     await page.evaluate(() => document.body.classList.remove('light-theme-active'));
     await page.getByRole('button', { name: 'More for Slusher Luxury Homes', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Slusher Luxury Homes', exact: true })).toHaveCSS('background-color', 'rgb(28, 28, 30)');

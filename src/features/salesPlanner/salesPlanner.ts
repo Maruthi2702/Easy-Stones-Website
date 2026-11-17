@@ -372,3 +372,18 @@ export const describeAim = (item: PlannerItem, day: Date, items: PlannerItem[], 
         ? `${where}, keeping ${timeLabel(item.startTime)}.`
         : `${where}, ${timeLabel(atMinutes(day, minutes))}.`;
 };
+
+/** A day this full (stops) draws the whole load bar in its header. */
+export const DAY_LOAD_FULL = 14;
+
+/** What a day's header says about its stops: how many, the hours they span, and how full the day is (0–100). */
+export const daySummary = (items: { startTime: string; endTime?: string }[]): { count: number; span: string; fill: number } => {
+    const count = items.length;
+    if (count === 0) return { count: 0, span: '', fill: 0 };
+    const sorted = [...items].sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const from = timeLabel(first.startTime);
+    const to = timeLabel(last.endTime || last.startTime);
+    return { count, span: from && to && from !== to ? `${from} – ${to}` : from, fill: Math.min(100, Math.round((count / DAY_LOAD_FULL) * 100)) };
+};

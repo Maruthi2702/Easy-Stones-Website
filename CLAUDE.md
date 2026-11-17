@@ -345,9 +345,19 @@ button only when the period on screen doesn't hold today
 dashboard's round +** (`DashboardAddButton`, fixed above `--app-bottom-h`; the
 toolbar's Schedule Activity button and `.pl-new` are gone since 2026-11-01). A stop shows its time in its own column and its length when
 it saved an end; the pencil and bin become one "⋯" (`.pl-kebab`) that opens
-a bottom sheet (`PlannerActionsSheet`: Open customer / Edit schedule / Delete
-activity; the Day view also has a week strip and a search toggle, rules in
-`SalesPlannerMobile.css`, checked by `e2e/planner.mobile.spec.ts`). The extra parts (`.pl-time`, `.pl-kebab`,
+a bottom sheet (`PlannerActionsSheet`: Directions / Open profile / Edit schedule / Delete
+activity). **Calendar redesign (2026-11-16, on `feat/calendar-redesign`):** a phone has
+**Day and Month only** (a left-over Week becomes Day), no ‹ › arrows, no Today button
+and no week strip — the date is the button that opens the shared calendar picker, and
+Month is a number and a stop count per day where a tap opens that day
+(`MonthGrid`'s phone branch, `.pl-pcell`). Above 640px each Week/Day column's header is
+the date on the left, a gold route icon (that day's Optimize route, two or more of your
+stops) and + on the right, then one line saying how full the day is (`daySummary`, tested)
+with a load bar; a stop's menu is **⋯** — Directions, Open profile, then Edit schedule and
+Delete under a line (`PlannerStopMenu`; Edit / Delete only when it's your stop).
+**Directions** reads the customer record when tapped (a stop carries only a name) and opens
+Google Maps (`directions.ts`). Not built: "View details" (the basic card) in the menu.
+Rules in `SalesPlannerMobile.css` / `SalesPlannerWeek.css`, checked by `e2e/planner.mobile.spec.ts`). The extra parts (`.pl-time`, `.pl-kebab`,
 `.pl-drawer`, `.pl-sub`) are in the markup on every screen and hidden above
 640px. `.pl-more` is the Month view's "+N more", not the ⋯.
 

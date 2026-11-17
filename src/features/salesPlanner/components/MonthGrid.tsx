@@ -1,6 +1,7 @@
 import { Plus, Check, AlertTriangle } from 'lucide-react';
 import type { PlannerItem } from '../plannerSchedule';
 import type { StopMove } from '../useMoveStop';
+import useIsPhone from '../../../components/shared/form/useIsPhone';
 import { activityColor, addLabel, customerName, dayKey, isSameDay, timeLabel, visitFlag } from '../salesPlanner';
 
 // Headings follow the week's own first row, so they always match WEEK_STARTS_ON.
@@ -20,6 +21,41 @@ export type MonthGridProps = {
 
 /** The Month view: a cell per day, its first three stops, "+N more" for the rest. */
 export default function MonthGrid({ weeks, currentDate, today, itemsFor, move, onAdd, onEdit, editable, showOwner = false, onShowDay }: MonthGridProps) {
+    const phone = useIsPhone();
+    if (phone) {
+        // Phone: the day number and how many stops it holds; a tap opens that day's schedule.
+        return (
+            <div className="pl-month pl-month--phone">
+                <div className="pl-dowrow" aria-hidden="true">
+                    {(weeks[0] || []).map(d => <div key={d.getDay()}>{DAY_SHORT[d.getDay()]}</div>)}
+                </div>
+                <div className="pl-monthgrid">
+                    {weeks.map((week, wi) => (
+                        <div className="pl-mrow" key={wi}>
+                            {week.map(day => {
+                                const count = itemsFor(day).length;
+                                const offMonth = day.getMonth() !== currentDate.getMonth();
+                                return (
+                                    <button
+                                        key={dayKey(day)}
+                                        type="button"
+                                        className={`pl-pcell${offMonth ? ' is-off' : ''}${isSameDay(day, today) ? ' is-today' : ''}`}
+                                        aria-label={`${day.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}, ${count === 0 ? 'no stops' : `${count} ${count === 1 ? 'stop' : 'stops'}`}`}
+                                        aria-current={isSameDay(day, today) ? 'date' : undefined}
+                                        onClick={() => onShowDay(day)}
+                                    >
+                                        <span className="pl-pnum">{day.getDate()}</span>
+                                        {count > 0 && <span className="pl-pcount">{count}</span>}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ))}
+                </div>
+                <p className="pl-pnote">Tap a day to open its schedule.</p>
+            </div>
+        );
+    }
     return (
         <div className="pl-month">
             <div className="pl-dowrow" aria-hidden="true">

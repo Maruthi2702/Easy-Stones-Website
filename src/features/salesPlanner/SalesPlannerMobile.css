@@ -6,9 +6,7 @@
         display: grid;
         grid-template-columns: repeat(6, minmax(0, 1fr));
         grid-template-areas:
-            "views views views views today today"
-            "prev title title title title next"
-            "week week week week week week"
+            "title title title views views views"
             "sub sub find optimize optimize optimize"
             "search search search search search search";
         align-items: center;
@@ -19,19 +17,11 @@
     .pl-wrap .pl-toolbar[data-here="true"] .pl-toolbar-left { display: contents; }
     .pl-wrap .pl-views { padding: 3px; gap: 2px; border-radius: 12px; }
     .pl-wrap .pl-viewbtn { height: 44px; font-size: 14px; }
-    .pl-wrap .pl-today[data-here],
-    .pl-wrap .pl-today {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 50px;
-        height: auto;
-        margin: 0 0 0 6px;
-        padding: 0 10px;
-        font-size: 14px;
-    }
-    .pl-wrap .pl-title-wrap .pl-title.cal-bare { font-size: 17px; font-weight: 700; }
-    .pl-wrap .pl-navbtn { background: var(--pl-surface); border: 1px solid var(--pl-line); }
+    .pl-wrap .pl-title-wrap { grid-area: title; justify-self: start; }
+    .pl-wrap .pl-views { grid-area: views; }
+    .pl-wrap .pl-nav { display: contents; }
+    /* The date is the button that opens the calendar (the picker draws its own ▾). */
+    .pl-wrap .pl-title-wrap .pl-title.cal-bare { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 17px; font-weight: 700; }
     .pl-wrap .pl-search { grid-area: search; width: 100%; margin: 0; }
     .pl-wrap .pl-search[hidden] { display: none; }
     .pl-wrap .pl-search-toggle {
@@ -63,37 +53,8 @@
         color: var(--pl-gold);
         font-size: 12px;
     }
-    .pl-wrap .pl-chip { grid-column: 1 / -1; margin: 0; }
-    .pl-wrap .pl-week-strip {
-        grid-area: week;
-        display: grid;
-        grid-template-columns: repeat(7, minmax(44px, 1fr));
-        gap: 4px;
-        overflow-x: auto;
-        padding: 2px 1px 4px;
-        scrollbar-width: thin;
-    }
-    .pl-week-day {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 4px;
-        min-height: 66px;
-        padding: 8px 2px 5px;
-        border: 1px solid transparent;
-        border-radius: 12px;
-        background: var(--pl-surface);
-        color: var(--pl-text-2);
-        font: inherit;
-        cursor: pointer;
-    }
-    .pl-week-day span { font-size: 11px; font-weight: 600; }
-    .pl-week-day strong { color: var(--pl-text); font-size: 17px; font-weight: 700; }
-    .pl-week-day i { width: 4px; height: 4px; border-radius: 50%; background: transparent; }
-    .pl-week-day[aria-current="date"] i { background: currentColor; }
-    .pl-week-day.is-selected { background: var(--pl-gold-fill); color: var(--pl-gold-ink); }
-    .pl-week-day.is-selected strong { color: inherit; }
+    /* "N stops today" repeats what the line under the date says. */
+    .pl-wrap .pl-chip { display: none; }
     .pl-wrap .pl-grid--day .pl-colbody { padding: 0; gap: 10px; }
     .pl-wrap .pl-item {
         grid-template-columns: 64px minmax(0, 1fr) 44px;
@@ -122,6 +83,23 @@
     .pl-wrap .pl-kebab { border-radius: 10px; }
     .pl-wrap .pl-kebab:active { background: var(--pl-fill); }
     .pl-wrap .pl-legend { gap: 14px; }
+
+    /* Month on a phone: a number and a count per day; a tap opens that day. */
+    .pl-wrap .pl-month--phone { min-width: 0; }
+    .pl-wrap .pl-month--phone .pl-dowrow div { padding: 8px 0; text-align: center; font-size: 10px; letter-spacing: 0.06em; }
+    .pl-pcell {
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+        min-height: 58px; padding: 0; border: 0; border-right: 1px solid var(--pl-line-soft); border-bottom: 1px solid var(--pl-line-soft);
+        background: transparent; color: var(--pl-text); font: inherit; cursor: pointer;
+    }
+    .pl-mrow > .pl-pcell:last-child { border-right: 0; }
+    .pl-mrow:last-child > .pl-pcell { border-bottom: 0; }
+    .pl-pcell:active { background: var(--pl-fill); }
+    .pl-pcell.is-off .pl-pnum { color: var(--pl-text-2); opacity: 0.6; }
+    .pl-pnum { display: grid; place-items: center; width: 30px; height: 30px; border: 2px solid transparent; border-radius: 50%; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; }
+    .pl-pcell.is-today .pl-pnum { border-color: var(--pl-gold); font-weight: 700; }
+    .pl-pcount { min-width: 22px; height: 16px; padding: 0 5px; box-sizing: border-box; border-radius: 8px; background: var(--pl-gold-soft); color: var(--pl-gold-ink, var(--pl-text)); font-size: 11px; font-weight: 700; line-height: 16px; text-align: center; font-variant-numeric: tabular-nums; }
+    .pl-pnote { margin: 10px 4px 0; font-size: 12px; color: var(--pl-text-2); }
 }
 
 /* A contextual action sheet sits above the app navigation and floating +. */
@@ -170,6 +148,7 @@
     text-align: left;
     cursor: pointer;
 }
+.pl-actions-list .pl-actions-directions { color: var(--pl-gold); font-weight: 600; }
 .pl-actions-list .pl-actions-delete { color: var(--pl-danger-ink); margin-top: 8px; }
 .pl-actions-list button:active { background: var(--pl-fill); }
 .pl-actions-cancel { width: 100%; min-height: 50px; margin-top: 18px; border: 1px solid var(--pl-line); border-radius: 12px; background: var(--pl-fill); color: var(--pl-text); font: inherit; font-weight: 600; cursor: pointer; }

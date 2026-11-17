@@ -33,6 +33,8 @@ const { SalesPlannerTab } = await import('./index');
 const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => { await new Promise((r) => setTimeout(r, 10)); }); };
 const button = (text: string) => [...document.querySelectorAll('button')].find((b) => b.textContent?.trim() === text) as HTMLElement;
 const view = async (label: string) => { fireEvent.click(button(label)); await settle(); };
+// A stop's ⋯ menu (PlannerStopMenu): open the first one, then pick an item by its words.
+const pick = (label: RegExp) => { fireEvent.click(screen.getAllByLabelText(/^More for/)[0]); fireEvent.click(screen.getByRole('menuitem', { name: label })); };
 const next = async () => { fireEvent.click(screen.getByLabelText('Next')); await settle(); };
 const options = [{ value: 'c1', label: 'Pacific Granite' }, { value: 'c2', label: 'Stone River' }];
 
@@ -117,7 +119,7 @@ describe('Sales Planner', () => {
 
     it('edits a stop and saves it with PUT', async () => {
         await open();
-        fireEvent.click(screen.getAllByLabelText('Edit activity')[0]);
+        pick(/Edit schedule/);
         await settle();
         expect(screen.getByText('Edit activity')).toBeTruthy();
         expect((document.querySelector('.fm-dialog textarea') as HTMLTextAreaElement).value).toBe('Bring the Moda binder');
@@ -130,14 +132,14 @@ describe('Sales Planner', () => {
 
     it('asks before deleting, and Escape closes the check', async () => {
         await open();
-        fireEvent.click(screen.getAllByLabelText('Delete activity')[0]);
+        pick(/Delete/);
         await settle();
         expect(screen.getByText('Delete this scheduled activity?')).toBeTruthy();
         fireEvent.keyDown(document, { key: 'Escape' });
         await settle();
         expect(screen.queryByText('Delete this scheduled activity?')).toBeNull();
 
-        fireEvent.click(screen.getAllByLabelText('Delete activity')[0]);
+        pick(/Delete/);
         await settle();
         fireEvent.click(document.querySelector('.pl-danger-btn') as Element);
         await settle();
@@ -183,8 +185,17 @@ describe('Sales Planner — the team calendar (teamScope.js)', () => {
         await open({ viewing: '&scope=team', includesMe: true, justMe: false });
         expect(calls[0].url).toMatch(/&scope=team$/);
         expect(card('Stone River').textContent).toContain('Jesus B.');
-        expect(card('Stone River').querySelector('[aria-label="Edit activity"]')).toBeNull();
-        expect(card('Pacific Granite').querySelector('[aria-label="Edit activity"]')).not.toBeNull();
+        // Someone else's stop: Directions and Open profile, but nothing that changes it.
+        fireEvent.click(card('Stone River').querySelector('[aria-label^="More for"]') as Element);
+        expect(screen.queryByRole('menuitem', { name: /Directions/ })).not.toBeNull();
+        expect(screen.queryByRole('menuitem', { name: /Edit schedule/ })).toBeNull();
+        expect(screen.queryByRole('menuitem', { name: /Delete/ })).toBeNull();
+        fireEvent.keyDown(document, { key: 'Escape' });
+        // Yours: the full menu.
+        fireEvent.click(card('Pacific Granite').querySelector('[aria-label^="More for"]') as Element);
+        expect(screen.queryByRole('menuitem', { name: /Edit schedule/ })).not.toBeNull();
+        expect(screen.queryByRole('menuitem', { name: /Delete/ })).not.toBeNull();
+        fireEvent.keyDown(document, { key: 'Escape' });
         // Moving needs your calendar alone.
         expect(card('Pacific Granite').getAttribute('draggable')).toBeNull();
         // You're in view, so each day still offers Add (the dashboard's + is the other way in).
@@ -222,5 +233,36 @@ describe('Sales Planner — the team calendar (teamScope.js)', () => {
         await open();
         expect(card('Pacific Granite').getAttribute('draggable')).toBe('true');
         expect(card('Pacific Granite').textContent).not.toContain('Krish');
+    });
+});
+
+describe('Sales Planner — the Week day header and a stop\'s menu', () => {
+    it('puts the date first, says how full the day is, and offers a route icon from two stops', async () => {
+        await open();
+        await view('Week');
+        const col = (document.querySelector('.pl-col.is-today') as HTMLElement);
+        expect(col.querySelector('.pl-headleft .pl-dnum')).not.toBeNull();
+        expect(col.querySelector('.pl-daysum')?.textContent).toMatch(/^4 stops · 9:00 AM – 3:00 PM$/);
+        expect(col.querySelector('.pl-daysum i b')).not.toBeNull();
+        // The route icon opens that day's Optimize route.
+        fireEvent.click(col.querySelector('.pl-optday') as Element);
+        await settle();
+        expect(screen.getByText(/Re-order everything/)).toBeTruthy();
+    });
+
+    it('has no route icon on a day with fewer than two stops', async () => {
+        schedule = [today[0]];
+        await open();
+        await view('Week');
+        expect(document.querySelector('.pl-optday')).toBeNull();
+        expect((document.querySelector('.pl-col.is-today .pl-daysum') as HTMLElement).textContent).toMatch(/^1 stop · 9:00 AM/);
+    });
+
+    it('lists Directions, Open profile, then Edit schedule and Delete under a line', async () => {
+        await open({ onSelectCustomer: vi.fn() });
+        fireEvent.click(screen.getAllByLabelText(/^More for/)[0]);
+        const items = screen.getAllByRole('menuitem').map((i) => i.textContent?.trim());
+        expect(items).toEqual(['Directions', 'Open profile', 'Edit schedule', 'Delete']);
+        expect(document.querySelector('.pl-stopmenu [role="separator"]')).not.toBeNull();
     });
 });

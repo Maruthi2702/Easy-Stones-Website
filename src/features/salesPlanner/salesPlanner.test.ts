@@ -3,7 +3,7 @@ import type { PlannerItem } from './plannerSchedule';
 import {
     dayKey, localISO, weekStartOf, dayOffset, slotMinutes, aimedMinutes, planMove, gapsFor, dayFromKey,
     activityModifier, activityColor, customerName, initialFor, bookedRowOf, timeParts, shortDayTitle, durationText, lengthOf, relativeDayLabel, isCurrentPeriod, rangeFor, groupByDay,
-    weekdaysOf, weekendOf, weekOf, weeksBetween, titleFor, visitFlag, describeAim, addLabel
+    weekdaysOf, weekendOf, weekOf, weeksBetween, titleFor, visitFlag, describeAim, addLabel, daySummary, DAY_LOAD_FULL
 } from './salesPlanner';
 
 const stop = (id: string, startTime: string, o: Partial<PlannerItem> = {}): PlannerItem => ({ _id: id, startTime, ...o });
@@ -194,5 +194,23 @@ describe('the phone Day view', () => {
         expect(isCurrentPeriod(day(2026, 11, 2), 'week', today)).toBe(false);
         expect(isCurrentPeriod(day(2026, 10, 1), 'month', today)).toBe(true);
         expect(isCurrentPeriod(day(2026, 11, 1), 'month', today)).toBe(false);
+    });
+});
+
+describe('daySummary', () => {
+    const at = (time: string, end?: string) => ({ startTime: `2026-11-18T${time}:00.000`, ...(end ? { endTime: `2026-11-18T${end}:00.000` } : {}) });
+    it('says nothing about an empty day', () => {
+        expect(daySummary([])).toEqual({ count: 0, span: '', fill: 0 });
+    });
+    it('gives the first start to the last end, whatever the order, and how full the day is', () => {
+        const s = daySummary([at('13:00', '13:15'), at('09:30', '09:45'), at('11:00')]);
+        expect(s.count).toBe(3);
+        expect(s.span).toMatch(/9:30.*1:15/);
+        expect(s.fill).toBe(Math.round((3 / DAY_LOAD_FULL) * 100));
+    });
+    it('is just the time for one stop and caps the bar at full', () => {
+        expect(daySummary([at('14:16')]).span).toMatch(/2:16/);
+        expect(daySummary([at('14:16')]).span).not.toMatch(/–/);
+        expect(daySummary(Array.from({ length: 30 }, (_, i) => at(`${String(8 + (i % 10)).padStart(2, '0')}:00`))).fill).toBe(100);
     });
 });

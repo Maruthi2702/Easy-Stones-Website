@@ -15,6 +15,8 @@ import WeekendRail from './components/WeekendRail';
 import MonthGrid from './components/MonthGrid';
 import ActivityDialog from './components/ActivityDialog';
 import DeleteActivityDialog from './components/DeleteActivityDialog';
+import useIsPhone from '../../components/shared/form/useIsPhone';
+import './SalesPlannerWeek.css';
 import './SalesPlannerMobile.css';
 
 /**
@@ -77,6 +79,9 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     const { itemsFor: allItemsFor } = data;
     const itemsFor = useCallback((day: Date) => allItemsFor(day).filter((item) => matchesSearch(item, search.trim())), [allItemsFor, search]);
     const { currentDate, setCurrentDate, viewMode, setViewMode, today, weekdays, weekendDays, monthWeeks, todayCount, loading, loadError, refresh, stepPeriod } = data;
+    // A phone has Day and Month only: a Week left over from a wider screen shows that day.
+    const phone = useIsPhone();
+    useEffect(() => { if (phone && viewMode === 'week') setViewMode('day'); }, [phone, viewMode, setViewMode]);
     const editor = useActivityEditor(onScheduleChange);
     const edge = useEdgeFlip(stepPeriod);
     const { edgeDir, scrollRef } = edge;
@@ -93,12 +98,14 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     );
     const onAdd = includesMe ? editor.openAdd : undefined;
     // Optimize route: the day's stops that are yours (others' can't be moved) and still on.
-    const [optimizing, setOptimizing] = useState(false);
-    const optimizeItems = useMemo(
-        () => itemsFor(currentDate).filter((i) => isMine(i) && i.status !== 'Cancelled'),
+    // The toolbar's button optimizes the day on screen; a Week day's route icon, that day.
+    const [optimizeDay, setOptimizeDay] = useState<Date | null>(null);
+    const optimizeItemsFor = useCallback(
+        (day: Date) => itemsFor(day).filter((i) => isMine(i) && i.status !== 'Cancelled'),
         // eslint-disable-next-line react-hooks/exhaustive-deps -- isMine reads `me`
-        [itemsFor, currentDate, me]
+        [itemsFor, me]
     );
+    const optimizeItems = useMemo(() => optimizeItemsFor(currentDate), [optimizeItemsFor, currentDate]);
     // The dashboard's + → Schedule activity: open the form once (only if it's your calendar too).
     // Once per request: the form's opener changes every render, so the ref stops a loop.
     const { openAdd: openAddForm } = editor;
@@ -119,6 +126,14 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     }, [customerSelection, customerOptions]);
 
     const titleLabel = useMemo(() => titleFor(viewMode, currentDate), [viewMode, currentDate]);
+
+    // Month view on a phone: the line under the title ("18 stops this month").
+    const monthCount = useMemo(
+        () => (viewMode === 'month'
+            ? monthWeeks.flat().filter((d) => d.getMonth() === currentDate.getMonth()).reduce((n, d) => n + itemsFor(d).length, 0)
+            : 0),
+        [viewMode, monthWeeks, currentDate, itemsFor]
+    );
 
     const weekendItemCount = weekendDays.reduce((n, d) => n + itemsFor(d).length, 0);
     const weekendHasToday = weekendDays.some(d => isSameDay(d, today));
@@ -146,8 +161,9 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 onDate={setCurrentDate}
                 searchBox={searchBox}
                 searchActive={Boolean(search.trim())}
-                onOptimize={includesMe ? () => setOptimizing(true) : undefined}
+                onOptimize={includesMe ? () => setOptimizeDay(currentDate) : undefined}
                 canOptimize={optimizeItems.length >= 2}
+                monthCount={monthCount}
             />
 
             {loadError && (
@@ -179,7 +195,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
 
                 {viewMode === 'week' && (
                     <div className={`pl-grid pl-grid--week${weekendQuiet ? ' is-quiet-weekend' : ''}`}>
-                        {weekdays.map(day => <DayColumn key={dayKey(day)} day={day} items={itemsFor(day)} {...dayProps} />)}
+                        {weekdays.map(day => <DayColumn key={dayKey(day)} day={day} items={itemsFor(day)} onOptimize={includesMe ? setOptimizeDay : undefined} {...dayProps} />)}
                         <WeekendRail days={weekendDays} itemsFor={itemsFor} quiet={weekendQuiet} hasToday={weekendHasToday} {...dayProps} />
                     </div>
                 )}
@@ -230,11 +246,11 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 <ActivityDialog editor={editor} customerOptions={effectiveCustomerOptions} isDropdownLoading={isDropdownLoading} itemsFor={ownItemsFor} />
             )}
 
-            {optimizing && (
+            {optimizeDay && (
                 <OptimizeRouteDialog
-                    items={optimizeItems}
-                    dayTitle={relativeDayLabel(currentDate, today) || shortDayTitle(currentDate)}
-                    onClose={() => setOptimizing(false)}
+                    items={optimizeItemsFor(optimizeDay)}
+                    dayTitle={relativeDayLabel(optimizeDay, today) || shortDayTitle(optimizeDay)}
+                    onClose={() => setOptimizeDay(null)}
                     onChanged={onScheduleChange}
                 />
             )}

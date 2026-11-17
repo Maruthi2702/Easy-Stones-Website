@@ -4,7 +4,7 @@ import { DatePicker, MonthPicker } from '../../../components/shared/calendar/Cal
 import { withMonth } from '../../../components/shared/calendar/calendarDates';
 import type { StopMove } from '../useMoveStop';
 import useIsPhone from '../../../components/shared/form/useIsPhone';
-import { dayKey, isSameDay, parseISOLocal, shortDayTitle, weekOf, type ViewMode } from '../salesPlanner';
+import { dayKey, parseISOLocal, shortDayTitle, type ViewMode } from '../salesPlanner';
 
 export type PlannerToolbarProps = {
     viewMode: ViewMode; currentDate: Date; titleLabel: string; todayCount: number | null; edgeDir: number;
@@ -26,10 +26,16 @@ export type PlannerToolbarProps = {
     onOptimize?: () => void;
     /** The day holds at least two of your stops. */
     canOptimize?: boolean;
+    /** Month view on a phone: how many stops the month holds (the line under the title). */
+    monthCount?: number;
 };
 
+/** Day · Week · Month; a phone has no Week (the month grid and the date picker cover it). */
+const VIEWS: [ViewMode, string][] = [['day', 'Day'], ['week', 'Week'], ['month', 'Month']];
+const PHONE_VIEWS_FILTER = (phone: boolean) => (phone ? VIEWS.filter(([mode]) => mode !== 'week') : VIEWS);
+
 /** Back / Day·Week·Month / forward, Today, the title's calendar, today's count, and the search box. */
-export default function PlannerToolbar({ viewMode, currentDate, titleLabel, todayCount, edgeDir, dayLabel, dayCount, isCurrent, navHoverProps, onPrev, onNext, onToday, onViewMode, onDate, searchBox = null, searchActive = false, onOptimize, canOptimize = false }: PlannerToolbarProps) {
+export default function PlannerToolbar({ viewMode, currentDate, titleLabel, todayCount, edgeDir, dayLabel, dayCount, isCurrent, navHoverProps, onPrev, onNext, onToday, onViewMode, onDate, searchBox = null, searchActive = false, onOptimize, canOptimize = false, monthCount = 0 }: PlannerToolbarProps) {
     // The long day ("Thursday, October 29, 2026") doesn't fit between the arrows on a phone.
     const phone = useIsPhone();
     const [searchOpen, setSearchOpen] = useState(false);
@@ -39,6 +45,7 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
         <div className="pl-toolbar" data-view={viewMode} data-here={isCurrent ? 'true' : 'false'}>
             <div className="pl-toolbar-left">
                 <div className="pl-nav">
+                    {!phone && (
                     <button
                         type="button"
                         onClick={onPrev}
@@ -48,8 +55,9 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
                     >
                         <ChevronLeft size={18} />
                     </button>
+                    )}
                     <div className="pl-views" role="group" aria-label="Calendar view">
-                        {([['day', 'Day'], ['week', 'Week'], ['month', 'Month']] as [ViewMode, string][]).map(([mode, label]) => (
+                        {(PHONE_VIEWS_FILTER(phone)).map(([mode, label]) => (
                             <button
                                 key={mode}
                                 type="button"
@@ -61,6 +69,7 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
                             </button>
                         ))}
                     </div>
+                    {!phone && (
                     <button
                         type="button"
                         onClick={onNext}
@@ -70,9 +79,10 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
                     >
                         <ChevronRight size={18} />
                     </button>
+                    )}
                 </div>
 
-                <button type="button" className="pl-today" data-here={isCurrent ? 'true' : 'false'} onClick={onToday}>Today</button>
+                {!phone && <button type="button" className="pl-today" data-here={isCurrent ? 'true' : 'false'} onClick={onToday}>Today</button>}
 
                 {/* The title opens the calendar: pick any day (or month, in
                     the Month view) to jump there. */}
@@ -108,6 +118,10 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
                     </span>
                 )}
 
+                {phone && viewMode === 'month' && (
+                    <span className="pl-sub">{monthCount === 0 ? 'No stops this month' : `${monthCount} ${monthCount === 1 ? 'stop' : 'stops'} this month`}</span>
+                )}
+
                 {viewMode === 'day' && onOptimize && (
                     <button type="button" className="pl-today pl-optimize" onClick={onOptimize} disabled={!canOptimize}
                         title={canOptimize ? 'Put this day\'s stops in driving order' : 'Needs two or more of your stops on this day'}>
@@ -130,25 +144,6 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
                 </button>
             )}
             {searchBox && <div id={searchId} className="pl-search" hidden={phone && !searchOpen}>{searchBox}</div>}
-            {phone && viewMode === 'day' && (
-                <div className="pl-week-strip" role="group" aria-label="Choose a day this week">
-                    {weekOf(currentDate).map(day => (
-                        <button
-                            key={dayKey(day)}
-                            type="button"
-                            className={`pl-week-day${isSameDay(day, currentDate) ? ' is-selected' : ''}`}
-                            aria-label={day.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                            aria-pressed={isSameDay(day, currentDate)}
-                            aria-current={isSameDay(day, new Date()) ? 'date' : undefined}
-                            onClick={() => onDate(day)}
-                        >
-                            <span>{day.toLocaleDateString('en-US', { weekday: 'short' })}</span>
-                            <strong>{day.getDate()}</strong>
-                            <i aria-hidden="true" />
-                        </button>
-                    ))}
-                </div>
-            )}
         </div>
     );
 }

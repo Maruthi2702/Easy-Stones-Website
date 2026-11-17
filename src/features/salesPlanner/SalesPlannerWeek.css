@@ -1,0 +1,31 @@
+/* Week and Day columns on a tablet or desktop: the date on the left, the route and
+   + icons on the right, one line saying how full the day is, and a stop's ⋯ menu.
+   (A phone has its own rules in SalesPlannerMobile.css.) */
+.pl-colhead { gap: 0.5rem; }
+.pl-headleft { display: inline-flex; align-items: baseline; gap: 0.45rem; min-width: 0; }
+.pl-headleft .pl-dnum { font-size: 1.35rem; line-height: 1; }
+.pl-headleft .pl-todaytag { align-self: center; }
+/* The route icon looks like the + beside it (.pl-addday, SalesPage.css) in gold. */
+.pl-optday { width: 24px; height: 24px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--pl-gold-line); background: var(--pl-gold-soft); color: var(--pl-gold); cursor: pointer; transition: background 0.18s, border-color 0.18s, color 0.18s; }
+.pl-optday:hover { background: var(--pl-gold-fill); border-color: var(--pl-gold-fill); color: var(--pl-gold-ink); }
+
+.pl-daysum { display: flex; flex-direction: column; gap: 6px; padding: 0.5rem 0.7rem 0.6rem; border-bottom: 1px solid var(--pl-line); font-size: 0.72rem; font-weight: 600; color: var(--pl-text-2); font-variant-numeric: tabular-nums; }
+.pl-daysum i { display: block; height: 4px; border-radius: 2px; background: var(--pl-fill); overflow: hidden; }
+.pl-daysum i b { display: block; height: 100%; border-radius: 2px; background: var(--pl-gold); }
+
+.pl-stopmenu-btn { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--pl-text-2); cursor: pointer; opacity: 0.55; transition: opacity 0.18s, background 0.18s; }
+.pl-item:hover .pl-stopmenu-btn, .pl-item:focus-within .pl-stopmenu-btn, .pl-stopmenu-btn[aria-expanded="true"] { opacity: 1; }
+.pl-stopmenu-btn:hover { background: var(--pl-fill-hover); color: var(--pl-text); }
+.pl-stopmenu-btn:focus-visible { outline: 2px solid var(--pl-gold); outline-offset: 1px; opacity: 1; }
+
+/* Floats above everything (a stacked modal included) on the screen beside its button. */
+.pl-menu-layer { position: fixed; inset: 0; z-index: 2147483000; padding: 0; margin: 0; }
+.pl-stopmenu { position: fixed; box-sizing: border-box; padding: 4px; border: 1px solid var(--pl-line); border-radius: 12px; background: var(--pl-surface); color: var(--pl-text); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22); }
+.pl-stopmenu-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 0.85rem; font-weight: 500; text-align: left; cursor: pointer; }
+.pl-stopmenu-item:hover, .pl-stopmenu-item:focus-visible { background: var(--pl-fill-hover); outline: none; }
+.pl-stopmenu-item--directions { color: var(--pl-gold); font-weight: 600; }
+.pl-stopmenu-item--danger { color: var(--pl-danger-ink); }
+.pl-stopmenu-sep { height: 1px; margin: 4px 2px; background: var(--pl-line); }
+
+/* On a phone the stop's ⋯ is the bottom sheet's (PlannerCard), not this menu. */
+@media (max-width: 639px) { .pl-stopmenu-btn, .pl-daysum { display: none; } }

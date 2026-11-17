@@ -1,15 +1,17 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Edit2, Eye, Trash2, X } from 'lucide-react';
+import { Edit2, ExternalLink, Navigation, Trash2, X } from 'lucide-react';
 import { lockPage, unlockPage } from '../../../components/shared/pageLock';
 import { trapTab } from '../../../components/shared/form/formFocus';
 import type { PlannerItem } from '../plannerSchedule';
 import { customerName, timeLabel } from '../salesPlanner';
 
-export default function PlannerActionsSheet({ item, onClose, onOpenCustomer, onEdit, onDelete }: {
+export default function PlannerActionsSheet({ item, onClose, onOpenCustomer, onDirections, onEdit, onDelete }: {
     item: PlannerItem;
     onClose: () => void;
     onOpenCustomer?: () => void;
+    /** Maps directions to the customer; absent when the stop has no customer. */
+    onDirections?: () => void;
     onEdit: () => void;
     onDelete: () => void;
 }) {
@@ -44,7 +46,8 @@ export default function PlannerActionsSheet({ item, onClose, onOpenCustomer, onE
                 </div>
                 {item.notes && <p className="pl-actions-note">{item.notes}</p>}
                 <div className="pl-actions-list">
-                    {onOpenCustomer && <button type="button" onClick={() => choose(onOpenCustomer)}><Eye size={20} /> Open customer</button>}
+                    {onDirections && <button type="button" className="pl-actions-directions" onClick={() => choose(onDirections)}><Navigation size={20} /> Directions</button>}
+                    {onOpenCustomer && <button type="button" onClick={() => choose(onOpenCustomer)}><ExternalLink size={20} /> Open profile</button>}
                     <button type="button" onClick={() => choose(onEdit)}><Edit2 size={20} /> Edit schedule</button>
                     <button type="button" className="pl-actions-delete" onClick={() => choose(onDelete)}><Trash2 size={20} /> Delete activity</button>
                 </div>

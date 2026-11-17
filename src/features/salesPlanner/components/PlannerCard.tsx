@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Edit2, Trash2, Check, AlertTriangle, Ellipsis } from 'lucide-react';
+import { Check, AlertTriangle, Ellipsis } from 'lucide-react';
 import type { PlannerItem } from '../plannerSchedule';
 import type { StopMove } from '../useMoveStop';
 import { activityModifier, activityColor, customerName, lengthOf, timeLabel, timeParts, visitFlag } from '../salesPlanner';
 import type { Loose } from '../../../types/records';
 import useIsPhone from '../../../components/shared/form/useIsPhone';
 import PlannerActionsSheet from './PlannerActionsSheet';
+import PlannerStopMenu from './PlannerStopMenu';
+import { openDirections } from '../directions';
 
 export type CardActions = {
     move: StopMove;
@@ -32,6 +34,8 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
     const movable = 'draggable' in drag;
     const [open, setOpen] = useState(false);
     const phone = useIsPhone();
+    // A stop's customer is populated (an object) or only its id.
+    const directionsId = typeof item.customerId === 'string' ? item.customerId : String(item.customerId?._id || '');
     const { clock, period } = timeParts(item.startTime);
     const length = lengthOf(item);
     return (
@@ -58,15 +62,14 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                 >
                     {customerName(item)}
                 </button>
-                {canChange && (
-                <div className="pl-acts">
-                    <button type="button" className="pl-act" onClick={() => onEdit(item)} aria-label="Edit activity">
-                        <Edit2 size={13} />
-                    </button>
-                    <button type="button" className="pl-act pl-act--danger" onClick={() => onDelete(item._id)} aria-label="Delete activity">
-                        <Trash2 size={13} />
-                    </button>
-                </div>
+                {!phone && (
+                    <PlannerStopMenu
+                        item={item}
+                        onDirections={directionsId ? () => { void openDirections(directionsId); } : undefined}
+                        onOpenCustomer={onSelectCustomer ? () => onSelectCustomer(item.customerId as Loose) : undefined}
+                        onEdit={canChange ? () => onEdit(item) : undefined}
+                        onDelete={canChange ? () => onDelete(item._id) : undefined}
+                    />
                 )}
                 {canChange && (
                 <button
@@ -103,6 +106,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                     item={item}
                     onClose={() => setOpen(false)}
                     onOpenCustomer={onSelectCustomer ? () => onSelectCustomer(item.customerId as Loose) : undefined}
+                    onDirections={directionsId ? () => { void openDirections(directionsId); } : undefined}
                     onEdit={() => onEdit(item)}
                     onDelete={() => onDelete(item._id)}
                 />
