@@ -326,13 +326,6 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
                             placeholder="Street, city, state — or a hotel's name and city" autoFocus
                             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (addressText.trim().length >= 4 && !finding && mapsReady) findAddress(); } }} />
                     </FormField>
-                    <FormField name="lbl" id="opt-lbl" label="Name it (optional)">
-                        <input id="opt-lbl" className="fm-input" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} value={labelText} onChange={(e) => setLabelText(e.target.value)} placeholder="Home, Hotel…" />
-                    </FormField>
-                    <div className="opt-add-actions">
-                        <button type="button" className="btn-secondary" onClick={() => setAdding(null)}>Cancel</button>
-                        <button type="button" className="btn-primary" onClick={findAddress} disabled={finding || !mapsReady || addressText.trim().length < 4}>{finding ? 'Finding…' : 'Find'}</button>
-                    </div>
                     {suggestions.length > 0 && matches.length === 0 && (
                         <ul className="opt-matches" role="listbox" aria-label="Suggestions">
                             {suggestions.map((sg) => (
@@ -344,6 +337,13 @@ export default function OptimizeRouteDialog({ items, dayTitle, onClose, onChange
                             ))}
                         </ul>
                     )}
+                    <FormField name="lbl" id="opt-lbl" label="Name it (optional)">
+                        <input id="opt-lbl" className="fm-input" onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }} value={labelText} onChange={(e) => setLabelText(e.target.value)} placeholder="Home, Hotel…" />
+                    </FormField>
+                    <div className="opt-add-actions">
+                        <button type="button" className="btn-secondary" onClick={() => setAdding(null)}>Cancel</button>
+                        <button type="button" className="btn-primary" onClick={findAddress} disabled={finding || !mapsReady || addressText.trim().length < 4}>{finding ? 'Finding…' : 'Find'}</button>
+                    </div>
                     {mapsError && <p className="opt-error" role="alert">Google Maps failed to load: {mapsError.message}</p>}
                     {findError && <p className="opt-error" role="alert">{findError}</p>}
                     {matches.length > 0 && (
