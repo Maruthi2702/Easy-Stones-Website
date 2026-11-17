@@ -68,6 +68,7 @@ export default function DashboardHeader({
                             onClick={() => onOpenSidebar()}
                             className="dashboard-sidebar-toggle"
                             title="Open Sidebar"
+                            aria-label="Open sidebar"
                         >
                             <Menu size={20} />
                         </button>
@@ -76,7 +77,7 @@ export default function DashboardHeader({
                         <h1>Dashboard</h1>
                         <div className="dashboard-breadcrumbs">
                             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-                            {people && <span className="dashboard-people-summary"> · Showing {people.summary}</span>}
+                            {people && <span className="dashboard-people-summary"><span className="dashboard-context-dot" aria-hidden="true"> · </span>Showing {people.summary}</span>}
                         </div>
                     </div>
                 </div>

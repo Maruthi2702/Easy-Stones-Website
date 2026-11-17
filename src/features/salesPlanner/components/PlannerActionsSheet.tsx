@@ -1,0 +1,55 @@
+import { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Edit2, Eye, Trash2, X } from 'lucide-react';
+import { lockPage, unlockPage } from '../../../components/shared/pageLock';
+import { trapTab } from '../../../components/shared/form/formFocus';
+import type { PlannerItem } from '../plannerSchedule';
+import { customerName, timeLabel } from '../salesPlanner';
+
+export default function PlannerActionsSheet({ item, onClose, onOpenCustomer, onEdit, onDelete }: {
+    item: PlannerItem;
+    onClose: () => void;
+    onOpenCustomer?: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+}) {
+    const titleId = useId();
+    const dialogRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const previous = document.activeElement as HTMLElement | null;
+        lockPage();
+        dialogRef.current?.focus({ preventScroll: true });
+        return () => {
+            unlockPage();
+            if (previous?.isConnected) previous.focus({ preventScroll: true });
+        };
+    }, []);
+
+    const choose = (action: () => void) => { onClose(); action(); };
+    return createPortal(
+        <div className="pl-wrap pl-actions-overlay">
+            <div className="pl-actions-backdrop" onClick={onClose} aria-hidden="true" />
+            <div ref={dialogRef} className="pl-actions-sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} data-fm-layer=""
+                onKeyDown={e => {
+                    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); }
+                    else if (e.key === 'Tab') trapTab(e, dialogRef.current?.parentElement);
+                }}>
+                <div className="pl-actions-grip" aria-hidden="true" />
+                <div className="pl-actions-heading">
+                    <div>
+                        <p>{timeLabel(item.startTime)} · {item.activityType || 'Visit'}</p>
+                        <h2 id={titleId}>{customerName(item)}</h2>
+                    </div>
+                    <button type="button" className="pl-actions-close" aria-label="Close activity actions" onClick={onClose}><X size={20} /></button>
+                </div>
+                {item.notes && <p className="pl-actions-note">{item.notes}</p>}
+                <div className="pl-actions-list">
+                    {onOpenCustomer && <button type="button" onClick={() => choose(onOpenCustomer)}><Eye size={20} /> Open customer</button>}
+                    <button type="button" onClick={() => choose(onEdit)}><Edit2 size={20} /> Edit schedule</button>
+                    <button type="button" className="pl-actions-delete" onClick={() => choose(onDelete)}><Trash2 size={20} /> Delete activity</button>
+                </div>
+                <button type="button" className="pl-actions-cancel" onClick={onClose}>Cancel</button>
+            </div>
+        </div>, document.body
+    );
+}

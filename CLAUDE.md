@@ -345,7 +345,9 @@ button only when the period on screen doesn't hold today
 dashboard's round +** (`DashboardAddButton`, fixed above `--app-bottom-h`; the
 toolbar's Schedule Activity button and `.pl-new` are gone since 2026-11-01). A stop shows its time in its own column and its length when
 it saved an end; the pencil and bin become one "⋯" (`.pl-kebab`) that opens
-Edit / Delete under the card. The extra parts (`.pl-time`, `.pl-kebab`,
+a bottom sheet (`PlannerActionsSheet`: Open customer / Edit schedule / Delete
+activity; the Day view also has a week strip and a search toggle, rules in
+`SalesPlannerMobile.css`, checked by `e2e/planner.mobile.spec.ts`). The extra parts (`.pl-time`, `.pl-kebab`,
 `.pl-drawer`, `.pl-sub`) are in the markup on every screen and hidden above
 640px. `.pl-more` is the Month view's "+N more", not the ⋯.
 

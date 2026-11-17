@@ -1,9 +1,10 @@
-import { ChevronLeft, ChevronRight, Route } from 'lucide-react';
+import { useId, useState } from 'react';
+import { ChevronLeft, ChevronRight, Route, Search, X } from 'lucide-react';
 import { DatePicker, MonthPicker } from '../../../components/shared/calendar/Calendar';
 import { withMonth } from '../../../components/shared/calendar/calendarDates';
 import type { StopMove } from '../useMoveStop';
 import useIsPhone from '../../../components/shared/form/useIsPhone';
-import { dayKey, parseISOLocal, shortDayTitle, type ViewMode } from '../salesPlanner';
+import { dayKey, isSameDay, parseISOLocal, shortDayTitle, weekOf, type ViewMode } from '../salesPlanner';
 
 export type PlannerToolbarProps = {
     viewMode: ViewMode; currentDate: Date; titleLabel: string; todayCount: number | null; edgeDir: number;
@@ -20,6 +21,7 @@ export type PlannerToolbarProps = {
      * on a phone). Adding is the dashboard's round +, not a button here (owner, 2026-10-31).
      */
     searchBox?: React.ReactNode;
+    searchActive?: boolean;
     /** Day view only: re-order the day's stops by location. Absent when the day isn't yours to arrange. */
     onOptimize?: () => void;
     /** The day holds at least two of your stops. */
@@ -27,9 +29,11 @@ export type PlannerToolbarProps = {
 };
 
 /** Back / Day·Week·Month / forward, Today, the title's calendar, today's count, and the search box. */
-export default function PlannerToolbar({ viewMode, currentDate, titleLabel, todayCount, edgeDir, dayLabel, dayCount, isCurrent, navHoverProps, onPrev, onNext, onToday, onViewMode, onDate, searchBox = null, onOptimize, canOptimize = false }: PlannerToolbarProps) {
+export default function PlannerToolbar({ viewMode, currentDate, titleLabel, todayCount, edgeDir, dayLabel, dayCount, isCurrent, navHoverProps, onPrev, onNext, onToday, onViewMode, onDate, searchBox = null, searchActive = false, onOptimize, canOptimize = false }: PlannerToolbarProps) {
     // The long day ("Thursday, October 29, 2026") doesn't fit between the arrows on a phone.
     const phone = useIsPhone();
+    const [searchOpen, setSearchOpen] = useState(false);
+    const searchId = useId();
     const shownTitle = phone && viewMode === 'day' ? shortDayTitle(currentDate) : titleLabel;
     return (
         <div className="pl-toolbar" data-view={viewMode} data-here={isCurrent ? 'true' : 'false'}>
@@ -118,7 +122,33 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
                 )}
             </div>
 
-            {searchBox && <div className="pl-search">{searchBox}</div>}
+            {phone && searchBox && (
+                <button type="button" className={`pl-search-toggle${searchActive ? ' has-value' : ''}`}
+                    aria-label={`${searchOpen ? 'Hide calendar search' : 'Search calendar'}${searchActive ? ' (filter active)' : ''}`}
+                    aria-expanded={searchOpen} aria-controls={searchId} onClick={() => setSearchOpen(value => !value)}>
+                    {searchOpen ? <X size={18} /> : <Search size={18} />}
+                </button>
+            )}
+            {searchBox && <div id={searchId} className="pl-search" hidden={phone && !searchOpen}>{searchBox}</div>}
+            {phone && viewMode === 'day' && (
+                <div className="pl-week-strip" role="group" aria-label="Choose a day this week">
+                    {weekOf(currentDate).map(day => (
+                        <button
+                            key={dayKey(day)}
+                            type="button"
+                            className={`pl-week-day${isSameDay(day, currentDate) ? ' is-selected' : ''}`}
+                            aria-label={day.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                            aria-pressed={isSameDay(day, currentDate)}
+                            aria-current={isSameDay(day, new Date()) ? 'date' : undefined}
+                            onClick={() => onDate(day)}
+                        >
+                            <span>{day.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                            <strong>{day.getDate()}</strong>
+                            <i aria-hidden="true" />
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

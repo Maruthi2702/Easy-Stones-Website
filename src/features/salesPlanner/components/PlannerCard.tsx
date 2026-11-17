@@ -4,6 +4,8 @@ import type { PlannerItem } from '../plannerSchedule';
 import type { StopMove } from '../useMoveStop';
 import { activityModifier, activityColor, customerName, lengthOf, timeLabel, timeParts, visitFlag } from '../salesPlanner';
 import type { Loose } from '../../../types/records';
+import useIsPhone from '../../../components/shared/form/useIsPhone';
+import PlannerActionsSheet from './PlannerActionsSheet';
 
 export type CardActions = {
     move: StopMove;
@@ -19,8 +21,8 @@ export type CardActions = {
 /**
  * One stop in a day column or the weekend rail: open, edit, delete, drag.
  * On a phone (SalesPage.css, under 640px) the time sits in its own column and
- * the pencil and bin collapse into one "⋯" that opens Edit / Delete under the
- * card, so a long name keeps its width and every button is a full touch target.
+ * the pencil and bin collapse into one "⋯" that opens a bottom sheet, so a
+ * long name keeps its width and every action is a full touch target.
  */
 export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDelete, editable, showOwner = false }: { item: PlannerItem } & CardActions) {
     const flag = visitFlag(item);
@@ -29,6 +31,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
     const drag = move.dragProps(item);
     const movable = 'draggable' in drag;
     const [open, setOpen] = useState(false);
+    const phone = useIsPhone();
     const { clock, period } = timeParts(item.startTime);
     const length = lengthOf(item);
     return (
@@ -70,6 +73,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                     type="button"
                     className="pl-kebab"
                     aria-expanded={open}
+                    aria-haspopup="dialog"
                     aria-label={`More for ${customerName(item)}`}
                     onClick={() => setOpen(o => !o)}
                 >
@@ -94,15 +98,14 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                 )}
             </div>
             {item.notes && <div className="pl-note" title={item.notes}>{item.notes}</div>}
-            {canChange && (
-            <div className="pl-drawer">
-                <button type="button" className="pl-drawer-btn" onClick={() => { setOpen(false); onEdit(item); }}>
-                    <Edit2 size={16} /> Edit
-                </button>
-                <button type="button" className="pl-drawer-btn pl-drawer-btn--danger" onClick={() => { setOpen(false); onDelete(item._id); }}>
-                    <Trash2 size={16} /> Delete
-                </button>
-            </div>
+            {canChange && phone && open && (
+                <PlannerActionsSheet
+                    item={item}
+                    onClose={() => setOpen(false)}
+                    onOpenCustomer={onSelectCustomer ? () => onSelectCustomer(item.customerId as Loose) : undefined}
+                    onEdit={() => onEdit(item)}
+                    onDelete={() => onDelete(item._id)}
+                />
             )}
         </div>
     );

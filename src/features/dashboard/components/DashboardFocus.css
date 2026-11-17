@@ -292,3 +292,30 @@ body:not(.light-theme-active) .dfx-btn--dark { background: #f1f5f9; border-color
 
 /* Room under the last row so the round + never sits on it. */
 .sales-dashboard-v2 { padding-bottom: 96px; }
+.dashboard-breadcrumbs .dashboard-context-dot { margin: 0; opacity: 1; }
+
+/* Let the mobile heading breathe while keeping the tools reachable. */
+@media (max-width: 639px) {
+  .sales-dashboard-v2 .dashboard-header-v2 { margin-bottom: 18px; }
+  .dashboard-header-v2 .dfx-head { align-items: start; }
+  .dashboard-header-v2 .dfx-head .dashboard-left-section { gap: 8px; align-items: flex-start; }
+  .dashboard-header-v2 h1 { font-size: 22px; line-height: 1.3; }
+  .dashboard-header-v2 .dashboard-title-group { gap: 5px; min-width: 0; }
+  .dashboard-header-v2 .dashboard-breadcrumbs { font-size: 12px; line-height: 1.5; }
+  .dashboard-breadcrumbs .dashboard-people-summary { display: block; }
+  .dashboard-breadcrumbs .dashboard-context-dot { display: none; }
+  .dashboard-header-v2 .dashboard-sidebar-toggle { width: 44px; height: 44px; box-shadow: none; border-radius: 12px; }
+  .dfx-head-tools { gap: 4px; }
+  .sales-dashboard-v2 .dfx-cards { gap: 6px; margin-bottom: 20px; }
+  .sales-dashboard-v2 .dfx-card { min-height: 68px; border-radius: 12px; }
+  .sales-dashboard-v2 .dfx-card-title { font-size: 10px; letter-spacing: 0; }
+  .sales-dashboard-v2 .dfx-card-value { font-size: 22px; }
+  .sales-dashboard-v2 .dfx-card.is-on { box-shadow: inset 0 -3px 0 var(--accent-primary); }
+}
+@media (max-width: 359px) {
+  .dashboard-header-v2 .dfx-head:has(.dashboard-sidebar-toggle),
+  .dashboard-header-v2 .dfx-head[data-tab="planner"]:has(.dashboard-sidebar-toggle) {
+    grid-template-areas: "title title" "range tools";
+  }
+  .dfx-head-tools { justify-self: end; }
+}

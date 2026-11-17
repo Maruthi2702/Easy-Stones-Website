@@ -15,6 +15,7 @@ import WeekendRail from './components/WeekendRail';
 import MonthGrid from './components/MonthGrid';
 import ActivityDialog from './components/ActivityDialog';
 import DeleteActivityDialog from './components/DeleteActivityDialog';
+import './SalesPlannerMobile.css';
 
 /**
  * The sales planner.
@@ -144,6 +145,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 onViewMode={setViewMode}
                 onDate={setCurrentDate}
                 searchBox={searchBox}
+                searchActive={Boolean(search.trim())}
                 onOptimize={includesMe ? () => setOptimizing(true) : undefined}
                 canOptimize={optimizeItems.length >= 2}
             />
