@@ -47,7 +47,9 @@
         cursor: pointer;
     }
     .pl-wrap .pl-search-toggle.has-value { border-color: var(--pl-gold); color: var(--pl-gold); background: var(--pl-gold-soft); box-shadow: inset 0 -3px 0 var(--pl-gold); }
-    .pl-wrap .pl-sub { grid-area: sub; justify-self: start; gap: 6px; margin: 0; font-size: 13px; }
+    /* The summary line: "12 stops · 11:25 AM – 3:20 PM", cut short rather than pushing Search and Optimize off the row. */
+    .pl-wrap .pl-sub { grid-area: sub; justify-self: start; min-width: 0; max-width: 100%; gap: 0; margin: 0; font-size: 13px; font-weight: 600; color: var(--pl-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+    .pl-wrap .pl-sub-span { font-weight: 500; color: var(--pl-text-2); }
     .pl-wrap .pl-sub-tag { display: none; }
     .pl-wrap .pl-optimize {
         grid-area: optimize;

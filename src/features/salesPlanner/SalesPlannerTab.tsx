@@ -8,7 +8,7 @@ import useActivityEditor from './useActivityEditor';
 import useEdgeFlip from './useEdgeFlip';
 import useMoveStop from './useMoveStop';
 import OptimizeRouteDialog from './components/OptimizeRouteDialog';
-import { ACTIVITY_COLORS, activityColor, customerName, dayKey, isCurrentPeriod, isSameDay, relativeDayLabel, shortDayTitle, timeLabel, titleFor } from './salesPlanner';
+import { ACTIVITY_COLORS, daySummary, activityColor, customerName, dayKey, isCurrentPeriod, isSameDay, relativeDayLabel, shortDayTitle, timeLabel, titleFor } from './salesPlanner';
 import PlannerToolbar from './components/PlannerToolbar';
 import DayColumn from './components/DayColumn';
 import WeekendRail from './components/WeekendRail';
@@ -151,6 +151,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
                 todayCount={todayCount}
                 dayLabel={relativeDayLabel(currentDate, today)}
                 dayCount={itemsFor(currentDate).length}
+                daySpan={daySummary(itemsFor(currentDate)).span}
                 isCurrent={isCurrentPeriod(currentDate, viewMode, today)}
                 edgeDir={edgeDir}
                 navHoverProps={move.navHoverProps}

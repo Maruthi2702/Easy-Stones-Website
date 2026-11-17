@@ -10,6 +10,8 @@ export type PlannerToolbarProps = {
     viewMode: ViewMode; currentDate: Date; titleLabel: string; todayCount: number | null; edgeDir: number;
     /** The Day view's subtitle: 'Today' / 'Tomorrow' / 'Yesterday' (or null) and how many stops that day holds. */
     dayLabel: string | null; dayCount: number;
+    /** The hours the day's stops span ('11:25 AM – 3:20 PM'); the phone's summary line adds it. */
+    daySpan?: string;
     /** The day, week or month on screen holds today (the phone hides its Today button then). */
     isCurrent: boolean;
     navHoverProps: StopMove['navHoverProps'];
@@ -35,7 +37,7 @@ const VIEWS: [ViewMode, string][] = [['day', 'Day'], ['week', 'Week'], ['month',
 const PHONE_VIEWS_FILTER = (phone: boolean) => (phone ? VIEWS.filter(([mode]) => mode !== 'week') : VIEWS);
 
 /** Back / Day·Week·Month / forward, Today, the title's calendar, today's count, and the search box. */
-export default function PlannerToolbar({ viewMode, currentDate, titleLabel, todayCount, edgeDir, dayLabel, dayCount, isCurrent, navHoverProps, onPrev, onNext, onToday, onViewMode, onDate, searchBox = null, searchActive = false, onOptimize, canOptimize = false, monthCount = 0 }: PlannerToolbarProps) {
+export default function PlannerToolbar({ viewMode, currentDate, titleLabel, todayCount, edgeDir, dayLabel, dayCount, daySpan = '', isCurrent, navHoverProps, onPrev, onNext, onToday, onViewMode, onDate, searchBox = null, searchActive = false, onOptimize, canOptimize = false, monthCount = 0 }: PlannerToolbarProps) {
     // The long day ("Thursday, October 29, 2026") doesn't fit between the arrows on a phone.
     const phone = useIsPhone();
     const [searchOpen, setSearchOpen] = useState(false);
@@ -115,6 +117,7 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
                     <span className="pl-sub">
                         {dayLabel === 'Today' ? <span className="pl-sub-tag">Today</span> : dayLabel && <>{dayLabel} · </>}
                         {dayCount === 0 ? 'No stops' : `${dayCount} ${dayCount === 1 ? 'stop' : 'stops'}`}
+                        {daySpan && <span className="pl-sub-span"> · {daySpan}</span>}
                     </span>
                 )}
 
