@@ -112,7 +112,9 @@
     .pl-wrap .pl-note { font-size: 12px; margin-top: 3px; }
     .pl-wrap .pl-kebab { border-radius: 10px; }
     .pl-wrap .pl-kebab:active { background: var(--pl-fill); }
-    .pl-wrap .pl-legend { gap: 14px; }
+    /* Room for the round + goes under the legend, not between the last stop and it. */
+    .pl-wrap .pl-scroll { padding-bottom: 4px; }
+    .pl-wrap .pl-legend { gap: 14px; margin-top: 4px; padding-bottom: 76px; }
 
     /* The NOW line threads through the timeline at the rail's x; its time sits where the stops' times do. */
     .pl-wrap .pl-now { display: flex; align-items: center; margin-left: -58px; height: 14px; color: var(--pl-danger, #b42318); }
