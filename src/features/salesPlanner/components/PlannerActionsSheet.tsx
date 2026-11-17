@@ -6,6 +6,7 @@ import { lockPage, unlockPage } from '../../../components/shared/pageLock';
 import { trapTab } from '../../../components/shared/form/formFocus';
 import type { PlannerItem } from '../plannerSchedule';
 import { customerName, timeLabel } from '../salesPlanner';
+import { customerIdOfStop, prepareDirections } from '../directions';
 
 export default function PlannerActionsSheet({ item, onClose, onViewDetails, onOpenCustomer, onDirections, onEdit, onDelete, onOpenCalendar }: {
     item: PlannerItem;
@@ -31,6 +32,9 @@ export default function PlannerActionsSheet({ item, onClose, onViewDetails, onOp
             if (previous?.isConnected) previous.focus({ preventScroll: true });
         };
     }, []);
+
+    // Read the customer now, so Directions opens in the same tap (see directions.ts).
+    useEffect(() => { if (onDirections) prepareDirections(customerIdOfStop(item)); }, [item, onDirections]);
 
     const choose = (action: () => void) => { onClose(); action(); };
     // The form template's phone bottom sheet (FORM_TEMPLATE.md; .fm-sheet in FormModal.css and its --fm-* tokens),

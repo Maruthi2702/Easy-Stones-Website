@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { CalendarDays, Edit2, Ellipsis, ExternalLink, Info, Navigation, Trash2 } from 'lucide-react';
 import type { PlannerItem } from '../plannerSchedule';
 import { customerName } from '../salesPlanner';
+import { customerIdOfStop, prepareDirections } from '../directions';
 
 export type PlannerStopMenuProps = {
     item: PlannerItem;
@@ -30,6 +31,8 @@ export default function PlannerStopMenu({ item, onDirections, onViewDetails, onO
     const [at, setAt] = useState<{ top: number; left: number } | null>(null);
     const trigger = useRef<HTMLButtonElement>(null);
     const menu = useRef<HTMLDivElement>(null);
+    // Read the customer as the menu opens, so Directions opens in the same tap (see directions.ts).
+    useEffect(() => { if (open && onDirections) prepareDirections(customerIdOfStop(item)); }, [open, item, onDirections]);
 
     useLayoutEffect(() => {
         if (!open || !trigger.current) return;
