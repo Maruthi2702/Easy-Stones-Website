@@ -30,6 +30,12 @@
     .pl-wrap .pl-nav { display: contents; }
     /* The date is the button that opens the calendar (the picker draws its own ▾). */
     .pl-wrap .pl-title-wrap .pl-title.cal-bare { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 17px; font-weight: 700; }
+    /* A calendar icon before the date, so it reads as the button that opens the calendar. */
+    .pl-wrap .pl-title-wrap .pl-title.cal-bare::before {
+        content: ''; flex: none; width: 18px; height: 18px; background: var(--pl-gold);
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15' rx='2'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E") center / contain no-repeat;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5' width='17' height='15' rx='2'/%3E%3Cpath d='M3.5 10h17M8 3v4M16 3v4'/%3E%3C/svg%3E") center / contain no-repeat;
+    }
     .pl-wrap .pl-search { grid-area: search; width: 100%; margin: 0; }
     .pl-wrap .pl-search[hidden] { display: none; }
     .pl-wrap .pl-search-toggle {
