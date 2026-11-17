@@ -55,9 +55,10 @@ test('phone agenda switches Day and Month and keeps actions accessible in a cont
     await page.screenshot({ path: testInfo.outputPath('activity-actions.png') });
     const rect = await sheet.boundingBox();
     expect(Math.round(rect!.y + rect!.height)).toBe(page.viewportSize()!.height);
-    await sheet.getByRole('button', { name: 'Cancel', exact: true }).focus();
+    // Tab wraps inside the sheet: from the last action back to the ✕ at the top.
+    await sheet.getByRole('button', { name: 'Delete activity', exact: true }).focus();
     await page.keyboard.press('Tab');
-    await expect(sheet.getByRole('button', { name: 'Directions' })).toBeFocused();
+    await expect(sheet.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(sheet).not.toBeVisible();
     await expect(more).toBeFocused();

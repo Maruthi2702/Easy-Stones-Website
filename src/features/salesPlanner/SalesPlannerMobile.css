@@ -156,16 +156,22 @@
    the template doesn't say is here: it sits above the app navigation and the floating +, and the
    note and the Directions / Delete rows. */
 .pl-actions-overlay { position: fixed; inset: 0; z-index: 2147483000; isolation: isolate; }
-.pl-actions-head { align-items: flex-start; }
+.pl-actions-head { align-items: flex-start; padding: 18px 20px 10px; }
 .pl-actions-title { flex: 1; min-width: 0; }
-.pl-actions-title p { margin: 0 0 2px; font-size: 13px; color: var(--fm-mut); }
-.pl-actions-title h2 { overflow-wrap: anywhere; line-height: 1.3; }
-.pl-actions-note { margin: 0 18px 8px; font-size: 13px; line-height: 1.5; color: var(--fm-mut); white-space: pre-wrap; overflow-wrap: anywhere; }
-.pl-actions-list { display: flex; flex-direction: column; }
-.pl-actions-list .pl-actions-directions { color: var(--fm-gold-tx); font-weight: 700; }
+.pl-actions-title p { margin: 0 0 3px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.02em; color: var(--fm-mut); }
+.pl-actions-title h2 { overflow-wrap: anywhere; line-height: 1.3; font-size: 18px; }
+/* The stop's note: its own small card, labelled, lined up with the title (20px). */
+.pl-actions-note { margin: 0 20px 10px; padding: 9px 12px; border-radius: 10px; background: var(--fm-hover); }
+.pl-actions-note span { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fm-mut); }
+.pl-actions-note p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--fm-tx); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Rows start at 10px + 10px padding = 20px, so icons line up with the title and note. */
+.pl-actions-list { display: flex; flex-direction: column; padding: 0 10px 8px; }
+.pl-actions-list .fm-opt { padding-left: 10px; padding-right: 10px; }
+.pl-actions-list .pl-actions-directions { color: var(--fm-gold-tx); font-weight: 700; background: var(--fm-gold-soft); }
+/* Edit and Delete sit under a line, like the desktop stop menu. */
+.pl-actions-sep { height: 1px; margin: 6px 10px; background: var(--fm-bd2); flex: none; }
 .pl-actions-list .pl-actions-delete { color: var(--fm-err); }
 .pl-actions-list .pl-actions-delete svg { color: var(--fm-err); }
-.pl-actions-cancel { flex: 1; }
 
 /* The NOW line is the phone timeline's; wider screens don't draw it. */
 .pl-now { display: none; }
