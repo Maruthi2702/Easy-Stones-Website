@@ -95,6 +95,7 @@ export function useSalesNavigation({ currentUser, pinnedTabsRef, isMobile, setIs
         newUrl.searchParams.delete('customer');
         newUrl.searchParams.delete('view');
         newUrl.searchParams.delete('hold');
+        if (tabName !== 'dashboard') newUrl.searchParams.delete('dtab');
         window.history.pushState({ tab: tabName }, '', newUrl);
 
         if (isMobile) {

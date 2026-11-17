@@ -25,6 +25,8 @@ import type { Loose } from '../../types/records';
  * value under the name it always had. `patchDashboardVisit` /
  * `removeDashboardVisit` let a visit saved anywhere show here at once.
  */
+const DASHBOARD_TABS = ['visits', 'resources', 'followups', 'planner', 'leads'];
+
 export type DashboardDeps = {
     currentUser: Loose | null;
     locations: unknown[];
@@ -108,7 +110,22 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
         && (!dashboardLocation || !myLocations || myLocations.includes(dashboardLocation)));
     const [dashboardSearchTerm, setDashboardSearchTerm] = useState('');
 
-    const [activeDashboardTab, setActiveDashboardTab] = useState('visits'); // 'visits' or 'resources'
+    // The tab is kept in the address (?dtab=) so a refresh or a shared link opens the same tab.
+    const [activeDashboardTab, setActiveDashboardTabState] = useState<string>(() => {
+        try {
+            const t = new URLSearchParams(window.location.search).get('dtab');
+            return t && DASHBOARD_TABS.includes(t) ? t : 'visits';
+        } catch { return 'visits'; }
+    });
+    const setActiveDashboardTab = useCallback((tab: string) => {
+        setActiveDashboardTabState(tab);
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('tab') !== 'dashboard') return;
+            url.searchParams.set('dtab', tab);
+            window.history.replaceState(window.history.state, '', url);
+        } catch { /* the tab still switches without the address */ }
+    }, []);
     const [todayScheduleCount, setTodayScheduleCount] = useState(0);
     const [stats, setStats] = useState<Loose>({ visits: 0, keyVisits: 0, bids: 0, followUp: 0, resources: 0 });
     const [statsLoading, setStatsLoading] = useState(true);
