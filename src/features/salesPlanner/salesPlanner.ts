@@ -1,5 +1,6 @@
 import type { PlannerItem } from './plannerSchedule';
 import type { ScheduleInitial } from '../../components/shared/schedule/ScheduleActivityForm';
+import { startOfWeek } from '../../components/shared/calendar/calendarDates';
 import { DEFAULT_VISIT_MINUTES, defaultVisitDate, timeText, type BookedRow } from '../../utils/visitSlots';
 
 /**
@@ -35,12 +36,8 @@ export const localISO = (d: Date) =>
 export const startOfDay = (d: Date | number) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 export const addDays = (d: Date, n: number) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
-/** Monday of whatever week `d` falls in. Sunday belongs to the week just ending. */
-export const mondayOf = (d: Date) => {
-    const x = startOfDay(d);
-    const g = x.getDay();
-    return addDays(x, g === 0 ? -6 : 1 - g);
-};
+/** First day of whatever week `d` falls in — the app's one rule, WEEK_STARTS_ON. */
+export const weekStartOf = (d: Date) => startOfWeek(d);
 
 /** 'YYYY-MM-DD' as local midnight. */
 export const parseISOLocal = (iso: string) => new Date(`${iso}T00:00:00`);
@@ -275,15 +272,15 @@ export const rangeFor = (date: Date, mode: ViewMode) => {
         return { start: s, end: s };
     }
     if (mode === 'week') {
-        const s = mondayOf(date);
+        const s = weekStartOf(date);
         return { start: s, end: addDays(s, 6) };
     }
-    // Weeks run Monday to Sunday here as everywhere else (WEEK_STARTS_ON).
+    // Weeks start where WEEK_STARTS_ON says, here as everywhere else.
     const first = new Date(date.getFullYear(), date.getMonth(), 1);
     const last = new Date(date.getFullYear(), date.getMonth() + 1, 0);
     return {
-        start: mondayOf(first),
-        end: addDays(mondayOf(last), 6)
+        start: weekStartOf(first),
+        end: addDays(weekStartOf(last), 6)
     };
 };
 
@@ -303,17 +300,14 @@ export const groupByDay = (items: PlannerItem[] | null | undefined) => {
     return map;
 };
 
-/** Monday to Friday of the week `date` is in. */
-export const weekdaysOf = (date: Date) => {
-    const s = mondayOf(date);
-    return [0, 1, 2, 3, 4].map(i => addDays(s, i));
-};
+/** All seven days of the week `date` is in, first day first. */
+export const weekOf = (date: Date) => { const s = weekStartOf(date); return [0, 1, 2, 3, 4, 5, 6].map(i => addDays(s, i)); };
 
-/** Saturday and Sunday of the week `date` is in. */
-export const weekendOf = (date: Date) => {
-    const s = mondayOf(date);
-    return [addDays(s, 5), addDays(s, 6)];
-};
+/** Monday to Friday of the week `date` is in. */
+export const weekdaysOf = (date: Date) => weekOf(date).filter(d => d.getDay() >= 1 && d.getDay() <= 5);
+
+/** The week's Saturday and Sunday, in the order the week shows them. */
+export const weekendOf = (date: Date) => weekOf(date).filter(d => d.getDay() === 0 || d.getDay() === 6);
 
 /** The month view's rows, seven days each, from `start` to `end`. */
 export const weeksBetween = (start: Date, end: Date) => {
@@ -338,8 +332,9 @@ export const titleFor = (viewMode: ViewMode, currentDate: Date) => {
         });
     }
     if (viewMode === 'week') {
-        const a = weekdaysOf(currentDate)[0];
-        const b = weekendOf(currentDate)[1];
+        const days = weekOf(currentDate);
+        const a = days[0];
+        const b = days[6];
         const sameMonth = a.getMonth() === b.getMonth();
         const left = a.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
         const right = sameMonth

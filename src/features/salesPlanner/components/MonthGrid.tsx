@@ -3,6 +3,9 @@ import type { PlannerItem } from '../plannerSchedule';
 import type { StopMove } from '../useMoveStop';
 import { activityColor, addLabel, customerName, dayKey, isSameDay, timeLabel, visitFlag } from '../salesPlanner';
 
+// Headings follow the week's own first row, so they always match WEEK_STARTS_ON.
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 export type MonthGridProps = {
     weeks: Date[][]; currentDate: Date; today: Date; itemsFor: (day: Date) => PlannerItem[]; move: StopMove;
     onAdd?: (day: Date) => void;
@@ -20,7 +23,7 @@ export default function MonthGrid({ weeks, currentDate, today, itemsFor, move, o
     return (
         <div className="pl-month">
             <div className="pl-dowrow" aria-hidden="true">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => <div key={d}>{d}</div>)}
+                {(weeks[0] || []).map(d => <div key={d.getDay()}>{DAY_SHORT[d.getDay()]}</div>)}
             </div>
             <div className="pl-monthgrid">
                 {weeks.map((week, wi) => (

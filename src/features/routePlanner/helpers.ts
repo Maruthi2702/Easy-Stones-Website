@@ -1,4 +1,5 @@
 // Small pure helpers shared across the Route Planner module.
+import { monthGrid } from '../../components/shared/calendar/calendarDates';
 import { isFillerName, isPlaceholderEmail } from '../../utils/customerMatch';
 import { visitRecency as recencyOfVisit } from '../../utils/routePlan';
 import type { LatLng, Lead, Recency, RecencyColors, RecencyKey, ScheduleRow } from './types';
@@ -87,17 +88,20 @@ export const whenLabel = (startTime: string) => {
     });
 };
 
-/** A month's calendar cells for SchedulePanel: one entry per grid square,
- * `null` for the blanks before the 1st (so every week column stays aligned
- * to its weekday, Sunday-first), a real Date for every day of the month. */
+/** A month's calendar cells for SchedulePanel: one entry per grid square up to
+ * the month's last day, `null` for the blanks before the 1st. The weekday
+ * columns come from the shared calendar's `monthGrid` (WEEK_STARTS_ON), not a
+ * rule of this screen's own. */
 export const buildMonthGrid = (monthDate: Date): (Date | null)[] => {
     const year = monthDate.getFullYear();
     const month = monthDate.getMonth();
-    const startWeekday = new Date(year, month, 1).getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
     const cells: (Date | null)[] = [];
-    for (let i = 0; i < startWeekday; i += 1) cells.push(null);
-    for (let day = 1; day <= daysInMonth; day += 1) cells.push(new Date(year, month, day));
+    for (const iso of monthGrid(year, month)) {
+        const day = new Date(`${iso}T00:00:00`);
+        if (day.getMonth() === month) cells.push(day);
+        else if (day.getTime() < new Date(year, month, 1).getTime()) cells.push(null);
+        else break;
+    }
     return cells;
 };
 

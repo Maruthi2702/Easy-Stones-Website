@@ -11,8 +11,15 @@
  * — a day never shifts because of UTC.
  */
 
-/** The week starts on this day (0 = Sunday, 1 = Monday) — the Delivery Schedule's board starts on Monday. */
-export const WEEK_STARTS_ON = 1;
+/**
+ * The week starts on this day (0 = Sunday, 1 = Monday). Sunday since 2026-11-16
+ * (owner's call, matching the phone's own calendar). Every screen that draws
+ * or groups a week reads it — the pickers, the Sales Planner, Resources' week
+ * headings, Follow-ups — so changing it here changes them all. The Delivery
+ * Schedule board is the exception: it is a Monday-to-Friday work week
+ * (`utils/deliveryWeek.ts`).
+ */
+export const WEEK_STARTS_ON = 0;
 
 export const MONTH_NAMES = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -131,6 +138,12 @@ export const weekBounds = (iso: string, weekStart: number = WEEK_STARTS_ON): { s
     if (!d) return null;
     const back = (d.getDay() - weekStart + 7) % 7;
     return { start: shiftDay(iso, -back), end: shiftDay(iso, 6 - back) };
+};
+
+/** The first day of the week a Date falls in, at local midnight. */
+export const startOfWeek = (d: Date, weekStart: number = WEEK_STARTS_ON): Date => {
+    const back = (d.getDay() - weekStart + 7) % 7;
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() - back);
 };
 
 /** First year of the decade a year is in (2026 → 2020). */

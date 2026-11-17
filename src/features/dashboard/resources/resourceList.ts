@@ -1,3 +1,4 @@
+import { WEEK_STARTS_ON } from '../../../components/shared/calendar/calendarDates';
 import { resourceQty } from '../../../utils/resourceForm';
 import type { Loose } from '../../../types/records';
 import { STARTING_RESOURCE_FAMILIES, OTHER_FAMILY } from '../../../utils/typeLists';
@@ -122,10 +123,10 @@ const dayNumber = (ymd: string): number => {
     const [y, m, d] = ymd.split('-').map(Number);
     return Date.UTC(y, m - 1, d) / 86400000;
 };
-// Monday-first, like the calendar (WEEK_STARTS_ON) and the Delivery Schedule.
-const mondayOf = (ymd: string): number => {
+// The week starts where the calendar's does (WEEK_STARTS_ON).
+const weekStartDay = (ymd: string): number => {
     const n = dayNumber(ymd);
-    return n - ((new Date(n * 86400000).getUTCDay() + 6) % 7);
+    return n - ((new Date(n * 86400000).getUTCDay() - WEEK_STARTS_ON + 7) % 7);
 };
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -135,7 +136,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
  */
 export const weekHeading = (ymd: string, today: string): string => {
     if (!ymd) return 'No date';
-    const diff = (mondayOf(today) - mondayOf(ymd)) / 7;
+    const diff = (weekStartDay(today) - weekStartDay(ymd)) / 7;
     if (diff <= 0) return 'This week';
     if (diff === 1) return 'Last week';
     const [y, m] = ymd.split('-').map(Number);

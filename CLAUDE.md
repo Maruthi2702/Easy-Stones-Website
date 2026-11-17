@@ -291,8 +291,13 @@ every date rule in `calendarDates.ts` (tested). Values are plain strings
 `<input type="date|month">` or build a picker by hand**, and don't do a
 picker's date arithmetic (shift a day/month, clamp the 31st, name a month)
 elsewhere — add it to `calendarDates.ts`. A calendar bug is in those three
-files. The week starts on Monday (`WEEK_STARTS_ON`, matching the Delivery
-Schedule board). The popover floats inside its field (never portaled — the
+files. The week starts on **Sunday** (`WEEK_STARTS_ON = 0`, owner 2026-11-16, matching
+the phone's calendar). Anything that draws or groups a week reads it
+(`startOfWeek` / `weekBounds` / `monthGrid` / `weekdayLabels`): the pickers, the
+Sales Planner (`weekStartOf`), Resources' week headings, the Route Planner's
+Schedule panel grid, Follow-ups. Never hand-roll a "Monday of this week" or a
+month grid again. The one exception is the Delivery Schedule board, a
+Monday–Friday work week of its own (`utils/deliveryWeek.ts`). The popover floats inside its field (never portaled — the
 CustomSelect incident) and falls back to a bottom sheet on phones, or on
 desktop when the box around the field (modal body, scrolling panel) has no
 room (`choosePlacement`), so check a new use inside a short modal. Don't wrap a

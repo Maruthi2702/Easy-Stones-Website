@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     parseISO, isValidISO, parseMonth, parseYear, shiftDay, nextWeekday, shiftMonth, withMonth, shiftMonthKey,
-    weekdayLabels, monthGrid, weekBounds, decadeStart, yearCells,
+    weekdayLabels, monthGrid, WEEK_STARTS_ON, startOfWeek, weekBounds, decadeStart, yearCells,
     dayOutside, monthOutside, yearOutside, clampDay,
     formatDateText, formatMonthText, formatRangeText, dayAfterKey, inDays,
     readDateTime, roundedNow, clockParts, withClock, withDay, localDateTime, isoOf
@@ -61,27 +61,33 @@ describe('moving around', () => {
 });
 
 describe('the month grid', () => {
-    it('is six Monday-first rows spilling into the months either side', () => {
+    it('is six Sunday-first rows spilling into the months either side', () => {
         const g = monthGrid(2026, 9); // October 2026 starts on a Thursday
         expect(g).toHaveLength(42);
-        expect(g[0]).toBe('2026-09-28');
-        expect(g[3]).toBe('2026-10-01');
-        expect(g[33]).toBe('2026-10-31');
-        expect(g[41]).toBe('2026-11-08');
-    });
-    it('starts on Sunday when asked', () => {
-        const g = monthGrid(2026, 9, 0);
         expect(g[0]).toBe('2026-09-27');
-        expect(weekdayLabels(0)[0]).toBe('Su');
+        expect(g[4]).toBe('2026-10-01');
+        expect(g[34]).toBe('2026-10-31');
+        expect(g[41]).toBe('2026-11-07');
     });
-    it('labels Monday first by default', () => {
-        expect(weekdayLabels()).toEqual(['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']);
+    it('starts on Monday when asked', () => {
+        const g = monthGrid(2026, 9, 1);
+        expect(g[0]).toBe('2026-09-28');
+        expect(weekdayLabels(1)[0]).toBe('Mo');
+    });
+    it('labels Sunday first by default', () => {
+        expect(weekdayLabels()).toEqual(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']);
+        expect(WEEK_STARTS_ON).toBe(0);
+    });
+    it('finds the first day of a week as a Date', () => {
+        expect(isoOf(startOfWeek(new Date(2026, 9, 21)))).toBe('2026-10-18');
+        expect(isoOf(startOfWeek(new Date(2026, 9, 18)))).toBe('2026-10-18');
+        expect(isoOf(startOfWeek(new Date(2026, 9, 21), 1))).toBe('2026-10-19');
     });
     it('finds the week a day is in', () => {
-        expect(weekBounds('2026-10-21')).toEqual({ start: '2026-10-19', end: '2026-10-25' });
-        expect(weekBounds('2026-10-25')).toEqual({ start: '2026-10-19', end: '2026-10-25' }); // Sunday ends its week
-        expect(weekBounds('2026-10-19')).toEqual({ start: '2026-10-19', end: '2026-10-25' });
-        expect(weekBounds('2026-10-21', 0)).toEqual({ start: '2026-10-18', end: '2026-10-24' });
+        expect(weekBounds('2026-10-21')).toEqual({ start: '2026-10-18', end: '2026-10-24' });
+        expect(weekBounds('2026-10-25')).toEqual({ start: '2026-10-25', end: '2026-10-31' }); // Sunday starts its week
+        expect(weekBounds('2026-10-18')).toEqual({ start: '2026-10-18', end: '2026-10-24' });
+        expect(weekBounds('2026-10-21', 1)).toEqual({ start: '2026-10-19', end: '2026-10-25' });
     });
     it('lays a decade out with a year either side', () => {
         expect(decadeStart(2026)).toBe(2020);
@@ -134,8 +140,8 @@ describe('keyboard', () => {
         expect(dayAfterKey('2026-10-17', 'PageUp', true)).toBe('2025-10-17');
     });
     it('jumps to the ends of the week and ignores other keys', () => {
-        expect(dayAfterKey('2026-10-21', 'Home')).toBe('2026-10-19');
-        expect(dayAfterKey('2026-10-21', 'End')).toBe('2026-10-25');
+        expect(dayAfterKey('2026-10-21', 'Home')).toBe('2026-10-18');
+        expect(dayAfterKey('2026-10-21', 'End')).toBe('2026-10-24');
         expect(dayAfterKey('2026-10-21', 'a')).toBeNull();
         expect(dayAfterKey('2026-10-21', 'Enter')).toBeNull();
     });

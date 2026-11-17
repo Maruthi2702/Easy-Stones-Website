@@ -198,10 +198,10 @@ all already on `main`, kept as they were.
       `node scripts/geocode-customers.ts --apply`" — a developer instruction shown
       to sales staff, and the wrong reason. `MapCanvas.tsx` (the `pinsCount === 0`
       badge).
-- [ ] The Schedule panel's month grid starts on Sunday (`buildMonthGrid` in
-      `helpers.ts`, `WEEKDAY_LABELS` in `panels/SchedulePanel.tsx`) while the
-      app's calendar rule is Monday-first (`WEEK_STARTS_ON`, CLAUDE.md "Dates").
-      It's a hand-built calendar view, not the shared one.
+- [x] The Schedule panel's month grid had its own Sunday-first rule. Fixed
+      2026-11-16 (uncommitted at the time of writing): it now reads the shared
+      calendar's `monthGrid` / `weekdayLabels`, and the app's week starts on
+      Sunday everywhere but the Delivery board.
 - [ ] Unused CSS: the customer panel's status line (`.rpv2-panel-status`,
       `.rpv2-panel-status-dot`, `.rpv2-panel-level`, `.rpv2-status-*` in
       `map/MapCanvas.css`) is used by no component since `statusTone` went (it

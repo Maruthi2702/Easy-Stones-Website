@@ -77,11 +77,12 @@ describe('the Filters panel', () => {
     });
 });
 
-describe('week headings (Monday-first)', () => {
+describe('week headings (Sunday-first)', () => {
     const today = '2026-10-30'; // a Friday
     it('this week, last week, earlier this month, then the month', () => {
         expect(weekHeading('2026-10-26', today)).toBe('This week');
-        expect(weekHeading('2026-10-25', today)).toBe('Last week');
+        expect(weekHeading('2026-10-25', today)).toBe('This week'); // a Sunday starts its week
+        expect(weekHeading('2026-10-24', today)).toBe('Last week');
         expect(weekHeading('2026-10-19', today)).toBe('Last week');
         expect(weekHeading('2026-10-13', today)).toBe('Earlier in October');
         expect(weekHeading('2026-09-30', today)).toBe('September 2026');

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Calendar, Check, AlertTriangle, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { weekdayLabels } from '../../../components/shared/calendar/calendarDates';
 import { buildMonthGrid, todayKey, nameOf, real, customerOf } from '../helpers';
 import ScheduleActivityForm, { type ScheduleSave } from '../../../components/shared/schedule/ScheduleActivityForm';
 import { DEFAULT_VISIT_MINUTES, minutesOf, newScheduleId, timeText, type BookedRow } from '../../../utils/visitSlots';
@@ -7,7 +8,8 @@ import type { CustomerOption } from '../../../utils/customerOptions';
 import type { ScheduleRow, ScheduleVisitInput } from '../types';
 import './SchedulePanel.css';
 
-const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+// First letter of the shared calendar's headings, so the order is WEEK_STARTS_ON's.
+const WEEKDAY_LABELS = weekdayLabels().map((w) => w[0]);
 
 const timeLabel = (startTime: string) => {
     const d = new Date(startTime);

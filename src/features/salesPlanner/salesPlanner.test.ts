@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import type { PlannerItem } from './plannerSchedule';
 import {
-    dayKey, localISO, mondayOf, dayOffset, slotMinutes, aimedMinutes, planMove, gapsFor, dayFromKey,
+    dayKey, localISO, weekStartOf, dayOffset, slotMinutes, aimedMinutes, planMove, gapsFor, dayFromKey,
     activityModifier, activityColor, customerName, initialFor, bookedRowOf, timeParts, shortDayTitle, durationText, lengthOf, relativeDayLabel, isCurrentPeriod, rangeFor, groupByDay,
-    weekdaysOf, weekendOf, weeksBetween, titleFor, visitFlag, describeAim, addLabel
+    weekdaysOf, weekendOf, weekOf, weeksBetween, titleFor, visitFlag, describeAim, addLabel
 } from './salesPlanner';
 
 const stop = (id: string, startTime: string, o: Partial<PlannerItem> = {}): PlannerItem => ({ _id: id, startTime, ...o });
@@ -16,19 +16,20 @@ describe('days and spans', () => {
         expect(dayFromKey('2026-10-25').getTime()).toBe(day(2026, 10, 25).getTime());
     });
 
-    it('starts the week on Monday; Sunday belongs to the week ending', () => {
-        expect(dayKey(mondayOf(day(2026, 10, 25)))).toBe('2026-10-19'); // a Sunday
-        expect(dayKey(mondayOf(day(2026, 10, 19)))).toBe('2026-10-19');
+    it('starts the week on Sunday (WEEK_STARTS_ON)', () => {
+        expect(dayKey(weekStartOf(day(2026, 10, 25)))).toBe('2026-10-25'); // a Sunday starts its week
+        expect(dayKey(weekStartOf(day(2026, 10, 24)))).toBe('2026-10-18'); // a Saturday ends it
+        expect(weekOf(day(2026, 10, 22)).map(dayKey)).toEqual(['2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24']);
         expect(weekdaysOf(day(2026, 10, 22)).map(dayKey)).toEqual(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
-        expect(weekendOf(day(2026, 10, 22)).map(dayKey)).toEqual(['2026-10-24', '2026-10-25']);
+        expect(weekendOf(day(2026, 10, 22)).map(dayKey)).toEqual(['2026-10-18', '2026-10-24']);
     });
 
     it('fetches the day, all seven days of the week, or whole weeks around the month', () => {
         const at = day(2026, 10, 22);
         const span = (m: 'day' | 'week' | 'month') => { const r = rangeFor(at, m); return [dayKey(r.start), dayKey(r.end)]; };
         expect(span('day')).toEqual(['2026-10-22', '2026-10-22']);
-        expect(span('week')).toEqual(['2026-10-19', '2026-10-25']);
-        expect(span('month')).toEqual(['2026-09-28', '2026-11-01']);
+        expect(span('week')).toEqual(['2026-10-18', '2026-10-24']);
+        expect(span('month')).toEqual(['2026-09-27', '2026-10-31']);
         const r = rangeFor(at, 'month');
         expect(weeksBetween(r.start, r.end)).toHaveLength(5);
     });
@@ -39,8 +40,8 @@ describe('days and spans', () => {
     });
 
     it('titles each view', () => {
-        expect(titleFor('week', day(2026, 10, 22))).toBe('Oct 19 – 25, 2026');
-        expect(titleFor('week', day(2026, 9, 30))).toBe('Sep 28 – Oct 4, 2026');
+        expect(titleFor('week', day(2026, 10, 22))).toBe('Oct 18 – 24, 2026');
+        expect(titleFor('week', day(2026, 9, 30))).toBe('Sep 27 – Oct 3, 2026');
         expect(titleFor('month', day(2026, 10, 22))).toBe('October 2026');
         expect(titleFor('day', day(2026, 10, 22))).toBe('Thursday, October 22, 2026');
         expect(addLabel(day(2026, 10, 22))).toBe('Schedule an activity on Thursday, Oct 22');
