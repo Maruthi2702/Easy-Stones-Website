@@ -500,9 +500,30 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
     }, [dashboardResources, dashboardDateRangeStart, seesOthers, currentUserId, dashboardSearchTerm]);
 
     // Pagination State
-    const [currentVisitsPage, setCurrentVisitsPage] = useState(1);
-    const [currentFollowUpPage, setCurrentFollowUpPage] = useState(1);
-    const [currentResourcesPage, setCurrentResourcesPage] = useState(1);
+    // The open tab's page is kept in the address (?dp=) next to ?dtab=, so a refresh or a
+    // shared link opens the same page. (?p= is the Customers list's, not this page's.)
+    const pageInAddress = (tab: string) => {
+        try {
+            const q = new URLSearchParams(window.location.search);
+            if (q.get('dtab') !== tab) return 1;
+            return Math.max(1, parseInt(q.get('dp') || '', 10) || 1);
+        } catch { return 1; }
+    };
+    const [currentVisitsPage, setCurrentVisitsPage] = useState(() => pageInAddress('visits'));
+    const [currentFollowUpPage, setCurrentFollowUpPage] = useState(() => pageInAddress('followups'));
+    const [currentResourcesPage, setCurrentResourcesPage] = useState(() => pageInAddress('resources'));
+    const openTabPage = activeDashboardTab === 'visits' ? currentVisitsPage
+        : activeDashboardTab === 'resources' ? currentResourcesPage
+        : activeDashboardTab === 'followups' ? currentFollowUpPage : 1;
+    useEffect(() => {
+        try {
+            const url = new URL(window.location.href);
+            if (url.searchParams.get('tab') !== 'dashboard') return;
+            if (openTabPage > 1) url.searchParams.set('dp', String(openTabPage));
+            else url.searchParams.delete('dp');
+            window.history.replaceState(window.history.state, '', url);
+        } catch { /* the page still changes without the address */ }
+    }, [openTabPage, activeDashboardTab]);
     const [visitsPerPage, setVisitsPerPage] = useState(DEFAULT_ROWS_PER_PAGE);
     // The visible page of visits, memoized (declared after the page state it reads): passed inline as `.slice(...)` it
     // was a new array on every render of this page, which VisitsListDetail read

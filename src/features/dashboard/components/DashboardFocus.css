@@ -315,7 +315,9 @@ body:not(.light-theme-active) .dfx-btn--dark { background: #f1f5f9; border-color
   .dashboard-header-v2 h1 { font-size: 22px; line-height: 1.3; }
   .dashboard-header-v2 .dashboard-title-group { gap: 5px; min-width: 0; }
   .dashboard-header-v2 .dashboard-breadcrumbs { font-size: 12px; line-height: 1.5; }
-  .dashboard-breadcrumbs .dashboard-people-summary { display: block; }
+  /* "Showing Me" took a second line under the date; on a phone it lives in Filters → People (the funnel's gold dot says
+     something is set), and stays here only for screen readers. */
+  .dashboard-breadcrumbs .dashboard-people-summary { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .dashboard-breadcrumbs .dashboard-context-dot { display: none; }
   .dashboard-header-v2 .dashboard-sidebar-toggle { width: 44px; height: 44px; box-shadow: none; border-radius: 12px; }
   .dfx-head-tools { gap: 4px; }
