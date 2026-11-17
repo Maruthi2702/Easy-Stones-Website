@@ -34,6 +34,7 @@ const valueOf = (name: string) => { const i = args.indexOf(name); return i >= 0 
 
 /** Files the server reads from disk at run time, relative to the repo (kept at the same place in the bundle). */
 export const RUNTIME_FILES = [
+  'src/db/rds-ca/global-bundle.pem',           // verified TLS for Postgres IAM connections
   'public/logo.png',                          // permits, check-in log and daily report PDFs
   'public/favicon.png',                       // the hold letter PDF
   'public/images/templates/kitchen_template.png',   // product mockups (server.ts generateMockups)

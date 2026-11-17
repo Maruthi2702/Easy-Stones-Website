@@ -33,8 +33,9 @@ deploy with no setting changes nothing. Postgres answers in **MongoDB's shape** 
 - **Assigned locations come back A–Z** (`user_locations` keeps no order); MongoDB kept the ticked order.
 - **A location name that isn't a location is dropped** from a person's assigned list and from a branch's
   report recipients (as the copy does). MongoDB kept it.
-- **Deleting** a user, role or location something still points at (a delivery's driver, a person's role) is refused by
-  Postgres (a foreign key) and surfaces as the route's "Failed to delete…". MongoDB let it through and left a dangling name.
+- **Deleting** a user or location something still points at (calendar entries, card receipts, branch records) is refused by
+  Postgres (a foreign key). The route answers 409 with guidance to deactivate a referenced user or reassign a location's records.
+  MongoDB let it through and left a dangling name.
 - `_id` is a 24-character string, not an ObjectId (the routes already wrapped it in `String()`).
 - Not on the layer, on purpose: the start-up location seed and the Seattle recipients seed (MongoDB only; no-ops once
   locations exist) and `src/db/customers/*.mongo.ts` (their MongoDB path). **`DB_STAFF=postgres` needs `DB_CUSTOMERS=postgres`** — customers

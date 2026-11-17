@@ -164,16 +164,19 @@ export function pgStore(tx: Db | Tx): HoldsStore {
     async listHolds(q) {
       const narrow = narrowing(q);
       const base = () => db.select({ id: salesHolds.id }).from(salesHolds).innerJoin(locations, eq(locations.id, salesHolds.locationId));
-      const count = async (tab: string) => (await base().where(and(narrow, statusClause(tab, q.now)))).length;
-      const [page, ...counts] = await Promise.all([
-        base().where(and(narrow, statusClause(q.status, q.now))).orderBy(desc(salesHolds.createdAt), desc(salesHolds.id)),
-        ...HOLD_TABS.map(count)
+      const count = (tab: string) => sql<number>`count(*) filter (where ${statusClause(tab, q.now) ?? sql`true`})::int`.mapWith(Number);
+      const [page, [figures]] = await Promise.all([
+        base().where(and(narrow, statusClause(q.status, q.now))).orderBy(desc(salesHolds.createdAt), desc(salesHolds.id))
+          .limit(q.limit).offset((q.page - 1) * q.limit),
+        db.select({ total: count(q.status), active: count('active'), expiring: count('expiring'), expired: count('expired'),
+          released: count('released'), converted: count('converted'), all: count('all') })
+          .from(salesHolds).innerJoin(locations, eq(locations.id, salesHolds.locationId)).where(narrow)
       ]);
-      const ids = page.slice((q.page - 1) * q.limit, q.page * q.limit).map(r => r.id);
+      const ids = page.map(r => r.id);
       const docs = new Map((await holdsByIds(ids)).map(d => [d._id, d]));
       return {
-        total: page.length, items: ids.map(id => docs.get(id)!),
-        counts: Object.fromEntries(HOLD_TABS.map((tab, i) => [tab, counts[i]])) as Record<(typeof HOLD_TABS)[number], number>
+        total: figures.total, items: ids.map(id => docs.get(id)!),
+        counts: Object.fromEntries(HOLD_TABS.map(tab => [tab, figures[tab]])) as Record<(typeof HOLD_TABS)[number], number>
       };
     },
     async holdsToNote(now, limit) {

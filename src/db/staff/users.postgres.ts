@@ -231,25 +231,38 @@ export async function findUserAndUpdate(db: Db, filter: Loose, update: Loose, o:
 /** True when an account was removed. */
 export async function deleteUser(db: Db, id: string): Promise<boolean> {
   if (!isId(id)) return false;
-  const gone = await db.delete(users).where(eq(users.id, id)).returning({ id: users.id });
-  return gone.length > 0;
+  return db.transaction(async tx => {
+    await lockUsers(tx);
+    const gone = await tx.delete(users).where(eq(users.id, id)).returning({ id: users.id });
+    return gone.length > 0;
+  });
 }
 
 /** Count a wrong password; five lock the account for 15 minutes (the model's rule, one statement). */
 export async function incLoginAttempts(db: Db, id: string, now = new Date()): Promise<void> {
   const end = new Date(now.getTime() + LOCK_MINUTES * 60_000);
-  await db.update(users).set({
-    loginAttempts: sql`case when ${users.lockUntil} is not null and ${users.lockUntil} < ${now} then 1 else ${users.loginAttempts} + 1 end`,
-    lockUntil: sql`case when ${users.lockUntil} is not null and ${users.lockUntil} < ${now} then null
-      when ${users.loginAttempts} + 1 >= ${MAX_LOGIN_ATTEMPTS} and (${users.lockUntil} is null or ${users.lockUntil} <= ${now}) then ${end}
-      else ${users.lockUntil} end`,
-    updatedAt: now
-  }).where(eq(users.id, id));
+  await db.transaction(async tx => {
+    await lockUsers(tx);
+    await tx.update(users).set({
+      loginAttempts: sql`case when ${users.lockUntil} is not null and ${users.lockUntil} < ${now} then 1 else ${users.loginAttempts} + 1 end`,
+      lockUntil: sql`case when ${users.lockUntil} is not null and ${users.lockUntil} < ${now} then null
+        when ${users.loginAttempts} + 1 >= ${MAX_LOGIN_ATTEMPTS} and (${users.lockUntil} is null or ${users.lockUntil} <= ${now}) then ${end}
+        else ${users.lockUntil} end`,
+      updatedAt: now
+    }).where(eq(users.id, id));
+  });
 }
 export async function resetLoginAttempts(db: Db, id: string): Promise<void> {
-  await db.update(users).set({ loginAttempts: 0, lockUntil: null, updatedAt: new Date() }).where(eq(users.id, id));
+  await db.transaction(async tx => {
+    await lockUsers(tx);
+    await tx.update(users).set({ loginAttempts: 0, lockUntil: null, updatedAt: new Date() }).where(eq(users.id, id));
+  });
 }
 /** Online tracking: the last time they used the app. */
 export async function touchLastSeen(db: Db, id: string, at: Date): Promise<void> {
-  if (isId(id)) await db.update(users).set({ lastSeenAt: at }).where(eq(users.id, id));
+  if (!isId(id)) return;
+  await db.transaction(async tx => {
+    await lockUsers(tx);
+    await tx.update(users).set({ lastSeenAt: at }).where(eq(users.id, id));
+  });
 }
