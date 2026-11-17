@@ -358,6 +358,9 @@ Delete under a line (`PlannerStopMenu`; Edit / Delete only when it's your stop).
 On a phone the **Day view is a timeline** (design A of the 2026-11-16 canvas): the time left of a
 rail, a dot per stop and a card beside it; today's list gets a red **NOW** line (`DayStops`,
 `nowLineIndex`) and stops that have ended fade (`isPastStop`, `useNow` ticks each minute).
+The Visits tab's **Today panel** (`DashboardAside`) is the same timeline in small (time, rail and dot, customer,
+**⋯**, red NOW line, ended stops fade) with the planner's stop menu (`salesPlanner/stopActions.ts`, a separate
+entry so the Dashboard doesn't pull in the planner chunk): Directions, Open profile, Edit in Calendar.
 **Directions** reads the customer record when tapped (a stop carries only a name) and opens
 Google Maps (`directions.ts`). Not built: "View details" (the basic card) in the menu.
 Rules in `SalesPlannerMobile.css` / `SalesPlannerWeek.css`, checked by `e2e/planner.mobile.spec.ts`). The extra parts (`.pl-time`, `.pl-kebab`,

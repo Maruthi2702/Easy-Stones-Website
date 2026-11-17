@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Edit2, Ellipsis, ExternalLink, Navigation, Trash2 } from 'lucide-react';
+import { CalendarDays, Edit2, Ellipsis, ExternalLink, Navigation, Trash2 } from 'lucide-react';
 import type { PlannerItem } from '../plannerSchedule';
 import { customerName } from '../salesPlanner';
 
@@ -11,6 +11,8 @@ export type PlannerStopMenuProps = {
     onOpenCustomer?: () => void;
     onEdit?: () => void;
     onDelete?: () => void;
+    /** Outside the Calendar (the Visits tab's Today panel): "Edit in Calendar" instead of Edit / Delete. */
+    onOpenCalendar?: () => void;
 };
 
 const WIDTH = 208;
@@ -21,7 +23,7 @@ const WIDTH = 208;
  * on the screen beside its button, not inside the day column, because the columns
  * clip (the same reason as the Customers tables' RowMenu).
  */
-export default function PlannerStopMenu({ item, onDirections, onOpenCustomer, onEdit, onDelete }: PlannerStopMenuProps) {
+export default function PlannerStopMenu({ item, onDirections, onOpenCustomer, onEdit, onDelete, onOpenCalendar }: PlannerStopMenuProps) {
     const [open, setOpen] = useState(false);
     const [at, setAt] = useState<{ top: number; left: number } | null>(null);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -60,9 +62,9 @@ export default function PlannerStopMenu({ item, onDirections, onOpenCustomer, on
         };
     }, [open]);
 
-    if (!onDirections && !onOpenCustomer && !onEdit && !onDelete) return null;
+    if (!onDirections && !onOpenCustomer && !onEdit && !onDelete && !onOpenCalendar) return null;
     const choose = (action: () => void) => { setOpen(false); action(); };
-    const hasChange = Boolean(onEdit || onDelete);
+    const hasChange = Boolean(onEdit || onDelete || onOpenCalendar);
     return (
         <>
             <button
@@ -89,6 +91,7 @@ export default function PlannerStopMenu({ item, onDirections, onOpenCustomer, on
                         {onDirections && <button type="button" role="menuitem" className="pl-stopmenu-item pl-stopmenu-item--directions" onClick={() => choose(onDirections)}><Navigation size={15} /> Directions</button>}
                         {onOpenCustomer && <button type="button" role="menuitem" className="pl-stopmenu-item" onClick={() => choose(onOpenCustomer)}><ExternalLink size={15} /> Open profile</button>}
                         {hasChange && (onDirections || onOpenCustomer) && <div className="pl-stopmenu-sep" role="separator" />}
+                        {onOpenCalendar && <button type="button" role="menuitem" className="pl-stopmenu-item" onClick={() => choose(onOpenCalendar)}><CalendarDays size={15} /> Edit in Calendar</button>}
                         {onEdit && <button type="button" role="menuitem" className="pl-stopmenu-item" onClick={() => choose(onEdit)}><Edit2 size={15} /> Edit schedule</button>}
                         {onDelete && <button type="button" role="menuitem" className="pl-stopmenu-item pl-stopmenu-item--danger" onClick={() => choose(onDelete)}><Trash2 size={15} /> Delete</button>}
                     </div>

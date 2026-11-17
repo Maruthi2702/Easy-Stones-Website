@@ -112,6 +112,7 @@ export default function VisitsPanel({
             followUpCount={followUpCount}
             onOpenPlanner={() => onOpenTab('planner')}
             onOpenFollowUps={() => onOpenTab('followups')}
+            onOpenCustomerById={onOpenCustomer}
             onOpenCustomer={(f) => {
                 if (!f.customerId) return;
                                 onOpenCustomer(f.customerId);

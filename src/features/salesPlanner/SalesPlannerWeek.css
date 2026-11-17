@@ -29,3 +29,6 @@
 
 /* On a phone the stop's ⋯ is the bottom sheet's (PlannerCard), not this menu. */
 @media (max-width: 639px) { .pl-stopmenu-btn, .pl-daysum { display: none; } }
+
+/* The ⋯ on the Visits tab's Today panel on a phone (it opens the bottom sheet). */
+.pl-kebab--aside { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); cursor: pointer; }

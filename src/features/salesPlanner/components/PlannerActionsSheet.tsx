@@ -1,19 +1,21 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Edit2, ExternalLink, Navigation, Trash2, X } from 'lucide-react';
+import { CalendarDays, Edit2, ExternalLink, Navigation, Trash2, X } from 'lucide-react';
 import { lockPage, unlockPage } from '../../../components/shared/pageLock';
 import { trapTab } from '../../../components/shared/form/formFocus';
 import type { PlannerItem } from '../plannerSchedule';
 import { customerName, timeLabel } from '../salesPlanner';
 
-export default function PlannerActionsSheet({ item, onClose, onOpenCustomer, onDirections, onEdit, onDelete }: {
+export default function PlannerActionsSheet({ item, onClose, onOpenCustomer, onDirections, onEdit, onDelete, onOpenCalendar }: {
     item: PlannerItem;
     onClose: () => void;
     onOpenCustomer?: () => void;
     /** Maps directions to the customer; absent when the stop has no customer. */
     onDirections?: () => void;
-    onEdit: () => void;
-    onDelete: () => void;
+    onEdit?: () => void;
+    onDelete?: () => void;
+    /** Outside the Calendar (the Visits tab's Today panel): "Edit in Calendar" instead of Edit / Delete. */
+    onOpenCalendar?: () => void;
 }) {
     const titleId = useId();
     const dialogRef = useRef<HTMLDivElement>(null);
@@ -48,8 +50,9 @@ export default function PlannerActionsSheet({ item, onClose, onOpenCustomer, onD
                 <div className="pl-actions-list">
                     {onDirections && <button type="button" className="pl-actions-directions" onClick={() => choose(onDirections)}><Navigation size={20} /> Directions</button>}
                     {onOpenCustomer && <button type="button" onClick={() => choose(onOpenCustomer)}><ExternalLink size={20} /> Open profile</button>}
-                    <button type="button" onClick={() => choose(onEdit)}><Edit2 size={20} /> Edit schedule</button>
-                    <button type="button" className="pl-actions-delete" onClick={() => choose(onDelete)}><Trash2 size={20} /> Delete activity</button>
+                    {onOpenCalendar && <button type="button" onClick={() => choose(onOpenCalendar)}><CalendarDays size={20} /> Edit in Calendar</button>}
+                    {onEdit && <button type="button" onClick={() => choose(onEdit)}><Edit2 size={20} /> Edit schedule</button>}
+                    {onDelete && <button type="button" className="pl-actions-delete" onClick={() => choose(onDelete)}><Trash2 size={20} /> Delete activity</button>}
                 </div>
                 <button type="button" className="pl-actions-cancel" onClick={onClose}>Cancel</button>
             </div>

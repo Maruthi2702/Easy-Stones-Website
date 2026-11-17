@@ -1,4 +1,6 @@
+import { Fragment } from 'react';
 import { Calendar } from 'lucide-react';
+import { StopActions, isPastStop, nowLineIndex, useNow } from '../../salesPlanner/stopActions';
 import { todayStops, panelFollowUps } from '../dashboardFocus';
 import type { PanelFollowUp } from '../dashboardFocus';
 import type { Loose } from '../../../types/records';
@@ -22,11 +24,25 @@ export type DashboardAsideProps = {
     onOpenPlanner: () => void;
     onOpenFollowUps: () => void;
     onOpenCustomer?: (row: PanelFollowUp) => void;
+    /** Open a customer's profile by id (a Today stop's ⋯ → Open profile). */
+    onOpenCustomerById?: (customerId: string) => void;
 };
 
-const DashboardAside = ({ schedules, customerName, followUps, showWhoLogged = false, followUpCount, onOpenPlanner, onOpenFollowUps, onOpenCustomer }: DashboardAsideProps) => {
-    const now = new Date();
+/** The NOW marker on the Today timeline. */
+const NowRow = ({ now }: { now: Date }) => (
+    <li className="dfx-now" role="separator" aria-label="Now">
+        <span className="dfx-now-time">{now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).replace(/\s?[AP]M$/, '')}</span>
+        <span className="dfx-now-dot" aria-hidden="true" />
+        <i aria-hidden="true" />
+        <b>NOW</b>
+    </li>
+);
+
+const DashboardAside = ({ schedules, customerName, followUps, showWhoLogged = false, followUpCount, onOpenPlanner, onOpenFollowUps, onOpenCustomer, onOpenCustomerById }: DashboardAsideProps) => {
+    const now = useNow();
     const stops = todayStops(schedules, customerName, now);
+    // The red NOW line: before the first stop that starts after now.
+    const nowAt = stops.length > 0 ? nowLineIndex(stops.map(s => ({ startTime: (schedules.find(sch => sch._id === s.id) || {}).startTime })), now) : -1;
     const rows = panelFollowUps(followUps, now);
     return (
         <aside className="dfx-aside" aria-label="Needs attention">
@@ -37,17 +53,33 @@ const DashboardAside = ({ schedules, customerName, followUps, showWhoLogged = fa
                 </div>
                 {stops.length > 0 ? (
                     <>
-                        <ol className="dfx-stops" aria-label="Today's calendar">
-                            {stops.map(s => (
-                                <li key={s.id}>
-                                    <span className="dfx-stop-time">{s.time}</span>
-                                    <span className="dfx-stop-bar" style={{ background: s.color }} aria-hidden="true" />
-                                    <span className="dfx-stop-text">
-                                        <span>{s.company}</span>
-                                        <span>{showWhoLogged && s.owner ? `${s.owner} · ` : ''}{s.type}{s.detail ? ` · ${s.detail}` : ''}</span>
-                                    </span>
-                                </li>
-                            ))}
+                        <ol className="dfx-stops dfx-stops--timeline" aria-label="Today's calendar">
+                            {stops.map((s, i) => {
+                                const raw = schedules.find(sch => sch._id === s.id) || {};
+                                const [clock, period] = s.time.split(' ');
+                                // The stop as the planner's menu reads it (its customer by name, not just an id).
+                                const item = { ...raw, _id: s.id, startTime: raw.startTime, activityType: s.type, notes: s.detail, customerId: { _id: s.customerId, company: s.company } };
+                                const past = isPastStop(item, now);
+                                return (
+                                    <Fragment key={s.id}>
+                                        {i === nowAt && <NowRow now={now} />}
+                                        <li className={past ? 'is-past' : undefined}>
+                                            <span className="dfx-stop-time"><b>{clock}</b>{period && <small>{period}</small>}</span>
+                                            <span className="dfx-stop-dot" style={{ background: past ? undefined : s.color }} aria-hidden="true" />
+                                            <span className="dfx-stop-text">
+                                                <span>{s.company}</span>
+                                                <span>{showWhoLogged && s.owner ? `${s.owner} · ` : ''}{s.type}{s.detail ? ` · ${s.detail}` : ''}</span>
+                                            </span>
+                                            <StopActions
+                                                item={item}
+                                                onOpenCustomer={onOpenCustomerById && s.customerId ? () => onOpenCustomerById(String(s.customerId)) : undefined}
+                                                onOpenCalendar={onOpenPlanner}
+                                            />
+                                        </li>
+                                    </Fragment>
+                                );
+                            })}
+                            {nowAt === stops.length && <NowRow now={now} />}
                         </ol>
                         <button type="button" className="dfx-link" onClick={onOpenPlanner}>Open Calendar →</button>
                     </>
