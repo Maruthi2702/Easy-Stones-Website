@@ -4,10 +4,12 @@
     .pl-wrap .pl-toolbar,
     .pl-wrap .pl-toolbar[data-here="true"] {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) auto auto;
+        /* Two 40px tracks for the Optimize and Search icons; the Day | Month switch is wider than both and
+           overhangs to the left (right-aligned), so it can't stretch the icon tracks apart. */
+        grid-template-columns: minmax(0, 1fr) 40px 40px;
         grid-template-areas:
             "title views views"
-            "sub find optimize"
+            "sub optimize find"
             "search search search";
         align-items: center;
         gap: 10px 4px;
@@ -23,7 +25,7 @@
     .pl-wrap .pl-toolbar[data-here="true"] .pl-toolbar-left { display: contents; }
     /* A small switch, not a bar: the date is the heading, this is secondary. */
     /* SalesPage.css lays the view switch out in three equal columns (Day / Week / Month); there are two buttons now. */
-    .pl-wrap .pl-views { display: flex; grid-template-columns: none; justify-self: end; width: auto; padding: 3px; gap: 2px; border-radius: 10px; }
+    .pl-wrap .pl-views { display: flex; grid-template-columns: none; justify-self: end; width: max-content; min-width: 0; padding: 3px; gap: 2px; border-radius: 10px; }
     .pl-wrap .pl-viewbtn { flex: 0 0 auto; min-width: 60px; height: 38px; padding: 0 12px; font-size: 13px; }
     .pl-wrap .pl-title-wrap { grid-area: title; justify-self: start; }
     .pl-wrap .pl-views { grid-area: views; }
