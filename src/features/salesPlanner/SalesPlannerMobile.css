@@ -51,20 +51,24 @@
     .pl-wrap .pl-sub { grid-area: sub; justify-self: start; min-width: 0; max-width: 100%; gap: 0; margin: 0; font-size: 13px; font-weight: 600; color: var(--pl-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
     .pl-wrap .pl-sub-span { font-weight: 500; color: var(--pl-text-2); }
     .pl-wrap .pl-sub-tag { display: none; }
+    /* Optimize on a phone is the route icon alone (its label is for screen readers). */
     .pl-wrap .pl-optimize {
         grid-area: optimize;
         justify-self: end;
-        min-height: 40px;
+        display: inline-grid;
+        place-items: center;
+        width: 40px;
+        height: 40px;
+        min-height: 0;
         margin: 0;
-        padding: 0 14px;
-        border-radius: 20px;
+        padding: 0;
+        border-radius: 50%;
         border-color: var(--pl-gold-line);
         background: var(--pl-gold-soft);
         color: var(--pl-gold);
-        font-size: 13px;
-        font-weight: 600;
     }
-    .pl-wrap .pl-opt-long { display: none; }
+    .pl-wrap .pl-optimize svg { width: 18px; height: 18px; }
+    .pl-wrap .pl-opt-text { display: none; }
     .pl-wrap .pl-optimize:disabled { display: none; }
     /* "N stops today" repeats what the line under the date says. */
     .pl-wrap .pl-chip { display: none; }

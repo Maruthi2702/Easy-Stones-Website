@@ -126,9 +126,9 @@ export default function PlannerToolbar({ viewMode, currentDate, titleLabel, toda
                 )}
 
                 {viewMode === 'day' && onOptimize && (
-                    <button type="button" className="pl-today pl-optimize" onClick={onOptimize} disabled={!canOptimize}
+                    <button type="button" className="pl-today pl-optimize" aria-label="Optimize route" onClick={onOptimize} disabled={!canOptimize}
                         title={canOptimize ? 'Put this day\'s stops in driving order' : 'Needs two or more of your stops on this day'}>
-                        <Route size={14} aria-hidden="true" /> Optimize<span className="pl-opt-long"> route</span>
+                        <Route size={14} aria-hidden="true" /><span className="pl-opt-text"> Optimize route</span>
                     </button>
                 )}
 
