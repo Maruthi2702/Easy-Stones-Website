@@ -355,6 +355,9 @@ the date on the left, a gold route icon (that day's Optimize route, two or more 
 stops) and + on the right, then one line saying how full the day is (`daySummary`, tested)
 with a load bar; a stop's menu is **⋯** — Directions, Open profile, then Edit schedule and
 Delete under a line (`PlannerStopMenu`; Edit / Delete only when it's your stop).
+On a phone the **Day view is a timeline** (design A of the 2026-11-16 canvas): the time left of a
+rail, a dot per stop and a card beside it; today's list gets a red **NOW** line (`DayStops`,
+`nowLineIndex`) and stops that have ended fade (`isPastStop`, `useNow` ticks each minute).
 **Directions** reads the customer record when tapped (a stop carries only a name) and opens
 Google Maps (`directions.ts`). Not built: "View details" (the basic card) in the menu.
 Rules in `SalesPlannerMobile.css` / `SalesPlannerWeek.css`, checked by `e2e/planner.mobile.spec.ts`). The extra parts (`.pl-time`, `.pl-kebab`,

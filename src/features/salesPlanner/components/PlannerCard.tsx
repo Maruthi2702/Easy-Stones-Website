@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { Check, AlertTriangle, Ellipsis } from 'lucide-react';
 import type { PlannerItem } from '../plannerSchedule';
 import type { StopMove } from '../useMoveStop';
-import { activityModifier, activityColor, customerName, lengthOf, timeLabel, timeParts, visitFlag } from '../salesPlanner';
+import { activityModifier, activityColor, customerName, isPastStop, lengthOf, timeLabel, timeParts, visitFlag } from '../salesPlanner';
 import type { Loose } from '../../../types/records';
 import useIsPhone from '../../../components/shared/form/useIsPhone';
 import PlannerActionsSheet from './PlannerActionsSheet';
 import PlannerStopMenu from './PlannerStopMenu';
 import { openDirections } from '../directions';
+import useNow from '../useNow';
 
 export type CardActions = {
     move: StopMove;
@@ -28,6 +29,7 @@ export type CardActions = {
  */
 export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDelete, editable, showOwner = false }: { item: PlannerItem } & CardActions) {
     const flag = visitFlag(item);
+    const past = isPastStop(item, useNow());
     const canChange = editable ? editable(item) : true;
     const owner = showOwner ? String(item.ownerName || '').trim() : '';
     const drag = move.dragProps(item);
@@ -40,7 +42,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
     const length = lengthOf(item);
     return (
         <div
-            className={`pl-item pl-item--${activityModifier(item.activityType)}${move.itemState(item)}${flag ? ` is-${flag}` : ''}${open ? ' is-open' : ''}${canChange ? '' : ' is-readonly'}`}
+            className={`pl-item pl-item--${activityModifier(item.activityType)}${move.itemState(item)}${flag ? ` is-${flag}` : ''}${open ? ' is-open' : ''}${past ? ' is-past' : ''}${canChange ? '' : ' is-readonly'}`}
             title={movable ? `${customerName(item)} — drag to another day, or press Space to move it with the arrow keys` : `${customerName(item)}${owner ? ` — ${owner}'s calendar` : ''}`}
             {...drag}
         >

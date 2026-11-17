@@ -72,21 +72,34 @@
     .pl-wrap .pl-optimize:disabled { display: none; }
     /* "N stops today" repeats what the line under the date says. */
     .pl-wrap .pl-chip { display: none; }
-    .pl-wrap .pl-grid--day .pl-colbody { padding: 0; gap: 10px; }
+    /* The Day view is a timeline: the time sits to the left of a rail, each stop is a dot on
+       it and a card beside it, and a red NOW line splits what's done from what's next. */
+    .pl-wrap .pl-grid--day .pl-colbody { position: relative; padding: 0 0 0 58px; gap: 8px; }
+    .pl-wrap .pl-grid--day .pl-colbody::before {
+        content: ''; position: absolute; left: 51px; top: 22px; bottom: 22px; width: 2px; border-radius: 1px; background: var(--pl-line);
+    }
     .pl-wrap .pl-item {
-        grid-template-columns: 64px minmax(0, 1fr) 44px;
-        grid-template-areas: "time name kebab" "time meta kebab" "time note kebab";
-        min-height: 82px;
-        padding: 10px 4px 10px 0;
-        border-left-width: 3px;
+        grid-template-columns: minmax(0, 1fr) 44px;
+        grid-template-areas: "name kebab" "meta kebab" "note kebab";
+        min-height: 68px;
+        padding: 10px 0 10px 14px;
         background: var(--pl-surface);
         border-radius: 12px;
         box-shadow: none;
         box-sizing: border-box;
     }
+    .pl-wrap .pl-item:is(.pl-item--visit, .pl-item--call, .pl-item--dropoff, .pl-item--other) { border-left: 1px solid var(--pl-line); }
     .pl-wrap .pl-item:hover { transform: none; box-shadow: none; }
-    .pl-wrap .pl-time { padding-left: 10px; }
-    .pl-wrap .pl-time-clock { font-size: 15px; font-weight: 700; }
+    .pl-wrap .pl-item::after {
+        content: ''; position: absolute; left: -13px; top: 18px; width: 12px; height: 12px; border-radius: 50%; background: #94a3b8;
+    }
+    .pl-wrap .pl-item--visit::after { background: #22a55b; }
+    .pl-wrap .pl-item--call::after { background: #3b82f6; }
+    .pl-wrap .pl-item--dropoff::after { background: #d4a20c; }
+    .pl-wrap .pl-item.is-past { opacity: 0.6; }
+    .pl-wrap .pl-item.is-past::after { background: #9aa0ab; }
+    .pl-wrap .pl-time { position: absolute; left: -58px; top: 12px; width: 40px; padding: 0; align-items: flex-end; text-align: right; }
+    .pl-wrap .pl-time-clock { font-size: 14px; font-weight: 700; }
     .pl-wrap .pl-time-period { font-size: 11px; }
     .pl-wrap .pl-name {
         align-self: center;
@@ -100,6 +113,13 @@
     .pl-wrap .pl-kebab { border-radius: 10px; }
     .pl-wrap .pl-kebab:active { background: var(--pl-fill); }
     .pl-wrap .pl-legend { gap: 14px; }
+
+    /* The NOW line threads through the timeline at the rail's x; its time sits where the stops' times do. */
+    .pl-wrap .pl-now { display: flex; align-items: center; margin-left: -58px; height: 14px; color: var(--pl-danger, #b42318); }
+    .pl-wrap .pl-now-time { width: 47px; box-sizing: border-box; padding-right: 9px; flex: none; text-align: right; font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .pl-wrap .pl-now-dot { position: relative; z-index: 1; flex: none; width: 10px; height: 10px; border-radius: 50%; background: currentColor; }
+    .pl-wrap .pl-now i { flex: 1; height: 2px; border-radius: 1px; background: currentColor; opacity: 0.7; }
+    .pl-wrap .pl-now b { padding-left: 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; }
 
     /* Month on a phone: a number and a count per day; a tap opens that day. */
     .pl-wrap .pl-month--phone { min-width: 0; }
@@ -169,3 +189,6 @@
 .pl-actions-list .pl-actions-delete { color: var(--pl-danger-ink); margin-top: 8px; }
 .pl-actions-list button:active { background: var(--pl-fill); }
 .pl-actions-cancel { width: 100%; min-height: 50px; margin-top: 18px; border: 1px solid var(--pl-line); border-radius: 12px; background: var(--pl-fill); color: var(--pl-text); font: inherit; font-weight: 600; cursor: pointer; }
+
+/* The NOW line is the phone timeline's; wider screens don't draw it. */
+.pl-now { display: none; }

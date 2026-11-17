@@ -3,7 +3,7 @@ import type { PlannerItem } from './plannerSchedule';
 import {
     dayKey, localISO, weekStartOf, dayOffset, slotMinutes, aimedMinutes, planMove, gapsFor, dayFromKey,
     activityModifier, activityColor, customerName, initialFor, bookedRowOf, timeParts, shortDayTitle, durationText, lengthOf, relativeDayLabel, isCurrentPeriod, rangeFor, groupByDay,
-    weekdaysOf, weekendOf, weekOf, weeksBetween, titleFor, visitFlag, describeAim, addLabel, daySummary, DAY_LOAD_FULL
+    weekdaysOf, weekendOf, weekOf, weeksBetween, titleFor, visitFlag, describeAim, addLabel, daySummary, DAY_LOAD_FULL, isPastStop, nowLineIndex
 } from './salesPlanner';
 
 const stop = (id: string, startTime: string, o: Partial<PlannerItem> = {}): PlannerItem => ({ _id: id, startTime, ...o });
@@ -212,5 +212,22 @@ describe('daySummary', () => {
         expect(daySummary([at('14:16')]).span).toMatch(/2:16/);
         expect(daySummary([at('14:16')]).span).not.toMatch(/–/);
         expect(daySummary(Array.from({ length: 30 }, (_, i) => at(`${String(8 + (i % 10)).padStart(2, '0')}:00`))).fill).toBe(100);
+    });
+});
+
+describe('the Day timeline: what is past and where NOW goes', () => {
+    const at = (h: number, m = 0) => new Date(2026, 10, 18, h, m);
+    const s = (time: string, end?: string) => ({ startTime: `2026-11-18T${time}:00.000`, ...(end ? { endTime: `2026-11-18T${end}:00.000` } : {}) });
+    it('a stop is past once it ends (its start, with no end) before now, today only', () => {
+        expect(isPastStop(s('11:25', '11:40'), at(11, 41))).toBe(true);
+        expect(isPastStop(s('11:25', '11:40'), at(11, 30))).toBe(false);
+        expect(isPastStop(s('11:25'), at(11, 26))).toBe(true);
+        expect(isPastStop({ startTime: '2026-11-17T09:00:00.000' }, at(11, 0))).toBe(false); // yesterday's stops are the Missed flag's business
+    });
+    it('puts NOW before the first stop that starts after now', () => {
+        const day = [s('11:25'), s('11:45'), s('12:05')];
+        expect(nowLineIndex(day, at(11, 32))).toBe(1);
+        expect(nowLineIndex(day, at(9, 0))).toBe(0);
+        expect(nowLineIndex(day, at(18, 0))).toBe(3);
     });
 });

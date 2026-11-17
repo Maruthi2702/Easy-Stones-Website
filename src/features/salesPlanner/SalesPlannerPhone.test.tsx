@@ -59,4 +59,22 @@ describe('Sales Planner on a phone', () => {
         expect(document.querySelector('.pl-pcell')).toBeNull();
         expect(screen.getByText('Pacific Granite')).toBeTruthy();
     });
+
+    it('draws the Day as a timeline: past stops fade and a NOW line sits between what is done and what is next', async () => {
+        vi.useFakeTimers({ toFake: ['Date'] });
+        const at = new Date(); at.setHours(10, 0, 0, 0);
+        vi.setSystemTime(at);
+        try {
+            await mount();
+            const cards = [...document.querySelectorAll('.pl-item')];
+            expect(cards[0].className).toContain('is-past');   // 9:00, done
+            expect(cards[1].className).not.toContain('is-past'); // 11:00, still to come
+            const now = document.querySelector('.pl-now') as HTMLElement;
+            expect(now.textContent).toContain('NOW');
+            expect(now.getAttribute('role')).toBe('separator');
+            // Between the two stops.
+            expect(cards[0].compareDocumentPosition(now) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+            expect(now.compareDocumentPosition(cards[1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        } finally { vi.useRealTimers(); }
+    });
 });

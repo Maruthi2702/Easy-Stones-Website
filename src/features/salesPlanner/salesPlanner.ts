@@ -387,3 +387,16 @@ export const daySummary = (items: { startTime: string; endTime?: string }[]): { 
     const to = timeLabel(last.endTime || last.startTime);
     return { count, span: from && to && from !== to ? `${from} – ${to}` : from, fill: Math.min(100, Math.round((count / DAY_LOAD_FULL) * 100)) };
 };
+
+/** A stop that has already finished today (its end, else its start, is before `now`). Another day's stops are never "past" here. */
+export const isPastStop = (item: { startTime: string; endTime?: string }, now: Date): boolean => {
+    if (dayKey(new Date(item.startTime)) !== dayKey(now)) return false;
+    const end = minutesOf(item.endTime) ?? minutesOf(item.startTime);
+    return end !== null && end < now.getHours() * 60 + now.getMinutes();
+};
+
+/** Where the Day view's NOW line goes on today's list: before the first stop that starts after `now` (items.length = after the last). */
+export const nowLineIndex = (items: { startTime: string }[], now: Date): number => {
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    return items.filter((i) => (minutesOf(i.startTime) ?? 0) <= minutes).length;
+};
