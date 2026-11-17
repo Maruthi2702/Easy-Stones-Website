@@ -13,6 +13,8 @@ import useNow from '../useNow';
 export type CardActions = {
     move: StopMove;
     onSelectCustomer?: (customer: Loose) => void;
+    /** Open the customer's basic card (View details in a stop's menu). */
+    onViewDetails?: (customer: { customerId: string; company: string }) => void;
     onEdit: (item: PlannerItem) => void;
     onDelete: (id: string) => void;
     /** Whether this stop is yours to change (the team calendar shows others', read only). */
@@ -27,7 +29,7 @@ export type CardActions = {
  * the pencil and bin collapse into one "⋯" that opens a bottom sheet, so a
  * long name keeps its width and every action is a full touch target.
  */
-export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDelete, editable, showOwner = false }: { item: PlannerItem } & CardActions) {
+export default function PlannerCard({ item, move, onSelectCustomer, onViewDetails, onEdit, onDelete, editable, showOwner = false }: { item: PlannerItem } & CardActions) {
     const flag = visitFlag(item);
     const past = isPastStop(item, useNow());
     const canChange = editable ? editable(item) : true;
@@ -38,6 +40,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
     const phone = useIsPhone();
     // A stop's customer is populated (an object) or only its id.
     const directionsId = typeof item.customerId === 'string' ? item.customerId : String(item.customerId?._id || '');
+    const viewDetails = onViewDetails && directionsId ? () => onViewDetails({ customerId: directionsId, company: customerName(item) }) : undefined;
     const { clock, period } = timeParts(item.startTime);
     const length = lengthOf(item);
     return (
@@ -68,6 +71,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                     <PlannerStopMenu
                         item={item}
                         onDirections={directionsId ? () => { void openDirections(directionsId); } : undefined}
+                        onViewDetails={viewDetails}
                         onOpenCustomer={onSelectCustomer ? () => onSelectCustomer(item.customerId as Loose) : undefined}
                         onEdit={canChange ? () => onEdit(item) : undefined}
                         onDelete={canChange ? () => onDelete(item._id) : undefined}
@@ -107,6 +111,7 @@ export default function PlannerCard({ item, move, onSelectCustomer, onEdit, onDe
                 <PlannerActionsSheet
                     item={item}
                     onClose={() => setOpen(false)}
+                    onViewDetails={viewDetails}
                     onOpenCustomer={onSelectCustomer ? () => onSelectCustomer(item.customerId as Loose) : undefined}
                     onDirections={directionsId ? () => { void openDirections(directionsId); } : undefined}
                     onEdit={() => onEdit(item)}

@@ -353,16 +353,18 @@ Month is a number and a stop count per day where a tap opens that day
 (`MonthGrid`'s phone branch, `.pl-pcell`). Above 640px each Week/Day column's header is
 the date on the left, a gold route icon (that day's Optimize route, two or more of your
 stops) and + on the right, then one line saying how full the day is (`daySummary`, tested)
-with a load bar; a stop's menu is **⋯** — Directions, Open profile, then Edit schedule and
+with a load bar; a stop's menu is **⋯** — Directions, View details, Open profile, then Edit schedule and
 Delete under a line (`PlannerStopMenu`; Edit / Delete only when it's your stop).
 On a phone the **Day view is a timeline** (design A of the 2026-11-16 canvas): the time left of a
 rail, a dot per stop and a card beside it; today's list gets a red **NOW** line (`DayStops`,
 `nowLineIndex`) and stops that have ended fade (`isPastStop`, `useNow` ticks each minute).
 The Visits tab's **Today panel** (`DashboardAside`) is the same timeline in small (time, rail and dot, customer,
 **⋯**, red NOW line, ended stops fade) with the planner's stop menu (`salesPlanner/stopActions.ts`, a separate
-entry so the Dashboard doesn't pull in the planner chunk): Directions, Open profile, Edit in Calendar.
+entry so the Dashboard doesn't pull in the planner chunk): Directions, View details, Open profile, Edit in Calendar.
 **Directions** reads the customer record when tapped (a stop carries only a name) and opens
-Google Maps (`directions.ts`). Not built: "View details" (the basic card) in the menu.
+Google Maps (`directions.ts`). **View details** (2026-11-17) opens the customer's basic card, the
+one the dashboard's Find a customer opens without Full profile (`onOpenVisitCard`, threaded as
+`onViewDetails` through `CalendarPanel` / `DashboardAside`); Open profile is still the full profile.
 Rules in `SalesPlannerMobile.css` / `SalesPlannerWeek.css`, checked by `e2e/planner.mobile.spec.ts`). The extra parts (`.pl-time`, `.pl-kebab`,
 `.pl-drawer`, `.pl-sub`) are in the markup on every screen and hidden above
 640px. `.pl-more` is the Month view's "+N more", not the ⋯.

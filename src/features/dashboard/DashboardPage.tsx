@@ -179,6 +179,7 @@ export default function DashboardPage({
                             currentUserId={currentUserId}
                             fallback={fallback}
                             onSelectCustomer={onSelectCustomer}
+                            onViewDetails={(c) => onOpenVisitCard({ customerId: c.customerId, company: c.company })}
                             onScheduleChange={data.fetchSchedules}
                             viewing={data.calendarViewing}
                             includesMe={data.calendarIncludesMe}

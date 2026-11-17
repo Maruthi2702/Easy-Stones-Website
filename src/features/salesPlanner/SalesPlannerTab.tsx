@@ -48,7 +48,7 @@ import './SalesPlannerMobile.css';
 
 export type SalesPlannerTabProps = {
     customerSelection?: Loose[]; customerOptions?: Loose[];
-    onSelectCustomer?: (customer: Loose) => void; onScheduleChange?: () => void;
+    onSelectCustomer?: (customer: Loose) => void; onViewDetails?: (customer: { customerId: string; company: string }) => void; onScheduleChange?: () => void;
     isDropdownLoading?: boolean; currentUserId?: string | null;
     /**
      * The team calendar (the dashboard's People filter, src/utils/teamScope.ts):
@@ -74,7 +74,7 @@ const matchesSearch = (item: PlannerItem, q: string) => {
     return q.toLowerCase().split(/\s+/).filter(Boolean).every((word) => text.includes(word));
 };
 
-const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onScheduleChange, isDropdownLoading, currentUserId = null, viewing = '', includesMe = true, justMe = true, search = '', searchBox = null, openAdd = false, onOpenAddTaken }: SalesPlannerTabProps) => {
+const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelectCustomer, onViewDetails, onScheduleChange, isDropdownLoading, currentUserId = null, viewing = '', includesMe = true, justMe = true, search = '', searchBox = null, openAdd = false, onOpenAddTaken }: SalesPlannerTabProps) => {
     const data = useSalesPlannerData(currentUserId, viewing);
     const { itemsFor: allItemsFor } = data;
     const itemsFor = useCallback((day: Date) => allItemsFor(day).filter((item) => matchesSearch(item, search.trim())), [allItemsFor, search]);
@@ -139,7 +139,7 @@ const SalesPlannerTab = ({ customerSelection = [], customerOptions = [], onSelec
     const weekendHasToday = weekendDays.some(d => isSameDay(d, today));
     const weekendQuiet = weekendItemCount === 0 && !weekendHasToday;
 
-    const cardActions = { move, onSelectCustomer, onEdit: editor.openEdit, onDelete: editor.handleDelete, editable: isMine, showOwner };
+    const cardActions = { move, onSelectCustomer, onViewDetails, onEdit: editor.openEdit, onDelete: editor.handleDelete, editable: isMine, showOwner };
     const dayProps = { today, loading, onAdd, ...cardActions };
 
     return (

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CalendarDays, Edit2, Ellipsis, ExternalLink, Navigation, Trash2 } from 'lucide-react';
+import { CalendarDays, Edit2, Ellipsis, ExternalLink, Info, Navigation, Trash2 } from 'lucide-react';
 import type { PlannerItem } from '../plannerSchedule';
 import { customerName } from '../salesPlanner';
 
@@ -8,6 +8,8 @@ export type PlannerStopMenuProps = {
     item: PlannerItem;
     /** Each is absent when the person may not do it (or the stop has no customer). */
     onDirections?: () => void;
+    /** The customer's basic card (the same one the dashboard's customer search opens). */
+    onViewDetails?: () => void;
     onOpenCustomer?: () => void;
     onEdit?: () => void;
     onDelete?: () => void;
@@ -19,11 +21,11 @@ const WIDTH = 208;
 
 /**
  * A stop's \u22ef menu on a tablet or desktop (a phone has PlannerActionsSheet):
- * Directions, Open profile, then Edit schedule and Delete under a line. It floats
+ * Directions, View details, Open profile, then Edit schedule and Delete under a line. It floats
  * on the screen beside its button, not inside the day column, because the columns
  * clip (the same reason as the Customers tables' RowMenu).
  */
-export default function PlannerStopMenu({ item, onDirections, onOpenCustomer, onEdit, onDelete, onOpenCalendar }: PlannerStopMenuProps) {
+export default function PlannerStopMenu({ item, onDirections, onViewDetails, onOpenCustomer, onEdit, onDelete, onOpenCalendar }: PlannerStopMenuProps) {
     const [open, setOpen] = useState(false);
     const [at, setAt] = useState<{ top: number; left: number } | null>(null);
     const trigger = useRef<HTMLButtonElement>(null);
@@ -62,7 +64,7 @@ export default function PlannerStopMenu({ item, onDirections, onOpenCustomer, on
         };
     }, [open]);
 
-    if (!onDirections && !onOpenCustomer && !onEdit && !onDelete && !onOpenCalendar) return null;
+    if (!onDirections && !onViewDetails && !onOpenCustomer && !onEdit && !onDelete && !onOpenCalendar) return null;
     const choose = (action: () => void) => { setOpen(false); action(); };
     const hasChange = Boolean(onEdit || onDelete || onOpenCalendar);
     return (
@@ -89,8 +91,9 @@ export default function PlannerStopMenu({ item, onDirections, onOpenCustomer, on
                         onMouseDown={e => e.stopPropagation()}
                     >
                         {onDirections && <button type="button" role="menuitem" className="pl-stopmenu-item pl-stopmenu-item--directions" onClick={() => choose(onDirections)}><Navigation size={15} /> Directions</button>}
+                        {onViewDetails && <button type="button" role="menuitem" className="pl-stopmenu-item" onClick={() => choose(onViewDetails)}><Info size={15} /> View details</button>}
                         {onOpenCustomer && <button type="button" role="menuitem" className="pl-stopmenu-item" onClick={() => choose(onOpenCustomer)}><ExternalLink size={15} /> Open profile</button>}
-                        {hasChange && (onDirections || onOpenCustomer) && <div className="pl-stopmenu-sep" role="separator" />}
+                        {hasChange && (onDirections || onViewDetails || onOpenCustomer) && <div className="pl-stopmenu-sep" role="separator" />}
                         {onOpenCalendar && <button type="button" role="menuitem" className="pl-stopmenu-item" onClick={() => choose(onOpenCalendar)}><CalendarDays size={15} /> Edit in Calendar</button>}
                         {onEdit && <button type="button" role="menuitem" className="pl-stopmenu-item" onClick={() => choose(onEdit)}><Edit2 size={15} /> Edit schedule</button>}
                         {onDelete && <button type="button" role="menuitem" className="pl-stopmenu-item pl-stopmenu-item--danger" onClick={() => choose(onDelete)}><Trash2 size={15} /> Delete</button>}

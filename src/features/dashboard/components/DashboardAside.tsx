@@ -26,6 +26,8 @@ export type DashboardAsideProps = {
     onOpenCustomer?: (row: PanelFollowUp) => void;
     /** Open a customer's profile by id (a Today stop's ⋯ → Open profile). */
     onOpenCustomerById?: (customerId: string) => void;
+    /** A Today stop's ⋯ → View details: the customer's basic card. */
+    onViewDetailsById?: (customerId: string, company: string) => void;
 };
 
 /** The NOW marker on the Today timeline. */
@@ -38,7 +40,7 @@ const NowRow = ({ now }: { now: Date }) => (
     </li>
 );
 
-const DashboardAside = ({ schedules, customerName, followUps, showWhoLogged = false, followUpCount, onOpenPlanner, onOpenFollowUps, onOpenCustomer, onOpenCustomerById }: DashboardAsideProps) => {
+const DashboardAside = ({ schedules, customerName, followUps, showWhoLogged = false, followUpCount, onOpenPlanner, onOpenFollowUps, onOpenCustomer, onOpenCustomerById, onViewDetailsById }: DashboardAsideProps) => {
     const now = useNow();
     const stops = todayStops(schedules, customerName, now);
     // The red NOW line: before the first stop that starts after now.
@@ -72,6 +74,7 @@ const DashboardAside = ({ schedules, customerName, followUps, showWhoLogged = fa
                                             </span>
                                             <StopActions
                                                 item={item}
+                                                onViewDetails={onViewDetailsById && s.customerId ? () => onViewDetailsById(String(s.customerId), s.company) : undefined}
                                                 onOpenCustomer={onOpenCustomerById && s.customerId ? () => onOpenCustomerById(String(s.customerId)) : undefined}
                                                 onOpenCalendar={onOpenPlanner}
                                             />

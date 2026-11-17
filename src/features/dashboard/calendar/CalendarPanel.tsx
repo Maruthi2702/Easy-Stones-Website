@@ -12,6 +12,8 @@ export type CalendarPanelProps = {
     currentUserId: string | null;
     fallback: React.ReactNode;
     onSelectCustomer: (customer: Loose) => void;
+    /** A stop's ⋯ → View details: the customer's basic card. */
+    onViewDetails: (customer: { customerId: string; company: string }) => void;
     /** A stop was added, moved or removed: the tiles' counts reload. */
     onScheduleChange: () => void;
     /** The team calendar, from the People filter (SalesPlannerTab's props of the same names). */
@@ -24,7 +26,7 @@ export type CalendarPanelProps = {
 };
 
 /** Dashboard → Calendar: the sales planner. */
-export default function CalendarPanel({ customerSelection, customerOptions, isDropdownLoading, currentUserId, fallback, onSelectCustomer, onScheduleChange, viewing, includesMe, justMe, scheduleRequest = false, onScheduleRequestTaken }: CalendarPanelProps) {
+export default function CalendarPanel({ customerSelection, customerOptions, isDropdownLoading, currentUserId, fallback, onSelectCustomer, onViewDetails, onScheduleChange, viewing, includesMe, justMe, scheduleRequest = false, onScheduleRequestTaken }: CalendarPanelProps) {
     // The dashboard's one search box: shows only the stops whose customer matches.
     const [search, setSearch] = useState('');
     return (
@@ -36,6 +38,7 @@ export default function CalendarPanel({ customerSelection, customerOptions, isDr
                 isDropdownLoading={isDropdownLoading}
                 currentUserId={currentUserId}
                 onSelectCustomer={onSelectCustomer}
+                onViewDetails={onViewDetails}
                 onScheduleChange={onScheduleChange}
                 viewing={viewing}
                 includesMe={includesMe}
