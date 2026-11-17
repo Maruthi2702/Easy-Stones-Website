@@ -26,7 +26,8 @@ describe('openDirections', () => {
     const record = (body: object) => authFetch.mockResolvedValue({ ok: true, json: async () => body });
     beforeEach(() => {
         open.mockReset(); assign.mockReset(); authFetch.mockReset();
-        vi.stubGlobal('window', { open, location: { assign } });
+        vi.stubGlobal('window', { open, location: { assign }, matchMedia: () => ({ matches: false }) });
+        vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Macintosh)', platform: 'MacIntel', maxTouchPoints: 0 });
     });
     afterEach(() => vi.unstubAllGlobals());
 
@@ -55,6 +56,23 @@ describe('openDirections', () => {
         record({ coordinates: { lat: 1, lng: 2 } });
         open.mockReturnValue(null);
         expect(await openDirections(id)).toBe('opened');
+        expect(assign).toHaveBeenCalledTimes(1);
+    });
+    it('on an iPhone sends this window to the map, so no empty browser is left in front of the app', async () => {
+        vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)', platform: 'iPhone', maxTouchPoints: 5 });
+        const id = customer();
+        record({ coordinates: { lat: 47.6, lng: -122.3 } });
+        expect(await openDirections(id)).toBe('opened');
+        expect(open).not.toHaveBeenCalled();
+        expect(assign).toHaveBeenCalledTimes(1);
+        expect(assign.mock.calls[0][0]).toContain('google.com/maps/dir');
+    });
+    it('does the same in an installed web app on any device', async () => {
+        vi.stubGlobal('window', { open, location: { assign }, matchMedia: () => ({ matches: true }) });
+        const id = customer();
+        record({ coordinates: { lat: 1, lng: 2 } });
+        await openDirections(id);
+        expect(open).not.toHaveBeenCalled();
         expect(assign).toHaveBeenCalledTimes(1);
     });
     it('opens nothing when the customer has no address or cannot be read', async () => {

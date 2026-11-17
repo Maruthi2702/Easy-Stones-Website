@@ -55,19 +55,31 @@ const lookUp = (customerId: string): Promise<string | null> => {
 export const prepareDirections = (customerId: string): void => { if (customerId) void lookUp(customerId); };
 
 /**
- * Directions to a stop's customer. When the link is ready (prepareDirections ran as the menu
- * opened) it opens in the same tap, with no placeholder tab. If the tap came first, the record is
- * read, then opened; if the browser blocks that, this page goes to the map instead of
- * leaving the person with nothing.
+ * Hand a map link to the device. On a phone or an installed app, a new tab / window is a browser of
+ * its own: iOS passes the link to the Google Maps app and leaves that browser sitting empty in front of
+ * the app (the blank page this used to leave). So there the link goes to this window instead: the maps
+ * app takes it and this page stays as it was. A laptop opens a new tab.
+ */
+export const openMapLink = (url: string): void => {
+    const nav = (typeof navigator !== 'undefined' ? navigator : {}) as Navigator & { standalone?: boolean };
+    const standalone = nav.standalone === true || (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches);
+    const touch = /iPhone|iPad|iPod|Android/i.test(nav.userAgent || '') || ((nav.platform === 'MacIntel') && (nav.maxTouchPoints || 0) > 1);
+    if (standalone || touch) { window.location.assign(url); return; }
+    if (!window.open(url, '_blank', 'noopener,noreferrer')) window.location.assign(url);
+};
+
+/**
+ * Directions to a stop's customer. The link is read when the menu opens (prepareDirections), so
+ * the tap opens it at once; a tap before that reads the record first.
  */
 export async function openDirections(customerId: string): Promise<DirectionsResult> {
     const hit = urls.get(customerId);
     const ready = hit && Date.now() - hit.at < TTL_MS ? hit.url : undefined;
-    if (ready) { window.open(ready, '_blank', 'noopener,noreferrer'); return 'opened'; }
+    if (ready) { openMapLink(ready); return 'opened'; }
     if (ready === '') return 'no-address';
     const url = await lookUp(customerId);
     if (url === null) return 'failed';
     if (!url) return 'no-address';
-    if (!window.open(url, '_blank', 'noopener,noreferrer')) window.location.assign(url);
+    openMapLink(url);
     return 'opened';
 }
