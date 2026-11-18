@@ -88,6 +88,7 @@ it('matches slim pins, newest visit and counts, omitting customers without coord
   const pins = await both(data.mapCustomerPins);
   expect(pins.map(p => p.company)).toEqual(['Acme Stone', 'Acme Stone Inc', 'Open Seattle', 'Other Branch']);
   expect(pins[0]).toMatchObject({ lastVisitAt: '2026-11-11', visitCount: 2 });
+  expect(pins[0]).toMatchObject({ level: 'Level - 3' });
   expect(pins[0]).not.toHaveProperty('email');
 });
 it('matches map details, case-insensitive ids and missing customers', async () => {

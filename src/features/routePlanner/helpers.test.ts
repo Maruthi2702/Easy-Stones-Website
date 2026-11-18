@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   RECENCY_COLORS,
   TYPE_COLORS, NO_TYPE_COLOR, typeColors, KNOWN_TYPES, isNotInterested,
+  LEVELS, levelOf, levelLabel,
   RECENCY_DARK_TEXT,
   FALLBACK_CENTER,
   pad,
@@ -280,5 +281,17 @@ describe('pin colours by type', () => {
     expect(isNotInterested({ status: 'Not Interested' })).toBe(true);
     expect(isNotInterested({ status: 'Onboarded' })).toBe(false);
     expect(isNotInterested(null)).toBe(false);
+  });
+});
+
+describe('customer level', () => {
+  it('offers Level 1 to 4, labelled without the dash', () => {
+    expect(LEVELS.map(levelLabel)).toEqual(['Level 1', 'Level 2', 'Level 3', 'Level 4']);
+  });
+  it('counts a pin with no level as Level 3 (the form default)', () => {
+    expect(levelOf({ level: 'Level - 1' })).toBe('Level - 1');
+    expect(levelOf({})).toBe('Level - 3');
+    expect(levelOf({ level: '' })).toBe('Level - 3');
+    expect(levelOf(null)).toBe('Level - 3');
   });
 });

@@ -1001,7 +1001,7 @@ week / In 2 weeks, the first free start that day, what's already booked —
 `src/utils/visitSlots.ts`, tested); it books that day, or moves the existing
 entry (`PUT /api/schedule/:id`). On a phone the panel leaves a strip of map at
 the top (`.cl-drawer.rpv2-host`). Only **checked reps' customers are loaded** (ticking
-one fetches just theirs). The Filter reads Sales reps → Customer type → Days since
+one fetches just theirs). The Filter reads Sales reps → **Level** (2026-11-18: a multi-select dropdown under the reps, Level 1–4 with counts, `LevelFilterPicker`; pins carry `level`, none counts as Level 3; saved as `activeLevels`) → Customer type → Days since
 last visit; pins are map pins coloured by type (set A, `TYPE_COLORS` in
 `features/routePlanner/helpers.ts`) or by last-visit age (the "Type colours | Visit
 colours" switch, saved as `routePlannerFilters.pinColors`). Saved filters load

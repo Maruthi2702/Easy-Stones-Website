@@ -83,6 +83,10 @@ export type MapCanvasProps = DayScheduleProps & {
     typeCounts: Record<string, number>;
     onToggleType: (type: string) => void;
     onToggleAllTypes: (showAll: boolean) => void;
+    activeLevels: Toggles;
+    levelCounts: Record<string, number>;
+    onToggleLevel: (level: string) => void;
+    onToggleAllLevels: (showAll: boolean) => void;
     recencyBuckets: RecencyBucket[];
     activeBuckets: Toggles;
     recencyCounts: Record<string, number>;
@@ -136,6 +140,7 @@ const MapCanvas = ({
     replaceExisting, onReplaceExistingChange, onClearPlannedDay,
     showFilterPanel, onCloseFilterPanel,
     types, activeTypes, typeCounts, onToggleType, onToggleAllTypes,
+    activeLevels, levelCounts, onToggleLevel, onToggleAllLevels,
     recencyBuckets, activeBuckets, recencyCounts, onToggleBucket,
     salesRepOptions, activeSalesReps, repCounts, onToggleSalesRep, onToggleAllSalesReps,
     date, onDateChange, startAt, onStartAtChange, stopMinutes, onStopMinutesChange,
@@ -351,6 +356,10 @@ const MapCanvas = ({
                     typeCounts={typeCounts}
                     onToggleType={onToggleType}
                     onToggleAllTypes={onToggleAllTypes}
+                    activeLevels={activeLevels}
+                    levelCounts={levelCounts}
+                    onToggleLevel={onToggleLevel}
+                    onToggleAllLevels={onToggleAllLevels}
                     recencyBuckets={recencyBuckets}
                     colors={colors}
                     activeBuckets={activeBuckets}

@@ -6,7 +6,7 @@ import type { CurrentUser, StaffMember } from '../../types/records';
 import type { ColorMode, Toggles } from './types';
 
 /** The Route Planner's saved filters on the user record (PUT /api/user/me/route-planner-filters). */
-type SavedFilters = { activeSalesReps?: Toggles | null; activeTypes?: Toggles | null; activeBuckets?: Toggles | null; pinColors?: { mode?: string } };
+type SavedFilters = { activeSalesReps?: Toggles | null; activeTypes?: Toggles | null; activeLevels?: Toggles | null; activeBuckets?: Toggles | null; pinColors?: { mode?: string } };
 const savedFiltersOf = (user: CurrentUser | null) => user?.routePlannerFilters as SavedFilters | undefined;
 
 export type SavedFiltersDeps = {
@@ -39,7 +39,7 @@ export function useSavedFilters({ currentUser, myId, salesReps, scopedReps }: Sa
     // loaded value is already in place: with a ref, the save ran in the same
     // pass as the seed, wrote the empty starting value, and raced the real one
     // to the server, so a reopen often came back reset.
-    const [filtersReady, setFiltersReady] = useState({ reps: false, types: false, buckets: false, colors: false });
+    const [filtersReady, setFiltersReady] = useState({ reps: false, types: false, levels: false, buckets: false, colors: false });
     const markReady = useCallback((key: keyof typeof filtersReady) => setFiltersReady(prev => (prev[key] ? prev : { ...prev, [key]: true })), []);
     // The last value each filter saved (JSON), so loading one doesn't save it
     // straight back and only a real change goes to the server.
@@ -64,6 +64,9 @@ export function useSavedFilters({ currentUser, myId, salesReps, scopedReps }: Sa
     // `types` (useFilterView) as new ones appear, since that list is
     // data-driven and can't be known up front.
     const [activeTypes, setActiveTypes] = useState<Toggles>({});
+    // Customer level (Level 1–4): the same on/off-per-key shape. A level not in
+    // here reads as shown, so nothing is hidden until someone unticks it.
+    const [activeLevels, setActiveLevels] = useState<Toggles>({});
     // What the pins' colour means — the customer's type or how long since the
     // last visit (the Filter's "Type colours | Visit colours" switch). Saved
     // with the other filters; type until someone chooses otherwise.
@@ -179,6 +182,25 @@ export function useSavedFilters({ currentUser, myId, salesReps, scopedReps }: Sa
         saveFilter('activeTypes', activeTypes);
     }, [activeTypes, myId, filtersReady.types, saveFilter]);
 
+    // Level filter — same load-once / save-immediately pair as Customer Type.
+    const levelsSeededRef = useRef(false);
+    useEffect(() => {
+        if (levelsSeededRef.current || !myId) return;
+        const saved = savedFiltersOf(currentUser)?.activeLevels;
+        if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+            savedFilterJson.current.activeLevels = JSON.stringify(saved);
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- the saved value, loaded once (the seed effects' whole job)
+            setActiveLevels(saved);
+        }
+        levelsSeededRef.current = true;
+        markReady('levels');
+    }, [myId, currentUser, markReady]);
+
+    useEffect(() => {
+        if (!filtersReady.levels || !myId) return;
+        saveFilter('activeLevels', activeLevels);
+    }, [activeLevels, myId, filtersReady.levels, saveFilter]);
+
     // Days Since Last Visit filter — same load-once / save-immediately pair
     // as Customer Type above. No sync-new-buckets effect needed here, since
     // the four recency buckets are fixed (never/overdue/due/recent), not
@@ -205,6 +227,10 @@ export function useSavedFilters({ currentUser, myId, salesReps, scopedReps }: Sa
         setActiveTypes(prev => ({ ...prev, [type]: prev[type] === false }));
     };
 
+    const toggleLevel = (level: string) => {
+        setActiveLevels(prev => ({ ...prev, [level]: prev[level] === false }));
+    };
+
     const toggleBucket = (key: string) => setActiveBuckets(prev => ({ ...prev, [key]: !prev[key] }));
 
     const toggleSalesRep = (key: string) => {
@@ -212,10 +238,10 @@ export function useSavedFilters({ currentUser, myId, salesReps, scopedReps }: Sa
     };
 
     return {
-        activeSalesReps, setActiveSalesReps, activeTypes, setActiveTypes, activeBuckets, colorMode, setColorMode,
+        activeSalesReps, setActiveSalesReps, activeTypes, setActiveTypes, activeLevels, setActiveLevels, activeBuckets, colorMode, setColorMode,
         /** The saved rep ticks have loaded (the map waits for them before loading pins). */
         repsReady: filtersReady.reps,
-        toggleType, toggleBucket, toggleSalesRep
+        toggleType, toggleLevel, toggleBucket, toggleSalesRep
     };
 }
 

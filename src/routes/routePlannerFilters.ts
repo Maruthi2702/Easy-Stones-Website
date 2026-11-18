@@ -18,7 +18,7 @@ import express from 'express';
  *   import createRoutePlannerFiltersRouter from './src/routes/routePlannerFilters.ts';
  *   app.use('/api/user/me/route-planner-filters', createRoutePlannerFiltersRouter({ authenticate }));
  */
-const FILTER_KEYS = ['activeSalesReps', 'activeTypes', 'activeBuckets', 'pinColors'];
+const FILTER_KEYS = ['activeSalesReps', 'activeTypes', 'activeLevels', 'activeBuckets', 'pinColors'];
 
 export default function createRoutePlannerFiltersRouter({ authenticate }: { authenticate: RequestHandler }) {
   const router = express.Router();

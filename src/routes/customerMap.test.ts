@@ -117,11 +117,11 @@ describe('GET /map — the pin', () => {
   it('carries what the map needs and the newest visit date, and none of the contact details', async () => {
     const [pin] = (await get(`/map?reps=${DANA}`)).body;
     expect(pin).toMatchObject({
-      company: 'Dana Stone', contactName: 'Pat', city: 'Kent', customerType: 'Fabricator', status: 'Onboarded',
+      company: 'Dana Stone', contactName: 'Pat', city: 'Kent', customerType: 'Fabricator', level: 'Level 2', status: 'Onboarded',
       location: 'Kent', precision: 'rooftop', lastVisitAt: '2026-09-15', visitCount: 3,
       coordinates: { lat: 47.38, lng: -122.23 }, salesRep: String(DANA)
     });
-    for (const field of ['phone', 'email', 'marketingEmail', 'notes', 'street', 'level', 'modaBinder']) {
+    for (const field of ['phone', 'email', 'marketingEmail', 'notes', 'street', 'modaBinder']) {
       expect(pin).not.toHaveProperty(field);
     }
   });

@@ -52,6 +52,13 @@ export const typeColors = (type: unknown): PinColors => TYPE_COLORS[String(type 
 /** The six types customers can be given (Add customer's list) — always offered in the filter, with or without customers. */
 export const KNOWN_TYPES = ['Fabricator', 'Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder'];
 
+/** The levels a customer can have (Add customer's list), as stored. */
+export const LEVELS = ['Level - 1', 'Level - 2', 'Level - 3', 'Level - 4'];
+/** A customer saved with no level is Level 3 (the form's default). */
+export const levelOf = (pin: { level?: string } | null | undefined) => pin?.level || 'Level - 3';
+/** What the filter calls a level: "Level - 2" → "Level 2". */
+export const levelLabel = (level: string) => level.replace(/^Level - /, 'Level ');
+
 /** A customer who said no: its pin is drawn faded so it doesn't compete with live ones. */
 export const isNotInterested = (pin: { status?: string } | null | undefined) => pin?.status === 'Not Interested';
 

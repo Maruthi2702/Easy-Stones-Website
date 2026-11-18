@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { groupRepOptions } from '../../utils/salesReps';
 import { UNASSIGNED, scopeLocationsOf } from '../../utils/routePlannerScope';
 import { hasPoint } from '../../utils/routePlan';
-import { KNOWN_TYPES, visitRecency } from './helpers';
+import { KNOWN_TYPES, LEVELS, levelOf, visitRecency } from './helpers';
 import type { CurrentUser, StaffMember } from '../../types/records';
 import type { MapPin as Customer, Pin, RecencyKey, RepOption, Toggles } from './types';
 
@@ -24,6 +24,8 @@ export type FilterViewDeps = {
     setActiveSalesReps: Dispatch<SetStateAction<Toggles>>;
     activeTypes: Toggles;
     setActiveTypes: Dispatch<SetStateAction<Toggles>>;
+    activeLevels: Toggles;
+    setActiveLevels: Dispatch<SetStateAction<Toggles>>;
     activeBuckets: Toggles;
 };
 
@@ -34,7 +36,7 @@ export type FilterViewDeps = {
  */
 export function useFilterView({
     currentUser, myId, pins, repCounts, scopedReps,
-    activeSalesReps, setActiveSalesReps, activeTypes, setActiveTypes, activeBuckets
+    activeSalesReps, setActiveSalesReps, activeTypes, setActiveTypes, activeLevels, setActiveLevels, activeBuckets
 }: FilterViewDeps) {
     const visible = useMemo((): Customer[] => {
         return pins
@@ -49,9 +51,11 @@ export function useFilterView({
             // type appearing for the first time this render) rather than
             // "hidden" — see the sync effect below for why that's safe.
             .filter(p => activeTypes[p.customerType || '(blank)'] !== false)
+            // Absent-from-activeLevels reads as "shown", like types.
+            .filter(p => activeLevels[levelOf(p)] !== false)
             .map(p => ({ ...p, recency: visitRecency(p.lastVisitAt) }))
             .filter(p => activeBuckets[p.recency.key]);
-    }, [pins, activeSalesReps, activeTypes, activeBuckets]);
+    }, [pins, activeSalesReps, activeTypes, activeLevels, activeBuckets]);
 
     // The six types customers can be given are always offered, with or without
     // customers loaded (they're also the colour key); any other type found in
@@ -80,6 +84,20 @@ export function useFilterView({
             .filter(p => activeSalesReps[repKey(p.salesRep)] === true)
             .forEach(p => {
                 const key = p.customerType || '(blank)';
+                tally[key] = (tally[key] || 0) + 1;
+            });
+        return tally;
+    }, [pins, activeSalesReps]);
+
+    // How many of the checked reps' customers each level holds (the Level
+    // dropdown's counts, which like the type counts follow the rep ticks).
+    const levelCounts = useMemo(() => {
+        const tally: Record<string, number> = {};
+        pins
+            .filter(p => hasPoint(p))
+            .filter(p => activeSalesReps[repKey(p.salesRep)] === true)
+            .forEach(p => {
+                const key = levelOf(p);
                 tally[key] = (tally[key] || 0) + 1;
             });
         return tally;
@@ -131,6 +149,14 @@ export function useFilterView({
         });
     };
 
+    const toggleAllLevels = (showAll: boolean) => {
+        setActiveLevels(prev => {
+            const next = { ...prev };
+            LEVELS.forEach(l => { next[l] = showAll; });
+            return next;
+        });
+    };
+
     // Drives FilterButton's dot indicator — true once a type has been
     // toggled off, or the rep filter is hiding anyone (true by default,
     // since only "you" are seeded on — see the seed effect in
@@ -138,8 +164,9 @@ export function useFilterView({
     // legend's colours), so that dimension stays out of this.
     const filtersActive = useMemo(
         () => [...types, '(blank)'].some(t => activeTypes[t] === false) ||
+            LEVELS.some(l => activeLevels[l] === false) ||
             salesRepOptions.some(r => activeSalesReps[r.key] !== true),
-        [types, activeTypes, salesRepOptions, activeSalesReps]
+        [types, activeTypes, activeLevels, salesRepOptions, activeSalesReps]
     );
 
     const toggleAllSalesReps = (showAll: boolean) => {
@@ -150,5 +177,5 @@ export function useFilterView({
         });
     };
 
-    return { visible, types, counts, typeCounts, salesRepOptions, scopeLocations, filtersActive, toggleAllTypes, toggleAllSalesReps };
+    return { visible, types, counts, typeCounts, levelCounts, toggleAllLevels, salesRepOptions, scopeLocations, filtersActive, toggleAllTypes, toggleAllSalesReps };
 }

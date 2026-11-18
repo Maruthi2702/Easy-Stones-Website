@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { ChevronDown, ChevronUp, Filter, X } from 'lucide-react';
 import RepFilterPicker from '../../../components/shared/form/RepFilterPicker';
+import LevelFilterPicker from './LevelFilterPicker';
 import { UNASSIGNED } from '../../../utils/routePlannerScope';
 import { typeColors } from '../helpers';
 import type { ColorMode, RecencyBucket, RecencyColors, RepOption, Toggles } from '../types';
@@ -57,7 +58,7 @@ const CheckRow = ({ label, count, on, color, onClick }: CheckRowProps) => (
 
 /**
  * "Filter by", opened from the funnel icon — the fixed right column the info,
- * lead and Tools panels use. Three sections in this order (the owner's call,
+ * lead and Tools panels use. Level (a dropdown under the reps, 2026-11-18) and then three sections in this order (the owner's call,
  * 2026-10-18): Sales reps (only the reps this person may see, and only the
  * checked ones' customers are loaded — src/utils/routePlannerScope.ts; a
  * dropdown in the Customer List rep filter's format, RepFilterPicker), then
@@ -74,6 +75,10 @@ export type FilterPanelProps = {
     typeCounts: Record<string, number>;
     onToggleType: (type: string) => void;
     onToggleAllTypes: (showAll: boolean) => void;
+    activeLevels: Toggles;
+    levelCounts: Record<string, number>;
+    onToggleLevel: (level: string) => void;
+    onToggleAllLevels: (showAll: boolean) => void;
     recencyBuckets: RecencyBucket[];
     colors: RecencyColors;
     activeBuckets: Toggles;
@@ -91,6 +96,7 @@ const FilterPanel = ({
     onClose,
     colorMode, onColorModeChange,
     types, activeTypes, typeCounts, onToggleType, onToggleAllTypes,
+    activeLevels, levelCounts, onToggleLevel, onToggleAllLevels,
     recencyBuckets, colors, activeBuckets, recencyCounts, onToggleBucket,
     salesRepOptions, activeSalesReps, repCounts, onToggleSalesRep, onToggleAllSalesReps,
     scopeNote
@@ -153,6 +159,17 @@ const FilterPanel = ({
                         summary={repSummary}
                         note={scopeNote || undefined}
                         phoneSheet={false}
+                    />
+                </div>
+
+                <div className="rpv2-filter-section rpv2-filter-reps">
+                    <div className="rpv2-filter-reps-head">Level</div>
+                    <LevelFilterPicker
+                        active={activeLevels}
+                        counts={levelCounts}
+                        onToggle={onToggleLevel}
+                        onAll={() => onToggleAllLevels(true)}
+                        onNone={() => onToggleAllLevels(false)}
                     />
                 </div>
 

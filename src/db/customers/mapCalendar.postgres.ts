@@ -25,7 +25,7 @@ export async function mapCustomerPins(db: Db): Promise<Loose[]> {
     .orderBy(bytewise(customers.company), bytewise(customers.contactName), asc(customers.id));
   return rows.map(r => ({ ...nonNull({ _id: r.c.id, company: r.c.company, contactName: r.c.contactName,
     city: r.c.city, precision: r.c.geocodePrecision, salesRep: r.c.salesRepId,
-    salesRepName: repNameOf(r), customerType: r.c.customerType, status: r.c.status, location: r.locationName }),
+    salesRepName: repNameOf(r), customerType: r.c.customerType, level: r.c.level, status: r.c.status, location: r.locationName }),
     coordinates: nonNull({ lat: r.c.lat, lng: r.c.lng }), lastVisitAt: r.lastVisitAt, visitCount: r.visitCount }));
 }
 

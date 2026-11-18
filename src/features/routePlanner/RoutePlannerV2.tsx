@@ -94,7 +94,8 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
     const view = useFilterView({
         currentUser, myId, pins, repCounts: pinsData.repCounts, scopedReps: roster.scopedReps,
         activeSalesReps: filters.activeSalesReps, setActiveSalesReps: filters.setActiveSalesReps,
-        activeTypes: filters.activeTypes, setActiveTypes: filters.setActiveTypes, activeBuckets: filters.activeBuckets
+        activeTypes: filters.activeTypes, setActiveTypes: filters.setActiveTypes,
+        activeLevels: filters.activeLevels, setActiveLevels: filters.setActiveLevels, activeBuckets: filters.activeBuckets
     });
     const location = useMyLocation({ mapRef, isActive, setError });
     const panels = usePanels({ mapRef, currentUser, detailsCache: pinsData.detailsCache, pinById: pinsData.pinById });
@@ -235,6 +236,10 @@ const RoutePlannerV2 = ({ currentUser = null, theme = 'dark', onOpenCustomer = n
                 typeCounts={view.typeCounts}
                 onToggleType={filters.toggleType}
                 onToggleAllTypes={view.toggleAllTypes}
+                activeLevels={filters.activeLevels}
+                levelCounts={view.levelCounts}
+                onToggleLevel={filters.toggleLevel}
+                onToggleAllLevels={view.toggleAllLevels}
                 recencyBuckets={RECENCY_BUCKETS as RecencyBucket[]}
                 activeBuckets={filters.activeBuckets}
                 recencyCounts={view.counts}

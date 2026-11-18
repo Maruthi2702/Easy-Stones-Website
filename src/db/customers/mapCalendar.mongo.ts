@@ -9,7 +9,7 @@ export const mapCustomerPins = async (): Promise<Loose[]> => Customer.aggregate(
   { $match: { 'coordinates.lat': { $ne: null } } },
   { $project: {
     company: 1, contactName: 1, city: '$address.city', coordinates: 1,
-    precision: '$geocode.precision', salesRep: 1, salesRepName: 1, customerType: 1, status: 1, location: 1,
+    precision: '$geocode.precision', salesRep: 1, salesRepName: 1, customerType: 1, level: 1, status: 1, location: 1,
     lastVisitAt: { $max: '$visits.date' }, visitCount: { $size: { $ifNull: ['$visits', []] } }
   } },
   { $sort: { company: 1, contactName: 1 } }

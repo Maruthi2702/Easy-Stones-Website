@@ -26,6 +26,8 @@ export type Pin = Loose & {
     salesRep?: string | null;
     salesRepName?: string;
     customerType?: string;
+    /** 'Level - 1' … 'Level - 4' as stored; a pin with none counts as Level 3. */
+    level?: string;
     status?: string;
     lastVisitAt?: string;
 };
