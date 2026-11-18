@@ -11,13 +11,43 @@ export const ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRo
 const waypoint = (p: LatLng) => ({ location: { latLng: { latitude: p.lat, longitude: p.lng } } });
 
 /** Origin → stops in our order (never re-sequenced) → destination, by car. */
-export function routesRequestBody({ origin, destination, waypoints }: { origin: LatLng; destination: LatLng; waypoints: { location: LatLng }[] }) {
+export function routesRequestBody({ origin, destination, waypoints }: RouteRequest) {
     return {
         origin: waypoint(origin),
         destination: waypoint(destination),
         intermediates: waypoints.map(w => waypoint(w.location)),
         travelMode: 'DRIVE'
     };
+}
+
+export type RouteRequest = { origin: LatLng; destination: LatLng; waypoints: { location: LatLng }[] };
+
+/** One computeRoutes call holds 25 intermediates; 23 keeps the old margin. */
+export const MAX_INTERMEDIATES = 23;
+
+/**
+ * A day's points in order (origin first) cut into requests the Routes API
+ * accepts. Each request ends where the next begins, so joining the answers
+ * gives one unbroken line in the same order as the numbered pins.
+ */
+export function splitRoute(points: LatLng[], maxIntermediates = MAX_INTERMEDIATES): RouteRequest[] {
+    if (points.length < 2) return [];
+    const span = maxIntermediates + 1;
+    const requests: RouteRequest[] = [];
+    for (let start = 0; start < points.length - 1; start += span) {
+        const chunk = points.slice(start, Math.min(start + span, points.length - 1) + 1);
+        requests.push({
+            origin: chunk[0],
+            destination: chunk[chunk.length - 1],
+            waypoints: chunk.slice(1, -1).map(location => ({ location }))
+        });
+    }
+    return requests;
+}
+
+/** Joins each chunk's points, dropping the repeated point where two meet. */
+export function joinPaths(paths: LatLng[][]): LatLng[] {
+    return paths.flatMap((path, i) => (i === 0 ? path : path.slice(1)));
 }
 
 /** Google's encoded polyline (precision 5) → points. */

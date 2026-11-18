@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ROUTES_URL, decodePolyline, routesRequestBody } from './routeLine';
+import { ROUTES_URL, decodePolyline, joinPaths, routesRequestBody, splitRoute } from './routeLine';
+import type { RouteRequest } from './routeLine';
 import type { DayStop, LatLng } from '../types';
-
-type RouteRequest = { origin: LatLng; destination: LatLng; waypoints: { location: LatLng }[] };
 
 /**
  * The road-following route line for the day being planned: a Routes API
@@ -21,20 +20,13 @@ export function useDirections({ day, origin, mapReady }: { day: DayStop[]; origi
     // has to reset state when the params go invalid — the render is gated on
     // this instead. Same order as the numbered pins; stops are never
     // re-sequenced, which would desync the line from the numbers on top of it.
-    const directionsRequest = useMemo((): RouteRequest | null => {
+    const directionsRequest = useMemo((): RouteRequest[] | null => {
         if (day.length === 0 || (!origin && day.length < 2)) return null;
 
-        const routeOrigin = origin || day[0].coordinates;
-        const routeStops = origin ? day : day.slice(1);
-        const destination = routeStops[routeStops.length - 1].coordinates;
-        const waypoints = routeStops.slice(0, -1).map(stop => ({ location: stop.coordinates }));
-
-        // A single request holds up to 25 intermediates; bail instead of
-        // silently dropping stops off an unusually large day. (Kept at the
-        // old 23 so nothing about which days draw a line changes.)
-        if (waypoints.length > 23) return null;
-
-        return { origin: routeOrigin, destination, waypoints };
+        const points = origin ? [origin, ...day.map(s => s.coordinates)] : day.map(s => s.coordinates);
+        // One call holds 25 intermediates, so a big day goes as chained
+        // requests (each ends where the next starts) and the lines are joined.
+        return splitRoute(points);
     }, [day, origin]);
 
     useEffect(() => {
@@ -44,18 +36,23 @@ export function useDirections({ day, origin, mapReady }: { day: DayStop[]; origi
         let cancelled = false;
         (async () => {
             try {
-                const res = await fetch(ROUTES_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Goog-Api-Key': key,
-                        'X-Goog-FieldMask': 'routes.polyline.encodedPolyline'
-                    },
-                    body: JSON.stringify(routesRequestBody(directionsRequest))
-                });
-                const data = res.ok ? await res.json() : null;
-                const encoded: string | undefined = data?.routes?.[0]?.polyline?.encodedPolyline;
-                if (!cancelled) setPath(encoded ? decodePolyline(encoded) : null);
+                const paths = await Promise.all(directionsRequest.map(async request => {
+                    const res = await fetch(ROUTES_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Goog-Api-Key': key,
+                            'X-Goog-FieldMask': 'routes.polyline.encodedPolyline'
+                        },
+                        body: JSON.stringify(routesRequestBody(request))
+                    });
+                    const data = res.ok ? await res.json() : null;
+                    const encoded: string | undefined = data?.routes?.[0]?.polyline?.encodedPolyline;
+                    return encoded ? decodePolyline(encoded) : null;
+                }));
+                // All or nothing: a line with a gap would look like a real route.
+                const whole = paths.every((p): p is LatLng[] => p !== null);
+                if (!cancelled) setPath(whole ? joinPaths(paths as LatLng[][]) : null);
             } catch {
                 if (!cancelled) setPath(null);
             }
