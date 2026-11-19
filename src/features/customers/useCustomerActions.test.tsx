@@ -53,6 +53,22 @@ describe('useCustomerActions', () => {
     expect(window.alert).toHaveBeenCalledWith('Name needed');
   });
 
+  it('retries a dropped save with the same contact id, so it is added once', async () => {
+    vi.useFakeTimers();
+    try {
+      const d = deps();
+      authFetch.mockImplementationOnce(() => Promise.reject(new Error('offline'))).mockImplementationOnce(() => reply(200));
+      const { result } = renderHook(() => useCustomerActions(d));
+      act(() => result.current.handleAddContact());
+      await act(async () => { const saving = result.current.handleSaveContact(); await vi.runAllTimersAsync(); await saving; });
+      expect(authFetch).toHaveBeenCalledTimes(2);
+      const ids = authFetch.mock.calls.map((c: unknown[]) => JSON.parse((c[1] as { body: string }).body)._id);
+      expect(ids[0]).toMatch(/^[0-9a-f]{24}$/);
+      expect(ids[1]).toBe(ids[0]);
+      expect(result.current.showContactModal).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+
   it('asks before deleting a contact', async () => {
     const d = deps();
     const { result } = renderHook(() => useCustomerActions(d));

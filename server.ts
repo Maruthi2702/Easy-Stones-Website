@@ -75,6 +75,7 @@ import { typesWritesPauseGate, typesWritesPaused } from './src/utils/typesWrites
 import { smallWritesPauseGate, smallWritesPaused } from './src/utils/smallWritesPause.ts';
 import { permitsWritesPauseGate, permitsWritesPaused } from './src/utils/permitsWritesPause.ts';
 import { isId, newId } from './src/db/ids.ts';
+import { addContactOnce } from './src/services/contactAdd.ts';
 import ImportMemory from './src/models/ImportMemory.ts';
 import type { DuplicateAction } from './src/db/customers/writes/mergeTypes.ts';
 import CustomerMergeBackup from './src/models/CustomerMergeBackup.ts';
@@ -3070,10 +3071,11 @@ app.post('/api/customers/:customerId/contacts', authenticate, requirePermission(
       createdBy: (await getPerformerInfo(req)).id
     };
 
-    // The contact's id is made here, so both databases hold the same one (src/db/customers).
-    if (!await customerData.addContact(customerId, newId(), newContact)) {
-      return res.status(404).json({ message: 'Customer not found' });
-    }
+    // The contact's id is made here, so both databases hold the same one (src/db/customers); the
+    // screen's own id makes a repeated save answer 200 alreadySaved (src/services/contactAdd.ts).
+    const added = await addContactOnce(id => customerData.addContact(customerId, id, newContact), req.body._id);
+    if (added.kind === 'noCustomer') return res.status(404).json({ message: 'Customer not found' });
+    if (added.kind === 'alreadySaved') return res.status(200).json({ success: true, contact: newContact, alreadySaved: true });
 
     res.status(201).json({ success: true, contact: newContact });
   } catch (error) {

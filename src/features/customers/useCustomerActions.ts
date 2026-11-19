@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
@@ -18,6 +18,16 @@ export type CustomerActionsDeps = {
     refreshAfterSave: (customerId: string, options?: { dashboard?: boolean; schedules?: boolean }) => void;
     setDeleteConfirmation: (request: DeleteRequest) => void;
 };
+
+/** A new id for a contact, made here so a retried save names the same contact (24 hex, like the server's). */
+const newContactId = (): string => {
+    const bytes = new Uint8Array(12);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+};
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/** A save that failed for want of signal or a server hiccup is tried again; a refusal (4xx) is not. */
+const SAVE_ATTEMPTS = 3;
 
 /** A contact's form. */
 export type ContactForm = { name: string; phone: string; email: string; role: string; notes: string };
@@ -106,7 +116,10 @@ export function useCustomerActions({ selectedCustomer, selectedCustomerId, selec
     });
 
     // Contact CRUD operations
+    // One id per open form: a retry, or a second tap after a dropped answer, can't add the contact twice.
+    const newContactIdRef = useRef(newContactId());
     const handleAddContact = () => {
+        newContactIdRef.current = newContactId();
         setEditingContact(null);
         setContactForm({
             name: '',
@@ -139,10 +152,19 @@ export function useCustomerActions({ selectedCustomer, selectedCustomerId, selec
 
             const method = editingContact ? 'PUT' : 'POST';
 
-            const response = await authFetch(url, {
-                method,
-                body: JSON.stringify(contactForm)
-            });
+            const body = JSON.stringify(editingContact ? contactForm : { ...contactForm, _id: newContactIdRef.current });
+            let response: Response | null = null;
+            for (let attempt = 1; attempt <= SAVE_ATTEMPTS; attempt++) {
+                try {
+                    response = await authFetch(url, { method, body });
+                    if (response.status < 500) break;
+                } catch (networkError) {
+                    response = null;
+                    if (attempt === SAVE_ATTEMPTS) throw networkError;
+                }
+                if (attempt < SAVE_ATTEMPTS) await wait(700 * attempt);
+            }
+            if (!response) throw new Error('No answer');
 
             if (response.ok) {
                 setShowContactModal(false);
@@ -153,7 +175,7 @@ export function useCustomerActions({ selectedCustomer, selectedCustomerId, selec
             }
         } catch (error) {
             console.error('Error saving contact:', error);
-            alert('Failed to save contact');
+            alert('Could not save the contact. Check your connection and try again. Tapping save again will not add it twice.');
         } finally {
             setIsSaving(false);
         }
