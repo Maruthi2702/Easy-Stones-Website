@@ -81,22 +81,20 @@ export default function RepBreakdownTable({ rows, loading = false, showToday = f
 /**
  * The Sales Visits "List | By rep" switch, in the Filters panel (option A of the
  * 2026-11-19 canvas, owner's pick): two equal halves with an icon each, the
- * active one lifted with a gold underline, and a line saying what it shows.
+ * active one lifted with a gold underline (smaller and without the
+ * explanatory line since the owner's 2026-11-19 follow-up).
  */
 export function VisitsViewSwitch({ value, onChange }: { value: 'list' | 'byRep'; onChange: (v: 'list' | 'byRep') => void }) {
     return (
         <>
             <div className="drb-switch" role="group" aria-label="Show visits as">
                 <button type="button" className={value === 'list' ? 'is-on' : ''} aria-pressed={value === 'list'} onClick={() => onChange('list')}>
-                    <List size={18} aria-hidden="true" />List
+                    <List size={16} aria-hidden="true" />List
                 </button>
                 <button type="button" className={value === 'byRep' ? 'is-on' : ''} aria-pressed={value === 'byRep'} onClick={() => onChange('byRep')}>
-                    <Users size={18} aria-hidden="true" />By rep
+                    <Users size={16} aria-hidden="true" />By rep
                 </button>
             </div>
-            <span className="drb-switch-note">
-                {value === 'list' ? 'One row for every visit, newest first.' : 'Visits, resources, follow-ups and late, per person.'}
-            </span>
         </>
     );
 }
