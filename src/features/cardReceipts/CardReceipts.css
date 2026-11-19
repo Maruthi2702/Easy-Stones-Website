@@ -137,6 +137,11 @@ body.light-theme-active .ccr {
 .ccr-who b { font-weight: 600; }
 .ccr-who span { font-size: 12px; color: var(--ccr-muted); }
 .ccr-amt { font-weight: 700; }
+/* Over $150 (isBigReceipt): a gold pill so approvers spot it. */
+.ccr-amt.is-big, .ccr-big.is-big { color: var(--ccr-gold-ink); background: var(--ccr-gold-tint); border: 1px solid var(--ccr-gold-bd); border-radius: 999px; padding: 1px 9px; }
+td.ccr-amt.is-big { background: none; border: 0; padding: 0; }
+td.ccr-amt.is-big::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ccr-gold); margin-right: 6px; }
+td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-status-cell { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .ccr-thumb { width: 28px; height: 36px; border-radius: 4px; object-fit: cover; background: var(--ccr-paper); display: block; }
 .ccr-thumb.is-pdf, .ccr-thumb.is-none { display: grid; place-items: center; font-size: 10px; font-weight: 700; color: #6b6a64; }

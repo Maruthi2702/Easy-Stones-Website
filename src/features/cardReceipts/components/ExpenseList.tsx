@@ -1,10 +1,11 @@
-import { formatMoney, statusOf, usDate } from '../../../utils/cardReceipts';
+import { formatMoney, isBigReceipt, statusOf, usDate } from '../../../utils/cardReceipts';
 import { categoryLabel, isPdfUrl, statusLine } from '../cardReceiptsView';
 import type { Category, Expense } from '../types';
 
-export function StatusChip({ status }: { status: string }) {
+export function StatusChip({ status, step }: { status: string; step?: number }) {
   const s = statusOf(status);
-  return <span className={`ccr-chip is-${s?.colour || 'draft'}`}>{s?.label || status}</span>;
+  const label = status === 'waiting' && step === 2 ? 'Waiting for Accounting' : s?.label || status;
+  return <span className={`ccr-chip is-${s?.colour || 'draft'}`}>{label}</span>;
 }
 
 /** The small picture of the receipt on a row: the photo, "PDF", a dashed box when it's lost or missing. */
@@ -55,7 +56,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
           return (
             <button key={e.id} type="button" className="ccr-card" onClick={() => onOpen(e)}>
               <b>{e.merchant}</b>
-              <span className="ccr-amt">{formatMoney(e.cents)}</span>
+              <span className={`ccr-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? 'Over $150' : undefined}>{formatMoney(e.cents)}</span>
               <span className="ccr-card-meta">
                 {usDate(e.date)}{showHolder ? ` · ${e.holderName}` : ''}{e.category ? ` · ${categoryLabel(categories, e.category)}` : ''}
                 {line ? <><br />{line}</> : null}
@@ -91,7 +92,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
                 {showHolder ? <td><div className="ccr-who"><b>{e.holderName}</b><span>{e.cardLabel}{e.location ? ` · ${e.location}` : ''}</span></div></td> : null}
                 <td>{e.merchant}</td>
                 <td className="ccr-col-wide">{e.category ? categoryLabel(categories, e.category) : <span className="ccr-muted">Not picked</span>}</td>
-                <td className="ccr-num ccr-amt">{formatMoney(e.cents)}</td>
+                <td className={`ccr-num ccr-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? 'Over $150' : undefined}>{formatMoney(e.cents)}</td>
                 <td>
                   <div className="ccr-status-cell"><StatusChip status={e.status} /><Tags e={e} /></div>
                   {line ? <div className="ccr-sub">{line}</div> : null}

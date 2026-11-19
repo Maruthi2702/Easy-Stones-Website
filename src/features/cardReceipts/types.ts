@@ -17,6 +17,8 @@ export type Expense = {
   voided: { at: string; by: string; reason: string } | null;
   createdAt: string; updatedAt: string; history: { at: string; by: string; action: string; changes: string }[];
   mine: boolean; canDecide: boolean;
+  /** Next approval it needs: 1, 2 (Accounting, over $150 after step 1) or 0 (not waiting). */
+  step: 0 | 1 | 2;
 };
 
 export type Me = { user: { id: string; name: string; location: string }; card: Card | null; categories: Category[]; approverRoles: string[]; today: string };

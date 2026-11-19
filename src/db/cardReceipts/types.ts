@@ -8,5 +8,6 @@ export interface ExpenseHistoryEntry {
 
 /** What the Expenses list asks for: a month (the caller's, or everyone's), or what is waiting for approval. */
 export type ExpenseFilter =
-  | { kind: 'waiting'; userIds: readonly string[] }
+  /** `overCents`: also every waiting receipt above that total, whoever's it is (for the roles that decide big ones). */
+  | { kind: 'waiting'; userIds: readonly string[]; overCents?: number }
   | { kind: 'month'; month: string; userId?: string };

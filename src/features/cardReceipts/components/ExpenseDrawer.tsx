@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, ChevronLeft, ChevronRight, Pencil, Ban, X } from 'lucide-react';
 import { lockPage, unlockPage } from '../../../components/shared/pageLock';
-import { formatMoney, usDate, fieldsOf } from '../../../utils/cardReceipts';
+import { formatMoney, isBigReceipt, usDate, fieldsOf } from '../../../utils/cardReceipts';
 import { categoryLabel, isPdfUrl, statusLine } from '../cardReceiptsView';
 import { StatusChip } from './ExpenseList';
 import type { Category, Expense } from '../types';
@@ -108,7 +108,7 @@ export default function ExpenseDrawer({ expense: e, categories, position, onStep
             )}
 
             <dl className="ccr-dl">
-              <div><dt>Amount</dt><dd className="ccr-big">{formatMoney(e.cents)}</dd></div>
+              <div><dt>Amount</dt><dd className={`ccr-big${isBigReceipt(e.cents) ? ' is-big' : ''}`}>{formatMoney(e.cents)}</dd></div>
               <div><dt>Category</dt><dd>{e.category ? categoryLabel(categories, e.category) : <span className="ccr-muted">Not picked</span>}</dd></div>
               {e.subtotalCents != null || e.taxCents != null || e.tipCents != null ? (
                 <div className="is-wide"><dt>On the receipt</dt><dd>

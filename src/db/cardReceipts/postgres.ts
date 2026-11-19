@@ -4,7 +4,7 @@
  * (companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf), so it writes what a re-copy
  * of MongoDB would.
  */
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
 import { companyCards, receiptCategories, cardExpenses, cardExpenseHistory } from '../schema/cardsSuppliers.ts';
 import { locations } from '../schema/reference.ts';
@@ -150,9 +150,9 @@ async function withHistory(c: Conn, rows: { e: typeof cardExpenses.$inferSelect;
 }
 
 export async function listExpenses(db: Db, filter: ExpenseFilter): Promise<Loose[]> {
-  if (filter.kind === 'waiting' && !filter.userIds.length) return [];
+  if (filter.kind === 'waiting' && !filter.userIds.length && filter.overCents == null) return [];
   const where = filter.kind === 'waiting'
-    ? and(eq(cardExpenses.status, 'waiting'), isNull(cardExpenses.voidedAt), inArray(cardExpenses.userId, filter.userIds.map(lower)))
+    ? and(eq(cardExpenses.status, 'waiting'), isNull(cardExpenses.voidedAt), or(filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : undefined, filter.overCents != null ? gt(cardExpenses.cents, filter.overCents) : undefined))
     : and(eq(cardExpenses.month, filter.month), filter.userId ? eq(cardExpenses.userId, lower(filter.userId)) : undefined);
   const rows = await selectExpenses(db).where(where).orderBy(desc(cardExpenses.day), desc(cardExpenses.createdAt), desc(cardExpenses.id)).limit(5000);
   return withHistory(db, rows);

@@ -152,3 +152,12 @@ describe('totals and the export', () => {
     expect(canOpenReceipts({ permissions: [CARD_RECEIPTS.EXPORT] })).toBe(false);
   });
 });
+
+describe('isBigReceipt', () => {
+  it('marks only receipts strictly over $150', async () => {
+    const { isBigReceipt } = await import('./cardReceipts');
+    expect(isBigReceipt(15000)).toBe(false);
+    expect(isBigReceipt(15001)).toBe(true);
+    expect(isBigReceipt(null)).toBe(false);
+  });
+});

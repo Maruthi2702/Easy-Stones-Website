@@ -7,7 +7,7 @@ import * as db from '../db/cardReceipts/index.ts';
 import { newId } from '../db/ids.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, categoryKey, cleanCategory, cleanCard, cleanExpense,
-  statusAfterSave, holderMayEdit, changeSummary, possibleRepeat, canApprove, cleanApproverRoles, decisionProblem,
+  statusAfterSave, holderMayEdit, changeSummary, possibleRepeat, canApprove, approvalStep, isBigReceipt, isBigReceiptApprover, BIG_RECEIPT_CENTS, cleanApproverRoles, decisionProblem,
   isMonth, monthOf, type CleanExpense
 } from '../utils/cardReceipts.ts';
 import type { Loose } from '../types/records.ts';
@@ -53,7 +53,7 @@ const categoryView = (c: Loose) => ({
   fields: { customer: Boolean(c.fields?.customer), attendees: Boolean(c.fields?.attendees), purpose: Boolean(c.fields?.purpose), recurring: Boolean(c.fields?.recurring) }
 });
 const cardView = (c: Loose) => ({ _id: String(c._id), userId: c.userId, label: c.label, issuer: c.issuer, lastDigits: c.lastDigits, active: c.active !== false });
-const expenseView = (e: Loose, viewer: { id: string; approvable: Set<string> }) => ({
+const expenseView = (e: Loose, viewer: { id: string; approvable: Set<string>; bigApprover?: boolean }) => ({
   id: String(e._id), userId: e.userId, holderName: e.holderName, cardId: e.cardId, cardLabel: e.cardLabel, location: e.location,
   date: e.date, merchant: e.merchant, cents: e.cents, subtotalCents: e.subtotalCents ?? null, taxCents: e.taxCents ?? null, tipCents: e.tipCents ?? null,
   category: e.category || '', customerId: e.customerId || '', customerName: e.customerName || '', attendees: e.attendees || [],
@@ -62,7 +62,8 @@ const expenseView = (e: Loose, viewer: { id: string; approvable: Set<string> }) 
   voided: e.voidedAt ? { at: e.voidedAt, by: e.voidedBy || '', reason: e.voidReason || '' } : null,
   createdAt: e.createdAt, updatedAt: e.updatedAt, history: e.history || [],
   mine: e.userId === viewer.id,
-  canDecide: e.status === 'waiting' && !e.voidedAt && e.userId !== viewer.id && viewer.approvable.has(e.userId)
+  canDecide: e.status === 'waiting' && !e.voidedAt && e.userId !== viewer.id && (approvalStep(e) === 2 ? Boolean(viewer.bigApprover) && e.approval?.by !== viewer.id : viewer.approvable.has(e.userId)),
+  step: approvalStep({ ...e, voided: e.voidedAt })
 });
 
 /** Seeds the starting list into an empty collection, once. */
@@ -297,9 +298,10 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const me = userIdOf(req);
     try {
       const approvable = await approvableIds(req);
+      const bigApprover = has(req, CARD_RECEIPTS.APPROVE) && isBigReceiptApprover(userOf(req).role);
       let filter: db.ExpenseFilter;
       if (scope === 'waiting') {
-        filter = { kind: 'waiting', userIds: [...approvable] };
+        filter = { kind: 'waiting', userIds: [...approvable], ...(bigApprover ? { overCents: BIG_RECEIPT_CENTS } : {}) };
       } else {
         if (!isMonth(month)) return res.status(400).json({ message: 'Provide a month as YYYY-MM.' });
         if (scope === 'all') {
@@ -309,8 +311,10 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
           filter = { kind: 'month', month, userId: me };
         }
       }
-      const rows = await db.listExpenses(filter);
-      res.json({ expenses: rows.map((e) => expenseView(e, { id: me, approvable })) });
+      let rows = await db.listExpenses(filter);
+      // Waiting for me: a big receipt is the Accounting / Director / Admin step alone, never your own.
+      if (scope === 'waiting') rows = rows.filter((e) => e.userId !== me && (approvalStep(e) === 2 ? bigApprover && e.approval?.by !== me : approvable.has(e.userId)));
+      res.json({ expenses: rows.map((e) => expenseView(e, { id: me, approvable, bigApprover })) });
     } catch (error) {
       console.error('[card-receipts] list failed:', error);
       res.status(500).json({ message: 'Could not load the expenses.' });
@@ -389,8 +393,10 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       if (!changes.length && status === expense.status) return res.json({ expense: expenseView(expense, { id: me, approvable: new Set() }), unchanged: true });
       const by = actor(req);
       const sentForApproval = status === 'waiting' && expense.status !== 'waiting';
-      const saved = await db.changeExpense(id, { ...value, month: monthOf(value.date), status },
-        { at: new Date(), by, action: 'edited', changes: [changes.join(', '), sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
+      // An edit takes back a step 1 already given: the receipt starts its approvals again.
+      const clearsStep1 = Boolean(expense.approval?.by) && changes.length > 0;
+      const saved = await db.changeExpense(id, { ...value, month: monthOf(value.date), status, ...(clearsStep1 ? { approval: null } : {}) },
+        { at: new Date(), by, action: 'edited', changes: [changes.join(', '), clearsStep1 ? 'step 1 approval cleared' : '', sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
       res.json({ expense: expenseView(saved, { id: me, approvable: new Set() }) });
     } catch (error) {
@@ -407,16 +413,20 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const expense = await db.findExpense(id);
       if (!expense) return res.status(404).json({ message: 'Expense not found.' });
       const holder = await staffData.userById(expense.userId, { select: 'role' });
-      const approver = { id: userIdOf(req), permissions: userOf(req).permissions || [] };
-      if (!canApprove({ approver, approverRoles: await approverRolesOf(req), holder: holder ? { id: expense.userId, role: holder.role } : null })) {
-        return res.status(403).json({ message: approver.id === expense.userId ? 'You can’t approve your own expense.' : 'You can’t approve this person’s receipts.' });
+      const approver = { id: userIdOf(req), role: userOf(req).role, permissions: userOf(req).permissions || [] };
+      if (!canApprove({ approver, approverRoles: await approverRolesOf(req), holder: holder ? { id: expense.userId, role: holder.role } : null, cents: expense.cents, step1By: expense.approval?.by })) {
+        return res.status(403).json({ message: approver.id === expense.userId ? 'You can’t approve your own expense.' : approvalStep(expense) === 2 ? 'This receipt is over $150 and waits for Accounting, a Director or an Admin (not the person who gave step 1).' : 'You can’t approve this person’s receipts.' });
       }
       const problem = decisionProblem(action, { status: expense.status, lostReason: expense.lostReason, voided: expense.voidedAt }, comment);
       if (problem) return res.status(expense.status === 'waiting' ? 400 : 409).json({ message: problem, problems: { comment: problem } });
       const by = actor(req);
       const decision = { by: approver.id, byName: by, at: new Date(), comment };
-      const saved = await db.changeExpense(id, action === 'approve' ? { status: 'approved', approval: decision } : { status: 'sent_back', sentBack: decision, approval: null },
-        { at: new Date(), by, action: action === 'approve' ? 'approved' : 'sent back', changes: comment });
+      // Over $150 the first approval only moves it to Accounting: it stays waiting, with step 1 kept in `approval`.
+      const stepOne = action === 'approve' && isBigReceipt(expense.cents) && !expense.approval?.by;
+      const saved = await db.changeExpense(id,
+        action === 'approve' ? { status: stepOne ? 'waiting' : 'approved', approval: decision } : { status: 'sent_back', sentBack: decision, approval: null },
+        { at: new Date(), by, action: action === 'approve' ? 'approved' : 'sent back',
+          changes: [action === 'approve' && isBigReceipt(expense.cents) ? (stepOne ? 'Step 1 of 2, now with Accounting' : 'Step 2 of 2') : '', comment].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
       res.json({ expense: expenseView(saved, { id: approver.id, approvable: new Set() }) });
     } catch (error) {

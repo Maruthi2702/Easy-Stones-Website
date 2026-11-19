@@ -99,6 +99,13 @@ export function parseCents(typed: unknown): number | null {
   const cents = Math.round(Number(text) * 100);
   return cents > 10_000_000 ? Number.NaN : cents;
 }
+/** A receipt over this (strictly more than $150.00) is marked gold so approvers see it. */
+export const BIG_RECEIPT_CENTS = 15_000;
+export const isBigReceipt = (cents: number | null | undefined) => (cents ?? 0) > BIG_RECEIPT_CENTS;
+/** Over the limit a receipt needs two steps (owner, 2026-11-19): the usual approver, then one of these roles, per receipt. Limits per role come later. */
+export const SAME_PERSON_BOTH_STEPS = false; // my default — owner unanswered
+export const BIG_RECEIPT_APPROVER_ROLES: readonly string[] = ['accounting', 'director', 'admin'];
+export const isBigReceiptApprover = (role: unknown) => BIG_RECEIPT_APPROVER_ROLES.includes(roleKey(role));
 export const centsText = (cents: number | null | undefined) => (cents == null ? '' : (cents / 100).toFixed(2));
 export const formatMoney = (cents: number) =>
   `${cents < 0 ? '−' : ''}$${(Math.abs(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -283,16 +290,30 @@ export const cleanApproverRoles = (value: unknown) =>
  * Whether `approver` may approve or send back `holder`'s expense: the Approve
  * switch, the holder's role on the approver role's list, never their own.
  */
-export function canApprove({ approver, approverRoles, holder }: {
-  approver: { id: string; permissions?: readonly string[] | null } | null | undefined;
+export function canApprove({ approver, approverRoles, holder, cents, step1By }: {
+  approver: { id: string; role?: string | null; permissions?: readonly string[] | null } | null | undefined;
   approverRoles: readonly string[] | null | undefined;
   holder: { id: string; role?: string | null } | null | undefined;
+  /** The receipt's total (over $150 it needs a second, Accounting step). */
+  cents?: number | null;
+  /** Who gave step 1 of a receipt over $150 (its `approval.by`); blank while step 1 is still to do. */
+  step1By?: string | null;
 }) {
   if (!approver || !holder) return false;
   if (!can(approver, CARD_RECEIPTS.APPROVE)) return false;
   if (String(approver.id) === String(holder.id)) return false;
+  if (isBigReceipt(cents) && step1By) {
+    // Step 2: Accounting / Director / Admin, any holder or branch, and not the person who gave step 1.
+    return isBigReceiptApprover(approver.role) && (SAME_PERSON_BOTH_STEPS || String(approver.id) !== String(step1By));
+  }
+  // Step 1 (and the only step up to $150): the holder's role is on the approver role's list.
   return cleanApproverRoles(approverRoles).includes(roleKey(holder.role));
 }
+
+/** Which approval a waiting receipt needs next: 1 (the usual approver), 2 (Accounting, over $150 after step 1), or 0. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- takes a stored record or a view row alike
+export const approvalStep = (e: Record<string, any>): 0 | 1 | 2 =>
+  e.status !== 'waiting' || e.voided ? 0 : isBigReceipt(e.cents) && e.approval?.by ? 2 : 1;
 
 /** Approve: only a waiting one; a lost receipt needs a comment. Send back: always a comment. */
 export function decisionProblem(action: 'approve' | 'send_back', e: { status: string; lostReason?: string; voided?: unknown }, comment: string) {
