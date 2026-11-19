@@ -24,7 +24,8 @@
     "audit:typescript": "node scripts/audit-typescript.ts",
     "lambda:deploy": "node scripts/lambda-deploy.ts",
     "pg:compare": "node --env-file-if-exists=.env scripts/pg-compare.ts",
-    "pg:ping": "node scripts/pg-ping.ts"
+    "pg:ping": "node scripts/pg-ping.ts",
+    "pg:migrate": "node scripts/pg-migrate.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1164.0",

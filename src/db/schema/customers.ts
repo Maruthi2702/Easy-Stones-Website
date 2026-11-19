@@ -345,3 +345,39 @@ export const customerMergeBackups = pgTable('customer_merge_backups', {
   createdAt: moment('created_at').notNull().defaultNow(),
   updatedAt: moment('updated_at').notNull().defaultNow()
 }, () => [idFormat('customer_merge_backups')]);
+
+/**
+ * Monthly sales per customer, from the SPS report "Sales by Customer - Monthly"
+ * (Customers ⋯ → Import sales). One row per customer, year and month that had a
+ * figure; amounts are cents (a return makes a month negative). Rows are keyed by
+ * the report's customer name (`spsKey`, src/utils/spsSheet.ts) and matched to a
+ * customer when read, so connecting or renaming a customer never needs a re-import.
+ * An import replaces its whole year.
+ */
+export const customerSalesMonthly = pgTable('customer_sales_monthly', {
+  year: smallint('year').notNull(),
+  month: smallint('month').notNull(),
+  spsKey: text('sps_key').notNull(),
+  customerName: text('customer_name').notNull(),
+  cents: doublePrecision('cents').notNull(),
+  primaryRep: text('primary_rep').notNull().default(''),
+  secondaryRep: text('secondary_rep').notNull().default(''),
+  importId: text('import_id').notNull()
+}, t => [
+  primaryKey({ columns: [t.year, t.month, t.spsKey] }),
+  index('customer_sales_monthly_key_idx').on(t.spsKey),
+  check('customer_sales_monthly_month', sql`${t.month} between 1 and 12`)
+]);
+
+/** One line per sales import: who, when, what the file held and what matched no customer. */
+export const customerSalesImports = pgTable('customer_sales_imports', {
+  id: text('id').primaryKey(),
+  year: smallint('year').notNull(),
+  fileName: text('file_name').notNull().default(''),
+  exportedOn: text('exported_on').notNull().default(''),
+  customers: integer('customers').notNull(),
+  totalCents: doublePrecision('total_cents').notNull(),
+  unmatched: jsonb('unmatched').notNull().default(sql`'[]'::jsonb`),
+  importedBy: text('imported_by').notNull().default(''),
+  importedAt: moment('imported_at').notNull().defaultNow()
+});

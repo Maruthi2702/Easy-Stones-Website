@@ -99,6 +99,13 @@
       "when": 1794727811250,
       "tag": "0013_holds_cart_user_not_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795071384233,
+      "tag": "0014_customer_sales",
+      "breakpoints": true
     }
   ]
 }

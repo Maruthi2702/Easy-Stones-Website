@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import SalesReportTab from './SalesReportTab';
 import ErrorBoundary from '../../../components/shared/ErrorBoundary';
 import CustomerProfileHeader from '../list/CustomerProfileHeader';
 import CustomerDetailsTab from '../list/CustomerDetailsTab';
@@ -189,6 +190,11 @@ export default function CustomerProfile(p: CustomerProfileProps) {
                             onEditResource={p.onEditResource}
                             onDeleteResource={p.onDeleteResource}
                         />
+                    )}
+                    {activeTab === 'sales-report' && (
+                        <div className="tab-section sales-report-tab">
+                            <SalesReportTab customerId={p.customerId} />
+                        </div>
                     )}
                     {activeTab === 'network' && (
                         <div className="tab-section network-tab">

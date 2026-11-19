@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
-  ChevronDown, MapPin, Info, Clock, Folder, Users, Share2, MoreHorizontal, X, Pencil, Trash2, Phone, Navigation, Plus, Check
+  ChevronDown, MapPin, Info, Clock, Folder, Users, Share2, MoreHorizontal, X, Pencil, Trash2, Phone, Navigation, Plus, Check, BarChart3
 } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
@@ -19,6 +19,7 @@ const TABS = [
   { key: 'resources', label: 'Resources', icon: Folder, count: (c: Loose) => (c.resources || []).length },
   { key: 'contacts', label: 'Contacts', icon: Users, count: (c: Loose) => (c.contacts || []).length },
   { key: 'network', label: 'Network', icon: Share2, count: (c: Loose) => (c.associatedCustomers || []).length },
+  { key: 'sales-report', label: 'Sales Report', icon: BarChart3, count: () => 0 },
   // Stats, pricing & Moda, marketing, the quick note and admin account
   // (CustomerDetailsTab) — what used to crowd the header (2026-10-07).
   { key: 'details', label: 'Details', icon: Info, count: () => 0 }

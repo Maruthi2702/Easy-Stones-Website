@@ -378,6 +378,24 @@ Rules in `SalesPlannerMobile.css` / `SalesPlannerWeek.css`, checked by `e2e/plan
 `.pl-drawer`, `.pl-sub`) are in the markup on every screen and hidden above
 640px. `.pl-more` is the Month view's "+N more", not the ⋯.
 
+## Sales Report tab: monthly sales per customer (2026-11-18, on `feat/customer-sales-report`)
+
+Customer profile → **Sales Report** (`profile/SalesReportTab.tsx`) shows one customer's sales by
+month from the SPS report **Sales by Customer - Monthly** (tax not included, all locations). The
+owner uploads the Excel in the app: Customers ⋯ → **Import sales** (`import/SalesImportModal.tsx`,
+needs Import); the file is read by `src/utils/customerSales.ts` (`readSalesSheet`, tested — one
+year, Jan–Dec, names unique, amounts in cents) on the screen for the preview and again by the
+server, which refuses a file it can't trust before writing. **Postgres only** (new since the
+customer cutover, no MongoDB copy): `customer_sales_monthly` (one row per year / month / report
+name) and `customer_sales_imports` (the log, with the names that matched no customer), migration
+`drizzle/0014_customer_sales.sql`, data layer `src/db/customerSales/` (tested on PGlite). An
+import **replaces its whole year**. Rows are matched to a customer **when read** — its `sps.key`,
+else its company name, both through `spsKey` — so connecting or renaming a customer needs no
+re-import; names matching nobody are listed after the import (no fuzzy matching, owner's call).
+Routes `src/routes/customerSales.ts`: `GET /api/customers/:id/sales?year=` (needs the full-profile
+switch) and `POST /api/customers/sales/import`, mounted before the other customer routers. Not
+built: linking an unmatched name by hand, per-location splits, more than the monthly report.
+
 ## Customer profile header and tabs (2026-10-29)
 
 Design: claude.ai artifact **Customer profile header redesign**

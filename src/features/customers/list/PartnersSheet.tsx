@@ -8,6 +8,7 @@ import { EDIT_REQUEST, DELETE_REQUEST } from '../customerBridge';
 import type { DeleteRequestDetail } from '../customerBridge';
 import CustomerImportModalJs from '../import/CustomerImportModal';
 import SpsConnectModalJs from '../import/SpsConnectModal';
+import SalesImportModal from '../import/SalesImportModal';
 import SpsImportModalJs from '../import/SpsImportModal';
 import { canAddCustomer, canImportCustomers, canEditCustomers, canDeleteCustomers, canViewCustomerProfile, canExportCustomers } from '../../../utils/customerAccess';
 import { useAuth } from '../../../context/AuthContext';
@@ -322,6 +323,7 @@ const PartnersSheet = ({ onSelectCustomer, onToggleSidebar, isSidebarOpen, custo
                     canDelete={canDelete}
                 />
             )}
+            {dialogs.showSalesImport && <SalesImportModal onClose={() => dialogs.setShowSalesImport(false)} />}
             {dialogs.showSpsConnect && <SpsConnectModal onClose={() => dialogs.setShowSpsConnect(false)} onChanged={refreshAll} />}
 
             <CustomerImportModal

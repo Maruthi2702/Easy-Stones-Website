@@ -20,6 +20,7 @@ export function useListDialogs() {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showImportModal, setShowImportModal] = useState(false);
     const [showSpsConnect, setShowSpsConnect] = useState(false);
+    const [showSalesImport, setShowSalesImport] = useState(false);
     const [showSpsImport, setShowSpsImport] = useState(false);
     const [editingPartner, setEditingPartner] = useState<Loose | null>(null);
     const [viewingPartner, setViewingPartner] = useState<Loose | null>(null);
@@ -35,7 +36,7 @@ export function useListDialogs() {
     const closeAdd = () => { setShowAddModal(false); setEditingPartner(null); setViewingPartner(null); };
 
     return {
-        showAddModal, showImportModal, setShowImportModal, showSpsConnect, setShowSpsConnect, showSpsImport, setShowSpsImport,
+        showAddModal, showImportModal, setShowImportModal, showSpsConnect, setShowSpsConnect, showSalesImport, setShowSalesImport, showSpsImport, setShowSpsImport,
         editingPartner, setEditingPartner, viewingPartner, setViewingPartner,
         showFilterSheet, setShowFilterSheet, moreOpen, setMoreOpen, moreRef,
         openAdd, openEdit, closeAdd
