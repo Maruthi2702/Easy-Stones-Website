@@ -53,7 +53,7 @@ export async function dropdownCustomers(): Promise<Loose[]> {
     // salesRepName rides along so a screen that picks a customer can fill in
     // the account's owning rep without a second round trip — the delivery
     // modal does exactly that.
-    .select('_id company contactName firstName lastName email customerType city address street state zip shippingAddress shippingCity billingAddress billingCity salesRepName')
+    .select('_id company contactName firstName lastName email customerType city address street state zip shippingAddress shippingCity billingAddress billingCity salesRepName location')
     .sort({ company: 1, contactName: 1 })
     .lean();
 }

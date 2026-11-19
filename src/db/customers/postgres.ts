@@ -89,16 +89,18 @@ export async function dropdownCustomers(db: Db): Promise<Loose[]> {
   const rows = await db.select({
     id: customers.id, company: customers.company, contactName: customers.contactName, email: customers.email,
     customerType: customers.customerType, street: customers.street, city: customers.city, state: customers.state,
-    zipCode: customers.zipCode, repUsername: users.username, repDisplayName: users.displayName
+    zipCode: customers.zipCode, repUsername: users.username, repDisplayName: users.displayName,
+    locationName: locations.name
   })
     .from(customers)
     .leftJoin(users, eq(users.id, customers.salesRepId))
+    .leftJoin(locations, eq(locations.id, customers.locationId))
     .orderBy(bytewise(customers.company), bytewise(customers.contactName), asc(customers.id));
   return rows.map(r => {
     const doc: Loose = {
       _id: r.id, company: r.company, contactName: r.contactName, email: r.email,
       address: { street: r.street, city: r.city, state: r.state, zipCode: r.zipCode },
-      salesRepName: repNameOf(r)
+      salesRepName: repNameOf(r), location: r.locationName ?? ''
     };
     if (r.customerType != null) doc.customerType = r.customerType;
     return doc;

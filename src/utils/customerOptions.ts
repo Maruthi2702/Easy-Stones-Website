@@ -13,6 +13,8 @@ export type CustomerOption = {
     /** The contact's name when it isn't already the name shown; '' otherwise. */
     contact: string;
     city: string;
+    /** The branch the customer is assigned to ('' when unknown). */
+    location: string;
     address: string;
     fullAddress: string;
     salesRepName: string;
@@ -77,13 +79,17 @@ export const customerOption = (c: AnyCustomer = {}): CustomerOption => {
     const { street, city, state } = customerAddressParts(c);
     const label = customerLabel(c);
     const contact = real(c.contactName);
+    const location = typeof c.location === 'string' ? c.location.trim() : '';
+    // "Bellingham - Seattle": the city, then the branch the account belongs to.
+    const where = [city, location].filter(Boolean).join(' - ');
     return {
         value: c._id,
         label,
-        description: city || undefined,
-        keywords: [contact !== label ? contact : '', city, state].filter(Boolean).join(' '),
+        description: where || undefined,
+        keywords: [contact !== label ? contact : '', city, state, location].filter(Boolean).join(' '),
         contact: contact !== label ? contact : '',
         city,
+        location,
         address: street || city,
         fullAddress: [street, city, state].filter(Boolean).join(', ') || city || street,
         salesRepName: c.salesRepName || '',
