@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { MONTH_NAMES, salesSummary } from '../../../utils/customerSales';
@@ -12,12 +12,12 @@ type Sales = {
 };
 
 const money = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-const compact = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 }).format(cents / 100);
 
 /**
  * Customer profile → Sales Report: this customer's sales by month from the SPS
  * report "Sales by Customer - Monthly" (Customers ⋯ → Import Sales Report), tax not included.
- * Months with no sales stay blank. The year dropdown lists the years imported.
+ * Months with no sales show a dash; each month has a bar against the biggest month (red for a negative one).
+ * The year stepper moves between the years imported.
  */
 export default function SalesReportTab({ customerId }: { customerId: string }) {
     const [year, setYear] = useState<number | null>(null);
@@ -62,12 +62,8 @@ export default function SalesReportTab({ customerId }: { customerId: string }) {
     const now = new Date();
     const thisYear = now.getFullYear();
     const thisMonth = now.getMonth();
-    const up = Math.max(0, ...data.cents.map(c => c ?? 0));
-    const down = Math.max(0, ...data.cents.map(c => -(c ?? 0)));
-    const range = Math.max(1, up + down);
+    const biggest = Math.max(1, ...data.cents.map(c => Math.abs(c ?? 0)));
     const shown = picked ?? (s.bestMonth >= 0 ? s.bestMonth : null);
-    const shownCents = shown != null ? data.cents[shown] : null;
-    const positiveTotal = data.cents.reduce<number>((t, c) => t + Math.max(c ?? 0, 0), 0);
     return (
         <div className="cl cp srt">
             <div className="srt-tiles">
@@ -77,46 +73,11 @@ export default function SalesReportTab({ customerId }: { customerId: string }) {
             </div>
             <div className="cl-sec srt-card">
                 <div className="srt-head">
-                    <div>
-                        <h3>Sales by month</h3>
-                        <p className="srt-read" aria-live="polite">
-                            {shown != null && shownCents != null ? <><b>{MONTH_NAMES[shown]} {data.year}</b> · {money(shownCents)}</> : 'Tap a bar to see its month'}
-                        </p>
-                    </div>
+                    <h3>Sales by month</h3>
                     {yearPicker(data, setYear)}
                 </div>
-                <div className="srt-chart" role="group" aria-label={`Sales by month, ${data.year}`}>
-                    <div className="srt-plot">
-                        <div className="srt-zero" style={{ top: `${(up / range) * 100}%` }} aria-hidden="true" />
-                        {data.cents.map((c, i) => {
-                            const has = c != null && c !== 0;
-                            const h = has ? Math.max(1.5, (Math.abs(c as number) / range) * 100) : 0;
-                            const neg = has && (c as number) < 0;
-                            return (
-                                <button key={i} type="button" className={`srt-col${shown === i ? ' srt-on' : ''}${has ? '' : ' srt-empty'}`}
-                                    onClick={() => setPicked(picked === i ? null : i)}
-                                    aria-pressed={shown === i}
-                                    aria-label={`${MONTH_NAMES[i]} ${data.year}: ${c == null ? 'no sales' : money(c)}`}>
-                                    {has && (
-                                        <span className={`srt-bar${neg ? ' srt-neg-bar' : i === s.bestMonth ? ' srt-best' : ''}`}
-                                            style={neg ? { top: `${(up / range) * 100}%`, height: `${h}%` } : { bottom: `${(down / range) * 100}%`, height: `${h}%` }}>
-                                            <span className={`srt-val${neg ? ' srt-val-neg' : ''}`}>{compact(c as number)}</span>
-                                        </span>
-                                    )}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    <div className="srt-axis" aria-hidden="true">
-                        {MONTH_NAMES.map((m, i) => (
-                            <span key={i} className={data.year === thisYear && i === thisMonth ? 'srt-now' : ''}>
-                                <span className="srt-m-full">{m.slice(0, 3)}</span><span className="srt-m-short">{m[0]}</span>
-                            </span>
-                        ))}
-                    </div>
-                </div>
                 <table className="srt-table">
-                    <thead><tr><th>Month</th><th className="srt-sharecol">Share of year</th><th>Sales</th></tr></thead>
+                    <thead><tr><th>Month</th><th className="srt-barcol">Vs best month</th><th>Sales</th></tr></thead>
                     <tbody>
                         {data.cents.map((c, i) => (
                             <tr key={i} className={shown === i ? 'srt-row-on' : ''} onClick={() => setPicked(i)}>
@@ -124,12 +85,16 @@ export default function SalesReportTab({ customerId }: { customerId: string }) {
                                     {MONTH_NAMES[i]} {data.year}
                                     {data.year === thisYear && i === thisMonth && <span className="srt-chip">This month</span>}
                                 </td>
-                                <td className="srt-sharecol">{c != null && c > 0 && positiveTotal > 0 ? `${Math.round((c / positiveTotal) * 100)}%` : ''}</td>
+                                <td className="srt-barcol" aria-hidden="true">
+                                    {c != null && c !== 0 && (
+                                        <span className="srt-track"><span className={`srt-fill${c < 0 ? ' srt-fill-neg' : ''}`} style={{ width: `${Math.max(2, Math.round((Math.abs(c) / biggest) * 100))}%` }} /></span>
+                                    )}
+                                </td>
                                 <td className={c == null ? 'srt-none' : c < 0 ? 'srt-neg' : 'srt-has'}>{c == null ? '—' : money(c)}</td>
                             </tr>
                         ))}
                     </tbody>
-                    <tfoot><tr><td>{data.year} total</td><td className="srt-sharecol" /><td>{money(s.total)}</td></tr></tfoot>
+                    <tfoot><tr><td>{data.year} total</td><td className="srt-barcol" /><td>{money(s.total)}</td></tr></tfoot>
                 </table>
             </div>
             <p className="srt-note">
@@ -143,13 +108,13 @@ export default function SalesReportTab({ customerId }: { customerId: string }) {
 
 function yearPicker(data: Sales, setYear: (y: number) => void) {
     if (data.years.length < 2) return null;
+    const years = [...data.years].sort((x, y) => x - y);
+    const at = years.indexOf(data.year);
     return (
-        <div className="srt-year">
-            <label>Year{' '}
-                <select value={data.year} onChange={e => setYear(Number(e.target.value))}>
-                    {data.years.map(y => <option key={y} value={y}>{y}</option>)}
-                </select>
-            </label>
+        <div className="srt-year" role="group" aria-label="Year">
+            <button type="button" aria-label="Previous year" disabled={at <= 0} onClick={() => setYear(years[at - 1])}><ChevronLeft size={16} /></button>
+            <span>{data.year}</span>
+            <button type="button" aria-label="Next year" disabled={at < 0 || at >= years.length - 1} onClick={() => setYear(years[at + 1])}><ChevronRight size={16} /></button>
         </div>
     );
 }
