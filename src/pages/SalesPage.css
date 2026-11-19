@@ -3159,6 +3159,9 @@ body.light-theme-active .icon-action-btn.secondary:hover,
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  /* The feed is a scrolling flex column: a card must never be squeezed to a
+     line when the list is taller than the panel. */
+  flex-shrink: 0;
 }
 
 .visit-post-card:hover {
