@@ -187,10 +187,10 @@ describe('Sales Visits → By rep', () => {
     const onViewChange = vi.fn();
     const { unmount } = render(panel({}));
     expect(screen.getByText('Stone River')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'By rep' })).toBeNull();
+    expect(screen.queryByRole('radio', { name: 'By rep' })).toBeNull();
     unmount();
     render(<VisitsViewSwitch value="list" onChange={onViewChange} />);
-    fireEvent.click(screen.getByRole('button', { name: 'By rep' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'By rep' }));
     expect(onViewChange).toHaveBeenCalledWith('byRep');
   });
 

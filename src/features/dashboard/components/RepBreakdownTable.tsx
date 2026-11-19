@@ -1,4 +1,5 @@
-import { List, Loader, Users } from 'lucide-react';
+import { Loader } from 'lucide-react';
+import { SegmentedToggle } from '../../../components/shared/form/FormControls';
 import { repTotals } from '../repBreakdown';
 import type { RepRow } from '../repBreakdown';
 import './RepBreakdown.css';
@@ -79,22 +80,17 @@ export default function RepBreakdownTable({ rows, loading = false, showToday = f
 }
 
 /**
- * The Sales Visits "List | By rep" switch, in the Filters panel (option A of the
- * 2026-11-19 canvas, owner's pick): two equal halves with an icon each, the
- * active one lifted with a gold underline (smaller and without the
- * explanatory line since the owner's 2026-11-19 follow-up).
+ * The Sales Visits "List | By rep" switch, in the Filters panel. The same
+ * SegmentedToggle as Follow-ups' Status (owner, 2026-11-19: "keep the same for
+ * both"), so the two read alike.
  */
 export function VisitsViewSwitch({ value, onChange }: { value: 'list' | 'byRep'; onChange: (v: 'list' | 'byRep') => void }) {
     return (
-        <>
-            <div className="drb-switch" role="group" aria-label="Show visits as">
-                <button type="button" className={value === 'list' ? 'is-on' : ''} aria-pressed={value === 'list'} onClick={() => onChange('list')}>
-                    <List size={16} aria-hidden="true" />List
-                </button>
-                <button type="button" className={value === 'byRep' ? 'is-on' : ''} aria-pressed={value === 'byRep'} onClick={() => onChange('byRep')}>
-                    <Users size={16} aria-hidden="true" />By rep
-                </button>
-            </div>
-        </>
+        <SegmentedToggle<'list' | 'byRep'>
+            label="Show visits as"
+            value={value}
+            onChange={onChange}
+            options={[{ value: 'list', label: 'List' }, { value: 'byRep', label: 'By rep' }]}
+        />
     );
 }
