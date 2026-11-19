@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
-import { formatDate, getLocalISOString } from '../../utils/dateUtils';
+import { getLocalISOString } from '../../utils/dateUtils';
 import { DEFAULT_ROWS_PER_PAGE } from '../../components/shared/paginationConfig';
-import { splitCustomer } from '../../components/sales/visitsListHelpers';
 import { canAddVisit, visitViewScope } from '../../utils/visitAccess.ts';
 import { usePeopleOptions } from '../../api/myTeam';
 import { peopleDefault, repsParam, includesPerson, parseStoredPeople, showsWhoLogged, togglePerson, tickBranch, untickBranch, sanitizePeople, isJustMe, MY_TEAM } from './dashboardPeople';
@@ -15,7 +14,8 @@ import { DEFAULT_FOLLOW_UP_FILTERS, followUpsInView, withFilters } from '../../u
 import type { FollowUpFilters, FollowUpRange } from '../../utils/followUpList';
 import { todayISO } from '../../components/shared/calendar/calendarDates';
 import type { Loose } from '../../types/records';
-import { useVisitLocations } from '../../api/visitLocations';
+import { useVisitLocations, fetchVisitLocations } from '../../api/visitLocations';
+import { visitExportRows } from './visitExport';
 import { matchesWhere } from '../../utils/visitLocation';
 import type { WhereFilter } from '../../utils/visitLocation';
 import { VISIT_PERMISSIONS } from '../../utils/visitAccess';
@@ -618,21 +618,9 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
         // Only ever a list: the Excel button used to pass its click event in
         // here (onClick={handleExportVisits}), and `event.map` threw.
         const visits = Array.isArray(customVisits) ? customVisits : memoizedFilteredVisits;
-        const data = visits.map(v => {
-            const { company, contact } = splitCustomer(v);
-            return {
-                Date: formatDate(v.date),
-                Company: company,
-                Contact: contact || '-',
-                Location: v.location || '-',
-                'Visit Type': v.purpose || '-',
-                'Logged By': v.createdByName || '-',
-                Notes: v.notes || '-',
-                'Follow-up Date': v.followUpDate ? formatDate(v.followUpDate) : '-',
-                'Follow-up Notes': v.followUp || v.nextAction || '-',
-                Outcome: v.outcome || '-'
-            };
-        });
+        // Where each visit was logged: only for people who may see it, and only the readings the server allows.
+        const marks = canSeeLocations ? await fetchVisitLocations(visits.filter((v) => v && !v._saving).map((v) => String(v._id))) : undefined;
+        const data = visitExportRows(visits, marks);
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(data);

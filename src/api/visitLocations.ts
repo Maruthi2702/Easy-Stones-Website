@@ -62,3 +62,13 @@ export const useResourceLocations = (resourceIds: string[], enabled = true) => u
 
 /** Test hook: forget what was found. */
 export const clearVisitLocations = () => found.clear();
+
+/** The readings for these visit ids the caller may see, fetched now (for the Excel export), by visit id. Uses and fills the same cache. */
+export async function fetchVisitLocations(visitIds: string[]): Promise<Record<string, LoggedFrom>> {
+    const todo = visitIds.filter((id) => id && !found.has(`visit:${id}`));
+    for (let i = 0; i < todo.length; i += CHUNK) {
+        const answer = await ask({ visitIds: todo.slice(i, i + CHUNK) });
+        Object.entries(answer.locations || {}).forEach(([id, reading]) => found.set(`visit:${id}`, reading));
+    }
+    return Object.fromEntries(visitIds.filter((id) => found.has(`visit:${id}`)).map((id) => [id, found.get(`visit:${id}`) as LoggedFrom]));
+}

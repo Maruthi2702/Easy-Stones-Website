@@ -8,8 +8,10 @@ async function openCalendar(page: Page) {
     await page.addInitScript(() => localStorage.setItem('checkin_theme', 'light'));
     const names = ['Slusher Luxury Homes', 'Dawson Construction LLC', 'Chuckanut Builders', 'Zion Builders', 'RMC Architects', 'NW GRANITE', 'SVC Interiors & Design, Inc.'];
     await page.route('**/api/schedule?**', route => {
-        const day = new URL(route.request().url()).searchParams.get('start')?.slice(0, 10);
-        return route.fulfill({ json: day === '2026-11-18' ? names.map((company, i) => ({
+        // The planner asks for a range (a day, or the whole month on the Month view): the stops are on Nov 18.
+        const params = new URL(route.request().url()).searchParams;
+        const from = params.get('start')?.slice(0, 10) ?? '', to = params.get('end')?.slice(0, 10) ?? '';
+        return route.fulfill({ json: from <= '2026-11-18' && '2026-11-18' <= to ? names.map((company, i) => ({
             _id: `s${i}`, customerId: { _id: `c${i}`, company },
             startTime: `2026-11-18T${String(11 + Math.floor((25 + i * 20) / 60)).padStart(2, '0')}:${String((25 + i * 20) % 60).padStart(2, '0')}:00.000`,
             activityType: 'Visit', status: 'Scheduled'

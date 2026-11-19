@@ -201,6 +201,20 @@ export class CopyLockedError extends Error {
 
 const CHUNK = 500;
 
+/**
+ * Tables that exist only in Postgres (no MongoDB copy) and point at customers: the Sales Report's
+ * remembered name matches (migration 0015, "gone with the customer"). Replacing the customers
+ * replaces them too, as deleting a customer would; without this the TRUNCATE below refuses
+ * ("Table customer_sales_links references customers") and every copy and parity test fails.
+ */
+const POSTGRES_ONLY_CUSTOMER_TABLES = ['customer_sales_links'];
+
+/** One TRUNCATE naming every table (and the Postgres-only ones that hang off customers), no CASCADE. */
+const truncateTables = (names: string[]) => {
+  const all = names.includes('customers') ? [...names, ...POSTGRES_ONLY_CUSTOMER_TABLES.filter(n => !names.includes(n))] : names;
+  return sql`truncate table ${sql.join(all.map(n => sql.identifier(n)), sql`, `)}`;
+};
+
 /** Map everything first (no writes), then replace the tables in one transaction. */
 export async function copyFromMongo(db: Db, src: CopySource, options: { write: boolean }): Promise<CopyReport> {
   const problems: CopyProblem[] = [];
@@ -219,8 +233,7 @@ export async function copyFromMongo(db: Db, src: CopySource, options: { write: b
     if (state?.lockedAt) throw new CopyLockedError(state.lockedAt, state.lockedBy);
     // One TRUNCATE naming every table, no CASCADE: if a table from another area
     // ever points at these, this fails instead of quietly emptying it too.
-    const names = steps.map(([t]) => sql.identifier(getTableName(t)));
-    await tx.execute(sql`truncate table ${sql.join(names, sql`, `)}`);
+    await tx.execute(truncateTables(steps.map(([t]) => getTableName(t))));
     for (const [table, rows] of steps) {
       for (let i = 0; i < rows.length; i += CHUNK) await tx.insert(table).values(rows.slice(i, i + CHUNK));
     }
@@ -539,8 +552,7 @@ export async function copyAreaFromMongo(db: Db, src: CopySource, area: CopyArea,
     if (state?.lockedAreas?.includes(area)) throw new AreaLockedError(area);
     // Re-read the customers inside the lock so a customer added a moment ago is seen.
     const fresh = await areaPlan(tx as unknown as Db, src, area, []);
-    const names = fresh.map(([t]) => sql.identifier(getTableName(t)));
-    await tx.execute(sql`truncate table ${sql.join(names, sql`, `)}`);
+    await tx.execute(truncateTables(fresh.map(([t]) => getTableName(t))));
     for (const [table, rows] of fresh) {
       for (let i = 0; i < rows.length; i += CHUNK) await tx.insert(table).values(rows.slice(i, i + CHUNK));
     }

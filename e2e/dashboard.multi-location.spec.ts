@@ -53,14 +53,11 @@ async function dashboardFixture(page: Page, access: 'all' | 'branches' | 'own') 
 }
 
 const openFilters = async (page: Page) => { await page.getByRole('button', { name: /^Filters/ }).click(); };
-const pickTeam = async (page: Page) => {
+// The dashboard has no Location filter any more (2026-11-18): branches are headings inside People, each with an All button.
+const tickBranches = async (page: Page, branches: string[]) => {
     await page.getByRole('button', { name: 'People', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'My team', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'My team', exact: true }).press('Escape');
-};
-const location = async (page: Page, name: string) => {
-    await page.getByLabel('Location', { exact: true }).click();
-    await page.getByRole('option', { name, exact: true }).click();
+    for (const branch of branches) await page.getByRole('button', { name: `Tick everyone in ${branch}`, exact: true }).click();
+    await page.keyboard.press('Escape');
 };
 
 test('global dashboard combines branches, drills into reps, and receives another rep’s live work', async ({ page }) => {
@@ -69,13 +66,12 @@ test('global dashboard combines branches, drills into reps, and receives another
     const list = page.getByRole('list', { name: 'Sales visits', exact: true });
     await expect(list).toContainText('Alex Stone Account');
     await openFilters(page);
-    await pickTeam(page);
-    await location(page, 'All locations');
+    await tickBranches(page, ['Seattle', 'Dallas', 'Atlanta']);
     await page.getByRole('button', { name: 'Close filters', exact: true }).click();
     await expect(list.locator(':scope > li')).toHaveCount(5);
     await expect(page.locator('.dfx-card').filter({ hasText: 'VISITS' }).locator('.dfx-card-value')).toHaveText('5');
     await openFilters(page);
-    await page.getByRole('button', { name: 'By rep', exact: true }).click();
+    await page.getByRole('radio', { name: 'By rep', exact: true }).click();
     await page.getByRole('button', { name: 'Close filters', exact: true }).click();
     const breakdown = page.locator('.drb-table');
     await expect(breakdown.locator('tfoot')).toContainText('5');
@@ -108,11 +104,10 @@ test('multi-location manager is offered only their branches and reps', async ({ 
     await page.getByRole('button', { name: 'People', exact: true }).click();
     await expect(page.getByRole('checkbox', { name: 'Asha', exact: true })).toBeVisible();
     await expect(page.getByRole('checkbox', { name: 'Jon', exact: true })).toHaveCount(0);
-    await page.getByRole('checkbox', { name: 'My team', exact: true }).click();
-    await page.getByRole('checkbox', { name: 'My team', exact: true }).press('Escape');
-    await page.getByLabel('Location', { exact: true }).click();
-    await expect(page.getByRole('option', { name: 'Atlanta', exact: true })).toHaveCount(0);
-    await page.getByRole('option', { name: 'Dallas', exact: true }).click();
+    // Only the manager's own branches are offered as headings.
+    await expect(page.getByRole('button', { name: 'Tick everyone in Atlanta', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Tick everyone in Dallas', exact: true }).click();
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Close filters', exact: true }).click();
     const list = page.getByRole('list', { name: 'Sales visits', exact: true });
     // The manager is assigned to Dallas too, so their work belongs here.
@@ -133,5 +128,5 @@ test('own-only rep sees their work with no team or location selector', async ({ 
     await openFilters(page);
     await expect(page.getByLabel('People', { exact: true })).toHaveCount(0);
     await expect(page.getByLabel('Location', { exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'By rep', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('radio', { name: 'By rep', exact: true })).toHaveCount(0);
 });
