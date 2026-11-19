@@ -1,9 +1,11 @@
 /* Sales Visits → By rep (RepBreakdownTable.tsx), on the Focus board's tokens
    (DashboardFocus.css). Phone = under 640px. */
 
-.drb-switch { display: inline-flex; flex-shrink: 0; padding: 3px; border-radius: 10px; background: var(--dfx-soft); border: 1px solid var(--border-color); }
-.drb-switch button { height: 32px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; }
-.drb-switch button.is-on { background: var(--bg-card); color: var(--text-primary); font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
+.drb-switch { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 12px; background: var(--fm-seg, var(--dfx-soft)); }
+.drb-switch button { display: flex; align-items: center; justify-content: center; gap: 8px; height: 42px; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: var(--fm-mut, var(--text-secondary)); font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.drb-switch button:focus-visible { outline: 2px solid var(--fm-gold, #d4af37); outline-offset: 1px; }
+.drb-switch button.is-on { background: var(--fm-seg-on, var(--bg-card)); color: var(--fm-tx, var(--text-primary)); box-shadow: var(--fm-seg-shadow, 0 1px 2px rgba(0, 0, 0, 0.18)), inset 0 -2px 0 var(--fm-gold, #d4af37); }
+.drb-switch-note { display: block; margin-top: 8px; font-size: 12.5px; color: var(--fm-mut, var(--text-secondary)); }
 
 .drb-wrap { border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; }
 .drb-table { width: 100%; border-collapse: collapse; color: var(--text-primary); font-size: 14px; }

@@ -105,8 +105,8 @@ export default function DashboardHeader({
                             >
                                 {rangeGroup}
                                 {visitsView && (
-                                    <div className="lf-group" role="group" aria-label="Show visits as">
-                                        <span className="lf-group-label">View</span>
+                                    <div className="lf-group">
+                                        <span className="lf-group-label">Show visits as</span>
                                         <VisitsViewSwitch value={visitsView.value} onChange={visitsView.onChange} />
                                     </div>
                                 )}
