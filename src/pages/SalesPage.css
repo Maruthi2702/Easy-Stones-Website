@@ -3289,8 +3289,16 @@ body.light-theme-active .icon-action-small.edit:hover,
 
 body.light-theme-active .post-details-ext,
 .light-theme-active .post-details-ext {
-  background: #f8fafc !important;
-  border: 1px solid #e2e8f0 !important;
+  /* Only a layout wrapper: its rows are the boxes. A fill and border here drew a square grey
+     frame behind the rows' rounded corners. */
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+}
+
+body.light-theme-active .post-detail-row,
+.light-theme-active .post-detail-row {
+  box-shadow: none !important;
 }
 
 body.light-theme-active .detail-label,
