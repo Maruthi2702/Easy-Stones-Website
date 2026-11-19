@@ -92,7 +92,7 @@ export default function SalesImportModal({ onClose }: { onClose: () => void }) {
 
     return (
         <FormModal
-            title={step === 3 ? 'Sales imported' : 'Import sales'}
+            title={step === 3 ? 'Sales imported' : 'Import Sales Report'}
             size="l"
             onClose={onClose}
             onSubmit={(e) => { e.preventDefault(); if (!disabled && !busy) run(); }}
