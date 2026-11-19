@@ -26,3 +26,15 @@
 .loc-gate-body .fm-btn { justify-self: stretch; min-height: 48px; }
 .loc-gate-skip { justify-self: center; color: var(--fm-mut); }
 @media (min-width: 641px) { .loc-gate { bottom: 24px; left: 50%; right: auto; width: 460px; transform: translateX(-50%); border-radius: 18px; animation: none; } }
+
+/* The mark on rows (dashboard Visits, the customer's Visits tab, Visit view). */
+.loc-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1.4; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.loc-chip--ok { color: #1f8a4c; background: rgba(31, 138, 76, 0.13); }
+.loc-chip--warn { color: #a8670a; background: rgba(214, 140, 20, 0.15); }
+.loc-chip--bad { color: #b3372d; background: rgba(179, 55, 45, 0.12); }
+.loc-chip--none { color: #6b7385; background: rgba(107, 115, 133, 0.14); }
+body:not(.light-theme-active) .loc-chip--ok { color: #4cc283; background: rgba(76, 194, 131, 0.16); }
+body:not(.light-theme-active) .loc-chip--warn { color: #e3a944; background: rgba(227, 169, 68, 0.17); }
+body:not(.light-theme-active) .loc-chip--bad { color: #ec7a6f; background: rgba(236, 122, 111, 0.16); }
+body:not(.light-theme-active) .loc-chip--none { color: #9aa3b6; background: rgba(154, 163, 182, 0.15); }
+.post-location { margin-top: 8px; }

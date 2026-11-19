@@ -119,6 +119,18 @@ describe('add a visit', () => {
     expect(mongo.saved.events).toHaveLength(1);
   });
 
+  it('where it was logged is found by visit id, and only for visits that have a reading', async () => {
+    const input = addInput();
+    const none = addInput({ loggedFrom: undefined });
+    const { mongo } = await sameThing(async () => {
+      await settle(await data.addVisit(input));
+      await settle(await data.addVisit(none));
+      return data.visitLocations({ visitIds: [input.visit._id, none.visit._id, newId(), 'not-an-id'], resourceIds: [] });
+    });
+    expect(mongo).toHaveLength(1);
+    expect(mongo[0]).toMatchObject({ visitId: input.visit._id, resourceId: null, createdBy: String(rep) });
+  });
+
   it('completes the logger\'s own planned entry that day instead of adding one', async () => {
     const input = addInput({ date: '2026-11-12', followUp: 'call', followUpDate: '2026-11-20', image: ['https://cdn.example/a.webp', 'https://cdn.example/b.pdf'] });
     const { mongo } = await sameThing(async () => ({

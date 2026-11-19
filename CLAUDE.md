@@ -286,11 +286,16 @@ browser's permission), `LocationLine`, `LocationBlocked` (replaces the form with
 `LocationGate`, the sheet staff get **when they open the app** (`SalesPage`), so it is already allowed; Save stays locked
 until a reading is in, and edits ask for nothing. `geolocationAccess.ts` still owns the Route Planner's quiet follow.
 A web app can't tell "allow once" from "always", can't read in the background and can't re-prompt after a block.
-**Not built yet** (design steps 2–4): the marks on rows / Visit view / filters / By rep, and the Users & Roles switch
-**See where visits were logged** (team rule). **Until that switch exists nothing returns `loggedFrom` except the answer to
-the add itself** (`withoutLoggedFrom` strips it from every other visit answer, and the Postgres profile / dashboard readers
-don't select it) — a new reader of visits must not send it before the switch. Visits not logged by a rep in the app (the
-ATL import, Check-In, calendar stops) have no reading and are not blocked. A new place that creates a visit or resource from
+**Step 2 (on `feat/visit-location-marks`):** Users & Roles → Visits → **Where logged** (`see_visit_locations`, given once
+to every role holding View branch / View all, `ACTION_MIGRATIONS`; manager defaults too). `canSeeVisitLocation`
+(`visitAccess.ts`): your own always, your team's with the switch (team rule), nobody else. The **only** way a reading
+leaves the server (besides the answer to the add that made it) is `POST /api/visit-locations` (`src/routes/visitLocations.ts`,
+tested; `customerData.visitLocations`), which returns only what the caller may see, so the existing readers (profile,
+dashboard, lists) still never select `logged_from`. Screens ask through `useVisitLocations` (`src/api/visitLocations.ts`)
+and show `LocationChip`: the dashboard's Visits list and the customer's Visits tab. **Not built yet:** the chip on
+resource rows (shared `ResourceTable` / `ResourceCards`: check Dashboard and the profile), the Visit view's "Where it was
+logged" box with the map link, the "Where logged" filter and By rep's On site column. `withoutLoggedFrom` stays on every
+visit answer apart from the add's. A new place that creates a visit or resource from
 the app needs `useLocationReading` and must send `loggedFrom`.
 
 ## Locations: one dropdown, one order (2026-10-17)

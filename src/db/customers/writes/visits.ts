@@ -25,6 +25,11 @@ export async function savedVisit(customerId: string, visitId: Id) {
   return onPostgres() ? pg.findVisit(await appDb(), customerId, String(visitId)) : mongo.findVisit(customerId, visitId);
 }
 
+/** Where visits (or the resources' placement visits) were logged: only those with a reading. The route decides who may see them. */
+export async function visitLocations(ids: { visitIds: string[]; resourceIds: string[] }) {
+  return onPostgres() ? pg.visitLocations(await appDb(), ids) : mongo.visitLocations(ids);
+}
+
 /** The customer a new visit is logged on ({ company, contactName }), or null. */
 export async function visitCustomer(customerId: string) {
   return onPostgres() ? pg.visitCustomer(await appDb(), customerId) : mongo.visitCustomer(customerId);

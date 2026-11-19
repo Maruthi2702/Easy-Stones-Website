@@ -27,7 +27,7 @@ import {
 import { YMD_RE } from '../../../utils/visitDates.ts';
 import type {
   AddVisitInput, AddVisitResult, EditVisitInput, AfterAnswer, FollowUpInput, ReactionInput,
-  ReactionResult, ScheduleEvent, VisitLogLine
+  ReactionResult, ScheduleEvent, VisitLogLine, VisitLocationRow
 } from './visits.types.ts';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -132,6 +132,20 @@ export async function findVisit(db: Db, customerId: string, visitId: string): Pr
   const [row] = await db.select({ id: visits.id }).from(visits)
     .where(and(eq(visits.id, visitId), eq(visits.customerId, customerId)));
   return row ? db.transaction(tx => visitDoc(tx, visitId)) : null;
+}
+
+/** Where the given visits (or the resources' placement visits) were logged: only those with a reading. */
+export async function visitLocations(db: Db, { visitIds, resourceIds }: { visitIds: string[]; resourceIds: string[] }): Promise<VisitLocationRow[]> {
+  const vids = visitIds.filter(isId), rids = resourceIds.filter(isId);
+  if (!vids.length && !rids.length) return [];
+  const list = (ids: string[]) => sql.join(ids.map(id => sql`${id}`), sql`, `);
+  const rows = await db.select({ visitId: visits.id, createdBy: visits.createdById, resourceId: resources.id, loggedFrom: visits.loggedFrom })
+    .from(visits).leftJoin(resources, eq(resources.placementVisitId, visits.id))
+    .where(and(
+      sql`${visits.loggedFrom} is not null`,
+      sql`(${vids.length ? sql`${visits.id} in (${list(vids)})` : sql`false`} or ${rids.length ? sql`${resources.id} in (${list(rids)})` : sql`false`})`
+    ));
+  return rows.map(r => ({ visitId: r.visitId, resourceId: r.resourceId ?? null, createdBy: r.createdBy ?? '', loggedFrom: r.loggedFrom as Record<string, unknown> }));
 }
 
 /** The customer a new visit is logged on (its name goes on the visit), or null. */

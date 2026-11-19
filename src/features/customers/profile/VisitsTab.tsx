@@ -5,6 +5,7 @@ import { useMyTeam } from '../../../api/myTeam';
 import Pagination from '../../../components/shared/Pagination';
 import { usePagination, pageCount } from '../../../components/shared/paginationConfig';
 import { TabEmpty, TabSkeleton } from './TabStates';
+import { useVisitLocations } from '../../../api/visitLocations';
 import type { Loose } from '../../../types/records';
 
 export type VisitsTabProps = {
@@ -40,6 +41,8 @@ export default function VisitsTab({
     const totalPages = pageCount(newestFirst.length, paging.rowsPerPage);
     const page = Math.min(paging.currentPage, totalPages);
     const shown = newestFirst.slice((page - 1) * paging.rowsPerPage, page * paging.rowsPerPage);
+    // Where each visit was logged, for the viewers who may see it (their own, or their team's with the switch).
+    const locations = useVisitLocations(shown.map(v => String(v._id)), !loading);
 
     return (
         <div className="tab-section visits-tab">
@@ -53,6 +56,7 @@ export default function VisitsTab({
                                 <VisitPostCard
                                     key={visit._id}
                                     visit={visit}
+                                    location={locations[String(visit._id)]}
                                     currentUser={currentUser}
                                     currentUserId={currentUserId}
                                     handleReaction={onReaction}

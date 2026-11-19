@@ -7,6 +7,8 @@ import { splitCustomer } from '../../../components/sales/visitsListHelpers';
 import VisitViewModal from './VisitViewModal';
 import type { VisitDetails } from './VisitViewModal';
 import { visitDetailRows } from './visitDetailRows';
+import { useVisitLocations } from '../../../api/visitLocations';
+import { LocationChip } from '../../location';
 import type { Loose } from '../../../types/records';
 import './DashboardFocus.css';
 
@@ -40,6 +42,8 @@ const EMPTY_VISITS: Loose[] = [];
 
 const VisitsFocusList = ({ visits = EMPTY_VISITS, loading = false, busyVisitId = null, canModify, canDelete, canOpenCustomer = true, showWhoLogged = false, onOpenCustomer, onEdit, onDelete, onOpenGallery }: VisitsFocusListProps) => {
     const [openId, setOpenId] = useState<string | null>(visits[0]?._id ?? null);
+    // Where each visit was logged, for the viewers who may see it (their own, or their team's with the switch).
+    const locations = useVisitLocations(visits.filter((v) => !v._saving).map((v) => String(v._id)));
     const [viewing, setViewing] = useState<Loose | null>(null);
     // The opened visit's photos and comments; cleared on every open so an edit
     // saved meanwhile is read again.
@@ -116,6 +120,7 @@ const VisitsFocusList = ({ visits = EMPTY_VISITS, loading = false, busyVisitId =
                                     <span className="dfx-row-contact">{contact || ' '}{Boolean(visit.location) && <span className="dfx-phone-only"> · {visit.location as string}</span>}{Boolean(by) && <span className="dfx-phone-only"> · by {by}</span>}</span>
                                 </span>
                                 {Boolean(visit._saving) && <span className="dfx-saving" role="status"><Loader size={12} className="animate-spin" aria-hidden="true" />Saving…</span>}
+                                <LocationChip location={locations[String(visit._id)]} />
                                 {Boolean(by) && <span className="dfx-pill dfx-pill--rep" title={`Logged by ${by}`}><User size={11} aria-hidden="true" />{by}</span>}
                                 {Boolean(visit.location) && <span className="dfx-pill"><MapPin size={11} aria-hidden="true" />{visit.location as string}</span>}
                                 <button

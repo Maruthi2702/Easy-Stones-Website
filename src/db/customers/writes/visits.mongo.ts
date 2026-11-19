@@ -10,8 +10,22 @@ import { linkVisitToSchedule, moveVisitOnSchedule } from '../../../services/visi
 import { logActivityMongo, type ActivityEntry } from './activityLog.ts';
 import type { Loose } from '../../../types/records.ts';
 import type {
-  Id, AddVisitInput, AddVisitResult, EditVisitInput, AfterAnswer, FollowUpInput, ReactionInput, ReactionResult
+  Id, AddVisitInput, AddVisitResult, EditVisitInput, AfterAnswer, FollowUpInput, ReactionInput, ReactionResult, VisitLocationRow
 } from './visits.types.ts';
+
+/** Where the given visits (or the resources' placement visits) were logged: only those with a reading. */
+export async function visitLocations({ visitIds, resourceIds }: { visitIds: string[]; resourceIds: string[] }): Promise<VisitLocationRow[]> {
+  const toIds = (list: string[]) => list.filter(id => mongoose.isValidObjectId(id)).map(id => new mongoose.Types.ObjectId(id));
+  const vids = toIds(visitIds), rids = toIds(resourceIds);
+  if (!vids.length && !rids.length) return [];
+  const rows = await Customer.aggregate([
+    { $match: { $or: [{ 'visits._id': { $in: vids } }, { 'visits.resourceId': { $in: rids } }] } },
+    { $unwind: '$visits' },
+    { $match: { $or: [{ 'visits._id': { $in: vids } }, { 'visits.resourceId': { $in: rids } }], 'visits.loggedFrom': { $type: 'object' } } },
+    { $project: { _id: 0, visitId: '$visits._id', resourceId: '$visits.resourceId', createdBy: '$visits.createdBy', loggedFrom: '$visits.loggedFrom' } }
+  ]);
+  return rows.map(r => ({ visitId: String(r.visitId), resourceId: r.resourceId ? String(r.resourceId) : null, createdBy: String(r.createdBy ?? ''), loggedFrom: r.loggedFrom }));
+}
 
 /** One visit as stored (lean), or null. */
 export async function findVisit(customerId: string, visitId: Id): Promise<Loose | null> {

@@ -25,6 +25,9 @@ export type VisitLogLine = Pick<ActivityEntry, 'id' | 'performedBy' | 'performed
   details?: Record<string, unknown> | null;
 };
 
+/** Where visits were logged, by visit id or by resource id (the resource's placement visit): one row per visit that has a reading. */
+export type VisitLocationRow = { visitId: string; resourceId: string | null; createdBy: string; loggedFrom: Record<string, unknown> };
+
 export interface AddVisitInput {
   customerId: string;
   /** The visit as the route built it (its `_id`, day, type, photos as links, createdAt…). */
