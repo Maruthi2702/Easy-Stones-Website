@@ -1,0 +1,57 @@
+/**
+ * Location points (Postgres only; see src/db/schema/locationPoints.ts and
+ * src/utils/locationTracking.ts for the rules). The route has already cleaned
+ * the batch; this only stores and reads.
+ */
+import { and, asc, desc, eq, gte, inArray, lt } from 'drizzle-orm';
+import type { Db } from '../copy/plan.ts';
+import { appDb } from '../appDb.ts';
+import { newId } from '../ids.ts';
+import { locationPoints as points } from '../schema/locationPoints.ts';
+import type { CleanPoint } from '../../utils/locationTracking.ts';
+
+/** Saves a cleaned batch; a point already saved (same person, same phone id) is skipped. Returns how many were new. */
+export async function savePoints(userId: string, branch: string, batch: CleanPoint[], db?: Db): Promise<number> {
+  if (!batch.length) return 0;
+  const d = db ?? await appDb();
+  const saved = await d.insert(points).values(batch.map(p => ({
+    id: newId(), userId, branch, clientId: p.clientId, recordedAt: p.recordedAt,
+    lat: p.lat, lng: p.lng, accuracyM: p.accuracyM, speedMps: p.speedMps
+  }))).onConflictDoNothing({ target: [points.userId, points.clientId] }).returning({ id: points.id });
+  return saved.length;
+}
+
+export type LastSeen = { userId: string; recordedAt: Date; lat: number; lng: number; accuracyM: number | null; branch: string };
+
+/** Each person's newest point at or after `since` (today's, so yesterday's last spot isn't shown as where they are). `userIds` null = everyone. */
+export async function lastSeen(userIds: string[] | null, since: Date, db?: Db): Promise<LastSeen[]> {
+  if (userIds && !userIds.length) return [];
+  const d = db ?? await appDb();
+  const where = userIds ? and(gte(points.recordedAt, since), inArray(points.userId, userIds)) : gte(points.recordedAt, since);
+  const rows = await d.selectDistinctOn([points.userId], {
+    userId: points.userId, recordedAt: points.recordedAt, lat: points.lat, lng: points.lng, accuracyM: points.accuracyM, branch: points.branch
+  }).from(points).where(where).orderBy(points.userId, desc(points.recordedAt));
+  return rows as LastSeen[];
+}
+
+/** One person's trail between two instants, oldest first. */
+export async function trail(userId: string, from: Date, to: Date, db?: Db) {
+  const d = db ?? await appDb();
+  return d.select({ id: points.id, recordedAt: points.recordedAt, lat: points.lat, lng: points.lng, accuracyM: points.accuracyM, speedMps: points.speedMps })
+    .from(points).where(and(eq(points.userId, userId), gte(points.recordedAt, from), lt(points.recordedAt, to)))
+    .orderBy(asc(points.recordedAt)).limit(5000);
+}
+
+/** Deletes points older than the cutoff (the 90-day rule); returns how many went. */
+export async function deleteOlderThan(cutoff: Date, db?: Db): Promise<number> {
+  const d = db ?? await appDb();
+  const gone = await d.delete(points).where(lt(points.recordedAt, cutoff)).returning({ id: points.id });
+  return gone.length;
+}
+
+/** Removes everything held for one person (e.g. when tracking is switched off for them at their request). */
+export async function deleteForUser(userId: string, db?: Db): Promise<number> {
+  const d = db ?? await appDb();
+  const gone = await d.delete(points).where(eq(points.userId, userId)).returning({ id: points.id });
+  return gone.length;
+}

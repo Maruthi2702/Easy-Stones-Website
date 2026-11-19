@@ -9,3 +9,4 @@ export * from './accounting.ts';
 export * from './cardsSuppliers.ts';
 export * from './permits.ts';
 export * from './misc.ts';
+export * from './locationPoints.ts';

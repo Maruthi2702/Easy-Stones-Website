@@ -13,6 +13,7 @@ import {
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
 import { PAYMENTS } from '../../../utils/paymentsReceived';
+import { TRACKING } from '../../../utils/locationTracking';
 import { CARD_RECEIPTS } from '../../../utils/cardReceipts';
 import { SUPPLIER_POS } from '../../../utils/supplierAccess';
 import { FULL_ACCESS, USERS, ROLES, LOCATIONS, VISIT_TYPES, RESOURCE_TYPES, TYPE_LISTS_ALL, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
@@ -161,6 +162,18 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: PAYMENTS.ADD,  label: 'Add',  icon: Plus,   desc: 'Enter a payment or a return' },
             { key: PAYMENTS.EDIT, label: 'Edit', icon: Pencil, desc: 'Change a payment (every change is kept in its history)' },
             { key: PAYMENTS.VOID, label: 'Void', icon: Eraser, desc: 'Void a payment with a reason; it stays in the list, struck through' }
+        ]
+    },
+    {
+        // The iOS app (src/utils/locationTracking.ts). Nobody holds either until an admin ticks it.
+        id: 'location_tracking',
+        page: 'Location Tracking',
+        icon: MapPin,
+        description: 'Where reps and drivers are during the work day (the iOS app, 7 AM – 6 PM, Monday – Friday)',
+        color: '#0ea5e9',
+        actions: [
+            { key: TRACKING.TRACKED,   label: 'Share location',  icon: MapPin, desc: "The people in this role share their phone's location from the app, 7 AM – 6 PM on their branch's clock, Monday – Friday" },
+            { key: TRACKING.VIEW_TEAM, label: 'See team',        icon: Eye,    desc: "See where the tracked people on the user's team are today and where they went (the team is everyone working at the user's assigned locations)" }
         ]
     },
     {

@@ -164,6 +164,8 @@ import { VISIT_TYPES as VISIT_TYPE_ACTIONS, RESOURCE_TYPES as RESOURCE_TYPE_ACTI
 import { checkSheet, spsCoverage } from './src/utils/spsSheet.ts';
 import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.ts';
 import createCustomerSalesRouter from './src/routes/customerSales.ts';
+import createLocationTrackingRouter from './src/routes/locationTracking.ts';
+import { startLocationRetention } from './src/jobs/locationRetention.ts';
 import createCustomerSpsImportRouter from './src/routes/customerSpsImport.ts';
 import { resumeRunningImports } from './src/services/spsImportRunner.ts';
 import createVisitsRouter from './src/routes/visits.ts';
@@ -1039,6 +1041,9 @@ async function startServer() {
       // A day nobody signed off is closed out at 11:59 PM on the branch's own
       // clock, so the figures stop being editable once the day is over.
       startAutoSubmitDailyReports();
+
+      // Location points are kept 90 days (src/utils/locationTracking.ts); older ones are deleted nightly.
+      startLocationRetention();
 
       // Permits: the first pull reads six months back straight away; then one
       // pull a day from 5:00 AM Pacific (src/permits/sync.ts).
@@ -3423,6 +3428,8 @@ app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticat
 // customer saved whole first (src/routes/customerBulkDelete.ts).
 app.use('/api/customers', createCustomerBulkDeleteRouter({ authenticate }));
 app.use('/api/customers', createCustomerSalesRouter({ authenticate }));
+// The iOS app's location tracking (src/utils/locationTracking.ts): 7 AM–6 PM, by the branch's clock.
+app.use('/api/location-tracking', createLocationTrackingRouter({ authenticate }));
 app.use('/api/customers', createCustomerSpsConnectRouter({
   authenticate,
   uploadMemory,
