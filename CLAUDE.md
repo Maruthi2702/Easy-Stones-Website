@@ -269,6 +269,38 @@ every size:
 - Tiles are 4 across on a tablet; Visits' Today / Follow-ups go under the list
   below 1024px. Layout CSS is the end of `DashboardFocus.css`.
 
+## Where a visit or resource was logged: required, one reading (2026-11-19, on `feat/visit-location`)
+
+Design: claude.ai artifact **Visit location stamp** (https://claude.ai/artifact/Fiu5mUw8yn7ftVsEbHggRK; the owner's
+answers of 2026-11-19 set every rule here). **Every new visit and every new resource carries one reading of where its
+logger was** — phone or computer, every visit type including calls, no exceptions (owner). `src/utils/visitLocation.ts`
+(tested) is the rule: `parseReading` / `readingProblem` (a reading older than 15 min is refused), `loggedFromFor` works the
+distance and mark out **on the server** against the customer's map pin (`visitCustomer` returns `coordinates`), never from
+the browser: **On site** ≤ 0.25 mi and accuracy ≤ 400 m, **Nearby** ≤ 1 mi, else **N mi away**; calls, notes and admin
+types keep the reading as `recorded` (no verdict); a customer with no pin is `noPin`; accuracy over 150 m sets
+`approximate`. `POST /:customerId/visits` and `POST /:customerId/resources` answer 400 `location_required` /
+`location_stale` without one. It is stored once as `loggedFrom` on the **visit** (`visits.logged_from` jsonb, migration
+`0016`; a resource's reading rides on its placement visit) and an edit can't send or change it. The screens:
+`src/features/location/` — `useLocationReading` (starts when Add visit / Add resource / Log call opens, retries, follows the
+browser's permission), `LocationLine`, `LocationBlocked` (replaces the form with the steps to turn location on), and
+`LocationGate`, the sheet staff get **when they open the app** (`SalesPage`), so it is already allowed; Save stays locked
+until a reading is in, and edits ask for nothing. `geolocationAccess.ts` still owns the Route Planner's quiet follow.
+A web app can't tell "allow once" from "always", can't read in the background and can't re-prompt after a block.
+**Step 2 (on `feat/visit-location-marks`):** Users & Roles → Visits → **Where logged** (`see_visit_locations`, given once
+to every role holding View branch / View all, `ACTION_MIGRATIONS`; manager defaults too). `canSeeVisitLocation`
+(`visitAccess.ts`): your own always, your team's with the switch (team rule), nobody else. The **only** way a reading
+leaves the server (besides the answer to the add that made it) is `POST /api/visit-locations` (`src/routes/visitLocations.ts`,
+tested; `customerData.visitLocations`), which returns only what the caller may see, so the existing readers (profile,
+dashboard, lists) still never select `logged_from`. Screens ask through `useVisitLocations` (`src/api/visitLocations.ts`)
+and show `LocationChip`: the dashboard's Visits list, the customer's Visits tab and both Resource lists (shared
+`ResourceTable` / `ResourceCards`, so Dashboard and profile change together), plus `LocationDetails` ("Where it was
+logged": mark, distance, time and accuracy, device, a Google Maps link, "Logged on …" when read on another day) in the Visit
+view and View resource. Viewers with the switch also get Filters → **Where logged** (`WhereLoggedField`, `matchesWhere`;
+needs every visible visit's mark, fetched in calls of 500), the visit and resource Excel exports' **Where Logged / Distance From Customer / Logged From** columns (`locationExportColumns`; only with the switch, so nobody else's file changes) and By rep's **On site** column ("13 of 16", `onSiteTally`: only
+in-person visits with a pin count). Nothing is built beyond this; a mark never changes after the save. `withoutLoggedFrom` stays on every
+visit answer apart from the add's. A new place that creates a visit or resource from
+the app needs `useLocationReading` and must send `loggedFrom`.
+
 ## Locations: one dropdown, one order (2026-10-17)
 
 Every single-choice location field and filter is
@@ -571,7 +603,7 @@ only on "invalid credentials" with an `@` asks the supplier portal (`pages/suppl
 sessions stay separate. **Location tracking** is `src/utils/locationTracking.ts` (tested): 7 AM–6 PM Monday–Friday
 on the person's **branch clock**, enforced by the server (`POST /api/location-tracking/points` drops anything
 outside) as well as the app; kept 90 days (`src/jobs/locationRetention.ts`); table `location_points`
-(Postgres only, migration `0016_location_points` — renumber if another branch's 0016 lands first). Switches on
+(Postgres only, with `location_consents`: migration `0017_location_tracking`). Switches on
 Users & Roles → **Location Tracking**: `track_location` (that role is tracked) and `view_team_locations` (sees the
 tracked people on their team, by `teamScope.ts`; others answer 404). Nobody holds either until an admin ticks it.
 **Admin → Team Location** (`src/features/teamLocation/`, nav `team_location`) is the manager's screen: people
@@ -580,7 +612,7 @@ staff login whose role has `track_location`; consent screen first (`CONSENT_VERS
 changes), then the community background-geolocation plugin collects inside 7–6 (a point per 45 s), unsent points
 queue in localStorage per person and go in batches of up to 200, "Location on until 6 PM" pill, Settings prompt
 when iOS location is off. Info.plist has the Always / When-in-use text and `UIBackgroundModes` location. **Never
-run on a real phone yet** — test a full day on an iPhone. **Consent is recorded on the server** (`location_consents`, migration `0017`, one row per person per
+run on a real phone yet** — test a full day on an iPhone. **Consent is recorded on the server** (`location_consents`, one row per person per
 `CONSENT_VERSION` — bump it in `utils/locationTracking.ts` when the wording changes): Allow calls
 `POST /api/location-tracking/consent`, the server refuses a person's points (403 code `consent`) until the row
 exists, `/status` says `consented`, and Team Location shows "Hasn't agreed to share location yet". The record is

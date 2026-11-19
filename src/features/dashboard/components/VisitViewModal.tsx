@@ -7,6 +7,8 @@ import { isPdfSource } from '../../../utils/attachments';
 import { splitCustomer } from '../../../components/sales/visitsListHelpers';
 import { visitDetailRows } from './visitDetailRows';
 import type { Loose } from '../../../types/records';
+import { LocationDetails } from '../../location';
+import type { LoggedFrom } from '../../../utils/visitLocation';
 import './DashboardFocus.css';
 
 const resolveImageSrc = (img: string) => {
@@ -35,9 +37,11 @@ export type VisitViewModalProps = {
     onDelete?: (visit: Loose) => void;
     onOpenGallery?: (images: string[], index: number) => void;
     busy?: boolean;
+    /** Where it was logged, when the viewer may see it (src/api/visitLocations.ts). */
+    location?: LoggedFrom | null;
 };
 
-const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDelete, onOpenGallery, busy = false }: VisitViewModalProps) => {
+const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDelete, onOpenGallery, busy = false, location = null }: VisitViewModalProps) => {
     const ref = useRef<HTMLElement>(null);
     const { company, contact } = splitCustomer(visit);
 
@@ -103,6 +107,7 @@ const VisitViewModal = ({ visit, details, onClose, onOpenCustomer, onEdit, onDel
                             ))}
                         </div>
                     )}
+                    <LocationDetails location={location} day={String(visit.date || '')} />
                     {(!details || details.status === 'loading') && (
                         <div className="dfx-muted"><Loader size={14} className="animate-spin" /> Loading photos…</div>
                     )}

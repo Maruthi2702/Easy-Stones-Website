@@ -117,15 +117,15 @@
     {
       "idx": 16,
       "version": "7",
-      "when": 1795127439140,
-      "tag": "0016_location_points",
+      "when": 1795123610776,
+      "tag": "0016_visit_logged_from",
       "breakpoints": true
     },
     {
       "idx": 17,
       "version": "7",
-      "when": 1795130879175,
-      "tag": "0017_location_consents",
+      "when": 1795131814072,
+      "tag": "0017_location_tracking",
       "breakpoints": true
     }
   ]

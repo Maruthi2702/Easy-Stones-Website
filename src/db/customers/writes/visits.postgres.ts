@@ -27,7 +27,7 @@ import {
 import { YMD_RE } from '../../../utils/visitDates.ts';
 import type {
   AddVisitInput, AddVisitResult, EditVisitInput, AfterAnswer, FollowUpInput, ReactionInput,
-  ReactionResult, ScheduleEvent, VisitLogLine
+  ReactionResult, ScheduleEvent, VisitLogLine, VisitLocationRow
 } from './visits.types.ts';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -120,7 +120,8 @@ async function visitDoc(tx: Tx, id: string): Promise<Loose | null> {
     createdAt: appTime(v.createdAt),
     updatedBy: v.updatedById ?? v.updatedByCustomerId ?? '',
     updatedByName: v.updatedByName,
-    updatedAt: appTime(v.updatedAt) ?? ''
+    updatedAt: appTime(v.updatedAt) ?? '',
+    ...(v.loggedFrom ? { loggedFrom: v.loggedFrom } : {})
   };
   return doc;
 }
@@ -133,12 +134,27 @@ export async function findVisit(db: Db, customerId: string, visitId: string): Pr
   return row ? db.transaction(tx => visitDoc(tx, visitId)) : null;
 }
 
+/** Where the given visits (or the resources' placement visits) were logged: only those with a reading. */
+export async function visitLocations(db: Db, { visitIds, resourceIds }: { visitIds: string[]; resourceIds: string[] }): Promise<VisitLocationRow[]> {
+  const vids = visitIds.filter(isId), rids = resourceIds.filter(isId);
+  if (!vids.length && !rids.length) return [];
+  const list = (ids: string[]) => sql.join(ids.map(id => sql`${id}`), sql`, `);
+  const rows = await db.select({ visitId: visits.id, createdBy: visits.createdById, resourceId: resources.id, loggedFrom: visits.loggedFrom })
+    .from(visits).leftJoin(resources, eq(resources.placementVisitId, visits.id))
+    .where(and(
+      sql`${visits.loggedFrom} is not null`,
+      sql`(${vids.length ? sql`${visits.id} in (${list(vids)})` : sql`false`} or ${rids.length ? sql`${resources.id} in (${list(rids)})` : sql`false`})`
+    ));
+  return rows.map(r => ({ visitId: r.visitId, resourceId: r.resourceId ?? null, createdBy: r.createdBy ?? '', loggedFrom: r.loggedFrom as Record<string, unknown> }));
+}
+
 /** The customer a new visit is logged on (its name goes on the visit), or null. */
 export async function visitCustomer(db: Db, customerId: string): Promise<Loose | null> {
   if (!isId(customerId)) return null;
-  const [c] = await db.select({ company: customers.company, contactName: customers.contactName })
+  const [c] = await db.select({ company: customers.company, contactName: customers.contactName, lat: customers.lat, lng: customers.lng })
     .from(customers).where(eq(customers.id, customerId));
-  return c ?? null;
+  // The map pin is what a visit's location is measured against.
+  return c ? { company: c.company, contactName: c.contactName, coordinates: { lat: c.lat, lng: c.lng } } : null;
 }
 
 /** A reacting customer's name (contactName || email), or null when there is no such customer. */
@@ -252,7 +268,8 @@ export async function addVisit(db: Db, { customerId, visit, calendar, log, now }
       managerComment: text(visit.managerComment, 'managerComment'), headquartersComment: text(visit.headquartersComment, 'headquartersComment'),
       followUp: text(visit.followUp, 'followUp'), followUpDate: dayOrNull(visit.followUpDate),
       createdById: by.userId, createdByCustomerId: by.customerId, createdByName: text(visit.createdByName, 'createdByName'),
-      createdAt: localOf(visit.createdAt) ?? `${date} 00:00:00.000`
+      createdAt: localOf(visit.createdAt) ?? `${date} 00:00:00.000`,
+      loggedFrom: (visit.loggedFrom as Loose | null | undefined) ?? null
     }).onConflictDoNothing().returning({ id: visits.id });
     if (!inserted.length) {
       // Two tries racing: the other one saved it.

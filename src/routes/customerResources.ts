@@ -12,6 +12,7 @@ import { ResourceError } from '../db/customers/writes/resources.rules.ts';
 import { newId } from '../db/ids.ts';
 import { canViewCustomerProfile } from '../utils/customerAccess.ts';
 import type { Loose } from '../types/records.ts';
+import { parseReading, readingProblem, loggedFromFor } from '../utils/visitLocation.ts';
 
 type StaffRequest = Request & { user?: Loose; userId?: string; authType?: string };
 type Deps = {
@@ -87,12 +88,22 @@ export default function createCustomerResourcesRouter(deps: Deps) {
   router.post('/:customerId/resources', authenticate, requirePermission('add_visits'), async (req: StaffRequest, res) => {
     try {
       const fields = await fieldsOf(req.body, true);
+      // Where the logger was (owner, 2026-11-19: every visit and resource). The distance
+      // and mark are worked out here against the customer's map pin; the resource's
+      // reading is kept on its placement visit (src/utils/visitLocation.ts).
+      const reading = parseReading(req.body?.loggedFrom);
+      if (!reading) return res.status(400).json({ message: 'Location is required to add a resource. Allow location in your browser and try again.', code: 'location_required' });
+      const stale = readingProblem(reading, Date.now());
+      if (stale) return res.status(400).json({ message: stale, code: 'location_stale' });
+      const customerInfo = await customerData.visitCustomer(String(req.params.customerId));
+      if (!customerInfo) return res.status(404).json({ message: 'Customer not found' });
+      const loggedFrom = loggedFromFor(reading, { purpose: `Resource Placement: ${fields.resourceType || fields.title}`, pin: customerInfo.coordinates, readAt: getNowLocalISO() });
       const performer = await getPerformerInfo(req);
       // src/db/customers: MongoDB, or Postgres once DB_CUSTOMERS=postgres.
       const result = await customerData.addResource({
         customerId: String(req.params.customerId), fields, performer, now: getNowLocalISO,
         scheduleUserId: req.authType === 'admin' ? performer.id : null,
-        ids: { resourceId: newId(), visitId: newId(), dropInId: newId() }
+        ids: { resourceId: newId(), visitId: newId(), dropInId: newId() }, loggedFrom
       });
       notify(req, result.events);
       res.status(201).json({ success: true, resource: result.resource, visit: result.visit });

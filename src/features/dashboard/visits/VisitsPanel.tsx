@@ -34,7 +34,7 @@ export type VisitsPanelProps = {
     /** More than the viewer is in view (the People filter): rows say who logged them. */
     showWhoLogged: boolean;
     /** "List | By rep": null hides the switch (they only see their own). */
-    byRep: { view: 'list' | 'byRep'; onViewChange: (v: 'list' | 'byRep') => void; rows: RepRow[]; showToday?: boolean; onPick: (id: string) => void } | null;
+    byRep: { view: 'list' | 'byRep'; onViewChange: (v: 'list' | 'byRep') => void; rows: RepRow[]; showToday?: boolean; showOnSite?: boolean; onPick: (id: string) => void } | null;
     onOpenTab: (tab: 'planner' | 'followups') => void;
     onOpenVisitCard: (visit: Loose) => void;
     onEditVisit: (visit: Loose) => void;
@@ -69,7 +69,7 @@ export default function VisitsPanel({
             </div>
 
             {showingByRep && byRep ? (
-                <RepBreakdownTable rows={byRep.rows} loading={tableLoading} showToday={byRep.showToday} onPick={byRep.onPick} />
+                <RepBreakdownTable rows={byRep.rows} loading={tableLoading} showToday={byRep.showToday} showOnSite={byRep.showOnSite} onPick={byRep.onPick} />
             ) : (
             <>
 

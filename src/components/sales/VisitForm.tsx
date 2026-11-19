@@ -17,6 +17,7 @@ import { DatePicker } from '../shared/calendar/Calendar';
 import AuthContext from '../../context/AuthContext';
 import { homeLocationOf } from '../../utils/locationFilter';
 import { customerAfterTypeChange } from '../../utils/officeAccounts';
+import { useLocationReading, LocationLine, LocationBlocked } from '../../features/location';
 
 /*
  * Add visit / Edit visit, on the shared form template (FORM_TEMPLATE.md),
@@ -64,6 +65,9 @@ export default function VisitForm({
     // Optional on purpose: tests mount the form with no provider.
     const home = homeLocationOf(useContext(AuthContext)?.user ?? {});
 
+    // Every new visit records where it was logged (owner, 2026-11-19); an edit keeps the original reading.
+    const location = useLocationReading(!isEdit);
+
     const set = (patch: Loose) => setValues((v) => ({ ...v, ...patch }));
     const touch = (field: string) => touchField(field, String(values[field] ?? '') !== String(initial[field] ?? ''));
 
@@ -96,7 +100,8 @@ export default function VisitForm({
             return;
         }
         // Hidden follow-up fields are cleared, not saved (visitValuesToSave).
-        onSave(visitValuesToSave(values, visitType, followUpOn));
+        if (!isEdit && !location.reading) return;
+        onSave({ ...visitValuesToSave(values, visitType, followUpOn), ...(isEdit ? {} : { loggedFrom: location.reading }) });
     };
 
     const textarea = (name: string, label: string, { placeholder, rows = 3, large = false }: { placeholder?: string; rows?: number; large?: boolean } = {}) => (
@@ -135,7 +140,7 @@ export default function VisitForm({
             submitLabel={isEdit ? 'Save changes' : 'Add visit'}
             savingLabel="Saving…"
             saving={saving}
-            submitDisabled={isEdit && dirtyCount === 0}
+            submitDisabled={(isEdit && dirtyCount === 0) || (!isEdit && location.status !== 'ready')}
             dirtyCount={dirtyCount}
             discardTitle={isEdit ? 'Discard your changes?' : 'Discard this visit?'}
             errors={visibleErrors}
@@ -144,6 +149,9 @@ export default function VisitForm({
             footerStart={footerStart}
             footerNote={isEdit ? visitLastChangedText(visit || {}) : null}
         >
+            {!isEdit && location.status === 'blocked' ? (
+                <LocationBlocked what="visits" onRetry={location.retry} />
+            ) : (<>
             <FormSection>
                 <FormField name="customerId" id="vf-customer" label="Customer" required error={shown('customerId')}>
                     <FormSearchPicker
@@ -188,6 +196,7 @@ export default function VisitForm({
                         />
                     </FormField>
                 </FormRow>
+                {!isEdit && <LocationLine location={location} />}
 
                 {fields.notes && textarea('notes', 'Notes', { placeholder: 'What did you talk about?', rows: 5, large: true })}
                 {fields.outcome && textarea('outcome', 'Outcome', { placeholder: 'What was agreed, quoted or ordered?' })}
@@ -282,6 +291,7 @@ export default function VisitForm({
                     </FormRow>
                 </FormSection>
             )}
+            </>)}
         </FormModal>
     );
 }

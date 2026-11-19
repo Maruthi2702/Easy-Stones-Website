@@ -91,6 +91,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: 'view_branch_visits',   label: 'View branch',   icon: MapPin, desc: "See the visits and resources of everyone working at the user's assigned locations (everyone sees their own)" },
             { key: 'view_all_visits',      label: 'View all',      icon: Eye,    desc: "See every branch's visits and resources on the dashboard" },
             { key: 'view_team_calendar',   label: 'Team calendar', icon: CalendarDays, desc: "See the calendars of everyone working at the user's assigned locations, read only (everyone sees their own)" },
+            { key: 'see_visit_locations',  label: 'Where logged', icon: MapPin, desc: "See where visits and resources were logged (On site, Nearby, how far away) for everyone working at the user's assigned locations (everyone sees their own)" },
             { key: 'edit_own_visits',      label: 'Edit own',      icon: Pencil, desc: 'Edit visits and resources the user logged themselves' },
             { key: 'edit_branch_visits',   label: 'Edit branch',   icon: Edit2,  desc: "Edit visits and resources logged by anyone working at the user's assigned locations" },
             { key: 'edit_all_visits',      label: 'Edit all',      icon: FileCog, desc: "Edit anyone's visits and resources" },

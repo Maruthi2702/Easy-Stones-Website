@@ -67,7 +67,7 @@ const ownerOf = (resource: Loose) => ({ createdBy: resource.uploadedBy || resour
 const nameOf = (customer: Loose) => customer.company || customer.contactName || '';
 
 /** POST /api/customers/:customerId/resources: the resource, its placement visit and calendar entry, together. */
-export async function addResource({ customerId, fields, performer, scheduleUserId, now, ids }: AddResourceInput) {
+export async function addResource({ customerId, fields, performer, scheduleUserId, now, ids, loggedFrom }: AddResourceInput) {
   const resourceId = new mongoose.Types.ObjectId(ids.resourceId), visitId = new mongoose.Types.ObjectId(ids.visitId);
   return mongoose.connection.transaction(async session => {
     const customer = await Customer.findById(customerId).session(session);
@@ -81,7 +81,8 @@ export async function addResource({ customerId, fields, performer, scheduleUserI
       _id: visitId, resourceId, date: fields.date, purpose: `Resource Placement: ${fields.resourceType || fields.title}`,
       notes: fields.notes || fields.description || `Added resource: ${fields.title}`,
       image: resource.image, createdBy: performer.id, createdByName: performer.name,
-      customerContactName: nameOf(customer), createdAt, followUp: '', followUpDate: ''
+      customerContactName: nameOf(customer), createdAt, followUp: '', followUpDate: '',
+      ...(loggedFrom ? { loggedFrom } : {})
     };
     const before = resourcesOf(customer);
     customer.resources.push(resource);

@@ -31,6 +31,8 @@ export interface AddResourceInput {
   now: () => string;
   /** newId() each: the resource, its placement visit, and a drop-in on the calendar. */
   ids: { resourceId: string; visitId: string; dropInId: string };
+  /** Where the logger was (src/utils/visitLocation.ts); kept on the placement visit. */
+  loggedFrom?: Loose | null;
 }
 
 export interface UpdateResourceInput {

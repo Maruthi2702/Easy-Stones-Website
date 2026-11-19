@@ -68,7 +68,7 @@ describe('repBreakdown', () => {
             resources: [{ uploadedBy: 'j' }],
             followUps: [{ createdBy: 'me', followUpDate: '10/01/2026' }, { createdBy: 'j', followUpDate: '2026-10-01' }]
         });
-        expect(repTotals(rows)).toEqual({ visits: 2, resources: 1, followUps: 2, late: 1, todayStops: 0 });
+        expect(repTotals(rows)).toEqual({ visits: 2, resources: 1, followUps: 2, late: 1, todayStops: 0, judged: 0, onSite: 0 });
     });
 
     it("counts today's stops on each person's calendar, not cancelled ones or other days", () => {
@@ -83,5 +83,19 @@ describe('repBreakdown', () => {
             ]
         });
         expect(rows.map((r) => [r.name, r.todayStops])).toEqual([['Casey', 1], ['Jesus B.', 2], ['Krish', 0]]);
+    });
+});
+
+describe('repBreakdown: On site', () => {
+    it('counts On site out of the visits that have a verdict, per rep and in total', () => {
+        const rows = repBreakdown({
+            ...base,
+            visits: [{ _id: 'a', createdBy: 'j' }, { _id: 'b', createdBy: 'j' }, { _id: 'c', createdBy: 'j' }, { _id: 'd', createdBy: 'me' }],
+            resources: [], followUps: [],
+            marks: { a: { mark: 'onSite' }, b: { mark: 'away' }, c: { mark: 'recorded' } }
+        });
+        expect(rows.find((r) => r.id === 'j')).toMatchObject({ visits: 3, judged: 2, onSite: 1 });
+        expect(rows.find((r) => r.id === 'me')).toMatchObject({ visits: 1, judged: 0, onSite: 0 });
+        expect(repTotals(rows)).toMatchObject({ judged: 2, onSite: 1 });
     });
 });

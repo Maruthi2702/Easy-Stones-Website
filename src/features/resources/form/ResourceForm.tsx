@@ -15,6 +15,7 @@ import { useResourceTypes, typeOptions as buildTypeOptions } from '../../../api/
 import { useModaSummary } from '../../../api/modaSummary';
 import { familyLookup, modaKindOf, modaChange } from '../../../utils/modaTotals';
 import { attachmentSrc } from './attachmentSrc';
+import { useLocationReading, LocationLine, LocationBlocked } from '../../location';
 import './ResourceForm.css';
 
 /*
@@ -50,7 +51,7 @@ export type ResourceFormProps = {
     customerLabel?: string;
     onCreateCustomer?: () => void;
     saving: boolean;
-    onSave: (fields: ReturnType<typeof resourceValuesToSave>) => void;
+    onSave: (fields: ReturnType<typeof resourceValuesToSave> & { loggedFrom?: unknown }) => void;
     onClose: () => void;
     canDelete?: boolean;
     onDelete?: () => void;
@@ -63,6 +64,8 @@ export default function ResourceForm({
 }: ResourceFormProps) {
     const [touched, touchField, markTouched] = useTouched();
     const [submitted, setSubmitted] = useState(false);
+    // Every new resource records where it was logged (owner, 2026-11-19); an edit keeps the original.
+    const location = useLocationReading(!isEdit);
 
     // The list is Admin → Resource Types, in the managers' order; a resource saved
     // with a type that's since been hidden still shows it.
@@ -106,7 +109,8 @@ export default function ResourceForm({
             goToField(first);
             return;
         }
-        onSave(resourceValuesToSave(values));
+        if (!isEdit && !location.reading) return;
+        onSave({ ...resourceValuesToSave(values), ...(isEdit ? {} : { loggedFrom: location.reading }) });
     };
 
     const footerStart = isEdit && canDelete ? (
@@ -131,7 +135,7 @@ export default function ResourceForm({
             submitLabel={isEdit ? 'Save changes' : 'Add resource'}
             savingLabel="Saving…"
             saving={saving}
-            submitDisabled={isEdit && dirtyCount === 0}
+            submitDisabled={(isEdit && dirtyCount === 0) || (!isEdit && location.status !== 'ready')}
             dirtyCount={dirtyCount}
             discardTitle={isEdit ? 'Discard your changes?' : 'Discard this resource?'}
             errors={errors}
@@ -140,6 +144,9 @@ export default function ResourceForm({
             footerStart={footerStart}
             footerNote={isEdit ? footerNote : null}
         >
+            {!isEdit && location.status === 'blocked' ? (
+                <LocationBlocked what="resources" onRetry={location.retry} />
+            ) : (<>
             <FormSection>
                 <FormField name="customerId" id="rf-customer" label="Customer" required error={shown('customerId')}>
                     <FormSearchPicker
@@ -207,6 +214,7 @@ export default function ResourceForm({
                         />
                     </FormField>
                 </FormRow>
+                {!isEdit && <LocationLine location={location} />}
                 {change && (
                     <div className="rf-moda" role="status">
                         {change.display.from !== change.display.to && (
@@ -278,6 +286,7 @@ export default function ResourceForm({
                     </div>
                 </div>
             </FormSection>
+            </>)}
         </FormModal>
     );
 }

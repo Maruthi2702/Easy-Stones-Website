@@ -6,6 +6,8 @@ import PeopleField from './components/PeopleField';
 import { VisitsViewSwitch } from './components/RepBreakdownTable';
 import type { PeopleFilter } from './components/PeopleField';
 import type { Loose } from '../../types/records';
+import { WhereLoggedField } from '../location';
+import type { WhereFilter } from '../../utils/visitLocation';
 
 export type DashboardHeaderProps = {
     activeTab: string;
@@ -22,6 +24,8 @@ export type DashboardHeaderProps = {
     people: PeopleFilter | null;
     /** Sales Visits' "List | By rep" switch, shown in the Filters panel; null hides it. */
     visitsView?: { value: 'list' | 'byRep'; onChange: (v: 'list' | 'byRep') => void } | null;
+    /** The "Where logged" filter (visit locations): null for anyone who may not see them. */
+    where?: { value: WhereFilter; onChange: (v: WhereFilter) => void } | null;
     /** The Calendar tab follows it too (Users & Roles → Visits → Team calendar). */
     showPeopleOnCalendar?: boolean;
     /** The menu button shows when the side nav is closed or on a phone. */
@@ -52,10 +56,11 @@ const TABS_WITH_OWN_TOOLS = ['resources', 'followups'];
  * Adding is the round + (DashboardAddButton), not header buttons.
  */
 export default function DashboardHeader({
-    activeTab, timeRange, rangeFrom = '', rangeTo = '', onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, visitsView = null, showPeopleOnCalendar = false,
+    activeTab, timeRange, rangeFrom = '', rangeTo = '', onTimeRangeChange, locationOptions, location, onLocationChange, currentUser, people, visitsView = null, where = null, showPeopleOnCalendar = false,
     showMenuButton, onOpenSidebar, onExportVisits, onOpenCalendarSync, finder = null, onToolSlot
 }: DashboardHeaderProps) {
     const rangeActive = timeRange === 'all' || timeRange === 'custom';
+    const whereActive = Boolean(where) && where?.value !== 'any';
     const rangeGroup = <RangeFilterGroup value={timeRange} from={rangeFrom} to={rangeTo} onChange={onTimeRangeChange} />;
     const tabOwnsTools = TABS_WITH_OWN_TOOLS.includes(activeTab);
     const calendarPeople = activeTab === 'planner' && people && showPeopleOnCalendar ? people : null;
@@ -99,9 +104,9 @@ export default function DashboardHeader({
                                 value={location}
                                 onChange={onLocationChange}
                                 user={currentUser}
-                                active={Boolean(people?.active) || rangeActive}
-                                activeCount={(people?.active ? 1 : 0) + (rangeActive ? 1 : 0)}
-                                onClear={people?.onReset}
+                                active={Boolean(people?.active) || rangeActive || whereActive}
+                                activeCount={(people?.active ? 1 : 0) + (rangeActive ? 1 : 0) + (whereActive ? 1 : 0)}
+                                onClear={() => { people?.onReset?.(); where?.onChange('any'); }}
                             >
                                 {rangeGroup}
                                 {visitsView && (
@@ -111,6 +116,7 @@ export default function DashboardHeader({
                                     </div>
                                 )}
                                 {people ? <PeopleField {...people} /> : null}
+                                {where && visitsView?.value !== 'byRep' ? <WhereLoggedField value={where.value} onChange={where.onChange} /> : null}
                             </LocationFilter>
                             <RowMenu
                                 label="More"

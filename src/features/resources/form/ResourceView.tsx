@@ -5,6 +5,8 @@ import { isPdfSource } from '../../../utils/attachments';
 import { formatDate } from '../../../utils/dateUtils';
 import { resourceQty } from '../../../utils/resourceForm';
 import type { Loose } from '../../../types/records';
+import { useResourceLocations } from '../../../api/visitLocations';
+import { LocationDetails } from '../../location';
 import { attachmentList, attachmentSrc } from './attachmentSrc';
 import './ResourceForm.css';
 
@@ -32,6 +34,8 @@ export default function ResourceView({ resource, customerLabel, onClose, onEdit,
     const photos = files.filter((f) => !isPdfSource(f));
     const type = resource.resourceType || resource.title || '—';
     const loggedBy = String(resource.uploadedByName || '').trim();
+    // Where it was logged (kept on its placement visit), for the people who may see it.
+    const location = useResourceLocations(resource._id ? [String(resource._id)] : [])[String(resource._id)];
 
     return (
         <FormModal
@@ -66,6 +70,12 @@ export default function ResourceView({ resource, customerLabel, onClose, onEdit,
                     <div><dt>Status</dt><dd>{resource.status || 'Active'}</dd></div>
                 </dl>
             </FormSection>
+
+            {location && (
+                <FormSection>
+                    <LocationDetails location={location} day={String(resource.date || '')} />
+                </FormSection>
+            )}
 
             {(resource.description || resource.notes) && (
                 <FormSection>

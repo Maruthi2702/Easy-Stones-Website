@@ -1,6 +1,6 @@
 {
-  "id": "923988ad-90a4-4aed-90d2-e9da4c7937e0",
-  "prevId": "62dc5694-5da7-47c3-bb71-074870db4f0e",
+  "id": "7b052bfd-c96e-4992-af24-f71e19faf241",
+  "prevId": "51f5034b-32a8-42fb-baa0-a88eb415c61c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3606,6 +3606,12 @@
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp(3)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "logged_from": {
+          "name": "logged_from",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         }

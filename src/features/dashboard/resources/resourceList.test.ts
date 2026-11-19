@@ -114,3 +114,15 @@ describe('row details', () => {
         expect(row).toMatchObject({ Date: '2026-10-09', Customer: 'TopLine', Resource: 'Binder', Qty: 1, 'Logged by': 'Krish', Status: 'Active' });
     });
 });
+
+describe('resourceExportRows: where it was logged', () => {
+    const reading = { lat: 1, lng: 1, accuracyM: 20, readAt: 'x', distanceM: 160, mark: 'onSite', device: 'phone', approximate: false } as never;
+    it('leaves the columns as they were without readings', () => {
+        const [row] = resourceExportRows([r({ _id: 'r1', date: '2026-10-09' })]);
+        expect(Object.keys(row)).not.toContain('Where Logged');
+    });
+    it('adds the three columns for a viewer who may see them, "-" where there is no reading', () => {
+        const rows = resourceExportRows([r({ _id: 'r1', date: '2026-10-09' }), r({ _id: 'r2', date: '2026-10-09' })], { r1: reading });
+        expect(rows.map((x) => [x['Where Logged'], x['Distance From Customer'], x['Logged From']])).toEqual([['On site', '0.1 mi', 'Phone'], ['-', '-', '-']]);
+    });
+});

@@ -1,9 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
-import { formatDate, getLocalISOString } from '../../utils/dateUtils';
+import { getLocalISOString } from '../../utils/dateUtils';
 import { DEFAULT_ROWS_PER_PAGE } from '../../components/shared/paginationConfig';
-import { splitCustomer } from '../../components/sales/visitsListHelpers';
 import { canAddVisit, visitViewScope } from '../../utils/visitAccess.ts';
 import { usePeopleOptions } from '../../api/myTeam';
 import { peopleDefault, repsParam, includesPerson, parseStoredPeople, showsWhoLogged, togglePerson, tickBranch, untickBranch, sanitizePeople, isJustMe, MY_TEAM } from './dashboardPeople';
@@ -15,6 +14,11 @@ import { DEFAULT_FOLLOW_UP_FILTERS, followUpsInView, withFilters } from '../../u
 import type { FollowUpFilters, FollowUpRange } from '../../utils/followUpList';
 import { todayISO } from '../../components/shared/calendar/calendarDates';
 import type { Loose } from '../../types/records';
+import { useVisitLocations, fetchVisitLocations, fetchResourceLocations } from '../../api/visitLocations';
+import { visitExportRows } from './visitExport';
+import { matchesWhere } from '../../utils/visitLocation';
+import type { WhereFilter } from '../../utils/visitLocation';
+import { VISIT_PERMISSIONS } from '../../utils/visitAccess';
 
 /**
  * The Sales dashboard's data (MIGRATION_NOTES.md §4, step A6): the time
@@ -380,7 +384,7 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
     // Whether to offer Add Visit / Add Resource anywhere (Users & Roles → Visits → Add).
     const canAddVisits = canAddVisit(currentUser);
 
-    const memoizedFilteredVisits = React.useMemo(() => {
+    const visitsBeforeWhere = React.useMemo(() => {
         const startDate = dashboardDateRangeStart;
         const searchLower = dashboardSearchTerm.toLowerCase();
         const currentUserIdStr = currentUserId?.toString();
@@ -443,6 +447,21 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
 
         return [...filtered].sort((a, b) => parseSortDate(b) - parseSortDate(a));
     }, [dashboardVisits, dashboardDateRangeStart, seesOthers, currentUserId, dashboardSearchTerm]);
+
+    // Where visits were logged (src/utils/visitLocation.ts), for the "Where logged" filter and By rep's
+    // On site column. Only people with the "See where visits were logged" switch get either; the server
+    // still answers only for the readings they may see. The marks are fetched when one of them needs them.
+    const canSeeLocations = (currentUser?.permissions || []).includes(VISIT_PERMISSIONS.SEE_LOCATION);
+    const [whereFilter, setWhereFilterRaw] = useState<WhereFilter>('any');
+    const [visitsView, setVisitsViewRaw] = useState<'list' | 'byRep'>('list');
+    const needMarks = canSeeLocations && (whereFilter !== 'any' || visitsView === 'byRep');
+    const visitMarks = useVisitLocations(
+        needMarks ? dashboardVisits.filter((v) => v && !v._saving).map((v) => String(v._id)) : [], needMarks
+    );
+    const memoizedFilteredVisits = React.useMemo(
+        () => (whereFilter === 'any' || !canSeeLocations ? visitsBeforeWhere : visitsBeforeWhere.filter((v) => matchesWhere(visitMarks[String(v._id)], whereFilter))),
+        [visitsBeforeWhere, whereFilter, canSeeLocations, visitMarks]
+    );
 
     const memoizedFilteredResources = React.useMemo(() => {
         const startDate = dashboardDateRangeStart;
@@ -555,7 +574,6 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
     // People filter. By rep counts the lists already loaded, so its totals are
     // the tiles'. Opening it on Me widens to My team (one row says nothing);
     // a rep's row opens their work in the list.
-    const [visitsView, setVisitsViewRaw] = useState<'list' | 'byRep'>('list');
     const setVisitsView = (view: 'list' | 'byRep') => {
         if (view === 'byRep' && isJustMe(dashboardPeople, me)) setDashboardPeople(MY_TEAM);
         setVisitsViewRaw(view);
@@ -575,10 +593,11 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
         selection: dashboardPeople,
         location: dashboardLocation || '',
         me,
-        today: new Date().toLocaleDateString('en-CA')
+        today: new Date().toLocaleDateString('en-CA'),
+        marks: canSeeLocations ? visitMarks : {}
     }) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dashboardPeople is rebuilt each render; its key is what changes
-    [canPickPeople, dashboardVisits, dashboardResources, dashboardFollowups, followUpFilters, dashboardTimeRange, rangeFrom, rangeTo, teamCalendar, allSchedules, peopleOptions, peopleValueKey, dashboardLocation, me]);
+    [canPickPeople, dashboardVisits, dashboardResources, dashboardFollowups, followUpFilters, dashboardTimeRange, rangeFrom, rangeTo, teamCalendar, allSchedules, peopleOptions, peopleValueKey, dashboardLocation, me, canSeeLocations, visitMarks]);
 
     // The dashboard's Sales Visits list is its own copy (fetchDashboardData), so a
     // saved visit is put in it too, tagged _saving until the server confirms.
@@ -599,21 +618,9 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
         // Only ever a list: the Excel button used to pass its click event in
         // here (onClick={handleExportVisits}), and `event.map` threw.
         const visits = Array.isArray(customVisits) ? customVisits : memoizedFilteredVisits;
-        const data = visits.map(v => {
-            const { company, contact } = splitCustomer(v);
-            return {
-                Date: formatDate(v.date),
-                Company: company,
-                Contact: contact || '-',
-                Location: v.location || '-',
-                'Visit Type': v.purpose || '-',
-                'Logged By': v.createdByName || '-',
-                Notes: v.notes || '-',
-                'Follow-up Date': v.followUpDate ? formatDate(v.followUpDate) : '-',
-                'Follow-up Notes': v.followUp || v.nextAction || '-',
-                Outcome: v.outcome || '-'
-            };
-        });
+        // Where each visit was logged: only for people who may see it, and only the readings the server allows.
+        const marks = canSeeLocations ? await fetchVisitLocations(visits.filter((v) => v && !v._saving).map((v) => String(v._id))) : undefined;
+        const data = visitExportRows(visits, marks);
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(data);
@@ -625,7 +632,9 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
     const handleExportResources = async (rows: Loose[] = memoizedFilteredResources, fileName = 'Resources.xlsx') => {
         const XLSX = await import('xlsx');
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(resourceExportRows(rows));
+        // Where each was logged: only for people who may see it, and only the readings the server allows.
+        const marks = canSeeLocations ? await fetchResourceLocations(rows.map((r) => String(r._id))) : undefined;
+        const ws = XLSX.utils.json_to_sheet(resourceExportRows(rows, marks));
         XLSX.utils.book_append_sheet(wb, ws, 'Resources');
         XLSX.writeFile(wb, fileName);
     };
@@ -662,6 +671,9 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
         resetDashboardPeople: () => setDashboardPeople(peopleDefault(me)),
         showMyTeam: () => setDashboardPeople(MY_TEAM),
         visitsView: canPickPeople ? visitsView : 'list' as const,
+        canSeeLocations,
+        whereFilter,
+        setWhereFilter: (value: WhereFilter) => { setWhereFilterRaw(value); setCurrentVisitsPage(1); },
         setVisitsView,
         showRepWork,
         repRows,

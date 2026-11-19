@@ -37,7 +37,8 @@ export const VISIT_PERMISSIONS = Object.freeze({
   EDIT_ALL: 'edit_all_visits',
   EDIT_BRANCH: 'edit_branch_visits',
   DELETE_ALL: 'delete_all_visits',
-  DELETE_BRANCH: 'delete_branch_visits'
+  DELETE_BRANCH: 'delete_branch_visits',
+  SEE_LOCATION: 'see_visit_locations'
 });
 
 const permsOf = (user: Loose | null | undefined) => (Array.isArray(user?.permissions) ? user.permissions : []);
@@ -96,3 +97,18 @@ export const canModifyVisit = (user: Loose | null | undefined, visit: Loose | nu
 
 /** Whether `user` may delete `visit` — same shape as canModifyVisit, with the delete permissions. */
 export const canDeleteVisit = (user: Loose | null | undefined, visit: Loose | null | undefined, team?: unknown) => mayActOn(user, visit, team, DELETE);
+
+/**
+ * Whether `user` may see where `visit` ({ createdBy }) was logged (src/utils/visitLocation.ts).
+ * The person who logged it always can; otherwise it takes the Users & Roles switch
+ * "See where visits were logged" and follows the team rule: only visits logged by the
+ * viewer's team (teammatesOf in teamScope.ts: '*' or a Set of user ids).
+ */
+export const canSeeVisitLocation = (user: Loose | null | undefined, visit: Loose | null | undefined, team?: unknown) => {
+  if (!user || !visit) return false;
+  const author = visit.createdBy ? String(visit.createdBy) : '';
+  const userId = String(user.id ?? user._id ?? '');
+  if (author && userId && author === userId) return true;
+  if (!permsOf(user).includes(VISIT_PERMISSIONS.SEE_LOCATION)) return false;
+  return team === '*' || (Boolean(author) && team instanceof Set && team.has(author));
+};

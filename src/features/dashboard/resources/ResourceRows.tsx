@@ -6,6 +6,8 @@ import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import { canDeleteVisit, canModifyVisit } from '../../../utils/visitAccess';
 import { resourceQty } from '../../../utils/resourceForm';
 import type { Loose } from '../../../types/records';
+import { useResourceLocations } from '../../../api/visitLocations';
+import { LocationChip } from '../../location';
 import './ResourcesPanel.css';
 import {
     familyColour, familyTag, customerParts, groupByWeek, loggedByOf, resourceDay, shortDay, typeInfoFrom, typeOf
@@ -67,6 +69,8 @@ const TypeChip = ({ type }: { type: string }) => {
 
 /** Desktop and tablet: one row per resource; a click (or Enter) opens it. */
 export function ResourceTable({ rows, today, showCustomer = true, ...a }: RowsProps) {
+    // Where each was logged, for the viewers who may see it (the same rows on the Dashboard and the profile's Resources tab).
+    const locations = useResourceLocations(rows.map((r) => String(r._id)));
     return (
         <div className="dashboard-table-wrapper">
             <table className="dashboard-table rs-table">
@@ -106,6 +110,7 @@ export function ResourceTable({ rows, today, showCustomer = true, ...a }: RowsPr
                                 )}
                                 <td>
                                     <TypeChip type={typeOf(r)} /><StatusTag status={r.status} />
+                                    <LocationChip location={locations[String(r._id)]} />
                                     {!showCustomer && note && <span className="rs-note-inline">{note}</span>}
                                 </td>
                                 <td className="rs-num">{resourceQty(r)}</td>
@@ -129,6 +134,7 @@ export function ResourceTable({ rows, today, showCustomer = true, ...a }: RowsPr
 export function ResourceCards({ rows, today, showCustomer = true, ...a }: RowsProps) {
     const info = useTypeInfo();
     const families = useResourceFamilies().types;
+    const locations = useResourceLocations(rows.map((r) => String(r._id)));
     return (
         <div className="rs-cards">
             {groupByWeek(rows, today).map((group) => (
@@ -149,6 +155,7 @@ export function ResourceCards({ rows, today, showCustomer = true, ...a }: RowsPr
                                         ? <><strong>{company || '—'}</strong><span>{type ? typeLabel : '—'}<StatusTag status={r.status} /></span></>
                                         : <><strong>{type ? typeLabel : '—'}<StatusTag status={r.status} /></strong>{note && <span>{note}</span>}</>}
                                     {meta && <small>{meta}</small>}
+                                    <LocationChip location={locations[String(r._id)]} />
                                 </span>
                                 <span className="rs-card-side">
                                     {busy ? <Loader size={14} className="animate-spin" aria-label="Opening" /> : shortDay(resourceDay(r), today)}

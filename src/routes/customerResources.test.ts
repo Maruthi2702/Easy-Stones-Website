@@ -26,7 +26,8 @@ const doc = async (id = source) => {
   if (!customer) throw new Error('Expected fixture customer');
   return customer;
 };
-const add = (notes: string, over = {}) => request(app).post(`/api/customers/${source}/resources`).send({ resourceType: 'Same type', date: '2026-10-31', notes, ...over });
+const here = (over = {}) => ({ lat: 47.6062, lng: -122.3321, accuracyM: 20, takenAtMs: Date.now(), device: 'phone', ...over });
+const add = (notes: string, over = {}) => request(app).post(`/api/customers/${source}/resources`).send({ resourceType: 'Same type', date: '2026-10-31', notes, loggedFrom: here(), ...over });
 beforeAll(async () => {
   mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } }); await mongoose.connect(mongo.getUri());
   await Promise.all([Customer.createCollection(), User.createCollection(), Schedule.createCollection()]);
@@ -42,6 +43,20 @@ beforeEach(async () => {
   ]);
   await User.collection.insertMany([{ _id: me, username: 'rep', assignedLocations: ['Seattle'] }, { _id: other, username: 'other', assignedLocations: ['Spokane'] }]);
   await Customer.create([{ _id: source, company: 'Source', contactName: 'Pat', email: 'source@example.invalid' }, { _id: destination, company: 'Destination', contactName: 'Lee', email: 'destination@example.invalid' }]);
+});
+describe('where a resource was logged', () => {
+  it('is refused with no location, and nothing is saved', async () => {
+    await add('x', { loggedFrom: undefined }).expect(400);
+    await add('x', { loggedFrom: here({ takenAtMs: Date.now() - 20 * 60 * 1000 }) }).expect(400);
+    expect((await doc()).resources).toHaveLength(0);
+  });
+  it('is kept on the placement visit with the mark the server worked out', async () => {
+    await Customer.updateOne({ _id: source }, { coordinates: { lat: 47.6062, lng: -122.3321 } });
+    const created = (await add('x').expect(201)).body;
+    expect(created.visit.loggedFrom).toMatchObject({ mark: 'onSite', device: 'phone' });
+    const stored = (await doc()).visits[0];
+    expect(stored.loggedFrom).toMatchObject({ mark: 'onSite' });
+  });
 });
 describe('resource types come from the list', () => {
   it('refuses a type that is not on the list or is hidden, but lets a resource keep the one it has', async () => {

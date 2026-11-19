@@ -1,6 +1,8 @@
 import { dayOf } from '../../utils/followUpPanel.ts';
 import { isFollowUpDone } from '../../utils/followUpList.ts';
 import type { PersonOption } from '../../api/myTeam';
+import { onSiteTally } from '../../utils/visitLocation.ts';
+import type { LoggedFrom } from '../../utils/visitLocation.ts';
 import type { Loose } from '../../types/records';
 
 /**
@@ -28,6 +30,9 @@ export type RepRow = {
     late: number;
     /** Stops on their calendar today (the team calendar; 0 without it). */
     todayStops: number;
+    /** Visits with a verdict (in person, customer on the map) and how many were On site (src/utils/visitLocation.ts). */
+    judged: number;
+    onSite: number;
 };
 
 export type RepBreakdownInput = {
@@ -45,6 +50,8 @@ export type RepBreakdownInput = {
     me: string;
     /** Today, YYYY-MM-DD. */
     today: string;
+    /** Where each visit was logged (what this person may see), by visit id. */
+    marks?: Record<string, Pick<LoggedFrom, 'mark'>>;
 };
 
 export const NOT_RECORDED = '';
@@ -52,7 +59,7 @@ const NOT_RECORDED_NAME = 'Not recorded';
 
 const idOf = (v: unknown) => (v == null ? '' : String(v));
 
-export function repBreakdown({ visits, resources, followUps, schedules = [], people, selection, location, me, today }: RepBreakdownInput): RepRow[] {
+export function repBreakdown({ visits, resources, followUps, schedules = [], people, selection, location, me, today, marks = {} }: RepBreakdownInput): RepRow[] {
     const byId = new Map(people.map((p) => [p.value, p]));
     const rows = new Map<string, RepRow>();
     const rowFor = (id: string, fallbackName = ''): RepRow => {
@@ -65,7 +72,7 @@ export function repBreakdown({ visits, resources, followUps, schedules = [], peo
                 branch: p?.location || '',
                 you: Boolean(me) && id === me,
                 inactive: Boolean(p?.inactive),
-                visits: 0, resources: 0, followUps: 0, late: 0, todayStops: 0
+                visits: 0, resources: 0, followUps: 0, late: 0, todayStops: 0, judged: 0, onSite: 0
             };
             rows.set(id, row);
         }
@@ -79,7 +86,13 @@ export function repBreakdown({ visits, resources, followUps, schedules = [], peo
         : people.filter((p) => !p.inactive && (!location || (p.locations || [p.location]).includes(location)));
     for (const p of inView) rowFor(p.value);
 
-    for (const v of visits) rowFor(idOf(v?.createdBy), String(v?.createdByName || '')).visits++;
+    const readingsOf = new Map<string, Array<Pick<LoggedFrom, 'mark'> | undefined>>();
+    for (const v of visits) {
+        const id = idOf(v?.createdBy);
+        rowFor(id, String(v?.createdByName || '')).visits++;
+        readingsOf.set(id, [...(readingsOf.get(id) || []), marks[idOf(v?._id)]]);
+    }
+    for (const [id, readings] of readingsOf) Object.assign(rowFor(id), onSiteTally(readings));
     for (const r of resources) rowFor(idOf(r?.uploadedBy || r?.createdBy), String(r?.uploadedByName || '')).resources++;
     for (const f of followUps) {
         const row = rowFor(idOf(f?.createdBy), String(f?.createdByName || ''));
@@ -104,6 +117,6 @@ export function repBreakdown({ visits, resources, followUps, schedules = [], peo
 
 /** The table's last row: every column added up. */
 export const repTotals = (rows: RepRow[]) => rows.reduce(
-    (t, r) => ({ visits: t.visits + r.visits, resources: t.resources + r.resources, followUps: t.followUps + r.followUps, late: t.late + r.late, todayStops: t.todayStops + r.todayStops }),
-    { visits: 0, resources: 0, followUps: 0, late: 0, todayStops: 0 }
+    (t, r) => ({ visits: t.visits + r.visits, resources: t.resources + r.resources, followUps: t.followUps + r.followUps, late: t.late + r.late, todayStops: t.todayStops + r.todayStops, judged: t.judged + r.judged, onSite: t.onSite + r.onSite }),
+    { visits: 0, resources: 0, followUps: 0, late: 0, todayStops: 0, judged: 0, onSite: 0 }
 );

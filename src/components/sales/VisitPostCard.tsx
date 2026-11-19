@@ -1,3 +1,5 @@
+import { LocationChip } from '../../features/location';
+import type { LoggedFrom } from '../../utils/visitLocation';
 import type { Loose } from '../../types/records.ts';
 import React from 'react';
 import { Smile, Edit2, Trash2, FileText, X, CheckCircle2, Handshake, Calendar, StickyNote } from 'lucide-react';
@@ -25,8 +27,9 @@ const VisitPostCard = ({
     handleDeleteVisit,
     handleOpenGallery,
     canModify,
-    canDelete
-}: { visit: Loose; currentUser: Loose | null; currentUserId: string | null; handleReaction: (id: string, reaction: string) => void; activeReactionMessageId: string | null; setActiveReactionMessageId: (id: string | null) => void; handleEditVisit: (visit: Loose) => void; handleDeleteVisit: (id: string) => void; handleOpenGallery: (images: string[], index: number) => void; canModify?: boolean; canDelete?: boolean }) => {
+    canDelete,
+    location
+}: { location?: LoggedFrom | null; visit: Loose; currentUser: Loose | null; currentUserId: string | null; handleReaction: (id: string, reaction: string) => void; activeReactionMessageId: string | null; setActiveReactionMessageId: (id: string | null) => void; handleEditVisit: (visit: Loose) => void; handleDeleteVisit: (id: string) => void; handleOpenGallery: (images: string[], index: number) => void; canModify?: boolean; canDelete?: boolean }) => {
     const isQuickNote = visit.purpose?.toLowerCase().includes('quick note');
     const isMeeting = visit.purpose?.toLowerCase().includes('meeting') || visit.purpose?.toLowerCase().includes('visit');
     const isResource = visit.purpose?.toLowerCase().includes('resource');
@@ -144,6 +147,7 @@ const VisitPostCard = ({
                             <span>{visit.purpose}</span>
                         </div>
                     )}
+                    {location && <div className="post-location"><LocationChip location={location} /></div>}
 
                     {/* Images */}
                     {visit.image && (Array.isArray(visit.image) ? visit.image : [visit.image]).length > 0 && (

@@ -169,6 +169,7 @@ import { startLocationRetention } from './src/jobs/locationRetention.ts';
 import createCustomerSpsImportRouter from './src/routes/customerSpsImport.ts';
 import { resumeRunningImports } from './src/services/spsImportRunner.ts';
 import createVisitsRouter from './src/routes/visits.ts';
+import createVisitLocationsRouter from './src/routes/visitLocations.ts';
 import createCustomerHistoryRouter, { customerHistoryResponse } from './src/routes/customerHistory.ts';
 import createCustomerResourcesRouter from './src/routes/customerResources.ts';
 import { loadFamilies } from './src/services/modaCount.ts';
@@ -758,7 +759,7 @@ async function startServer() {
             'view_inventory_analysis', 'import_inventory_analysis',
             'view_delivery_schedule', 'edit_delivery_schedule', 'delete_delivery_schedule', 'clear_pod_signatures',
             'add_visits', 'edit_own_visits', 'delete_own_visits',
-            'view_branch_visits', 'edit_branch_visits', 'delete_branch_visits', 'view_team_calendar'
+            'view_branch_visits', 'edit_branch_visits', 'delete_branch_visits', 'view_team_calendar', 'see_visit_locations'
           ],
           isSystem: true
         },
@@ -949,6 +950,10 @@ async function startServer() {
         // sees others' visits gets to see their calendars too, once.
         { from: 'view_branch_visits', grant: ['view_team_calendar'] },
         { from: 'view_all_visits', grant: ['view_team_calendar'] },
+        // Where visits were logged (2026-11-19, src/utils/visitLocation.ts): given once to every
+        // role that sees others' visits; the team rule still limits whose.
+        { from: 'view_branch_visits', grant: ['see_visit_locations'] },
+        { from: 'view_all_visits', grant: ['see_visit_locations'] },
         ...CHECKIN_MIGRATION,
         // Customers (2026-10-17): add and import split from manage_customers.
         ...CUSTOMER_MIGRATION,
@@ -3664,6 +3669,9 @@ app.use('/api/customers', createVisitsRouter({
   processBase64Image, getPerformerInfo, getNowLocalISO,
   emitScheduleUpdate: (...args: Parameters<typeof emitScheduleUpdate>) => emitScheduleUpdate(...args)
 }));
+
+// Where visits and resources were logged (src/routes/visitLocations.ts, tested): only to who may see them.
+app.use('/api/visit-locations', createVisitLocationsRouter({ authenticate, requireSalesPage }));
 
 // Delete visit
 // Delete visit

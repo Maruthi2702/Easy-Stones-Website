@@ -230,7 +230,7 @@ describe('real dashboard multi-location access and totals', () => {
             ...(body ? { body: JSON.stringify(body) } : {})
         });
         try {
-            const added = await write('POST', `customers/${customerId}/visits`, { date: '2026-11-05', purpose: 'Unscheduled in Person Sales Call', notes: 'Team update', followUp: 'Call', followUpDate: '2026-11-06' });
+            const added = await write('POST', `customers/${customerId}/visits`, { date: '2026-11-05', purpose: 'Unscheduled in Person Sales Call', notes: 'Team update', followUp: 'Call', followUpDate: '2026-11-06', loggedFrom: { lat: 47.6062, lng: -122.3321, accuracyM: 20, takenAtMs: Date.now(), device: 'phone' } });
             expect(added.status).toBe(201);
             const { visit } = await added.json();
             await expect.poll(() => updates.length).toBe(1);

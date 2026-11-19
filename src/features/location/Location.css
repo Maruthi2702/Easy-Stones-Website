@@ -1,0 +1,59 @@
+/* The location line on Add visit / Add resource and the "turn on location" screen. Uses the form template's tokens. */
+.loc-line { display: grid; grid-template-columns: 22px 1fr; gap: 2px 8px; border-radius: 11px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: var(--fm-tx); }
+.loc-line small { grid-column: 2; color: var(--fm-mut); font-size: 12px; }
+.loc-ic { grid-row: span 2; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; color: #fff; }
+.loc-ok { background: color-mix(in srgb, var(--fm-ok) 14%, transparent); }
+.loc-ok .loc-ic { background: var(--fm-ok); color: var(--fm-on-gold); }
+.loc-warn { background: var(--fm-gold-tint); }
+.loc-warn .loc-ic { background: var(--fm-gold); color: var(--fm-on-gold); }
+.loc-wait { background: var(--fm-in); border: 1px dashed var(--fm-bd); }
+.loc-wait .loc-ic { background: var(--fm-bd2); color: var(--fm-mut); }
+.loc-spin { animation: loc-spin 1s linear infinite; }
+.loc-retry { grid-column: 2; justify-self: start; margin-top: 4px; background: none; border: 0; padding: 4px 0; font: inherit; font-weight: 600; color: var(--fm-gold-tx); cursor: pointer; min-height: 32px; }
+.loc-blocked { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 48px 8px; }
+.loc-blocked h3 { margin: 0; font-size: 17px; color: var(--fm-tx); }
+.loc-blocked p { margin: 0; max-width: 40ch; font-size: 13.5px; color: var(--fm-mut); }
+.loc-big { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--fm-gold-tint); color: var(--fm-gold-tx); }
+@keyframes loc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loc-spin { animation: none; } }
+
+/* The app-open sheet. Above the tab bar (z 96–98) and every page, like any sheet. */
+.loc-gate-backdrop { z-index: 2147483000; }
+.loc-gate { z-index: 2147483001; max-width: 460px; margin: 0 auto; border-radius: 18px 18px 0 0; }
+.loc-gate-body { display: grid; gap: 12px; justify-items: center; padding: 22px 20px 18px; text-align: left; }
+.loc-gate-body h3 { margin: 0; font-size: 18px; color: var(--fm-tx); }
+.loc-gate-body ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; color: var(--fm-mut); justify-self: stretch; }
+.loc-gate-body .fm-btn { justify-self: stretch; min-height: 48px; }
+.loc-gate-skip { justify-self: center; color: var(--fm-mut); }
+@media (min-width: 641px) { .loc-gate { bottom: 24px; left: 50%; right: auto; width: 460px; transform: translateX(-50%); border-radius: 18px; animation: none; } }
+
+/* The mark on rows (dashboard Visits, the customer's Visits tab, Visit view). */
+.loc-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1.4; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.loc-chip--ok { color: #1f8a4c; background: rgba(31, 138, 76, 0.13); }
+.loc-chip--warn { color: #a8670a; background: rgba(214, 140, 20, 0.15); }
+.loc-chip--bad { color: #b3372d; background: rgba(179, 55, 45, 0.12); }
+.loc-chip--none { color: #6b7385; background: rgba(107, 115, 133, 0.14); }
+body:not(.light-theme-active) .loc-chip--ok { color: #4cc283; background: rgba(76, 194, 131, 0.16); }
+body:not(.light-theme-active) .loc-chip--warn { color: #e3a944; background: rgba(227, 169, 68, 0.17); }
+body:not(.light-theme-active) .loc-chip--bad { color: #ec7a6f; background: rgba(236, 122, 111, 0.16); }
+body:not(.light-theme-active) .loc-chip--none { color: #9aa3b6; background: rgba(154, 163, 182, 0.15); }
+.post-location { margin-top: 8px; }
+
+/* Filters → Where logged */
+.loc-where { display: flex; flex-wrap: wrap; gap: 8px; }
+.loc-where-opt { font: inherit; font-size: 13px; font-weight: 600; min-height: 36px; padding: 6px 14px; border-radius: 999px; cursor: pointer; border: 1px solid var(--fm-bd, rgba(128,128,128,.4)); background: transparent; color: inherit; }
+.loc-where-opt.is-on { border-color: var(--fm-gold, #d4af37); background: var(--fm-gold-tint, rgba(212,175,55,.16)); }
+.loc-where-opt:focus-visible { outline: 2px solid var(--fm-gold, #d4af37); outline-offset: 2px; }
+
+/* Visit view / View resource: "Where it was logged". */
+.loc-details { display: grid; gap: 8px; border: 1px solid var(--fm-bd2, rgba(128,128,128,.25)); border-radius: 12px; padding: 12px 14px; }
+.loc-details h3 { margin: 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--fm-mut, #888); }
+.loc-details dl { margin: 0; display: grid; gap: 6px; }
+.loc-details dl > div { display: grid; grid-template-columns: 96px 1fr; gap: 8px; font-size: 13.5px; align-items: center; }
+.loc-details dt { color: var(--fm-mut, #888); }
+.loc-details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.loc-details-link { display: inline-flex; align-items: center; gap: 5px; justify-self: start; font-size: 13.5px; font-weight: 600; color: var(--fm-gold-tx, #b8993f); text-decoration: none; min-height: 32px; }
+@media (max-width: 480px) { .loc-details dl > div { grid-template-columns: 1fr; gap: 0; } }
+/* Beside a resource's type in the table. */
+.rs-table .loc-chip { margin-left: 8px; }
+.rs-card-text .loc-chip { margin-top: 4px; justify-self: start; }

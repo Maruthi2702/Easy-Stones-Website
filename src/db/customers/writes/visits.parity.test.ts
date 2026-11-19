@@ -80,7 +80,10 @@ function addInput(over: Record<string, unknown> = {}, o: { customerId?: string; 
     customerId: o.customerId ?? acme,
     visit: {
       _id, date: '2026-11-10', purpose: SALES_CALL, notes: 'hi', outcome: '', followUp: '', followUpDate: '',
-      image: undefined, createdBy: String(rep), createdByName: 'Jo', customerContactName: 'Acme Stone', createdAt: NOW, ...over
+      image: undefined, createdBy: String(rep), createdByName: 'Jo', customerContactName: 'Acme Stone', createdAt: NOW,
+      // Where the logger was (src/utils/visitLocation.ts): stored once, and the copy must read it the same.
+      loggedFrom: { lat: 47.6062, lng: -122.3321, accuracyM: 20, readAt: NOW, distanceM: 120, mark: 'onSite', device: 'phone', approximate: false },
+      ...over
     },
     calendar: { userId: o.userId === undefined ? String(rep) : o.userId, dropInId: newId() },
     log: { id: newId(), performedBy: String(rep), performedByName: 'Jo', performedByRole: 'admin', details: { purpose: over.purpose ?? SALES_CALL, date: over.date ?? '2026-11-10' } },
@@ -114,6 +117,18 @@ describe('add a visit', () => {
     });
     expect(mongo.saved.kind).toBe('saved');
     expect(mongo.saved.events).toHaveLength(1);
+  });
+
+  it('where it was logged is found by visit id, and only for visits that have a reading', async () => {
+    const input = addInput();
+    const none = addInput({ loggedFrom: undefined });
+    const { mongo } = await sameThing(async () => {
+      await settle(await data.addVisit(input));
+      await settle(await data.addVisit(none));
+      return data.visitLocations({ visitIds: [input.visit._id, none.visit._id, newId(), 'not-an-id'], resourceIds: [] });
+    });
+    expect(mongo).toHaveLength(1);
+    expect(mongo[0]).toMatchObject({ visitId: input.visit._id, resourceId: null, createdBy: String(rep) });
   });
 
   it('completes the logger\'s own planned entry that day instead of adding one', async () => {
