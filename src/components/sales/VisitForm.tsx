@@ -1,5 +1,5 @@
 import type { Loose } from '../../types/records.ts';
-import React, { useMemo, useState } from 'react';
+import React, { useContext, useMemo, useState } from 'react';
 import { Camera, FileText, Loader2, Trash2, X } from 'lucide-react';
 import FormModal from '../shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker, SegmentedToggle } from '../shared/form/FormControls';
@@ -16,6 +16,9 @@ import {
 import { useVisitTypes, typeOptions as buildTypeOptions } from '../../api/typeLists';
 import './VisitForm.css';
 import { DatePicker } from '../shared/calendar/Calendar';
+import AuthContext from '../../context/AuthContext';
+import { homeLocationOf } from '../../utils/locationFilter';
+import { customerAfterTypeChange } from '../../utils/officeAccounts';
 
 /*
  * Add visit / Edit visit, on the shared form template (FORM_TEMPLATE.md),
@@ -57,9 +60,11 @@ export default function VisitForm({
     onCreateCustomer,
     canDelete = false,
     onDelete
-}: { isEdit: boolean; visit?: Loose | null; values: Loose; setValues: React.Dispatch<React.SetStateAction<Loose>>; initial: Loose; followUpOn: boolean; onFollowUpChange: (on: boolean) => void; customerOptions?: { value: string; label: string; description?: string; keywords?: string }[]; customersLoading?: boolean; customerLabel?: string; saving: boolean; onSave: (value: Loose) => void; onClose: () => void; onUpload: React.ChangeEventHandler<HTMLInputElement>; uploading?: boolean; onRemoveImage: (index: number) => void; onCreateCustomer?: (() => void) | null; canDelete?: boolean; onDelete?: (() => void) | null }) {
+}: { isEdit: boolean; visit?: Loose | null; values: Loose; setValues: React.Dispatch<React.SetStateAction<Loose>>; initial: Loose; followUpOn: boolean; onFollowUpChange: (on: boolean) => void; customerOptions?: { value: string; label: string; description?: string; keywords?: string; customerType?: string }[]; customersLoading?: boolean; customerLabel?: string; saving: boolean; onSave: (value: Loose) => void; onClose: () => void; onUpload: React.ChangeEventHandler<HTMLInputElement>; uploading?: boolean; onRemoveImage: (index: number) => void; onCreateCustomer?: (() => void) | null; canDelete?: boolean; onDelete?: (() => void) | null }) {
     const [touched, touchField, markTouched] = useTouched();
     const [submitted, setSubmitted] = useState(false);
+    // Optional on purpose: tests mount the form with no provider.
+    const home = homeLocationOf(useContext(AuthContext)?.user ?? {});
 
     const set = (patch: Loose) => setValues((v) => ({ ...v, ...patch }));
     const touch = (field: string) => touchField(field, String(values[field] ?? '') !== String(initial[field] ?? ''));
@@ -168,7 +173,12 @@ export default function VisitForm({
                         <FormPicker
                             id="vf-purpose"
                             value={values.purpose || ''}
-                            onChange={(v) => { set({ purpose: v }); markTouched('purpose'); }}
+                            onChange={(v) => {
+                                // In-office admin day / Personal time off belong to the home location's office account.
+                                const office = isEdit ? null : customerAfterTypeChange({ typeName: v, customerId: String(values.customerId || ''), options: customers, home });
+                                set(office === null ? { purpose: v } : { purpose: v, customerId: office });
+                                markTouched('purpose');
+                            }}
                             options={typeOptions}
                             placeholder="Choose a visit type"
                             sheetTitle="Visit type"
