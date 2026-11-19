@@ -44,35 +44,41 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-describe('dashboard multiple locations and reps', () => {
-    it('defaults to Me at home, combines locations and reps, and resets every list page', async () => {
+describe('dashboard People across branches', () => {
+    it('opens on Me with no location, mixes branches by ticking, and resets every list page', async () => {
         const { result } = renderHook(() => useDashboardData(deps()));
         await waitFor(() => expect(result.current.stats.visits).toBe(1));
-        expect(result.current.dashboardLocation).toBe('Seattle');
+        expect(result.current.dashboardLocation).toBe('');
         expect(calls().at(-1)?.searchParams.get('reps')).toBe('admin');
+        expect(calls().at(-1)?.searchParams.get('location')).toBeNull();
         act(() => result.current.showMyTeam());
-        await waitFor(() => expect(result.current.stats.visits).toBe(3));
+        await waitFor(() => expect(result.current.stats.visits).toBe(5));
         act(() => {
             result.current.setCurrentVisitsPage(3); result.current.setCurrentResourcesPage(3); result.current.setCurrentFollowUpPage(3);
         });
-        act(() => result.current.handleDashboardLocationChange(''));
-        await waitFor(() => expect(result.current.stats.visits).toBe(5));
-        expect([result.current.currentVisitsPage, result.current.currentResourcesPage, result.current.currentFollowUpPage]).toEqual([1, 1, 1]);
         act(() => result.current.setDashboardPeople(['sea', 'dal']));
         await waitFor(() => expect(result.current.stats.visits).toBe(2));
+        expect([result.current.currentVisitsPage, result.current.currentResourcesPage, result.current.currentFollowUpPage]).toEqual([1, 1, 1]);
+        // One Seattle rep and one Dallas rep together: the case a single Location could not show.
         expect(result.current.memoizedFilteredVisits.map(row => row.createdBy).sort()).toEqual(['dal', 'sea']);
-        act(() => result.current.handleDashboardLocationChange('Dallas'));
-        await waitFor(() => expect(result.current.stats.visits).toBe(1));
-        expect(result.current.memoizedFilteredVisits.map(row => row.createdBy)).toEqual(['dal']);
     });
 
-    it('sends the same location, reps and custom dates to every dashboard endpoint', async () => {
+    it('ticks and unticks a whole branch from its heading', async () => {
+        const { result } = renderHook(() => useDashboardData(deps()));
+        await waitFor(() => expect(result.current.dashboardTableLoading).toBe(false));
+        act(() => result.current.setDashboardPeople(['atl']));
+        act(() => result.current.setBranchPeople(['sea', 'manager', 'admin'], true));
+        await waitFor(() => expect(result.current.dashboardPeople.sort()).toEqual(['admin', 'atl', 'manager', 'sea']));
+        act(() => result.current.setBranchPeople(['atl'], false));
+        expect(result.current.dashboardPeople.sort()).toEqual(['admin', 'manager', 'sea']);
+    });
+
+    it('sends the same reps and custom dates to every dashboard endpoint, never a location', async () => {
         const { result } = renderHook(() => useDashboardData(deps()));
         await waitFor(() => expect(result.current.dashboardTableLoading).toBe(false));
         request.mockClear();
         act(() => {
             result.current.setDashboardPeople(['dal']);
-            result.current.handleDashboardLocationChange('Dallas');
             result.current.setDashboardRange('custom', '2026-11-01', '2026-11-05');
         });
         await waitFor(() => expect(result.current.dashboardTableLoading).toBe(false));
@@ -80,7 +86,7 @@ describe('dashboard multiple locations and reps', () => {
             const urls = calls(path);
             expect(urls.length).toBeGreaterThan(0);
             for (const url of urls) {
-                expect(url.searchParams.get('location')).toBe('Dallas');
+                expect(url.searchParams.get('location')).toBeNull();
                 expect(url.searchParams.get('reps')).toBe('dal');
                 // The separate all-time follow-up inventory intentionally has no range.
                 if (url.searchParams.get('filterType') === 'followup') continue;
@@ -90,14 +96,22 @@ describe('dashboard multiple locations and reps', () => {
         }
     });
 
-    it('offers a multi-location manager only reps at their assigned branches', async () => {
+    it('offers a multi-location manager only reps at their assigned branches, under those headings', async () => {
         viewer = { ...fixtures.staff[1], id: 'manager', permissions: ['view_dashboard', 'view_branch_visits'] };
         const { result } = renderHook(() => useDashboardData(deps()));
-        expect(result.current.dashboardLocationOptions).toEqual(['Seattle', 'Dallas']);
+        expect(result.current.dashboardLocationOptions).toEqual([]);
         expect(result.current.peopleOptions.map(person => person.value).sort()).toEqual(['dal', 'manager', 'sea']);
-        act(() => { result.current.showMyTeam(); result.current.handleDashboardLocationChange(''); });
+        expect(Object.fromEntries(result.current.peopleOptions.map(person => [person.value, person.location]))).toEqual({ manager: 'Seattle', sea: 'Seattle', dal: 'Dallas' });
+        act(() => { result.current.showMyTeam(); });
         await waitFor(() => expect(result.current.stats.visits).toBe(3));
         expect(result.current.memoizedFilteredVisits.some(row => row.createdBy === 'atl' || row.createdBy === 'admin')).toBe(false);
+    });
+
+    it("drops a remembered pick the viewer can no longer see", async () => {
+        viewer = { ...fixtures.staff[1], id: 'manager', permissions: ['view_dashboard', 'view_branch_visits'] };
+        sessionStorage.setItem('salesDashboard.people.manager', JSON.stringify(['atl', 'dal']));
+        const { result } = renderHook(() => useDashboardData(deps()));
+        await waitFor(() => expect(result.current.dashboardPeople).toEqual(['dal']));
     });
 
     it('does not expose a People or location choice to an own-only rep', async () => {
@@ -115,7 +129,7 @@ describe('dashboard multiple locations and reps', () => {
     it('makes By rep totals match the lists and drills down to one rep', async () => {
         const { result } = renderHook(() => useDashboardData(deps()));
         await waitFor(() => expect(result.current.dashboardTableLoading).toBe(false));
-        act(() => { result.current.handleDashboardLocationChange(''); result.current.setDashboardRange('all'); result.current.setVisitsView('byRep'); });
+        act(() => { result.current.setDashboardRange('all'); result.current.setVisitsView('byRep'); });
         await waitFor(() => expect(result.current.stats.visits).toBe(5));
         expect(repTotals(result.current.repRows)).toMatchObject({ visits: 5, resources: 5, followUps: 5 });
         act(() => result.current.showRepWork('dal'));
@@ -124,19 +138,19 @@ describe('dashboard multiple locations and reps', () => {
         expect(result.current.dashboardPeople).toEqual(['dal']);
     });
 
-    it('ignores older list and totals responses after a quick branch switch', async () => {
+    it('ignores older list and totals responses after a quick People switch', async () => {
         const { result } = renderHook(() => useDashboardData(deps()));
         await waitFor(() => expect(result.current.dashboardTableLoading).toBe(false));
         const pending: (() => void)[] = [];
         request.mockImplementation(async input => {
             const url = new URL(String(input), 'http://localhost');
             const response = reply(input);
-            return url.searchParams.get('location') === 'Dallas'
+            return url.searchParams.get('reps') === 'dal'
                 ? new Promise(resolveReply => { pending.push(() => resolveReply(response)); }) : response;
         });
-        act(() => { result.current.showMyTeam(); result.current.handleDashboardLocationChange('Dallas'); });
+        act(() => result.current.setDashboardPeople(['dal']));
         await waitFor(() => expect(pending.length).toBeGreaterThan(0));
-        act(() => result.current.handleDashboardLocationChange('Atlanta'));
+        act(() => result.current.setDashboardPeople(['atl']));
         await waitFor(() => expect(result.current.memoizedFilteredVisits[0]?.createdBy).toBe('atl'));
         await act(async () => { pending.forEach(resolveReply => resolveReply()); });
         expect(result.current.memoizedFilteredVisits.map(row => row.createdBy)).toEqual(['atl']);
@@ -146,7 +160,6 @@ describe('dashboard multiple locations and reps', () => {
 
     it('reloads totals when access is revoked even if the filter query stays the same', async () => {
         sessionStorage.setItem('salesDashboard.people.admin', '[]');
-        sessionStorage.setItem('locationFilter:salesDashboard:admin', '""');
         const { result, rerender } = renderHook(() => useDashboardData(deps()));
         await waitFor(() => expect(result.current.stats.visits).toBe(5));
         const before = calls('/dashboard/stats').length;
@@ -156,12 +169,12 @@ describe('dashboard multiple locations and reps', () => {
         await waitFor(() => expect(result.current.stats.visits).toBe(1));
     });
 
-    it('applies the location choice to Me in the team calendar too', async () => {
+    it("sends the People pick to the team calendar, and Me is out of it when you pick others", async () => {
         const { result } = renderHook(() => useDashboardData(deps()));
         await waitFor(() => expect(result.current.dashboardTableLoading).toBe(false));
-        act(() => result.current.handleDashboardLocationChange('Dallas'));
-        await waitFor(() => expect(calls('/schedule').at(-1)?.searchParams.get('location')).toBe('Dallas'));
-        expect(calls('/schedule').at(-1)?.searchParams.get('reps')).toBe('admin');
+        act(() => result.current.setDashboardPeople(['dal']));
+        await waitFor(() => expect(calls('/schedule').at(-1)?.searchParams.get('reps')).toBe('dal'));
+        expect(calls('/schedule').at(-1)?.searchParams.get('location')).toBeNull();
         expect(result.current.calendarIncludesMe).toBe(false);
     });
 

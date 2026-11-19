@@ -12,7 +12,7 @@ import { FollowUpsPanel } from './followUps';
 import { ResourcesPanel } from './resources';
 import type { DashboardData } from './useDashboardData';
 import type { PeopleFilter } from './components/PeopleField';
-import { isJustMe, peopleSummary } from './dashboardPeople';
+import { branchesOf, isJustMe, peopleSummary } from './dashboardPeople';
 import type { Loose } from '../../types/records';
 import type { FollowUpRange } from '../../utils/followUpList';
 
@@ -109,9 +109,10 @@ export default function DashboardPage({
         me,
         onChange: data.setDashboardPeople,
         onToggle: data.toggleDashboardPerson,
+        onBranch: data.setBranchPeople,
         active: !isJustMe(data.dashboardPeople, me),
         onReset: data.resetDashboardPeople,
-        summary: peopleSummary(data.dashboardPeople, me, (id) => data.peopleOptions.find((o) => o.value === id)?.label)
+        summary: peopleSummary(data.dashboardPeople, me, (id) => data.peopleOptions.find((o) => o.value === id)?.label, branchesOf(data.peopleOptions))
     } : null;
     return (
         <ErrorBoundary key="dashboard-view">

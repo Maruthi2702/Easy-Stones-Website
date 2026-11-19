@@ -5,7 +5,7 @@ import useIsPhone from '../../../components/shared/form/useIsPhone';
 import { FormSheet } from '../../../components/shared/form/FormControls';
 import { clipParentOf, useMenuPlacement } from '../../../components/shared/form/formFocus';
 import { groupRepOptions } from '../../../utils/salesReps';
-import { isJustMe, peopleSummary } from '../dashboardPeople';
+import { branchesOf, isJustMe, peopleSummary } from '../dashboardPeople';
 import type { PersonOption } from '../../../api/myTeam';
 import '../../../components/shared/form/FormModal.css';
 import './PeopleField.css';
@@ -26,6 +26,8 @@ export type PeopleFieldProps = {
     me: string;
     onChange: (people: string[]) => void;
     onToggle: (id: string) => void;
+    /** A branch heading's All / None: tick or untick everyone under it. */
+    onBranch: (ids: string[], on: boolean) => void;
 };
 
 /** Everything a panel needs to show the People field (built once by DashboardPage). */
@@ -38,7 +40,7 @@ export type PeopleFilter = PeopleFieldProps & {
     summary: string;
 };
 
-export default function PeopleField({ options, value, me, onChange, onToggle }: PeopleFieldProps) {
+export default function PeopleField({ options, value, me, onChange, onToggle, onBranch }: PeopleFieldProps) {
     const id = useId();
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
@@ -50,11 +52,16 @@ export default function PeopleField({ options, value, me, onChange, onToggle }: 
     const pos = useMenuPlacement(open, isPhone, triggerRef, menuRef, clipParentOf);
     const sheet = isPhone || pos.placement === 'sheet';
 
-    const groups = useMemo(() => groupRepOptions(options, { you: me, query }), [options, me, query]);
+    // The viewer's own branch first. Headings are only the branches their
+    // Visits permission covers (usePeopleOptions), so All / None can only
+    // reach people they may see.
+    const myBranch = options.find((o) => o.value === me)?.location || '';
+    const groups = useMemo(() => groupRepOptions(options, { you: me, query, first: myBranch }), [options, me, query, myBranch]);
+    const branchCount = useMemo(() => groupRepOptions(options).length, [options]);
     const team = value.length === 0;
     const justMe = isJustMe(value, me);
     const typed = query.trim();
-    const summary = peopleSummary(value, me, (pid) => options.find((o) => o.value === pid)?.label);
+    const summary = peopleSummary(value, me, (pid) => options.find((o) => o.value === pid)?.label, branchesOf(options));
 
     const close = (refocus = true) => {
         setOpen(false);
@@ -99,7 +106,23 @@ export default function PeopleField({ options, value, me, onChange, onToggle }: 
                 {!typed && row('team', team, 'My team', () => onChange([]))}
                 {groups.map((g) => (
                     <div key={g.group} className="fm-loc-list" role="group" aria-label={g.group}>
-                        <div className="fm-opt-group" aria-hidden="true">{g.group}</div>
+                        {(() => {
+                            const ids: string[] = g.options.map((o: PersonOption) => o.value);
+                            const ticked = ids.filter((pid) => team || value.includes(pid)).length;
+                            return (
+                                <div className="dp-group-head">
+                                    <div className="fm-opt-group" aria-hidden="true">
+                                        {g.group}{!typed && <span className="dp-group-count"> · {ticked} of {ids.length}</span>}
+                                    </div>
+                                    {!typed && branchCount > 1 && (
+                                        <div className="dp-group-actions">
+                                            <button type="button" className="dp-link" aria-label={`Tick everyone in ${g.group}`} onClick={() => onBranch(ids, true)}>All</button>
+                                            <button type="button" className="dp-link" aria-label={`Untick everyone in ${g.group}`} onClick={() => onBranch(ids, false)}>None</button>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })()}
                         {g.options.map((o: PersonOption & { you?: boolean }) => row(
                             o.value,
                             team || value.includes(o.value),

@@ -7,3 +7,23 @@
   min-height: 38px;
   padding: 6px 12px;
 }
+
+/* A branch heading with its count and All / None (same look as the Route
+   Planner filter's rep list, RepFilterPicker.css). */
+.dp-group-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; padding-right: 4px; }
+.dp-group-head .fm-opt-group { flex: 1; min-width: 0; }
+.dp-group-count { font-weight: 700; letter-spacing: 0; text-transform: none; }
+.dp-group-actions { display: flex; gap: 2px; flex: none; }
+.dp-link {
+    border: 0;
+    background: transparent;
+    padding: 4px 8px;
+    border-radius: 7px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--fm-gold-tx);
+    cursor: pointer;
+}
+.dp-link:hover { background: var(--fm-hover); }
+.fm-sheet .dp-link { min-height: 36px; padding: 6px 12px; }

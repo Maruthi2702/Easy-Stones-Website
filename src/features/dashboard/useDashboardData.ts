@@ -3,11 +3,10 @@ import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { formatDate, getLocalISOString } from '../../utils/dateUtils';
 import { DEFAULT_ROWS_PER_PAGE } from '../../components/shared/paginationConfig';
-import { useLocationFilter } from '../../components/shared/useLocationFilter';
 import { splitCustomer } from '../../components/sales/visitsListHelpers';
 import { canAddVisit, visitViewScope } from '../../utils/visitAccess.ts';
 import { usePeopleOptions } from '../../api/myTeam';
-import { peopleDefault, repsParam, includesPerson, parseStoredPeople, showsWhoLogged, togglePerson, isJustMe, MY_TEAM } from './dashboardPeople';
+import { peopleDefault, repsParam, includesPerson, parseStoredPeople, showsWhoLogged, togglePerson, tickBranch, untickBranch, sanitizePeople, isJustMe, MY_TEAM } from './dashboardPeople';
 import { repBreakdown } from './repBreakdown';
 import { canSeeTeamCalendar } from '../../utils/teamScope.ts';
 import { resourceExportRows } from './resources/resourceList';
@@ -46,7 +45,7 @@ export type DashboardDeps = {
  */
 export const LIVE_REFRESH_DELAY_MS = 2000;
 
-export function useDashboardData({ currentUser, locations, currentUserId, customerRefreshTrigger, resourceRefreshTrigger, active = true }: DashboardDeps) {
+export function useDashboardData({ currentUser, currentUserId, customerRefreshTrigger, resourceRefreshTrigger, active = true }: DashboardDeps) {
         // Dashboard State (Required for memoized values)
     // One time range for the whole dashboard (dashboardFocus.ts's RANGES); Custom has its days.
     const [dashboardTimeRange, setDashboardTimeRange] = useState('1day');
@@ -58,21 +57,15 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
         setRangeTo(id === 'custom' ? to : '');
     };
     const rangeParam = rangeQuery(dashboardTimeRange, rangeFrom, rangeTo);
-    // The Sales dashboard's location filter: Visits, Follow-ups, Resources and
-    // the tiles above them all follow it ('' = every branch the viewer may
-    // see). Offered from the viewer's Visits permissions (visitViewScope in
-    // src/utils/visitAccess.ts): every branch with view_all_visits, their
-    // assigned ones with view_branch_visits (all, if assigned '*'), none for
-    // anyone who only sees their own visits. The server enforces the same
-    // limits (narrowScopeToLocation). Opens on their home location.
-    const dashboardLocationOptions = React.useMemo(() => {
-        const all = (locations || []).map(l => (typeof l === 'string' ? l : (l as Loose)?.name)).filter(Boolean);
-        const scope = visitViewScope(currentUser);
-        if (scope.kind === 'all') return all;
-        if (scope.kind === 'branches') return scope.locations;
-        return [];
-    }, [locations, currentUser]);
-    const [dashboardLocation, setDashboardLocation] = useLocationFilter('salesDashboard', currentUser, dashboardLocationOptions);
+    // No Location filter on the dashboard (2026-11-18): People and Location both
+    // decided whose work you see and could contradict each other (Atlanta reps
+    // with Seattle chosen showed nothing). Branches are headings inside People
+    // now, and which ones an admin or manager is offered comes from their Visits
+    // permissions (usePeopleOptions, teamScope's branchHeadingFor). The panels
+    // still take a location, always empty, so the old `?location=` the server
+    // answers is never sent from here.
+    const dashboardLocationOptions: string[] = [];
+    const dashboardLocation = '';
     // The People filter (dashboardPeople.ts): whose work the page shows, for
     // anyone who can see more than their own. Opens on Me; a different pick is
     // remembered for the session, like the location. The location narrows by
@@ -94,7 +87,8 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
         setPeopleFor(me);
         setPickedPeople(me ? readPeople(peopleKey) : null);
     }
-    const dashboardPeople = canPickPeople ? (pickedPeople ?? peopleDefault(me)) : peopleDefault(me);
+    // A remembered pick is checked against who they may see now.
+    const dashboardPeople = canPickPeople ? sanitizePeople(pickedPeople ?? peopleDefault(me), peopleOptions, me) : peopleDefault(me);
     const peopleParam = canPickPeople ? repsParam(dashboardPeople) : '';
     const dashboardLocationParam = (dashboardLocation ? `&location=${encodeURIComponent(dashboardLocation)}` : '') + peopleParam;
     // The calendar follows the same filter for anyone with Users & Roles →
@@ -540,14 +534,8 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
         setCurrentResourcesPage(1);
     };
 
-    // Visits, Follow-ups and Resources share the dashboard's location, so a
-    // switch on any of them sends all three back to their first page.
-    const handleDashboardLocationChange = (loc: unknown) => {
-        setDashboardLocation(loc);
-        setCurrentVisitsPage(1);
-        setCurrentFollowUpPage(1);
-        setCurrentResourcesPage(1);
-    };
+    // The panels still hand a location change back; there's no location to set.
+    const handleDashboardLocationChange = () => {};
 
     // The People filter shares the same rule: any change starts every list on page 1.
     const setDashboardPeople = (people: string[]) => {
@@ -557,6 +545,10 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
         setCurrentFollowUpPage(1);
         setCurrentResourcesPage(1);
     };
+    // A branch heading's All / None.
+    const setBranchPeople = (ids: string[], on: boolean) => setDashboardPeople(
+        on ? tickBranch(dashboardPeople, ids) : untickBranch(dashboardPeople, ids, me, peopleOptions.map(person => person.value))
+    );
     const toggleDashboardPerson = (id: string) => setDashboardPeople(togglePerson(dashboardPeople, id, me, peopleOptions.map(person => person.value)));
 
     // Sales Visits → "List | By rep" (repBreakdown.ts), for anyone with the
@@ -707,6 +699,7 @@ export function useDashboardData({ currentUser, locations, currentUserId, custom
         pagedDashboardVisits,
         handleVisitsPerPageChange,
         handleDashboardLocationChange,
+        setBranchPeople,
         patchDashboardVisit,
         removeDashboardVisit,
         handleExportVisits,

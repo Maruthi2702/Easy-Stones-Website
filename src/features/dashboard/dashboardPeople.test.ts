@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     MY_TEAM, peopleDefault, repsParam, isJustMe, showsWhoLogged, includesPerson,
-    peopleSummary, togglePerson, parseStoredPeople
+    peopleSummary, togglePerson, parseStoredPeople, branchesOf, tickBranch, untickBranch, sanitizePeople
 } from './dashboardPeople';
 
 const names: Record<string, string> = { jesus: 'Jesus B.', bart: 'Bart A.' };
@@ -61,5 +61,56 @@ describe('the People filter value', () => {
         expect(parseStoredPeople('{"a":1}')).toBeNull();
         expect(parseStoredPeople('not json')).toBeNull();
         expect(parseStoredPeople(null)).toBeNull();
+    });
+});
+
+describe('branches inside the People list', () => {
+    const options = [
+        { value: 'me1', location: 'Atlanta' }, { value: 'cris', location: 'Atlanta' }, { value: 'kev', location: 'Atlanta' },
+        { value: 'jer', location: 'Seattle' }, { value: 'sco', location: 'Seattle' }, { value: 'boss', location: '' }
+    ];
+    const label: Record<string, string> = { me1: 'Krish', cris: 'Cristina', kev: 'Kevin', jer: 'Jeremy', sco: 'Scott', boss: 'Boss' };
+    const nameOf = (id: string) => label[id];
+    const branches = branchesOf(options);
+
+    it('groups by heading, "Other" for no branch', () => {
+        expect(branches).toEqual([
+            { name: 'Atlanta', ids: ['me1', 'cris', 'kev'] },
+            { name: 'Seattle', ids: ['jer', 'sco'] },
+            { name: 'Other', ids: ['boss'] }
+        ]);
+    });
+
+    it('says a whole branch, two branches, and two names', () => {
+        expect(peopleSummary(['me1', 'cris', 'kev'], 'me1', nameOf, branches)).toBe('Atlanta (all 3)');
+        expect(peopleSummary(['me1', 'cris', 'kev', 'jer', 'sco'], 'me1', nameOf, branches)).toBe('Atlanta + Seattle · 5 people');
+        expect(peopleSummary(['cris', 'jer'], 'x', nameOf, branches)).toBe('Cristina + Jeremy');
+        expect(peopleSummary(['cris', 'kev', 'jer'], 'x', nameOf, branches)).toBe('3 people');
+        expect(peopleSummary(['cris', 'jer'], 'x', nameOf)).toBe('2 people');
+    });
+
+    it('never calls a branch-less group a branch', () => {
+        expect(peopleSummary(['boss', 'x'], 'me1', nameOf, [{ name: 'Other', ids: ['boss', 'x'] }])).toBe('2 people');
+    });
+
+    it('ticks a branch without leaving My team, and mixes branches', () => {
+        expect(tickBranch([], ['jer', 'sco'])).toEqual([]);
+        expect(tickBranch(['cris'], ['jer', 'sco'])).toEqual(['cris', 'jer', 'sco']);
+        expect(tickBranch(['cris', 'jer'], ['jer', 'sco'])).toEqual(['cris', 'jer', 'sco']);
+    });
+
+    it('unticks a branch, expanding My team first, and never ends empty', () => {
+        const team = ['me1', 'cris', 'kev', 'jer', 'sco'];
+        expect(untickBranch(['cris', 'jer'], ['jer', 'sco'], 'me1', team)).toEqual(['cris']);
+        expect(untickBranch([], ['jer', 'sco'], 'me1', team)).toEqual(['me1', 'cris', 'kev']);
+        expect(untickBranch(['jer'], ['jer', 'sco'], 'me1', team)).toEqual(['me1']);
+    });
+
+    it('drops remembered people the viewer may no longer see', () => {
+        expect(sanitizePeople(['cris', 'gone'], options, 'me1')).toEqual(['cris']);
+        expect(sanitizePeople(['gone'], options, 'me1')).toEqual(['me1']);
+        expect(sanitizePeople(['me1'], options, 'me1')).toEqual(['me1']);
+        expect(sanitizePeople([], options, 'me1')).toEqual([]);
+        expect(sanitizePeople(['cris'], [], 'me1')).toEqual(['cris']);
     });
 });

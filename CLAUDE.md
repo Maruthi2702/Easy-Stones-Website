@@ -139,8 +139,17 @@ has a **People** field (Me / My team / reps by branch, `PeopleField.tsx` —
 a dropdown in the Customer List rep filter's format since 2026-11-01,
 value rules in `dashboardPeople.ts`, tested): it opens on **Me** (owner's
 call), a pick is remembered for the session, and `?reps=` / `?location=` can
-only narrow (`narrowPeople`). The location filter now means people working
-there. Rows say who logged them once more than you is in view. Sales Visits
+only narrow (`narrowPeople`). The location filter meant people working there **until 2026-11-18**: the dashboard has
+**no Location filter any more** (owner's pick, claude.ai artifact **Dashboard People filter — branches inside**,
+https://claude.ai/artifact/KThdThRAnAY2xGivwTZ4tM): People and Location both chose whose work you see and could
+contradict (Atlanta reps + Seattle = nothing). Branches are **headings inside People**, each with "· 3 of 7" and
+All / None (hidden when the viewer sees one branch); the closed field says "Atlanta (all 7)", "Atlanta + Seattle · 11
+people", "Cristina + Jeremy" (`peopleSummary` with `branchesOf`, `tickBranch` / `untickBranch`, tested). **Which
+headings and people come from the viewer's Visits permission** (`permittedBranches` / `branchHeadingFor` in
+`teamScope.ts`: View all → every branch, View branch → their assigned ones; a person working at two branches sits
+under the one the viewer may see), the viewer's own branch first; a remembered pick the viewer can no longer see is
+dropped (`sanitizePeople`). The dashboard never sends `?location=` (the server still answers it for old links;
+`dashboardLocation` is always '' and the panels' location props are inert — a cleanup due). Rows say who logged them once more than you is in view. Sales Visits
 has a **List | By rep** switch (`RepBreakdownTable.tsx`, rules in
 `repBreakdown.ts`, tested): visits, resources, follow-ups and late per person,
 counted from the lists already loaded so the Total row matches the tiles;

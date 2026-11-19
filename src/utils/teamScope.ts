@@ -97,6 +97,32 @@ export const narrowPeople = (visible: '*' | ReadonlySet<string>, { reps = [], lo
   return ids;
 };
 
+/**
+ * The branches a viewer's People list may show headings for, from their Visits
+ * permissions (Users & Roles → Visits): `ALL_PEOPLE` with View all, the
+ * locations they're assigned with View branch, none with only their own.
+ */
+export const permittedBranches = (viewer: Loose | null | undefined): typeof ALL_PEOPLE | string[] => {
+  const scope = visitViewScope(viewer);
+  if (scope.kind === 'all') return ALL_PEOPLE;
+  if (scope.kind === 'branches') return scope.locations;
+  return [];
+};
+
+/**
+ * The branch heading a person sits under in the viewer's People list: the
+ * first branch they work at that the viewer may see ('' = "Other", e.g. an
+ * all-locations login, only ever visible to someone with View all). A person
+ * who works at two branches, one outside the viewer's access, sits under the
+ * one the viewer may see.
+ */
+export const branchHeadingFor = (viewer: Loose | null | undefined, person: Loose | null | undefined): string => {
+  const allowed = permittedBranches(viewer);
+  const mine = workLocationsOf(person);
+  if (allowed === ALL_PEOPLE) return mine[0] || '';
+  return mine.find((l) => allowed.includes(l)) || '';
+};
+
 /** The `reps` query value read from a request (`?reps=a,b`); `me` stands for the viewer. */
 export const parseRepsParam = (value: unknown, viewerId: unknown) =>
   String(value || '')

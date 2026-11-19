@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   ALL_PEOPLE, viewerLocations, workLocationsOf, teamLocationsOf, teammatesOf, inTeam,
-  visiblePeople, narrowPeople, parseRepsParam, peopleOptions, canSeeTeamCalendar, calendarPeople
+  visiblePeople, narrowPeople, parseRepsParam, peopleOptions, canSeeTeamCalendar, calendarPeople,
+  permittedBranches, branchHeadingFor
 } from './teamScope.ts';
 
 const staff = [
@@ -111,5 +112,28 @@ describe('calendarPeople', () => {
 
   it('does not come from the visits switches', () => {
     expect(ids(calendarPeople({ id: 'a', permissions: ['view_all_visits'], assignedLocations: ['Seattle'] }, staff))).toEqual(['a']);
+  });
+});
+
+describe('which branch headings the People list shows (from Visits permissions)', () => {
+  const viewAll = { id: 'adm', permissions: ['view_all_visits'], assignedLocations: ['Seattle', 'Kent'] };
+  const own = { id: 'rep', permissions: [], assignedLocations: ['Seattle'] };
+
+  it('is every branch with View all, the assigned ones with View branch, none otherwise', () => {
+    expect(permittedBranches(viewAll)).toBe(ALL_PEOPLE);
+    expect(permittedBranches(mgr)).toEqual(['Seattle']);
+    expect(permittedBranches({ permissions: ['view_branch_visits'], assignedLocations: ['*'] })).toBe(ALL_PEOPLE);
+    expect(permittedBranches(own)).toEqual([]);
+  });
+
+  it("puts a person under the first branch they work at that the viewer may see", () => {
+    // 'both' works at Kent and Seattle; the Seattle manager sees them under Seattle.
+    expect(branchHeadingFor(mgr, staff[2])).toBe('Seattle');
+    expect(branchHeadingFor(viewAll, staff[2])).toBe('Kent');
+  });
+
+  it('is "Other" (empty) for someone assigned everywhere, or at no branch the viewer may see', () => {
+    expect(branchHeadingFor(viewAll, staff[4])).toBe('');
+    expect(branchHeadingFor(mgr, staff[1])).toBe('');
   });
 });

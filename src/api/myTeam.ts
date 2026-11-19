@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useStaffList } from './salesRepOptions';
-import { teammatesOf, peopleOptions, visiblePeople, workLocationsOf, ALL_PEOPLE } from '../utils/teamScope';
+import { teammatesOf, peopleOptions, visiblePeople, workLocationsOf, branchHeadingFor, ALL_PEOPLE } from '../utils/teamScope';
 import { isSalesRep, displayNameOf } from '../utils/salesReps';
 import type { CurrentUser, StaffMember } from '../types/records';
 
@@ -47,7 +47,7 @@ export function usePeopleOptions(user: CurrentUser | null | undefined, userId: s
                 value: String(p._id),
                 id: String(p._id),
                 label: displayNameOf(p),
-                location: workLocationsOf(p)[0] || '',
+                location: branchHeadingFor(viewer, p),
                 locations: workLocationsOf(p),
                 inactive: p.isActive === false
             }));

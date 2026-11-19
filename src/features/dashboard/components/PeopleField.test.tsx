@@ -21,7 +21,8 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function PeoplePicker() {
     const [value, setValue] = useState(['me1']);
     return <><PeopleField options={options} value={value} me="me1" onChange={setValue}
-        onToggle={id => setValue(current => togglePerson(current, id, 'me1', options.map(option => option.value)))} />
+        onToggle={id => setValue(current => togglePerson(current, id, 'me1', options.map(option => option.value)))}
+        onBranch={() => {}} />
         <output data-testid="people-value">{JSON.stringify(value)}</output></>;
 }
 const checked = (name: RegExp | string) => screen.getByRole('checkbox', { name }).getAttribute('aria-checked');
@@ -62,5 +63,29 @@ describe.each([false, true])('People selection on phone=%s', isPhone => {
         expect(checked(/Bart A\./)).toBe('false');
         expect(checked(/Krish/)).toBe('true');
         expect(checked('Jesus B.')).toBe('true');
+    });
+});
+
+describe('branch All / None', () => {
+    it('shows a count and All / None per branch when there is more than one, and hands back the branch ids', () => {
+        const onBranch = vi.fn();
+        render(<PeopleField options={options} value={['me1']} me="me1" onChange={() => {}} onToggle={() => {}} onBranch={onBranch} />);
+        fireEvent.click(screen.getByLabelText('People'));
+        expect(screen.getByText(/1 of 2/)).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Tick everyone in Seattle' }));
+        expect(onBranch).toHaveBeenLastCalledWith(['jesus', 'me1'], true);
+        fireEvent.click(screen.getByRole('button', { name: 'Untick everyone in Kent' }));
+        expect(onBranch).toHaveBeenLastCalledWith(['bart'], false);
+    });
+
+    it('leaves out All / None when the viewer sees only one branch', () => {
+        render(<PeopleField options={options.slice(0, 2)} value={['me1']} me="me1" onChange={() => {}} onToggle={() => {}} onBranch={() => {}} />);
+        fireEvent.click(screen.getByLabelText('People'));
+        expect(screen.queryByRole('button', { name: /Tick everyone/ })).toBeNull();
+    });
+
+    it('names a whole branch on the closed field', () => {
+        render(<PeopleField options={options} value={['me1', 'jesus']} me="me1" onChange={() => {}} onToggle={() => {}} onBranch={() => {}} />);
+        expect(screen.getByText('Seattle (all 2)')).toBeTruthy();
     });
 });

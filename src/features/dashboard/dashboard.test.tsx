@@ -129,7 +129,7 @@ describe('People filter (manager view)', () => {
       { value: 'j', id: 'j', label: 'Jesus B.', location: 'Seattle', inactive: false },
       { value: 'b', id: 'b', label: 'Bart A.', location: 'Kent', inactive: true }
     ],
-    value: ['me1'], me: 'me1', onChange: vi.fn(), onToggle: vi.fn(), active: false, onReset: vi.fn(), summary: 'Me', ...over
+    value: ['me1'], me: 'me1', onChange: vi.fn(), onToggle: vi.fn(), onBranch: vi.fn(), active: false, onReset: vi.fn(), summary: 'Me', ...over
   });
 
   it('offers Me, My team and the reps by branch in a dropdown, and passes picks back', () => {
