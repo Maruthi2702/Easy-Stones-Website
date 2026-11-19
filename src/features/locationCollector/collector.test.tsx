@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MAX_QUEUE, phaseFor, shouldKeep, takeBatch, toRawPoint, trimQueue, untilText, type TrackingStatus } from './collectorRules';
+import { MAX_QUEUE, dayIsOn, phaseFor, statusIsStale, shouldKeep, takeBatch, toRawPoint, trimQueue, untilText, type TrackingStatus } from './collectorRules';
 import { clearQueue, loadQueue, saveQueue } from './pointQueue';
 
 const native = vi.hoisted(() => ({ isNative: true }));
@@ -56,6 +56,28 @@ describe('collector rules', () => {
   it('says the end hour', () => { expect(untilText(18)).toBe('6 PM'); expect(untilText(12)).toBe('12 PM'); expect(untilText(0)).toBe('12 AM'); });
 });
 
+describe('the day, as the server says it', () => {
+  const sat = new Date('2026-11-21T20:00:00Z'); // Saturday noon in Seattle
+  const on = (over: Partial<TrackingStatus>) => ({ ...STATUS, day: '2026-11-21', dayOn: true, ...over });
+  it('follows the server for its day: weekend work on, time off off', () => {
+    expect(phaseFor({ status: on({}), denied: false, now: sat })).toBe('running');
+    expect(phaseFor({ status: on({ dayOn: false, dayOffReason: 'weekend' }), denied: false, now: sat })).toBe('waiting');
+    expect(phaseFor({ status: on({ day: '2026-11-18', dayOn: false, dayOffReason: 'timeOff' }), denied: false, now: NOON })).toBe('waiting');
+  });
+  it('falls back to the weekday rule when the answer is for an earlier day, and asks again', () => {
+    const old = on({ day: '2026-11-20', dayOn: true });
+    expect(dayIsOn(old, sat)).toBe(false);   // Saturday, and no answer for today yet
+    expect(dayIsOn(old, new Date('2026-11-23T20:00:00Z'))).toBe(true); // Monday
+    expect(statusIsStale(old, sat)).toBe(true);
+    expect(statusIsStale(on({}), sat)).toBe(false);
+    expect(statusIsStale(null, sat)).toBe(false);
+    expect(statusIsStale(STATUS, sat)).toBe(false); // an old server with no day: nothing to compare
+  });
+  it('still stops at 6 PM on a day that is on', () => {
+    expect(phaseFor({ status: on({}), denied: false, now: new Date('2026-11-22T02:30:00Z') })).toBe('waiting'); // Saturday 6:30 PM
+  });
+});
+
 describe('unsent points on the phone', () => {
   beforeEach(() => localStorage.clear());
   it('are kept per person and cleared on demand', () => {
@@ -82,7 +104,8 @@ describe('LocationCollector in the app', () => {
     api.loadStatus.mockResolvedValue({ ...STATUS, consented: false });
     render(<LocationCollector />);
     expect(await screen.findByText('Share your location during work hours')).toBeTruthy();
-    expect(screen.getByText(/Never at night or on weekends/)).toBeTruthy();
+    expect(screen.getByText(/only when you have a delivery or stop scheduled/)).toBeTruthy();
+    expect(screen.getByText(/not on a day you log Personal Time Off/)).toBeTruthy();
     expect(bg.startWatching).not.toHaveBeenCalled();
   });
   it('saves Allow on the server and starts only when the server says it has it', async () => {

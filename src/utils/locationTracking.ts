@@ -13,8 +13,11 @@
  *            it — suppliers have no staff role, so they are never tracked.
  *   Kept     90 days, then deleted.
  *
- * Not built yet: weekend / time-off days (a day with scheduled work, office
- * accounts' admin day or time off) — only Monday–Friday for now.
+ * Which days: Monday–Friday, except a day the person logged **Personal Time Off**
+ * (an Office visit, src/utils/officeAccounts.ts); a Saturday or Sunday only when they
+ * have scheduled work — a calendar entry (not cancelled) or, for a driver, a delivery
+ * on their column — that day (`DayFacts`, `trackingDayOn`). An In-office admin day
+ * is a normal workday. Facts are read per request (src/db/locationPoints/workDays.ts).
  * Pure: no database, no DOM. Tested in locationTracking.test.ts.
  */
 import { branchZone } from '../config/branches.ts';
@@ -28,6 +31,9 @@ export const TRACKING = Object.freeze({
 
 /** The consent wording's version (src/features/locationCollector). Bump it when the wording changes: everyone is asked again. */
 export const CONSENT_VERSION = 1;
+
+/** The visit type that marks a day off (an Office visit, src/utils/officeAccounts.ts OFFICE_VISIT_TYPES). */
+export const TIME_OFF_VISIT_TYPE = 'Personal Time Off';
 
 export const WINDOW_START_HOUR = 7;
 export const WINDOW_END_HOUR = 18;
@@ -54,12 +60,38 @@ const parts = (at: Date, timeZone: string) => {
   return { weekday: String(got.weekday), hour: Number(got.hour), minute: Number(got.minute) };
 };
 
-/** True when `at` is inside 7:00 AM–6:00 PM, Monday to Friday, on that branch's clock. */
-export function inTrackingWindow(at: Date, branch: string): boolean {
+/** What the person's records say about one day (read by the server; the phone gets today's answer in /status). */
+export type DayFacts = { timeOff: boolean; scheduledWork: boolean };
+export const NO_FACTS: DayFacts = Object.freeze({ timeOff: false, scheduledWork: false });
+
+/** Whether tracking is on for a day: not time off, and a weekday or a day with scheduled work. */
+export const trackingDayOn = (weekday: boolean, facts: DayFacts = NO_FACTS): boolean =>
+  !facts.timeOff && (weekday || facts.scheduledWork);
+
+/** Why a day is off, in words for the phone and the manager ('' when it's on). */
+export const dayOffReason = (weekday: boolean, facts: DayFacts = NO_FACTS): '' | 'timeOff' | 'weekend' =>
+  facts.timeOff ? 'timeOff' : weekday || facts.scheduledWork ? '' : 'weekend';
+
+/** True on Monday to Friday on the branch's clock. */
+export const isWeekdayAt = (at: Date, branch: string): boolean => {
+  const { weekday } = parts(at, branchZone(branch));
+  return weekday !== 'Sat' && weekday !== 'Sun';
+};
+
+/** True between 7:00 AM and 6:00 PM on the branch's clock, whatever the day. */
+export function inTrackingHours(at: Date, branch: string): boolean {
   if (Number.isNaN(at.getTime())) return false;
-  const p = parts(at, branchZone(branch));
-  if (p.weekday === 'Sat' || p.weekday === 'Sun') return false;
-  return p.hour >= WINDOW_START_HOUR && p.hour < WINDOW_END_HOUR;
+  const { hour } = parts(at, branchZone(branch));
+  return hour >= WINDOW_START_HOUR && hour < WINDOW_END_HOUR;
+}
+
+/**
+ * True when `at` is inside 7:00 AM–6:00 PM on that branch's clock on a day tracking is on.
+ * Without `facts` that is Monday to Friday; the server passes the day's facts.
+ */
+export function inTrackingWindow(at: Date, branch: string, facts: DayFacts = NO_FACTS): boolean {
+  if (Number.isNaN(at.getTime())) return false;
+  return trackingDayOn(isWeekdayAt(at, branch), facts) && inTrackingHours(at, branch);
 }
 
 /** The calendar day (YYYY-MM-DD) on the branch's clock — a day's trail is read by it. */
@@ -103,7 +135,7 @@ export type CleanPoint = { clientId: string; recordedAt: Date; lat: number; lng:
  * not an error — a phone that sends the backlog must still get a 200.
  * `id` is the phone's own id for the point, so a repeated batch saves nothing twice.
  */
-export function cleanPoints(raw: unknown, branch: string, now: Date = new Date()) {
+export function cleanPoints(raw: unknown, branch: string, now: Date = new Date(), factsFor?: (day: string) => DayFacts) {
   const list = Array.isArray(raw) ? raw.slice(0, MAX_POINTS_PER_BATCH) : [];
   const kept: CleanPoint[] = [];
   const dropped = { invalid: 0, outsideWindow: 0, stale: 0, vague: 0, tooMany: Math.max(0, (Array.isArray(raw) ? raw.length : 0) - MAX_POINTS_PER_BATCH) };
@@ -116,7 +148,7 @@ export function cleanPoints(raw: unknown, branch: string, now: Date = new Date()
     if (!clientId || Number.isNaN(at.getTime()) || !Number.isFinite(lat) || !Number.isFinite(lng)
       || p.lat === null || p.lng === null || Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) { dropped.invalid++; continue; }
     if (at.getTime() - now.getTime() > MAX_FUTURE_MS || now.getTime() - at.getTime() > MAX_POINT_AGE_MS) { dropped.stale++; continue; }
-    if (!inTrackingWindow(at, branch)) { dropped.outsideWindow++; continue; }
+    if (!inTrackingWindow(at, branch, factsFor?.(trackingDay(at, branch)))) { dropped.outsideWindow++; continue; }
     const accuracy = p.accuracy === undefined || p.accuracy === null ? null : Number(p.accuracy);
     if (accuracy !== null && (!Number.isFinite(accuracy) || accuracy < 0 || accuracy > MAX_ACCURACY_METRES)) { dropped.vague++; continue; }
     if (seen.has(clientId)) continue;

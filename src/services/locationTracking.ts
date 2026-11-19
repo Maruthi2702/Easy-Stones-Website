@@ -8,7 +8,7 @@ import * as staffData from '../db/staff/index.ts';
 import { TRACKING } from '../utils/locationTracking.ts';
 import { displayNameOf } from '../utils/salesReps.ts';
 
-export type StaffRow = { id: string; name: string; role: string; branch: string; active: boolean; location: string; assignedLocations: string[] };
+export type StaffRow = { id: string; username: string; name: string; role: string; branch: string; active: boolean; location: string; assignedLocations: string[] };
 
 /** A person's home branch: their location, else the first branch they're assigned (never '*'), else Seattle. */
 export const homeBranchOf = (person: { location?: unknown; assignedLocations?: unknown } | null | undefined): string => {
@@ -28,7 +28,7 @@ export const staffDirectory: Directory = {
   async staff() {
     const users = await staffData.findUsers({}, { select: '_id location assignedLocations displayName username role isActive' });
     return users.map(u => ({
-      id: String(u._id), name: displayNameOf(u), role: String(u.role || ''), branch: homeBranchOf(u),
+      id: String(u._id), username: String(u.username || ''), name: displayNameOf(u), role: String(u.role || ''), branch: homeBranchOf(u),
       active: u.isActive !== false, location: String(u.location || ''), assignedLocations: Array.isArray(u.assignedLocations) ? u.assignedLocations.map(String) : []
     }));
   },

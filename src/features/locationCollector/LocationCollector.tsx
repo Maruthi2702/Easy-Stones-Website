@@ -26,7 +26,7 @@ export default function LocationCollector() {
             {consentError ? <p role="alert" className="lc-error">{consentError}</p> : null}
             <p>Easy Stones will read your phone’s location, including when the app is in the background, so your manager can see where you are on the job.</p>
             <ul>
-              <li><b>When:</b> {status?.windowStart ?? 7} AM to {until}, Monday to Friday, on your branch’s time. Never at night or on weekends.</li>
+              <li><b>When:</b> {status?.windowStart ?? 7} AM to {until} on your branch’s time, Monday to Friday, and on a Saturday or Sunday only when you have a delivery or stop scheduled. Never at night, and not on a day you log Personal Time Off.</li>
               <li><b>Who sees it:</b> managers and directors for your branch. Other staff and suppliers do not.</li>
               <li><b>How long:</b> kept 90 days, then deleted.</li>
               <li><b>Stopping:</b> turn Location off for Easy Stones in iPhone Settings at any time.</li>

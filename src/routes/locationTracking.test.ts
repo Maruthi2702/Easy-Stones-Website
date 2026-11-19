@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import express from 'express';
 import type { Server } from 'node:http';
 import createLocationTrackingRouter from './locationTracking.ts';
 import type { StaffRow } from '../services/locationTracking.ts';
+import { NO_FACTS, type DayFacts } from '../utils/locationTracking.ts';
 
-const person = (id: string, name: string, role: string, branch: string): StaffRow => ({ id, name, role, branch, active: true, location: branch, assignedLocations: [branch] });
+const person = (id: string, name: string, role: string, branch: string): StaffRow => ({ id, username: id, name, role, branch, active: true, location: branch, assignedLocations: [branch] });
 const STAFF = [
   person('rep1', 'Rita Rep', 'sales_rep', 'Seattle'),
   person('drv1', 'Dan Driver', 'driver', 'Seattle'),
@@ -29,8 +30,12 @@ const store = {
   ]
 };
 
-// Wed 2026-11-18 noon in Seattle.
-const NOW = new Date('2026-11-18T20:00:00Z');
+// Wed 2026-11-18 noon in Seattle (the weekend tests move it).
+let NOW = new Date('2026-11-18T20:00:00Z');
+const WED = NOW;
+// What a person's records say about a day, keyed 'userId:YYYY-MM-DD'.
+const FACTS = new Map<string, DayFacts>();
+const facts = async (person: { id: string }, days: string[]) => new Map(days.map(d => [d, FACTS.get(`${person.id}:${d}`) ?? NO_FACTS]));
 let server: Server; let base = '';
 let current: { id: string; permissions: string[]; assignedLocations: string[] } = { id: 'rep1', permissions: [], assignedLocations: ['Seattle'] };
 const as = (id: string, permissions: string[], assignedLocations = ['Seattle']) => { current = { id, permissions, assignedLocations }; };
@@ -39,7 +44,7 @@ beforeAll(async () => {
   const app = express();
   app.use(express.json()); // server.ts has one globally
   const authenticate: express.RequestHandler = (req, _res, next) => { req.userId = current.id; req.user = { ...current, type: 'staff' } as never; next(); };
-  app.use('/api/location-tracking', createLocationTrackingRouter({ authenticate, directory, store: store as never, now: () => NOW }));
+  app.use('/api/location-tracking', createLocationTrackingRouter({ authenticate, directory, store: store as never, facts, now: () => NOW }));
   await new Promise<void>(r => { server = app.listen(0, () => r()); });
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/location-tracking`;
 });
@@ -147,5 +152,40 @@ describe('GET /team/:userId', () => {
   it('needs the view switch', async () => {
     as('rep1', ['track_location']);
     expect((await fetch(`${base}/team/rep1`)).status).toBe(403);
+  });
+});
+
+describe('time off and weekend work', () => {
+  const SAT = new Date('2026-11-21T20:00:00Z'); // Saturday noon in Seattle
+  const status = async () => (await fetch(`${base}/status`)).json();
+  afterEach(() => { NOW = WED; FACTS.clear(); });
+
+  it('turns a weekday off for Personal Time Off: status says why and points are dropped', async () => {
+    FACTS.set('rep1:2026-11-18', { timeOff: true, scheduledWork: false });
+    as('rep1', ['track_location']);
+    expect(await status()).toMatchObject({ day: '2026-11-18', dayOn: false, dayOffReason: 'timeOff', windowNow: false });
+    const body = await (await post([pt()])).json();
+    expect(body).toMatchObject({ saved: 0, windowNow: false, dropped: { outsideWindow: 1 } });
+  });
+  it('is off on a weekend with nothing scheduled', async () => {
+    NOW = SAT; as('rep1', ['track_location']);
+    expect(await status()).toMatchObject({ dayOn: false, dayOffReason: 'weekend', windowNow: false });
+    expect((await (await post([pt({ at: '2026-11-21T19:55:00Z' })])).json()).saved).toBe(0);
+  });
+  it('is on for a weekend day with scheduled work, but only during the hours', async () => {
+    NOW = SAT; FACTS.set('rep1:2026-11-21', { timeOff: false, scheduledWork: true });
+    as('rep1', ['track_location']);
+    expect(await status()).toMatchObject({ dayOn: true, dayOffReason: '', windowNow: true });
+    expect((await (await post([pt({ at: '2026-11-21T19:55:00Z' })])).json()).saved).toBe(1);
+    NOW = new Date('2026-11-22T03:30:00Z'); // Saturday 7:30 PM
+    FACTS.set('rep1:2026-11-21', { timeOff: false, scheduledWork: true });
+    expect(await status()).toMatchObject({ dayOn: true, windowNow: false });
+  });
+  it('reads a batch by each point\'s own day', async () => {
+    NOW = new Date('2026-11-21T18:00:00Z'); // Saturday 10 AM
+    FACTS.set('rep1:2026-11-20', { timeOff: true, scheduledWork: false }); // Friday off
+    as('rep1', ['track_location']);
+    const body = await (await post([pt({ id: 'f', at: '2026-11-20T20:00:00Z' }), pt({ id: 's', at: '2026-11-21T17:00:00Z' })])).json();
+    expect(body.saved).toBe(0); // Friday is time off, Saturday has nothing scheduled
   });
 });

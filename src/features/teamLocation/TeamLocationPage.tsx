@@ -13,7 +13,7 @@ import './TeamLocation.css';
 /**
  * Admin → Team Location (2026-11-19): where the tracked reps and drivers on
  * the viewer's team are, and where one of them went on a day. The rules (7 AM –
- * 6 PM, Monday – Friday, on the person's branch clock, 90 days kept) are
+ * 6 PM on the person's workdays, on the person's branch clock, 90 days kept) are
  * src/utils/locationTracking.ts; the data is GET /api/location-tracking/team
  * and /team/:userId. Opened by the `view_team_locations` switch.
  */
@@ -34,7 +34,7 @@ export default function TeamLocationPage({ currentUser, sidebarToggle = null, is
         {sidebarToggle}
         <div className="tl-title">
           <h1>Team Location</h1>
-          <span>{t.loading ? 'Loading…' : `${liveCount(people)} live · ${people.length} tracked on your team`} · 7 AM – 6 PM, Mon – Fri, branch time</span>
+          <span>{t.loading ? 'Loading…' : `${liveCount(people)} live · ${people.length} tracked on your team`} · 7 AM – 6 PM on workdays, branch time</span>
         </div>
         <button type="button" className="tl-btn" onClick={() => void t.refresh()} aria-label="Refresh" title="Refresh">
           <RefreshCw size={16} aria-hidden="true" />

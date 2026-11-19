@@ -1,4 +1,4 @@
-import { CONSENT_VERSION, inTrackingWindow, MAX_POINT_AGE_MS, MAX_POINTS_PER_BATCH, type RawPoint } from '../../utils/locationTracking';
+import { CONSENT_VERSION, inTrackingHours, isWeekdayAt, trackingDay, MAX_POINT_AGE_MS, MAX_POINTS_PER_BATCH, type RawPoint } from '../../utils/locationTracking';
 
 export { CONSENT_VERSION };
 
@@ -15,7 +15,25 @@ export const STATUS_EVERY_MS = 5 * 60 * 1000;
 export const MAX_QUEUE = 2000;
 
 /** `consented`: the server has this person's agreement to the current wording (the only record that counts). */
-export type TrackingStatus = { tracked: boolean; consented: boolean; branch: string; windowNow: boolean; windowStart: number; windowEnd: number; canView?: boolean };
+export type TrackingStatus = {
+  tracked: boolean; consented: boolean; branch: string; windowNow: boolean; windowStart: number; windowEnd: number; canView?: boolean;
+  /** The branch-clock day the server answered for, whether tracking is on that day, and why not ('timeOff' | 'weekend'). */
+  day?: string; dayOn?: boolean; dayOffReason?: '' | 'timeOff' | 'weekend';
+};
+
+/**
+ * Is tracking on today? The server's answer for its day (time off, weekend work);
+ * once the day has rolled over and the answer is old, the plain weekday rule
+ * until the next status arrives.
+ */
+export const dayIsOn = (status: TrackingStatus, now: Date): boolean =>
+  status.day && status.day === trackingDay(now, status.branch) && typeof status.dayOn === 'boolean'
+    ? status.dayOn
+    : isWeekdayAt(now, status.branch);
+
+/** The status was answered for an earlier day: ask again. */
+export const statusIsStale = (status: TrackingStatus | null, now: Date): boolean =>
+  Boolean(status?.day) && status!.day !== trackingDay(now, status!.branch);
 /** off: not tracked or not the app · needs-consent · denied: iOS location is off · running · waiting: tracked, outside 7–6. */
 export type Phase = 'off' | 'needs-consent' | 'denied' | 'running' | 'waiting';
 
@@ -24,7 +42,7 @@ export function phaseFor(input: { status: TrackingStatus | null; denied: boolean
   if (!status?.tracked) return 'off';
   if (!status.consented) return 'needs-consent';
   if (denied) return 'denied';
-  return inTrackingWindow(now, status.branch) ? 'running' : 'waiting';
+  return dayIsOn(status, now) && inTrackingHours(now, status.branch) ? 'running' : 'waiting';
 }
 
 export type PluginLocation = { latitude: number; longitude: number; accuracy?: number | null; speed?: number | null; time?: number | null };

@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import type { RawPoint } from '../../utils/locationTracking';
 import {
-  FLUSH_AT, FLUSH_EVERY_MS, STATUS_EVERY_MS, phaseFor, shouldKeep, takeBatch, toRawPoint, trimQueue,
+  FLUSH_AT, statusIsStale, FLUSH_EVERY_MS, STATUS_EVERY_MS, phaseFor, shouldKeep, takeBatch, toRawPoint, trimQueue,
   type Phase, type TrackingStatus
 } from './collectorRules';
 import { clearQueue, loadQueue, saveQueue } from './pointQueue';
@@ -58,6 +58,9 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
     const resume = CapApp.addListener('appStateChange', ({ isActive }) => { if (isActive) { setNow(new Date()); void refreshStatus(); void flush(); } });
     return () => { clearInterval(timer); clearInterval(statusTimer); void resume.then((h) => h.remove()); };
   }, [active, userId, refreshStatus, flush]);
+
+  // The day rolled over since the server last answered: ask again (time off or weekend work may differ).
+  useEffect(() => { if (active && statusIsStale(status, now)) void refreshStatus(); }, [active, status, now, refreshStatus]);
 
   const phase: Phase = active ? phaseFor({ status, denied, now }) : 'off';
 

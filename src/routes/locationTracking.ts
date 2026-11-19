@@ -1,12 +1,13 @@
 import type { Request, RequestHandler } from 'express';
 import express from 'express';
 import {
-  CONSENT_VERSION, agoText, canBeTracked, canViewTeamLocations, cleanPoints, dayBounds, inTrackingWindow, seenStatus, trackingDay, trailMiles,
+  CONSENT_VERSION, NO_FACTS, agoText, dayOffReason, inTrackingHours, isWeekdayAt, trackingDayOn, type DayFacts, canBeTracked, canViewTeamLocations, cleanPoints, dayBounds, inTrackingWindow, seenStatus, trackingDay, trailMiles,
   WINDOW_END_HOUR, WINDOW_START_HOUR
 } from '../utils/locationTracking.ts';
 import { inTeam, teammatesOf } from '../utils/teamScope.ts';
 import { homeBranchOf, staffDirectory, type Directory } from '../services/locationTracking.ts';
 import * as pointStore from '../db/locationPoints/index.ts';
+import { dayFactsFor } from '../db/locationPoints/workDays.ts';
 
 /**
  * Location tracking for the iOS app (2026-11-19; rules in
@@ -19,14 +20,17 @@ import * as pointStore from '../db/locationPoints/index.ts';
  *   GET  /api/location-tracking/team/:userId?date=YYYY-MM-DD   one person's trail for a branch-clock day — same switch, same team
  *
  * The window is enforced here as well as in the app: a point stamped outside
- * 7 AM–6 PM Monday–Friday on the person's branch clock is dropped, never saved.
+ * 7 AM–6 PM on a day tracking is on for that person (Monday–Friday, plus weekend days with scheduled work, minus Personal Time Off), on their branch clock, is dropped, never saved.
  * A person sees only their own team (teamScope.ts, by the rep's branch).
  */
 type Store = Pick<typeof pointStore, 'savePoints' | 'lastSeen' | 'trail' | 'recordConsent' | 'consentsFor'>;
 
+/** What a person's records say about some days (time off, scheduled work); the route asks for today and yesterday on the branch's clock. */
+type Facts = (person: { id: string; username: string }, days: string[]) => Promise<Map<string, DayFacts>>;
+
 export default function createLocationTrackingRouter(
-  { authenticate, directory = staffDirectory, store = pointStore, now = () => new Date() }:
-  { authenticate: RequestHandler; directory?: Directory; store?: Store; now?: () => Date }
+  { authenticate, directory = staffDirectory, store = pointStore, facts = dayFactsFor, now = () => new Date() }:
+  { authenticate: RequestHandler; directory?: Directory; store?: Store; facts?: Facts; now?: () => Date }
 ) {
   const router = express.Router();
   const meOf = (req: Request) => ({ id: String(req.userId || ''), permissions: req.user?.permissions, assignedLocations: req.user?.assignedLocations });
@@ -35,14 +39,26 @@ export default function createLocationTrackingRouter(
     res.status(500).json({ message: 'Something went wrong with location tracking.' });
   };
 
+  /** Today's and yesterday's facts for a person, by branch-clock day (a batch holds at most 24 hours of points). */
+  const factsFor = async (person: { id: string; username: string }, branch: string) => {
+    const at = now();
+    const today = trackingDay(at, branch);
+    const days = [trackingDay(new Date(at.getTime() - 24 * 3600 * 1000), branch), today];
+    const byDay = await facts(person, days);
+    return { today, byDay, of: (day: string): DayFacts => byDay.get(day) ?? NO_FACTS };
+  };
+
   router.get('/status', authenticate, async (req, res) => {
     try {
       const staff = await directory.staff();
       const me = staff.find(s => s.id === String(req.userId || ''));
       const branch = me?.branch || homeBranchOf({ assignedLocations: req.user?.assignedLocations });
       const tracked = canBeTracked(req.user);
+      const f = await factsFor({ id: String(req.userId || ''), username: me?.username || '' }, branch);
+      const weekday = isWeekdayAt(now(), branch);
+      const dayOn = trackingDayOn(weekday, f.of(f.today));
       const consented = tracked && (await store.consentsFor([String(req.userId || '')], CONSENT_VERSION)).has(String(req.userId || ''));
-      res.json({ tracked, consented, consentVersion: CONSENT_VERSION, branch, windowNow: tracked && inTrackingWindow(now(), branch), windowStart: WINDOW_START_HOUR, windowEnd: WINDOW_END_HOUR, canView: canViewTeamLocations(req.user) });
+      res.json({ tracked, consented, consentVersion: CONSENT_VERSION, branch, day: f.today, dayOn, dayOffReason: dayOffReason(weekday, f.of(f.today)), windowNow: tracked && dayOn && inTrackingHours(now(), branch), windowStart: WINDOW_START_HOUR, windowEnd: WINDOW_END_HOUR, canView: canViewTeamLocations(req.user) });
     } catch (err) { fail(res, 'status', err); }
   });
 
@@ -66,9 +82,10 @@ export default function createLocationTrackingRouter(
       const staff = await directory.staff();
       const me = staff.find(s => s.id === String(req.userId || ''));
       const branch = me?.branch || homeBranchOf({ assignedLocations: req.user?.assignedLocations });
-      const { kept, dropped } = cleanPoints(req.body?.points, branch, now());
+      const f = await factsFor({ id: String(req.userId), username: me?.username || '' }, branch);
+      const { kept, dropped } = cleanPoints(req.body?.points, branch, now(), f.of);
       const saved = await store.savePoints(String(req.userId), branch, kept);
-      res.json({ saved, received: Array.isArray(req.body?.points) ? req.body.points.length : 0, dropped, windowNow: inTrackingWindow(now(), branch) });
+      res.json({ saved, received: Array.isArray(req.body?.points) ? req.body.points.length : 0, dropped, windowNow: inTrackingWindow(now(), branch, f.of(f.today)) });
     } catch (err) { fail(res, 'save', err); }
   });
 

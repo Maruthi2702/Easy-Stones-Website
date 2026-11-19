@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  NO_FACTS, dayOffReason, inTrackingHours, isWeekdayAt, trackingDayOn,
   agoText, canBeTracked, canViewTeamLocations, cleanPoints, dayBounds, inTrackingWindow, MAX_POINTS_PER_BATCH,
   retentionCutoff, seenStatus, trackingDay, trailMiles, TRACKING
 } from './locationTracking.ts';
@@ -108,5 +109,48 @@ describe('trailMiles', () => {
     expect(trailMiles([a, b])).toBeLessThan(7.3);
     expect(trailMiles([a, b, c])).toBe(trailMiles([a, b]));
     expect(trailMiles([a])).toBe(0);
+  });
+});
+
+describe('which days tracking is on', () => {
+  const sat = at('2026-11-21T20:00:00Z'); // Saturday noon in Seattle
+  const wed = at('2026-11-18T20:00:00Z');
+  it('is a weekday unless it is time off, and a weekend only with scheduled work', () => {
+    expect(trackingDayOn(true)).toBe(true);
+    expect(trackingDayOn(true, { timeOff: true, scheduledWork: false })).toBe(false);
+    expect(trackingDayOn(true, { timeOff: true, scheduledWork: true })).toBe(false);
+    expect(trackingDayOn(false)).toBe(false);
+    expect(trackingDayOn(false, { timeOff: false, scheduledWork: true })).toBe(true);
+    expect(trackingDayOn(false, { timeOff: true, scheduledWork: true })).toBe(false);
+  });
+  it('says why a day is off', () => {
+    expect(dayOffReason(true)).toBe('');
+    expect(dayOffReason(true, { timeOff: true, scheduledWork: false })).toBe('timeOff');
+    expect(dayOffReason(false)).toBe('weekend');
+    expect(dayOffReason(false, { timeOff: false, scheduledWork: true })).toBe('');
+  });
+  it('puts the facts into the window', () => {
+    expect(inTrackingWindow(sat, 'Seattle')).toBe(false);
+    expect(inTrackingWindow(sat, 'Seattle', { timeOff: false, scheduledWork: true })).toBe(true);
+    expect(inTrackingWindow(sat, 'Seattle', { timeOff: false, scheduledWork: true })).toBe(true);
+    expect(inTrackingWindow(at('2026-11-22T03:30:00Z'), 'Seattle', { timeOff: false, scheduledWork: true })).toBe(false); // Saturday 7:30 PM: hours still apply
+    expect(inTrackingWindow(wed, 'Seattle', { timeOff: true, scheduledWork: false })).toBe(false);
+    expect(inTrackingWindow(wed, 'Seattle', NO_FACTS)).toBe(true);
+  });
+  it('reads hours and weekday on their own', () => {
+    expect(inTrackingHours(sat, 'Seattle')).toBe(true);
+    expect(isWeekdayAt(sat, 'Seattle')).toBe(false);
+    expect(isWeekdayAt(wed, 'Seattle')).toBe(true);
+  });
+  it('cleanPoints keeps a Saturday point only on a day with scheduled work, by the point\'s own day', () => {
+    const now = at('2026-11-21T21:00:00Z');
+    const p = (id: string, iso: string) => ({ id, at: iso, lat: 47.6, lng: -122.3, accuracy: 10 });
+    const batch = [p('a', '2026-11-21T20:00:00Z'), p('b', '2026-11-21T20:05:00Z')];
+    expect(cleanPoints(batch, 'Seattle', now).kept).toHaveLength(0);
+    const facts = (day: string) => ({ timeOff: false, scheduledWork: day === '2026-11-21' });
+    expect(cleanPoints(batch, 'Seattle', now, facts).kept).toHaveLength(2);
+    const off = cleanPoints([p('c', '2026-11-20T20:00:00Z')], 'Seattle', at('2026-11-20T21:00:00Z'), () => ({ timeOff: true, scheduledWork: false }));
+    expect(off.kept).toHaveLength(0);
+    expect(off.dropped.outsideWindow).toBe(1);
   });
 });

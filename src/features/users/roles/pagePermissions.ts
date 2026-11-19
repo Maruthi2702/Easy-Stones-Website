@@ -170,10 +170,10 @@ export const PAGE_PERMISSIONS: PageDef[] = [
         id: 'location_tracking',
         page: 'Location Tracking',
         icon: MapPin,
-        description: 'Where reps and drivers are during the work day (the iOS app, 7 AM – 6 PM, Monday – Friday)',
+        description: 'Where reps and drivers are during the work day (the iOS app, 7 AM – 6 PM on workdays)',
         color: '#0ea5e9',
         actions: [
-            { key: TRACKING.TRACKED,   label: 'Share location',  icon: MapPin, desc: "The people in this role share their phone's location from the app, 7 AM – 6 PM on their branch's clock, Monday – Friday" },
+            { key: TRACKING.TRACKED,   label: 'Share location',  icon: MapPin, desc: "The people in this role share their phone's location from the app, 7 AM – 6 PM on their branch's clock, Monday – Friday plus a weekend day with a delivery or stop scheduled, never on a Personal Time Off day" },
             { key: TRACKING.VIEW_TEAM, label: 'See team',        icon: Eye,    desc: "See where the tracked people on the user's team are today and where they went (the team is everyone working at the user's assigned locations)" }
         ]
     },
