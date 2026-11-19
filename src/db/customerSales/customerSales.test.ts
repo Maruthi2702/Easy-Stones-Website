@@ -5,8 +5,8 @@ import * as schema from '../schema/index.ts';
 import { migrateDb } from '../client.ts';
 import type { Db } from '../copy/plan.ts';
 import { createCustomer } from '../customers/writes/core.postgres.ts';
-import { readSalesSheet, salesSummary } from '../../utils/customerSales.ts';
-import { salesForCustomer, replaceYear } from './index.ts';
+import { readSalesSheet, salesSummary, suggestCustomers } from '../../utils/customerSales.ts';
+import { salesForCustomer, replaceYear, previewYear } from './index.ts';
 
 const HEAD = ['Customer', 'Code', 'Customer Route', 'Primary Sales Person', 'Secondary Sales Person',
   'Jan 26', 'Feb 26', 'Mar 26', 'Apr 26', 'May 26', 'Jun 26', 'Jul 26', 'Aug 26', 'Sep 26', 'Oct 26', 'Nov 26', 'Dec 26', 'Total', '12 Months Avg.'];
@@ -32,6 +32,15 @@ describe('readSalesSheet', () => {
   });
   it('summarises a year', () => {
     expect(salesSummary([100, null, 300, ...Array(9).fill(null)])).toEqual({ total: 400, monthsWithSales: 2, bestMonth: 2, average: 200 });
+  });
+});
+
+describe('suggestCustomers', () => {
+  const people = [{ company: 'Distinctive Tile and Stone LLC' }, { company: 'Distinctive Tile' }, { company: 'Granite Top Inc' }, { company: 'Zeta Marble' }];
+  it('finds look-alikes through filler words and punctuation, best first', () => {
+    expect(suggestCustomers('Distinctive Tile & Stone', people).map(c => c.company)).toEqual(['Distinctive Tile and Stone LLC', 'Distinctive Tile']);
+    expect(suggestCustomers('Granite Top, Inc.', people)[0].company).toBe('Granite Top Inc');
+    expect(suggestCustomers('Nothing Alike', people)).toEqual([]);
   });
 });
 
@@ -65,5 +74,24 @@ describe('the data layer', () => {
     const again = await salesForCustomer(cust, 2026, db);
     expect(again?.cents.filter(c => c != null)).toEqual([5000]);
     expect(again?.years).toEqual([2026]);
+  });
+
+  it('previews without writing, then a picked link matches the name and is remembered', async () => {
+    const odd = readSalesSheet([HEAD, row('360 Counters, L.L.C.', { 1: 200 }), row('Nobody Stone', { 3: 5 })]);
+    const pre = await previewYear(odd.entries, 2026, db);
+    expect(pre.matched).toBe(0);
+    expect(pre.unmatched.map(u => u.name)).toEqual(['360 Counters, L.L.C.', 'Nobody Stone']);
+    expect(pre.unmatched[0].suggestions.map(x => x.id)).toContain(cust);
+    expect(pre.earlier?.customers).toBe(1);
+    // nothing was written by the preview
+    expect((await salesForCustomer(cust, 2026, db))?.cents.filter(c => c != null)).toEqual([5000]);
+
+    const key = odd.entries[0].key;
+    const done = await replaceYear({ year: 2026, entries: odd.entries, totalCents: odd.totalCents, fileName: '', exportedOn: '', by: 'k', links: { [key]: cust } }, db);
+    expect(done).toMatchObject({ linked: 1, matched: 1, unmatched: ['Nobody Stone'] });
+    expect((await salesForCustomer(cust, 2026, db))?.cents[1]).toBe(20000);
+    // remembered: next time the same name needs no answer
+    expect((await previewYear(odd.entries, 2026, db)).unmatched.map(u => u.name)).toEqual(['Nobody Stone']);
+    await expect(replaceYear({ year: 2026, entries: odd.entries, totalCents: 0, fileName: '', exportedOn: '', by: '', links: { [key]: '0000000000000000000000ee' } }, db)).rejects.toThrow(/no longer exists/);
   });
 });
