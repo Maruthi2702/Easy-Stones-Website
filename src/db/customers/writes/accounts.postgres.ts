@@ -170,7 +170,7 @@ export async function unlinkPartners(db: Db, customerId: string, partnerId: stri
 const hashPassword = async (password: string) => bcrypt.hash(password, await bcrypt.genSalt(10));
 
 const STATUSES = ['New Lead', 'Trying to Onboard', 'Contacted / In Discussion', 'Onboarded', 'Different Sales Person', 'Not Interested', 'Inactive'];
-const TYPES = ['Fabricator', 'Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder'];
+const TYPES = ['Fabricator', 'Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder', 'Internal Office'];
 const LEVELS = ['Level - 1', 'Level - 2', 'Level - 3', 'Level - 4'];
 
 /** PUT /api/customers/:id/password. null = no such customer. */

@@ -71,7 +71,8 @@ const customerDefinition = {
   },
   customerType: {
     type: String,
-    enum: ['Fabricator', 'Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder'],
+    // 'Internal Office' is the per-location office account (src/utils/officeAccounts.ts), never chosen on a form.
+    enum: ['Fabricator', 'Contractor', 'Dealer', 'Floor Covering', 'Designer', 'Builder', 'Internal Office'],
     default: 'Fabricator'
   },
   level: {
