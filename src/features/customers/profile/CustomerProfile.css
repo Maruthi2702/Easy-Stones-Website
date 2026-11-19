@@ -129,7 +129,7 @@ body.light-theme-active .cp {
   .cp .cp-close:hover { transform: none; box-shadow: none; }
   .cp .cp-name { font-size: 22px; }
   .cp .cp-bar { margin-top: 12px; }
-  .cp .cp-tabs { flex: 1 1 100%; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
+  .cp .cp-tabs { flex: 1 1 100%; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; }
   .cp .cp-tab { min-height: 56px; padding: 0 2px; }
   .cp .cp-tab svg { width: 22px; height: 22px; }
   .cp .cp-tab-lab { display: none; }
