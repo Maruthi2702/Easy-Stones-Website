@@ -296,7 +296,7 @@ and show `LocationChip`: the dashboard's Visits list, the customer's Visits tab 
 `ResourceTable` / `ResourceCards`, so Dashboard and profile change together), plus `LocationDetails` ("Where it was
 logged": mark, distance, time and accuracy, device, a Google Maps link, "Logged on …" when read on another day) in the Visit
 view and View resource. Viewers with the switch also get Filters → **Where logged** (`WhereLoggedField`, `matchesWhere`;
-needs every visible visit's mark, fetched in calls of 500) and By rep's **On site** column ("13 of 16", `onSiteTally`: only
+needs every visible visit's mark, fetched in calls of 500), the visit and resource Excel exports' **Where Logged / Distance From Customer / Logged From** columns (`locationExportColumns`; only with the switch, so nobody else's file changes) and By rep's **On site** column ("13 of 16", `onSiteTally`: only
 in-person visits with a pin count). Nothing is built beyond this; a mark never changes after the save. `withoutLoggedFrom` stays on every
 visit answer apart from the add's. A new place that creates a visit or resource from
 the app needs `useLocationReading` and must send `loggedFrom`.

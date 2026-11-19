@@ -170,3 +170,10 @@ export const onSiteTally = (readings: Array<Pick<LoggedFrom, 'mark'> | null | un
 
 /** Google Maps link to a point. */
 export const mapsLink = (p: { lat: number; lng: number }) => `https://www.google.com/maps?q=${p.lat},${p.lng}`;
+
+/** The three Excel columns for a visit or resource that has (or lacks) a reading: Where Logged, Distance From Customer, Logged From. "-" when there is none. */
+export const locationExportColumns = (reading: LoggedFrom | null | undefined) => ({
+  'Where Logged': reading ? markLabel(reading) : '-',
+  'Distance From Customer': reading && reading.distanceM !== null ? milesText(reading.distanceM) : '-',
+  'Logged From': reading ? `${reading.device === 'phone' ? 'Phone' : 'Computer'}${reading.approximate ? ' (approximate)' : ''}` : '-'
+});

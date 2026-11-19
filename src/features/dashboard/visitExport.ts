@@ -1,6 +1,6 @@
 import { formatDate } from '../../utils/dateUtils';
 import { splitCustomer } from '../../components/sales/visitsListHelpers';
-import { markLabel, milesText } from '../../utils/visitLocation';
+import { locationExportColumns } from '../../utils/visitLocation';
 import type { LoggedFrom } from '../../utils/visitLocation';
 import type { Loose } from '../../types/records';
 
@@ -25,11 +25,7 @@ export function visitExportRows(visits: Loose[], marks?: Record<string, LoggedFr
             'Follow-up Date': v.followUpDate ? formatDate(v.followUpDate) : '-',
             'Follow-up Notes': v.followUp || v.nextAction || '-',
             Outcome: v.outcome || '-',
-            ...(marks ? {
-                'Where Logged': reading ? markLabel(reading) : '-',
-                'Distance From Customer': reading && reading.distanceM !== null ? milesText(reading.distanceM) : '-',
-                'Logged From': reading ? `${reading.device === 'phone' ? 'Phone' : 'Computer'}${reading.approximate ? ' (approximate)' : ''}` : '-'
-            } : {})
+            ...(marks ? locationExportColumns(reading) : {})
         };
     });
 }

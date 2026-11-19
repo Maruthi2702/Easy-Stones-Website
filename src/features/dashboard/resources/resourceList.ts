@@ -1,6 +1,8 @@
 import { WEEK_STARTS_ON } from '../../../components/shared/calendar/calendarDates';
 import { resourceQty } from '../../../utils/resourceForm';
 import type { Loose } from '../../../types/records';
+import { locationExportColumns } from '../../../utils/visitLocation';
+import type { LoggedFrom } from '../../../utils/visitLocation';
 import { STARTING_RESOURCE_FAMILIES, OTHER_FAMILY } from '../../../utils/typeLists';
 
 /*
@@ -165,7 +167,7 @@ export const shortDay = (ymd: string, today: string): string => {
 };
 
 /** The Excel sheet's rows, one per resource. */
-export const resourceExportRows = (rows: Loose[]) => rows.map((r) => {
+export const resourceExportRows = (rows: Loose[], marks?: Record<string, LoggedFrom>) => rows.map((r) => {
     const { company, contact } = customerParts(r);
     return {
         Date: resourceDay(r),
@@ -178,6 +180,8 @@ export const resourceExportRows = (rows: Loose[]) => rows.map((r) => {
         Description: r.description || '',
         Notes: r.notes || '',
         Status: r.status || 'Active',
-        'Logged by': loggedByOf(r)
+        'Logged by': loggedByOf(r),
+        // Where it was logged: only with `marks` (people who may see it), so nobody else's file changes.
+        ...(marks ? locationExportColumns(marks[String(r._id)]) : {})
     };
 });

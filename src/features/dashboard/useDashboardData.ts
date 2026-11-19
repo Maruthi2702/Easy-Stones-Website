@@ -14,7 +14,7 @@ import { DEFAULT_FOLLOW_UP_FILTERS, followUpsInView, withFilters } from '../../u
 import type { FollowUpFilters, FollowUpRange } from '../../utils/followUpList';
 import { todayISO } from '../../components/shared/calendar/calendarDates';
 import type { Loose } from '../../types/records';
-import { useVisitLocations, fetchVisitLocations } from '../../api/visitLocations';
+import { useVisitLocations, fetchVisitLocations, fetchResourceLocations } from '../../api/visitLocations';
 import { visitExportRows } from './visitExport';
 import { matchesWhere } from '../../utils/visitLocation';
 import type { WhereFilter } from '../../utils/visitLocation';
@@ -632,7 +632,9 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
     const handleExportResources = async (rows: Loose[] = memoizedFilteredResources, fileName = 'Resources.xlsx') => {
         const XLSX = await import('xlsx');
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(resourceExportRows(rows));
+        // Where each was logged: only for people who may see it, and only the readings the server allows.
+        const marks = canSeeLocations ? await fetchResourceLocations(rows.map((r) => String(r._id))) : undefined;
+        const ws = XLSX.utils.json_to_sheet(resourceExportRows(rows, marks));
         XLSX.utils.book_append_sheet(wb, ws, 'Resources');
         XLSX.writeFile(wb, fileName);
     };

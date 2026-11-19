@@ -72,3 +72,13 @@ export async function fetchVisitLocations(visitIds: string[]): Promise<Record<st
     }
     return Object.fromEntries(visitIds.filter((id) => found.has(`visit:${id}`)).map((id) => [id, found.get(`visit:${id}`) as LoggedFrom]));
 }
+
+/** The same for resources, by resource id (for the Resources Excel export). */
+export async function fetchResourceLocations(resourceIds: string[]): Promise<Record<string, LoggedFrom>> {
+    const todo = resourceIds.filter((id) => id && !found.has(`resource:${id}`));
+    for (let i = 0; i < todo.length; i += CHUNK) {
+        const answer = await ask({ resourceIds: todo.slice(i, i + CHUNK) });
+        Object.entries(answer.byResource || {}).forEach(([id, reading]) => found.set(`resource:${id}`, reading));
+    }
+    return Object.fromEntries(resourceIds.filter((id) => found.has(`resource:${id}`)).map((id) => [id, found.get(`resource:${id}`) as LoggedFrom]));
+}
