@@ -414,8 +414,7 @@ Delete customer… only for logins with `manage_customers` / `delete_customers`
 (`canEditCustomers` / `canDeleteCustomers`). What the menu holds and where it
 shows is `profile/profileHeaderRules.ts` (tested): up to 700px the status picker
 moves into it, on a phone so do Call and Directions. The ✕ and ⋯ copy the forms
-template (`.fm-close`, the Selection Sheet's "…"). Under 640px the tabs are
-icons with count badges and Add is the round + (above `--app-bottom-h`). Each
+template (`.fm-close`, the Selection Sheet's "…"). The sections show as labelled tabs when they fit beside the Add button, else as **one section bar that opens a menu card** (`profile/SectionMenu.tsx`; design: claude.ai artifact **Profile Section Menu**, https://claude.ai/artifact/CgPSBxMgobnNkVuvXU2Vui). The header measures the space (`asMenu`, `.cp-bar--menu`), so a phone, a narrow tablet or a seventh tab need no breakpoint. Add is the round + on a phone (above `--app-bottom-h`). Each
 tab has **one** Add button in the header (Add visit / resource / contact, Link
 partner); a tab with nothing on it shows `TabEmpty` (which holds the button) and
 the header's hides. Visits and Resources use the shared `Pagination`. The

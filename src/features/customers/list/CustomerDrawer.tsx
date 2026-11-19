@@ -254,7 +254,7 @@ const CustomerDrawer = ({
               <h3>
                 {canProfile ? (
                   <button type="button" className="cl-dh-name" title="Open profile" onClick={() => onOpenProfile(customer)}>
-                    {companyOf(c)}
+                    {companyOf(c)}<ExternalLink size={14} strokeWidth={2.4} aria-hidden="true" />
                   </button>
                 ) : companyOf(c)}
               </h3>

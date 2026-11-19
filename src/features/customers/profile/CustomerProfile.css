@@ -99,7 +99,7 @@ body.light-theme-active .cp {
 .cp .cp-tab[aria-selected="true"] .n { background: var(--cl-gold-tint); color: var(--cl-gold-ink); }
 .cp .cp-act { height: 52px; padding: 0 20px; }
 .cp .cp-act-short, .cp .cp-fab { display: none; }
-.cp .cp-secbar { display: none; } /* phone only; shown in the 640px block below */
+.cp .cp-secbar { display: none; } /* shown when the tabs don't fit: .cp-bar--menu below */
 
 /* ── Up to 1024px: the tags drop under the name; the Add button is short ── */
 @media (max-width: 1024px) {
@@ -130,9 +130,8 @@ body.light-theme-active .cp {
   .cp .cp-close:hover { transform: none; box-shadow: none; }
   .cp .cp-name { font-size: 22px; }
   .cp .cp-bar { margin-top: 12px; }
-  /* The tab row is replaced by the section bar (SectionMenu.tsx), so any number of sections fits. */
-  .cp .cp-tabs { display: none; }
-  .cp .cp-secbar { display: block; flex: 1 1 100%; }
+  /* On a phone the section bar takes the whole row (see .cp-bar--menu below). */
+  .cp .cp-bar--menu .cp-secbar { flex: 1 1 100%; max-width: none; }
   .cp .cp-act { display: none; }
   .cp .cp-fab {
     display: flex; position: fixed; right: 16px; bottom: calc(var(--app-bottom-h, 0px) + 16px + env(safe-area-inset-bottom, 0px)); z-index: 90;
@@ -183,7 +182,9 @@ body.light-theme-active .cp {
 @keyframes cp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .cp .cp-sk-bar { animation: none; } }
 
-/* ── Phone: the section bar and its card (SectionMenu.tsx) ── */
+/* ── The section bar and its card (SectionMenu.tsx): used whenever the labelled tabs don't fit ── */
+.cp .cp-bar--menu .cp-tabs { position: absolute; left: -9999px; visibility: hidden; pointer-events: none; width: max-content; max-width: none; }
+.cp .cp-bar--menu .cp-secbar { display: block; flex: 1 1 auto; max-width: 380px; }
 .cp .cp-sec { display: flex; align-items: center; gap: 10px; width: 100%; height: 52px; padding: 0 14px; border: 1px solid var(--cl-line); border-radius: 14px; background: var(--cl-surface); color: var(--cl-text); font: 650 16px inherit; text-align: left; cursor: pointer; }
 .cp .cp-sec-ic { display: grid; place-items: center; color: var(--cl-gold-ink); }
 .cp .cp-sec-lab { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

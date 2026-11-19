@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronDown, MapPin, Info, Clock, Folder, Users, Share2, MoreHorizontal, X, Pencil, Trash2, Phone, Navigation, Plus, Check, BarChart3
 } from 'lucide-react';
@@ -67,6 +67,30 @@ const CustomerProfileHeader = ({
   const [statusOpen, setStatusOpen] = useState(false);
   const [sheet, setSheet] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Sections show as labelled tabs when they fit beside the Add button, else as the one section bar
+  // (SectionMenu). Chosen by measuring, so a phone, a narrow tablet and a future seventh tab all just work.
+  const barRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const [asMenu, setAsMenu] = useState(false);
+  useLayoutEffect(() => {
+    const bar = barRef.current;
+    const tabs = tabsRef.current;
+    if (!bar || !tabs) return;
+    const measure = () => {
+      // In menu mode the tab row is laid out off-screen at its natural width (CustomerProfile.css), so this reads the same either way.
+      if (!bar.clientWidth) return; // not laid out (hidden, or a test renderer)
+      const need = tabs.scrollWidth + 2;
+      const act = bar.querySelector<HTMLElement>('.cp-act');
+      const actWidth = act && act.offsetParent ? act.offsetWidth + 12 : 0;
+      const phone = Boolean(window.matchMedia?.('(max-width: 640px)').matches);
+      setAsMenu(phone || need > bar.clientWidth - actWidth);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(bar);
+    return () => ro.disconnect();
+  });
   const closeMenu = () => { setMenuOpen(false); setStatusOpen(false); };
   useDismiss(menuOpen && !sheet, (open: boolean) => { if (!open) closeMenu(); }, menuRef);
   useSheetEscape(menuOpen, sheet, closeMenu);
@@ -207,9 +231,9 @@ const CustomerProfileHeader = ({
         {error && <div className="cl-err" role="alert" style={{ marginTop: 8 }}>{error}</div>}
       </section>
 
-      <div className="cp-bar">
+      <div className={`cp-bar${asMenu ? ' cp-bar--menu' : ''}`} ref={barRef}>
         <SectionMenu items={TABS.map(t => ({ key: t.key, label: t.label, icon: t.icon, n: t.count(c) }))} active={activeTab} name={companyOf(c) || 'Customer'} onPick={onTab} />
-        <div className="cp-tabs" role="tablist" aria-label="Customer sections" onKeyDown={onTabKey}>
+        <div className="cp-tabs" ref={tabsRef} role="tablist" aria-label="Customer sections" onKeyDown={onTabKey}>
           {TABS.map(t => {
             const Icon = t.icon;
             const n = t.count(c);
