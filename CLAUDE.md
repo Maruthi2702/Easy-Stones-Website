@@ -575,8 +575,13 @@ outside) as well as the app; kept 90 days (`src/jobs/locationRetention.ts`); tab
 Users & Roles → **Location Tracking**: `track_location` (that role is tracked) and `view_team_locations` (sees the
 tracked people on their team, by `teamScope.ts`; others answer 404). Nobody holds either until an admin ticks it.
 **Admin → Team Location** (`src/features/teamLocation/`, nav `team_location`) is the manager's screen: people
-with last seen, a Google map, and one person's trail for a day. Not built: the phone-side collector, weekend /
-time-off days, universal links and push (need the Apple developer account).
+with last seen, a Google map, and one person's trail for a day. **The phone collector** (`src/features/locationCollector/`, mounted in App.tsx): only in the iOS app, only for a
+staff login whose role has `track_location`; consent screen first (`CONSENT_VERSION` — bump it when the wording
+changes), then the community background-geolocation plugin collects inside 7–6 (a point per 45 s), unsent points
+queue in localStorage per person and go in batches of up to 200, "Location on until 6 PM" pill, Settings prompt
+when iOS location is off. Info.plist has the Always / When-in-use text and `UIBackgroundModes` location. **Never
+run on a real phone yet** — test a full day on an iPhone. Not built: weekend / time-off days, a server-side record
+of who consented and when, universal links and push (need the Apple developer account).
 
 ## Phone tab bar (2026-10-18)
 

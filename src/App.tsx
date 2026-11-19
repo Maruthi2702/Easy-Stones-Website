@@ -5,6 +5,7 @@ import { CheckCircle, AlertTriangle, Info } from 'lucide-react';
 import Header from './components/Header';
 import AuthRecovery from './components/AuthRecovery';
 import PresenceReporter from './components/PresenceReporter';
+import LocationCollector from './features/locationCollector/LocationCollector';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import { useAuth } from './context/AuthContext';
@@ -164,6 +165,7 @@ function App() {
       <ProductProvider>
         <div className="app">
           <PresenceReporter />
+          <LocationCollector />
           <ScrollToTop />
           <div className="bg-gradient"></div>
           {!hideHeader && <Header />}
