@@ -1,4 +1,4 @@
-.srt { display: flex; flex-direction: column; gap: 14px; max-width: 960px; }
+.srt { display: flex; flex-direction: column; gap: 14px; width: 100%; }
 .srt-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .srt-tiles .cl-sec { display: flex; flex-direction: column; gap: 2px; }
 .srt-tiles b { font-size: 22px; color: var(--cl-text); }
