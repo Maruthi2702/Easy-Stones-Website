@@ -41,6 +41,31 @@ describe('Customer and staff portal login', () => {
     expect(screen.queryByRole('alert')).toBeNull();
     expect(auth.completeLogin).not.toHaveBeenCalled();
   });
+  it('signs a supplier in with their email, to their own portal, after the staff check says no', async () => {
+    request.mockImplementation(async url => String(url).endsWith('/api/customer/login')
+      ? Response.json({ message: 'Invalid email or password' }, { status: 401 })
+      : Response.json({ me: { name: 'Li' } }));
+    render(<MemoryRouter initialEntries={['/login']}><Routes><Route path="/login" element={<CustomerLoginPage />} /><Route path="/supplier" element={<p>Supplier portal</p>} /></Routes></MemoryRouter>);
+    enter('li@supplier.com', 'right'); submit();
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    expect(String(request.mock.calls[1][0])).toMatch(/\/api\/supplier-portal\/sign-in$/);
+    expect(request.mock.calls[1][1]).toMatchObject({ credentials: 'include', body: JSON.stringify({ email: 'li@supplier.com', password: 'right' }) });
+    expect(await screen.findByText('Supplier portal')).toBeTruthy();
+    expect(auth.completeLogin).not.toHaveBeenCalled();
+  });
+  it('shows a supplier login\'s own reason when it is locked', async () => {
+    request.mockImplementation(async url => String(url).endsWith('/api/customer/login')
+      ? Response.json({ message: 'Invalid email or password' }, { status: 401 })
+      : Response.json({ message: 'Too many tries. Try again in 15 minutes.' }, { status: 423 }));
+    render(<MemoryRouter><CustomerLoginPage /></MemoryRouter>); enter('li@supplier.com', 'x'); submit();
+    expect((await screen.findByRole('alert')).textContent).toContain('Too many tries');
+  });
+  it('does not ask the supplier portal about a username with no @', async () => {
+    request.mockResolvedValue(Response.json({ message: 'Invalid email or password' }, { status: 401 }));
+    render(<MemoryRouter><CustomerLoginPage /></MemoryRouter>); enter('alex', 'secret123'); submit();
+    expect((await screen.findByRole('alert')).textContent).toContain('Invalid email or password');
+    expect(request).toHaveBeenCalledTimes(1);
+  });
   it('explains a network failure', async () => {
     request.mockRejectedValue(new Error('offline'));
     render(<MemoryRouter><CustomerLoginPage /></MemoryRouter>); enter(); submit();
