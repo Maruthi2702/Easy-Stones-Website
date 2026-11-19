@@ -1190,7 +1190,9 @@ their typed grid (no Return row) and show "Payments page: $X" under it
 
 ## Credit Card Receipts: the upload is the expense (2026-11-05, on `feat/card-receipts`)
 
-Accounting → **Credit Card Receipts** (`src/features/cardReceipts/`, nav
+**Moved to the Sales module 2026-11-19** (owner's ask): nav `card_receipts` is under Sales, not Accounting; permissions and routes unchanged.
+
+Sales → **Credit Card Receipts** (`src/features/cardReceipts/`, nav
 `card_receipts`) and Admin → **Receipt Categories** (`receipt_categories`).
 Design and the owner's calls: the claude.ai artifacts **Credit Card Receipts
 Architecture** (https://claude.ai/artifact/64fQdQpmprHrsVuMbnBYDh) and **Credit

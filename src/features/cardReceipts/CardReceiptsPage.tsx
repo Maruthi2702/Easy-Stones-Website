@@ -26,7 +26,7 @@ type Tab = 'expenses' | 'waiting' | 'cards';
 type Open = { kind: 'add'; lost?: boolean } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | null;
 
 /**
- * Accounting → Credit Card Receipts (2026-11-05). Design: the claude.ai
+ * Sales → Credit Card Receipts (2026-11-05). Design: the claude.ai
  * artifacts "Credit Card Receipts Architecture" and "Credit Card Receipts UX".
  * Cardholders upload a receipt right after paying (the round gold +); someone
  * above them approves it (Waiting for me); accounting sees everyone's with

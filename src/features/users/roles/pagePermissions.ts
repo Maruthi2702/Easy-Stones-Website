@@ -343,10 +343,10 @@ export const PAGE_PERMISSIONS: PageDef[] = [
         ]
     },
     {
-        // Accounting → Credit Card Receipts (src/utils/cardReceipts.ts, 2026-11-05).
+        // Sales → Credit Card Receipts (src/utils/cardReceipts.ts, 2026-11-05).
         // Who approves whom is set on each role under Roles & Permissions
         // ("Card receipts … approves"), shown once Approve is on.
-        id: 'accounting_card_receipts', page: 'Accounting · Credit Card Receipts', icon: CreditCard,
+        id: 'accounting_card_receipts', page: 'Sales · Credit Card Receipts', icon: CreditCard,
         description: 'Company-card receipts: uploaded when paid, approved by someone above, exported for accounting', color: '#d4af37',
         actions: [
             { key: CARD_RECEIPTS.USE, label: 'My receipts', icon: Camera, desc: 'Upload receipts for their own company card and see their own expenses' },

@@ -57,6 +57,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'permits', label: 'Permits', section: 'sales', canSee: (u: NavUser) => has(u, PERMITS.VIEW) },
   // Team Files (src/features/teamFiles/): was the dashboard's Resources → Team Files, so it opens with the Dashboard.
   { id: 'team_files', label: 'Team Files', section: 'sales', canSee: (u: NavUser) => has(u, 'view_dashboard') },
+  // Credit Card Receipts (src/features/cardReceipts/): any of its switches opens it. In Sales since 2026-11-19 (owner's ask; was Accounting).
+  { id: 'card_receipts', label: 'Credit Card Receipts', section: 'sales', canSee: (u: NavUser) => canOpenReceipts(u) },
   {
     id: 'lost_sales', label: 'Lost Sales', section: 'sales',
     canSee: (u: NavUser) => canViewLostSales(u) || !u
@@ -101,8 +103,6 @@ export const NAV_ITEMS: NavItem[] = [
   // every Accounting action.
   { id: 'freight', label: '3rd-Party Freight', section: 'accounting', canSee: (u: NavUser) => has(u, 'view_freight_charges') },
   { id: 'fuel_man', label: 'Fuel Man', section: 'accounting', canSee: (u: NavUser) => has(u, 'view_fuel_man') },
-  // Credit Card Receipts (src/features/cardReceipts/): any of its switches opens it.
-  { id: 'card_receipts', label: 'Credit Card Receipts', section: 'accounting', canSee: (u: NavUser) => canOpenReceipts(u) },
   // Users & Roles is three pages (2026-10-16), each opened by any action in its area
   // (src/utils/usersAccess.ts), Users also by team access (src/utils/teamAccess.ts).
   { id: 'users', label: 'Users', section: 'admin', canSee: (u: NavUser) => canOpenUsersPage(u) },

@@ -1,5 +1,5 @@
 /*
- * Accounting → Credit Card Receipts (CardReceiptsPage.tsx) and Admin →
+ * Sales → Credit Card Receipts (CardReceiptsPage.tsx) and Admin →
  * Receipt Categories. Built from the claude.ai artifact "Credit Card Receipts
  * UX". Everything is prefixed .ccr- so nothing leaks; dark is the app's
  * default, light sits under body.light-theme-active. Forms use the shared
