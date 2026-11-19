@@ -106,6 +106,13 @@ body.light-theme-active .cp {
   width: 58px; height: 58px; border-radius: 50%; border: 1px solid #c39f2a; background: var(--cl-gold); color: #1a1400;
   align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); cursor: pointer;
 }
+/* The same press, hover and focus as the Dashboard's + (DashboardAddButton.css). */
+.cp .cp-fab { transition: transform 0.15s, background 0.15s, box-shadow 0.2s; }
+.cp .cp-fab:active { transform: scale(0.94); }
+.cp .cp-fab:focus-visible { outline: 3px solid rgba(212, 175, 55, 0.5); outline-offset: 3px; }
+@media (hover: hover) {
+  .cp .cp-fab:hover { background: #d4b85a; box-shadow: 0 8px 20px rgba(20, 27, 45, 0.34); }
+}
 .cp .cp-secbar { display: none; } /* shown when the tabs don't fit: .cp-bar--menu below */
 
 /* ── Up to 1024px: the tags drop under the name; the Add button is short ── */
