@@ -1,0 +1,28 @@
+/* The location line on Add visit / Add resource and the "turn on location" screen. Uses the form template's tokens. */
+.loc-line { display: grid; grid-template-columns: 22px 1fr; gap: 2px 8px; border-radius: 11px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: var(--fm-tx); }
+.loc-line small { grid-column: 2; color: var(--fm-mut); font-size: 12px; }
+.loc-ic { grid-row: span 2; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; margin-top: 1px; color: #fff; }
+.loc-ok { background: color-mix(in srgb, var(--fm-ok) 14%, transparent); }
+.loc-ok .loc-ic { background: var(--fm-ok); color: var(--fm-on-gold); }
+.loc-warn { background: var(--fm-gold-tint); }
+.loc-warn .loc-ic { background: var(--fm-gold); color: var(--fm-on-gold); }
+.loc-wait { background: var(--fm-in); border: 1px dashed var(--fm-bd); }
+.loc-wait .loc-ic { background: var(--fm-bd2); color: var(--fm-mut); }
+.loc-spin { animation: loc-spin 1s linear infinite; }
+.loc-retry { grid-column: 2; justify-self: start; margin-top: 4px; background: none; border: 0; padding: 4px 0; font: inherit; font-weight: 600; color: var(--fm-gold-tx); cursor: pointer; min-height: 32px; }
+.loc-blocked { display: grid; gap: 12px; justify-items: center; text-align: center; padding: 48px 8px; }
+.loc-blocked h3 { margin: 0; font-size: 17px; color: var(--fm-tx); }
+.loc-blocked p { margin: 0; max-width: 40ch; font-size: 13.5px; color: var(--fm-mut); }
+.loc-big { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--fm-gold-tint); color: var(--fm-gold-tx); }
+@keyframes loc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .loc-spin { animation: none; } }
+
+/* The app-open sheet. Above the tab bar (z 96–98) and every page, like any sheet. */
+.loc-gate-backdrop { z-index: 2147483000; }
+.loc-gate { z-index: 2147483001; max-width: 460px; margin: 0 auto; border-radius: 18px 18px 0 0; }
+.loc-gate-body { display: grid; gap: 12px; justify-items: center; padding: 22px 20px 18px; text-align: left; }
+.loc-gate-body h3 { margin: 0; font-size: 18px; color: var(--fm-tx); }
+.loc-gate-body ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; color: var(--fm-mut); justify-self: stretch; }
+.loc-gate-body .fm-btn { justify-self: stretch; min-height: 48px; }
+.loc-gate-skip { justify-self: center; color: var(--fm-mut); }
+@media (min-width: 641px) { .loc-gate { bottom: 24px; left: 50%; right: auto; width: 460px; transform: translateX(-50%); border-radius: 18px; animation: none; } }

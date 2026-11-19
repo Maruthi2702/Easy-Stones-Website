@@ -27,6 +27,7 @@ vi.mock('../../../api/authFetch', () => ({
 const { default: ResourceForm } = await import('./ResourceForm');
 const { default: ModaTiles } = await import('../../customers/list/ModaTiles');
 const { clearTypeLists } = await import('../../../api/typeLists');
+const { stubGeolocation } = await import('../../location/testing/geolocation');
 
 const base = { customerId: 'c1', resourceType: '', qty: '1', date: '2026-11-01', status: 'Active', description: '', notes: '' };
 const form = (values: Partial<typeof base>) => (
@@ -46,7 +47,7 @@ const form = (values: Partial<typeof base>) => (
     />
 );
 
-beforeEach(() => { clearTypeLists(); });
+beforeEach(() => { clearTypeLists(); stubGeolocation(); });
 afterEach(cleanup);
 
 describe('Add resource: Moda', () => {

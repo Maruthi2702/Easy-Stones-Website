@@ -4,6 +4,7 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { companyOf, contactOf } from '../../../utils/customerList';
 import type { Loose } from '../../../types/records';
+import { useLocationReading } from '../../location';
 
 // The visit type a phone call is logged as — the app's own option for calls.
 const CALL_VISIT_PURPOSE = 'Important Remote Meeting/Call';
@@ -26,9 +27,12 @@ const LogCallSheet = ({ customer, userName, onDone, onSkip }: LogCallSheetProps)
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  // A call is a visit too, so it records where it was logged (owner, 2026-11-19).
+  const location = useLocationReading(Boolean(customer));
   if (!customer) return null;
 
   const save = async () => {
+    if (!location.reading) return;
     setSaving(true);
     setError('');
     try {
@@ -38,7 +42,8 @@ const LogCallSheet = ({ customer, userName, onDone, onSkip }: LogCallSheetProps)
           date: new Date().toLocaleDateString('en-CA'),
           purpose: CALL_VISIT_PURPOSE,
           outcome,
-          notes: note.trim() ? `Phone call — ${note.trim()}` : 'Phone call'
+          notes: note.trim() ? `Phone call — ${note.trim()}` : 'Phone call',
+          loggedFrom: location.reading
         })
       });
       if (!res.ok) {
@@ -85,12 +90,14 @@ const LogCallSheet = ({ customer, userName, onDone, onSkip }: LogCallSheetProps)
           <div className="cl-muted" style={{ fontSize: 12.5, marginTop: 10 }}>
             Saved to this customer’s Visits as a call{userName ? ` by ${userName}` : ''}.
           </div>
+          {location.status === 'blocked' && <div className="cl-err" role="alert" style={{ marginTop: 8 }}>Turn on location to log this call. In your browser's site settings, set Location to Allow, then tap Save call.</div>}
+          {location.status === 'slow' && <div className="cl-muted" style={{ fontSize: 12.5, marginTop: 8 }}>Still looking for your location… <button type="button" className="cl-btn" onClick={location.retry}>Try again</button></div>}
           {error && <div className="cl-err" role="alert" style={{ marginTop: 8 }}>{error}</div>}
         </div>
         <div className="cl-sheet-ft">
           <button type="button" className="cl-btn" style={{ height: 48 }} onClick={onSkip} disabled={saving}>Skip</button>
-          <button type="button" className="cl-btn gold" style={{ height: 48, flex: 1, justifyContent: 'center' }} onClick={save} disabled={saving}>
-            <Check size={17} strokeWidth={2.5} aria-hidden="true" />{saving ? 'Saving…' : 'Save call'}
+          <button type="button" className="cl-btn gold" style={{ height: 48, flex: 1, justifyContent: 'center' }} onClick={location.status === 'blocked' ? location.retry : save} disabled={saving || (location.status !== 'ready' && location.status !== 'blocked')}>
+            <Check size={17} strokeWidth={2.5} aria-hidden="true" />{saving ? 'Saving…' : location.status === 'blocked' ? 'Check location again' : location.status === 'ready' ? 'Save call' : 'Getting location…'}
           </button>
         </div>
       </section>

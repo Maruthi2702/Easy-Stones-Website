@@ -269,6 +269,30 @@ every size:
 - Tiles are 4 across on a tablet; Visits' Today / Follow-ups go under the list
   below 1024px. Layout CSS is the end of `DashboardFocus.css`.
 
+## Where a visit or resource was logged: required, one reading (2026-11-19, on `feat/visit-location`)
+
+Design: claude.ai artifact **Visit location stamp** (https://claude.ai/artifact/Fiu5mUw8yn7ftVsEbHggRK; the owner's
+answers of 2026-11-19 set every rule here). **Every new visit and every new resource carries one reading of where its
+logger was** — phone or computer, every visit type including calls, no exceptions (owner). `src/utils/visitLocation.ts`
+(tested) is the rule: `parseReading` / `readingProblem` (a reading older than 15 min is refused), `loggedFromFor` works the
+distance and mark out **on the server** against the customer's map pin (`visitCustomer` returns `coordinates`), never from
+the browser: **On site** ≤ 0.25 mi and accuracy ≤ 400 m, **Nearby** ≤ 1 mi, else **N mi away**; calls, notes and admin
+types keep the reading as `recorded` (no verdict); a customer with no pin is `noPin`; accuracy over 150 m sets
+`approximate`. `POST /:customerId/visits` and `POST /:customerId/resources` answer 400 `location_required` /
+`location_stale` without one. It is stored once as `loggedFrom` on the **visit** (`visits.logged_from` jsonb, migration
+`0016`; a resource's reading rides on its placement visit) and an edit can't send or change it. The screens:
+`src/features/location/` — `useLocationReading` (starts when Add visit / Add resource / Log call opens, retries, follows the
+browser's permission), `LocationLine`, `LocationBlocked` (replaces the form with the steps to turn location on), and
+`LocationGate`, the sheet staff get **when they open the app** (`SalesPage`), so it is already allowed; Save stays locked
+until a reading is in, and edits ask for nothing. `geolocationAccess.ts` still owns the Route Planner's quiet follow.
+A web app can't tell "allow once" from "always", can't read in the background and can't re-prompt after a block.
+**Not built yet** (design steps 2–4): the marks on rows / Visit view / filters / By rep, and the Users & Roles switch
+**See where visits were logged** (team rule). **Until that switch exists nothing returns `loggedFrom` except the answer to
+the add itself** (`withoutLoggedFrom` strips it from every other visit answer, and the Postgres profile / dashboard readers
+don't select it) — a new reader of visits must not send it before the switch. Visits not logged by a rep in the app (the
+ATL import, Check-In, calendar stops) have no reading and are not blocked. A new place that creates a visit or resource from
+the app needs `useLocationReading` and must send `loggedFrom`.
+
 ## Locations: one dropdown, one order (2026-10-17)
 
 Every single-choice location field and filter is

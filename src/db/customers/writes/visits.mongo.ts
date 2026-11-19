@@ -26,7 +26,7 @@ export async function visitTypeByName(name: string): Promise<Loose | null> {
 
 /** The customer a new visit is logged on (its name goes on the visit), or null. */
 export async function visitCustomer(customerId: string): Promise<Loose | null> {
-  return Customer.findById(customerId).select('contactName company').lean();
+  return Customer.findById(customerId).select('contactName company coordinates').lean();
 }
 
 /** A reacting customer's name (contactName || email), or null when there is no such customer. */

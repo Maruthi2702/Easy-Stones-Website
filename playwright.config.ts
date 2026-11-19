@@ -13,7 +13,11 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:4175',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    serviceWorkers: 'block'
+    serviceWorkers: 'block',
+    // Staff are asked for location when they open the app (src/features/location/LocationGate.tsx);
+    // the tests are run as someone who has already allowed it, so the sheet doesn't cover the page.
+    permissions: ['geolocation'],
+    geolocation: { latitude: 47.6062, longitude: -122.3321 }
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },

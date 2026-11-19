@@ -57,7 +57,8 @@ const add = (over: Record<string, unknown> = {}, customerId = acme, scheduleUser
   const fields = { title: 'Binder', resourceType: 'Binder', date: '2026-11-10', qty: 1, notes: 'Dropped off', ...over };
   // Made once, so both databases get the same ids.
   const ids = { resourceId: newId(), visitId: newId(), dropInId: newId() };
-  return () => data.addResource({ customerId, fields, performer, scheduleUserId, now, ids });
+  const loggedFrom = { lat: 47.6062, lng: -122.3321, accuracyM: 20, readAt: now(), distanceM: null, mark: 'recorded', device: 'computer', approximate: false };
+  return () => data.addResource({ customerId, fields, performer, scheduleUserId, now, ids, loggedFrom });
 };
 const edit = (resourceId: string, fields: Record<string, unknown>, actor = owner, team: unknown = new Set([repId]), customerId = acme) =>
   { const dropInId = newId(); return () => data.updateResource({ customerId, resourceId, fields, actor, team, dropInId }); };

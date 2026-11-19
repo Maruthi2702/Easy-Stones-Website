@@ -26,7 +26,9 @@ const STAFF = { _id: 'u1', permissions: ['add_visits', 'edit_own_visits'], assig
 const send = (method: 'post' | 'put' | 'patch' | 'delete', url: string, body: Loose, user: Loose = STAFF) =>
   request(app)[method](url).set('x-test-user', JSON.stringify(user)).send(body);
 const visitsNow = async () => ((await Customer.findById(customerId).lean()))!.visits;
-const base = (over: Loose = {}) => ({ date: '2026-10-20', purpose: 'Unscheduled in Person Sales Call', notes: 'hi', ...over });
+// Every new visit carries where its logger was (src/utils/visitLocation.ts).
+const here = (over: Loose = {}) => ({ lat: 47.6062, lng: -122.3321, accuracyM: 20, takenAtMs: Date.now(), device: 'phone', ...over });
+const base = (over: Loose = {}) => ({ date: '2026-10-20', purpose: 'Unscheduled in Person Sales Call', notes: 'hi', loggedFrom: here(), ...over });
 
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create();
@@ -91,6 +93,46 @@ describe('POST /:customerId/visits', () => {
     expect(emit.mock.calls.filter(([event]) => event === 'customer_update')).toHaveLength(1);
     expect((await visitsNow())[0]).not.toHaveProperty('_mutationId');
     expect(res.body.visit).not.toHaveProperty('_mutationId');
+  });
+  describe('where it was logged', () => {
+    const url = () => `/api/customers/${customerId}/visits`;
+    it('refuses a new visit with no location, or a bad or old one, and saves nothing', async () => {
+      for (const loggedFrom of [undefined, null, {}, { lat: 'x', lng: 1 }, here({ takenAtMs: Date.now() - 20 * 60 * 1000 })]) {
+        const res = await send('post', url(), { ...base(), loggedFrom });
+        expect(res.status).toBe(400);
+        expect(['location_required', 'location_stale']).toContain(res.body.code);
+      }
+      expect(await visitsNow()).toHaveLength(0);
+    });
+    it('stores the reading with a distance and mark the server worked out, never the browser\'s', async () => {
+      await Customer.updateOne({ _id: customerId }, { coordinates: { lat: 47.6062, lng: -122.3321 } });
+      const res = await send('post', url(), base({ loggedFrom: { ...here(), mark: 'onSite', distanceM: 1 } }));
+      expect(res.status).toBe(201);
+      const stored = (await visitsNow())[0].loggedFrom;
+      expect(stored).toMatchObject({ mark: 'onSite', distanceM: 0, device: 'phone', approximate: false, readAt: '2026-10-23T09:00:00.000' });
+      const far = await send('post', url(), base({ _id: new mongoose.Types.ObjectId().toString(), loggedFrom: here({ lat: 47.9 }) }));
+      expect(far.body.visit.loggedFrom.mark).toBe('away');
+    });
+    it('keeps the reading for a call but passes no verdict, and says noPin when the customer has none', async () => {
+      const call = await send('post', url(), base({ purpose: 'Important Remote Meeting/Call' }));
+      expect(call.body.visit.loggedFrom).toMatchObject({ mark: 'recorded', distanceM: null });
+      const inPerson = await send('post', url(), base({ _id: new mongoose.Types.ObjectId().toString() }));
+      expect(inPerson.body.visit.loggedFrom.mark).toBe('noPin');
+    });
+    it('an edit cannot send or change it', async () => {
+      const created = (await send('post', url(), base())).body.visit;
+      const edited = await send('put', `${url()}/${created._id}`, { notes: 'edited', loggedFrom: { lat: 1, lng: 1, accuracyM: 1, takenAtMs: Date.now() } });
+      // Who may see it is a switch not built yet, so an edit's answer leaves it out.
+      expect(edited.body.visit).not.toHaveProperty('loggedFrom');
+      expect((await visitsNow())[0].loggedFrom).toMatchObject({ lat: 47.6062, lng: -122.3321 });
+    });
+    it('a repeat of the same POST keeps the first reading', async () => {
+      const _id = new mongoose.Types.ObjectId().toString();
+      await send('post', url(), base({ _id }));
+      const again = await send('post', url(), base({ _id, loggedFrom: here({ lat: 10, lng: 10 }) }));
+      expect(again.status).toBe(200);
+      expect((await visitsNow())[0].loggedFrom.lat).toBe(47.6062);
+    });
   });
   it('saves a visit and answers 201 with it', async () => {
     const res = await send('post', `/api/customers/${customerId}/visits`, base());

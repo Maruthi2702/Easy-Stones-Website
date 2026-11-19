@@ -1,0 +1,1 @@
+ALTER TABLE "visits" ADD COLUMN "logged_from" jsonb;

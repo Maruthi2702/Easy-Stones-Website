@@ -80,7 +80,10 @@ function addInput(over: Record<string, unknown> = {}, o: { customerId?: string; 
     customerId: o.customerId ?? acme,
     visit: {
       _id, date: '2026-11-10', purpose: SALES_CALL, notes: 'hi', outcome: '', followUp: '', followUpDate: '',
-      image: undefined, createdBy: String(rep), createdByName: 'Jo', customerContactName: 'Acme Stone', createdAt: NOW, ...over
+      image: undefined, createdBy: String(rep), createdByName: 'Jo', customerContactName: 'Acme Stone', createdAt: NOW,
+      // Where the logger was (src/utils/visitLocation.ts): stored once, and the copy must read it the same.
+      loggedFrom: { lat: 47.6062, lng: -122.3321, accuracyM: 20, readAt: NOW, distanceM: 120, mark: 'onSite', device: 'phone', approximate: false },
+      ...over
     },
     calendar: { userId: o.userId === undefined ? String(rep) : o.userId, dropInId: newId() },
     log: { id: newId(), performedBy: String(rep), performedByName: 'Jo', performedByRole: 'admin', details: { purpose: over.purpose ?? SALES_CALL, date: over.date ?? '2026-11-10' } },

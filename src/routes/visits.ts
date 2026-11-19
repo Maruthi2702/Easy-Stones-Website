@@ -10,6 +10,7 @@ import { canModifyVisit, ANY_EDIT_VISIT_PERMISSIONS } from '../utils/visitAccess
 import { teamOfRequest } from '../services/teamDirectory.ts';
 import { cleanVisitFields } from '../utils/visitForm.ts';
 import { followUpUpdate } from '../utils/followUpList.ts';
+import { parseReading, readingProblem, loggedFromFor, withoutLoggedFrom } from '../utils/visitLocation.ts';
 
 /**
  * Saving a visit (moved out of server.ts 2026-10-23):
@@ -123,8 +124,17 @@ export default function createVisitsRouter({
       // Already saved by an earlier try of this same request: answer with it.
       if (sentId) {
         const existing = await visitOf(customerId, visitId);
-        if (existing) return res.status(200).json({ success: true, visit: existing, alreadySaved: true });
+        if (existing) return res.status(200).json({ success: true, visit: withoutLoggedFrom(existing), alreadySaved: true });
       }
+
+      // Every new visit carries where its logger was (owner, 2026-11-19: no
+      // exceptions). The browser sends one reading; the distance and the mark are
+      // worked out here and stored once (src/utils/visitLocation.ts).
+      const reading = parseReading(req.body.loggedFrom);
+      if (!reading) return res.status(400).json({ message: 'Location is required to add a visit. Allow location in your browser and try again.', code: 'location_required' });
+      const stale = readingProblem(reading, Date.now());
+      if (stale) return res.status(400).json({ message: stale, code: 'location_stale' });
+      const loggedFrom = loggedFromFor(reading, { purpose, pin: customerInfo.coordinates, readAt: getNowLocalISO() });
 
       const visitData = {
         _id: visitId,
@@ -140,7 +150,8 @@ export default function createVisitsRouter({
         createdBy,
         createdByName,
         customerContactName: customerInfo.company || customerInfo.contactName || '',
-        createdAt: getNowLocalISO()
+        createdAt: getNowLocalISO(),
+        loggedFrom
       };
 
       const updateStart = Date.now();
@@ -153,7 +164,7 @@ export default function createVisitsRouter({
         },
         now: getNowLocalISO
       });
-      if (saved.kind === 'alreadySaved') return res.status(200).json({ success: true, visit: saved.visit, alreadySaved: true });
+      if (saved.kind === 'alreadySaved') return res.status(200).json({ success: true, visit: withoutLoggedFrom(saved.visit), alreadySaved: true });
       if (saved.kind === 'notFound') {
         console.error(`[Add Visit] Atomic update matched zero docs for customer: ${customerId}`);
         return res.status(404).json({ message: 'Customer not found during update' });
@@ -239,7 +250,7 @@ export default function createVisitsRouter({
       // The stored visit (image links and all), as POST answers — the screen
       // shows this, not a guess from what it sent.
       announceVisit(req, customerId, visitId);
-      res.json({ success: true, message: 'Visit updated successfully', visit: result.visit });
+      res.json({ success: true, message: 'Visit updated successfully', visit: withoutLoggedFrom(result.visit) });
 
       // After answering: a visit moved to another day takes its calendar entry along
       // (MongoDB; Postgres did it with the save), and the log line is written.
@@ -282,7 +293,7 @@ export default function createVisitsRouter({
       });
       if (!result) return res.status(404).json({ message: 'Customer or visit not found' });
       req.app.get('io')?.emit('customer_update');
-      res.json({ visit: result.visit });
+      res.json({ visit: withoutLoggedFrom(result.visit) });
 
       await result.afterAnswer(emitScheduleUpdate);
     } catch (error) {

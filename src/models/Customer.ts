@@ -35,7 +35,10 @@ const visitDefinition = {
   createdAt: { type: String },
   updatedBy: String,  // User ID or Customer ID who last updated this visit
   updatedByName: String,  // Display name of the person who last updated this visit
-  updatedAt: String
+  updatedAt: String,
+  // Where the logger was when this was added: one reading and the mark the server
+  // worked out (src/utils/visitLocation.ts). Written once, never edited.
+  loggedFrom: mongoose.Schema.Types.Mixed
 } as const;
 const visitSchema = new mongoose.Schema(visitDefinition);
 

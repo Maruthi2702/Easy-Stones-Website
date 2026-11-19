@@ -207,7 +207,7 @@ async function unlinkVisit(tx: Db, visitId: string, events: ScheduleEvent[]): Pr
 // ── Saves ────────────────────────────────────────────────────────────────────────────
 
 /** POST /api/customers/:customerId/resources. */
-export async function addResource(tx: Db, { customerId, fields, performer, scheduleUserId, now, ids }: AddResourceInput) {
+export async function addResource(tx: Db, { customerId, fields, performer, scheduleUserId, now, ids, loggedFrom }: AddResourceInput) {
   castId(customerId);
   const found = await loadCustomer(tx, customerId);
   if (!found) throw new ResourceError(404, 'Customer not found');
@@ -220,7 +220,8 @@ export async function addResource(tx: Db, { customerId, fields, performer, sched
     _id: ids.visitId, resourceId: ids.resourceId, date: fields.date, purpose: `${PLACEMENT}${fields.resourceType || fields.title}`,
     notes: fields.notes || fields.description || `Added resource: ${fields.title}`,
     image: resource.image, createdBy: performer.id, createdByName: performer.name,
-    customerContactName: nameOf(found.doc), createdAt, followUp: '', followUpDate: ''
+    customerContactName: nameOf(found.doc), createdAt, followUp: '', followUpDate: '',
+    ...(loggedFrom ? { loggedFrom } : {})
   };
   const before = resourcesOf(found.resources);
   const families = await loadFamilies(tx);
@@ -232,7 +233,7 @@ export async function addResource(tx: Db, { customerId, fields, performer, sched
     id: ids.visitId, customerId, position: found.visits.length, visitDate, visitType: textOf(visit.purpose),
     customerContactName: textOf(visit.customerContactName), notes: textOf(visit.notes), followUp: '', followUpDate: null,
     createdById: by.userId, createdByCustomerId: by.customerId, createdByName: textOf(performer.name),
-    createdAt: clock(createdAt) ?? `${visitDate} 00:00:00.000`
+    createdAt: clock(createdAt) ?? `${visitDate} 00:00:00.000`, loggedFrom: loggedFrom ?? null
   });
   const urls = attachmentUrls(resource.image);
   await replaceAttachments(tx, 'visit', ids.visitId, urls);

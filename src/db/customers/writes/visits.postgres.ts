@@ -120,7 +120,8 @@ async function visitDoc(tx: Tx, id: string): Promise<Loose | null> {
     createdAt: appTime(v.createdAt),
     updatedBy: v.updatedById ?? v.updatedByCustomerId ?? '',
     updatedByName: v.updatedByName,
-    updatedAt: appTime(v.updatedAt) ?? ''
+    updatedAt: appTime(v.updatedAt) ?? '',
+    ...(v.loggedFrom ? { loggedFrom: v.loggedFrom } : {})
   };
   return doc;
 }
@@ -136,9 +137,10 @@ export async function findVisit(db: Db, customerId: string, visitId: string): Pr
 /** The customer a new visit is logged on (its name goes on the visit), or null. */
 export async function visitCustomer(db: Db, customerId: string): Promise<Loose | null> {
   if (!isId(customerId)) return null;
-  const [c] = await db.select({ company: customers.company, contactName: customers.contactName })
+  const [c] = await db.select({ company: customers.company, contactName: customers.contactName, lat: customers.lat, lng: customers.lng })
     .from(customers).where(eq(customers.id, customerId));
-  return c ?? null;
+  // The map pin is what a visit's location is measured against.
+  return c ? { company: c.company, contactName: c.contactName, coordinates: { lat: c.lat, lng: c.lng } } : null;
 }
 
 /** A reacting customer's name (contactName || email), or null when there is no such customer. */
@@ -252,7 +254,8 @@ export async function addVisit(db: Db, { customerId, visit, calendar, log, now }
       managerComment: text(visit.managerComment, 'managerComment'), headquartersComment: text(visit.headquartersComment, 'headquartersComment'),
       followUp: text(visit.followUp, 'followUp'), followUpDate: dayOrNull(visit.followUpDate),
       createdById: by.userId, createdByCustomerId: by.customerId, createdByName: text(visit.createdByName, 'createdByName'),
-      createdAt: localOf(visit.createdAt) ?? `${date} 00:00:00.000`
+      createdAt: localOf(visit.createdAt) ?? `${date} 00:00:00.000`,
+      loggedFrom: (visit.loggedFrom as Loose | null | undefined) ?? null
     }).onConflictDoNothing().returning({ id: visits.id });
     if (!inserted.length) {
       // Two tries racing: the other one saved it.
