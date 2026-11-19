@@ -9,6 +9,7 @@ import { StatusDot, LocationTag, RepBadge, TypeTag, LevelTag } from './parts';
 import { useDismiss } from './uiHelpers';
 import { planHeaderMenu, telHref, directionsHref } from '../profile/profileHeaderRules';
 import MenuLayer from '../profile/MenuLayer';
+import SectionMenu from '../profile/SectionMenu';
 import { isSheetScreen, useSheetEscape } from '../profile/sheetScreen';
 import type { Loose } from '../../../types/records';
 import './CustomerList.css';
@@ -207,6 +208,7 @@ const CustomerProfileHeader = ({
       </section>
 
       <div className="cp-bar">
+        <SectionMenu items={TABS.map(t => ({ key: t.key, label: t.label, icon: t.icon, n: t.count(c) }))} active={activeTab} name={companyOf(c) || 'Customer'} onPick={onTab} />
         <div className="cp-tabs" role="tablist" aria-label="Customer sections" onKeyDown={onTabKey}>
           {TABS.map(t => {
             const Icon = t.icon;
