@@ -168,9 +168,9 @@ describe('People filter (manager view)', () => {
 
 describe('Sales Visits → By rep', () => {
   const rows = [
-    { id: 'j', name: 'Jesus B.', branch: 'Seattle', you: false, inactive: false, visits: 5, resources: 1, followUps: 3, late: 2, todayStops: 2 },
-    { id: 'me1', name: 'Krish', branch: 'Seattle', you: true, inactive: false, visits: 1, resources: 0, followUps: 0, late: 0, todayStops: 0 },
-    { id: '', name: 'Not recorded', branch: '', you: false, inactive: false, visits: 1, resources: 0, followUps: 0, late: 0, todayStops: 0 }
+    { id: 'j', name: 'Jesus B.', branch: 'Seattle', you: false, inactive: false, visits: 5, resources: 1, followUps: 3, late: 2, todayStops: 2, judged: 0, onSite: 0 },
+    { id: 'me1', name: 'Krish', branch: 'Seattle', you: true, inactive: false, visits: 1, resources: 0, followUps: 0, late: 0, todayStops: 0, judged: 0, onSite: 0 },
+    { id: '', name: 'Not recorded', branch: '', you: false, inactive: false, visits: 1, resources: 0, followUps: 0, late: 0, todayStops: 0, judged: 0, onSite: 0 }
   ];
   const panel = (byRep: Record<string, unknown>) => (
     <VisitsPanel

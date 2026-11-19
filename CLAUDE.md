@@ -292,9 +292,12 @@ to every role holding View branch / View all, `ACTION_MIGRATIONS`; manager defau
 leaves the server (besides the answer to the add that made it) is `POST /api/visit-locations` (`src/routes/visitLocations.ts`,
 tested; `customerData.visitLocations`), which returns only what the caller may see, so the existing readers (profile,
 dashboard, lists) still never select `logged_from`. Screens ask through `useVisitLocations` (`src/api/visitLocations.ts`)
-and show `LocationChip`: the dashboard's Visits list and the customer's Visits tab. **Not built yet:** the chip on
-resource rows (shared `ResourceTable` / `ResourceCards`: check Dashboard and the profile), the Visit view's "Where it was
-logged" box with the map link, the "Where logged" filter and By rep's On site column. `withoutLoggedFrom` stays on every
+and show `LocationChip`: the dashboard's Visits list, the customer's Visits tab and both Resource lists (shared
+`ResourceTable` / `ResourceCards`, so Dashboard and profile change together), plus `LocationDetails` ("Where it was
+logged": mark, distance, time and accuracy, device, a Google Maps link, "Logged on …" when read on another day) in the Visit
+view and View resource. Viewers with the switch also get Filters → **Where logged** (`WhereLoggedField`, `matchesWhere`;
+needs every visible visit's mark, fetched in calls of 500) and By rep's **On site** column ("13 of 16", `onSiteTally`: only
+in-person visits with a pin count). Nothing is built beyond this; a mark never changes after the save. `withoutLoggedFrom` stays on every
 visit answer apart from the add's. A new place that creates a visit or resource from
 the app needs `useLocationReading` and must send `loggedFrom`.
 

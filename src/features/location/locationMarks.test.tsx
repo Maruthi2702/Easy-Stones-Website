@@ -72,3 +72,37 @@ describe('canSeeVisitLocation', () => {
     expect(canSeeVisitLocation(manager, { createdBy: '' }, '*')).toBe(true);
   });
 });
+
+const { default: LocationDetails } = await import('./LocationDetails');
+const { default: WhereLoggedField } = await import('./WhereLoggedField');
+const { fireEvent } = await import('@testing-library/react');
+
+describe('LocationDetails', () => {
+  it('shows the mark, distance, when it was read, the device and a Maps link', () => {
+    render(<LocationDetails location={reading({ readAt: '2026-11-19T10:42:07.000', distanceM: 160 }) as never} day="2026-11-19" />);
+    expect(screen.getByText('On site')).toBeTruthy();
+    expect(screen.getByText("0.1 mi from the customer's pin")).toBeTruthy();
+    expect(screen.getByText('10:42 · accurate to about 20 m')).toBeTruthy();
+    expect(screen.getByText('Phone')).toBeTruthy();
+    expect(screen.queryByText('Logged on')).toBeNull();
+    expect(screen.getByRole('link').getAttribute('href')).toBe('https://www.google.com/maps?q=1,1');
+  });
+  it('says so when the reading was taken on another day than the entry', () => {
+    render(<LocationDetails location={reading({ readAt: '2026-11-19T10:42:07.000' }) as never} day="2026-11-12" />);
+    expect(screen.getByText('Logged on')).toBeTruthy();
+  });
+  it('renders nothing without a reading', () => {
+    expect(render(<LocationDetails location={null} />).container.innerHTML).toBe('');
+  });
+});
+
+describe('WhereLoggedField', () => {
+  it('offers Any, On site, Nearby, Away and No reading, and reports a pick', () => {
+    const onChange = vi.fn();
+    render(<WhereLoggedField value="any" onChange={onChange} />);
+    expect(screen.getAllByRole('radio').map((r) => r.textContent)).toEqual(['Any', 'On site', 'Nearby', 'Away', 'No reading']);
+    expect(screen.getByRole('radio', { name: 'Any' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(screen.getByRole('radio', { name: 'Away' }));
+    expect(onChange).toHaveBeenCalledWith('away');
+  });
+});

@@ -135,6 +135,7 @@ export default function DashboardPage({
                         currentUser={currentUser}
                         people={people}
                         visitsView={data.canPickPeople ? { value: data.visitsView, onChange: data.setVisitsView } : null}
+                        where={data.canSeeLocations ? { value: data.whereFilter, onChange: data.setWhereFilter } : null}
                         showPeopleOnCalendar={data.teamCalendar}
                         showMenuButton={showMenuButton}
                         onOpenSidebar={onOpenSidebar}
@@ -215,6 +216,7 @@ export default function DashboardPage({
                                 onViewChange: data.setVisitsView,
                                 rows: data.repRows,
                                 showToday: data.teamCalendar,
+                                showOnSite: data.canSeeLocations,
                                 onPick: data.showRepWork
                             } : null}
                             onOpenTab={data.setActiveDashboardTab}

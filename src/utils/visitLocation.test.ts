@@ -70,3 +70,20 @@ describe('words', () => {
     expect(deviceKind('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0)).toBe('computer');
   });
 });
+
+import { matchesWhere, onSiteTally, mapsLink } from './visitLocation.ts';
+describe('the Where logged filter and By rep tally', () => {
+  it('filters by mark; "No reading" is a missing one', () => {
+    expect(matchesWhere({ mark: 'onSite' }, 'any')).toBe(true);
+    expect(matchesWhere(undefined, 'any')).toBe(true);
+    expect(matchesWhere({ mark: 'onSite' }, 'onSite')).toBe(true);
+    expect(matchesWhere({ mark: 'away' }, 'onSite')).toBe(false);
+    expect(matchesWhere({ mark: 'recorded' }, 'away')).toBe(false);
+    expect(matchesWhere(undefined, 'older')).toBe(true);
+    expect(matchesWhere({ mark: 'recorded' }, 'older')).toBe(false);
+  });
+  it('counts On site out of the visits that have a verdict', () => {
+    expect(onSiteTally([{ mark: 'onSite' }, { mark: 'onSite' }, { mark: 'nearby' }, { mark: 'away' }, { mark: 'recorded' }, { mark: 'noPin' }, undefined])).toEqual({ judged: 4, onSite: 2 });
+  });
+  it('links to the point', () => expect(mapsLink({ lat: 47.6, lng: -122.3 })).toBe('https://www.google.com/maps?q=47.6,-122.3'));
+});

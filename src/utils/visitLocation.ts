@@ -142,3 +142,31 @@ export function deviceKind(userAgent: string, maxTouchPoints = 0): LocationDevic
   if (/Macintosh/i.test(ua) && maxTouchPoints > 1) return 'phone'; // iPadOS says "Macintosh"
   return 'computer';
 }
+
+/** The dashboard's "Where logged" filter. `older` = no reading (saved before location was recorded, or not one the viewer may see). */
+export type WhereFilter = 'any' | 'onSite' | 'nearby' | 'away' | 'older';
+export const WHERE_FILTERS: { value: WhereFilter; label: string }[] = [
+  { value: 'any', label: 'Any' }, { value: 'onSite', label: 'On site' }, { value: 'nearby', label: 'Nearby' },
+  { value: 'away', label: 'Away' }, { value: 'older', label: 'No reading' }
+];
+
+/** Whether a visit's reading (or lack of one) passes the filter. Calls, notes and "customer not on map" have no verdict, so only Any and No reading show them. */
+export const matchesWhere = (reading: Pick<LoggedFrom, 'mark'> | null | undefined, filter: WhereFilter): boolean => {
+  if (filter === 'any') return true;
+  if (filter === 'older') return !reading;
+  return reading?.mark === filter;
+};
+
+/** How many of these have a verdict (in person, with a pin) and how many of those were On site: By rep's column. */
+export const onSiteTally = (readings: Array<Pick<LoggedFrom, 'mark'> | null | undefined>) => {
+  let judged = 0, onSite = 0;
+  for (const r of readings) {
+    if (!r || (r.mark !== 'onSite' && r.mark !== 'nearby' && r.mark !== 'away')) continue;
+    judged++;
+    if (r.mark === 'onSite') onSite++;
+  }
+  return { judged, onSite };
+};
+
+/** Google Maps link to a point. */
+export const mapsLink = (p: { lat: number; lng: number }) => `https://www.google.com/maps?q=${p.lat},${p.lng}`;

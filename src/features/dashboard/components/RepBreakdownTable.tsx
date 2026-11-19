@@ -15,10 +15,12 @@ export type RepBreakdownTableProps = {
     loading?: boolean;
     /** The "Today" column (stops on their calendar today) — only with the team calendar. */
     showToday?: boolean;
+    /** The "On site" column (visits logged on site, of those with a verdict): only for viewers with "See where visits were logged". */
+    showOnSite?: boolean;
     onPick: (id: string) => void;
 };
 
-export default function RepBreakdownTable({ rows, loading = false, showToday = false, onPick }: RepBreakdownTableProps) {
+export default function RepBreakdownTable({ rows, loading = false, showToday = false, showOnSite = false, onPick }: RepBreakdownTableProps) {
     if (rows.length === 0) {
         return (
             <div className="dfx-empty">
@@ -37,6 +39,7 @@ export default function RepBreakdownTable({ rows, loading = false, showToday = f
                         <th scope="col" className="drb-num"><span className="drb-long">Resources</span><span className="drb-short" aria-hidden="true">Res.</span></th>
                         <th scope="col" className="drb-num"><span className="drb-long">Follow-ups</span><span className="drb-short" aria-hidden="true">F-ups</span></th>
                         <th scope="col" className="drb-num">Late</th>
+                        {showOnSite && <th scope="col" className="drb-num" title="Visits logged on site, of the in-person visits with a location">On site</th>}
                         {showToday && <th scope="col" className="drb-num" title="Stops on their calendar today">Today</th>}
                     </tr>
                 </thead>
@@ -59,6 +62,7 @@ export default function RepBreakdownTable({ rows, loading = false, showToday = f
                                 <td className={`drb-num${r.resources ? '' : ' is-zero'}`}>{r.resources}</td>
                                 <td className={`drb-num${r.followUps ? '' : ' is-zero'}`}>{r.followUps}</td>
                                 <td className={`drb-num${r.late ? ' is-late' : ' is-zero'}`}>{r.late}</td>
+                                {showOnSite && <td className={`drb-num${r.judged ? '' : ' is-zero'}`}>{r.judged ? `${r.onSite} of ${r.judged}` : '—'}</td>}
                                 {showToday && <td className={`drb-num${r.todayStops ? '' : ' is-zero'}`}>{r.todayStops}</td>}
                             </tr>
                         );
@@ -71,6 +75,7 @@ export default function RepBreakdownTable({ rows, loading = false, showToday = f
                         <td className="drb-num">{total.resources}</td>
                         <td className="drb-num">{total.followUps}</td>
                         <td className={`drb-num${total.late ? ' is-late' : ''}`}>{total.late}</td>
+                        {showOnSite && <td className="drb-num">{total.judged ? `${total.onSite} of ${total.judged}` : '—'}</td>}
                         {showToday && <td className="drb-num">{total.todayStops}</td>}
                     </tr>
                 </tfoot>

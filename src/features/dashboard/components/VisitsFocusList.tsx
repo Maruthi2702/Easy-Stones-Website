@@ -170,6 +170,7 @@ const VisitsFocusList = ({ visits = EMPTY_VISITS, loading = false, busyVisitId =
             {viewing && (
                 <VisitViewModal
                     visit={viewing}
+                    location={locations[String(viewing._id)]}
                     details={details}
                     busy={busyVisitId === viewing._id}
                     onClose={() => setViewing(null)}

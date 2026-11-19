@@ -38,3 +38,22 @@ body:not(.light-theme-active) .loc-chip--warn { color: #e3a944; background: rgba
 body:not(.light-theme-active) .loc-chip--bad { color: #ec7a6f; background: rgba(236, 122, 111, 0.16); }
 body:not(.light-theme-active) .loc-chip--none { color: #9aa3b6; background: rgba(154, 163, 182, 0.15); }
 .post-location { margin-top: 8px; }
+
+/* Filters → Where logged */
+.loc-where { display: flex; flex-wrap: wrap; gap: 8px; }
+.loc-where-opt { font: inherit; font-size: 13px; font-weight: 600; min-height: 36px; padding: 6px 14px; border-radius: 999px; cursor: pointer; border: 1px solid var(--fm-bd, rgba(128,128,128,.4)); background: transparent; color: inherit; }
+.loc-where-opt.is-on { border-color: var(--fm-gold, #d4af37); background: var(--fm-gold-tint, rgba(212,175,55,.16)); }
+.loc-where-opt:focus-visible { outline: 2px solid var(--fm-gold, #d4af37); outline-offset: 2px; }
+
+/* Visit view / View resource: "Where it was logged". */
+.loc-details { display: grid; gap: 8px; border: 1px solid var(--fm-bd2, rgba(128,128,128,.25)); border-radius: 12px; padding: 12px 14px; }
+.loc-details h3 { margin: 0; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--fm-mut, #888); }
+.loc-details dl { margin: 0; display: grid; gap: 6px; }
+.loc-details dl > div { display: grid; grid-template-columns: 96px 1fr; gap: 8px; font-size: 13.5px; align-items: center; }
+.loc-details dt { color: var(--fm-mut, #888); }
+.loc-details dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.loc-details-link { display: inline-flex; align-items: center; gap: 5px; justify-self: start; font-size: 13.5px; font-weight: 600; color: var(--fm-gold-tx, #b8993f); text-decoration: none; min-height: 32px; }
+@media (max-width: 480px) { .loc-details dl > div { grid-template-columns: 1fr; gap: 0; } }
+/* Beside a resource's type in the table. */
+.rs-table .loc-chip { margin-left: 8px; }
+.rs-card-text .loc-chip { margin-top: 4px; justify-self: start; }

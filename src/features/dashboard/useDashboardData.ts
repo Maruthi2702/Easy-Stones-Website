@@ -15,6 +15,10 @@ import { DEFAULT_FOLLOW_UP_FILTERS, followUpsInView, withFilters } from '../../u
 import type { FollowUpFilters, FollowUpRange } from '../../utils/followUpList';
 import { todayISO } from '../../components/shared/calendar/calendarDates';
 import type { Loose } from '../../types/records';
+import { useVisitLocations } from '../../api/visitLocations';
+import { matchesWhere } from '../../utils/visitLocation';
+import type { WhereFilter } from '../../utils/visitLocation';
+import { VISIT_PERMISSIONS } from '../../utils/visitAccess';
 
 /**
  * The Sales dashboard's data (MIGRATION_NOTES.md §4, step A6): the time
@@ -380,7 +384,7 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
     // Whether to offer Add Visit / Add Resource anywhere (Users & Roles → Visits → Add).
     const canAddVisits = canAddVisit(currentUser);
 
-    const memoizedFilteredVisits = React.useMemo(() => {
+    const visitsBeforeWhere = React.useMemo(() => {
         const startDate = dashboardDateRangeStart;
         const searchLower = dashboardSearchTerm.toLowerCase();
         const currentUserIdStr = currentUserId?.toString();
@@ -443,6 +447,21 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
 
         return [...filtered].sort((a, b) => parseSortDate(b) - parseSortDate(a));
     }, [dashboardVisits, dashboardDateRangeStart, seesOthers, currentUserId, dashboardSearchTerm]);
+
+    // Where visits were logged (src/utils/visitLocation.ts), for the "Where logged" filter and By rep's
+    // On site column. Only people with the "See where visits were logged" switch get either; the server
+    // still answers only for the readings they may see. The marks are fetched when one of them needs them.
+    const canSeeLocations = (currentUser?.permissions || []).includes(VISIT_PERMISSIONS.SEE_LOCATION);
+    const [whereFilter, setWhereFilterRaw] = useState<WhereFilter>('any');
+    const [visitsView, setVisitsViewRaw] = useState<'list' | 'byRep'>('list');
+    const needMarks = canSeeLocations && (whereFilter !== 'any' || visitsView === 'byRep');
+    const visitMarks = useVisitLocations(
+        needMarks ? dashboardVisits.filter((v) => v && !v._saving).map((v) => String(v._id)) : [], needMarks
+    );
+    const memoizedFilteredVisits = React.useMemo(
+        () => (whereFilter === 'any' || !canSeeLocations ? visitsBeforeWhere : visitsBeforeWhere.filter((v) => matchesWhere(visitMarks[String(v._id)], whereFilter))),
+        [visitsBeforeWhere, whereFilter, canSeeLocations, visitMarks]
+    );
 
     const memoizedFilteredResources = React.useMemo(() => {
         const startDate = dashboardDateRangeStart;
@@ -555,7 +574,6 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
     // People filter. By rep counts the lists already loaded, so its totals are
     // the tiles'. Opening it on Me widens to My team (one row says nothing);
     // a rep's row opens their work in the list.
-    const [visitsView, setVisitsViewRaw] = useState<'list' | 'byRep'>('list');
     const setVisitsView = (view: 'list' | 'byRep') => {
         if (view === 'byRep' && isJustMe(dashboardPeople, me)) setDashboardPeople(MY_TEAM);
         setVisitsViewRaw(view);
@@ -575,10 +593,11 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
         selection: dashboardPeople,
         location: dashboardLocation || '',
         me,
-        today: new Date().toLocaleDateString('en-CA')
+        today: new Date().toLocaleDateString('en-CA'),
+        marks: canSeeLocations ? visitMarks : {}
     }) : []),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dashboardPeople is rebuilt each render; its key is what changes
-    [canPickPeople, dashboardVisits, dashboardResources, dashboardFollowups, followUpFilters, dashboardTimeRange, rangeFrom, rangeTo, teamCalendar, allSchedules, peopleOptions, peopleValueKey, dashboardLocation, me]);
+    [canPickPeople, dashboardVisits, dashboardResources, dashboardFollowups, followUpFilters, dashboardTimeRange, rangeFrom, rangeTo, teamCalendar, allSchedules, peopleOptions, peopleValueKey, dashboardLocation, me, canSeeLocations, visitMarks]);
 
     // The dashboard's Sales Visits list is its own copy (fetchDashboardData), so a
     // saved visit is put in it too, tagged _saving until the server confirms.
@@ -662,6 +681,9 @@ export function useDashboardData({ currentUser, currentUserId, customerRefreshTr
         resetDashboardPeople: () => setDashboardPeople(peopleDefault(me)),
         showMyTeam: () => setDashboardPeople(MY_TEAM),
         visitsView: canPickPeople ? visitsView : 'list' as const,
+        canSeeLocations,
+        whereFilter,
+        setWhereFilter: (value: WhereFilter) => { setWhereFilterRaw(value); setCurrentVisitsPage(1); },
         setVisitsView,
         showRepWork,
         repRows,
