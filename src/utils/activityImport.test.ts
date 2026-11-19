@@ -27,6 +27,7 @@ describe('visitTypeFor', () => {
     expect(visitTypeFor(row({ Type: 'Email' }))).toBe('Important Remote Meeting/Call');
     expect(visitTypeFor(row({ Type: 'Daily Route' }))).toBe('Scheduled in Person Sales Meeting');
     expect(visitTypeFor(row({ Tag: '#vaction' }))).toBe('Personal Time Off');
+    expect(visitTypeFor(row({ Tag: '#Home address' }))).toBe('Scheduled in Person Sales Meeting');
     expect(visitTypeFor(row({ Tag: 'Something new' }))).toBeNull();
   });
 });

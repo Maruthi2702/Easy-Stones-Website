@@ -24,7 +24,7 @@ export const TAG_TYPES: Record<string, string> = {
   'price request': 'Quick Note',
   'issue': 'Quick Note',
   'commercial bid': 'Quick Note',
-  '#home address': 'Personal Time Off',
+  '#home address': 'Scheduled in Person Sales Meeting', // owner 2026-11-18: real customer visits ("Drop-in", "Home office"), not time off
   '#vacation': 'Personal Time Off',
   '#vaction': 'Personal Time Off',
   'moda tower update': 'Resource Update',
@@ -44,7 +44,7 @@ export const UNTAGGED_TYPES: Record<string, string> = {
 
 /** The name in the file → the staff member's display name in our system (owner's list). */
 export const USER_NAMES: Record<string, string> = {
-  'Priscila Helen': 'Priscila',
+  'Priscila Helen': 'Priscilla',
   'Felicia Turner': 'Felicia Turner',
   'Eric James Smith': 'Eric James Smith',
   'Cristina Cousins': 'Cristina',
