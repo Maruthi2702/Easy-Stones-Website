@@ -162,6 +162,7 @@ import { seedTypeLists } from './src/services/seedTypeLists.ts';
 import { VISIT_TYPES as VISIT_TYPE_ACTIONS, RESOURCE_TYPES as RESOURCE_TYPE_ACTIONS } from './src/utils/usersAccess.ts';
 import { checkSheet, spsCoverage } from './src/utils/spsSheet.ts';
 import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.ts';
+import createCustomerSalesRouter from './src/routes/customerSales.ts';
 import createCustomerSpsImportRouter from './src/routes/customerSpsImport.ts';
 import { resumeRunningImports } from './src/services/spsImportRunner.ts';
 import createVisitsRouter from './src/routes/visits.ts';
@@ -3419,6 +3420,7 @@ app.get(['/api/customers/view-counts', '/api/partners/view-counts'], authenticat
 // Bulk Delete from the customer list's selection bar, with Undo — every
 // customer saved whole first (src/routes/customerBulkDelete.ts).
 app.use('/api/customers', createCustomerBulkDeleteRouter({ authenticate }));
+app.use('/api/customers', createCustomerSalesRouter({ authenticate }));
 app.use('/api/customers', createCustomerSpsConnectRouter({
   authenticate,
   uploadMemory,

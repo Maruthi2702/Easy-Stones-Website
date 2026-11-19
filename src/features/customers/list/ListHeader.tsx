@@ -68,6 +68,9 @@ export default function ListHeader(p: ListHeaderProps) {
                             {canImport && (
                                 <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); dl.setShowSpsImport(true); }}><Upload size={16} aria-hidden="true" />Import from SPS</button>
                             )}
+                            {canImport && (
+                                <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); dl.setShowSalesImport(true); }}><Upload size={16} aria-hidden="true" />Import sales</button>
+                            )}
                             {canImport && canEdit && (
                                 <button type="button" role="menuitem" className="cl-opt" onClick={() => { setMoreOpen(false); dl.setShowSpsConnect(true); }}><Link2 size={16} aria-hidden="true" />Connect customers to SPS</button>
                             )}
