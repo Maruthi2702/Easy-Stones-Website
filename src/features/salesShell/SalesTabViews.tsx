@@ -12,6 +12,7 @@ import { canOpenArea, can, NAV_ORDER } from '../../utils/usersAccess';
 import { PERMITS } from '../../permits/permissions';
 import { canOpenReceipts, canOpenCategories } from '../../utils/cardReceipts';
 import { canOpenSupplierPos, canSeeIncoming } from '../../utils/supplierAccess';
+import { canViewTeamLocations } from '../../utils/locationTracking';
 import { TeamFilesPage } from '../teamFiles';
 import type { TeamFiles } from '../teamFiles';
 import type { Loose } from '../../types/records';
@@ -41,6 +42,7 @@ const PaymentsPage = page(() => import('../payments/PaymentsPage'));
 const FuelManPage = page(() => import('../fuelman'));
 const CardReceiptsPage = page(() => import('../cardReceipts/CardReceiptsPage'));
 const ReceiptCategoriesPage = page(() => import('../cardReceipts/categories/ReceiptCategoriesPage'));
+const TeamLocationPage = page(() => import('../teamLocation/TeamLocationPage'));
 const SupplierPosPage = page(() => import('../suppliers/SupplierPosPage'));
 const IncomingMaterialPage = page(() => import('../suppliers/incoming/IncomingMaterialPage'));
 const FreightTab = page(() => import('../freight/FreightTab'));
@@ -234,6 +236,14 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
                 <ErrorBoundary key="receipt-categories-view">
                     <Suspense fallback={<TabLoader />}>
                         <ReceiptCategoriesPage currentUser={currentUser} sidebarToggle={menu()} />
+                    </Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && crmTab === 'team_location' && canViewTeamLocations(currentUser) && (
+                <ErrorBoundary key="team-location-view">
+                    <Suspense fallback={<TabLoader />}>
+                        <TeamLocationPage currentUser={currentUser} sidebarToggle={menu()} isActive />
                     </Suspense>
                 </ErrorBoundary>
             )}

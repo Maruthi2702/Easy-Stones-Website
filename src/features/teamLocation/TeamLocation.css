@@ -1,0 +1,52 @@
+/*
+ * Admin → Team Location (TeamLocationPage.tsx). Everything is prefixed .tl-.
+ * Dark is the app's default; light follows the app's tokens.
+ */
+.tl {
+  --tl-bg: var(--bg-primary, #0f1013);
+  --tl-surface: var(--bg-card, #17191e);
+  --tl-hover: rgba(212, 175, 55, 0.1);
+  --tl-line: rgba(255, 255, 255, 0.09);
+  --tl-text: var(--text-primary, #e8eaed);
+  --tl-muted: #9aa3af;
+  --tl-gold: #d4af37;
+  --tl-live: #2f9e63;
+  --tl-earlier: #d9822b;
+  --tl-none: #8a8f98;
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  background: var(--tl-bg); color: var(--tl-text); font-size: 14px; line-height: 1.4;
+}
+body.light-theme-active .tl { --tl-line: rgba(0, 0, 0, 0.1); --tl-muted: #5f6672; }
+.tl-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--tl-line); }
+.tl-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tl-title h1 { margin: 0; font-size: 20px; }
+.tl-title span { color: var(--tl-muted); font-size: 12.5px; }
+.tl-btn { border: 1px solid var(--tl-line); background: var(--tl-surface); color: inherit; border-radius: 8px; width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer; }
+.tl-btn:focus-visible, .tl-person:focus-visible { outline: 2px solid var(--tl-gold); outline-offset: 2px; }
+.tl-note { margin: 12px 16px 0; padding: 10px 12px; border-radius: 8px; background: var(--tl-surface); border: 1px solid var(--tl-line); }
+.tl-note.is-error { border-color: #f87171; color: #f87171; }
+.tl-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 320px 1fr; }
+.tl-side { overflow-y: auto; border-right: 1px solid var(--tl-line); scrollbar-width: none; min-width: 0; }
+.tl-side::-webkit-scrollbar { display: none; }
+.tl-person { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--tl-line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tl-person:hover, .tl-person[aria-pressed='true'] { background: var(--tl-hover); }
+.tl-ini { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: var(--tl-surface); border: 1px solid var(--tl-line); }
+.tl-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tl-who span { color: var(--tl-muted); font-size: 12.5px; text-transform: capitalize; overflow-wrap: anywhere; }
+.tl-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; }
+.tl-dot.is-live { background: var(--tl-live); } .tl-dot.is-earlier { background: var(--tl-earlier); } .tl-dot.is-none { background: var(--tl-none); }
+.tl-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.tl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--tl-line); min-height: 56px; }
+.tl-pick { display: flex; align-items: center; gap: 6px; }
+.tl-sum { color: var(--tl-muted); font-size: 13px; min-width: 0; }
+.tl-map, .tl-map-note { flex: 1; min-height: 320px; width: 100%; }
+.tl-map-note { display: grid; place-items: center; color: var(--tl-muted); padding: 24px; text-align: center; background: var(--tl-surface); }
+.tl-empty { padding: 28px 20px; display: flex; flex-direction: column; gap: 6px; color: var(--tl-muted); }
+.tl-empty h3 { margin: 0; color: var(--tl-text); font-size: 15px; }
+/* Phones: the list on top, the map under it. */
+@media (max-width: 760px) {
+  .tl { height: auto; min-height: 100%; }
+  .tl-body { grid-template-columns: 1fr; }
+  .tl-side { border-right: 0; border-bottom: 1px solid var(--tl-line); max-height: 40vh; }
+  .tl-map, .tl-map-note { min-height: 360px; }
+}

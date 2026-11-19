@@ -563,6 +563,21 @@ list and pop-ups unchanged; the redesign on the **Team Files Page Canvas**
 (https://claude.ai/artifact/NRBYg5zf4Ycw8NCuMrpd97 — tree, preview, pinning,
 size, own permissions) is not built.
 
+## iOS app and Team Location (2026-11-19, on `feat/ios-app`)
+
+The iOS app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`; it loads the site so the
+sign-in cookies stay first-party). **One sign-in** for staff and suppliers: `/login` tries the staff sign-in, and
+only on "invalid credentials" with an `@` asks the supplier portal (`pages/supplierSignInFallback.ts`); the two
+sessions stay separate. **Location tracking** is `src/utils/locationTracking.ts` (tested): 7 AM–6 PM Monday–Friday
+on the person's **branch clock**, enforced by the server (`POST /api/location-tracking/points` drops anything
+outside) as well as the app; kept 90 days (`src/jobs/locationRetention.ts`); table `location_points`
+(Postgres only, migration `0016_location_points` — renumber if another branch's 0016 lands first). Switches on
+Users & Roles → **Location Tracking**: `track_location` (that role is tracked) and `view_team_locations` (sees the
+tracked people on their team, by `teamScope.ts`; others answer 404). Nobody holds either until an admin ticks it.
+**Admin → Team Location** (`src/features/teamLocation/`, nav `team_location`) is the manager's screen: people
+with last seen, a Google map, and one person's trail for a day. Not built: the phone-side collector, weekend /
+time-off days, universal links and push (need the Apple developer account).
+
 ## Phone tab bar (2026-10-18)
 
 Under 640px SalesPage shows a bottom tab bar instead of the drawer
