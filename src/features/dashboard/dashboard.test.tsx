@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { ComponentProps } from 'react';
 import { DEFAULT_FOLLOW_UP_FILTERS } from '../../utils/followUpList';
 import type { FollowUpFilters } from '../../utils/followUpList';
+import { RangeFilterGroup } from './components/DashboardStats';
 
 vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ user: { permissions: [] }, loading: false }) }));
 // Resource types come from the database (Admin → Resource Types); the Resources tab reads them for family and label.
@@ -151,7 +152,7 @@ describe('People filter (manager view)', () => {
     fireEvent.change(screen.getByLabelText('Search people'), { target: { value: 'bart' } });
     expect(screen.queryByText('Jesus B.')).toBeNull();
     expect(screen.queryByRole('checkbox', { name: 'My team' })).toBeNull();
-    fireEvent.click(screen.getByText('Clear Filter'));
+    fireEvent.click(screen.getByText('Clear all'));
     expect(p.onReset).toHaveBeenCalled();
   });
 
@@ -256,12 +257,47 @@ describe('Resources tab', () => {
   it('filters by resource type from the header Filters panel; unticking brings them back', async () => {
     render(<ResourcesPanel {...panel({ rows })} />);
     fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    // Resource type is a multi-select dropdown: closed it says "All types", open it lists the families.
+    const trigger = await screen.findByRole('button', { name: /Resource type/ });
+    expect(trigger.textContent).toContain('All types');
+    fireEvent.click(trigger);
     expect(await screen.findByText('Display towers')).toBeTruthy();
     fireEvent.click(screen.getByRole('checkbox', { name: /2025V3 Moda Tower/ }));
     expect(screen.queryByText('TopLine Counters')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Remove 2025V3 Moda Tower' })).toBeNull();
+    // The footer's main button says how many you'll see, and the header badge how many filters are on.
+    expect(screen.getByRole('button', { name: /^Show \d+ resource/ })).toBeTruthy();
     fireEvent.click(screen.getByRole('checkbox', { name: /2025V3 Moda Tower/ }));
     expect(screen.getByText('TopLine Counters')).toBeTruthy();
+  });
+
+  it('Select all in a family ticks every type in it, and then offers Clear', async () => {
+    render(<ResourcesPanel {...panel({ rows })} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Resource type/ }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Select all' })[0]);
+    expect(screen.getAllByRole('button', { name: 'Clear' }).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear' })[0]);
+    expect(screen.getAllByRole('button', { name: 'Select all' }).length).toBeGreaterThan(0);
+  });
+});
+
+describe('Filters → Time range dropdown', () => {
+  it('lists every range, applies a pick at once, and Custom waits for Apply', async () => {
+    const onChange = vi.fn();
+    render(<RangeFilterGroup value="7days" onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: /Time range/ }));
+    for (const name of ['Today', 'Last 30 days', 'Last 90 days', 'Year to date', 'All time', 'Custom']) {
+      expect(screen.getByRole('option', { name })).toBeTruthy();
+    }
+    fireEvent.click(screen.getByRole('option', { name: 'All time' }));
+    expect(onChange).toHaveBeenCalledWith('all');
+
+    onChange.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: /Time range/ }));
+    fireEvent.click(screen.getByRole('option', { name: 'Custom' }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeTruthy();
   });
 });
 

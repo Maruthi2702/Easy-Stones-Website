@@ -2,6 +2,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { Filter, X } from 'lucide-react';
 import { ALL_LOCATIONS, locationNames, homeLocationOf, orderLocations } from '../../utils/locationFilter';
 import LocationPicker from './form/LocationPicker';
+import './form/FormModal.css';
 import './LocationFilter.css';
 
 /**
@@ -118,6 +119,10 @@ export type LocationFilterProps = LocationFieldProps & {
   onClear?: () => void;
   wide?: boolean;
   label?: string;
+  /** The footer's main button: "Close" by default, or what you'll get ("Show 76 resources"). */
+  doneLabel?: string;
+  /** How many filters are on, shown as a badge by the title; none / 0 hides it. */
+  activeCount?: number;
 };
 
 const LocationFilter = ({
@@ -133,7 +138,9 @@ const LocationFilter = ({
   active = false,
   onClear,
   wide = false,
-  label = 'Filters'
+  label = 'Filters',
+  doneLabel = 'Close',
+  activeCount = 0
 }: LocationFilterProps) => {
   const [open, setOpen] = useState(false);
   // Where the panel sits, in px from the button's left edge: lined up with
@@ -197,11 +204,12 @@ const LocationFilter = ({
       </button>
 
       {open && (
-        <div className={`lf-pop${wide ? ' lf-pop--wide' : ''}`} style={{ left: panelLeft }} role="dialog" aria-label={label}>
+        <div className={`lf-pop fm-tokens${wide ? ' lf-pop--wide' : ''}`} style={{ left: panelLeft }} role="dialog" aria-label={label}>
           <div className="lf-pop-head">
-            <span>{label}</span>
+            <span className="lf-pop-title">{label}</span>
+            {activeCount > 0 && <span className="lf-badge" aria-label={`${activeCount} on`}>{activeCount}</span>}
             <button type="button" className="lf-pop-close" onClick={close} aria-label={`Close ${label.toLowerCase()}`}>
-              <X size={14} />
+              <X size={16} strokeWidth={2.4} />
             </button>
           </div>
           {hasExtra && (
@@ -233,10 +241,10 @@ const LocationFilter = ({
                 onClear?.();
               }}
             >
-              Clear Filter
+              Clear all
             </button>
             <button type="button" className="lf-done" onClick={close}>
-              Close
+              {doneLabel}
             </button>
           </div>
         </div>

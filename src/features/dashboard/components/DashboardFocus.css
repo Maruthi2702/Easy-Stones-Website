@@ -13,17 +13,14 @@ body.light-theme-active, .light-theme-active { --dfx-gold-text: #7a5c0b; --dfx-s
 .dfx-range-phone { display: none; }
 .dfx-range .dfx-range-now { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 7px; background: var(--bg-card); color: var(--text-primary); font-size: 13px; font-weight: 600; white-space: nowrap; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18); }
 /* All time / Custom, inside the Filters panel (the calendars float inside it, never portaled). */
-.dfx-range-more { display: flex; gap: 6px; }
-.dfx-range-more button { flex: 1; height: 34px; border-radius: 8px; border: 1px solid var(--border-color); background: transparent; color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
-.dfx-range-more button.is-on { background: var(--bg-card); color: var(--text-primary); font-weight: 600; border-color: var(--accent-primary, #d4af37); }
 .lf-group > .dfx-custom { margin-top: 10px; }
 .dfx-custom { display: flex; flex-direction: column; gap: 10px; }
 .dfx-custom-days { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .dfx-custom-apply {
-    align-self: flex-end; height: 38px; padding: 0 16px; border: 0; border-radius: 8px;
-    background: var(--accent-primary, #d4af37); color: #111317; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+    align-self: flex-end; height: 42px; padding: 0 22px; border: 1px solid var(--fm-gold-bd, #c5a028); border-radius: 10px;
+    background: var(--fm-gold, #d4af37); color: var(--fm-on-gold, #1a1505); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
 }
-.dfx-custom-apply:disabled { opacity: 0.5; cursor: default; }
+.dfx-custom-apply:disabled { opacity: 0.55; cursor: not-allowed; }
 .dfx-sheet .dfx-custom { padding-top: 12px; }
 
 /* ── Stat cards ── */

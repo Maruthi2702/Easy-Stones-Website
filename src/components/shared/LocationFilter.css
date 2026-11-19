@@ -60,40 +60,38 @@
   box-shadow: 0 0 6px rgba(212, 175, 55, 0.85);
 }
 
-/* ── Panel ── (`left` is set inline when it opens — see toggleOpen) */
+/* ── Panel ── (`left` is set inline when it opens — see toggleOpen)
+   Form-template look (FORM_TEMPLATE.md, 2026-11-19): the panel carries
+   `.fm-tokens`, so the colours, both themes, come from the --fm-* tokens.
+   Placement, z-index and overflow are unchanged on purpose — every screen's
+   filter shares this (CLAUDE.md: shared components). */
 .lf-pop {
   position: absolute;
   top: calc(100% + 0.5rem);
   width: 300px;
   max-width: calc(100vw - 32px);
   box-sizing: border-box;
-  padding: 1.25rem;
-  background: #18181b;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 16px;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  padding: 20px 24px 0;
+  background: var(--fm-card);
+  color: var(--fm-tx);
+  border: 1px solid var(--fm-bd2);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   z-index: 1000;
   text-align: left;
   animation: lf-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
+body.light-theme-active .lf-pop { box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18); }
 
 /* A panel with more than the Location field in it (LocationFilter's
-   `wide`) — the Delivery Schedule puts its order search here, and
-   the search's results list needs the room. Keep in step with
-   WIDE_PANEL_WIDTH in LocationFilter.jsx, which places the panel. */
-.lf-pop.lf-pop--wide {
-  width: 380px;
-}
+   `wide`). Keep in step with WIDE_PANEL_WIDTH in LocationFilter.tsx. */
+.lf-pop.lf-pop--wide { width: 380px; }
 
-/* Extra fields sit above the Location field with the same spacing as one. */
-.lf-pop > .lf-extra + .lf-group {
-  margin-top: 1rem;
-}
-
-/* `after` (below the Location field) gets the same gap. */
-.lf-pop > .lf-after {
-  margin-top: 1rem;
-}
+/* Everything between the title and the footer: one 22px rhythm, whoever
+   supplied the group. */
+.lf-extra { display: flex; flex-direction: column; gap: 22px; }
+.lf-pop > .lf-extra + .lf-group { margin-top: 22px; }
+.lf-pop > .lf-after { margin-top: 22px; }
 
 @keyframes lf-pop {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
@@ -102,89 +100,101 @@
 
 .lf-pop-head {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.lf-pop-title { font-size: 20px; font-weight: 800; color: var(--fm-tx); }
+
+/* How many filters are on. */
+.lf-badge {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  border: 1px solid var(--fm-gold);
+  background: var(--fm-gold-tint);
+  color: var(--fm-gold-tx);
+  font-size: 12px;
   font-weight: 700;
-  font-size: 0.9rem;
-  color: #fff;
 }
 
+/* The template's red circle ✕. */
 .lf-pop-close {
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
-  background: transparent;
-  border: none;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
-  color: #9ca3af;
+  background: var(--fm-x);
+  color: #ffffff;
   cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
+.lf-pop-close:hover { background: var(--fm-x-hover); transform: scale(1.08); }
+.lf-pop-close:focus-visible { outline: 2px solid var(--fm-err-bd); outline-offset: 2px; }
 
-.lf-pop-close:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-
+/* Full-bleed footer strip, like the form's. */
 .lf-pop-foot {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 1rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  gap: 12px;
+  margin: 22px -24px 0;
+  padding: 14px 24px;
+  background: var(--fm-footer);
+  border-top: 1px solid var(--fm-bd2);
+  border-radius: 0 0 18px 18px;
 }
 
 .lf-clear {
-  padding: 4px 0;
+  height: 42px;
+  padding: 0;
   background: transparent;
-  border: none;
-  color: #f87171;
-  font-size: 0.78rem;
+  border: 0;
+  color: var(--fm-err);
+  font-size: 14px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
 }
-
-.lf-clear:hover {
-  color: #ef4444;
-  text-decoration: underline;
-}
+.lf-clear:hover { text-decoration: underline; }
 
 .lf-done {
-  padding: 0.4rem 0.9rem;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #fff;
-  font-size: 0.78rem;
-  font-weight: 600;
+  height: 42px;
+  padding: 0 22px;
+  background: var(--fm-gold);
+  border: 1px solid var(--fm-gold-bd);
+  border-radius: 10px;
+  color: var(--fm-on-gold);
+  font-size: 14px;
+  font-weight: 700;
   font-family: inherit;
   cursor: pointer;
 }
+.lf-done:hover { background: var(--fm-gold-bd); }
+.lf-done:focus-visible, .lf-clear:focus-visible { outline: 2px solid var(--fm-gold); outline-offset: 2px; }
 
-.lf-done:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-/* ── The Location field (also used inside the Check-In Log's own panel) ── */
+/* ── The fields (also used inside the Check-In Log's own panel) ── */
 .lf-group {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 6px;
   text-align: left;
 }
 
 .lf-group-label {
-  font-size: 0.72rem;
+  font-size: 13px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #9ca3af;
+  color: var(--fm-label, #9ca3af);
 }
 
 /* index.css's global `select` rule draws the chevron as a background image
@@ -193,20 +203,19 @@
    that right padding. */
 .lf-select {
   width: 100%;
-  padding: 0.5rem 2rem 0.5rem 0.6rem;
-  background-color: #27272a;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 8px;
-  color: #fff;
-  font-size: 0.85rem;
+  height: 42px;
+  padding: 0 2rem 0 12px;
+  background-color: var(--fm-in, #27272a);
+  border: 1px solid var(--fm-bd, rgba(255, 255, 255, 0.15));
+  border-radius: 10px;
+  color: var(--fm-tx, #fff);
+  font-size: 14px;
+  font-weight: 500;
   font-family: inherit;
   cursor: pointer;
   outline: none;
 }
-
-.lf-select:focus {
-  border-color: #d4af37;
-}
+.lf-select:focus { border-color: var(--fm-gold, #d4af37); box-shadow: 0 0 0 3px var(--fm-ring, transparent); }
 
 .lf-checks {
   display: flex;
@@ -219,23 +228,20 @@
 .lf-check {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.45rem 0.5rem;
-  border-radius: 8px;
-  color: #e5e7eb;
-  font-size: 0.85rem;
+  gap: 12px;
+  min-height: 40px;
+  padding: 0 8px;
+  border-radius: 9px;
+  color: var(--fm-tx, #e5e7eb);
+  font-size: 14px;
   cursor: pointer;
 }
-
-.lf-check:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
+.lf-check:hover { background: var(--fm-hover, rgba(255, 255, 255, 0.06)); }
 .lf-check input {
-  width: 15px;
-  height: 15px;
+  width: 18px;
+  height: 18px;
   margin: 0;
-  accent-color: #d4af37;
+  accent-color: var(--fm-gold, #d4af37);
   cursor: pointer;
 }
 
@@ -260,72 +266,14 @@
   color: #b8961f;
 }
 
-.light-theme-active .lf-pop,
-.light-theme .lf-pop {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1), 0 8px 16px -8px rgba(15, 23, 42, 0.08);
-}
-
-.light-theme-active .lf-pop-head,
-.light-theme .lf-pop-head {
-  color: #0f172a;
-  border-bottom-color: #e2e8f0;
-}
-
-.light-theme-active .lf-pop-close,
-.light-theme .lf-pop-close {
-  color: #64748b;
-}
-
-.light-theme-active .lf-pop-close:hover,
-.light-theme .lf-pop-close:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.light-theme-active .lf-pop-foot,
-.light-theme .lf-pop-foot {
-  border-top-color: #e2e8f0;
-}
-
-.light-theme-active .lf-clear,
-.light-theme .lf-clear {
-  color: #ef4444;
-}
-
-.light-theme-active .lf-done,
-.light-theme .lf-done {
-  background: #f1f5f9;
-  border: 1.5px solid #cbd5e1;
-  color: #475569;
-}
-
-.light-theme-active .lf-done:hover,
-.light-theme .lf-done:hover {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
+/* Outside a .fm-tokens panel (the Check-In Log's own panel holds a bare
+   LocationField) there are no --fm-* tokens, so the light fallbacks below
+   keep text readable there. */
 .light-theme-active .lf-group-label,
-.light-theme .lf-group-label {
-  color: #64748b;
-}
-
-.light-theme-active .lf-select,
-.light-theme .lf-select {
-  background-color: #ffffff;
-  border: 1.5px solid #cbd5e1;
-  color: #0f172a;
-  font-weight: 500;
-}
-
+.light-theme .lf-group-label { color: var(--fm-label, #64748b); }
 .light-theme-active .lf-check,
-.light-theme .lf-check {
-  color: #0f172a;
-}
-
+.light-theme .lf-check { color: var(--fm-tx, #0f172a); }
 .light-theme-active .lf-check:hover,
-.light-theme .lf-check:hover {
-  background: #f1f5f9;
-}
+.light-theme .lf-check:hover { background: var(--fm-hover, #f1f5f9); }
+.light-theme-active .lf-select,
+.light-theme .lf-select { background-color: var(--fm-in, #ffffff); border-color: var(--fm-bd, #cbd5e1); color: var(--fm-tx, #0f172a); }

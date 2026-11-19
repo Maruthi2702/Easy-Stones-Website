@@ -100,6 +100,7 @@ export default function DashboardHeader({
                                 onChange={onLocationChange}
                                 user={currentUser}
                                 active={Boolean(people?.active) || rangeActive}
+                                activeCount={(people?.active ? 1 : 0) + (rangeActive ? 1 : 0)}
                                 onClear={people?.onReset}
                             >
                                 {rangeGroup}
@@ -126,6 +127,7 @@ export default function DashboardHeader({
                                     onChange={onLocationChange}
                                     user={currentUser}
                                     active={Boolean(calendarPeople.active) || rangeActive}
+                                    activeCount={(calendarPeople.active ? 1 : 0) + (rangeActive ? 1 : 0)}
                                     onClear={calendarPeople.onReset}
                                 >
                                     {rangeGroup}

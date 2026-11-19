@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { UserPlus, FolderPlus, Clock, Calendar, ChevronDown } from 'lucide-react';
 import { RANGES, rangeFooter, rangeLabel } from '../dashboardFocus';
 import { DatePicker } from '../../../components/shared/calendar/Calendar';
+import { FormPicker } from '../../../components/shared/form/FormControls';
 import '../../../components/shared/form/FormModal.css';
 import type { Loose } from '../../../types/records';
 import { DEFAULT_FOLLOW_UP_FILTERS, countForFilters, filtersWord } from '../../../utils/followUpList';
@@ -39,18 +40,32 @@ function CustomDays({ from, to, onApply }: { from: string; to: string; onApply: 
 /** What the segmented bar offers; All time and Custom are in the Filters panel (RangeFilterGroup). */
 const BAR_RANGES = RANGES.filter(r => r.id !== 'all' && r.id !== 'custom');
 
-/** The Filters panel's time-range part: All time, or Custom From / To. */
+/**
+ * The Filters panel's time range (2026-11-19, owner): the header's own choices
+ * as one dropdown, so every range is reachable here too and the two stay in
+ * step (the header reads the same value). Custom reveals From / To and changes
+ * nothing until Apply.
+ */
 export const RangeFilterGroup = ({ value, from = '', to = '', onChange }: DashboardRangeProps) => {
-    // Custom only reveals its days; nothing changes until Apply.
-    const [customOpen, setCustomOpen] = useState(value === 'custom');
+    const id = useId();
+    // Custom picked in this dropdown but not applied yet. A range chosen anywhere else (the header) wins.
+    const [pendingCustom, setPendingCustom] = useState(false);
+    useEffect(() => { setPendingCustom(false); }, [value]);
+    const shown = pendingCustom || value === 'custom' ? 'custom' : value;
     return (
-        <div className="lf-group" role="group" aria-label="More time ranges">
-            <span className="lf-group-label">Time range</span>
-            <div className="dfx-range-more">
-                <button type="button" aria-pressed={value === 'all'} className={value === 'all' ? 'is-on' : ''} onClick={() => { setCustomOpen(false); onChange('all'); }}>All time</button>
-                <button type="button" aria-pressed={value === 'custom'} aria-expanded={customOpen} className={value === 'custom' ? 'is-on' : ''} onClick={() => setCustomOpen(o => !o)}>Custom</button>
-            </div>
-            {customOpen && <CustomDays key={`${from}|${to}`} from={from} to={to} onApply={(a, b) => onChange('custom', a, b)} />}
+        <div className="lf-group">
+            <label className="lf-group-label" htmlFor={id}>Time range</label>
+            <FormPicker<string>
+                id={id}
+                value={shown}
+                sheetTitle="Time range"
+                onChange={(next) => (next === 'custom' ? setPendingCustom(true) : onChange(next))}
+                options={RANGES.map(r => ({
+                    value: r.id,
+                    label: r.id === 'custom' && value === 'custom' ? `Custom · ${rangeLabel('custom', from, to)}` : r.label
+                }))}
+            />
+            {shown === 'custom' && <CustomDays key={`${from}|${to}`} from={from} to={to} onApply={(a, b) => onChange('custom', a, b)} />}
         </div>
     );
 };
