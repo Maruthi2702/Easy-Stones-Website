@@ -19,9 +19,14 @@ const money = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 
  * Months with no sales show a dash; each month has a bar against the biggest month (red for a negative one).
  * The year stepper moves between the years imported.
  */
+// The profile unmounts this tab when you switch away, so keep the last answer per
+// customer + year: coming back shows it at once and refreshes quietly behind it.
+const salesCache = new Map<string, Sales>();
+const cacheKey = (customerId: string, year: number | null) => `${customerId}:${year ?? ''}`;
+
 export default function SalesReportTab({ customerId }: { customerId: string }) {
     const [year, setYear] = useState<number | null>(null);
-    const [data, setData] = useState<Sales | null>(null);
+    const [data, setData] = useState<Sales | null>(() => salesCache.get(cacheKey(customerId, null)) ?? null);
     const [error, setError] = useState('');
     const [picked, setPicked] = useState<number | null>(null);
     useEffect(() => { setPicked(null); }, [customerId, year]);
@@ -35,6 +40,7 @@ export default function SalesReportTab({ customerId }: { customerId: string }) {
                 const body = await res.json();
                 if (cancelled) return;
                 if (!res.ok) { setError(body?.message || 'Could not load sales.'); return; }
+                salesCache.set(cacheKey(customerId, year), body);
                 setData(body);
             } catch {
                 if (!cancelled) setError('Could not load sales.');

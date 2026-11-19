@@ -98,7 +98,14 @@ body.light-theme-active .cp {
 .cp .cp-tab .n { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--cl-hover); color: var(--cl-text-2); font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
 .cp .cp-tab[aria-selected="true"] .n { background: var(--cl-gold-tint); color: var(--cl-gold-ink); }
 .cp .cp-act { height: 52px; padding: 0 20px; }
-.cp .cp-act-short, .cp .cp-fab { display: none; }
+.cp .cp-act, .cp .cp-act-short { display: none; }
+/* Add is the round gold + at the bottom right on every screen size, like the Dashboard's
+   (DashboardAddButton): 32px from the corner, 24px under 1024px, above the phone tab bar under 640px. */
+.cp .cp-fab {
+  display: flex; position: fixed; right: 32px; bottom: calc(32px + env(safe-area-inset-bottom, 0px)); z-index: 90;
+  width: 58px; height: 58px; border-radius: 50%; border: 1px solid #c39f2a; background: var(--cl-gold); color: #1a1400;
+  align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); cursor: pointer;
+}
 .cp .cp-secbar { display: none; } /* shown when the tabs don't fit: .cp-bar--menu below */
 
 /* ── Up to 1024px: the tags drop under the name; the Add button is short ── */
@@ -110,8 +117,7 @@ body.light-theme-active .cp {
   .cp .cp-meta { order: 3; flex-basis: 100%; margin-top: 0; }
   .cp .cp-tab { padding: 0 12px; gap: 6px; }
   .cp .cp-act { padding: 0 16px; }
-  .cp .cp-act-full { display: none; }
-  .cp .cp-act-short { display: inline; }
+  .cp .cp-fab { right: 24px; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ── Up to 700px: the status picker is in the ⋯ menu ── */
@@ -132,12 +138,7 @@ body.light-theme-active .cp {
   .cp .cp-bar { margin-top: 12px; }
   /* On a phone the section bar takes the whole row (see .cp-bar--menu below). */
   .cp .cp-bar--menu .cp-secbar { flex: 1 1 100%; max-width: none; }
-  .cp .cp-act { display: none; }
-  .cp .cp-fab {
-    display: flex; position: fixed; right: 16px; bottom: calc(var(--app-bottom-h, 0px) + 16px + env(safe-area-inset-bottom, 0px)); z-index: 90;
-    width: 58px; height: 58px; border-radius: 50%; border: 1px solid #c39f2a; background: var(--cl-gold); color: #1a1400;
-    align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); cursor: pointer;
-  }
+  .cp .cp-fab { right: 16px; bottom: calc(var(--app-bottom-h, 0px) + 16px + env(safe-area-inset-bottom, 0px)); }
   .cp .cp-scrim { background: var(--cl-scrim); z-index: 2147483000; }
   .cp .cp-menu, .cp .cp-menu.cp-rowm {
     position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 2147483001; min-width: 0; border-radius: 20px 20px 0 0;
