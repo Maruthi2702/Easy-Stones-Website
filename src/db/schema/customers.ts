@@ -381,3 +381,15 @@ export const customerSalesImports = pgTable('customer_sales_imports', {
   importedBy: text('imported_by').notNull().default(''),
   importedAt: moment('imported_at').notNull().defaultNow()
 });
+
+/**
+ * A report name a person matched to a customer by hand (Import sales → Check names).
+ * Remembered, so the next file's same name goes straight to that customer. Gone with the customer.
+ */
+export const customerSalesLinks = pgTable('customer_sales_links', {
+  spsKey: text('sps_key').primaryKey(),
+  customerId: objectId('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  reportName: text('report_name').notNull().default(''),
+  linkedBy: text('linked_by').notNull().default(''),
+  linkedAt: moment('linked_at').notNull().defaultNow()
+}, t => [index('customer_sales_links_customer_idx').on(t.customerId)]);

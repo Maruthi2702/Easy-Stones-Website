@@ -392,9 +392,14 @@ name) and `customer_sales_imports` (the log, with the names that matched no cust
 import **replaces its whole year**. Rows are matched to a customer **when read** — its `sps.key`,
 else its company name, both through `spsKey` — so connecting or renaming a customer needs no
 re-import; names matching nobody are listed after the import (no fuzzy matching, owner's call).
-Routes `src/routes/customerSales.ts`: `GET /api/customers/:id/sales?year=` (needs the full-profile
-switch) and `POST /api/customers/sales/import`, mounted before the other customer routers. Not
-built: linking an unmatched name by hand, per-location splits, more than the monthly report.
+**Import sales is three steps like Import from SPS** (design: claude.ai artifact **Import Sales Flow**,
+https://claude.ai/artifact/Nvgh55Mf4aa5C9SwCDx3Pp): Upload and file check → Check names → Results. A report
+name that matches no customer is listed with look-alike suggestions (`suggestCustomers`) and a customer
+dropdown; the person picks or skips, and a pick is saved in `customer_sales_links` (migration 0015, gone with
+the customer) so the next file's same name goes straight there. Routes `src/routes/customerSales.ts`:
+`GET /api/customers/:id/sales?year=` (needs the full-profile switch), `POST /sales/preview` (writes nothing)
+and `POST /sales/import` (with `links`), mounted before the other customer routers. Not built: per-location
+splits, more than the monthly report. New tables reach RDS with `npm run pg:migrate -- --apply` on Render.
 
 ## Customer profile header and tabs (2026-10-29)
 

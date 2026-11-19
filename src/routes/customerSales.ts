@@ -8,16 +8,40 @@ import * as sales from '../db/customerSales/index.ts';
  * Sales by customer, month by month (2026-11-18).
  *
  *   GET  /api/customers/:id/sales?year=2026   → the profile's Sales Report tab (needs the full profile switch)
- *   POST /api/customers/sales/import          { rows, fileName } → replaces that year (needs Import)
+ *   POST /api/customers/sales/preview         { rows } → what the file holds and the names that match nobody (writes nothing)
+ *   POST /api/customers/sales/import          { rows, fileName, links } → replaces that year, saving the picked links (needs Import)
  *
  * `rows` is the SPS report "Sales by Customer - Monthly" as rows of cells; the
  * server reads it itself (src/utils/customerSales.ts) and refuses a file it
  * can't trust before writing anything. Mounted before the other /api/customers
  * routers so /sales/import isn't taken for a customer id.
  */
+/** { reportKey: customerId } with only text keys and 24-hex ids. */
+function cleanLinks(raw: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (raw && typeof raw === 'object') {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (k && typeof v === 'string' && /^[0-9a-f]{24}$/i.test(v)) out[k] = v.toLowerCase();
+    }
+  }
+  return out;
+}
+
 export default function createCustomerSalesRouter({ authenticate }: { authenticate: RequestHandler }) {
   const router = express.Router();
   const who = (req: express.Request) => req.user?.username || req.user?.name || '';
+
+  router.post('/sales/preview', authenticate, async (req, res) => {
+    if (!canImportCustomers(req.user)) return res.status(403).json({ message: 'Your role can’t import customers.' });
+    const sheet = readSalesSheet(req.body?.rows);
+    if (sheet.problems.length) return res.status(400).json({ message: sheet.problems[0], problems: sheet.problems.slice(0, 20) });
+    try {
+      res.json({ year: sheet.year, totalCents: sheet.totalCents, ...(await sales.previewYear(sheet.entries, sheet.year)) });
+    } catch (err) {
+      console.error('Sales preview error:', err);
+      res.status(500).json({ message: 'Could not check the file.' });
+    }
+  });
 
   router.post('/sales/import', authenticate, async (req, res) => {
     if (!canImportCustomers(req.user)) return res.status(403).json({ message: 'Your role can’t import customers.' });
@@ -26,12 +50,14 @@ export default function createCustomerSalesRouter({ authenticate }: { authentica
     try {
       const done = await sales.replaceYear({
         year: sheet.year, entries: sheet.entries, totalCents: sheet.totalCents,
-        fileName: String(req.body?.fileName || '').slice(0, 200), exportedOn: String(req.body?.exportedOn || '').slice(0, 60), by: who(req)
+        fileName: String(req.body?.fileName || '').slice(0, 200), exportedOn: String(req.body?.exportedOn || '').slice(0, 60), by: who(req),
+        links: cleanLinks(req.body?.links)
       });
       res.json({ year: sheet.year, ...done, totalCents: sheet.totalCents });
     } catch (err) {
       console.error('Sales import error:', err);
-      res.status(500).json({ message: 'The sales import failed. Nothing was changed.' });
+      const refused = err instanceof Error && /no longer exists/.test(err.message);
+      res.status(refused ? 400 : 500).json({ message: refused ? err.message : 'The sales import failed. Nothing was changed.' });
     }
   });
 

@@ -76,3 +76,24 @@ export function salesSummary(cents: (number | null)[]) {
   cents.forEach((c, i) => { if (c != null && (best < 0 || c > (cents[best] as number))) best = i; });
   return { total, monthsWithSales: withSales.length, bestMonth: best, average: withSales.length ? Math.round(total / withSales.length) : 0 };
 }
+
+/**
+ * A company name with the filler taken out, for suggesting look-alikes ("Distinctive Tile & Stone"
+ * ≈ "Distinctive Tile and Stone LLC"). Only ever used to suggest: a person confirms every match.
+ */
+const FILLER = new Set(['inc', 'llc', 'co', 'corp', 'corporation', 'company', 'ltd', 'the', 'and', 'of', 'dba']);
+export const nameWords = (name: unknown): string[] =>
+  String(name ?? '').toLowerCase().replace(/\./g, '').replace(/&/g, ' and ').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w && !FILLER.has(w));
+
+/** Up to `max` of `candidates` whose name shares most of `name`'s words, best first. */
+export function suggestCustomers<T extends { company: string }>(name: string, candidates: T[], max = 3): T[] {
+  const mine = nameWords(name);
+  if (!mine.length) return [];
+  const scored = candidates.map(c => {
+    const theirs = nameWords(c.company);
+    const shared = mine.filter(w => theirs.includes(w)).length;
+    const score = shared / Math.max(mine.length, theirs.length || 1);
+    return { c, score, exact: shared === mine.length && shared === theirs.length };
+  }).filter(x => x.exact || (x.score >= 0.5 && x.score > 0));
+  return scored.sort((a, b) => Number(b.exact) - Number(a.exact) || b.score - a.score).slice(0, max).map(x => x.c);
+}
