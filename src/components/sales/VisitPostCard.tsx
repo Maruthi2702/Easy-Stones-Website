@@ -3,6 +3,7 @@ import React from 'react';
 import { Smile, Edit2, Trash2, FileText, X, CheckCircle2, Handshake, Calendar, StickyNote } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { canModifyVisit, canDeleteVisit } from '../../utils/visitAccess';
+import { formatDateNumeric } from '../shared/calendar/calendarDates';
 
 const getInitials = (name: string) => {
     if (!name) return '??';
@@ -55,6 +56,10 @@ const VisitPostCard = ({
                             {(() => {
                                 const dateVal = visit.date;
                                 if (!dateVal) return '-';
+                                // A saved day is read as written ("2026-08-25" is Aug 25 everywhere). new Date() reads it as
+                                // midnight UTC, which a US browser prints as the day before.
+                                const plain = formatDateNumeric(String(dateVal));
+                                if (plain) return plain;
                                 const dateObj = (typeof dateVal === 'string' && dateVal.endsWith('Z'))
                                     ? new Date(dateVal.slice(0, -1))
                                     : new Date(dateVal);

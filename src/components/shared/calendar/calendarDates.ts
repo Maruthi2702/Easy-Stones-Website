@@ -178,6 +178,12 @@ export const formatDateText = (iso: string): string => {
     return d ? d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '';
 };
 
+/** "08/25/2026" for "2026-08-25" (or "2026-08-25T00:00:00.000Z": its day as written). Read from the text, so no timezone can move the day; '' when it isn't a real day. */
+export const formatDateNumeric = (iso: string): string => {
+    const d = toDate(iso);
+    return d ? d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }) : '';
+};
+
 /** "Tuesday, October 20, 2026" — what a screen reader hears for a day. */
 export const formatDateLong = (iso: string): string => {
     const d = toDate(iso);

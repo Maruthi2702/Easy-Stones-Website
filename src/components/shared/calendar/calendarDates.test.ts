@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import {
     parseISO, isValidISO, parseMonth, parseYear, shiftDay, nextWeekday, shiftMonth, withMonth, shiftMonthKey,
     weekdayLabels, monthGrid, WEEK_STARTS_ON, startOfWeek, weekBounds, decadeStart, yearCells,
     dayOutside, monthOutside, yearOutside, clampDay,
-    formatDateText, formatMonthText, formatRangeText, dayAfterKey, inDays,
+    formatDateText, formatDateNumeric, formatMonthText, formatRangeText, dayAfterKey, inDays,
     readDateTime, roundedNow, clockParts, withClock, withDay, localDateTime, isoOf
 } from './calendarDates';
 
@@ -127,6 +127,27 @@ describe('words', () => {
         expect(formatRangeText('2026-10-19', '2026-10-25')).toBe('Oct 19 – 25, 2026');
         expect(formatRangeText('2026-10-26', '2026-11-01')).toBe('Oct 26 – Nov 1, 2026');
         expect(formatRangeText('2026-12-28', '2027-01-03')).toBe('Dec 28, 2026 – Jan 3, 2027');
+    });
+});
+
+describe('a saved day on a visit card', () => {
+    // new Date('2026-08-25') is midnight UTC, which a US browser prints as Aug 24. Run in a US zone to prove it.
+    const before = process.env.TZ;
+    beforeAll(() => { process.env.TZ = 'America/Los_Angeles'; });
+    afterAll(() => { if (before === undefined) delete process.env.TZ; else process.env.TZ = before; });
+
+    it('reads a plain day as written, in a US timezone', () => {
+        expect(new Date('2026-08-25').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })).toBe('08/24/2026');
+        expect(formatDateNumeric('2026-08-25')).toBe('08/25/2026');
+        expect(formatDateNumeric('2026-01-01')).toBe('01/01/2026');
+    });
+    it('reads an older stored value with a time by its own day', () => {
+        expect(formatDateNumeric('2026-08-25T00:00:00.000Z')).toBe('08/25/2026');
+    });
+    it('gives nothing for what is not a real day', () => {
+        expect(formatDateNumeric('')).toBe('');
+        expect(formatDateNumeric('2026-02-31')).toBe('');
+        expect(formatDateNumeric('nope')).toBe('');
     });
 });
 
