@@ -39,8 +39,10 @@ const nowLocal = () => new Date().toISOString().replace('Z', '');
 
 const main = async () => {
   if (!file || !fs.existsSync(file)) throw new Error('Give the .xlsx file as the first argument.');
-  const sheet = XLSX.readFile(file);
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet.Sheets[sheet.SheetNames[0]], { defval: '' });
+  // The sheet itself, or the same rows as JSON (small enough to paste into a shell).
+  const rows: Record<string, unknown>[] = file.endsWith('.json')
+    ? JSON.parse(fs.readFileSync(file, 'utf8'))
+    : (() => { const sheet = XLSX.readFile(file); return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet.Sheets[sheet.SheetNames[0]], { defval: '' }); })();
 
   // MongoDB is only needed while an area is still on it.
   const needsMongo = areaOn('customers') !== 'postgres' || areaOn('staff') !== 'postgres';
