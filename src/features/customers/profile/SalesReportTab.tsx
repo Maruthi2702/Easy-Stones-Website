@@ -15,7 +15,7 @@ const money = (cents: number) => (cents / 100).toLocaleString('en-US', { style: 
 
 /**
  * Customer profile → Sales Report: this customer's sales by month from the SPS
- * report "Sales by Customer - Monthly" (Customers ⋯ → Import sales), tax not included.
+ * report "Sales by Customer - Monthly" (Customers ⋯ → Import Sales Report), tax not included.
  * Months with no sales stay blank. The year dropdown lists the years imported.
  */
 export default function SalesReportTab({ customerId }: { customerId: string }) {
@@ -44,7 +44,7 @@ export default function SalesReportTab({ customerId }: { customerId: string }) {
     if (!data) return <TabSkeleton />;
 
     if (!data.years.length) {
-        return <TabEmpty icon={<BarChart3 size={28} />} title="No sales imported yet" text="Import the SPS report “Sales by Customer - Monthly” from the Customers list (⋯ → Import sales)." />;
+        return <TabEmpty icon={<BarChart3 size={28} />} title="No sales imported yet" text="Import the SPS report “Sales by Customer - Monthly” from the Customers list (⋯ → Import Sales Report)." />;
     }
     if (!data.matched) {
         return (
@@ -56,34 +56,40 @@ export default function SalesReportTab({ customerId }: { customerId: string }) {
     }
 
     const s = salesSummary(data.cents);
+    const now = new Date();
+    const thisYear = now.getFullYear();
+    const thisMonth = now.getMonth();
     const max = Math.max(1, ...data.cents.map(c => Math.max(c ?? 0, 0)));
     return (
         <div className="cl cp srt">
             {yearPicker(data, setYear)}
             <div className="srt-tiles">
-                <div className="cl-sec"><span className="srt-k">{data.year} total</span><b>{money(s.total)}</b></div>
+                <div className="cl-sec"><span className="srt-k">{data.year} total</span><b>{money(s.total)}</b><span className="srt-s">Before tax</span></div>
                 <div className="cl-sec"><span className="srt-k">Monthly average</span><b>{money(s.average)}</b><span className="srt-s">{s.monthsWithSales} month{s.monthsWithSales === 1 ? '' : 's'} with sales</span></div>
                 <div className="cl-sec"><span className="srt-k">Best month</span><b>{s.bestMonth >= 0 ? MONTH_NAMES[s.bestMonth] : '—'}</b>{s.bestMonth >= 0 && <span className="srt-s">{money(data.cents[s.bestMonth] as number)}</span>}</div>
             </div>
-            <div className="cl-sec">
-                <div className="srt-bars" role="img" aria-label={`Sales by month, ${data.year}`}>
-                    {data.cents.map((c, i) => (
-                        <div key={i} className="srt-col" title={c == null ? `${MONTH_NAMES[i]}: no sales` : `${MONTH_NAMES[i]}: ${money(c)}`}>
-                            <div className="srt-bar" style={{ height: `${c && c > 0 ? Math.max(3, (c / max) * 100) : 0}%` }} />
-                            <span>{MONTH_NAMES[i]}</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
             <div className="cl-sec srt-tablewrap">
                 <table className="srt-table">
-                    <thead><tr><th>Month</th><th>Sales</th></tr></thead>
+                    <thead><tr><th>Month</th><th className="srt-barcol" aria-hidden="true" /><th>Sales</th></tr></thead>
                     <tbody>
                         {data.cents.map((c, i) => (
-                            <tr key={i}><td>{MONTH_NAMES[i]} {data.year}</td><td className={c == null ? 'srt-none' : c < 0 ? 'srt-neg' : ''}>{c == null ? '—' : money(c)}</td></tr>
+                            <tr key={i}>
+                                <td>
+                                    {MONTH_NAMES[i]} {data.year}
+                                    {data.year === thisYear && i === thisMonth && <span className="srt-chip">This month</span>}
+                                </td>
+                                <td className="srt-barcol">
+                                    {c != null && c > 0 && (
+                                        <div className="srt-track" aria-hidden="true">
+                                            <div className={`srt-fill${i === s.bestMonth ? ' srt-best' : ''}`} style={{ width: `${Math.max(2, (c / max) * 100)}%` }} />
+                                        </div>
+                                    )}
+                                </td>
+                                <td className={c == null ? 'srt-none' : c < 0 ? 'srt-neg' : 'srt-has'}>{c == null ? '—' : money(c)}</td>
+                            </tr>
                         ))}
                     </tbody>
-                    <tfoot><tr><td>Total</td><td>{money(s.total)}</td></tr></tfoot>
+                    <tfoot><tr><td>{data.year} total</td><td className="srt-barcol" /><td>{money(s.total)}</td></tr></tfoot>
                 </table>
             </div>
             <p className="srt-note">
