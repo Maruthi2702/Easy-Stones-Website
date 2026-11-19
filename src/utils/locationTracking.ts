@@ -26,6 +26,9 @@ export const TRACKING = Object.freeze({
   VIEW_TEAM: 'view_team_locations'
 });
 
+/** The consent wording's version (src/features/locationCollector). Bump it when the wording changes: everyone is asked again. */
+export const CONSENT_VERSION = 1;
+
 export const WINDOW_START_HOUR = 7;
 export const WINDOW_END_HOUR = 18;
 export const RETENTION_DAYS = 90;

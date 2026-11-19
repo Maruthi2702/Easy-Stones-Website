@@ -15,14 +15,15 @@ import './LocationCollector.css';
  */
 export default function LocationCollector() {
   const { user } = useAuth();
-  const { phase, status, consent, retryAfterSettings } = useLocationCollector(user as never);
+  const { phase, status, consent, saving, consentError, retryAfterSettings } = useLocationCollector(user as never);
   const until = untilText(status?.windowEnd ?? 18);
 
   return (
     <>
       {phase === 'needs-consent' ? (
-        <FormModal title="Share your location during work hours" size="s" submitLabel="Allow" onSubmit={() => consent()}>
+        <FormModal title="Share your location during work hours" size="s" submitLabel="Allow" saving={saving} onSubmit={() => void consent()}>
           <div className="lc-consent">
+            {consentError ? <p role="alert" className="lc-error">{consentError}</p> : null}
             <p>Easy Stones will read your phone’s location, including when the app is in the background, so your manager can see where you are on the job.</p>
             <ul>
               <li><b>When:</b> {status?.windowStart ?? 7} AM to {until}, Monday to Friday, on your branch’s time. Never at night or on weekends.</li>

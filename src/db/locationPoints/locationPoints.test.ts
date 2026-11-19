@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import * as schema from '../schema/index.ts';
 import { migrateDb } from '../client.ts';
 import type { Db } from '../copy/plan.ts';
-import { savePoints, lastSeen, trail, deleteOlderThan, deleteForUser } from './index.ts';
+import { savePoints, lastSeen, trail, deleteOlderThan, deleteForUser, recordConsent, consentsFor } from './index.ts';
 
 const A = 'a'.repeat(24), B = 'b'.repeat(24);
 const pt = (clientId: string, iso: string, lat = 47.6, lng = -122.3) => ({ clientId, recordedAt: new Date(iso), lat, lng, accuracyM: 10, speedMps: null });
@@ -49,5 +49,19 @@ describe('location points', () => {
     expect(await deleteOlderThan(new Date('2026-08-20T00:00:00Z'), db)).toBe(1);
     expect(await deleteForUser(B, db)).toBe(1);
     expect((await lastSeen(null, new Date(0), db)).map(r => r.userId)).toEqual([A]);
+  });
+
+  it('records consent once per version and keeps the first time', async () => {
+    const first = await recordConsent(A, 1, 'iPhone', db);
+    const again = await recordConsent(A, 1, 'another phone', db);
+    expect(again).toEqual(first);
+    await recordConsent(A, 2, 'iPhone', db);
+    const v1 = await consentsFor([A, B], 1, db);
+    expect([...v1.keys()]).toEqual([A]);
+    expect([...(await consentsFor([A], 2, db)).keys()]).toEqual([A]);
+    expect((await consentsFor([], 1, db)).size).toBe(0);
+    // deleting a person's points never touches the record that they agreed
+    await deleteForUser(A, db);
+    expect((await consentsFor([A], 1, db)).has(A)).toBe(true);
   });
 });

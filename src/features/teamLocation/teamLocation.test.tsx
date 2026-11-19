@@ -10,7 +10,7 @@ vi.mock('./teamLocationApi', () => api);
 vi.mock('./TeamMap', () => ({ default: ({ people, selectedId }: { people: unknown[]; selectedId: string }) => <div data-testid="map">{people.length} pins · {selectedId || 'none'}</div> }));
 
 const person = (id: string, name: string, status: TeamPerson['status'], ago: string): TeamPerson => ({
-  id, name, branch: 'Seattle', role: 'sales_rep', status, ago,
+  id, name, branch: 'Seattle', role: 'sales_rep', status, ago, consentedAt: id === 'k' ? null : '2026-11-19T17:00:00Z',
   lastSeen: status === 'none' ? null : { at: '2026-11-18T19:55:00Z', lat: 47.6, lng: -122.3, accuracyM: 10 }
 });
 const PEOPLE = [person('d', 'Dan Driver', 'earlier', '1 h ago'), person('r', 'Rita Rep', 'live', '2 min ago'), person('k', 'Kim Park', 'none', 'No location today')];
@@ -26,6 +26,7 @@ describe('Team Location', () => {
     expect(names.map((b) => b.querySelector('b')?.textContent).filter(Boolean)).toEqual(['Rita Rep', 'Dan Driver', 'Kim Park']);
     expect(screen.getByText(/1 live · 3 tracked on your team/)).toBeTruthy();
     expect(screen.getByTestId('map').textContent).toContain('3 pins');
+    expect(screen.getAllByText('Hasn’t agreed to share location yet')).toHaveLength(1);
   });
   it('loads a person\'s day when picked and says what it holds', async () => {
     api.loadTrail.mockResolvedValue({

@@ -6,7 +6,7 @@
  * own rather than blocking their deletion. `client_id` is the phone's own id for
  * the point, so a batch sent twice saves nothing twice.
  */
-import { pgTable, text, real, doublePrecision, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, text, real, integer, doublePrecision, index, uniqueIndex } from 'drizzle-orm/pg-core';
 import { objectId, moment } from './columns.ts';
 
 export const locationPoints = pgTable('location_points', {
@@ -26,3 +26,18 @@ export const locationPoints = pgTable('location_points', {
   index('location_points_user_time_idx').on(t.userId, t.recordedAt),
   index('location_points_time_idx').on(t.recordedAt)
 ]);
+
+/**
+ * Who agreed to be tracked, when, and to which wording (CONSENT_VERSION in
+ * src/utils/locationTracking.ts). One row per person per version, never changed
+ * or deleted with the points: it is the record that they were told. The server
+ * refuses a person's points until their row for the current version exists.
+ */
+export const locationConsents = pgTable('location_consents', {
+  id: objectId('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  version: integer('version').notNull(),
+  consentedAt: moment('consented_at').notNull().defaultNow(),
+  /** The phone's user agent when they tapped Allow (shortened). */
+  device: text('device').notNull().default('')
+}, t => [uniqueIndex('location_consents_user_version_uq').on(t.userId, t.version)]);

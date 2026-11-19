@@ -2,10 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MAX_QUEUE, phaseFor, shouldKeep, takeBatch, toRawPoint, trimQueue, untilText, type TrackingStatus } from './collectorRules';
-import { clearQueue, hasConsented, loadQueue, saveConsent, saveQueue } from './pointQueue';
+import { clearQueue, loadQueue, saveQueue } from './pointQueue';
 
 const native = vi.hoisted(() => ({ isNative: true }));
-const api = vi.hoisted(() => ({ loadStatus: vi.fn(), sendPoints: vi.fn() }));
+const api = vi.hoisted(() => ({ loadStatus: vi.fn(), sendPoints: vi.fn(), recordConsent: vi.fn() }));
 const bg = vi.hoisted(() => ({ startWatching: vi.fn(), openLocationSettings: vi.fn() }));
 const auth = vi.hoisted(() => ({ user: { id: 'u1', type: 'internal' } as { id: string; type: string } | null }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => native.isNative }, registerPlugin: () => ({}) }));
@@ -19,14 +19,14 @@ import LocationCollector from './LocationCollector';
 // Wed 2026-11-18, noon in Seattle (inside 7–6) and 7 PM (outside).
 const NOON = new Date('2026-11-18T20:00:00Z');
 const EVENING = new Date('2026-11-19T03:00:00Z');
-const STATUS: TrackingStatus = { tracked: true, branch: 'Seattle', windowNow: true, windowStart: 7, windowEnd: 18 };
+const STATUS: TrackingStatus = { tracked: true, consented: true, branch: 'Seattle', windowNow: true, windowStart: 7, windowEnd: 18 };
 
 describe('collector rules', () => {
   it('decides the phase', () => {
-    const base = { status: STATUS, consented: true, denied: false, now: NOON };
+    const base = { status: STATUS, denied: false, now: NOON };
     expect(phaseFor(base)).toBe('running');
     expect(phaseFor({ ...base, now: EVENING })).toBe('waiting');
-    expect(phaseFor({ ...base, consented: false })).toBe('needs-consent');
+    expect(phaseFor({ ...base, status: { ...STATUS, consented: false } })).toBe('needs-consent');
     expect(phaseFor({ ...base, denied: true })).toBe('denied');
     expect(phaseFor({ ...base, status: { ...STATUS, tracked: false } })).toBe('off');
     expect(phaseFor({ ...base, status: null })).toBe('off');
@@ -65,13 +65,6 @@ describe('unsent points on the phone', () => {
     clearQueue();
     expect(loadQueue('u1')).toEqual([]);
   });
-  it('remember consent per person and wording version', () => {
-    expect(hasConsented('u1', 1)).toBe(false);
-    saveConsent('u1', 1);
-    expect(hasConsented('u1', 1)).toBe(true);
-    expect(hasConsented('u1', 2)).toBe(false);
-    expect(hasConsented('u2', 1)).toBe(false);
-  });
 });
 
 describe('LocationCollector in the app', () => {
@@ -80,19 +73,35 @@ describe('LocationCollector in the app', () => {
   beforeEach(() => {
     localStorage.clear(); native.isNative = true; auth.user = { id: 'u1', type: 'internal' };
     vi.useFakeTimers({ toFake: ['Date'], now: NOON }); // only the clock: waitFor polls with setInterval
-    api.loadStatus.mockResolvedValue(STATUS); api.sendPoints.mockResolvedValue('sent');
+    api.loadStatus.mockResolvedValue(STATUS); api.sendPoints.mockResolvedValue('sent'); api.recordConsent.mockResolvedValue(undefined);
     bg.startWatching.mockImplementation(async (cb) => { onLocation = cb; return stop; });
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
   it('asks for consent first and starts nothing before it', async () => {
+    api.loadStatus.mockResolvedValue({ ...STATUS, consented: false });
     render(<LocationCollector />);
     expect(await screen.findByText('Share your location during work hours')).toBeTruthy();
     expect(screen.getByText(/Never at night or on weekends/)).toBeTruthy();
     expect(bg.startWatching).not.toHaveBeenCalled();
   });
+  it('saves Allow on the server and starts only when the server says it has it', async () => {
+    api.loadStatus.mockResolvedValueOnce({ ...STATUS, consented: false }).mockResolvedValue(STATUS);
+    render(<LocationCollector />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Allow' }));
+    await waitFor(() => expect(api.recordConsent).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bg.startWatching).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('Share your location during work hours')).toBeNull();
+  });
+  it('stays on the consent screen with the reason when Allow can\'t be saved', async () => {
+    api.loadStatus.mockResolvedValue({ ...STATUS, consented: false });
+    api.recordConsent.mockRejectedValue(new Error('Couldn’t reach the server. Check your connection and try again.'));
+    render(<LocationCollector />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Allow' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Couldn’t reach the server');
+    expect(bg.startWatching).not.toHaveBeenCalled();
+  });
   it('after consent, watches, shows the pill and sends points in a batch', async () => {
-    saveConsent('u1', 1);
     render(<LocationCollector />);
     expect(await screen.findByText(/Location on until 6 PM/)).toBeTruthy();
     await waitFor(() => expect(bg.startWatching).toHaveBeenCalledTimes(1));
@@ -102,7 +111,7 @@ describe('LocationCollector in the app', () => {
     expect(loadQueue('u1')).toEqual([]);
   });
   it('keeps points when there is no signal', async () => {
-    saveConsent('u1', 1); api.sendPoints.mockResolvedValue('retry');
+    api.sendPoints.mockResolvedValue('retry');
     render(<LocationCollector />);
     await waitFor(() => expect(bg.startWatching).toHaveBeenCalled());
     for (let i = 0; i < 20; i++) act(() => onLocation({ latitude: 47.6, longitude: -122.3 + i / 1000, accuracy: 10, time: NOON.getTime() - 60_000 * (30 - i) }));
@@ -122,7 +131,6 @@ describe('LocationCollector in the app', () => {
     expect(api.loadStatus).not.toHaveBeenCalled();
   });
   it('offers Settings when iOS location is off', async () => {
-    saveConsent('u1', 1);
     bg.startWatching.mockImplementation(async (_cb, onDenied) => { onDenied(); return stop; });
     render(<LocationCollector />);
     fireEvent.click(await screen.findByRole('button', { name: 'Open Settings' }));

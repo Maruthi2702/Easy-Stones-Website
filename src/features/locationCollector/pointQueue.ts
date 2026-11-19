@@ -6,7 +6,6 @@ import type { RawPoint } from '../../utils/locationTracking';
  * person's trail under another's login.
  */
 const KEY = 'es.locationQueue.v1';
-const CONSENT = 'es.locationConsent.v';
 
 export function loadQueue(userId: string): RawPoint[] {
   try {
@@ -20,10 +19,3 @@ export function saveQueue(userId: string, points: RawPoint[]): void {
 export function clearQueue(): void {
   try { localStorage.removeItem(KEY); } catch { /* nothing to clear */ }
 }
-
-export const hasConsented = (userId: string, version: number): boolean => {
-  try { return Boolean(localStorage.getItem(`${CONSENT}${version}:${userId}`)); } catch { return false; }
-};
-export const saveConsent = (userId: string, version: number): void => {
-  try { localStorage.setItem(`${CONSENT}${version}:${userId}`, new Date().toISOString()); } catch { /* asked again next time */ }
-};

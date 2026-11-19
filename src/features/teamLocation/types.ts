@@ -4,6 +4,8 @@ export type TeamPerson = {
   id: string; name: string; branch: string; role: string;
   lastSeen: { at: string; lat: number; lng: number; accuracyM: number | null } | null;
   status: SeenStatus; ago: string;
+  /** When they agreed to the current wording; null = hasn't, so nothing is kept for them. */
+  consentedAt: string | null;
 };
 
 export type TrailPoint = { at: string; lat: number; lng: number; accuracyM: number | null };

@@ -1,4 +1,6 @@
-import { inTrackingWindow, MAX_POINT_AGE_MS, MAX_POINTS_PER_BATCH, type RawPoint } from '../../utils/locationTracking';
+import { CONSENT_VERSION, inTrackingWindow, MAX_POINT_AGE_MS, MAX_POINTS_PER_BATCH, type RawPoint } from '../../utils/locationTracking';
+
+export { CONSENT_VERSION };
 
 /**
  * The phone side of location tracking (iOS app, 2026-11-19): when to collect,
@@ -11,17 +13,16 @@ export const FLUSH_EVERY_MS = 60 * 1000;
 export const FLUSH_AT = 20;
 export const STATUS_EVERY_MS = 5 * 60 * 1000;
 export const MAX_QUEUE = 2000;
-/** Bump when the consent wording changes: everyone is asked again. */
-export const CONSENT_VERSION = 1;
 
-export type TrackingStatus = { tracked: boolean; branch: string; windowNow: boolean; windowStart: number; windowEnd: number; canView?: boolean };
+/** `consented`: the server has this person's agreement to the current wording (the only record that counts). */
+export type TrackingStatus = { tracked: boolean; consented: boolean; branch: string; windowNow: boolean; windowStart: number; windowEnd: number; canView?: boolean };
 /** off: not tracked or not the app · needs-consent · denied: iOS location is off · running · waiting: tracked, outside 7–6. */
 export type Phase = 'off' | 'needs-consent' | 'denied' | 'running' | 'waiting';
 
-export function phaseFor(input: { status: TrackingStatus | null; consented: boolean; denied: boolean; now: Date }): Phase {
-  const { status, consented, denied, now } = input;
+export function phaseFor(input: { status: TrackingStatus | null; denied: boolean; now: Date }): Phase {
+  const { status, denied, now } = input;
   if (!status?.tracked) return 'off';
-  if (!consented) return 'needs-consent';
+  if (!status.consented) return 'needs-consent';
   if (denied) return 'denied';
   return inTrackingWindow(now, status.branch) ? 'running' : 'waiting';
 }

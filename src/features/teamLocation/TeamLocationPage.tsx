@@ -53,7 +53,7 @@ export default function TeamLocationPage({ currentUser, sidebarToggle = null, is
           ) : people.map((p) => (
             <button key={p.id} type="button" className="tl-person" aria-pressed={p.id === t.selectedId} onClick={() => t.select(p.id)}>
               <span className="tl-ini" aria-hidden="true">{initials(p.name)}</span>
-              <span className="tl-who"><b>{p.name}</b><span>{p.role.replace(/_/g, ' ')} · {p.branch} · {p.ago}</span></span>
+              <span className="tl-who"><b>{p.name}</b><span>{p.role.replace(/_/g, ' ')} · {p.branch} · {p.ago}</span>{p.consentedAt ? null : <span className="tl-nocon">Hasn’t agreed to share location yet</span>}</span>
               <span className={`tl-dot is-${p.status}`} title={p.status === 'live' ? 'Seen in the last 10 minutes' : p.status === 'earlier' ? 'Seen earlier today' : 'No location today'} />
             </button>
           ))}

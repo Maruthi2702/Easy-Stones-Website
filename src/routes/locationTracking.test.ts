@@ -17,7 +17,10 @@ const directory = { staff: async () => STAFF, trackedRoles: async () => new Set(
 
 type Saved = { userId: string; branch: string; n: number };
 const saved: Saved[] = [];
+const consented = new Set<string>(['rep1', 'drv1', 'drv2']);
 const store = {
+  recordConsent: async (userId: string) => { consented.add(userId); return new Date('2026-11-19T17:00:00Z'); },
+  consentsFor: async (ids: string[]) => new Map(ids.filter(id => consented.has(id)).map(id => [id, new Date('2026-11-19T17:00:00Z')])),
   savePoints: async (userId: string, branch: string, batch: unknown[]) => { saved.push({ userId, branch, n: batch.length }); return batch.length; },
   lastSeen: async (ids: string[] | null) => (ids || []).filter(id => id !== 'drv1').map(id => ({ userId: id, recordedAt: new Date('2026-11-18T19:55:00Z'), lat: 47.6, lng: -122.3, accuracyM: 12, branch: 'Seattle' })),
   trail: async () => [
@@ -69,6 +72,34 @@ describe('POST /points', () => {
   });
 });
 
+describe('consent', () => {
+  const consent = (version: unknown) => fetch(`${base}/consent`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ version }) });
+  it('refuses points until the person has agreed, saying why', async () => {
+    as('rep2', ['track_location']);
+    const res = await post([pt()]);
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe('consent');
+  });
+  it('saves consent for the current wording, then points are kept', async () => {
+    as('rep2', ['track_location']);
+    expect((await consent(1)).status).toBe(200);
+    expect((await post([pt()])).status).toBe(200);
+  });
+  it('refuses an old wording version and someone who isn\'t tracked', async () => {
+    as('rep3', ['track_location']);
+    const old = await consent(0);
+    expect(old.status).toBe(409);
+    as('off1', []);
+    expect((await consent(1)).status).toBe(403);
+  });
+  it('shows in the status', async () => {
+    as('rep3', ['track_location']);
+    expect((await (await fetch(`${base}/status`)).json())).toMatchObject({ tracked: true, consented: false, consentVersion: 1 });
+    as('rep1', ['track_location']);
+    expect((await (await fetch(`${base}/status`)).json()).consented).toBe(true);
+  });
+});
+
 describe('GET /status', () => {
   it('says whether to collect now', async () => {
     as('rep1', ['track_location']);
@@ -88,7 +119,7 @@ describe('GET /team', () => {
     const { people } = await (await fetch(`${base}/team`)).json();
     expect(people.map((p: { id: string }) => p.id)).toEqual(['drv1', 'rep1']); // no Atlanta, no office, no manager
     const rita = people.find((p: { id: string }) => p.id === 'rep1');
-    expect(rita).toMatchObject({ status: 'live', ago: '5 min ago', lastSeen: { lat: 47.6 } });
+    expect(rita).toMatchObject({ status: 'live', ago: '5 min ago', lastSeen: { lat: 47.6 }, consentedAt: '2026-11-19T17:00:00.000Z' });
     expect(people.find((p: { id: string }) => p.id === 'drv1')).toMatchObject({ status: 'none', ago: 'No location today', lastSeen: null });
   });
   it('an all-locations viewer sees every branch', async () => {

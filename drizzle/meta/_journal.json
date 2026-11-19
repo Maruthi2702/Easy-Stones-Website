@@ -120,6 +120,13 @@
       "when": 1795127439140,
       "tag": "0016_location_points",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795130879175,
+      "tag": "0017_location_consents",
+      "breakpoints": true
     }
   ]
 }

@@ -50,3 +50,5 @@ body.light-theme-active .tl { --tl-line: rgba(0, 0, 0, 0.1); --tl-muted: #5f6672
   .tl-side { border-right: 0; border-bottom: 1px solid var(--tl-line); max-height: 40vh; }
   .tl-map, .tl-map-note { min-height: 360px; }
 }
+
+.tl-who .tl-nocon { color: var(--tl-earlier); text-transform: none; }

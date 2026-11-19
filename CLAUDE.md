@@ -580,8 +580,12 @@ staff login whose role has `track_location`; consent screen first (`CONSENT_VERS
 changes), then the community background-geolocation plugin collects inside 7–6 (a point per 45 s), unsent points
 queue in localStorage per person and go in batches of up to 200, "Location on until 6 PM" pill, Settings prompt
 when iOS location is off. Info.plist has the Always / When-in-use text and `UIBackgroundModes` location. **Never
-run on a real phone yet** — test a full day on an iPhone. Not built: weekend / time-off days, a server-side record
-of who consented and when, universal links and push (need the Apple developer account).
+run on a real phone yet** — test a full day on an iPhone. **Consent is recorded on the server** (`location_consents`, migration `0017`, one row per person per
+`CONSENT_VERSION` — bump it in `utils/locationTracking.ts` when the wording changes): Allow calls
+`POST /api/location-tracking/consent`, the server refuses a person's points (403 code `consent`) until the row
+exists, `/status` says `consented`, and Team Location shows "Hasn't agreed to share location yet". The record is
+never deleted with the points. Not built: weekend / time-off days, universal links and push (need the Apple
+developer account).
 
 ## Phone tab bar (2026-10-18)
 

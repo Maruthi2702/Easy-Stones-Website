@@ -7,7 +7,7 @@ import { and, asc, desc, eq, gte, inArray, lt } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
 import { appDb } from '../appDb.ts';
 import { newId } from '../ids.ts';
-import { locationPoints as points } from '../schema/locationPoints.ts';
+import { locationPoints as points, locationConsents as consents } from '../schema/locationPoints.ts';
 import type { CleanPoint } from '../../utils/locationTracking.ts';
 
 /** Saves a cleaned batch; a point already saved (same person, same phone id) is skipped. Returns how many were new. */
@@ -54,4 +54,22 @@ export async function deleteForUser(userId: string, db?: Db): Promise<number> {
   const d = db ?? await appDb();
   const gone = await d.delete(points).where(eq(points.userId, userId)).returning({ id: points.id });
   return gone.length;
+}
+
+/** Records that a person agreed to a wording version; a second tap changes nothing. Returns when they first agreed. */
+export async function recordConsent(userId: string, version: number, device: string, db?: Db): Promise<Date> {
+  const d = db ?? await appDb();
+  await d.insert(consents).values({ id: newId(), userId, version, device: device.slice(0, 200) })
+    .onConflictDoNothing({ target: [consents.userId, consents.version] });
+  const [row] = await d.select({ at: consents.consentedAt }).from(consents).where(and(eq(consents.userId, userId), eq(consents.version, version)));
+  return row!.at;
+}
+
+/** When each of these people agreed to this version (people who haven't are missing). */
+export async function consentsFor(userIds: string[], version: number, db?: Db): Promise<Map<string, Date>> {
+  if (!userIds.length) return new Map();
+  const d = db ?? await appDb();
+  const rows = await d.select({ userId: consents.userId, at: consents.consentedAt }).from(consents)
+    .where(and(inArray(consents.userId, userIds), eq(consents.version, version)));
+  return new Map(rows.map(r => [r.userId, r.at]));
 }

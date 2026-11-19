@@ -3,11 +3,11 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import type { RawPoint } from '../../utils/locationTracking';
 import {
-  CONSENT_VERSION, FLUSH_AT, FLUSH_EVERY_MS, STATUS_EVERY_MS, phaseFor, shouldKeep, takeBatch, toRawPoint, trimQueue,
+  FLUSH_AT, FLUSH_EVERY_MS, STATUS_EVERY_MS, phaseFor, shouldKeep, takeBatch, toRawPoint, trimQueue,
   type Phase, type TrackingStatus
 } from './collectorRules';
-import { clearQueue, hasConsented, loadQueue, saveConsent, saveQueue } from './pointQueue';
-import { loadStatus, sendPoints } from './collectorApi';
+import { clearQueue, loadQueue, saveQueue } from './pointQueue';
+import { loadStatus, recordConsent, sendPoints } from './collectorApi';
 import { startWatching } from './backgroundLocation';
 
 /**
@@ -20,7 +20,8 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
   const userId = String(user?.id || user?._id || '');
   const active = Capacitor.isNativePlatform() && user?.type === 'internal' && Boolean(userId);
   const [status, setStatus] = useState<TrackingStatus | null>(null);
-  const [consented, setConsented] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [consentError, setConsentError] = useState('');
   const [denied, setDenied] = useState(false);
   const [now, setNow] = useState(() => new Date());
   const queue = useRef<RawPoint[]>([]);
@@ -39,6 +40,7 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
         const { batch, rest } = takeBatch(queue.current);
         const result = await sendPoints(batch);
         if (result === 'retry') break;
+        if (result === 'consent') { void refreshStatus(); break; }
         queue.current = result === 'off' ? [] : rest;
         saveQueue(userId, queue.current);
         if (result === 'off') { void refreshStatus(); break; }
@@ -50,7 +52,6 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
   useEffect(() => {
     if (!active) return undefined;
     queue.current = trimQueue(loadQueue(userId), Date.now());
-    setConsented(hasConsented(userId, CONSENT_VERSION));
     void refreshStatus();
     const timer = setInterval(() => { setNow(new Date()); }, 30 * 1000);
     const statusTimer = setInterval(() => { void refreshStatus(); }, STATUS_EVERY_MS);
@@ -58,7 +59,7 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
     return () => { clearInterval(timer); clearInterval(statusTimer); void resume.then((h) => h.remove()); };
   }, [active, userId, refreshStatus, flush]);
 
-  const phase: Phase = active ? phaseFor({ status, consented, denied, now }) : 'off';
+  const phase: Phase = active ? phaseFor({ status, denied, now }) : 'off';
 
   // Watch while running; a final send when the window closes.
   useEffect(() => {
@@ -83,8 +84,14 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
   // A different person on this phone: drop what belongs to the last one.
   useEffect(() => { if (!userId) clearQueue(); }, [userId]);
 
-  const consent = useCallback(() => { saveConsent(userId, CONSENT_VERSION); setConsented(true); setDenied(false); }, [userId]);
+  // Allow: saved on the server first; collecting starts when the server's answer says so.
+  const consent = useCallback(async () => {
+    setSaving(true); setConsentError('');
+    try { await recordConsent(); setDenied(false); await refreshStatus(); }
+    catch (e) { setConsentError((e as Error).message); }
+    finally { setSaving(false); }
+  }, [refreshStatus]);
   const retryAfterSettings = useCallback(() => setDenied(false), []);
 
-  return { phase, status, consent, retryAfterSettings };
+  return { phase, status, consent, saving, consentError, retryAfterSettings };
 }
