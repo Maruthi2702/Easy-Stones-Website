@@ -99,6 +99,7 @@ body.light-theme-active .cp {
 .cp .cp-tab[aria-selected="true"] .n { background: var(--cl-gold-tint); color: var(--cl-gold-ink); }
 .cp .cp-act { height: 52px; padding: 0 20px; }
 .cp .cp-act-short, .cp .cp-fab { display: none; }
+.cp .cp-secbar { display: none; } /* shown when the tabs don't fit: .cp-bar--menu below */
 
 /* ── Up to 1024px: the tags drop under the name; the Add button is short ── */
 @media (max-width: 1024px) {
@@ -129,11 +130,8 @@ body.light-theme-active .cp {
   .cp .cp-close:hover { transform: none; box-shadow: none; }
   .cp .cp-name { font-size: 22px; }
   .cp .cp-bar { margin-top: 12px; }
-  .cp .cp-tabs { flex: 1 1 100%; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
-  .cp .cp-tab { min-height: 56px; padding: 0 2px; }
-  .cp .cp-tab svg { width: 22px; height: 22px; }
-  .cp .cp-tab-lab { display: none; }
-  .cp .cp-tab .n { position: absolute; top: 5px; left: calc(50% + 7px); min-width: 18px; height: 18px; padding: 0 5px; font-size: 11px; border: 2px solid var(--cp-track); box-sizing: content-box; }
+  /* On a phone the section bar takes the whole row (see .cp-bar--menu below). */
+  .cp .cp-bar--menu .cp-secbar { flex: 1 1 100%; max-width: none; }
   .cp .cp-act { display: none; }
   .cp .cp-fab {
     display: flex; position: fixed; right: 16px; bottom: calc(var(--app-bottom-h, 0px) + 16px + env(safe-area-inset-bottom, 0px)); z-index: 90;
@@ -183,3 +181,31 @@ body.light-theme-active .cp {
 .cp .cp-sk-bar.b { flex: 1; }
 @keyframes cp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .cp .cp-sk-bar { animation: none; } }
+
+/* ── The section bar and its card (SectionMenu.tsx): used whenever the labelled tabs don't fit ── */
+.cp .cp-bar--menu .cp-tabs { position: absolute; left: -9999px; visibility: hidden; pointer-events: none; width: max-content; max-width: none; }
+.cp .cp-bar--menu .cp-secbar { display: block; flex: 1 1 auto; max-width: 380px; }
+.cp .cp-sec { display: flex; align-items: center; gap: 10px; width: 100%; height: 52px; padding: 0 14px; border: 1px solid var(--cl-line); border-radius: 14px; background: var(--cl-surface); color: var(--cl-text); font: 650 16px inherit; text-align: left; cursor: pointer; }
+.cp .cp-sec-ic { display: grid; place-items: center; color: var(--cl-gold-ink); }
+.cp .cp-sec-lab { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp .cp-sec .n { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; background: var(--cl-gold-tint); color: var(--cl-gold-ink); font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.cp .cp-sec-chev { color: var(--cl-muted); transition: transform 0.15s; }
+.cp .cp-sec[aria-expanded="true"] .cp-sec-chev { transform: rotate(180deg); }
+.cp .cp-sec:focus-visible, .cp .cp-sec-item:focus-visible, .cp .cp-sec-x:focus-visible { outline: 2px solid var(--cl-gold); outline-offset: 2px; }
+.cp .cp-sec-scrim { position: fixed; inset: 0; z-index: 2147483000; background: var(--cl-scrim); backdrop-filter: blur(3px); }
+.cp .cp-sec-card {
+  position: fixed; left: 12px; right: 12px; z-index: 2147483001; overflow-y: auto; overscroll-behavior: contain;
+  background: var(--cl-surface); color: var(--cl-text); border: 1px solid var(--cl-line); border-radius: 22px; box-shadow: var(--cl-shadow); padding: 8px;
+}
+.cp .cp-sec-head { display: flex; align-items: center; gap: 10px; padding: 8px 8px 10px; }
+.cp .cp-sec-head b { flex: 1; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp .cp-sec-av { width: 38px; height: 38px; border-radius: 10px; background: var(--cl-gold-tint); color: var(--cl-gold-ink); display: grid; place-items: center; font-weight: 700; font-size: 14px; flex: none; }
+.cp .cp-sec-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--cl-line); background: var(--cl-surface); color: var(--cl-text); display: grid; place-items: center; cursor: pointer; }
+.cp .cp-sec-item { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 54px; padding: 0 12px; border: 0; border-radius: 12px; background: none; color: inherit; font: 500 16px inherit; text-align: left; cursor: pointer; }
+.cp .cp-sec-item .cp-sec-ic { width: 26px; color: var(--cl-muted); }
+.cp .cp-sec-t { flex: 1; min-width: 0; }
+.cp .cp-sec-n { font-size: 13px; color: var(--cl-muted); font-variant-numeric: tabular-nums; }
+.cp .cp-sec-go { color: var(--cl-faint); flex: none; }
+.cp .cp-sec-item[aria-current="true"] { background: var(--cl-gold-tint); color: var(--cl-gold-ink); font-weight: 700; }
+.cp .cp-sec-item[aria-current="true"] .cp-sec-ic, .cp .cp-sec-item[aria-current="true"] .cp-sec-n { color: var(--cl-gold-ink); }
+@media (prefers-reduced-motion: reduce) { .cp .cp-sec-chev { transition: none; } }
