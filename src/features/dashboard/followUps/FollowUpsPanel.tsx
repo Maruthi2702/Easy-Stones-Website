@@ -187,6 +187,8 @@ export default function FollowUpsPanel(p: FollowUpsPanelProps) {
                         user={p.currentUser}
                         active={filtersOn}
                         onClear={() => { fu.setFilters(DEFAULT_FOLLOW_UP_FILTERS); p.people?.onReset(); }}
+                        activeCount={(filters.status !== DEFAULT_FOLLOW_UP_FILTERS.status ? 1 : 0) + (filters.due !== DEFAULT_FOLLOW_UP_FILTERS.due ? 1 : 0) + (p.people?.active ? 1 : 0)}
+                        doneLabel={`Show ${fu.visible.length} follow-up${fu.visible.length === 1 ? '' : 's'}`}
                         wide
                     >
                         <div className="fm-tokens fu-fields">

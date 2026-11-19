@@ -86,7 +86,7 @@ describe('Daily Report', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Day' }));
     await waitFor(() => expect(screen.getByDisplayValue('Late truck')).toBeTruthy());
     fireEvent.click(document.querySelector('.dr-topbar .lf-btn') as Element);
-    fireEvent.click(screen.getByText('Clear Filter'));
+    fireEvent.click(screen.getByText('Clear all'));
     await waitFor(() => expect(screen.getByText('All 2 locations')).toBeTruthy());
     expect(screen.getByText('1 of 2 started · 0 submitted')).toBeTruthy();
   });

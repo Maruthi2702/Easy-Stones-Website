@@ -13,6 +13,7 @@ import useIsPhone from '../../../components/shared/form/useIsPhone';
 import { ALL_LOCATIONS } from '../../../utils/locationFilter';
 import { formatForDateInput } from '../../../utils/dateUtils';
 import type { Loose } from '../../../types/records';
+import TypeMultiSelect from './TypeMultiSelect';
 import { ResourceCards, ResourceTable } from './ResourceRows';
 import type { ResourceRowActions } from './ResourceRows';
 import {
@@ -133,30 +134,14 @@ export default function ResourcesPanel(p: ResourcesPanelProps) {
                         user={p.currentUser}
                         active={ticked > 0 || locationOn || Boolean(p.people?.active) || Boolean(p.rangeActive)}
                         onClear={() => { update(NO_RESOURCE_FILTERS); p.people?.onReset(); }}
+                        activeCount={ticked + (p.people?.active ? 1 : 0) + (p.rangeActive ? 1 : 0) + (locationOn ? 1 : 0)}
+                        doneLabel={`Show ${filtered.length} resource${filtered.length === 1 ? '' : 's'}`}
                         wide
                     >
                         <>
                             {p.rangeGroup}
                             {p.people && <PeopleField {...p.people} />}
-                            {types.length > 0 && (
-                                <div className="lf-group" role="group" aria-labelledby="rs-f-types">
-                                    <span className="lf-group-label" id="rs-f-types">Resource type</span>
-                                    {types.map((family) => (
-                                        <div key={family.family} className="rs-fgroup">
-                                            <span className="rs-fgroup-label">{family.label}</span>
-                                            <div className="lf-checks">
-                                                {family.types.map(({ type, label, count }) => (
-                                                    <label key={type} className="lf-check">
-                                                        <input type="checkbox" checked={filters.types.includes(type)} onChange={() => toggle('types', type)} />
-                                                        <span className="rs-check-text">{label}</span>
-                                                        <span className="rs-count">{count}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                            {types.length > 0 && <TypeMultiSelect facets={types} picked={filters.types} onChange={(next) => update({ ...filters, types: next })} />}
                             {/* The People field above replaces it for anyone who has one. */}
                             {!p.people && loggers.length > 1 && (
                                 <div className="lf-group" role="group" aria-labelledby="rs-f-by">
