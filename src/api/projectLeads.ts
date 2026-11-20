@@ -21,12 +21,18 @@ export type LeadsMeta = {
   subcategories: { name: string; count: number }[];
   cities: Record<string, string[]>;
   assignees: string[];
-  lastImport: { fileName: string; projects: number; added: number; updated: number; importedBy: string; importedAt: string } | null;
+  lastImport: { id: string; canUndo: boolean; undone: boolean; fileName: string; projects: number; added: number; updated: number; importedBy: string; importedAt: string } | null;
   canEdit: boolean;
   canImport: boolean;
   canExport: boolean;
 };
-export type ImportResult = { projects: number; companies: number; added: number; updated: number; skippedRows: number };
+export type ImportPreview = {
+  projects: number; companies: number; added: number; refreshed: number; unchanged: number;
+  contactsAdded: number; contactsRemoved: number; older: number; notInFile: number; skippedRows: number;
+  samples: { id: string; title: string; changes: { label: string; from: string; to: string }[] }[];
+};
+export type UndoResult = { restored: number; removed: number; kept: number };
+export type ImportResult = { importId: string; projects: number; companies: number; added: number; updated: number; skippedRows: number };
 
 /**
  * Calls to the Project Leads API (src/routes/projectLeads.ts). Each resolves the JSON body or
@@ -58,3 +64,9 @@ export const importLeadsFile = (file: File) => {
   form.append('file', file);
   return call<ImportResult>('/import', { method: 'POST', body: form });
 };
+export const previewLeadsFile = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return call<ImportPreview>('/import/preview', { method: 'POST', body: form });
+};
+export const undoLeadsImport = (importId: string) => call<UndoResult>(`/import/${encodeURIComponent(importId)}/undo`, { method: 'POST' });

@@ -1,6 +1,6 @@
 import type { Loose } from '../../types/records';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, Filter, MoreHorizontal, Upload, FileSpreadsheet, Loader2, AlertTriangle, Phone, Mail } from 'lucide-react';
+import { Search, X, Filter, MoreHorizontal, Upload, FileSpreadsheet, Loader2, AlertTriangle, Phone, Mail, Undo2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Pagination from '../../components/shared/Pagination';
 import { usePagination } from '../../components/shared/paginationConfig';
@@ -73,6 +73,7 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
   const [openId, setOpenId] = useState('');
   const [popover, setPopover] = useState('');
   const [importing, setImporting] = useState(false);
+  const [undoing, setUndoing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const seq = useRef(0);
@@ -254,6 +255,11 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
                         <Upload size={16} aria-hidden="true" />Import ConstructConnect file
                       </button>
                     ) : null}
+                    {meta.canImport && meta.lastImport?.canUndo ? (
+                      <button type="button" role="menuitem" className="prj-menu-item" onClick={() => { setPopover(''); setUndoing(true); }}>
+                        <Undo2 size={16} aria-hidden="true" />Undo last import
+                      </button>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -336,6 +342,7 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
 
       {open ? <LeadDetail lead={open} me={me} canEdit={!!meta?.canEdit} onChanged={changed} onClose={() => setOpenId('')} onCreateCustomer={onCreateCustomer} /> : null}
       {importing ? <LeadImportModal onClose={() => setImporting(false)} onDone={() => setReloadKey((k) => k + 1)} /> : null}
+      {undoing && meta?.lastImport ? <LeadImportModal undoOf={meta.lastImport} onClose={() => setUndoing(false)} onDone={() => setReloadKey((k) => k + 1)} /> : null}
     </div>
   );
 }

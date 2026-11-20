@@ -2,14 +2,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import ProjectLeadsPage from './ProjectLeadsPage';
+import LeadImportModal from './LeadImportModal';
 import type { Lead } from '../../api/projectLeads';
 
-const api = vi.hoisted(() => ({ leadsMeta: vi.fn(), listLeads: vi.fn(), exportLeads: vi.fn(), updateLead: vi.fn(), importLeadsFile: vi.fn() }));
+const api = vi.hoisted(() => ({ leadsMeta: vi.fn(), listLeads: vi.fn(), exportLeads: vi.fn(), updateLead: vi.fn(), importLeadsFile: vi.fn(), previewLeadsFile: vi.fn(), undoLeadsImport: vi.fn() }));
 vi.mock('../../api/projectLeads', () => api);
 
 const meta = {
   total: 1, states: [{ name: 'Texas', count: 1 }], stages: ['Post Bid'], subcategories: [{ name: 'Apartments', count: 1 }], cities: { Texas: ['Austin'] },
-  assignees: [], lastImport: { fileName: 'cc.xlsx', projects: 1, added: 1, updated: 0, importedBy: 'Krish', importedAt: '2026-11-20T10:00:00.000Z' },
+  assignees: [], lastImport: { id: 'imp1', canUndo: true, undone: false, fileName: 'cc.xlsx', projects: 1, added: 1, updated: 0, importedBy: 'Krish', importedAt: '2026-11-20T10:00:00.000Z' },
   canEdit: true, canImport: true, canExport: true
 };
 const lead: Lead = {
@@ -79,5 +80,67 @@ describe('Project Leads page', () => {
     expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  });
+});
+
+const preview = {
+  projects: 120, companies: 800, added: 20, refreshed: 30, unchanged: 70, contactsAdded: 12, contactsRemoved: 3, older: 0, notInFile: 5, skippedRows: 0,
+  samples: [{ id: '1001', title: 'Lulac Hacienda', changes: [{ label: 'Value', from: '4000000', to: '4500000' }] }]
+};
+const pick = (name = 'cc.xlsx') => {
+  const input = screen.getByLabelText('ConstructConnect file') as HTMLInputElement;
+  fireEvent.change(input, { target: { files: [new File(['x'], name)] } });
+};
+
+describe('Import ConstructConnect file', () => {
+  it('checks the file, shows what would change, imports on the last step and offers Undo', async () => {
+    api.previewLeadsFile.mockResolvedValue(preview);
+    api.importLeadsFile.mockResolvedValue({ importId: 'imp2', projects: 120, companies: 800, added: 20, updated: 100, skippedRows: 0 });
+    api.undoLeadsImport.mockResolvedValue({ restored: 100, removed: 20, kept: 0 });
+    const onDone = vi.fn();
+    render(<LeadImportModal onClose={() => {}} onDone={onDone} />);
+    pick();
+    expect(await screen.findByText('File check')).toBeTruthy();
+    expect(api.importLeadsFile).not.toHaveBeenCalled();   // nothing saved yet
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText('Some of the changes')).toBeTruthy();
+    expect(screen.getByText(/Statuses, who has a lead and notes are never changed/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Import 120 projects' }));
+    await waitFor(() => expect(api.importLeadsFile).toHaveBeenCalledTimes(1));
+    expect(onDone).toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole('button', { name: 'Undo this import' }));
+    await waitFor(() => expect(api.undoLeadsImport).toHaveBeenCalledWith('imp2'));
+    expect((await screen.findByText(/Undone: 100 put back, 20 removed/))).toBeTruthy();
+  });
+
+  it('warns when the file looks older than what is stored, and refuses a file with nothing to import', async () => {
+    api.previewLeadsFile.mockResolvedValue({ ...preview, added: 0, refreshed: 0, unchanged: 50, older: 40 });
+    render(<LeadImportModal onClose={() => {}} onDone={() => {}} />);
+    pick();
+    expect(await screen.findByText(/looks/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText(/nothing to import/)).toBeTruthy();
+    expect((screen.getByRole('button', { name: /Import 120 projects/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('shows the reason when the file is refused', async () => {
+    api.previewLeadsFile.mockRejectedValue(new Error('This isn\'t the ConstructConnect export: no column called “Project Id”.'));
+    render(<LeadImportModal onClose={() => {}} onDone={() => {}} />);
+    pick();
+    expect((await screen.findByRole('alert')).textContent).toContain('isn\'t the ConstructConnect export');
+    expect((screen.getByRole('button', { name: 'Continue' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Undo last import asks first, then puts the latest import back', async () => {
+    api.undoLeadsImport.mockResolvedValue({ restored: 4, removed: 1, kept: 2 });
+    render(<ProjectLeadsPage currentUser={{ name: 'Sam' }} />);
+    await screen.findByText('Lulac Hacienda Apartments');
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Undo last import/ }));
+    expect(await screen.findByText(/Only the latest import can be undone/)).toBeTruthy();
+    expect(api.undoLeadsImport).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo import' }));
+    await waitFor(() => expect(api.undoLeadsImport).toHaveBeenCalledWith('imp1'));
+    expect(await screen.findByText('The import is undone.', { exact: false })).toBeTruthy();
   });
 });

@@ -4,7 +4,7 @@ import multer from 'multer';
 import * as leads from '../db/projectLeads/index.ts';
 import { SORTS, type LeadFilter, type Sort } from '../db/projectLeads/index.ts';
 import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
-import { isLeadStatus, type LeadStatus } from '../utils/projectLeads.ts';
+import { isLeadStatus, type LeadStatus, type ReadLeads } from '../utils/projectLeads.ts';
 import { canViewProjectLeads, canEditProjectLeads, canImportProjectLeads, canExportProjectLeads } from '../utils/projectLeadAccess.ts';
 
 /**
@@ -15,7 +15,9 @@ import { canViewProjectLeads, canEditProjectLeads, canImportProjectLeads, canExp
  *   GET   /export     the same filters, up to 5,000 projects (Excel is built on the screen)
  *   GET   /:id        one project
  *   PATCH /:id        { status?, note?, assignedTo? } — kept in the lead's history
+ *   POST  /import/preview  multipart `file`: what that export would add, refresh and drop (writes nothing)
  *   POST  /import     multipart `file`: a ConstructConnect export; adds new projects and refreshes known ones
+ *   POST  /import/:id/undo  puts the latest import back as it was (once)
  *
  * Filters: q, states (comma list), city, stage, subcategory, status, assignedTo (a name, or "none"),
  * minValue, updatedFrom (YYYY-MM-DD), reachable=1, sort. Every route checks its own permission
@@ -103,29 +105,59 @@ export default function createProjectLeadsRouter({ authenticate }: { authenticat
     } catch (err) { failed(res, err, 'export project leads'); }
   });
 
-  router.post('/import', authenticate, (req, res) => {
-    if (!canImportProjectLeads(req.user)) return refuse(res, 'import project leads');
+  /** Reads the uploaded workbook: answers the projects, or has already replied with the reason. */
+  const readUpload = (req: express.Request, res: express.Response, then: (read: ReadLeads, fileName: string) => void) => {
     upload.single('file')(req, res, async (uploadErr) => {
       if (uploadErr) {
         const tooBig = (uploadErr as { code?: string }).code === 'LIMIT_FILE_SIZE';
         return res.status(400).json({ message: tooBig ? 'That file is over 25 MB.' : 'The file could not be read.' });
       }
       if (!req.file) return res.status(400).json({ message: 'Choose the ConstructConnect Excel file.' });
-      let read;
+      let read: ReadLeads;
       try {
         read = await runWorkbookParse('project-leads', req.file.buffer);
       } catch (err) {
         return res.status(400).json({ message: err instanceof Error ? err.message : 'The file could not be read.' });
       }
       if (read.problems.length) return res.status(400).json({ message: read.problems[0] });
+      then(read, String(req.file.originalname || '').slice(0, 200));
+    });
+  };
+
+  // Step 1 → 2 of Import: what the file would add, refresh and drop. Writes nothing.
+  router.post('/import/preview', authenticate, (req, res) => {
+    if (!canImportProjectLeads(req.user)) return refuse(res, 'import project leads');
+    readUpload(req, res, async (read) => {
       try {
-        const done = await leads.importProjects({ projects: read.projects, fileName: String(req.file.originalname || '').slice(0, 200), by: who(req) });
+        res.json({ ...(await leads.previewImport(read.projects)), skippedRows: read.skippedRows });
+      } catch (err) { failed(res, err, 'check the file'); }
+    });
+  });
+
+  router.post('/import', authenticate, (req, res) => {
+    if (!canImportProjectLeads(req.user)) return refuse(res, 'import project leads');
+    readUpload(req, res, async (read, fileName) => {
+      try {
+        const done = await leads.importProjects({ projects: read.projects, fileName, by: who(req) });
         res.json({ ...done, skippedRows: read.skippedRows });
       } catch (err) {
         console.error('Project leads import error:', err);
         res.status(500).json({ message: 'The import failed. Nothing was changed.' });
       }
     });
+  });
+
+  // Undo the latest import (once): refreshed projects go back, added ones go unless staff already worked them.
+  router.post('/import/:importId/undo', authenticate, async (req, res) => {
+    if (!canImportProjectLeads(req.user)) return refuse(res, 'undo an import');
+    try {
+      const done = await leads.undoImport(String(req.params.importId), who(req));
+      if (!done) return res.status(409).json({ message: 'Only the latest import can be undone, and only once.' });
+      res.json(done);
+    } catch (err) {
+      console.error('Project leads undo error:', err);
+      res.status(500).json({ message: 'The undo failed. Nothing was changed.' });
+    }
   });
 
   router.get('/:id', authenticate, async (req, res) => {

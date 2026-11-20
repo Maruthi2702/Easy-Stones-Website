@@ -213,15 +213,6 @@ body.light-theme-active .prj .prj-pop { box-shadow: 0 10px 25px -5px rgba(15, 23
 .prj-history li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .prj-history p { margin: 0; flex-basis: 100%; font-size: 13.5px; overflow-wrap: anywhere; }
 
-/* ── Import ── */
-.prj-import p { margin: 0 0 14px; }
-.prj-drop { display: flex; align-items: center; gap: 12px; width: 100%; padding: 18px; border: 1.5px dashed var(--prj-input-border, rgba(255, 255, 255, 0.25)); border-radius: 12px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.prj-drop:hover { border-color: #d4af37; }
-.prj-import-done { display: flex; gap: 12px; align-items: flex-start; }
-.prj-import-done svg { color: #22c55e; flex: none; margin-top: 2px; }
-.prj-import-done p { margin: 4px 0 0; }
-.prj-import .prj-error, .prj-import-done .prj-error { margin-top: 12px; }
-
 @media (max-width: 1100px) {
   .prj-row { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 120px; gap: 12px; }
 }

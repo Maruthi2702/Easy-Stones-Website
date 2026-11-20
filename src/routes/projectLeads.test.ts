@@ -124,6 +124,27 @@ describe('project leads API', () => {
     expect(junk.status).toBe(400);
   });
 
+  it('previews an upload without writing, and undoes the latest import', async () => {
+    const before = (await request(app).get('/api/project-leads').set(as(ALL))).body.total;
+    const file = workbook([line('1001', 'Seattle Lofts III', 'Washington', 'Acme Owners', 'Owner'), line('3003', 'Tacoma Place', 'Washington', 'Pat Dev', 'Developer')]);
+    expect((await request(app).post('/api/project-leads/import/preview').set(as(['view_project_leads'])).attach('file', file, 'p.xlsx')).status).toBe(403);
+    const pre = await request(app).post('/api/project-leads/import/preview').set(as(ALL)).attach('file', file, 'p.xlsx');
+    expect(pre.status).toBe(200);
+    expect(pre.body).toMatchObject({ projects: 2, added: 1, refreshed: 1 });
+    expect((await request(app).get('/api/project-leads').set(as(ALL))).body.total).toBe(before);
+    expect((await request(app).post('/api/project-leads/import/preview').set(as(ALL))).status).toBe(400);
+
+    const imp = await request(app).post('/api/project-leads/import').set(as(ALL)).attach('file', file, 'p.xlsx');
+    expect(imp.body).toMatchObject({ added: 1, updated: 1 });
+    const meta = await request(app).get('/api/project-leads/meta').set(as(ALL));
+    expect(meta.body.lastImport).toMatchObject({ id: imp.body.importId, canUndo: true });
+    expect((await request(app).post(`/api/project-leads/import/${imp.body.importId}/undo`).set(as(['view_project_leads']))).status).toBe(403);
+    const undo = await request(app).post(`/api/project-leads/import/${imp.body.importId}/undo`).set(as(ALL));
+    expect(undo.body).toEqual({ restored: 1, removed: 1, kept: 0 });
+    expect((await request(app).get('/api/project-leads').set(as(ALL))).body.total).toBe(before);
+    expect((await request(app).post(`/api/project-leads/import/${imp.body.importId}/undo`).set(as(ALL))).status).toBe(409);
+  });
+
   it('exports with the export switch', async () => {
     const out = await request(app).get('/api/project-leads/export').set(as(ALL));
     expect(out.status).toBe(200);

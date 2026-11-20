@@ -5,7 +5,7 @@ import * as schema from '../schema/index.ts';
 import { migrateDb } from '../client.ts';
 import type { Db } from '../copy/plan.ts';
 import type { LeadProject, LeadCompany } from '../../utils/projectLeads.ts';
-import { importProjects, listLeads, leadMeta, getLead, updateLead } from './index.ts';
+import { importProjects, listLeads, leadMeta, getLead, updateLead, previewImport, undoImport } from './index.ts';
 
 const co = (over: Partial<LeadCompany> = {}): LeadCompany => ({
   companyId: '1', name: 'Acme Owners', role: 'Owner', group: 'owner', address: '', city: '', state: '', zip: '',
@@ -95,5 +95,61 @@ describe('project leads data layer', () => {
     expect(m.cities.Oregon).toEqual(['Portland']);
     expect(m.assignees).toEqual(['Sam']);
     expect(m.lastImport).toMatchObject({ fileName: 'g.xlsx', added: 1, updated: 1 });
+  });
+});
+
+describe('preview and undo', () => {
+  let client: PGlite, db: Db;
+  beforeAll(async () => {
+    client = new PGlite();
+    db = drizzle(client, { schema, casing: 'snake_case' }) as unknown as Db;
+    await migrateDb(db, 'pglite:memory');
+  }, 60_000);
+  afterAll(async () => { await client?.close(); });
+
+  it('previews what would be added, changed, left the same and dropped, and writes nothing', async () => {
+    const first = await importProjects({ projects: [project('1'), project('2', { title: 'Two' }), project('3', { title: 'Three' })], fileName: 'a.xlsx', by: 'k' }, db);
+    const p = await previewImport([
+      project('1'),                                                           // the same
+      project('2', { title: 'Two', stage: 'Construction Underway', companies: [co({ name: 'New Owner' })] }),   // changed, contact swapped
+      project('9', { title: 'Nine' })                                         // new
+    ], db);
+    expect(p).toMatchObject({ projects: 3, added: 1, refreshed: 1, unchanged: 1, notInFile: 1, older: 0, contactsRemoved: 1, contactsAdded: 2 });   // Eng Co dropped from 2; the new owner has the old owner's id, role and contact, so it's the same contact renamed; 9 brings 2
+    expect(p.samples).toEqual([{ id: '2', title: 'Two', changes: [{ label: 'Stage', from: 'Post Bid', to: 'Construction Underway' }] }]);
+    expect((await listLeads({}, db)).total).toBe(3);                          // nothing written
+    expect(first.added).toBe(3);
+  });
+
+  it('notices a file that is older than what is stored', async () => {
+    const p = await previewImport([project('1', { updatedOn: '2020-01-01' }), project('2', { title: 'Two', updatedOn: '2020-01-01' })], db);
+    expect(p.older).toBe(2);
+  });
+
+  it('undoes the latest import: refreshed projects go back, added ones go unless they were worked', async () => {
+    await updateLead('2', { status: 'contacted' }, 'k', db);
+    const imp = await importProjects({
+      projects: [project('1', { title: 'One renamed', companies: [co({ name: 'Other Owner' })] }), project('7', { title: 'Seven' }), project('8', { title: 'Eight' })],
+      fileName: 'b.xlsx', by: 'k'
+    }, db);
+    await updateLead('8', { note: 'called them' }, 'k', db);                  // worked since the import
+    expect((await getLead('1', db))?.title).toBe('One renamed');
+    const done = await undoImport(imp.importId, 'k', db);
+    expect(done).toEqual({ restored: 1, removed: 1, kept: 1 });
+    expect(await getLead('7', db)).toBeUndefined();
+    expect((await getLead('8', db))?.note).toBe('called them');
+    const one = await getLead('1', db);
+    expect(one?.title).toBe('Project 1');
+    expect(one?.companies.map(c => c.name)).toEqual(['Acme Owners', 'Eng Co']);
+    expect((await getLead('2', db))?.status).toBe('contacted');              // staff's work untouched throughout
+    // Once only, and never an older import.
+    expect(await undoImport(imp.importId, 'k', db)).toBeUndefined();
+    expect((await leadMeta(db)).lastImport).toMatchObject({ canUndo: false, undone: true });
+  });
+
+  it('only the latest import can be undone', async () => {
+    const a = await importProjects({ projects: [project('20')], fileName: 'c.xlsx', by: 'k' }, db);
+    const b = await importProjects({ projects: [project('21')], fileName: 'd.xlsx', by: 'k' }, db);
+    expect(await undoImport(a.importId, 'k', db)).toBeUndefined();
+    expect(await undoImport(b.importId, 'k', db)).toMatchObject({ removed: 1 });
   });
 });

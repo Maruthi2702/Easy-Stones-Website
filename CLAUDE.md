@@ -1390,14 +1390,20 @@ type, matched by title + street. The workbook is read in a **worker thread** (`r
 kind `project-leads`, `projectLeadsWorkbook.ts`). An import **adds new projects and refreshes the
 file's own fields** on ones it already has (matched by Project Id, companies replaced); **status,
 who has it, note and history are staff's and an import never writes them**; projects missing from a
-file stay. Staff set a status (New / Contacted / Samples sent / Onboarded / Not a fit — each change
+file stay. **The import is three steps like Import from SPS / Import Sales** (`LeadImportModal.tsx`, reusing
+their `spsi-*` / `spsc-*` styles): Upload + file check → Review (`POST /import/preview` writes nothing: new /
+changed / the same, contacts added / dropped, samples of what changes, a warning when the file looks **older**
+than what's stored) → Results. **The latest import can be undone, once** (Results, or ⋯ → Undo last import;
+`undoImport`, migration `0021`): every touched project is saved first in `project_lead_import_backups`
+(only the latest import's are kept); undo puts refreshed projects and their companies back and removes the
+ones the import added — unless staff already set a status / note / assignee on them, which stay. Staff set a status (New / Contacted / Samples sent / Onboarded / Not a fit — each change
 kept in `history`, never trimmed), take or release a lead ("Take this lead" saves their name — my
 default, not the Rep picker), and write a note. Each company has tel: / mailto: links and
 **Create customer**, which opens Add customer pre-filled (`customerPrefillForCompany`, the Permits
 contractor pop-up's route). API `src/routes/projectLeads.ts` at `/api/project-leads` (tested);
 switches (`src/utils/projectLeadAccess.ts`, Users & Roles card "Project Leads"): View, Edit, Import,
 Export — **admin only to start**, an admin ticks the rest. Not built: a rep dropdown for assigning,
-a pop-up preview before an import, a reminder when a lead goes quiet, the old projects' relevance
+a reminder when a lead goes quiet, the old projects' relevance
 (the file goes back to 2012; the Updated filter narrows it).
 
 ## File storage: one store, Cloudinary → S3 (2026-11-08, on `feat/s3-file-storage`)

@@ -9,7 +9,7 @@ import { and, asc, desc, eq, gte, inArray, ilike, or, sql, type SQL } from 'driz
 import type { Db } from '../copy/plan.ts';
 import { appDb } from '../appDb.ts';
 import { newId } from '../ids.ts';
-import { projectLeads as leads, projectLeadCompanies as companies, projectLeadImports as imports } from '../schema/projectLeads.ts';
+import { projectLeads as leads, projectLeadCompanies as companies, projectLeadImports as imports, projectLeadImportBackups as backups } from '../schema/projectLeads.ts';
 import { orderCompanies, isLeadStatus, type LeadProject, type LeadStatus, type RoleGroup, type LeadCompany } from '../../utils/projectLeads.ts';
 
 export const SORTS = ['updated_desc', 'value_desc', 'value_asc', 'title_asc'] as const;
@@ -40,15 +40,102 @@ const CHUNK = 500;
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, m => `\\${m}`);
 const numberOrNull = (v: string | null) => (v == null ? null : Number(v));
 
-/** Adds and refreshes projects in one transaction. */
+type LeadRow = typeof leads.$inferSelect;
+type CompanyRow = typeof companies.$inferSelect;
+
+/** The columns an import owns: everything but status, assignee, note, statusBy, statusAt and history. */
+const FILE_COLUMNS = [
+  'title', 'value', 'stage', 'subcategory', 'bidDate', 'listedOn', 'updatedOn', 'address', 'city', 'county', 'state', 'zip',
+  'floors', 'floorArea', 'floorAreaUnit', 'siteArea', 'siteAreaUnit', 'stageNote', 'units', 'ownerType', 'importId', 'importedAt'
+] as const;
+
+const companyKey = (c: { companyId: string; name: string; role: string; firstName: string; lastName: string }) =>
+  `${c.companyId || c.name}|${c.role}|${c.firstName}|${c.lastName}`.toLowerCase();
+
+/** The projects (and their companies) already stored under these ids. */
+async function readExisting(d: Db, ids: string[]) {
+  const rows = new Map<string, LeadRow>();
+  const cos = new Map<string, CompanyRow[]>();
+  for (let i = 0; i < ids.length; i += 2000) {
+    const part = ids.slice(i, i + 2000);
+    for (const r of await d.select().from(leads).where(inArray(leads.id, part))) rows.set(r.id, r);
+    for (const c of await d.select().from(companies).where(inArray(companies.projectId, part)).orderBy(asc(companies.position))) {
+      cos.set(c.projectId, [...(cos.get(c.projectId) ?? []), c]);
+    }
+  }
+  return { rows, cos };
+}
+
+/** What changes on a stored project when the file's version replaces it, as readable lines. */
+function changesOf(old: LeadRow, p: LeadProject): { label: string; from: string; to: string }[] {
+  const out: { label: string; from: string; to: string }[] = [];
+  const check = (label: string, from: unknown, to: unknown) => {
+    const f = from == null ? '' : String(from);
+    const t = to == null ? '' : String(to);
+    if (f !== t) out.push({ label, from: f, to: t });
+  };
+  check('Title', old.title, p.title);
+  check('Value', numberOrNull(old.value), p.value);
+  check('Stage', old.stage, p.stage);
+  check('Type', old.subcategory, p.subcategory);
+  check('Updated', old.updatedOn ?? '', p.updatedOn);
+  check('Address', old.address, p.address);
+  check('City', old.city, p.city);
+  check('State', old.state, p.state);
+  check('Units', old.units, p.units);
+  return out;
+}
+
+export type ImportPreview = {
+  projects: number; companies: number; added: number; refreshed: number; unchanged: number;
+  contactsAdded: number; contactsRemoved: number;
+  /** Projects whose "updated" day in the file is earlier than the one stored: the file may be older than what's here. */
+  older: number;
+  /** Up to 10 projects that would change, with what changes. */
+  samples: { id: string; title: string; changes: { label: string; from: string; to: string }[] }[];
+  /** Projects already here that this file doesn't mention (they stay as they are). */
+  notInFile: number;
+};
+
+/** Nothing written: what importing these projects would add, refresh and drop. */
+export async function previewImport(projects: LeadProject[], db?: Db): Promise<ImportPreview> {
+  const d = db ?? await appDb();
+  const ids = projects.map(p => p.id);
+  const { rows, cos } = await readExisting(d, ids);
+  const [{ total }] = await d.select({ total: sql<number>`count(*)::int` }).from(leads);
+  const out: ImportPreview = {
+    projects: projects.length, companies: projects.reduce((n, p) => n + p.companies.length, 0), added: 0, refreshed: 0, unchanged: 0,
+    contactsAdded: 0, contactsRemoved: 0, older: 0, samples: [], notInFile: Math.max(0, total - rows.size)
+  };
+  for (const p of projects) {
+    const old = rows.get(p.id);
+    const fileKeys = new Set(p.companies.map(companyKey));
+    if (!old) { out.added++; out.contactsAdded += p.companies.length; continue; }
+    const oldKeys = new Set((cos.get(p.id) ?? []).map(companyKey));
+    const added = [...fileKeys].filter(k => !oldKeys.has(k)).length;
+    const removed = [...oldKeys].filter(k => !fileKeys.has(k)).length;
+    out.contactsAdded += added;
+    out.contactsRemoved += removed;
+    const changes = changesOf(old, p);
+    if (old.updatedOn && p.updatedOn && p.updatedOn < old.updatedOn) out.older++;
+    if (changes.length || added || removed) {
+      out.refreshed++;
+      if (out.samples.length < 10) out.samples.push({ id: p.id, title: old.title, changes });
+    } else out.unchanged++;
+  }
+  return out;
+}
+
+/**
+ * Adds and refreshes projects in one transaction. What each touched project looked like before is saved
+ * (project_lead_import_backups) so this import can be undone; backups of earlier imports are dropped,
+ * so only the latest import can be undone.
+ */
 export async function importProjects(input: { projects: LeadProject[]; fileName: string; by: string }, db?: Db) {
   const d = db ?? await appDb();
   const importId = newId();
   const ids = input.projects.map(p => p.id);
-  const existing = new Set<string>();
-  for (let i = 0; i < ids.length; i += 5000) {
-    for (const r of await d.select({ id: leads.id }).from(leads).where(inArray(leads.id, ids.slice(i, i + 5000)))) existing.add(r.id);
-  }
+  const { rows: existing, cos: existingCompanies } = await readExisting(d, ids);
   const now = new Date();
   const rows = input.projects.map(p => ({
     id: p.id, title: p.title, value: p.value == null ? null : String(p.value), stage: p.stage, subcategory: p.subcategory,
@@ -63,7 +150,15 @@ export async function importProjects(input: { projects: LeadProject[]; fileName:
     address: c.address, city: c.city, state: c.state, zip: c.zip, firstName: c.firstName, lastName: c.lastName,
     phone: c.phone, email: c.email
   })));
+  const backupRows = ids.map(id => {
+    const old = existing.get(id);
+    if (!old) return { importId, projectId: id, previous: null };
+    const lead = Object.fromEntries(FILE_COLUMNS.map(k => [k, old[k] instanceof Date ? (old[k] as Date).toISOString() : old[k]]));
+    return { importId, projectId: id, previous: { lead, companies: existingCompanies.get(id) ?? [] } };
+  });
   await d.transaction(async tx => {
+    // Only the latest import can be undone.
+    await tx.delete(backups);
     for (let i = 0; i < rows.length; i += CHUNK) {
       await tx.insert(leads).values(rows.slice(i, i + CHUNK)).onConflictDoUpdate({
         target: leads.id,
@@ -84,8 +179,45 @@ export async function importProjects(input: { projects: LeadProject[]; fileName:
       id: importId, fileName: input.fileName, projects: rows.length, companies: companyRows.length,
       added: rows.length - existing.size, updated: existing.size, importedBy: input.by
     });
+    for (let i = 0; i < backupRows.length; i += CHUNK) await tx.insert(backups).values(backupRows.slice(i, i + CHUNK));
   });
   return { importId, projects: rows.length, companies: companyRows.length, added: rows.length - existing.size, updated: existing.size };
+}
+
+/**
+ * Undoes the latest import (and only that one, once): projects it refreshed go back to what they were,
+ * with their companies; projects it added are removed unless staff have already worked them (a status, a
+ * note, an assignee) — those are kept and counted. Returns undefined when there is nothing to undo.
+ */
+export async function undoImport(importId: string, by: string, db?: Db) {
+  const d = db ?? await appDb();
+  return d.transaction(async tx => {
+    const [latest] = await tx.select().from(imports).orderBy(desc(imports.importedAt)).limit(1).for('update');
+    if (!latest || latest.id !== importId || latest.undoneAt) return undefined;
+    const saved = await tx.select().from(backups).where(eq(backups.importId, importId));
+    let restored = 0, removed = 0, kept = 0;
+    for (const b of saved) {
+      const prev = b.previous as null | { lead: Record<string, unknown>; companies: CompanyRow[] };
+      if (!prev) {
+        const [r] = await tx.select().from(leads).where(eq(leads.id, b.projectId));
+        if (!r) continue;
+        const worked = r.status !== 'new' || r.note !== '' || r.assignedTo !== '' || (Array.isArray(r.history) && r.history.length > 0);
+        if (worked) { kept++; continue; }
+        await tx.delete(leads).where(eq(leads.id, b.projectId));   // its companies go with it
+        removed++;
+        continue;
+      }
+      const lead = { ...prev.lead } as Record<string, unknown>;
+      if (typeof lead.importedAt === 'string') lead.importedAt = new Date(lead.importedAt);
+      await tx.update(leads).set(lead as Partial<typeof leads.$inferInsert>).where(eq(leads.id, b.projectId));
+      await tx.delete(companies).where(eq(companies.projectId, b.projectId));
+      for (let i = 0; i < prev.companies.length; i += CHUNK) await tx.insert(companies).values(prev.companies.slice(i, i + CHUNK));
+      restored++;
+    }
+    await tx.delete(backups).where(eq(backups.importId, importId));
+    await tx.update(imports).set({ undoneAt: new Date(), undoneBy: by }).where(eq(imports.id, importId));
+    return { restored, removed, kept };
+  });
 }
 
 /** The list's filters as one condition; `skipStatus` leaves the status out (for the counts beside it). */
@@ -187,7 +319,7 @@ export async function leadMeta(db?: Db) {
     subcategories: subs.filter(s => s.subcategory).map(s => ({ name: s.subcategory, count: s.n })),
     cities: cityMap,
     assignees: assignees.map(a => a.name).filter(Boolean),
-    lastImport: last ? { fileName: last.fileName, projects: last.projects, added: last.added, updated: last.updated, importedBy: last.importedBy, importedAt: last.importedAt.toISOString() } : null
+    lastImport: last ? { id: last.id, canUndo: !last.undoneAt, undone: !!last.undoneAt, fileName: last.fileName, projects: last.projects, added: last.added, updated: last.updated, importedBy: last.importedBy, importedAt: last.importedAt.toISOString() } : null
   };
 }
 
