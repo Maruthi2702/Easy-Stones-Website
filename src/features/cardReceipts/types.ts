@@ -4,7 +4,8 @@ import type { CategoryFields } from '../../utils/cardReceipts';
 export type ReceiptsUser = { id?: string; _id?: string; displayName?: string; username?: string; role?: string; permissions?: string[]; location?: string; assignedLocations?: string[] };
 
 export type Category = { _id: string; name: string; label: string; order: number; active: boolean; fields: CategoryFields };
-export type Card = { _id: string; userId: string; label: string; issuer: 'amex' | 'other'; lastDigits: string; active: boolean };
+export type Card = { _id: string; userId: string; label: string; issuer: 'amex' | 'other'; lastDigits: string; active: boolean;
+  /** The Card Member name on Amex's report for this card ('' until a statement is uploaded). */ amexName?: string };
 export type Person = { id: string; name: string; role: string; location: string; active: boolean };
 export type Decision = { by: string; byName: string; at: string; comment: string };
 

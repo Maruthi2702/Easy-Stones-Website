@@ -258,4 +258,15 @@ describe('approving a month from before the check started', () => {
     expect((await request(app).put(`/api/card-receipts/cards/${loose}`).send({ active: false })).body.card).toMatchObject({ userId: '', active: false });
     who = ACCOUNTANT;
   });
+
+  it('the Cards list carries the Card Member name Amex prints for each card, to compare with its holder', async () => {
+    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
+    const res = await request(app).get('/api/card-receipts/cards');
+    expect(res.status).toBe(200);
+    const by = Object.fromEntries(res.body.cards.map((c: { label: string; amexName: string }) => [c.label, c.amexName]));
+    expect(by.MARU92069).toBe('MARUTHI PONUGUPATI');
+    expect(by.SRIN93018).toBe('SRINI MANAM');
+    expect(by.THIV95555).toBe('THIVIKRAM VALLURU');
+    who = ACCOUNTANT;
+  });
 });

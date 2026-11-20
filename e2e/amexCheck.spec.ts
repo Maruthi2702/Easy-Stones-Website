@@ -29,8 +29,8 @@ const PREVIEW = {
 
 test('Cards shows a card with no holder yet and offers to assign it', async ({ page }) => {
   await page.route('http://127.0.0.1:4175/api/card-receipts/cards', route => route.fulfill({ json: {
-    cards: [{ _id: 'k1', userId: 'u1', label: 'ALEX12345', issuer: 'amex', lastDigits: '12345', active: true },
-      { _id: 'k2', userId: '', label: 'LORI94370', issuer: 'amex', lastDigits: '94370', active: true }],
+    cards: [{ _id: 'k1', userId: 'u1', label: 'ALEX12345', issuer: 'amex', lastDigits: '12345', active: true, amexName: 'ALEX STONE' },
+      { _id: 'k2', userId: '', label: 'LORI94370', issuer: 'amex', lastDigits: '94370', active: true, amexName: 'LORI DANIELS' }],
     people: [{ id: 'u1', name: 'Alex Stone', role: 'admin', location: 'Seattle', active: true }]
   } }));
   await page.goto('/sales?tab=card_receipts');
@@ -38,6 +38,11 @@ test('Cards shows a card with no holder yet and offers to assign it', async ({ p
   await expect(page.getByText('2 active · 1 not assigned yet')).toBeVisible();
   await expect(page.getByText('LORI94370').first()).toBeVisible();
   await expect(page.getByText('Not assigned yet').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Actions for card LORI94370' }).click();
+  await page.getByRole('menuitem', { name: 'Assign to a person' }).click();
+  await expect(page.getByText('Amex has this card under')).toBeVisible();
+  await expect(page.locator('.ccr-card-amex')).toContainText('LORI DANIELS');
+  await page.screenshot({ path: `test-results/amex-edit-card.png` });
 });
 
 test.beforeEach(async ({ page }) => {

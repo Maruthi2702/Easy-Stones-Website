@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import * as db from '../db/cardReceipts/index.ts';
 import { newId } from '../db/ids.ts';
-import { afterReceiptSaved, afterCardSaved, amexChargeOf } from '../db/cardStatements/hooks.ts';
+import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup } from '../db/cardStatements/hooks.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, holderMayEdit, changeSummary, possibleRepeat, canApprove, approvalStep, isBigReceipt, isBigReceiptApprover, BIG_RECEIPT_CENTS, cleanApproverRoles, decisionProblem,
@@ -220,12 +220,14 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
 
   router.get('/cards', authenticate, anyOf(CARD_RECEIPTS.MANAGE_CARDS, CARD_RECEIPTS.VIEW_ALL), async (_req: Request, res: Response) => {
     try {
-      const [cards, people] = await Promise.all([
+      const [cards, people, amexName] = await Promise.all([
         db.listCards(),
-        staffData.findUsers({}, { select: 'username displayName role location assignedLocations isActive', sort: { displayName: 1 } })
+        staffData.findUsers({}, { select: 'username displayName role location assignedLocations isActive', sort: { displayName: 1 } }),
+        amexNameLookup()
       ]);
       res.json({
-        cards: cards.map(cardView),
+        // amexName: the Card Member name on Amex's report for this card, to compare with the cardholder (Amex check).
+        cards: cards.map((c) => ({ ...cardView(c), amexName: amexName(String(c.lastDigits || '')) })),
         people: people.filter((p) => p.username !== 'admin').map((p) => ({
           id: String(p._id), name: nameOf(p), role: p.role || '', location: homeOf(p), active: p.isActive !== false
         }))

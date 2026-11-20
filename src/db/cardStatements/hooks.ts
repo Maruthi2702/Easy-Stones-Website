@@ -3,7 +3,7 @@
  * Both do nothing while Credit Card Receipts is on MongoDB (the check is Postgres only).
  */
 import { areaOn } from '../appDb.ts';
-import { claimUpload, linkedLine, recheck } from './index.ts';
+import { claimUpload, linkedLine, recheck, amexNamesByDigits } from './index.ts';
 
 const on = () => areaOn('card_receipts') === 'postgres';
 
@@ -36,6 +36,18 @@ export async function afterCardSaved(by: { id: string; name: string }) {
     await recheck(by);
   } catch (error) {
     console.error('[card-statements] checking after a card change failed:', error);
+  }
+}
+
+/** The name Amex prints for a card (by its last 4 or 5 digits), for the Cards screen; '' when no upload has it. */
+export async function amexNameLookup(): Promise<(lastDigits: string) => string> {
+  if (!on()) return () => '';
+  try {
+    const names = await amexNamesByDigits();
+    return (last) => names.get(last) ?? [...names].find(([digits]) => last.length >= 4 && digits.endsWith(last))?.[1] ?? '';
+  } catch (error) {
+    console.error('[card-statements] reading Amex card member names failed:', error);
+    return () => '';
   }
 }
 

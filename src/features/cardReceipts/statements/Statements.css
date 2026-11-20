@@ -46,3 +46,6 @@
   .ccr-st-urow { grid-template-columns: 1fr; }
   .ccr-st-bar h2 { width: 100%; }
 }
+
+/* Cards → Edit card: the name Amex prints for the card, to compare with the person chosen */
+.ccr-card-amex { margin: 0; padding: 8px 12px; border-radius: 8px; background: var(--ccr-gold-tint); font-size: 13px; }

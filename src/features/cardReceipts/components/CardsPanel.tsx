@@ -65,6 +65,9 @@ function CardForm({ card, people, onSave, onClose }: {
     >
       {serverError ? <div className="ccr-form-error" role="alert">{serverError}</div> : null}
       <FormSection>
+        {card?.amexName ? (
+          <p className="ccr-card-amex">Amex has this card under <b>{card.amexName}</b>{!card.userId ? ': choose the matching person below.' : '.'}</p>
+        ) : null}
         <FormField name="userId" id="ccr-card-user" label="Cardholder" required error={errors.userId}>
           <FormSearchPicker id="ccr-card-user" value={v.userId} selectedLabel={nameOf(v.userId)} onChange={(id) => set({ userId: id })}
             options={personOptions} placeholder="Choose a person" searchPlaceholder="Search people" sheetTitle="Cardholder" error={errors.userId} keepInForm />
@@ -143,6 +146,7 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
                 <span style={{ display: 'grid', gap: 3, minWidth: 0 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><b className="ccr-mono">{c.label}</b>{status(c)}</span>
                   <span className="ccr-card-meta">{nameOf(c.userId)}{placeOf(c.userId) ? ` · ${placeOf(c.userId)}` : ''}</span>
+                  {c.amexName ? <span className="ccr-card-meta">Amex: {c.amexName}</span> : null}
                   <span className="ccr-card-meta">{c.issuer === 'amex' ? 'Amex' : 'Other card'} ···{c.lastDigits}</span>
                 </span>
                 <span style={{ alignSelf: 'center' }}>{menu(c)}</span>
@@ -152,12 +156,13 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
         ) : cards.length ? (
           <div className="ccr-table-wrap">
             <table className="ccr-table">
-              <thead><tr><th>Card ID</th><th>Cardholder</th><th className="ccr-col-wide">Location</th><th>Card</th><th>Status</th>{canManage ? <th aria-label="Actions" /> : null}</tr></thead>
+              <thead><tr><th>Card ID</th><th>Cardholder</th><th className="ccr-col-wide">Amex card member</th><th className="ccr-col-wide">Location</th><th>Card</th><th>Status</th>{canManage ? <th aria-label="Actions" /> : null}</tr></thead>
               <tbody>
                 {cards.map((c) => (
                   <tr key={c._id} style={{ cursor: 'default', opacity: c.active ? 1 : 0.6 }}>
                     <td className="ccr-mono">{c.label}</td>
                     <td>{c.userId ? nameOf(c.userId) : <span className="ccr-muted">Not assigned yet</span>}</td>
+                    <td className="ccr-col-wide ccr-st-desc">{c.amexName || <span className="ccr-muted">—</span>}</td>
                     <td className="ccr-col-wide">{placeOf(c.userId)}</td>
                     <td>{c.issuer === 'amex' ? 'Amex' : 'Other'} ···{c.lastDigits}</td>
                     <td>{status(c)}</td>

@@ -359,3 +359,16 @@ export async function cardsByDigits(digits: string[], db?: Db) {
   const cards = await d.select().from(companyCards);
   return new Map(digits.map(x => [x, cardForDigits(cards, x)]));
 }
+
+/** The Card Member name Amex prints for each account's last 5 digits (the most common one across the uploads). */
+export async function amexNamesByDigits(db?: Db): Promise<Map<string, string>> {
+  const d = db ?? await appDb();
+  const rows = await d.select({ digits: lines.digits, name: lines.cardMember, n: sql<number>`count(*)::int` })
+    .from(lines).where(sql`${lines.cardMember} <> ''`).groupBy(lines.digits, lines.cardMember);
+  const best = new Map<string, { name: string; n: number }>();
+  for (const r of rows) {
+    const cur = best.get(r.digits);
+    if (!cur || r.n > cur.n) best.set(r.digits, { name: r.name.replace(/\s+/g, ' '), n: r.n });
+  }
+  return new Map([...best].map(([k, v]) => [k, v.name]));
+}
