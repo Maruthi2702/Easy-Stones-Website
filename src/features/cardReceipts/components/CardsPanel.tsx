@@ -65,9 +65,6 @@ function CardForm({ card, people, onSave, onClose }: {
     >
       {serverError ? <div className="ccr-form-error" role="alert">{serverError}</div> : null}
       <FormSection>
-        {card?.amexName ? (
-          <p className="ccr-card-amex">Amex has this card under <b>{card.amexName}</b>{!card.userId ? ': choose the matching person below.' : '.'}</p>
-        ) : null}
         <FormField name="userId" id="ccr-card-user" label="Cardholder" required error={errors.userId}>
           <FormSearchPicker id="ccr-card-user" value={v.userId} selectedLabel={nameOf(v.userId)} onChange={(id) => set({ userId: id })}
             options={personOptions} placeholder="Choose a person" searchPlaceholder="Search people" sheetTitle="Cardholder" error={errors.userId} keepInForm />
@@ -86,6 +83,13 @@ function CardForm({ card, people, onSave, onClose }: {
           <input id="ccr-card-label" className="fm-input ccr-mono" autoComplete="off" maxLength={20} placeholder="Name letters + digits"
             value={v.label} onChange={(e) => { setLabelTouched(true); setV((cur) => ({ ...cur, label: e.target.value.toUpperCase() })); }} />
         </FormField>
+        {card ? (
+          // The name on Amex's report for this card (from the uploaded statements): to compare with the cardholder chosen above. Not editable.
+          <FormField name="amexName" id="ccr-card-amex" label="Amex card member">
+            <input id="ccr-card-amex" className="fm-input ccr-mono" value={card.amexName || ''} readOnly tabIndex={-1}
+              placeholder="Shows once a statement with a charge on this card is uploaded" />
+          </FormField>
+        ) : null}
       </FormSection>
     </FormModal>
   );

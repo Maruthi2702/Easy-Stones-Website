@@ -40,8 +40,8 @@ test('Cards shows a card with no holder yet and offers to assign it', async ({ p
   await expect(page.getByText('Not assigned yet').first()).toBeVisible();
   await page.getByRole('button', { name: 'Actions for card LORI94370' }).click();
   await page.getByRole('menuitem', { name: 'Assign to a person' }).click();
-  await expect(page.getByText('Amex has this card under')).toBeVisible();
-  await expect(page.locator('.ccr-card-amex')).toContainText('LORI DANIELS');
+  await expect(page.getByLabel('Amex card member')).toHaveValue('LORI DANIELS');
+  await expect(page.getByLabel('Amex card member')).toHaveAttribute('readonly', '');
   await page.screenshot({ path: `test-results/amex-edit-card.png` });
 });
 
