@@ -1325,6 +1325,31 @@ give it step 1** (owner's call). A supplier with **no portal login** gets the
 decision and unlock emails at the supplier's own email, in its language, with
 the bundle photos instead of a portal link (`supplierRecipients`).
 
+## Project Leads: ConstructConnect projects to contact (2026-11-20, on `feat/project-leads`)
+
+Sales → **Project Leads** (`src/features/projectLeads/`, nav `project_leads`): construction projects
+from a ConstructConnect export (apartments, single family, townhomes; first file "Construct Connect
+Data 6-25-26", 2,195 projects / 18.5k companies) with the owner, developer, architect, designer and
+contractor on each, so sales can phone or email them to onboard or send samples. **Postgres only**
+(new tables `project_leads`, `project_lead_companies`, `project_lead_imports`, migration `0017`,
+data layer `src/db/projectLeads/`; no link to a copied table, so the Mongo copy never touches them).
+Rules are `src/utils/projectLeads.ts` (tested): the export's "Design Team" sheet is one row per
+company per project; `roleGroup` sorts roles into owner / architect / designer / contractor / other
+(engineers and consultants are "other", folded away on the screen); "Custom" adds units and owner
+type, matched by title + street. The workbook is read in a **worker thread** (`runWorkbookParse`
+kind `project-leads`, `projectLeadsWorkbook.ts`). An import **adds new projects and refreshes the
+file's own fields** on ones it already has (matched by Project Id, companies replaced); **status,
+who has it, note and history are staff's and an import never writes them**; projects missing from a
+file stay. Staff set a status (New / Contacted / Samples sent / Onboarded / Not a fit — each change
+kept in `history`, never trimmed), take or release a lead ("Take this lead" saves their name — my
+default, not the Rep picker), and write a note. Each company has tel: / mailto: links and
+**Create customer**, which opens Add customer pre-filled (`customerPrefillForCompany`, the Permits
+contractor pop-up's route). API `src/routes/projectLeads.ts` at `/api/project-leads` (tested);
+switches (`src/utils/projectLeadAccess.ts`, Users & Roles card "Project Leads"): View, Edit, Import,
+Export — **admin only to start**, an admin ticks the rest. Not built: a rep dropdown for assigning,
+a pop-up preview before an import, a reminder when a lead goes quiet, the old projects' relevance
+(the file goes back to 2012; the Updated filter narrows it).
+
 ## File storage: one store, Cloudinary → S3 (2026-11-08, on `feat/s3-file-storage`)
 
 Every upload and delete goes through `src/services/fileStore.ts` (`getFileStore()`,
