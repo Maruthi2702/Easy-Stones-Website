@@ -26,6 +26,8 @@ export const CARD_RECEIPTS = Object.freeze({
   APPROVE: 'approve_card_receipts',
   EXPORT: 'export_card_receipts',
   MANAGE_CARDS: 'manage_company_cards',
+  /** Upload Amex's activity export and see every charge matched to a receipt (src/utils/amexStatement.ts). */
+  STATEMENTS: 'check_amex_statements',
   CATEGORY_ADD: 'add_receipt_categories',
   CATEGORY_EDIT: 'edit_receipt_categories',
   CATEGORY_REORDER: 'reorder_receipt_categories',
@@ -37,7 +39,7 @@ export const CATEGORY_PERMISSIONS = Object.freeze([
 ]);
 /** What opens the Credit Card Receipts page. */
 export const PAGE_PERMISSIONS = Object.freeze([
-  CARD_RECEIPTS.USE, CARD_RECEIPTS.VIEW_ALL, CARD_RECEIPTS.APPROVE, CARD_RECEIPTS.MANAGE_CARDS
+  CARD_RECEIPTS.USE, CARD_RECEIPTS.VIEW_ALL, CARD_RECEIPTS.APPROVE, CARD_RECEIPTS.MANAGE_CARDS, CARD_RECEIPTS.STATEMENTS
 ]);
 
 type PermUser = { permissions?: readonly string[] | null } | null | undefined;

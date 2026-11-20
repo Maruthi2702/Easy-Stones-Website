@@ -67,7 +67,13 @@ export function useCardReceipts(user: ReceiptsUser | null) {
       : list.filter((x) => x.id !== e.id)));
   };
 
-  const add = async (body: ExpenseBody) => { const r = await api.addExpense(newVisitId(), body); place(r.expense); return r.expense; };
+  const add = async (body: ExpenseBody) => {
+    const r = await api.addExpense(newVisitId(), body);
+    // It answered an Amex charge: that charge's Missing receipt row is gone (voided on the server).
+    if (r.replacedMissing) setExpenses((list) => list.filter((x) => x.id !== r.replacedMissing));
+    place(r.expense);
+    return r.expense;
+  };
   const edit = async (id: string, body: ExpenseBody) => { const r = await api.editExpense(id, body); place(r.expense); return r.expense; };
   const approve = async (id: string, comment: string) => { const r = await api.approveExpense(id, comment); place(r.expense); return r.expense; };
   const sendBack = async (id: string, comment: string) => { const r = await api.sendBackExpense(id, comment); place(r.expense); return r.expense; };

@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import * as db from '../db/cardReceipts/index.ts';
 import { newId } from '../db/ids.ts';
+import { afterReceiptSaved, amexChargeOf } from '../db/cardStatements/hooks.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, holderMayEdit, changeSummary, possibleRepeat, canApprove, approvalStep, isBigReceipt, isBigReceiptApprover, BIG_RECEIPT_CENTS, cleanApproverRoles, decisionProblem,
@@ -341,7 +342,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const { value, problems, missing } = cleanExpense(body, { today: todayOf(), categories: shown });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
       if (body.confirmRepeat !== true) {
-        const same = await db.sameDayAmount(me, value.date, value.cents);
+        // A Missing receipt row (an Amex charge with no upload yet) isn't a repeat: this upload takes its place.
+        const same = (await db.sameDayAmount(me, value.date, value.cents)).filter((e) => e.status !== 'missing');
         const repeat = possibleRepeat(same.map((e) => ({ ...e, id: String(e._id) })) as never, { userId: me, date: value.date, cents: value.cents }) as Loose | null | undefined;
         if (repeat) return res.status(409).json({ message: 'This receipt looks already uploaded.', repeat: { id: String(repeat._id), merchant: repeat.merchant, date: repeat.date, cents: repeat.cents } });
       }
@@ -359,7 +361,9 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         if (again) return res.json({ expense: expenseView(again, { id: me, approvable: new Set() }), alreadySaved: true });
         return res.status(500).json({ message: 'Could not save the receipt.' });
       }
-      res.status(201).json({ expense: expenseView(saved, { id: me, approvable: new Set() }) });
+      // The Amex check: a charge waiting for this receipt points at it, and its Missing receipt row goes.
+      const replacedMissing = await afterReceiptSaved(saved, { id: me, name: by });
+      res.status(201).json({ expense: expenseView(saved, { id: me, approvable: new Set() }), ...(replacedMissing ? { replacedMissing } : {}) });
     } catch (error) {
       console.error('[card-receipts] add failed:', error);
       res.status(500).json({ message: 'Could not save the receipt.' });
@@ -448,6 +452,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       if (!expense || expense.userId !== me) return res.status(404).json({ message: 'Expense not found.' });
       if (expense.voidedAt) return res.json({ expense: expenseView(expense, { id: me, approvable: new Set() }), alreadyVoided: true });
       if (expense.status === 'approved') return res.status(409).json({ message: 'It’s approved, so it can’t be voided.' });
+      if (await amexChargeOf(id)) return res.status(409).json({ message: 'This is a charge on the Amex statement, so it can’t be voided. Add the receipt, or say why it’s lost.' });
       const by = actor(req);
       const saved = await db.changeExpense(id, { voidedAt: new Date(), voidedBy: by, voidReason: reason }, { at: new Date(), by, action: 'voided', changes: reason });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });

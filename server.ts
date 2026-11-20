@@ -123,6 +123,7 @@ import createDailyReportsRouter from './src/routes/dailyReports.ts';
 import createPaymentsReceivedRouter from './src/routes/paymentsReceived.ts';
 import { PAYMENTS_MIGRATION } from './src/utils/paymentsReceived.ts';
 import createCardReceiptsRouter from './src/routes/cardReceipts.ts';
+import createCardReceiptStatementsRouter from './src/routes/cardReceiptStatements.ts';
 import createSuppliersRouter from './src/routes/suppliers.ts';
 import createProjectLeadsRouter from './src/routes/projectLeads.ts';
 import { ALL_PROJECT_LEAD_PERMISSIONS } from './src/utils/projectLeadAccess.ts';
@@ -3753,6 +3754,9 @@ app.use('/api/payments-received', createPaymentsReceivedRouter({
   requirePermission
 }));
 
+// The weekly Amex check: Amex's activity export matched to the receipts staff uploaded
+// (src/routes/cardReceiptStatements.ts, rules in src/utils/amexStatement.ts). Postgres only.
+app.use('/api/card-receipts/statements', createCardReceiptStatementsRouter({ authenticate }));
 // ── CREDIT CARD RECEIPTS ── company-card expenses, one per receipt, with
 // approval by role (src/routes/cardReceipts.ts, rules in src/utils/cardReceipts.ts).
 app.use('/api/card-receipts', createCardReceiptsRouter({

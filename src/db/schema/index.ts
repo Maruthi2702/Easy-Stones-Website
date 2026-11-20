@@ -12,3 +12,4 @@ export * from './misc.ts';
 export * from './locationPoints.ts';
 export * from './pushDevices.ts';
 export * from './projectLeads.ts';
+export * from './cardStatements.ts';

@@ -156,8 +156,9 @@ export default function ExpenseDrawer({ expense: e, categories, position, onStep
         ) : canEdit ? (
           <footer className="ccr-drawer-f">
             <div className="ccr-drawer-actions">
-              <button type="button" className="ccr-btn" onClick={onVoid}><Ban size={16} aria-hidden="true" /> Void</button>
-              <button type="button" className="ccr-btn gold" onClick={onEdit}><Pencil size={16} aria-hidden="true" /> {e.status === 'draft' || e.status === 'sent_back' ? 'Finish it' : 'Edit'}</button>
+              {/* A Missing receipt row is a charge on the Amex statement: it gets its receipt (or a lost reason), never voided. */}
+              {e.status !== 'missing' ? <button type="button" className="ccr-btn" onClick={onVoid}><Ban size={16} aria-hidden="true" /> Void</button> : null}
+              <button type="button" className="ccr-btn gold" onClick={onEdit}><Pencil size={16} aria-hidden="true" /> {e.status === 'missing' ? 'Add receipt' : e.status === 'draft' || e.status === 'sent_back' ? 'Finish it' : 'Edit'}</button>
             </div>
           </footer>
         ) : null}

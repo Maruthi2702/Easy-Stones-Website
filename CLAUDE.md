@@ -1317,6 +1317,27 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   sample statement), the daily reminder email, closing a month, the PDF export.
   The `missing` status and `approvesCardReceiptsOf` already exist for them.
 
+**The Amex check** (2026-11-20, on `feat/amex-check`; owner's answers that day — it replaces the
+weekly PDF plan): Credit Card Receipts → **Statements** tab (switch `check_amex_statements`,
+"Amex check" on the Users & Roles card; admin gets it with the other Accounting keys). Accounting
+uploads Amex's activity export (.xlsx, sheet "Transaction Details"); rules
+`src/utils/amexStatement.ts` (tested), read in the parse worker (`amex-activity`), API
+`src/routes/cardReceiptStatements.ts` at `/api/card-receipts/statements` (tested on PGlite, with
+the receipts router), data `src/db/cardStatements/`, tables `card_statement_lines` (id = Amex's
+**Reference**, so a re-upload or overlapping week adds nothing) and `card_statement_imports`,
+migration `0021_card_statements` — **Postgres only** (the area was cut over and locked 2026-11-14).
+A charge's card is its **last 5 digits** (Amex's Account #), never the name; a match is the **same
+card, exact amount, at most 2 days apart**, automatic (the cardholder enters the total with the
+tip — no hand-linking). **Credits / payments / refunds and interest / fees need no receipt**
+(`kindOf`); freight and subscriptions do. A charge with no upload becomes a real `missing`
+expense for its holder (Amex's day, merchant, amount), which they finish like a draft; only charges
+from `MISSING_FROM` (**2026-11-01**) do — earlier ones are listed and matched only. A receipt saved
+later claims its charge and voids that Missing row (`afterReceiptSaved` in `POST /expenses`, which
+no longer calls a Missing row a repeat); an expense that answers a charge can't be voided. Cards
+Amex names that nobody set up are listed (only cards with a charge), picked in the upload or the
+tab, and set up as `FIRS12345` in the same transaction as the check. Amex's "Receipt" `*` is
+ignored (merchant e-receipts; staff don't use the Amex app). Not built: the daily reminder email.
+
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
 
 Design and the owner's calls: the claude.ai artifact **Supplier Portal Design**

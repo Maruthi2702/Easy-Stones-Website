@@ -385,7 +385,8 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: CARD_RECEIPTS.VIEW_ALL, label: 'View all', icon: Eye, desc: 'See every cardholder’s expenses and receipts' },
             { key: CARD_RECEIPTS.APPROVE, label: 'Approve', icon: CheckCheck, desc: 'Approve or send back the receipts of the roles this role approves (set below the cards), never their own' },
             { key: CARD_RECEIPTS.EXPORT, label: 'Export', icon: Download, desc: 'Download the expenses they can see to Excel' },
-            { key: CARD_RECEIPTS.MANAGE_CARDS, label: 'Manage cards', icon: CreditCard, desc: 'Add company cards, link each to its holder, deactivate them' }
+            { key: CARD_RECEIPTS.MANAGE_CARDS, label: 'Manage cards', icon: CreditCard, desc: 'Add company cards, link each to its holder, deactivate them' },
+            { key: CARD_RECEIPTS.STATEMENTS, label: 'Amex check', icon: Upload, desc: 'Upload Amex’s activity export, see every charge matched to a receipt, set up the cards it names' }
         ]
     },
     {

@@ -34,7 +34,7 @@ export type ExpenseBody = ExpenseInput & { confirmRepeat?: boolean };
 export const loadMe = () => call<Me>('/me');
 export const listExpenses = (scope: 'mine' | 'all' | 'waiting', month: string) =>
   call<{ expenses: Expense[] }>('/expenses', { query: scope === 'waiting' ? { scope } : { scope, month } });
-export const addExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense; alreadySaved?: boolean }>('/expenses', { method: 'POST', body: { id, ...body } });
+export const addExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense; alreadySaved?: boolean; replacedMissing?: string }>('/expenses', { method: 'POST', body: { id, ...body } });
 export const editExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense }>(`/expenses/${id}`, { method: 'PUT', body });
 export const approveExpense = (id: string, comment: string) => call<{ expense: Expense }>(`/expenses/${id}/approve`, { method: 'POST', body: { comment } });
 export const sendBackExpense = (id: string, comment: string) => call<{ expense: Expense }>(`/expenses/${id}/send-back`, { method: 'POST', body: { comment } });

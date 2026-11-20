@@ -17,12 +17,13 @@ import ExpenseDrawer from './components/ExpenseDrawer';
 import ExpenseForm from './components/ExpenseForm';
 import VoidExpenseForm from './components/VoidExpenseForm';
 import CardsPanel from './components/CardsPanel';
+import StatementsPanel from './statements/StatementsPanel';
 import type { Expense, ReceiptsUser } from './types';
 import './CardReceipts.css';
 
 export type CardReceiptsPageProps = { currentUser: ReceiptsUser | null; sidebarToggle?: ReactNode };
 
-type Tab = 'expenses' | 'waiting' | 'cards';
+type Tab = 'expenses' | 'waiting' | 'statements' | 'cards';
 type Open = { kind: 'add'; lost?: boolean } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | null;
 
 /**
@@ -40,7 +41,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const canUse = can(currentUser, CARD_RECEIPTS.USE);
   const canExport = can(currentUser, CARD_RECEIPTS.EXPORT);
   const canCards = can(currentUser, CARD_RECEIPTS.MANAGE_CARDS) || data.viewAll;
-  const [tab, setTab] = useState<Tab>('expenses');
+  const canStatements = can(currentUser, CARD_RECEIPTS.STATEMENTS);
+  // Someone who only runs the Amex check opens on it.
+  const [tab, setTab] = useState<Tab>(() => ([CARD_RECEIPTS.USE, CARD_RECEIPTS.VIEW_ALL, CARD_RECEIPTS.APPROVE].some((p) => can(currentUser, p)) || !can(currentUser, CARD_RECEIPTS.STATEMENTS) ? 'expenses' : 'statements'));
   const [filters, setFilters] = useState<ReceiptFilters>(NO_FILTERS);
   const [openId, setOpenId] = useState<string | null>(null);
   const [open, setOpen] = useState<Open>(null);
@@ -77,6 +80,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
 
   const subtitle = tab === 'waiting' ? `Waiting for me · ${data.waiting.length} · ${formatMoney(data.waiting.reduce((s, e) => s + e.cents, 0))}`
     : tab === 'cards' ? 'Company cards'
+    : tab === 'statements' ? 'Amex check · every charge against an uploaded receipt'
     : `${data.month ? monthLabel(data.month) : ''} · ${data.viewAll ? 'All cardholders' : me?.card ? `${me.card.label}${me.user.location ? ` · ${me.user.location}` : ''}` : 'Your receipts'}`;
 
   const holderOptions = holdersOf(source).map((h) => ({ value: h.id, label: h.name }));
@@ -92,7 +96,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             <h1>{isPhone && !data.viewAll ? 'Card receipts' : 'Credit Card Receipts'}</h1>
             <span>{subtitle}</span>
           </div>
-          {tab !== 'cards' ? (
+          {tab !== 'cards' && tab !== 'statements' ? (
             <div className="ccr-tools">
               <DashboardSearch value={filters.search} onChange={(search) => patchFilters({ search })} label="Search expenses"
                 placeholder="Search merchant, cardholder, note" count={filters.search ? `${rows.length} of ${base.length}` : null} />
@@ -130,7 +134,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           ) : null}
         </div>
 
-        {data.approver || canCards ? (
+        {data.approver || canCards || canStatements ? (
           <div className="ccr-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={tab === 'expenses'} className={`ccr-tab${tab === 'expenses' ? ' is-on' : ''}`} onClick={() => setTab('expenses')}>
               {data.viewAll ? 'Expenses' : 'My expenses'}
@@ -140,10 +144,13 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 Waiting for me {data.waiting.length ? <span className="ccr-count">{data.waiting.length}</span> : null}
               </button>
             ) : null}
+            {canStatements ? (
+              <button type="button" role="tab" aria-selected={tab === 'statements'} className={`ccr-tab${tab === 'statements' ? ' is-on' : ''}`} onClick={() => setTab('statements')}>Statements</button>
+            ) : null}
             {canCards ? (
               <button type="button" role="tab" aria-selected={tab === 'cards'} className={`ccr-tab${tab === 'cards' ? ' is-on' : ''}`} onClick={() => setTab('cards')}>Cards</button>
             ) : null}
-            {tab === 'expenses' && data.month ? <MonthStepper month={data.month} today={me?.today || ''} onMonth={data.setMonth} /> : null}
+            {(tab === 'expenses' || tab === 'statements') && data.month ? <MonthStepper month={data.month} today={me?.today || ''} onMonth={data.setMonth} /> : null}
           </div>
         ) : data.month ? <div className="ccr-tabs"><MonthStepper month={data.month} today={me?.today || ''} onMonth={data.setMonth} /></div> : null}
 
@@ -154,6 +161,8 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
 
         {tab === 'cards' ? (
           <CardsPanel canManage={can(currentUser, CARD_RECEIPTS.MANAGE_CARDS)} onSaved={say} />
+        ) : tab === 'statements' ? (
+          data.month ? <StatementsPanel month={data.month} isPhone={isPhone} onSaved={(text) => { say(text); data.reload(); }} /> : null
         ) : (
           <>
             {isPhone && tab === 'expenses' && todo.length ? (

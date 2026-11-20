@@ -28,13 +28,15 @@ import { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './inve
 import { readCustomerSheet } from './customerImport.ts';
 import { parseInventoryTransitWorkbook } from './inventoryTransitImport.ts';
 import { readProjectLeadsWorkbook } from './projectLeadsWorkbook.ts';
+import { readAmexActivityWorkbook } from './amexActivityWorkbook.ts';
 
 const PARSERS = {
   'inventory-transit': parseInventoryTransitWorkbook,
   'inventory-stock': parseInventoryStockWorkbook,
   'inventory-sales': parseInventorySalesWorkbook,
   customer: readCustomerSheet,
-  'project-leads': readProjectLeadsWorkbook
+  'project-leads': readProjectLeadsWorkbook,
+  'amex-activity': readAmexActivityWorkbook
 };
 
 try {

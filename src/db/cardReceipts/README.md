@@ -24,8 +24,16 @@ moved unchanged) or `postgres.ts` by `DB_CARD_RECEIPTS=postgres`. Unset = MongoD
   Live holds only 2 expenses and 1 card so far, so this proves little; the parity test is the
   real evidence.
 
-## Cutover (not done)
+## Cutover (done 2026-11-14, locked — DB_MOVE_CHECKLIST.md)
 
 `CARD_RECEIPTS_WRITES_PAUSED=true` (503 on every write under `/api/card-receipts`, shown on
 `/api/health`) → `pg-copy-aws.ts --deploy` (new scope) → `--scope card_receipts --write`,
 `--verify` → `DB_CARD_RECEIPTS=postgres` on Render → pause off → `--lock … --scope card_receipts`.
+
+## The Amex check (2026-11-20)
+
+`src/db/cardStatements/` is Postgres only: its tables (`card_statement_lines`,
+`card_statement_imports`) have no MongoDB copy, and the Missing receipt rows it makes are written
+into `card_expenses` with `cardExpenseRowsOf`, as every Postgres save here is. The route answers
+503 while `DB_CARD_RECEIPTS` isn't `postgres`, and the hooks in `src/routes/cardReceipts.ts` do
+nothing then.

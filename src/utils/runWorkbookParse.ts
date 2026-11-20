@@ -12,6 +12,7 @@ import type { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from '.
 import type { parseInventoryTransitWorkbook } from './inventoryTransitImport.ts';
 import type { readCustomerSheet } from './customerImport.ts';
 import type { readProjectLeadsWorkbook } from './projectLeadsWorkbook.ts';
+import type { readAmexActivityWorkbook } from './amexActivityWorkbook.ts';
 import type { WorkbookParseKind } from '../types/inventory.ts';
 import { Worker } from 'node:worker_threads';
 
@@ -37,6 +38,7 @@ export type WorkbookParseResults = {
   'inventory-transit': ReturnType<typeof parseInventoryTransitWorkbook>;
   customer: ReturnType<typeof readCustomerSheet>;
   'project-leads': ReturnType<typeof readProjectLeadsWorkbook>;
+  'amex-activity': ReturnType<typeof readAmexActivityWorkbook>;
 };
 
 export function runWorkbookParse<K extends WorkbookParseKind>(kind: K, buffer: Buffer, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<WorkbookParseResults[K]> {
