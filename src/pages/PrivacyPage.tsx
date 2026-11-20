@@ -15,8 +15,8 @@ export default function PrivacyPage() {
         <h1>Privacy Policy</h1>
         <p className="privacy-updated">Last updated November 19, 2026</p>
         <p>
-          This policy explains what information the Easy Stones website and the Easy Surfaces app collect, why, who can see it and how long
-          we keep it. The app is for Easy Stones staff and for suppliers we work with.
+          Easy Surfaces, doing business as Easy Stones (“we”), publishes the Easy Stones website and the Easy Surfaces app. This policy explains what
+          information they collect, why, who can see it and how long we keep it. The app is for our staff and for suppliers we work with.
         </p>
 
         <h2>What we collect</h2>

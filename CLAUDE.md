@@ -598,7 +598,7 @@ size, own permissions) is not built.
 ## iOS app and Team Location (2026-11-19, on `feat/ios-app`)
 
 The iOS app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`; it loads the site so the
-sign-in cookies stay first-party). **One sign-in** for staff and suppliers: `/login` tries the staff sign-in, and
+sign-in cookies stay first-party). The app is named **Easy Surfaces** (bundle ID `app.easysurfaces`); the company is Easy Surfaces, doing business as Easy Stones, and the website keeps the Easy Stones name. **One sign-in** for staff and suppliers: `/login` tries the staff sign-in, and
 only on "invalid credentials" with an `@` asks the supplier portal (`pages/supplierSignInFallback.ts`); the two
 sessions stay separate. **Location tracking** is `src/utils/locationTracking.ts` (tested): 7 AM–6 PM on the person's workdays
 on their **branch clock** — **workdays** = Monday–Friday, minus a day they logged **Personal Time Off**, plus a
