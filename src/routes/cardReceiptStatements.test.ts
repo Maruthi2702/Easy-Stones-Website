@@ -209,3 +209,24 @@ describe('the Amex check', () => {
     expect(old!.voidedAt).not.toBeNull();
   });
 });
+
+describe('approving a month from before the check started', () => {
+  it('previews, then gives each charge on a set-up card an Approved expense, and runs twice safely', async () => {
+    const { approveMonthWithoutReceipts } = await import('../db/cardStatements/index.ts');
+    const by = { id: 'amex-month-approve', name: 'Amex backfill' };
+    const preview = await approveMonthWithoutReceipts('2026-10', by, { preview: true }, db);
+    expect(preview).toEqual({ charges: 1, toAdd: 1, cents: 999, cardNotSetUp: 0, added: 0 });
+    expect(await db.select().from(cardExpenses).where(eq(cardExpenses.merchant, 'Shell Oil'))).toHaveLength(0);
+
+    const done = await approveMonthWithoutReceipts('2026-10', by, {}, db);
+    expect(done).toMatchObject({ toAdd: 1, added: 1 });
+    const [row] = await db.select().from(cardExpenses).where(eq(cardExpenses.day, '2026-10-20'));
+    expect(row).toMatchObject({ userId: MARU, cardId: MARU_CARD, cents: 999, status: 'approved', month: '2026-10', approvedByName: 'Amex backfill' });
+    const [line] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-old'));
+    expect(line!.expenseId).toBe(row!.id);
+
+    const october = await request(app).get('/api/card-receipts/statements?month=2026-10');
+    expect(october.body.lines).toEqual([expect.objectContaining({ reference: 'ref-old', status: 'matched' })]);
+    expect(await approveMonthWithoutReceipts('2026-10', by, {}, db)).toMatchObject({ toAdd: 0, added: 0 });
+  });
+});

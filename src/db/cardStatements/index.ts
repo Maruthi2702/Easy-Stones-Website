@@ -114,7 +114,7 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
 }
 
 /** One Missing receipt row per charge, for the card's holder, with Amex's day, merchant and amount. */
-async function createMissingRows(tx: Conn, references: string[], by: Actor, now: Date): Promise<number> {
+async function createMissingRows(tx: Conn, references: string[], by: Actor, now: Date, approvedNote?: string): Promise<number> {
   const rows = await q(tx).select({
     reference: lines.reference, day: lines.day, description: lines.description, cents: lines.cents,
     cardId: companyCards.id, cardLabel: companyCards.label, userId: companyCards.userId,
@@ -133,9 +133,11 @@ async function createMissingRows(tx: Conn, references: string[], by: Actor, now:
       _id: id, userId: r.userId, holderName: r.displayName || r.username || '', cardId: r.cardId, cardLabel: r.cardLabel,
       location: r.location || '', date: r.day, month: r.day.slice(0, 7), merchant: merchantOf(r.description), cents: r.cents,
       subtotalCents: null, taxCents: null, tipCents: null, category: '', customerId: '', customerName: '', attendees: [],
-      purpose: '', note: '', recurring: false, receiptUrl: '', lostReason: '', status: 'missing', approval: null, sentBack: null,
+      purpose: '', note: approvedNote ?? '', recurring: false, receiptUrl: '', lostReason: '',
+      status: approvedNote ? 'approved' : 'missing', sentBack: null,
+      approval: approvedNote ? { by: by.id, byName: by.name, at: now, comment: approvedNote } : null,
       createdBy: by.name, voidedAt: null, voidedBy: '', voidReason: '',
-      history: [{ at: now, by: by.name, action: 'added', changes: `Missing receipt: Amex charge ${r.reference}` }],
+      history: [{ at: now, by: by.name, action: 'added', changes: approvedNote ? `${approvedNote} (Amex charge ${r.reference})` : `Missing receipt: Amex charge ${r.reference}` }],
       createdAt: now, updatedAt: now
     };
     const made = cardExpenseRowsOf(doc, ref, links, []);
@@ -150,6 +152,30 @@ async function createMissingRows(tx: Conn, references: string[], by: Actor, now:
   }
   for (const b of built) await q(tx).update(lines).set({ expenseId: b.expense.id, updatedAt: now }).where(eq(lines.reference, b.reference));
   return built.length;
+}
+
+/**
+ * Stopgap (owner, 2026-11-20): the charges of a month from before the check started get an Approved
+ * expense each, for their card's holder, so they show in Expenses and the line reads "Receipt uploaded".
+ * Only charges on a set-up card with no expense yet; a card not set up has no holder to give one to.
+ * `preview` counts and writes nothing.
+ */
+export async function approveMonthWithoutReceipts(month: string, by: Actor, { preview = false }: { preview?: boolean } = {}, db?: Db) {
+  const d = db ?? await appDb();
+  const from = `${month}-01`;
+  const to = new Date(Date.parse(`${from}T00:00:00Z`) + 32 * 86400000).toISOString().slice(0, 7) + '-01';
+  return d.transaction(async tx => {
+    await lock(tx);
+    const open = await q(tx).select({ reference: lines.reference, cents: lines.cents }).from(lines)
+      .where(and(eq(lines.kind, 'charge'), sql`${lines.cardId} is not null`, isNull(lines.expenseId), gte(lines.day, from), lt(lines.day, to)));
+    const all = await q(tx).select({ n: sql<number>`count(*)::int` }).from(lines).where(and(eq(lines.kind, 'charge'), gte(lines.day, from), lt(lines.day, to)));
+    const noCard = await q(tx).select({ n: sql<number>`count(*)::int` }).from(lines)
+      .where(and(eq(lines.kind, 'charge'), isNull(lines.cardId), gte(lines.day, from), lt(lines.day, to)));
+    const result = { charges: all[0]?.n ?? 0, toAdd: open.length, cents: open.reduce((t, r) => t + r.cents, 0), cardNotSetUp: noCard[0]?.n ?? 0, added: 0 };
+    if (preview || !open.length) return result;
+    result.added = await createMissingRows(tx, open.map(o => o.reference), by, new Date(), 'Added from the Amex statement without a receipt (before the check started)');
+    return result;
+  });
 }
 
 /** What an upload found: its own lines' statuses, the cards it couldn't place, what the check did. */
