@@ -41,10 +41,19 @@ function contentBlock(source: ReceiptSource) {
 }
 
 /** null when ANTHROPIC_API_KEY isn't set. */
-export function createReceiptScanner({ apiKey = process.env.ANTHROPIC_API_KEY, model = process.env.RECEIPT_SCAN_MODEL || DEFAULT_RECEIPT_MODEL } = {}): ReceiptScanner | null {
+export function createReceiptScanner({
+  apiKey = process.env.ANTHROPIC_API_KEY,
+  model = process.env.RECEIPT_SCAN_MODEL || DEFAULT_RECEIPT_MODEL,
+  workspaceId = process.env.ANTHROPIC_WORKSPACE_ID
+} = {}): ReceiptScanner | null {
   if (!apiKey) return null;
   // A receipt is one short answer: give up after 45 s and retry once, so the form never waits long.
-  const client = new Anthropic({ apiKey, timeout: 45_000, maxRetries: 1 });
+  // A personal key (sk-ant-usr-…) isn't tied to a workspace, so Anthropic needs ANTHROPIC_WORKSPACE_ID
+  // (wrkspc_…) sent with every request; a workspace key (sk-ant-api…) needs neither.
+  const client = new Anthropic({
+    apiKey, timeout: 45_000, maxRetries: 1,
+    ...(workspaceId ? { defaultHeaders: { 'anthropic-workspace-id': workspaceId } } : {})
+  });
   const fallbacks = FALLBACK_MODELS.test(model);
 
   return {
