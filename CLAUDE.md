@@ -1311,8 +1311,21 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   Receipt Categories, `CARD_RECEIPTS`): My receipts, View all, Approve, Export,
   Manage cards; categories add / edit / reorder / delete. Admin gets them through
   `ALL_ACCOUNTING_PERMISSIONS`; nobody else until an admin turns them on.
-- **Not built yet** (owner's plan, in this order): reading the receipt
-  automatically (server-side; test 20–30 real receipts first), the weekly **Amex
+- **Reading the receipt** (2026-11-20, on `feat/receipt-scan`): after an upload the
+  form asks `POST /api/card-receipts/scan` (`src/routes/cardReceiptScan.ts`, its own
+  router; tested with a fake scanner) and Claude reads the photo / PDF
+  (`src/services/receiptScan.ts`, `@anthropic-ai/sdk`, structured output, low effort).
+  Rules in `src/utils/receiptScan.ts` (tested): the schema and prompt, `cleanScan`
+  (a date that isn't real / is in the future / over 400 days back, non-money amounts and
+  hidden or unknown categories become blank — never guessed), `fillFromScan` (fills
+  **only empty fields**, and a new form's untouched starting date; never what was typed).
+  The line under the photo says what was filled ("Check them"). Only files the app stored
+  are read (`isFilesCdnUrl` / Cloudinary). Off without `ANTHROPIC_API_KEY` (503, the form
+  says nothing); `RECEIPT_SCAN_MODEL` picks the model (default `claude-opus-5-5`, server-side
+  fallbacks on). The card and person never come from the receipt. Compare models on real
+  receipts with `scripts/receipt-scan-test.ts <folder>` before choosing (Oct 2026 volume:
+  ~1,050 charges a month). Not done: a real-receipt test.
+- **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
   sample statement), the daily reminder email, closing a month, the PDF export.
   The `missing` status and `approvesCardReceiptsOf` already exist for them.
