@@ -112,3 +112,13 @@ describe('screen helpers', () => {
     expect(rows[1]).toMatchObject({ Project: 'Empty', Company: '' });
   });
 });
+
+import { statesSummary } from './projectLeads.ts';
+describe('statesSummary', () => {
+  it('says what the closed States dropdown holds', () => {
+    expect(statesSummary([])).toBe('All states');
+    expect(statesSummary(['Texas'])).toBe('Texas');
+    expect(statesSummary(['Texas', 'Washington'])).toBe('Texas + Washington');
+    expect(statesSummary(['Texas', 'Washington', 'Oregon'])).toBe('3 states');
+  });
+});

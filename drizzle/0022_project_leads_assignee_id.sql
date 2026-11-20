@@ -1,0 +1,1 @@
+ALTER TABLE "project_leads" ADD COLUMN "assigned_to_id" text DEFAULT '' NOT NULL;

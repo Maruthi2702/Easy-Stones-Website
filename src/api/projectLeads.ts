@@ -7,10 +7,14 @@ import type { LeadCompany, LeadStatus, LeadProject } from '../utils/projectLeads
 export type Lead = Omit<LeadProject, 'companies'> & {
   status: LeadStatus;
   assignedTo: string;
+  assignedToId: string;
+  /** What the caller may do with the lead's assignment (the server decides: src/utils/projectLeadAccess.ts). */
+  canTake?: boolean;
+  canRelease?: boolean;
   note: string;
   statusBy: string;
   statusAt: string;
-  history: { at: string; by: string; status: LeadStatus; note: string }[];
+  history: { at: string; by: string; status: LeadStatus; note: string; event?: string }[];
   companies: LeadCompany[];
 };
 export type LeadsPage = { items: Lead[]; total: number; counts: Record<string, number> };

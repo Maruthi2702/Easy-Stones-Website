@@ -40,6 +40,8 @@ export const projectLeads = pgTable('project_leads', {
   // What staff add (never written by an import).
   status: text('status').notNull().default('new'),
   assignedTo: text('assigned_to').notNull().default(''),
+  /** The assignee's user id: "their superior" is worked out from it (src/utils/projectLeadAccess.ts). */
+  assignedToId: text('assigned_to_id').notNull().default(''),
   note: text('note').notNull().default(''),
   statusBy: text('status_by').notNull().default(''),
   statusAt: moment('status_at'),

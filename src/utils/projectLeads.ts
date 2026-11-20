@@ -331,3 +331,11 @@ export function leadExportRows(items: (Omit<LeadProject, 'companies'> & { status
     }));
   });
 }
+
+/** What the closed States dropdown says: "All states", "Texas", "Texas + Washington", "3 states". */
+export function statesSummary(selected: string[]): string {
+  if (!selected.length) return 'All states';
+  if (selected.length === 1) return selected[0];
+  if (selected.length === 2) return `${selected[0]} + ${selected[1]}`;
+  return `${selected.length} states`;
+}

@@ -9,6 +9,9 @@ import {
   LEAD_STATUSES, STATUS_LABELS, UPDATED_RANGES, MIN_VALUES, updatedFromFor, formatValue, formatDayShort, leadExportRows,
   contactName, reachable
 } from '../../utils/projectLeads';
+import useIsPhone from '../../components/shared/form/useIsPhone';
+import FilterSheet from './FilterSheet';
+import StatePicker from './StatePicker';
 import LeadDetail from './LeadDetail';
 import LeadImportModal from './LeadImportModal';
 import './ProjectLeads.css';
@@ -54,6 +57,7 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
   onCreateCustomer?: ((values: Loose) => void) | null;
 }) {
   const me: string = currentUser?.name || currentUser?.username || '';
+  const isPhone = useIsPhone();
   const [meta, setMeta] = useState<LeadsMeta | null>(null);
   const [data, setData] = useState<LeadsPage | null>(null);
   const [error, setError] = useState('');
@@ -80,7 +84,8 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
   const filterRef = useRef<HTMLDivElement | null>(null);
   const moreRef = useRef<HTMLDivElement | null>(null);
   const closePopover = useCallback(() => setPopover(''), []);
-  useDismiss(filterRef, popover === 'filter', closePopover);
+  // On a phone Filters is a bottom sheet (FilterSheet) that closes itself.
+  useDismiss(filterRef, popover === 'filter' && !isPhone, closePopover);
   useDismiss(moreRef, popover === 'more', closePopover);
   const { currentPage, setCurrentPage, rowsPerPage, setRowsPerPage, resetPage } = usePagination();
 
@@ -125,7 +130,6 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
   const open = items.find((l) => l.id === openId) ?? null;
   const filtersSet = !!(states.length || cityNow || stage || subcategory || minValue || range !== 'all' || assigned || onlyReachable || sort !== 'updated_desc');
   const clearFilters = () => { setStates([]); setCity(''); setStage(''); setSubcategory(''); setMinValue(''); setRange('all'); setAssigned(''); setOnlyReachable(false); setSort('updated_desc'); };
-  const toggleState = (s: string) => setStates((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
 
   const changed = (lead: Lead) => {
     setData((d) => (d ? { ...d, items: d.items.map((l) => (l.id === lead.id ? lead : l)) } : d));
@@ -153,39 +157,10 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
 
   const lastImport = meta?.lastImport;
 
-  return (
-    <div className="prj">
-      <div className="prj-page">
-        <div className="prj-head">
-          {sidebarToggle}
-          <h1 className="prj-title">Project Leads</h1>
-          <span className="prj-grow" />
-          <label className="prj-search">
-            <Search size={16} aria-hidden="true" />
-            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Project, address, company or contact"
-              aria-label="Search project leads" />
-            {search ? <button type="button" className="prj-x" onClick={() => setSearch('')} aria-label="Clear search"><X size={14} /></button> : null}
-          </label>
-          <div className="prj-tools">
-            <div className="prj-pop-wrap" ref={filterRef}>
-              <button type="button" className={`prj-icon-btn${filtersSet ? ' on' : ''}`} aria-label={filtersSet ? 'Filters (some set)' : 'Filters'} title="Filters"
-                aria-haspopup="dialog" aria-expanded={popover === 'filter'} onClick={() => setPopover(popover === 'filter' ? '' : 'filter')}>
-                <Filter size={17} aria-hidden="true" />
-                {filtersSet ? <span className="prj-dot" aria-hidden="true" /> : null}
-              </button>
-              {popover === 'filter' && meta ? (
-                <div className="prj-pop prj-filters" role="dialog" aria-label="Filters">
-                  <div className="prj-field">
-                    <span>State{states.length ? ` · ${states.length}` : ''}</span>
-                    <div className="prj-states">
-                      {meta.states.map((s) => (
-                        <label key={s.name} className="prj-check">
-                          <input type="checkbox" checked={states.includes(s.name)} onChange={() => toggleState(s.name)} />
-                          <span>{s.name}</span><span className="prj-muted">{s.count}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
+  // The same fields in the desktop panel and the phone sheet.
+  const filterFields = meta ? (
+    <>
+                  <StatePicker states={meta.states} value={states} onChange={setStates} />
                   <label className="prj-field"><span>City</span>
                     <select className="prj-select" value={cityNow} onChange={(e) => setCity(e.target.value)}>
                       <option value="">All cities</option>
@@ -230,6 +205,32 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
                       {SORTS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                     </select>
                   </label>
+    </>
+  ) : null;
+
+  return (
+    <div className="prj">
+      <div className="prj-page">
+        <div className="prj-head">
+          {sidebarToggle}
+          <h1 className="prj-title">Project Leads</h1>
+          <span className="prj-grow" />
+          <label className="prj-search">
+            <Search size={16} aria-hidden="true" />
+            <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Project, address, company or contact"
+              aria-label="Search project leads" />
+            {search ? <button type="button" className="prj-x" onClick={() => setSearch('')} aria-label="Clear search"><X size={14} /></button> : null}
+          </label>
+          <div className="prj-tools">
+            <div className="prj-pop-wrap" ref={filterRef}>
+              <button type="button" className={`prj-icon-btn${filtersSet ? ' on' : ''}`} aria-label={filtersSet ? 'Filters (some set)' : 'Filters'} title="Filters"
+                aria-haspopup="dialog" aria-expanded={popover === 'filter'} onClick={() => setPopover(popover === 'filter' ? '' : 'filter')}>
+                <Filter size={17} aria-hidden="true" />
+                {filtersSet ? <span className="prj-dot" aria-hidden="true" /> : null}
+              </button>
+              {popover === 'filter' && meta && !isPhone ? (
+                <div className="prj-pop prj-filters" role="dialog" aria-label="Filters">
+                  {filterFields}
                   <div className="prj-pop-foot">
                     <button type="button" className="prj-btn sm" onClick={clearFilters} disabled={!filtersSet}>Clear</button>
                     <button type="button" className="prj-btn sm prj-primary" onClick={closePopover}>Done</button>
@@ -340,7 +341,10 @@ export default function ProjectLeadsPage({ sidebarToggle = null, currentUser = n
         ) : null}
       </div>
 
-      {open ? <LeadDetail lead={open} me={me} canEdit={!!meta?.canEdit} onChanged={changed} onClose={() => setOpenId('')} onCreateCustomer={onCreateCustomer} /> : null}
+      {popover === 'filter' && meta && isPhone ? (
+        <FilterSheet count={data?.total ?? null} canClear={filtersSet} onClear={clearFilters} onClose={closePopover}>{filterFields}</FilterSheet>
+      ) : null}
+      {open ? <LeadDetail lead={open} canEdit={!!meta?.canEdit} onChanged={changed} onClose={() => setOpenId('')} onCreateCustomer={onCreateCustomer} /> : null}
       {importing ? <LeadImportModal onClose={() => setImporting(false)} onDone={() => setReloadKey((k) => k + 1)} /> : null}
       {undoing && meta?.lastImport ? <LeadImportModal undoOf={meta.lastImport} onClose={() => setUndoing(false)} onDone={() => setReloadKey((k) => k + 1)} /> : null}
     </div>
