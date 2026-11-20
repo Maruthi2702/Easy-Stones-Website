@@ -1325,6 +1325,17 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   fallbacks on). The card and person never come from the receipt. Compare models on real
   receipts with `scripts/receipt-scan-test.ts <folder>` before choosing (Oct 2026 volume:
   ~1,050 charges a month). Not done: a real-receipt test.
+- **Add / Edit receipt looks like Splitwise's bill screen** (owner, 2026-11-20, on
+  `feat/receipt-bill-screen`; a deliberate step away from FORM_TEMPLATE's field-by-field
+  layout for this one form): a **Bill details** card (`components/BillCard.tsx`: photo,
+  merchant, total · date, Subtotal, Tax, Tip or "+ Add tip", Total, and the reading's note),
+  then Category (with what that category asks for: customer, attendees, purpose) and a Note.
+  The **pencil** (or "+ Add tip") swaps the same FormModal to **Edit bill details**
+  (`components/BillDetailsEdit.tsx`: merchant, date, total, subtotal, tax, tip; Save goes back,
+  ✕ puts back what was there). A save missing merchant / date / total, or a server answer about
+  them, opens that screen; after a photo, if the reading left merchant or total blank (or reading
+  is off) it opens by itself with the photo large. Total is what was charged to the card;
+  subtotal / tax / tip are information only — nothing adds them up.
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
   sample statement), the daily reminder email, closing a month, the PDF export.

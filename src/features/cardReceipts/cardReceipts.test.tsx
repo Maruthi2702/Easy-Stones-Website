@@ -86,13 +86,42 @@ describe('the Credit Card Receipts page', () => {
     await show(['use_card_receipts']);
     expect(screen.queryByRole('tab')).toBeNull();
     fireEvent.click(screen.getByLabelText('Add receipt'));
+    // The form is the Bill details card, the category and a note; the pencil opens Edit bill details.
+    expect(text()).toContain('Bill details');
+    expect(document.getElementById('ccr-merchant')).toBeNull();
+    fireEvent.click(screen.getByLabelText('Edit bill details'));
+    expect(text()).toContain('Edit bill details');
     fireEvent.change(document.getElementById('ccr-merchant')!, { target: { value: 'SP PARK' } });
     fireEvent.change(document.getElementById('ccr-total')!, { target: { value: '12.85' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(text()).toContain('$12.85');
+    expect(text()).toContain('SP PARK');
     expect(text()).toContain('Saves as a draft');
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await settle();
     expect(fake.posted.at(-1)!.body).toMatchObject({ merchant: 'SP PARK', total: '12.85', date: '2026-10-20' });
     expect(text()).toContain('Saved as a draft');
+  });
+
+  it('puts ✕ on Edit bill details back to what the card showed, and "+ Add tip" opens it', async () => {
+    await show(['use_card_receipts']);
+    fireEvent.click(screen.getByLabelText('Add receipt'));
+    fireEvent.click(screen.getByLabelText('Edit bill details'));
+    fireEvent.change(document.getElementById('ccr-merchant')!, { target: { value: 'Typed then dropped' } });
+    fireEvent.click(screen.getByLabelText('Close'));
+    expect(text()).toContain('Bill details');
+    expect(text()).not.toContain('Typed then dropped');
+    fireEvent.click(screen.getByRole('button', { name: /Add tip/ }));
+    expect(text()).toContain('Edit bill details');
+    expect(document.getElementById('ccr-tip')).not.toBeNull();
+  });
+
+  it('sends someone to Edit bill details when a save is missing the merchant or total', async () => {
+    await show(['use_card_receipts']);
+    fireEvent.click(screen.getByLabelText('Add receipt'));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+    expect(text()).toContain('Edit bill details');
+    expect(fake.posted.length).toBe(0);
   });
 
   it('tells someone with no card to ask accounting, and offers no +', async () => {
