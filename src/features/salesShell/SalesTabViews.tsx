@@ -10,6 +10,7 @@ import { canViewCheckInLog } from '../../utils/checkInAccess';
 import { canOpenUsersPage } from '../../utils/teamAccess';
 import { canOpenArea, can, NAV_ORDER } from '../../utils/usersAccess';
 import { PERMITS } from '../../permits/permissions';
+import { canViewProjectLeads } from '../../utils/projectLeadAccess';
 import { canOpenReceipts, canOpenCategories } from '../../utils/cardReceipts';
 import { canOpenSupplierPos, canSeeIncoming } from '../../utils/supplierAccess';
 import { canViewTeamLocations } from '../../utils/locationTracking';
@@ -48,6 +49,7 @@ const IncomingMaterialPage = page(() => import('../suppliers/incoming/IncomingMa
 const FreightTab = page(() => import('../freight/FreightTab'));
 const HoldsTab = page(() => import('../holds/HoldsTab'));
 const PermitsTab = page(() => import('../../components/sales/permits/PermitsTab'));
+const ProjectLeadsPage = page(() => import('../projectLeads/ProjectLeadsPage'));
 
 export type SalesTabViewsProps = {
     /** Signed in with permissions loaded (`!authLoading && currentUser?.permissions`). */
@@ -272,6 +274,18 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
                         <PermitsTab
                             sidebarToggle={menu(true)}
                             onOpenCustomer={(id: string) => p.onOpenCustomer(id, 'permits')}
+                            onCreateCustomer={p.onCreatePrefilledCustomer}
+                        />
+                    </Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && crmTab === 'project_leads' && canViewProjectLeads(currentUser) && (
+                <ErrorBoundary key="project-leads-view">
+                    <Suspense fallback={<TabLoader />}>
+                        <ProjectLeadsPage
+                            sidebarToggle={menu(true)}
+                            currentUser={currentUser}
                             onCreateCustomer={p.onCreatePrefilledCustomer}
                         />
                     </Suspense>

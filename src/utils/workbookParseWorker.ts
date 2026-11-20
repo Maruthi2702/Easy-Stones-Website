@@ -27,12 +27,14 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { parseInventoryStockWorkbook, parseInventorySalesWorkbook } from './inventoryImport.ts';
 import { readCustomerSheet } from './customerImport.ts';
 import { parseInventoryTransitWorkbook } from './inventoryTransitImport.ts';
+import { readProjectLeadsWorkbook } from './projectLeadsWorkbook.ts';
 
 const PARSERS = {
   'inventory-transit': parseInventoryTransitWorkbook,
   'inventory-stock': parseInventoryStockWorkbook,
   'inventory-sales': parseInventorySalesWorkbook,
-  customer: readCustomerSheet
+  customer: readCustomerSheet,
+  'project-leads': readProjectLeadsWorkbook
 };
 
 try {

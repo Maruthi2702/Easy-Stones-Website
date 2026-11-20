@@ -16,6 +16,7 @@ import type { Loose } from '../types/records.ts';
 
 import { HOLD_VIEW_PERMISSIONS } from '../holds/permissions.ts';
 import { PERMITS } from '../permits/permissions.ts';
+import { canViewProjectLeads } from './projectLeadAccess.ts';
 import { canCheckIn, canViewCheckInLog } from './checkInAccess.ts';
 import { canViewLostSales } from './lostSaleAccess.ts';
 import { PAYMENTS } from './paymentsReceived.ts';
@@ -56,6 +57,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'holds', label: 'Holds', section: 'sales', canSee: (u: NavUser) => HOLD_VIEW_PERMISSIONS.some((p) => has(u, p)) },
   // Permits (src/permits/): building permits as sales leads; the permission is the only key.
   { id: 'permits', label: 'Permits', section: 'sales', canSee: (u: NavUser) => has(u, PERMITS.VIEW) },
+  // Project Leads (src/features/projectLeads/): construction projects from ConstructConnect and who to contact; the permission is the only key.
+  { id: 'project_leads', label: 'Project Leads', section: 'sales', canSee: (u: NavUser) => canViewProjectLeads(u) },
   // Team Files (src/features/teamFiles/): was the dashboard's Resources → Team Files, so it opens with the Dashboard.
   { id: 'team_files', label: 'Team Files', section: 'sales', canSee: (u: NavUser) => has(u, 'view_dashboard') },
   // Credit Card Receipts (src/features/cardReceipts/): any of its switches opens it. In Sales since 2026-11-19 (owner's ask; was Accounting).

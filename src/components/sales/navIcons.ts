@@ -1,6 +1,6 @@
 import {
     LayoutDashboard, User, Clock, Truck, Map as MapIcon, ClipboardList, Tag, TrendingDown, ArrowLeftRight, Boxes,
-    Users, Briefcase, Warehouse, ExternalLink, Layers, Shield, Calculator, Lock, HardHat, ShieldCheck, MapPin, ArrowUpDown, ListOrdered, Package, Receipt, Fuel, FolderOpen, Wallet, CreditCard, Tags, PackageCheck, Ship, MapPinned
+    Users, Briefcase, Warehouse, ExternalLink, Layers, Shield, Calculator, Lock, HardHat, Building2, ShieldCheck, MapPin, ArrowUpDown, ListOrdered, Package, Receipt, Fuel, FolderOpen, Wallet, CreditCard, Tags, PackageCheck, Ship, MapPinned
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -15,6 +15,7 @@ export const ITEM_ICONS: Readonly<Record<string, LucideIcon>> = {
     route_planner: MapIcon,
     holds: Lock,
     permits: HardHat,
+    project_leads: Building2,
     team_files: FolderOpen,
     lost_sales: TrendingDown,
     delivery_schedule: Truck,

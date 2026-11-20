@@ -1,5 +1,5 @@
 export type InventoryImportKind = 'stock' | 'sales' | 'transit';
-export type WorkbookParseKind = 'inventory-stock' | 'inventory-sales' | 'inventory-transit' | 'customer';
+export type WorkbookParseKind = 'inventory-stock' | 'inventory-sales' | 'inventory-transit' | 'customer' | 'project-leads';
 
 /** Dates stay Date objects while parsing and become ISO strings in API JSON. */
 export interface TransitLine<DateValue = Date> {

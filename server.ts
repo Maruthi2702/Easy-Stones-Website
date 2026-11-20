@@ -126,6 +126,8 @@ import createCardReceiptsRouter from './src/routes/cardReceipts.ts';
 import createCardReceiptScanRouter from './src/routes/cardReceiptScan.ts';
 import { createReceiptScanner } from './src/services/receiptScan.ts';
 import createSuppliersRouter from './src/routes/suppliers.ts';
+import createProjectLeadsRouter from './src/routes/projectLeads.ts';
+import { ALL_PROJECT_LEAD_PERMISSIONS } from './src/utils/projectLeadAccess.ts';
 import createSupplierPortalRouter from './src/routes/supplierPortal.ts';
 import { ALL_SUPPLIER_PERMISSIONS, DIRECTOR_SUPPLIER_GRANTS } from './src/utils/supplierAccess.ts';
 import { cleanApproverRoles } from './src/utils/cardReceipts.ts';
@@ -728,7 +730,8 @@ async function startServer() {
             ...ALL_ACCOUNTING_PERMISSIONS,
             ...ALL_HOLD_PERMISSIONS,
             ...ALL_PERMIT_PERMISSIONS,
-            ...ALL_SUPPLIER_PERMISSIONS
+            ...ALL_SUPPLIER_PERMISSIONS,
+            ...ALL_PROJECT_LEAD_PERMISSIONS
           ],
           isSystem: true
         },
@@ -910,6 +913,9 @@ async function startServer() {
         // named them for both). Managers and the purchasing team are ticked
         // by an admin under Users & Roles.
         { roles: ['admin'], permissions: [...ALL_SUPPLIER_PERMISSIONS] },
+        // Project Leads (src/utils/projectLeadAccess.ts, 2026-11-20): admin only to start;
+        // an admin ticks the rest under Users & Roles.
+        { roles: ['admin'], permissions: [...ALL_PROJECT_LEAD_PERMISSIONS] },
         { roles: ['director'], permissions: [...DIRECTOR_SUPPLIER_GRANTS] }
       ];
 
@@ -3766,6 +3772,7 @@ app.use('/api/card-receipts', createCardReceiptScanRouter({
 // src/utils/supplierBlocks.ts). The supplier portal has its own sign-in, whose
 // token no staff route accepts (src/services/supplierSession.ts).
 app.use('/api/suppliers', createSuppliersRouter({ authenticate, processBase64Image }));
+app.use('/api/project-leads', createProjectLeadsRouter({ authenticate }));
 app.use('/api/supplier-portal', createSupplierPortalRouter({
   jwtSecret: JWT_SECRET,
   loginLimiter,

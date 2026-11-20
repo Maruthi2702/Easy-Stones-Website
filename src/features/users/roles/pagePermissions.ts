@@ -5,10 +5,11 @@ import { FUEL_MAN } from '../../../fuelman/permissions';
 import { FREIGHT, CARRIERS } from '../../../accounting/permissions';
 import { CART, HOLDS } from '../../../holds/permissions';
 import { PERMITS } from '../../../permits/permissions';
+import { PROJECT_LEADS } from '../../../utils/projectLeadAccess';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, ListOrdered, PackageCheck, Ship, Unlock, Factory
+    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, ListOrdered, PackageCheck, Ship, Unlock, Factory
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
@@ -308,6 +309,21 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: PERMITS.VIEW,    label: 'View',        icon: Eye,       desc: 'See the permits with their contractor, owner and applicant contacts' },
             { key: PERMITS.EXPORT,  label: 'Export',      icon: Download,  desc: 'Download permits as Excel' },
             { key: PERMITS.REFRESH, label: 'Refresh now', icon: RefreshCw, desc: 'Run the morning pull on demand, and see each source’s run details' }
+        ]
+    },
+    // Project Leads (src/utils/projectLeadAccess.ts, 2026-11-20): admin only to start;
+    // an admin decides here who else sees them.
+    {
+        id: 'project_leads',
+        page: 'Project Leads',
+        icon: Building2,
+        description: 'Construction projects from ConstructConnect, with the owners, architects and contractors on them, for sales to contact',
+        color: '#0e7490',
+        actions: [
+            { key: PROJECT_LEADS.VIEW,   label: 'View',   icon: Eye,       desc: 'See the projects and the companies on them, with their phones and emails' },
+            { key: PROJECT_LEADS.EDIT,   label: 'Edit',   icon: Pencil,    desc: 'Set a lead’s status (Contacted, Samples sent…), take it, and add notes' },
+            { key: PROJECT_LEADS.IMPORT, label: 'Import', icon: Upload,    desc: 'Upload a ConstructConnect Excel file' },
+            { key: PROJECT_LEADS.EXPORT, label: 'Export', icon: Download,  desc: 'Download the list as Excel' }
         ]
     },
     // Team Files (src/utils/teamFilesAccess.ts, 2026-10-30): its own Sales
