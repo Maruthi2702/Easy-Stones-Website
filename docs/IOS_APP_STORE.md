@@ -15,7 +15,7 @@ The app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`). W
 ## What the build needs (done unless noted)
 - App icon and launch image: `node scripts/make-ios-icons.ts`. ▶ Replace `public/favicon.png` with a larger copy of the logo
   mark before submitting (the current one is 156 px tall, so the 1024 px icon is soft), then re-run it.
-- Bundle ID `com.easystones.app` — ▶ confirm before you enrol (it can't change after the first upload).
+- Bundle ID `app.easysurfaces` (owner's choice 2026-11-19; it can't change after the first upload).
 - Permission texts are in `ios/App/App/Info.plist` (camera, photos, location when in use, location always). Apple reads them.
 - Privacy policy page: `/privacy` on the website (`src/pages/PrivacyPage.tsx`). ▶ Have it read by whoever advises you on privacy.
   Its address goes in the listing as the Privacy Policy URL.
