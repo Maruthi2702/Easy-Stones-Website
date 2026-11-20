@@ -34,7 +34,8 @@ export type LeadFilter = {
   offset?: number;
 };
 
-export type HistoryLine = { at: string; by: string; status: LeadStatus; note: string };
+/** `event` is set when the line records taking or releasing a lead ("Took this lead", "Released from Sam"). */
+export type HistoryLine = { at: string; by: string; status: LeadStatus; note: string; event?: string };
 
 const CHUNK = 500;
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, m => `\\${m}`);
@@ -269,7 +270,7 @@ const shapeLead = (r: typeof leads.$inferSelect) => ({
   floors: r.floors, floorArea: numberOrNull(r.floorArea), floorAreaUnit: r.floorAreaUnit,
   siteArea: numberOrNull(r.siteArea), siteAreaUnit: r.siteAreaUnit, stageNote: r.stageNote,
   units: r.units, ownerType: r.ownerType,
-  status: (isLeadStatus(r.status) ? r.status : 'new') as LeadStatus, assignedTo: r.assignedTo, note: r.note,
+  status: (isLeadStatus(r.status) ? r.status : 'new') as LeadStatus, assignedTo: r.assignedTo, assignedToId: r.assignedToId, note: r.note,
   statusBy: r.statusBy, statusAt: r.statusAt ? r.statusAt.toISOString() : '',
   history: (Array.isArray(r.history) ? r.history : []) as HistoryLine[]
 });
@@ -333,12 +334,14 @@ export async function getLead(id: string, db?: Db): Promise<LeadItem | undefined
 }
 
 /**
- * Sets a lead's status, assignee and/or note. A change of status or note is kept in its history
- * (who, when, what). Returns the lead as saved, or undefined when it doesn't exist.
+ * Sets a lead's status, assignee and/or note. A change of status or note, and every take or release, is kept in
+ * its history (who, when, what). `assignedTo: ''` releases it; a name takes it, with the taker's user id
+ * (`assignedToId`). Who may is the route's decision (src/utils/projectLeadAccess.ts). Returns the lead as saved,
+ * or undefined when it doesn't exist.
  */
 export async function updateLead(
   id: string,
-  change: { status?: LeadStatus; note?: string; assignedTo?: string },
+  change: { status?: LeadStatus; note?: string; assignedTo?: string; assignedToId?: string },
   by: string,
   db?: Db
 ): Promise<LeadItem | undefined> {
@@ -350,15 +353,24 @@ export async function updateLead(
     const status = change.status ?? (isLeadStatus(r.status) ? r.status : 'new');
     const statusChanged = change.status !== undefined && change.status !== r.status;
     const noteChanged = change.note !== undefined && change.note !== r.note;
+    const assignChanged = change.assignedTo !== undefined && change.assignedTo !== r.assignedTo;
     if (change.status !== undefined) set.status = change.status;
     if (change.note !== undefined) set.note = change.note;
-    if (change.assignedTo !== undefined) set.assignedTo = change.assignedTo;
+    if (assignChanged) {
+      set.assignedTo = change.assignedTo;
+      set.assignedToId = change.assignedTo ? (change.assignedToId ?? '') : '';
+    }
+    const history = Array.isArray(r.history) ? [...r.history] as HistoryLine[] : [];
+    const at = new Date().toISOString();
     if (statusChanged || noteChanged) {
-      const line: HistoryLine = { at: new Date().toISOString(), by, status, note: change.note ?? '' };
-      set.history = [...(Array.isArray(r.history) ? r.history : []), line];
+      history.push({ at, by, status, note: change.note ?? '' });
       set.statusBy = by;
       set.statusAt = new Date();
     }
+    if (assignChanged) {
+      history.push({ at, by, status, note: '', event: change.assignedTo ? 'Took this lead' : `Released from ${r.assignedTo}` });
+    }
+    if (statusChanged || noteChanged || assignChanged) set.history = history;
     if (Object.keys(set).length) await tx.update(leads).set(set).where(eq(leads.id, id));
     return true;
   });

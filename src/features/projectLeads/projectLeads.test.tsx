@@ -17,7 +17,7 @@ const lead: Lead = {
   id: '1001', title: 'Lulac Hacienda Apartments', value: 4_500_000, stage: 'Post Bid', subcategory: 'Apartments', bidDate: '', listedOn: '2026-01-01',
   updatedOn: '2026-06-01', address: '2625 Greenwood Dr', city: 'Austin', county: 'Travis', state: 'Texas', zip: '78744', floors: 3, floorArea: 60000,
   floorAreaUnit: 'Square Feet', siteArea: null, siteAreaUnit: '', stageNote: '', units: 60, ownerType: 'Private',
-  status: 'new', assignedTo: '', note: '', statusBy: '', statusAt: '', history: [],
+  status: 'new', assignedTo: '', assignedToId: '', canTake: true, canRelease: false, note: '', statusBy: '', statusAt: '', history: [],
   companies: [
     { companyId: '1', name: 'Acme Owners', role: 'Owner', group: 'owner', address: '', city: 'Austin', state: 'Texas', zip: '', firstName: 'Ann', lastName: 'Lee', phone: '2065551234', email: 'ann@acme.test' },
     { companyId: '2', name: 'Eng Co', role: 'Civil Engineer', group: 'other', address: '', city: '', state: '', zip: '', firstName: '', lastName: '', phone: '', email: '' }
@@ -52,7 +52,7 @@ describe('Project Leads page', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Samples sent' }));
     await waitFor(() => expect(api.updateLead).toHaveBeenCalledWith('1001', { status: 'samples' }));
     fireEvent.click(screen.getByRole('button', { name: 'Take this lead' }));
-    await waitFor(() => expect(api.updateLead).toHaveBeenCalledWith('1001', { assignedTo: 'Sam' }));
+    await waitFor(() => expect(api.updateLead).toHaveBeenCalledWith('1001', { assignedTo: 'me' }));   // the server takes it for the caller
   });
 
   it('makes a customer from a company, prefilled', async () => {
@@ -91,6 +91,38 @@ const pick = (name = 'cc.xlsx') => {
   const input = screen.getByLabelText('ConstructConnect file') as HTMLInputElement;
   fireEvent.change(input, { target: { files: [new File(['x'], name)] } });
 };
+
+describe('Who a lead is with', () => {
+  const withSam = { ...lead, assignedTo: 'Sam', assignedToId: 'u-sam', canTake: false };
+  const open = async (l: Lead) => {
+    api.listLeads.mockResolvedValue({ items: [l], counts: { new: 1 }, total: 1 });
+    render(<ProjectLeadsPage currentUser={{ name: 'Priya' }} />);
+    fireEvent.click(await screen.findByText('Lulac Hacienda Apartments'));
+    return screen.findByRole('dialog', { name: 'Lulac Hacienda Apartments' });
+  };
+
+  it('says it first, in a callout, and offers Release to the person it is with or their manager', async () => {
+    const dialog = await open({ ...withSam, canRelease: true });
+    expect(dialog.querySelector('.prj-assign.has')?.textContent).toContain('Lead is with');
+    expect(dialog.querySelector('.prj-assign strong')?.textContent).toBe('Sam');
+    fireEvent.click(screen.getByRole('button', { name: 'Release' }));
+    await waitFor(() => expect(api.updateLead).toHaveBeenCalledWith('1001', { assignedTo: '' }));
+    // Once it is free the same panel offers it to be taken.
+    expect(await screen.findByRole('button', { name: 'Take this lead' })).toBeTruthy();
+  });
+
+  it('shows nobody else a Release or Take button, and says who can release', async () => {
+    const dialog = await open({ ...withSam, canRelease: false });
+    expect(screen.queryByRole('button', { name: 'Release' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Take this lead' })).toBeNull();
+    expect(dialog.textContent).toContain('Only Sam or their manager can release this lead.');
+  });
+
+  it('writes a take or release in the history as words, not a status', async () => {
+    const dialog = await open({ ...withSam, canRelease: true, history: [{ at: '2026-11-20T10:00:00.000Z', by: 'Sam', status: 'new', note: '', event: 'Took this lead' }] });
+    expect(dialog.querySelector('.prj-event')?.textContent).toBe('Took this lead');
+  });
+});
 
 describe('Import ConstructConnect file', () => {
   it('checks the file, shows what would change, imports on the last step and offers Undo', async () => {
@@ -142,5 +174,82 @@ describe('Import ConstructConnect file', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Undo import' }));
     await waitFor(() => expect(api.undoLeadsImport).toHaveBeenCalledWith('imp1'));
     expect(await screen.findByText('The import is undone.', { exact: false })).toBeTruthy();
+  });
+});
+
+const phone = (on: boolean) => {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (q: string) => ({ matches: on && q.includes('max-width: 639px'), media: q, addEventListener: () => {}, removeEventListener: () => {}, addListener: () => {}, removeListener: () => {}, dispatchEvent: () => false, onchange: null })
+  });
+};
+
+describe('Filters on each screen size', () => {
+  afterEach(() => { phone(false); document.body.removeAttribute('style'); });
+
+  it('is a floating panel on a laptop, closed by Done', async () => {
+    phone(false);
+    render(<ProjectLeadsPage />);
+    await screen.findByText('Lulac Hacienda Apartments');
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    const panel = await screen.findByRole('dialog', { name: 'Filters' });
+    expect(panel.className).toContain('prj-pop');
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog', { name: 'Filters' })).toBeNull();
+  });
+
+  it('is a bottom sheet on a phone: shows the live count, applies a filter, survives taps inside it, and closes on the backdrop', async () => {
+    phone(true);
+    api.listLeads.mockResolvedValue({ items: [lead], counts: { new: 1 }, total: 312 });
+    render(<ProjectLeadsPage />);
+    await screen.findByText('Lulac Hacienda Apartments');
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Filters' });
+    expect(sheet.className).toContain('prj-sheet');
+    expect(document.body.style.position).toBe('fixed');                       // the page is locked behind it
+    expect(screen.getByRole('button', { name: 'Show 312 projects' })).toBeTruthy();
+    // A tap inside the sheet must not count as "outside" and close it.
+    fireEvent.mouseDown(screen.getByText('Filters'));
+    fireEvent.touchStart(screen.getByText('Filters'));
+    expect(screen.getByRole('dialog', { name: 'Filters' })).toBeTruthy();
+    // States is one dropdown that ticks several.
+    fireEvent.click(screen.getByRole('button', { name: /State.*All states/ }));
+    fireEvent.click(screen.getByLabelText(/Texas/));
+    await waitFor(() => expect(api.listLeads).toHaveBeenLastCalledWith(expect.objectContaining({ states: 'Texas' })));
+    expect(screen.getByRole('button', { name: /State.*Texas/ })).toBeTruthy();
+    expect((screen.getByRole('button', { name: 'Clear' }) as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Close filters' }));
+    expect(screen.queryByRole('dialog', { name: 'Filters' })).toBeNull();
+    expect(document.body.style.position).toBe('');                            // and the page is released
+  });
+
+  it('closes the phone sheet with Escape', async () => {
+    phone(true);
+    render(<ProjectLeadsPage />);
+    await screen.findByText('Lulac Hacienda Apartments');
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    await screen.findByRole('dialog', { name: 'Filters' });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Filters' })).toBeNull();
+  });
+});
+
+describe('State dropdown', () => {
+  it('ticks several states, says them on the closed field, and All / None set them in one go', async () => {
+    api.leadsMeta.mockResolvedValue({ ...meta, states: [{ name: 'Texas', count: 3 }, { name: 'Oregon', count: 2 }, { name: 'Utah', count: 1 }] });
+    render(<ProjectLeadsPage />);
+    await screen.findByText('Lulac Hacienda Apartments');
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    const trigger = await screen.findByRole('button', { name: /State.*All states/ });
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByLabelText(/Texas/));
+    fireEvent.click(screen.getByLabelText(/Oregon/));
+    await waitFor(() => expect(api.listLeads).toHaveBeenLastCalledWith(expect.objectContaining({ states: 'Texas,Oregon' })));
+    expect(screen.getByRole('button', { name: /State.*Texas \+ Oregon/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'All' }));
+    expect(screen.getByRole('button', { name: /State.*3 states/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'None' }));
+    await waitFor(() => expect(api.listLeads).toHaveBeenLastCalledWith(expect.objectContaining({ states: '' })));
   });
 });

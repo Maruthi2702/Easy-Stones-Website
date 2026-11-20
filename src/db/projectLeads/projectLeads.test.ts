@@ -62,11 +62,14 @@ describe('project leads data layer', () => {
   it('keeps a status and its history, counts per status, and filters by status and assignee', async () => {
     const saved = await updateLead('1001', { status: 'contacted', note: 'Left a voicemail', assignedTo: 'Krish' }, 'Krish', db);
     expect(saved).toMatchObject({ status: 'contacted', note: 'Left a voicemail', assignedTo: 'Krish', statusBy: 'Krish' });
-    expect(saved?.history).toHaveLength(1);
+    expect(saved?.history).toHaveLength(2);   // the status + note, and "Took this lead"
     expect(saved?.history[0]).toMatchObject({ by: 'Krish', status: 'contacted', note: 'Left a voicemail' });
-    // Assigning alone is not a history line.
-    expect((await updateLead('1001', { assignedTo: 'Sam' }, 'Krish', db))?.history).toHaveLength(1);
-    expect((await updateLead('1001', { status: 'samples' }, 'Sam', db))?.history).toHaveLength(2);
+    expect(saved?.history[1]).toMatchObject({ by: 'Krish', event: 'Took this lead' });
+    // Every take and release is a line, with the assignee's id kept beside the name.
+    const moved = await updateLead('1001', { assignedTo: 'Sam', assignedToId: 'u-sam' }, 'Krish', db);
+    expect(moved).toMatchObject({ assignedTo: 'Sam', assignedToId: 'u-sam' });
+    expect(moved?.history).toHaveLength(3);
+    expect((await updateLead('1001', { status: 'samples' }, 'Sam', db))?.history).toHaveLength(4);
     const c = await listLeads({ status: 'samples' }, db);
     expect(c.items.map(i => i.id)).toEqual(['1001']);
     expect(c.counts).toEqual({ samples: 1, new: 2 });   // counts ignore the status filter itself
@@ -83,7 +86,7 @@ describe('project leads data layer', () => {
     expect(done).toMatchObject({ projects: 2, added: 1, updated: 1 });
     const one = await getLead('1001', db);
     expect(one).toMatchObject({ title: 'Renamed', stage: 'Construction Underway', status: 'samples', assignedTo: 'Sam', note: 'Left a voicemail' });
-    expect(one?.history).toHaveLength(2);
+    expect(one?.history).toHaveLength(4);
     expect(one?.companies.map(c => c.name)).toEqual(['New Owner']);
     expect((await listLeads({}, db)).total).toBe(4);   // 1002 and 1003 weren't in this file and stay
   });
@@ -151,5 +154,23 @@ describe('preview and undo', () => {
     const b = await importProjects({ projects: [project('21')], fileName: 'd.xlsx', by: 'k' }, db);
     expect(await undoImport(a.importId, 'k', db)).toBeUndefined();
     expect(await undoImport(b.importId, 'k', db)).toMatchObject({ removed: 1 });
+  });
+});
+
+describe('releasing a lead', () => {
+  let client: PGlite, db: Db;
+  beforeAll(async () => {
+    client = new PGlite();
+    db = drizzle(client, { schema, casing: 'snake_case' }) as unknown as Db;
+    await migrateDb(db, 'pglite:memory');
+    await importProjects({ projects: [project('1')], fileName: 'a.xlsx', by: 'k' }, db);
+  }, 60_000);
+  afterAll(async () => { await client?.close(); });
+
+  it('clears the assignee and its id, and says who released it from whom', async () => {
+    await updateLead('1', { assignedTo: 'Sam', assignedToId: 'u-sam' }, 'Sam', db);
+    const out = await updateLead('1', { assignedTo: '' }, 'Max', db);
+    expect(out).toMatchObject({ assignedTo: '', assignedToId: '' });
+    expect(out?.history.map(h => [h.by, h.event])).toEqual([['Sam', 'Took this lead'], ['Max', 'Released from Sam']]);
   });
 });
