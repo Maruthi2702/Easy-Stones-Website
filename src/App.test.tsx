@@ -35,7 +35,7 @@ function page(path: string) { return render(<MemoryRouter initialEntries={[path]
 describe('App routes and authentication boundary', () => {
   it.each([
     ['/', 'Product collection'], ['/products', 'Product collection'], ['/product/lincoln', 'Product detail'],
-    ['/contact', 'Contact'], ['/warranty', 'Warranty'], ['/login', 'Portal login'], ['/customer/login', 'Portal login'],
+    ['/contact', 'Contact'], ['/warranty', 'Warranty'], ['/privacy', 'Privacy Policy'], ['/login', 'Portal login'], ['/customer/login', 'Portal login'],
     ['/admin/login', 'Staff login'], ['/set-password?token=invite', 'Invitation'], ['/admin/set-password?token=invite', 'Invitation'],
     ['/self-checkin', 'Self check-in']
   ])('opens public route %s', async (path, heading) => {
