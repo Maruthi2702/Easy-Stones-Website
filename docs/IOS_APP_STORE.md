@@ -12,6 +12,19 @@ The app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`). W
 5. Upload a build (Xcode → Product → Archive → Distribute) to **TestFlight**; staff try it.
 6. Staff and suppliers can use **TestFlight** meanwhile. ▶ For a permanent install, ask Apple for **unlisted app distribution** (their request form) — check that Apple offers it to an individual account — then submit for review.
 
+## Move to the company account (before staff and suppliers rely on the app)
+An app on a personal account stops working for everyone if that person leaves or stops paying ($99/yr): the app is
+removed and TestFlight ends. Do this before the public rollout; check Apple's current rules at each step.
+1. ▶ Get a **D-U-N-S number** for Easy Surfaces (free, days to weeks; Apple's lookup tool at
+   developer.apple.com/enroll/duns-lookup). The company's legal name is Easy Surfaces.
+2. ▶ Enrol the company as an **Organization** developer account (needs someone with legal authority and a company
+   website; Apple may phone to verify). Add at least two admins so no one person is a single point of failure.
+3. ▶ In App Store Connect (individual account) start an **App Transfer** to the company account; the company
+   accepts. Conditions apply (e.g. no version waiting in review) — see Apple's transfer requirements.
+4. After the transfer: the bundle ID `app.easysurfaces` stays; the Team ID changes, so send me the new one — I redo
+   signing, universal links (`apple-app-site-association`) and the APNs key under the new team.
+5. Until then use a shared company Apple ID rather than a personal one, and make sure a second person can sign in.
+
 ## What the build needs (done unless noted)
 - App icon and launch image: `node scripts/make-ios-icons.ts`. ▶ Replace `public/favicon.png` with a larger copy of the logo
   mark before submitting (the current one is 156 px tall, so the 1024 px icon is soft), then re-run it.
