@@ -8,7 +8,7 @@ const server = process.env.CAP_SERVER_URL || 'https://easystones.onrender.com'
 
 const config: CapacitorConfig = {
   appId: 'app.easysurfaces',
-  appName: 'Easy Stones',
+  appName: 'Easy Surfaces',
   webDir: 'dist',
   server: {
     url: server,

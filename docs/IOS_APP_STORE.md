@@ -1,4 +1,4 @@
-# Easy Stones iOS app — App Store checklist
+# Easy Surfaces iOS app — App Store checklist
 
 The app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`). Written 2026-11-19 on
 `feat/ios-app`; check each item against Apple's current rules when you reach it. **Owner steps are marked ▶.**
@@ -22,8 +22,8 @@ The app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`). W
 - Not done: universal links (invite links opening the app) and push notifications — both need the developer account.
 
 ## Listing text (edit freely)
-- **Name:** Easy Stones. **Subtitle:** Sales, deliveries and suppliers. **Category:** Business. **Age rating:** 4+.
-- **Description:** Easy Stones is the working app for Easy Stones staff and suppliers. Sales teams plan visits and routes, log
+- **Name:** Easy Surfaces. **Subtitle:** Sales, deliveries and suppliers. **Category:** Business. **Age rating:** 4+.
+- **Description:** Easy Surfaces is the working app for Easy Stones staff and suppliers. Sales teams plan visits and routes, log
   visits and scan business cards. Delivery and operations teams run the schedule, check-ins and daily reports. Suppliers
   upload bundle photos for their purchase orders in their own language. Staff whose role includes it can share their location
   during work hours so managers can see where the team is.
@@ -37,7 +37,7 @@ all for **App Functionality**: Contact Info (name, email); Precise Location; Pho
 Other User Content (notes, files, signatures); User ID; Identifiers/Usage (sign-in and last-active times). No advertising use.
 
 ## Notes for App Review (paste into the review notes)
-> Easy Stones is a private business app for the staff and suppliers of Easy Stones (our company); it is submitted under the account holder's name and the listing is unlisted. Sign in with the demo accounts
+> Easy Surfaces is a private business app for the staff and suppliers of Easy Stones (our company); it is submitted under the account holder's name and the listing is unlisted. Sign in with the demo accounts
 > below. The staff demo has location sharing turned on: after sign-in the app shows a consent screen explaining that location is
 > read in the background, 7 AM–6 PM on workdays, for the user's manager; accepting then triggers iOS's location prompt.
 > Background location is essential to this feature: managers use it to see where reps and drivers are during the workday. It

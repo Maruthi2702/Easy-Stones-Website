@@ -15,7 +15,7 @@ export default function PrivacyPage() {
         <h1>Privacy Policy</h1>
         <p className="privacy-updated">Last updated November 19, 2026</p>
         <p>
-          This policy explains what information the Easy Stones website and the Easy Stones app collect, why, who can see it and how long
+          This policy explains what information the Easy Stones website and the Easy Surfaces app collect, why, who can see it and how long
           we keep it. The app is for Easy Stones staff and for suppliers we work with.
         </p>
 
@@ -51,7 +51,7 @@ export default function PrivacyPage() {
 
         <h2>Your choices</h2>
         <ul>
-          <li>You can turn location off for Easy Stones at any time in iPhone Settings. Location sharing then stops; tell your manager if you do.</li>
+          <li>You can turn location off for Easy Surfaces at any time in iPhone Settings. Location sharing then stops; tell your manager if you do.</li>
           <li>To ask about, correct or delete your information, contact us through our <Link to="/contact">Contact page</Link>.</li>
         </ul>
 

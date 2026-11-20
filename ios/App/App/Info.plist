@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Easy Stones</string>
+	<string>Easy Surfaces</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,11 +27,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Easy Stones uses the camera to scan slab tags, receipts and business cards, and to take photos for visits, resources and deliveries.</string>
+	<string>Easy Surfaces uses the camera to scan slab tags, receipts and business cards, and to take photos for visits, resources and deliveries.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Easy Stones reads your location during work hours (7 AM to 6 PM on your workdays, on your branch time), including when the app is in the background, so your manager can see where you are on the job. Choose Always so it works when the app is closed.</string>
+	<string>Easy Surfaces reads your location during work hours (7 AM to 6 PM on your workdays, on your branch time), including when the app is in the background, so your manager can see where you are on the job. Choose Always so it works when the app is closed.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Easy Stones uses your location to show where you are on the route map and to record where a visit was logged.</string>
+	<string>Easy Surfaces uses your location to show where you are on the route map and to record where a visit was logged.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Choose photos and PDFs to attach to visits, resources and receipts.</string>
 	<key>UIApplicationSceneManifest</key>

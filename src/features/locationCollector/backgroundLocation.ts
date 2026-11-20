@@ -12,7 +12,7 @@ const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('Backg
 export async function startWatching(onLocation: (loc: PluginLocation) => void, onDenied: () => void): Promise<() => Promise<void>> {
   const id = await BackgroundGeolocation.addWatcher(
     {
-      backgroundTitle: 'Easy Stones',
+      backgroundTitle: 'Easy Surfaces',
       backgroundMessage: 'Sharing your location during work hours.',
       requestPermissions: true,
       stale: false,
