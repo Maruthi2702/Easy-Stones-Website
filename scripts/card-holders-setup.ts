@@ -29,17 +29,22 @@ const url = process.env.DATABASE_URL;
 if (!file || !url) { console.error('Usage: DATABASE_URL=… node scripts/card-holders-setup.ts holders.tsv [--apply]'); process.exit(1); }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z]/g, '');
-// Rows as the sheet has them (Sl.No, ID, Location, Name, Card ID, Mail …) or just Location, Name, Card ID, Email:
-// the Card ID is the cell like MARU92069, the name and location sit before it, the email after.
-// Rows marked Left or Inactive Card (and the "Left" list) are skipped.
-const isLabel = (c: string) => /^[A-Za-z]{3,6}\d{5}$/.test(c);
-const holders = fs.readFileSync(file, 'utf8').split(/\r?\n/).map(l => l.split('\t').map(c => c.trim()))
-  .filter(r => !r.some(c => /^(left|inactive card)$/i.test(c)))
-  .flatMap(r => {
-    const i = r.findIndex(isLabel);
-    if (i < 2 || !r[i - 1]) return [];
-    return [{ location: r[i - 2]!, name: r[i - 1]!, label: r[i]!.toUpperCase(), emails: String(r[i + 1] || '').split('/').map(e => e.trim().toLowerCase()).filter(e => e.includes('@')) }];
+// Rows as the sheet has them (Sl.No, ID, Location, Name, Card ID, Mail …), with tabs OR plain spaces (a terminal
+// paste turns tabs into spaces): the Card ID is the token like MARU92069; the words before it (after the leading
+// numbers) are "Location Name"; the emails are the tokens with an @ after it. Rows marked Left or Inactive Card,
+// and the header lines, are skipped.
+const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(l => l.trim());
+const holders = lines
+  .filter(l => !/\b(left|inactive card)\b/i.test(l))
+  .flatMap(l => {
+    const m = l.match(/(?:^|[\s\t])([A-Za-z]{3,6}\d{5})(?=[\s\t]|$)/);
+    if (!m || m.index === undefined) return [];
+    const before = l.slice(0, m.index).replace(/^[\s\d]+/, '').trim().replace(/\s+/g, ' ');
+    const emails = l.slice(m.index + m[0].length).split(/[\s\t/]+/).map(e => e.trim().toLowerCase()).filter(e => e.includes('@'));
+    return before ? [{ text: before, label: m[1]!.toUpperCase(), emails }] : [];
   });
+console.log(`Read ${lines.length} lines → ${holders.length} card holders.`);
+if (!holders.length) { console.error('No card holders found: each row needs a Card ID like MARU92069.'); process.exit(1); }
 
 // An email on several holders (an office mailbox) says nothing about who is who: only the name decides then.
 const mailCount = new Map<string, number>();
@@ -59,9 +64,9 @@ try {
     const digits = h.label.slice(-5);
     const own = h.emails.filter(e => mailCount.get(e) === 1);
     const byMail = people.filter(p => p.email && own.includes(p.email.toLowerCase()) && p.username !== 'admin');
-    const byName = people.filter(p => norm(p.name) === norm(h.name) && p.username !== 'admin');
+    const byName = people.filter(p => norm(p.name).length > 3 && norm(h.text).endsWith(norm(p.name)) && p.username !== 'admin');
     const found = byMail.length === 1 ? byMail : byName.length ? byName : byMail;
-    const tag = `${h.label.padEnd(10)} ${h.name} (${h.location})`;
+    const tag = `${h.label.padEnd(10)} ${h.text}`;
     if (found.length === 0) { tally.none += 1; console.log(`✗ NO LOGIN      ${tag} — no staff login with that email or name`); continue; }
     if (found.length > 1) { tally.many += 1; console.log(`✗ SEVERAL       ${tag} — ${found.map(p => `${p.name} <${p.email}>`).join('; ')}`); continue; }
     const p = found[0]!;
@@ -70,7 +75,7 @@ try {
     if (usedLabel.has(h.label) || usedDigits.has(digits)) { tally.clash += 1; console.log(`✗ CARD IN USE   ${tag} — ${usedDigits.get(digits) || h.label} is another person's`); continue; }
     const checked = cleanCard({ userId: p.id, issuer: 'amex', lastDigits: digits, label: h.label });
     if (!checked.value) { tally.clash += 1; console.log(`✗ BAD CARD      ${tag} — ${Object.values(checked.problems).join(', ')}`); continue; }
-    const flag = [p.active ? '' : ' [login is deactivated]', p.name && norm(p.name) !== norm(h.name) ? ` [login name: ${p.name}]` : ''].join('');
+    const flag = [p.active ? '' : ' [login is deactivated]', ].join('');
     console.log(`${apply ? '+ CREATED' : '· would create'}  ${tag} → ${p.name} (by ${how})${flag}`);
     if (apply) await addCard(d, newId(), { ...checked.value, active: true, updatedBy: 'card-holders-setup' });
     usedLabel.add(h.label); usedDigits.set(digits, h.label); haveUser.set(p.id, h.label);
