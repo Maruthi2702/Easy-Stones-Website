@@ -1,11 +1,11 @@
 /**
  * Location on the Route Planner, without asking on every visit.
  *
- * Since 2026-11-19 staff are also asked once when they open the app
- * (src/features/location/LocationGate.tsx), because every new visit and resource
- * must carry a reading. Everything below still holds: the browser's permission
- * belongs to the whole site, so once it's allowed the planner follows quietly,
- * and the map itself still never prompts.
+ * Every new visit and resource must carry a reading (src/features/location/), and the
+ * form that adds one asks for it when it opens. (An "Allow location" sheet on opening
+ * the app existed 2026-11-19 to 2026-11-20 and was removed at the owner's request.)
+ * Everything below still holds: the browser's permission belongs to the whole site,
+ * so once it's allowed the planner follows quietly, and the map itself still never prompts.
  *
  * The browser owns the permission (a website can't grant itself location, or
  * keep it past what the browser allows), so this does the two things that are

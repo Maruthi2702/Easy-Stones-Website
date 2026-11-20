@@ -132,7 +132,7 @@ describe('admin nav order', () => {
       ['products', ['pricelist', 'inventory_analysis', 'crossover_sheet', 'incoming_material', 'live_inventory']],
       ['purchasing', ['supplier_pos']],
       ['accounting', ['freight', 'fuel_man']],
-      ['admin', ['users', 'roles', 'locations', 'visit_types', 'resource_types', 'receipt_categories', 'nav_order']]
+      ['admin', ['users', 'roles', 'locations', 'visit_types', 'resource_types', 'receipt_categories', 'team_location', 'nav_order']]
     ]);
   });
 

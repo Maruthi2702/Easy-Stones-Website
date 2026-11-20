@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import type { Loose } from './types/records.ts';
 import React, { Suspense, useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
@@ -5,6 +6,8 @@ import { CheckCircle, AlertTriangle, Info } from 'lucide-react';
 import Header from './components/Header';
 import AuthRecovery from './components/AuthRecovery';
 import PresenceReporter from './components/PresenceReporter';
+import LocationCollector from './features/locationCollector/LocationCollector';
+import { NativeLinks, PushRegistrar } from './features/nativeApp';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import { useAuth } from './context/AuthContext';
@@ -20,6 +23,7 @@ const HomePage = lazyRetry(() => import('./pages/HomePage'));
 const ProductDetail = lazyRetry(() => import('./pages/ProductDetail'));
 const ContactPage = lazyRetry(() => import('./pages/ContactPage'));
 const WarrantyPage = lazyRetry(() => import('./pages/WarrantyPage'));
+const PrivacyPage = lazyRetry(() => import('./pages/PrivacyPage'));
 const CustomerLoginPage = lazyRetry(() => import('./pages/CustomerLoginPage'));
 const SalesPage = lazyRetry(() => import('./pages/SalesPage'));
 const AdminPage = lazyRetry(() => import('./pages/AdminPage'));
@@ -60,6 +64,9 @@ const HomeRedirect = () => {
   if (isCheckInOnly(user)) {
     return <Navigate to="/checkin" replace />;
   }
+
+  // The installed iOS app is for staff and suppliers: signed out, it opens on sign-in, not the public site.
+  if (Capacitor.isNativePlatform()) return <Navigate to="/login" replace />;
 
   return <HomePage />;
 };
@@ -164,6 +171,9 @@ function App() {
       <ProductProvider>
         <div className="app">
           <PresenceReporter />
+          <LocationCollector />
+          <NativeLinks />
+          <PushRegistrar />
           <ScrollToTop />
           <div className="bg-gradient"></div>
           {!hideHeader && <Header />}
@@ -189,6 +199,7 @@ function App() {
                   <Route path="/product/:productId" element={<ProductDetail />} />
                   <Route path="/contact" element={<ContactPage />} />
                   <Route path="/warranty" element={<WarrantyPage />} />
+                  <Route path="/privacy" element={<PrivacyPage />} />
                   <Route path="/login" element={<CustomerLoginPage />} />
                   <Route path="/customer/login" element={<CustomerLoginPage />} />
 

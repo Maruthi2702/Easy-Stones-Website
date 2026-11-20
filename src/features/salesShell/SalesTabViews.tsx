@@ -13,6 +13,7 @@ import { PERMITS } from '../../permits/permissions';
 import { canViewProjectLeads } from '../../utils/projectLeadAccess';
 import { canOpenReceipts, canOpenCategories } from '../../utils/cardReceipts';
 import { canOpenSupplierPos, canSeeIncoming } from '../../utils/supplierAccess';
+import { canViewTeamLocations } from '../../utils/locationTracking';
 import { TeamFilesPage } from '../teamFiles';
 import type { TeamFiles } from '../teamFiles';
 import type { Loose } from '../../types/records';
@@ -42,6 +43,7 @@ const PaymentsPage = page(() => import('../payments/PaymentsPage'));
 const FuelManPage = page(() => import('../fuelman'));
 const CardReceiptsPage = page(() => import('../cardReceipts/CardReceiptsPage'));
 const ReceiptCategoriesPage = page(() => import('../cardReceipts/categories/ReceiptCategoriesPage'));
+const TeamLocationPage = page(() => import('../teamLocation/TeamLocationPage'));
 const SupplierPosPage = page(() => import('../suppliers/SupplierPosPage'));
 const IncomingMaterialPage = page(() => import('../suppliers/incoming/IncomingMaterialPage'));
 const FreightTab = page(() => import('../freight/FreightTab'));
@@ -71,6 +73,8 @@ export type SalesTabViewsProps = {
     isDropdownLoading: boolean;
     inventoryRefreshSignal: number;
     navOrder: unknown;
+    /** The profile page's ✕: back to the home page. */
+    onCloseProfile: () => void;
     onSaveNavOrder: (order: import('../../utils/navPins').NavOrder | null) => unknown;
     canSeeHolds: boolean;
     /** Route Planner: mounted on its first visit and kept (hidden) after. */
@@ -149,7 +153,7 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
 
             {ready && crmTab === 'profile' && (
                 <ErrorBoundary key="user-profile-view">
-                    <UserProfileTab sidebarToggle={menu()} theme={theme} />
+                    <UserProfileTab sidebarToggle={menu()} theme={theme} onClose={p.onCloseProfile} />
                 </ErrorBoundary>
             )}
 
@@ -236,6 +240,14 @@ export default function SalesTabViews(p: SalesTabViewsProps) {
                 <ErrorBoundary key="receipt-categories-view">
                     <Suspense fallback={<TabLoader />}>
                         <ReceiptCategoriesPage currentUser={currentUser} sidebarToggle={menu()} />
+                    </Suspense>
+                </ErrorBoundary>
+            )}
+
+            {ready && crmTab === 'team_location' && canViewTeamLocations(currentUser) && (
+                <ErrorBoundary key="team-location-view">
+                    <Suspense fallback={<TabLoader />}>
+                        <TeamLocationPage currentUser={currentUser} sidebarToggle={menu()} isActive />
                     </Suspense>
                 </ErrorBoundary>
             )}

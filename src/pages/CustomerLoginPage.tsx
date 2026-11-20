@@ -4,7 +4,22 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, Sun, Moon, AlertCircle, WifiOff, ArrowBigUp } from 'lucide-react';
 import { API_URL } from '../config/api';
 import { useAuth } from '../context/AuthContext';
+import { trySupplierSignIn } from './supplierSignInFallback';
 import './CustomerLoginPage.css';
+
+/** True when the text was a supplier's login (signed in, or told why not). */
+async function signedInAsSupplier(
+    identifier: string,
+    password: string,
+    fail: (field: string | null, message: string) => void,
+    navigate: (to: string, options?: { replace?: boolean }) => void
+): Promise<boolean> {
+    const result = await trySupplierSignIn(identifier, password);
+    if (result === 'nomatch') return false;
+    if (result === 'ok') navigate('/supplier', { replace: true });
+    else fail(null, result);
+    return true;
+}
 
 /**
  * The one door into the portal — trade customers and staff sign in here and are
@@ -152,6 +167,8 @@ const CustomerLoginPage = () => {
                 if (!(await startPasswordSetup())) {
                     fail(null, 'Couldn’t finish signing in. Please try again.');
                 }
+            } else if (response.status === 401 && await signedInAsSupplier(formData.email, formData.password, fail, navigate)) {
+                // A supplier's login (their email): their own session, their own portal.
             } else {
                 // The server returns one message for both a bad account and a bad
                 // password on purpose — don't guess which, but do say what to do next.

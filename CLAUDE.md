@@ -283,7 +283,8 @@ types keep the reading as `recorded` (no verdict); a customer with no pin is `no
 `0016`; a resource's reading rides on its placement visit) and an edit can't send or change it. The screens:
 `src/features/location/` — `useLocationReading` (starts when Add visit / Add resource / Log call opens, retries, follows the
 browser's permission), `LocationLine`, `LocationBlocked` (replaces the form with the steps to turn location on), and
-`LocationGate`, the sheet staff get **when they open the app** (`SalesPage`), so it is already allowed; Save stays locked
+(there is **no** "Allow location" sheet when the app opens — `LocationGate` existed 2026-11-19 to 2026-11-20 and the owner had it
+removed, website and iOS app; the browser or iOS asks the first time Add visit / Add resource opens); Save stays locked
 until a reading is in, and edits ask for nothing. `geolocationAccess.ts` still owns the Route Planner's quiet follow.
 A web app can't tell "allow once" from "always", can't read in the background and can't re-prompt after a block.
 **Step 2 (on `feat/visit-location-marks`):** Users & Roles → Visits → **Where logged** (`see_visit_locations`, given once
@@ -594,6 +595,55 @@ opened by `view_dashboard`; `src/features/teamFiles/`). The page is the old
 list and pop-ups unchanged; the redesign on the **Team Files Page Canvas**
 (https://claude.ai/artifact/NRBYg5zf4Ycw8NCuMrpd97 — tree, preview, pinning,
 size, own permissions) is not built.
+
+## iOS app and Team Location (2026-11-19, on `feat/ios-app`)
+
+The iOS app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`; it loads the site so the
+sign-in cookies stay first-party). The app is named **Easy Surfaces** (bundle ID `app.easysurfaces`); the company is Easy Surfaces, doing business as Easy Stones, and the website keeps the Easy Stones name. **One sign-in** for staff and suppliers: `/login` tries the staff sign-in, and
+only on "invalid credentials" with an `@` asks the supplier portal (`pages/supplierSignInFallback.ts`); the two
+sessions stay separate. **Location tracking** is `src/utils/locationTracking.ts` (tested): 7 AM–6 PM on the person's workdays
+on their **branch clock** — **workdays** = Monday–Friday, minus a day they logged **Personal Time Off**, plus a
+Saturday / Sunday when they have a non-cancelled calendar entry or (a driver) a delivery on their `drv_<username>`
+column (`DayFacts`, read per request by `src/db/locationPoints/workDays.ts`; an In-office admin day is a normal workday) — enforced by the server (`POST /api/location-tracking/points` drops anything
+outside) as well as the app; kept 90 days (`src/jobs/locationRetention.ts`); table `location_points`
+(Postgres only, with `location_consents`: migration `0017_location_tracking`). Switches on
+Users & Roles → **Location Tracking**: `track_location` (that role is tracked) and `view_team_locations` (sees the
+tracked people on their team, by `teamScope.ts`; others answer 404). Nobody holds either until an admin ticks it.
+**Admin → Team Location** (`src/features/teamLocation/`, nav `team_location`) is the manager's screen: people
+with last seen, a Google map, and one person's trail for a day. **The phone collector** (`src/features/locationCollector/`, mounted in App.tsx): only in the iOS app, only for a
+staff login whose role has `track_location`; consent screen first (`CONSENT_VERSION` — bump it when the wording
+changes), then the community background-geolocation plugin collects inside 7–6 (a point per 45 s), unsent points
+queue in localStorage per person and go in batches of up to 200, "Location on until 6 PM" pill, Settings prompt
+when iOS location is off. Info.plist has the Always / When-in-use text and `UIBackgroundModes` location. **Never
+run on a real phone yet** — test a full day on an iPhone. **Consent is recorded on the server** (`location_consents`, one row per person per
+`CONSENT_VERSION` — bump it in `utils/locationTracking.ts` when the wording changes): Allow calls
+`POST /api/location-tracking/consent`, the server refuses a person's points (403 code `consent`) until the row
+exists, `/status` says `consented`, and Team Location shows "Hasn't agreed to share location yet". The record is
+never deleted with the points. Not built: universal links and push (need the Apple
+developer account).
+
+**Locate now — outside the window, only when an admin asks (2026-11-20, on `feat/locate-on-request`).** The owner
+first wanted continuous 24/7 tracking of everyone with the app, including personal phones; I advised against it
+(privacy law, App Review, HR's sign-off covers 7–6 only) and they chose **location after 6 PM only when an admin
+requests it**. Rules `src/utils/locationRequests.ts` (tested): switch `locate_on_request` (Users & Roles → Location
+Tracking → **Locate on request**, nobody holds it until ticked); the person must be tracked, on the asker's team
+(404 otherwise) and have agreed to the **current** wording (`CONSENT_VERSION` is now **2**: it says an authorised
+manager can ask the phone for its location once, with a reason, outside work hours — everyone is asked again); a
+**reason of 5–200 characters is required** and kept; one open ask per person (15-minute `REQUEST_TTL_MS`, then it
+expires); you can't ask about yourself. Routes `src/routes/locationRequests.ts` (tested): `POST /locate`,
+`GET /locate?userId=` (the log), `GET /locate/:id`, and for the phone `GET /locate/pending` (who asked and when —
+**never the reason**) and `POST /locate/:id/answer`. The answer is kept **with the ask** in `location_requests`
+(migration `0019`, `src/db/locationPoints/requests.ts`, 90-day cleanup with the points) and **never in
+`location_points`**, so ordinary points are still dropped outside 7–6. The person gets an alert push when asked
+(`askedNotice`, via `sendPushToUsers`; nothing if APNs isn't set up) and sees "Location sent to …" on the phone after
+it answers. Phone: `useLocateRequests` (in `LocationCollector`) answers an open ask whenever the app is in front —
+at start, on resume, on the ask's push, every minute — with one `@capacitor/geolocation` reading
+(`answerRequests.ts`, tested). Admin: Team Location's **Locate now** button (greyed until the person has agreed to
+the current wording), `LocateDialog` (FormModal S, reason required), a status line while it waits (checked every 4 s),
+the answer as a blue ring on the map, and the person's log of asks. **Not built / limits:** a *silent* push that
+wakes a closed app to answer — iOS doesn't guarantee background wake, so an ask to a force-quit or Low Power phone
+stays "Waiting" until the app is next opened (that needs native Swift in `AppDelegate` and a real iPhone with the
+APNs key; the next phase). New HR / legal sign-off should cover the changed wording before this goes live.
 
 ## Phone tab bar (2026-10-18)
 
@@ -1331,7 +1381,7 @@ Sales → **Project Leads** (`src/features/projectLeads/`, nav `project_leads`):
 from a ConstructConnect export (apartments, single family, townhomes; first file "Construct Connect
 Data 6-25-26", 2,195 projects / 18.5k companies) with the owner, developer, architect, designer and
 contractor on each, so sales can phone or email them to onboard or send samples. **Postgres only**
-(new tables `project_leads`, `project_lead_companies`, `project_lead_imports`, migration `0017`,
+(new tables `project_leads`, `project_lead_companies`, `project_lead_imports`, migration `0020`,
 data layer `src/db/projectLeads/`; no link to a copied table, so the Mongo copy never touches them).
 Rules are `src/utils/projectLeads.ts` (tested): the export's "Design Team" sheet is one row per
 company per project; `roleGroup` sorts roles into owner / architect / designer / contractor / other
