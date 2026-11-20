@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MapPin } from 'lucide-react';
+import { MapPin, Clock, Users } from 'lucide-react';
 import { locationPermission, locationWasOk, rememberPosition } from '../../utils/geolocationAccess';
 import { readOnce } from './readPosition';
 import './Location.css';
@@ -44,19 +44,18 @@ export default function LocationGate() {
 
   return (
     <div className="fm-tokens">
-      <div className="fm-sheet-backdrop loc-gate-backdrop" onClick={close} aria-hidden="true" />
-      <div className="fm-sheet loc-gate" role="dialog" aria-modal="true" aria-labelledby="loc-gate-title">
-        <div className="loc-gate-body">
-          <span className="loc-big"><MapPin size={22} aria-hidden="true" /></span>
-          <h3 id="loc-gate-title">Allow location</h3>
-          <ul>
-            <li>Every visit and resource you add records where you are.</li>
-            <li>Only at that moment. Never in the background, never between visits.</li>
-            <li>You and your manager see "On site" or how far away it was.</li>
-          </ul>
-          <button type="button" className="fm-btn fm-btn-primary" onClick={allow} disabled={asking}>{asking ? 'Waiting…' : 'Turn on location'}</button>
-          <button type="button" className="loc-retry loc-gate-skip" onClick={close}>Not now</button>
-        </div>
+      <div className="lg-scrim" onClick={close} aria-hidden="true" />
+      <div className="lg-sheet" role="dialog" aria-modal="true" aria-labelledby="lg-title">
+        <span className="lg-grab" aria-hidden="true" />
+        <span className="lg-icon"><MapPin size={26} aria-hidden="true" /></span>
+        <h2 className="lg-title" id="lg-title">Allow location</h2>
+        <p className="lg-lead">Every visit and resource you add records where you were.</p>
+        <ul className="lg-points">
+          <li><Clock size={18} aria-hidden="true" /><span>Only at the moment you add one. Never in the background.</span></li>
+          <li><Users size={18} aria-hidden="true" /><span>You and your manager see "On site" or how far away it was.</span></li>
+        </ul>
+        <button type="button" className="fm-btn fm-btn-primary lg-go" onClick={allow} disabled={asking}>{asking ? 'Waiting…' : 'Turn on location'}</button>
+        <button type="button" className="lg-skip" onClick={close}>Not now</button>
       </div>
     </div>
   );
