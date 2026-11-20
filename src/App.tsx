@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import type { Loose } from './types/records.ts';
 import React, { Suspense, useState, useEffect } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
@@ -63,6 +64,9 @@ const HomeRedirect = () => {
   if (isCheckInOnly(user)) {
     return <Navigate to="/checkin" replace />;
   }
+
+  // The installed iOS app is for staff and suppliers: signed out, it opens on sign-in, not the public site.
+  if (Capacitor.isNativePlatform()) return <Navigate to="/login" replace />;
 
   return <HomePage />;
 };

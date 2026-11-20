@@ -345,3 +345,32 @@
 
 
 
+
+/* Phone / tablet header: one row — icon and title on the left, the ✕ in the top right corner.
+   The Check-In Log's rules this header shares stack it in a column with !important, so these win by specificity. */
+@media (max-width: 1024px) {
+    .user-profile-page-container.clp-root .clp-panel-header {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 0.75rem !important;
+    }
+    .user-profile-page-container.clp-root .clp-header-left {
+        display: flex !important;
+        flex: 1 1 auto !important;
+        flex-direction: row !important;
+        justify-content: flex-start !important;
+        align-items: center !important;
+        width: auto !important;
+        min-width: 0 !important;
+        gap: 0.6rem !important;
+    }
+    .user-profile-page-container.clp-root .clp-header-actions {
+        flex: none !important;
+        width: auto !important;
+        margin: 0 !important;
+        justify-content: flex-end !important;
+    }
+}

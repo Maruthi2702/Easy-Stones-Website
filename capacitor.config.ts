@@ -17,7 +17,9 @@ const config: CapacitorConfig = {
     allowNavigation: [new URL(server).host],
   },
   ios: {
-    contentInset: 'never',
+    contentInset: 'always',
+    // The site scrolls inside its own panels; the outer web view must not rubber-band under them.
+    scrollEnabled: false,
     backgroundColor: '#000000',
   },
   plugins: {

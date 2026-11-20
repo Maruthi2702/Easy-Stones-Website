@@ -378,6 +378,7 @@ const SalesPage = () => {
                     isDropdownLoading={isDropdownLoading}
                     inventoryRefreshSignal={inventoryAnalysisRefreshTrigger}
                     navOrder={navOrder}
+                    onCloseProfile={handleGoHome}
                     onSaveNavOrder={saveNavOrder}
                     canSeeHolds={canSeeHolds}
                     routePlannerOpened={routePlannerOpened}

@@ -1,13 +1,14 @@
 import type { Loose } from '../../types/records.ts';
 import React, { useState } from 'react';
-import { User, Lock, Shield, MapPin, Eye, EyeOff, Loader2, LayoutDashboard } from 'lucide-react';
+import { User, Lock, Shield, MapPin, Eye, EyeOff, Loader2, LayoutDashboard, X } from 'lucide-react';
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { setAuthToken } from '../../api/authToken';
 import { useAuth } from '../../context/AuthContext';
+import '../shared/form/FormModal.css';
 import './UserProfileTab.css';
 
-const UserProfileTab = ({ sidebarToggle, theme }: { sidebarToggle?: React.ReactNode; theme?: string }) => {
+const UserProfileTab = ({ sidebarToggle, theme, onClose }: { sidebarToggle?: React.ReactNode; theme?: string; onClose?: () => void }) => {
     const { user } = useAuth();
     const [formData, setFormData] = useState({
         currentPassword: '',
@@ -99,6 +100,13 @@ const UserProfileTab = ({ sidebarToggle, theme }: { sidebarToggle?: React.ReactN
                     </div>
                 </div>
                 <div className="clp-header-actions">
+                    {onClose && (
+                        <span className="fm-tokens" style={{ display: 'contents' }}>
+                            <button type="button" className="fm-close" aria-label="Close" title="Close" onClick={onClose}>
+                                <X size={18} strokeWidth={2.4} aria-hidden="true" />
+                            </button>
+                        </span>
+                    )}
                 </div>
             </div>
 

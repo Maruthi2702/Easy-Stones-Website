@@ -23,7 +23,7 @@ const base = (over: Record<string, unknown> = {}) => ({
   ready: true, crmTab: 'pricelist', currentUser: { permissions: ['view_pricelist', 'view_route_planner'] }, theme: 'light',
   isSidebarOpen: false, isMobile: false, onOpenSidebar: vi.fn(), onToggleSidebar: vi.fn(),
   checkInLog: {} as never, locations: [], fetchLocations: () => {}, customersList: [], customerOptions: [], isDropdownLoading: false,
-  inventoryRefreshSignal: 0, navOrder: null, onSaveNavOrder: () => {}, canSeeHolds: false, routePlannerOpened: false, routePreselect: null,
+  inventoryRefreshSignal: 0, navOrder: null, onCloseProfile: () => {}, onSaveNavOrder: () => {}, canSeeHolds: false, routePlannerOpened: false, routePreselect: null,
   canAddVisits: true, onGoHome: () => {}, onOpenCustomer: () => {}, onCreatePrefilledCustomer: null, onAddVisitForPin: () => {}, onAddResourceForPin: () => {},
   teamFiles: {} as never,
   ...over
