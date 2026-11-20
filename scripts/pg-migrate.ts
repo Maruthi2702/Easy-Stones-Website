@@ -29,8 +29,12 @@ try {
   console.log(`Applied: ${done} of ${journal.entries.length}. Pending: ${pending.length ? pending.join(', ') : 'none'}.`);
   if (apply && pending.length) {
     await migrateDb(db, url);
-    console.log('Applied. Tables now present:');
-    const t = await db.execute(sql`SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name LIKE 'customer_sales%' ORDER BY 1`);
-    for (const row of (t as unknown as { rows: { table_name: string }[] }).rows) console.log(' -', row.table_name);
+    // The tables the applied migrations create, each checked against the database.
+    const created = pending.flatMap(tag => [...fs.readFileSync(path.join('drizzle', `${tag}.sql`), 'utf8')
+      .matchAll(/CREATE TABLE (?:IF NOT EXISTS )?"(?:public"\.")?([a-z0-9_]+)"/gi)].map(m => m[1]!));
+    const t = await db.execute(sql`SELECT table_name FROM information_schema.tables WHERE table_schema='public'`);
+    const present = new Set((t as unknown as { rows: { table_name: string }[] }).rows.map(r => r.table_name));
+    console.log(created.length ? 'Applied. Tables they create:' : 'Applied. (They create no new tables.)');
+    for (const name of created) console.log(' -', name, present.has(name) ? '✓' : '✗ MISSING');
   } else if (!apply && pending.length) console.log('Dry run: nothing changed. Re-run with --apply to apply them.');
 } finally { await close(); }
