@@ -2,6 +2,7 @@ import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import { queryEntries, type ErrorBody, type Query } from '../../types/api';
 import type { ExpenseInput } from '../../utils/cardReceipts';
+import type { ReceiptScan } from '../../utils/receiptScan';
 import type { Card, Category, Expense, Me, Person } from './types';
 
 /**
@@ -40,6 +41,8 @@ export const approveExpense = (id: string, comment: string) => call<{ expense: E
 export const sendBackExpense = (id: string, comment: string) => call<{ expense: Expense }>(`/expenses/${id}/send-back`, { method: 'POST', body: { comment } });
 export const voidExpense = (id: string, reason: string) => call<{ expense: Expense }>(`/expenses/${id}/void`, { method: 'POST', body: { reason } });
 export const uploadReceipt = (data: string) => call<{ url: string }>('/attachments', { method: 'POST', body: { data } });
+/** What Claude read off an uploaded receipt (src/routes/cardReceiptScan.ts). Throws (status 503) when reading isn't set up. */
+export const scanReceipt = (url: string) => call<{ scan: ReceiptScan }>('/scan', { method: 'POST', body: { url } });
 
 export const listCategories = () => call<{ categories: Category[] }>('/categories');
 export const addCategory = (body: Pick<Category, 'label' | 'fields'>) => call<{ category: Category }>('/categories', { method: 'POST', body });

@@ -11,7 +11,7 @@ export const staff = {
     'view_crossover_sheet', 'view_lost_sales', 'view_daily_report', 'view_delivery_schedule', 'view_checkins',
     'create_checkins', 'view_payments', 'view_fuel_man', 'view_freight_charges', 'view_all_holds',
     'view_route_planner', 'manage_users', 'manage_type_lists', 'edit_nav_order', 'view_purchasing',
-    'use_card_receipts', 'view_all_card_receipts', 'approve_card_receipts', 'manage_company_cards', 'add_receipt_categories']
+    'use_card_receipts', 'view_all_card_receipts', 'approve_card_receipts', 'manage_company_cards', 'add_receipt_categories', 'check_amex_statements']
 };
 
 /** Deterministic API boundary: no production backend, account, or database. */

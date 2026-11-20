@@ -24,6 +24,13 @@ services:
       # VITE_FILES_CDN_URL is read at build time (redeploy after changing it).
       - key: FILE_STORE
         sync: false
+      # Credit Card Receipts → reading a receipt with Claude (src/services/receiptScan.ts).
+      # No key = no reading (the form works as before). RECEIPT_SCAN_MODEL is optional
+      # (default claude-opus-5-5); compare models with scripts/receipt-scan-test.ts first.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RECEIPT_SCAN_MODEL
+        sync: false
       - key: FILES_BUCKET
         sync: false
       - key: FILES_CDN_URL

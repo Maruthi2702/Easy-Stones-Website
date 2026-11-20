@@ -40,6 +40,8 @@ export const projectLeads = pgTable('project_leads', {
   // What staff add (never written by an import).
   status: text('status').notNull().default('new'),
   assignedTo: text('assigned_to').notNull().default(''),
+  /** The assignee's user id: "their superior" is worked out from it (src/utils/projectLeadAccess.ts). */
+  assignedToId: text('assigned_to_id').notNull().default(''),
   note: text('note').notNull().default(''),
   statusBy: text('status_by').notNull().default(''),
   statusAt: moment('status_at'),
@@ -81,5 +83,19 @@ export const projectLeadImports = pgTable('project_lead_imports', {
   added: integer('added').notNull(),
   updated: integer('updated').notNull(),
   importedBy: text('imported_by').notNull().default(''),
-  importedAt: moment('imported_at').notNull().defaultNow()
+  importedAt: moment('imported_at').notNull().defaultNow(),
+  /** Set when the import was undone (only the latest import can be). */
+  undoneAt: moment('undone_at'),
+  undoneBy: text('undone_by').notNull().default('')
 });
+
+/**
+ * What each project looked like just before an import touched it, so the latest import can be undone:
+ * `previous` is null when the import added the project, else { lead, companies } (the file-owned
+ * columns and the company rows). Only the latest import's backups are kept.
+ */
+export const projectLeadImportBackups = pgTable('project_lead_import_backups', {
+  importId: text('import_id').notNull().references(() => projectLeadImports.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull(),
+  previous: jsonb('previous')
+}, t => [primaryKey({ columns: [t.importId, t.projectId] })]);

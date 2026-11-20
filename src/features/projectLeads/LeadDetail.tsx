@@ -9,7 +9,6 @@ import {
 
 type Props = {
   lead: Lead;
-  me: string;
   canEdit: boolean;
   onChanged: (lead: Lead) => void;
   onClose: () => void;
@@ -48,7 +47,7 @@ function CompanyCard({ lead, c, onCreateCustomer }: { lead: Lead; c: LeadCompany
 }
 
 /** One project: its status, who has it and a note (saved to its history), the facts, and every company with a way to reach them. */
-export default function LeadDetail({ lead, me, canEdit, onChanged, onClose, onCreateCustomer = null }: Props) {
+export default function LeadDetail({ lead, canEdit, onChanged, onClose, onCreateCustomer = null }: Props) {
   const [note, setNote] = useState(lead.note);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -90,7 +89,6 @@ export default function LeadDetail({ lead, me, canEdit, onChanged, onClose, onCr
     ['Listed', formatDayShort(lead.listedOn)],
     ['Updated', formatDayShort(lead.updatedOn)]
   ];
-  const mine = !!me && lead.assignedTo === me;
 
   return (
     <div className="prj-drawer-wrap">
@@ -119,14 +117,25 @@ export default function LeadDetail({ lead, me, canEdit, onChanged, onClose, onCr
                 </button>
               ))}
             </div>
-            <div className="prj-assign">
-              <span className="prj-muted">{lead.assignedTo ? `With ${lead.assignedTo}` : 'Nobody has this lead'}</span>
-              {canEdit && me ? (
-                <button type="button" className="prj-btn sm" disabled={!!busy} onClick={() => save('assign', { assignedTo: mine ? '' : me })}>
-                  {busy === 'assign' ? <Loader2 size={14} className="prj-spin" aria-hidden="true" /> : null}{mine ? 'Release' : 'Take this lead'}
+            <div className={`prj-assign${lead.assignedTo ? ' has' : ''}`}>
+              <UserRound size={18} aria-hidden="true" />
+              <span className="prj-assign-text">
+                <span className="prj-assign-label">{lead.assignedTo ? 'Lead is with' : 'Nobody has this lead'}</span>
+                {lead.assignedTo ? <strong>{lead.assignedTo}</strong> : null}
+              </span>
+              {lead.canRelease ? (
+                <button type="button" className="prj-btn sm" disabled={!!busy} onClick={() => save('assign', { assignedTo: '' })}>
+                  {busy === 'assign' ? <Loader2 size={14} className="prj-spin" aria-hidden="true" /> : null}Release
+                </button>
+              ) : lead.canTake ? (
+                <button type="button" className="prj-btn sm prj-primary" disabled={!!busy} onClick={() => save('assign', { assignedTo: 'me' })}>
+                  {busy === 'assign' ? <Loader2 size={14} className="prj-spin" aria-hidden="true" /> : null}Take this lead
                 </button>
               ) : null}
             </div>
+            {lead.assignedTo && canEdit && !lead.canRelease ? (
+              <p className="prj-muted prj-assign-hint">Only {lead.assignedTo} or their manager can release this lead.</p>
+            ) : null}
             <label className="prj-note">
               <span>Note</span>
               <textarea value={note} rows={3} maxLength={2000} disabled={!canEdit} onChange={(e) => setNote(e.target.value)}
@@ -171,7 +180,9 @@ export default function LeadDetail({ lead, me, canEdit, onChanged, onClose, onCr
               <ol className="prj-history">
                 {[...lead.history].reverse().map((h, i) => (
                   <li key={`${h.at}-${i}`}>
-                    <span className={`prj-pill ${h.status}`}>{STATUS_LABELS[h.status] ?? h.status}</span>
+                    {h.event
+                      ? <span className="prj-event">{h.event}</span>
+                      : <span className={`prj-pill ${h.status}`}>{STATUS_LABELS[h.status] ?? h.status}</span>}
                     <span className="prj-muted">{h.by} · {new Date(h.at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
                     {h.note ? <p>{h.note}</p> : null}
                   </li>

@@ -81,7 +81,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
 
   return {
     me, month, setMonth, expenses, waiting, loading: loading || !me, error, viewAll, approver,
-    reload: () => { load(); loadWaiting(); }, add, edit, approve, sendBack, voidOne, upload: api.uploadReceipt
+    reload: () => { load(); loadWaiting(); }, add, edit, approve, sendBack, voidOne, upload: api.uploadReceipt, scan: api.scanReceipt
   };
 }
 

@@ -9,6 +9,7 @@ import { DatePicker } from '../../../components/shared/calendar/Calendar';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
 import { centsText, cleanExpense, fieldsOf, formatMoney, missingLine, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
+import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
 import { isPdfUrl } from '../cardReceiptsView';
 import type { ExpenseBody } from '../cardReceiptsApi';
 import type { Category, Expense } from '../types';
@@ -37,6 +38,8 @@ export type ExpenseFormProps = {
   categories: Category[];
   today: string;
   upload: (data: string) => Promise<{ url: string }>;
+  /** Reads an uploaded receipt (src/routes/cardReceiptScan.ts); absent = no reading. */
+  scan?: (url: string) => Promise<{ scan: ReceiptScan }>;
   onSave: (values: ExpenseBody) => Promise<unknown>;
   onClose: () => void;
 };
@@ -47,9 +50,11 @@ export type ExpenseFormProps = {
  * and total are needed to save at all; until the receipt (or a lost-receipt
  * reason), the category and the category's own fields are there it saves as a
  * draft, and once they are it goes to the approver. The same day and total
- * already saved asks "Save anyway?" first.
+ * already saved asks "Save anyway?" first. After an upload, `scan` reads the
+ * receipt and fills the fields that are still empty (src/utils/receiptScan.ts);
+ * the line under the photo says which, so they get checked.
  */
-export default function ExpenseForm({ expense, startLost = false, cardLabel, holderName, categories, today, upload, onSave, onClose }: ExpenseFormProps) {
+export default function ExpenseForm({ expense, startLost = false, cardLabel, holderName, categories, today, upload, scan, onSave, onClose }: ExpenseFormProps) {
   const editing = Boolean(expense);
   const start = useMemo(() => (expense ? fromExpense(expense) : blank(today)), [expense, today]);
   const [values, setValues] = useState<Values>(start);
@@ -63,6 +68,12 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
   const [person, setPerson] = useState('');
   // The receipt shown large at the top of the form while the fields are filled in.
   const [viewing, setViewing] = useState(false);
+  // Reading the receipt after an upload, and what it filled in.
+  const [reading, setReading] = useState(false);
+  const [readLine, setReadLine] = useState('');
+  const readSeq = useRef(0);
+  const valuesRef = useRef(values);
+  valuesRef.current = values;
   const fileRef = useRef<HTMLInputElement>(null);
   const customers = useCustomerOptions();
 
@@ -84,11 +95,13 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
     if (!file) return;
     setUploading(true);
     setServerError('');
+    setReadLine('');
+    let url = '';
     try {
       const data = file.type === 'application/pdf' ? await fileToBase64(file) : await compressImage(file, 2000, 0.8);
-      const { url } = await upload(data);
+      ({ url } = await upload(data));
       set({ receiptUrl: url });
-      // A new photo opens large so its date, total and merchant can be copied in.
+      // A new photo opens large so its date, total and merchant can be checked.
       if (file.type !== 'application/pdf') setViewing(true);
       setLost(false);
     } catch (err) {
@@ -96,6 +109,27 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
+    }
+    if (url && scan) readReceipt(url);
+  };
+
+  // Fills only the fields still empty when the answer comes back, so nothing typed meanwhile is lost.
+  // A newer photo's reading wins over an older one still on its way.
+  const readReceipt = async (url: string) => {
+    const seq = ++readSeq.current;
+    setReading(true);
+    try {
+      const { scan: read } = await scan!(url);
+      if (seq !== readSeq.current) return;
+      if (!read.isReceipt) { setReadLine('This doesn’t look like a receipt. Check the photo.'); return; }
+      const { values: next, filled } = fillFromScan(valuesRef.current, read, { startDate: editing ? '' : today });
+      if (filled.length) set(next);
+      setReadLine(scanLine(filled) || 'Couldn’t read the details. Type them in.');
+    } catch (err) {
+      // 503 = reading isn't set up on this server: say nothing, the form works as before.
+      if (seq === readSeq.current && (err as { status?: number }).status !== 503) setReadLine('Couldn’t read the details. Type them in.');
+    } finally {
+      if (seq === readSeq.current) setReading(false);
     }
   };
 
@@ -173,7 +207,7 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
                   ))
                 : <span className="ccr-photo-pdf" aria-hidden="true"><Camera size={22} /></span>}
               <div className="ccr-photo-side">
-                <span className="ccr-sub">{uploading ? 'Uploading…' : values.receiptUrl ? (isPdfUrl(values.receiptUrl) ? 'Uploaded. Tap it to open.' : viewing ? 'Shown above while you fill in the details.' : 'Uploaded. Tap it to see it large.') : 'A photo of the receipt, or the emailed PDF.'}</span>
+                <span className="ccr-sub" aria-live="polite">{uploading ? 'Uploading…' : reading ? 'Reading the receipt…' : readLine ? readLine : values.receiptUrl ? (isPdfUrl(values.receiptUrl) ? 'Uploaded. Tap it to open.' : viewing ? 'Shown above while you fill in the details.' : 'Uploaded. Tap it to see it large.') : 'A photo of the receipt, or the emailed PDF.'}</span>
                 <div className="ccr-photo-btns">
                   <button id="ccr-file-btn" type="button" className="fm-btn fm-btn-small" onClick={() => fileRef.current?.click()} disabled={uploading}>
                     {values.receiptUrl ? 'Replace' : 'Take photo or choose file'}

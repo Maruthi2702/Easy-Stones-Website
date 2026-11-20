@@ -26,5 +26,16 @@ export async function afterReceiptSaved(expense: { _id?: unknown; id?: unknown; 
   }
 }
 
-/** The Amex charge (its Reference) an expense answers, or null. */
-export const amexChargeOf = async (expenseId: string) => (on() ? linkedLine(expenseId) : null);
+/**
+ * The Amex charge (its Reference) an expense answers, or null. A failure (say the tables aren't
+ * migrated yet) answers null, so Void keeps working as it did before the Amex check.
+ */
+export async function amexChargeOf(expenseId: string) {
+  if (!on()) return null;
+  try {
+    return await linkedLine(expenseId);
+  } catch (error) {
+    console.error('[card-statements] reading an expense’s Amex charge failed:', error);
+    return null;
+  }
+}

@@ -1311,8 +1311,21 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   Receipt Categories, `CARD_RECEIPTS`): My receipts, View all, Approve, Export,
   Manage cards; categories add / edit / reorder / delete. Admin gets them through
   `ALL_ACCOUNTING_PERMISSIONS`; nobody else until an admin turns them on.
-- **Not built yet** (owner's plan, in this order): reading the receipt
-  automatically (server-side; test 20–30 real receipts first), the weekly **Amex
+- **Reading the receipt** (2026-11-20, on `feat/receipt-scan`): after an upload the
+  form asks `POST /api/card-receipts/scan` (`src/routes/cardReceiptScan.ts`, its own
+  router; tested with a fake scanner) and Claude reads the photo / PDF
+  (`src/services/receiptScan.ts`, `@anthropic-ai/sdk`, structured output, low effort).
+  Rules in `src/utils/receiptScan.ts` (tested): the schema and prompt, `cleanScan`
+  (a date that isn't real / is in the future / over 400 days back, non-money amounts and
+  hidden or unknown categories become blank — never guessed), `fillFromScan` (fills
+  **only empty fields**, and a new form's untouched starting date; never what was typed).
+  The line under the photo says what was filled ("Check them"). Only files the app stored
+  are read (`isFilesCdnUrl` / Cloudinary). Off without `ANTHROPIC_API_KEY` (503, the form
+  says nothing); `RECEIPT_SCAN_MODEL` picks the model (default `claude-opus-5-5`, server-side
+  fallbacks on). The card and person never come from the receipt. Compare models on real
+  receipts with `scripts/receipt-scan-test.ts <folder>` before choosing (Oct 2026 volume:
+  ~1,050 charges a month). Not done: a real-receipt test.
+- **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
   sample statement), the daily reminder email, closing a month, the PDF export.
   The `missing` status and `approvesCardReceiptsOf` already exist for them.
@@ -1325,7 +1338,7 @@ uploads Amex's activity export (.xlsx, sheet "Transaction Details"); rules
 `src/routes/cardReceiptStatements.ts` at `/api/card-receipts/statements` (tested on PGlite, with
 the receipts router), data `src/db/cardStatements/`, tables `card_statement_lines` (id = Amex's
 **Reference**, so a re-upload or overlapping week adds nothing) and `card_statement_imports`,
-migration `0021_card_statements` — **Postgres only** (the area was cut over and locked 2026-11-14).
+migration `0023_card_statements` — **Postgres only** (the area was cut over and locked 2026-11-14).
 A charge's card is its **last 5 digits** (Amex's Account #), never the name; a match is the **same
 card, exact amount, at most 2 days apart**, automatic (the cardholder enters the total with the
 tip — no hand-linking). **Credits / payments / refunds and interest / fees need no receipt**
@@ -1411,14 +1424,20 @@ type, matched by title + street. The workbook is read in a **worker thread** (`r
 kind `project-leads`, `projectLeadsWorkbook.ts`). An import **adds new projects and refreshes the
 file's own fields** on ones it already has (matched by Project Id, companies replaced); **status,
 who has it, note and history are staff's and an import never writes them**; projects missing from a
-file stay. Staff set a status (New / Contacted / Samples sent / Onboarded / Not a fit — each change
+file stay. **The import is three steps like Import from SPS / Import Sales** (`LeadImportModal.tsx`, reusing
+their `spsi-*` / `spsc-*` styles): Upload + file check → Review (`POST /import/preview` writes nothing: new /
+changed / the same, contacts added / dropped, samples of what changes, a warning when the file looks **older**
+than what's stored) → Results. **The latest import can be undone, once** (Results, or ⋯ → Undo last import;
+`undoImport`, migration `0021`): every touched project is saved first in `project_lead_import_backups`
+(only the latest import's are kept); undo puts refreshed projects and their companies back and removes the
+ones the import added — unless staff already set a status / note / assignee on them, which stay. Staff set a status (New / Contacted / Samples sent / Onboarded / Not a fit — each change
 kept in `history`, never trimmed), take or release a lead ("Take this lead" saves their name — my
 default, not the Rep picker), and write a note. Each company has tel: / mailto: links and
 **Create customer**, which opens Add customer pre-filled (`customerPrefillForCompany`, the Permits
 contractor pop-up's route). API `src/routes/projectLeads.ts` at `/api/project-leads` (tested);
 switches (`src/utils/projectLeadAccess.ts`, Users & Roles card "Project Leads"): View, Edit, Import,
-Export — **admin only to start**, an admin ticks the rest. Not built: a rep dropdown for assigning,
-a pop-up preview before an import, a reminder when a lead goes quiet, the old projects' relevance
+Export — **admin only to start**, an admin ticks the rest. **On a phone (<640px) Filters is a bottom sheet** (`FilterSheet.tsx`, design: the claude.ai artifact **Project Leads — all screen sizes**, https://claude.ai/artifact/8jKDapsQW5FiLFj3875VCi): the same fields as the desktop panel (**State is one multi-select dropdown on every screen size**, `StatePicker.tsx`, owner 2026-11-20 — its list opens inline under the field because the panel and the sheet both scroll and would clip a floating one), a live "Show N projects" button, page locked behind it, pinned to the screen. **Who a lead is with** is the first thing in the panel (a gold callout, owner 2026-11-20) and is enforced on the server: **taking** is for yourself, by anyone with Edit, only while nobody has it; **releasing** is the person it's with **or their superior** — the existing Visits rule (`canModifyVisit`: **Edit all**, or **Edit branch** over someone on your team), so no new switch (`canTakeLead` / `canReleaseLead` in `projectLeadAccess.ts`, tested; the assignee's user id is `assigned_to_id`, migration `0022`). Every lead the API sends carries `canTake` / `canRelease` for the caller, and every take and release is a line in its history. Not built: a rep dropdown for assigning,
+a reminder when a lead goes quiet, the old projects' relevance
 (the file goes back to 2012; the Updated filter narrows it).
 
 ## File storage: one store, Cloudinary → S3 (2026-11-08, on `feat/s3-file-storage`)

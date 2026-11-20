@@ -243,6 +243,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           categories={categories}
           today={me?.today || ''}
           upload={data.upload}
+          scan={data.scan}
           onClose={() => setOpen(null)}
           onSave={async (body) => {
             const saved = open.kind === 'edit' ? await data.edit(open.expense.id, body) : await data.add(body);

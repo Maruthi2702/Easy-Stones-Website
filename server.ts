@@ -124,6 +124,8 @@ import createPaymentsReceivedRouter from './src/routes/paymentsReceived.ts';
 import { PAYMENTS_MIGRATION } from './src/utils/paymentsReceived.ts';
 import createCardReceiptsRouter from './src/routes/cardReceipts.ts';
 import createCardReceiptStatementsRouter from './src/routes/cardReceiptStatements.ts';
+import createCardReceiptScanRouter from './src/routes/cardReceiptScan.ts';
+import { createReceiptScanner } from './src/services/receiptScan.ts';
 import createSuppliersRouter from './src/routes/suppliers.ts';
 import createProjectLeadsRouter from './src/routes/projectLeads.ts';
 import { ALL_PROJECT_LEAD_PERMISSIONS } from './src/utils/projectLeadAccess.ts';
@@ -3762,6 +3764,11 @@ app.use('/api/card-receipts/statements', createCardReceiptStatementsRouter({ aut
 app.use('/api/card-receipts', createCardReceiptsRouter({
   authenticate,
   processBase64Image
+}));
+// Reading a receipt with Claude (src/routes/cardReceiptScan.ts; off without ANTHROPIC_API_KEY).
+app.use('/api/card-receipts', createCardReceiptScanRouter({
+  authenticate,
+  scanner: createReceiptScanner()
 }));
 
 // ── SUPPLIER POs ── purchasing assigns POs to suppliers, who offer blocks with
