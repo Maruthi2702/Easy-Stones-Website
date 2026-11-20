@@ -5,8 +5,9 @@ import { MAX_QUEUE, dayIsOn, phaseFor, statusIsStale, shouldKeep, takeBatch, toR
 import { clearQueue, loadQueue, saveQueue } from './pointQueue';
 
 const native = vi.hoisted(() => ({ isNative: true }));
-const api = vi.hoisted(() => ({ loadStatus: vi.fn(), sendPoints: vi.fn(), recordConsent: vi.fn() }));
-const bg = vi.hoisted(() => ({ startWatching: vi.fn(), openLocationSettings: vi.fn() }));
+const api = vi.hoisted(() => ({ loadStatus: vi.fn(), sendPoints: vi.fn(), recordConsent: vi.fn(), loadOpenRequests: vi.fn(async () => []), sendRequestAnswer: vi.fn() }));
+const bg = vi.hoisted(() => ({ startWatching: vi.fn(), openLocationSettings: vi.fn(), currentPosition: vi.fn(async () => null) }));
+vi.mock('@capacitor/push-notifications', () => ({ PushNotifications: { addListener: () => Promise.resolve({ remove: () => undefined }) } }));
 const auth = vi.hoisted(() => ({ user: { id: 'u1', type: 'internal' } as { id: string; type: string } | null }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => native.isNative }, registerPlugin: () => ({}) }));
 vi.mock('@capacitor/app', () => ({ App: { addListener: () => Promise.resolve({ remove: () => undefined }) } }));

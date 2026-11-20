@@ -621,6 +621,29 @@ exists, `/status` says `consented`, and Team Location shows "Hasn't agreed to sh
 never deleted with the points. Not built: universal links and push (need the Apple
 developer account).
 
+**Locate now — outside the window, only when an admin asks (2026-11-20, on `feat/locate-on-request`).** The owner
+first wanted continuous 24/7 tracking of everyone with the app, including personal phones; I advised against it
+(privacy law, App Review, HR's sign-off covers 7–6 only) and they chose **location after 6 PM only when an admin
+requests it**. Rules `src/utils/locationRequests.ts` (tested): switch `locate_on_request` (Users & Roles → Location
+Tracking → **Locate on request**, nobody holds it until ticked); the person must be tracked, on the asker's team
+(404 otherwise) and have agreed to the **current** wording (`CONSENT_VERSION` is now **2**: it says an authorised
+manager can ask the phone for its location once, with a reason, outside work hours — everyone is asked again); a
+**reason of 5–200 characters is required** and kept; one open ask per person (15-minute `REQUEST_TTL_MS`, then it
+expires); you can't ask about yourself. Routes `src/routes/locationRequests.ts` (tested): `POST /locate`,
+`GET /locate?userId=` (the log), `GET /locate/:id`, and for the phone `GET /locate/pending` (who asked and when —
+**never the reason**) and `POST /locate/:id/answer`. The answer is kept **with the ask** in `location_requests`
+(migration `0019`, `src/db/locationPoints/requests.ts`, 90-day cleanup with the points) and **never in
+`location_points`**, so ordinary points are still dropped outside 7–6. The person gets an alert push when asked
+(`askedNotice`, via `sendPushToUsers`; nothing if APNs isn't set up) and sees "Location sent to …" on the phone after
+it answers. Phone: `useLocateRequests` (in `LocationCollector`) answers an open ask whenever the app is in front —
+at start, on resume, on the ask's push, every minute — with one `@capacitor/geolocation` reading
+(`answerRequests.ts`, tested). Admin: Team Location's **Locate now** button (greyed until the person has agreed to
+the current wording), `LocateDialog` (FormModal S, reason required), a status line while it waits (checked every 4 s),
+the answer as a blue ring on the map, and the person's log of asks. **Not built / limits:** a *silent* push that
+wakes a closed app to answer — iOS doesn't guarantee background wake, so an ask to a force-quit or Low Power phone
+stays "Waiting" until the app is next opened (that needs native Swift in `AppDelegate` and a real iPhone with the
+APNs key; the next phase). New HR / legal sign-off should cover the changed wording before this goes live.
+
 ## Phone tab bar (2026-10-18)
 
 Under 640px SalesPage shows a bottom tab bar instead of the drawer

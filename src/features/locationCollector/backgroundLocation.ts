@@ -27,3 +27,12 @@ export async function startWatching(onLocation: (loc: PluginLocation) => void, o
 }
 
 export const openLocationSettings = () => BackgroundGeolocation.openSettings();
+
+/** One fresh position for a "Locate now" ask, or null when iOS has none to give (location off, no fix in 20 s). */
+export async function currentPosition(): Promise<{ lat: number; lng: number; accuracy: number } | null> {
+  const { Geolocation } = await import('@capacitor/geolocation');
+  try {
+    const p = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 20_000, maximumAge: 0 });
+    return { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
+  } catch { return null; }
+}

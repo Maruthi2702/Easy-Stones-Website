@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { GoogleMap, Marker, Polyline, useJsApiLoader } from '@react-google-maps/api';
-import type { TeamPerson, Trail } from './types';
+import type { LocateRequest, TeamPerson, Trail } from './types';
 
 const COLOR = { live: '#2f9e63', earlier: '#d9822b', none: '#8a8f98' } as const;
 const MAP_ID = import.meta.env.VITE_GOOGLE_MAP_ID || '';
@@ -15,8 +15,10 @@ const US = { lat: 39.5, lng: -98.35 };
  * earlier), and the picked person's trail for the day. Same Maps loader call
  * as the Route Planner, so the two never load Google twice.
  */
-export default function TeamMap({ people, selectedId, trail, onSelect }: {
+export default function TeamMap({ people, selectedId, trail, onSelect, requested = null }: {
   people: TeamPerson[]; selectedId: string; trail: Trail | null; onSelect: (id: string) => void;
+  /** An answered "Locate now" ask for the picked person: drawn as a ring, separate from the day's trail. */
+  requested?: LocateRequest | null;
 }) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const { isLoaded, loadError } = useJsApiLoader({ id: 'google-map-script', googleMapsApiKey: apiKey || '' });
@@ -24,18 +26,20 @@ export default function TeamMap({ people, selectedId, trail, onSelect }: {
 
   const path = trail?.points.map((p) => ({ lat: p.lat, lng: p.lng })) ?? [];
   const seen = people.filter((p) => p.lastSeen);
+  const answered = requested?.status === 'answered' && requested.lat !== null && requested.lng !== null ? { lat: requested.lat, lng: requested.lng } : null;
 
   const fit = useCallback(() => {
     const map = mapRef.current;
     if (!map || !window.google) return;
     const spots = path.length ? path : seen.map((p) => ({ lat: p.lastSeen!.lat, lng: p.lastSeen!.lng }));
+    if (answered) spots.push(answered);
     if (!spots.length) return;
     if (spots.length === 1) { map.setCenter(spots[0]!); map.setZoom(14); return; }
     const bounds = new window.google.maps.LatLngBounds();
     spots.forEach((s) => bounds.extend(s));
     map.fitBounds(bounds, 48);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- refit when what's shown changes, not on every render
-  }, [selectedId, trail, people.length]);
+  }, [selectedId, trail, people.length, requested?.id, requested?.status]);
 
   useEffect(() => { fit(); }, [fit]);
 
@@ -52,6 +56,10 @@ export default function TeamMap({ people, selectedId, trail, onSelect }: {
     <GoogleMap mapContainerClassName="tl-map" center={US} zoom={4} options={OPTIONS} onLoad={(m) => { mapRef.current = m; fit(); }}>
       {path.length > 1 && <Polyline path={path} options={{ strokeColor: '#d4af37', strokeOpacity: 0.95, strokeWeight: 4 }} />}
       {path.length > 0 && <Marker position={path[0]!} title="First point" icon={dot('#ffffff', 5)} zIndex={1} />}
+      {answered && (
+        <Marker position={answered} title={`Requested location · ${requested!.answeredAt ? new Date(requested!.answeredAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}`}
+          icon={{ ...dot('#3b82f6', 10), strokeWeight: 4 }} zIndex={4} />
+      )}
       {seen.map((p) => (
         <Marker
           key={p.id}

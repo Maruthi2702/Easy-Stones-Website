@@ -29,8 +29,11 @@ export const TRACKING = Object.freeze({
   VIEW_TEAM: 'view_team_locations'
 });
 
-/** The consent wording's version (src/features/locationCollector). Bump it when the wording changes: everyone is asked again. */
-export const CONSENT_VERSION = 1;
+/**
+ * The consent wording's version (src/features/locationCollector). Bump it when the wording changes: everyone is asked again.
+ * 2 (2026-11-20): adds that an admin may ask the phone for its location outside work hours ("Locate now", src/utils/locationRequests.ts).
+ */
+export const CONSENT_VERSION = 2;
 
 /** The visit type that marks a day off (an Office visit, src/utils/officeAccounts.ts OFFICE_VISIT_TYPES). */
 export const TIME_OFF_VISIT_TYPE = 'Personal Time Off';

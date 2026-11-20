@@ -32,6 +32,7 @@ export default function PrivacyPage() {
         <h2>Who can see it</h2>
         <ul>
           <li>Your location during work hours is visible to managers and directors responsible for your branch. Other staff and suppliers cannot see it.</li>
+          <li>Outside work hours the app does not report your location on its own. Authorised managers can ask your phone for its location once, with a reason; you are told by a notification each time, and each request, who made it and the answer are recorded.</li>
           <li>Suppliers see only their own purchase orders and photos. Staff see only the pages their role allows.</li>
           <li>We do not sell your information and we do not use it for advertising. The app does not track you across other companies’ apps or websites.</li>
         </ul>

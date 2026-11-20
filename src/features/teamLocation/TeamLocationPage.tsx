@@ -1,11 +1,14 @@
 import { useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { MapPin, RefreshCw } from 'lucide-react';
+import { Crosshair, MapPin, RefreshCw } from 'lucide-react';
 import { DatePicker } from '../../components/shared/calendar/Calendar';
 import type { Loose } from '../../types/records';
 import { canViewTeamLocations } from '../../utils/locationTracking';
+import { canLocateOnRequest, requestLine } from '../../utils/locationRequests';
 import { trackingDay } from '../../utils/locationTracking';
 import TeamMap from './TeamMap';
+import LocateDialog from './LocateDialog';
+import useLocate from './useLocate';
 import useTeamLocation from './useTeamLocation';
 import { initials, liveCount, sortPeople, trailSummary } from './teamLocationView';
 import './TeamLocation.css';
@@ -22,8 +25,10 @@ export default function TeamLocationPage({ currentUser, sidebarToggle = null, is
 }) {
   const allowed = canViewTeamLocations(currentUser);
   const t = useTeamLocation(allowed && isActive);
+  const canLocate = canLocateOnRequest(currentUser);
   const people = useMemo(() => sortPeople(t.people), [t.people]);
   const selected = people.find((p) => p.id === t.selectedId) || null;
+  const locate = useLocate(selected?.id || '', allowed && canLocate);
   const today = trackingDay(new Date(), selected?.branch || currentUser?.assignedLocations?.[0] || 'Seattle');
 
   if (!allowed) return <div className="tl"><div className="tl-empty"><h3>You can’t see your team’s locations</h3></div></div>;
@@ -69,12 +74,41 @@ export default function TeamLocationPage({ currentUser, sidebarToggle = null, is
                   {t.trailLoading ? 'Loading the day…' : t.trailError ? t.trailError
                     : t.trail ? trailSummary(selected.name, selected.branch, t.trail.miles, t.trail.first, t.trail.last, t.trail.points.length) : ''}
                 </span>
+                {canLocate ? (
+                  <button type="button" className="tl-locate" onClick={() => locate.setOpen(true)}
+                    disabled={!selected.consentedAt || locate.current?.status === 'pending'}
+                    title={selected.consentedAt ? 'Ask this phone for its location now, any hour' : `${selected.name} hasn’t agreed to the current wording yet`}>
+                    <Crosshair size={15} aria-hidden="true" /> Locate now
+                  </button>
+                ) : null}
               </>
             ) : <span className="tl-sum">Pick a person to see where they went.</span>}
           </div>
-          <TeamMap people={people} selectedId={t.selectedId} trail={t.trail} onSelect={t.select} />
+          {selected && locate.current ? (
+            <div className={`tl-ask is-${locate.current.status}`} role="status">
+              {requestLine(selected.name, locate.current.status, locate.current.answeredAt ? new Date(locate.current.answeredAt) : null)}
+              {locate.current.status === 'answered' && locate.current.accuracyM !== null ? ` Accurate to about ${Math.round(locate.current.accuracyM)} m.` : ''}
+            </div>
+          ) : null}
+          {selected && canLocate && locate.log.length ? (
+            <details className="tl-log">
+              <summary>Location requests ({locate.log.length})</summary>
+              <ul>
+                {locate.log.map((r) => (
+                  <li key={r.id}>
+                    <b>{new Date(r.requestedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</b>
+                    {' · '}{r.requestedByName || 'Someone'}{' · '}{r.reason}{' · '}{r.status === 'answered' ? 'answered' : r.status === 'pending' ? 'waiting' : 'no answer'}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+          <TeamMap people={people} selectedId={t.selectedId} trail={t.trail} onSelect={t.select} requested={locate.current} />
         </section>
       </div>
+      {locate.open && selected ? (
+        <LocateDialog name={selected.name} sending={locate.sending} error={locate.error} onAsk={(reason) => void locate.ask(reason)} onClose={locate.closeDialog} />
+      ) : null}
     </div>
   );
 }

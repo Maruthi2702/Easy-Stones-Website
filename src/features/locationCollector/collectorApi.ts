@@ -28,3 +28,18 @@ export async function recordConsent(): Promise<void> {
   } catch { throw new Error('Couldn’t reach the server. Check your connection and try again.'); }
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).message || `Something went wrong (${res.status}).`);
 }
+
+/** "Locate now" asks still open for me (who asked and when — never why). */
+export async function loadOpenRequests(): Promise<{ id: string; requestedByName: string }[]> {
+  const res = await authFetch(`${API_URL}/api/location-tracking/locate/pending`);
+  if (!res.ok) return [];
+  return ((await res.json()).requests ?? []) as { id: string; requestedByName: string }[];
+}
+
+/** Sends the one position an ask wants; true when the server took it. */
+export async function sendRequestAnswer(id: string, at: { lat: number; lng: number; accuracy?: number | null }): Promise<boolean> {
+  const res = await authFetch(`${API_URL}/api/location-tracking/locate/${encodeURIComponent(id)}/answer`, {
+    method: 'POST', body: JSON.stringify({ lat: at.lat, lng: at.lng, accuracy: at.accuracy ?? undefined })
+  });
+  return res.ok;
+}

@@ -41,3 +41,28 @@ export const locationConsents = pgTable('location_consents', {
   /** The phone's user agent when they tapped Allow (shortened). */
   device: text('device').notNull().default('')
 }, t => [uniqueIndex('location_consents_user_version_uq').on(t.userId, t.version)]);
+
+/**
+ * "Locate now" requests (2026-11-20; rules in src/utils/locationRequests.ts): an admin asked one
+ * person's phone for a single position outside the 7–6 window. The answer is kept HERE, never in
+ * `location_points`, so the window rule for ordinary points is untouched. Every ask is a row, with
+ * who asked and why; kept 90 days. No foreign keys, like the points: people can be removed.
+ */
+export const locationRequests = pgTable('location_requests', {
+  id: objectId('id').primaryKey(),
+  /** The person whose phone is asked. */
+  targetUserId: text('target_user_id').notNull(),
+  requestedBy: text('requested_by').notNull(),
+  requestedByName: text('requested_by_name').notNull().default(''),
+  reason: text('reason').notNull(),
+  requestedAt: moment('requested_at').notNull().defaultNow(),
+  answeredAt: moment('answered_at'),
+  lat: doublePrecision('lat'),
+  lng: doublePrecision('lng'),
+  accuracyM: real('accuracy_m'),
+  /** The wording version the person had agreed to when asked. */
+  consentVersion: integer('consent_version').notNull().default(0)
+}, t => [
+  index('location_requests_target_time_idx').on(t.targetUserId, t.requestedAt),
+  index('location_requests_time_idx').on(t.requestedAt)
+]);

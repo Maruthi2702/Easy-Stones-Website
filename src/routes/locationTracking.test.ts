@@ -3,7 +3,7 @@ import express from 'express';
 import type { Server } from 'node:http';
 import createLocationTrackingRouter from './locationTracking.ts';
 import type { StaffRow } from '../services/locationTracking.ts';
-import { NO_FACTS, type DayFacts } from '../utils/locationTracking.ts';
+import { CONSENT_VERSION, NO_FACTS, type DayFacts } from '../utils/locationTracking.ts';
 
 const person = (id: string, name: string, role: string, branch: string): StaffRow => ({ id, username: id, name, role, branch, active: true, location: branch, assignedLocations: [branch] });
 const STAFF = [
@@ -87,19 +87,19 @@ describe('consent', () => {
   });
   it('saves consent for the current wording, then points are kept', async () => {
     as('rep2', ['track_location']);
-    expect((await consent(1)).status).toBe(200);
+    expect((await consent(CONSENT_VERSION)).status).toBe(200);
     expect((await post([pt()])).status).toBe(200);
   });
   it('refuses an old wording version and someone who isn\'t tracked', async () => {
     as('rep3', ['track_location']);
-    const old = await consent(0);
+    const old = await consent(CONSENT_VERSION - 1);
     expect(old.status).toBe(409);
     as('off1', []);
     expect((await consent(1)).status).toBe(403);
   });
   it('shows in the status', async () => {
     as('rep3', ['track_location']);
-    expect((await (await fetch(`${base}/status`)).json())).toMatchObject({ tracked: true, consented: false, consentVersion: 1 });
+    expect((await (await fetch(`${base}/status`)).json())).toMatchObject({ tracked: true, consented: false, consentVersion: CONSENT_VERSION });
     as('rep1', ['track_location']);
     expect((await (await fetch(`${base}/status`)).json()).consented).toBe(true);
   });

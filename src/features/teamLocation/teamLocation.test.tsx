@@ -5,7 +5,7 @@ import TeamLocationPage from './TeamLocationPage';
 import { liveCount, sortPeople, trailSummary } from './teamLocationView';
 import type { TeamPerson } from './types';
 
-const api = vi.hoisted(() => ({ loadTeam: vi.fn(), loadTrail: vi.fn() }));
+const api = vi.hoisted(() => ({ loadTeam: vi.fn(), loadTrail: vi.fn(), askLocate: vi.fn(), loadLocate: vi.fn(), loadLocateLog: vi.fn() }));
 vi.mock('./teamLocationApi', () => api);
 vi.mock('./TeamMap', () => ({ default: ({ people, selectedId }: { people: unknown[]; selectedId: string }) => <div data-testid="map">{people.length} pins · {selectedId || 'none'}</div> }));
 
@@ -16,7 +16,11 @@ const person = (id: string, name: string, status: TeamPerson['status'], ago: str
 const PEOPLE = [person('d', 'Dan Driver', 'earlier', '1 h ago'), person('r', 'Rita Rep', 'live', '2 min ago'), person('k', 'Kim Park', 'none', 'No location today')];
 const viewer = { permissions: ['view_team_locations'], assignedLocations: ['Seattle'] };
 
-beforeEach(() => { api.loadTeam.mockResolvedValue({ people: PEOPLE }); });
+beforeEach(() => {
+  api.loadTeam.mockResolvedValue({ people: PEOPLE });
+  api.loadTrail.mockResolvedValue({ person: { id: 'r', name: 'Rita Rep', branch: 'Seattle' }, day: '2026-11-18', miles: 0, points: [], first: null, last: null });
+  api.loadLocateLog.mockResolvedValue({ requests: [] });
+});
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('Team Location', () => {
@@ -62,4 +66,50 @@ describe('view rules', () => {
     expect(liveCount(PEOPLE)).toBe(1);
   });
   it('words an empty day', () => expect(trailSummary('Kim', 'Seattle', 0, null, null, 0)).toBe('No location points for Kim on this day.'));
+});
+
+describe('Locate now', () => {
+  const locator = { permissions: ['view_team_locations', 'locate_on_request'], assignedLocations: ['Seattle'] };
+  const asked = { id: 'q1', userId: 'r', status: 'pending', requestedAt: '2026-11-20T03:00:00Z', requestedByName: 'Ada', reason: 'Truck not back', answeredAt: null, lat: null, lng: null, accuracyM: null };
+  const pick = async (name: string) => fireEvent.click((await screen.findByText(name)).closest('button')!);
+
+  it('is not offered without the switch', async () => {
+    render(<TeamLocationPage currentUser={viewer} />);
+    await pick('Rita Rep');
+    expect(screen.queryByText('Locate now')).toBeNull();
+    expect(api.loadLocateLog).not.toHaveBeenCalled();
+  });
+  it('is greyed out for someone who hasn’t agreed to the wording', async () => {
+    render(<TeamLocationPage currentUser={locator} />);
+    await pick('Kim Park');
+    expect((screen.getByText('Locate now').closest('button') as HTMLButtonElement).disabled).toBe(true);
+  });
+  it('needs a reason, then asks and shows it waiting', async () => {
+    api.askLocate.mockResolvedValue({ request: asked, pushed: true });
+    render(<TeamLocationPage currentUser={locator} />);
+    await pick('Rita Rep');
+    fireEvent.click(screen.getByText('Locate now'));
+    fireEvent.click(await screen.findByText('Ask for location'));
+    expect(api.askLocate).not.toHaveBeenCalled();                              // no reason yet
+    fireEvent.change(screen.getByLabelText(/Why do you need it/), { target: { value: 'Truck not back' } });
+    fireEvent.click(screen.getByText('Ask for location'));
+    await waitFor(() => expect(api.askLocate).toHaveBeenCalledWith('r', 'Truck not back'));
+    expect(await screen.findByText(/Waiting for an answer/)).toBeTruthy();
+  });
+  it('shows the server’s reason when it refuses', async () => {
+    api.askLocate.mockRejectedValue(new Error('Rita Rep’s phone was already asked and hasn’t answered yet.'));
+    render(<TeamLocationPage currentUser={locator} />);
+    await pick('Rita Rep');
+    fireEvent.click(screen.getByText('Locate now'));
+    fireEvent.change(await screen.findByLabelText(/Why do you need it/), { target: { value: 'Truck not back' } });
+    fireEvent.click(screen.getByText('Ask for location'));
+    expect(await screen.findByText(/already asked/)).toBeTruthy();
+  });
+  it('lists the person’s earlier asks', async () => {
+    api.loadLocateLog.mockResolvedValue({ requests: [{ ...asked, status: 'answered', answeredAt: '2026-11-20T03:01:00Z' }] });
+    render(<TeamLocationPage currentUser={locator} />);
+    await pick('Rita Rep');
+    expect(await screen.findByText('Location requests (1)')).toBeTruthy();
+    expect(screen.getByText(/Truck not back/)).toBeTruthy();
+  });
 });

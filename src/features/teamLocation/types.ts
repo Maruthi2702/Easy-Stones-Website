@@ -14,3 +14,10 @@ export type Trail = {
   person: { id: string; name: string; branch: string };
   day: string; points: TrailPoint[]; miles: number; first: string | null; last: string | null;
 };
+
+/** One "Locate now" ask and its answer (src/routes/locationRequests.ts). */
+export type LocateRequest = {
+  id: string; userId: string; status: 'pending' | 'answered' | 'expired';
+  requestedAt: string; requestedByName: string; reason: string;
+  answeredAt: string | null; lat: number | null; lng: number | null; accuracyM: number | null;
+};

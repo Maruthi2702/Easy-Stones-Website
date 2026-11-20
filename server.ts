@@ -165,6 +165,7 @@ import { checkSheet, spsCoverage } from './src/utils/spsSheet.ts';
 import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.ts';
 import createCustomerSalesRouter from './src/routes/customerSales.ts';
 import createLocationTrackingRouter from './src/routes/locationTracking.ts';
+import createLocationRequestsRouter from './src/routes/locationRequests.ts';
 import createPushDevicesRouter from './src/routes/pushDevices.ts';
 import { appSiteAssociation } from './src/utils/appLinks.ts';
 import { startLocationRetention } from './src/jobs/locationRetention.ts';
@@ -3437,6 +3438,8 @@ app.use('/api/customers', createCustomerBulkDeleteRouter({ authenticate }));
 app.use('/api/customers', createCustomerSalesRouter({ authenticate }));
 // The iOS app's location tracking (src/utils/locationTracking.ts): 7 AM–6 PM, by the branch's clock.
 app.use('/api/location-tracking', createLocationTrackingRouter({ authenticate }));
+// "Locate now" (src/utils/locationRequests.ts): an admin asks one phone for one position outside the window, with a reason, logged.
+app.use('/api/location-tracking', createLocationRequestsRouter({ authenticate }));
 // The iOS app's push devices (src/services/apns.ts): staff only, a person's own phones.
 app.use('/api/push-devices', createPushDevicesRouter({ guard: [authenticate, requireSalesPage] }));
 app.use('/api/customers', createCustomerSpsConnectRouter({

@@ -1,4 +1,5 @@
 import { deleteOlderThan } from '../db/locationPoints/index.ts';
+import { deleteRequestsOlderThan } from '../db/locationPoints/requests.ts';
 import { retentionCutoff } from '../utils/locationTracking.ts';
 
 /**
@@ -10,6 +11,7 @@ import { retentionCutoff } from '../utils/locationTracking.ts';
 export async function runLocationRetention(now: Date = new Date()): Promise<number> {
   try {
     const gone = await deleteOlderThan(retentionCutoff(now));
+    await deleteRequestsOlderThan(retentionCutoff(now)); // "Locate now" asks and answers go on the same 90-day rule
     if (gone) console.log(`🧹 Location tracking: deleted ${gone} point${gone === 1 ? '' : 's'} older than 90 days`);
     return gone;
   } catch (err) {
