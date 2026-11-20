@@ -6,6 +6,7 @@ import Header from './components/Header';
 import AuthRecovery from './components/AuthRecovery';
 import PresenceReporter from './components/PresenceReporter';
 import LocationCollector from './features/locationCollector/LocationCollector';
+import { NativeLinks, PushRegistrar } from './features/nativeApp';
 import Footer from './components/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import { useAuth } from './context/AuthContext';
@@ -167,6 +168,8 @@ function App() {
         <div className="app">
           <PresenceReporter />
           <LocationCollector />
+          <NativeLinks />
+          <PushRegistrar />
           <ScrollToTop />
           <div className="bg-gradient"></div>
           {!hideHeader && <Header />}

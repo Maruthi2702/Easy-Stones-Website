@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useLayoutEffect, type ReactNo
 import { API_URL } from '../config/api';
 import { resetSessionExpiredGuard } from '../api/authFetch';
 import { getAuthToken, setAuthToken, clearAuthToken } from '../api/authToken';
+import { unregisterPushDevice } from '../api/pushDevices';
 import { clearScheduleCache } from '../api/deliverySchedule';
 import { clearCustomers } from '../api/customerOptions';
 import { clearAllCache } from '../utils/dataCache';
@@ -33,6 +34,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = useCallback(async (): Promise<void> => {
         authRequest.current++; setAuthFailure(null);
+        await unregisterPushDevice(); // while still signed in; no-op outside the app
         try {
             await Promise.all([
                 fetch(`${API_URL}/api/customer/logout`, { method: 'POST', credentials: 'include' }),

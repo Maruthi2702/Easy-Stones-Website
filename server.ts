@@ -165,6 +165,8 @@ import { checkSheet, spsCoverage } from './src/utils/spsSheet.ts';
 import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.ts';
 import createCustomerSalesRouter from './src/routes/customerSales.ts';
 import createLocationTrackingRouter from './src/routes/locationTracking.ts';
+import createPushDevicesRouter from './src/routes/pushDevices.ts';
+import { appSiteAssociation } from './src/utils/appLinks.ts';
 import { startLocationRetention } from './src/jobs/locationRetention.ts';
 import createCustomerSpsImportRouter from './src/routes/customerSpsImport.ts';
 import { resumeRunningImports } from './src/services/spsImportRunner.ts';
@@ -3435,6 +3437,8 @@ app.use('/api/customers', createCustomerBulkDeleteRouter({ authenticate }));
 app.use('/api/customers', createCustomerSalesRouter({ authenticate }));
 // The iOS app's location tracking (src/utils/locationTracking.ts): 7 AM–6 PM, by the branch's clock.
 app.use('/api/location-tracking', createLocationTrackingRouter({ authenticate }));
+// The iOS app's push devices (src/services/apns.ts): staff only, a person's own phones.
+app.use('/api/push-devices', createPushDevicesRouter({ guard: [authenticate, requireSalesPage] }));
 app.use('/api/customers', createCustomerSpsConnectRouter({
   authenticate,
   uploadMemory,
@@ -4945,6 +4949,13 @@ app.use('/api', (req: Request, res: Response) => {
     error: `No such endpoint: ${req.method} ${req.originalUrl}`,
     hint: 'If this endpoint is new, the running server may predate it — restart it.'
   });
+});
+
+// Universal links for the iOS app (src/utils/appLinks.ts): Apple reads this file
+// from the site itself — plain JSON, no redirect, no extension. Before the static
+// folders so nothing answers in its place.
+app.get('/.well-known/apple-app-site-association', (_req: Request, res: Response) => {
+  res.type('application/json').set('Cache-Control', 'public, max-age=3600').send(JSON.stringify(appSiteAssociation()));
 });
 
 // Serve uploaded files with long-term caching

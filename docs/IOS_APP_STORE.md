@@ -12,6 +12,24 @@ The app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`). W
 5. Upload a build (Xcode → Product → Archive → Distribute) to **TestFlight**; staff try it.
 6. Staff and suppliers can use **TestFlight** meanwhile. ▶ For a permanent install, ask Apple for **unlisted app distribution** (their request form) — check that Apple offers it to an individual account — then submit for review.
 
+## Universal links and push (built 2026-11-19, Team ID F82RKW6P64)
+- **Universal links:** the site serves `/.well-known/apple-app-site-association` (`src/utils/appLinks.ts` lists the paths:
+  /login, /set-password, /supplier/*, /sales/*, /checkin). The app lists `applinks:easystones.onrender.com` in
+  `ios/App/App/App.entitlements`. **If staff use another web address (a custom domain), add it there as another
+  `applinks:` line and point it at this server** — Apple reads the file from each domain.
+  Apple caches the file; a new install fetches it fresh. Test: send yourself a `/set-password?token=…` link in Notes or
+  Messages on the phone and tap it (links typed into Safari's address bar always stay in Safari).
+- **Push:** the phone registers its token after sign-in (`PushRegistrar`); the server keeps it in `push_devices`
+  (migration `0018_push_devices`) and sends through APNs (`src/services/apns.ts`, no extra package).
+  ▶ Create the APNs key (developer.apple.com → Certificates, Identifiers & Profiles → Keys → Apple Push Notifications,
+  download the `.p8` once) and set on Render: `APNS_KEY_ID` (the key's 10 characters) and `APNS_KEY_P8` (the file's
+  text; line breaks may be typed `\n`). Team ID and topic default to the app's. Without them push stays off and nothing breaks.
+  Check it with `POST /api/push-devices/test` (sends you a test notification). **Nothing sends a notification on its
+  own yet** — which events notify whom (a follow-up due, a delivery assigned, a supplier decision…) is still to decide;
+  call `sendPushToUsers(userIds, { title, body, path })` from the event.
+- The `aps-environment` in the entitlements is `development`; Xcode switches it to production when it signs an Archive
+  for TestFlight / the App Store. The server learns each phone's sandbox / production side by itself.
+
 ## Move to the company account (before staff and suppliers rely on the app)
 An app on a personal account stops working for everyone if that person leaves or stops paying ($99/yr): the app is
 removed and TestFlight ends. Do this before the public rollout; check Apple's current rules at each step.

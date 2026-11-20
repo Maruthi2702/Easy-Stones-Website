@@ -127,6 +127,13 @@
       "when": 1795131814072,
       "tag": "0017_location_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795144513197,
+      "tag": "0018_push_devices",
+      "breakpoints": true
     }
   ]
 }
