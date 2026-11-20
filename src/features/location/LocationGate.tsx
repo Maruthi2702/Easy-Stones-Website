@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { MapPin, Clock, Users } from 'lucide-react';
 import { locationPermission, locationWasOk, rememberPosition } from '../../utils/geolocationAccess';
 import { readOnce } from './readPosition';
@@ -16,13 +17,17 @@ const markSeen = () => { try { window.sessionStorage.setItem(SEEN_KEY, '1'); } c
  * the browser's own prompt follows a tap here (some browsers ignore a prompt nobody
  * tapped for). "Not now" hides it for this visit to the app; Add visit and Add resource
  * still need location and say how to turn it on.
+ *
+ * Never in the iOS app (2026-11-20, owner's ask): iOS asks for location itself, once, and the app's
+ * web view can't tell this sheet that it was answered, so it came back at every launch. The visit
+ * forms (`useLocationReading`) and the tracking consent screen cover location there.
  */
 export default function LocationGate() {
   const [open, setOpen] = useState(false);
   const [asking, setAsking] = useState(false);
 
   useEffect(() => {
-    if (seen()) return undefined;
+    if (Capacitor.isNativePlatform() || seen()) return undefined;
     let cancelled = false;
     void locationPermission().then((state) => {
       if (cancelled) return;
