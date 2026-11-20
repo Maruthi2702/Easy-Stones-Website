@@ -9,7 +9,6 @@ import './SalesPageDashboard.css';
 import SearchableSelect from '../components/SearchableSelect';
 import CustomerSidebar from '../features/salesShell/sideNav/CustomerSidebar';
 import PhoneTabBar from '../components/sales/PhoneTabBar';
-import { LocationGate } from '../features/location';
 import useIsPhone from '../components/shared/form/useIsPhone';
 import usePinnedTabs from '../components/sales/usePinnedTabs';
 import useNavOrder from '../components/sales/useNavOrder';
@@ -342,7 +341,6 @@ const SalesPage = () => {
             <CartToast onOpenHold={openHoldFromCart} />
 
             {/* Asks for location when staff open the app, so adding a visit or resource finds it allowed (src/features/location). */}
-            {currentUser && (currentUser.permissions?.length ?? 0) > 0 && <LocationGate />}
 
             {/* Main Content */}
             <div

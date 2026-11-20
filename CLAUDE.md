@@ -283,7 +283,8 @@ types keep the reading as `recorded` (no verdict); a customer with no pin is `no
 `0016`; a resource's reading rides on its placement visit) and an edit can't send or change it. The screens:
 `src/features/location/` — `useLocationReading` (starts when Add visit / Add resource / Log call opens, retries, follows the
 browser's permission), `LocationLine`, `LocationBlocked` (replaces the form with the steps to turn location on), and
-`LocationGate`, the sheet staff get **when they open the app** (`SalesPage`), so it is already allowed; Save stays locked
+(there is **no** "Allow location" sheet when the app opens — `LocationGate` existed 2026-11-19 to 2026-11-20 and the owner had it
+removed, website and iOS app; the browser or iOS asks the first time Add visit / Add resource opens); Save stays locked
 until a reading is in, and edits ask for nothing. `geolocationAccess.ts` still owns the Route Planner's quiet follow.
 A web app can't tell "allow once" from "always", can't read in the background and can't re-prompt after a block.
 **Step 2 (on `feat/visit-location-marks`):** Users & Roles → Visits → **Where logged** (`see_visit_locations`, given once

@@ -9,7 +9,6 @@ import { stubGeolocation } from './testing/geolocation';
 vi.mock('../../api/authFetch', () => ({ authFetch: vi.fn(async () => ({ ok: true, json: async () => ({ types: [] }) })) }));
 
 const { useLocationReading } = await import('./useLocationReading');
-const { default: LocationGate } = await import('./LocationGate');
 const { default: ResourceForm } = await import('../resources/form/ResourceForm');
 const { clearTypeLists } = await import('../../api/typeLists');
 
@@ -81,29 +80,5 @@ describe('Add resource needs a location', () => {
     render(form({ isEdit: true, resourceId: 'r1' }));
     expect(screen.queryByText('Turn on location to add resources')).toBeNull();
     expect(geo.getCurrentPosition).not.toHaveBeenCalled();
-  });
-});
-
-describe('the app-open sheet', () => {
-  it('opens when the browser has not been asked, and a tap asks it', async () => {
-    const geo = stubGeolocation({ permission: 'prompt' });
-    render(<LocationGate />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Turn on location' }));
-    await waitFor(() => expect(geo.getCurrentPosition).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-  });
-  it('stays away once location is allowed, and after "Not now" for the session', async () => {
-    stubGeolocation({ permission: 'granted' });
-    const first = render(<LocationGate />);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByRole('dialog')).toBeNull();
-    first.unmount();
-    stubGeolocation({ permission: 'prompt' });
-    render(<LocationGate />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Not now' }));
-    cleanup();
-    render(<LocationGate />);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
