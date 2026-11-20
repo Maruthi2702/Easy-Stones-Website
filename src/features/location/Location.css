@@ -17,15 +17,31 @@
 @keyframes loc-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .loc-spin { animation: none; } }
 
-/* The app-open sheet. Above the tab bar (z 96–98) and every page, like any sheet. */
-.loc-gate-backdrop { z-index: 2147483000; }
-.loc-gate { z-index: 2147483001; max-width: 460px; margin: 0 auto; border-radius: 18px 18px 0 0; }
-.loc-gate-body { display: grid; gap: 12px; justify-items: center; padding: 22px 20px 18px; text-align: left; }
-.loc-gate-body h3 { margin: 0; font-size: 18px; color: var(--fm-tx); }
-.loc-gate-body ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; color: var(--fm-mut); justify-self: stretch; }
-.loc-gate-body .fm-btn { justify-self: stretch; min-height: 48px; }
-.loc-gate-skip { justify-self: center; color: var(--fm-mut); }
-@media (min-width: 641px) { .loc-gate { bottom: 24px; left: 50%; right: auto; width: 460px; transform: translateX(-50%); border-radius: 18px; animation: none; } }
+/* The app-open sheet (LocationGate): its own layout, one centred column. Above the tab bar (z 96-98) and every page. */
+.lg-scrim { position: fixed; inset: 0; z-index: 2147483000; background: var(--fm-sheet-scrim, rgba(0, 0, 0, 0.45)); animation: lg-fade 0.18s ease; }
+.lg-sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2147483001;
+    box-sizing: border-box; width: 100%; max-width: 480px; margin: 0 auto;
+    display: flex; flex-direction: column; align-items: stretch; gap: 0;
+    padding: 12px 24px calc(20px + env(safe-area-inset-bottom, 0px));
+    background: var(--fm-card, #1c1c1e); color: var(--fm-tx, #fff);
+    border-radius: 22px 22px 0 0; box-shadow: var(--fm-sheet-shadow, 0 -12px 40px rgba(0, 0, 0, 0.35));
+    animation: lg-up 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.lg-grab { align-self: center; width: 38px; height: 4px; border-radius: 4px; background: var(--fm-bd, rgba(128, 128, 128, 0.4)); margin-bottom: 18px; }
+.lg-icon { align-self: center; width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; background: var(--fm-gold-tint, rgba(212, 175, 55, 0.16)); color: var(--fm-gold-tx, #e6c25e); margin-bottom: 14px; }
+.lg-title { margin: 0; text-align: center; font-size: 21px; font-weight: 800; line-height: 1.2; color: var(--fm-tx, #fff); }
+.lg-lead { margin: 8px 0 18px; text-align: center; font-size: 15px; line-height: 1.45; color: var(--fm-mut, #999); }
+.lg-points { list-style: none; margin: 0 0 22px; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; border-radius: 14px; background: var(--fm-in, rgba(128, 128, 128, 0.1)); border: 1px solid var(--fm-bd2, rgba(128, 128, 128, 0.2)); }
+.lg-points li { display: flex; align-items: flex-start; gap: 12px; font-size: 14.5px; line-height: 1.4; color: var(--fm-tx, #fff); }
+.lg-points li > svg { flex: none; margin-top: 1px; color: var(--fm-gold-tx, #e6c25e); }
+.lg-go { width: 100%; min-height: 52px; font-size: 16px; font-weight: 700; }
+.lg-skip { align-self: center; margin-top: 6px; min-height: 48px; padding: 0 20px; border: 0; background: none; font: inherit; font-size: 15px; font-weight: 600; color: var(--fm-mut, #999); cursor: pointer; }
+.lg-skip:focus-visible, .lg-go:focus-visible { outline: 2px solid var(--fm-gold, #d4af37); outline-offset: 2px; }
+@media (min-width: 641px) { .lg-sheet { bottom: 24px; border-radius: 22px; padding-bottom: 20px; } }
+@keyframes lg-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes lg-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lg-sheet, .lg-scrim { animation: none; } }
 
 /* The mark on rows (dashboard Visits, the customer's Visits tab, Visit view). */
 .loc-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1.4; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
