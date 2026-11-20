@@ -4,13 +4,13 @@ The app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`). W
 `feat/ios-app`; check each item against Apple's current rules when you reach it. **Owner steps are marked ▶.**
 
 ## The order that is fastest
-1. ▶ Request the **D-U-N-S number** (or decide to enrol as an individual). Everything else waits on Apple's account.
+1. ▶ **Enrol as an individual** (decided 2026-11-19): developer.apple.com/programs/enroll with your Apple ID, ID check, $99/yr; usually approved in a day or two. The seller name on the listing is then your personal name. A company (D-U-N-S) account can be switched to later by an app transfer; the bundle ID stays.
 2. ▶ Install **Xcode** (App Store). Run the app on your own iPhone with a free Apple ID (7-day install) to test.
 3. Apply migration `0017_location_tracking` (`npm run pg:migrate -- --apply` on Render) and merge to `main`
    (the app loads the live site, so the website must already have these changes).
-4. ▶ Enrol in the Apple Developer Program ($99/yr). Then: bundle ID, signing, push key if wanted.
+4. After approval, in Xcode: sign in, pick the team, set the bundle ID. Then send me the **Team ID** (universal links) and, for push, an APNs key.
 5. Upload a build (Xcode → Product → Archive → Distribute) to **TestFlight**; staff try it.
-6. ▶ Ask Apple for **unlisted app distribution** (their request form), then submit for review.
+6. Staff and suppliers can use **TestFlight** meanwhile. ▶ For a permanent install, ask Apple for **unlisted app distribution** (their request form) — check that Apple offers it to an individual account — then submit for review.
 
 ## What the build needs (done unless noted)
 - App icon and launch image: `node scripts/make-ios-icons.ts`. ▶ Replace `public/favicon.png` with a larger copy of the logo
@@ -37,7 +37,7 @@ all for **App Functionality**: Contact Info (name, email); Precise Location; Pho
 Other User Content (notes, files, signatures); User ID; Identifiers/Usage (sign-in and last-active times). No advertising use.
 
 ## Notes for App Review (paste into the review notes)
-> Easy Stones is a private business app for our staff and suppliers; the listing is unlisted. Sign in with the demo accounts
+> Easy Stones is a private business app for the staff and suppliers of Easy Stones (our company); it is submitted under the account holder's name and the listing is unlisted. Sign in with the demo accounts
 > below. The staff demo has location sharing turned on: after sign-in the app shows a consent screen explaining that location is
 > read in the background, 7 AM–6 PM on workdays, for the user's manager; accepting then triggers iOS's location prompt.
 > Background location is essential to this feature: managers use it to see where reps and drivers are during the workday. It
