@@ -8,7 +8,7 @@ import type { Loose } from '../../types/records.ts';
 
 export function cardDoc(c: typeof companyCards.$inferSelect): Loose {
   return {
-    _id: c.id, userId: c.userId, label: c.label, issuer: c.issuer, lastDigits: c.lastDigits, active: c.active,
+    _id: c.id, userId: c.userId ?? '', label: c.label, issuer: c.issuer, lastDigits: c.lastDigits, active: c.active,
     updatedBy: c.updatedBy, createdAt: c.createdAt, updatedAt: c.updatedAt
   };
 }

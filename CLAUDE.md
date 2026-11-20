@@ -1360,7 +1360,13 @@ later claims its charge and voids that Missing row (`afterReceiptSaved` in `POST
 no longer calls a Missing row a repeat); an expense that answers a charge can't be voided. Cards
 Amex names that nobody set up are listed (only cards with a charge), picked in the upload or the
 tab, and set up as `FIRS12345` in the same transaction as the check. Amex's "Receipt" `*` is
-ignored (merchant e-receipts; staff don't use the Amex app). Not built: the daily reminder email.
+ignored (merchant e-receipts; staff don't use the Amex app). **A card may have no holder yet**
+(2026-11-20, migration `0024`: `company_cards.user_id` nullable; owner's call so every card from the
+card-holder sheet exists before each holder has a login): `scripts/card-holders-setup.ts <sheet>
+[--unassigned] [--leave=ID,ID] [--apply]` (dry run by default; matches by email, never a mailbox shared
+by several holders, then name) — the sheet itself stays out of the repo, it's public. Charges on such a
+card link to it and show **Waiting for a login**; no Missing row is made (no one to ask) until Cards →
+**Assign to a person** gives it a holder, which re-runs the check (`afterCardSaved`). Not built: the daily reminder email.
 
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
 

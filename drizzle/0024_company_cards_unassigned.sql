@@ -1,0 +1,1 @@
+ALTER TABLE "company_cards" ALTER COLUMN "user_id" DROP NOT NULL;

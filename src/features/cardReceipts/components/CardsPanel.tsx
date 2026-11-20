@@ -104,8 +104,9 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
     api.listCards().then((r) => { setCards(r.cards); setPeople(r.people); }).catch((e: Error) => setError(e.message)).finally(() => setLoading(false));
   }, []);
 
-  const nameOf = (id: string) => people.find((p) => p.id === id)?.name || 'Someone who left';
-  const placeOf = (id: string) => people.find((p) => p.id === id)?.location || '';
+  // A card set up from the Amex check before its holder has a login has no one yet: Edit assigns it.
+  const nameOf = (id: string) => (id ? people.find((p) => p.id === id)?.name || 'Someone who left' : 'Not assigned yet');
+  const placeOf = (id: string) => (id ? people.find((p) => p.id === id)?.location || '' : '');
   const replace = (card: Card) => setCards((list) => [card, ...list.filter((c) => c._id !== card._id)].sort((a, b) => Number(b.active) - Number(a.active) || a.label.localeCompare(b.label)));
 
   const isPhone = useIsPhone();
@@ -113,7 +114,7 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
   const menu = (c: Card) => {
     if (!canManage) return null;
     const items: RowMenuItem[] = [
-      { key: 'edit', label: 'Edit', icon: Pencil, onClick: () => setOpen(c) },
+      { key: 'edit', label: c.userId ? 'Edit' : 'Assign to a person', icon: Pencil, onClick: () => setOpen(c) },
       c.active
         ? { key: 'off', label: 'Deactivate', icon: Ban, danger: true, onClick: () => toggle(c) }
         : { key: 'on', label: 'Reactivate', icon: RotateCcw, onClick: () => toggle(c) }
@@ -130,7 +131,7 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
     <div style={{ display: 'grid', gap: 12 }}>
       <div className="ccr-cards-head">
         <h2>Company cards</h2>
-        <span className="ccr-sub">{cards.filter((c) => c.active).length} active</span>
+        <span className="ccr-sub">{cards.filter((c) => c.active).length} active{cards.some((c) => c.active && !c.userId) ? ` · ${cards.filter((c) => c.active && !c.userId).length} not assigned yet` : ''}</span>
         {canManage ? <button type="button" className="ccr-btn gold" style={{ marginLeft: 'auto' }} onClick={() => setOpen('new')}><Plus size={16} aria-hidden="true" /> Add card</button> : null}
       </div>
       {error ? <div className="ccr-note is-error" role="alert">{error}</div> : null}
@@ -156,7 +157,7 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
                 {cards.map((c) => (
                   <tr key={c._id} style={{ cursor: 'default', opacity: c.active ? 1 : 0.6 }}>
                     <td className="ccr-mono">{c.label}</td>
-                    <td>{nameOf(c.userId)}</td>
+                    <td>{c.userId ? nameOf(c.userId) : <span className="ccr-muted">Not assigned yet</span>}</td>
                     <td className="ccr-col-wide">{placeOf(c.userId)}</td>
                     <td>{c.issuer === 'amex' ? 'Amex' : 'Other'} ···{c.lastDigits}</td>
                     <td>{status(c)}</td>

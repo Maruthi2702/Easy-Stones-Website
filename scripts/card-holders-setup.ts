@@ -11,6 +11,9 @@
  * (case and spacing ignored). A holder who matches no one, or two logins, is listed and skipped.
  * A person who already has an active card, or a card ID / digits already in use, is skipped and
  * said so. The card's last digits are the ID's last 5 (what Amex's "Account #" ends in).
+ *   --unassigned          a holder with no matching login still gets their card, with no holder yet; the Cards tab
+ *                         assigns it to a login later (and their Amex charges then ask for receipts)
+ *   --leave=A,B           these Card IDs are never matched to a login (they get an unassigned card with --unassigned)
  * Needs DATABASE_URL (Render shell). Safe to run twice.
  */
 import fs from 'node:fs';
@@ -25,6 +28,8 @@ import type { Db } from '../src/db/copy/plan.ts';
 
 const [file] = process.argv.slice(2).filter(a => !a.startsWith('--'));
 const apply = process.argv.includes('--apply');
+const unassigned = process.argv.includes('--unassigned');
+const leave = new Set((process.argv.find(a => a.startsWith('--leave='))?.slice(8) || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean));
 const url = process.env.DATABASE_URL;
 if (!file || !url) { console.error('Usage: DATABASE_URL=… node scripts/card-holders-setup.ts holders.tsv [--apply]'); process.exit(1); }
 
@@ -65,9 +70,19 @@ try {
     const own = h.emails.filter(e => mailCount.get(e) === 1);
     const byMail = people.filter(p => p.email && own.includes(p.email.toLowerCase()) && p.username !== 'admin');
     const byName = people.filter(p => norm(p.name).length > 3 && norm(h.text).endsWith(norm(p.name)) && p.username !== 'admin');
-    const found = byMail.length === 1 ? byMail : byName.length ? byName : byMail;
+    const found = leave.has(h.label) ? [] : byMail.length === 1 ? byMail : byName.length ? byName : byMail;
     const tag = `${h.label.padEnd(10)} ${h.text}`;
-    if (found.length === 0) { tally.none += 1; console.log(`✗ NO LOGIN      ${tag} — no staff login with that email or name`); continue; }
+    if (found.length === 0 && unassigned) {
+      if (usedLabel.has(h.label) || usedDigits.has(digits)) { tally.had += 1; console.log(`= HAS A CARD    ${tag} — ${usedDigits.get(digits) || h.label} already exists`); continue; }
+      const checked = cleanCard({ userId: '', issuer: 'amex', lastDigits: digits, label: h.label }, { allowUnassigned: true });
+      if (!checked.value) { tally.clash += 1; console.log(`✗ BAD CARD      ${tag} — ${Object.values(checked.problems).join(', ')}`); continue; }
+      console.log(`${apply ? '+ CREATED' : '· would create'}  ${tag} → not assigned yet${leave.has(h.label) ? ' (left unassigned on purpose)' : ''}`);
+      if (apply) await addCard(d, newId(), { ...checked.value, active: true, updatedBy: 'card-holders-setup' });
+      usedLabel.add(h.label); usedDigits.set(digits, h.label);
+      tally.made += 1;
+      continue;
+    }
+    if (found.length === 0) { tally.none += 1; console.log(`✗ NO LOGIN      ${tag} — no staff login with that email or name (add --unassigned to make the card anyway)`); continue; }
     if (found.length > 1) { tally.many += 1; console.log(`✗ SEVERAL       ${tag} — ${found.map(p => `${p.name} <${p.email}>`).join('; ')}`); continue; }
     const p = found[0]!;
     const how = byMail.length === 1 && byMail[0] === p ? 'email' : 'name';
@@ -75,8 +90,8 @@ try {
     if (usedLabel.has(h.label) || usedDigits.has(digits)) { tally.clash += 1; console.log(`✗ CARD IN USE   ${tag} — ${usedDigits.get(digits) || h.label} is another person's`); continue; }
     const checked = cleanCard({ userId: p.id, issuer: 'amex', lastDigits: digits, label: h.label });
     if (!checked.value) { tally.clash += 1; console.log(`✗ BAD CARD      ${tag} — ${Object.values(checked.problems).join(', ')}`); continue; }
-    const flag = [p.active ? '' : ' [login is deactivated]', ].join('');
-    console.log(`${apply ? '+ CREATED' : '· would create'}  ${tag} → ${p.name} (by ${how})${flag}`);
+    const flag = p.active ? '' : ' [login is deactivated]';
+    console.log(`${apply ? '+ CREATED' : '· would create'}  ${tag} → ${p.name || p.username} (by ${how})${flag}`);
     if (apply) await addCard(d, newId(), { ...checked.value, active: true, updatedBy: 'card-holders-setup' });
     usedLabel.add(h.label); usedDigits.set(digits, h.label); haveUser.set(p.id, h.label);
     tally.made += 1;

@@ -133,13 +133,14 @@ export const ISSUERS = Object.freeze([{ key: 'amex', label: 'American Express' }
 export const suggestCardLabel = (name: string, digits: string) =>
   `${String(name || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 4)}${String(digits || '').replace(/\D/g, '').slice(-5)}`;
 
-export function cleanCard(body: Record<string, unknown>) {
+/** `allowUnassigned`: a card with no holder yet (set up from the Amex check) may be saved without one, e.g. to deactivate it. */
+export function cleanCard(body: Record<string, unknown>, { allowUnassigned = false }: { allowUnassigned?: boolean } = {}) {
   const problems: Record<string, string> = {};
   const userId = String(body.userId ?? '').trim();
   const issuer = body.issuer === 'other' ? 'other' : 'amex';
   const lastDigits = String(body.lastDigits ?? '').replace(/\D/g, '');
   const label = String(body.label ?? '').trim().toUpperCase().replace(/\s+/g, '').slice(0, 20);
-  if (!userId) problems.userId = 'Choose the cardholder';
+  if (!userId && !allowUnassigned) problems.userId = 'Choose the cardholder';
   if (!/^\d{4,5}$/.test(lastDigits)) problems.lastDigits = 'Enter the last 4 or 5 digits';
   if (!/^[A-Z0-9-]{3,20}$/.test(label)) problems.label = 'Enter the card ID, e.g. MARU92069';
   return Object.keys(problems).length ? { problems } : { value: { userId, issuer, lastDigits, label }, problems };

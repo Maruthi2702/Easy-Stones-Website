@@ -16,7 +16,8 @@ import { customers } from './customers.ts';
 
 export const companyCards = pgTable('company_cards', {
   id: objectId('id').primaryKey(),
-  userId: objectId('user_id').notNull().references(() => users.id),
+  /** Null = a card set up before its holder has a login (assigned later; src/utils/amexStatement.ts). */
+  userId: objectId('user_id').references(() => users.id),
   /** The card's id as accounting writes it, e.g. 'MARU92069'. */
   label: text('label').notNull(),
   issuer: text('issuer').notNull().default('amex'),

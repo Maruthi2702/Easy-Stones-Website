@@ -23,9 +23,22 @@ const VIEW = {
 };
 const PREVIEW = {
   preview: true, lines: 1065, added: 1065, known: 0, charges: 1038, chargesCents: 23254199,
-  counts: { missing: { count: 0, cents: 0 }, matched: { count: 2, cents: 7000 }, no_card: { count: 0, cents: 0 }, before_start: { count: 1036, cents: 22900000 }, no_receipt: { count: 27, cents: -25351290 } },
+  counts: { missing: { count: 0, cents: 0 }, matched: { count: 2, cents: 7000 }, no_card: { count: 0, cents: 0 }, unassigned: { count: 3, cents: 12000 }, before_start: { count: 1036, cents: 22900000 }, no_receipt: { count: 27, cents: -25351290 } },
   unknownCards: VIEW.unknownCards, people: VIEW.people, check: { linked: 2, created: 0, retired: 0, cardsFound: 0 }, period: { from: '2026-09-29', to: '2026-10-29' }, missingFrom: '2026-11-01'
 };
+
+test('Cards shows a card with no holder yet and offers to assign it', async ({ page }) => {
+  await page.route('http://127.0.0.1:4175/api/card-receipts/cards', route => route.fulfill({ json: {
+    cards: [{ _id: 'k1', userId: 'u1', label: 'ALEX12345', issuer: 'amex', lastDigits: '12345', active: true },
+      { _id: 'k2', userId: '', label: 'LORI94370', issuer: 'amex', lastDigits: '94370', active: true }],
+    people: [{ id: 'u1', name: 'Alex Stone', role: 'admin', location: 'Seattle', active: true }]
+  } }));
+  await page.goto('/sales?tab=card_receipts');
+  await page.getByRole('tab', { name: 'Cards' }).click();
+  await expect(page.getByText('2 active · 1 not assigned yet')).toBeVisible();
+  await expect(page.getByText('LORI94370').first()).toBeVisible();
+  await expect(page.getByText('Not assigned yet').first()).toBeVisible();
+});
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page, true);
@@ -57,6 +70,7 @@ test('Statements shows the Amex check, filters by status and previews an upload'
   await page.locator('input[type="file"][aria-label="Amex activity file"]').setInputFiles({ name: 'amex.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer: Buffer.from('x') });
   await expect(page.locator('.fm-section-title').filter({ hasText: 'Sep 29 – Oct 29, 2026' })).toBeVisible();
   await expect(page.getByText(/are before 11-01-2026/)).toBeVisible();
+  await expect(page.getByText(/are on cards with no login yet/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Upload and check' })).toBeEnabled();
   await page.screenshot({ path: `test-results/amex-${info.project.name}-upload.png`, fullPage: true });
   expect(failures).toEqual([]);

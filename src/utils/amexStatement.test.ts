@@ -97,6 +97,9 @@ describe('kindOf and lineStatus', () => {
     expect(lineStatus({ ...base, expenseStatus: 'waiting' })).toBe('matched');
     expect(lineStatus({ ...base, expenseStatus: 'missing' })).toBe('missing');
     expect(lineStatus({ ...base, cardId: null })).toBe('no_card');
+    expect(lineStatus({ ...base, unassigned: true })).toBe('unassigned');
+    expect(lineStatus({ ...base, unassigned: true, expenseStatus: 'waiting' })).toBe('matched');
+    expect(lineStatus({ ...base, unassigned: true, date: '2026-10-20' })).toBe('before_start');
     expect(lineStatus({ ...base, date: '2026-10-20', cardId: null })).toBe('before_start');
     expect(lineStatus({ ...base, date: '2026-10-20', expenseStatus: 'approved' })).toBe('matched');
     expect(lineStatus({ ...base, expenseStatus: 'draft', expenseVoided: true })).toBe('missing');

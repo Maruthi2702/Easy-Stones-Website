@@ -182,6 +182,7 @@ export const LINE_STATUSES = [
   { key: 'missing', label: 'Missing receipt' },
   { key: 'matched', label: 'Receipt uploaded' },
   { key: 'no_card', label: 'Card not set up' },
+  { key: 'unassigned', label: 'Waiting for a login' },
   { key: 'before_start', label: 'Before the check started' },
   { key: 'no_receipt', label: 'No receipt needed' }
 ] as const;
@@ -189,12 +190,14 @@ export type LineStatus = typeof LINE_STATUSES[number]['key'];
 export const lineStatusLabel = (key: string) => LINE_STATUSES.find((s) => s.key === key)?.label || key;
 
 /** Where a line stands, from what it's linked to. */
-export function lineStatus(l: { kind: LineKind; date: string; cardId: string | null; expenseStatus: string | null; expenseVoided?: boolean },
+export function lineStatus(l: { kind: LineKind; date: string; cardId: string | null; expenseStatus: string | null; expenseVoided?: boolean;
+  /** The card exists but nobody holds it yet: no one to ask for the receipt. */ unassigned?: boolean },
   missingFrom = MISSING_FROM): LineStatus {
   if (l.kind !== 'charge') return 'no_receipt';
   if (l.expenseStatus && !l.expenseVoided) return l.expenseStatus === 'missing' ? 'missing' : 'matched';
   if (l.date < missingFrom) return 'before_start';
   if (!l.cardId) return 'no_card';
+  if (l.unassigned) return 'unassigned';
   return 'missing';
 }
 

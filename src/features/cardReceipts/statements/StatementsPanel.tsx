@@ -12,7 +12,7 @@ import AmexUploadForm from './AmexUploadForm';
 import type { StatementLine, StatementsView, UnknownCard, UploadResult } from './statementsApi';
 import './Statements.css';
 
-const CHIP: Record<LineStatus, string> = { missing: 'miss', matched: 'ok', no_card: 'back', before_start: 'draft', no_receipt: 'draft' };
+const CHIP: Record<LineStatus, string> = { missing: 'miss', matched: 'ok', no_card: 'back', unassigned: 'back', before_start: 'draft', no_receipt: 'draft' };
 const DOT: Record<LineStatus, string> = CHIP;
 
 const StatusChip = ({ status }: { status: LineStatus }) => <span className={`ccr-chip is-${CHIP[status]}`}>{lineStatusLabel(status)}</span>;
@@ -87,7 +87,7 @@ export default function StatementsPanel({ month, isPhone, onSaved }: { month: st
           {LINE_STATUSES.map((s) => {
             const t = counts[s.key];
             const on = status === s.key;
-            if (!t.count && (s.key === 'no_card' || s.key === 'before_start')) return null;
+            if (!t.count && (s.key === 'no_card' || s.key === 'unassigned' || s.key === 'before_start')) return null;
             return (
               <button key={s.key} type="button" className={`ccr-tile${on ? ' is-on' : ''}`} aria-pressed={on}
                 title={on ? 'Show every line' : `Show only ${s.label}`} onClick={() => setStatus(on ? 'all' : s.key)}>

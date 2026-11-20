@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import * as db from '../db/cardReceipts/index.ts';
 import { newId } from '../db/ids.ts';
-import { afterReceiptSaved, amexChargeOf } from '../db/cardStatements/hooks.ts';
+import { afterReceiptSaved, afterCardSaved, amexChargeOf } from '../db/cardStatements/hooks.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, holderMayEdit, changeSummary, possibleRepeat, canApprove, approvalStep, isBigReceipt, isBigReceiptApprover, BIG_RECEIPT_CENTS, cleanApproverRoles, decisionProblem,
@@ -100,6 +100,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   const router = express.Router();
   const opener = [authenticate, anyOf(...PAGE_PERMISSIONS)];
   const actor = (req: Request) => nameOf(userOf(req));
+  const actorOf = (req: Request) => ({ id: userIdOf(req), name: actor(req) });
 
   router.get('/me', opener, async (req: Request, res: Response) => {
     try {
@@ -236,22 +237,25 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   });
 
   const saveCard = async (req: Request, res: Response, card: Loose | null) => {
-    const { value, problems } = cleanCard({ ...(card ? cardView(card) : {}), ...(req.body || {}) });
+    // A card set up from the Amex check with no holder yet may be saved without one (deactivated, renamed); a new card needs its holder.
+    const { value, problems } = cleanCard({ ...(card ? cardView(card) : {}), ...(req.body || {}) }, { allowUnassigned: Boolean(card && !card.userId) });
     if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
     const active = typeof req.body?.active === 'boolean' ? req.body.active : (card ? card.active !== false : true);
-    if (!mongoose.isValidObjectId(value.userId) || !(await staffData.userExists({ _id: value.userId }))) {
+    if (value.userId && (!mongoose.isValidObjectId(value.userId) || !(await staffData.userExists({ _id: value.userId })))) {
       return res.status(400).json({ message: 'Some fields need attention.', problems: { userId: 'Choose the cardholder' } });
     }
     if (active) {
       const clash = await db.activeCardClash(value.userId, value.label, card ? String(card._id) : null);
       if (clash) {
-        const problems = clash.userId === value.userId ? { userId: `They already have card ${clash.label}. Deactivate it first.` } : { label: 'Another active card has that ID' };
+        const problems = value.userId && clash.userId === value.userId ? { userId: `They already have card ${clash.label}. Deactivate it first.` } : { label: 'Another active card has that ID' };
         return res.status(409).json({ message: 'One card per person.', problems });
       }
     }
     const fields = { ...value, active, updatedBy: actor(req) };
     const saved = card ? await db.changeCard(String(card._id), fields) : await db.addCard(newId(), fields);
     if (!saved) return res.status(404).json({ message: 'Card not found.' });
+    // The Amex check: a card that just got its holder asks for the receipts its charges are missing.
+    await afterCardSaved(actorOf(req));
     res.status(card ? 200 : 201).json({ card: cardView(saved) });
   };
 

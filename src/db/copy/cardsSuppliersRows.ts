@@ -67,8 +67,11 @@ export function companyCardRowOf(d: Loose, ref: ReferenceIndex, problems: CopyPr
   const id = idOf(d._id);
   if (!id) return null;
   const c = rowConverter(problems, 'company_cards', id);
-  const userId = linkOf(c, 'user_id', d.userId, ref.userIds, 'user');
-  if (!userId) { c.problem('user_id', 'card of no user', 'skipped'); return null; }
+  // A card with no holder yet (set up from the Amex check before its holder has a login) keeps no user;
+  // one whose holder is missing from the staff list is still skipped.
+  const unassigned = d.userId == null || d.userId === '';
+  const userId = unassigned ? null : linkOf(c, 'user_id', d.userId, ref.userIds, 'user');
+  if (!userId && !unassigned) { c.problem('user_id', 'card of no user', 'skipped'); return null; }
   return {
     id, userId, label: textOf(d.label), issuer: pickOf(c, 'issuer', d.issuer, ['amex', 'other'] as const, 'amex'),
     lastDigits: textOf(d.lastDigits), active: boolOf(d.active, true), updatedBy: textOf(d.updatedBy), ...stamp(c, d)

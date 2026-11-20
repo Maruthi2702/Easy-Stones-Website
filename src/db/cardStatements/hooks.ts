@@ -3,7 +3,7 @@
  * Both do nothing while Credit Card Receipts is on MongoDB (the check is Postgres only).
  */
 import { areaOn } from '../appDb.ts';
-import { claimUpload, linkedLine } from './index.ts';
+import { claimUpload, linkedLine, recheck } from './index.ts';
 
 const on = () => areaOn('card_receipts') === 'postgres';
 
@@ -23,6 +23,19 @@ export async function afterReceiptSaved(expense: { _id?: unknown; id?: unknown; 
   } catch (error) {
     console.error('[card-statements] matching a new receipt failed:', error);
     return null;
+  }
+}
+
+/**
+ * A card was added or changed: charges on a card that now has a holder get their Missing receipt
+ * rows (the check runs again over everything waiting). Never fails the save.
+ */
+export async function afterCardSaved(by: { id: string; name: string }) {
+  if (!on()) return;
+  try {
+    await recheck(by);
+  } catch (error) {
+    console.error('[card-statements] checking after a card change failed:', error);
   }
 }
 

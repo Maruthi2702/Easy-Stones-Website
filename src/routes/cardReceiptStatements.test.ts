@@ -229,4 +229,33 @@ describe('approving a month from before the check started', () => {
     expect(october.body.lines).toEqual([expect.objectContaining({ reference: 'ref-old', status: 'matched' })]);
     expect(await approveMonthWithoutReceipts('2026-10', by, {}, db)).toMatchObject({ toAdd: 0, added: 0 });
   });
+
+  it('a card with no holder yet links its charges but asks no one for a receipt, until a login is assigned', async () => {
+    const orphan = hex(300);
+    await db.insert(companyCards).values({ id: orphan, userId: null, label: 'THIV95555', lastDigits: '95555' });
+    const before = (await placeholders()).length;
+    const rows = [line('11/12/2026', 'FUEL STOP', 40, 'ref-orphan', '-95555', 'THIVIKRAM VALLURU')];
+    const res = await post('import', rows);
+    expect(res.status).toBe(200);
+    expect(res.body.counts).toMatchObject({ unassigned: { count: 1, cents: 4000 }, missing: { count: 0 }, no_card: { count: 0 } });
+    expect(res.body.unknownCards).toEqual([]);
+    expect(await placeholders()).toHaveLength(before);
+    const [l] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-orphan'));
+    expect(l).toMatchObject({ cardId: orphan, expenseId: null });
+    const view = await request(app).get('/api/card-receipts/statements?month=2026-11');
+    expect(view.body.lines.find((x: { reference: string }) => x.reference === 'ref-orphan')).toMatchObject({ status: 'unassigned', cardLabel: 'THIV95555', holderName: '' });
+
+    // Assigning the card to a login (Cards → Edit) asks that person for the receipt.
+    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
+    const assign = await request(app).put(`/api/card-receipts/cards/${orphan}`).send({ userId: ACCT });
+    expect(assign.status).toBe(200);
+    expect(assign.body.card).toMatchObject({ userId: ACCT, label: 'THIV95555' });
+    const made = (await placeholders()).filter((p) => p.userId === ACCT);
+    expect(made).toEqual([expect.objectContaining({ day: '2026-11-12', cents: 4000, cardLabel: 'THIV95555', merchant: 'FUEL STOP' })]);
+    // An unassigned card can be deactivated without a holder.
+    const loose = hex(301);
+    await db.insert(companyCards).values({ id: loose, userId: null, label: 'LOOS95556', lastDigits: '95556' });
+    expect((await request(app).put(`/api/card-receipts/cards/${loose}`).send({ active: false })).body.card).toMatchObject({ userId: '', active: false });
+    who = ACCOUNTANT;
+  });
 });

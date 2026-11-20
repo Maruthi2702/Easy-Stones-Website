@@ -123,7 +123,8 @@ async function createMissingRows(tx: Conn, references: string[], by: Actor, now:
     .innerJoin(companyCards, eq(companyCards.id, lines.cardId))
     .leftJoin(users, eq(users.id, companyCards.userId))
     .leftJoin(locations, eq(locations.id, users.homeLocationId))
-    .where(inArray(lines.reference, references));
+    .where(and(inArray(lines.reference, references), sql`${companyCards.userId} is not null`));
+  // A card with no holder yet has no one to ask: its charges wait, and get their rows once it's assigned.
   if (!rows.length) return 0;
   const ref = await referenceIndexOf(q(tx));
   const links = { cardIds: new Set(rows.map(r => r.cardId)), categoryNames: new Set<string>(), customerIds: new Set<string>() };
@@ -319,7 +320,8 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: s
       kind, amexCategory: r.l.amexCategory, cityState: r.l.cityState, cardId: r.l.cardId, cardLabel: r.cardLabel ?? '',
       holderId: r.holderId ?? '', holderName: r.displayName || r.username || '',
       expenseId: r.l.expenseId, expenseStatus: r.expenseStatus ?? null,
-      status: lineStatus({ kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided) }, missingFrom)
+      status: lineStatus({ kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided),
+        unassigned: Boolean(r.l.cardId) && !r.holderId }, missingFrom)
     };
   });
 }
