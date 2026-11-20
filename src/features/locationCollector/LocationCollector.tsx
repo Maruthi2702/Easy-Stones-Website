@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { MapPin } from 'lucide-react';
 import FormModal from '../../components/shared/form/FormModal';
 import { useAuth } from '../../context/AuthContext';
@@ -20,6 +21,13 @@ export default function LocationCollector() {
   const until = untilText(status?.windowEnd ?? 18);
   // A "Locate now" ask from an admin (any hour): answered whenever the app is in front and location is allowed.
   const sent = useLocateRequests(phase === 'running' || phase === 'waiting');
+  // The full pill is shown for a few seconds, then shrinks to the pin so it stops covering the screen's content.
+  const [small, setSmall] = useState(false);
+  useEffect(() => {
+    if (phase !== 'running') { setSmall(false); return undefined; }
+    const t = setTimeout(() => setSmall(true), 6000);
+    return () => clearTimeout(t);
+  }, [phase]);
 
   return (
     <>
@@ -41,7 +49,7 @@ export default function LocationCollector() {
       ) : null}
 
       {phase === 'running' ? (
-        <div className="lc-pill" role="status"><MapPin size={14} aria-hidden="true" /> Location on until {until}</div>
+        <div className={`lc-pill${small ? ' is-small' : ''}`} role="status" aria-label={`Location on until ${until}`}><MapPin size={14} aria-hidden="true" /><span className="lc-pill-text"> Location on until {until}</span></div>
       ) : null}
 
       {sent ? <div className="lc-pill" role="status"><MapPin size={14} aria-hidden="true" /> {sent}</div> : null}
