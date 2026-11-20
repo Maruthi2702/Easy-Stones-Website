@@ -20,6 +20,9 @@
 .ccr-st-urow:first-child { border-top: 0; }
 .ccr-st-note { color: var(--ccr-miss); }
 .ccr-st-pick { min-width: 0; }
+/* The people list floats inside its row: the box must not clip it, and the row being edited sits above the rows after it. */
+.ccr-st-unset { overflow: visible; }
+.ccr-st-urow:focus-within { position: relative; z-index: 2; }
 
 /* Phone: the status filter as a row of chips */
 .ccr-st-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }

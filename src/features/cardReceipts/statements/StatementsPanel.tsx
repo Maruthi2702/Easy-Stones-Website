@@ -199,7 +199,7 @@ function UnknownCards({ cards, people, onSetUp }: {
   const options = useMemo(() => personOptions(people), [people]);
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name || '';
   return (
-    <div className="ccr-box">
+    <div className="ccr-box ccr-st-unset">
       <h2 className="ccr-st-h"><CreditCard size={16} aria-hidden="true" /> Cards not set up · {cards.length}</h2>
       <div className="ccr-st-unknown">
         {cards.map((c) => (
@@ -209,7 +209,7 @@ function UnknownCards({ cards, people, onSetUp }: {
               <span>…{c.digits} · {c.charges} {c.charges === 1 ? 'charge' : 'charges'}, {formatMoney(c.cents)} · {usDate(c.first)} to {usDate(c.last)}</span>
               {notes[c.digits] ? <span className="ccr-st-note" role="alert">{notes[c.digits]}</span> : null}
             </div>
-            <div className="ccr-st-pick">
+            <div className="ccr-st-pick fm-tokens">
               <FormSearchPicker id={`ccr-st-u-${c.digits}`} value={picks[c.digits] || ''} selectedLabel={picks[c.digits] ? nameOf(picks[c.digits]!) : 'Choose the cardholder'}
                 onChange={(id) => setPicks((p) => ({ ...p, [c.digits]: id }))} options={options.slice(1)}
                 placeholder="Choose the cardholder" searchPlaceholder="Search people" sheetTitle={`Card …${c.digits}`} keepInForm />
