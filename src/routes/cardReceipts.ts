@@ -9,6 +9,7 @@ import rateLimit from 'express-rate-limit';
 import { isFilesCdnUrl, isCloudinaryUrl } from '../utils/fileUrls.ts';
 import { getFileStore, type FileStore } from '../services/fileStore.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
+import { displayNameOf } from '../utils/salesReps.ts';
 import { ALL_PEOPLE } from '../utils/teamScope.ts';
 import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup } from '../db/cardStatements/hooks.ts';
 import {
@@ -45,7 +46,8 @@ import type { Loose } from '../types/records.ts';
 type ReqUser = { id?: string; _id?: string; username?: string; displayName?: string; role?: string; permissions?: string[]; location?: string; assignedLocations?: string[] };
 const userOf = (req: Request) => ((req as Request & { user?: ReqUser }).user || {}) as ReqUser;
 const userIdOf = (req: Request) => String(userOf(req).id || userOf(req)._id || '');
-const nameOf = (u: { displayName?: string | null; username?: string | null }) => u.displayName || u.username || '';
+// The app-wide rule (a Display Name, else a tidied username) — a bare username like "babu" must not show lowercase.
+const nameOf = (u: { displayName?: string | null; username?: string | null }) => displayNameOf(u);
 const has = (req: Request, perm: string) => (userOf(req).permissions || []).includes(perm);
 const homeOf = (u: { location?: string | null; assignedLocations?: string[] | null }) =>
   u.location || (u.assignedLocations || []).find((l) => l && l !== '*') || '';

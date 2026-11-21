@@ -1,3 +1,4 @@
+import { displayNameOf } from '../../utils/salesReps';
 import { missingFor, missingLine, statusTotals, subLabel } from '../../utils/cardReceipts';
 import { ALL_PEOPLE, viewerLocations, workLocationsOf } from '../../utils/teamScope';
 import type { PersonOption } from '../../api/myTeam';
@@ -66,6 +67,6 @@ export function holderPeople(
     const person = byId.get(id);
     const works = person ? workLocationsOf(person) : [];
     const heading = (mine === ALL_PEOPLE ? works[0] : works.find((l) => mine.includes(l)) || works[0]) || e.location || '';
-    return { value: id, id, label: e.name, location: heading, locations: works, inactive: Boolean(person && person.isActive === false) };
+    return { value: id, id, label: person ? displayNameOf(person) : e.name, location: heading, locations: works, inactive: Boolean(person && person.isActive === false) };
   }).sort((a, b) => a.label.localeCompare(b.label));
 }
