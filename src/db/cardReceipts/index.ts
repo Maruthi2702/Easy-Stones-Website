@@ -30,7 +30,7 @@ export const deleteCategory = async (id: string, name: string, move: { to: strin
 export const listCards = async () => onPostgres() ? pg.listCards(await appDb()) : mongo.listCards();
 export const findCard = async (id: string) => onPostgres() ? pg.findCard(await appDb(), id) : mongo.findCard(id);
 export const activeCardOf = async (userId: string) => onPostgres() ? pg.activeCardOf(await appDb(), userId) : mongo.activeCardOf(userId);
-export const activeCardClash = async (userId: string, label: string, exceptId: string | null, issuer = 'amex') =>
+export const activeCardClash = async (userId: string, label: string, exceptId: string | null, issuer: 'amex' | 'encore' | 'other' = 'amex') =>
   onPostgres() ? pg.activeCardClash(await appDb(), userId, label, exceptId, issuer) : mongo.activeCardClash(userId, label, exceptId, issuer);
 export const cardWithLabel = async (label: string, exceptId: string | null) =>
   onPostgres() ? pg.cardWithLabel(await appDb(), label, exceptId) : mongo.cardWithLabel(label, exceptId);

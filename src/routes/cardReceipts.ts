@@ -324,7 +324,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       }
     }
     if (active) {
-      const clash = await db.activeCardClash(value.userId, value.label, card ? String(card._id) : null, value.issuer);
+      const clash = await db.activeCardClash(value.userId, value.label, card ? String(card._id) : null, value.issuer as 'amex' | 'encore' | 'other');
       if (clash) {
         const problems = value.userId && clash.userId === value.userId ? { userId: `They already have ${value.issuer === 'encore' ? 'an Encore' : value.issuer === 'other' ? 'this kind of' : 'an Amex'} card, ${clash.label}. Deactivate it first.` } : { label: 'Another active card has that ID' };
         return res.status(409).json({ message: 'One card per person.', problems });
