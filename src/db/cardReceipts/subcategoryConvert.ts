@@ -11,7 +11,7 @@
  * Run twice it finds nothing left to do. Postgres only (DATABASE_URL); `preview` counts and writes nothing.
  * Fuel → Car is a guess: nothing on an old expense says whether it was a car, truck, van or forklift.
  */
-import { asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
 import { newId } from '../ids.ts';
 import { receiptCategories, cardExpenses, cardExpenseHistory } from '../schema/cardsSuppliers.ts';
@@ -47,9 +47,12 @@ export async function convertToSubcategories(db: Db, by: string, { preview }: { 
     const now = new Date();
     let order = Math.max(-1, ...cats.map(c => c.order)) + 1;
 
-    // 1. Gas and Food: created, or the missing types added.
+    // 1. Gas and Food: created, or the missing types added. A category already labelled the same (Fuel renamed to
+    //    "Gas" in Admin keeps its stored name `fuel`) is the one to use, never a second copy.
+    const actual = new Map<string, string>();
     for (const target of TARGETS) {
-      const existing = byName.get(target.name);
+      const existing = byName.get(target.name) ?? cats.find(c => c.label.trim().toLowerCase() === target.label.toLowerCase());
+      actual.set(target.name, existing?.name ?? target.name);
       const subs = storedOf(existing?.subcategories);
       const before = subs.length;
       for (const s of target.subs) {
@@ -76,22 +79,28 @@ export async function convertToSubcategories(db: Db, by: string, { preview }: { 
       const from = byName.get(m.from);
       if (!from) { report.notFound.push(m.from); continue; }
       const to = TARGETS.find(t => t.name === m.to)!;
+      const toName = actual.get(m.to)!;
+      // The old category IS the new one (Fuel already labelled Gas): its expenses only get the type, and it stays shown.
+      const sameCategory = m.from === toName;
       const subLabel = to.subs.find(s => categoryKey(s.label) === m.sub)!.label;
       const rows = await tx.select({ id: cardExpenses.id, status: cardExpenses.status, cents: cardExpenses.cents }).from(cardExpenses)
-        .where(eq(cardExpenses.category, m.from)).for('update');
+        .where(sameCategory ? and(eq(cardExpenses.category, m.from), eq(cardExpenses.subcategory, '')) : eq(cardExpenses.category, m.from)).for('update');
       const byStatus: Record<string, number> = {};
       for (const r of rows) byStatus[r.status] = (byStatus[r.status] || 0) + 1;
-      report.moves.push({ from: from.label, to: `${to.label} · ${subLabel}`, sub: m.sub, expenses: rows.length, byStatus, cents: rows.reduce((t, r) => t + r.cents, 0) });
-      if (from.active) moved.add(m.from);
+      report.moves.push({
+        from: from.label, to: sameCategory ? `${from.label} · ${subLabel} (type only)` : `${to.label} · ${subLabel}`, sub: m.sub,
+        expenses: rows.length, byStatus, cents: rows.reduce((t, r) => t + r.cents, 0)
+      });
+      if (from.active && !sameCategory) moved.add(m.from);
       if (preview || !rows.length) continue;
       const ids = rows.map(r => r.id);
       const counts = await tx.select({ id: cardExpenseHistory.expenseId, n: sql<number>`count(*)::int` }).from(cardExpenseHistory)
         .where(inArray(cardExpenseHistory.expenseId, ids)).groupBy(cardExpenseHistory.expenseId);
       const next = new Map(counts.map(c => [c.id, c.n]));
-      await tx.update(cardExpenses).set({ category: m.to, subcategory: m.sub, updatedAt: now }).where(inArray(cardExpenses.id, ids));
+      await tx.update(cardExpenses).set({ category: toName, subcategory: m.sub, updatedAt: now }).where(inArray(cardExpenses.id, ids));
       await tx.insert(cardExpenseHistory).values(ids.map(expenseId => ({
         expenseId, position: next.get(expenseId) ?? 0, at: now, by, action: 'edited',
-        changes: `category ${from.label} → ${to.label} · ${subLabel} (sub-categories set up)`
+        changes: sameCategory ? `type set to ${subLabel} (sub-categories set up)` : `category ${from.label} → ${to.label} · ${subLabel} (sub-categories set up)`
       })));
     }
 
