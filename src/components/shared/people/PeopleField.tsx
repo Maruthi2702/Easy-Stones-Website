@@ -1,13 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Check, ChevronDown, Search } from 'lucide-react';
-import useIsPhone from '../../../components/shared/form/useIsPhone';
-import { FormSheet } from '../../../components/shared/form/FormControls';
-import { clipParentOf, useMenuPlacement } from '../../../components/shared/form/formFocus';
+import useIsPhone from '../form/useIsPhone';
+import { FormSheet } from '../form/FormControls';
+import { clipParentOf, useMenuPlacement } from '../form/formFocus';
 import { groupRepOptions } from '../../../utils/salesReps';
-import { branchesOf, isJustMe, peopleSummary } from '../dashboardPeople';
+import { branchesOf, isJustMe, peopleSummary } from '../../../utils/peopleSelection';
 import type { PersonOption } from '../../../api/myTeam';
-import '../../../components/shared/form/FormModal.css';
+import '../form/FormModal.css';
 import './PeopleField.css';
 
 /**

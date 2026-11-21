@@ -13,9 +13,9 @@ import {
     DEFAULT_FOLLOW_UP_FILTERS, DUE_BUCKETS, FOLLOW_UP_STATUSES, followUpExportRows, followUpNote, followUpTags, pageOfGroups
 } from '../../../utils/followUpList';
 import type { DueBucket, FollowUpFilters, FollowUpRangeQuery, FollowUpRow, FollowUpStatus } from '../../../utils/followUpList';
-import PeopleField from '../components/PeopleField';
+import PeopleField from '../../../components/shared/people/PeopleField';
 import DashboardSearch from '../../../components/shared/DashboardSearch';
-import type { PeopleFilter } from '../components/PeopleField';
+import type { PeopleFilter } from '../../../components/shared/people/PeopleField';
 import type { Loose } from '../../../types/records';
 import { FollowUpCards, FollowUpTable } from './FollowUpRows';
 import type { FollowUpRowActions } from './FollowUpRows';

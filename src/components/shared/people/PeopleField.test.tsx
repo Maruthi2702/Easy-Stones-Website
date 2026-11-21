@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import PeopleField from './PeopleField';
-import { togglePerson } from '../dashboardPeople';
+import { togglePerson } from '../../../utils/peopleSelection';
 import type { PersonOption } from '../../../api/myTeam';
 
 const options: PersonOption[] = [

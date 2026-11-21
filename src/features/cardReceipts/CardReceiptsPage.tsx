@@ -5,9 +5,9 @@ import useIsPhone from '../../components/shared/form/useIsPhone';
 import DashboardSearch from '../../components/shared/DashboardSearch';
 import LocationFilter from '../../components/shared/LocationFilter';
 import { FormPicker } from '../../components/shared/form/FormControls';
-import PeopleField from '../dashboard/components/PeopleField';
+import PeopleField from '../../components/shared/people/PeopleField';
 import { useStaffList } from '../../api/salesRepOptions';
-import { togglePerson, tickBranch, untickBranch } from '../dashboard/dashboardPeople';
+import usePeopleFilter from '../../components/shared/people/usePeopleFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import Pagination from '../../components/shared/Pagination';
 import { usePagination } from '../../components/shared/paginationConfig';
@@ -57,11 +57,22 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const categories = me?.categories || [];
 
   const source = tab === 'waiting' ? data.waiting : data.expenses;
-  const { base, rows, totals, shown } = visibleExpenses(source, filters, categories);
+  // One People filter for cardholder and branch (the shared one): only who this login may see.
+  const staff = useStaffList();
+  const viewerId = String(me?.user.id || currentUser?.id || currentUser?._id || '');
+  const people = useMemo(() => holderPeople(source, staff, currentUser), [source, staff, currentUser]);
+  // "Me" only when the viewer is one of the cardholders listed.
+  const meId = people.some((p) => p.value === viewerId) ? viewerId : '';
+  const peopleFilter = usePeopleFilter({
+    options: people, me: meId, start: 'team', label: 'Cardholder',
+    teamLabel: data.teamOnly ? 'My team' : 'All cardholders', hideMe: !meId
+  });
+  const receiptFilters = useMemo(() => ({ ...filters, people: peopleFilter.value }), [filters, peopleFilter.value]);
+  const { base, rows, totals, shown } = visibleExpenses(source, receiptFilters, categories);
   const paged = rows.slice((pager.currentPage - 1) * pager.rowsPerPage, pager.currentPage * pager.rowsPerPage);
   // Changing what's listed goes back to page 1.
   const { resetPage } = pager;
-  useEffect(() => { resetPage(); }, [filters, tab, data.month, resetPage]);
+  useEffect(() => { resetPage(); }, [receiptFilters, tab, data.month, resetPage]);
 
   const opened = openId ? source.find((e) => e.id === openId) || data.expenses.find((e) => e.id === openId) || data.waiting.find((e) => e.id === openId) || null : null;
   const index = opened ? rows.findIndex((e) => e.id === opened.id) : -1;
@@ -69,7 +80,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
 
   const say = (text: string) => { setToast(text); window.setTimeout(() => setToast(''), 2600); };
   const patchFilters = (patch: Partial<ReceiptFilters>) => setFilters((f) => ({ ...f, ...patch }));
-  const filtered = Boolean(filters.people.length || filters.category || filters.status !== 'all');
+  const filtered = Boolean(peopleFilter.active || filters.category || filters.status !== 'all');
 
   const exportExcel = async () => {
     try {
@@ -90,13 +101,6 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
     : tab === 'statements' ? 'Amex check · every charge against an uploaded receipt'
     : `${data.month ? monthLabel(data.month) : ''} · ${data.viewAll ? (data.teamOnly ? 'Your team' : 'All cardholders') : me?.card ? `${me.card.label}${me.user.location ? ` · ${me.user.location}` : ''}` : 'Your receipts'}`;
 
-  // One People filter for cardholder and branch (the Visits filter's): only who this login may see.
-  const staff = useStaffList();
-  const viewerId = String(me?.user.id || currentUser?.id || currentUser?._id || '');
-  const people = useMemo(() => holderPeople(source, staff, currentUser), [source, staff, currentUser]);
-  // "Me" only when the viewer is one of the cardholders listed.
-  const meId = people.some((p) => p.value === viewerId) ? viewerId : '';
-  const peopleIds = people.map((p) => p.value);
   const categoryOptions = categories.map((c) => ({ value: c.name, label: c.label }));
   const statusOptions = STATUSES.map((s) => ({ value: s.key, label: s.label }));
 
@@ -120,20 +124,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 user={currentUser}
                 active={filtered}
                 wide
-                onClear={() => setFilters((f) => ({ ...NO_FILTERS, search: f.search }))}
+                onClear={() => { setFilters((f) => ({ ...NO_FILTERS, search: f.search })); peopleFilter.reset(); }}
               >
                 {people.length > 1 ? (
-                  <PeopleField
-                    options={people}
-                    value={filters.people}
-                    me={meId}
-                    label="Cardholder"
-                    teamLabel={data.teamOnly ? 'My team' : 'All cardholders'}
-                    hideMe={!meId}
-                    onChange={(next) => patchFilters({ people: next })}
-                    onToggle={(id) => patchFilters({ people: togglePerson(filters.people, id, meId, peopleIds) })}
-                    onBranch={(ids, on) => patchFilters({ people: on ? tickBranch(filters.people, ids) : untickBranch(filters.people, ids, meId, peopleIds) })}
-                  />
+                  <PeopleField {...peopleFilter.field} />
                 ) : null}
                 <div className="lf-group ccr-filter-gap">
                   <label className="lf-group-label" htmlFor="ccr-f-category">Category</label>

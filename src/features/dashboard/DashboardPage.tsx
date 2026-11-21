@@ -11,7 +11,7 @@ import { VisitsPanel } from './visits';
 import { FollowUpsPanel } from './followUps';
 import { ResourcesPanel } from './resources';
 import type { DashboardData } from './useDashboardData';
-import type { PeopleFilter } from './components/PeopleField';
+import type { PeopleFilter } from '../../components/shared/people/PeopleField';
 import { branchesOf, isJustMe, peopleSummary } from './dashboardPeople';
 import type { Loose } from '../../types/records';
 import type { FollowUpRange } from '../../utils/followUpList';

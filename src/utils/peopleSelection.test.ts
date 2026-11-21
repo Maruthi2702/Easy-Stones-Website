@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     MY_TEAM, peopleDefault, repsParam, isJustMe, showsWhoLogged, includesPerson,
     peopleSummary, togglePerson, parseStoredPeople, branchesOf, tickBranch, untickBranch, sanitizePeople
-} from './dashboardPeople';
+} from './peopleSelection';
 
 const names: Record<string, string> = { jesus: 'Jesus B.', bart: 'Bart A.' };
 const nameOf = (id: string) => names[id];
