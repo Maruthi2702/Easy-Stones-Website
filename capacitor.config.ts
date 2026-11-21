@@ -25,8 +25,8 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: { launchAutoHide: true, backgroundColor: '#000000' },
-    // The plugin's type is an enum whose value is the string 'none': a plain string isn't accepted without the cast.
-    Keyboard: { resize: 'none' as unknown as KeyboardResize },
+    // The plugin types this as an enum; the native side reads the plain string.
+    Keyboard: { resize: 'none' as KeyboardResize },
   },
 }
 
