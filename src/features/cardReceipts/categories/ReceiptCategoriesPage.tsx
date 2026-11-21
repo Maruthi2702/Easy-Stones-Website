@@ -237,7 +237,7 @@ export default function ReceiptCategoriesPage({ currentUser, sidebarToggle = nul
                 onDragOver={(e) => { if (dragging) e.preventDefault(); }}
                 onDrop={(e) => { e.preventDefault(); const from = list.findIndex((x) => x._id === dragging); setDragging(null); move(from, i); }}>
                 <button type="button" className="ccr-grip" disabled={!allow.reorder} aria-label={`Drag to reorder ${c.label}`} tabIndex={-1}><GripVertical size={16} /></button>
-                <span><b>{c.label}</b>{c.active ? null : <> <span className="ccr-ask">Hidden</span></>}{c.subcategories.length ? <span className="ccr-sub-list">{c.subcategories.map((x) => (x.isDefault && x.active ? `${x.label} (default)` : x.label)).join(' · ')}</span> : null}</span>
+                <span><b>{c.label}</b>{c.active ? null : <> <span className="ccr-ask">Hidden</span></>}{c.subcategories?.length ? <span className="ccr-sub-list">{c.subcategories.map((x) => (x.isDefault && x.active ? `${x.label} (default)` : x.label)).join(' · ')}</span> : null}</span>
                 <span className="ccr-asks ccr-col-wide">{asks.length ? asks.map((a) => <span key={a.key} className="ccr-ask">{a.label}</span>) : <span className="ccr-muted">Nothing extra</span>}</span>
                 <span className="ccr-cat-shown">{c.active ? 'Shown' : 'Hidden'}</span>
                 <span>{items.length ? <RowMenu items={items} label={`Actions for ${c.label}`} /> : null}</span>

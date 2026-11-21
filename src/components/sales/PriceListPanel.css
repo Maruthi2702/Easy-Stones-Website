@@ -1041,3 +1041,8 @@ body.light-theme-active .toolbar-print-btn:hover {
     border-color: #0f172a;
     color: #ffffff;
 }
+
+/* 16px on a phone or iOS zooms the page on every tap into a cell. */
+@media (max-width: 639px) {
+    input.exact-input-cell { font-size: 16px !important; }
+}
