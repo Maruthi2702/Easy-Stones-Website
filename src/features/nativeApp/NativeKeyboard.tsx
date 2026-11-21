@@ -44,11 +44,13 @@ export default function NativeKeyboard() {
     const shown = Keyboard.addListener('keyboardDidShow', ({ keyboardHeight }) => {
       root.style.setProperty('--native-kb', `${keyboardHeight}px`);
       root.classList.add('native-kb-up');
+      window.dispatchEvent(new Event('native-keyboard'));
       reveal();
     });
     const hidden = Keyboard.addListener('keyboardDidHide', () => {
       root.classList.remove('native-kb-up');
       root.style.removeProperty('--native-kb');
+      window.dispatchEvent(new Event('native-keyboard'));
     });
     // Moving between boxes with the keyboard already up.
     const onFocus = (e: FocusEvent) => {
