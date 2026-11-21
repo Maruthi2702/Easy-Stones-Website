@@ -13,6 +13,7 @@ import { companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf } from '../co
 import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
 import { cardDoc, categoryDoc, expenseDoc } from './cardDocs.ts';
 import type { Loose } from '../../types/records.ts';
+import { StaleExpenseError } from './types.ts';
 import type { ExpenseFilter, ExpenseHistoryEntry } from './types.ts';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -210,10 +211,13 @@ export async function addExpense(db: Db, id: string, value: Loose): Promise<Loos
   });
 }
 
-export async function changeExpense(db: Db, id: string, set: Loose, entry: ExpenseHistoryEntry): Promise<Loose | null> {
+export async function changeExpense(db: Db, id: string, set: Loose, fullEntry: ExpenseHistoryEntry): Promise<Loose | null> {
+  const { expectedUpdatedAt, ...entry } = fullEntry;
   return db.transaction(async tx => {
     const [found] = await tx.select().from(cardExpenses).where(eq(cardExpenses.id, lower(id))).for('update');
     if (!found) return null;
+    // Checked under the row lock: a competing approve / edit / void that committed first has moved updatedAt.
+    if (expectedUpdatedAt != null && new Date(expectedUpdatedAt).getTime() !== new Date(found.updatedAt).getTime()) throw new StaleExpenseError();
     const existing = (await findExpense(tx as unknown as Db, found.id))!;
     const built = await rowsFor(tx, { ...existing, ...set, history: [...(existing.history as Loose[]), entry], updatedAt: new Date() });
     const { id: _id, createdAt: _created, ...columns } = built.expense;

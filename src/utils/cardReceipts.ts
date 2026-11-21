@@ -169,9 +169,12 @@ export function cleanCategory(body: Record<string, unknown>, others: readonly { 
 
 /** "$1,250.50", "14.32", "" → cents (null when blank, NaN when not a sum of money). Never negative. */
 export function parseCents(typed: unknown): number | null {
-  const text = String(typed ?? '').trim().replace(/[$,\s]/g, '');
-  if (!text) return null;
-  if (!/^\d+(\.\d{0,2})?$/.test(text)) return Number.NaN;
+  const raw = String(typed ?? '').trim();
+  if (!raw) return null;
+  // Whole format first: one optional leading $, then digits (grouped by commas in threes, or none), then up to 2 decimals.
+  // "12,34", "1 2.34" and "1$2.34" are refused rather than read as a different amount.
+  if (!/^\$?\s*(\d{1,3}(,\d{3})+|\d+)(\.\d{0,2})?$/.test(raw)) return Number.NaN;
+  const text = raw.replace(/[$,\s]/g, '');
   const cents = Math.round(Number(text) * 100);
   return cents > 10_000_000 ? Number.NaN : cents;
 }

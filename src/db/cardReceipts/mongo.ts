@@ -1,6 +1,7 @@
 /** Credit Card Receipts on MongoDB — the route's own Mongoose calls, moved here unchanged. */
 import { CompanyCard, ReceiptCategory, CardExpense } from '../../models/CardReceipts.ts';
 import type { Loose } from '../../types/records.ts';
+import { StaleExpenseError } from './types.ts';
 import type { ExpenseFilter, ExpenseHistoryEntry } from './types.ts';
 
 const lean = <T>(q: PromiseLike<unknown>) => q as unknown as Promise<T>;
@@ -100,9 +101,12 @@ export async function addExpense(id: string, doc: Loose): Promise<Loose | null> 
 }
 
 /** Change an expense and keep the line in its history; null if it is gone. */
-export async function changeExpense(id: string, set: Loose, entry: ExpenseHistoryEntry): Promise<Loose | null> {
+export async function changeExpense(id: string, set: Loose, fullEntry: ExpenseHistoryEntry): Promise<Loose | null> {
+  const { expectedUpdatedAt, ...entry } = fullEntry;
   const expense = await CardExpense.findById(id);
   if (!expense) return null;
+  // Best effort on MongoDB (read then save, no row lock); the Postgres path is the atomic one.
+  if (expectedUpdatedAt != null && new Date(expectedUpdatedAt).getTime() !== new Date(expense.updatedAt as unknown as Date).getTime()) throw new StaleExpenseError();
   expense.set(set);
   expense.history.push(entry);
   await expense.save();

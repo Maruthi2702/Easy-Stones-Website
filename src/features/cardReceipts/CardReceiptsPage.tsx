@@ -168,6 +168,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         ) : data.month ? <div className="ccr-tabs"><MonthStepper month={data.month} today={me?.today || ''} onMonth={data.setMonth} /></div> : null}
 
         {data.error ? <div className="ccr-note is-error" role="alert">{data.error}</div> : null}
+        {tab === 'waiting' && data.waitingError ? (
+          <div className="ccr-note is-error" role="alert"><span>{data.waitingError}</span> <button type="button" className="ccr-btn" onClick={data.reload}>Try again</button></div>
+        ) : null}
         {canUse && me && !me.card && tab === 'expenses' ? (
           <div className="ccr-note"><Info size={16} aria-hidden="true" /><span>You don’t have a company card set up yet. Ask accounting to add it, then you can upload receipts here.</span></div>
         ) : null}
@@ -202,7 +205,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                   shownCents={shown.cents} shownCount={shown.count} onOpen={(e) => setOpenId(e.id)} />
               ) : (
                 <div className="ccr-empty">
-                  {data.loading ? <span>Loading…</span> : base.length ? (
+                  {data.loading ? <span>Loading…</span> : tab === 'waiting' && data.waitingError ? (
+                    <span>The receipts waiting for you couldn’t be loaded.</span>
+                  ) : base.length ? (
                     <><h3>Nothing matches</h3><span>Clear the search or the filters.</span></>
                   ) : tab === 'waiting' ? (
                     <><h3>Nothing is waiting for you</h3><span>Receipts you approve show here once they’re sent.</span></>

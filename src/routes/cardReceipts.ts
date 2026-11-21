@@ -4,6 +4,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import * as db from '../db/cardReceipts/index.ts';
+import { StaleExpenseError } from '../db/cardReceipts/types.ts';
 import { newId } from '../db/ids.ts';
 import rateLimit from 'express-rate-limit';
 import { isFilesCdnUrl, isCloudinaryUrl } from '../utils/fileUrls.ts';
@@ -488,10 +489,11 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       // An edit takes back a step 1 already given: the receipt starts its approvals again.
       const clearsStep1 = Boolean(expense.approval?.by) && changes.length > 0;
       const saved = await db.changeExpense(id, { ...value, month: monthOf(value.date), status, ...(clearsStep1 ? { approval: null } : {}) },
-        { at: new Date(), by, action: 'edited', changes: [changes.join(', '), clearsStep1 ? 'step 1 approval cleared' : '', sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
+        { at: new Date(), by, action: 'edited', expectedUpdatedAt: expense.updatedAt as Date, changes: [changes.join(', '), clearsStep1 ? 'step 1 approval cleared' : '', sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
       res.json({ expense: expenseView(saved, { id: me, approvable: new Set() }) });
     } catch (error) {
+      if (error instanceof StaleExpenseError) return res.status(409).json({ message: error.message, changed: true });
       console.error('[card-receipts] edit failed:', error);
       res.status(500).json({ message: 'Could not save the change.' });
     }
@@ -522,11 +524,12 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const stepOne = action === 'approve' && isBigReceipt(expense.cents) && !expense.approval?.by;
       const saved = await db.changeExpense(id,
         action === 'approve' ? { status: stepOne ? 'waiting' : 'approved', approval: decision } : { status: 'sent_back', sentBack: decision, approval: null },
-        { at: new Date(), by, action: action === 'approve' ? 'approved' : 'sent back',
+        { at: new Date(), by, action: action === 'approve' ? 'approved' : 'sent back', expectedUpdatedAt: expense.updatedAt as Date,
           changes: [action === 'approve' && isBigReceipt(expense.cents) ? (stepOne ? 'Step 1 of 2, now with Accounting' : 'Step 2 of 2') : '', comment].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
       res.json({ expense: expenseView(saved, { id: approver.id, approvable: new Set() }) });
     } catch (error) {
+      if (error instanceof StaleExpenseError) return res.status(409).json({ message: error.message, changed: true });
       console.error(`[card-receipts] ${action} failed:`, error);
       res.status(500).json({ message: 'Could not save your decision.' });
     }
@@ -586,10 +589,11 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       if (expense.status === 'approved') return res.status(409).json({ message: 'It’s approved, so it can’t be voided.' });
       if (await amexChargeOf(id)) return res.status(409).json({ message: 'This is a charge on the Amex statement, so it can’t be voided. Add the receipt, or say why it’s lost.' });
       const by = actor(req);
-      const saved = await db.changeExpense(id, { voidedAt: new Date(), voidedBy: by, voidReason: reason }, { at: new Date(), by, action: 'voided', changes: reason });
+      const saved = await db.changeExpense(id, { voidedAt: new Date(), voidedBy: by, voidReason: reason }, { at: new Date(), by, action: 'voided', expectedUpdatedAt: expense.updatedAt as Date, changes: reason });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
       res.json({ expense: expenseView(saved, { id: me, approvable: new Set() }) });
     } catch (error) {
+      if (error instanceof StaleExpenseError) return res.status(409).json({ message: error.message, changed: true });
       console.error('[card-receipts] void failed:', error);
       res.status(500).json({ message: 'Could not void the expense.' });
     }

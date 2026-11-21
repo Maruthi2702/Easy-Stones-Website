@@ -4,6 +4,20 @@ export interface ExpenseHistoryEntry {
   by: string;
   action: 'added' | 'edited' | 'approved' | 'sent back' | 'voided';
   changes?: string;
+  /**
+   * The `updatedAt` of the expense the caller read and decided on. If the row has moved on by the time the
+   * write runs (inside the same lock / transaction), the write is refused with a StaleExpenseError instead of
+   * overwriting a change the caller never saw. Never stored in the history.
+   */
+  expectedUpdatedAt?: Date | string | null;
+}
+
+/** The expense changed between the caller reading it and the write: nothing was written. */
+export class StaleExpenseError extends Error {
+  constructor() {
+    super('This receipt just changed. Open it again, then retry.');
+    this.name = 'StaleExpenseError';
+  }
 }
 
 /** What the Expenses list asks for: a month (the caller's, or everyone's), or what is waiting for approval. */
