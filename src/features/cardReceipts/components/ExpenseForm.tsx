@@ -10,7 +10,7 @@ import { goToField } from '../../../components/shared/form/formFocus';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
 import { receiptFileProblem } from '../../../utils/receiptFile';
-import { centsText, cleanExpense, defaultSubOf, fieldsOf, formatMoney, missingLine, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
+import { centsText, cleanExpense, defaultSubOf, fieldsOf, formatMoney, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
 import { isPdfUrl } from '../cardReceiptsView';
 import type { ExpenseBody } from '../cardReceiptsApi';
@@ -227,8 +227,6 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
     .filter((s) => s.active || s.name === start.subcategory)
     .map((s) => ({ value: s.name, label: s.active ? s.label : `${s.label} (hidden)`, keywords: s.label }));
   const customerOptions = useMemo(() => customers.options.map((o) => ({ value: o.value, label: o.label, description: o.description, keywords: o.keywords })), [customers.options]);
-  const missing = missingLine(check.missing);
-  const footerNote = complete ? 'Goes to your approver when it’s saved.' : missing ? `Saves as a draft. Still to do: ${missing.toLowerCase()}.` : null;
   const cardNote = reading ? 'Reading the receipt…' : readLine;
   const onBillScreen = view === 'bill';
 
@@ -253,7 +251,6 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
       errors={onBillScreen ? (billSubmitted ? pick(problems, true) : {}) : (submitted ? pick(problems, false) : {})}
       showErrors={onBillScreen ? billSubmitted : submitted}
       fieldLabels={LABELS}
-      footerNote={onBillScreen ? null : footerNote}
     >
       {serverError ? (
         <div className="ccr-form-error" role="alert">

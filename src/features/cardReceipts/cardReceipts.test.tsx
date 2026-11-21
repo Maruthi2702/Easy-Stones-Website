@@ -126,7 +126,7 @@ describe('the Credit Card Receipts page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(text()).toContain('$12.85');
     expect(text()).toContain('SP PARK');
-    expect(text()).toContain('Saves as a draft');
+    expect(text()).not.toContain('Saves as a draft');
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await settle();
     expect(fake.posted.at(-1)!.body).toMatchObject({ merchant: 'SP PARK', total: '12.85', date: '2026-10-20' });
@@ -218,8 +218,9 @@ describe('the sub-category on Add / Edit receipt', () => {
     expect(document.getElementById('ccr-customer')).toBeNull();
   });
 
-  it('says to pick the type when a draft has the category but not the type', async () => {
+  it('still asks for the type when a draft has the category but not the type, without a hint line', async () => {
     await open(exp('g3', { category: 'gas', subcategory: '', status: 'draft' }));
-    expect(text()).toContain('pick the type');
+    expect(text()).toContain('Sub-category');
+    expect(text()).not.toContain('Still to do');
   });
 });

@@ -303,6 +303,16 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 /* ── Phone ── */
 @media (max-width: 639px) {
   .ccr-page { padding: 14px 16px 140px; gap: 12px; }
+  /* Add / Edit receipt: a tighter Bill details card so the form fits the screen. */
+  .ccr-bill { padding: 10px 12px; border-radius: 14px; }
+  .ccr-bill-head { gap: 10px; }
+  .ccr-bill-thumb { width: 44px; height: 50px; }
+  .ccr-bill-rows { margin-top: 8px; gap: 8px; }
+  .ccr-bill-rows dt, .ccr-bill-rows dd { font-size: 15px; }
+  .ccr-bill-addtip { margin-top: 10px; height: 44px; }
+  .ccr-bill-total { margin-top: 10px; padding-top: 10px; }
+  .ccr-bill-note { margin-top: 8px; }
+  .ccr-bill-links { margin-top: 4px; }
   .ccr-ttl h1 { font-size: 20px; }
   .ccr-tools { order: 6; flex: 1 1 100%; margin-left: 0; }
   .ccr-tools .dsx { flex: 1; }
