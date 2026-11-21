@@ -260,6 +260,24 @@ describe('approving a month from before the check started', () => {
     who = ACCOUNTANT;
   });
 
+  it('a replaced card (new digits, same name) deactivates the old one only when confirmed by someone who manages cards', async () => {
+    await post('import', [line('11/12/2026', 'NEW CARD SHOP', 25, 'ref-new', '-77777', 'MARUTHI PONUGUPATI')]);
+    const setUp = (body: object) => request(app).post('/api/card-receipts/statements/cards').send(body);
+    // Not confirmed: still refused, nothing changes.
+    expect((await setUp({ digits: '77777', userId: MARU })).body.message).toMatch(/Confirm the replacement/);
+    // Confirmed, but this login can't manage cards.
+    expect((await setUp({ digits: '77777', userId: MARU, replace: true })).body.message).toMatch(/needs someone who manages company cards/);
+    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
+    // A different name on the new digits is not a replacement.
+    await post('import', [line('11/12/2026', 'OTHER', 25, 'ref-other', '-88888', 'SOMEBODY ELSE')]);
+    expect((await setUp({ digits: '88888', userId: MARU, replace: true })).body.message).toMatch(/already has card MARU92069/);
+    expect((await setUp({ digits: '77777', userId: MARU, replace: true })).status).toBe(200);
+    const cards = await db.select().from(companyCards).where(eq(companyCards.userId, MARU));
+    expect(cards.filter((c) => c.active).map((c) => c.lastDigits)).toEqual(['77777']);
+    expect(cards.find((c) => c.lastDigits === '92069')?.active).toBe(false);
+    who = ACCOUNTANT;
+  });
+
   it('the Cards list carries the name Amex prints (from the statements), and a typed name is kept on the card', async () => {
     who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
     const res = await request(app).get('/api/card-receipts/cards');

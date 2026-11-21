@@ -28,7 +28,7 @@ export function visibleLines(lines: readonly StatementLine[], { search, status }
 export const personOptions = (people: readonly StaffPerson[]) => [
   { value: '', label: 'Leave it for now', description: 'Its charges wait under Cards not set up', keywords: '' },
   ...people
-    .filter((p) => p.active && !p.card)
-    .map((p) => ({ value: p.id, label: p.name, description: [p.role.replace(/_/g, ' '), p.location].filter(Boolean).join(' · '), keywords: `${p.name} ${p.location}` }))
+    .filter((p) => p.active)
+    .map((p) => ({ value: p.id, label: p.name, description: p.card ? `Has card ${p.card}: it is replaced` : [p.role.replace(/_/g, ' '), p.location].filter(Boolean).join(' · '), keywords: `${p.name} ${p.location}` }))
     .sort((a, b) => a.label.localeCompare(b.label))
 ];

@@ -69,8 +69,8 @@ export default function StatementsPanel({ month, isPhone, onSaved }: { month: st
       {error ? <div className="ccr-note is-error" role="alert">{error}</div> : null}
 
       {view?.unknownCards.length ? (
-        <UnknownCards cards={view.unknownCards} people={view.people} onSetUp={async (digits, userId) => {
-          const r = await api.setUpCard(digits, userId);
+        <UnknownCards cards={view.unknownCards} people={view.people} onSetUp={async (digits, userId, replace) => {
+          const r = await api.setUpCard(digits, userId, replace);
           onSaved(r.check.created ? `Card set up · ${r.check.created} Missing receipt ${r.check.created === 1 ? 'row' : 'rows'} made` : 'Card set up');
           load();
         }} />
@@ -191,7 +191,7 @@ function Lines({ rows, isPhone }: { rows: StatementLine[]; isPhone: boolean }) {
 
 /** Cards Amex named that nobody has set up: pick the holder, Set up card, and their charges are checked. */
 function UnknownCards({ cards, people, onSetUp }: {
-  cards: UnknownCard[]; people: StatementsView['people']; onSetUp: (digits: string, userId: string) => Promise<void>;
+  cards: UnknownCard[]; people: StatementsView['people']; onSetUp: (digits: string, userId: string, replace: boolean) => Promise<void>;
 }) {
   const [picks, setPicks] = useState<Record<string, string>>(() => Object.fromEntries(cards.map((c) => [c.digits, c.suggestedUserId])));
   const [busy, setBusy] = useState('');
@@ -217,7 +217,9 @@ function UnknownCards({ cards, people, onSetUp }: {
             <button type="button" className="ccr-btn" disabled={!picks[c.digits] || Boolean(busy)} onClick={async () => {
               setBusy(c.digits);
               setNotes(({ [c.digits]: _gone, ...rest }) => rest);
-              try { await onSetUp(c.digits, picks[c.digits]!); } catch (e) { setNotes((n) => ({ ...n, [c.digits]: (e as Error).message })); } finally { setBusy(''); }
+              const had = people.find((p) => p.id === picks[c.digits])?.card;
+              if (had && !window.confirm(`${nameOf(picks[c.digits]!)} already has card ${had}. Deactivate it and set up …${c.digits} instead?`)) { setBusy(''); return; }
+              try { await onSetUp(c.digits, picks[c.digits]!, Boolean(had)); } catch (e) { setNotes((n) => ({ ...n, [c.digits]: (e as Error).message })); } finally { setBusy(''); }
             }}>{busy === c.digits ? 'Setting up…' : 'Set up card'}</button>
           </div>
         ))}

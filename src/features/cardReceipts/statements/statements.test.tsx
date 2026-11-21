@@ -70,7 +70,7 @@ describe('the Statements tab', () => {
     expect(button.disabled).toBe(false);
     fireEvent.click(button);
     await settle();
-    expect(posted).toEqual([{ url: expect.stringContaining('/api/card-receipts/statements/cards'), body: { digits: '93018', userId: 'u2' } }]);
+    expect(posted).toEqual([{ url: expect.stringContaining('/api/card-receipts/statements/cards'), body: { digits: '93018', userId: 'u2', replace: false } }]);
     expect(text()).toContain('Card set up · 1 Missing receipt row made');
   });
 
@@ -95,7 +95,8 @@ describe('the Statements view rules', () => {
     expect(m.rows.map((l) => l.reference)).toEqual(['r1']);
     expect(m.counts.matched).toEqual({ count: 1, cents: 5040 });
   });
-  it('offers only active people with no card, after Leave it for now', () => {
-    expect(personOptions(VIEW.people).map((o) => o.label)).toEqual(['Leave it for now', 'Srini Manam']);
+  it('offers active people after Leave it for now, saying whose card would be replaced', () => {
+    expect(personOptions(VIEW.people).map((o) => o.label)).toEqual(['Leave it for now', 'Maruthi Ponugupati', 'Srini Manam']);
+    expect(personOptions(VIEW.people)[1]!.description).toContain('MARU92069');
   });
 });

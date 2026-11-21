@@ -33,7 +33,7 @@ export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: Upload
     const n = ++asked.current;
     setReading(true);
     setProblem(null);
-    api.previewUpload(file, picks)
+    api.previewUpload(file, picks, Object.keys(picks))
       .then((r) => {
         if (n !== asked.current) return;
         setPreview(r);
@@ -69,9 +69,13 @@ export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: Upload
       onClose={onClose}
       onSubmit={async () => {
         if (!file || !preview) return;
+        // A pick whose person already has a card replaces it: the old card is deactivated, so ask first.
+        const replacing = Object.entries(picks).filter(([, id]) => id && preview.people.find((p) => p.id === id)?.card)
+          .map(([digits, id]) => ({ digits, name: nameOf(id), card: preview.people.find((p) => p.id === id)!.card }));
+        if (replacing.length && !window.confirm(`Replace ${replacing.length === 1 ? 'a card' : `${replacing.length} cards`}? ${replacing.map((r) => `${r.name}'s card ${r.card} will be deactivated and …${r.digits} set up instead`).join('; ')}.`)) return;
         setSaving(true);
         setProblem(null);
-        try { onDone(await api.importUpload(file, picks)); } catch (e) {
+        try { onDone(await api.importUpload(file, picks, Object.keys(picks))); } catch (e) {
           const err = e as Problem;
           if (err.digits) { setCardNotes((cur) => ({ ...cur, [err.digits!]: err.message })); setPicks((p) => ({ ...p, [err.digits!]: '' })); } else setProblem(err);
           setSaving(false);

@@ -1366,7 +1366,7 @@ card-holder sheet exists before each holder has a login): `scripts/card-holders-
 [--unassigned] [--leave=ID,ID] [--apply]` (dry run by default; matches by email, never a mailbox shared
 by several holders, then name) — the sheet itself stays out of the repo, it's public. Charges on such a
 card link to it and show **Missing receipt** (owner, 2026-11-20: the card is enough to identify the charge; counted in the still-missing total); the openable Missing row is made only once Cards →
-**Assign to a person** gives it a holder, which re-runs the check (`afterCardSaved`). Not built: the daily reminder email.
+**Assign to a person** gives it a holder, which re-runs the check (`afterCardSaved`). **A replaced card** (lost / reissued: new digits, same Card Member name; owner 2026-11-20): Set up card / the upload's picks accept a person who already has a card; the old card is deactivated (history kept) only when the screen confirmed it (`replace: true`), the login manages company cards (`manage_company_cards`: accounting / admin) and Amex's name on the new digits is that person's — else the usual "deactivate it under Cards first" refusal. Not built: the daily reminder email.
 
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
 

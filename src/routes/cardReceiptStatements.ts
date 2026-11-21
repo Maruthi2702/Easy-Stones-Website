@@ -38,7 +38,7 @@ const homeOf = (u: { location?: string | null; assignedLocations?: string[] | nu
   u.location || (u.assignedLocations || []).find((l) => l && l !== '*') || '';
 const MAX_FILE = 10 * 1024 * 1024;
 
-type CardPick = { digits: string; userId: string };
+type CardPick = { digits: string; userId: string; replace?: boolean };
 class CardProblem extends Error {
   digits: string;
   constructor(message: string, digits: string) { super(message); this.digits = digits; }
@@ -71,12 +71,12 @@ function picksOf(raw: unknown): CardPick[] {
     const userId = String((p as Loose)?.userId ?? '').trim();
     if (!digits || !userId || seen.has(digits)) return [];
     seen.add(digits);
-    return [{ digits, userId }];
+    return [{ digits, userId, replace: (p as Loose)?.replace === true }];
   });
 }
 
 /** Sets up each picked card inside the check's transaction: one active card per person, a card ID like MARU92069. */
-const setUpCards = (picks: CardPick[], by: string) => async (tx: Db) => {
+const setUpCards = (picks: CardPick[], by: string, mayReplace: boolean) => async (tx: Db) => {
   for (const p of picks) {
     if (!mongoose.isValidObjectId(p.userId)) throw new CardProblem('Choose the cardholder again.', p.digits);
     const person = await staffData.userById(p.userId, { select: 'username displayName isActive' });
@@ -85,14 +85,24 @@ const setUpCards = (picks: CardPick[], by: string) => async (tx: Db) => {
     if (existing) throw new CardProblem(`Card …${p.digits} is already set up (${existing.label}).`, p.digits);
     const label = suggestCardLabel(nameOf(person), p.digits);
     const clash = await pgCards.activeCardClash(tx, p.userId, label, null);
-    if (clash) {
-      throw new CardProblem(clash.userId === p.userId
-        ? `${nameOf(person)} already has card ${clash.label}. One card per person: deactivate it under Cards first.`
-        : `Another active card is called ${label}.`, p.digits);
+    if (clash && clash.userId === p.userId) {
+      // A replaced card: Amex gives it new digits under the same Card Member name. Only when that name is this person's
+      // does the old card step aside (deactivated, history kept); otherwise it stays a refusal.
+      if (!p.replace) throw new CardProblem(`${nameOf(person)} already has card ${clash.label}. Confirm the replacement to deactivate it, or deactivate it under Cards first.`, p.digits);
+      if (!mayReplace) throw new CardProblem('Replacing a card needs someone who manages company cards (accounting or an admin).', p.digits);
+      const said = (await statements.amexNamesByDigits(tx)).get(p.digits) || '';
+      if (!said || !suggestHolder([{ id: p.userId, name: nameOf(person), active: true }], said)) {
+        throw new CardProblem(`${nameOf(person)} already has card ${clash.label}. One card per person: deactivate it under Cards first.`, p.digits);
+      }
+      await pgCards.changeCard(tx, String(clash._id ?? clash.id), { active: false, updatedBy: by });
+    } else if (clash) {
+      throw new CardProblem(`Another active card is called ${label}.`, p.digits);
     }
     await pgCards.addCard(tx, newId(), { userId: p.userId, issuer: 'amex', lastDigits: p.digits, label, active: true, updatedBy: by });
   }
 };
+
+const canManageCards = (req: Request) => (userOf(req).permissions || []).includes(CARD_RECEIPTS.MANAGE_CARDS);
 
 export default function createCardReceiptStatementsRouter({ authenticate }: { authenticate: RequestHandler }) {
   const router = express.Router();
@@ -114,7 +124,7 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
       const [view, people] = await Promise.all([statements.statementView(month), peopleList()]);
       res.json({
         ...view,
-        unknownCards: view.unknownCards.map((c) => ({ ...c, suggestedUserId: suggestHolder(people.filter((p) => !p.card), c.cardMember)?.id ?? '' })),
+        unknownCards: view.unknownCards.map((c) => ({ ...c, suggestedUserId: suggestHolder(people, c.cardMember)?.id ?? '' })),
         people
       });
     } catch (error) {
@@ -145,7 +155,7 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
         const [result, people] = await Promise.all([
           statements.importStatement({
             lines: read.lines, fileName: String(req.file.originalname || ''), period: read.period, by,
-            preview, beforeCheck: picks.length ? setUpCards(picks, by.name) : undefined
+            preview, beforeCheck: picks.length ? setUpCards(picks, by.name, canManageCards(req)) : undefined
           }),
           peopleList()
         ]);
@@ -153,7 +163,7 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
           ...result,
           period: read.period,
           missingFrom: MISSING_FROM,
-          unknownCards: result.unknownCards.map((c) => ({ ...c, suggestedUserId: suggestHolder(people.filter((p) => !p.card), c.cardMember)?.id ?? '' })),
+          unknownCards: result.unknownCards.map((c) => ({ ...c, suggestedUserId: suggestHolder(people, c.cardMember)?.id ?? '' })),
           people,
           preview
         });
@@ -173,7 +183,7 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
     if (!picks.length) return res.status(400).json({ message: 'Choose the cardholder.' });
     try {
       const by = actorOf(req);
-      const check = await statements.recheck(by, { beforeCheck: setUpCards(picks, by.name) });
+      const check = await statements.recheck(by, { beforeCheck: setUpCards(picks, by.name, canManageCards(req)) });
       res.json({ check });
     } catch (err) {
       if (cardError(res, err)) return;

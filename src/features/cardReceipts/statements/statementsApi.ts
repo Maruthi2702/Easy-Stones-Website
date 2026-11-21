@@ -45,14 +45,14 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const loadStatements = (month: string) => call<StatementsView>(`?month=${encodeURIComponent(month)}`);
 
-const form = (file: File, picks: Record<string, string>) => {
+const form = (file: File, picks: Record<string, string>, replace: string[] = []) => {
   const body = new FormData();
   body.append('file', file);
-  const cards = Object.entries(picks).filter(([, userId]) => userId).map(([digits, userId]) => ({ digits, userId }));
+  const cards = Object.entries(picks).filter(([, userId]) => userId).map(([digits, userId]) => ({ digits, userId, replace: replace.includes(digits) }));
   if (cards.length) body.append('cards', JSON.stringify(cards));
   return body;
 };
-export const previewUpload = (file: File, picks: Record<string, string>) => call<UploadResult>('/preview', { method: 'POST', body: form(file, picks) });
-export const importUpload = (file: File, picks: Record<string, string>) => call<UploadResult>('/import', { method: 'POST', body: form(file, picks) });
-export const setUpCard = (digits: string, userId: string) =>
-  call<{ check: CheckResult }>('/cards', { method: 'POST', body: JSON.stringify({ digits, userId }) });
+export const previewUpload = (file: File, picks: Record<string, string>, replace: string[] = []) => call<UploadResult>('/preview', { method: 'POST', body: form(file, picks, replace) });
+export const importUpload = (file: File, picks: Record<string, string>, replace: string[] = []) => call<UploadResult>('/import', { method: 'POST', body: form(file, picks, replace) });
+export const setUpCard = (digits: string, userId: string, replace = false) =>
+  call<{ check: CheckResult }>('/cards', { method: 'POST', body: JSON.stringify({ digits, userId, replace }) });
