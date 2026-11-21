@@ -86,3 +86,42 @@ describe('moving the old categories onto Gas and Food', () => {
     expect((gas!.subcategories as { name: string }[]).map(s => s.name)).toEqual(['car', 'truck', 'van', 'forklift']);
   });
 });
+
+describe('when Fuel was already renamed Gas in Admin', () => {
+  let c2: PGlite, d2: Db;
+  beforeAll(async () => {
+    c2 = new PGlite();
+    d2 = drizzle(c2, { schema, casing: 'snake_case' }) as unknown as Db;
+    await migrateDb(d2, 'pglite:memory');
+    await d2.insert(receiptCategories).values([
+      { id: hex(1), name: 'travel_lunch', label: 'Travel Lunch', order: 0 },
+      { id: hex(2), name: 'customer_lunch', label: 'Customer Lunch', order: 1, needsCustomer: true },
+      { id: hex(3), name: 'fuel', label: 'Gas', order: 2 }
+    ]);
+    await d2.insert(cardExpenses).values([expense(1, 'fuel', 'approved', 5000), expense(2, 'travel_lunch', 'waiting', 1992)]);
+  }, 60_000);
+  afterAll(async () => { await c2?.close(); });
+
+  it('uses that category instead of making a second Gas, and only sets the type on what is in it', async () => {
+    const dry = await convertToSubcategories(d2, 'test', { preview: true });
+    expect(dry.created).toEqual(['Food']);
+    expect(dry.moves.map(m => [m.from, m.to, m.expenses])).toEqual([['Gas', 'Gas · Car (type only)', 1], ['Travel Lunch', 'Food · Travel Lunch', 1], ['Customer Lunch', 'Food · Customer Lunch', 0]]);
+    expect(dry.hidden).toEqual(['Travel Lunch', 'Customer Lunch']);
+
+    await convertToSubcategories(d2, 'test', { preview: false });
+    const cats = await d2.select().from(receiptCategories);
+    expect(cats.map(c => c.name).sort()).toEqual(['customer_lunch', 'food', 'fuel', 'travel_lunch']);
+    const gas = cats.find(c => c.name === 'fuel')!;
+    expect([gas.label, gas.active, (gas.subcategories as { name: string }[]).map(s => s.name)]).toEqual(['Gas', true, ['car', 'truck', 'van', 'forklift']]);
+    const [one] = await d2.select().from(cardExpenses).where(eq(cardExpenses.id, hex(101)));
+    expect(one).toMatchObject({ category: 'fuel', subcategory: 'car', status: 'approved' });
+    const [two] = await d2.select().from(cardExpenses).where(eq(cardExpenses.id, hex(102)));
+    expect(two).toMatchObject({ category: 'food', subcategory: 'travel_lunch', status: 'waiting' });
+    const history = await d2.select().from(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, hex(101)));
+    expect(history.map(h => h.changes)).toEqual(['type set to Car (sub-categories set up)']);
+    // Run again: nothing left.
+    const again = await convertToSubcategories(d2, 'test', { preview: false });
+    expect(again.created).toEqual([]);
+    expect(again.moves.map(m => m.expenses)).toEqual([0, 0, 0]);
+  });
+});
