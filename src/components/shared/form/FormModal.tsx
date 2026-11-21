@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, AlertCircle } from 'lucide-react';
@@ -202,8 +203,12 @@ export default function FormModal({
             // NativeKeyboard reports its height (--native-kb) instead.
             const nativeKb = parseInt(document.documentElement.style.getPropertyValue('--native-kb'), 10) || 0;
             const kb = Math.max(browserKb, nativeKb);
-            dialog.style.setProperty('--fm-vvh', `${Math.max(0, vv.height - (browserKb ? 0 : nativeKb))}px`);
-            dialog.style.setProperty('--fm-vvtop', `${vv.offsetTop}px`);
+            const viewH = Capacitor.isNativePlatform() ? window.innerHeight : vv.height;
+            dialog.style.setProperty('--fm-vvh', `${Math.max(0, viewH - (browserKb ? 0 : nativeKb))}px`);
+            // In the iOS app the web view is already inset below the status bar and never scrolls, but
+            // visualViewport.offsetTop reports that inset (or a stale value), which pushed the form and
+            // the search pages down by a blank strip. There the top is always 0.
+            dialog.style.setProperty('--fm-vvtop', Capacitor.isNativePlatform() ? '0px' : `${vv.offsetTop}px`);
             dialog.style.setProperty('--fm-kb', `${kb}px`);
             dialog.dataset.keyboard = kb > 120 ? 'open' : 'closed';
         };
