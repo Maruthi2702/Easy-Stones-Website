@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertCircle, Check, ChevronDown, Eye, EyeOff, Plus, Search } from 'lucide-react';
+import { AlertCircle, Check, ChevronDown, Eye, EyeOff, Plus, Search, X } from 'lucide-react';
 import useIsPhone from './useIsPhone';
 import { firstFocusableIn, describedBy, useMenuPlacement } from './formFocus';
 import { FormLayerContext } from './formLayer';
@@ -164,6 +164,8 @@ export function FormSheet({ open, title, onClose, children, footer }: { open: bo
             >
                 <div className="fm-sheet-head">
                     <h3 className="fm-sheet-title" id={titleId}>{title}</h3>
+                    {/* Shown only on the phone's full-screen search page, where it replaces the Done footer. */}
+                    <button type="button" className="fm-close fm-sheet-x" onClick={onClose} aria-label="Close"><X size={18} /></button>
                 </div>
                 <div className="fm-sheet-body">{children}</div>
                 <div className="fm-sheet-foot">

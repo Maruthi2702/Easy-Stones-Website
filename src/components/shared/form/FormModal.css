@@ -528,6 +528,7 @@ body.light-theme-active .fm-tokens {
     border-radius: 2px;
     background: var(--fm-bd);
 }
+.fm-sheet-x { display: none; }
 .fm-sheet-title { margin: 0; flex: 1; font-size: 16px; font-weight: 800; }
 .fm-sheet-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 0 10px 10px; }
 .fm-sheet-foot { flex: none; display: flex; align-items: center; gap: 10px; padding: 10px 18px 14px; border-top: 1px solid var(--fm-bd2); }
@@ -640,6 +641,9 @@ body.light-theme-active .fm-tokens {
     }
     .fm-sheet:has(input:not([type="checkbox"]):not([type="radio"])) .fm-sheet-head { padding-top: 14px; }
     .fm-sheet:has(input:not([type="checkbox"]):not([type="radio"])) .fm-sheet-head::before { display: none; }
+    /* The ✕ top right closes it (back to the form); no Done footer. */
+    .fm-sheet:has(input:not([type="checkbox"]):not([type="radio"])) .fm-sheet-x { display: inline-flex; }
+    .fm-sheet:has(input:not([type="checkbox"]):not([type="radio"])) .fm-sheet-foot { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
