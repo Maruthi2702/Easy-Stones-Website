@@ -1,6 +1,7 @@
 /** Credit Card Receipts on MongoDB — the route's own Mongoose calls, moved here unchanged. */
 import { CompanyCard, ReceiptCategory, CardExpense } from '../../models/CardReceipts.ts';
 import type { Loose } from '../../types/records.ts';
+import { StaleExpenseError, EXPENSE_LIST_CAP } from './types.ts';
 import type { ExpenseFilter, ExpenseHistoryEntry } from './types.ts';
 
 const lean = <T>(q: PromiseLike<unknown>) => q as unknown as Promise<T>;
@@ -35,6 +36,7 @@ export async function reorderCategories(ids: string[]): Promise<void> {
   await ReceiptCategory.bulkWrite(ids.map((id, i) => ({ updateOne: { filter: { _id: id }, update: { $set: { order: i } } } })));
 }
 
+export const approvedInCategory = (name: string) => lean<Loose[]>(CardExpense.find({ category: name, status: 'approved' }).lean());
 export const categoryUses = (name: string) => CardExpense.countDocuments({ category: name });
 
 /** Move the expenses first (a stop in between leaves nothing lost), then delete the category. */
@@ -77,7 +79,7 @@ export function listExpenses(filter: ExpenseFilter): Promise<Loose[]> {
     ? { status: 'waiting', voidedAt: null, $or: [{ userId: { $in: [...filter.userIds] } }, ...(filter.overCents != null ? [{ cents: { $gt: filter.overCents } }] : [])] }
     : { month: filter.month, ...(filter.userId ? { userId: filter.userId } : {}), ...(filter.userIds ? { userId: { $in: [...filter.userIds] } } : {}) };
   // `_id` last: two receipts of one day and moment keep a fixed order (it was arbitrary).
-  return lean<Loose[]>(CardExpense.find(where).sort({ date: -1, createdAt: -1, _id: -1 }).limit(5000).lean());
+  return lean<Loose[]>(CardExpense.find(where).sort({ date: -1, createdAt: -1, _id: -1 }).limit(EXPENSE_LIST_CAP).lean());
 }
 
 export const findExpense = (id: string) => lean<Loose | null>(CardExpense.findById(id).lean());
@@ -90,7 +92,8 @@ export const sameDayAmount = (userId: string, date: string, cents: number) =>
   lean<Loose[]>(CardExpense.find({ userId, date, cents, voidedAt: null }).lean());
 
 /** Add one expense; null when that id is already taken (a repeat of the same save). */
-export async function addExpense(id: string, doc: Loose): Promise<Loose | null> {
+export async function addExpense(id: string, fullDoc: Loose): Promise<Loose | null> {
+  const { repeatCheck: _repeatCheck, ...doc } = fullDoc; // the duplicate check under a lock is the Postgres path's
   try {
     return (await CardExpense.create({ _id: id, ...doc })).toObject() as unknown as Loose;
   } catch (error) {
@@ -100,9 +103,12 @@ export async function addExpense(id: string, doc: Loose): Promise<Loose | null> 
 }
 
 /** Change an expense and keep the line in its history; null if it is gone. */
-export async function changeExpense(id: string, set: Loose, entry: ExpenseHistoryEntry): Promise<Loose | null> {
+export async function changeExpense(id: string, set: Loose, fullEntry: ExpenseHistoryEntry): Promise<Loose | null> {
+  const { expectedUpdatedAt, ...entry } = fullEntry;
   const expense = await CardExpense.findById(id);
   if (!expense) return null;
+  // Best effort on MongoDB (read then save, no row lock); the Postgres path is the atomic one.
+  if (expectedUpdatedAt != null && new Date(expectedUpdatedAt).getTime() !== new Date(expense.updatedAt as unknown as Date).getTime()) throw new StaleExpenseError();
   expense.set(set);
   expense.history.push(entry);
   await expense.save();

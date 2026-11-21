@@ -1,0 +1,122 @@
+[
+  {
+    "id": "CC-07", "priority": "P0", "area": "Approval / concurrency",
+    "title": "Concurrent requests bypass approval and immutability rules",
+    "actual": "An edit paused after validation overwrote an approved $10 receipt with a waiting $99 receipt. An approval paused after validation approved a newly edited $200 total with only one approval. A paused void subsequently voided an approved receipt. All three competing writes returned HTTP 200.",
+    "expected": "Exactly one conflicting transition commits. The stale operation returns 409; approved values remain immutable; amounts above $150 require two distinct approvers.",
+    "reproduction": "Create a complete $10 receipt. Pause one operation immediately before the real changeExpense adapter. Complete the competing approve/edit/void request, then release the paused operation. Tests exercise three valid request interleavings against the migrated database.",
+    "impact": "Approvers can authorize an amount they never reviewed, two-step approval can be bypassed, and approved entries can be altered or voided.",
+    "recommendation": "Validate the expected version, current status, amount and permitted transition inside the same transaction as the write. Reject stale versions atomically and record the committed decision against its reviewed version.",
+    "source": "src/routes/cardReceipts.ts:467; src/routes/cardReceipts.ts:508; src/routes/cardReceipts.ts:523; src/routes/cardReceipts.ts:583; src/db/cardReceipts/postgres.ts:212"
+  },
+  {
+    "id": "CC-01", "priority": "P1", "area": "Amount validation",
+    "title": "Malformed money is silently converted to a different amount",
+    "actual": "12,34 becomes 123400 cents ($1,234.00); 1 2.34 and 1$2.34 become 1234 cents ($12.34). These values pass cleanExpense validation.",
+    "expected": "Malformed grouping, internal spaces and misplaced currency symbols receive a validation error rather than a financially different value.",
+    "reproduction": "Call cleanExpense with an otherwise valid receipt and total 12,34, 1 2.34 or 1$2.34.",
+    "impact": "Typing or locale mistakes can silently overstate expenses.",
+    "recommendation": "Validate the entire amount format before removing permitted currency/grouping characters. Define supported locales explicitly and keep integer-cent storage.",
+    "source": "src/utils/cardReceipts.ts:171"
+  },
+  {
+    "id": "CC-03", "priority": "P1", "area": "Amex missing-receipt accounting",
+    "title": "Saving an incomplete missing receipt falsely marks its charge as matched",
+    "actual": "Import a $10 charge, then save its missing expense without a receipt, lost reason or category. The expense becomes draft, its Amex line becomes matched, and missingNow falls from 1/$10 to 0/$0.",
+    "expected": "A charge with neither a receipt nor a lost-receipt reason remains missing and stays in the missing count and amount.",
+    "reproduction": "Import R1 for $10 on 2026-11-05. PUT its generated expense with the same date/total and empty receiptUrl, lostReason and category. GET statements for 2026-11.",
+    "impact": "Accounting's missing-receipt control understates outstanding documentation.",
+    "recommendation": "Derive receipt presence from the actual attachment/lost reason instead of treating every linked non-missing workflow status as uploaded. Keep counts, line status and reconciliation selection consistent.",
+    "source": "src/utils/amexStatement.ts:197; src/db/cardStatements/index.ts:340; src/routes/cardReceipts.ts:485"
+  },
+  {
+    "id": "CC-04", "priority": "P1", "area": "Amex reimport integrity",
+    "title": "Changed statement references retain invalid amount and card matches",
+    "actual": "Reimporting R1 at $11 retained its link to a $10 expense. Changing R1's digits from 12345 to 54321 retained its original card link instead of selecting the second holder's card.",
+    "expected": "A refreshed statement line must either still satisfy card/amount/date match invariants or become an explicit reconciliation exception requiring review.",
+    "reproduction": "Save and import a matched $10 receipt. Reimport the same reference with amount 11; independently repeat with changed card digits. Inspect statement line, linked expense and card.",
+    "impact": "A charge can appear reconciled against the wrong amount or cardholder.",
+    "recommendation": "Revalidate existing links when imported match keys change. Preserve approved expense history and flag/unmatch inconsistencies rather than silently rewriting approved accounting records.",
+    "source": "src/db/cardStatements/index.ts:57; src/db/cardStatements/index.ts:74; src/db/cardStatements/index.ts:223"
+  },
+  {
+    "id": "CC-05", "priority": "P1", "area": "Customer reference integrity",
+    "title": "A nonexistent customer satisfies completeness before its reference is discarded",
+    "actual": "A Customer lunch with a fabricated 24-character customer ID, a name and attendees returns 201/waiting. Postgres stores a null customer reference, while the supplied customer name remains.",
+    "expected": "Reject nonexistent or unauthorized customer references; a category requiring a customer must not enter approval with a null customer reference.",
+    "reproduction": "POST a Customer lunch using customerId 0000000000000000000003e7, customerName Does not exist and two attendees.",
+    "impact": "Customer-linked expenses can be approved and reported without a valid underlying customer.",
+    "recommendation": "Resolve and authorize the customer on the server, derive its display name from that record, and validate completeness on the record that will actually be persisted.",
+    "source": "src/utils/cardReceipts.ts:291; src/utils/cardReceipts.ts:330; src/db/cardReceipts/postgres.ts:183"
+  },
+  {
+    "id": "CC-06", "priority": "P1", "area": "Category administration / approved entries",
+    "title": "Deleting a category leaves approved receipts invalid under the replacement rules",
+    "actual": "An approved Fuel receipt moved to Customer lunch through category deletion remains approved with no customer or attendees.",
+    "expected": "An administrative replacement must preserve valid approved history or require missing fields and reapproval under the new category's requirements.",
+    "reproduction": "Approve a Fuel receipt. DELETE the Fuel category with Customer lunch as replaceWith. Inspect the expense's category, status, customer and approval.",
+    "impact": "Category administration can create approved expenses that fail the module's ordinary approval prerequisites.",
+    "recommendation": "Keep archived categories for approved history, or define an audited migration that invalidates approval when the new category changes required information.",
+    "source": "src/routes/cardReceipts.ts:238; src/db/cardReceipts/postgres.ts:85"
+  },
+  {
+    "id": "CC-08", "priority": "P1", "area": "Duplicate purchase protection",
+    "title": "Concurrent different-ID saves bypass the duplicate warning",
+    "actual": "Two concurrent requests for the same holder/day/amount, with different IDs and no confirmRepeat, both return 201 and create two live expenses.",
+    "expected": "One save succeeds; the other receives the repeat warning until the holder explicitly confirms a second purchase.",
+    "reproduction": "Pause both requests before addExpense, after each passed sameDayAmount. Release both and inspect the two responses and persisted row count.",
+    "impact": "Double submission can overstate expense totals without the intended duplicate confirmation.",
+    "recommendation": "Serialize duplicate detection and insert per holder/day/amount in one transaction; preserve the explicitly authorized Save anyway path.",
+    "source": "src/routes/cardReceipts.ts:426; src/routes/cardReceipts.ts:435"
+  },
+  {
+    "id": "CC-09", "priority": "P1", "area": "Reconciliation failure handling",
+    "title": "Amex lookup failure removes the matched-charge protection",
+    "actual": "Injecting a linkedLine database read failure lets the holder void a matched charge with HTTP 200; voidedAt is saved.",
+    "expected": "An unavailable reconciliation lookup blocks the protected mutation with an error and leaves the matched expense unchanged.",
+    "reproduction": "Save a receipt, import its matching Amex charge, inject one linkedLine read failure and POST the holder's void request.",
+    "impact": "A transient dependency failure allows accounting data changes that the normal matched-charge rule forbids. The same helper protects date/amount edits.",
+    "recommendation": "Distinguish unlinked from lookup unavailable. Fail the protected write when the lookup is unavailable while Postgres reconciliation is enabled.",
+    "source": "src/db/cardStatements/hooks.ts:72; src/routes/cardReceipts.ts:587"
+  },
+  {
+    "id": "CC-11", "priority": "P1", "area": "Ledger completeness / export",
+    "title": "A monthly ledger silently truncates after 5,000 expenses",
+    "actual": "A seeded 5,001-row month at $10 per row returns 5,000 expenses totaling $50,000 instead of $50,010. The response exposes no total count or continuation metadata. UI totals and export use this returned list.",
+    "expected": "All rows and exact totals remain accessible through pagination/server aggregates, and an export covers the requested accounting scope without silent truncation.",
+    "reproduction": "Insert 5,001 receipts for one month. GET expenses?scope=all&month=2026-11 and compare returned count and sum with the database.",
+    "impact": "Large months understate the ledger and exported spend.",
+    "recommendation": "Return explicit pagination and total aggregates; provide a complete scoped export path instead of using a capped list as the ledger.",
+    "source": "src/db/cardReceipts/postgres.ts:164; src/features/cardReceipts/CardReceiptsPage.tsx:90"
+  },
+  {
+    "id": "CC-12", "priority": "P1", "area": "Ownership / concurrent idempotency",
+    "title": "The concurrent-save fallback can disclose another holder's expense",
+    "actual": "Two different holders racing on one new receipt ID receive 201 and 200. The losing holder receives the other holder's expense object, including its card/holder data, rather than 409.",
+    "expected": "The ID belongs to exactly one holder. Both the initial lookup and post-conflict fallback enforce ownership before returning an expense.",
+    "reproduction": "Start two authenticated holders with active cards and the same new receipt ID. Gate both just before addExpense so both initial lookups see no row, then release them.",
+    "impact": "A specifically timed ID collision can cross the receipt ownership boundary. It requires the same chosen/known 24-character ID, not an ordinary random collision.",
+    "recommendation": "Check again.userId against the authenticated holder before returning the fallback object, and handle duplicate-key races without exposing the conflicting record.",
+    "source": "src/routes/cardReceipts.ts:412; src/routes/cardReceipts.ts:440"
+  },
+  {
+    "id": "CC-02", "priority": "P2", "area": "Date validation consistency",
+    "title": "Malformed dates are truncated and tomorrow is accepted by the shared validator",
+    "actual": "2026-11-05garbage is silently saved as 2026-11-05. With today fixed at 2026-11-20, 2026-11-21 is accepted by cleanExpense even though the date picker sets max=today.",
+    "expected": "Validate the complete date string. The form and server should enforce the same documented cutoff.",
+    "reproduction": "Call cleanExpense with the two dates and today 2026-11-20.",
+    "impact": "Malformed API input changes accounting dates silently. Tomorrow acceptance is a policy discrepancy to confirm: the server explicitly allows a one-day grace period, so this portion is not presented as a settled business-rule defect.",
+    "recommendation": "Require exact YYYY-MM-DD input before normalization and document whether the intentional one-day grace period is required. Apply the chosen cutoff consistently.",
+    "source": "src/utils/cardReceipts.ts:253; src/utils/cardReceipts.ts:255; src/features/cardReceipts/components/BillDetailsEdit.tsx:39"
+  },
+  {
+    "id": "CC-10", "priority": "P2", "area": "Approval queue / error UX",
+    "title": "An approval-queue outage is shown as an empty queue",
+    "actual": "When scope=waiting returns 503, both desktop and phone show Waiting for me 0/$0 and Nothing is waiting for you, with no error.",
+    "expected": "Show a queue-load error and retry affordance; do not represent failed loading as a verified empty queue.",
+    "reproduction": "Mock only the waiting-list response to 503, leave ordinary expenses successful and open Waiting for me. Browser tests and saved screenshots reproduce both viewports.",
+    "impact": "Approvers can believe there are no pending receipts while the queue is unavailable.",
+    "recommendation": "Track waiting-list loading/error separately and show an empty state only after a successful request.",
+    "source": "src/features/cardReceipts/useCardReceipts.ts:74; src/features/cardReceipts/CardReceiptsPage.tsx:207"
+  }
+]

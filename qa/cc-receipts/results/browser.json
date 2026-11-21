@@ -1,0 +1,668 @@
+{
+  "config": {
+    "argv": [
+      "/opt/homebrew/Cellar/node/26.5.0/bin/node",
+      "/Users/krish/Easy-Stones-Website/node_modules/.bin/playwright",
+      "test",
+      "--config",
+      "qa/cc-receipts/playwright.config.ts",
+      "--workers=1"
+    ],
+    "configFile": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/playwright.config.ts",
+    "rootDir": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/krish/Easy-Stones-Website/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "desktop",
+        "name": "desktop",
+        "testDir": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/Users/krish/Easy-Stones-Website/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "phone",
+        "name": "phone",
+        "testDir": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "results/browser.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "npm run dev -- --host 127.0.0.1 --port 4175 --strictPort",
+      "url": "http://127.0.0.1:4175",
+      "reuseExistingServer": false,
+      "env": {
+        "VITE_GOOGLE_MAPS_API_KEY": ""
+      },
+      "timeout": 60000
+    }
+  },
+  "suites": [
+    {
+      "title": "receipts.spec.ts",
+      "file": "receipts.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "wrong, empty and oversized files are rejected before any upload request",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7136,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T07:59:39.209Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-21233da9cd8383c930d4",
+          "file": "receipts.spec.ts",
+          "line": 21,
+          "column": 1
+        },
+        {
+          "title": "failed save retains entered receipt details and permits retry",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2412,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T07:59:47.455Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-aa1b27fa2dee9d1db160",
+          "file": "receipts.spec.ts",
+          "line": 36,
+          "column": 1
+        },
+        {
+          "title": "approval requires a lost-receipt comment and handles a stale-decision rejection",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1812,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T07:59:49.887Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-4edab9d9933a867d7c94",
+          "file": "receipts.spec.ts",
+          "line": 59,
+          "column": 1
+        },
+        {
+          "title": "export downloads exact filtered rows and cent amounts, excludes voids, and does not create formulas",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1796,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T07:59:51.711Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-96d770e52b0807e7156a",
+          "file": "receipts.spec.ts",
+          "line": 87,
+          "column": 1
+        },
+        {
+          "title": "a holder without a card gets a setup message and no Add receipt action",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1988,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T07:59:53.518Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-2329d7e522c39237e5b1",
+          "file": "receipts.spec.ts",
+          "line": 118,
+          "column": 1
+        },
+        {
+          "title": "a plain holder sees neither card administration nor the export action",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1427,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T07:59:55.515Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-377c679792f2fe5056ee",
+          "file": "receipts.spec.ts",
+          "line": 127,
+          "column": 1
+        },
+        {
+          "title": "CC-10: a failed approval-queue request displays an error instead of saying nothing is waiting",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "desktop",
+              "projectName": "desktop",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 4621,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n\n    at /Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts:145:57",
+                    "location": {
+                      "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
+                      "column": 57,
+                      "line": 145
+                    },
+                    "snippet": "  143 |   await page.goto('/sales?tab=card_receipts');\n  144 |   await page.getByRole('tab', { name: /Waiting for me/ }).click();\n> 145 |   await expect(page.locator('.ccr').getByRole('alert')).toContainText('Approval queue is temporarily unavailable.', { timeout: 3000 });\n      |                                                         ^\n  146 |   await expect(page.getByText('Nothing is waiting for you', { exact: true })).toHaveCount(0);\n  147 | });\n  148 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
+                        "column": 57,
+                        "line": 145
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n\n\n  143 |   await page.goto('/sales?tab=card_receipts');\n  144 |   await page.getByRole('tab', { name: /Waiting for me/ }).click();\n> 145 |   await expect(page.locator('.ccr').getByRole('alert')).toContainText('Approval queue is temporarily unavailable.', { timeout: 3000 });\n      |                                                         ^\n  146 |   await expect(page.getByText('Nothing is waiting for you', { exact: true })).toHaveCount(0);\n  147 | });\n  148 |\n    at /Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts:145:57"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T07:59:56.950Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-desktop/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-desktop/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-desktop/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
+                    "column": 57,
+                    "line": 145
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-0cc1525225c55e24febf",
+          "file": "receipts.spec.ts",
+          "line": 136,
+          "column": 1
+        },
+        {
+          "title": "wrong, empty and oversized files are rejected before any upload request",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "phone",
+              "projectName": "phone",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2675,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T08:00:02.315Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-528255d7f57bfa3a1014",
+          "file": "receipts.spec.ts",
+          "line": 21,
+          "column": 1
+        },
+        {
+          "title": "failed save retains entered receipt details and permits retry",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "phone",
+              "projectName": "phone",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2281,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T08:00:05.246Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-e62f2812ccae6f788d10",
+          "file": "receipts.spec.ts",
+          "line": 36,
+          "column": 1
+        },
+        {
+          "title": "approval requires a lost-receipt comment and handles a stale-decision rejection",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "phone",
+              "projectName": "phone",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1765,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T08:00:07.537Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-74a49b933452675338a5",
+          "file": "receipts.spec.ts",
+          "line": 59,
+          "column": 1
+        },
+        {
+          "title": "export downloads exact filtered rows and cent amounts, excludes voids, and does not create formulas",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "phone",
+              "projectName": "phone",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2196,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T08:00:09.313Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-32c9708d586f1c913875",
+          "file": "receipts.spec.ts",
+          "line": 87,
+          "column": 1
+        },
+        {
+          "title": "a holder without a card gets a setup message and no Add receipt action",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "phone",
+              "projectName": "phone",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1841,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T08:00:11.519Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-741b25ffabcb5f08c72c",
+          "file": "receipts.spec.ts",
+          "line": 118,
+          "column": 1
+        },
+        {
+          "title": "a plain holder sees neither card administration nor the export action",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "phone",
+              "projectName": "phone",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1695,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T08:00:13.368Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-f7a513e828d66bab00bb",
+          "file": "receipts.spec.ts",
+          "line": 127,
+          "column": 1
+        },
+        {
+          "title": "CC-10: a failed approval-queue request displays an error instead of saying nothing is waiting",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "phone",
+              "projectName": "phone",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 4463,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n\n    at /Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts:145:57",
+                    "location": {
+                      "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
+                      "column": 57,
+                      "line": 145
+                    },
+                    "snippet": "  143 |   await page.goto('/sales?tab=card_receipts');\n  144 |   await page.getByRole('tab', { name: /Waiting for me/ }).click();\n> 145 |   await expect(page.locator('.ccr').getByRole('alert')).toContainText('Approval queue is temporarily unavailable.', { timeout: 3000 });\n      |                                                         ^\n  146 |   await expect(page.getByText('Nothing is waiting for you', { exact: true })).toHaveCount(0);\n  147 | });\n  148 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
+                        "column": 57,
+                        "line": 145
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n\n\n  143 |   await page.goto('/sales?tab=card_receipts');\n  144 |   await page.getByRole('tab', { name: /Waiting for me/ }).click();\n> 145 |   await expect(page.locator('.ccr').getByRole('alert')).toContainText('Approval queue is temporarily unavailable.', { timeout: 3000 });\n      |                                                         ^\n  146 |   await expect(page.getByText('Nothing is waiting for you', { exact: true })).toHaveCount(0);\n  147 | });\n  148 |\n    at /Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts:145:57"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-21T08:00:15.069Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-phone/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-phone/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-phone/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
+                    "column": 57,
+                    "line": 145
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "bb2a7a9b25a1c3115b01-ee4e2befdc3d501fed6a",
+          "file": "receipts.spec.ts",
+          "line": 136,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-11-21T07:59:37.126Z",
+    "duration": 42627.792,
+    "expected": 12,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

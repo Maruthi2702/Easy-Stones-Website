@@ -39,6 +39,7 @@ export const changeCard = async (id: string, set: Loose) => onPostgres() ? pg.ch
 
 // Expenses
 export const listExpenses = async (filter: ExpenseFilter) => onPostgres() ? pg.listExpenses(await appDb(), filter) : mongo.listExpenses(filter);
+export const approvedInCategory = async (name: string) => onPostgres() ? pg.approvedInCategory(await appDb(), name) : mongo.approvedInCategory(name);
 export const findExpense = async (id: string) => onPostgres() ? pg.findExpense(await appDb(), id) : mongo.findExpense(id);
 export const findExpenseByReceipt = async (receiptUrl: string) => onPostgres() ? pg.findExpenseByReceipt(await appDb(), receiptUrl) : mongo.findExpenseByReceipt(receiptUrl);
 export const sameDayAmount = async (userId: string, date: string, cents: number) =>

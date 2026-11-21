@@ -169,9 +169,12 @@ export function cleanCategory(body: Record<string, unknown>, others: readonly { 
 
 /** "$1,250.50", "14.32", "" → cents (null when blank, NaN when not a sum of money). Never negative. */
 export function parseCents(typed: unknown): number | null {
-  const text = String(typed ?? '').trim().replace(/[$,\s]/g, '');
-  if (!text) return null;
-  if (!/^\d+(\.\d{0,2})?$/.test(text)) return Number.NaN;
+  const raw = String(typed ?? '').trim();
+  if (!raw) return null;
+  // Whole format first: one optional leading $, then digits (grouped by commas in threes, or none), then up to 2 decimals.
+  // "12,34", "1 2.34" and "1$2.34" are refused rather than read as a different amount.
+  if (!/^\$?\s*(\d{1,3}(,\d{3})+|\d+)(\.\d{0,2})?$/.test(raw)) return Number.NaN;
+  const text = raw.replace(/[$,\s]/g, '');
   const cents = Math.round(Number(text) * 100);
   return cents > 10_000_000 ? Number.NaN : cents;
 }
@@ -250,7 +253,8 @@ export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknow
   today: string; categories: readonly CategoryLike[]; currentCategory?: string; currentSubcategory?: string;
 }): { value?: CleanExpense; problems: ExpenseProblems; missing: ExpenseProblems } {
   const problems: ExpenseProblems = {};
-  const date = text(body.date, 10);
+  // The whole string must be a day: cutting it to 10 characters turned "2026-11-05garbage" into a real date.
+  const date = String(body.date ?? '').trim();
   if (!isDay(date)) problems.date = 'Choose the day you paid';
   else if (date > nextDay(today)) problems.date = 'That day hasn’t happened yet';
   const merchant = text(body.merchant, 80);
@@ -336,8 +340,10 @@ export const missingLine = (missing: ExpenseProblems) => {
 };
 
 /** A save's status: complete → waiting for approval, else a draft (a sent-back one stays sent back until it's complete again). */
-export const statusAfterSave = (complete: boolean, before?: string): StatusKey => {
+export const statusAfterSave = (complete: boolean, before?: string, hasProof = true): StatusKey => {
   if (complete) return 'waiting';
+  // An Amex charge's Missing row stays Missing until a receipt or a lost-receipt reason is on it.
+  if (before === 'missing' && !hasProof) return 'missing';
   return before === 'sent_back' ? 'sent_back' : 'draft';
 };
 

@@ -214,6 +214,23 @@ export async function importStatement(input: {
         for (const r of await tx.select({ reference: lines.reference }).from(lines).where(inArray(lines.reference, references.slice(i, i + 5000)))) known.add(r.reference);
       }
       const now = new Date();
+      // A refreshed line whose amount, card or day no longer fits the receipt it was matched to is let go: the
+      // check below matches it again (or makes it Missing) instead of keeping a match that no longer holds.
+      const matched = await tx.select({ reference: lines.reference, digits: lines.digits, expenseId: lines.expenseId, expDay: cardExpenses.day, expCents: cardExpenses.cents, expStatus: cardExpenses.status, expVoided: cardExpenses.voidedAt })
+        .from(lines).innerJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId)).where(inArray(lines.reference, references));
+      const incoming = new Map(input.lines.map(l => [l.reference, l]));
+      for (const m of matched) {
+        const next = incoming.get(m.reference);
+        if (!next) continue;
+        const daysApart = Math.abs(Date.parse(`${next.date}T00:00:00Z`) - Date.parse(`${m.expDay}T00:00:00Z`)) / 86_400_000;
+        if (next.cents === m.expCents && next.digits === m.digits && daysApart <= MATCH_DAYS) continue;
+        await tx.update(lines).set({ expenseId: null, cardId: null, updatedAt: now }).where(eq(lines.reference, m.reference));
+        // A Missing row only ever stood for this charge as it was: it goes, and the new one is made by the check.
+        if (m.expStatus === 'missing' && !m.expVoided) {
+          await changeExpense(q(tx), m.expenseId!, { voidedAt: now, voidedBy: input.by.name, voidReason: 'Amex charge changed' },
+            { at: now, by: input.by.name, action: 'voided', changes: `The Amex charge (${m.reference}) changed in a later upload` });
+        }
+      }
       const values = input.lines.map(l => ({
         reference: l.reference, day: l.date, description: l.description, cardMember: l.cardMember, digits: l.digits, cents: l.cents,
         kind: kindOf(l), amexCategory: l.amexCategory, extended: l.extended, appearsAs: l.appearsAs, address: l.address,

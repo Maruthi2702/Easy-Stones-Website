@@ -52,8 +52,9 @@ export async function amexNameLookup(): Promise<(lastDigits: string) => string> 
 }
 
 /**
- * The Amex charge (its Reference) an expense answers, or null. A failure (say the tables aren't
- * migrated yet) answers null, so Void keeps working as it did before the Amex check.
+ * The Amex charge (its Reference) an expense answers, or null when it answers none. When the lookup
+ * itself fails this throws: the callers guard a void / date / amount change, and an unreadable link
+ * must not read as "no charge" (the save fails instead, and can be retried).
  */
 export async function amexChargeOf(expenseId: string) {
   if (!on()) return null;
@@ -61,6 +62,6 @@ export async function amexChargeOf(expenseId: string) {
     return await linkedLine(expenseId);
   } catch (error) {
     console.error('[card-statements] reading an expense’s Amex charge failed:', error);
-    return null;
+    throw error;
   }
 }

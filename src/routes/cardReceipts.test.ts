@@ -17,6 +17,13 @@ vi.mock('../db/cardStatements/hooks.ts', async (orig) => ({
   amexChargeOf: async (id: string) => (matched.has(id) ? { reference: 'R1' } : null)
 }));
 
+// A customer a receipt names must exist (cardReceipts route): this one does.
+const CUSTOMER = '0123456789abcdef01234567';
+vi.mock('../db/customers/index.ts', async (orig) => ({
+  ...(await orig<typeof import('../db/customers/index.ts')>()),
+  customerById: async (id: string) => (id === '0123456789abcdef01234567' ? { _id: id, company: 'Cascade Countertops' } : null)
+}));
+
 // A private file store: what was put under private/CardReceipts/ and who uploaded it.
 const PRIV = 'img_1700000000000_0123456789abcdef01234567.webp';
 const files = new Map<string, { body: Buffer; contentType: string; metadata: Record<string, string> }>();
@@ -157,7 +164,7 @@ describe('saving a receipt', () => {
     const body = receipt({ category: 'customer_lunch', merchant: 'Kashish Cuisine of India', total: '57.29' });
     const draft = await as(REP).post('/expenses', body).expect(201);
     expect(draft.body.expense.status).toBe('draft');
-    const done = await as(REP).put(`/expenses/${body.id}`, { ...body, customerId: 'c1', customerName: 'Cascade Countertops', attendees: ['Maruthi Ponugupati', 'J. Alvarez'] }).expect(200);
+    const done = await as(REP).put(`/expenses/${body.id}`, { ...body, customerId: CUSTOMER, customerName: 'Cascade Countertops', attendees: ['Maruthi Ponugupati', 'J. Alvarez'] }).expect(200);
     expect(done.body.expense.status).toBe('waiting');
     expect(done.body.expense.history.at(-1).changes).toMatch(/customer, who attended · sent for approval/);
   });

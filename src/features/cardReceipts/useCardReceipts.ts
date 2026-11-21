@@ -24,6 +24,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   const [holders, setHolders] = useState<{ id: string; name: string; active: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [waitingError, setWaitingError] = useState('');
   const asked = useRef('');
 
   useEffect(() => {
@@ -62,7 +63,8 @@ export function useCardReceipts(user: ReceiptsUser | null) {
 
   const loadWaiting = useCallback(async () => {
     if (!approver) return;
-    try { setWaiting((await api.listExpenses('waiting', '')).expenses); } catch { /* the Expenses list shows the error */ }
+    setWaitingError('');
+    try { setWaiting((await api.listExpenses('waiting', '')).expenses); } catch (e) { setWaitingError((e as Error).message || 'Couldn’t load the receipts waiting for you.'); }
   }, [approver]);
   useEffect(() => { loadWaiting(); }, [loadWaiting]);
 
@@ -92,7 +94,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   const voidOne = async (id: string, reason: string) => { const r = await api.voidExpense(id, reason); place(r.expense); return r.expense; };
 
   return {
-    me, month, setMonth, expenses, waiting, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
+    me, month, setMonth, expenses, waiting, waitingError, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
     reload: () => { load(); loadWaiting(); }, add, edit, approve, sendBack, voidOne, upload: api.uploadReceipt, scan: api.scanReceipt
   };
 }
