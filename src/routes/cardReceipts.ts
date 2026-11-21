@@ -7,13 +7,14 @@ import * as db from '../db/cardReceipts/index.ts';
 import { newId } from '../db/ids.ts';
 import rateLimit from 'express-rate-limit';
 import { isFilesCdnUrl, isCloudinaryUrl } from '../utils/fileUrls.ts';
+import { getFileStore, type FileStore } from '../services/fileStore.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
 import { ALL_PEOPLE } from '../utils/teamScope.ts';
 import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup } from '../db/cardStatements/hooks.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, holderMayEdit, changeSummary, possibleRepeat, canApprove, approvalStep, isBigReceipt, isBigReceiptApprover, BIG_RECEIPT_CENTS, cleanApproverRoles, decisionProblem,
-  isMonth, monthOf, matchedChangeProblem, isReceiptFolderUrl, type CleanExpense
+  isMonth, monthOf, matchedChangeProblem, isReceiptFolderUrl, isPrivateReceiptName, privateReceiptNameOf, privateReceiptUrlOfKey, PRIVATE_RECEIPT_ROUTE, PRIVATE_RECEIPT_KEY_PREFIX, type CleanExpense
 } from '../utils/cardReceipts.ts';
 import type { Loose } from '../types/records.ts';
 
@@ -50,10 +51,21 @@ const homeOf = (u: { location?: string | null; assignedLocations?: string[] | nu
   u.location || (u.assignedLocations || []).find((l) => l && l !== '*') || '';
 const todayOf = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
 
-/** The receipt link must be a file this app stored for a receipt; one already on the expense may stay. */
-const receiptLinkProblem = (url: string, current = '') =>
-  !url || url === current || (isReceiptFolderUrl(url) && (isFilesCdnUrl(url) || isCloudinaryUrl(url) || /^\/uploads\//.test(url)))
-    ? '' : 'Upload the receipt again';
+/**
+ * The receipt link must be a file this app stored for a receipt; one already on the expense may stay. A private
+ * receipt (the app's own address) must be one the person uploaded themselves, so nobody attaches another's.
+ */
+const receiptLinkProblem = async (store: FileStore | null, url: string, current: string, me: string) => {
+  if (!url || url === current) return '';
+  const name = privateReceiptNameOf(url);
+  if (name) return (await store?.get(`${PRIVATE_RECEIPT_KEY_PREFIX}${name}`))?.metadata.uploader === me ? '' : 'Upload the receipt again';
+  return isReceiptFolderUrl(url) && (isFilesCdnUrl(url) || isCloudinaryUrl(url) || /^\/uploads\//.test(url)) ? '' : 'Upload the receipt again';
+};
+/** The address to save for a file just stored: private ones become the app's own address. */
+const savedAddressOf = (url: string) => {
+  const m = /\/(private\/CardReceipts\/[^/?#]+)$/.exec(url.split('?')[0] || '');
+  return (m && privateReceiptUrlOfKey(decodeURIComponent(m[1]!))) || url;
+};
 const MAX_UPLOAD_CHARS = 14_000_000; // about a 10 MB file as base64
 
 const anyOf = (...perms: readonly string[]) => (req: Request, res: Response, next: NextFunction) =>
@@ -107,9 +119,10 @@ async function approvableIds(req: Request) {
   return new Set(people.map((p) => String(p._id)).filter((id) => id !== me));
 }
 
-export default function createCardReceiptsRouter({ authenticate, processBase64Image }: {
+export default function createCardReceiptsRouter({ authenticate, processBase64Image, fileStore = getFileStore }: {
   authenticate: RequestHandler;
-  processBase64Image: (data: string, folder?: string, maxSide?: number) => Promise<unknown>;
+  processBase64Image: (data: string, folder?: string, maxSide?: number, options?: { private?: boolean; metadata?: Record<string, string> }) => Promise<unknown>;
+  fileStore?: () => FileStore | null;
 }) {
   const router = express.Router();
   const opener = [authenticate, anyOf(...PAGE_PERMISSIONS)];
@@ -308,10 +321,11 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     }
     try {
       // Receipts keep up to 2000px (visit photos 1000) so the print stays readable when zoomed.
-      const url = await processBase64Image(data, 'CardReceipts', 2000);
+      // Kept private where the store can (S3): the CDN never serves it, GET /files/:name does, to whoever may see the expense.
+      const url = await processBase64Image(data, 'CardReceipts', 2000, { private: true, metadata: { uploader: userIdOf(req) } });
       // processBase64Image hands the data back when the upload fails.
       if (typeof url !== 'string' || url.startsWith('data:')) return res.status(502).json({ message: 'Could not store the receipt. Try again.' });
-      res.json({ url });
+      res.json({ url: savedAddressOf(url) });
     } catch (error) {
       console.error('[card-receipts] attachment failed:', error);
       res.status(502).json({ message: 'Could not store the receipt. Try again.' });
@@ -372,7 +386,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const shown = categories.filter((c) => c.active);
       const { value, problems, missing } = cleanExpense(body, { today: todayOf(), categories: shown });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      const linkProblem = receiptLinkProblem(value.receiptUrl);
+      const linkProblem = await receiptLinkProblem(fileStore(), value.receiptUrl, '', me);
       if (linkProblem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: linkProblem } });
       if (body.confirmRepeat !== true) {
         // A Missing receipt row (an Amex charge with no upload yet) isn't a repeat: this upload takes its place.
@@ -425,7 +439,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const allowed = categories.filter((c) => c.active || c.name === expense.category);
       const { value, problems, missing } = cleanExpense(req.body || {}, { today: todayOf(), categories: allowed, currentSubcategory: expense.subcategory || '' });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      const linkProblem = receiptLinkProblem(value.receiptUrl, expense.receiptUrl || '');
+      const linkProblem = await receiptLinkProblem(fileStore(), value.receiptUrl, expense.receiptUrl || '', me);
       if (linkProblem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: linkProblem } });
       // Matched to an Amex charge: Amex's day and amount stand.
       if ((value.date !== expense.date || value.cents !== expense.cents) && await amexChargeOf(id)) {
@@ -484,6 +498,45 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   };
   router.post('/expenses/:id/approve', authenticate, anyOf(CARD_RECEIPTS.APPROVE), validateScalarRequest, decide('approve'));
   router.post('/expenses/:id/send-back', authenticate, anyOf(CARD_RECEIPTS.APPROVE), validateScalarRequest, decide('send_back'));
+
+  /** Whether the caller may see this expense's receipt: the same people who may see the expense. */
+  const mayViewReceipt = async (req: Request, e: Loose) => {
+    if (String(e.userId) === userIdOf(req)) return true;
+    if (has(req, CARD_RECEIPTS.VIEW_ALL)) return true;
+    if (has(req, CARD_RECEIPTS.VIEW_BRANCH)) {
+      const team = await teamOfRequest(req);
+      if (team === ALL_PEOPLE || team.has(String(e.userId))) return true;
+    }
+    if (has(req, CARD_RECEIPTS.APPROVE)) {
+      if ((await approvableIds(req)).has(String(e.userId))) return true;
+      if (isBigReceiptApprover(userOf(req).role) && isBigReceipt(e.cents)) return true;
+    }
+    return false;
+  };
+
+  // A private receipt's file. Anyone else (and any name that isn't a receipt's) gets the same 404.
+  router.get('/files/:name', opener, validateScalarRequest, async (req: Request, res: Response) => {
+    const { name } = scalarParams(req);
+    try {
+      const store = fileStore();
+      if (!isPrivateReceiptName(name) || !store) return res.status(404).json({ message: 'Receipt not found.' });
+      const file = await store.get(`${PRIVATE_RECEIPT_KEY_PREFIX}${name}`);
+      if (!file) return res.status(404).json({ message: 'Receipt not found.' });
+      const expense = await db.findExpenseByReceipt(`${PRIVATE_RECEIPT_ROUTE}${name}`);
+      // Not on an expense yet: only the person who uploaded it (the form is still open).
+      const allowed = expense ? await mayViewReceipt(req, expense) : file.metadata.uploader === userIdOf(req);
+      if (!allowed) return res.status(404).json({ message: 'Receipt not found.' });
+      const type = /^(image\/(webp|jpeg|png|gif)|application\/pdf)$/.test(file.contentType) ? file.contentType : 'application/octet-stream';
+      res.set({
+        'Content-Type': type, 'Cache-Control': 'private, max-age=300', 'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox", 'Content-Disposition': 'inline'
+      });
+      res.send(file.body);
+    } catch (error) {
+      console.error('[card-receipts] receipt file failed:', error);
+      res.status(500).json({ message: 'Could not open the receipt.' });
+    }
+  });
 
   router.post('/expenses/:id/void', authenticate, anyOf(CARD_RECEIPTS.USE), validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);

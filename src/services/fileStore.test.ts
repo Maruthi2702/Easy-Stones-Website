@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DeleteObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { createFileStore } from './fileStore';
 
 const WEBP = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 ')]);
@@ -74,6 +74,25 @@ describe('createFileStore', () => {
     const { client, sent } = fakeS3();
     await createFileStore(S3_ENV, { s3: client })!.put(PDF, { key: 'deliveries/packing_lists/D1.pdf', kind: 'raw', overwrite: true });
     expect((sent[0] as PutObjectCommand).input).toMatchObject({ Key: 'deliveries/packing_lists/D1.pdf', ContentType: 'application/pdf', CacheControl: 'no-cache' });
+  });
+
+  it('keeps who uploaded a private file with it, and reads the bytes and that fact back (S3 only)', async () => {
+    const s3 = fakeS3();
+    const store = createFileStore(S3_ENV, { s3: s3.client })!;
+    await store.put(WEBP, { key: 'private/CardReceipts/img_1_ab', kind: 'image', metadata: { uploader: 'u1' } });
+    expect((s3.sent[0] as PutObjectCommand).input.Metadata).toEqual({ uploader: 'u1' });
+    const reader = { send: vi.fn(async (cmd: unknown) => {
+      if (!(cmd instanceof GetObjectCommand)) return {};
+      if (cmd.input.Key === 'gone') throw new Error('NoSuchKey');
+      return { Body: { transformToByteArray: async () => new Uint8Array(WEBP) }, ContentType: 'image/webp', Metadata: { uploader: 'u1' } };
+    }) };
+    const read = createFileStore(S3_ENV, { s3: reader })!;
+    const got = await read.get('private/CardReceipts/img_1_ab.webp');
+    expect(got?.body.equals(WEBP)).toBe(true);
+    expect(got).toMatchObject({ contentType: 'image/webp', metadata: { uploader: 'u1' } });
+    expect(await read.get('gone')).toBeNull();
+    const cloudinary = fakeCloudinary();
+    expect(await createFileStore(CLD_ENV, { cloudinary: cloudinary.cld as never })!.get('anything')).toBeNull();
   });
 
   it('stays on Cloudinary (loudly) when FILE_STORE=s3 is half configured', () => {

@@ -163,6 +163,11 @@ export async function findExpense(db: Db, id: string): Promise<Loose | null> {
   return (await withHistory(db, await selectExpenses(db).where(eq(cardExpenses.id, lower(id)))))[0] ?? null;
 }
 
+export async function findExpenseByReceipt(db: Db, receiptUrl: string): Promise<Loose | null> {
+  const rows = await selectExpenses(db).where(eq(cardExpenses.receiptUrl, receiptUrl)).orderBy(desc(cardExpenses.createdAt)).limit(1);
+  return (await withHistory(db, rows))[0] ?? null;
+}
+
 export async function sameDayAmount(db: Db, userId: string, date: string, cents: number): Promise<Loose[]> {
   return withHistory(db, await selectExpenses(db).where(and(
     eq(cardExpenses.userId, lower(userId)), eq(cardExpenses.day, date), eq(cardExpenses.cents, cents), isNull(cardExpenses.voidedAt))));

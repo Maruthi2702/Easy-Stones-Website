@@ -354,13 +354,16 @@ const bustUserCaches = () => {
 // processBase64Image's image-only check and stay inline in the customer
 // document — 6 of them, up to 269 KB each, by Feb 2026. Without a file store, or
 // if the upload fails, it stays inline as before rather than being lost.
-const processBase64Pdf = async (dataUrl: string, subDir: string) => {
+/** A file only the app may read back (card receipts): S3 keeps it under private/ with these facts. */
+type PrivateUpload = { private?: boolean; metadata?: Record<string, string> };
+const processBase64Pdf = async (dataUrl: string, subDir: string, options: PrivateUpload = {}) => {
   const store = getFileStore();
   if (!store) return dataUrl;
   try {
     const buffer = Buffer.from(dataUrl.split(';base64,').pop()!, 'base64');
     const name = `pdf_${Date.now()}_${randomBytes(12).toString('hex')}.pdf`;
-    const stored = await store.put(buffer, { key: `${subDir}/${name}`, kind: 'raw' });
+    const keep = options.private && store.backend === 's3';
+    const stored = await store.put(buffer, { key: `${keep ? 'private/' : ''}${subDir}/${name}`, kind: 'raw', ...(keep && options.metadata ? { metadata: options.metadata } : {}) });
     return stored.url;
   } catch (err) {
     console.error('Failed to upload PDF attachment:', err);
@@ -370,9 +373,9 @@ const processBase64Pdf = async (dataUrl: string, subDir: string) => {
 
 // `maxSide`: visits and resources keep 1000px; card receipts ask for 2000 so
 // their small print can still be read (src/routes/cardReceipts.ts).
-const processBase64Image = async (base64String: string, subDir: string = 'Visits', maxSide: number = 1000) => {
+const processBase64Image = async (base64String: string, subDir: string = 'Visits', maxSide: number = 1000, options: PrivateUpload = {}) => {
   if (typeof base64String === 'string' && base64String.startsWith('data:application/pdf')) {
-    return processBase64Pdf(base64String, subDir);
+    return processBase64Pdf(base64String, subDir, options);
   }
   if (!base64String || !base64String.startsWith('data:image/')) return base64String;
 
@@ -391,7 +394,9 @@ const processBase64Image = async (base64String: string, subDir: string = 'Visits
     const store = getFileStore();
     if (store) {
       const uniqueSuffix = `${Date.now()}_${randomBytes(12).toString('hex')}`; // unguessable: the CDN link is the only gate
-      const stored = await store.put(optimizedBuffer, { key: `${subDir}/img_${uniqueSuffix}`, kind: 'image' });
+      // `private`: kept under private/ (S3 only), which the CDN does not serve; the app reads it itself.
+      const keep = options.private && store.backend === 's3';
+      const stored = await store.put(optimizedBuffer, { key: `${keep ? 'private/' : ''}${subDir}/img_${uniqueSuffix}`, kind: 'image', ...(keep && options.metadata ? { metadata: options.metadata } : {}) });
       return stored.url;
     }
 

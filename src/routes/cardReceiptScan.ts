@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import express from 'express';
 import * as db from '../db/cardReceipts/index.ts';
-import { CARD_RECEIPTS, isReceiptFolderUrl } from '../utils/cardReceipts.ts';
+import { CARD_RECEIPTS, isReceiptFolderUrl, privateReceiptNameOf, PRIVATE_RECEIPT_KEY_PREFIX } from '../utils/cardReceipts.ts';
+import { getFileStore, type FileStore } from '../services/fileStore.ts';
 import rateLimit from 'express-rate-limit';
 import { isCloudinaryUrl, isFilesCdnUrl } from '../utils/fileUrls.ts';
 import { isPdfSource } from '../utils/attachments.ts';
@@ -24,7 +25,7 @@ type ReqUser = { permissions?: string[] };
 const has = (req: Request, perm: string) => (((req as Request & { user?: ReqUser }).user || {}).permissions || []).includes(perm);
 const todayOf = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
 
-export default function createCardReceiptScanRouter({ authenticate, scanner }: { authenticate: RequestHandler; scanner: ReceiptScanner | null }) {
+export default function createCardReceiptScanRouter({ authenticate, scanner, fileStore = getFileStore }: { authenticate: RequestHandler; scanner: ReceiptScanner | null; fileStore?: () => FileStore | null }) {
   const router = express.Router();
   const canUse = (req: Request, res: Response, next: NextFunction) =>
     (has(req, CARD_RECEIPTS.USE) ? next() : res.status(403).json({ message: 'Access denied.' }));
@@ -34,22 +35,36 @@ export default function createCardReceiptScanRouter({ authenticate, scanner }: {
   const burst = rateLimit({ windowMs: 10 * 60 * 1000, limit: 20, keyGenerator: perPerson, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Too many receipts at once. Wait a few minutes.' } });
   const daily = rateLimit({ windowMs: 24 * 60 * 60 * 1000, limit: 100, keyGenerator: perPerson, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Today’s reading limit is reached. Type the details instead.' } });
 
+  const readIt = async (source: Parameters<ReceiptScanner['scan']>[0], res: Response) => {
+    try {
+      const categories = (await db.listCategories()).map((c) => ({ name: String(c.name), label: String(c.label || c.name), active: c.active !== false }));
+      const result = await scanner!.scan(source, { categories, today: todayOf() });
+      if (!result.ok) return res.status(result.reason === 'failed' ? 502 : 422).json({ message: result.message });
+      console.log(`[receipt-scan] ${result.model} read a receipt (${result.usage.input} in / ${result.usage.output} out tokens)`);
+      return res.json({ scan: result.scan });
+    } catch (error) {
+      console.error('[receipt-scan] route failed:', error);
+      return res.status(500).json({ message: 'Couldn’t read this receipt right now.' });
+    }
+  };
+
   router.post('/scan', authenticate, canUse, burst, daily, async (req: Request, res: Response) => {
     if (!scanner) return res.status(503).json({ message: 'Reading receipts isn’t set up.' });
     const url = req.body?.url;
+    // A private receipt: the file is read here and sent as bytes (the reader can't open our address), and only by whoever uploaded it.
+    const privateName = privateReceiptNameOf(url);
+    if (privateName) {
+      const file = await fileStore()?.get(`${PRIVATE_RECEIPT_KEY_PREFIX}${privateName}`);
+      const me = String((req as Request & { user?: { id?: string; _id?: string } }).user?.id || (req as Request & { user?: { _id?: string } }).user?._id || '');
+      if (!file || file.metadata.uploader !== me) return res.status(400).json({ message: 'Upload the receipt first.' });
+      const mediaType = file.contentType;
+      if (!/^(image\/(jpeg|png|gif|webp)|application\/pdf)$/.test(mediaType)) return res.status(422).json({ message: 'Couldn’t read this receipt.' });
+      return readIt({ data: file.body.toString('base64'), mediaType: mediaType as 'image/webp' }, res);
+    }
     if (typeof url !== 'string' || !(isFilesCdnUrl(url) || isCloudinaryUrl(url)) || !isReceiptFolderUrl(url)) {
       return res.status(400).json({ message: 'Upload the receipt first.' });
     }
-    try {
-      const categories = (await db.listCategories()).map((c) => ({ name: String(c.name), label: String(c.label || c.name), active: c.active !== false }));
-      const result = await scanner.scan({ url, pdf: isPdfSource(url) }, { categories, today: todayOf() });
-      if (!result.ok) return res.status(result.reason === 'failed' ? 502 : 422).json({ message: result.message });
-      console.log(`[receipt-scan] ${result.model} read a receipt (${result.usage.input} in / ${result.usage.output} out tokens)`);
-      res.json({ scan: result.scan });
-    } catch (error) {
-      console.error('[receipt-scan] route failed:', error);
-      res.status(500).json({ message: 'Couldn’t read this receipt right now.' });
-    }
+    return readIt({ url, pdf: isPdfSource(url) }, res);
   });
 
   return router;

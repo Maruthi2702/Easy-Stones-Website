@@ -22,11 +22,15 @@ const fakeScanner = (result: Awaited<ReturnType<ReceiptScanner['scan']>>): Recei
 });
 const READ = { isReceipt: true, date: '2026-11-18', merchant: 'Chevron', totalCents: 6497, subtotalCents: null, taxCents: null, tipCents: null, category: 'fuel' };
 
+const PRIV = 'img_1700000000000_0123456789abcdef01234567.webp';
+const privateFiles = new Map<string, { body: Buffer; contentType: string; metadata: Record<string, string> }>();
+const fakeStore = { backend: 's3', get: async (key: string) => privateFiles.get(key) ?? null } as never;
+
 function appWith(scanner: ReceiptScanner | null, permissions = ['use_card_receipts']) {
   const app = express();
   app.use(express.json());
   const authenticate = (req: Request, _res: Response, next: NextFunction) => { (req as Request & { user: unknown }).user = { id: 'u1', permissions }; next(); };
-  app.use('/api/card-receipts', createCardReceiptScanRouter({ authenticate, scanner }));
+  app.use('/api/card-receipts', createCardReceiptScanRouter({ authenticate, scanner, fileStore: () => fakeStore }));
   return app;
 }
 
@@ -48,6 +52,18 @@ describe('POST /api/card-receipts/scan', () => {
     await request(appWith(fakeScanner({ ok: true, scan: READ, usage: { input: 1, output: 1 }, model: 'test' })))
       .post('/api/card-receipts/scan').send({ url: `${CDN}/CardReceipts/invoice.pdf` });
     expect(scanned.mock.calls[0][0]).toEqual({ url: `${CDN}/CardReceipts/invoice.pdf`, pdf: true });
+  });
+
+  it('reads a private receipt as bytes, only for the person who uploaded it', async () => {
+    privateFiles.set(`private/CardReceipts/${PRIV}`, { body: Buffer.from('IMG'), contentType: 'image/webp', metadata: { uploader: 'u1' } });
+    const ok = await request(appWith(fakeScanner({ ok: true, scan: READ as never, usage: { input: 1, output: 1 }, model: 'test' })))
+      .post('/api/card-receipts/scan').send({ url: `/api/card-receipts/files/${PRIV}` });
+    expect(ok.status).toBe(200);
+    expect(scanned.mock.calls[0][0]).toEqual({ data: Buffer.from('IMG').toString('base64'), mediaType: 'image/webp' });
+    privateFiles.set(`private/CardReceipts/${PRIV}`, { body: Buffer.from('IMG'), contentType: 'image/webp', metadata: { uploader: 'someone-else' } });
+    const no = await request(appWith(fakeScanner({ ok: true, scan: READ as never, usage: { input: 1, output: 1 }, model: 'test' })))
+      .post('/api/card-receipts/scan').send({ url: `/api/card-receipts/files/${PRIV}` });
+    expect(no.status).toBe(400);
   });
 
   it('never reads a URL the app did not store', async () => {

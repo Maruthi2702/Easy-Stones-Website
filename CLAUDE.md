@@ -1354,8 +1354,16 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   `/scan`, which no longer reads any other CDN file); new file keys are random (`randomBytes`, not `Math.random`);
   `/attachments` has a 10 MB cap and 40 per 10 minutes per person, `/scan` 20 per 10 minutes and 100 a day (in memory,
   per instance); Approve / Send back send `expectedUpdatedAt` and answer 409 `changed` if the cardholder edited it since.
-  **Not done:** receipts are still public CDN links (private files with signed links is the next step), and the
-  Cardholder filter, not the dashboard's People field, narrows the list.
+  **Private receipts (2026-11-20):** a new receipt is stored in S3 under `private/CardReceipts/` (uploader kept in the
+  object's metadata) and the expense saves the app's own address `/api/card-receipts/files/<name>`, never a CDN link.
+  `GET /files/:name` (`src/routes/cardReceipts.ts`) streams it only to who may see the expense — the holder, View all,
+  View branch over the holder, or an approver of that holder (or the over-$150 second step) — and before it is on an
+  expense only to its uploader; everyone else gets 404. A save only takes a private file the person uploaded.
+  `/scan` reads a private file itself (bytes, uploader only). The aws-infra files stack answers 403 for everything
+  under `private/` (`PRIVATE_BLOCK_FUNCTION`; **needs `cdk deploy` of the files stack**, order doesn't matter). The
+  Excel's Receipt link is the site address (opens only when signed in). Only S3 can keep a private file (Cloudinary /
+  disk stay public); receipts saved before 2026-11-20 are still public links until a copy script moves them
+  (not written). **Not done:** the Cardholder filter, not the dashboard's People field, narrows the list.
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
   sample statement), the daily reminder email, closing a month, the PDF export.

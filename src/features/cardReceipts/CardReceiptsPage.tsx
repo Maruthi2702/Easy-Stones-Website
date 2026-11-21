@@ -74,7 +74,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const exportExcel = async () => {
     try {
       const XLSX = await import('xlsx');
-      const ws = XLSX.utils.json_to_sheet(exportRows(rows, categories));
+      // A private receipt's link is this site's own address: it opens only for someone signed in who may see it.
+      const withSite = (u: string) => (u.startsWith('/') ? `${window.location.origin}${u}` : u);
+      const ws = XLSX.utils.json_to_sheet(exportRows(rows.map((e) => ({ ...e, receiptUrl: e.receiptUrl ? withSite(e.receiptUrl) : e.receiptUrl })), categories));
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Card receipts');
       XLSX.writeFile(wb, `card-receipts-${tab === 'waiting' ? 'waiting' : data.month}.xlsx`);

@@ -78,6 +78,9 @@ export function listExpenses(filter: ExpenseFilter): Promise<Loose[]> {
 
 export const findExpense = (id: string) => lean<Loose | null>(CardExpense.findById(id).lean());
 
+/** The expense a saved receipt file belongs to (its `receiptUrl`), newest first, or null. */
+export const findExpenseByReceipt = (receiptUrl: string) => lean<Loose | null>(CardExpense.findOne({ receiptUrl }).sort({ createdAt: -1 }).lean());
+
 /** The caller's live (not voided) expenses on that day for that amount: a possible repeat. */
 export const sameDayAmount = (userId: string, date: string, cents: number) =>
   lean<Loose[]>(CardExpense.find({ userId, date, cents, voidedAt: null }).lean());

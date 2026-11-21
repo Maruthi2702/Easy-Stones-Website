@@ -12,7 +12,7 @@
  * their disk / inline fallbacks. The bucket and CDN are the aws-infra repo's files stack.
  */
 import { v2 as cloudinary } from 'cloudinary';
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import {
   cacheControlFor,
   cdnUrlFor,
@@ -31,6 +31,14 @@ export interface PutOptions {
   kind?: FileKind;
   /** Replace a file kept at a fixed name (delivery packing lists, signatures, signed PDFs). */
   overwrite?: boolean;
+  /** S3 only: small facts kept with the file (who uploaded it), read back by `get`. */
+  metadata?: Record<string, string>;
+}
+
+export interface ReadFile {
+  body: Buffer;
+  contentType: string;
+  metadata: Record<string, string>;
 }
 
 export interface StoredFile {
@@ -41,6 +49,8 @@ export interface StoredFile {
 
 export interface FileStore {
   readonly backend: 'cloudinary' | 's3';
+  /** A file's bytes and metadata by S3 key; null when it isn't there or this store isn't S3. Never throws. */
+  get(key: string): Promise<ReadFile | null>;
   put(buffer: Buffer, options: PutOptions): Promise<StoredFile>;
   /**
    * Delete by URL (Cloudinary or this CDN), "s3:<key>", or a bare Cloudinary public_id.
@@ -103,7 +113,23 @@ export function createFileStore(env: Env = process.env, deps: FileStoreDeps = {}
   return {
     backend: useS3 ? 's3' : 'cloudinary',
 
-    async put(buffer, { key, kind = 'auto', overwrite = false }) {
+    async get(key) {
+      if (!useS3 || !bucket) return null;
+      try {
+        const out = await s3Client().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        if (!out.Body) return null;
+        return {
+          body: Buffer.from(await (out.Body as { transformToByteArray(): Promise<Uint8Array> }).transformToByteArray()),
+          contentType: out.ContentType || 'application/octet-stream',
+          metadata: out.Metadata || {},
+        };
+      } catch (err) {
+        console.warn(`[files] could not read s3:${key}:`, (err as Error).message);
+        return null;
+      }
+    },
+
+    async put(buffer, { key, kind = 'auto', overwrite = false, metadata }) {
       if (useS3) {
         const sniffed = sniffContentType(buffer);
         const finalKey = storageKey(key, sniffed);
@@ -114,6 +140,7 @@ export function createFileStore(env: Env = process.env, deps: FileStoreDeps = {}
             Body: buffer,
             ContentType: sniffed.contentType,
             CacheControl: cacheControlFor(overwrite),
+            ...(metadata ? { Metadata: metadata } : {}),
           }),
         );
         return { url: cdnUrlFor(cdnBase, finalKey), id: `s3:${finalKey}` };

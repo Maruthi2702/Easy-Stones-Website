@@ -17,6 +17,11 @@ vi.mock('../db/cardStatements/hooks.ts', async (orig) => ({
   amexChargeOf: async (id: string) => (matched.has(id) ? { reference: 'R1' } : null)
 }));
 
+// A private file store: what was put under private/CardReceipts/ and who uploaded it.
+const PRIV = 'img_1700000000000_0123456789abcdef01234567.webp';
+const files = new Map<string, { body: Buffer; contentType: string; metadata: Record<string, string> }>();
+const fakeStore = { backend: 's3', get: async (key: string) => files.get(key) ?? null } as unknown as import('../services/fileStore.ts').FileStore;
+
 const { default: createCardReceiptsRouter } = await import('./cardReceipts.ts');
 const { CompanyCard, ReceiptCategory, CardExpense } = await import('../models/CardReceipts.ts');
 const { default: Role } = await import('../models/Role.ts');
@@ -41,7 +46,9 @@ beforeAll(async () => {
   app.use(express.json({ limit: '2mb' }));
   app.use('/api/card-receipts', createCardReceiptsRouter({
     authenticate: (req: Loose, _res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    processBase64Image: async () => 'https://res.cloudinary.com/test/CardReceipts/img_1.webp'
+    processBase64Image: async (_d: string, _f?: string, _m?: number, opts?: { private?: boolean }) =>
+      (opts?.private ? `https://cdn.test/private/CardReceipts/${PRIV}` : 'https://res.cloudinary.com/test/CardReceipts/img_1.webp'),
+    fileStore: () => fakeStore
   }));
 }, 180000);
 
@@ -182,7 +189,8 @@ describe('saving a receipt', () => {
 
   it('stores a photo and hands back its address', async () => {
     const res = await as(REP).post('/attachments', { data: 'data:image/jpeg;base64,AAAA' }).expect(200);
-    expect(res.body.url).toMatch(/^https:/);
+    // Kept privately: the saved address is the app's own, never the CDN's.
+    expect(res.body.url).toBe(`/api/card-receipts/files/${PRIV}`);
     await as(REP).post('/attachments', { data: 'hello' }).expect(400);
     await as(NOBODY).post('/attachments', { data: 'data:image/jpeg;base64,AAAA' }).expect(403);
   });
@@ -265,6 +273,36 @@ describe('what a receipt link, a decision and a matched charge may do', () => {
       await as(REP).put(`/expenses/${saved.id}`, body({ date: '2026-10-04' })).expect(409);
       await as(REP).put(`/expenses/${saved.id}`, body({ note: 'client visit' })).expect(200);
     } finally { matched.delete(saved.id); }
+  });
+});
+
+describe('private receipt files', () => {
+  const ref = `/api/card-receipts/files/${PRIV}`;
+  const put = (uploader: string) => files.set(`private/CardReceipts/${PRIV}`, { body: Buffer.from('IMG'), contentType: 'image/webp', metadata: { uploader } });
+  beforeEach(() => files.clear());
+
+  it('opens for the uploader before it is saved, and for nobody else', async () => {
+    put(ids.rep);
+    const res = await as(REP).get(`/files/${PRIV}`).expect(200);
+    expect(res.headers['content-type']).toMatch(/image\/webp/);
+    expect(res.headers['cache-control']).toMatch(/private/);
+    await as(MANAGER).get(`/files/${PRIV}`).expect(404);
+    await as(NOBODY).get(`/files/${PRIV}`).expect(403);
+    await as(REP).get('/files/../secret.webp').expect(404);
+    await as(REP).get('/files/img_1_zz.webp').expect(404);
+  });
+
+  it('saves only a file the person uploaded, and then opens it for who may see the expense', async () => {
+    put(ids.manager); // someone else's upload
+    await as(REP).post('/expenses', receipt({ receiptUrl: ref })).expect(400);
+    put(ids.rep);
+    const saved = (await as(REP).post('/expenses', receipt({ receiptUrl: ref })).expect(201)).body.expense;
+    expect(saved.receiptUrl).toBe(ref);
+    await as(REP).get(`/files/${PRIV}`).expect(200);
+    await as(MANAGER).get(`/files/${PRIV}`).expect(200);       // approves reps' receipts
+    await as(DIRECTOR).get(`/files/${PRIV}`).expect(200);
+    await as(ACCOUNTING).get(`/files/${PRIV}`).expect(200);    // view all
+    await as({ id: new mongoose.Types.ObjectId().toString(), role: 'sales_rep', permissions: [USE] }).get(`/files/${PRIV}`).expect(404);
   });
 });
 

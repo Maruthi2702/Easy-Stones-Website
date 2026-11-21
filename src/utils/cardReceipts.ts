@@ -237,7 +237,7 @@ export type CleanExpense = {
 export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'tax' | 'tip' | 'category' | 'subcategory' | 'customer' | 'attendees' | 'purpose' | 'receipt' | 'lostReason', string>>;
 
 const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
-const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uploads/');
+const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uploads/') || Boolean(privateReceiptNameOf(v));
 
 /**
  * What a save may write, and what's wrong with it. A draft may leave the
@@ -349,8 +349,31 @@ export const matchedChangeProblem = (before: { date: string; cents: number }, af
     ? 'This is matched to a charge on the Amex statement, so its date and total can’t be changed.'
     : '';
 
+/**
+ * A receipt kept privately (2026-11-20): the file sits in S3 under `private/CardReceipts/`, which the CDN doesn't
+ * serve, and the expense stores this app address instead of a public link. Opening it asks the server
+ * (GET /api/card-receipts/files/:name), which checks who is asking.
+ */
+export const PRIVATE_RECEIPT_ROUTE = '/api/card-receipts/files/';
+export const PRIVATE_RECEIPT_KEY_PREFIX = 'private/CardReceipts/';
+const PRIVATE_NAME = /^(?:img|pdf)_\d{10,14}_[0-9a-f]{24}\.[a-z0-9]{3,4}$/;
+export const isPrivateReceiptName = (name: unknown): name is string => typeof name === 'string' && PRIVATE_NAME.test(name);
+/** The file name inside a private receipt address, or '' when it isn't one. */
+export const privateReceiptNameOf = (url: unknown): string => {
+  if (typeof url !== 'string' || !url.startsWith(PRIVATE_RECEIPT_ROUTE)) return '';
+  const name = url.slice(PRIVATE_RECEIPT_ROUTE.length);
+  return isPrivateReceiptName(name) ? name : '';
+};
+/** The address saved on an expense for a private file stored at `key` (private/CardReceipts/<name>), or ''. */
+export const privateReceiptUrlOfKey = (key: string): string => {
+  if (!key.startsWith(PRIVATE_RECEIPT_KEY_PREFIX)) return '';
+  const name = key.slice(PRIVATE_RECEIPT_KEY_PREFIX.length);
+  return isPrivateReceiptName(name) ? `${PRIVATE_RECEIPT_ROUTE}${name}` : '';
+};
+
 /** A receipt's own file: stored by this app in the CardReceipts folder (never any other link or file). */
-export const isReceiptFolderUrl = (url: unknown): boolean => typeof url === 'string' && /\/CardReceipts\/[^/?#]+$/.test(url.split('?')[0] || '');
+export const isReceiptFolderUrl = (url: unknown): boolean =>
+  Boolean(privateReceiptNameOf(url)) || (typeof url === 'string' && /\/CardReceipts\/[^/?#]+$/.test(url.split('?')[0] || ''));
 
 /** The card holder may change it while it isn't approved or voided. */
 export const holderMayEdit = (e: { status: string; voided?: unknown }) => !e.voided && e.status !== 'approved';
