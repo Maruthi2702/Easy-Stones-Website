@@ -231,8 +231,6 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         <ExpenseDrawer
           expense={opened}
           categories={categories}
-          position={index >= 0 ? { index, count: rows.length } : null}
-          onStep={(by) => { const next = rows[index + by]; if (next) setOpenId(next.id); }}
           canEdit={opened.mine && canUse && holderMayEdit(opened)}
           onEdit={() => setOpen({ kind: 'edit', expense: opened })}
           onVoid={() => setOpen({ kind: 'void', expense: opened })}

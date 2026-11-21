@@ -72,7 +72,7 @@ describe('the Credit Card Receipts page', () => {
     expect(screen.getByText('CHEVRON')).toBeTruthy();
     fireEvent.click(screen.getByLabelText(/Open CHEVRON/));
     expect(text()).toContain('“The pump didn’t print one”');
-    const approve = screen.getByRole('button', { name: 'Approve' }) as HTMLButtonElement;
+    const approve = screen.getByRole('button', { name: 'Approve receipt' }) as HTMLButtonElement;
     expect(approve.disabled).toBe(true);
     fireEvent.change(document.getElementById('ccr-comment')!, { target: { value: 'Burlington delivery run. OK.' } });
     expect(approve.disabled).toBe(false);
