@@ -101,8 +101,8 @@ function CardForm({ card, people, onSave, onClose }: {
 }
 
 /**
- * Cards: one per person, the card ID accounting uses (first 4 letters of the
- * name + the last 5 digits). With Manage cards: add, edit, deactivate — a
+ * Cards: one active card per person per bank (Amex, Encore), shown together under the
+ * person; the card ID is the first 4 letters of the name + the last 4 or 5 digits. With Manage cards: add, edit, deactivate — a
  * person needs their old card deactivated before they get a new one.
  */
 export default function CardsPanel({ canManage, onSaved }: { canManage: boolean; onSaved: (text: string) => void }) {
@@ -141,6 +141,31 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
     try { replace((await api.editCard(card._id, { active: !card.active })).card); onSaved(card.active ? `${card.label} deactivated` : `${card.label} active again`); } catch (e) { setError((e as Error).message); }
   };
 
+  // One entry per person: their Amex and Encore cards sit together (a card with no holder yet stands alone).
+  const BANK_ORDER: Record<string, number> = { amex: 0, encore: 1, other: 2 };
+  const bankName = (c: Card) => (c.issuer === 'amex' ? 'Amex' : c.issuer === 'encore' ? 'Encore' : 'Other card');
+  const groups = useMemo(() => {
+    const by = new Map<string, Card[]>();
+    for (const c of cards) by.set(c.userId || `none:${c._id}`, [...(by.get(c.userId || `none:${c._id}`) || []), c]);
+    return [...by.entries()].map(([key, list]) => ({
+      key, userId: list[0]!.userId,
+      cards: [...list].sort((a, b) => Number(b.active) - Number(a.active) || (BANK_ORDER[a.issuer] ?? 3) - (BANK_ORDER[b.issuer] ?? 3) || a.label.localeCompare(b.label))
+    })).sort((a, b) => Number(b.cards.some((c) => c.active)) - Number(a.cards.some((c) => c.active))
+      || (a.userId ? 0 : 1) - (b.userId ? 0 : 1)
+      || nameOf(a.userId).localeCompare(nameOf(b.userId)) || a.cards[0]!.label.localeCompare(b.cards[0]!.label));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards, people]);
+  const cardLine = (c: Card) => (
+    <div key={c._id} className="ccr-cardline" style={{ opacity: c.active ? 1 : 0.6 }}>
+      <span className="ccr-cardline-main">
+        <b>{c.label}</b>
+        <span className="ccr-card-meta">{bankName(c)} ···{c.lastDigits}{c.amexName || c.statementName ? ` · ${c.amexName || c.statementName}` : ''}</span>
+      </span>
+      {status(c)}
+      {canManage ? <span className="ccr-cardline-menu">{menu(c)}</span> : null}
+    </div>
+  );
+
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       <div className="ccr-cards-head">
@@ -152,32 +177,26 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
       <div className={`ccr-box${loading ? ' is-loading' : ''}`}>
         {cards.length && isPhone ? (
           <div className="ccr-cards">
-            {cards.map((c) => (
-              <div key={c._id} className="ccr-card ccr-card-row" style={{ opacity: c.active ? 1 : 0.6, cursor: 'default' }}>
+            {groups.map((g) => (
+              <div key={g.key} className="ccr-card ccr-card-row" style={{ cursor: 'default', display: 'grid', gap: 8 }}>
                 <span style={{ display: 'grid', gap: 3, minWidth: 0 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><b>{c.label}</b>{status(c)}</span>
-                  <span className="ccr-card-meta">{nameOf(c.userId)}{placeOf(c) ? ` · ${placeOf(c)}` : ''}</span>
-                  {c.amexName || c.statementName ? <span className="ccr-card-meta">Amex: {c.amexName || c.statementName}</span> : null}
-                  <span className="ccr-card-meta">{c.issuer === 'amex' ? 'Amex' : c.issuer === 'encore' ? 'Encore' : 'Other card'} ···{c.lastDigits}</span>
+                  <b>{g.userId ? nameOf(g.userId) : 'Not assigned yet'}</b>
+                  {placeOf(g.cards[0]!) ? <span className="ccr-card-meta">{placeOf(g.cards[0]!)}</span> : null}
                 </span>
-                <span style={{ alignSelf: 'center' }}>{menu(c)}</span>
+                {g.cards.map(cardLine)}
               </div>
             ))}
           </div>
         ) : cards.length ? (
           <div className="ccr-table-wrap">
             <table className="ccr-table">
-              <thead><tr><th>Card ID</th><th>Cardholder</th><th className="ccr-col-wide">Amex card member</th><th className="ccr-col-wide">Location</th><th>Card</th><th>Status</th>{canManage ? <th aria-label="Actions" /> : null}</tr></thead>
+              <thead><tr><th>Cardholder</th><th className="ccr-col-wide">Location</th><th>Cards</th></tr></thead>
               <tbody>
-                {cards.map((c) => (
-                  <tr key={c._id} style={{ cursor: 'default', opacity: c.active ? 1 : 0.6 }}>
-                    <td>{c.label}</td>
-                    <td>{c.userId ? nameOf(c.userId) : <span className="ccr-muted">Not assigned yet</span>}</td>
-                    <td className="ccr-col-wide">{c.amexName || c.statementName || <span className="ccr-muted">—</span>}</td>
-                    <td className="ccr-col-wide">{placeOf(c)}</td>
-                    <td>{c.issuer === 'amex' ? 'Amex' : c.issuer === 'encore' ? 'Encore' : 'Other'} ···{c.lastDigits}</td>
-                    <td>{status(c)}</td>
-                    {canManage ? <td style={{ width: 52, textAlign: 'right' }}>{menu(c)}</td> : null}
+                {groups.map((g) => (
+                  <tr key={g.key} style={{ cursor: 'default' }}>
+                    <td style={{ verticalAlign: 'top' }}>{g.userId ? nameOf(g.userId) : <span className="ccr-muted">Not assigned yet</span>}</td>
+                    <td className="ccr-col-wide" style={{ verticalAlign: 'top' }}>{placeOf(g.cards[0]!)}</td>
+                    <td><div className="ccr-cardlines">{g.cards.map(cardLine)}</div></td>
                   </tr>
                 ))}
               </tbody>
