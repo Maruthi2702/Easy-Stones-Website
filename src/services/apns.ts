@@ -79,7 +79,7 @@ const dead = (r: SendResult) => r.status === 410 || r.reason === 'Unregistered';
 const wrongEnvironment = (r: SendResult) => r.reason === 'BadDeviceToken' || r.reason === 'DeviceTokenNotForTopic';
 
 type Store = Pick<typeof deviceStore, 'devicesFor' | 'removeTokens' | 'setEnvironment'>;
-export type SendSummary = { sent: number; failed: number; removed: number; configured: boolean };
+export type SendSummary = { sent: number; failed: number; removed: number; configured: boolean; reasons?: string[] };
 
 /** Sends to every phone of the given people. Never throws: push is a nicety, not part of any save. */
 export async function sendPushToUsers(
@@ -103,7 +103,7 @@ export async function sendPushToUsers(
         if (dead(last) || !wrongEnvironment(last)) break;
       }
       if (last.ok) out.sent++;
-      else { out.failed++; if (dead(last) || (wrongEnvironment(last) && !p.environment)) gone.push(p.token); }
+      else { out.failed++; (out.reasons ||= []).push(`${last.status} ${last.reason}`.trim()); console.warn('APNs refused a push:', last.status, last.reason); if (dead(last) || (wrongEnvironment(last) && !p.environment)) gone.push(p.token); }
     }
     await store.removeTokens(gone);
     out.removed = gone.length;
