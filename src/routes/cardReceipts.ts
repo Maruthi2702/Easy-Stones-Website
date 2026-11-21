@@ -433,7 +433,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const by = actor(req);
       const status = statusAfterSave(Object.keys(missing).length === 0);
       const saved = await db.addExpense(body.id, {
-        userId: me, holderName: nameOf(u), cardId: String(card._id), cardLabel: card.label, location: homeOf(u),
+        userId: me, holderName: nameOf(u), cardId: String(card._id), cardLabel: card.label, location: homeOf(u) || card.location || '',
         ...value, month: monthOf(value.date), status, createdBy: by,
         history: [{ at: new Date(), by, action: 'added', changes: status === 'waiting' ? 'sent for approval' : '' }]
       });

@@ -146,8 +146,9 @@ export async function changeCard(db: Db, id: string, set: Loose): Promise<Loose 
 
 /* ---- Expenses ---- */
 
-const selectExpenses = (c: Conn) => q(c).select({ e: cardExpenses, locationName: locations.name })
-  .from(cardExpenses).leftJoin(locations, eq(locations.id, cardExpenses.locationId));
+const selectExpenses = (c: Conn) => q(c).select({ e: cardExpenses, locationName: sql<string | null>`coalesce(${locations.name}, nullif(${companyCards.location}, ''))` })
+  .from(cardExpenses).leftJoin(locations, eq(locations.id, cardExpenses.locationId))
+  .leftJoin(companyCards, eq(companyCards.id, cardExpenses.cardId));
 
 async function withHistory(c: Conn, rows: { e: typeof cardExpenses.$inferSelect; locationName: string | null }[]): Promise<Loose[]> {
   if (!rows.length) return [];

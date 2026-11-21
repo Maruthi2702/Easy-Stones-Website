@@ -118,7 +118,7 @@ async function createMissingRows(tx: Conn, references: string[], by: Actor, now:
   const rows = await q(tx).select({
     reference: lines.reference, day: lines.day, description: lines.description, cents: lines.cents,
     cardId: companyCards.id, cardLabel: companyCards.label, userId: companyCards.userId,
-    displayName: users.displayName, username: users.username, location: locations.name
+    displayName: users.displayName, username: users.username, location: locations.name, cardLocation: companyCards.location
   }).from(lines)
     .innerJoin(companyCards, eq(companyCards.id, lines.cardId))
     .leftJoin(users, eq(users.id, companyCards.userId))
@@ -132,7 +132,7 @@ async function createMissingRows(tx: Conn, references: string[], by: Actor, now:
     const id = newId();
     const doc = {
       _id: id, userId: r.userId, holderName: r.displayName || r.username || '', cardId: r.cardId, cardLabel: r.cardLabel,
-      location: r.location || '', date: r.day, month: r.day.slice(0, 7), merchant: merchantOf(r.description), cents: r.cents,
+      location: r.location || r.cardLocation || '', date: r.day, month: r.day.slice(0, 7), merchant: merchantOf(r.description), cents: r.cents,
       subtotalCents: null, taxCents: null, tipCents: null, category: '', customerId: '', customerName: '', attendees: [],
       purpose: '', note: approvedNote ?? '', recurring: false, receiptUrl: '', lostReason: '',
       status: approvedNote ? 'approved' : 'missing', sentBack: null,
