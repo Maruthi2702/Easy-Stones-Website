@@ -13,7 +13,7 @@ import { companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf } from '../co
 import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
 import { cardDoc, categoryDoc, expenseDoc } from './cardDocs.ts';
 import type { Loose } from '../../types/records.ts';
-import { StaleExpenseError } from './types.ts';
+import { StaleExpenseError, RepeatExpenseError } from './types.ts';
 import type { ExpenseFilter, ExpenseHistoryEntry } from './types.ts';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -202,8 +202,14 @@ export async function addExpense(db: Db, id: string, value: Loose): Promise<Loos
   return db.transaction(async tx => {
     const [taken] = await tx.select({ id: cardExpenses.id }).from(cardExpenses).where(eq(cardExpenses.id, lower(id)));
     if (taken) return null;
+    const { history = [], repeatCheck, ...rest } = value;
+    if (repeatCheck && rest.userId && rest.date && rest.cents != null) {
+      // One save at a time per holder / day / amount, so two requests can't both pass the duplicate warning.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`card-expense|${String(rest.userId).toLowerCase()}|${rest.date}|${rest.cents}`}))`);
+      const same = (await sameDayAmount(tx as unknown as Db, String(rest.userId), String(rest.date), Number(rest.cents))).filter(e => e.status !== 'missing');
+      if (same.length) throw new RepeatExpenseError(same[0]!);
+    }
     const now = new Date();
-    const { history = [], ...rest } = value;
     const built = await rowsFor(tx, { _id: lower(id), voidedAt: null, ...rest, history, createdAt: now, updatedAt: now });
     await tx.insert(cardExpenses).values(built.expense);
     if (built.history.length) await tx.insert(cardExpenseHistory).values(built.history);

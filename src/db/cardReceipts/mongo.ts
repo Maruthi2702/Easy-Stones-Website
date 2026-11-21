@@ -91,7 +91,8 @@ export const sameDayAmount = (userId: string, date: string, cents: number) =>
   lean<Loose[]>(CardExpense.find({ userId, date, cents, voidedAt: null }).lean());
 
 /** Add one expense; null when that id is already taken (a repeat of the same save). */
-export async function addExpense(id: string, doc: Loose): Promise<Loose | null> {
+export async function addExpense(id: string, fullDoc: Loose): Promise<Loose | null> {
+  const { repeatCheck: _repeatCheck, ...doc } = fullDoc; // the duplicate check under a lock is the Postgres path's
   try {
     return (await CardExpense.create({ _id: id, ...doc })).toObject() as unknown as Loose;
   } catch (error) {

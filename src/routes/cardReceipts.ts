@@ -4,7 +4,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import * as db from '../db/cardReceipts/index.ts';
-import { StaleExpenseError } from '../db/cardReceipts/types.ts';
+import { StaleExpenseError, RepeatExpenseError } from '../db/cardReceipts/types.ts';
 import { newId } from '../db/ids.ts';
 import rateLimit from 'express-rate-limit';
 import { isFilesCdnUrl, isCloudinaryUrl } from '../utils/fileUrls.ts';
@@ -432,8 +432,9 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       }
       const u = userOf(req);
       const by = actor(req);
-      const status = statusAfterSave(Object.keys(missing).length === 0);
+      const status = statusAfterSave(Object.keys(missing).length === 0, undefined, true);
       const saved = await db.addExpense(body.id, {
+        repeatCheck: body.confirmRepeat !== true,
         userId: me, holderName: nameOf(u), cardId: String(card._id), cardLabel: card.label, location: homeOf(u) || card.location || '',
         ...value, month: monthOf(value.date), status, createdBy: by,
         history: [{ at: new Date(), by, action: 'added', changes: status === 'waiting' ? 'sent for approval' : '' }]
@@ -441,6 +442,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       if (!saved) {
         // The same save arrived twice at once: the other one got there first.
         const again = await db.findExpense(body.id);
+        // The id is one person's: never hand back someone else's receipt.
+        if (again && again.userId !== me) return res.status(409).json({ message: 'That id belongs to another expense.' });
         if (again) return res.json({ expense: expenseView(again, { id: me, approvable: new Set() }), alreadySaved: true });
         return res.status(500).json({ message: 'Could not save the receipt.' });
       }
@@ -448,6 +451,10 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const replacedMissing = await afterReceiptSaved(saved, { id: me, name: by });
       res.status(201).json({ expense: expenseView(saved, { id: me, approvable: new Set() }), ...(replacedMissing ? { replacedMissing } : {}) });
     } catch (error) {
+      if (error instanceof RepeatExpenseError) {
+        const e = error.existing;
+        return res.status(409).json({ message: error.message, repeat: { id: String(e._id), merchant: e.merchant, date: e.date, cents: e.cents } });
+      }
       console.error('[card-receipts] add failed:', error);
       res.status(500).json({ message: 'Could not save the receipt.' });
     }
@@ -482,7 +489,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         return res.status(409).json({ message: matchedChangeProblem({ date: expense.date, cents: expense.cents }, value), problems: { total: 'Matched to Amex' } });
       }
       const changes = changeSummary(cleanOf(expense), value);
-      const status = statusAfterSave(Object.keys(missing).length === 0, expense.status);
+      const status = statusAfterSave(Object.keys(missing).length === 0, expense.status, Boolean(value.receiptUrl || value.lostReason));
       if (!changes.length && status === expense.status) return res.json({ expense: expenseView(expense, { id: me, approvable: new Set() }), unchanged: true });
       const by = actor(req);
       const sentForApproval = status === 'waiting' && expense.status !== 'waiting';

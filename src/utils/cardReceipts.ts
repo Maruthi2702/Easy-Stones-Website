@@ -339,8 +339,10 @@ export const missingLine = (missing: ExpenseProblems) => {
 };
 
 /** A save's status: complete → waiting for approval, else a draft (a sent-back one stays sent back until it's complete again). */
-export const statusAfterSave = (complete: boolean, before?: string): StatusKey => {
+export const statusAfterSave = (complete: boolean, before?: string, hasProof = true): StatusKey => {
   if (complete) return 'waiting';
+  // An Amex charge's Missing row stays Missing until a receipt or a lost-receipt reason is on it.
+  if (before === 'missing' && !hasProof) return 'missing';
   return before === 'sent_back' ? 'sent_back' : 'draft';
 };
 

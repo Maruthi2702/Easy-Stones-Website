@@ -12,6 +12,16 @@ export interface ExpenseHistoryEntry {
   expectedUpdatedAt?: Date | string | null;
 }
 
+/** Another live receipt for the same holder, day and amount was saved first (found under the lock). */
+export class RepeatExpenseError extends Error {
+  readonly existing: Record<string, unknown>;
+  constructor(existing: Record<string, unknown>) {
+    super('This receipt looks already uploaded.');
+    this.name = 'RepeatExpenseError';
+    this.existing = existing;
+  }
+}
+
 /** The expense changed between the caller reading it and the write: nothing was written. */
 export class StaleExpenseError extends Error {
   constructor() {
