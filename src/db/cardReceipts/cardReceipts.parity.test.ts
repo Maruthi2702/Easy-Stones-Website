@@ -321,3 +321,27 @@ describe('the starting list, on an empty Postgres', () => {
     await empty.close();
   });
 });
+
+describe('sub-categories', () => {
+  it('are stored alike on both: the types on a category, and the type on a receipt', async () => {
+    const gas = await same(ACCOUNTING, a => a.post('/categories', { label: 'Gas', subcategories: [{ label: 'Car' }, { label: 'Truck', fields: { customer: true } }, { label: 'Van' }] }));
+    expect(gas.body.category.subcategories.map((s: Loose) => [s.name, s.isDefault, s.fields.customer])).toEqual([['car', true, false], ['truck', false, true], ['van', false, false]]);
+    const id = gas.body.category._id;
+    // Hiding the category sends no types: they stay; a rename keeps the stored name.
+    await same(ACCOUNTING, a => a.put(`/categories/${id}`, { label: 'Gas', active: false }));
+    await same(ACCOUNTING, a => a.put(`/categories/${id}`, { label: 'Gas', active: true }));
+    const edited = await same(ACCOUNTING, a => a.put(`/categories/${id}`, { label: 'Gas', subcategories: [{ name: 'car', label: 'Car', isDefault: true }, { name: 'truck', label: 'Box truck', fields: { customer: true } }, { name: 'van', label: 'Van', active: false }] }));
+    expect(edited.body.category.subcategories.map((s: Loose) => [s.name, s.label, s.active])).toEqual([['car', 'Car', true], ['truck', 'Box truck', true], ['van', 'Van', false]]);
+    const saved = await same(REP, a => a.post('/expenses', receipt({ category: 'gas', subcategory: 'car', total: '51.00', date: '2026-10-20' })));
+    expect(saved.status).toBe(201);
+    expect(saved.body.expense).toMatchObject({ category: 'gas', subcategory: 'car', status: 'waiting' });
+    expect((await same(REP, a => a.post('/expenses', receipt({ category: 'gas', subcategory: 'boat', total: '52.00', date: '2026-10-21' })))).status).toBe(400);
+    const changed = await same(REP, a => a.put(`/expenses/${saved.body.expense.id}`, receipt({ id: saved.body.expense.id, category: 'gas', subcategory: 'truck', total: '51.00', date: '2026-10-20' })));
+    expect(changed.body.expense.subcategory).toBe('truck');
+    // A category deleted by moving its expenses clears their type.
+    const parking = (await same(ACCOUNTING, a => a.get('/categories'))).body.categories.find((c: Loose) => c.name !== 'gas' && c.active);
+    await same(ACCOUNTING, a => a.del(`/categories/${id}`, { replaceWith: parking._id }));
+    const mine = await same(REP, a => a.get('/expenses?scope=mine&month=2026-10'));
+    expect(mine.body.expenses.find((e: Loose) => e.id === saved.body.expense.id)).toMatchObject({ category: parking.name, subcategory: '' });
+  });
+});

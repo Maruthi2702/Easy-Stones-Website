@@ -146,3 +146,50 @@ describe('the Credit Card Receipts page', () => {
     expect(closed).toEqual(['x']);
   });
 });
+
+describe('the sub-category on Add / Edit receipt', () => {
+  const GAS = {
+    _id: 'k9', name: 'gas', label: 'Gas', order: 3, active: true, fields: { customer: false, attendees: false, purpose: false, recurring: false },
+    subcategories: [
+      { name: 'car', label: 'Car', active: true, isDefault: true, fields: { customer: false, attendees: false, purpose: false, recurring: false } },
+      { name: 'truck', label: 'Truck', active: true, isDefault: false, fields: { customer: false, attendees: false, purpose: false, recurring: false } },
+      { name: 'van', label: 'Van', active: false, isDefault: false, fields: { customer: false, attendees: false, purpose: false, recurring: false } }
+    ]
+  };
+  const FOOD = {
+    _id: 'k10', name: 'food', label: 'Food', order: 4, active: true, fields: { customer: false, attendees: false, purpose: false, recurring: false },
+    subcategories: [
+      { name: 'travel_lunch', label: 'Travel Lunch', active: true, isDefault: true, fields: { customer: false, attendees: false, purpose: false, recurring: false } },
+      { name: 'customer_lunch', label: 'Customer Lunch', active: true, isDefault: false, fields: { customer: true, attendees: false, purpose: false, recurring: false } }
+    ]
+  };
+  const open = async (expense: ReturnType<typeof exp>) => {
+    const { default: ExpenseForm } = await import('./components/ExpenseForm');
+    render(<ExpenseForm expense={expense as never} cardLabel="MARU92069" holderName="Maruthi Ponugupati" today="2026-10-20"
+      categories={[...CATEGORIES, GAS, FOOD] as never} upload={async () => ({ url: '' })} onSave={async () => undefined} onClose={() => {}} />);
+    await settle();
+  };
+
+  it('shows the type under a category that has them, and not under one that has none', async () => {
+    await open(exp('g1', { category: 'gas', subcategory: 'truck', status: 'draft' }));
+    expect(text()).toContain('Sub-category');
+    expect(text()).toContain('Truck');
+    cleanup();
+    await open(exp('g2', { category: 'fuel', status: 'draft' }));
+    expect(text()).not.toContain('Sub-category');
+  });
+
+  it('asks for the customer under Customer Lunch only', async () => {
+    await open(exp('f1', { category: 'food', subcategory: 'customer_lunch', status: 'draft' }));
+    expect(text()).toContain('Customer');
+    expect(text()).not.toContain('Who attended');
+    cleanup();
+    await open(exp('f2', { category: 'food', subcategory: 'travel_lunch', status: 'draft' }));
+    expect(document.getElementById('ccr-customer')).toBeNull();
+  });
+
+  it('says to pick the type when a draft has the category but not the type', async () => {
+    await open(exp('g3', { category: 'gas', subcategory: '', status: 'draft' }));
+    expect(text()).toContain('pick the type');
+  });
+});

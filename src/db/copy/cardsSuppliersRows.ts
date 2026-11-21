@@ -78,6 +78,12 @@ export function companyCardRowOf(d: Loose, ref: ReferenceIndex, problems: CopyPr
   };
 }
 
+/** A category's types as stored: [{ name, label, active, isDefault, fields }], in order, kept whole. */
+const subcategoriesOf = (v: unknown) => (Array.isArray(v) ? v : []).map((s) => {
+  const o = obj(s), f = obj(o.fields);
+  return { name: textOf(o.name), label: textOf(o.label), active: boolOf(o.active, true), isDefault: boolOf(o.isDefault), fields: { customer: boolOf(f.customer), attendees: boolOf(f.attendees), purpose: boolOf(f.purpose), recurring: boolOf(f.recurring) } };
+}).filter((s) => s.name);
+
 /** The row for one receipt category, or null when it has no id. */
 export function receiptCategoryRowOf(d: Loose, problems: CopyProblem[]): Row<typeof receiptCategories> | null {
   const id = idOf(d._id);
@@ -87,7 +93,7 @@ export function receiptCategoryRowOf(d: Loose, problems: CopyProblem[]): Row<typ
   return {
     id, name: textOf(d.name), label: textOf(d.label), order: intOf(c, 'order', d.order) ?? 0, active: boolOf(d.active, true),
     needsCustomer: boolOf(f.customer), needsAttendees: boolOf(f.attendees), needsPurpose: boolOf(f.purpose),
-    needsRecurring: boolOf(f.recurring), updatedBy: textOf(d.updatedBy), ...stamp(c, d)
+    needsRecurring: boolOf(f.recurring), subcategories: subcategoriesOf(d.subcategories), updatedBy: textOf(d.updatedBy), ...stamp(c, d)
   };
 }
 
@@ -113,7 +119,7 @@ export function cardExpenseRowsOf(d: Loose, ref: ReferenceIndex, links: ExpenseL
       cardId: linkOf(c, 'card_id', d.cardId, links.cardIds, 'card'), cardLabel: textOf(d.cardLabel),
       locationId: locationIdOf(c, 'location_id', d.location, ref.locationIdByName), day: expenseDay, month: textOf(d.month),
       merchant: textOf(d.merchant), cents, subtotalCents: intOf(c, 'subtotal_cents', d.subtotalCents),
-      taxCents: intOf(c, 'tax_cents', d.taxCents), tipCents: intOf(c, 'tip_cents', d.tipCents), category,
+      taxCents: intOf(c, 'tax_cents', d.taxCents), tipCents: intOf(c, 'tip_cents', d.tipCents), category, subcategory: category ? textOf(d.subcategory) : '',
       customerId: linkOf(c, 'customer_id', d.customerId, links.customerIds, 'customer'), customerName: textOf(d.customerName),
       attendees: stringsOf(d.attendees), purpose: textOf(d.purpose), note: textOf(d.note), recurring: boolOf(d.recurring),
       receiptUrl: textOf(d.receiptUrl), lostReason: textOf(d.lostReason), status,

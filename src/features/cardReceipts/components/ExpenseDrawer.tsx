@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, ChevronLeft, ChevronRight, Pencil, Ban, X } from 'lucide-react';
 import { lockPage, unlockPage } from '../../../components/shared/pageLock';
 import { formatMoney, isBigReceipt, usDate, fieldsOf } from '../../../utils/cardReceipts';
-import { categoryLabel, isPdfUrl, statusLine } from '../cardReceiptsView';
+import { categoryText, isPdfUrl, statusLine } from '../cardReceiptsView';
 import { StatusChip } from './ExpenseList';
 import type { Category, Expense } from '../types';
 
@@ -32,7 +32,7 @@ export default function ExpenseDrawer({ expense: e, categories, position, onStep
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState<'' | 'approve' | 'back'>('');
   const [error, setError] = useState('');
-  const fields = fieldsOf(categories.find((c) => c.name === e.category));
+  const fields = fieldsOf(categories.find((c) => c.name === e.category), e.subcategory);
   const line = statusLine(e, categories);
 
   useEffect(() => { lockPage(); return () => unlockPage(); }, []);
@@ -109,7 +109,7 @@ export default function ExpenseDrawer({ expense: e, categories, position, onStep
 
             <dl className="ccr-dl">
               <div><dt>Amount</dt><dd className={`ccr-big${isBigReceipt(e.cents) ? ' is-big' : ''}`}>{formatMoney(e.cents)}</dd></div>
-              <div><dt>Category</dt><dd>{e.category ? categoryLabel(categories, e.category) : <span className="ccr-muted">Not picked</span>}</dd></div>
+              <div><dt>Category</dt><dd>{e.category ? categoryText(categories, e) : <span className="ccr-muted">Not picked</span>}</dd></div>
               {e.subtotalCents != null || e.taxCents != null || e.tipCents != null ? (
                 <div className="is-wide"><dt>On the receipt</dt><dd>
                   {[e.subtotalCents != null ? `Subtotal ${formatMoney(e.subtotalCents)}` : '', e.taxCents != null ? `Tax ${formatMoney(e.taxCents)}` : '', e.tipCents != null ? `Tip ${formatMoney(e.tipCents)}` : '']

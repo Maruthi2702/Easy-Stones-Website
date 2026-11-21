@@ -1,5 +1,11 @@
-import { missingFor, missingLine, statusTotals } from '../../utils/cardReceipts';
+import { missingFor, missingLine, statusTotals, subLabel } from '../../utils/cardReceipts';
 import type { Category, Expense } from './types';
+
+/** "Gas · Truck": the category and, when it has one, the type. */
+export const categoryText = (categories: readonly Category[], e: { category: string; subcategory?: string }) => {
+  const sub = e.subcategory ? subLabel(categories.find((c) => c.name === e.category), e.subcategory) : '';
+  return [categoryLabel(categories, e.category), sub].filter(Boolean).join(' · ');
+};
 
 /** What the Filters panel, the search box and the status tiles narrow the list to. */
 export type ReceiptFilters = { search: string; status: string; location: string; holder: string; category: string };
@@ -19,7 +25,7 @@ export function visibleExpenses(list: readonly Expense[], f: ReceiptFilters, cat
     && (!f.category || e.category === f.category));
   const q = f.search.trim().toLowerCase();
   const rows = base.filter((e) => (f.status === 'all' || e.status === f.status)
-    && (!q || [e.merchant, e.holderName, e.cardLabel, e.note, e.purpose, e.customerName, categoryLabel(categories, e.category), e.location]
+    && (!q || [e.merchant, e.holderName, e.cardLabel, e.note, e.purpose, e.customerName, categoryText(categories, e), e.location]
       .some((v) => String(v || '').toLowerCase().includes(q))));
   return { base, rows, totals: statusTotals(base), shown: statusTotals(rows) };
 }

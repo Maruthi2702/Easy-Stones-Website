@@ -320,3 +320,12 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
   .ccr-cat-row { grid-template-columns: 32px minmax(0, 1fr) 44px; }
   .ccr-cat-row .ccr-col-wide, .ccr-cat-row .ccr-cat-shown { display: none; }
 }
+
+/* Sub-categories under a category (Admin → Receipt Categories) */
+.ccr-subs { display: grid; gap: 10px; }
+.ccr-sub-row { display: grid; gap: 8px; padding: 10px; border: 1px solid rgba(128, 128, 128, 0.35); border-radius: 10px; }
+.ccr-sub-row.is-hidden { opacity: .6; }
+.ccr-sub-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.ccr-iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 1px solid rgba(128, 128, 128, 0.35); border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
+.ccr-iconbtn:disabled { opacity: .4; cursor: default; }
+.ccr-sub-list { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; opacity: .7; }

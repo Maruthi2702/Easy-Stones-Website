@@ -44,6 +44,8 @@ export const receiptCategories = pgTable('receipt_categories', {
   needsAttendees: boolean('needs_attendees').notNull().default(false),
   needsPurpose: boolean('needs_purpose').notNull().default(false),
   needsRecurring: boolean('needs_recurring').notNull().default(false),
+  /** The types under it ([{ name, label, active, isDefault, fields }], in order), kept whole. */
+  subcategories: jsonb('subcategories').notNull().default(sql`'[]'::jsonb`),
   updatedBy: text('updated_by').notNull().default(''),
   createdAt: moment('created_at').notNull().defaultNow(),
   updatedAt: moment('updated_at').notNull().defaultNow()
@@ -70,6 +72,8 @@ export const cardExpenses = pgTable('card_expenses', {
   tipCents: bigint('tip_cents', { mode: 'number' }),
   /** Null until a category is picked (a draft). */
   category: text('category').references(() => receiptCategories.name),
+  /** One of the category's types (its `name`); '' = none. */
+  subcategory: text('subcategory').notNull().default(''),
   customerId: objectId('customer_id').references(() => customers.id, { onDelete: 'set null' }),
   customerName: text('customer_name').notNull().default(''),
   attendees: textArray('attendees'),

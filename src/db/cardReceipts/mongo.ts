@@ -39,7 +39,7 @@ export const categoryUses = (name: string) => CardExpense.countDocuments({ categ
 
 /** Move the expenses first (a stop in between leaves nothing lost), then delete the category. */
 export async function deleteCategory(id: string, name: string, move: { to: string; entry: ExpenseHistoryEntry } | null): Promise<void> {
-  if (move) await CardExpense.updateMany({ category: name }, { $set: { category: move.to }, $push: { history: move.entry } });
+  if (move) await CardExpense.updateMany({ category: name }, { $set: { category: move.to, subcategory: '' }, $push: { history: move.entry } });
   await ReceiptCategory.deleteOne({ _id: id });
 }
 

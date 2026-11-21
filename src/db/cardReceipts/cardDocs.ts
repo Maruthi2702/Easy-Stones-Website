@@ -17,6 +17,7 @@ export function categoryDoc(c: typeof receiptCategories.$inferSelect): Loose {
   return {
     _id: c.id, name: c.name, label: c.label, order: c.order, active: c.active,
     fields: { customer: c.needsCustomer, attendees: c.needsAttendees, purpose: c.needsPurpose, recurring: c.needsRecurring },
+    subcategories: c.subcategories,
     updatedBy: c.updatedBy, createdAt: c.createdAt, updatedAt: c.updatedAt
   };
 }
@@ -29,7 +30,7 @@ export function expenseDoc(e: typeof cardExpenses.$inferSelect, locationName: st
     userId: e.userId ?? '', holderName: e.holderName, cardId: e.cardId ?? '', cardLabel: e.cardLabel,
     location: locationName ?? '', date: e.day, month: e.month, merchant: e.merchant, cents: e.cents,
     subtotalCents: e.subtotalCents, taxCents: e.taxCents, tipCents: e.tipCents,
-    category: e.category ?? '', customerId: e.customerId ?? '', customerName: e.customerName,
+    category: e.category ?? '', subcategory: e.subcategory, customerId: e.customerId ?? '', customerName: e.customerName,
     attendees: e.attendees, purpose: e.purpose, note: e.note, recurring: e.recurring,
     receiptUrl: e.receiptUrl, lostReason: e.lostReason, status: e.status,
     approval: e.approvedById == null ? null

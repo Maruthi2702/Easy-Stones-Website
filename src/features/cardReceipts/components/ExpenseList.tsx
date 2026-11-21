@@ -1,5 +1,5 @@
 import { formatMoney, isBigReceipt, statusOf, usDate } from '../../../utils/cardReceipts';
-import { categoryLabel, isPdfUrl, statusLine } from '../cardReceiptsView';
+import { categoryText, isPdfUrl, statusLine } from '../cardReceiptsView';
 import type { Category, Expense } from '../types';
 
 export function StatusChip({ status, step }: { status: string; step?: number }) {
@@ -58,7 +58,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
               <b>{e.merchant}</b>
               <span className={`ccr-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? 'Over $150' : undefined}>{formatMoney(e.cents)}</span>
               <span className="ccr-card-meta">
-                {usDate(e.date)}{showHolder ? ` · ${e.holderName}` : ''}{e.category ? ` · ${categoryLabel(categories, e.category)}` : ''}
+                {usDate(e.date)}{showHolder ? ` · ${e.holderName}` : ''}{e.category ? ` · ${categoryText(categories, e)}` : ''}
                 {line ? <><br />{line}</> : null}
               </span>
               <span style={{ justifySelf: 'end' }}><StatusChip status={e.status} /></span>
@@ -91,7 +91,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
                 </td>
                 {showHolder ? <td><div className="ccr-who"><b>{e.holderName}</b><span>{e.cardLabel}{e.location ? ` · ${e.location}` : ''}</span></div></td> : null}
                 <td>{e.merchant}</td>
-                <td className="ccr-col-wide">{e.category ? categoryLabel(categories, e.category) : <span className="ccr-muted">Not picked</span>}</td>
+                <td className="ccr-col-wide">{e.category ? categoryText(categories, e) : <span className="ccr-muted">Not picked</span>}</td>
                 <td className={`ccr-num ccr-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? 'Over $150' : undefined}>{formatMoney(e.cents)}</td>
                 <td>
                   <div className="ccr-status-cell"><StatusChip status={e.status} /><Tags e={e} /></div>

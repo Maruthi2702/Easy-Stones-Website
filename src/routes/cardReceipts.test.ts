@@ -243,3 +243,55 @@ describe('voiding', () => {
     await as(REP).post('/expenses', receipt()).expect(201);
   });
 });
+
+
+describe('sub-categories', () => {
+  const types = (c: Loose) => (c.subcategories as Loose[]).map((s) => [s.name, s.label, s.active, s.isDefault]);
+  const makeGas = () => as(ACCOUNTING).post('/categories', { label: 'Gas', subcategories: [{ label: 'Car' }, { label: 'Truck' }, { label: 'Van' }, { label: 'Forklift' }] }).expect(201);
+
+  it('adds a category with types, and leaves them when it is only hidden or shown', async () => {
+    const added = await makeGas();
+    expect(types(added.body.category)).toEqual([['car', 'Car', true, true], ['truck', 'Truck', true, false], ['van', 'Van', true, false], ['forklift', 'Forklift', true, false]]);
+    await as(REP).put(`/categories/${added.body.category._id}`, { label: 'Gas' }).expect(403);
+    // Hiding the whole category sends no types: they stay.
+    const hidden = await as(ACCOUNTING).put(`/categories/${added.body.category._id}`, { label: 'Gas', active: false }).expect(200);
+    expect(types(hidden.body.category)).toHaveLength(4);
+    await as(ACCOUNTING).put(`/categories/${added.body.category._id}`, { label: 'Gas', active: true }).expect(200);
+    // Rename one, hide one, add one: the stored names stay, the new one gets its own.
+    const edited = await as(ACCOUNTING).put(`/categories/${added.body.category._id}`, {
+      label: 'Gas', subcategories: [{ name: 'car', label: 'Car', isDefault: true }, { name: 'truck', label: 'Box truck' }, { name: 'van', label: 'Van', active: false }, { name: 'forklift', label: 'Forklift' }, { label: 'Rental truck' }]
+    }).expect(200);
+    expect(types(edited.body.category)).toEqual([['car', 'Car', true, true], ['truck', 'Box truck', true, false], ['van', 'Van', false, false], ['forklift', 'Forklift', true, false], ['rental_truck', 'Rental truck', true, false]]);
+    await as(ACCOUNTING).put(`/categories/${added.body.category._id}`, { label: 'Gas', subcategories: [{ label: 'Car' }, { label: 'car' }] }).expect(400);
+  });
+
+  it('saves the type with the receipt, asks for it before approval, and refuses one the category does not have', async () => {
+    const gas = await makeGas();
+    await as(ACCOUNTING).put(`/categories/${gas.body.category._id}`, {
+      label: 'Gas', subcategories: [{ name: 'car', label: 'Car', isDefault: true }, { name: 'truck', label: 'Truck' }, { name: 'van', label: 'Van', active: false }]
+    }).expect(200);
+    const draft = await as(REP).post('/expenses', receipt({ category: 'gas', total: '40.00' })).expect(201);
+    expect(draft.body.expense).toMatchObject({ status: 'draft', subcategory: '' });
+    const sent = await as(REP).post('/expenses', receipt({ category: 'gas', subcategory: 'truck', total: '41.00' })).expect(201);
+    expect(sent.body.expense).toMatchObject({ status: 'waiting', category: 'gas', subcategory: 'truck' });
+    await as(REP).post('/expenses', receipt({ category: 'gas', subcategory: 'boat', total: '42.00' })).expect(400);
+    // The draft is finished by picking the type.
+    const done = await as(REP).put(`/expenses/${draft.body.expense.id}`, receipt({ category: 'gas', subcategory: 'car', total: '40.00' })).expect(200);
+    expect(done.body.expense).toMatchObject({ status: 'waiting', subcategory: 'car' });
+    expect(done.body.expense.history.at(-1).changes).toMatch(/type/);
+    // A hidden type can't start a new receipt.
+    await as(REP).post('/expenses', receipt({ category: 'gas', subcategory: 'van', total: '43.00' })).expect(400);
+  });
+
+  it('Customer Lunch asks for the customer only, and a moved category clears the type', async () => {
+    const gas = await makeGas();
+    const food = await as(ACCOUNTING).post('/categories', { label: 'Food', subcategories: [{ label: 'Travel Lunch' }, { label: 'Customer Lunch', fields: { customer: true } }, { label: 'Office Team Lunch' }] }).expect(201);
+    const lunch = await as(REP).post('/expenses', receipt({ category: 'food', subcategory: 'customer_lunch', total: '44.00', attendees: ['Someone'] })).expect(201);
+    expect(lunch.body.expense).toMatchObject({ status: 'draft', attendees: [] });
+    const team = await as(REP).post('/expenses', receipt({ category: 'food', subcategory: 'office_team_lunch', total: '45.00' })).expect(201);
+    expect(team.body.expense.status).toBe('waiting');
+    await as(ACCOUNTING).del(`/categories/${food.body.category._id}`, { replaceWith: gas.body.category._id }).expect(200);
+    const moved = await CardExpense.findById(team.body.expense.id).lean();
+    expect(moved).toMatchObject({ category: 'gas', subcategory: '' });
+  });
+});

@@ -33,6 +33,22 @@ const receiptCategorySchema = new mongoose.Schema({
     purpose: { type: Boolean, default: false },
     recurring: { type: Boolean, default: false }
   },
+  // The types under it, in order; `name` never changes and one shown type is the default.
+  subcategories: {
+    type: [new mongoose.Schema({
+      name: { type: String, required: true },
+      label: { type: String, required: true },
+      active: { type: Boolean, default: true },
+      isDefault: { type: Boolean, default: false },
+      fields: {
+        customer: { type: Boolean, default: false },
+        attendees: { type: Boolean, default: false },
+        purpose: { type: Boolean, default: false },
+        recurring: { type: Boolean, default: false }
+      }
+    }, { _id: false })],
+    default: []
+  },
   updatedBy: { type: String, default: '' }
 }, { timestamps: true });
 
@@ -68,6 +84,7 @@ const cardExpenseSchema = new mongoose.Schema({
   taxCents: { type: Number, default: null },
   tipCents: { type: Number, default: null },
   category: { type: String, default: '' },
+  subcategory: { type: String, default: '' },
   customerId: { type: String, default: '' },
   customerName: { type: String, default: '' },
   attendees: { type: [String], default: [] },

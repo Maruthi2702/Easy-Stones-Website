@@ -45,8 +45,8 @@ export const uploadReceipt = (data: string) => call<{ url: string }>('/attachmen
 export const scanReceipt = (url: string) => call<{ scan: ReceiptScan }>('/scan', { method: 'POST', body: { url } });
 
 export const listCategories = () => call<{ categories: Category[] }>('/categories');
-export const addCategory = (body: Pick<Category, 'label' | 'fields'>) => call<{ category: Category }>('/categories', { method: 'POST', body });
-export const editCategory = (id: string, body: Partial<Pick<Category, 'label' | 'fields' | 'active'>>) => call<{ category: Category }>(`/categories/${id}`, { method: 'PUT', body });
+export const addCategory = (body: Pick<Category, 'label' | 'fields'> & { subcategories?: unknown[] }) => call<{ category: Category }>('/categories', { method: 'POST', body });
+export const editCategory = (id: string, body: Partial<Pick<Category, 'label' | 'fields' | 'active'>> & { subcategories?: unknown[] }) => call<{ category: Category }>(`/categories/${id}`, { method: 'PUT', body });
 export const reorderCategories = (ids: string[]) => call<{ categories: Category[] }>('/categories/reorder', { method: 'PATCH', body: { ids } });
 export const categoryUses = (id: string) => call<{ uses: number }>(`/categories/${id}/uses`);
 export const deleteCategory = (id: string, replaceWith?: string) => call<{ deleted: boolean; moved: number }>(`/categories/${id}`, { method: 'DELETE', body: replaceWith ? { replaceWith } : {} });

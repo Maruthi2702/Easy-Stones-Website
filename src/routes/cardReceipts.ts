@@ -7,7 +7,7 @@ import * as db from '../db/cardReceipts/index.ts';
 import { newId } from '../db/ids.ts';
 import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup } from '../db/cardStatements/hooks.ts';
 import {
-  CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, categoryKey, cleanCategory, cleanCard, cleanExpense,
+  CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, holderMayEdit, changeSummary, possibleRepeat, canApprove, approvalStep, isBigReceipt, isBigReceiptApprover, BIG_RECEIPT_CENTS, cleanApproverRoles, decisionProblem,
   isMonth, monthOf, type CleanExpense
 } from '../utils/cardReceipts.ts';
@@ -51,13 +51,17 @@ const anyOf = (...perms: readonly string[]) => (req: Request, res: Response, nex
 
 const categoryView = (c: Loose) => ({
   _id: String(c._id), name: c.name, label: c.label, order: c.order ?? 0, active: c.active !== false,
-  fields: { customer: Boolean(c.fields?.customer), attendees: Boolean(c.fields?.attendees), purpose: Boolean(c.fields?.purpose), recurring: Boolean(c.fields?.recurring) }
+  fields: { customer: Boolean(c.fields?.customer), attendees: Boolean(c.fields?.attendees), purpose: Boolean(c.fields?.purpose), recurring: Boolean(c.fields?.recurring) },
+  subcategories: ((c.subcategories || []) as Loose[]).map((s) => ({
+    name: String(s.name), label: String(s.label), active: s.active !== false, isDefault: Boolean(s.isDefault),
+    fields: { customer: Boolean(s.fields?.customer), attendees: Boolean(s.fields?.attendees), purpose: Boolean(s.fields?.purpose), recurring: Boolean(s.fields?.recurring) }
+  }))
 });
 const cardView = (c: Loose) => ({ _id: String(c._id), userId: c.userId, label: c.label, issuer: c.issuer, lastDigits: c.lastDigits, active: c.active !== false });
 const expenseView = (e: Loose, viewer: { id: string; approvable: Set<string>; bigApprover?: boolean }) => ({
   id: String(e._id), userId: e.userId, holderName: e.holderName, cardId: e.cardId, cardLabel: e.cardLabel, location: e.location,
   date: e.date, merchant: e.merchant, cents: e.cents, subtotalCents: e.subtotalCents ?? null, taxCents: e.taxCents ?? null, tipCents: e.tipCents ?? null,
-  category: e.category || '', customerId: e.customerId || '', customerName: e.customerName || '', attendees: e.attendees || [],
+  category: e.category || '', subcategory: e.subcategory || '', customerId: e.customerId || '', customerName: e.customerName || '', attendees: e.attendees || [],
   purpose: e.purpose || '', note: e.note || '', recurring: Boolean(e.recurring), receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || '',
   status: e.status, approval: e.approval || null, sentBack: e.sentBack || null,
   voided: e.voidedAt ? { at: e.voidedAt, by: e.voidedBy || '', reason: e.voidReason || '' } : null,
@@ -71,7 +75,7 @@ const expenseView = (e: Loose, viewer: { id: string; approvable: Set<string>; bi
 async function categoriesList() {
   let list = await db.listCategories();
   if (!list.length) {
-    await db.seedCategories(STARTING_CATEGORIES.map((c, i) => ({ _id: newId(), name: categoryKey(c.label), label: c.label, order: i, fields: { ...c.fields } })));
+    await db.seedCategories(STARTING_CATEGORIES.map((c, i) => ({ _id: newId(), name: categoryKey(c.label), label: c.label, order: i, fields: { ...c.fields }, subcategories: startingSubcategories(c) })));
     list = await db.listCategories();
   }
   return list;
@@ -169,9 +173,10 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const { id } = scalarParams(req);
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Category not found.' });
     try {
-      if (!(await db.findCategory(id))) return res.status(404).json({ message: 'Category not found.' });
+      const found = await db.findCategory(id);
+      if (!found) return res.status(404).json({ message: 'Category not found.' });
       const others = await db.listCategories();
-      const { value, problems } = cleanCategory(req.body || {}, others as never, id);
+      const { value, problems } = cleanCategory(req.body || {}, others as never, id, (found.subcategories || []) as never);
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
       const category = await db.changeCategory(id, { ...value, ...(typeof req.body?.active === 'boolean' ? { active: req.body.active } : {}), updatedBy: actor(req) });
       if (!category) return res.status(404).json({ message: 'Category not found.' });
@@ -378,7 +383,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
 
   const cleanOf = (e: Loose): CleanExpense => ({
     date: e.date, merchant: e.merchant, cents: e.cents, subtotalCents: e.subtotalCents ?? null, taxCents: e.taxCents ?? null,
-    tipCents: e.tipCents ?? null, category: e.category || '', customerId: e.customerId || '', customerName: e.customerName || '',
+    tipCents: e.tipCents ?? null, category: e.category || '', subcategory: e.subcategory || '', customerId: e.customerId || '', customerName: e.customerName || '',
     attendees: e.attendees || [], purpose: e.purpose || '', note: e.note || '', recurring: Boolean(e.recurring),
     receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || ''
   });
@@ -396,7 +401,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const categories = await categoriesForSave();
       // The category it already has stays valid even if it was hidden since.
       const allowed = categories.filter((c) => c.active || c.name === expense.category);
-      const { value, problems, missing } = cleanExpense(req.body || {}, { today: todayOf(), categories: allowed });
+      const { value, problems, missing } = cleanExpense(req.body || {}, { today: todayOf(), categories: allowed, currentSubcategory: expense.subcategory || '' });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
       const changes = changeSummary(cleanOf(expense), value);
       const status = statusAfterSave(Object.keys(missing).length === 0, expense.status);

@@ -63,12 +63,37 @@ export const STATUS_KEYS: readonly string[] = STATUSES.map((s) => s.key);
 // ── Categories ──────────────────────────────────────────────────────────────
 
 export type CategoryFields = { customer: boolean; attendees: boolean; purpose: boolean; recurring: boolean };
-export type CategoryLike = { name: string; label: string; active?: boolean; fields?: Partial<CategoryFields> | null };
+/**
+ * A type under a category (owner, 2026-11-20): Gas → Car / Truck / Van / Forklift, Food → Travel Lunch / Customer
+ * Lunch / Office Team Lunch. Managers add, rename, hide and reorder them in Admin; `name` is what expenses store and
+ * never changes; one shown type is the default (the form pre-selects it); a type may ask for more than its category.
+ */
+export type SubcategoryLike = { name: string; label: string; active?: boolean; isDefault?: boolean; fields?: Partial<CategoryFields> | null };
+export type CategoryLike = {
+  name: string; label: string; active?: boolean; fields?: Partial<CategoryFields> | null; subcategories?: readonly SubcategoryLike[] | null;
+};
 export const NO_FIELDS: CategoryFields = { customer: false, attendees: false, purpose: false, recurring: false };
-export const fieldsOf = (category: CategoryLike | null | undefined): CategoryFields => ({ ...NO_FIELDS, ...(category?.fields || {}) });
+/** What a receipt under this category — and its type, when it has one — asks for: the category's asks plus the type's. */
+export const fieldsOf = (category: CategoryLike | null | undefined, subcategory = ''): CategoryFields => {
+  const base = { ...NO_FIELDS, ...(category?.fields || {}) };
+  const sub = subcategory ? (category?.subcategories || []).find((s) => s.name === subcategory)?.fields : null;
+  return sub
+    ? { customer: base.customer || sub.customer === true, attendees: base.attendees || sub.attendees === true, purpose: base.purpose || sub.purpose === true, recurring: base.recurring || sub.recurring === true }
+    : base;
+};
+/** The types a new receipt may pick (hidden ones stay valid on the receipts that have them). */
+export const shownSubs = (category: CategoryLike | null | undefined): readonly SubcategoryLike[] => (category?.subcategories || []).filter((s) => s.active !== false);
+/** The type the form starts on: the one marked default, else the first shown. */
+export const defaultSubOf = (category: CategoryLike | null | undefined): SubcategoryLike | undefined => {
+  const shown = shownSubs(category);
+  return shown.find((s) => s.isDefault) || shown[0];
+};
+export const subLabel = (category: CategoryLike | null | undefined, name: string) =>
+  name ? (category?.subcategories || []).find((s) => s.name === name)?.label || name.replace(/_/g, ' ') : '';
 
-/** Seeded once into an empty list (owner's examples, plus the sample receipts' Fuel / Parking / Software). */
-export const STARTING_CATEGORIES: readonly { label: string; fields?: Partial<CategoryFields> }[] = [
+export type StartingCategory = { label: string; fields?: Partial<CategoryFields>; subcategories?: readonly { label: string; fields?: Partial<CategoryFields> }[] };
+/** Seeded once into an empty list (owner's examples, plus the sample receipts' Fuel / Parking / Software). Types are added in Admin. */
+export const STARTING_CATEGORIES: readonly StartingCategory[] = [
   { label: 'Travel Lunch' },
   { label: 'Customer Lunch', fields: { customer: true, attendees: true } },
   { label: 'Office Supplies' },
@@ -81,14 +106,61 @@ export const STARTING_CATEGORIES: readonly { label: string; fields?: Partial<Cat
 export const categoryKey = (label: string) =>
   String(label || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60);
 
-export function cleanCategory(body: Record<string, unknown>, others: readonly { label: string; _id?: unknown }[], id?: string) {
+/** A starting category as the stored record's types: the first is the default. */
+export const startingSubcategories = (c: StartingCategory) => (c.subcategories || []).map((s, i) => ({
+  name: categoryKey(s.label), label: s.label, active: true, isDefault: i === 0, fields: { ...NO_FIELDS, ...(s.fields || {}) }
+}));
+
+const MAX_SUBCATEGORIES = 20;
+/**
+ * The types a manager sent for one category, cleaned. An existing type keeps its stored `name` (only a name already on
+ * `current` is believed); a new one gets a key from its label. Labels are unique within the category; one shown type is
+ * the default (the one flagged, else the first). Never deleted, only hidden: receipts keep their type.
+ */
+export function cleanSubcategories(raw: unknown, current: readonly SubcategoryLike[] = []) {
+  const problems: Record<string, string> = {};
+  const list = Array.isArray(raw) ? raw.slice(0, MAX_SUBCATEGORIES) : [];
+  const known = new Set(current.map((s) => s.name));
+  const used = new Set<string>();
+  const labels = new Set<string>();
+  const out: { name: string; label: string; active: boolean; isDefault: boolean; fields: CategoryFields }[] = [];
+  for (const item of list) {
+    const r = (item || {}) as Record<string, unknown>;
+    const label = String(r.label ?? '').trim().replace(/\s+/g, ' ').slice(0, 60);
+    if (!label) { problems.subcategories = 'Every type needs a name'; continue; }
+    if (labels.has(label.toLowerCase())) { problems.subcategories = `"${label}" is on the list twice`; continue; }
+    labels.add(label.toLowerCase());
+    let name = typeof r.name === 'string' && known.has(r.name) && !used.has(r.name) ? r.name : '';
+    if (!name) {
+      const key = categoryKey(label) || 'type';
+      name = key;
+      for (let n = 2; used.has(name) || known.has(name); n += 1) name = `${key}_${n}`;
+    }
+    used.add(name);
+    const f = (r.fields || {}) as Record<string, unknown>;
+    out.push({
+      name, label, active: r.active !== false, isDefault: r.isDefault === true,
+      fields: { customer: f.customer === true, attendees: f.attendees === true, purpose: f.purpose === true, recurring: f.recurring === true }
+    });
+  }
+  const chosen = out.filter((s) => s.active).find((s) => s.isDefault) || out.find((s) => s.active);
+  for (const s of out) s.isDefault = s === chosen;
+  return { value: out, problems };
+}
+
+export function cleanCategory(body: Record<string, unknown>, others: readonly { label: string; _id?: unknown }[], id?: string, current: readonly SubcategoryLike[] = []) {
   const label = String(body.label ?? '').trim().replace(/\s+/g, ' ').slice(0, 60);
   const problems: Record<string, string> = {};
   if (!label) problems.label = 'Enter a name';
   else if (others.some((o) => String(o._id) !== String(id) && o.label.toLowerCase() === label.toLowerCase())) problems.label = 'That name is already on the list';
   const f = (body.fields || {}) as Record<string, unknown>;
   const fields: CategoryFields = { customer: f.customer === true, attendees: f.attendees === true, purpose: f.purpose === true, recurring: f.recurring === true };
-  return Object.keys(problems).length ? { problems } : { value: { label, fields }, problems };
+  // Types not sent (a hide / show toggle) stay as they are.
+  const subs = body.subcategories === undefined
+    ? { value: current.map((s) => ({ name: s.name, label: s.label, active: s.active !== false, isDefault: s.isDefault === true, fields: { ...NO_FIELDS, ...(s.fields || {}) } })), problems: {} as Record<string, string> }
+    : cleanSubcategories(body.subcategories, current);
+  Object.assign(problems, subs.problems);
+  return Object.keys(problems).length ? { problems } : { value: { label, fields, subcategories: subs.value }, problems };
 }
 
 // ── Money and dates ─────────────────────────────────────────────────────────
@@ -150,15 +222,15 @@ export function cleanCard(body: Record<string, unknown>, { allowUnassigned = fal
 
 export type ExpenseInput = {
   date: string; merchant: string; total: string; subtotal?: string; tax?: string; tip?: string;
-  category: string; customerId?: string; customerName?: string; attendees?: string[]; purpose?: string;
+  category: string; subcategory?: string; customerId?: string; customerName?: string; attendees?: string[]; purpose?: string;
   note?: string; recurring?: boolean; receiptUrl?: string; lostReason?: string;
 };
 export type CleanExpense = {
   date: string; merchant: string; cents: number; subtotalCents: number | null; taxCents: number | null; tipCents: number | null;
-  category: string; customerId: string; customerName: string; attendees: string[]; purpose: string; note: string;
+  category: string; subcategory: string; customerId: string; customerName: string; attendees: string[]; purpose: string; note: string;
   recurring: boolean; receiptUrl: string; lostReason: string;
 };
-export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'tax' | 'tip' | 'category' | 'customer' | 'attendees' | 'purpose' | 'receipt' | 'lostReason', string>>;
+export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'tax' | 'tip' | 'category' | 'subcategory' | 'customer' | 'attendees' | 'purpose' | 'receipt' | 'lostReason', string>>;
 
 const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
 const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uploads/');
@@ -169,8 +241,8 @@ const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uplo
  * and total are needed to save at all. `complete` says whether it can go to
  * the approver.
  */
-export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknown>, { today, categories }: {
-  today: string; categories: readonly CategoryLike[]; currentCategory?: string;
+export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknown>, { today, categories, currentSubcategory = '' }: {
+  today: string; categories: readonly CategoryLike[]; currentCategory?: string; currentSubcategory?: string;
 }): { value?: CleanExpense; problems: ExpenseProblems; missing: ExpenseProblems } {
   const problems: ExpenseProblems = {};
   const date = text(body.date, 10);
@@ -193,16 +265,24 @@ export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknow
   const categoryName = text(body.category, 60);
   const category = categories.find((c) => c.name === categoryName);
   if (categoryName && !category) problems.category = 'That category is no longer on the list';
+  // The type under it: one of the category's own; a hidden one only where the expense already has it.
+  const subName = text(body.subcategory, 60);
+  let subcategory = '';
+  if (category && subName && (category.subcategories || []).length) {
+    const found = (category.subcategories || []).find((s) => s.name === subName);
+    if (!found || (found.active === false && subName !== currentSubcategory)) problems.subcategory = 'That type is no longer on the list';
+    else subcategory = found.name;
+  }
 
   const receiptUrl = text(body.receiptUrl, 500);
   if (receiptUrl && !isReceiptUrl(receiptUrl)) problems.receipt = 'Upload the receipt again';
   const lostReason = receiptUrl ? '' : text(body.lostReason, 500);
   const attendees = (Array.isArray(body.attendees) ? body.attendees : [])
     .map((a) => text(a, 80)).filter(Boolean).slice(0, 30);
-  const fields = fieldsOf(category);
+  const fields = fieldsOf(category, subcategory);
   const value: CleanExpense = {
     date, merchant, cents: Number(cents), subtotalCents, taxCents, tipCents,
-    category: category ? category.name : '',
+    category: category ? category.name : '', subcategory,
     customerId: fields.customer ? text(body.customerId, 40) : '',
     customerName: fields.customer ? text(body.customerName, 120) : '',
     attendees: fields.attendees ? attendees : [],
@@ -223,11 +303,13 @@ const nextDay = (day: string) => {
 };
 
 /** What still stops an expense going to the approver. Empty = complete. */
-export function missingFor(e: Pick<CleanExpense, 'receiptUrl' | 'lostReason' | 'category' | 'customerId' | 'attendees' | 'purpose'>, category: CategoryLike | null | undefined): ExpenseProblems {
+export function missingFor(e: Pick<CleanExpense, 'receiptUrl' | 'lostReason' | 'category' | 'customerId' | 'attendees' | 'purpose'> & { subcategory?: string }, category: CategoryLike | null | undefined): ExpenseProblems {
   const out: ExpenseProblems = {};
   if (!e.receiptUrl && !e.lostReason) out.receipt = 'Upload the receipt, or say why it’s lost';
   if (!e.category || !category) out.category = 'Choose a category';
-  const f = fieldsOf(category);
+  // A category with types needs one picked.
+  else if (shownSubs(category).length && !e.subcategory) out.subcategory = 'Choose the type';
+  const f = fieldsOf(category, e.subcategory || '');
   if (f.customer && !e.customerId) out.customer = 'Choose the customer';
   if (f.attendees && !(e.attendees || []).length) out.attendees = 'Add who attended';
   if (f.purpose && !e.purpose) out.purpose = 'Say what it was for';
@@ -239,6 +321,7 @@ export const missingLine = (missing: ExpenseProblems) => {
   const parts: string[] = [];
   if (missing.receipt) parts.push('upload the receipt');
   if (missing.category) parts.push('pick a category');
+  if (missing.subcategory) parts.push('pick the type');
   if (missing.customer) parts.push('add the customer');
   if (missing.attendees) parts.push(missing.customer ? 'who attended' : 'add who attended');
   if (missing.purpose) parts.push('say what it was for');
@@ -260,7 +343,7 @@ export const holderMayEdit = (e: { status: string; voided?: unknown }) => !e.voi
 export function changeSummary(before: Partial<CleanExpense>, after: CleanExpense) {
   const names: [keyof CleanExpense, string][] = [
     ['date', 'date'], ['merchant', 'merchant'], ['cents', 'total'], ['subtotalCents', 'subtotal'], ['taxCents', 'tax'],
-    ['tipCents', 'tip'], ['category', 'category'], ['customerId', 'customer'], ['attendees', 'who attended'],
+    ['tipCents', 'tip'], ['category', 'category'], ['subcategory', 'type'], ['customerId', 'customer'], ['attendees', 'who attended'],
     ['purpose', 'purpose'], ['note', 'note'], ['recurring', 'recurring'], ['receiptUrl', 'receipt'], ['lostReason', 'lost-receipt reason']
   ];
   return names.filter(([k]) => JSON.stringify(before[k] ?? null) !== JSON.stringify(after[k] ?? null)).map(([, n]) => n);
@@ -350,7 +433,7 @@ export function statusTotals(list: readonly Countable[]) {
 
 export type ExportExpense = {
   date: string; location: string; holderName: string; cardLabel: string; merchant: string; cents: number;
-  category: string; customerName?: string; attendees?: string[]; purpose?: string; receiptUrl?: string; lostReason?: string;
+  category: string; subcategory?: string; customerName?: string; attendees?: string[]; purpose?: string; receiptUrl?: string; lostReason?: string;
   status: string; approval?: { byName?: string; at?: string | Date; comment?: string } | null; note?: string; recurring?: boolean;
   voided?: unknown;
 };
@@ -370,6 +453,7 @@ export function exportRows(list: readonly ExportExpense[], categories: readonly 
     Description: (e.merchant || '').toUpperCase(),
     'Spent Amount': e.cents / 100,
     Category: label(e.category),
+    'Sub-category': subLabel(categories.find((c) => c.name === e.category), e.subcategory || ''),
     Customer: e.customerName || '',
     Attendees: (e.attendees || []).join(', '),
     'Business purpose': e.purpose || '',

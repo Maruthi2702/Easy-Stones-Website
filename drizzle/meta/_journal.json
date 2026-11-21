@@ -176,6 +176,13 @@
       "when": 1795214919899,
       "tag": "0024_company_cards_unassigned",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795218235843,
+      "tag": "0025_receipt_subcategories",
+      "breakpoints": true
     }
   ]
 }

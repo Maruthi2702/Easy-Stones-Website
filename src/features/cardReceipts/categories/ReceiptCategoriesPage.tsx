@@ -7,7 +7,7 @@ import RowMenu from '../../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import { CARD_RECEIPTS, NO_FIELDS, can, cleanCategory, type CategoryFields } from '../../../utils/cardReceipts';
 import * as api from '../cardReceiptsApi';
-import type { Category, ReceiptsUser } from '../types';
+import type { Category, ReceiptsUser, Subcategory } from '../types';
 import '../CardReceipts.css';
 
 const ASKS: { key: keyof CategoryFields; label: string; long: string }[] = [
@@ -17,16 +17,48 @@ const ASKS: { key: keyof CategoryFields; label: string; long: string }[] = [
   { key: 'recurring', label: 'Can be recurring', long: 'Can be marked recurring' }
 ];
 
+type SubDraft = { name?: string; label: string; active: boolean; isDefault: boolean; fields: CategoryFields };
+const draftsOf = (list: readonly Subcategory[] | undefined): SubDraft[] => (list || []).map((s) => ({ name: s.name, label: s.label, active: s.active, isDefault: s.isDefault, fields: { ...s.fields } }));
+const subKey = (list: readonly SubDraft[]) => JSON.stringify(list.map((s) => [s.name || '', s.label.trim(), s.active, s.isDefault, s.fields.customer]));
+
+/** The types under a category (Gas → Car / Truck / Van): rename, add, hide, reorder, pick the default, ask for the customer. */
+function SubcategoryEditor({ value, onChange }: { value: SubDraft[]; onChange: (next: SubDraft[]) => void }) {
+  const patch = (i: number, p: Partial<SubDraft>) => onChange(value.map((s, k) => (k === i ? { ...s, ...p } : s)));
+  const swap = (i: number, j: number) => { const next = [...value]; [next[i], next[j]] = [next[j]!, next[i]!]; onChange(next); };
+  return (
+    <div className="ccr-subs">
+      {value.map((s, i) => (
+        <div key={s.name || `new-${i}`} className={`ccr-sub-row${s.active ? '' : ' is-hidden'}`}>
+          <input className="fm-input" value={s.label} maxLength={60} autoComplete="off" placeholder="Name, e.g. Truck" aria-label={`Sub-category ${i + 1} name`}
+            onChange={(e) => patch(i, { label: e.target.value })} />
+          <div className="ccr-sub-tools">
+            <label className="ccr-check"><input type="radio" name="ccr-sub-default" checked={s.isDefault && s.active} disabled={!s.active}
+              onChange={() => onChange(value.map((x, k) => ({ ...x, isDefault: k === i })))} /> Default</label>
+            <label className="ccr-check"><input type="checkbox" checked={s.fields.customer} onChange={(e) => patch(i, { fields: { ...s.fields, customer: e.target.checked } })} /> Select customer</label>
+            <button type="button" className="ccr-iconbtn" aria-label={`Move ${s.label || 'it'} up`} disabled={i === 0} onClick={() => swap(i, i - 1)}><ArrowUp size={16} /></button>
+            <button type="button" className="ccr-iconbtn" aria-label={`Move ${s.label || 'it'} down`} disabled={i === value.length - 1} onClick={() => swap(i, i + 1)}><ArrowDown size={16} /></button>
+            <button type="button" className="ccr-iconbtn" aria-label={s.active ? `Hide ${s.label || 'it'}` : `Show ${s.label || 'it'}`} onClick={() => patch(i, { active: !s.active })}>{s.active ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+          </div>
+        </div>
+      ))}
+      <button type="button" className="fm-btn fm-btn-small" onClick={() => onChange([...value, { label: '', active: true, isDefault: !value.some((s) => s.active), fields: { ...NO_FIELDS } }])} disabled={value.length >= 20}>
+        <Plus size={14} aria-hidden="true" /> Add a sub-category
+      </button>
+    </div>
+  );
+}
+
 function CategoryForm({ category, all, onSave, onClose }: {
-  category: Category | null; all: Category[]; onSave: (v: { label: string; fields: CategoryFields }) => Promise<unknown>; onClose: () => void;
+  category: Category | null; all: Category[]; onSave: (v: { label: string; fields: CategoryFields; subcategories: SubDraft[] }) => Promise<unknown>; onClose: () => void;
 }) {
   const [label, setLabel] = useState(category?.label || '');
   const [fields, setFields] = useState<CategoryFields>(category?.fields || NO_FIELDS);
+  const [subs, setSubs] = useState<SubDraft[]>(() => draftsOf(category?.subcategories));
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const problems = cleanCategory({ label, fields }, all, category?._id).problems;
-  const dirty = (label !== (category?.label || '') ? 1 : 0) + ASKS.filter((a) => fields[a.key] !== (category?.fields || NO_FIELDS)[a.key]).length;
+  const problems = cleanCategory({ label, fields, subcategories: subs }, all, category?._id, category?.subcategories).problems;
+  const dirty = (subKey(subs) !== subKey(draftsOf(category?.subcategories)) ? 1 : 0) + (label !== (category?.label || '') ? 1 : 0) + ASKS.filter((a) => fields[a.key] !== (category?.fields || NO_FIELDS)[a.key]).length;
   return (
     <FormModal
       title={category ? <>Edit category <span className="fm-title-sub">· {category.label}</span></> : 'Add category'}
@@ -34,9 +66,9 @@ function CategoryForm({ category, all, onSave, onClose }: {
       onClose={onClose}
       onSubmit={async () => {
         setSubmitted(true);
-        if (problems.label) return;
+        if (Object.keys(problems).length) return;
         setSaving(true);
-        try { await onSave({ label: label.trim(), fields }); } catch (e) { setError((e as Error).message); setSaving(false); }
+        try { await onSave({ label: label.trim(), fields, subcategories: subs.map((x) => ({ ...x, label: x.label.trim() })) }); } catch (e) { setError((e as Error).message); setSaving(false); }
       }}
       submitLabel={category ? 'Save changes' : 'Add category'}
       saving={saving}
@@ -44,7 +76,7 @@ function CategoryForm({ category, all, onSave, onClose }: {
       dirtyCount={dirty}
       errors={submitted ? problems : {}}
       showErrors={submitted}
-      fieldLabels={{ label: 'Name' }}
+      fieldLabels={{ label: 'Name', subcategories: 'Sub-categories' }}
     >
       {error ? <div className="ccr-form-error" role="alert">{error}</div> : null}
       <FormSection>
@@ -59,6 +91,9 @@ function CategoryForm({ category, all, onSave, onClose }: {
             </label>
           ))}
         </fieldset>
+        <FormField name="subcategories" id="ccr-cat-subs" label="Sub-categories" error={submitted ? problems.subcategories : ''}>
+          <SubcategoryEditor value={subs} onChange={setSubs} />
+        </FormField>
       </FormSection>
     </FormModal>
   );
@@ -171,7 +206,7 @@ export default function ReceiptCategoriesPage({ currentUser, sidebarToggle = nul
                 onDragOver={(e) => { if (dragging) e.preventDefault(); }}
                 onDrop={(e) => { e.preventDefault(); const from = list.findIndex((x) => x._id === dragging); setDragging(null); move(from, i); }}>
                 <button type="button" className="ccr-grip" disabled={!allow.reorder} aria-label={`Drag to reorder ${c.label}`} tabIndex={-1}><GripVertical size={16} /></button>
-                <span><b>{c.label}</b>{c.active ? null : <> <span className="ccr-ask">Hidden</span></>}</span>
+                <span><b>{c.label}</b>{c.active ? null : <> <span className="ccr-ask">Hidden</span></>}{c.subcategories.length ? <span className="ccr-sub-list">{c.subcategories.map((x) => (x.isDefault && x.active ? `${x.label} (default)` : x.label)).join(' · ')}</span> : null}</span>
                 <span className="ccr-asks ccr-col-wide">{asks.length ? asks.map((a) => <span key={a.key} className="ccr-ask">{a.label}</span>) : <span className="ccr-muted">Nothing extra</span>}</span>
                 <span className="ccr-cat-shown">{c.active ? 'Shown' : 'Hidden'}</span>
                 <span>{items.length ? <RowMenu items={items} label={`Actions for ${c.label}`} /> : null}</span>

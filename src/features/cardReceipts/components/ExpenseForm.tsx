@@ -9,7 +9,7 @@ import type { FormOption } from '../../../components/shared/form/FormControls';
 import { goToField } from '../../../components/shared/form/formFocus';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
-import { centsText, cleanExpense, fieldsOf, formatMoney, missingLine, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
+import { centsText, cleanExpense, defaultSubOf, fieldsOf, formatMoney, missingLine, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
 import { isPdfUrl } from '../cardReceiptsView';
 import type { ExpenseBody } from '../cardReceiptsApi';
@@ -18,16 +18,16 @@ import type { Category, Expense } from '../types';
 type Values = Required<Omit<ExpenseInput, 'recurring'>> & { recurring: boolean };
 
 const blank = (today: string): Values => ({
-  date: today, merchant: '', total: '', subtotal: '', tax: '', tip: '', category: '', customerId: '', customerName: '',
+  date: today, merchant: '', total: '', subtotal: '', tax: '', tip: '', category: '', subcategory: '', customerId: '', customerName: '',
   attendees: [], purpose: '', note: '', recurring: false, receiptUrl: '', lostReason: ''
 });
 const fromExpense = (e: Expense): Values => ({
   date: e.date, merchant: e.merchant, total: centsText(e.cents), subtotal: centsText(e.subtotalCents), tax: centsText(e.taxCents),
-  tip: centsText(e.tipCents), category: e.category, customerId: e.customerId, customerName: e.customerName, attendees: e.attendees,
+  tip: centsText(e.tipCents), category: e.category, subcategory: e.subcategory, customerId: e.customerId, customerName: e.customerName, attendees: e.attendees,
   purpose: e.purpose, note: e.note, recurring: e.recurring, receiptUrl: e.receiptUrl, lostReason: e.lostReason
 });
 
-const LABELS = { receipt: 'Receipt', lostReason: 'Why there’s no receipt', date: 'Date', merchant: 'Merchant', total: 'Total', subtotal: 'Subtotal', tax: 'Tax', tip: 'Tip', category: 'Category', customer: 'Customer', attendees: 'Who attended', purpose: 'Business purpose' };
+const LABELS = { receipt: 'Receipt', lostReason: 'Why there’s no receipt', date: 'Date', merchant: 'Merchant', total: 'Total', subtotal: 'Subtotal', tax: 'Tax', tip: 'Tip', category: 'Category', subcategory: 'Sub-category', customer: 'Customer', attendees: 'Who attended', purpose: 'Business purpose' };
 /** The fields on the Edit bill details screen (the pencil); the rest are on the form itself. */
 const BILL_FIELDS: readonly BillField[] = ['merchant', 'date', 'total', 'subtotal', 'tax', 'tip'];
 const isBillField = (k: string): k is BillField => (BILL_FIELDS as readonly string[]).includes(k);
@@ -97,9 +97,9 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
   // A hidden category stays offered on the expense that already has it.
   const offered = categories.filter((c) => c.active || c.name === start.category);
   const category = offered.find((c) => c.name === values.category);
-  const fields = fieldsOf(category);
+  const fields = fieldsOf(category, values.subcategory);
   const body: ExpenseBody = { ...values, receiptUrl: lost ? '' : values.receiptUrl, lostReason: lost ? values.lostReason : '' };
-  const check = cleanExpense(body, { today, categories: offered });
+  const check = cleanExpense(body, { today, categories: offered, currentSubcategory: start.subcategory });
   const problems: ExpenseProblems = { ...check.problems, ...serverProblems };
   const complete = Object.keys(check.missing).length === 0;
 
@@ -208,6 +208,10 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
   };
 
   const categoryOptions: FormOption[] = offered.map((c) => ({ value: c.name, label: c.active ? c.label : `${c.label} (hidden)`, keywords: c.label }));
+  // The category's types: the shown ones, plus the one this expense already has if it was hidden since.
+  const subOptions: FormOption[] = (category?.subcategories || [])
+    .filter((s) => s.active || s.name === start.subcategory)
+    .map((s) => ({ value: s.name, label: s.active ? s.label : `${s.label} (hidden)`, keywords: s.label }));
   const customerOptions = useMemo(() => customers.options.map((o) => ({ value: o.value, label: o.label, description: o.description, keywords: o.keywords })), [customers.options]);
   const missing = missingLine(check.missing);
   const footerNote = complete ? 'Goes to your approver when it’s saved.' : missing ? `Saves as a draft. Still to do: ${missing.toLowerCase()}.` : null;
@@ -284,9 +288,16 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
 
           <FormSection>
             <FormField name="category" id="ccr-category" label="Category" required error={(submitted ? problems.category : '') || (submitted ? check.missing.category : '')}>
-              <FormPicker id="ccr-category" value={values.category} onChange={(c) => set({ category: c })} options={categoryOptions}
+              <FormPicker id="ccr-category" value={values.category}
+                onChange={(c) => set({ category: c, subcategory: defaultSubOf(offered.find((o) => o.name === c))?.name || '' })} options={categoryOptions}
                 placeholder="Choose a category" sheetTitle="Category" error={submitted ? problems.category : ''} keepInForm />
             </FormField>
+            {subOptions.length ? (
+              <FormField name="subcategory" id="ccr-subcategory" label="Sub-category" required error={(submitted ? problems.subcategory : '') || (submitted ? check.missing.subcategory : '')}>
+                <FormPicker id="ccr-subcategory" value={values.subcategory} onChange={(s) => set({ subcategory: s })} options={subOptions}
+                  placeholder="Choose the type" sheetTitle="Sub-category" error={submitted ? problems.subcategory : ''} keepInForm />
+              </FormField>
+            ) : null}
             {fields.customer ? (
               <FormField name="customer" id="ccr-customer" label="Customer" required error={submitted ? check.missing.customer : ''}>
                 <FormSearchPicker id="ccr-customer" value={values.customerId} selectedLabel={values.customerName}

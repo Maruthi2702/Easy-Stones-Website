@@ -82,7 +82,7 @@ export async function deleteCategory(db: Db, id: string, name: string, move: { t
         const counts = await tx.select({ id: cardExpenseHistory.expenseId, n: sql<number>`count(*)::int` }).from(cardExpenseHistory)
           .where(inArray(cardExpenseHistory.expenseId, ids)).groupBy(cardExpenseHistory.expenseId);
         const next = new Map(counts.map(c => [c.id, c.n]));
-        await tx.update(cardExpenses).set({ category: move.to, updatedAt: new Date() }).where(inArray(cardExpenses.id, ids));
+        await tx.update(cardExpenses).set({ category: move.to, subcategory: '', updatedAt: new Date() }).where(inArray(cardExpenses.id, ids));
         await tx.insert(cardExpenseHistory).values(ids.map(expenseId => ({
           expenseId, position: next.get(expenseId) ?? 0, at: move.entry.at, by: move.entry.by, action: move.entry.action, changes: move.entry.changes ?? ''
         })));
