@@ -1,0 +1,154 @@
+CC RECEIPTS — ACCOUNTING QA REPORT
+Test window: November 20–21, 2026 (America/Los_Angeles)
+
+RESULT: Accounting sign-off is not recommended yet. The original regression tests pass, but additional adverse-condition testing found failures in approval, ownership, duplicate protection and reconciliation controls.
+
+Report date / timezone: 2026-11-21 / America/Los_Angeles (testing began November 20)
+Disposition: Do not sign off for accounting use until failed controls are resolved and retested.
+Existing checks (unit/API/React + browser): 166/166 passed
+Added acceptance checks: 131: 112 passed; 19 failed
+Unique executed cases including both browser projects: 297: 278 passed; 19 failed
+Grouped findings: 12: 1 P0, 9 P1, 2 P2
+Curated high-value test cases: 81
+Curated cases requiring staging / policy: 18
+Existing-suite statement coverage (selected module files): 71.32%
+Existing-suite branch coverage (selected module files): 63.26%
+Coverage scope: Defined in coverage.config.ts; measured on the existing 162 checks, not on the new failing acceptance suite.
+Typecheck: tsc -p qa/cc-receipts/tsconfig.json passed
+Application source changes by this audit: None; only QA fixtures, cases, tests and reports were added. Concurrent receipt-view and branch-fallback edits were preserved.
+Live systems: No production database writes, real OCR calls, emails or live S3 tests.
+
+How to use the workbook
+CC-Receipts-QA.xlsx contains Summary, Defects, Priority test cases, All executions and Staging follow-up sheets. test-cases.csv contains the same curated cases with preconditions, steps, expected result, measured status and source references. results/execution.csv lists every counted automated execution. A passing regression suite is not a claim of accounting correctness.
+
+Scope and method
+Covered receipt creation/edit/draft/send-back/void, card and category administration, subcategories, role and branch visibility, private receipt access, OCR handling with test doubles, one- and two-step approval, duplicate detection/idempotency, Amex parsing/import/matching, exact-cent totals and Excel downloads, write pauses, rollback and 5,001-row volume behavior.
+Existing tests ran against their temporary MongoDB/PGlite databases and React fixtures. Added API tests use the real Express routers and schema migrations with an isolated PGlite database. The staff directory and authentication boundary are doubles; actual JWT/session behavior was not verified. File storage and OCR in these tests are doubles.
+Concurrency tests gate requests just before the real persistence adapter to reproduce specific check-then-write interleavings. PGlite serializes transactions and is not a substitute for independent PostgreSQL connections, worker processes, pool contention or a deployment stress test. A passing same-ID concurrent test does not prove the PostgreSQL primary-key race path is safe.
+Browser tests use desktop Chromium and an emulated Pixel 7, with mocked API boundaries. The downloaded Excel files were read back to verify totals, filtering, void exclusion and text cell types. Physical phone cameras, Safari/iOS, real OCR and live S3/CDN behavior remain unverified.
+The 5,001-row check verifies ledger completeness and exercises volume locally. No performance SLO, sustained-load reliability, security certification or accounting/legal compliance claim is made.
+Concurrent edits to the receipt view and branch fallback were observed and preserved. Final checks were rerun after those edits. A parallel verification attempt hit temporary MongoDB/PGlite startup and browser timeouts; those incomplete attempts were excluded from the accounting defect counts and retried with reduced concurrency.
+Amounts, statuses and approval rules were taken from repository code and existing tests. Subtotal, tax and tip are documented as informational; no invented sum-equality rule was imposed. Period close, currency, retention and exception policy questions are listed as NOT RUN/owner decisions.
+
+Findings (reproducible; production behavior was not modified)
+
+CC-07 [P0] Concurrent requests bypass approval and immutability rules
+Observed: An edit paused after validation overwrote an approved $10 receipt with a waiting $99 receipt. An approval paused after validation approved a newly edited $200 total with only one approval. A paused void subsequently voided an approved receipt. All three competing writes returned HTTP 200.
+Expected: Exactly one conflicting transition commits. The stale operation returns 409; approved values remain immutable; amounts above $150 require two distinct approvers.
+Reproduce: Create a complete $10 receipt. Pause one operation immediately before the real changeExpense adapter. Complete the competing approve/edit/void request, then release the paused operation. Tests exercise three valid request interleavings against the migrated database.
+Impact: Approvers can authorize an amount they never reviewed, two-step approval can be bypassed, and approved entries can be altered or voided.
+Correction: Validate the expected version, current status, amount and permitted transition inside the same transaction as the write. Reject stale versions atomically and record the committed decision against its reviewed version.
+Code: src/routes/cardReceipts.ts:467; src/routes/cardReceipts.ts:508; src/routes/cardReceipts.ts:523; src/routes/cardReceipts.ts:583; src/db/cardReceipts/postgres.ts:212
+
+CC-01 [P1] Malformed money is silently converted to a different amount
+Observed: 12,34 becomes 123400 cents ($1,234.00); 1 2.34 and 1$2.34 become 1234 cents ($12.34). These values pass cleanExpense validation.
+Expected: Malformed grouping, internal spaces and misplaced currency symbols receive a validation error rather than a financially different value.
+Reproduce: Call cleanExpense with an otherwise valid receipt and total 12,34, 1 2.34 or 1$2.34.
+Impact: Typing or locale mistakes can silently overstate expenses.
+Correction: Validate the entire amount format before removing permitted currency/grouping characters. Define supported locales explicitly and keep integer-cent storage.
+Code: src/utils/cardReceipts.ts:171
+
+CC-03 [P1] Saving an incomplete missing receipt falsely marks its charge as matched
+Observed: Import a $10 charge, then save its missing expense without a receipt, lost reason or category. The expense becomes draft, its Amex line becomes matched, and missingNow falls from 1/$10 to 0/$0.
+Expected: A charge with neither a receipt nor a lost-receipt reason remains missing and stays in the missing count and amount.
+Reproduce: Import R1 for $10 on 2026-11-05. PUT its generated expense with the same date/total and empty receiptUrl, lostReason and category. GET statements for 2026-11.
+Impact: Accounting's missing-receipt control understates outstanding documentation.
+Correction: Derive receipt presence from the actual attachment/lost reason instead of treating every linked non-missing workflow status as uploaded. Keep counts, line status and reconciliation selection consistent.
+Code: src/utils/amexStatement.ts:197; src/db/cardStatements/index.ts:340; src/routes/cardReceipts.ts:485
+
+CC-04 [P1] Changed statement references retain invalid amount and card matches
+Observed: Reimporting R1 at $11 retained its link to a $10 expense. Changing R1's digits from 12345 to 54321 retained its original card link instead of selecting the second holder's card.
+Expected: A refreshed statement line must either still satisfy card/amount/date match invariants or become an explicit reconciliation exception requiring review.
+Reproduce: Save and import a matched $10 receipt. Reimport the same reference with amount 11; independently repeat with changed card digits. Inspect statement line, linked expense and card.
+Impact: A charge can appear reconciled against the wrong amount or cardholder.
+Correction: Revalidate existing links when imported match keys change. Preserve approved expense history and flag/unmatch inconsistencies rather than silently rewriting approved accounting records.
+Code: src/db/cardStatements/index.ts:57; src/db/cardStatements/index.ts:74; src/db/cardStatements/index.ts:223
+
+CC-05 [P1] A nonexistent customer satisfies completeness before its reference is discarded
+Observed: A Customer lunch with a fabricated 24-character customer ID, a name and attendees returns 201/waiting. Postgres stores a null customer reference, while the supplied customer name remains.
+Expected: Reject nonexistent or unauthorized customer references; a category requiring a customer must not enter approval with a null customer reference.
+Reproduce: POST a Customer lunch using customerId 0000000000000000000003e7, customerName Does not exist and two attendees.
+Impact: Customer-linked expenses can be approved and reported without a valid underlying customer.
+Correction: Resolve and authorize the customer on the server, derive its display name from that record, and validate completeness on the record that will actually be persisted.
+Code: src/utils/cardReceipts.ts:291; src/utils/cardReceipts.ts:330; src/db/cardReceipts/postgres.ts:183
+
+CC-06 [P1] Deleting a category leaves approved receipts invalid under the replacement rules
+Observed: An approved Fuel receipt moved to Customer lunch through category deletion remains approved with no customer or attendees.
+Expected: An administrative replacement must preserve valid approved history or require missing fields and reapproval under the new category's requirements.
+Reproduce: Approve a Fuel receipt. DELETE the Fuel category with Customer lunch as replaceWith. Inspect the expense's category, status, customer and approval.
+Impact: Category administration can create approved expenses that fail the module's ordinary approval prerequisites.
+Correction: Keep archived categories for approved history, or define an audited migration that invalidates approval when the new category changes required information.
+Code: src/routes/cardReceipts.ts:238; src/db/cardReceipts/postgres.ts:85
+
+CC-08 [P1] Concurrent different-ID saves bypass the duplicate warning
+Observed: Two concurrent requests for the same holder/day/amount, with different IDs and no confirmRepeat, both return 201 and create two live expenses.
+Expected: One save succeeds; the other receives the repeat warning until the holder explicitly confirms a second purchase.
+Reproduce: Pause both requests before addExpense, after each passed sameDayAmount. Release both and inspect the two responses and persisted row count.
+Impact: Double submission can overstate expense totals without the intended duplicate confirmation.
+Correction: Serialize duplicate detection and insert per holder/day/amount in one transaction; preserve the explicitly authorized Save anyway path.
+Code: src/routes/cardReceipts.ts:426; src/routes/cardReceipts.ts:435
+
+CC-09 [P1] Amex lookup failure removes the matched-charge protection
+Observed: Injecting a linkedLine database read failure lets the holder void a matched charge with HTTP 200; voidedAt is saved.
+Expected: An unavailable reconciliation lookup blocks the protected mutation with an error and leaves the matched expense unchanged.
+Reproduce: Save a receipt, import its matching Amex charge, inject one linkedLine read failure and POST the holder's void request.
+Impact: A transient dependency failure allows accounting data changes that the normal matched-charge rule forbids. The same helper protects date/amount edits.
+Correction: Distinguish unlinked from lookup unavailable. Fail the protected write when the lookup is unavailable while Postgres reconciliation is enabled.
+Code: src/db/cardStatements/hooks.ts:72; src/routes/cardReceipts.ts:587
+
+CC-11 [P1] A monthly ledger silently truncates after 5,000 expenses
+Observed: A seeded 5,001-row month at $10 per row returns 5,000 expenses totaling $50,000 instead of $50,010. The response exposes no total count or continuation metadata. UI totals and export use this returned list.
+Expected: All rows and exact totals remain accessible through pagination/server aggregates, and an export covers the requested accounting scope without silent truncation.
+Reproduce: Insert 5,001 receipts for one month. GET expenses?scope=all&month=2026-11 and compare returned count and sum with the database.
+Impact: Large months understate the ledger and exported spend.
+Correction: Return explicit pagination and total aggregates; provide a complete scoped export path instead of using a capped list as the ledger.
+Code: src/db/cardReceipts/postgres.ts:164; src/features/cardReceipts/CardReceiptsPage.tsx:90
+
+CC-12 [P1] The concurrent-save fallback can disclose another holder's expense
+Observed: Two different holders racing on one new receipt ID receive 201 and 200. The losing holder receives the other holder's expense object, including its card/holder data, rather than 409.
+Expected: The ID belongs to exactly one holder. Both the initial lookup and post-conflict fallback enforce ownership before returning an expense.
+Reproduce: Start two authenticated holders with active cards and the same new receipt ID. Gate both just before addExpense so both initial lookups see no row, then release them.
+Impact: A specifically timed ID collision can cross the receipt ownership boundary. It requires the same chosen/known 24-character ID, not an ordinary random collision.
+Correction: Check again.userId against the authenticated holder before returning the fallback object, and handle duplicate-key races without exposing the conflicting record.
+Code: src/routes/cardReceipts.ts:412; src/routes/cardReceipts.ts:440
+
+CC-02 [P2] Malformed dates are truncated and tomorrow is accepted by the shared validator
+Observed: 2026-11-05garbage is silently saved as 2026-11-05. With today fixed at 2026-11-20, 2026-11-21 is accepted by cleanExpense even though the date picker sets max=today.
+Expected: Validate the complete date string. The form and server should enforce the same documented cutoff.
+Reproduce: Call cleanExpense with the two dates and today 2026-11-20.
+Impact: Malformed API input changes accounting dates silently. Tomorrow acceptance is a policy discrepancy to confirm: the server explicitly allows a one-day grace period, so this portion is not presented as a settled business-rule defect.
+Correction: Require exact YYYY-MM-DD input before normalization and document whether the intentional one-day grace period is required. Apply the chosen cutoff consistently.
+Code: src/utils/cardReceipts.ts:253; src/utils/cardReceipts.ts:255; src/features/cardReceipts/components/BillDetailsEdit.tsx:39
+
+CC-10 [P2] An approval-queue outage is shown as an empty queue
+Observed: When scope=waiting returns 503, both desktop and phone show Waiting for me 0/$0 and Nothing is waiting for you, with no error.
+Expected: Show a queue-load error and retry affordance; do not represent failed loading as a verified empty queue.
+Reproduce: Mock only the waiting-list response to 503, leave ordinary expenses successful and open Waiting for me. Browser tests and saved screenshots reproduce both viewports.
+Impact: Approvers can believe there are no pending receipts while the queue is unavailable.
+Correction: Track waiting-list loading/error separately and show an empty state only after a successful request.
+Code: src/features/cardReceipts/useCardReceipts.ts:74; src/features/cardReceipts/CardReceiptsPage.tsx:207
+
+Checks that passed
+All 162 original module unit/API/React/database parity checks and four original desktop/phone browser checks passed. Added checks confirmed ordinary permission denials, immutable approved receipts in sequential use, self-approval denial, the exact $150 threshold, distinct approvers, required lost-receipt comments, step-one reset after edit, sequential save retries, explicit duplicate overrides, private file access, previews/failed-import rollback, repeated import idempotency, two-day matching boundaries, refunds, audit-write rollback, migration write pauses, upload limits, file selection errors, save-error input preservation and real downloaded workbook contents.
+
+Coverage
+Existing-suite selected-module V8 coverage: statements 71.32%, branches 63.26%, functions 65.69%, lines 76.59%. These are execution metrics, not proof that financial invariants hold. See coverage.config.ts and results/coverage-summary.json for scope and per-file values.
+
+Release/retest order
+1. Fix CC-07 atomic approval/state transitions and retest all three races, including the $200 one-approval bypass.
+2. Fix CC-12 ownership fallback, CC-08 concurrent duplicates and CC-09 protected mutations during lookup failure.
+3. Fix reconciliation evidence/counts (CC-03), changed-reference matches (CC-04), customer/category integrity (CC-05/06) and full-ledger/export completeness (CC-11).
+4. Fix amount parsing (CC-01), resolve strict-date policy (CC-02), and show queue-load failures (CC-10).
+5. Run the acceptance suites until all required invariants pass; then execute staging follow-ups with real identities, database connections, file storage and OCR, using synthetic accounting data.
+
+Reproduction commands (from repository root)
+npx vitest run --config qa/cc-receipts/coverage.config.ts --coverage
+npx vitest run --config qa/cc-receipts/vitest.config.ts
+npx playwright test e2e/amexCheck.spec.ts
+npx playwright test --config qa/cc-receipts/playwright.config.ts
+node node_modules/typescript/bin/tsc -p qa/cc-receipts/tsconfig.json
+
+Acceptance-suite failures are intentional evidence of unfixed controls, with ordinary failing assertions. They are opt-in under qa/ and do not change the default test include pattern. No test was marked expected-to-fail to hide a defect.
+Duplicate verification attempts and the coverage rerun are not double-counted. The report counts each unit test and each browser scenario/project combination once, using the final completed module runs.
+Captured evidence is in results/: original and acceptance JSON reports, full browser JSON, coverage summary and screenshots approval-queue-error-desktop.png / approval-queue-error-phone.png.
+This report remains a dated test snapshot. To refresh the artifacts after rerunning suites, replace the stored JSON inputs and run node qa/cc-receipts/build-report.ts; its count guards deliberately require review when execution counts change.

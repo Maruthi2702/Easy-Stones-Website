@@ -1,0 +1,20 @@
+[WebServer] (node:64302) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 2 workers
+
+[WebServer] [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+(node:64305) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:64304) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › e2e/amexCheck.spec.ts:30:1 › Cards shows a card with no holder yet and offers to assign it (10.8s)
+  ✓  2 [desktop] › e2e/amexCheck.spec.ts:56:1 › Statements shows the Amex check, filters by status and previews an upload (11.1s)
+(node:64327) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:64328) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  4 [phone] › e2e/amexCheck.spec.ts:30:1 › Cards shows a card with no holder yet and offers to assign it (3.7s)
+  ✓  3 [phone] › e2e/amexCheck.spec.ts:56:1 › Statements shows the Amex check, filters by status and previews an upload (4.0s)
+
+  4 passed (18.9s)

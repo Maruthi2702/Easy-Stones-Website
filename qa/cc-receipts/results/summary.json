@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-21",
+  "testingBegan": "2026-11-20",
+  "timezone": "America/Los_Angeles",
+  "original": {
+    "total": 166,
+    "passed": 166,
+    "failed": 0
+  },
+  "added": {
+    "total": 131,
+    "passed": 112,
+    "failed": 19
+  },
+  "total": {
+    "total": 297,
+    "passed": 278,
+    "failed": 19
+  },
+  "findings": 12,
+  "priorityCases": 81,
+  "notRunCases": 18,
+  "coverage": {
+    "lines": {
+      "total": 2158,
+      "covered": 1653,
+      "skipped": 0,
+      "pct": 76.59
+    },
+    "statements": {
+      "total": 3017,
+      "covered": 2152,
+      "skipped": 0,
+      "pct": 71.32
+    },
+    "functions": {
+      "total": 895,
+      "covered": 588,
+      "skipped": 0,
+      "pct": 65.69
+    },
+    "branches": {
+      "total": 2872,
+      "covered": 1817,
+      "skipped": 0,
+      "pct": 63.26
+    },
+    "branchesTrue": {
+      "total": 0,
+      "covered": 0,
+      "skipped": 0,
+      "pct": 100
+    }
+  }
+}
