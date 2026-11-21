@@ -253,7 +253,8 @@ export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknow
   today: string; categories: readonly CategoryLike[]; currentCategory?: string; currentSubcategory?: string;
 }): { value?: CleanExpense; problems: ExpenseProblems; missing: ExpenseProblems } {
   const problems: ExpenseProblems = {};
-  const date = text(body.date, 10);
+  // The whole string must be a day: cutting it to 10 characters turned "2026-11-05garbage" into a real date.
+  const date = String(body.date ?? '').trim();
   if (!isDay(date)) problems.date = 'Choose the day you paid';
   else if (date > nextDay(today)) problems.date = 'That day hasn’t happened yet';
   const merchant = text(body.merchant, 80);

@@ -476,3 +476,8 @@ body:not(.light-theme-active) .profile-grid .detail-label {
 body:not(.light-theme-active) .cell-capacity-pill.capacity-ok-green {
     color: #4fbf9f !important;
 }
+
+/* iOS app: room under the page for the keyboard so a low text box can scroll above it (NativeKeyboard.tsx). */
+html.native-kb-up body {
+  padding-bottom: var(--native-kb, 0px);
+}

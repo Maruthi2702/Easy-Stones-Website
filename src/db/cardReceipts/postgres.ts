@@ -13,7 +13,7 @@ import { companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf } from '../co
 import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
 import { cardDoc, categoryDoc, expenseDoc } from './cardDocs.ts';
 import type { Loose } from '../../types/records.ts';
-import { StaleExpenseError, RepeatExpenseError } from './types.ts';
+import { StaleExpenseError, RepeatExpenseError, EXPENSE_LIST_CAP } from './types.ts';
 import type { ExpenseFilter, ExpenseHistoryEntry } from './types.ts';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -163,8 +163,12 @@ export async function listExpenses(db: Db, filter: ExpenseFilter): Promise<Loose
     ? and(eq(cardExpenses.status, 'waiting'), isNull(cardExpenses.voidedAt), or(filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : undefined, filter.overCents != null ? gt(cardExpenses.cents, filter.overCents) : undefined))
     : and(eq(cardExpenses.month, filter.month), filter.userId ? eq(cardExpenses.userId, lower(filter.userId)) : undefined,
       filter.userIds ? (filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : sql`false`) : undefined);
-  const rows = await selectExpenses(db).where(where).orderBy(desc(cardExpenses.day), desc(cardExpenses.createdAt), desc(cardExpenses.id)).limit(5000);
+  const rows = await selectExpenses(db).where(where).orderBy(desc(cardExpenses.day), desc(cardExpenses.createdAt), desc(cardExpenses.id)).limit(EXPENSE_LIST_CAP);
   return withHistory(db, rows);
+}
+
+export async function approvedInCategory(db: Db, name: string): Promise<Loose[]> {
+  return withHistory(db, await selectExpenses(db).where(and(eq(cardExpenses.category, name), eq(cardExpenses.status, 'approved'))));
 }
 
 export async function findExpense(db: Db, id: string): Promise<Loose | null> {

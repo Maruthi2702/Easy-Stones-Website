@@ -39,8 +39,9 @@ describe('Money and date acceptance controls', () => {
   it('DATE: accepts leap day and derives exact cents', () => {
     expect(clean({ date: '2024-02-29' }).value).toMatchObject({ date: '2024-02-29', cents: 1001 });
   });
-  it('CC-02: rejects tomorrow, consistently with the date picker and the no-future-date rule', () => {
-    expect(clean({ date: '2026-11-21' }).problems.date).toBeTruthy();
+  it('CC-02: allows the one-day grace (a branch already on tomorrow) but rejects anything later', () => {
+    expect(clean({ date: '2026-11-21' }).problems.date).toBeUndefined();
+    expect(clean({ date: '2026-11-22' }).problems.date).toBeTruthy();
   });
   it('CC-02: rejects a timestamp rather than truncating it into a valid accounting day', () => {
     expect(clean({ date: '2026-11-05garbage' }).problems.date).toBeTruthy();

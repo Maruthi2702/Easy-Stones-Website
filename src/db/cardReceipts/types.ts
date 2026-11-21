@@ -30,6 +30,9 @@ export class StaleExpenseError extends Error {
   }
 }
 
+/** The most expenses one list answers with. A month never gets near it; if one does, the answer says `truncated`. */
+export const EXPENSE_LIST_CAP = 20_000;
+
 /** What the Expenses list asks for: a month (the caller's, or everyone's), or what is waiting for approval. */
 export type ExpenseFilter =
   /** `overCents`: also every waiting receipt above that total, whoever's it is (for the roles that decide big ones). */

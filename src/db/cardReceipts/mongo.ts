@@ -1,7 +1,7 @@
 /** Credit Card Receipts on MongoDB — the route's own Mongoose calls, moved here unchanged. */
 import { CompanyCard, ReceiptCategory, CardExpense } from '../../models/CardReceipts.ts';
 import type { Loose } from '../../types/records.ts';
-import { StaleExpenseError } from './types.ts';
+import { StaleExpenseError, EXPENSE_LIST_CAP } from './types.ts';
 import type { ExpenseFilter, ExpenseHistoryEntry } from './types.ts';
 
 const lean = <T>(q: PromiseLike<unknown>) => q as unknown as Promise<T>;
@@ -36,6 +36,7 @@ export async function reorderCategories(ids: string[]): Promise<void> {
   await ReceiptCategory.bulkWrite(ids.map((id, i) => ({ updateOne: { filter: { _id: id }, update: { $set: { order: i } } } })));
 }
 
+export const approvedInCategory = (name: string) => lean<Loose[]>(CardExpense.find({ category: name, status: 'approved' }).lean());
 export const categoryUses = (name: string) => CardExpense.countDocuments({ category: name });
 
 /** Move the expenses first (a stop in between leaves nothing lost), then delete the category. */
@@ -78,7 +79,7 @@ export function listExpenses(filter: ExpenseFilter): Promise<Loose[]> {
     ? { status: 'waiting', voidedAt: null, $or: [{ userId: { $in: [...filter.userIds] } }, ...(filter.overCents != null ? [{ cents: { $gt: filter.overCents } }] : [])] }
     : { month: filter.month, ...(filter.userId ? { userId: filter.userId } : {}), ...(filter.userIds ? { userId: { $in: [...filter.userIds] } } : {}) };
   // `_id` last: two receipts of one day and moment keep a fixed order (it was arbitrary).
-  return lean<Loose[]>(CardExpense.find(where).sort({ date: -1, createdAt: -1, _id: -1 }).limit(5000).lean());
+  return lean<Loose[]>(CardExpense.find(where).sort({ date: -1, createdAt: -1, _id: -1 }).limit(EXPENSE_LIST_CAP).lean());
 }
 
 export const findExpense = (id: string) => lean<Loose | null>(CardExpense.findById(id).lean());

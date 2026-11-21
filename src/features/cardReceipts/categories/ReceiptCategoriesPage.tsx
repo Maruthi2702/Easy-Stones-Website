@@ -17,37 +17,68 @@ const ASKS: { key: keyof CategoryFields; label: string; long: string }[] = [
   { key: 'recurring', label: 'Can be recurring', long: 'Can be marked recurring' }
 ];
 
-type SubDraft = { name?: string; label: string; active: boolean; isDefault: boolean; fields: CategoryFields };
-const draftsOf = (list: readonly Subcategory[] | undefined): SubDraft[] => (list || []).map((s) => ({ name: s.name, label: s.label, active: s.active, isDefault: s.isDefault, fields: { ...s.fields } }));
-const subKey = (list: readonly SubDraft[]) => JSON.stringify(list.map((s) => [s.name || '', s.label.trim(), s.active, s.isDefault, s.fields.customer]));
-
-/** The types under a category (Gas → Car / Truck / Van): rename, add, hide, reorder, pick the default, ask for the customer. */
-function SubcategoryEditor({ value, onChange }: { value: SubDraft[]; onChange: (next: SubDraft[]) => void }) {
-  const patch = (i: number, p: Partial<SubDraft>) => onChange(value.map((s, k) => (k === i ? { ...s, ...p } : s)));
-  const swap = (i: number, j: number) => { const next = [...value]; [next[i], next[j]] = [next[j]!, next[i]!]; onChange(next); };
-  return (
-    <div className="ccr-subs">
-      {value.map((s, i) => (
-        <div key={s.name || `new-${i}`} className={`ccr-sub-row${s.active ? '' : ' is-hidden'}`}>
-          <input className="fm-input" value={s.label} maxLength={60} autoComplete="off" placeholder="Name, e.g. Truck" aria-label={`Sub-category ${i + 1} name`}
-            onChange={(e) => patch(i, { label: e.target.value })} />
-          <div className="ccr-sub-tools">
-            <label className="ccr-check"><input type="radio" name="ccr-sub-default" checked={s.isDefault && s.active} disabled={!s.active}
-              onChange={() => onChange(value.map((x, k) => ({ ...x, isDefault: k === i })))} /> Default</label>
-            <label className="ccr-check"><input type="checkbox" checked={s.fields.customer} onChange={(e) => patch(i, { fields: { ...s.fields, customer: e.target.checked } })} /> Select customer</label>
-            <button type="button" className="ccr-iconbtn" aria-label={`Move ${s.label || 'it'} up`} disabled={i === 0} onClick={() => swap(i, i - 1)}><ArrowUp size={16} /></button>
-            <button type="button" className="ccr-iconbtn" aria-label={`Move ${s.label || 'it'} down`} disabled={i === value.length - 1} onClick={() => swap(i, i + 1)}><ArrowDown size={16} /></button>
-            <button type="button" className="ccr-iconbtn" aria-label={s.active ? `Hide ${s.label || 'it'}` : `Show ${s.label || 'it'}`} onClick={() => patch(i, { active: !s.active })}>{s.active ? <EyeOff size={16} /> : <Eye size={16} />}</button>
-          </div>
-        </div>
-      ))}
-      <button type="button" className="fm-btn fm-btn-small" onClick={() => onChange([...value, { label: '', active: true, isDefault: !value.some((s) => s.active), fields: { ...NO_FIELDS } }])} disabled={value.length >= 20}>
-        <Plus size={14} aria-hidden="true" /> Add a sub-category
-      </button>
-    </div>
-  );
-}
-
+type SubDraft = { name?: string; label: string; active: boolean; isDefault: boolean; fields: CategoryFields };
+
+const draftsOf = (list: readonly Subcategory[] | undefined): SubDraft[] => (list || []).map((s) => ({ name: s.name, label: s.label, active: s.active, isDefault: s.isDefault, fields: { ...s.fields } }));
+
+const subKey = (list: readonly SubDraft[]) => JSON.stringify(list.map((s) => [s.name || '', s.label.trim(), s.active, s.isDefault, s.fields.customer]));
+
+
+
+/** The types under a category (Gas → Car / Truck / Van): rename, add, hide, reorder, pick the default, ask for the customer. */
+
+function SubcategoryEditor({ value, onChange }: { value: SubDraft[]; onChange: (next: SubDraft[]) => void }) {
+
+  const patch = (i: number, p: Partial<SubDraft>) => onChange(value.map((s, k) => (k === i ? { ...s, ...p } : s)));
+
+  const swap = (i: number, j: number) => { const next = [...value]; [next[i], next[j]] = [next[j]!, next[i]!]; onChange(next); };
+
+  return (
+
+    <div className="ccr-subs">
+
+      {value.map((s, i) => (
+
+        <div key={s.name || `new-${i}`} className={`ccr-sub-row${s.active ? '' : ' is-hidden'}`}>
+
+          <input className="fm-input" value={s.label} maxLength={60} autoComplete="off" placeholder="Name, e.g. Truck" aria-label={`Sub-category ${i + 1} name`}
+
+            onChange={(e) => patch(i, { label: e.target.value })} />
+
+          <div className="ccr-sub-tools">
+
+            <label className="ccr-check"><input type="radio" name="ccr-sub-default" checked={s.isDefault && s.active} disabled={!s.active}
+
+              onChange={() => onChange(value.map((x, k) => ({ ...x, isDefault: k === i })))} /> Default</label>
+
+            <label className="ccr-check"><input type="checkbox" checked={s.fields.customer} onChange={(e) => patch(i, { fields: { ...s.fields, customer: e.target.checked } })} /> Select customer</label>
+
+            <button type="button" className="ccr-iconbtn" aria-label={`Move ${s.label || 'it'} up`} disabled={i === 0} onClick={() => swap(i, i - 1)}><ArrowUp size={16} /></button>
+
+            <button type="button" className="ccr-iconbtn" aria-label={`Move ${s.label || 'it'} down`} disabled={i === value.length - 1} onClick={() => swap(i, i + 1)}><ArrowDown size={16} /></button>
+
+            <button type="button" className="ccr-iconbtn" aria-label={s.active ? `Hide ${s.label || 'it'}` : `Show ${s.label || 'it'}`} onClick={() => patch(i, { active: !s.active })}>{s.active ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+
+          </div>
+
+        </div>
+
+      ))}
+
+      <button type="button" className="fm-btn fm-btn-small" onClick={() => onChange([...value, { label: '', active: true, isDefault: !value.some((s) => s.active), fields: { ...NO_FIELDS } }])} disabled={value.length >= 20}>
+
+        <Plus size={14} aria-hidden="true" /> Add a sub-category
+
+      </button>
+
+    </div>
+
+  );
+
+}
+
+
+
 function CategoryForm({ category, all, onSave, onClose }: {
   category: Category | null; all: Category[]; onSave: (v: { label: string; fields: CategoryFields; subcategories: SubDraft[] }) => Promise<unknown>; onClose: () => void;
 }) {
@@ -233,7 +264,7 @@ export default function ReceiptCategoriesPage({ currentUser, sidebarToggle = nul
             const r = await api.deleteCategory(open.category._id, to);
             setList((l) => l.filter((x) => x._id !== open.category._id));
             setOpen(null);
-            say(r.moved ? `Deleted; ${r.moved} moved` : 'Category deleted');
+            say(r.hidden ? `Hidden, not deleted: ${r.kept} approved receipt${r.kept === 1 ? '' : 's'} keep it` : r.moved ? `Deleted; ${r.moved} moved` : 'Category deleted');
           }} />
       ) : null}
       {toast ? <div className="ccr-toast" role="status">{toast}</div> : null}

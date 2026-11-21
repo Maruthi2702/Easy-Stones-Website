@@ -1,4 +1,12 @@
 CC RECEIPTS — ACCOUNTING QA REPORT
+
+REMEDIATION STATUS (2026-11-21, after this report's recorded run): all 12 findings addressed in code; the acceptance suite
+(qa/cc-receipts/vitest.config.ts) passes 117/117 and the QA browser suite 14/14. The counts, findings and workbook below are the
+ORIGINAL snapshot and have not been regenerated. Decisions taken: CC-02 keeps the one-day grace for a branch already on tomorrow
+(the test now asserts that boundary) and rejects malformed dates; CC-06 hides the old category instead of deleting it when approved
+receipts would fail the new category's rules; CC-11 raises the list cap to 20,000 and answers `truncated: true` if it is reached
+(the screen does not yet show that flag). Still unverified: real PostgreSQL concurrency, real iPhone/Safari, live S3/OCR.
+
 Test window: November 20–21, 2026 (America/Los_Angeles)
 
 RESULT: Accounting sign-off is not recommended yet. The original regression tests pass, but additional adverse-condition testing found failures in approval, ownership, duplicate protection and reconciliation controls.

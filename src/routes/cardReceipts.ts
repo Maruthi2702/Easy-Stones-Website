@@ -4,7 +4,8 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import * as db from '../db/cardReceipts/index.ts';
-import { StaleExpenseError, RepeatExpenseError } from '../db/cardReceipts/types.ts';
+import { customerById } from '../db/customers/index.ts';
+import { StaleExpenseError, RepeatExpenseError, EXPENSE_LIST_CAP } from '../db/cardReceipts/types.ts';
 import { newId } from '../db/ids.ts';
 import rateLimit from 'express-rate-limit';
 import { isFilesCdnUrl, isCloudinaryUrl } from '../utils/fileUrls.ts';
@@ -15,7 +16,7 @@ import { ALL_PEOPLE } from '../utils/teamScope.ts';
 import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup } from '../db/cardStatements/hooks.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
-  statusAfterSave, holderMayEdit, changeSummary, possibleRepeat, canApprove, approvalStep, isBigReceipt, isBigReceiptApprover, BIG_RECEIPT_CENTS, cleanApproverRoles, decisionProblem,
+  statusAfterSave, missingFor, holderMayEdit, changeSummary, possibleRepeat, canApprove, approvalStep, isBigReceipt, isBigReceiptApprover, BIG_RECEIPT_CENTS, cleanApproverRoles, decisionProblem,
   isMonth, monthOf, matchedChangeProblem, isReceiptFolderUrl, isPrivateReceiptName, privateReceiptNameOf, privateReceiptUrlOfKey, PRIVATE_RECEIPT_ROUTE, PRIVATE_RECEIPT_KEY_PREFIX, type CleanExpense
 } from '../utils/cardReceipts.ts';
 import type { Loose } from '../types/records.ts';
@@ -237,6 +238,16 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         if (!target || String(target._id) === id || target.active === false) {
           return res.status(409).json({ message: `${uses} expense${uses === 1 ? ' uses' : 's use'} it. Choose a shown category to move them to.`, uses });
         }
+        // Approved receipts are history: if the new category asks for something they don't have (a customer,
+        // who attended…), moving them would leave approved receipts that fail its rules. Hide the category instead.
+        const targetView = categoryView(target);
+        const approved = await db.approvedInCategory(category.name);
+        const failing = approved.filter((e) => Object.keys(missingFor({ receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || '', category: target.name, customerId: e.customerId || '', attendees: e.attendees || [], purpose: e.purpose || '', subcategory: '' }, targetView)).length);
+        if (failing.length) {
+          // Approved history keeps its category: the category is hidden (never offered for new receipts) instead of deleted.
+          await db.changeCategory(id, { active: false });
+          return res.json({ deleted: false, hidden: true, kept: failing.length, moved: 0 });
+        }
         // Moved before the category goes: a stop in between leaves the
         // expenses on the new category and the old one still listed — nothing lost.
         move = { to: target.name, entry: { at: new Date(), by: actor(req), action: 'edited', changes: `category ${category.label} → ${target.label} (deleted)` } };
@@ -396,12 +407,25 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       let rows = await db.listExpenses(filter);
       // Waiting for me: a big receipt is the Accounting / Director / Admin step alone, never your own.
       if (scope === 'waiting') rows = rows.filter((e) => e.userId !== me && (approvalStep(e) === 2 ? bigApprover && e.approval?.by !== me : approvable.has(e.userId)));
-      res.json({ expenses: rows.map((e) => expenseView(e, { id: me, approvable, bigApprover })) });
+      res.json({ expenses: rows.map((e) => expenseView(e, { id: me, approvable, bigApprover })), ...(rows.length >= EXPENSE_LIST_CAP ? { truncated: true } : {}) });
     } catch (error) {
       console.error('[card-receipts] list failed:', error);
       res.status(500).json({ message: 'Could not load the expenses.' });
     }
   });
+
+  /**
+   * A customer a receipt names must exist; its name is the record's own, never what the request typed.
+   * Returns a problem to show, or '' (and sets `value.customerName`) when it's fine or there is no customer.
+   */
+  const customerProblem = async (value: { customerId: string; customerName: string }): Promise<string> => {
+    if (!value.customerId) return '';
+    if (!mongoose.isValidObjectId(value.customerId)) return 'Choose the customer from the list';
+    const customer = await customerById(value.customerId);
+    if (!customer) return 'That customer no longer exists. Choose another';
+    value.customerName = String(customer.company || customer.contactName || value.customerName || '');
+    return '';
+  };
 
   const categoriesForSave = async () => (await categoriesList()).map(categoryView);
 
@@ -424,6 +448,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
       const linkProblem = await receiptLinkProblem(fileStore(), value.receiptUrl, '', me);
       if (linkProblem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: linkProblem } });
+      const noCustomer = await customerProblem(value);
+      if (noCustomer) return res.status(400).json({ message: 'Some fields need attention.', problems: { customer: noCustomer } });
       if (body.confirmRepeat !== true) {
         // A Missing receipt row (an Amex charge with no upload yet) isn't a repeat: this upload takes its place.
         const same = (await db.sameDayAmount(me, value.date, value.cents)).filter((e) => e.status !== 'missing');
@@ -484,6 +510,11 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
       const linkProblem = await receiptLinkProblem(fileStore(), value.receiptUrl, expense.receiptUrl || '', me);
       if (linkProblem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: linkProblem } });
+      // A customer deleted since doesn't block editing the rest; picking a different one is checked.
+      if (value.customerId && value.customerId !== (expense.customerId || '')) {
+        const noCustomer = await customerProblem(value);
+        if (noCustomer) return res.status(400).json({ message: 'Some fields need attention.', problems: { customer: noCustomer } });
+      }
       // Matched to an Amex charge: Amex's day and amount stand.
       if ((value.date !== expense.date || value.cents !== expense.cents) && await amexChargeOf(id)) {
         return res.status(409).json({ message: matchedChangeProblem({ date: expense.date, cents: expense.cents }, value), problems: { total: 'Matched to Amex' } });

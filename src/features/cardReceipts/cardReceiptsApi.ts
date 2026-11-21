@@ -50,7 +50,7 @@ export const addCategory = (body: Pick<Category, 'label' | 'fields'> & { subcate
 export const editCategory = (id: string, body: Partial<Pick<Category, 'label' | 'fields' | 'active'>> & { subcategories?: unknown[] }) => call<{ category: Category }>(`/categories/${id}`, { method: 'PUT', body });
 export const reorderCategories = (ids: string[]) => call<{ categories: Category[] }>('/categories/reorder', { method: 'PATCH', body: { ids } });
 export const categoryUses = (id: string) => call<{ uses: number }>(`/categories/${id}/uses`);
-export const deleteCategory = (id: string, replaceWith?: string) => call<{ deleted: boolean; moved: number }>(`/categories/${id}`, { method: 'DELETE', body: replaceWith ? { replaceWith } : {} });
+export const deleteCategory = (id: string, replaceWith?: string) => call<{ deleted: boolean; moved: number; hidden?: boolean; kept?: number }>(`/categories/${id}`, { method: 'DELETE', body: replaceWith ? { replaceWith } : {} });
 
 /** Everyone with a card in the caller's view (View all → all, View branch → their team). */
 export const listCardholders = () => call<{ holders: { id: string; name: string; active: boolean }[] }>('/cardholders');
