@@ -1,4 +1,7 @@
 import { missingFor, missingLine, statusTotals, subLabel } from '../../utils/cardReceipts';
+import { ALL_PEOPLE, viewerLocations, workLocationsOf } from '../../utils/teamScope';
+import type { PersonOption } from '../../api/myTeam';
+import type { Loose } from '../../types/records';
 import type { Category, Expense } from './types';
 
 /** "Gas · Truck": the category and, when it has one, the type. */
@@ -8,8 +11,9 @@ export const categoryText = (categories: readonly Category[], e: { category: str
 };
 
 /** What the Filters panel, the search box and the status tiles narrow the list to. */
-export type ReceiptFilters = { search: string; status: string; location: string; holder: string; category: string };
-export const NO_FILTERS: ReceiptFilters = { search: '', status: 'all', location: '', holder: '', category: '' };
+/** `people` is the cardholders ticked in the People filter; [] = everyone in view. */
+export type ReceiptFilters = { search: string; status: string; people: string[]; category: string };
+export const NO_FILTERS: ReceiptFilters = { search: '', status: 'all', people: [], category: '' };
 
 export const categoryLabel = (categories: readonly Category[], name: string) =>
   categories.find((c) => c.name === name)?.label || (name ? name.replace(/_/g, ' ') : '');
@@ -20,8 +24,7 @@ export const categoryLabel = (categories: readonly Category[], name: string) =>
  */
 export function visibleExpenses(list: readonly Expense[], f: ReceiptFilters, categories: readonly Category[]) {
   const base = list.filter((e) => !e.voided
-    && (!f.location || e.location === f.location)
-    && (!f.holder || e.userId === f.holder)
+    && (!f.people.length || f.people.includes(e.userId))
     && (!f.category || e.category === f.category));
   const q = f.search.trim().toLowerCase();
   const rows = base.filter((e) => (f.status === 'all' || e.status === f.status)
@@ -41,8 +44,23 @@ export function statusLine(e: Expense, categories: readonly Category[]) {
   return '';
 }
 
-/** Each cardholder once, A–Z, for the Filters panel. */
-export const holdersOf = (list: readonly Expense[]) =>
-  [...new Map(list.map((e) => [e.userId, e.holderName || e.cardLabel])).entries()]
-    .map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
-export const locationsOf = (list: readonly Expense[]) => [...new Set(list.map((e) => e.location).filter(Boolean))].sort();
+/**
+ * The People filter's list: each cardholder in the list once, under the branch
+ * they work at (the Visits People filter's headings). The list the server sent
+ * is already limited to the viewer's access (View all / View branch → their
+ * team), so only those people are offered. A person under two branches sits
+ * under one the viewer is assigned, else their first; someone the staff list
+ * doesn't know sits under the branch on their receipt.
+ */
+export function holderPeople(list: readonly Expense[], staff: readonly Loose[], viewer: Loose | null | undefined): PersonOption[] {
+  const mine = viewerLocations(viewer);
+  const byId = new Map(staff.map((p) => [String(p._id ?? p.id), p]));
+  const seen = new Map<string, Expense>();
+  for (const e of list) if (!seen.has(e.userId)) seen.set(e.userId, e);
+  return [...seen.entries()].map(([id, e]) => {
+    const person = byId.get(id);
+    const works = person ? workLocationsOf(person) : [];
+    const heading = (mine === ALL_PEOPLE ? works[0] : works.find((l) => mine.includes(l)) || works[0]) || e.location || '';
+    return { value: id, id, label: e.holderName || e.cardLabel, location: heading, locations: works, inactive: Boolean(person && person.isActive === false) };
+  }).sort((a, b) => a.label.localeCompare(b.label));
+}

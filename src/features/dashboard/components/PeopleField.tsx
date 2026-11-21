@@ -28,6 +28,10 @@ export type PeopleFieldProps = {
     onToggle: (id: string) => void;
     /** A branch heading's All / None: tick or untick everyone under it. */
     onBranch: (ids: string[], on: boolean) => void;
+    /** Other screens (Credit Card Receipts): the field's name, what [] is called, and no "Me" row. */
+    label?: string;
+    teamLabel?: string;
+    hideMe?: boolean;
 };
 
 /** Everything a panel needs to show the People field (built once by DashboardPage). */
@@ -40,7 +44,7 @@ export type PeopleFilter = PeopleFieldProps & {
     summary: string;
 };
 
-export default function PeopleField({ options, value, me, onChange, onToggle, onBranch }: PeopleFieldProps) {
+export default function PeopleField({ options, value, me, onChange, onToggle, onBranch, label = 'People', teamLabel = 'My team', hideMe = false }: PeopleFieldProps) {
     const id = useId();
     const isPhone = useIsPhone();
     const [open, setOpen] = useState(false);
@@ -61,7 +65,8 @@ export default function PeopleField({ options, value, me, onChange, onToggle, on
     const team = value.length === 0;
     const justMe = isJustMe(value, me);
     const typed = query.trim();
-    const summary = peopleSummary(value, me, (pid) => options.find((o) => o.value === pid)?.label, branchesOf(options));
+    const summary0 = peopleSummary(value, me, (pid) => options.find((o) => o.value === pid)?.label, branchesOf(options));
+    const summary = summary0 === 'My team' ? teamLabel : summary0;
 
     const close = (refocus = true) => {
         setOpen(false);
@@ -102,8 +107,8 @@ export default function PeopleField({ options, value, me, onChange, onToggle, on
                 />
             </div>
             <div className="fm-loc-list" role="group" aria-label="People">
-                {!typed && row('me', justMe, 'Me', () => onChange([me]))}
-                {!typed && row('team', team, 'My team', () => onChange([]))}
+                {!typed && !hideMe && row('me', justMe, 'Me', () => onChange([me]))}
+                {!typed && row('team', team, teamLabel, () => onChange([]))}
                 {groups.map((g) => (
                     <div key={g.group} className="fm-loc-list" role="group" aria-label={g.group}>
                         {(() => {
@@ -138,7 +143,7 @@ export default function PeopleField({ options, value, me, onChange, onToggle, on
 
     return (
         <div className="lf-group">
-            <label className="lf-group-label" htmlFor={id}>People</label>
+            <label className="lf-group-label" htmlFor={id}>{label}</label>
             <div
                 ref={wrapRef}
                 className="fm-pop fm-tokens fm-loc dp-people"
@@ -163,7 +168,7 @@ export default function PeopleField({ options, value, me, onChange, onToggle, on
                     <div ref={menuRef} className="fm-menu" data-placement={pos.placement} style={{ maxHeight: pos.maxHeight }}>{body}</div>
                 )}
                 {sheet && (
-                    <FormSheet open={open} title="People" onClose={() => close()}>
+                    <FormSheet open={open} title={label} onClose={() => close()}>
                         {body}
                     </FormSheet>
                 )}
