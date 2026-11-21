@@ -12,7 +12,10 @@ import type { Expense, Me, ReceiptsUser } from './types';
  * approval (any month). Answers for a month no longer on screen are ignored.
  */
 export function useCardReceipts(user: ReceiptsUser | null) {
-  const viewAll = can(user, CARD_RECEIPTS.VIEW_ALL);
+  const canAll = can(user, CARD_RECEIPTS.VIEW_ALL);
+  // View branch sees the caller's team (the server decides who); both read the list as scope 'all'.
+  const viewAll = canAll || can(user, CARD_RECEIPTS.VIEW_BRANCH);
+  const teamOnly = viewAll && !canAll;
   const approver = can(user, CARD_RECEIPTS.APPROVE);
   const [me, setMe] = useState<Me | null>(null);
   const [month, setMonth] = useState('');
@@ -58,7 +61,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   const place = (e: Expense) => {
     setExpenses((list) => {
       // Someone else's expense (approved from Waiting for me) joins the list only with View all.
-      const inMonth = monthOf(e.date) === month && (viewAll || e.mine);
+      const inMonth = monthOf(e.date) === month && (canAll || e.mine || list.some((x) => x.id === e.id));
       const without = list.filter((x) => x.id !== e.id);
       return inMonth ? [e, ...without].sort((a, b) => b.date.localeCompare(a.date)) : without;
     });
@@ -75,12 +78,12 @@ export function useCardReceipts(user: ReceiptsUser | null) {
     return r.expense;
   };
   const edit = async (id: string, body: ExpenseBody) => { const r = await api.editExpense(id, body); place(r.expense); return r.expense; };
-  const approve = async (id: string, comment: string) => { const r = await api.approveExpense(id, comment); place(r.expense); return r.expense; };
-  const sendBack = async (id: string, comment: string) => { const r = await api.sendBackExpense(id, comment); place(r.expense); return r.expense; };
+  const approve = async (id: string, comment: string, seen?: string) => { const r = await api.approveExpense(id, comment, seen); place(r.expense); return r.expense; };
+  const sendBack = async (id: string, comment: string, seen?: string) => { const r = await api.sendBackExpense(id, comment, seen); place(r.expense); return r.expense; };
   const voidOne = async (id: string, reason: string) => { const r = await api.voidExpense(id, reason); place(r.expense); return r.expense; };
 
   return {
-    me, month, setMonth, expenses, waiting, loading: loading || !me, error, viewAll, approver,
+    me, month, setMonth, expenses, waiting, loading: loading || !me, error, viewAll, teamOnly, approver,
     reload: () => { load(); loadWaiting(); }, add, edit, approve, sendBack, voidOne, upload: api.uploadReceipt, scan: api.scanReceipt
   };
 }

@@ -4,11 +4,18 @@ import type { Loose } from '../types/records.ts';
 // saving a receipt (draft → waiting, a repeat, the same receipt twice),
 // who sees what, approval by role (never your own, lost receipt needs a
 // comment), send back and fix, and void.
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import { MongoMemoryServer } from 'mongodb-memory-server';
+
+// Which expenses answer an Amex charge (the check itself is Postgres only; the rule is the route's).
+const matched = new Set<string>();
+vi.mock('../db/cardStatements/hooks.ts', async (orig) => ({
+  ...(await orig<typeof import('../db/cardStatements/hooks.ts')>()),
+  amexChargeOf: async (id: string) => (matched.has(id) ? { reference: 'R1' } : null)
+}));
 
 const { default: createCardReceiptsRouter } = await import('./cardReceipts.ts');
 const { CompanyCard, ReceiptCategory, CardExpense } = await import('../models/CardReceipts.ts');
@@ -229,6 +236,51 @@ describe('approval', () => {
     expect(back.body.expense).toMatchObject({ status: 'sent_back', sentBack: { comment: 'Was this the customer visit?' } });
     const fixed = await as(REP).put(`/expenses/${body.id}`, { ...body, note: 'Parking for the Bellevue showroom visit' }).expect(200);
     expect(fixed.body.expense.status).toBe('waiting');
+  });
+});
+
+describe('what a receipt link, a decision and a matched charge may do', () => {
+  it('takes only a file this app stored for a receipt', async () => {
+    for (const receiptUrl of ['https://evil.example/receipt.png', 'https://res.cloudinary.com/test/Visits/img_1.webp', 'javascript:alert(1)']) {
+      const res = await as(REP).post('/expenses', receipt({ receiptUrl })).expect(400);
+      expect(res.body.problems.receipt).toBeTruthy();
+    }
+    await as(REP).post('/expenses', receipt()).expect(201);
+  });
+
+  it('refuses an approval of a receipt that changed after the approver opened it', async () => {
+    const saved = (await as(REP).post('/expenses', receipt()).expect(201)).body.expense;
+    const stale = new Date(new Date(saved.updatedAt).getTime() - 5000).toISOString();
+    const res = await as(MANAGER).post(`/expenses/${saved.id}/approve`, { comment: '', expectedUpdatedAt: stale }).expect(409);
+    expect(res.body.changed).toBe(true);
+    await as(MANAGER).post(`/expenses/${saved.id}/approve`, { comment: '', expectedUpdatedAt: saved.updatedAt }).expect(200);
+  });
+
+  it('keeps Amex’s day and amount on an expense that answers a charge, and lets the rest change', async () => {
+    const saved = (await as(REP).post('/expenses', receipt()).expect(201)).body.expense;
+    matched.add(saved.id);
+    try {
+      const body = (over: Loose) => ({ date: saved.date, merchant: saved.merchant, total: '14.32', category: 'travel_lunch', receiptUrl: saved.receiptUrl, ...over });
+      await as(REP).put(`/expenses/${saved.id}`, body({ total: '20.00' })).expect(409);
+      await as(REP).put(`/expenses/${saved.id}`, body({ date: '2026-10-04' })).expect(409);
+      await as(REP).put(`/expenses/${saved.id}`, body({ note: 'client visit' })).expect(200);
+    } finally { matched.delete(saved.id); }
+  });
+});
+
+describe('view branch', () => {
+  it('shows the people who work at the caller’s branches, not everyone', async () => {
+    await User.collection.updateOne({ _id: new mongoose.Types.ObjectId(ids.rep) }, { $set: { location: 'Seattle', assignedLocations: ['Seattle'] } });
+    await User.collection.updateOne({ _id: new mongoose.Types.ObjectId(ids.director) }, { $set: { location: 'Seattle', assignedLocations: ['Seattle'] } });
+    await User.collection.updateOne({ _id: new mongoose.Types.ObjectId(ids.manager) }, { $set: { location: 'Kent', assignedLocations: ['Kent'] } });
+    await as(REP).post('/expenses', receipt()).expect(201);
+    await as(MANAGER).post('/expenses', receipt({ merchant: 'Shell' })).expect(201);
+    const branch = { id: ids.director, role: 'director', permissions: ['view_branch_card_receipts'], assignedLocations: ['Seattle'] };
+    const res = await as(branch).get('/expenses?scope=all&month=2026-10').expect(200);
+    expect(res.body.expenses.map((e: Loose) => e.holderName)).toEqual(['Maruthi Ponugupati']);
+    await as({ ...branch, permissions: [] }).get('/expenses?scope=all&month=2026-10').expect(403);
+    const all = await as({ ...branch, permissions: ['view_all_card_receipts'] }).get('/expenses?scope=all&month=2026-10').expect(200);
+    expect(all.body.expenses).toHaveLength(2);
   });
 });
 

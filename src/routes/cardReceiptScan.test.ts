@@ -51,7 +51,7 @@ describe('POST /api/card-receipts/scan', () => {
   });
 
   it('never reads a URL the app did not store', async () => {
-    for (const url of ['https://evil.example.com/r.jpg', 'https://other.cloudfront.net/r.jpg', '', 42]) {
+    for (const url of ['https://evil.example.com/r.jpg', 'https://other.cloudfront.net/r.jpg', `${CDN}/Visits/visit.jpg`, `${CDN}/team-files/contract.pdf`, '', 42]) {
       const res = await request(appWith(fakeScanner({ ok: true, scan: READ, usage: { input: 1, output: 1 }, model: 'test' })))
         .post('/api/card-receipts/scan').send({ url });
       expect(res.status).toBe(400);

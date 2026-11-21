@@ -5,11 +5,15 @@ import mongoose from 'mongoose';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import * as db from '../db/cardReceipts/index.ts';
 import { newId } from '../db/ids.ts';
+import rateLimit from 'express-rate-limit';
+import { isFilesCdnUrl, isCloudinaryUrl } from '../utils/fileUrls.ts';
+import { teamOfRequest } from '../services/teamDirectory.ts';
+import { ALL_PEOPLE } from '../utils/teamScope.ts';
 import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup } from '../db/cardStatements/hooks.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, holderMayEdit, changeSummary, possibleRepeat, canApprove, approvalStep, isBigReceipt, isBigReceiptApprover, BIG_RECEIPT_CENTS, cleanApproverRoles, decisionProblem,
-  isMonth, monthOf, type CleanExpense
+  isMonth, monthOf, matchedChangeProblem, isReceiptFolderUrl, type CleanExpense
 } from '../utils/cardReceipts.ts';
 import type { Loose } from '../types/records.ts';
 
@@ -26,7 +30,7 @@ import type { Loose } from '../types/records.ts';
  *   GET    /cards                    cards and the people who can hold one (manage_company_cards, or view all)
  *   POST   /cards, PUT /cards/:id    (manage_company_cards) one active card per person
  *   POST   /attachments              { data } a photo or PDF → { url }, the moment it's picked
- *   GET    /expenses?scope=&month=   mine (default) · all (view all) · waiting (what the caller may approve, any month)
+ *   GET    /expenses?scope=&month=   mine (default) · all (view all, or view branch: the caller's team) · waiting (what the caller may approve, any month)
  *   POST   /expenses                 add, with the screen's own `id` (a repeat answers alreadySaved);
  *                                    the same day + total already saved answers 409 `repeat` unless `confirmRepeat`
  *   PUT    /expenses/:id             the cardholder, until it's approved
@@ -45,6 +49,12 @@ const has = (req: Request, perm: string) => (userOf(req).permissions || []).incl
 const homeOf = (u: { location?: string | null; assignedLocations?: string[] | null }) =>
   u.location || (u.assignedLocations || []).find((l) => l && l !== '*') || '';
 const todayOf = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
+
+/** The receipt link must be a file this app stored for a receipt; one already on the expense may stay. */
+const receiptLinkProblem = (url: string, current = '') =>
+  !url || url === current || (isReceiptFolderUrl(url) && (isFilesCdnUrl(url) || isCloudinaryUrl(url) || /^\/uploads\//.test(url)))
+    ? '' : 'Upload the receipt again';
+const MAX_UPLOAD_CHARS = 14_000_000; // about a 10 MB file as base64
 
 const anyOf = (...perms: readonly string[]) => (req: Request, res: Response, next: NextFunction) =>
   (perms.some((p) => has(req, p)) ? next() : res.status(403).json({ message: 'Access denied.' }));
@@ -103,6 +113,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
 }) {
   const router = express.Router();
   const opener = [authenticate, anyOf(...PAGE_PERMISSIONS)];
+  const uploader = (req: Request) => userIdOf(req) || 'anonymous';
+  const uploadLimit = rateLimit({ windowMs: 10 * 60 * 1000, limit: 40, keyGenerator: uploader, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Too many uploads. Wait a few minutes.' } });
   const actor = (req: Request) => nameOf(userOf(req));
   const actorOf = (req: Request) => ({ id: userIdOf(req), name: actor(req) });
 
@@ -288,8 +300,9 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
 
   // ── Receipts ──────────────────────────────────────────────────────────────
 
-  router.post('/attachments', authenticate, anyOf(CARD_RECEIPTS.USE), async (req: Request, res: Response) => {
+  router.post('/attachments', authenticate, anyOf(CARD_RECEIPTS.USE), uploadLimit, async (req: Request, res: Response) => {
     const data = req.body?.data;
+    if (typeof data === 'string' && data.length > MAX_UPLOAD_CHARS) return res.status(413).json({ message: 'That file is too large. Use a photo under 10 MB.' });
     if (typeof data !== 'string' || !/^data:(image\/|application\/pdf)/.test(data)) {
       return res.status(400).json({ message: 'Send a photo or a PDF of the receipt.' });
     }
@@ -317,8 +330,15 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       } else {
         if (!isMonth(month)) return res.status(400).json({ message: 'Provide a month as YYYY-MM.' });
         if (scope === 'all') {
-          if (!has(req, CARD_RECEIPTS.VIEW_ALL)) return res.status(403).json({ message: 'You can see your own expenses only.' });
-          filter = { kind: 'month', month };
+          if (has(req, CARD_RECEIPTS.VIEW_ALL)) {
+            filter = { kind: 'month', month };
+          } else if (has(req, CARD_RECEIPTS.VIEW_BRANCH)) {
+            // Everyone on the caller's team, by where the person works (the Visits rule, teamScope.ts).
+            const team = await teamOfRequest(req);
+            filter = team === ALL_PEOPLE ? { kind: 'month', month } : { kind: 'month', month, userIds: [...team] };
+          } else {
+            return res.status(403).json({ message: 'You can see your own expenses only.' });
+          }
         } else {
           filter = { kind: 'month', month, userId: me };
         }
@@ -352,6 +372,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const shown = categories.filter((c) => c.active);
       const { value, problems, missing } = cleanExpense(body, { today: todayOf(), categories: shown });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
+      const linkProblem = receiptLinkProblem(value.receiptUrl);
+      if (linkProblem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: linkProblem } });
       if (body.confirmRepeat !== true) {
         // A Missing receipt row (an Amex charge with no upload yet) isn't a repeat: this upload takes its place.
         const same = (await db.sameDayAmount(me, value.date, value.cents)).filter((e) => e.status !== 'missing');
@@ -403,6 +425,12 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const allowed = categories.filter((c) => c.active || c.name === expense.category);
       const { value, problems, missing } = cleanExpense(req.body || {}, { today: todayOf(), categories: allowed, currentSubcategory: expense.subcategory || '' });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
+      const linkProblem = receiptLinkProblem(value.receiptUrl, expense.receiptUrl || '');
+      if (linkProblem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: linkProblem } });
+      // Matched to an Amex charge: Amex's day and amount stand.
+      if ((value.date !== expense.date || value.cents !== expense.cents) && await amexChargeOf(id)) {
+        return res.status(409).json({ message: matchedChangeProblem({ date: expense.date, cents: expense.cents }, value), problems: { total: 'Matched to Amex' } });
+      }
       const changes = changeSummary(cleanOf(expense), value);
       const status = statusAfterSave(Object.keys(missing).length === 0, expense.status);
       if (!changes.length && status === expense.status) return res.json({ expense: expenseView(expense, { id: me, approvable: new Set() }), unchanged: true });
@@ -427,6 +455,11 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     try {
       const expense = await db.findExpense(id);
       if (!expense) return res.status(404).json({ message: 'Expense not found.' });
+      // The approver decides on what they saw: if the cardholder changed it since, they look again.
+      const seen = req.body?.expectedUpdatedAt;
+      if (seen != null && new Date(String(seen)).getTime() !== new Date(expense.updatedAt as string).getTime()) {
+        return res.status(409).json({ message: 'This receipt changed after you opened it. Look at it again, then decide.', changed: true });
+      }
       const holder = await staffData.userById(expense.userId, { select: 'role' });
       const approver = { id: userIdOf(req), role: userOf(req).role, permissions: userOf(req).permissions || [] };
       if (!canApprove({ approver, approverRoles: await approverRolesOf(req), holder: holder ? { id: expense.userId, role: holder.role } : null, cents: expense.cents, step1By: expense.approval?.by })) {

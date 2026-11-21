@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import express from 'express';
 import * as db from '../db/cardReceipts/index.ts';
-import { CARD_RECEIPTS } from '../utils/cardReceipts.ts';
+import { CARD_RECEIPTS, isReceiptFolderUrl } from '../utils/cardReceipts.ts';
+import rateLimit from 'express-rate-limit';
 import { isCloudinaryUrl, isFilesCdnUrl } from '../utils/fileUrls.ts';
 import { isPdfSource } from '../utils/attachments.ts';
 import type { ReceiptScanner } from '../services/receiptScan.ts';
@@ -28,10 +29,15 @@ export default function createCardReceiptScanRouter({ authenticate, scanner }: {
   const canUse = (req: Request, res: Response, next: NextFunction) =>
     (has(req, CARD_RECEIPTS.USE) ? next() : res.status(403).json({ message: 'Access denied.' }));
 
-  router.post('/scan', authenticate, canUse, async (req: Request, res: Response) => {
+  // Each read costs money: a person gets a burst and a day's worth, not an open tap.
+  const perPerson = (req: Request) => String((req as Request & { user?: { id?: string; _id?: string } }).user?.id || (req as Request & { user?: { _id?: string } }).user?._id || 'anonymous');
+  const burst = rateLimit({ windowMs: 10 * 60 * 1000, limit: 20, keyGenerator: perPerson, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Too many receipts at once. Wait a few minutes.' } });
+  const daily = rateLimit({ windowMs: 24 * 60 * 60 * 1000, limit: 100, keyGenerator: perPerson, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Today’s reading limit is reached. Type the details instead.' } });
+
+  router.post('/scan', authenticate, canUse, burst, daily, async (req: Request, res: Response) => {
     if (!scanner) return res.status(503).json({ message: 'Reading receipts isn’t set up.' });
     const url = req.body?.url;
-    if (typeof url !== 'string' || !(isFilesCdnUrl(url) || isCloudinaryUrl(url))) {
+    if (typeof url !== 'string' || !(isFilesCdnUrl(url) || isCloudinaryUrl(url)) || !isReceiptFolderUrl(url)) {
       return res.status(400).json({ message: 'Upload the receipt first.' });
     }
     try {

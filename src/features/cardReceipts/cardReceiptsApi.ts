@@ -37,8 +37,9 @@ export const listExpenses = (scope: 'mine' | 'all' | 'waiting', month: string) =
   call<{ expenses: Expense[] }>('/expenses', { query: scope === 'waiting' ? { scope } : { scope, month } });
 export const addExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense; alreadySaved?: boolean; replacedMissing?: string }>('/expenses', { method: 'POST', body: { id, ...body } });
 export const editExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense }>(`/expenses/${id}`, { method: 'PUT', body });
-export const approveExpense = (id: string, comment: string) => call<{ expense: Expense }>(`/expenses/${id}/approve`, { method: 'POST', body: { comment } });
-export const sendBackExpense = (id: string, comment: string) => call<{ expense: Expense }>(`/expenses/${id}/send-back`, { method: 'POST', body: { comment } });
+/** `seen`: the updatedAt the approver was looking at; the server refuses the decision if the receipt changed since. */
+export const approveExpense = (id: string, comment: string, seen?: string) => call<{ expense: Expense }>(`/expenses/${id}/approve`, { method: 'POST', body: { comment, expectedUpdatedAt: seen } });
+export const sendBackExpense = (id: string, comment: string, seen?: string) => call<{ expense: Expense }>(`/expenses/${id}/send-back`, { method: 'POST', body: { comment, expectedUpdatedAt: seen } });
 export const voidExpense = (id: string, reason: string) => call<{ expense: Expense }>(`/expenses/${id}/void`, { method: 'POST', body: { reason } });
 export const uploadReceipt = (data: string) => call<{ url: string }>('/attachments', { method: 'POST', body: { data } });
 /** What Claude read off an uploaded receipt (src/routes/cardReceiptScan.ts). Throws (status 503) when reading isn't set up. */

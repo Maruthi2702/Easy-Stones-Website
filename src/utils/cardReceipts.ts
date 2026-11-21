@@ -23,6 +23,8 @@ export const CARD_RECEIPTS = Object.freeze({
   /** Upload your own receipts and see your own expenses. */
   USE: 'use_card_receipts',
   VIEW_ALL: 'view_all_card_receipts',
+  /** Everyone on the caller's team, by the rep's branch (src/utils/teamScope.ts), like Visits → View branch. */
+  VIEW_BRANCH: 'view_branch_card_receipts',
   APPROVE: 'approve_card_receipts',
   EXPORT: 'export_card_receipts',
   MANAGE_CARDS: 'manage_company_cards',
@@ -39,7 +41,7 @@ export const CATEGORY_PERMISSIONS = Object.freeze([
 ]);
 /** What opens the Credit Card Receipts page. */
 export const PAGE_PERMISSIONS = Object.freeze([
-  CARD_RECEIPTS.USE, CARD_RECEIPTS.VIEW_ALL, CARD_RECEIPTS.APPROVE, CARD_RECEIPTS.MANAGE_CARDS, CARD_RECEIPTS.STATEMENTS
+  CARD_RECEIPTS.USE, CARD_RECEIPTS.VIEW_ALL, CARD_RECEIPTS.VIEW_BRANCH, CARD_RECEIPTS.APPROVE, CARD_RECEIPTS.MANAGE_CARDS, CARD_RECEIPTS.STATEMENTS
 ]);
 
 type PermUser = { permissions?: readonly string[] | null } | null | undefined;
@@ -337,6 +339,18 @@ export const statusAfterSave = (complete: boolean, before?: string): StatusKey =
   if (complete) return 'waiting';
   return before === 'sent_back' ? 'sent_back' : 'draft';
 };
+
+/**
+ * An expense that answers an Amex charge keeps Amex's day and amount (owner, 2026-11-20): what the
+ * holder may still change is the category, customer, attendees, purpose, note and receipt.
+ */
+export const matchedChangeProblem = (before: { date: string; cents: number }, after: { date: string; cents: number }) =>
+  before.date !== after.date || before.cents !== after.cents
+    ? 'This is matched to a charge on the Amex statement, so its date and total can’t be changed.'
+    : '';
+
+/** A receipt's own file: stored by this app in the CardReceipts folder (never any other link or file). */
+export const isReceiptFolderUrl = (url: unknown): boolean => typeof url === 'string' && /\/CardReceipts\/[^/?#]+$/.test(url.split('?')[0] || '');
 
 /** The card holder may change it while it isn't approved or voided. */
 export const holderMayEdit = (e: { status: string; voided?: unknown }) => !e.voided && e.status !== 'approved';

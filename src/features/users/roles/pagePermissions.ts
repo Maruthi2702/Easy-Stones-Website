@@ -382,6 +382,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
         description: 'Company-card receipts: uploaded when paid, approved by someone above, exported for accounting', color: '#d4af37',
         actions: [
             { key: CARD_RECEIPTS.USE, label: 'My receipts', icon: Camera, desc: 'Upload receipts for their own company card and see their own expenses' },
+            { key: CARD_RECEIPTS.VIEW_BRANCH, label: 'View branch', icon: Eye, desc: 'See the expenses and receipts of everyone who works at their branches, by where the person works (like Visits → View branch)' },
             { key: CARD_RECEIPTS.VIEW_ALL, label: 'View all', icon: Eye, desc: 'See every cardholder’s expenses and receipts' },
             { key: CARD_RECEIPTS.APPROVE, label: 'Approve', icon: CheckCheck, desc: 'Approve or send back the receipts of the roles this role approves (set below the cards), never their own' },
             { key: CARD_RECEIPTS.EXPORT, label: 'Export', icon: Download, desc: 'Download the expenses they can see to Excel' },

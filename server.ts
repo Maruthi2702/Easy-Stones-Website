@@ -3,6 +3,7 @@ import { scalarQuery, scalarParams, validateScalarRequest } from './src/server/s
 import type { Loose } from './src/types/records.ts';
 import type { Response, Request, NextFunction } from 'express';
 import dotenv from 'dotenv';
+import { randomBytes } from 'node:crypto';
 // RUNTIME=lambda: src/lambda/handler.ts runs this app on AWS Lambda — MongoDB
 // only; Render keeps Socket.IO, the timers and the start-up seeds
 // (src/lambda/README.md). Its settings come from Secrets Manager, never a .env.
@@ -358,7 +359,7 @@ const processBase64Pdf = async (dataUrl: string, subDir: string) => {
   if (!store) return dataUrl;
   try {
     const buffer = Buffer.from(dataUrl.split(';base64,').pop()!, 'base64');
-    const name = `pdf_${Date.now()}_${Math.round(Math.random() * 1E9)}.pdf`;
+    const name = `pdf_${Date.now()}_${randomBytes(12).toString('hex')}.pdf`;
     const stored = await store.put(buffer, { key: `${subDir}/${name}`, kind: 'raw' });
     return stored.url;
   } catch (err) {
@@ -389,7 +390,7 @@ const processBase64Image = async (base64String: string, subDir: string = 'Visits
     // Upload to the file store if configured (persistent — survives Render restarts)
     const store = getFileStore();
     if (store) {
-      const uniqueSuffix = `${Date.now()}_${Math.round(Math.random() * 1E9)}`;
+      const uniqueSuffix = `${Date.now()}_${randomBytes(12).toString('hex')}`; // unguessable: the CDN link is the only gate
       const stored = await store.put(optimizedBuffer, { key: `${subDir}/img_${uniqueSuffix}`, kind: 'image' });
       return stored.url;
     }

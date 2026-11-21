@@ -1345,6 +1345,17 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   (`src/utils/receiptFile.ts`, tested) turns away anything but a photo / PDF ≤10 MB in the window and in the form. On a phone
   the choice is the form template's full-screen sheet, not the canvas's bottom sheet. Not built: the canvas's step list while
   reading. **Never tried on a real iPhone** (camera permission text is in Info.plist; test the shutter there).
+- **Review of 2026-11-20 (on `main`, owner's calls):** the **$150 second step stays a fixed limit** (no per-role
+  dollar limit yet; `BIG_RECEIPT_APPROVER_ROLES`). **View branch** (`view_branch_card_receipts`, Users & Roles →
+  Credit Card Receipts) shows the expenses of the caller's **team by where the person works** — the Visits rule, `teamOfRequest`
+  (`GET /expenses?scope=all`); View all still wins; the Cards tab stays View all / Manage cards only. An expense that
+  answers an Amex charge keeps Amex's **date and total** (`matchedChangeProblem`; the rest is still editable). The
+  receipt link must be a file this app stored in the `CardReceipts/` folder (`isReceiptFolderUrl`, both on save and in
+  `/scan`, which no longer reads any other CDN file); new file keys are random (`randomBytes`, not `Math.random`);
+  `/attachments` has a 10 MB cap and 40 per 10 minutes per person, `/scan` 20 per 10 minutes and 100 a day (in memory,
+  per instance); Approve / Send back send `expectedUpdatedAt` and answer 409 `changed` if the cardholder edited it since.
+  **Not done:** receipts are still public CDN links (private files with signed links is the next step), and the
+  Cardholder filter, not the dashboard's People field, narrows the list.
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
   sample statement), the daily reminder email, closing a month, the PDF export.

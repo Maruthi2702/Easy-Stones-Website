@@ -153,7 +153,8 @@ export async function listExpenses(db: Db, filter: ExpenseFilter): Promise<Loose
   if (filter.kind === 'waiting' && !filter.userIds.length && filter.overCents == null) return [];
   const where = filter.kind === 'waiting'
     ? and(eq(cardExpenses.status, 'waiting'), isNull(cardExpenses.voidedAt), or(filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : undefined, filter.overCents != null ? gt(cardExpenses.cents, filter.overCents) : undefined))
-    : and(eq(cardExpenses.month, filter.month), filter.userId ? eq(cardExpenses.userId, lower(filter.userId)) : undefined);
+    : and(eq(cardExpenses.month, filter.month), filter.userId ? eq(cardExpenses.userId, lower(filter.userId)) : undefined,
+      filter.userIds ? (filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : sql`false`) : undefined);
   const rows = await selectExpenses(db).where(where).orderBy(desc(cardExpenses.day), desc(cardExpenses.createdAt), desc(cardExpenses.id)).limit(5000);
   return withHistory(db, rows);
 }

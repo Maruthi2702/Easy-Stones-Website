@@ -10,4 +10,5 @@ export interface ExpenseHistoryEntry {
 export type ExpenseFilter =
   /** `overCents`: also every waiting receipt above that total, whoever's it is (for the roles that decide big ones). */
   | { kind: 'waiting'; userIds: readonly string[]; overCents?: number }
-  | { kind: 'month'; month: string; userId?: string };
+  /** `userIds`: only these people's (a team); an empty list matches nobody. */
+  | { kind: 'month'; month: string; userId?: string; userIds?: readonly string[] };
