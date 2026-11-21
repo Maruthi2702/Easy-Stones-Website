@@ -230,20 +230,21 @@ describe('approving a month from before the check started', () => {
     expect(await approveMonthWithoutReceipts('2026-10', by, {}, db)).toMatchObject({ toAdd: 0, added: 0 });
   });
 
-  it('a card with no holder yet links its charges but asks no one for a receipt, until a login is assigned', async () => {
+  it('a card with no holder yet shows its charges as Missing receipt but asks no one, until a login is assigned', async () => {
     const orphan = hex(300);
     await db.insert(companyCards).values({ id: orphan, userId: null, label: 'THIV95555', lastDigits: '95555' });
     const before = (await placeholders()).length;
     const rows = [line('11/12/2026', 'FUEL STOP', 40, 'ref-orphan', '-95555', 'THIVIKRAM VALLURU')];
     const res = await post('import', rows);
     expect(res.status).toBe(200);
-    expect(res.body.counts).toMatchObject({ unassigned: { count: 1, cents: 4000 }, missing: { count: 0 }, no_card: { count: 0 } });
+    expect(res.body.counts).toMatchObject({ missing: { count: 1, cents: 4000 }, no_card: { count: 0 } });
     expect(res.body.unknownCards).toEqual([]);
     expect(await placeholders()).toHaveLength(before);
     const [l] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-orphan'));
     expect(l).toMatchObject({ cardId: orphan, expenseId: null });
     const view = await request(app).get('/api/card-receipts/statements?month=2026-11');
-    expect(view.body.lines.find((x: { reference: string }) => x.reference === 'ref-orphan')).toMatchObject({ status: 'unassigned', cardLabel: 'THIV95555', holderName: '' });
+    expect(view.body.lines.find((x: { reference: string }) => x.reference === 'ref-orphan')).toMatchObject({ status: 'missing', cardLabel: 'THIV95555', holderName: '' });
+    expect(view.body.missingNow).toMatchObject({ count: 1, cents: 4000 });
 
     // Assigning the card to a login (Cards → Edit) asks that person for the receipt.
     who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };

@@ -119,7 +119,7 @@ export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: Upload
             ) : null}
             <li><span className="ccr-dot is-draft" aria-hidden="true" /><b>{c.no_receipt.count.toLocaleString()}</b> need no receipt (payments, credits, refunds, interest, fees)</li>
             {c.unassigned?.count ? (
-              <li><span className="ccr-dot is-back" aria-hidden="true" /><b>{c.unassigned.count.toLocaleString()}</b> are on cards with no login yet: they wait until the card is assigned</li>
+              <li><span className="ccr-dot is-back" aria-hidden="true" /><b>{c.unassigned.count.toLocaleString()}</b> are on cards with no login yet: shown as Missing receipt until the card is assigned</li>
             ) : null}
             {c.no_card.count ? (
               <li><span className="ccr-dot is-back" aria-hidden="true" /><b>{c.no_card.count.toLocaleString()}</b> are on cards not set up yet</li>

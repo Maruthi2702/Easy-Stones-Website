@@ -320,8 +320,7 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: s
       kind, amexCategory: r.l.amexCategory, cityState: r.l.cityState, cardId: r.l.cardId, cardLabel: r.cardLabel ?? '',
       holderId: r.holderId ?? '', holderName: r.displayName || r.username || '',
       expenseId: r.l.expenseId, expenseStatus: r.expenseStatus ?? null,
-      status: lineStatus({ kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided),
-        unassigned: Boolean(r.l.cardId) && !r.holderId }, missingFrom)
+      status: lineStatus({ kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided) }, missingFrom)
     };
   });
 }
@@ -332,19 +331,23 @@ export async function statementView(month: string, { missingFrom = MISSING_FROM 
   const from = `${month}-01`;
   const [y, m] = month.split('-').map(Number);
   const to = new Date(Date.UTC(y!, m!, 1)).toISOString().slice(0, 10);
-  const [monthLines, noCard, missingNow, uploads] = await Promise.all([
+  const [monthLines, noCard, missingNow, missingUnheld, uploads] = await Promise.all([
     linesWhere(d, and(gte(lines.day, from), lt(lines.day, to)), missingFrom),
     d.select({ digits: lines.digits, cardMember: lines.cardMember, cents: lines.cents, kind: lines.kind, date: lines.day, cardId: lines.cardId })
       .from(lines).where(isNull(lines.cardId)),
     d.select({ n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
       .innerJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
       .where(and(eq(cardExpenses.status, 'missing'), isNull(cardExpenses.voidedAt))),
+    // Charges on a card nobody holds yet have no Missing row to count, but they are still missing (shown as such).
+    d.select({ n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
+      .innerJoin(companyCards, eq(companyCards.id, lines.cardId))
+      .where(and(isNull(companyCards.userId), isNull(lines.expenseId), eq(lines.kind, 'charge'), gte(lines.day, missingFrom))),
     d.select().from(imports).orderBy(desc(imports.at)).limit(20)
   ]);
   return {
     lines: monthLines,
     unknownCards: unknownCards(noCard.map(l => ({ ...l, kind: l.kind as LineKind }))),
-    missingNow: { count: missingNow[0]?.n ?? 0, cents: Number(missingNow[0]?.cents ?? 0) },
+    missingNow: { count: (missingNow[0]?.n ?? 0) + (missingUnheld[0]?.n ?? 0), cents: Number(missingNow[0]?.cents ?? 0) + Number(missingUnheld[0]?.cents ?? 0) },
     imports: uploads.map(i => ({
       id: i.id, fileName: i.fileName, periodFrom: i.periodFrom, periodTo: i.periodTo, lines: i.lines, added: i.added,
       chargesCents: i.chargesCents, summary: i.summary, byName: i.byName, at: i.at

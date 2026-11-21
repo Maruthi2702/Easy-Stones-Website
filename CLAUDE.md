@@ -1365,7 +1365,7 @@ ignored (merchant e-receipts; staff don't use the Amex app). **A card may have n
 card-holder sheet exists before each holder has a login): `scripts/card-holders-setup.ts <sheet>
 [--unassigned] [--leave=ID,ID] [--apply]` (dry run by default; matches by email, never a mailbox shared
 by several holders, then name) — the sheet itself stays out of the repo, it's public. Charges on such a
-card link to it and show **Waiting for a login**; no Missing row is made (no one to ask) until Cards →
+card link to it and show **Missing receipt** (owner, 2026-11-20: the card is enough to identify the charge; counted in the still-missing total); the openable Missing row is made only once Cards →
 **Assign to a person** gives it a holder, which re-runs the check (`afterCardSaved`). Not built: the daily reminder email.
 
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
