@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli'
+import type { KeyboardResize } from '@capacitor/keyboard'
 
 // The iOS shell loads the live site (same origin as the API) instead of a
 // bundled copy: the staff and supplier sign-in cookies are first-party there,
@@ -24,7 +25,8 @@ const config: CapacitorConfig = {
   },
   plugins: {
     SplashScreen: { launchAutoHide: true, backgroundColor: '#000000' },
-    Keyboard: { resize: 'none' },
+    // The plugin types this as an enum; the native side reads the plain string.
+    Keyboard: { resize: 'none' as KeyboardResize },
   },
 }
 

@@ -625,6 +625,21 @@ body.light-theme-active .fm-tokens {
     .fm-dialog[data-keyboard="open"] .fm-footer { display: none; }
     /* With the keyboard up there's no home bar to clear under the sheet. */
     .fm-dialog[data-keyboard="open"] .fm-sheet { padding-bottom: 0; }
+
+    /* A picker sheet with a search box (or any text box) is a full-screen search page on a phone
+       (owner's call, 2026-11-21): the keyboard leaves the title, the box and the results the whole
+       space above it. Ends on the keyboard (--fm-kb, from FormModal; the iOS app's keyboard height
+       comes through NativeKeyboard). Plain choice lists keep the bottom sheet. */
+    .fm-sheet:has(input:not([type="checkbox"]):not([type="radio"])) {
+        top: var(--fm-vvtop, 0px);
+        max-height: none;
+        border-radius: 0;
+        box-shadow: none;
+        padding-top: env(safe-area-inset-top, 0px);
+        animation: fm-fade 0.15s ease;
+    }
+    .fm-sheet:has(input:not([type="checkbox"]):not([type="radio"])) .fm-sheet-head { padding-top: 14px; }
+    .fm-sheet:has(input:not([type="checkbox"]):not([type="radio"])) .fm-sheet-head::before { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

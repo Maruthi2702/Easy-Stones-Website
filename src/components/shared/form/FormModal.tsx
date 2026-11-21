@@ -197,8 +197,12 @@ export default function FormModal({
         const apply = () => {
             frame = 0;
             const zoomed = vv.scale > 1.01;
-            const kb = zoomed ? 0 : Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height));
-            dialog.style.setProperty('--fm-vvh', `${vv.height}px`);
+            const browserKb = zoomed ? 0 : Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height));
+            // The iOS app's web view doesn't resize for the keyboard, so the viewport above never shows it;
+            // NativeKeyboard reports its height (--native-kb) instead.
+            const nativeKb = parseInt(document.documentElement.style.getPropertyValue('--native-kb'), 10) || 0;
+            const kb = Math.max(browserKb, nativeKb);
+            dialog.style.setProperty('--fm-vvh', `${Math.max(0, vv.height - (browserKb ? 0 : nativeKb))}px`);
             dialog.style.setProperty('--fm-vvtop', `${vv.offsetTop}px`);
             dialog.style.setProperty('--fm-kb', `${kb}px`);
             dialog.dataset.keyboard = kb > 120 ? 'open' : 'closed';
@@ -207,7 +211,9 @@ export default function FormModal({
         apply();
         vv.addEventListener('resize', schedule, { passive: true });
         vv.addEventListener('scroll', schedule, { passive: true });
+        window.addEventListener('native-keyboard', schedule);
         return () => {
+            window.removeEventListener('native-keyboard', schedule);
             if (frame) cancelAnimationFrame(frame);
             vv.removeEventListener('resize', schedule);
             vv.removeEventListener('scroll', schedule);
