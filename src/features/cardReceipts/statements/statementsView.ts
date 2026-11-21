@@ -1,4 +1,4 @@
-import { statusCounts, type LineStatus } from '../../../utils/amexStatement';
+import { statusCounts, type Issuer, type LineStatus } from '../../../utils/amexStatement';
 import type { StaffPerson, StatementLine } from './statementsApi';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -15,20 +15,20 @@ export function periodLabel(from: string | null | undefined, to: string | null |
 /** What the tiles count (`base`, the search applied) and what's listed (`rows`, the tile too). */
 export function visibleLines(lines: readonly StatementLine[], { search, status }: { search: string; status: LineStatus | 'all' }) {
   const q = search.trim().toLowerCase();
-  const base = q ? lines.filter((l) => [l.description, l.cardMember, l.holderName, l.cardLabel, l.digits, l.reference, l.cityState]
+  const base = q ? lines.filter((l) => [l.description, l.cardMember, l.holderName, l.cardLabel, l.digits, l.reference, l.cityState, l.issuer]
     .some((v) => String(v || '').toLowerCase().includes(q))) : [...lines];
   const rows = status === 'all' ? base : base.filter((l) => l.status === status);
   return { base, rows, counts: statusCounts(base) };
 }
 
 /**
- * Who a new card can go to: active staff with no card yet (one card per person), A–Z, after
- * "Leave it for now".
+ * Who a new card can go to: active staff with no card at that bank yet (one card per person per bank),
+ * A–Z, after "Leave it for now".
  */
-export const personOptions = (people: readonly StaffPerson[]) => [
+export const personOptions = (people: readonly StaffPerson[], issuer: Issuer = 'amex') => [
   { value: '', label: 'Leave it for now', description: 'Its charges wait under Cards not set up', keywords: '' },
   ...people
     .filter((p) => p.active)
-    .map((p) => ({ value: p.id, label: p.name, description: p.card ? `Has card ${p.card}: it is replaced` : [p.role.replace(/_/g, ' '), p.location].filter(Boolean).join(' · '), keywords: `${p.name} ${p.location}` }))
+    .map((p) => ({ value: p.id, label: p.name, description: (issuer === 'encore' ? p.encoreCard : p.card) ? `Has card ${issuer === 'encore' ? p.encoreCard : p.card}: it is replaced` : [p.role.replace(/_/g, ' '), p.location].filter(Boolean).join(' · '), keywords: `${p.name} ${p.location}` }))
     .sort((a, b) => a.label.localeCompare(b.label))
 ];

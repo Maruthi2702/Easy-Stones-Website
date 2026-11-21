@@ -209,15 +209,22 @@ export function statusCounts(list: readonly { status: LineStatus; cents: number 
 
 // ── Cards ───────────────────────────────────────────────────────────────────
 
-type CardLike = { id: string; lastDigits: string; active: boolean };
+/** The banks whose statements are checked. Encore joined Amex on 2026-11-21 (src/utils/encoreStatement.ts). */
+export type Issuer = 'amex' | 'encore';
+export const issuerLabel = (issuer: string) => (issuer === 'encore' ? 'Encore' : 'Amex');
+
+type CardLike = { id: string; lastDigits: string; active: boolean; issuer?: string };
 
 /**
  * The card a line's digits name: an exact 5-digit card first, else one saved
  * with its last 4; an active card before a deactivated one. Two that fit
- * equally → none (someone must sort the cards out).
+ * equally → none (someone must sort the cards out). An Encore line only fits
+ * an Encore card (last 4 digits), and an Amex line never fits one — the same
+ * four digits on two banks are two different cards.
  */
-export function cardForDigits<C extends CardLike>(cards: readonly C[], digits: string): C | null {
-  const fits = (c: C) => c.lastDigits.length >= 4 && digits.endsWith(c.lastDigits);
+export function cardForDigits<C extends CardLike>(cards: readonly C[], digits: string, issuer: Issuer = 'amex'): C | null {
+  const sameBank = (c: C) => (issuer === 'encore' ? c.issuer === 'encore' : c.issuer !== 'encore');
+  const fits = (c: C) => sameBank(c) && digits.length >= 4 && c.lastDigits.length >= 4 && digits.endsWith(c.lastDigits);
   const rank = (c: C) => (c.lastDigits.length === 5 ? 0 : 2) + (c.active ? 0 : 1);
   const found = cards.filter(fits).sort((a, b) => rank(a) - rank(b));
   if (!found.length) return null;
@@ -236,20 +243,22 @@ export function suggestHolder<P extends { id: string; name: string; active: bool
 }
 
 /** The unknown cards in a set of lines that have a charge: one row per digits, the name Amex prints most, its charges. */
-export function unknownCards(lines: readonly { digits: string; cardMember: string; cents: number; kind: LineKind; date: string; cardId: string | null }[]) {
-  const by = new Map<string, { digits: string; names: Map<string, number>; charges: number; cents: number; first: string; last: string }>();
+export function unknownCards(lines: readonly { digits: string; cardMember: string; cents: number; kind: LineKind; date: string; cardId: string | null; issuer?: string }[]) {
+  const by = new Map<string, { issuer: Issuer; digits: string; names: Map<string, number>; charges: number; cents: number; first: string; last: string }>();
   for (const l of lines) {
     if (l.cardId) continue;
-    const row = by.get(l.digits) || { digits: l.digits, names: new Map(), charges: 0, cents: 0, first: l.date, last: l.date };
+    const issuer: Issuer = l.issuer === 'encore' ? 'encore' : 'amex';
+    const key = `${issuer}:${l.digits}`;
+    const row = by.get(key) || { issuer, digits: l.digits, names: new Map(), charges: 0, cents: 0, first: l.date, last: l.date };
     row.names.set(l.cardMember, (row.names.get(l.cardMember) || 0) + 1);
     if (l.kind === 'charge') { row.charges += 1; row.cents += l.cents; }
     if (l.date < row.first) row.first = l.date;
     if (l.date > row.last) row.last = l.date;
-    by.set(l.digits, row);
+    by.set(key, row);
   }
   // A card with only payments, credits or fees on it needs nobody's receipt, so nobody needs to set it up.
   return [...by.values()].filter((r) => r.charges > 0).map((r) => ({
-    digits: r.digits, cardMember: [...r.names.entries()].sort((a, b) => b[1] - a[1])[0]![0], charges: r.charges, cents: r.cents, first: r.first, last: r.last
+    issuer: r.issuer, digits: r.digits, cardMember: [...r.names.entries()].sort((a, b) => b[1] - a[1])[0]![0], charges: r.charges, cents: r.cents, first: r.first, last: r.last
   })).sort((a, b) => a.cardMember.localeCompare(b.cardMember));
 }
 
@@ -309,4 +318,4 @@ export function planMatches({ lines, expenses, missingFrom = MISSING_FROM }: {
 }
 
 /** "AMAZON PRIME*UC99N4EAMZN.COM/BILL       WA" → one-spaced, at most 80 characters (an expense's merchant). */
-export const merchantOf = (description: string) => description.replace(/\s+/g, ' ').trim().slice(0, 80) || 'Amex charge';
+export const merchantOf = (description: string, bank = 'Amex') => description.replace(/\s+/g, ' ').trim().slice(0, 80) || `${bank} charge`;

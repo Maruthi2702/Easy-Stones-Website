@@ -32,9 +32,10 @@ export const companyCards = pgTable('company_cards', {
   updatedAt: moment('updated_at').notNull().defaultNow()
 }, t => [
   idFormat('company_cards'),
-  uniqueIndex('company_cards_active_user_key').on(t.userId).where(sql`active`),
+  // One active card per person **per bank** (2026-11-21: a person may hold an Amex and an Encore card).
+  uniqueIndex('company_cards_active_user_issuer_key').on(t.userId, t.issuer).where(sql`active`),
   uniqueIndex('company_cards_active_label_key').on(t.label).where(sql`active`),
-  oneOf('company_cards', 'issuer', ['amex', 'other'])
+  oneOf('company_cards', 'issuer', ['amex', 'encore', 'other'])
 ]);
 
 export const receiptCategories = pgTable('receipt_categories', {

@@ -12,7 +12,7 @@ import mongoose from 'mongoose';
 const companyCardSchema = new mongoose.Schema({
   userId: { type: String, required: true },
   label: { type: String, required: true },
-  issuer: { type: String, enum: ['amex', 'other'], default: 'amex' },
+  issuer: { type: String, enum: ['amex', 'encore', 'other'], default: 'amex' },
   lastDigits: { type: String, required: true },
   amexName: { type: String, default: '' },
   location: { type: String, default: '' },
@@ -20,7 +20,7 @@ const companyCardSchema = new mongoose.Schema({
   updatedBy: { type: String, default: '' }
 }, { timestamps: true });
 // One card per person: a person holds at most one active card, and a card ID names one card.
-companyCardSchema.index({ userId: 1 }, { unique: true, partialFilterExpression: { active: true } });
+companyCardSchema.index({ userId: 1, issuer: 1 }, { unique: true, partialFilterExpression: { active: true } });
 companyCardSchema.index({ label: 1 }, { unique: true, partialFilterExpression: { active: true } });
 
 const receiptCategorySchema = new mongoose.Schema({

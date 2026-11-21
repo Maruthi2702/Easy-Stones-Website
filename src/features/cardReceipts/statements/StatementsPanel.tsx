@@ -5,7 +5,7 @@ import { FormSearchPicker } from '../../../components/shared/form/FormControls';
 import Pagination from '../../../components/shared/Pagination';
 import { usePagination } from '../../../components/shared/paginationConfig';
 import { formatMoney, monthLabel, usDate } from '../../../utils/cardReceipts';
-import { LINE_STATUSES, lineStatusLabel, type LineStatus } from '../../../utils/amexStatement';
+import { LINE_STATUSES, lineStatusLabel, type Issuer, type LineStatus } from '../../../utils/amexStatement';
 import * as api from './statementsApi';
 import { periodLabel, personOptions, visibleLines } from './statementsView';
 import AmexUploadForm from './AmexUploadForm';
@@ -63,22 +63,22 @@ export default function StatementsPanel({ month, isPhone, onSaved }: { month: st
               : 'No receipts missing') : ''}
           </span>
         </div>
-        <button type="button" className="ccr-btn gold" onClick={() => setUploading(true)}><Upload size={16} aria-hidden="true" /> Upload Amex activity</button>
+        <button type="button" className="ccr-btn gold" onClick={() => setUploading(true)}><Upload size={16} aria-hidden="true" /> Upload statement</button>
       </div>
 
       {error ? <div className="ccr-note is-error" role="alert">{error}</div> : null}
 
       {view?.unknownCards.length ? (
-        <UnknownCards cards={view.unknownCards} people={view.people} onSetUp={async (digits, userId, replace) => {
-          const r = await api.setUpCard(digits, userId, replace);
+        <UnknownCards cards={view.unknownCards} people={view.people} onSetUp={async (digits, userId, replace, issuer) => {
+          const r = await api.setUpCard(digits, userId, replace, issuer);
           onSaved(r.check.created ? `Card set up · ${r.check.created} Missing receipt ${r.check.created === 1 ? 'row' : 'rows'} made` : 'Card set up');
           load();
         }} />
       ) : null}
 
       <div className="ccr-st-bar">
-        <h2>{monthLabel(month)} on Amex</h2>
-        <DashboardSearch value={search} onChange={setSearch} label="Search Amex lines" placeholder="Search merchant, cardholder, card"
+        <h2>{monthLabel(month)} · Amex and Encore</h2>
+        <DashboardSearch value={search} onChange={setSearch} label="Search card lines" placeholder="Search merchant, cardholder, card, bank"
           count={search ? `${base.length} of ${view?.lines.length || 0}` : null} />
       </div>
 
@@ -112,7 +112,7 @@ export default function StatementsPanel({ month, isPhone, onSaved }: { month: st
         {rows.length ? <Lines rows={paged} isPhone={isPhone} /> : (
           <div className="ccr-empty">
             {loading ? <span>Loading…</span> : base.length ? <><h3>Nothing matches</h3><span>Clear the search or the status.</span></>
-              : <><h3>No Amex lines for {monthLabel(month)}</h3><span>Upload Amex’s activity export to check it against the receipts.</span></>}
+              : <><h3>No card lines for {monthLabel(month)}</h3><span>Upload Amex’s activity export or Encore’s transactions export to check it against the receipts.</span></>}
           </div>
         )}
       </div>
@@ -151,7 +151,7 @@ export default function StatementsPanel({ month, isPhone, onSaved }: { month: st
 /** Each line: Amex's day, card, who holds it, what Amex printed, the amount and where it stands. */
 function Lines({ rows, isPhone }: { rows: StatementLine[]; isPhone: boolean }) {
   const who = (l: StatementLine) => l.holderName || l.cardMember;
-  const card = (l: StatementLine) => l.cardLabel || `…${l.digits}`;
+  const card = (l: StatementLine) => `${l.issuer === 'encore' ? 'Encore' : 'Amex'} · ${l.cardLabel || (l.digits ? `…${l.digits}` : 'no card')}`;
   if (isPhone) {
     return (
       <div className="ccr-cards">
@@ -170,7 +170,7 @@ function Lines({ rows, isPhone }: { rows: StatementLine[]; isPhone: boolean }) {
     <div className="ccr-table-wrap">
       <table className="ccr-table ccr-st-lines">
         <thead>
-          <tr><th>Date</th><th>Cardholder</th><th>As Amex prints it</th><th className="ccr-col-wide">Amex category</th><th className="ccr-num">Amount</th><th>Status</th></tr>
+          <tr><th>Date</th><th>Cardholder</th><th>As the bank prints it</th><th className="ccr-col-wide">Category</th><th className="ccr-num">Amount</th><th>Status</th></tr>
         </thead>
         <tbody>
           {rows.map((l) => (
@@ -191,11 +191,12 @@ function Lines({ rows, isPhone }: { rows: StatementLine[]; isPhone: boolean }) {
 
 /** Cards Amex named that nobody has set up: pick the holder, Set up card, and their charges are checked. */
 function UnknownCards({ cards, people, onSetUp }: {
-  cards: UnknownCard[]; people: StatementsView['people']; onSetUp: (digits: string, userId: string, replace: boolean) => Promise<void>;
+  cards: UnknownCard[]; people: StatementsView['people']; onSetUp: (digits: string, userId: string, replace: boolean, issuer: Issuer) => Promise<void>;
 }) {
   const [picks, setPicks] = useState<Record<string, string>>(() => Object.fromEntries(cards.map((c) => [c.digits, c.suggestedUserId])));
   const [busy, setBusy] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const encoreOptions = useMemo(() => personOptions(people, 'encore'), [people]);
   const options = useMemo(() => personOptions(people), [people]);
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name || '';
   return (
@@ -203,23 +204,24 @@ function UnknownCards({ cards, people, onSetUp }: {
       <h2 className="ccr-st-h"><CreditCard size={16} aria-hidden="true" /> Cards not set up · {cards.length}</h2>
       <div className="ccr-st-unknown">
         {cards.map((c) => (
-          <div key={c.digits} className="ccr-st-urow">
+          <div key={`${c.issuer}${c.digits}`} className="ccr-st-urow">
             <div className="ccr-who">
               <b>{c.cardMember}</b>
-              <span>…{c.digits} · {c.charges} {c.charges === 1 ? 'charge' : 'charges'}, {formatMoney(c.cents)} · {usDate(c.first)} to {usDate(c.last)}</span>
+              <span>{c.issuer === 'encore' ? 'Encore' : 'Amex'} …{c.digits} · {c.charges} {c.charges === 1 ? 'charge' : 'charges'}, {formatMoney(c.cents)} · {usDate(c.first)} to {usDate(c.last)}</span>
               {notes[c.digits] ? <span className="ccr-st-note" role="alert">{notes[c.digits]}</span> : null}
             </div>
             <div className="ccr-st-pick fm-tokens">
               <FormSearchPicker id={`ccr-st-u-${c.digits}`} value={picks[c.digits] || ''} selectedLabel={picks[c.digits] ? nameOf(picks[c.digits]!) : 'Choose the cardholder'}
-                onChange={(id) => setPicks((p) => ({ ...p, [c.digits]: id }))} options={options.slice(1)}
+                onChange={(id) => setPicks((p) => ({ ...p, [c.digits]: id }))} options={(c.issuer === 'encore' ? encoreOptions : options).slice(1)}
                 placeholder="Choose the cardholder" searchPlaceholder="Search people" sheetTitle={`Card …${c.digits}`} keepInForm />
             </div>
             <button type="button" className="ccr-btn" disabled={!picks[c.digits] || Boolean(busy)} onClick={async () => {
               setBusy(c.digits);
               setNotes(({ [c.digits]: _gone, ...rest }) => rest);
-              const had = people.find((p) => p.id === picks[c.digits])?.card;
+              const holder = people.find((p) => p.id === picks[c.digits]);
+              const had = c.issuer === 'encore' ? holder?.encoreCard : holder?.card;
               if (had && !window.confirm(`${nameOf(picks[c.digits]!)} already has card ${had}. Deactivate it and set up …${c.digits} instead?`)) { setBusy(''); return; }
-              try { await onSetUp(c.digits, picks[c.digits]!, Boolean(had)); } catch (e) { setNotes((n) => ({ ...n, [c.digits]: (e as Error).message })); } finally { setBusy(''); }
+              try { await onSetUp(c.digits, picks[c.digits]!, Boolean(had), c.issuer); } catch (e) { setNotes((n) => ({ ...n, [c.digits]: (e as Error).message })); } finally { setBusy(''); }
             }}>{busy === c.digits ? 'Setting up…' : 'Set up card'}</button>
           </div>
         ))}

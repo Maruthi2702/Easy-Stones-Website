@@ -47,3 +47,10 @@
   .ccr-st-bar h2 { width: 100%; }
 }
 
+
+/* Bank choice in the upload form (Amex | Encore), 2026-11-21. */
+.ccr-seg { display: inline-flex; border: 1px solid var(--ccr-line); border-radius: 10px; overflow: hidden; }
+.ccr-seg button { min-height: 40px; padding: 0 20px; border: 0; background: transparent; color: var(--ccr-text-2); font: inherit; cursor: pointer; }
+.ccr-seg button + button { border-left: 1px solid var(--ccr-line); }
+.ccr-seg button.is-on { background: var(--ccr-hover); color: var(--ccr-text); font-weight: 600; box-shadow: inset 0 -2px 0 var(--ccr-gold, #d9b45a); }
+.ccr-seg button:disabled { opacity: 0.6; cursor: default; }

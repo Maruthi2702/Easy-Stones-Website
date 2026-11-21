@@ -106,14 +106,17 @@ export async function findCard(db: Db, id: string): Promise<Loose | null> {
 }
 
 export async function activeCardOf(db: Db, userId: string): Promise<Loose | null> {
-  const [row] = await db.select().from(companyCards).where(and(eq(companyCards.userId, lower(userId)), eq(companyCards.active, true)));
+  // A person may hold one card per bank: the Amex card first, so a receipt uploaded with no choice behaves as before.
+  const [row] = await db.select().from(companyCards).where(and(eq(companyCards.userId, lower(userId)), eq(companyCards.active, true)))
+    .orderBy(asc(companyCards.issuer), asc(companyCards.createdAt), asc(companyCards.id));
   return row ? cardDoc(row) : null;
 }
 
-export async function activeCardClash(db: Db, userId: string, label: string, exceptId: string | null): Promise<Loose | null> {
+export async function activeCardClash(db: Db, userId: string, label: string, exceptId: string | null, issuer: string = 'amex'): Promise<Loose | null> {
+  // One active card per person per bank (2026-11-21), and an active card ID is never used twice.
   const [row] = await db.select().from(companyCards).where(and(
     eq(companyCards.active, true), exceptId ? ne(companyCards.id, lower(exceptId)) : undefined,
-    or(eq(companyCards.userId, lower(userId)), eq(companyCards.label, label))));
+    or(and(eq(companyCards.userId, lower(userId)), eq(companyCards.issuer, issuer)), eq(companyCards.label, label))));
   return row ? cardDoc(row) : null;
 }
 

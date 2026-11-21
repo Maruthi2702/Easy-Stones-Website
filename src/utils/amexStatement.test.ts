@@ -146,7 +146,7 @@ describe('cards', () => {
       { digits: '92069', cardMember: 'MARUTHI', cents: 500, kind: 'charge' as const, date: '2026-10-02', cardId: 'a' },
       { digits: '97001', cardMember: 'SREEKANTH MANAM', cents: -50000, kind: 'credit' as const, date: '2026-10-02', cardId: null }
     ];
-    expect(unknownCards(lines)).toEqual([{ digits: '93018', cardMember: 'THIVIKRAM  VALLURU', charges: 1, cents: 1000, first: '2026-10-01', last: '2026-10-05' }]);
+    expect(unknownCards(lines)).toEqual([{ issuer: 'amex', digits: '93018', cardMember: 'THIVIKRAM  VALLURU', charges: 1, cents: 1000, first: '2026-10-01', last: '2026-10-05' }]);
   });
 });
 

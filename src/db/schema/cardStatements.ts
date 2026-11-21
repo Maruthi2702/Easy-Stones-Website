@@ -13,14 +13,17 @@ import { sql } from 'drizzle-orm';
 import { moment, day, oneOf } from './columns.ts';
 
 export const CARD_STATEMENT_LINE_KINDS = ['charge', 'credit', 'fee'] as const;
+/** The banks whose statements are checked (2026-11-21: Encore beside Amex). A line's `issuer` is the bank of the file it came from. */
+export const CARD_STATEMENT_ISSUERS = ['amex', 'encore'] as const;
 
 export const cardStatementLines = pgTable('card_statement_lines', {
-  /** Amex's Reference. */
+  /** The bank's Reference. Amex's own; an Encore line's is `ENC-…` (its Reference is not unique, src/utils/encoreStatement.ts). */
   reference: text('reference').primaryKey(),
+  issuer: text('issuer').notNull().default('amex'),
   day: day('day').notNull(),
   description: text('description').notNull().default(''),
   cardMember: text('card_member').notNull().default(''),
-  /** The account's last 5 digits (Amex's "Account #" without its dash). */
+  /** The account's last 5 digits (Amex's "Account #" without its dash); Encore's last 4; '' for a payment with no card. */
   digits: text('digits').notNull(),
   /** Charges positive, credits and payments negative. */
   cents: integer('cents').notNull(),
@@ -46,12 +49,14 @@ export const cardStatementLines = pgTable('card_statement_lines', {
   index('card_statement_lines_digits_idx').on(t.digits),
   index('card_statement_lines_card_idx').on(t.cardId, t.day),
   uniqueIndex('card_statement_lines_expense_key').on(t.expenseId).where(sql`expense_id is not null`),
-  oneOf('card_statement_lines', 'kind', CARD_STATEMENT_LINE_KINDS)
+  oneOf('card_statement_lines', 'kind', CARD_STATEMENT_LINE_KINDS),
+  oneOf('card_statement_lines', 'issuer', CARD_STATEMENT_ISSUERS)
 ]);
 
 /** One row per upload: who, when, the file, and what it found. */
 export const cardStatementImports = pgTable('card_statement_imports', {
   id: text('id').primaryKey(),
+  issuer: text('issuer').notNull().default('amex'),
   fileName: text('file_name').notNull().default(''),
   periodFrom: day('period_from'),
   periodTo: day('period_to'),

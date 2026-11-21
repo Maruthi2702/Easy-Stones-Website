@@ -6,7 +6,7 @@ export type ReceiptsUser = { id?: string; _id?: string; displayName?: string; us
 /** A type under a category (Gas → Truck): `name` is what expenses store, one shown type is the default. */
 export type Subcategory = SubcategoryLike & { name: string; label: string; active: boolean; isDefault: boolean; fields: CategoryFields };
 export type Category = { _id: string; name: string; label: string; order: number; active: boolean; fields: CategoryFields; subcategories: Subcategory[] };
-export type Card = { _id: string; userId: string; label: string; issuer: 'amex' | 'other'; lastDigits: string; active: boolean;
+export type Card = { _id: string; userId: string; label: string; issuer: 'amex' | 'encore' | 'other'; lastDigits: string; active: boolean;
   /** The name Amex prints for this card, as kept on it ('' until typed). */ amexName?: string;
   /** The Card Member name on the uploaded Amex statements ('' until one has a charge on this card). */ statementName?: string;
   /** The branch kept on the card, for one with no holder yet ('' until set). */ location?: string };

@@ -29,6 +29,7 @@ import { readCustomerSheet } from './customerImport.ts';
 import { parseInventoryTransitWorkbook } from './inventoryTransitImport.ts';
 import { readProjectLeadsWorkbook } from './projectLeadsWorkbook.ts';
 import { readAmexActivityWorkbook } from './amexActivityWorkbook.ts';
+import { readEncoreActivityWorkbook } from './encoreActivityWorkbook.ts';
 
 const PARSERS = {
   'inventory-transit': parseInventoryTransitWorkbook,
@@ -36,7 +37,8 @@ const PARSERS = {
   'inventory-sales': parseInventorySalesWorkbook,
   customer: readCustomerSheet,
   'project-leads': readProjectLeadsWorkbook,
-  'amex-activity': readAmexActivityWorkbook
+  'amex-activity': readAmexActivityWorkbook,
+  'encore-activity': readEncoreActivityWorkbook
 };
 
 try {

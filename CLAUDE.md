@@ -1396,6 +1396,22 @@ by several holders, then name) — the sheet itself stays out of the repo, it's 
 card link to it and show **Missing receipt** (owner, 2026-11-20: the card is enough to identify the charge; counted in the still-missing total); the openable Missing row is made only once Cards →
 **Assign to a person** gives it a holder, which re-runs the check (`afterCardSaved`). **A replaced card** (lost / reissued: new digits, same Card Member name; owner 2026-11-20): Set up card / the upload's picks accept a person who already has a card; the old card is deactivated (history kept) only when the screen confirmed it (`replace: true`), the login manages company cards (`manage_company_cards`: accounting / admin) and Amex's name on the new digits is that person's — else the usual "deactivate it under Cards first" refusal. Not built: the daily reminder email.
 
+**The Encore check** (2026-11-21, on `feat/encore-statements`; owner's answers that day: Encore cards are **additional**
+to Amex, a person may hold one of each, and some holders are new): Statements → **Upload statement** has a **Bank** choice
+(Amex | Encore). Encore's export is one sheet, one row per transaction (`src/utils/encoreStatement.ts`, tested; worker kind
+`encore-activity`): the card is only **…last 4** (`448462******3992`), the holder's name is a column, the day is **Occurred**
+(same 2-day / exact-amount match), Debit/Credit `C` rows are credits, and its **Reference Number is not unique** (a fee
+shares its charge's, the annual fee and the auto payment have none), so a line's key is `ENC-<reference>-<last4>-<cents>`,
+or `ENC-h-<hash of day, merchant, card, amount>` with no reference. The auto payment has no card and is stored with no
+digits. Everything else is shared with Amex through `issuer` (`amex` | `encore`) on `card_statement_lines` /
+`card_statement_imports` / `company_cards` (migration `0028`): `cardForDigits(cards, digits, issuer)` (an Encore line only
+fits an Encore card; an Amex line never does), `unknownCards` per bank, card IDs like `PATH3992` (4 letters + 4 digits).
+**One active card per person per bank** (`company_cards_active_user_issuer_key`; `activeCardClash` takes the issuer).
+Because a person uploads one receipt, a charge matches a receipt of the same **holder** on either bank (`check` groups
+cards by `holderOf`, `claimUpload` looks at the holder's cards) and the receipt is **moved to the card the charge is on**
+(history: "Card changed to …"); a new receipt is saved on the person's first card (`activeCardOf`: Amex first). Not built:
+a card choice on Add receipt. New tables/columns reach RDS with `npm run pg:migrate -- --apply` on Render.
+
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
 
 Design and the owner's calls: the claude.ai artifact **Supplier Portal Design**

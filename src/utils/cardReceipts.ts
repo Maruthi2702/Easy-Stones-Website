@@ -205,7 +205,7 @@ export const usDate = (day: string) => (isDay(day) ? `${day.slice(5, 7)}-${day.s
 
 // ── Cards ───────────────────────────────────────────────────────────────────
 
-export const ISSUERS = Object.freeze([{ key: 'amex', label: 'American Express' }, { key: 'other', label: 'Other card' }]);
+export const ISSUERS = Object.freeze([{ key: 'amex', label: 'American Express' }, { key: 'encore', label: 'Encore' }, { key: 'other', label: 'Other card' }]);
 /** The card ID accounting already uses: first 4 letters of the name + the last 5 digits (MARU92069). */
 export const suggestCardLabel = (name: string, digits: string) =>
   `${String(name || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 4)}${String(digits || '').replace(/\D/g, '').slice(-5)}`;
@@ -214,7 +214,7 @@ export const suggestCardLabel = (name: string, digits: string) =>
 export function cleanCard(body: Record<string, unknown>, { allowUnassigned = false }: { allowUnassigned?: boolean } = {}) {
   const problems: Record<string, string> = {};
   const userId = String(body.userId ?? '').trim();
-  const issuer = body.issuer === 'other' ? 'other' : 'amex';
+  const issuer = body.issuer === 'other' ? 'other' : body.issuer === 'encore' ? 'encore' : 'amex';
   const lastDigits = String(body.lastDigits ?? '').replace(/\D/g, '');
   const label = String(body.label ?? '').trim().toUpperCase().replace(/\s+/g, '').slice(0, 20);
   // The name as Amex prints it, upper case and single-spaced; blank is fine.

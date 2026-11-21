@@ -10,7 +10,7 @@ import { ISSUERS, cleanCard, suggestCardLabel } from '../../../utils/cardReceipt
 import * as api from '../cardReceiptsApi';
 import type { Card, Person } from '../types';
 
-type CardValues = { userId: string; issuer: 'amex' | 'other'; lastDigits: string; label: string; amexName: string; location: string };
+type CardValues = { userId: string; issuer: 'amex' | 'encore' | 'other'; lastDigits: string; label: string; amexName: string; location: string };
 
 function CardForm({ card, people, onSave, onClose }: {
   card: Card | null; people: Person[]; onSave: (v: CardValues & { active?: boolean }) => Promise<unknown>; onClose: () => void;
@@ -158,7 +158,7 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><b>{c.label}</b>{status(c)}</span>
                   <span className="ccr-card-meta">{nameOf(c.userId)}{placeOf(c) ? ` · ${placeOf(c)}` : ''}</span>
                   {c.amexName || c.statementName ? <span className="ccr-card-meta">Amex: {c.amexName || c.statementName}</span> : null}
-                  <span className="ccr-card-meta">{c.issuer === 'amex' ? 'Amex' : 'Other card'} ···{c.lastDigits}</span>
+                  <span className="ccr-card-meta">{c.issuer === 'amex' ? 'Amex' : c.issuer === 'encore' ? 'Encore' : 'Other card'} ···{c.lastDigits}</span>
                 </span>
                 <span style={{ alignSelf: 'center' }}>{menu(c)}</span>
               </div>
@@ -175,7 +175,7 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
                     <td>{c.userId ? nameOf(c.userId) : <span className="ccr-muted">Not assigned yet</span>}</td>
                     <td className="ccr-col-wide">{c.amexName || c.statementName || <span className="ccr-muted">—</span>}</td>
                     <td className="ccr-col-wide">{placeOf(c)}</td>
-                    <td>{c.issuer === 'amex' ? 'Amex' : 'Other'} ···{c.lastDigits}</td>
+                    <td>{c.issuer === 'amex' ? 'Amex' : c.issuer === 'encore' ? 'Encore' : 'Other'} ···{c.lastDigits}</td>
                     <td>{status(c)}</td>
                     {canManage ? <td style={{ width: 52, textAlign: 'right' }}>{menu(c)}</td> : null}
                   </tr>

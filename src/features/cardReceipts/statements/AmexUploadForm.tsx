@@ -6,17 +6,24 @@ import { formatMoney, usDate } from '../../../utils/cardReceipts';
 import * as api from './statementsApi';
 import { periodLabel, personOptions } from './statementsView';
 import type { UploadResult } from './statementsApi';
+import type { Issuer } from '../../../utils/amexStatement';
 
 type Problem = Error & { problems?: string[]; more?: number; digits?: string };
 
+const BANKS: { key: Issuer; label: string; file: string; hint: string }[] = [
+  { key: 'amex', label: 'Amex', file: 'Amex activity export', hint: 'Amex → Statements & Activity → Download → Excel, with “Include all additional transaction details”' },
+  { key: 'encore', label: 'Encore', file: 'Encore transactions export', hint: 'Encore → Transactions → Export → Excel (.xlsx), one row per transaction' }
+];
+
 /**
- * Upload Amex's activity export: pick the file and it's checked at once (nothing kept) — what it
+ * Upload a bank's export (Amex's activity or Encore's transactions): pick the file and it's checked at once (nothing kept) — what it
  * would match, the Missing receipt rows it would make, the cards it can't place. A card can be
  * set up right here by picking its holder (the preview runs again with the pick). Upload and
  * check keeps it.
  */
 export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: UploadResult) => void; onClose: () => void }) {
   const fileInput = useRef<HTMLInputElement>(null);
+  const [issuer, setIssuer] = useState<Issuer>('amex');
   const [file, setFile] = useState<File | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<UploadResult | null>(null);
@@ -33,11 +40,11 @@ export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: Upload
     const n = ++asked.current;
     setReading(true);
     setProblem(null);
-    api.previewUpload(file, picks, Object.keys(picks))
+    api.previewUpload(file, picks, Object.keys(picks), issuer)
       .then((r) => {
         if (n !== asked.current) return;
         setPreview(r);
-        // A suggested holder (the one staff name with Amex's first and last name) starts picked.
+        // A suggested holder (the one staff name with the bank's first and last name) starts picked.
         setPicks((cur) => {
           const next = { ...cur };
           for (const c of r.unknownCards) if (!(c.digits in next) && c.suggestedUserId) next[c.digits] = c.suggestedUserId;
@@ -55,27 +62,29 @@ export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: Upload
         setProblem(e);
       })
       .finally(() => { if (n === asked.current) setReading(false); });
-  }, [file, picks]);
+  }, [file, picks, issuer]);
 
-  const people = useMemo(() => personOptions(preview?.people || []), [preview?.people]);
+  const bank = BANKS.find((b) => b.key === issuer)!;
+  const people = useMemo(() => personOptions(preview?.people || [], issuer), [preview?.people, issuer]);
+  const cardOf = (id: string) => { const p = preview?.people.find((x) => x.id === id); return (issuer === 'encore' ? p?.encoreCard : p?.card) || ''; };
   const nameOf = (id: string) => preview?.people.find((p) => p.id === id)?.name || '';
   const c = preview?.counts;
   const picked = Object.values(picks).filter(Boolean).length;
 
   return (
     <FormModal
-      title="Upload Amex activity"
+      title="Upload statement"
       size="m"
       onClose={onClose}
       onSubmit={async () => {
         if (!file || !preview) return;
         // A pick whose person already has a card replaces it: the old card is deactivated, so ask first.
-        const replacing = Object.entries(picks).filter(([, id]) => id && preview.people.find((p) => p.id === id)?.card)
-          .map(([digits, id]) => ({ digits, name: nameOf(id), card: preview.people.find((p) => p.id === id)!.card }));
+        const replacing = Object.entries(picks).filter(([, id]) => id && cardOf(id))
+          .map(([digits, id]) => ({ digits, name: nameOf(id), card: cardOf(id) }));
         if (replacing.length && !window.confirm(`Replace ${replacing.length === 1 ? 'a card' : `${replacing.length} cards`}? ${replacing.map((r) => `${r.name}'s card ${r.card} will be deactivated and …${r.digits} set up instead`).join('; ')}.`)) return;
         setSaving(true);
         setProblem(null);
-        try { onDone(await api.importUpload(file, picks, Object.keys(picks))); } catch (e) {
+        try { onDone(await api.importUpload(file, picks, Object.keys(picks), issuer)); } catch (e) {
           const err = e as Problem;
           if (err.digits) { setCardNotes((cur) => ({ ...cur, [err.digits!]: err.message })); setPicks((p) => ({ ...p, [err.digits!]: '' })); } else setProblem(err);
           setSaving(false);
@@ -97,13 +106,21 @@ export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: Upload
         </div>
       ) : null}
       <FormSection>
-        <FormField name="file" id="ccr-st-file" label="Amex activity export" required>
+        <FormField name="bank" id="ccr-st-bank" label="Bank" required>
+          <div className="ccr-seg" role="radiogroup" aria-label="Bank" id="ccr-st-bank">
+            {BANKS.map((b) => (
+              <button key={b.key} type="button" role="radio" aria-checked={issuer === b.key} className={issuer === b.key ? 'is-on' : ''} disabled={saving}
+                onClick={() => { if (b.key !== issuer) { setIssuer(b.key); setFile(null); setPicks({}); setCardNotes({}); setPreview(null); setProblem(null); } }}>{b.label}</button>
+            ))}
+          </div>
+        </FormField>
+        <FormField name="file" id="ccr-st-file" label={bank.file} required>
           <button id="ccr-st-file" type="button" className="ccr-st-drop" onClick={() => fileInput.current?.click()} disabled={saving}>
             <FileSpreadsheet size={20} aria-hidden="true" />
             <b>{reading && !preview ? 'Reading the file…' : file ? file.name : 'Choose the .xlsx file'}</b>
-            <span>Amex → Statements & Activity → Download → Excel, with “Include all additional transaction details”</span>
+            <span>{bank.hint}</span>
           </button>
-          <input ref={fileInput} type="file" accept=".xlsx,.xls" hidden aria-label="Amex activity file"
+          <input ref={fileInput} type="file" accept=".xlsx,.xls" hidden aria-label={`${bank.label} file`}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) { setFile(f); setPicks({}); setCardNotes({}); setPreview(null); } e.target.value = ''; }} />
         </FormField>
       </FormSection>
@@ -137,7 +154,7 @@ export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: Upload
           <p className="ccr-st-lead">Pick whose card each one is and it’s set up with this upload ({picked} of {preview.unknownCards.length} picked). Left blank, its charges wait under Cards not set up.</p>
           <div className="ccr-st-cards">
             {preview.unknownCards.map((u) => (
-              <FormField key={u.digits} name={`card-${u.digits}`} id={`ccr-st-card-${u.digits}`} error={cardNotes[u.digits] || ''}
+              <FormField key={`${u.issuer}${u.digits}`} name={`card-${u.digits}`} id={`ccr-st-card-${u.digits}`} error={cardNotes[u.digits] || ''}
                 label={`${u.cardMember} · …${u.digits} · ${u.charges} ${u.charges === 1 ? 'charge' : 'charges'}, ${formatMoney(u.cents)}`}>
                 <FormSearchPicker id={`ccr-st-card-${u.digits}`} value={picks[u.digits] || ''} selectedLabel={picks[u.digits] ? nameOf(picks[u.digits]!) : 'Leave it for now'}
                   onChange={(id) => { setCardNotes(({ [u.digits]: _gone, ...rest }) => rest); setPicks((p) => ({ ...p, [u.digits]: id })); }} options={people}

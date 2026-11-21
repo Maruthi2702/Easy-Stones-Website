@@ -40,11 +40,14 @@ export async function afterCardSaved(by: { id: string; name: string }) {
 }
 
 /** The name Amex prints for a card (by its last 4 or 5 digits), for the Cards screen; '' when no upload has it. */
-export async function amexNameLookup(): Promise<(lastDigits: string) => string> {
+export async function amexNameLookup(): Promise<(lastDigits: string, issuer?: string) => string> {
   if (!on()) return () => '';
   try {
-    const names = await amexNamesByDigits();
-    return (last) => names.get(last) ?? [...names].find(([digits]) => last.length >= 4 && digits.endsWith(last))?.[1] ?? '';
+    const [amex, encore] = await Promise.all([amexNamesByDigits(undefined, 'amex'), amexNamesByDigits(undefined, 'encore')]);
+    return (last, issuer) => {
+      const names = issuer === 'encore' ? encore : amex;
+      return names.get(last) ?? [...names].find(([digits]) => last.length >= 4 && digits.endsWith(last))?.[1] ?? '';
+    };
   } catch (error) {
     console.error('[card-statements] reading Amex card member names failed:', error);
     return () => '';

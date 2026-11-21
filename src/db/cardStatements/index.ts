@@ -22,8 +22,8 @@ import { cardExpenseRowsOf } from '../copy/cardsSuppliersRows.ts';
 import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
 import { changeExpense } from '../cardReceipts/postgres.ts';
 import {
-  MISSING_FROM, MATCH_DAYS, kindOf, lineStatus, planMatches, cardForDigits, merchantOf, statusCounts, unknownCards, daysApart,
-  type AmexLine, type LineKind, type LineStatus
+  MISSING_FROM, MATCH_DAYS, kindOf, lineStatus, planMatches, cardForDigits, merchantOf, statusCounts, unknownCards, daysApart, issuerLabel,
+  type AmexLine, type Issuer, type LineKind, type LineStatus
 } from '../../utils/amexStatement.ts';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -53,12 +53,13 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
 
   // 1. Cards for lines that have none, or no upload yet (a card fixed since applies).
   const cards = await q(tx).select().from(companyCards);
-  const open = await q(tx).select({ reference: lines.reference, digits: lines.digits, cardId: lines.cardId }).from(lines)
+  const open = await q(tx).select({ reference: lines.reference, digits: lines.digits, issuer: lines.issuer, cardId: lines.cardId }).from(lines)
     .where(and(eq(lines.kind, 'charge'), or(isNull(lines.cardId), isNull(lines.expenseId))));
   const byDigits = new Map<string, string | null>();
   for (const l of open) {
-    if (!byDigits.has(l.digits)) byDigits.set(l.digits, cardForDigits(cards, l.digits)?.id ?? null);
-    const cardId = byDigits.get(l.digits) ?? null;
+    const key = `${l.issuer}:${l.digits}`;
+    if (!byDigits.has(key)) byDigits.set(key, cardForDigits(cards, l.digits, l.issuer as Issuer)?.id ?? null);
+    const cardId = byDigits.get(key) ?? null;
     if (cardId !== l.cardId) {
       await q(tx).update(lines).set({ cardId, updatedAt: new Date() }).where(eq(lines.reference, l.reference));
       if (cardId && !l.cardId) result.cardsFound += 1;
@@ -67,14 +68,19 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
 
   // 2. Charges still waiting for an upload: none yet, or a Missing receipt row, or a voided one.
   const waiting = await q(tx).select({
-    reference: lines.reference, date: lines.day, cents: lines.cents, kind: lines.kind, cardId: lines.cardId, expenseId: lines.expenseId,
+    reference: lines.reference, issuer: lines.issuer, date: lines.day, cents: lines.cents, kind: lines.kind, cardId: lines.cardId, expenseId: lines.expenseId,
     status: cardExpenses.status, voidedAt: cardExpenses.voidedAt
   }).from(lines).leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
     .where(and(eq(lines.kind, 'charge'), sql`${lines.cardId} is not null`,
       or(isNull(lines.expenseId), eq(cardExpenses.status, 'missing'), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))));
   if (!waiting.length) return result;
   const days = waiting.map(w => w.date).sort();
-  const cardIds = [...new Set(waiting.map(w => w.cardId!))];
+  // A person may hold a card at each bank and upload one receipt: a charge matches a receipt of the same
+  // **holder** (a card with no holder stands for itself), and a receipt matched to the other bank's card
+  // is moved to the card it answers.
+  const holderOf = new Map(cards.map(c => [c.id, c.userId ?? c.id]));
+  const holders = new Set(waiting.map(w => holderOf.get(w.cardId!) ?? w.cardId!));
+  const cardIds = cards.filter(c => holders.has(holderOf.get(c.id)!)).map(c => c.id);
   const linkedIds = waiting.map(w => w.expenseId).filter((id): id is string => Boolean(id));
   const candidates = await q(tx).select({
     id: cardExpenses.id, cardId: cardExpenses.cardId, date: cardExpenses.day, cents: cardExpenses.cents, status: cardExpenses.status,
@@ -91,9 +97,9 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
   const linkedHere = new Set(linkedIds);
   const expenses = candidates
     .filter(c => !elsewhere.has(c.id) || linkedHere.has(c.id))
-    .map(c => ({ id: c.id, cardId: c.cardId ?? '', date: c.date, cents: c.cents, status: c.status, voided: Boolean(c.voidedAt), createdAt: c.createdAt }));
+    .map(c => ({ id: c.id, cardId: holderOf.get(c.cardId ?? '') ?? c.cardId ?? '', date: c.date, cents: c.cents, status: c.status, voided: Boolean(c.voidedAt), createdAt: c.createdAt }));
   const plan = planMatches({
-    lines: waiting.map(w => ({ reference: w.reference, date: w.date, cents: w.cents, kind: w.kind as LineKind, cardId: w.cardId, expenseId: w.expenseId })),
+    lines: waiting.map(w => ({ reference: w.reference, date: w.date, cents: w.cents, kind: w.kind as LineKind, cardId: holderOf.get(w.cardId!) ?? w.cardId, expenseId: w.expenseId })),
     expenses, missingFrom
   });
 
@@ -102,10 +108,19 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
   for (const l of plan.link) {
     await q(tx).update(lines).set({ expenseId: l.expenseId, updatedAt: now }).where(eq(lines.reference, l.reference));
     if (l.expenseId) result.linked += 1;
+    // The receipt answers a charge on the person's other card: it now belongs to that card.
+    const line = waiting.find(w => w.reference === l.reference);
+    const expense = candidates.find(c => c.id === l.expenseId);
+    if (line && expense && l.expenseId && line.cardId && expense.cardId !== line.cardId) {
+      const card = cards.find(c => c.id === line.cardId);
+      await changeExpense(q(tx), l.expenseId, { cardId: line.cardId, cardLabel: card?.label ?? '' },
+        { at: now, by: by.name, action: 'edited', changes: `Card changed to ${card?.label ?? 'the card'}: it answers a ${issuerLabel(line.issuer)} charge (${l.reference})` });
+    }
   }
   for (const r of plan.retire) {
+    const bank = issuerLabel(waiting.find(w => w.reference === r.reference)?.issuer ?? 'amex');
     await changeExpense(q(tx), r.expenseId, { voidedAt: now, voidedBy: by.name, voidReason: 'Receipt uploaded' },
-      { at: now, by: by.name, action: 'voided', changes: `Receipt uploaded for this Amex charge (${r.reference})` });
+      { at: now, by: by.name, action: 'voided', changes: `Receipt uploaded for this ${bank} charge (${r.reference})` });
     result.retired += 1;
   }
   const toCreate = plan.create.filter(ref => waitingRefs.has(ref));
@@ -116,7 +131,7 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
 /** One Missing receipt row per charge, for the card's holder, with Amex's day, merchant and amount. */
 async function createMissingRows(tx: Conn, references: string[], by: Actor, now: Date, approvedNote?: string): Promise<number> {
   const rows = await q(tx).select({
-    reference: lines.reference, day: lines.day, description: lines.description, cents: lines.cents,
+    reference: lines.reference, issuer: lines.issuer, day: lines.day, description: lines.description, cents: lines.cents,
     cardId: companyCards.id, cardLabel: companyCards.label, userId: companyCards.userId,
     displayName: users.displayName, username: users.username, location: locations.name, cardLocation: companyCards.location
   }).from(lines)
@@ -132,17 +147,17 @@ async function createMissingRows(tx: Conn, references: string[], by: Actor, now:
     const id = newId();
     const doc = {
       _id: id, userId: r.userId, holderName: r.displayName || r.username || '', cardId: r.cardId, cardLabel: r.cardLabel,
-      location: r.location || r.cardLocation || '', date: r.day, month: r.day.slice(0, 7), merchant: merchantOf(r.description), cents: r.cents,
+      location: r.location || r.cardLocation || '', date: r.day, month: r.day.slice(0, 7), merchant: merchantOf(r.description, issuerLabel(r.issuer)), cents: r.cents,
       subtotalCents: null, taxCents: null, tipCents: null, category: '', customerId: '', customerName: '', attendees: [],
       purpose: '', note: approvedNote ?? '', recurring: false, receiptUrl: '', lostReason: '',
       status: approvedNote ? 'approved' : 'missing', sentBack: null,
       approval: approvedNote ? { by: by.id, byName: by.name, at: now, comment: approvedNote } : null,
       createdBy: by.name, voidedAt: null, voidedBy: '', voidReason: '',
-      history: [{ at: now, by: by.name, action: 'added', changes: approvedNote ? `${approvedNote} (Amex charge ${r.reference})` : `Missing receipt: Amex charge ${r.reference}` }],
+      history: [{ at: now, by: by.name, action: 'added', changes: approvedNote ? `${approvedNote} (${issuerLabel(r.issuer)} charge ${r.reference})` : `Missing receipt: ${issuerLabel(r.issuer)} charge ${r.reference}` }],
       createdAt: now, updatedAt: now
     };
     const made = cardExpenseRowsOf(doc, ref, links, []);
-    if (!made) throw new Error(`Could not make the Missing receipt row for Amex charge ${r.reference}.`);
+    if (!made) throw new Error(`Could not make the Missing receipt row for ${issuerLabel(r.issuer)} charge ${r.reference}.`);
     return { reference: r.reference, ...made };
   });
   for (let i = 0; i < built.length; i += CHUNK) {
@@ -199,12 +214,13 @@ export type StatementSummary = Awaited<ReturnType<typeof summaryOf>>;
  * card and the match are kept) and runs the check. `preview` does it all and rolls back.
  */
 export async function importStatement(input: {
-  lines: AmexLine[]; fileName: string; period: { from: string; to: string } | null; by: Actor;
+  lines: AmexLine[]; fileName: string; period: { from: string; to: string } | null; by: Actor; issuer?: Issuer;
   missingFrom?: string; preview?: boolean; beforeCheck?: (tx: Db) => Promise<void>;
 }, db?: Db): Promise<StatementSummary & { importId: string; added: number; known: number }> {
   const d = db ?? await appDb();
   const missingFrom = input.missingFrom ?? MISSING_FROM;
   const importId = newId();
+  const issuer: Issuer = input.issuer ?? 'amex';
   const references = input.lines.map(l => l.reference);
   try {
     return await d.transaction(async tx => {
@@ -232,7 +248,7 @@ export async function importStatement(input: {
         }
       }
       const values = input.lines.map(l => ({
-        reference: l.reference, day: l.date, description: l.description, cardMember: l.cardMember, digits: l.digits, cents: l.cents,
+        reference: l.reference, issuer, day: l.date, description: l.description, cardMember: l.cardMember, digits: l.digits, cents: l.cents,
         kind: kindOf(l), amexCategory: l.amexCategory, extended: l.extended, appearsAs: l.appearsAs, address: l.address,
         cityState: l.cityState, zip: l.zip, country: l.country, firstImportId: importId, lastImportId: importId, createdAt: now, updatedAt: now
       }));
@@ -253,7 +269,7 @@ export async function importStatement(input: {
       const result = { ...summary, importId, added: references.length - known.size, known: known.size };
       if (input.preview) throw new Preview(result);
       await tx.insert(imports).values({
-        id: importId, fileName: input.fileName.slice(0, 200), periodFrom: input.period?.from ?? null, periodTo: input.period?.to ?? null,
+        id: importId, issuer, fileName: input.fileName.slice(0, 200), periodFrom: input.period?.from ?? null, periodTo: input.period?.to ?? null,
         lines: references.length, added: result.added, chargesCents: summary.chargesCents,
         summary: { counts: summary.counts, check: did, unknownCards: summary.unknownCards.length },
         byId: input.by.id, byName: input.by.name, at: now
@@ -287,9 +303,12 @@ export async function claimUpload(expense: { id: string; cardId: string; date: s
   return d.transaction(async tx => {
     await lock(tx);
     if (await linkedLine(expense.id, tx as unknown as Db)) return null;
-    const found = await tx.select({ reference: lines.reference, day: lines.day, expenseId: lines.expenseId, status: cardExpenses.status, voidedAt: cardExpenses.voidedAt })
+    // The holder's cards at every bank: a receipt may answer a charge on any of them.
+    const [mine] = await tx.select({ userId: companyCards.userId }).from(companyCards).where(eq(companyCards.id, expense.cardId));
+    const siblings = mine?.userId ? (await tx.select({ id: companyCards.id }).from(companyCards).where(eq(companyCards.userId, mine.userId))).map(r => r.id) : [expense.cardId];
+    const found = await tx.select({ reference: lines.reference, issuer: lines.issuer, cardId: lines.cardId, day: lines.day, expenseId: lines.expenseId, status: cardExpenses.status, voidedAt: cardExpenses.voidedAt })
       .from(lines).leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
-      .where(and(eq(lines.kind, 'charge'), eq(lines.cardId, expense.cardId), eq(lines.cents, expense.cents),
+      .where(and(eq(lines.kind, 'charge'), inArray(lines.cardId, siblings), eq(lines.cents, expense.cents),
         gte(lines.day, shiftDay(expense.date, -MATCH_DAYS)), lt(lines.day, shiftDay(expense.date, MATCH_DAYS + 1)),
         or(isNull(lines.expenseId), eq(cardExpenses.status, 'missing'), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))))
       .orderBy(asc(lines.day), asc(lines.reference));
@@ -298,9 +317,14 @@ export async function claimUpload(expense: { id: string; cardId: string; date: s
     if (!best) return null;
     const now = new Date();
     await tx.update(lines).set({ expenseId: expense.id, updatedAt: now }).where(eq(lines.reference, best.reference));
+    if (best.cardId && best.cardId !== expense.cardId) {
+      const [card] = await tx.select({ label: companyCards.label }).from(companyCards).where(eq(companyCards.id, best.cardId));
+      await changeExpense(tx as unknown as Db, expense.id, { cardId: best.cardId, cardLabel: card?.label ?? '' },
+        { at: now, by: by.name, action: 'edited', changes: `Card changed to ${card?.label ?? 'the card'}: it answers a ${issuerLabel(best.issuer)} charge (${best.reference})` });
+    }
     if (best.expenseId && best.status === 'missing' && !best.voidedAt) {
       await changeExpense(tx as unknown as Db, best.expenseId, { voidedAt: now, voidedBy: by.name, voidReason: 'Receipt uploaded' },
-        { at: now, by: by.name, action: 'voided', changes: `Receipt uploaded for this Amex charge (${best.reference})${expense.merchant ? `: ${expense.merchant}` : ''}` });
+        { at: now, by: by.name, action: 'voided', changes: `Receipt uploaded for this ${issuerLabel(best.issuer)} charge (${best.reference})${expense.merchant ? `: ${expense.merchant}` : ''}` });
       return best.expenseId;
     }
     return '';
@@ -315,7 +339,7 @@ export async function linkedLine(expenseId: string, db?: Db): Promise<string | n
 }
 
 export type StatementLineView = {
-  reference: string; date: string; description: string; cardMember: string; digits: string; cents: number; kind: LineKind;
+  reference: string; issuer: Issuer; date: string; description: string; cardMember: string; digits: string; cents: number; kind: LineKind;
   amexCategory: string; cityState: string; cardId: string | null; cardLabel: string; holderId: string; holderName: string;
   expenseId: string | null; expenseStatus: string | null; status: LineStatus;
 };
@@ -333,7 +357,7 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: s
   return rows.map(r => {
     const kind = r.l.kind as LineKind;
     return {
-      reference: r.l.reference, date: r.l.day, description: r.l.description, cardMember: r.l.cardMember, digits: r.l.digits, cents: r.l.cents,
+      reference: r.l.reference, issuer: r.l.issuer as Issuer, date: r.l.day, description: r.l.description, cardMember: r.l.cardMember, digits: r.l.digits, cents: r.l.cents,
       kind, amexCategory: r.l.amexCategory, cityState: r.l.cityState, cardId: r.l.cardId, cardLabel: r.cardLabel ?? '',
       holderId: r.holderId ?? '', holderName: r.displayName || r.username || '',
       expenseId: r.l.expenseId, expenseStatus: r.expenseStatus ?? null,
@@ -350,7 +374,7 @@ export async function statementView(month: string, { missingFrom = MISSING_FROM 
   const to = new Date(Date.UTC(y!, m!, 1)).toISOString().slice(0, 10);
   const [monthLines, noCard, missingNow, missingUnheld, uploads] = await Promise.all([
     linesWhere(d, and(gte(lines.day, from), lt(lines.day, to)), missingFrom),
-    d.select({ digits: lines.digits, cardMember: lines.cardMember, cents: lines.cents, kind: lines.kind, date: lines.day, cardId: lines.cardId })
+    d.select({ issuer: lines.issuer, digits: lines.digits, cardMember: lines.cardMember, cents: lines.cents, kind: lines.kind, date: lines.day, cardId: lines.cardId })
       .from(lines).where(isNull(lines.cardId)),
     d.select({ n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
       .innerJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
@@ -374,17 +398,17 @@ export async function statementView(month: string, { missingFrom = MISSING_FROM 
 }
 
 /** The card IDs and people the Cards not set up step needs: which digits already have a card. */
-export async function cardsByDigits(digits: string[], db?: Db) {
+export async function cardsByDigits(digits: string[], db?: Db, issuer: Issuer = 'amex') {
   const d = db ?? await appDb();
   const cards = await d.select().from(companyCards);
-  return new Map(digits.map(x => [x, cardForDigits(cards, x)]));
+  return new Map(digits.map(x => [x, cardForDigits(cards, x, issuer)]));
 }
 
 /** The Card Member name Amex prints for each account's last 5 digits (the most common one across the uploads). */
-export async function amexNamesByDigits(db?: Db): Promise<Map<string, string>> {
+export async function amexNamesByDigits(db?: Db, issuer: Issuer = 'amex'): Promise<Map<string, string>> {
   const d = db ?? await appDb();
   const rows = await d.select({ digits: lines.digits, name: lines.cardMember, n: sql<number>`count(*)::int` })
-    .from(lines).where(sql`${lines.cardMember} <> ''`).groupBy(lines.digits, lines.cardMember);
+    .from(lines).where(and(sql`${lines.cardMember} <> ''`, eq(lines.issuer, issuer))).groupBy(lines.digits, lines.cardMember);
   const best = new Map<string, { name: string; n: number }>();
   for (const r of rows) {
     const cur = best.get(r.digits);

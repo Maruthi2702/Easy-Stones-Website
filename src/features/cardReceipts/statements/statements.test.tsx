@@ -8,7 +8,7 @@ import { periodLabel, personOptions, visibleLines } from './statementsView';
 import type { StatementLine } from './statementsApi';
 
 const line = (reference: string, o: Partial<StatementLine> = {}): StatementLine => ({
-  reference, date: '2026-11-05', description: 'CHEVRON 0207730', cardMember: 'MARUTHI PONUGUPATI', digits: '92069', cents: 1200, kind: 'charge',
+  reference, issuer: 'amex', date: '2026-11-05', description: 'CHEVRON 0207730', cardMember: 'MARUTHI PONUGUPATI', digits: '92069', cents: 1200, kind: 'charge',
   amexCategory: 'Transportation-Fuel', cityState: 'SEATTLE WA', cardId: 'c1', cardLabel: 'MARU92069', holderId: 'u1', holderName: 'Maruthi Ponugupati',
   expenseId: 'e1', expenseStatus: 'missing', status: 'missing', ...o
 });
@@ -20,10 +20,10 @@ const LINES = [
 ];
 const VIEW = {
   lines: LINES,
-  unknownCards: [{ digits: '93018', cardMember: 'SRINI MANAM', charges: 1, cents: 1200, first: '2026-11-05', last: '2026-11-05', suggestedUserId: 'u2' }],
+  unknownCards: [{ issuer: 'amex' as const, digits: '93018', cardMember: 'SRINI MANAM', charges: 1, cents: 1200, first: '2026-11-05', last: '2026-11-05', suggestedUserId: 'u2' }],
   missingNow: { count: 3, cents: 4100 },
   imports: [{ id: 'i1', fileName: 'amex.xlsx', periodFrom: '2026-11-01', periodTo: '2026-11-07', lines: 4, added: 4, chargesCents: 7440, byName: 'Ann Count', at: '2026-11-08T17:00:00Z' }],
-  people: [{ id: 'u1', name: 'Maruthi Ponugupati', role: 'sales_rep', location: 'Seattle', active: true, card: 'MARU92069' }, { id: 'u2', name: 'Srini Manam', role: 'sales_rep', location: 'Seattle', active: true, card: '' }],
+  people: [{ id: 'u1', name: 'Maruthi Ponugupati', role: 'sales_rep', location: 'Seattle', active: true, card: 'MARU92069', encoreCard: '' }, { id: 'u2', name: 'Srini Manam', role: 'sales_rep', location: 'Seattle', active: true, card: '', encoreCard: '' }],
   missingFrom: '2026-11-01'
 };
 const posted: { url: string; body: unknown }[] = [];
@@ -70,7 +70,7 @@ describe('the Statements tab', () => {
     expect(button.disabled).toBe(false);
     fireEvent.click(button);
     await settle();
-    expect(posted).toEqual([{ url: expect.stringContaining('/api/card-receipts/statements/cards'), body: { digits: '93018', userId: 'u2', replace: false } }]);
+    expect(posted).toEqual([{ url: expect.stringContaining('/api/card-receipts/statements/cards'), body: { digits: '93018', userId: 'u2', replace: false, issuer: 'amex' } }]);
     expect(text()).toContain('Card set up · 1 Missing receipt row made');
   });
 

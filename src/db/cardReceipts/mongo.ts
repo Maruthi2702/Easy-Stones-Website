@@ -52,8 +52,8 @@ export const findCard = (id: string) => lean<Loose | null>(CompanyCard.findById(
 export const activeCardOf = (userId: string) => lean<Loose | null>(CompanyCard.findOne({ userId, active: true }).lean());
 
 /** Another active card held by this person or with this ID (`exceptId` = the card being saved). */
-export const activeCardClash = (userId: string, label: string, exceptId: string | null) =>
-  lean<Loose | null>(CompanyCard.findOne({ active: true, _id: { $ne: exceptId }, $or: [{ userId }, { label }] }).lean());
+export const activeCardClash = (userId: string, label: string, exceptId: string | null, issuer = 'amex') =>
+  lean<Loose | null>(CompanyCard.findOne({ active: true, _id: { $ne: exceptId }, $or: [{ userId, issuer }, { label }] }).lean());
 
 /** Any card, active or not, with this ID (`exceptId` = the card being saved): a card ID is never used twice. */
 export const cardWithLabel = (label: string, exceptId: string | null) =>

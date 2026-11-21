@@ -10,12 +10,13 @@ import type { Db } from '../db/copy/plan.ts';
 import { newId } from '../db/ids.ts';
 import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
 import { CARD_RECEIPTS, isMonth, suggestCardLabel } from '../utils/cardReceipts.ts';
-import { MISSING_FROM, suggestHolder } from '../utils/amexStatement.ts';
+import { MISSING_FROM, suggestHolder, issuerLabel, type Issuer } from '../utils/amexStatement.ts';
 import type { Loose } from '../types/records.ts';
 
 /**
- * Credit Card Receipts → Statements: the weekly Amex check (rules src/utils/amexStatement.ts,
- * data src/db/cardStatements/). Everything needs the Amex check switch (`check_amex_statements`).
+ * Credit Card Receipts → Statements: the weekly Amex and Encore check (rules src/utils/amexStatement.ts and
+ * src/utils/encoreStatement.ts, data src/db/cardStatements/). Everything needs the Amex check switch
+ * (`check_amex_statements`). `issuer` ('amex' by default, or 'encore') names the bank of an upload or a card.
  *
  *   GET  /?month=YYYY-MM   that month's Amex lines with their status, the cards not set up, how
  *                          many receipts are still missing, the uploads, and the people to pick from
@@ -39,6 +40,7 @@ const homeOf = (u: { location?: string | null; assignedLocations?: string[] | nu
 const MAX_FILE = 10 * 1024 * 1024;
 
 type CardPick = { digits: string; userId: string; replace?: boolean };
+const issuerOf = (raw: unknown): Issuer => (raw === 'encore' ? 'encore' : 'amex');
 class CardProblem extends Error {
   digits: string;
   constructor(message: string, digits: string) { super(message); this.digits = digits; }
@@ -50,9 +52,11 @@ async function peopleList() {
     staffData.findUsers({}, { select: 'username displayName role location assignedLocations isActive', sort: { displayName: 1 } }),
     pgCards.listCards(await appDb())
   ]);
-  const cardOf = new Map(cards.filter((c) => c.active !== false).map((c) => [String(c.userId), String(c.label)]));
+  const cardsOf = (issuer: string) => new Map(cards.filter((c) => c.active !== false && (c.issuer === 'encore') === (issuer === 'encore')).map((c) => [String(c.userId), String(c.label)]));
+  const amexCard = cardsOf('amex'), encoreCard = cardsOf('encore');
   return people.filter((p) => p.username !== 'admin').map((p) => ({
-    id: String(p._id), name: nameOf(p), role: p.role || '', location: homeOf(p), active: p.isActive !== false, card: cardOf.get(String(p._id)) || ''
+    id: String(p._id), name: nameOf(p), role: p.role || '', location: homeOf(p), active: p.isActive !== false,
+    card: amexCard.get(String(p._id)) || '', encoreCard: encoreCard.get(String(p._id)) || ''
   }));
 }
 
@@ -76,29 +80,30 @@ function picksOf(raw: unknown): CardPick[] {
 }
 
 /** Sets up each picked card inside the check's transaction: one active card per person, a card ID like MARU92069. */
-const setUpCards = (picks: CardPick[], by: string, mayReplace: boolean) => async (tx: Db) => {
+const setUpCards = (picks: CardPick[], by: string, mayReplace: boolean, issuer: Issuer = 'amex') => async (tx: Db) => {
+  const has = issuer === 'encore' ? 'an Encore card,' : 'card';
   for (const p of picks) {
     if (!mongoose.isValidObjectId(p.userId)) throw new CardProblem('Choose the cardholder again.', p.digits);
     const person = await staffData.userById(p.userId, { select: 'username displayName isActive' });
     if (!person) throw new CardProblem('That person isn’t on the staff list.', p.digits);
-    const existing = (await statements.cardsByDigits([p.digits], tx)).get(p.digits);
+    const existing = (await statements.cardsByDigits([p.digits], tx, issuer)).get(p.digits);
     if (existing) throw new CardProblem(`Card …${p.digits} is already set up (${existing.label}).`, p.digits);
     const label = suggestCardLabel(nameOf(person), p.digits);
-    const clash = await pgCards.activeCardClash(tx, p.userId, label, null);
+    const clash = await pgCards.activeCardClash(tx, p.userId, label, null, issuer);
     if (clash && clash.userId === p.userId) {
       // A replaced card: Amex gives it new digits under the same Card Member name. Only when that name is this person's
       // does the old card step aside (deactivated, history kept); otherwise it stays a refusal.
-      if (!p.replace) throw new CardProblem(`${nameOf(person)} already has card ${clash.label}. Confirm the replacement to deactivate it, or deactivate it under Cards first.`, p.digits);
+      if (!p.replace) throw new CardProblem(`${nameOf(person)} already has ${has} ${clash.label}. Confirm the replacement to deactivate it, or deactivate it under Cards first.`, p.digits);
       if (!mayReplace) throw new CardProblem('Replacing a card needs someone who manages company cards (accounting or an admin).', p.digits);
-      const said = (await statements.amexNamesByDigits(tx)).get(p.digits) || '';
+      const said = (await statements.amexNamesByDigits(tx, issuer)).get(p.digits) || '';
       if (!said || !suggestHolder([{ id: p.userId, name: nameOf(person), active: true }], said)) {
-        throw new CardProblem(`${nameOf(person)} already has card ${clash.label}. One card per person: deactivate it under Cards first.`, p.digits);
+        throw new CardProblem(`${nameOf(person)} already has ${has} ${clash.label}. One card per person: deactivate it under Cards first.`, p.digits);
       }
       await pgCards.changeCard(tx, String(clash._id ?? clash.id), { active: false, updatedBy: by });
     } else if (clash) {
       throw new CardProblem(`Another active card is called ${label}.`, p.digits);
     }
-    await pgCards.addCard(tx, newId(), { userId: p.userId, issuer: 'amex', lastDigits: p.digits, label, active: true, updatedBy: by });
+    await pgCards.addCard(tx, newId(), { userId: p.userId, issuer, lastDigits: p.digits, label, active: true, updatedBy: by });
   }
 };
 
@@ -139,10 +144,11 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
         const tooBig = (uploadErr as { code?: string }).code === 'LIMIT_FILE_SIZE';
         return res.status(400).json({ message: tooBig ? 'That file is over 10 MB.' : 'The file could not be read.' });
       }
-      if (!req.file) return res.status(400).json({ message: 'Choose Amex’s activity export (.xlsx).' });
+      const issuer = issuerOf(req.body?.issuer);
+      if (!req.file) return res.status(400).json({ message: issuer === 'encore' ? 'Choose Encore’s transactions export (.xlsx).' : 'Choose Amex’s activity export (.xlsx).' });
       let read;
       try {
-        read = await runWorkbookParse('amex-activity', req.file.buffer);
+        read = await runWorkbookParse(issuer === 'encore' ? 'encore-activity' : 'amex-activity', req.file.buffer);
       } catch (err) {
         return res.status(400).json({ message: err instanceof Error ? err.message : 'The file could not be read.' });
       }
@@ -154,8 +160,8 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
         const picks = picksOf(req.body?.cards);
         const [result, people] = await Promise.all([
           statements.importStatement({
-            lines: read.lines, fileName: String(req.file.originalname || ''), period: read.period, by,
-            preview, beforeCheck: picks.length ? setUpCards(picks, by.name, canManageCards(req)) : undefined
+            lines: read.lines, fileName: String(req.file.originalname || ''), period: read.period, by, issuer,
+            preview, beforeCheck: picks.length ? setUpCards(picks, by.name, canManageCards(req), issuer) : undefined
           }),
           peopleList()
         ]);
@@ -183,7 +189,7 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
     if (!picks.length) return res.status(400).json({ message: 'Choose the cardholder.' });
     try {
       const by = actorOf(req);
-      const check = await statements.recheck(by, { beforeCheck: setUpCards(picks, by.name, canManageCards(req)) });
+      const check = await statements.recheck(by, { beforeCheck: setUpCards(picks, by.name, canManageCards(req), issuerOf(req.body?.issuer)) });
       res.json({ check });
     } catch (err) {
       if (cardError(res, err)) return;
