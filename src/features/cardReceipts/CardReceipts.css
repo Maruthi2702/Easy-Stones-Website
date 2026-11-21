@@ -185,7 +185,7 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-lost-k { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ccr-back); }
 .ccr-lost p { margin: 0; font-size: 15px; }
 /* A saved value, shown as the template's read-only field: dashed border, grey text. */
-.ccr-ro { box-sizing: border-box; min-height: 42px; display: flex; align-items: center; padding: 8px 12px; border: 1px dashed var(--fm-bd); border-radius: 8px; background: var(--fm-dis); color: var(--fm-dis-tx); font-size: 15px; overflow-wrap: anywhere; min-width: 0; }
+.ccr-ro { box-sizing: border-box; min-height: 42px; display: flex; align-items: center; padding: 8px 12px; border: 1px dashed var(--fm-bd); border-radius: 8px; background: var(--fm-gold-soft, transparent); color: var(--fm-tx); font-size: 15px; overflow-wrap: anywhere; min-width: 0; }
 .ccr-ro.is-big { font-size: 18px; font-weight: 700; color: var(--fm-tx); }
 .ccr-big { font-size: inherit; font-weight: inherit; }
 .ccr-history { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; color: var(--ccr-muted); }
