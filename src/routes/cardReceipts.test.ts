@@ -135,6 +135,9 @@ describe('cards', () => {
     expect(added.body.card.label).toBe('DEER11111');
     const old = await CompanyCard.findOne({ userId: ids.rep }).lean();
     await as(ACCOUNTING).put(`/cards/${old!._id}`, { active: false }).expect(200);
+    // A deactivated card still owns its ID: a new card with it is refused (reactivate the old one instead).
+    const again = await as(ACCOUNTING).post('/cards', { userId: ids.rep, label: old!.label, lastDigits: old!.lastDigits }).expect(409);
+    expect(again.body.problems.label).toMatch(/deactivated/);
     await as(ACCOUNTING).post('/cards', { userId: ids.rep, label: 'MARU55555', lastDigits: '55555' }).expect(201);
     const list = await as(ACCOUNTING).get('/cards').expect(200);
     expect(list.body.cards).toHaveLength(4);

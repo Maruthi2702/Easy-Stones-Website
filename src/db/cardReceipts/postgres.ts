@@ -116,6 +116,12 @@ export async function activeCardClash(db: Db, userId: string, label: string, exc
   return row ? cardDoc(row) : null;
 }
 
+/** Any card, active or not, with this ID (`exceptId` = the card being saved): a card ID is never used twice. */
+export async function cardWithLabel(db: Db, label: string, exceptId: string | null): Promise<Loose | null> {
+  const [row] = await db.select().from(companyCards).where(and(eq(companyCards.label, label), exceptId ? ne(companyCards.id, lower(exceptId)) : undefined)).orderBy(desc(companyCards.active));
+  return row ? cardDoc(row) : null;
+}
+
 export async function addCard(db: Db, id: string, value: Loose): Promise<Loose> {
   return db.transaction(async tx => {
     const now = new Date();

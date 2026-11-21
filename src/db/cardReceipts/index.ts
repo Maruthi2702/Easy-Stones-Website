@@ -32,6 +32,8 @@ export const findCard = async (id: string) => onPostgres() ? pg.findCard(await a
 export const activeCardOf = async (userId: string) => onPostgres() ? pg.activeCardOf(await appDb(), userId) : mongo.activeCardOf(userId);
 export const activeCardClash = async (userId: string, label: string, exceptId: string | null) =>
   onPostgres() ? pg.activeCardClash(await appDb(), userId, label, exceptId) : mongo.activeCardClash(userId, label, exceptId);
+export const cardWithLabel = async (label: string, exceptId: string | null) =>
+  onPostgres() ? pg.cardWithLabel(await appDb(), label, exceptId) : mongo.cardWithLabel(label, exceptId);
 export const addCard = async (id: string, value: Loose) => onPostgres() ? pg.addCard(await appDb(), id, value) : mongo.addCard(id, value);
 export const changeCard = async (id: string, set: Loose) => onPostgres() ? pg.changeCard(await appDb(), id, set) : mongo.changeCard(id, set);
 

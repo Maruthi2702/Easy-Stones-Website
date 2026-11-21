@@ -302,6 +302,13 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     if (value.userId && (!mongoose.isValidObjectId(value.userId) || !(await staffData.userExists({ _id: value.userId })))) {
       return res.status(400).json({ message: 'Some fields need attention.', problems: { userId: 'Choose the cardholder' } });
     }
+    // A card ID is never used twice, deactivated ones included (reactivate that card instead).
+    if (!card || value.label !== card.label) {
+      const same = await db.cardWithLabel(value.label, card ? String(card._id) : null);
+      if (same) {
+        return res.status(409).json({ message: 'That card ID already exists.', problems: { label: same.active === false ? `Card ${same.label} already exists but is deactivated. Reactivate it instead.` : 'Another card has that ID' } });
+      }
+    }
     if (active) {
       const clash = await db.activeCardClash(value.userId, value.label, card ? String(card._id) : null);
       if (clash) {

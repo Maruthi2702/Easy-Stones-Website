@@ -53,6 +53,10 @@ export const activeCardOf = (userId: string) => lean<Loose | null>(CompanyCard.f
 export const activeCardClash = (userId: string, label: string, exceptId: string | null) =>
   lean<Loose | null>(CompanyCard.findOne({ active: true, _id: { $ne: exceptId }, $or: [{ userId }, { label }] }).lean());
 
+/** Any card, active or not, with this ID (`exceptId` = the card being saved): a card ID is never used twice. */
+export const cardWithLabel = (label: string, exceptId: string | null) =>
+  lean<Loose | null>(CompanyCard.findOne({ label, _id: { $ne: exceptId } }).sort({ active: -1 }).lean());
+
 export async function addCard(id: string, value: Loose): Promise<Loose> {
   return (await CompanyCard.create({ _id: id, ...value })).toObject() as unknown as Loose;
 }

@@ -93,8 +93,10 @@ try {
   };
   const cards = await d.select().from(companyCards).where(eq(companyCards.active, true));
   const haveUser = new Map(cards.map(c => [c.userId, c.label]));
-  const usedLabel = new Set(cards.map(c => c.label));
-  const usedDigits = new Map(cards.map(c => [c.lastDigits, c.label]));
+  // A card ID is never made twice: deactivated cards count too (an old one with the same ID must be reactivated, not duplicated).
+  const everyCard = await d.select().from(companyCards);
+  const usedLabel = new Set(everyCard.map(c => c.label));
+  const usedDigits = new Map(everyCard.map(c => [c.lastDigits, c.label]));
   const tally = { made: 0, had: 0, none: 0, many: 0, clash: 0 };
   const tallyCards = { set: 0, had: 0 };
   for (const h of holders) {
