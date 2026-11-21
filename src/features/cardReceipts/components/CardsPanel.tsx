@@ -155,7 +155,7 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
             {cards.map((c) => (
               <div key={c._id} className="ccr-card ccr-card-row" style={{ opacity: c.active ? 1 : 0.6, cursor: 'default' }}>
                 <span style={{ display: 'grid', gap: 3, minWidth: 0 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><b className="ccr-mono">{c.label}</b>{status(c)}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><b>{c.label}</b>{status(c)}</span>
                   <span className="ccr-card-meta">{nameOf(c.userId)}{placeOf(c) ? ` · ${placeOf(c)}` : ''}</span>
                   {c.amexName || c.statementName ? <span className="ccr-card-meta">Amex: {c.amexName || c.statementName}</span> : null}
                   <span className="ccr-card-meta">{c.issuer === 'amex' ? 'Amex' : 'Other card'} ···{c.lastDigits}</span>
@@ -171,9 +171,9 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
               <tbody>
                 {cards.map((c) => (
                   <tr key={c._id} style={{ cursor: 'default', opacity: c.active ? 1 : 0.6 }}>
-                    <td className="ccr-mono">{c.label}</td>
+                    <td>{c.label}</td>
                     <td>{c.userId ? nameOf(c.userId) : <span className="ccr-muted">Not assigned yet</span>}</td>
-                    <td className="ccr-col-wide ccr-st-desc">{c.amexName || c.statementName || <span className="ccr-muted">—</span>}</td>
+                    <td className="ccr-col-wide">{c.amexName || c.statementName || <span className="ccr-muted">—</span>}</td>
                     <td className="ccr-col-wide">{placeOf(c)}</td>
                     <td>{c.issuer === 'amex' ? 'Amex' : 'Other'} ···{c.lastDigits}</td>
                     <td>{status(c)}</td>
