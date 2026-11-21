@@ -13,13 +13,16 @@
  * said so. The card's last digits are the ID's last 5 (what Amex's "Account #" ends in).
  *   --unassigned          a holder with no matching login still gets their card, with no holder yet; the Cards tab
  *                         assigns it to a login later (and their Amex charges then ask for receipts)
+ *   --locations           also gives each matched person the sheet's Location, ONLY if they have no home location, no assigned
+ *                         locations and aren't on All locations (home + assigned, like Users & Roles → Locations); never
+ *                         changes a location anyone already has. Works for people who already had their card too. One-time.
  *   --leave=A,B           these Card IDs are never matched to a login (they get an unassigned card with --unassigned)
  * Needs DATABASE_URL (Render shell). Safe to run twice.
  */
 import fs from 'node:fs';
 import { eq, sql } from 'drizzle-orm';
 import { openDb } from '../src/db/client.ts';
-import { users, locations } from '../src/db/schema/reference.ts';
+import { users, locations, userLocations } from '../src/db/schema/reference.ts';
 import { companyCards } from '../src/db/schema/cardsSuppliers.ts';
 import { addCard } from '../src/db/cardReceipts/postgres.ts';
 import { cleanCard } from '../src/utils/cardReceipts.ts';
@@ -29,6 +32,7 @@ import type { Db } from '../src/db/copy/plan.ts';
 const [file] = process.argv.slice(2).filter(a => !a.startsWith('--'));
 const apply = process.argv.includes('--apply');
 const unassigned = process.argv.includes('--unassigned');
+const withLocations = process.argv.includes('--locations');
 const leave = new Set((process.argv.find(a => a.startsWith('--leave='))?.slice(8) || '').split(',').map(x => x.trim().toUpperCase()).filter(Boolean));
 const url = process.env.DATABASE_URL;
 if (!file || !url) { console.error('Usage: DATABASE_URL=… node scripts/card-holders-setup.ts holders.tsv [--apply]'); process.exit(1); }
@@ -60,6 +64,31 @@ try {
   const d = db as unknown as Db;
   const people = await d.select({ id: users.id, name: users.displayName, username: users.username, email: users.email, active: users.isActive, home: locations.name })
     .from(users).leftJoin(locations, eq(locations.id, users.homeLocationId));
+  const branches = await d.select({ id: locations.id, name: locations.name, short: locations.shortCode, full: locations.fullName }).from(locations);
+  const assigned = new Set((await d.select({ userId: userLocations.userId }).from(userLocations)).map(r => r.userId));
+  const everywhere = new Set((await d.select({ id: users.id }).from(users).where(eq(users.allLocations, true))).map(r => r.id));
+  const placed = new Set<string>();
+  // The branch the sheet row starts with ("Seattle Maruthi …", "Salt Lake City …"): longest name first, so a short one never beats a longer.
+  const branchOf = (text: string) => {
+    const t = norm(text);
+    return [...branches].sort((a, b) => b.name.length - a.name.length)
+      .find(b => [b.name, b.short, b.full].some(n => n && norm(n).length >= 2 && t.startsWith(norm(n)))) || null;
+  };
+  const tallyPlaces = { set: 0, had: 0, unknown: 0 };
+  const fillLocation = async (p: { id: string; name: string; home: string | null }, text: string) => {
+    if (!withLocations || placed.has(p.id)) return;
+    placed.add(p.id);
+    const b = branchOf(text);
+    if (!b) { tallyPlaces.unknown += 1; console.log(`  ? NO BRANCH     ${p.name} — "${text}" starts with none of your locations`); return; }
+    if (p.home || assigned.has(p.id) || everywhere.has(p.id)) { tallyPlaces.had += 1; console.log(`  = HAS LOCATION  ${p.name} — kept (${p.home || 'assigned / all'}), sheet says ${b.name}`); return; }
+    console.log(`  ${apply ? '+ LOCATION' : '· would set'}    ${p.name} → ${b.name}`);
+    if (apply) {
+      await d.update(users).set({ homeLocationId: b.id }).where(eq(users.id, p.id));
+      await d.insert(userLocations).values({ userId: p.id, locationId: b.id }).onConflictDoNothing();
+    }
+    assigned.add(p.id);
+    tallyPlaces.set += 1;
+  };
   const cards = await d.select().from(companyCards).where(eq(companyCards.active, true));
   const haveUser = new Map(cards.map(c => [c.userId, c.label]));
   const usedLabel = new Set(cards.map(c => c.label));
@@ -85,6 +114,7 @@ try {
     if (found.length === 0) { tally.none += 1; console.log(`✗ NO LOGIN      ${tag} — no staff login with that email or name (add --unassigned to make the card anyway)`); continue; }
     if (found.length > 1) { tally.many += 1; console.log(`✗ SEVERAL       ${tag} — ${found.map(p => `${p.name} <${p.email}>`).join('; ')}`); continue; }
     const p = found[0]!;
+    await fillLocation(p, h.text);
     const how = byMail.length === 1 && byMail[0] === p ? 'email' : 'name';
     if (haveUser.has(p.id)) { tally.had += 1; console.log(`= HAS A CARD    ${tag} — already ${haveUser.get(p.id)}`); continue; }
     if (usedLabel.has(h.label) || usedDigits.has(digits)) { tally.clash += 1; console.log(`✗ CARD IN USE   ${tag} — ${usedDigits.get(digits) || h.label} is another person's`); continue; }
@@ -97,5 +127,6 @@ try {
     tally.made += 1;
   }
   console.log(`\n${apply ? 'Created' : 'Would create'} ${tally.made} · already had a card ${tally.had} · no login ${tally.none} · several logins ${tally.many} · card in use/bad ${tally.clash} · of ${holders.length}`);
+  if (withLocations) console.log(`Locations: ${apply ? 'set' : 'would set'} ${tallyPlaces.set} · already had one ${tallyPlaces.had} · no branch matched ${tallyPlaces.unknown}`);
   if (!apply && tally.made) console.log('Dry run: nothing changed. Add --apply to create them.');
 } finally { await close(); }
