@@ -1,0 +1,71 @@
+import { useRef, useState } from 'react';
+import { Camera, FileText, FileX, Image as ImageIcon } from 'lucide-react';
+import FormModal from '../../../components/shared/form/FormModal';
+import { receiptFileProblem } from '../../../utils/receiptFile';
+
+type Props = {
+  onCamera: () => void;
+  onLost: () => void;
+  /** A photo or file was chosen (or dropped). It has not been checked yet. */
+  onFile: (file: File) => void;
+  onClose: () => void;
+};
+
+/**
+ * Add receipt, step one: how to add it (owner's design, 2026-11-21, claude.ai
+ * artifact "Receipt capture flow"). The round camera opens this — Open Camera,
+ * Upload Photo, Upload File, Lost Receipt — as a size-S form (✕, no footer). Each
+ * then leads into the same Add receipt form: a camera shot, a picked photo or file
+ * arrives as `initialFile`, Lost Receipt opens it on the lost-receipt reason.
+ * Desktop also takes a dropped file. A wrong file type is refused here, in the
+ * window, before anything uploads.
+ */
+export default function AddReceiptChoice({ onCamera, onLost, onFile, onClose }: Props) {
+  const photoRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [problem, setProblem] = useState('');
+  const [over, setOver] = useState(false);
+
+  const take = (file: File | undefined) => {
+    if (!file) return;
+    const why = receiptFileProblem(file);
+    if (why) { setProblem(why); return; }
+    onFile(file);
+  };
+
+  return (
+    <FormModal title="Add receipt" size="s" onClose={onClose} hideSubmit hideFooter>
+      <div className="ccr-choice">
+        {problem ? <div className="ccr-form-error" role="alert">{problem}</div> : null}
+
+        <button type="button" className="ccr-choice-opt is-main" onClick={onCamera}>
+          <span className="ccr-choice-icon"><Camera size={22} aria-hidden="true" /></span>
+          <span className="ccr-choice-text"><b>Open Camera</b><small>Take a photo of the receipt now</small></span>
+        </button>
+        <button type="button" className="ccr-choice-opt" onClick={() => photoRef.current?.click()}>
+          <span className="ccr-choice-icon"><ImageIcon size={22} aria-hidden="true" /></span>
+          <span className="ccr-choice-text"><b>Upload Photo</b><small>Pick one from your photo library</small></span>
+        </button>
+        <button type="button" className="ccr-choice-opt" onClick={() => fileRef.current?.click()}>
+          <span className="ccr-choice-icon"><FileText size={22} aria-hidden="true" /></span>
+          <span className="ccr-choice-text"><b>Upload File</b><small>A PDF or image from Files</small></span>
+        </button>
+        <button type="button" className="ccr-choice-opt" onClick={onLost}>
+          <span className="ccr-choice-icon"><FileX size={22} aria-hidden="true" /></span>
+          <span className="ccr-choice-text"><b>Lost Receipt</b><small>No receipt: say why and enter the details</small></span>
+        </button>
+
+        {/* A mouse can drop a file; a phone has no use for the box. */}
+        <div className={`ccr-choice-drop${over ? ' is-over' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => { e.preventDefault(); setOver(false); take(e.dataTransfer.files?.[0]); }}>
+          Or drop a photo or PDF here
+        </div>
+
+        <input ref={photoRef} type="file" accept="image/*" hidden onChange={(e) => { take(e.target.files?.[0]); e.target.value = ''; }} />
+        <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={(e) => { take(e.target.files?.[0]); e.target.value = ''; }} />
+      </div>
+    </FormModal>
+  );
+}

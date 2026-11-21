@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import BillCard, { type BillField, type BillValues } from './BillCard';
 import BillDetailsEdit from './BillDetailsEdit';
@@ -9,6 +9,7 @@ import type { FormOption } from '../../../components/shared/form/FormControls';
 import { goToField } from '../../../components/shared/form/formFocus';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
+import { receiptFileProblem } from '../../../utils/receiptFile';
 import { centsText, cleanExpense, defaultSubOf, fieldsOf, formatMoney, missingLine, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
 import { isPdfUrl } from '../cardReceiptsView';
@@ -40,6 +41,8 @@ export type ExpenseFormProps = {
   expense?: Expense | null;
   /** Start in "Lost receipt" (the phone's Lost receipt button). */
   startLost?: boolean;
+  /** A photo or file already chosen in Add receipt's first step: uploaded and read as the form opens. */
+  initialFile?: File | null;
   cardLabel: string;
   holderName: string;
   categories: Category[];
@@ -67,7 +70,7 @@ export type ExpenseFormProps = {
  * (src/utils/receiptScan.ts); the card says which, so they get checked, and
  * when merchant or total are still blank the edit screen opens for them.
  */
-export default function ExpenseForm({ expense, startLost = false, cardLabel, holderName, categories, today, upload, scan, onSave, onClose }: ExpenseFormProps) {
+export default function ExpenseForm({ expense, startLost = false, initialFile = null, cardLabel, holderName, categories, today, upload, scan, onSave, onClose }: ExpenseFormProps) {
   const editing = Boolean(expense);
   const start = useMemo(() => (expense ? fromExpense(expense) : blank(today)), [expense, today]);
   const [values, setValues] = useState<Values>(start);
@@ -127,6 +130,8 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
 
   const pickFile = async (file: File | undefined) => {
     if (!file) return;
+    const wrong = receiptFileProblem(file);
+    if (wrong) { setServerError(wrong); if (fileRef.current) fileRef.current.value = ''; return; }
     setUploading(true);
     setServerError('');
     setReadLine('');
@@ -146,6 +151,15 @@ export default function ExpenseForm({ expense, startLost = false, cardLabel, hol
     if (scan) readReceipt(url, file.type !== 'application/pdf');
     else askForDetails(valuesRef.current, file.type !== 'application/pdf');
   };
+
+  // The file chosen in the first step goes up as soon as the form is on screen (once, even if React re-runs the effect).
+  const startedWith = useRef<File | null>(null);
+  useEffect(() => {
+    if (!initialFile || startedWith.current === initialFile) return;
+    startedWith.current = initialFile;
+    pickFile(initialFile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFile]);
 
   // Nothing read (or reading is off): open Edit bill details, with the photo large to type from.
   const askForDetails = (now: Values, image: boolean) => {
