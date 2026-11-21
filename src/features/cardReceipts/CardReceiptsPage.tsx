@@ -60,7 +60,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   // One People filter for cardholder and branch (the shared one): only who this login may see.
   const staff = useStaffList();
   const viewerId = String(me?.user.id || currentUser?.id || currentUser?._id || '');
-  const people = useMemo(() => holderPeople(source, staff, currentUser), [source, staff, currentUser]);
+  const people = useMemo(() => holderPeople(source, staff, currentUser, data.holders), [source, staff, currentUser, data.holders]);
   // "Me" only when the viewer is one of the cardholders listed.
   const meId = people.some((p) => p.value === viewerId) ? viewerId : '';
   const peopleFilter = usePeopleFilter({

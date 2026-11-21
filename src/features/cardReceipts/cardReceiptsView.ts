@@ -52,15 +52,20 @@ export function statusLine(e: Expense, categories: readonly Category[]) {
  * under one the viewer is assigned, else their first; someone the staff list
  * doesn't know sits under the branch on their receipt.
  */
-export function holderPeople(list: readonly Expense[], staff: readonly Loose[], viewer: Loose | null | undefined): PersonOption[] {
+export function holderPeople(
+  list: readonly Expense[], staff: readonly Loose[], viewer: Loose | null | undefined,
+  /** Everyone with a card (GET /cardholders), so the list isn't only who has an expense in this month. */
+  holders: readonly { id: string; name: string }[] = []
+): PersonOption[] {
   const mine = viewerLocations(viewer);
   const byId = new Map(staff.map((p) => [String(p._id ?? p.id), p]));
-  const seen = new Map<string, Expense>();
-  for (const e of list) if (!seen.has(e.userId)) seen.set(e.userId, e);
+  const seen = new Map<string, { name: string; location: string }>();
+  for (const h of holders) if (!seen.has(h.id)) seen.set(h.id, { name: h.name, location: '' });
+  for (const e of list) seen.set(e.userId, { name: e.holderName || e.cardLabel || seen.get(e.userId)?.name || '', location: e.location || '' });
   return [...seen.entries()].map(([id, e]) => {
     const person = byId.get(id);
     const works = person ? workLocationsOf(person) : [];
     const heading = (mine === ALL_PEOPLE ? works[0] : works.find((l) => mine.includes(l)) || works[0]) || e.location || '';
-    return { value: id, id, label: e.holderName || e.cardLabel, location: heading, locations: works, inactive: Boolean(person && person.isActive === false) };
+    return { value: id, id, label: e.name, location: heading, locations: works, inactive: Boolean(person && person.isActive === false) };
   }).sort((a, b) => a.label.localeCompare(b.label));
 }

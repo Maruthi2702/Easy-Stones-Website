@@ -268,6 +268,32 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     }
   });
 
+  // Everyone with a company card (active or not, a holder set), for the Cardholder filter — even with no expense this
+  // month. Limited like the expenses list: View all → everyone, View branch → the caller's team (by where the person works).
+  router.get('/cardholders', opener, async (req: Request, res: Response) => {
+    try {
+      let team: typeof ALL_PEOPLE | Set<string> = ALL_PEOPLE;
+      if (!has(req, CARD_RECEIPTS.VIEW_ALL)) {
+        if (!has(req, CARD_RECEIPTS.VIEW_BRANCH)) return res.status(403).json({ message: 'You can see your own expenses only.' });
+        team = await teamOfRequest(req);
+      }
+      const [cards, people] = await Promise.all([
+        db.listCards(),
+        staffData.findUsers({}, { select: 'username displayName isActive', sort: { displayName: 1 } })
+      ]);
+      const byId = new Map(people.map((p) => [String(p._id), p]));
+      const ids = [...new Set(cards.map((c) => String(c.userId || '')).filter(Boolean))]
+        .filter((id) => team === ALL_PEOPLE || team.has(id));
+      res.json({ holders: ids.flatMap((id) => {
+        const person = byId.get(id);
+        return person && person.username !== 'admin' ? [{ id, name: nameOf(person), active: person.isActive !== false }] : [];
+      }) });
+    } catch (error) {
+      console.error('[card-receipts] cardholders failed:', error);
+      res.status(500).json({ message: 'Could not load the cardholders.' });
+    }
+  });
+
   const saveCard = async (req: Request, res: Response, card: Loose | null) => {
     // A card set up from the Amex check with no holder yet may be saved without one (deactivated, renamed); a new card needs its holder.
     const { value, problems } = cleanCard({ ...(card ? cardView(card) : {}), ...(req.body || {}) }, { allowUnassigned: Boolean(card && !card.userId) });

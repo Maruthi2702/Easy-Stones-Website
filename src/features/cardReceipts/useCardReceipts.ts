@@ -21,6 +21,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   const [month, setMonth] = useState('');
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [waiting, setWaiting] = useState<Expense[]>([]);
+  const [holders, setHolders] = useState<{ id: string; name: string; active: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const asked = useRef('');
@@ -32,6 +33,14 @@ export function useCardReceipts(user: ReceiptsUser | null) {
       .catch((e: Error) => { if (live) { setError(e.message); setLoading(false); } });
     return () => { live = false; };
   }, []);
+
+  // Everyone with a card in view, for the Cardholder filter (not only who has an expense this month).
+  useEffect(() => {
+    if (!viewAll) return undefined;
+    let live = true;
+    api.listCardholders().then((r) => { if (live) setHolders(r.holders); }).catch(() => { /* the filter falls back to who has expenses */ });
+    return () => { live = false; };
+  }, [viewAll]);
 
   const scope = viewAll ? 'all' : 'mine';
   const load = useCallback(async () => {
@@ -83,7 +92,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   const voidOne = async (id: string, reason: string) => { const r = await api.voidExpense(id, reason); place(r.expense); return r.expense; };
 
   return {
-    me, month, setMonth, expenses, waiting, loading: loading || !me, error, viewAll, teamOnly, approver,
+    me, month, setMonth, expenses, waiting, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
     reload: () => { load(); loadWaiting(); }, add, edit, approve, sendBack, voidOne, upload: api.uploadReceipt, scan: api.scanReceipt
   };
 }

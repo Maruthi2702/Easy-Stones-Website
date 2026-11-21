@@ -212,6 +212,18 @@ describe('who sees what', () => {
   });
 });
 
+describe('cardholders for the filter', () => {
+  it('lists everyone with a card to View all, none to a plain cardholder, and no one twice', async () => {
+    await as(REP).get('/cardholders').expect(403);
+    const all = (await as(ACCOUNTING).get('/cardholders').expect(200)).body.holders;
+    const rows = await CompanyCard.find({}).lean();
+    const withHolder = new Set(rows.map((c: Loose) => String(c.userId || '')).filter(Boolean));
+    expect(all).toHaveLength(withHolder.size);
+    expect(new Set(all.map((h: Loose) => h.id)).size).toBe(all.length);
+    expect(all.map((h: Loose) => h.name)).toContain('Maruthi Ponugupati');
+  });
+});
+
 describe('approval', () => {
   it('lets someone above approve, from another branch, and never the cardholder themselves', async () => {
     const body = receipt();
