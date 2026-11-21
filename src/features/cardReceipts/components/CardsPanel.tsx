@@ -5,16 +5,17 @@ import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import useIsPhone from '../../../components/shared/form/useIsPhone';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '../../../components/shared/form/FormControls';
+import LocationPicker from '../../../components/shared/form/LocationPicker';
 import { ISSUERS, cleanCard, suggestCardLabel } from '../../../utils/cardReceipts';
 import * as api from '../cardReceiptsApi';
 import type { Card, Person } from '../types';
 
-type CardValues = { userId: string; issuer: 'amex' | 'other'; lastDigits: string; label: string; amexName: string };
+type CardValues = { userId: string; issuer: 'amex' | 'other'; lastDigits: string; label: string; amexName: string; location: string };
 
 function CardForm({ card, people, onSave, onClose }: {
   card: Card | null; people: Person[]; onSave: (v: CardValues & { active?: boolean }) => Promise<unknown>; onClose: () => void;
 }) {
-  const start: CardValues = card ? { userId: card.userId, issuer: card.issuer, lastDigits: card.lastDigits, label: card.label, amexName: card.amexName || '' } : { userId: '', issuer: 'amex', lastDigits: '', label: '', amexName: '' };
+  const start: CardValues = card ? { userId: card.userId, issuer: card.issuer, lastDigits: card.lastDigits, label: card.label, amexName: card.amexName || '', location: card.location || '' } : { userId: '', issuer: 'amex', lastDigits: '', label: '', amexName: '', location: '' };
   // The name starts as what the uploaded statements print for this card, until one is typed and saved.
   const [v, setV] = useState<CardValues>({ ...start, amexName: start.amexName || card?.statementName || '' });
   const [labelTouched, setLabelTouched] = useState(Boolean(card));
@@ -35,6 +36,8 @@ function CardForm({ card, people, onSave, onClose }: {
   const problems = { ...cleanCard(v).problems, ...serverProblems };
   const errors = submitted ? problems : {};
   const dirty = (Object.keys(start) as (keyof CardValues)[]).filter((k) => v[k] !== start[k]).length;
+  // The branches the staff list knows, plus the one already on the card.
+  const branchNames = useMemo(() => [...new Set([...people.map((p) => p.location), card?.location || ''].filter(Boolean))], [people, card]);
   const personOptions = useMemo(() => people.filter((p) => p.active || p.id === start.userId).map((p) => ({
     value: p.id, label: p.name, description: [p.role.replace(/_/g, ' '), p.location].filter(Boolean).join(' · '), keywords: `${p.name} ${p.location}`
   })), [people, start.userId]);
@@ -84,6 +87,10 @@ function CardForm({ card, people, onSave, onClose }: {
           <input id="ccr-card-label" className="fm-input ccr-mono" autoComplete="off" maxLength={20} placeholder="Name letters + digits"
             value={v.label} onChange={(e) => { setLabelTouched(true); setV((cur) => ({ ...cur, label: e.target.value.toUpperCase() })); }} />
         </FormField>
+        <FormField name="location" id="ccr-card-location" label="Location">
+          <LocationPicker id="ccr-card-location" value={v.location} onChange={(location) => set({ location })} options={branchNames}
+            noneLabel="None" sheetTitle="Location" />
+        </FormField>
         <FormField name="amexName" id="ccr-card-amex" label="Amex card member">
           <input id="ccr-card-amex" className="fm-input ccr-mono" autoComplete="off" maxLength={120} placeholder="As Amex prints it"
             value={v.amexName} onChange={(e) => set({ amexName: e.target.value.toUpperCase() })} />
@@ -111,7 +118,8 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
 
   // A card set up from the Amex check before its holder has a login has no one yet: Edit assigns it.
   const nameOf = (id: string) => (id ? people.find((p) => p.id === id)?.name || 'Someone who left' : 'Not assigned yet');
-  const placeOf = (id: string) => (id ? people.find((p) => p.id === id)?.location || '' : '');
+  // The holder's own location, else the branch kept on the card (a card with no holder yet).
+  const placeOf = (c: Card) => (c.userId ? people.find((p) => p.id === c.userId)?.location : '') || c.location || '';
   // A saved card keeps the statement name the list was loaded with (the save's answer doesn't carry it).
   const replace = (card: Card) => setCards((list) => [{ statementName: list.find((c) => c._id === card._id)?.statementName, ...card }, ...list.filter((c) => c._id !== card._id)].sort((a, b) => Number(b.active) - Number(a.active) || a.label.localeCompare(b.label)));
 
@@ -148,7 +156,7 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
               <div key={c._id} className="ccr-card ccr-card-row" style={{ opacity: c.active ? 1 : 0.6, cursor: 'default' }}>
                 <span style={{ display: 'grid', gap: 3, minWidth: 0 }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><b className="ccr-mono">{c.label}</b>{status(c)}</span>
-                  <span className="ccr-card-meta">{nameOf(c.userId)}{placeOf(c.userId) ? ` · ${placeOf(c.userId)}` : ''}</span>
+                  <span className="ccr-card-meta">{nameOf(c.userId)}{placeOf(c) ? ` · ${placeOf(c)}` : ''}</span>
                   {c.amexName || c.statementName ? <span className="ccr-card-meta">Amex: {c.amexName || c.statementName}</span> : null}
                   <span className="ccr-card-meta">{c.issuer === 'amex' ? 'Amex' : 'Other card'} ···{c.lastDigits}</span>
                 </span>
@@ -166,7 +174,7 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
                     <td className="ccr-mono">{c.label}</td>
                     <td>{c.userId ? nameOf(c.userId) : <span className="ccr-muted">Not assigned yet</span>}</td>
                     <td className="ccr-col-wide ccr-st-desc">{c.amexName || c.statementName || <span className="ccr-muted">—</span>}</td>
-                    <td className="ccr-col-wide">{placeOf(c.userId)}</td>
+                    <td className="ccr-col-wide">{placeOf(c)}</td>
                     <td>{c.issuer === 'amex' ? 'Amex' : 'Other'} ···{c.lastDigits}</td>
                     <td>{status(c)}</td>
                     {canManage ? <td style={{ width: 52, textAlign: 'right' }}>{menu(c)}</td> : null}

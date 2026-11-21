@@ -1,0 +1,1 @@
+ALTER TABLE "company_cards" ADD COLUMN IF NOT EXISTS "location" text DEFAULT '' NOT NULL;

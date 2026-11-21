@@ -16,11 +16,13 @@
  *   --locations           also gives each matched person the sheet's Location, ONLY if they have no home location, no assigned
  *                         locations and aren't on All locations (home + assigned, like Users & Roles → Locations); never
  *                         changes a location anyone already has. Works for people who already had their card too. One-time.
+ *                         It also keeps the branch on each CARD (company_cards.location, blank ones only), so a card with
+ *                         no holder yet shows its location in Cards; new cards are made with it.
  *   --leave=A,B           these Card IDs are never matched to a login (they get an unassigned card with --unassigned)
  * Needs DATABASE_URL (Render shell). Safe to run twice.
  */
 import fs from 'node:fs';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { openDb } from '../src/db/client.ts';
 import { users, locations, userLocations } from '../src/db/schema/reference.ts';
 import { companyCards } from '../src/db/schema/cardsSuppliers.ts';
@@ -94,8 +96,18 @@ try {
   const usedLabel = new Set(cards.map(c => c.label));
   const usedDigits = new Map(cards.map(c => [c.lastDigits, c.label]));
   const tally = { made: 0, had: 0, none: 0, many: 0, clash: 0 };
+  const tallyCards = { set: 0, had: 0 };
   for (const h of holders) {
     const digits = h.label.slice(-5);
+    const sheetBranch = withLocations ? branchOf(h.text) : null;
+    if (sheetBranch) {
+      const mine = cards.find(c => c.label === h.label);
+      if (mine && !mine.location) {
+        console.log(`  ${apply ? '+ CARD BRANCH' : '· would set'}  ${h.label} → ${sheetBranch.name}`);
+        if (apply) await d.update(companyCards).set({ location: sheetBranch.name }).where(and(eq(companyCards.id, mine.id), eq(companyCards.location, '')));
+        tallyCards.set += 1;
+      } else if (mine) tallyCards.had += 1;
+    }
     const own = h.emails.filter(e => mailCount.get(e) === 1);
     const byMail = people.filter(p => p.email && own.includes(p.email.toLowerCase()) && p.username !== 'admin');
     const byName = people.filter(p => norm(p.name).length > 3 && norm(h.text).endsWith(norm(p.name)) && p.username !== 'admin');
@@ -103,7 +115,7 @@ try {
     const tag = `${h.label.padEnd(10)} ${h.text}`;
     if (found.length === 0 && unassigned) {
       if (usedLabel.has(h.label) || usedDigits.has(digits)) { tally.had += 1; console.log(`= HAS A CARD    ${tag} — ${usedDigits.get(digits) || h.label} already exists`); continue; }
-      const checked = cleanCard({ userId: '', issuer: 'amex', lastDigits: digits, label: h.label }, { allowUnassigned: true });
+      const checked = cleanCard({ userId: '', issuer: 'amex', lastDigits: digits, label: h.label, location: sheetBranch?.name || '' }, { allowUnassigned: true });
       if (!checked.value) { tally.clash += 1; console.log(`✗ BAD CARD      ${tag} — ${Object.values(checked.problems).join(', ')}`); continue; }
       console.log(`${apply ? '+ CREATED' : '· would create'}  ${tag} → not assigned yet${leave.has(h.label) ? ' (left unassigned on purpose)' : ''}`);
       if (apply) await addCard(d, newId(), { ...checked.value, active: true, updatedBy: 'card-holders-setup' });
@@ -118,7 +130,7 @@ try {
     const how = byMail.length === 1 && byMail[0] === p ? 'email' : 'name';
     if (haveUser.has(p.id)) { tally.had += 1; console.log(`= HAS A CARD    ${tag} — already ${haveUser.get(p.id)}`); continue; }
     if (usedLabel.has(h.label) || usedDigits.has(digits)) { tally.clash += 1; console.log(`✗ CARD IN USE   ${tag} — ${usedDigits.get(digits) || h.label} is another person's`); continue; }
-    const checked = cleanCard({ userId: p.id, issuer: 'amex', lastDigits: digits, label: h.label });
+    const checked = cleanCard({ userId: p.id, issuer: 'amex', lastDigits: digits, label: h.label, location: sheetBranch?.name || '' });
     if (!checked.value) { tally.clash += 1; console.log(`✗ BAD CARD      ${tag} — ${Object.values(checked.problems).join(', ')}`); continue; }
     const flag = p.active ? '' : ' [login is deactivated]';
     console.log(`${apply ? '+ CREATED' : '· would create'}  ${tag} → ${p.name || p.username} (by ${how})${flag}`);
@@ -127,6 +139,7 @@ try {
     tally.made += 1;
   }
   console.log(`\n${apply ? 'Created' : 'Would create'} ${tally.made} · already had a card ${tally.had} · no login ${tally.none} · several logins ${tally.many} · card in use/bad ${tally.clash} · of ${holders.length}`);
+  if (withLocations) console.log(`Card branches: ${apply ? 'set' : 'would set'} ${tallyCards.set} · already had one ${tallyCards.had}`);
   if (withLocations) console.log(`Locations: ${apply ? 'set' : 'would set'} ${tallyPlaces.set} · already had one ${tallyPlaces.had} · no branch matched ${tallyPlaces.unknown}`);
   if (!apply && tally.made) console.log('Dry run: nothing changed. Add --apply to create them.');
 } finally { await close(); }

@@ -190,6 +190,13 @@
       "when": 1795220186498,
       "tag": "0026_company_cards_amex_name",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1795243615172,
+      "tag": "0027_company_cards_location",
+      "breakpoints": true
     }
   ]
 }

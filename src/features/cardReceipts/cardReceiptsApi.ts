@@ -55,5 +55,5 @@ export const deleteCategory = (id: string, replaceWith?: string) => call<{ delet
 /** Everyone with a card in the caller's view (View all → all, View branch → their team). */
 export const listCardholders = () => call<{ holders: { id: string; name: string; active: boolean }[] }>('/cardholders');
 export const listCards = () => call<{ cards: Card[]; people: Person[] }>('/cards');
-export const addCard = (body: Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName'>) => call<{ card: Card }>('/cards', { method: 'POST', body });
-export const editCard = (id: string, body: Partial<Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'active'>>) => call<{ card: Card }>(`/cards/${id}`, { method: 'PUT', body });
+export const addCard = (body: Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'location'>) => call<{ card: Card }>('/cards', { method: 'POST', body });
+export const editCard = (id: string, body: Partial<Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'location' | 'active'>>) => call<{ card: Card }>(`/cards/${id}`, { method: 'PUT', body });

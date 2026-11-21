@@ -8,7 +8,8 @@ export type Subcategory = SubcategoryLike & { name: string; label: string; activ
 export type Category = { _id: string; name: string; label: string; order: number; active: boolean; fields: CategoryFields; subcategories: Subcategory[] };
 export type Card = { _id: string; userId: string; label: string; issuer: 'amex' | 'other'; lastDigits: string; active: boolean;
   /** The name Amex prints for this card, as kept on it ('' until typed). */ amexName?: string;
-  /** The Card Member name on the uploaded Amex statements ('' until one has a charge on this card). */ statementName?: string };
+  /** The Card Member name on the uploaded Amex statements ('' until one has a charge on this card). */ statementName?: string;
+  /** The branch kept on the card, for one with no holder yet ('' until set). */ location?: string };
 export type Person = { id: string; name: string; role: string; location: string; active: boolean };
 export type Decision = { by: string; byName: string; at: string; comment: string };
 
