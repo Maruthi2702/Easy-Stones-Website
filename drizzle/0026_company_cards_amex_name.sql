@@ -1,0 +1,1 @@
+ALTER TABLE "company_cards" ADD COLUMN IF NOT EXISTS "amex_name" text DEFAULT '' NOT NULL;

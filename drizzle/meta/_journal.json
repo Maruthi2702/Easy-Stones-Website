@@ -183,6 +183,13 @@
       "when": 1795218235843,
       "tag": "0025_receipt_subcategories",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795220186498,
+      "tag": "0026_company_cards_amex_name",
+      "breakpoints": true
     }
   ]
 }
