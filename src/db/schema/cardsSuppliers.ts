@@ -22,6 +22,8 @@ export const companyCards = pgTable('company_cards', {
   label: text('label').notNull(),
   issuer: text('issuer').notNull().default('amex'),
   lastDigits: text('last_digits').notNull(),
+  /** The name Amex prints for this card (its "Card Member"), kept by staff to compare with the cardholder; '' = none typed. */
+  amexName: text('amex_name').notNull().default(''),
   active: boolean('active').notNull().default(true),
   updatedBy: text('updated_by').notNull().default(''),
   createdAt: moment('created_at').notNull().defaultNow(),

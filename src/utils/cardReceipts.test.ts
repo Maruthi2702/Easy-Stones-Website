@@ -45,7 +45,11 @@ describe('money, dates, cards', () => {
   it('suggests the card ID accounting uses and checks a card', () => {
     expect(suggestCardLabel('Maruthi Ponugupati', '92069')).toBe('MARU92069');
     expect(cleanCard({ userId: 'u1', lastDigits: '92069', label: 'maru92069' }).value)
-      .toEqual({ userId: 'u1', issuer: 'amex', lastDigits: '92069', label: 'MARU92069' });
+      .toEqual({ userId: 'u1', issuer: 'amex', lastDigits: '92069', label: 'MARU92069', amexName: '' });
+    expect(cleanCard({ userId: 'u1', lastDigits: '92069', label: 'maru92069', amexName: '  maruthi   ponugupati ' }).value?.amexName).toBe('MARUTHI PONUGUPATI');
+    // A card with no holder yet is fine only when allowed (Cards → Assign).
+    expect(cleanCard({ lastDigits: '92069', label: 'MARU92069' }).problems.userId).toBe('Choose the cardholder');
+    expect(cleanCard({ lastDigits: '92069', label: 'MARU92069' }, { allowUnassigned: true }).value?.userId).toBe('');
     expect(Object.keys(cleanCard({ lastDigits: '12', label: '' }).problems)).toEqual(['userId', 'lastDigits', 'label']);
   });
 });

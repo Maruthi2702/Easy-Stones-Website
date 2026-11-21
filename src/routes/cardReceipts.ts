@@ -57,7 +57,7 @@ const categoryView = (c: Loose) => ({
     fields: { customer: Boolean(s.fields?.customer), attendees: Boolean(s.fields?.attendees), purpose: Boolean(s.fields?.purpose), recurring: Boolean(s.fields?.recurring) }
   }))
 });
-const cardView = (c: Loose) => ({ _id: String(c._id), userId: c.userId, label: c.label, issuer: c.issuer, lastDigits: c.lastDigits, active: c.active !== false });
+const cardView = (c: Loose) => ({ _id: String(c._id), userId: c.userId, label: c.label, issuer: c.issuer, lastDigits: c.lastDigits, amexName: c.amexName || '', active: c.active !== false });
 const expenseView = (e: Loose, viewer: { id: string; approvable: Set<string>; bigApprover?: boolean }) => ({
   id: String(e._id), userId: e.userId, holderName: e.holderName, cardId: e.cardId, cardLabel: e.cardLabel, location: e.location,
   date: e.date, merchant: e.merchant, cents: e.cents, subtotalCents: e.subtotalCents ?? null, taxCents: e.taxCents ?? null, tipCents: e.tipCents ?? null,
@@ -231,8 +231,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         amexNameLookup()
       ]);
       res.json({
-        // amexName: the Card Member name on Amex's report for this card, to compare with the cardholder (Amex check).
-        cards: cards.map((c) => ({ ...cardView(c), amexName: amexName(String(c.lastDigits || '')) })),
+        // statementName: the Card Member name on the uploaded Amex statements for this card, the starting value for amexName (Amex check).
+        cards: cards.map((c) => ({ ...cardView(c), statementName: amexName(String(c.lastDigits || '')) })),
         people: people.filter((p) => p.username !== 'admin').map((p) => ({
           id: String(p._id), name: nameOf(p), role: p.role || '', location: homeOf(p), active: p.isActive !== false
         }))

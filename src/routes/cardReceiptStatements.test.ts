@@ -259,14 +259,22 @@ describe('approving a month from before the check started', () => {
     who = ACCOUNTANT;
   });
 
-  it('the Cards list carries the Card Member name Amex prints for each card, to compare with its holder', async () => {
+  it('the Cards list carries the name Amex prints (from the statements), and a typed name is kept on the card', async () => {
     who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
     const res = await request(app).get('/api/card-receipts/cards');
     expect(res.status).toBe(200);
-    const by = Object.fromEntries(res.body.cards.map((c: { label: string; amexName: string }) => [c.label, c.amexName]));
-    expect(by.MARU92069).toBe('MARUTHI PONUGUPATI');
-    expect(by.SRIN93018).toBe('SRINI MANAM');
-    expect(by.THIV95555).toBe('THIVIKRAM VALLURU');
+    const by = Object.fromEntries(res.body.cards.map((c: { label: string; statementName: string; amexName: string }) => [c.label, c]));
+    expect(by.MARU92069).toMatchObject({ statementName: 'MARUTHI PONUGUPATI', amexName: '' });
+    expect(by.SRIN93018.statementName).toBe('SRINI MANAM');
+    expect(by.THIV95555.statementName).toBe('THIVIKRAM VALLURU');
+    // Typing a name saves it (upper case, single-spaced) and the statement's name is still offered beside it.
+    const saved = await request(app).put(`/api/card-receipts/cards/${by.THIV95555._id}`).send({ amexName: '  thivikram   valluru  ' });
+    expect(saved.status).toBe(200);
+    expect(saved.body.card.amexName).toBe('THIVIKRAM VALLURU');
+    const again = await request(app).get('/api/card-receipts/cards');
+    expect(again.body.cards.find((c: { label: string }) => c.label === 'THIV95555')).toMatchObject({ amexName: 'THIVIKRAM VALLURU', statementName: 'THIVIKRAM VALLURU' });
+    // It can be cleared again.
+    expect((await request(app).put(`/api/card-receipts/cards/${by.THIV95555._id}`).send({ amexName: '' })).body.card.amexName).toBe('');
     who = ACCOUNTANT;
   });
 });

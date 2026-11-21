@@ -212,10 +212,12 @@ export function cleanCard(body: Record<string, unknown>, { allowUnassigned = fal
   const issuer = body.issuer === 'other' ? 'other' : 'amex';
   const lastDigits = String(body.lastDigits ?? '').replace(/\D/g, '');
   const label = String(body.label ?? '').trim().toUpperCase().replace(/\s+/g, '').slice(0, 20);
+  // The name as Amex prints it, upper case and single-spaced; blank is fine.
+  const amexName = String(body.amexName ?? '').trim().toUpperCase().replace(/\s+/g, ' ').slice(0, 120);
   if (!userId && !allowUnassigned) problems.userId = 'Choose the cardholder';
   if (!/^\d{4,5}$/.test(lastDigits)) problems.lastDigits = 'Enter the last 4 or 5 digits';
   if (!/^[A-Z0-9-]{3,20}$/.test(label)) problems.label = 'Enter the card ID, e.g. MARU92069';
-  return Object.keys(problems).length ? { problems } : { value: { userId, issuer, lastDigits, label }, problems };
+  return Object.keys(problems).length ? { problems } : { value: { userId, issuer, lastDigits, label, amexName }, problems };
 }
 
 // ── Expenses ────────────────────────────────────────────────────────────────

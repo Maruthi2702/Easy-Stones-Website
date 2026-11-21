@@ -52,5 +52,5 @@ export const categoryUses = (id: string) => call<{ uses: number }>(`/categories/
 export const deleteCategory = (id: string, replaceWith?: string) => call<{ deleted: boolean; moved: number }>(`/categories/${id}`, { method: 'DELETE', body: replaceWith ? { replaceWith } : {} });
 
 export const listCards = () => call<{ cards: Card[]; people: Person[] }>('/cards');
-export const addCard = (body: Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits'>) => call<{ card: Card }>('/cards', { method: 'POST', body });
-export const editCard = (id: string, body: Partial<Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'active'>>) => call<{ card: Card }>(`/cards/${id}`, { method: 'PUT', body });
+export const addCard = (body: Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName'>) => call<{ card: Card }>('/cards', { method: 'POST', body });
+export const editCard = (id: string, body: Partial<Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'active'>>) => call<{ card: Card }>(`/cards/${id}`, { method: 'PUT', body });

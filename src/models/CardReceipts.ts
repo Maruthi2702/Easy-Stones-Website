@@ -14,6 +14,7 @@ const companyCardSchema = new mongoose.Schema({
   label: { type: String, required: true },
   issuer: { type: String, enum: ['amex', 'other'], default: 'amex' },
   lastDigits: { type: String, required: true },
+  amexName: { type: String, default: '' },
   active: { type: Boolean, default: true },
   updatedBy: { type: String, default: '' }
 }, { timestamps: true });

@@ -74,7 +74,7 @@ export function companyCardRowOf(d: Loose, ref: ReferenceIndex, problems: CopyPr
   if (!userId && !unassigned) { c.problem('user_id', 'card of no user', 'skipped'); return null; }
   return {
     id, userId, label: textOf(d.label), issuer: pickOf(c, 'issuer', d.issuer, ['amex', 'other'] as const, 'amex'),
-    lastDigits: textOf(d.lastDigits), active: boolOf(d.active, true), updatedBy: textOf(d.updatedBy), ...stamp(c, d)
+    lastDigits: textOf(d.lastDigits), amexName: textOf(d.amexName), active: boolOf(d.active, true), updatedBy: textOf(d.updatedBy), ...stamp(c, d)
   };
 }
 
