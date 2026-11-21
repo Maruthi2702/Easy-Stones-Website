@@ -379,3 +379,9 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 @keyframes ccr-cam-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ccr-cam-spin { animation-duration: 2.4s; } }
 @media (min-width: 900px) { .ccr-cam-video, .ccr-cam-shot { inset: 64px 0 120px; height: calc(100% - 184px); } .ccr-cam-guide { top: 14%; bottom: 22%; left: 25%; right: 25%; } }
+
+/* Cards: a person's cards (Amex, Encore) sit together under their name, 2026-11-21. */
+.ccr-cardlines { display: grid; gap: 8px; }
+.ccr-cardline { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ccr-cardline-main { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.ccr-cardline-menu { margin-left: auto; }
