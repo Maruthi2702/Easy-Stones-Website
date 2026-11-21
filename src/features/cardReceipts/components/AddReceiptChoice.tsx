@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Camera, FileText, FileX, Image as ImageIcon } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { receiptFileProblem } from '../../../utils/receiptFile';
@@ -17,7 +17,7 @@ type Props = {
  * Upload Photo, Upload File, Lost Receipt — as a size-S form (✕, no footer). Each
  * then leads into the same Add receipt form: a camera shot, a picked photo or file
  * arrives as `initialFile`, Lost Receipt opens it on the lost-receipt reason.
- * Desktop also takes a dropped file. A wrong file type is refused here, in the
+ * Desktop also takes a dropped or pasted file. A wrong file type is refused here, in the
  * window, before anything uploads.
  */
 export default function AddReceiptChoice({ onCamera, onLost, onFile, onClose }: Props) {
@@ -32,6 +32,21 @@ export default function AddReceiptChoice({ onCamera, onLost, onFile, onClose }: 
     if (why) { setProblem(why); return; }
     onFile(file);
   };
+
+  // Ctrl/⌘+V: a copied screenshot, photo or PDF file goes the same way as a dropped one.
+  const takeRef = useRef(take);
+  takeRef.current = take;
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const files = Array.from(e.clipboardData?.files ?? []);
+      const file = files.find((f) => f.type === 'application/pdf' || f.type.startsWith('image/')) ?? files[0];
+      if (!file) return;
+      e.preventDefault();
+      takeRef.current(file);
+    };
+    document.addEventListener('paste', onPaste);
+    return () => document.removeEventListener('paste', onPaste);
+  }, []);
 
   return (
     <FormModal title="Add receipt" size="s" onClose={onClose} hideSubmit hideFooter>
@@ -60,7 +75,7 @@ export default function AddReceiptChoice({ onCamera, onLost, onFile, onClose }: 
           onDragOver={(e) => { e.preventDefault(); setOver(true); }}
           onDragLeave={() => setOver(false)}
           onDrop={(e) => { e.preventDefault(); setOver(false); take(e.dataTransfer.files?.[0]); }}>
-          Or drop a photo or PDF here
+          Or drop or paste (Ctrl/⌘+V) a photo or PDF here
         </div>
 
         <input ref={photoRef} type="file" accept="image/*" hidden onChange={(e) => { take(e.target.files?.[0]); e.target.value = ''; }} />
