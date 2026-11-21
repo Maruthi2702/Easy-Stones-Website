@@ -5,8 +5,7 @@
       "/Users/krish/Easy-Stones-Website/node_modules/.bin/playwright",
       "test",
       "--config",
-      "qa/cc-receipts/playwright.config.ts",
-      "--workers=1"
+      "qa/cc-receipts/playwright.config.ts"
     ],
     "configFile": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/playwright.config.ts",
     "rootDir": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser",
@@ -20,7 +19,7 @@
     "grepInvert": null,
     "maxFailures": 0,
     "metadata": {
-      "actualWorkers": 1
+      "actualWorkers": 2
     },
     "preserveOutput": "always",
     "projects": [
@@ -29,7 +28,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 1
+          "actualWorkers": 2
         },
         "id": "desktop",
         "name": "desktop",
@@ -45,7 +44,7 @@
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
-          "actualWorkers": 1
+          "actualWorkers": 2
         },
         "id": "phone",
         "name": "phone",
@@ -79,7 +78,7 @@
     "updateSnapshots": "missing",
     "updateSourceMethod": "patch",
     "version": "1.62.1",
-    "workers": 1,
+    "workers": 2,
     "webServer": {
       "command": "npm run dev -- --host 127.0.0.1 --port 4175 --strictPort",
       "url": "http://127.0.0.1:4175",
@@ -113,12 +112,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 7136,
+                  "duration": 4587,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T07:59:39.209Z",
+                  "startTime": "2026-11-21T09:03:19.089Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -144,15 +143,15 @@
               "projectName": "desktop",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 2412,
+                  "duration": 3607,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T07:59:47.455Z",
+                  "startTime": "2026-11-21T09:03:19.088Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -178,15 +177,15 @@
               "projectName": "desktop",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 1812,
+                  "duration": 2123,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T07:59:49.887Z",
+                  "startTime": "2026-11-21T09:03:23.253Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -215,12 +214,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1796,
+                  "duration": 2092,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T07:59:51.711Z",
+                  "startTime": "2026-11-21T09:03:24.229Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -246,15 +245,15 @@
               "projectName": "desktop",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 1988,
+                  "duration": 1740,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T07:59:53.518Z",
+                  "startTime": "2026-11-21T09:03:25.387Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -283,12 +282,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1427,
+                  "duration": 1676,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T07:59:55.515Z",
+                  "startTime": "2026-11-21T09:03:26.334Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -303,7 +302,7 @@
         },
         {
           "title": "CC-10: a failed approval-queue request displays an error instead of saying nothing is waiting",
-          "ok": false,
+          "ok": true,
           "tags": [],
           "tests": [
             {
@@ -314,60 +313,20 @@
               "projectName": "desktop",
               "results": [
                 {
-                  "workerIndex": 0,
-                  "parallelIndex": 0,
-                  "status": "failed",
-                  "duration": 4621,
-                  "error": {
-                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n",
-                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n\n    at /Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts:145:57",
-                    "location": {
-                      "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
-                      "column": 57,
-                      "line": 145
-                    },
-                    "snippet": "  143 |   await page.goto('/sales?tab=card_receipts');\n  144 |   await page.getByRole('tab', { name: /Waiting for me/ }).click();\n> 145 |   await expect(page.locator('.ccr').getByRole('alert')).toContainText('Approval queue is temporarily unavailable.', { timeout: 3000 });\n      |                                                         ^\n  146 |   await expect(page.getByText('Nothing is waiting for you', { exact: true })).toHaveCount(0);\n  147 | });\n  148 |"
-                  },
-                  "errors": [
-                    {
-                      "location": {
-                        "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
-                        "column": 57,
-                        "line": 145
-                      },
-                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n\n\n  143 |   await page.goto('/sales?tab=card_receipts');\n  144 |   await page.getByRole('tab', { name: /Waiting for me/ }).click();\n> 145 |   await expect(page.locator('.ccr').getByRole('alert')).toContainText('Approval queue is temporarily unavailable.', { timeout: 3000 });\n      |                                                         ^\n  146 |   await expect(page.getByText('Nothing is waiting for you', { exact: true })).toHaveCount(0);\n  147 | });\n  148 |\n    at /Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts:145:57"
-                    }
-                  ],
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 2205,
+                  "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T07:59:56.950Z",
+                  "startTime": "2026-11-21T09:03:27.183Z",
                   "annotations": [],
-                  "attachments": [
-                    {
-                      "name": "screenshot",
-                      "contentType": "image/png",
-                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-desktop/test-failed-1.png"
-                    },
-                    {
-                      "name": "error-context",
-                      "contentType": "text/markdown",
-                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-desktop/error-context.md"
-                    },
-                    {
-                      "name": "trace",
-                      "contentType": "application/zip",
-                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-desktop/trace.zip"
-                    }
-                  ],
-                  "errorLocation": {
-                    "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
-                    "column": 57,
-                    "line": 145
-                  }
+                  "attachments": []
                 }
               ],
-              "status": "unexpected"
+              "status": "expected"
             }
           ],
           "id": "bb2a7a9b25a1c3115b01-0cc1525225c55e24febf",
@@ -388,15 +347,15 @@
               "projectName": "phone",
               "results": [
                 {
-                  "workerIndex": 1,
+                  "workerIndex": 2,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 2675,
+                  "duration": 4298,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T08:00:02.315Z",
+                  "startTime": "2026-11-21T09:03:28.962Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -422,15 +381,15 @@
               "projectName": "phone",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 2281,
+                  "duration": 3168,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T08:00:05.246Z",
+                  "startTime": "2026-11-21T09:03:30.550Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -456,15 +415,15 @@
               "projectName": "phone",
               "results": [
                 {
-                  "workerIndex": 1,
+                  "workerIndex": 2,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1765,
+                  "duration": 3090,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T08:00:07.537Z",
+                  "startTime": "2026-11-21T09:03:33.582Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -490,15 +449,15 @@
               "projectName": "phone",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 2196,
+                  "duration": 3353,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T08:00:09.313Z",
+                  "startTime": "2026-11-21T09:03:34.023Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -524,15 +483,15 @@
               "projectName": "phone",
               "results": [
                 {
-                  "workerIndex": 1,
+                  "workerIndex": 2,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1841,
+                  "duration": 2260,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T08:00:11.519Z",
+                  "startTime": "2026-11-21T09:03:36.686Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -558,15 +517,15 @@
               "projectName": "phone",
               "results": [
                 {
-                  "workerIndex": 1,
-                  "parallelIndex": 0,
+                  "workerIndex": 3,
+                  "parallelIndex": 1,
                   "status": "passed",
-                  "duration": 1695,
+                  "duration": 2243,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T08:00:13.368Z",
+                  "startTime": "2026-11-21T09:03:37.422Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -581,7 +540,7 @@
         },
         {
           "title": "CC-10: a failed approval-queue request displays an error instead of saying nothing is waiting",
-          "ok": false,
+          "ok": true,
           "tags": [],
           "tests": [
             {
@@ -592,60 +551,20 @@
               "projectName": "phone",
               "results": [
                 {
-                  "workerIndex": 1,
+                  "workerIndex": 2,
                   "parallelIndex": 0,
-                  "status": "failed",
-                  "duration": 4463,
-                  "error": {
-                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n",
-                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n\n    at /Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts:145:57",
-                    "location": {
-                      "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
-                      "column": 57,
-                      "line": 145
-                    },
-                    "snippet": "  143 |   await page.goto('/sales?tab=card_receipts');\n  144 |   await page.getByRole('tab', { name: /Waiting for me/ }).click();\n> 145 |   await expect(page.locator('.ccr').getByRole('alert')).toContainText('Approval queue is temporarily unavailable.', { timeout: 3000 });\n      |                                                         ^\n  146 |   await expect(page.getByText('Nothing is waiting for you', { exact: true })).toHaveCount(0);\n  147 | });\n  148 |"
-                  },
-                  "errors": [
-                    {
-                      "location": {
-                        "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
-                        "column": 57,
-                        "line": 145
-                      },
-                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoContainText\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nLocator: locator('.ccr').getByRole('alert')\nExpected substring: \u001b[32m\"Approval queue is temporarily unavailable.\"\u001b[39m\nTimeout: 3000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toContainText\" with timeout 3000ms\u001b[22m\n\u001b[2m  - waiting for locator('.ccr').getByRole('alert')\u001b[22m\n\n\n  143 |   await page.goto('/sales?tab=card_receipts');\n  144 |   await page.getByRole('tab', { name: /Waiting for me/ }).click();\n> 145 |   await expect(page.locator('.ccr').getByRole('alert')).toContainText('Approval queue is temporarily unavailable.', { timeout: 3000 });\n      |                                                         ^\n  146 |   await expect(page.getByText('Nothing is waiting for you', { exact: true })).toHaveCount(0);\n  147 | });\n  148 |\n    at /Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts:145:57"
-                    }
-                  ],
+                  "status": "passed",
+                  "duration": 1923,
+                  "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-21T08:00:15.069Z",
+                  "startTime": "2026-11-21T09:03:38.955Z",
                   "annotations": [],
-                  "attachments": [
-                    {
-                      "name": "screenshot",
-                      "contentType": "image/png",
-                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-phone/test-failed-1.png"
-                    },
-                    {
-                      "name": "error-context",
-                      "contentType": "text/markdown",
-                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-phone/error-context.md"
-                    },
-                    {
-                      "name": "trace",
-                      "contentType": "application/zip",
-                      "path": "/Users/krish/Easy-Stones-Website/test-results/receipts-CC-10-a-failed-ap-1d74c-f-saying-nothing-is-waiting-phone/trace.zip"
-                    }
-                  ],
-                  "errorLocation": {
-                    "file": "/Users/krish/Easy-Stones-Website/qa/cc-receipts/browser/receipts.spec.ts",
-                    "column": 57,
-                    "line": 145
-                  }
+                  "attachments": []
                 }
               ],
-              "status": "unexpected"
+              "status": "expected"
             }
           ],
           "id": "bb2a7a9b25a1c3115b01-ee4e2befdc3d501fed6a",
@@ -658,11 +577,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-21T07:59:37.126Z",
-    "duration": 42627.792,
-    "expected": 12,
+    "startTime": "2026-11-21T09:03:17.630Z",
+    "duration": 23325.071,
+    "expected": 14,
     "skipped": 0,
-    "unexpected": 2,
+    "unexpected": 0,
     "flaky": 0
   }
 }
