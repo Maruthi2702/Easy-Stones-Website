@@ -82,10 +82,40 @@ describe('the Credit Card Receipts page', () => {
     expect(fake.posted.at(-1)!.url).toMatch(/w1\/approve$/);
   });
 
+  /** The round + asks how first; Lost Receipt goes straight to the form. */
+  const openAdd = () => {
+    fireEvent.click(screen.getByLabelText('Add receipt'));
+    fireEvent.click(screen.getByRole('button', { name: /Lost Receipt/ }));
+  };
+
+  it('asks how to add a receipt: camera, photo, file or lost', async () => {
+    await show(['use_card_receipts']);
+    fireEvent.click(screen.getByLabelText('Add receipt'));
+    for (const name of ['Open Camera', 'Upload Photo', 'Upload File', 'Lost Receipt']) {
+      expect(screen.getByRole('button', { name: new RegExp(name) })).toBeTruthy();
+    }
+    expect(document.querySelector('.fm-footer')).toBeNull();
+    // Open Camera: no camera in the test browser, so it says so and offers the phone camera.
+    fireEvent.click(screen.getByRole('button', { name: /Open Camera/ }));
+    expect(text()).toContain('The camera isn’t available here');
+    fireEvent.click(screen.getByLabelText('Close camera'));
+    expect(text()).toContain('Upload Photo');
+  });
+
+  it('turns a wrong file away in the window, before anything uploads', async () => {
+    await show(['use_card_receipts']);
+    fireEvent.click(screen.getByLabelText('Add receipt'));
+    const input = document.querySelector('input[accept="application/pdf,image/*"]') as HTMLInputElement;
+    const doc = new File(['x'], 'Statement.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+    fireEvent.change(input, { target: { files: [doc] } });
+    expect(text()).toContain('Statement.docx is a DOCX file');
+    expect(text()).toContain('Upload Photo');
+  });
+
   it('lets a cardholder add a receipt with the round +', async () => {
     await show(['use_card_receipts']);
     expect(screen.queryByRole('tab')).toBeNull();
-    fireEvent.click(screen.getByLabelText('Add receipt'));
+    openAdd();
     // The form is the Bill details card, the category and a note; the pencil opens Edit bill details.
     expect(text()).toContain('Bill details');
     expect(document.getElementById('ccr-merchant')).toBeNull();
@@ -105,7 +135,7 @@ describe('the Credit Card Receipts page', () => {
 
   it('puts ✕ on Edit bill details back to what the card showed, and "+ Add tip" opens it', async () => {
     await show(['use_card_receipts']);
-    fireEvent.click(screen.getByLabelText('Add receipt'));
+    openAdd();
     fireEvent.click(screen.getByLabelText('Edit bill details'));
     fireEvent.change(document.getElementById('ccr-merchant')!, { target: { value: 'Typed then dropped' } });
     fireEvent.click(screen.getByLabelText('Close'));
@@ -118,7 +148,7 @@ describe('the Credit Card Receipts page', () => {
 
   it('sends someone to Edit bill details when a save is missing the merchant or total', async () => {
     await show(['use_card_receipts']);
-    fireEvent.click(screen.getByLabelText('Add receipt'));
+    openAdd();
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(text()).toContain('Edit bill details');
     expect(fake.posted.length).toBe(0);

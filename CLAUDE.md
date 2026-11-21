@@ -1336,6 +1336,15 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   them, opens that screen; after a photo, if the reading left merchant or total blank (or reading
   is off) it opens by itself with the photo large. Total is what was charged to the card;
   subtotal / tax / tip are information only — nothing adds them up.
+- **Add receipt asks how first** (2026-11-21, on `feat/receipt-capture`; claude.ai artifact **Receipt capture flow**,
+  https://claude.ai/artifact/XZPwWL45sLa6o2EbQZPKDU): the round camera opens `AddReceiptChoice` (a size-S form, ✕, no
+  footer — `FormModal`'s `hideFooter`): **Open Camera** (`CameraCapture`: `getUserMedia` back camera, corner guides, flash
+  where the camera has one, Retake / Use photo; blocked or unavailable → it says so and offers the phone's own camera),
+  **Upload Photo**, **Upload File**, **Lost Receipt** (opens the form on the lost reason), and a drop box with a mouse. A
+  chosen file reaches the form as `initialFile`, uploads and is read as it opens. `receiptFileProblem`
+  (`src/utils/receiptFile.ts`, tested) turns away anything but a photo / PDF ≤10 MB in the window and in the form. On a phone
+  the choice is the form template's full-screen sheet, not the canvas's bottom sheet. Not built: the canvas's step list while
+  reading. **Never tried on a real iPhone** (camera permission text is in Info.plist; test the shutter there).
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
   sample statement), the daily reminder email, closing a month, the PDF export.

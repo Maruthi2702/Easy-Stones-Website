@@ -15,6 +15,8 @@ import StatusTiles from './components/StatusTiles';
 import ExpenseList from './components/ExpenseList';
 import ExpenseDrawer from './components/ExpenseDrawer';
 import ExpenseForm from './components/ExpenseForm';
+import AddReceiptChoice from './components/AddReceiptChoice';
+import CameraCapture from './components/CameraCapture';
 import VoidExpenseForm from './components/VoidExpenseForm';
 import CardsPanel from './components/CardsPanel';
 import StatementsPanel from './statements/StatementsPanel';
@@ -24,7 +26,7 @@ import './CardReceipts.css';
 export type CardReceiptsPageProps = { currentUser: ReceiptsUser | null; sidebarToggle?: ReactNode };
 
 type Tab = 'expenses' | 'waiting' | 'statements' | 'cards';
-type Open = { kind: 'add'; lost?: boolean } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | null;
+type Open = { kind: 'choose' } | { kind: 'camera' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | null;
 
 /**
  * Sales → Credit Card Receipts (2026-11-05). Design: the claude.ai
@@ -196,7 +198,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                   ) : (
                     <>
                       <h3>No receipts for {data.month ? monthLabel(data.month) : 'this month'}</h3>
-                      {canUse && me?.card ? <button type="button" className="ccr-btn gold" onClick={() => setOpen({ kind: 'add' })}><Camera size={16} aria-hidden="true" /> Add receipt</button> : null}
+                      {canUse && me?.card ? <button type="button" className="ccr-btn gold" onClick={() => setOpen({ kind: 'choose' })}><Camera size={16} aria-hidden="true" /> Add receipt</button> : null}
                     </>
                   )}
                 </div>
@@ -209,7 +211,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
       </div>
 
       {canUse && me?.card ? (
-        <button type="button" className="ccr-fab" aria-label="Add receipt" title="Add receipt" onClick={() => setOpen({ kind: 'add' })}>
+        <button type="button" className="ccr-fab" aria-label="Add receipt" title="Add receipt" onClick={() => setOpen({ kind: 'choose' })}>
           <Camera size={24} strokeWidth={2.2} aria-hidden="true" />
         </button>
       ) : null}
@@ -234,10 +236,24 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         />
       ) : null}
 
+      {open?.kind === 'choose' ? (
+        <AddReceiptChoice
+          onClose={() => setOpen(null)}
+          onCamera={() => setOpen({ kind: 'camera' })}
+          onLost={() => setOpen({ kind: 'add', lost: true })}
+          onFile={(file) => setOpen({ kind: 'add', file })}
+        />
+      ) : null}
+
+      {open?.kind === 'camera' ? (
+        <CameraCapture onClose={() => setOpen({ kind: 'choose' })} onFile={(file) => setOpen({ kind: 'add', file })} />
+      ) : null}
+
       {open?.kind === 'add' || open?.kind === 'edit' ? (
         <ExpenseForm
           expense={open.kind === 'edit' ? open.expense : null}
           startLost={open.kind === 'add' && Boolean(open.lost)}
+          initialFile={open.kind === 'add' ? open.file : null}
           cardLabel={me?.card?.label || ''}
           holderName={me?.user.name || ''}
           categories={categories}

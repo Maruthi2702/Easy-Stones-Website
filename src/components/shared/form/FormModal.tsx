@@ -48,6 +48,8 @@ export type FormModalProps = {
     headerActions?: React.ReactNode;
     hideFooterOnPhone?: boolean;
     hideSubmit?: boolean;
+    /** No footer bar at all — a window that is only a list of choices (Add receipt's four ways in). */
+    hideFooter?: boolean;
     submitTone?: 'primary' | 'danger';
     children?: React.ReactNode;
 };
@@ -79,6 +81,7 @@ export default function FormModal({
     // Contractor pop-up while it looks the license up): Enter and the footer
     // note still work, there's just no button.
     hideSubmit = false,
+    hideFooter = false,
     // submitTone="danger" — a red main button, for a window whose action
     // removes something (the Customer List's bulk Delete). Same place and size.
     submitTone = 'primary',
@@ -315,7 +318,7 @@ export default function FormModal({
                     <div ref={bottomSentinel} className="fm-sentinel" aria-hidden="true" />
                 </div>
 
-                <footer className={`fm-footer${hideFooterOnPhone ? ' fm-footer-no-phone' : ''}`}>
+                {!hideFooter && <footer className={`fm-footer${hideFooterOnPhone ? ' fm-footer-no-phone' : ''}`}>
                     {footerStart && <span className="fm-footer-start">{footerStart}</span>}
                     <span className="fm-footer-note">{footerNote}</span>
                     {/* No Cancel: the ✕ in the header does the same, unsaved-changes
@@ -325,7 +328,7 @@ export default function FormModal({
                             {saving ? <><span className="fm-spinner" aria-hidden="true" />{savingLabel}</> : submitLabel}
                         </button>
                     )}
-                </footer>
+                </footer>}
             </form>
 
             {confirmOpen && (
