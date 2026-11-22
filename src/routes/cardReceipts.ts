@@ -1,3 +1,4 @@
+import { pushReceiptSentBack } from '../services/pushEvents.ts';
 import type { Request, RequestHandler, Response, NextFunction } from 'express';
 import * as staffData from '../db/staff/index.ts';
 import express from 'express';
@@ -565,6 +566,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         { at: new Date(), by, action: action === 'approve' ? 'approved' : 'sent back', expectedUpdatedAt: expense.updatedAt as Date,
           changes: [action === 'approve' && isBigReceipt(expense.cents) ? (stepOne ? 'Step 1 of 2, now with Accounting' : 'Step 2 of 2') : '', comment].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
+      if (action === 'send_back') pushReceiptSentBack(saved, comment); // the cardholder is told, with the reason
       res.json({ expense: expenseView(saved, { id: approver.id, approvable: new Set() }) });
     } catch (error) {
       if (error instanceof StaleExpenseError) return res.status(409).json({ message: error.message, changed: true });

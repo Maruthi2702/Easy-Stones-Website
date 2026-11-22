@@ -17,6 +17,7 @@ import { getFileStore } from '../services/fileStore.ts';
 import { findDeliveries, findDelivery, saveDelivery, updateDelivery, createDelivery, deleteDelivery, setRouteNumbers, findTrucks, saveTruck, logDeliveryActivity } from '../db/deliveries/index.ts';
 import { newId } from '../db/ids.ts';
 import * as staffData from '../db/staff/index.ts';
+import { pushDriverAssigned } from '../services/pushEvents.ts';
 
 import { stampSignaturesOnPdfBytes } from '../utils/pdfSigner.ts';
 import { signedPackingListFileName } from '../utils/packingList.ts';
@@ -964,6 +965,7 @@ export default function createDeliveriesRouter({
       const saved = await saveDelivery(delivery.id, updateData);
       // The run it left (if it moved) and the one it's in now.
       const updated = withNumberFrom(saved, await renumberAfter(req, [runOf(existing), runOf(saved)], saved.id));
+      pushDriverAssigned(existing?.truckId, saved); // a ticket that lands on a different driver's truck tells that driver
 
       // Broadcast just the single changed record — not the whole collection. Clients
       // merge it into whichever cached week(s) it belongs to.
@@ -1269,6 +1271,7 @@ export default function createDeliveriesRouter({
 
       if (!saved) return res.status(404).json({ error: 'Delivery not found' });
       const updated = withNumberFrom(saved, await renumberAfter(req, [oldRun, runOf(saved)], saved.id));
+      pushDriverAssigned(existing.truckId, saved);
 
       emitDeliveryUpdate(req, { type: 'upsert', delivery: updated }, updated);
       deliveriesChanged([updated.id]);

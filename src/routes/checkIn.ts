@@ -1,3 +1,4 @@
+import { pushCheckIn } from '../services/pushEvents.ts';
 import { validateScalarRequest, scalarQuery, scalarParams } from '../server/scalarRequest.ts';
 import type { Loose } from '../types/records.ts';
 import type { Request, RequestHandler } from 'express';
@@ -382,6 +383,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       })();
 
       emitCheckInUpdate(req, checkIn.location);
+      pushCheckIn(checkIn);
 
       res.status(201).json({
         success: true,
@@ -484,6 +486,7 @@ export default function createCheckInRouter({ authenticate, requirePermission }:
       })();
 
       emitCheckInUpdate(req, checkIn.location);
+      pushCheckIn(checkIn);
 
       res.status(201).json({
         success: true,

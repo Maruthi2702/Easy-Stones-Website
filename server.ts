@@ -175,6 +175,7 @@ import createLocationRequestsRouter from './src/routes/locationRequests.ts';
 import createPushDevicesRouter from './src/routes/pushDevices.ts';
 import { appSiteAssociation } from './src/utils/appLinks.ts';
 import { startLocationRetention } from './src/jobs/locationRetention.ts';
+import { startFollowUpPush } from './src/jobs/followUpPush.ts';
 import createCustomerSpsImportRouter from './src/routes/customerSpsImport.ts';
 import { resumeRunningImports } from './src/services/spsImportRunner.ts';
 import createVisitsRouter from './src/routes/visits.ts';
@@ -1067,6 +1068,7 @@ async function startServer() {
 
       // Location points are kept 90 days (src/utils/locationTracking.ts); older ones are deleted nightly.
       startLocationRetention();
+      startFollowUpPush();
 
       // Permits: the first pull reads six months back straight away; then one
       // pull a day from 5:00 AM Pacific (src/permits/sync.ts).

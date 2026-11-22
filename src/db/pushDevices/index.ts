@@ -38,3 +38,10 @@ export async function setEnvironment(token: string, environment: 'production' | 
   const d = db ?? await appDb();
   await d.update(devices).set({ environment }).where(eq(devices.token, token));
 }
+
+/** Everyone with at least one registered phone (the morning follow-up push only looks at these). */
+export async function usersWithDevices(db?: Db): Promise<string[]> {
+  const d = db ?? await appDb();
+  const rows = await d.selectDistinct({ userId: devices.userId }).from(devices);
+  return rows.map(r => r.userId);
+}

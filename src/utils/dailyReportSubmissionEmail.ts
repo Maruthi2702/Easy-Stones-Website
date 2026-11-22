@@ -7,6 +7,7 @@ import * as staffData from '../db/staff/index.ts';
 import User from '../models/User.ts';
 import { pushReportLog } from '../db/dailyReports/index.ts';
 import { logEntry } from './dailyReportLog.ts';
+import { pushReportSubmitted } from '../services/pushEvents.ts';
 import { recipientEmails, seedFromAddresses, SEATTLE_RECIPIENTS_BEFORE_2026_10_15 } from './dailyReportRecipients.ts';
 
 /**
@@ -50,6 +51,7 @@ export async function seedSeattleRecipients() {
  * because a notification email had trouble sending.
  */
 export async function notifyDailyReportSubmission(report: PdfDayReport) {
+  pushReportSubmitted(report as never); // the iOS app's push goes to the same list, independent of the email
   try {
     const to = await recipientsFor(report.location);
     if (!to.length) return;
