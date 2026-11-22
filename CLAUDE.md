@@ -645,6 +645,19 @@ wakes a closed app to answer — iOS doesn't guarantee background wake, so an as
 stays "Waiting" until the app is next opened (that needs native Swift in `AppDelegate` and a real iPhone with the
 APNs key; the next phase). New HR / legal sign-off should cover the changed wording before this goes live.
 
+## Send Notification: an admin's message to people's iPhones (2026-11-21)
+
+Admin → **Send Notification** (`src/features/notifications/`, nav `send_notification`): pick people (search, a
+branch heading ticks only those with a phone) and send a message of up to 120 characters under the fixed title
+"Easy Surfaces". Rules `src/utils/pushSend.ts` (tested), API `src/routes/pushSend.ts` at `/api/push-send`
+(`GET /people`, `POST /`; tested), the sender is `sendPushToUsers` (`src/services/apns.ts`). Switch
+`send_notifications` (Users & Roles → **Notifications**; nobody holds it until an admin ticks it). Recipients are
+limited to the **sender's team** (`teamScope.ts`; All-location logins reach everyone), deactivated people excluded;
+an id outside the team is dropped, never confirmed. Only a person with a **registered phone** (signed in to the iOS
+app, notifications allowed) receives it — the screen greys out the rest and the answer names who had none. **Not
+built:** a log table (each send is only a server log line), scheduling, templates, sending to a role, and opening a
+specific screen on tap (every push opens `/sales`). `POST /api/push-devices/test` also takes an optional `message`.
+
 ## Phone tab bar (2026-10-18)
 
 Under 640px SalesPage shows a bottom tab bar instead of the drawer

@@ -172,6 +172,7 @@ import createCustomerSpsConnectRouter from './src/routes/customerSpsConnect.ts';
 import createCustomerSalesRouter from './src/routes/customerSales.ts';
 import createLocationTrackingRouter from './src/routes/locationTracking.ts';
 import createLocationRequestsRouter from './src/routes/locationRequests.ts';
+import createPushSendRouter from './src/routes/pushSend.ts';
 import createPushDevicesRouter from './src/routes/pushDevices.ts';
 import { appSiteAssociation } from './src/utils/appLinks.ts';
 import { startLocationRetention } from './src/jobs/locationRetention.ts';
@@ -3459,6 +3460,8 @@ app.use('/api/location-tracking', createLocationTrackingRouter({ authenticate })
 app.use('/api/location-tracking', createLocationRequestsRouter({ authenticate }));
 // The iOS app's push devices (src/services/apns.ts): staff only, a person's own phones.
 app.use('/api/push-devices', createPushDevicesRouter({ guard: [authenticate, requireSalesPage] }));
+// An admin's message to people's phones (src/utils/pushSend.ts): needs `send_notifications`, limited to the sender's team.
+app.use('/api/push-send', createPushSendRouter({ authenticate }));
 app.use('/api/customers', createCustomerSpsConnectRouter({
   authenticate,
   uploadMemory,

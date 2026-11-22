@@ -24,6 +24,7 @@ import { canOpenReceipts, canOpenCategories } from './cardReceipts.ts';
 import { canOpenSupplierPos, canSeeIncoming } from './supplierAccess.ts';
 import { canOpenUsersPage } from './teamAccess.ts';
 import { canViewTeamLocations } from './locationTracking.ts';
+import { canSendNotifications } from './pushSend.ts';
 import { canOpenArea, can, NAV_ORDER } from './usersAccess.ts';
 
 type NavUser = Loose | null | undefined;
@@ -118,6 +119,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'receipt_categories', label: 'Receipt Categories', section: 'admin', canSee: (u: NavUser) => canOpenCategories(u) },
   // Where the tracked reps and drivers on one's team are (src/features/teamLocation/); the `view_team_locations` switch is the only key.
   { id: 'team_location', label: 'Team Location', section: 'admin', canSee: (u: NavUser) => canViewTeamLocations(u) },
+  // An admin sends a short message to people's iPhones (src/features/notifications/); the `send_notifications` switch is the only key.
+  { id: 'send_notification', label: 'Send Notification', section: 'admin', canSee: (u: NavUser) => canSendNotifications(u) },
   // The side nav's order for everyone (NavOrderTab.jsx); saving needs the same permission.
   { id: 'nav_order', label: 'Side Nav Order', section: 'admin', canSee: (u: NavUser) => can(u, NAV_ORDER) }
 ];

@@ -9,13 +9,14 @@ import { PROJECT_LEADS } from '../../../utils/projectLeadAccess';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, ListOrdered, PackageCheck, Ship, Unlock, Factory
+    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, ListOrdered, PackageCheck, Ship, Unlock, Factory, Bell
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
 import { PAYMENTS } from '../../../utils/paymentsReceived';
 import { TRACKING } from '../../../utils/locationTracking';
 import { LOCATE } from '../../../utils/locationRequests';
+import { SEND_NOTIFICATIONS } from '../../../utils/pushSend';
 import { CARD_RECEIPTS } from '../../../utils/cardReceipts';
 import { SUPPLIER_POS } from '../../../utils/supplierAccess';
 import { FULL_ACCESS, USERS, ROLES, LOCATIONS, VISIT_TYPES, RESOURCE_TYPES, TYPE_LISTS_ALL, NAV_ORDER, USERS_ROLES_SECTIONS } from '../../../utils/usersAccess';
@@ -178,6 +179,17 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: TRACKING.TRACKED,   label: 'Share location',  icon: MapPin, desc: "The people in this role share their phone's location from the app, 7 AM – 6 PM on their branch's clock, Monday – Friday plus a weekend day with a delivery or stop scheduled, never on a Personal Time Off day" },
             { key: LOCATE.ASK,         label: 'Locate on request', icon: MapPin, desc: "Ask one tracked person's phone for its location once, outside work hours too, with a reason that is kept. The person is told when it is asked." },
             { key: TRACKING.VIEW_TEAM, label: 'See team',        icon: Eye,    desc: "See where the tracked people on the user's team are today and where they went (the team is everyone working at the user's assigned locations)" }
+        ]
+    },
+    {
+        // The iOS app's push notifications (src/utils/pushSend.ts). Nobody holds it until an admin ticks it.
+        id: 'notifications',
+        page: 'Notifications',
+        icon: Bell,
+        description: "Send a short message to people's iPhones (the iOS app)",
+        color: '#f59e0b',
+        actions: [
+            { key: SEND_NOTIFICATIONS, label: 'Send notifications', icon: Bell, desc: "Send a message of up to 120 characters to the phones of people on the user's team (everyone working at the user's assigned locations). Only people signed in to the iOS app with notifications allowed receive it." }
         ]
     },
     {
