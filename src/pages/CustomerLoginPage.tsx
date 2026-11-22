@@ -3,23 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, Sun, Moon, AlertCircle, WifiOff, ArrowBigUp } from 'lucide-react';
 import { API_URL } from '../config/api';
+import { Capacitor } from '@capacitor/core';
 import { useAuth } from '../context/AuthContext';
-import { trySupplierSignIn } from './supplierSignInFallback';
 import './CustomerLoginPage.css';
-
-/** True when the text was a supplier's login (signed in, or told why not). */
-async function signedInAsSupplier(
-    identifier: string,
-    password: string,
-    fail: (field: string | null, message: string) => void,
-    navigate: (to: string, options?: { replace?: boolean }) => void
-): Promise<boolean> {
-    const result = await trySupplierSignIn(identifier, password);
-    if (result === 'nomatch') return false;
-    if (result === 'ok') navigate('/supplier', { replace: true });
-    else fail(null, result);
-    return true;
-}
 
 /**
  * The one door into the portal — trade customers and staff sign in here and are
@@ -167,8 +153,6 @@ const CustomerLoginPage = () => {
                 if (!(await startPasswordSetup())) {
                     fail(null, 'Couldn’t finish signing in. Please try again.');
                 }
-            } else if (response.status === 401 && await signedInAsSupplier(formData.email, formData.password, fail, navigate)) {
-                // A supplier's login (their email): their own session, their own portal.
             } else {
                 // The server returns one message for both a bad account and a bad
                 // password on purpose — don't guess which, but do say what to do next.
@@ -188,6 +172,11 @@ const CustomerLoginPage = () => {
     // :focus-within carries the accent, so it holds while the reveal toggle
     // inside the field takes focus.
     const fieldClass = (name: string) => 'login-input' + (error?.field === name ? ' is-invalid' : '');
+
+    // In the iPhone app the sign-in screen is native (ios/App/App/NativeLogin), drawn over this
+    // page: show nothing here so the web form never flashes beneath it. The effects above still
+    // run, so a finished sign-in still redirects.
+    if (Capacitor.isNativePlatform()) return <div className="customer-login-page" aria-hidden="true" />;
 
     return (
         <div className="customer-login-page">

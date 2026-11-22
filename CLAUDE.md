@@ -599,9 +599,8 @@ size, own permissions) is not built.
 ## iOS app and Team Location (2026-11-19, on `feat/ios-app`)
 
 The iOS app is the live site in a Capacitor shell (`ios/`, `capacitor.config.ts`; it loads the site so the
-sign-in cookies stay first-party). The app is named **Easy Surfaces** (bundle ID `app.easysurfaces`); the company is Easy Surfaces, doing business as Easy Stones, and the website keeps the Easy Stones name. **One sign-in** for staff and suppliers: `/login` tries the staff sign-in, and
-only on "invalid credentials" with an `@` asks the supplier portal (`pages/supplierSignInFallback.ts`); the two
-sessions stay separate. **Location tracking** is `src/utils/locationTracking.ts` (tested): 7 AM–6 PM on the person's workdays
+sign-in cookies stay first-party). The app is named **Easy Surfaces** (bundle ID `app.easysurfaces`); the company is Easy Surfaces, doing business as Easy Stones, and the website keeps the Easy Stones name. **Staff sign-in only** on `/login`: the supplier-portal fallback (`supplierSignInFallback.ts`) was removed
+2026-11-22 at the owner's request, who will handle suppliers' sign-in later; suppliers use `/supplier` directly. **Location tracking** is `src/utils/locationTracking.ts` (tested): 7 AM–6 PM on the person's workdays
 on their **branch clock** — **workdays** = Monday–Friday, minus a day they logged **Personal Time Off**, plus a
 Saturday / Sunday when they have a non-cancelled calendar entry or (a driver) a delivery on their `drv_<username>`
 column (`DayFacts`, read per request by `src/db/locationPoints/workDays.ts`; an In-office admin day is a normal workday) — enforced by the server (`POST /api/location-tracking/points` drops anything
