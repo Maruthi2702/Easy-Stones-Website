@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Keyboard } from '@capacitor/keyboard';
+import { Keyboard, KeyboardStyle } from '@capacitor/keyboard';
 
 const FIELD = 'input, textarea, select, [contenteditable="true"]';
 
@@ -36,6 +36,21 @@ export default function NativeKeyboard() {
       return () => document.removeEventListener('focusin', onFocusBrowser);
     }
     const root = document.documentElement;
+    // The app can't be zoomed: the web view never scrolls (scrollEnabled: false), so a pinch, a
+    // double-tap, or iOS zooming in on a small text box left the whole screen stuck zoomed with
+    // no way back. Only in the iOS app — the website keeps normal zoom.
+    document.querySelector('meta[name="viewport"]')?.setAttribute(
+      'content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+    root.style.setProperty('touch-action', 'manipulation');
+    // The keyboard follows the app's theme (body.light-theme-active), not the phone's: a dark
+    // keyboard under a light sheet looked broken. Set now and whenever the theme flips.
+    const matchKeyboardToTheme = () => {
+      const light = document.body.classList.contains('light-theme-active');
+      void Keyboard.setStyle({ style: light ? KeyboardStyle.Light : KeyboardStyle.Dark }).catch(() => {});
+    };
+    matchKeyboardToTheme();
+    const themeWatcher = new MutationObserver(matchKeyboardToTheme);
+    themeWatcher.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     const reveal = () => {
       const el = document.activeElement;
       if (!el || !el.matches(FIELD) || inPinnedPanel(el)) return;
@@ -60,6 +75,7 @@ export default function NativeKeyboard() {
     };
     document.addEventListener('focusin', onFocus);
     return () => {
+      themeWatcher.disconnect();
       document.removeEventListener('focusin', onFocus);
       void shown.then(h => h.remove());
       void hidden.then(h => h.remove());
