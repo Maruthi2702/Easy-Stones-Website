@@ -8,7 +8,7 @@ import { pushConfigured, sendPushToUsers, type PushMessage, type SendSummary } f
  *
  *   POST   /api/push-devices        { token }  — this phone's APNs token, for the signed-in person (replaces whoever had it)
  *   DELETE /api/push-devices        { token }  — sign-out: stop pushes to this phone (only if it's the caller's)
- *   POST   /api/push-devices/test              — sends the caller a test notification; says whether push is set up
+ *   POST   /api/push-devices/test              — sends the caller a test notification (optional { message }); says whether push is set up
  *
  * Staff only (the caller passes the same guard as the other Sales routes), and
  * a person only ever registers, removes or tests their own phones.
@@ -41,7 +41,9 @@ export default function createPushDevicesRouter(
 
   router.post('/test', guard, async (req: Request, res: Response) => {
     if (!configured()) return res.status(503).json({ message: 'Push notifications are not set up on the server yet.', configured: false });
-    const result = await send([who(req)], { title: 'Easy Surfaces', body: 'Notifications are working on this phone.', path: '/sales' });
+    // An optional `message` (up to 120 characters) replaces the default text, so a test can say something specific.
+    const custom = typeof req.body?.message === 'string' ? req.body.message.trim().slice(0, 120) : '';
+    const result = await send([who(req)], { title: 'Easy Surfaces', body: custom || 'Notifications are working on this phone.', path: '/sales' });
     // Which phones the server holds for the caller (last 6 of each token + the side Apple took it on), to chase a
     // notification that was accepted but never showed.
     const phones = store.devicesFor ? await store.devicesFor([who(req)]).catch(() => []) : [];
