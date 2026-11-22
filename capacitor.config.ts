@@ -27,6 +27,8 @@ const config: CapacitorConfig = {
     SplashScreen: { launchAutoHide: true, backgroundColor: '#000000' },
     // The plugin types this as an enum; the native side reads the plain string.
     Keyboard: { resize: 'none' as KeyboardResize },
+    // Show the banner and play the sound for a push that arrives while the app is open (iOS hides it otherwise).
+    PushNotifications: { presentationOptions: ['badge', 'sound', 'alert'] },
   },
 }
 
