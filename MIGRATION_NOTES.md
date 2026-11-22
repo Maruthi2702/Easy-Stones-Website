@@ -397,7 +397,7 @@ reach `main` in small batches after the owner clicks through them.
 
 ---
 
-## 5. Server: Render → AWS Lambda (owner, 2026-11-08; not started)
+## 5. Server: Render → AWS Lambda (owner, 2026-11-08; phase 2a built, only Permits on dev; revised plan 2026-11-21 below)
 
 Owner's calls: the server moves to **AWS Lambda behind API Gateway** after the
 database — **no ECS** and no Elastic Beanstalk. Keep MongoDB live until AWS is
@@ -438,6 +438,50 @@ us-west regions).
 - **Cutover**: AWS (Lambda + Postgres) runs on staging fed by the copy job; test;
   pause writes, final copy, verify, point the domain at AWS, `--lock` the copy.
   Rollback = domain back to Render + copy AWS writes back into Mongo.
+
+### Revised plan (2026-11-21, owner asked "move without breaking anything")
+
+**Where things stand (checked in the repo 2026-11-21).** The strangler is built
+(`src/lambda/README.md`): Render keeps serving and forwards `/api/<module>` to a Lambda
+listed in `LAMBDA_ROUTES`, the Lambda pushes live updates back through the relay, and
+`scripts/lambda-deploy.ts` ships a module. Only **Permits on dev** has run there. **Prod's
+API stack is off** (`api.enabled: false`, placeholder sign-in settings). **The old
+"Lambda first, still on MongoDB" order no longer fits:** every area is on Postgres, and
+prod RDS accepts only Render's two Virginia IP ranges, so a Lambda outside the VPC can't
+reach it. The 2026-11-08 plan above stays the target; this is the order to get there.
+
+**Rules (what keeps it from breaking).** Render stays in charge until the last step. A
+module moves by adding its prefix to `LAMBDA_ROUTES` and moves back by removing it. One
+change at a time, outside work hours, rollback tested before the real move. Compare
+before moving: replay the same reads against Render and the Lambda and diff
+(like `pg-compare-*`). Riskiest last: sign-in, Delivery, Daily Report.
+
+0. **Ground work.** Permits still works after the 2026-11-21 `JWT_SECRET` change (the
+   Lambda's secret `easy-surfaces/<env>/app` holds its own copy — put the new value there,
+   and the new AWS key if it holds one); run every permit source from a Lambda in dev
+   (some city sites block cloud IPs).
+1. **Network and prod API.** Lambdas that reach RDS go in the VPC; a **NAT gateway** in
+   prod (~$32/month; a NAT instance is EC2, banned) plus a free S3 gateway endpoint; fill
+   prod's real API settings and turn the stack on; Lambdas sign in to RDS with IAM;
+   alarms (errors, duration, throttles, RDS connections); capped concurrency.
+2. **Routes, lowest risk first:** Permits → Team Files → products / public pages →
+   Dashboard reads → Customers reads → writes by area → Delivery, Daily Report, sign-in
+   last. Per module: forward, watch a day or two (errors, speed, cold start), then the
+   next. A route that can answer over 6 MB or run over 30 s first writes to S3 and
+   returns a link.
+3. **What lives in the process.** Timers → EventBridge one at a time (hold expiry,
+   freight, 11:59 PM auto-submit, 5 AM permit pulls): Render job off and schedule on in
+   the same window, and each job checked safe to repeat. Start-up seeds → one migrate
+   Lambda per deploy. Live updates: the relay covers them meanwhile; the WebSocket API and
+   presence in a table come last.
+4. **The front door (last).** CloudFront: built site from S3 plus `/api/*` to API Gateway
+   on one domain (path-scoped cookies). Staging hostname and a full click-through, then
+   switch DNS. Render kept a month; rollback is DNS back. Then retire Render and Mongo.
+
+**Needs before it can start:** the owner's answer on the NAT gateway; **DNS admin access
+to easystones.com** (also what parks SES) — step 4 can't happen without it. A way to send
+only a test user to a Lambda first (a small change to `lambdaForward.ts`) is proposed,
+not built. Estimate: ~4–6 weeks part-time (a guess, not measured).
 
 ## Open items for next week (2026-11-08)
 

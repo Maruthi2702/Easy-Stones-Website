@@ -274,7 +274,8 @@ brackets; Mongo's 2-week read-only soak for one module overlaps the build of the
 
 ## Related, not the database
 
-- [ ] **Urgent:** `JWT_SECRET` on Render is still the default — set a real one
-- [ ] Rotate the passwords pasted on 2026-11-09; delete `/Users/krish/render.env`
+- [x] `JWT_SECRET` on Render replaced with a real one (owner, 2026-11-21; everyone signed out once, sign-in checked). **Also put the new value in the Lambda secret** (`easy-surfaces/<env>/app`) and check Permits still loads
+- [ ] Rotate the passwords pasted on 2026-11-09: **AWS access key rotated 2026-11-21** (new key on Render, files and customers checked; old key deactivated — **delete it** after a day with no errors). Owner's calls 2026-11-21: Mongo password left (Mongo is retiring; delete the Atlas user when it closes); SMTP, Cloudinary, FORWARD/RELAY secrets and Resend not rotated (owner says they weren't disclosed). `/Users/krish/render.env` still on disk
+- [ ] Server Render → Lambda: revised plan in MIGRATION_NOTES.md §5 (2026-11-21); waiting on the NAT gateway answer and DNS access to easystones.com
 - [ ] Email on SES (parked until easystones.com DNS access)
 - [ ] Live socket updates from Lambda modules (the relay) — test with a module that sends them
