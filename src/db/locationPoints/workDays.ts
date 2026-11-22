@@ -43,3 +43,34 @@ export async function dayFactsFor(person: { id: string; username: string }, days
   }
   return out;
 }
+
+/**
+ * The same facts for MANY people at once, each for their own day (the manager's list: one person's "today" is their
+ * branch's day). Three queries however many people, not three each. Returns id → that person's DayFacts.
+ */
+export async function dayFactsForPeople(people: { id: string; username: string; day: string }[], db?: Db): Promise<Map<string, DayFacts>> {
+  const valid = people.filter(p => p.id && /^\d{4}-\d{2}-\d{2}$/.test(p.day));
+  const out = new Map<string, DayFacts>(valid.map(p => [p.id, { ...NO_FACTS }]));
+  if (!valid.length) return out;
+  const d = db ?? await appDb();
+  const days = [...new Set(valid.map(p => p.day))].sort();
+  const ids = valid.map(p => p.id);
+  const dayOf = new Map(valid.map(p => [p.id, p.day]));
+
+  const off = await d.select({ id: visits.createdById, day: visits.visitDate }).from(visits)
+    .where(and(inArray(visits.createdById, ids), eq(visits.visitType, TIME_OFF_VISIT_TYPE), inArray(visits.visitDate, days)));
+  for (const r of off) if (r.id && dayOf.get(r.id) === r.day) out.get(r.id)!.timeOff = true;
+
+  const entries = await d.select({ id: schedules.userId, at: schedules.startsAt }).from(schedules)
+    .where(and(inArray(schedules.userId, ids), ne(schedules.status, 'Cancelled'),
+      gte(schedules.startsAt, `${days[0]} 00:00:00`), lt(schedules.startsAt, `${nextDay(days[days.length - 1]!)} 00:00:00`)));
+  for (const r of entries) if (r.id && dayOf.get(r.id) === String(r.at).slice(0, 10)) out.get(r.id)!.scheduledWork = true;
+
+  const trucks = new Map(valid.filter(p => p.username).map(p => [`drv_${p.username}`, p]));
+  if (trucks.size) {
+    const drops = await d.select({ truck: deliveries.truckKey, day: deliveries.day }).from(deliveries)
+      .where(and(inArray(deliveries.truckKey, [...trucks.keys()]), ne(deliveries.status, 'cancelled'), inArray(deliveries.day, days)));
+    for (const r of drops) { const p = r.truck ? trucks.get(r.truck) : undefined; if (p && p.day === r.day) out.get(p.id)!.scheduledWork = true; }
+  }
+  return out;
+}

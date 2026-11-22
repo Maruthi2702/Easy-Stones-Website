@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { GoogleMap, Marker, Polyline, useJsApiLoader } from '@react-google-maps/api';
+import { trailSegments } from '../../utils/locationTrail';
 import type { LocateRequest, TeamPerson, Trail } from './types';
 
 const COLOR = { live: '#2f9e63', earlier: '#d9822b', none: '#8a8f98' } as const;
+/** A person who should be reporting but isn't (battery, permission…): ringed red so the map shows who needs a look. */
+const QUIET = '#d64545';
 const MAP_ID = import.meta.env.VITE_GOOGLE_MAP_ID || '';
 const OPTIONS: google.maps.MapOptions = {
   streetViewControl: false, mapTypeControl: false, fullscreenControl: false, gestureHandling: 'greedy', clickableIcons: false,
@@ -24,7 +27,9 @@ export default function TeamMap({ people, selectedId, trail, onSelect, requested
   const { isLoaded, loadError } = useJsApiLoader({ id: 'google-map-script', googleMapsApiKey: apiKey || '' });
   const mapRef = useRef<google.maps.Map | null>(null);
 
-  const path = trail?.points.map((p) => ({ lat: p.lat, lng: p.lng })) ?? [];
+  // The trail is cut where the phone sent nothing for a while: never a straight line across a gap, a dashed one marks it.
+  const { segments } = useMemo(() => trailSegments((trail?.points ?? []).map((p) => ({ lat: p.lat, lng: p.lng, at: new Date(p.at) }))), [trail]);
+  const path = segments.flat().map((p) => ({ lat: p.lat, lng: p.lng }));
   const seen = people.filter((p) => p.lastSeen);
   const answered = requested?.status === 'answered' && requested.lat !== null && requested.lng !== null ? { lat: requested.lat, lng: requested.lng } : null;
 
@@ -54,7 +59,13 @@ export default function TeamMap({ people, selectedId, trail, onSelect, requested
 
   return (
     <GoogleMap mapContainerClassName="tl-map" center={US} zoom={4} options={OPTIONS} onLoad={(m) => { mapRef.current = m; fit(); }}>
-      {path.length > 1 && <Polyline path={path} options={{ strokeColor: '#d4af37', strokeOpacity: 0.95, strokeWeight: 4 }} />}
+      {segments.map((seg, i) => seg.length > 1 && (
+        <Polyline key={`s${i}`} path={seg.map((p) => ({ lat: p.lat, lng: p.lng }))} options={{ strokeColor: '#d4af37', strokeOpacity: 0.95, strokeWeight: 4 }} />
+      ))}
+      {segments.slice(1).map((seg, i) => (
+        <Polyline key={`g${i}`} path={[segments[i]![segments[i]!.length - 1]!, seg[0]!].map((p) => ({ lat: p.lat, lng: p.lng }))}
+          options={{ strokeOpacity: 0, icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.7, strokeColor: '#9aa3af', scale: 3 }, offset: '0', repeat: '14px' }] }} />
+      ))}
       {path.length > 0 && <Marker position={path[0]!} title="First point" icon={dot('#ffffff', 5)} zIndex={1} />}
       {answered && (
         <Marker position={answered} title={`Requested location · ${requested!.answeredAt ? new Date(requested!.answeredAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}`}
@@ -64,8 +75,8 @@ export default function TeamMap({ people, selectedId, trail, onSelect, requested
         <Marker
           key={p.id}
           position={{ lat: p.lastSeen!.lat, lng: p.lastSeen!.lng }}
-          title={`${p.name} · ${p.ago}`}
-          icon={dot(COLOR[p.status], p.id === selectedId ? 11 : 8)}
+          title={`${p.name} · ${p.ago}${p.quiet ? ` · ${p.quiet.text}` : ''}`}
+          icon={p.quiet ? { ...dot(COLOR[p.status], p.id === selectedId ? 11 : 8), strokeColor: QUIET, strokeWeight: 4 } : dot(COLOR[p.status], p.id === selectedId ? 11 : 8)}
           zIndex={p.id === selectedId ? 3 : 2}
           onClick={() => onSelect(p.id)}
         />

@@ -9,8 +9,23 @@ export { CONSENT_VERSION };
  * battery and the data.
  */
 export const MIN_SECONDS_BETWEEN_POINTS = 45;
-export const FLUSH_EVERY_MS = 60 * 1000;
-export const FLUSH_AT = 20;
+/**
+ * Completeness first (owner, 2026-11-22): a point should leave the phone as soon as there is signal, so little
+ * is on it if it dies. 30 s (was 60) and every 10 points (was 20); the server takes them in batches of 200.
+ */
+export const FLUSH_EVERY_MS = 30 * 1000;
+export const FLUSH_AT = 10;
+/** What the phone says about itself (battery, permission, what is waiting to send). */
+export const HEARTBEAT_EVERY_MS = 5 * 60 * 1000;
+export const BATTERY_CHECK_MS = 60 * 1000;
+/**
+ * A phone that hasn't moved sends nothing (the watcher fires on movement), which on the map is
+ * indistinguishable from a dead phone. So while tracking runs it reads one position when none was kept for
+ * this long: a gap on the manager's screen then really is missing data, not someone sitting still.
+ */
+export const STILL_EVERY_MS = 5 * 60 * 1000;
+export const LOW_BATTERY_PCT = 15;
+export const DYING_BATTERY_PCT = 5;
 export const STATUS_EVERY_MS = 5 * 60 * 1000;
 export const MAX_QUEUE = 2000;
 
@@ -60,6 +75,27 @@ export function toRawPoint(loc: PluginLocation, rand: string): RawPoint | null {
 /** Keep a point only if enough time has passed since the last kept one (a still phone reports often). */
 export const shouldKeep = (lastKeptAt: number | null, at: number) =>
   lastKeptAt === null || at - lastKeptAt >= MIN_SECONDS_BETWEEN_POINTS * 1000;
+
+/** Time for a "still here" position: none kept for STILL_EVERY_MS (or none yet this run). */
+export const needsStillPoint = (lastKeptAt: number | null, nowMs: number) => lastKeptAt === null || nowMs - lastKeptAt >= STILL_EVERY_MS;
+
+export type DeviceState = {
+  permission: 'always' | 'when-in-use' | 'denied' | 'unknown';
+  lowPower: boolean; batteryPct: number | null; charging: boolean; appVersion: string;
+};
+
+/** The battery just fell to 15% or 5% (and isn't charging): flush and say so now, not in five minutes. */
+export function batteryCrossed(before: number | null, after: number | null, charging: boolean): boolean {
+  if (after === null || charging) return false;
+  const was = before ?? 101;
+  return (was > LOW_BATTERY_PCT && after <= LOW_BATTERY_PCT) || (was > DYING_BATTERY_PCT && after <= DYING_BATTERY_PCT);
+}
+
+/** The body of POST /heartbeat. */
+export const heartbeatBody = (device: DeviceState, queued: number, now: Date) => ({
+  permission: device.permission, lowPower: device.lowPower, batteryPct: device.batteryPct, charging: device.charging,
+  appVersion: device.appVersion, queued, at: now.toISOString()
+});
 
 /** Drop what the server would refuse as stale and cap the queue, keeping the newest. */
 export function trimQueue(queue: RawPoint[], nowMs: number): RawPoint[] {

@@ -204,6 +204,13 @@
       "when": 1795251695284,
       "tag": "0028_encore_cards",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795337846441,
+      "tag": "0029_location_v2",
+      "breakpoints": true
     }
   ]
 }

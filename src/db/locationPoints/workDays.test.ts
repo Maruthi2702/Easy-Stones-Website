@@ -4,7 +4,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import * as schema from '../schema/index.ts';
 import { migrateDb } from '../client.ts';
 import type { Db } from '../copy/plan.ts';
-import { dayFactsFor } from './workDays.ts';
+import { dayFactsFor, dayFactsForPeople } from './workDays.ts';
 
 const USER = 'a1'.repeat(12), OTHER = 'b2'.repeat(12), CUST = 'c3'.repeat(12), LOC = '000000000000000000000001';
 
@@ -52,5 +52,22 @@ describe('dayFactsFor', () => {
   it('answers every asked day, ignores bad ones and survives nothing to ask', async () => {
     expect((await dayFactsFor({ id: USER, username: 'dan' }, ['2026-11-30', 'soon'], db)).size).toBe(1);
     expect((await dayFactsFor({ id: USER, username: 'dan' }, [], db)).size).toBe(0);
+  });
+
+  it('reads many people at once, each for their own day, matching the one-person answer', async () => {
+    const many = await dayFactsForPeople([
+      { id: USER, username: 'dan', day: '2026-11-19' },     // Dan's time off
+      { id: OTHER, username: 'other', day: '2026-11-18' }   // the other person's time off
+    ], db);
+    expect(many.get(USER)).toEqual({ timeOff: true, scheduledWork: false });
+    expect(many.get(OTHER)).toEqual({ timeOff: true, scheduledWork: false });
+    // a person is judged on THEIR day only: Dan on the 18th has no time off even though another person does
+    expect((await dayFactsForPeople([{ id: USER, username: 'dan', day: '2026-11-18' }], db)).get(USER)).toEqual({ timeOff: false, scheduledWork: false });
+    const sat = await dayFactsForPeople([{ id: USER, username: 'dan', day: '2026-11-21' }, { id: OTHER, username: 'other', day: '2026-11-20' }], db);
+    expect(sat.get(USER)).toEqual({ timeOff: false, scheduledWork: true });   // Saturday stop
+    expect(sat.get(OTHER)).toEqual({ timeOff: false, scheduledWork: true });  // Friday stop
+    expect((await dayFactsForPeople([{ id: USER, username: 'dan', day: '2026-11-22' }], db)).get(USER)).toEqual({ timeOff: false, scheduledWork: true }); // delivery, cancelled stop ignored
+    expect((await dayFactsForPeople([], db)).size).toBe(0);
+    expect((await dayFactsForPeople([{ id: USER, username: 'dan', day: 'soon' }], db)).size).toBe(0);
   });
 });

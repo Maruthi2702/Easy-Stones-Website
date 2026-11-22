@@ -1,7 +1,7 @@
 import { API_URL } from '../../config/api';
 import { authFetch } from '../../api/authFetch';
 import type { ErrorBody } from '../../types/api';
-import type { LocateRequest, TeamPerson, Trail } from './types';
+import type { AccessEntry, LocateRequest, TeamPerson, Trail } from './types';
 
 /** Team Location's calls to /api/location-tracking (src/routes/locationTracking.ts). Each resolves the body or throws an Error to show as is. */
 async function call<T>(path: string): Promise<T> {
@@ -17,6 +17,14 @@ async function call<T>(path: string): Promise<T> {
 }
 
 export const loadTeam = () => call<{ people: TeamPerson[] }>('/team');
+export const loadAccessLog = (q: { subjectId?: string; viewerId?: string; limit?: number } = {}) => {
+  const params = new URLSearchParams();
+  if (q.subjectId) params.set('subjectId', q.subjectId);
+  if (q.viewerId) params.set('viewerId', q.viewerId);
+  if (q.limit) params.set('limit', String(q.limit));
+  const qs = params.toString();
+  return call<{ entries: AccessEntry[] }>(`/access-log${qs ? `?${qs}` : ''}`);
+};
 export const loadTrail = (userId: string, day: string) =>
   call<Trail>(`/team/${encodeURIComponent(userId)}${day ? `?date=${encodeURIComponent(day)}` : ''}`);
 

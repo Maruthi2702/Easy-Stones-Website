@@ -20,6 +20,12 @@ export async function sendPoints(points: RawPoint[]): Promise<'sent' | 'consent'
   } catch { return 'retry'; }
 }
 
+/** What the phone says about itself (no position). Fire and forget: a failed heartbeat is just the next one. */
+export async function sendHeartbeat(body: object): Promise<boolean> {
+  try { return (await authFetch(`${API_URL}/api/location-tracking/heartbeat`, { method: 'POST', body: JSON.stringify(body) })).ok; }
+  catch { return false; }
+}
+
 /** Saves the person's agreement to the current wording on the server; throws a message to show if it can't. */
 export async function recordConsent(): Promise<void> {
   let res: Response;

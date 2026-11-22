@@ -1,6 +1,7 @@
 import { deleteOlderThan } from '../db/locationPoints/index.ts';
 import { deleteRequestsOlderThan } from '../db/locationPoints/requests.ts';
-import { retentionCutoff } from '../utils/locationTracking.ts';
+import { deleteViewLogOlderThan } from '../db/locationPoints/live.ts';
+import { VIEW_LOG_RETENTION_DAYS, retentionCutoff } from '../utils/locationTracking.ts';
 
 /**
  * Location points are kept 90 days (src/utils/locationTracking.ts), then
@@ -12,6 +13,8 @@ export async function runLocationRetention(now: Date = new Date()): Promise<numb
   try {
     const gone = await deleteOlderThan(retentionCutoff(now));
     await deleteRequestsOlderThan(retentionCutoff(now)); // "Locate now" asks and answers go on the same 90-day rule
+    // The access log is the record of who looked, so it outlives the points: 1 year.
+    await deleteViewLogOlderThan(new Date(now.getTime() - VIEW_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000));
     if (gone) console.log(`🧹 Location tracking: deleted ${gone} point${gone === 1 ? '' : 's'} older than 90 days`);
     return gone;
   } catch (err) {

@@ -3,12 +3,13 @@ import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
 import type { RawPoint } from '../../utils/locationTracking';
 import {
-  FLUSH_AT, statusIsStale, FLUSH_EVERY_MS, STATUS_EVERY_MS, phaseFor, shouldKeep, takeBatch, toRawPoint, trimQueue,
+  BATTERY_CHECK_MS, FLUSH_AT, HEARTBEAT_EVERY_MS, STILL_EVERY_MS, batteryCrossed, heartbeatBody, needsStillPoint,
+  statusIsStale, FLUSH_EVERY_MS, STATUS_EVERY_MS, phaseFor, shouldKeep, takeBatch, toRawPoint, trimQueue,
   type Phase, type TrackingStatus
 } from './collectorRules';
 import { clearQueue, loadQueue, saveQueue } from './pointQueue';
-import { loadStatus, recordConsent, sendPoints } from './collectorApi';
-import { startWatching } from './backgroundLocation';
+import { loadStatus, recordConsent, sendHeartbeat, sendPoints } from './collectorApi';
+import { currentPosition, readDevice, startWatching } from './backgroundLocation';
 
 /**
  * Collects the phone's location for a tracked staff member, only inside the
@@ -83,6 +84,52 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
     const timer = setInterval(() => { void flush(); }, FLUSH_EVERY_MS);
     return () => { cancelled = true; clearInterval(timer); if (stop) void stop(); };
   }, [phase, userId, flush]);
+
+  // What the phone says about itself: on start, every 5 minutes, and at once when the battery falls to 15% / 5%
+  // (so a manager can see "Battery 3% at 2:14 PM" instead of an unexplained silence). Also while location is denied.
+  const beat = useCallback(async () => {
+    const device = await readDevice();
+    void sendHeartbeat(heartbeatBody(device, queue.current.length, new Date()));
+    return device;
+  }, []);
+  useEffect(() => {
+    if (phase !== 'running' && phase !== 'denied') return undefined;
+    let battery: number | null = null; let cancelled = false;
+    void beat().then((d) => { if (!cancelled) battery = d.batteryPct; });
+    const every = setInterval(() => { void beat(); }, HEARTBEAT_EVERY_MS);
+    const watch = setInterval(() => {
+      void readDevice().then((d) => {
+        if (cancelled) return;
+        const crossed = batteryCrossed(battery, d.batteryPct, d.charging);
+        battery = d.batteryPct;
+        if (crossed) { void flush(); void beat(); }   // get everything off the phone while it still can
+      });
+    }, BATTERY_CHECK_MS);
+    return () => { cancelled = true; clearInterval(every); clearInterval(watch); };
+  }, [phase, beat, flush]);
+
+  // "Still here": the watcher only fires on movement, so a phone sitting in a showroom sends nothing. Read one position
+  // when none was kept for 5 minutes, so a gap on the map means missing data, not a person who didn't move.
+  useEffect(() => {
+    if (phase !== 'running') return undefined;
+    let busy = false;
+    const check = async () => {
+      if (busy || !needsStillPoint(lastKept.current, Date.now())) return;
+      busy = true;
+      try {
+        const here = await currentPosition();
+        if (!here) return;
+        const at = Date.now();
+        const point = toRawPoint({ latitude: here.lat, longitude: here.lng, accuracy: here.accuracy, time: at }, Math.random().toString(36).slice(2, 8));
+        if (!point || !needsStillPoint(lastKept.current, at)) return;
+        lastKept.current = at;
+        queue.current = trimQueue([...queue.current, point], at);
+        saveQueue(userId, queue.current);
+      } finally { busy = false; }
+    };
+    const timer = setInterval(() => { void check(); }, Math.min(STILL_EVERY_MS, 60 * 1000));
+    return () => clearInterval(timer);
+  }, [phase, userId]);
 
   // A different person on this phone: drop what belongs to the last one.
   useEffect(() => { if (!userId) clearQueue(); }, [userId]);

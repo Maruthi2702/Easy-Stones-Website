@@ -56,7 +56,7 @@ describe('cleanPoints', () => {
   it('drops what is outside the window, stale, in the future, vague or not a place', () => {
     const r = cleanPoints([
       good({ id: 'a', at: '2026-11-18T14:00:00Z' }),            // 6 AM Seattle
-      good({ id: 'b', at: '2026-11-17T19:00:00Z' }),            // over 24 h old: stale
+      good({ id: 'b', at: '2026-11-16T19:00:00Z' }),            // over 48 h old: stale
       good({ id: 'c', at: '2026-11-18T20:30:00Z' }),            // 30 min ahead
       good({ id: 'd', accuracy: 900 }),
       good({ id: 'e', lat: 0, lng: 0 }),
@@ -66,7 +66,31 @@ describe('cleanPoints', () => {
       'junk', null
     ], 'Seattle', now);
     expect(r.kept).toHaveLength(0);
-    expect(r.dropped).toEqual({ invalid: 6, outsideWindow: 1, stale: 2, vague: 1, tooMany: 0 });
+    expect(r.dropped).toEqual({ invalid: 6, outsideWindow: 1, stale: 2, vague: 1, teleport: 0, tooMany: 0 });
+  });
+  it('keeps a point up to 48 hours old (a phone that was dead or in Low Power Mode overnight)', () => {
+    expect(cleanPoints([good({ id: 'y', at: '2026-11-17T19:00:00Z' })], 'Seattle', now).kept).toHaveLength(1);
+  });
+  it('drops a bad fix: a jump of miles in seconds, judged in time order and against the last saved point', () => {
+    const r = cleanPoints([
+      good({ id: 't1', at: '2026-11-18T19:50:00Z', lat: 47.6, lng: -122.3 }),
+      good({ id: 't2', at: '2026-11-18T19:50:30Z', lat: 47.9, lng: -122.3 }),   // ~33 km in 30 s
+      good({ id: 't3', at: '2026-11-18T19:51:00Z', lat: 47.6003, lng: -122.3 }) // back near the first: fine
+    ], 'Seattle', now);
+    expect(r.kept.map(p => p.clientId)).toEqual(['t1', 't3']);
+    expect(r.dropped.teleport).toBe(1);
+    // against the newest point already saved
+    const after = { lat: 47.6, lng: -122.3, at: new Date('2026-11-18T19:49:00Z') };
+    expect(cleanPoints([good({ id: 'u', at: '2026-11-18T19:49:20Z', lat: 48.0, lng: -122.3 })], 'Seattle', now, undefined, after).dropped.teleport).toBe(1);
+  });
+  it('never calls ordinary driving or small GPS noise a bad fix', () => {
+    const r = cleanPoints([
+      good({ id: 'd1', at: '2026-11-18T19:50:00Z', lat: 47.6, lng: -122.3 }),
+      good({ id: 'd2', at: '2026-11-18T19:50:45Z', lat: 47.608, lng: -122.3 }),  // ~890 m in 45 s: 44 mph
+      good({ id: 'd3', at: '2026-11-18T19:50:46Z', lat: 47.6081, lng: -122.3 })  // 11 m in 1 s: noise
+    ], 'Seattle', now);
+    expect(r.kept).toHaveLength(3);
+    expect(r.dropped.teleport).toBe(0);
   });
   it('treats a repeated id in one batch as one point', () => {
     expect(cleanPoints([good(), good()], 'Seattle', now).kept).toHaveLength(1);

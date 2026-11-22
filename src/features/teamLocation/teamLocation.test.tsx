@@ -2,10 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import TeamLocationPage from './TeamLocationPage';
-import { liveCount, sortPeople, trailSummary } from './teamLocationView';
+import { accessLine, attentionCount, deviceLine, filterAccess, filterPeople, gapText, liveCount, sortPeople, trailSummary } from './teamLocationView';
 import type { TeamPerson } from './types';
 
-const api = vi.hoisted(() => ({ loadTeam: vi.fn(), loadTrail: vi.fn(), askLocate: vi.fn(), loadLocate: vi.fn(), loadLocateLog: vi.fn() }));
+const api = vi.hoisted(() => ({ loadAccessLog: vi.fn(), loadTeam: vi.fn(), loadTrail: vi.fn(), askLocate: vi.fn(), loadLocate: vi.fn(), loadLocateLog: vi.fn() }));
 vi.mock('./teamLocationApi', () => api);
 vi.mock('./TeamMap', () => ({ default: ({ people, selectedId }: { people: unknown[]; selectedId: string }) => <div data-testid="map">{people.length} pins · {selectedId || 'none'}</div> }));
 
@@ -26,7 +26,8 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 describe('Team Location', () => {
   it('lists the team, live first, with a count', async () => {
     render(<TeamLocationPage currentUser={viewer} />);
-    const names = await screen.findAllByRole('button', { pressed: false });
+    await screen.findByText('Rita Rep');
+    const names = screen.getAllByRole('button', { pressed: false });
     expect(names.map((b) => b.querySelector('b')?.textContent).filter(Boolean)).toEqual(['Rita Rep', 'Dan Driver', 'Kim Park']);
     expect(screen.getByText(/1 live · 3 tracked on your team/)).toBeTruthy();
     expect(screen.getByTestId('map').textContent).toContain('3 pins');
@@ -111,5 +112,78 @@ describe('Locate now', () => {
     await pick('Rita Rep');
     expect(await screen.findByText('Location requests (1)')).toBeTruthy();
     expect(screen.getByText(/Truck not back/)).toBeTruthy();
+  });
+});
+
+describe('location v2 screen', () => {
+  const quietKim: TeamPerson = { ...person('k', 'Kim Park', 'none', 'No location today'), consentedAt: '2026-11-19T17:00:00Z',
+    quiet: { code: 'battery-dying', text: 'Battery 3% at 1:30 PM — the phone has probably died' },
+    device: { permission: 'always', lowPower: true, batteryPct: 3, charging: false, queued: 40, appVersion: '1', reportedAt: '2026-11-18T21:30:00Z' } };
+  const withQuiet = [PEOPLE[0]!, PEOPLE[1]!, quietKim];
+
+  it('says why a quiet person is quiet, and shows their battery', async () => {
+    api.loadTeam.mockResolvedValue({ people: withQuiet });
+    render(<TeamLocationPage currentUser={viewer} />);
+    expect(await screen.findByText(/the phone has probably died/)).toBeTruthy();
+    expect(screen.getByText('Battery 3% · Low Power Mode · 40 waiting to send')).toBeTruthy();
+  });
+  it('searches the list and narrows it to people who need a look', async () => {
+    api.loadTeam.mockResolvedValue({ people: withQuiet });
+    render(<TeamLocationPage currentUser={viewer} />);
+    await screen.findByText('Rita Rep');
+    fireEvent.click(screen.getByText(/Needs a look \(1\)/));
+    expect(screen.queryByText('Rita Rep')).toBeNull();
+    expect(screen.getByText('Kim Park')).toBeTruthy();
+    fireEvent.click(screen.getByText(/Needs a look \(1\)/));
+    fireEvent.change(screen.getByLabelText('Search people'), { target: { value: 'dan' } });
+    expect(screen.queryByText('Rita Rep')).toBeNull();
+    expect(screen.getByText('Dan Driver')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Search people'), { target: { value: 'zzz' } });
+    expect(screen.getByText('No one matches')).toBeTruthy();
+  });
+  it('lists the gaps in a picked person\'s day', async () => {
+    api.loadTrail.mockResolvedValue({
+      person: { id: 'r', name: 'Rita Rep', branch: 'Seattle' }, day: '2026-11-18', miles: 1, first: '2026-11-18T16:00:00Z', last: '2026-11-18T19:00:00Z',
+      points: [{ at: '2026-11-18T16:00:00Z', lat: 47.6, lng: -122.3, accuracyM: 5 }],
+      gaps: [{ from: '2026-11-18T17:00:00Z', to: '2026-11-18T18:30:00Z', minutes: 90 }]
+    });
+    render(<TeamLocationPage currentUser={viewer} />);
+    fireEvent.click((await screen.findByText('Rita Rep')).closest('button')!);
+    expect(await screen.findByText(/No data for 1 stretch/)).toBeTruthy();
+    expect(screen.getByText('No data 9:00 AM – 10:30 AM (90 min)')).toBeTruthy();
+  });
+  it('has no Access log tab without the switch, and shows it with it', async () => {
+    api.loadAccessLog.mockResolvedValue({ entries: [{ id: 'l1', viewerId: 'm', viewerName: 'Mo Manager', subjectId: 'r', subjectName: 'Rita Rep', kind: 'trail', day: '2026-11-18', at: '2026-11-18T19:00:00Z' }] });
+    const { unmount } = render(<TeamLocationPage currentUser={viewer} />);
+    await screen.findByText('Rita Rep');
+    expect(screen.queryByText('Access log')).toBeNull();
+    unmount();
+    render(<TeamLocationPage currentUser={{ ...viewer, permissions: ['view_team_locations', 'view_location_audit'] }} />);
+    fireEvent.click(await screen.findByText('Access log'));
+    expect(await screen.findByText('Mo Manager viewed the trail of Rita Rep · 2026-11-18')).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Search the access log'), { target: { value: 'nobody' } });
+    expect(screen.getByText('Nothing logged yet')).toBeTruthy();
+  });
+  it('opens straight on the access log for someone with only that switch, and never loads the map', async () => {
+    api.loadAccessLog.mockResolvedValue({ entries: [] });
+    render(<TeamLocationPage currentUser={{ permissions: ['view_location_audit'] }} />);
+    expect(await screen.findByText('Nothing logged yet')).toBeTruthy();
+    expect(api.loadTeam).not.toHaveBeenCalled();
+  });
+});
+
+describe('location v2 view rules', () => {
+  const q: TeamPerson = { ...person('x', 'Xi Quiet', 'none', '—'), quiet: { code: 'silent', text: 'x' } };
+  it('filters by name, branch or role and by attention', () => {
+    expect(filterPeople([...PEOPLE, q], 'sales rep', false)).toHaveLength(4);
+    expect(filterPeople([...PEOPLE, q], 'seattle', true).map((p) => p.id)).toEqual(['x']);
+    expect(attentionCount([...PEOPLE, q])).toBe(1);
+  });
+  it('words the device line, the gap and the access line', () => {
+    expect(deviceLine(PEOPLE[0]!)).toBe('');
+    expect(deviceLine({ ...PEOPLE[0]!, device: { permission: 'always', lowPower: false, batteryPct: 80, charging: true, queued: 0, appVersion: '', reportedAt: '' } })).toBe('Battery 80% (charging)');
+    expect(gapText({ from: '2026-11-18T17:00:00Z', to: '2026-11-18T18:30:00Z', minutes: 90 }, 'Seattle')).toBe('No data 9:00 AM – 10:30 AM (90 min)');
+    expect(accessLine({ id: '1', viewerId: 'm', viewerName: 'Mo', subjectId: 'r', subjectName: 'Rita', kind: 'locate', day: '', at: '' })).toBe('Mo asked for the location of Rita');
+    expect(filterAccess([{ id: '1', viewerId: 'm', viewerName: 'Mo', subjectId: 'r', subjectName: 'Rita', kind: 'live', day: '', at: '' }], 'rit')).toHaveLength(1);
   });
 });

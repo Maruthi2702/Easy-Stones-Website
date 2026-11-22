@@ -21,12 +21,15 @@
  * Pure: no database, no DOM. Tested in locationTracking.test.ts.
  */
 import { branchZone } from '../config/branches.ts';
+import { metresBetween } from './locationTrail.ts';
 
 export const TRACKING = Object.freeze({
   /** Users & Roles → Location card: this role's people are tracked. */
   TRACKED: 'track_location',
   /** Users & Roles → Location card: see where the people on one's team are. */
-  VIEW_TEAM: 'view_team_locations'
+  VIEW_TEAM: 'view_team_locations',
+  /** Users & Roles → Location card: read the access log (who looked at whose location). Admin only to start. */
+  VIEW_AUDIT: 'view_location_audit'
 });
 
 /**
@@ -43,17 +46,31 @@ export const WINDOW_END_HOUR = 18;
 export const RETENTION_DAYS = 90;
 /** A batch from the phone is at most this many points (it sends the backlog after a dead spot in pieces). */
 export const MAX_POINTS_PER_BATCH = 200;
-/** A point older than this on arrival is dropped (a phone that was offline all night). */
-export const MAX_POINT_AGE_MS = 24 * 60 * 60 * 1000;
+/**
+ * A point older than this on arrival is dropped. 48 h (was 24, location v2 2026-11-22: the owner wants the complete
+ * trail even from a phone that was dead or in Low Power Mode overnight); the 7–6 window is still read on the
+ * point's own time, so a late batch can only ever carry points that were inside it.
+ */
+export const MAX_POINT_AGE_MS = 48 * 60 * 60 * 1000;
+/** Faster than this between two consecutive points (about 200 mph) is a bad fix, not travel: the later point is dropped. */
+export const MAX_SPEED_MPS = 90;
+/** A jump shorter than this is GPS noise whatever the speed, so it is never called a teleport. */
+export const TELEPORT_MIN_METRES = 300;
 /** A point stamped further ahead than this (a wrong phone clock) is dropped. */
 export const MAX_FUTURE_MS = 5 * 60 * 1000;
 /** Worse than this and the position is too vague to put on a map. */
 export const MAX_ACCURACY_METRES = 500;
 /** Seen within this long = "Live"; within the next stretch = "Recently"; else "Last seen …". */
 export const LIVE_MS = 10 * 60 * 1000;
+/** A manager looking at the map is one line in the access log per person per this long (a trail or a Locate now is always a line). */
+export const LIVE_LOG_EVERY_MS = 12 * 60 * 60 * 1000;
+/** The access log is kept this long (points and asks follow RETENTION_DAYS). */
+export const VIEW_LOG_RETENTION_DAYS = 365;
 
 export const canBeTracked = (user: { permissions?: string[] } | null | undefined) =>
   Boolean(user?.permissions?.includes(TRACKING.TRACKED));
+export const canViewLocationAudit = (user: { permissions?: string[] } | null | undefined) =>
+  Boolean(user?.permissions?.includes(TRACKING.VIEW_AUDIT));
 export const canViewTeamLocations = (user: { permissions?: string[] } | null | undefined) =>
   Boolean(user?.permissions?.includes(TRACKING.VIEW_TEAM));
 
@@ -138,10 +155,10 @@ export type CleanPoint = { clientId: string; recordedAt: Date; lat: number; lng:
  * not an error — a phone that sends the backlog must still get a 200.
  * `id` is the phone's own id for the point, so a repeated batch saves nothing twice.
  */
-export function cleanPoints(raw: unknown, branch: string, now: Date = new Date(), factsFor?: (day: string) => DayFacts) {
+export function cleanPoints(raw: unknown, branch: string, now: Date = new Date(), factsFor?: (day: string) => DayFacts, after?: { lat: number; lng: number; at: Date } | null) {
   const list = Array.isArray(raw) ? raw.slice(0, MAX_POINTS_PER_BATCH) : [];
   const kept: CleanPoint[] = [];
-  const dropped = { invalid: 0, outsideWindow: 0, stale: 0, vague: 0, tooMany: Math.max(0, (Array.isArray(raw) ? raw.length : 0) - MAX_POINTS_PER_BATCH) };
+  const dropped = { invalid: 0, outsideWindow: 0, stale: 0, vague: 0, teleport: 0, tooMany: Math.max(0, (Array.isArray(raw) ? raw.length : 0) - MAX_POINTS_PER_BATCH) };
   const seen = new Set<string>();
   for (const item of list) {
     const p = (item && typeof item === 'object' ? item : {}) as RawPoint;
@@ -159,7 +176,21 @@ export function cleanPoints(raw: unknown, branch: string, now: Date = new Date()
     const speed = p.speed === undefined || p.speed === null ? null : Number(p.speed);
     kept.push({ clientId, recordedAt: at, lat, lng, accuracyM: accuracy, speedMps: speed !== null && Number.isFinite(speed) && speed >= 0 ? speed : null });
   }
-  return { kept, dropped };
+  // A bad fix (the phone jumping miles in seconds) would put a pin in the wrong town and add miles to the trail.
+  // Judged in time order against the last good point (the newest one already saved, when the caller has it).
+  kept.sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime());
+  const good: CleanPoint[] = [];
+  let prev = after ?? null;
+  for (const p of kept) {
+    if (prev && p.recordedAt.getTime() > prev.at.getTime()) {
+      const metres = metresBetween(prev, p);
+      const seconds = (p.recordedAt.getTime() - prev.at.getTime()) / 1000;
+      if (metres >= TELEPORT_MIN_METRES && metres / seconds > MAX_SPEED_MPS) { dropped.teleport++; continue; }
+    }
+    good.push(p);
+    if (!prev || p.recordedAt.getTime() > prev.at.getTime()) prev = { lat: p.lat, lng: p.lng, at: p.recordedAt };
+  }
+  return { kept: good, dropped };
 }
 
 /** The instant before which points are deleted. */

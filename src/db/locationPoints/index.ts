@@ -3,22 +3,35 @@
  * src/utils/locationTracking.ts for the rules). The route has already cleaned
  * the batch; this only stores and reads.
  */
-import { and, asc, desc, eq, gte, inArray, lt } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
 import { appDb } from '../appDb.ts';
 import { newId } from '../ids.ts';
-import { locationPoints as points, locationConsents as consents } from '../schema/locationPoints.ts';
+import { locationPoints as points, locationConsents as consents, locationLatest as latest } from '../schema/locationPoints.ts';
 import type { CleanPoint } from '../../utils/locationTracking.ts';
 
-/** Saves a cleaned batch; a point already saved (same person, same phone id) is skipped. Returns how many were new. */
+/**
+ * Saves a cleaned batch; a point already saved (same person, same phone id) is skipped. Returns how many were new.
+ * The person's row in `location_latest` moves in the same transaction, and only forward in time, so a backlog
+ * arriving late never puts someone back where they were an hour ago.
+ */
 export async function savePoints(userId: string, branch: string, batch: CleanPoint[], db?: Db): Promise<number> {
   if (!batch.length) return 0;
   const d = db ?? await appDb();
-  const saved = await d.insert(points).values(batch.map(p => ({
-    id: newId(), userId, branch, clientId: p.clientId, recordedAt: p.recordedAt,
-    lat: p.lat, lng: p.lng, accuracyM: p.accuracyM, speedMps: p.speedMps
-  }))).onConflictDoNothing({ target: [points.userId, points.clientId] }).returning({ id: points.id });
-  return saved.length;
+  return d.transaction(async tx => {
+    const saved = await tx.insert(points).values(batch.map(p => ({
+      id: newId(), userId, branch, clientId: p.clientId, recordedAt: p.recordedAt,
+      lat: p.lat, lng: p.lng, accuracyM: p.accuracyM, speedMps: p.speedMps
+    }))).onConflictDoNothing({ target: [points.userId, points.clientId] }).returning({ id: points.id });
+    const newest = batch.reduce((a, b) => (b.recordedAt > a.recordedAt ? b : a));
+    await tx.insert(latest).values({ userId, branch, recordedAt: newest.recordedAt, lat: newest.lat, lng: newest.lng, accuracyM: newest.accuracyM })
+      .onConflictDoUpdate({
+        target: latest.userId,
+        set: { branch, recordedAt: newest.recordedAt, lat: newest.lat, lng: newest.lng, accuracyM: newest.accuracyM, updatedAt: sql`now()` },
+        setWhere: sql`${latest.recordedAt} < excluded.recorded_at`
+      });
+    return saved.length;
+  });
 }
 
 export type LastSeen = { userId: string; recordedAt: Date; lat: number; lng: number; accuracyM: number | null; branch: string };

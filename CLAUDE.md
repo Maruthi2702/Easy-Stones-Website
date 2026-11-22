@@ -645,6 +645,37 @@ wakes a closed app to answer — iOS doesn't guarantee background wake, so an as
 stays "Waiting" until the app is next opened (that needs native Swift in `AppDelegate` and a real iPhone with the
 APNs key; the next phase). New HR / legal sign-off should cover the changed wording before this goes live.
 
+## Location tracking v2: complete data, live view, why-quiet, access log (2026-11-22, on `feat/location-tracking-v2`)
+
+The owner's calls: **completeness over battery** (full accuracy all window, Low Power Mode doesn't reduce it; a dead
+phone is the only gap and the screen says so), **live view by polling, not push** (Lambda can't hold sockets; 150–200
+tracked people), **the access log is admin-only and the tracked person never sees it**, **no 24/7 tracking** (the 7–6
+window and Locate now stay; I advised against 24/7 — if it is ever built it is an opt-in tier with its own consent
+wording, the window then becomes per-person data). Tables (migration `0029`, Postgres only): `location_latest` (one
+row per person, written in the same transaction as the points and **only forward in time**, so a late backlog never
+moves anyone back), `location_device_health` (the phone's heartbeat: battery, charging, queued, app version; newest
+wins) and `location_view_log` (append-only; kept **1 year**, `VIEW_LOG_RETENTION_DAYS`, not deleted with the points).
+`GET /team` reads `location_latest` + health + `dayFactsForPeople` (three queries for everyone) — one small snapshot per
+poll (the screen polls every 15 s, never two at once, refetches when the tab returns); it returns `quiet` (why a person
+who should be reporting isn't: permission, battery ≤15/≤5 %, Low Power, a backlog, plain silence — `quietReason` in
+`src/utils/locationHealth.ts`, only on a day tracking is on) and `device`. `POST /heartbeat` needs `track_location`, holds
+no position. `cleanPoints` also drops a **bad fix** (a jump over 300 m faster than 90 m/s from the previous / newest
+saved point, `dropped.teleport`) and a point may now be **48 h old** (`MAX_POINT_AGE_MS`; the window is still read on the
+point's own time). A trail answers with `gaps` (`trailSegments`, 12 min); miles are summed per segment and the map draws
+no line across a gap. **The access log** is written only by the server: every trail (fail-closed — no trail is shown if its
+line can't be written), every Locate now, and the map once per viewer and person per 12 h (`LIVE_LOG_EVERY_MS`, best
+effort). `GET /access-log` needs `view_location_audit` (Users & Roles → Location Tracking → Access log; **404** without
+it); Team Location has an **Access log** tab, and that switch alone opens the page. Phone: flush every 30 s / 10 points,
+a heartbeat every 5 min and at once when the battery falls to 15 % / 5 %, and a "still here" position after 5 quiet
+minutes (the watcher only fires on movement, so a gap really is missing data). **Not built (needs native Swift and a real
+iPhone):** "Always" vs "While Using" and Low Power Mode are not readable from the web layer (sent as unknown), the
+significant-change relaunch / silent push that wakes a force-quit app before 7 AM, a durable native queue (the queue is
+still `localStorage`), marker clustering, stops (dwell) and the access-log Excel. The Device plugin
+(`@capacitor/device`) needs a new app build; this web code is also loaded by older builds and treats a missing plugin
+as "unknown". **Run `npm run pg:migrate -- --apply` on Render for `0029`.** The retention job is still in-process
+(`startLocationRetention`) — it needs an EventBridge schedule when the server moves to Lambda, and Lambda needs RDS
+Proxy (or connection reuse) for 200 phones posting every 30 s.
+
 ## Send Notification: an admin's message to people's iPhones (2026-11-21)
 
 Admin → **Send Notification** (`src/features/notifications/`, nav `send_notification`): pick people (search, a

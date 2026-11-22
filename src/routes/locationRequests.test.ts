@@ -5,6 +5,7 @@ import createLocationRequestsRouter from './locationRequests.ts';
 import type { StaffRow } from '../services/locationTracking.ts';
 import type { RequestRecord } from '../db/locationPoints/requests.ts';
 import { REQUEST_TTL_MS } from '../utils/locationRequests.ts';
+const AUDIT: Record<string, unknown>[] = [];
 
 const person = (id: string, name: string, role: string, branch: string): StaffRow => ({ id, username: id, name, role, branch, active: true, location: branch, assignedLocations: [branch] });
 const STAFF = [
@@ -46,7 +47,7 @@ beforeAll(async () => {
   const app = express();
   app.use(express.json());
   const authenticate: express.RequestHandler = (req, _res, next) => { req.userId = current.id; req.user = { ...current, type: 'staff' } as never; next(); };
-  app.use('/api/location-tracking', createLocationRequestsRouter({ authenticate, directory, requests: requests as never, consents, notify: notify as never, now: () => NOW }));
+  app.use('/api/location-tracking', createLocationRequestsRouter({ authenticate, directory, requests: requests as never, consents, audit: { logView: async (v: unknown) => { AUDIT.push(v as never); return true; } }, notify: notify as never, now: () => NOW }));
   await new Promise<void>(r => { server = app.listen(0, () => r()); });
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/location-tracking`;
 });
@@ -74,6 +75,7 @@ describe('asking', () => {
     expect(body.request).toMatchObject({ userId: 'rep1', status: 'pending', reason: 'Truck not back' });
     expect(pushed).toEqual([{ ids: ['rep1'], body: expect.stringContaining('asked for your phone') }]);
     expect(rows).toHaveLength(1);
+    expect(AUDIT).toEqual([expect.objectContaining({ subjectId: 'rep1', kind: 'locate' })]); // and one line in the access log
   });
   it('says 404 for someone outside the team, not tracked, or unknown', async () => {
     for (const id of ['atl1', 'off1', 'nobody']) expect((await ask({ userId: id, reason: 'Truck not back' })).status).toBe(404);

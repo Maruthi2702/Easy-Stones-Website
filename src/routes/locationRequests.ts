@@ -8,6 +8,7 @@ import { inTeam, teammatesOf } from '../utils/teamScope.ts';
 import { staffDirectory, type Directory } from '../services/locationTracking.ts';
 import * as pointStore from '../db/locationPoints/index.ts';
 import * as requestStore from '../db/locationPoints/requests.ts';
+import * as liveStore from '../db/locationPoints/live.ts';
 import { sendPushToUsers, type PushMessage } from '../services/apns.ts';
 
 /**
@@ -26,11 +27,12 @@ import { sendPushToUsers, type PushMessage } from '../services/apns.ts';
  */
 type Requests = Pick<typeof requestStore, 'createRequest' | 'requestById' | 'openFor' | 'answerRequest' | 'log'>;
 type Consents = Pick<typeof pointStore, 'consentsFor'>;
+type Audit = Pick<typeof liveStore, 'logView'>;
 type Notify = (userIds: string[], message: PushMessage) => Promise<{ sent: number }>;
 
 export default function createLocationRequestsRouter(
-  { authenticate, directory = staffDirectory, requests = requestStore, consents = pointStore, notify = sendPushToUsers, now = () => new Date() }:
-  { authenticate: RequestHandler; directory?: Directory; requests?: Requests; consents?: Consents; notify?: Notify; now?: () => Date }
+  { authenticate, directory = staffDirectory, requests = requestStore, consents = pointStore, audit = liveStore, notify = sendPushToUsers, now = () => new Date() }:
+  { authenticate: RequestHandler; directory?: Directory; requests?: Requests; consents?: Consents; audit?: Audit; notify?: Notify; now?: () => Date }
 ) {
   const router = express.Router();
   const meOf = (req: Request) => ({ id: String(req.userId || ''), permissions: req.user?.permissions, assignedLocations: req.user?.assignedLocations });
@@ -68,6 +70,9 @@ export default function createLocationRequestsRouter(
       const staff = await directory.staff();
       const asker = staff.find(s => s.id === String(req.userId));
       const record = await requests.createRequest({ targetUserId: person.id, requestedBy: String(req.userId), requestedByName: asker?.name || '', reason, consentVersion: CONSENT_VERSION, now: at });
+      // Also a line in the access log (admins read one log of every look and every ask); the ask itself is already kept with its reason.
+      await audit.logView({ viewerId: String(req.userId), viewerName: asker?.name || '', subjectId: person.id, subjectName: person.name, kind: 'locate' }, at)
+        .catch(err => console.error('Location access log error:', err));
       const pushed = (await notify([person.id], askedNotice(asker?.name || '')).catch(() => ({ sent: 0 }))).sent > 0;
       res.status(201).json({ request: view(record), pushed });
     } catch (err) { fail(res, 'create', err); }

@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MAX_QUEUE, dayIsOn, phaseFor, statusIsStale, shouldKeep, takeBatch, toRawPoint, trimQueue, untilText, type TrackingStatus } from './collectorRules';
+import { FLUSH_AT, MAX_QUEUE, STILL_EVERY_MS, batteryCrossed, heartbeatBody, needsStillPoint, dayIsOn, phaseFor, statusIsStale, shouldKeep, takeBatch, toRawPoint, trimQueue, untilText, type TrackingStatus } from './collectorRules';
 import { clearQueue, loadQueue, saveQueue } from './pointQueue';
 
 const native = vi.hoisted(() => ({ isNative: true }));
-const api = vi.hoisted(() => ({ loadStatus: vi.fn(), sendPoints: vi.fn(), recordConsent: vi.fn(), loadOpenRequests: vi.fn(async () => []), sendRequestAnswer: vi.fn() }));
-const bg = vi.hoisted(() => ({ startWatching: vi.fn(), openLocationSettings: vi.fn(), currentPosition: vi.fn(async () => null) }));
+const api = vi.hoisted(() => ({ sendHeartbeat: vi.fn(async () => true), loadStatus: vi.fn(), sendPoints: vi.fn(), recordConsent: vi.fn(), loadOpenRequests: vi.fn(async () => []), sendRequestAnswer: vi.fn() }));
+const bg = vi.hoisted(() => ({ readDevice: vi.fn(async () => ({ permission: 'unknown', lowPower: false, batteryPct: 80, charging: false, appVersion: '1.0' })), startWatching: vi.fn(), openLocationSettings: vi.fn(), currentPosition: vi.fn(async () => null) }));
 vi.mock('@capacitor/push-notifications', () => ({ PushNotifications: { addListener: () => Promise.resolve({ remove: () => undefined }) } }));
 const auth = vi.hoisted(() => ({ user: { id: 'u1', type: 'internal' } as { id: string; type: string } | null }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => native.isNative }, registerPlugin: () => ({}) }));
@@ -47,7 +47,7 @@ describe('collector rules', () => {
   it('trims stale points, caps the queue to the newest and takes batches in order', () => {
     const now = NOON.getTime();
     const pts = (n: number, start = now - 1000) => Array.from({ length: n }, (_, i) => ({ id: `p${i}`, at: new Date(start + i).toISOString() }));
-    expect(trimQueue([{ id: 'old', at: new Date(now - 25 * 3600 * 1000).toISOString() }, ...pts(2)], now).map((p) => p.id)).toEqual(['p0', 'p1']);
+    expect(trimQueue([{ id: 'old', at: new Date(now - 49 * 3600 * 1000).toISOString() }, ...pts(2)], now).map((p) => p.id)).toEqual(['p0', 'p1']);
     const big = trimQueue(pts(MAX_QUEUE + 5), now);
     expect(big).toHaveLength(MAX_QUEUE);
     expect(big[big.length - 1]!.id).toBe(`p${MAX_QUEUE + 4}`);
@@ -129,9 +129,9 @@ describe('LocationCollector in the app', () => {
     render(<LocationCollector />);
     expect(await screen.findByText(/Location on until 6 PM/)).toBeTruthy();
     await waitFor(() => expect(bg.startWatching).toHaveBeenCalledTimes(1));
-    for (let i = 0; i < 20; i++) act(() => onLocation({ latitude: 47.6 + i / 1000, longitude: -122.3, accuracy: 10, time: NOON.getTime() - 1000 + i * 60_000 - 20 * 60_000 }));
+    for (let i = 0; i < FLUSH_AT; i++) act(() => onLocation({ latitude: 47.6 + i / 1000, longitude: -122.3, accuracy: 10, time: NOON.getTime() - 1000 + i * 60_000 - 20 * 60_000 }));
     await waitFor(() => expect(api.sendPoints).toHaveBeenCalledTimes(1));
-    expect(api.sendPoints.mock.calls[0]![0]).toHaveLength(20);
+    expect(api.sendPoints.mock.calls[0]![0]).toHaveLength(FLUSH_AT);
     expect(loadQueue('u1')).toEqual([]);
   });
   it('keeps points when there is no signal', async () => {
@@ -159,5 +159,28 @@ describe('LocationCollector in the app', () => {
     render(<LocationCollector />);
     fireEvent.click(await screen.findByRole('button', { name: 'Open Settings' }));
     expect(bg.openLocationSettings).toHaveBeenCalled();
+  });
+});
+
+
+describe('completeness-first rules (2026-11-22)', () => {
+  it('sends a "still here" position once none was kept for 5 minutes, and at the start of a run', () => {
+    expect(needsStillPoint(null, 1000)).toBe(true);
+    expect(needsStillPoint(1000, 1000 + STILL_EVERY_MS - 1)).toBe(false);
+    expect(needsStillPoint(1000, 1000 + STILL_EVERY_MS)).toBe(true);
+  });
+  it('notices the battery falling to 15% or 5%, only when not charging', () => {
+    expect(batteryCrossed(40, 15, false)).toBe(true);
+    expect(batteryCrossed(16, 14, false)).toBe(true);
+    expect(batteryCrossed(15, 10, false)).toBe(false);     // already under 15
+    expect(batteryCrossed(10, 5, false)).toBe(true);
+    expect(batteryCrossed(6, 3, false)).toBe(true);
+    expect(batteryCrossed(40, 10, true)).toBe(false);      // charging
+    expect(batteryCrossed(40, null, false)).toBe(false);   // the phone couldn't say
+    expect(batteryCrossed(null, 12, false)).toBe(true);    // first read is already low
+  });
+  it('builds the heartbeat body', () => {
+    expect(heartbeatBody({ permission: 'unknown', lowPower: false, batteryPct: 7, charging: false, appVersion: '1.0+2' }, 12, new Date('2026-11-18T20:00:00Z')))
+      .toEqual({ permission: 'unknown', lowPower: false, batteryPct: 7, charging: false, appVersion: '1.0+2', queued: 12, at: '2026-11-18T20:00:00.000Z' });
   });
 });

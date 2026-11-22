@@ -178,6 +178,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
         actions: [
             { key: TRACKING.TRACKED,   label: 'Share location',  icon: MapPin, desc: "The people in this role share their phone's location from the app, 7 AM – 6 PM on their branch's clock, Monday – Friday plus a weekend day with a delivery or stop scheduled, never on a Personal Time Off day" },
             { key: LOCATE.ASK,         label: 'Locate on request', icon: MapPin, desc: "Ask one tracked person's phone for its location once, outside work hours too, with a reason that is kept. The person is told when it is asked." },
+            { key: TRACKING.VIEW_AUDIT, label: 'Access log', icon: Eye, desc: 'Read who looked at whose location, and when (every look at a map or a trail, and every Locate now). The people looked at are not shown it.' },
             { key: TRACKING.VIEW_TEAM, label: 'See team',        icon: Eye,    desc: "See where the tracked people on the user's team are today and where they went (the team is everyone working at the user's assigned locations)" }
         ]
     },
