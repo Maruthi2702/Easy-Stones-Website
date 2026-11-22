@@ -13,7 +13,7 @@ import { pushConfigured, sendPushToUsers, type PushMessage, type SendSummary } f
  * Staff only (the caller passes the same guard as the other Sales routes), and
  * a person only ever registers, removes or tests their own phones.
  */
-type Store = Pick<typeof deviceStore, 'saveDevice' | 'removeToken'>;
+type Store = Pick<typeof deviceStore, 'saveDevice' | 'removeToken'> & Partial<Pick<typeof deviceStore, 'devicesFor'>>;
 type Send = (userIds: string[], m: PushMessage) => Promise<SendSummary>;
 
 export const isDeviceToken = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{32,200}$/i.test(v);
@@ -42,7 +42,10 @@ export default function createPushDevicesRouter(
   router.post('/test', guard, async (req: Request, res: Response) => {
     if (!configured()) return res.status(503).json({ message: 'Push notifications are not set up on the server yet.', configured: false });
     const result = await send([who(req)], { title: 'Easy Surfaces', body: 'Notifications are working on this phone.', path: '/sales' });
-    res.json(result);
+    // Which phones the server holds for the caller (last 6 of each token + the side Apple took it on), to chase a
+    // notification that was accepted but never showed.
+    const phones = store.devicesFor ? await store.devicesFor([who(req)]).catch(() => []) : [];
+    res.json({ ...result, phones: phones.map(p => ({ token: `…${p.token.slice(-6)}`, environment: p.environment || 'not yet known' })) });
   });
 
   return router;
