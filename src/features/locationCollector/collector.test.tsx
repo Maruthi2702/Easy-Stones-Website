@@ -2,11 +2,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FLUSH_AT, MAX_QUEUE, STILL_EVERY_MS, batteryCrossed, heartbeatBody, needsStillPoint, dayIsOn, phaseFor, statusIsStale, shouldKeep, takeBatch, toRawPoint, trimQueue, untilText, type TrackingStatus } from './collectorRules';
-import { clearQueue, loadQueue, saveQueue } from './pointQueue';
+import { clearQueue, loadQueue, mergeQueues, saveQueue } from './pointQueue';
 
 const native = vi.hoisted(() => ({ isNative: true }));
 const api = vi.hoisted(() => ({ sendHeartbeat: vi.fn(async () => true), loadStatus: vi.fn(), sendPoints: vi.fn(), recordConsent: vi.fn(), loadOpenRequests: vi.fn(async () => []), sendRequestAnswer: vi.fn() }));
-const bg = vi.hoisted(() => ({ readDevice: vi.fn(async () => ({ permission: 'unknown', lowPower: false, batteryPct: 80, charging: false, appVersion: '1.0' })), startWatching: vi.fn(), openLocationSettings: vi.fn(), currentPosition: vi.fn(async () => null) }));
+const bg = vi.hoisted(() => ({ startWakeups: vi.fn(async () => true), stopWakeups: vi.fn(async () => undefined), saveDurable: vi.fn(async () => undefined), loadDurable: vi.fn(async (): Promise<unknown[]> => []), clearDurable: vi.fn(async () => undefined), readDevice: vi.fn(async () => ({ permission: 'unknown', lowPower: false, batteryPct: 80, charging: false, appVersion: '1.0' })), startWatching: vi.fn(), openLocationSettings: vi.fn(), currentPosition: vi.fn(async () => null) }));
 vi.mock('@capacitor/push-notifications', () => ({ PushNotifications: { addListener: () => Promise.resolve({ remove: () => undefined }) } }));
 const auth = vi.hoisted(() => ({ user: { id: 'u1', type: 'internal' } as { id: string; type: string } | null }));
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => native.isNative }, registerPlugin: () => ({}) }));
@@ -98,6 +98,7 @@ describe('LocationCollector in the app', () => {
     vi.useFakeTimers({ toFake: ['Date'], now: NOON }); // only the clock: waitFor polls with setInterval
     api.loadStatus.mockResolvedValue(STATUS); api.sendPoints.mockResolvedValue('sent'); api.recordConsent.mockResolvedValue(undefined);
     bg.startWatching.mockImplementation(async (cb) => { onLocation = cb; return stop; });
+    bg.loadDurable.mockResolvedValue([]);
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
@@ -124,6 +125,24 @@ describe('LocationCollector in the app', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Allow' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Couldn’t reach the server');
     expect(bg.startWatching).not.toHaveBeenCalled();
+  });
+  it('asks iOS to wake the app on a move once tracked and agreed, and not before consent', async () => {
+    api.loadStatus.mockResolvedValueOnce({ ...STATUS, consented: false }).mockResolvedValue(STATUS);
+    render(<LocationCollector />);
+    await screen.findByRole('button', { name: 'Allow' });
+    await waitFor(() => expect(bg.stopWakeups).toHaveBeenCalled());
+    expect(bg.startWakeups).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }));
+    await waitFor(() => expect(bg.startWakeups).toHaveBeenCalled());
+  });
+  it('writes the queue to the native file as well, and joins that file back in after a restart', async () => {
+    bg.loadDurable.mockResolvedValue([{ id: 'from-file', at: '2026-11-18T19:00:00.000Z', lat: 47.6, lng: -122.3 }]);
+    render(<LocationCollector />);
+    await screen.findByText(/Location on until 6 PM/);
+    await waitFor(() => expect(bg.loadDurable).toHaveBeenCalledWith('u1'));
+    // the file's point is now in the queue (saved back to both copies) and goes out with the next batch
+    await waitFor(() => expect(bg.saveDurable).toHaveBeenCalledWith('u1', expect.arrayContaining([expect.objectContaining({ id: 'from-file' })])));
+    expect(loadQueue('u1').map((p) => p.id)).toContain('from-file');
   });
   it('after consent, watches, shows the pill and sends points in a batch', async () => {
     render(<LocationCollector />);
@@ -182,5 +201,15 @@ describe('completeness-first rules (2026-11-22)', () => {
   it('builds the heartbeat body', () => {
     expect(heartbeatBody({ permission: 'unknown', lowPower: false, batteryPct: 7, charging: false, appVersion: '1.0+2' }, 12, new Date('2026-11-18T20:00:00Z')))
       .toEqual({ permission: 'unknown', lowPower: false, batteryPct: 7, charging: false, appVersion: '1.0+2', queued: 12, at: '2026-11-18T20:00:00.000Z' });
+  });
+});
+
+
+describe('durable queue and wake-ups (native plugin, 2026-11-22)', () => {
+  it('joins the two copies of the unsent points, each point once, oldest first', () => {
+    const a = [{ id: '2', at: '2026-11-18T20:02:00Z' }, { id: '1', at: '2026-11-18T20:01:00Z' }];
+    const b = [{ id: '3', at: '2026-11-18T20:03:00Z' }, { id: '1', at: '2026-11-18T20:01:00Z' }, { nope: true } as never];
+    expect(mergeQueues(a, b).map((p) => p.id)).toEqual(['1', '2', '3']);
+    expect(mergeQueues([], [])).toEqual([]);
   });
 });

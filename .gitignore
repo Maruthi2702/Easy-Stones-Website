@@ -54,3 +54,6 @@ ios/App/App/public
 ios/App/App/capacitor.config.json
 ios/App/Pods
 ios/DerivedData
+
+plugins/location-health/.build/
+plugins/location-health/.swiftpm/

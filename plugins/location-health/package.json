@@ -1,0 +1,9 @@
+{
+  "name": "location-health",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Easy Surfaces' own iOS plugin for location tracking: the real permission level, Low Power Mode, battery, significant-change relaunch and a durable on-disk point queue.",
+  "files": ["ios/Sources", "Package.swift"],
+  "peerDependencies": { "@capacitor/core": ">=8.0.0" },
+  "capacitor": { "ios": { "src": "ios" } }
+}

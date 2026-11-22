@@ -667,12 +667,20 @@ line can't be written), every Locate now, and the map once per viewer and person
 effort). `GET /access-log` needs `view_location_audit` (Users & Roles → Location Tracking → Access log; **404** without
 it); Team Location has an **Access log** tab, and that switch alone opens the page. Phone: flush every 30 s / 10 points,
 a heartbeat every 5 min and at once when the battery falls to 15 % / 5 %, and a "still here" position after 5 quiet
-minutes (the watcher only fires on movement, so a gap really is missing data). **Not built (needs native Swift and a real
-iPhone):** "Always" vs "While Using" and Low Power Mode are not readable from the web layer (sent as unknown), the
-significant-change relaunch / silent push that wakes a force-quit app before 7 AM, a durable native queue (the queue is
-still `localStorage`), marker clustering, stops (dwell) and the access-log Excel. The Device plugin
-(`@capacitor/device`) needs a new app build; this web code is also loaded by older builds and treats a missing plugin
-as "unknown". **Run `npm run pg:migrate -- --apply` on Render for `0029`.** The retention job is still in-process
+minutes (the watcher only fires on movement, so a gap really is missing data). **Native plugin (2026-11-22, `plugins/location-health/`, Swift, linked through `ios/App/CapApp-SPM/Package.swift` by
+`npx cap update ios`):** the real permission level ("always" / "when-in-use" / "denied"), Low Power Mode, battery and
+charging (it replaced `@capacitor/device`), **significant-change monitoring** (iOS may relaunch a force-quit app when the
+phone moves; needs "Always"; the plugin restarts it when it loads again) and a **durable on-disk queue** of unsent points
+per person (`PointStore`, Application Support, readable after the first unlock; the collector keeps localStorage too and
+joins the two by point id, `mergeQueues`). Web side `locationHealthPlugin.ts` + helpers in `backgroundLocation.ts`; every
+call is guarded because **the app shows the live site, so this web code also runs in older builds** that have no plugin
+(they report "unknown" and behave as before). Swift tests: in `plugins/location-health`, `xcodebuild test -scheme
+LocationHealth -destination 'platform=iOS Simulator,id=…'` (not `swift test`: Capacitor is iOS-only); the whole app
+builds for the simulator with it. **Needs a new app build (and `cap update ios` already done) before any of it exists on a
+phone, and has never run on a real iPhone:** unproven are whether a background relaunch by significant change actually runs
+the web layer's collector (the Swift side only restarts monitoring; iOS gives a relaunch ~10 s), and how long
+"Always" stays granted. **Not built:** marker clustering, stops (dwell), the access-log Excel, a silent-push wake before
+7 AM. **Run `npm run pg:migrate -- --apply` on Render for `0029`.** The retention job is still in-process
 (`startLocationRetention`) — it needs an EventBridge schedule when the server moves to Lambda, and Lambda needs RDS
 Proxy (or connection reuse) for 200 phones posting every 30 s.
 

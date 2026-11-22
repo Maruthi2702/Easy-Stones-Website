@@ -7,9 +7,9 @@ import {
   statusIsStale, FLUSH_EVERY_MS, STATUS_EVERY_MS, phaseFor, shouldKeep, takeBatch, toRawPoint, trimQueue,
   type Phase, type TrackingStatus
 } from './collectorRules';
-import { clearQueue, loadQueue, saveQueue } from './pointQueue';
+import { clearQueue, loadQueue, mergeQueues, saveQueue } from './pointQueue';
 import { loadStatus, recordConsent, sendHeartbeat, sendPoints } from './collectorApi';
-import { currentPosition, readDevice, startWatching } from './backgroundLocation';
+import { clearDurable, currentPosition, loadDurable, readDevice, saveDurable, startWatching, startWakeups, stopWakeups } from './backgroundLocation';
 
 /**
  * Collects the phone's location for a tracked staff member, only inside the
@@ -29,6 +29,12 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
   const lastKept = useRef<number | null>(null);
   const flushing = useRef(false);
 
+  /** Both copies of the unsent points: localStorage now, and the native file (on newer app builds) right behind it. */
+  const persist = useCallback(() => {
+    saveQueue(userId, queue.current);
+    void saveDurable(userId, queue.current);
+  }, [userId]);
+
   const refreshStatus = useCallback(async () => {
     try { setStatus(await loadStatus()); } catch { /* keep the last answer; tried again soon */ }
   }, []);
@@ -43,7 +49,7 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
         if (result === 'retry') break;
         if (result === 'consent') { void refreshStatus(); break; }
         queue.current = result === 'off' ? [] : rest;
-        saveQueue(userId, queue.current);
+        persist();
         if (result === 'off') { void refreshStatus(); break; }
       }
     } finally { flushing.current = false; }
@@ -53,12 +59,17 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
   useEffect(() => {
     if (!active) return undefined;
     queue.current = trimQueue(loadQueue(userId), Date.now());
+    // The file the native plugin keeps survives a cleared web store and a killed app: join it in once it's read.
+    let alive = true;
+    void loadDurable(userId).then((saved) => {
+      if (alive && saved.length) { queue.current = trimQueue(mergeQueues(queue.current, saved), Date.now()); persist(); }
+    });
     void refreshStatus();
     const timer = setInterval(() => { setNow(new Date()); }, 30 * 1000);
     const statusTimer = setInterval(() => { void refreshStatus(); }, STATUS_EVERY_MS);
     const resume = CapApp.addListener('appStateChange', ({ isActive }) => { if (isActive) { setNow(new Date()); void refreshStatus(); void flush(); } });
-    return () => { clearInterval(timer); clearInterval(statusTimer); void resume.then((h) => h.remove()); };
-  }, [active, userId, refreshStatus, flush]);
+    return () => { alive = false; clearInterval(timer); clearInterval(statusTimer); void resume.then((h) => h.remove()); };
+  }, [active, userId, refreshStatus, flush, persist]);
 
   // The day rolled over since the server last answered: ask again (time off or weekend work may differ).
   useEffect(() => { if (active && statusIsStale(status, now)) void refreshStatus(); }, [active, status, now, refreshStatus]);
@@ -76,7 +87,7 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
         if (!point || !shouldKeep(lastKept.current, at)) return;
         lastKept.current = at;
         queue.current = trimQueue([...queue.current, point], Date.now());
-        saveQueue(userId, queue.current);
+        persist();
         if (queue.current.length >= FLUSH_AT) void flush();
       },
       () => setDenied(true)
@@ -124,15 +135,23 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
         if (!point || !needsStillPoint(lastKept.current, at)) return;
         lastKept.current = at;
         queue.current = trimQueue([...queue.current, point], at);
-        saveQueue(userId, queue.current);
+        persist();
       } finally { busy = false; }
     };
     const timer = setInterval(() => { void check(); }, Math.min(STILL_EVERY_MS, 60 * 1000));
     return () => clearInterval(timer);
   }, [phase, userId]);
 
-  // A different person on this phone: drop what belongs to the last one.
-  useEffect(() => { if (!userId) clearQueue(); }, [userId]);
+  // A different person on this phone: drop what belongs to the last one (both copies).
+  useEffect(() => { if (!userId) { clearQueue(); void clearDurable(); } }, [userId]);
+
+  // Wake-ups: while this person is tracked and has agreed, ask iOS to relaunch the app when the phone moves, even after the
+  // app was force-quit (needs "Always"); stop when they aren't tracked or haven't agreed. Older app builds ignore it.
+  useEffect(() => {
+    if (!active) return;
+    if (phase === 'running' || phase === 'waiting' || phase === 'denied') void startWakeups();
+    else void stopWakeups();
+  }, [active, phase]);
 
   // Allow: saved on the server first; collecting starts when the server's answer says so.
   const consent = useCallback(async () => {
