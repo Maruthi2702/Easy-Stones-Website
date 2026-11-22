@@ -1,6 +1,6 @@
 import type { Loose } from '../../../types/records.ts';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Search, X, AlertTriangle, Loader2, RefreshCw, ChevronDown, CheckCircle2, Filter, MoreHorizontal, Eye, FileText, FileSpreadsheet, ListChecks } from 'lucide-react';
+import { Search, X, AlertTriangle, Loader2, RefreshCw, ChevronDown, Filter, MoreHorizontal, Eye, FileText, FileSpreadsheet, ListChecks } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Pagination from '../../shared/Pagination';
 import { usePagination } from '../../shared/paginationConfig';
@@ -18,7 +18,6 @@ import ChecksDialog from './ChecksDialog';
 import ContractorDialog from './ContractorDialog';
 import './Permits.css';
 
-const STATUS_ICON: Record<string, typeof CheckCircle2> = { ok: CheckCircle2, warn: AlertTriangle, none: AlertTriangle, busy: Loader2 };
 
 /** Closes an open popover on a click/tap outside `ref` or Escape (focus goes back to its button). */
 function useDismiss(ref: React.RefObject<HTMLDivElement | null>, open: boolean, close: () => void) {
@@ -185,7 +184,9 @@ export default function PermitsTab({ sidebarToggle = null, onOpenCustomer = null
   const now = new Date();
   const statuses = (meta?.sources || []).map((s) => ({ ...sourceStatus(s, now), id: s.id, unsorted: s.lastRun?.unsortedTypes || [] }));
   const { top: topChecks, rest: olderChecks } = splitChecks(meta?.checks || [], now);
-  const attention = checksAttention(meta?.sources, meta?.checks, now);
+  // Detailed Checks is for people who can refresh (the server sends them the unsorted types too).
+  const canSeeChecks = Boolean(meta?.canRefresh);
+  const attention = canSeeChecks ? checksAttention(meta?.sources, meta?.checks, now) : [];
   const needsLook = attention.some((a) => a.tone !== 'busy');
   const filtered = Boolean(debounced || place || counties.length || contractor.license);
   const filtersSet = Boolean(counties.length || place || range !== DEFAULT_RANGE || sort !== DEFAULT_SORT);
@@ -247,7 +248,7 @@ export default function PermitsTab({ sidebarToggle = null, onOpenCustomer = null
                 </div>
               ) : null}
             </div>
-            {meta ? (
+            {meta && (meta.canExport || canSeeChecks) ? (
               <div className="pm-pop-wrap" ref={moreRef}>
                 <button type="button" className="pm-icon-btn" aria-label={needsLook ? 'More (a check needs a look)' : 'More'} title="More"
                   aria-haspopup="menu" aria-expanded={popover === 'more'} onClick={() => togglePopover('more')}>
@@ -273,11 +274,13 @@ export default function PermitsTab({ sidebarToggle = null, onOpenCustomer = null
                         <RefreshCw size={16} className={meta?.running ? 'pm-spin' : ''} aria-hidden="true" />{meta?.running ? 'Pulling…' : 'Refresh now'}
                       </button>
                     ) : null}
-                    {meta?.canExport || meta?.canRefresh ? <div className="pm-menu-sep" role="separator" /> : null}
-                    <button type="button" role="menuitem" className="pm-menu-item" onClick={openChecks}>
-                      <ListChecks size={16} aria-hidden="true" />Detailed Checks
-                      {needsLook ? <span className="pm-menu-flag">Needs a look</span> : null}
-                    </button>
+                    {canSeeChecks ? (<>
+                      <div className="pm-menu-sep" role="separator" />
+                      <button type="button" role="menuitem" className="pm-menu-item" onClick={openChecks}>
+                        <ListChecks size={16} aria-hidden="true" />Detailed Checks
+                        {needsLook ? <span className="pm-menu-flag">Needs a look</span> : null}
+                      </button>
+                    </>) : null}
                   </div>
                 ) : null}
               </div>
@@ -285,23 +288,8 @@ export default function PermitsTab({ sidebarToggle = null, onOpenCustomer = null
           </div>
         </div>
 
-        {/* Everything fine → nothing here; the full picture is under More → Detailed Checks. */}
-        {attention.length ? (
-          <div className="pm-status">
-            {attention.map((a, i) => {
-              const Icon = STATUS_ICON[a.tone] || AlertTriangle;
-              return (
-                <div key={a.id} className={`pm-status-line ${a.tone}`}>
-                  <Icon size={15} className={a.tone === 'busy' ? 'pm-spin' : ''} aria-hidden="true" />
-                  <span>{a.text}</span>
-                  {i === attention.length - 1 ? <button type="button" className="pm-link" onClick={openChecks}>Detailed Checks</button> : null}
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-
-        {checksOpen ? <ChecksDialog statuses={statuses} topChecks={topChecks} olderChecks={olderChecks} onClose={closeChecks} /> : null}
+        {/* No warnings on the page (owner, 2026-11-21): they live only in More → Detailed Checks, for people who can refresh. */}
+        {checksOpen && canSeeChecks ? <ChecksDialog statuses={statuses} topChecks={topChecks} olderChecks={olderChecks} onClose={closeChecks} /> : null}
         {contractorOpen ? (
           <ContractorDialog license={contractorOpen} onClose={closeContractor} onShowPermits={showContractorPermits} onLoaded={namedContractor}
             onOpenCustomer={onOpenCustomer ? (id) => { setContractorOpen(''); onOpenCustomer(id); } : null}

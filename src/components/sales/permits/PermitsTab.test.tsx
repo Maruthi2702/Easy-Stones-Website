@@ -31,9 +31,14 @@ describe('Permits page', () => {
   });
   it('restricts export and refresh to metadata grants', async () => {
     render(<PermitsTab />); await waitFor(() => expect(api.permitsMeta).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole('button', { name: 'More' }));
-    expect(screen.queryByRole('menuitem', { name: 'Download as PDF' })).toBeNull();
-    expect(screen.queryByRole('menuitem', { name: 'Refresh now' })).toBeNull();
+    // Nothing in the menu for a view-only login, so there is no menu (Detailed Checks is for refreshers).
+    expect(screen.queryByRole('button', { name: /^More/ })).toBeNull();
+  });
+  it('shows Detailed Checks only to people who can refresh, and no warnings on the page', async () => {
+    api.permitsMeta.mockResolvedValue({ ...meta, canRefresh: true });
+    render(<PermitsTab />); await screen.findByRole('heading', { name: /No permits/ });
+    expect(document.querySelector('.pm-status')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^More/ }));
     expect(screen.getByRole('menuitem', { name: /Detailed Checks/ })).toBeTruthy();
   });
   it('opens an export link carrying the current filters', async () => {
@@ -54,6 +59,7 @@ describe('Permits page', () => {
     expect(api.refreshPermits).toHaveBeenCalledTimes(1);
   });
   it('dismisses the menu with Escape', async () => {
+    api.permitsMeta.mockResolvedValue({ ...meta, canExport: true });
     render(<PermitsTab />); await screen.findByRole('heading', { name: /No permits/ });
     fireEvent.click(screen.getByRole('button', { name: 'More' }));
     expect(screen.getByRole('menu', { name: 'More' })).toBeTruthy();
