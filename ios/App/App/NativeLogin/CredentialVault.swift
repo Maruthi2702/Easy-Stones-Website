@@ -26,14 +26,20 @@ enum CredentialVault {
         }
     }
 
-    /// Whether a sign-in is saved. Attributes are readable without a prompt.
+    /// Whether a sign-in is saved. This must never show the Face ID prompt (it runs at
+    /// launch and whenever the sign-in screen appears), so the lookup is told no
+    /// interaction is allowed: iOS then answers "found, but needs Face ID" instead of asking.
     static var hasSaved: Bool {
+        let context = LAContext()
+        context.interactionNotAllowed = true
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecReturnAttributes as String: true,
+            kSecUseAuthenticationContext as String: context,
         ]
-        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+        let status = SecItemCopyMatching(query as CFDictionary, nil)
+        return status == errSecSuccess || status == errSecInteractionNotAllowed
     }
 
     @discardableResult
