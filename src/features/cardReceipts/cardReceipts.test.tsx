@@ -79,6 +79,8 @@ describe('the Credit Card Receipts page', () => {
     const both = await menu(['view_all_card_receipts', 'export_card_receipts', 'export_all_card_receipts']);
     expect(both).toContain('Export this view to Excel');
     expect(both).toContain('Export all months (Amex and Encore)');
+    expect(both).toContain('Export all months (Amex only)');
+    expect(both).toContain('Export all months (Encore only)');
     const viewOnly = await menu(['view_all_card_receipts', 'export_card_receipts']);
     expect(viewOnly).toContain('Export this view to Excel');
     expect(viewOnly).not.toContain('Export all months');

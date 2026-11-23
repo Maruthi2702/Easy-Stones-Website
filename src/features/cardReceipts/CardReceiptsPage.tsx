@@ -103,12 +103,13 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
       say((e as Error).message || 'Could not build the file.');
     }
   };
-  // Every month for the bank picked (or both): the server answers only with the Export all switch.
-  const exportAll = async () => {
+  // Every month for one bank ('' = both), straight from the More menu whatever the Card filter says:
+  // the server answers only with the Export all switch.
+  const exportAll = async (bank: string) => {
     try {
       say('Getting every month…');
-      const res = await listAllExpenses(filters.bank);
-      await writeExcel(res.expenses, `card-receipts-all${bankSuffix}.xlsx`);
+      const res = await listAllExpenses(bank);
+      await writeExcel(res.expenses, `card-receipts-all${bank ? `-${bank}` : ''}.xlsx`);
       say(res.truncated ? 'Too many to list: the file holds the newest ones only.' : `Downloaded ${res.expenses.filter((e) => !e.voided).length} expenses`);
     } catch (e) {
       say((e as Error).message || 'Could not build the file.');
@@ -116,7 +117,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   };
   const exportItems = [
     ...(canExport ? [{ key: 'excel', label: bankName ? `Export this view (${bankName}) to Excel` : 'Export this view to Excel', icon: Download, onClick: exportExcel }] : []),
-    ...(canExportAll ? [{ key: 'excel-all', label: bankName ? `Export all months (${bankName})` : 'Export all months (Amex and Encore)', icon: Download, onClick: exportAll }] : [])
+    ...(canExportAll ? [
+      ...BANK_FILTERS.map((b) => ({ key: `excel-all-${b.key}`, label: `Export all months (${b.label} only)`, icon: Download, onClick: () => exportAll(b.key) })),
+      { key: 'excel-all', label: 'Export all months (Amex and Encore)', icon: Download, onClick: () => exportAll('') }
+    ] : [])
   ];
 
   const subtitle = tab === 'waiting' ? `Waiting for me · ${data.waiting.length} · ${formatMoney(data.waiting.reduce((s, e) => s + e.cents, 0))}`
