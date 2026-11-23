@@ -1,11 +1,24 @@
-import { useMemo, useRef } from 'react';
-import { Linking, Platform, StyleSheet } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { Linking, Platform, StyleSheet, useColorScheme } from 'react-native';
 import { WebView } from 'react-native-webview';
 import type { WebViewNavigation } from 'react-native-webview';
 import { HOME_PATH, SERVER_HOST, SERVER_URL } from './config';
 import { shimFor } from './host/protocol';
 import HostRouter from './host/router';
 import { PLUGINS } from './host/plugins';
+
+/**
+ * The site keeps its theme in `checkin_theme` (useSalesTheme.ts). In the app: a theme the person picked with the toggle is kept
+ * (`es_theme_user`); until they pick one it is the phone's, now and whenever the phone switches. Our own write is told apart from
+ * the toggle's by `__esSetting`. App only: the website is unchanged.
+ */
+const themeScript = (scheme: 'light' | 'dark') => `(function(){try{
+var K='es_theme_user',s=localStorage;
+if(!window.__esTheme){window.__esTheme=1;window.addEventListener('checkin_theme_changed',function(){
+  if(window.__esSetting)return;var t=s.getItem('checkin_theme');if(t==='dark'||t==='light')s.setItem(K,t);});}
+var t=s.getItem(K)||'${scheme}';
+if(s.getItem('checkin_theme')!==t){window.__esSetting=1;try{s.setItem('checkin_theme',t);window.dispatchEvent(new Event('checkin_theme_changed'));}finally{window.__esSetting=0;}}
+}catch(e){}})();true;`;
 
 const LOGIN_PATHS = new Set(['/login', '/login/', '/admin/login']);
 const hostOf = (url: string) => { try { return new URL(url).host; } catch { return ''; } };
@@ -20,6 +33,9 @@ export default function WebHost({ onSignedOut }: { onSignedOut: () => void }) {
   const router = useMemo(() => new HostRouter(PLUGINS, (script) => ref.current?.injectJavaScript(script)), []);
   const shim = useMemo(() => shimFor(Platform.OS === 'android' ? 'android' : 'ios', PLUGINS), []);
 
+  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  useEffect(() => { ref.current?.injectJavaScript(themeScript(scheme)); }, [scheme]);   // the phone switches (sunset, Control Centre)
+
   const onNavigation = (nav: WebViewNavigation) => {
     if (hostOf(nav.url) === SERVER_HOST && LOGIN_PATHS.has(pathOf(nav.url))) onSignedOut();
   };
@@ -29,7 +45,7 @@ export default function WebHost({ onSignedOut }: { onSignedOut: () => void }) {
       ref={ref}
       style={styles.web}
       source={{ uri: `${SERVER_URL}${HOME_PATH}` }}
-      injectedJavaScriptBeforeContentLoaded={shim}
+      injectedJavaScriptBeforeContentLoaded={`${themeScript(scheme)}${shim}`}
       onMessage={(e) => { void router.handle(e.nativeEvent.data); }}
       onLoadStart={() => router.reset()}
       onNavigationStateChange={onNavigation}
@@ -44,6 +60,7 @@ export default function WebHost({ onSignedOut }: { onSignedOut: () => void }) {
       sharedCookiesEnabled
       thirdPartyCookiesEnabled
       allowsInlineMediaPlayback
+      hideKeyboardAccessoryView                              // iOS's ⌃ ⌄ ✓ bar over the keyboard (the Capacitor app hid it too)
       mediaCapturePermissionGrantType="grant"
       setSupportMultipleWindows={false}
       bounces={false}
