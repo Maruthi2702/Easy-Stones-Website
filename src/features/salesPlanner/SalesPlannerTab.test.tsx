@@ -3,8 +3,16 @@
 // Day and Month views, "+N more", the add / edit form (the shared schedule form) and its check, the
 // delete check, a save and a delete reaching the API, a keyboard pick-up, and a
 // refused load. The API is a fake keyed on the URL; the socket is a stand-in.
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, afterAll, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
+
+// The clock is pinned to a Wednesday morning (only Date is faked, so timeouts and
+// waiting still run). The Week view draws Monday to Friday as full columns and
+// these tests look for today's column, so on a real Saturday or Sunday they
+// failed (found 2026-11-22, a Sunday). Pinned before `iso` below runs.
+vi.useFakeTimers({ toFake: ['Date'] });
+vi.setSystemTime(new Date(2026, 10, 18, 8, 0, 0));
+afterAll(() => { vi.useRealTimers(); });
 
 const iso = (offset: number, hm: string) => {
     const d = new Date(); d.setDate(d.getDate() + offset);
