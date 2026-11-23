@@ -25,12 +25,41 @@ export const trailSummary = (name: string, branch: string, miles: number, first:
 export const needsAttention = (p: TeamPerson) => Boolean(p.quiet);
 export const attentionCount = (people: TeamPerson[]) => people.filter(needsAttention).length;
 
-/** The list narrowed by a search (name, branch or role) and, optionally, to people who need a look. */
-export function filterPeople(people: TeamPerson[], query: string, onlyAttention: boolean): TeamPerson[] {
+export type PeopleFilter = 'all' | 'live' | 'attention' | 'unagreed';
+/** Hasn't agreed to the current wording, so nothing is kept for them. */
+export const isUnagreed = (p: TeamPerson) => !p.consentedAt;
+
+/** The list narrowed by a search (name, branch or role) and by one filter (a boolean = the old "needs a look" switch). */
+export function filterPeople(people: TeamPerson[], query: string, filter: PeopleFilter | boolean): TeamPerson[] {
+  const f: PeopleFilter = filter === true ? 'attention' : filter === false ? 'all' : filter;
   const q = query.trim().toLowerCase();
   return people.filter((p) =>
-    (!onlyAttention || needsAttention(p))
+    (f === 'all' || (f === 'live' && p.status === 'live') || (f === 'attention' && needsAttention(p)) || (f === 'unagreed' && isUnagreed(p)))
     && (!q || `${p.name} ${p.branch} ${p.role.replace(/_/g, ' ')}`.toLowerCase().includes(q)));
+}
+
+/** What the filter chips count, from the whole team. */
+export const filterCounts = (people: TeamPerson[]): Record<PeopleFilter, number> => ({
+  all: people.length, live: liveCount(people), attention: attentionCount(people), unagreed: people.filter(isUnagreed).length
+});
+
+/** The one short word on a person's row: Live, "12 min ago", Not seen today, Not agreed. */
+export const statusLabel = (p: TeamPerson) =>
+  isUnagreed(p) ? 'Not agreed' : p.status === 'live' ? 'Live' : p.status === 'earlier' ? p.ago : 'Not seen today';
+
+export type PeopleGroup = { key: string; title: string; people: TeamPerson[] };
+/** The list in sections, a person in exactly one: needs a look, live, seen earlier, not seen, hasn't agreed. Empty ones left out. */
+export function groupPeople(people: TeamPerson[]): PeopleGroup[] {
+  const groups: PeopleGroup[] = [
+    { key: 'attention', title: 'Needs a look', people: [] }, { key: 'live', title: 'Live now', people: [] },
+    { key: 'earlier', title: 'Seen earlier today', people: [] }, { key: 'none', title: 'Not seen today', people: [] },
+    { key: 'unagreed', title: 'Hasn’t agreed yet', people: [] }
+  ];
+  for (const p of people) {
+    const i = isUnagreed(p) ? 4 : needsAttention(p) ? 0 : p.status === 'live' ? 1 : p.status === 'earlier' ? 2 : 3;
+    groups[i]!.people.push(p);
+  }
+  return groups.filter((g) => g.people.length);
 }
 
 /** "Battery 40% · Low Power Mode" under a person, or '' when their phone hasn't said. */
@@ -58,3 +87,24 @@ export const filterAccess = (entries: AccessEntry[], query: string) => {
   const q = query.trim().toLowerCase();
   return q ? entries.filter((e) => `${e.viewerName} ${e.subjectName}`.toLowerCase().includes(q)) : entries;
 };
+
+/** "Always", "While Using", "Denied" or "Not reported" for the permission a phone last reported. */
+export const permissionLabel = (permission: string | undefined) =>
+  permission === 'always' ? 'Always' : permission === 'when-in-use' ? 'While Using' : permission === 'denied' ? 'Denied' : 'Not reported';
+
+export type DeviceRow = { key: string; label: string; value: string; tone: 'ok' | 'warn' | 'plain' };
+/** The Phone tab's rows: what the person's phone last said about itself ([] when it never has). */
+export function deviceRows(p: TeamPerson): DeviceRow[] {
+  const d = p.device;
+  if (!d) return [];
+  const rows: DeviceRow[] = [];
+  rows.push({ key: 'battery', label: 'Battery', value: d.batteryPct === null ? 'Not reported' : `${d.batteryPct}%${d.charging ? ' (charging)' : ''}`, tone: d.batteryPct !== null && d.batteryPct <= 15 && !d.charging ? 'warn' : 'plain' });
+  rows.push({ key: 'permission', label: 'Location permission', value: permissionLabel(d.permission), tone: d.permission === 'always' ? 'ok' : d.permission === 'unknown' ? 'plain' : 'warn' });
+  rows.push({ key: 'lowPower', label: 'Low Power Mode', value: d.lowPower ? 'On' : 'Off', tone: d.lowPower ? 'warn' : 'plain' });
+  rows.push({ key: 'queued', label: 'Waiting to send', value: String(d.queued), tone: d.queued >= 20 ? 'warn' : 'plain' });
+  if (d.appVersion) rows.push({ key: 'app', label: 'App version', value: d.appVersion, tone: 'plain' });
+  return rows;
+}
+
+/** The distinct branches among these people, A–Z (for the Filters panel's Location field). */
+export const branchesOf = (people: TeamPerson[]) => [...new Set(people.map((p) => p.branch).filter(Boolean))].sort((a, b) => a.localeCompare(b));

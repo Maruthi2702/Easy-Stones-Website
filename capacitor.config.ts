@@ -23,6 +23,12 @@ const config: CapacitorConfig = {
     scrollEnabled: false,
     backgroundColor: '#000000',
   },
+  android: {
+    // Same live site as the iPhone app (the sign-in cookies stay first-party); never a plain-http page or a debuggable web view.
+    allowMixedContent: false,
+    webContentsDebuggingEnabled: false,
+    backgroundColor: '#000000',
+  },
   plugins: {
     SplashScreen: { launchAutoHide: true, backgroundColor: '#000000' },
     // The plugin types this as an enum; the native side reads the plain string.

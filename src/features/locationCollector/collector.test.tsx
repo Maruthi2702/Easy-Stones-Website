@@ -4,12 +4,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { FLUSH_AT, MAX_QUEUE, STILL_EVERY_MS, batteryCrossed, heartbeatBody, needsStillPoint, dayIsOn, phaseFor, statusIsStale, shouldKeep, takeBatch, toRawPoint, trimQueue, untilText, type TrackingStatus } from './collectorRules';
 import { clearQueue, loadQueue, mergeQueues, saveQueue } from './pointQueue';
 
-const native = vi.hoisted(() => ({ isNative: true }));
+const native = vi.hoisted(() => ({ isNative: true, platform: 'ios' }));
 const api = vi.hoisted(() => ({ sendHeartbeat: vi.fn(async () => true), loadStatus: vi.fn(), sendPoints: vi.fn(), recordConsent: vi.fn(), loadOpenRequests: vi.fn(async () => []), sendRequestAnswer: vi.fn() }));
-const bg = vi.hoisted(() => ({ startWakeups: vi.fn(async () => true), stopWakeups: vi.fn(async () => undefined), saveDurable: vi.fn(async () => undefined), loadDurable: vi.fn(async (): Promise<unknown[]> => []), clearDurable: vi.fn(async () => undefined), readDevice: vi.fn(async () => ({ permission: 'unknown', lowPower: false, batteryPct: 80, charging: false, appVersion: '1.0' })), startWatching: vi.fn(), openLocationSettings: vi.fn(), currentPosition: vi.fn(async () => null) }));
+const bg = vi.hoisted(() => ({ startWakeups: vi.fn(async () => true), stopWakeups: vi.fn(async () => undefined), saveDurable: vi.fn(async () => undefined), loadDurable: vi.fn(async (): Promise<unknown[]> => []), clearDurable: vi.fn(async () => undefined), readDevice: vi.fn(async () => ({ permission: 'unknown', lowPower: false, batteryPct: 80, charging: false, appVersion: '1.0' })), startWatching: vi.fn(), openLocationSettings: vi.fn(), askAlways: vi.fn(async () => undefined), openBatterySettings: vi.fn(async () => undefined), currentPosition: vi.fn(async () => null), insideReactNativeApp: vi.fn(() => false), phoneCollects: vi.fn(async () => false), startPhoneCollecting: vi.fn(async () => ({ started: true, denied: false })), stopPhoneCollecting: vi.fn(async () => undefined), phoneDenied: vi.fn(async () => false) }));
 vi.mock('@capacitor/push-notifications', () => ({ PushNotifications: { addListener: () => Promise.resolve({ remove: () => undefined }) } }));
 const auth = vi.hoisted(() => ({ user: { id: 'u1', type: 'internal' } as { id: string; type: string } | null }));
-vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => native.isNative }, registerPlugin: () => ({}) }));
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => native.isNative, getPlatform: () => native.platform }, registerPlugin: () => ({}) }));
 vi.mock('@capacitor/app', () => ({ App: { addListener: () => Promise.resolve({ remove: () => undefined }) } }));
 vi.mock('./collectorApi', () => api);
 vi.mock('./backgroundLocation', () => bg);
@@ -94,11 +94,13 @@ describe('LocationCollector in the app', () => {
   let onLocation: (l: { latitude: number; longitude: number; accuracy: number; time: number }) => void = () => undefined;
   const stop = vi.fn(async () => undefined);
   beforeEach(() => {
-    localStorage.clear(); native.isNative = true; auth.user = { id: 'u1', type: 'internal' };
+    localStorage.clear(); native.isNative = true; native.platform = 'ios'; auth.user = { id: 'u1', type: 'internal' };
     vi.useFakeTimers({ toFake: ['Date'], now: NOON }); // only the clock: waitFor polls with setInterval
     api.loadStatus.mockResolvedValue(STATUS); api.sendPoints.mockResolvedValue('sent'); api.recordConsent.mockResolvedValue(undefined);
     bg.startWatching.mockImplementation(async (cb) => { onLocation = cb; return stop; });
     bg.loadDurable.mockResolvedValue([]);
+    bg.insideReactNativeApp.mockReturnValue(false); bg.phoneCollects.mockResolvedValue(false); bg.phoneDenied.mockResolvedValue(false);
+    bg.startPhoneCollecting.mockResolvedValue({ started: true, denied: false });
   });
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
@@ -117,6 +119,25 @@ describe('LocationCollector in the app', () => {
     await waitFor(() => expect(api.recordConsent).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(bg.startWatching).toHaveBeenCalledTimes(1));
     expect(screen.queryByText('Share your location during work hours')).toBeNull();
+  });
+  it('on Android: discloses use when the app is closed, then asks for "Allow all the time" after Allow, and not on iPhone', async () => {
+    native.platform = 'android';
+    api.loadStatus.mockResolvedValueOnce({ ...STATUS, consented: false }).mockResolvedValue(STATUS);
+    render(<LocationCollector />);
+    expect(await screen.findByText(/including when the app is closed or not in use/)).toBeTruthy();
+    expect(screen.getByText(/Choose “Allow all the time”/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Open battery settings' }));
+    expect(bg.openBatterySettings).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }));
+    await waitFor(() => expect(bg.askAlways).toHaveBeenCalledTimes(1));
+    cleanup();
+    native.platform = 'ios'; bg.askAlways.mockClear();
+    api.loadStatus.mockResolvedValueOnce({ ...STATUS, consented: false }).mockResolvedValue(STATUS);
+    render(<LocationCollector />);
+    expect(await screen.findByText(/including when the app is in the background/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }));
+    await waitFor(() => expect(bg.startWatching).toHaveBeenCalled());
+    expect(bg.askAlways).not.toHaveBeenCalled();
   });
   it('stays on the consent screen with the reason when Allow can\'t be saved', async () => {
     api.loadStatus.mockResolvedValue({ ...STATUS, consented: false });
@@ -152,6 +173,49 @@ describe('LocationCollector in the app', () => {
     await waitFor(() => expect(api.sendPoints).toHaveBeenCalledTimes(1));
     expect(api.sendPoints.mock.calls[0]![0]).toHaveLength(FLUSH_AT);
     expect(loadQueue('u1')).toEqual([]);
+  });
+  describe('inside the React Native app (the phone collects)', () => {
+    it('never collects or sends in the page, asks the phone to collect, and still shows the pill', async () => {
+      bg.insideReactNativeApp.mockReturnValue(true); bg.phoneCollects.mockResolvedValue(true);
+      render(<LocationCollector />);
+      expect(await screen.findByText(/Location on until 6 PM/)).toBeTruthy();
+      await waitFor(() => expect(bg.startPhoneCollecting).toHaveBeenCalledWith('u1'));
+      expect(bg.startWatching).not.toHaveBeenCalled();
+      expect(bg.startWakeups).not.toHaveBeenCalled();
+      expect(api.sendPoints).not.toHaveBeenCalled();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(api.sendHeartbeat).not.toHaveBeenCalled();
+    });
+    it('shows "off" and stops the phone when the person is not tracked', async () => {
+      bg.insideReactNativeApp.mockReturnValue(true); bg.phoneCollects.mockResolvedValue(true);
+      api.loadStatus.mockResolvedValue({ ...STATUS, tracked: false });
+      render(<LocationCollector />);
+      await waitFor(() => expect(bg.stopPhoneCollecting).toHaveBeenCalled());
+      expect(bg.startPhoneCollecting).not.toHaveBeenCalled();
+    });
+    it('offers Settings when the phone says location was refused', async () => {
+      bg.insideReactNativeApp.mockReturnValue(true); bg.phoneCollects.mockResolvedValue(true);
+      bg.startPhoneCollecting.mockResolvedValueOnce({ started: false, denied: true });
+      render(<LocationCollector />);
+      expect(await screen.findByText(/Location is off for Easy Surfaces/)).toBeTruthy();
+    });
+    it('falls back to collecting in the page on a build whose phone cannot collect', async () => {
+      bg.insideReactNativeApp.mockReturnValue(true); bg.phoneCollects.mockResolvedValue(false);
+      render(<LocationCollector />);
+      await waitFor(() => expect(bg.startWatching).toHaveBeenCalledTimes(1));
+      expect(bg.startPhoneCollecting).not.toHaveBeenCalled();
+    });
+    it('collects nothing in the page while it is still asking the phone', async () => {
+      bg.insideReactNativeApp.mockReturnValue(true);
+      let answer: (v: boolean) => void = () => undefined;
+      bg.phoneCollects.mockReturnValue(new Promise<boolean>((r) => { answer = r; }));
+      render(<LocationCollector />);
+      expect(await screen.findByText(/Location on until 6 PM/)).toBeTruthy();
+      expect(bg.startWatching).not.toHaveBeenCalled();
+      answer(true);
+      await waitFor(() => expect(bg.startPhoneCollecting).toHaveBeenCalled());
+      expect(bg.startWatching).not.toHaveBeenCalled();
+    });
   });
   it('keeps points when there is no signal', async () => {
     api.sendPoints.mockResolvedValue('retry');

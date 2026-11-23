@@ -1,0 +1,11 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="app.easysurfaces.locationhealth" >
+4
+5    <uses-sdk android:minSdkVersion="24" />
+6    <!-- "Allow all the time": a separate runtime step on Android 10+, and Google Play asks for a declaration and an in-app disclosure for it. -->
+7    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+7-->/Users/krish/Easy-Stones-Website/plugins/location-health/android/src/main/AndroidManifest.xml:3:5-85
+7-->/Users/krish/Easy-Stones-Website/plugins/location-health/android/src/main/AndroidManifest.xml:3:22-82
+8
+9</manifest>

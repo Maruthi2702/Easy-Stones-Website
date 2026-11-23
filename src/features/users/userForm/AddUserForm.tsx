@@ -11,7 +11,7 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { locationNames } from '../../../utils/locationFilter';
 import {
-    suggestUsername, usernameProblem, generateTempPassword, validateNewUser,
+    suggestUsername, usernameProblem, generateTempPassword, validateNewUser, normalizePhone,
     countChangedFields, FIELD_LABELS
 } from '../../../utils/userForm';
 import './AddUserForm.css';
@@ -43,6 +43,7 @@ export type AddUserFormProps = {
 type AddUserValues = {
     displayName: string;
     email: string;
+    phone: string;
     username: string;
     joiningDate: string;
     role: string;
@@ -62,6 +63,7 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
         return {
             displayName: '',
             email: '',
+            phone: '',
             username: '',
             joiningDate: '',
             role: defaultRole?.name || '',
@@ -166,6 +168,7 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
                 body: JSON.stringify({
                     displayName: values.displayName.trim(),
                     email: values.email.trim(),
+                    phone: normalizePhone(values.phone),
                     username: values.username.trim().toLowerCase(),
                     joiningDate: values.joiningDate,
                     role: values.role,
@@ -245,6 +248,20 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
                             onChange={(e) => set({ email: e.target.value })}
                             onBlur={() => touch('email')}
                             {...describedBy('au-email', shown('email'))}
+                        />
+                    </FormField>
+                    <FormField name="phone" id="au-phone" label="Mobile phone" error={shown('phone')}>
+                        <input
+                            id="au-phone"
+                            className="fm-input"
+                            type="tel"
+                            inputMode="tel"
+                            autoComplete="off"
+                            placeholder="(206) 555-0142"
+                            value={values.phone}
+                            onChange={(e) => set({ phone: e.target.value })}
+                            onBlur={() => touch('phone')}
+                            {...describedBy('au-phone', shown('phone'))}
                         />
                     </FormField>
                     <FormField

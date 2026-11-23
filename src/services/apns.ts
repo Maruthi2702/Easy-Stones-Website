@@ -2,10 +2,11 @@ import { createPrivateKey, sign } from 'node:crypto';
 import { connect } from 'node:http2';
 import { IOS_BUNDLE_ID, IOS_TEAM_ID } from '../utils/appLinks.ts';
 import * as deviceStore from '../db/pushDevices/index.ts';
+import { fcmConfigFromEnv, fcmConfigured, sendToAndroid, type FcmConfig, type FcmTransport, type TokenFetcher } from './fcm.ts';
 
 /**
  * Push notifications to the iOS app through Apple's APNs (2026-11-19), with no
- * extra package: a token signed with the .p8 key (ES256) and Node's HTTP/2.
+ * extra package (Android phones go through Firebase in fcm.ts, routed by each phone's `platform` in `sendPushToUsers`): a token signed with the .p8 key (ES256) and Node's HTTP/2.
  *
  * Needs on the server: APNS_KEY_ID, APNS_KEY_P8 (the file's text; "\n" typed as
  * backslash-n is fine) and optionally APNS_TEAM_ID / APNS_TOPIC (default: the
@@ -30,7 +31,8 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): ApnsConfig 
   if (!keyId || !keyP8) return null;
   return { keyId, keyP8, teamId: (env.APNS_TEAM_ID || IOS_TEAM_ID).trim(), topic: (env.APNS_TOPIC || IOS_BUNDLE_ID).trim() };
 }
-export const pushConfigured = () => configFromEnv() !== null;
+/** Push is set up when EITHER sender is (Apple for iPhones, Firebase for Android). */
+export const pushConfigured = () => configFromEnv() !== null || fcmConfigured();
 
 /** The provider token Apple wants (valid 20–60 minutes; we reuse one for 40). */
 export function providerToken(c: ApnsConfig, nowMs: number): string {
@@ -81,29 +83,39 @@ const wrongEnvironment = (r: SendResult) => r.reason === 'BadDeviceToken' || r.r
 type Store = Pick<typeof deviceStore, 'devicesFor' | 'removeTokens' | 'setEnvironment'>;
 export type SendSummary = { sent: number; failed: number; removed: number; configured: boolean; reasons?: string[] };
 
-/** Sends to every phone of the given people. Never throws: push is a nicety, not part of any save. */
+/** Sends to every phone of the given people, iPhones through Apple and Android phones through Firebase. Never throws: push is a nicety, not part of any save. */
 export async function sendPushToUsers(
   userIds: string[], message: PushMessage,
-  { transport = httpTransport, store = deviceStore, config = configFromEnv(), now = () => Date.now() }:
-  { transport?: Transport; store?: Store; config?: ApnsConfig | null; now?: () => number } = {}
+  { transport = httpTransport, store = deviceStore, config = configFromEnv(), now = () => Date.now(), fcm = {} }:
+  { transport?: Transport; store?: Store; config?: ApnsConfig | null; now?: () => number;
+    fcm?: { config?: FcmConfig | null; transport?: FcmTransport; tokenFetcher?: TokenFetcher } } = {}
 ): Promise<SendSummary> {
-  const out: SendSummary = { sent: 0, failed: 0, removed: 0, configured: Boolean(config) };
-  if (!config || !userIds.length) return out;
+  const fcmConfig = fcm.config === undefined ? fcmConfigFromEnv() : fcm.config;
+  const out: SendSummary = { sent: 0, failed: 0, removed: 0, configured: Boolean(config) || Boolean(fcmConfig) };
+  if ((!config && !fcmConfig) || !userIds.length) return out;
   try {
     const phones = await store.devicesFor(userIds);
-    const payload = payloadFor(message);
     const gone: string[] = [];
-    for (const p of phones) {
-      const jwt = jwtFor(config, now());
-      const order: ('production' | 'sandbox')[] = p.environment === 'sandbox' ? ['sandbox'] : p.environment === 'production' ? ['production'] : ['production', 'sandbox'];
-      let last: SendResult = { ok: false, status: 0, reason: '' };
-      for (const environment of order) {
-        last = await transport({ token: p.token, environment, jwt, topic: config.topic, payload });
-        if (last.ok) { if (!p.environment) await store.setEnvironment(p.token, environment); break; }
-        if (dead(last) || !wrongEnvironment(last)) break;
+    if (config) {
+      const payload = payloadFor(message);
+      for (const p of phones.filter(x => (x.platform || 'ios') !== 'android')) {
+        const jwt = jwtFor(config, now());
+        const order: ('production' | 'sandbox')[] = p.environment === 'sandbox' ? ['sandbox'] : p.environment === 'production' ? ['production'] : ['production', 'sandbox'];
+        let last: SendResult = { ok: false, status: 0, reason: '' };
+        for (const environment of order) {
+          last = await transport({ token: p.token, environment, jwt, topic: config.topic, payload });
+          if (last.ok) { if (!p.environment) await store.setEnvironment(p.token, environment); break; }
+          if (dead(last) || !wrongEnvironment(last)) break;
+        }
+        if (last.ok) out.sent++;
+        else { out.failed++; (out.reasons ||= []).push(`${last.status} ${last.reason}`.trim()); console.warn('APNs refused a push:', last.status, last.reason); if (dead(last) || (wrongEnvironment(last) && !p.environment)) gone.push(p.token); }
       }
-      if (last.ok) out.sent++;
-      else { out.failed++; (out.reasons ||= []).push(`${last.status} ${last.reason}`.trim()); console.warn('APNs refused a push:', last.status, last.reason); if (dead(last) || (wrongEnvironment(last) && !p.environment)) gone.push(p.token); }
+    }
+    const android = phones.filter(x => x.platform === 'android');
+    if (fcmConfig && android.length) {
+      const r = await sendToAndroid(android, message, { config: fcmConfig, transport: fcm.transport, tokenFetcher: fcm.tokenFetcher, now });
+      out.sent += r.sent; out.failed += r.failed; gone.push(...r.gone);
+      if (r.reasons.length) (out.reasons ||= []).push(...r.reasons);
     }
     await store.removeTokens(gone);
     out.removed = gone.length;

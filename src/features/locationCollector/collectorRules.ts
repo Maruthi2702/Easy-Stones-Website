@@ -113,3 +113,28 @@ export const untilText = (endHour: number) => {
   const h = endHour % 12 === 0 ? 12 : endHour % 12;
   return `${h} ${endHour < 12 ? 'AM' : 'PM'}`;
 };
+
+/**
+ * The words that differ by phone. iPhone: Settings, "Always". Android: the app's permission page, "Allow all the time"
+ * (a separate step Android asks for after location itself), and a battery setting phone makers need. Google Play requires the
+ * in-app disclosure to say, before the permission prompt, that location is used when the app is closed or not in use.
+ */
+export type Platform = 'ios' | 'android' | 'web';
+export function platformWords(platform: Platform) {
+  if (platform === 'android') {
+    return {
+      settings: 'your phone’s Settings (Apps → Easy Surfaces → Permissions → Location)',
+      settingsButton: 'Open Settings',
+      background: 'including when the app is closed or not in use',
+      next: 'Your phone will ask you to allow location next. Choose “Allow all the time” so this works when the app is closed.',
+      battery: 'Some phones stop background apps to save battery. After you allow, set Battery for Easy Surfaces to “Unrestricted”.'
+    };
+  }
+  return {
+    settings: 'iPhone Settings',
+    settingsButton: 'Open Settings',
+    background: 'including when the app is in the background',
+    next: 'iPhone will ask you to allow location next. Choose “Always” so this works when the app is closed.',
+    battery: ''
+  };
+}

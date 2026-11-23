@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "Easy Surfaces",
+    "slug": "easy-surfaces",
+    "scheme": "easysurfaces",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "app.easysurfaces",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Easy Surfaces uses the camera to scan slab tags, receipts and business cards, and to take photos for visits, resources and deliveries.",
+        "NSPhotoLibraryUsageDescription": "Choose photos and PDFs to attach to visits, resources and receipts.",
+        "NSFaceIDUsageDescription": "Easy Surfaces uses Face ID to sign you in quickly and securely.",
+        "NSLocationWhenInUseUsageDescription": "Easy Surfaces uses your location to show where you are on the route map and to record where a visit was logged.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Easy Surfaces reads your location during work hours (7 AM to 6 PM on your workdays, on your branch time), including when the app is in the background, so your manager can see where you are on the job. Choose Always so it works when the app is closed.",
+        "UIBackgroundModes": [
+          "location",
+          "remote-notification"
+        ]
+      },
+      "buildNumber": "10"
+    },
+    "android": {
+      "package": "app.easysurfaces",
+      "adaptiveIcon": {
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/icon.png"
+      },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "USE_BIOMETRIC",
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Easy Surfaces uses Face ID to sign you in quickly and securely."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "locationAlwaysAndWhenInUsePermission": "Easy Surfaces reads your location during work hours (7 AM to 6 PM on your workdays, on your branch time), including when the app is in the background, so your manager can see where you are on the job. Choose Always so it works when the app is closed.",
+          "locationWhenInUsePermission": "Easy Surfaces uses your location to show where you are on the route map and to record where a visit was logged."
+        }
+      ],
+      "expo-notifications",
+      "expo-splash-screen",
+      "expo-asset",
+      "expo-font"
+    ]
+  }
+}

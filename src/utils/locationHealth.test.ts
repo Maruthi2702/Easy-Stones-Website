@@ -66,3 +66,17 @@ describe('metresBetween', () => {
     expect(Math.round(metresBetween({ lat: 47, lng: -122 }, { lat: 48, lng: -122 }) / 1000)).toBe(111);
   });
 });
+
+import { reminderFor } from './locationHealth.ts';
+import { MESSAGE_MAX } from './pushSend.ts';
+describe('reminderFor', () => {
+  it('has a short message for every reason a phone goes quiet, and none for nothing wrong', () => {
+    for (const code of ['denied', 'when-in-use', 'battery-dying', 'battery-low', 'low-power', 'backlog', 'silent']) {
+      const r = reminderFor(code);
+      expect(r, code).not.toBeNull();
+      expect(r!.message.length, code).toBeLessThanOrEqual(MESSAGE_MAX);
+    }
+    expect(reminderFor(undefined)).toBeNull();
+    expect(reminderFor('nope')).toBeNull();
+  });
+});

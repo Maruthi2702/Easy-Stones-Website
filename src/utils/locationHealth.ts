@@ -69,3 +69,21 @@ export function quietReason(
   if (fresh && fresh.queued >= 20) return { code: 'backlog', text: `${fresh.queued} points are waiting on the phone to send` };
   return { code: 'silent', text: lastPointAt ? `No signal from the phone since ${clock(lastPointAt, zone)}` : 'No location from this phone today' };
 }
+
+/**
+ * The one-line reminder an admin can push to a quiet person's phone (Team Location → Phone tab), by why they are quiet.
+ * Under the 120-character notification limit (utils/pushSend.ts). null = a reminder wouldn't help (nothing wrong).
+ */
+export function reminderFor(code: QuietCode | string | undefined): { label: string; message: string } | null {
+  switch (code) {
+    case 'denied': case 'when-in-use':
+      return { label: 'Remind to set Always', message: 'Please set location to “Always” for Easy Surfaces: Settings → Easy Surfaces → Location.' };
+    case 'low-power':
+      return { label: 'Remind about Low Power Mode', message: 'Low Power Mode can pause location tracking. Please turn it off while you work.' };
+    case 'battery-dying': case 'battery-low':
+      return { label: 'Remind to charge', message: 'Your battery is low. Please charge your phone so tracking keeps working.' };
+    case 'backlog': case 'silent':
+      return { label: 'Remind to open the app', message: 'Please open the Easy Surfaces app so your location can update.' };
+    default: return null;
+  }
+}

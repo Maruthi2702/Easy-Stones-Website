@@ -14,7 +14,7 @@ const STAFF = [
 ];
 const directory = { staff: async () => STAFF, trackedRoles: async () => new Set<string>() };
 const phones = new Set(['rep1', 'atl1', 'adm1']); // rep2 has none
-const devices = { devicesFor: async (ids: string[]) => ids.filter(i => phones.has(i)).map(i => ({ id: `d${i}`, userId: i, token: `tok${i}`, environment: 'production' })) };
+const devices = { devicesFor: async (ids: string[]) => ids.filter(i => phones.has(i)).map(i => ({ id: `d${i}`, userId: i, token: `tok${i}`, environment: 'production', platform: 'ios' as const })) };
 const sent: { ids: string[]; title: string; body: string }[] = [];
 const send = async (ids: string[], m: { title: string; body: string }) => { sent.push({ ids, title: m.title, body: m.body }); return { sent: ids.length, failed: 0, removed: 0, configured: true }; };
 let isConfigured = true;

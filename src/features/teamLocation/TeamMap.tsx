@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { GoogleMap, Marker, Polyline, useJsApiLoader } from '@react-google-maps/api';
+import type { ComponentProps } from 'react';
+import { GoogleMap, Marker, MarkerClusterer, Polyline, useJsApiLoader } from '@react-google-maps/api';
+import { durationText } from '../../utils/locationStops';
+import type { Stop } from '../../utils/locationStops';
 import { trailSegments } from '../../utils/locationTrail';
 import type { LocateRequest, TeamPerson, Trail } from './types';
 
@@ -18,8 +21,10 @@ const US = { lat: 39.5, lng: -98.35 };
  * earlier), and the picked person's trail for the day. Same Maps loader call
  * as the Route Planner, so the two never load Google twice.
  */
-export default function TeamMap({ people, selectedId, trail, onSelect, requested = null }: {
+export default function TeamMap({ people, selectedId, trail, stops = [], onSelect, requested = null }: {
   people: TeamPerson[]; selectedId: string; trail: Trail | null; onSelect: (id: string) => void;
+  /** Where the picked person stopped (utils/locationStops.ts): a gold dot each. */
+  stops?: Stop[];
   /** An answered "Locate now" ask for the picked person: drawn as a ring, separate from the day's trail. */
   requested?: LocateRequest | null;
 }) {
@@ -31,6 +36,8 @@ export default function TeamMap({ people, selectedId, trail, onSelect, requested
   const { segments } = useMemo(() => trailSegments((trail?.points ?? []).map((p) => ({ lat: p.lat, lng: p.lng, at: new Date(p.at) }))), [trail]);
   const path = segments.flat().map((p) => ({ lat: p.lat, lng: p.lng }));
   const seen = people.filter((p) => p.lastSeen);
+  // Refit when who is on the map changes (a filter, a new pin), never because a poll refreshed the same people.
+  const pinsKey = seen.map((p) => p.id).join(',');
   const answered = requested?.status === 'answered' && requested.lat !== null && requested.lng !== null ? { lat: requested.lat, lng: requested.lng } : null;
 
   const fit = useCallback(() => {
@@ -44,7 +51,7 @@ export default function TeamMap({ people, selectedId, trail, onSelect, requested
     spots.forEach((s) => bounds.extend(s));
     map.fitBounds(bounds, 48);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- refit when what's shown changes, not on every render
-  }, [selectedId, trail, people.length, requested?.id, requested?.status]);
+  }, [selectedId, trail, pinsKey, requested?.id, requested?.status]);
 
   useEffect(() => { fit(); }, [fit]);
 
@@ -56,6 +63,18 @@ export default function TeamMap({ people, selectedId, trail, onSelect, requested
   const dot = (color: string, scale: number): google.maps.Symbol => ({
     path: window.google.maps.SymbolPath.CIRCLE, scale, fillColor: color, fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 3
   });
+
+  const pin = (p: TeamPerson, clusterer?: ComponentProps<typeof Marker>['clusterer']) => (
+    <Marker
+      key={p.id}
+      clusterer={clusterer}
+      position={{ lat: p.lastSeen!.lat, lng: p.lastSeen!.lng }}
+      title={`${p.name} · ${p.ago}${p.quiet ? ` · ${p.quiet.text}` : ''}`}
+      icon={p.quiet ? { ...dot(COLOR[p.status], p.id === selectedId ? 11 : 8), strokeColor: QUIET, strokeWeight: 4 } : dot(COLOR[p.status], p.id === selectedId ? 11 : 8)}
+      zIndex={p.id === selectedId ? 3 : 2}
+      onClick={() => onSelect(p.id)}
+    />
+  );
 
   return (
     <GoogleMap mapContainerClassName="tl-map" center={US} zoom={4} options={OPTIONS} onLoad={(m) => { mapRef.current = m; fit(); }}>
@@ -71,16 +90,15 @@ export default function TeamMap({ people, selectedId, trail, onSelect, requested
         <Marker position={answered} title={`Requested location · ${requested!.answeredAt ? new Date(requested!.answeredAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}`}
           icon={{ ...dot('#3b82f6', 10), strokeWeight: 4 }} zIndex={4} />
       )}
-      {seen.map((p) => (
-        <Marker
-          key={p.id}
-          position={{ lat: p.lastSeen!.lat, lng: p.lastSeen!.lng }}
-          title={`${p.name} · ${p.ago}${p.quiet ? ` · ${p.quiet.text}` : ''}`}
-          icon={p.quiet ? { ...dot(COLOR[p.status], p.id === selectedId ? 11 : 8), strokeColor: QUIET, strokeWeight: 4 } : dot(COLOR[p.status], p.id === selectedId ? 11 : 8)}
-          zIndex={p.id === selectedId ? 3 : 2}
-          onClick={() => onSelect(p.id)}
-        />
+      {stops.map((st) => (
+        <Marker key={st.from.toISOString()} position={{ lat: st.lat, lng: st.lng }} title={`Stopped ${durationText(st.minutes)}`}
+          icon={{ ...dot('#d4af37', 7), strokeWeight: 3 }} zIndex={3} />
       ))}
+      {/* The picked person is always drawn on its own; everyone else gathers into clusters when pins overlap. */}
+      {seen.filter((p) => p.id === selectedId).map((p) => pin(p))}
+      <MarkerClusterer>
+        {(clusterer) => <>{seen.filter((p) => p.id !== selectedId).map((p) => pin(p, clusterer))}</>}
+      </MarkerClusterer>
     </GoogleMap>
   );
 }

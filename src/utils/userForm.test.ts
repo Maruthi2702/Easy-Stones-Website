@@ -212,7 +212,7 @@ describe('userToFormValues', () => {
             displayName: ' Ana ', email: 'ana@x.com', username: 'ana', joiningDate: '2025-02-03T00:00:00.000Z',
             role: 'csr', assignedLocations: ['Dallas', 'Seattle'], location: 'Seattle'
         })).toEqual({
-            displayName: 'Ana', email: 'ana@x.com', username: 'ana', joiningDate: '2025-02-03',
+            displayName: 'Ana', email: 'ana@x.com', phone: '', username: 'ana', joiningDate: '2025-02-03',
             role: 'csr', assignedLocations: ['Dallas', 'Seattle'], location: 'Seattle', signInMethod: 'keep', password: ''
         });
     });
@@ -262,5 +262,43 @@ describe('the sign-in lock', () => {
     it('says when it lifts as a time of day, and nothing when unlocked', () => {
         expect(lockedUntilTime({ lockUntil: new Date(now + 60000) }, now)).toMatch(/^\d{1,2}:\d{2}\s?[AP]M$/);
         expect(lockedUntilTime({}, now)).toBe('');
+    });
+});
+
+import { normalizePhone, phoneProblem, formatPhone, validateNewUser as validateNew } from './userForm.ts';
+describe('staff mobile phone', () => {
+    it('stores a US number in international form and accepts other countries with a +', () => {
+        expect(normalizePhone('(206) 555-0142')).toBe('+12065550142');
+        expect(normalizePhone('206.555.0142')).toBe('+12065550142');
+        expect(normalizePhone('1 206 555 0142')).toBe('+12065550142');
+        expect(normalizePhone('+44 7700 900123')).toBe('+447700900123');
+        expect(normalizePhone('')).toBe('');
+        expect(normalizePhone('555-0142')).toBe('');
+        expect(normalizePhone('+123')).toBe('');
+    });
+    it('is optional, and a typed number that is not one is a problem', () => {
+        expect(phoneProblem('')).toBe('');
+        expect(phoneProblem('   ')).toBe('');
+        expect(phoneProblem('(206) 555-0142')).toBe('');
+        expect(phoneProblem('555-0142')).toContain('Enter a mobile number');
+    });
+    it('shows a US number the way people write it', () => {
+        expect(formatPhone('+12065550142')).toBe('(206) 555-0142');
+        expect(formatPhone('+447700900123')).toBe('+447700900123');
+        expect(formatPhone(undefined)).toBe('');
+    });
+    it('Add user checks it only when filled', () => {
+        const ok: Record<string, unknown> = { displayName: 'A B', email: 'a@b.co', username: 'ab', joiningDate: '2026-11-22', role: 'sales_rep', assignedLocations: ['Seattle'], signInMethod: 'invite' };
+        expect(validateNew(ok).phone).toBeUndefined();
+        expect(validateNew({ ...ok, phone: '12' }).phone).toBeTruthy();
+        expect(validateNew({ ...ok, phone: '(206) 555-0142' }).phone).toBeUndefined();
+    });
+    it('Edit user sends the number only when it changed, in stored form, and "" to clear', () => {
+        const user = { displayName: 'A B', email: 'a@b.co', phone: '+12065550142', role: 'sales_rep', location: 'Seattle', assignedLocations: ['Seattle'], joiningDate: '2026-11-22T00:00:00Z' };
+        const initial = userToFormValues(user);
+        expect(initial.phone).toBe('(206) 555-0142');
+        expect(userEditFields(initial, initial).phone).toBeUndefined();
+        expect(userEditFields({ ...initial, phone: '206 555 0199' }, initial).phone).toBe('+12065550199');
+        expect(userEditFields({ ...initial, phone: '' }, initial).phone).toBe('');
     });
 });

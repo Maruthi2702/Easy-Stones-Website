@@ -683,6 +683,25 @@ the web layer's collector (the Swift side only restarts monitoring; iOS gives a 
 (`startLocationRetention`) — it needs an EventBridge schedule when the server moves to Lambda, and Lambda needs RDS
 Proxy (or connection reuse) for 200 phones posting every 30 s.
 
+**Android (2026-11-22, on `feat/team-location-redesign`):** the same Capacitor shell, `android/` project and a Java
+`LocationHealth` plugin (`plugins/location-health/android/`, same interface as the Swift one; plus `requestAlways` and
+`openBatterySettings`). The collector already ran on any native platform; the consent screen is platform-aware
+(`platformWords`) and discloses use "when the app is closed or not in use" for Google Play. **Never run on a real Android
+phone**; **pushes (Locate now, Send Notification) are Apple-only until FCM is built**; Google Play's background-location
+declaration is the slow step. Everything is in `docs/ANDROID_LAUNCH.md`.
+
+**React Native app (2026-11-22, `mobile/`, on `feat/team-location-redesign`):** the owner chose to move the Swift code to React Native
+(Expo), so the app is now `mobile/` — the live site in a WebView plus native screens in TypeScript — replacing the Capacitor shell and its
+Swift / Java plugins (those stay in the repo until the new app is proven on real phones; nothing is deleted). Sign-in (`mobile/src/auth`,
+the Swift `NativeLogin` ported: staff and supplier through `POST /api/customer/login`, Face ID / fingerprint through the secure store) and
+a **bridge** (`mobile/src/host`): the website's `@capacitor/core` plugin calls (App, Keyboard, PushNotifications, Geolocation,
+BackgroundGeolocation, LocationHealth) are answered by Expo modules through `CapacitorCustomPlatform` + `PluginHeaders` +
+`nativePromise/nativeCallback`, so **no website code changed**; `src/features/nativeApp/hostBridge.test.ts` runs the real `@capacitor/core`
+against it. Known losses and unverified parts are in `mobile/README.md` (no iOS significant-change relaunch of a force-quit app; the
+collector still runs in the page's JS; Android push needs FCM; **never run on a real phone**; the Android debug app builds, the iOS build is
+untried because CocoaPods isn't installed). The web `/login` page renders nothing in any native app (`CustomerLoginPage`), so a native
+sign-in screen is mandatory on every platform (the earlier Capacitor Android app had none: its login was blank).
+
 ## Send Notification: an admin's message to people's iPhones (2026-11-21)
 
 Admin → **Send Notification** (`src/features/notifications/`, nav `send_notification`): pick people (search, a

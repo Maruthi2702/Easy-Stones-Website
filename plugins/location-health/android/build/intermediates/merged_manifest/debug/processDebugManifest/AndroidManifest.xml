@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="app.easysurfaces.locationhealth" >
+
+    <uses-sdk android:minSdkVersion="24" />
+    <!-- "Allow all the time": a separate runtime step on Android 10+, and Google Play asks for a declaration and an in-app disclosure for it. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+</manifest>

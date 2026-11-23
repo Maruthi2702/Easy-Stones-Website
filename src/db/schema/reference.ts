@@ -112,6 +112,8 @@ export const users = pgTable('users', {
   displayName: text('display_name').notNull().default(''),
   passwordHash: text('password_hash').notNull(),
   email: text('email'),
+  /** Mobile number in international form (+12065550142), for text messages (2026-11-22). Optional; never shown to other staff. */
+  phone: text('phone'),
   role: text('role').notNull().default('sales_rep').references(() => roles.name, { onUpdate: 'cascade' }),
   /** Home location. Assigned locations are user_locations; '*' (every location) is all_locations. */
   homeLocationId: objectId('home_location_id').references(() => locations.id, { onDelete: 'set null' }),

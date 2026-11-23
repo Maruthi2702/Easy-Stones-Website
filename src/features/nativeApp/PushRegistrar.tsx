@@ -6,9 +6,9 @@ import { useAuth } from '../../context/AuthContext';
 import { registerPushDevice } from '../../api/pushDevices';
 
 /**
- * Push notifications in the iOS app (server: src/services/apns.ts). For a
- * signed-in staff member it asks iOS for permission once, registers the phone's
- * token with the server, and opens the page a notification names (`path`) when
+ * Push notifications in the phone app (server: src/services/apns.ts for iPhones, src/services/fcm.ts for Android). For a
+ * signed-in staff member it asks the phone for permission once, registers the phone's
+ * token (with its platform, see api/pushDevices.ts) with the server, and opens the page a notification names (`path`) when
  * it's tapped. Draws nothing; nothing happens in a browser or for suppliers.
  */
 export default function PushRegistrar() {
