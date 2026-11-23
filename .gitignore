@@ -57,3 +57,7 @@ ios/DerivedData
 
 plugins/location-health/.build/
 plugins/location-health/.swiftpm/
+
+# Gradle build output of the Android plugin
+plugins/location-health/android/build/
+plugins/location-health/android/.gradle/

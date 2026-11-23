@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Easy Surfaces</string>
+    <string name="title_activity_main">Easy Surfaces</string>
+    <string name="package_name">app.easysurfaces</string>
+    <string name="custom_url_scheme">app.easysurfaces</string>
+</resources>
