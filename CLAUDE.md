@@ -626,18 +626,20 @@ first wanted continuous 24/7 tracking of everyone with the app, including person
 (privacy law, App Review, HR's sign-off covers 7–6 only) and they chose **location after 6 PM only when an admin
 requests it**. Rules `src/utils/locationRequests.ts` (tested): switch `locate_on_request` (Users & Roles → Location
 Tracking → **Locate on request**, nobody holds it until ticked); the person must be tracked, on the asker's team
-(404 otherwise) and have agreed to the **current** wording (`CONSENT_VERSION` is now **2**: it says an authorised
-manager can ask the phone for its location once, with a reason, outside work hours — everyone is asked again); a
+(404 otherwise) and have agreed to the **current** wording (`CONSENT_VERSION` is now **3**, one short paragraph, `consentBody` in
+`collectorRules.ts`: when, why, that your manager sees it, and that a manager may also request it outside work hours — the
+owner asked for little detail (2026-11-22); version 2 was the long wording; everyone is asked again); a
 **reason of 5–200 characters is required** and kept; one open ask per person (15-minute `REQUEST_TTL_MS`, then it
 expires); you can't ask about yourself. Routes `src/routes/locationRequests.ts` (tested): `POST /locate`,
 `GET /locate?userId=` (the log), `GET /locate/:id`, and for the phone `GET /locate/pending` (who asked and when —
 **never the reason**) and `POST /locate/:id/answer`. The answer is kept **with the ask** in `location_requests`
 (migration `0019`, `src/db/locationPoints/requests.ts`, 90-day cleanup with the points) and **never in
-`location_points`**, so ordinary points are still dropped outside 7–6. The person gets an alert push when asked
-(`askedNotice`, via `sendPushToUsers`; nothing if APNs isn't set up) and sees "Location sent to …" on the phone after
-it answers. Phone: `useLocateRequests` (in `LocationCollector`) answers an open ask whenever the app is in front —
-at start, on resume, on the ask's push, every minute — with one `@capacitor/geolocation` reading
-(`answerRequests.ts`, tested). Admin: Team Location's **Locate now** button (greyed until the person has agreed to
+`location_points`**, so ordinary points are still dropped outside 7–6. **The person is NOT notified when asked and
+nothing is shown on their phone** (owner, 2026-11-22; consent wording bumped to `CONSENT_VERSION` 3, `consentBody` in
+`collectorRules.ts`, so everyone re-agrees — the old "you get a notification each time" promise is gone, and the
+`askedNotice` push + the "Location sent to …" notice were removed). Phone: `useLocateRequests` (in `LocationCollector`)
+answers an open ask silently whenever the app is in front — at start, on resume, every minute — with one
+`@capacitor/geolocation` reading (`answerRequests.ts`, tested). Admin: Team Location's **Locate now** button (greyed until the person has agreed to
 the current wording), `LocateDialog` (FormModal S, reason required), a status line while it waits (checked every 4 s),
 the answer as a blue ring on the map, and the person's log of asks. **Not built / limits:** a *silent* push that
 wakes a closed app to answer — iOS doesn't guarantee background wake, so an ask to a force-quit or Low Power phone
@@ -697,8 +699,16 @@ the Swift `NativeLogin` ported: staff and supplier through `POST /api/customer/l
 a **bridge** (`mobile/src/host`): the website's `@capacitor/core` plugin calls (App, Keyboard, PushNotifications, Geolocation,
 BackgroundGeolocation, LocationHealth) are answered by Expo modules through `CapacitorCustomPlatform` + `PluginHeaders` +
 `nativePromise/nativeCallback`, so **no website code changed**; `src/features/nativeApp/hostBridge.test.ts` runs the real `@capacitor/core`
-against it. Known losses and unverified parts are in `mobile/README.md` (no iOS significant-change relaunch of a force-quit app; the
-collector still runs in the page's JS; Android push needs FCM; **never run on a real phone**; the Android debug app builds, the iOS build is
+against it. **The collector runs in React Native, not the page** (`mobile/src/collector/`, `expo-location` + `expo-task-manager`; the
+owner chose `expo-location` over a paid background-geolocation library, 2026-11-22): `core.ts` is its rules as plain TypeScript with
+every outside thing passed in (`core.test.ts`, 15 tests, run by the root `npm test` — `vite.config.ts` includes `mobile/src`), driven by
+the background task and a 30 s timer, resumed from saved state on a launch with no page. **Consent, the "location is off" banner and
+answering Locate now are native too** (`mobile/src/location/`, `mobile/src/locate/`, mounted in `mobile/App.tsx` over the site): the
+phone shows the agreement itself and posts it to `/api/location-tracking/consent`, the website draws neither inside the app
+(`phoneOwns` in `useLocationCollector`), and an open Locate now ask is answered silently at most once a minute (collector timer and
+app foreground). Still true: a force-quit app stays stopped on iPhone (no significant-change relaunch; Apple forum reports say
+iOS 26 may not relaunch it at all), an ask outside 7–6 waits until the app is next opened, and none of it has run on a real phone. Known
+losses and unverified parts are in `mobile/README.md` (Android push needs FCM; **never run on a real phone**; the Android debug app builds, the iOS build is
 untried because CocoaPods isn't installed). The web `/login` page renders nothing in any native app (`CustomerLoginPage`), so a native
 sign-in screen is mandatory on every platform (the earlier Capacitor Android app had none: its login was blank).
 
