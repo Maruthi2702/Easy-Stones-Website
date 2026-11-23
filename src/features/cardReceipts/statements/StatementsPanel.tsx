@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CreditCard, Upload } from 'lucide-react';
+import { Filter, Upload } from 'lucide-react';
 import DashboardSearch from '../../../components/shared/DashboardSearch';
-import { FormSearchPicker } from '../../../components/shared/form/FormControls';
 import Pagination from '../../../components/shared/Pagination';
 import { usePagination } from '../../../components/shared/paginationConfig';
 import { formatMoney, monthLabel, usDate } from '../../../utils/cardReceipts';
 import { LINE_STATUSES, lineStatusLabel, type Issuer, type LineStatus } from '../../../utils/amexStatement';
 import * as api from './statementsApi';
-import { periodLabel, personOptions, visibleLines } from './statementsView';
+import { BANK_KEYS, BANK_NAMES, linesOfBank, periodLabel, unsetCardsNote, visibleLines } from './statementsView';
 import AmexUploadForm from './AmexUploadForm';
-import type { StatementLine, StatementsView, UnknownCard, UploadResult } from './statementsApi';
+import UnknownCards from './UnknownCards';
+import type { StatementLine, StatementsView, UploadResult } from './statementsApi';
 import './Statements.css';
 
 const CHIP: Record<LineStatus, string> = { missing: 'miss', matched: 'ok', no_card: 'back', unassigned: 'back', before_start: 'draft', no_receipt: 'draft' };
@@ -17,19 +17,29 @@ const DOT: Record<LineStatus, string> = CHIP;
 
 const StatusChip = ({ status }: { status: LineStatus }) => <span className={`ccr-chip is-${CHIP[status]}`}>{lineStatusLabel(status)}</span>;
 
+const BANK_KEY = 'ccr-statements-bank';
+const savedBank = (): Issuer => {
+  try { const v = window.localStorage.getItem(BANK_KEY); return v === 'encore' ? 'encore' : 'amex'; } catch { return 'amex'; }
+};
+
 /**
- * Credit Card Receipts → Statements (the Amex check). Design: the Statements board of the
- * claude.ai canvas "Credit Card Receipts UX", with the owner's calls of 2026-11-20 (exact
- * matching, so no "To check"; unknown cards set up here). One month of Amex lines by Amex's day,
- * the page's month stepper choosing it.
+ * Credit Card Receipts → Statements (the card check). Design: the claude.ai artifact "Statements by bank"
+ * (2026-11-23, owner's ask: keep Amex and Encore apart). An Amex | Encore switch; everything under it —
+ * tiles, lines, uploads, last upload, the still-missing count — is that bank's alone. The cards not set up
+ * are set up on the Cards tab; this tab only says how many a bank has (with no Cards tab to go to, the box
+ * stays here so nobody is stranded). One month of lines by the bank's day, the page's month stepper choosing it.
  */
-export default function StatementsPanel({ month, isPhone, onSaved }: { month: string; isPhone: boolean; onSaved: (text: string) => void }) {
+export default function StatementsPanel({ month, isPhone, canCards, onOpenCards, onSaved }: {
+  month: string; isPhone: boolean; canCards: boolean; onOpenCards: () => void; onSaved: (text: string) => void;
+}) {
   const [view, setView] = useState<StatementsView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [bank, setBank] = useState<Issuer>(savedBank);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<LineStatus | 'all'>('all');
   const [uploading, setUploading] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
   const pager = usePagination();
 
   const load = useCallback(async () => {
@@ -38,11 +48,23 @@ export default function StatementsPanel({ month, isPhone, onSaved }: { month: st
   }, [month]);
   useEffect(() => { load(); }, [load]);
   const { resetPage } = pager;
-  useEffect(() => { resetPage(); }, [month, search, status, resetPage]);
+  useEffect(() => { resetPage(); }, [month, bank, search, status, resetPage]);
 
-  const { base, rows, counts } = useMemo(() => visibleLines(view?.lines || [], { search, status }), [view?.lines, search, status]);
+  const pickBank = (b: Issuer) => {
+    setBank(b); setStatus('all'); setFilterOpen(false);
+    try { window.localStorage.setItem(BANK_KEY, b); } catch { /* remembering is a convenience */ }
+  };
+
+  const bankLines = useMemo(() => linesOfBank(view?.lines || [], bank), [view?.lines, bank]);
+  const { base, rows, counts } = useMemo(() => visibleLines(bankLines, { search, status }), [bankLines, search, status]);
   const paged = rows.slice((pager.currentPage - 1) * pager.rowsPerPage, pager.currentPage * pager.rowsPerPage);
-  const last = view?.imports[0];
+  const last = view?.imports.find((i) => i.issuer === bank);
+  const bankImports = useMemo(() => linesOfBank(view?.imports || [], bank), [view?.imports, bank]);
+  const unsetOf = (b: Issuer) => (view?.unknownCards || []).filter((c) => c.issuer === b);
+  const unset = unsetOf(bank);
+  const missing = view?.missingByBank?.[bank];
+  const name = BANK_NAMES[bank];
+  const tiles = LINE_STATUSES.filter((s) => counts[s.key].count || !(s.key === 'no_card' || s.key === 'unassigned' || s.key === 'before_start'));
 
   const uploaded = (r: UploadResult) => {
     setUploading(false);
@@ -51,82 +73,130 @@ export default function StatementsPanel({ month, isPhone, onSaved }: { month: st
     load();
   };
 
+  const switcher = (
+    <div className="ccr-bank-seg" role="tablist" aria-label="Bank">
+      {BANK_KEYS.map((b) => (
+        <button key={b} type="button" role="tab" aria-selected={bank === b} className={bank === b ? 'is-on' : ''} onClick={() => pickBank(b)}>
+          <span className={`ccr-bank-sw is-${b}`} aria-hidden="true" />{BANK_NAMES[b]}
+          <span className="ccr-bank-n">{linesOfBank(view?.lines || [], b).length}</span>
+          {unsetOf(b).length ? <span className="ccr-bank-flag" title={unsetCardsNote(unsetOf(b).length, b)} role="img" aria-label={unsetCardsNote(unsetOf(b).length, b)} /> : null}
+        </button>
+      ))}
+    </div>
+  );
+
+  const notice = unset.length ? (
+    canCards ? (
+      <div className="ccr-st-warn" role="status">
+        <span><b>{unsetCardsNote(unset.length, bank)}.</b> Their charges show as Card not set up until a holder is chosen.</span>
+        <button type="button" className="ccr-btn" onClick={onOpenCards}>Set up in Cards</button>
+      </div>
+    ) : (
+      <UnknownCards cards={unset} people={view?.people || []} onSetUp={async (digits, userId, replace, issuer) => {
+        const r = await api.setUpCard(digits, userId, replace, issuer);
+        onSaved(r.check.created ? `Card set up · ${r.check.created} Missing receipt ${r.check.created === 1 ? 'row' : 'rows'} made` : 'Card set up');
+        load();
+      }} />
+    )
+  ) : null;
+
+  const statusOptions = [{ key: 'all' as const, label: 'All', count: base.length, cents: null as number | null, dot: '' },
+    ...tiles.map((s) => ({ key: s.key, label: s.label, count: counts[s.key].count, cents: counts[s.key].cents as number | null, dot: DOT[s.key] }))];
+
   return (
     <div className="ccr-st">
-      <div className="ccr-st-top">
-        <div className="ccr-st-last">
-          <b>{last ? `Last upload ${usDate(String(last.at).slice(0, 10))}${last.byName ? ` by ${last.byName}` : ''}` : 'Nothing uploaded yet'}</b>
-          <span>
-            {last ? `${periodLabel(last.periodFrom, last.periodTo)} · ${last.lines.toLocaleString()} lines, ${last.added.toLocaleString()} new · ` : ''}
-            {view ? (view.missingNow.count
-              ? `${view.missingNow.count.toLocaleString()} receipts still missing · ${formatMoney(view.missingNow.cents)}`
-              : 'No receipts missing') : ''}
+      {isPhone ? (
+        <div className="ccr-st-ptop">
+          <b>{monthLabel(month)}</b>
+          <span className="ccr-st-pact">
+            <button type="button" className={`ccr-st-fbtn${status !== 'all' ? ' has' : ''}`} aria-label="Filter by status" aria-expanded={filterOpen} onClick={() => setFilterOpen((o) => !o)}>
+              <Filter size={18} aria-hidden="true" />{status !== 'all' ? <i className="ccr-st-fdot" aria-hidden="true" /> : null}
+            </button>
+            <button type="button" className="ccr-btn gold" onClick={() => setUploading(true)} aria-label={`Upload ${name} statement`}><Upload size={16} aria-hidden="true" /> Upload</button>
           </span>
         </div>
-        <button type="button" className="ccr-btn gold" onClick={() => setUploading(true)}><Upload size={16} aria-hidden="true" /> Upload statement</button>
-      </div>
+      ) : (
+        <div className="ccr-st-top">
+          <div className="ccr-st-last">
+            <b>{last ? `Last ${name} upload ${usDate(String(last.at).slice(0, 10))}${last.byName ? ` by ${last.byName}` : ''}` : `No ${name} statement uploaded yet`}</b>
+            <span>
+              {last ? `${periodLabel(last.periodFrom, last.periodTo)} · ${last.lines.toLocaleString()} lines, ${last.added.toLocaleString()} new · ` : ''}
+              {missing ? (missing.count
+                ? `${missing.count.toLocaleString()} receipts still missing · ${formatMoney(missing.cents)}`
+                : 'No receipts missing') : ''}
+            </span>
+          </div>
+          <button type="button" className="ccr-btn gold" onClick={() => setUploading(true)}><Upload size={16} aria-hidden="true" /> Upload statement</button>
+        </div>
+      )}
+
+      {switcher}
 
       {error ? <div className="ccr-note is-error" role="alert">{error}</div> : null}
+      {notice}
 
-      {view?.unknownCards.length ? (
-        <UnknownCards cards={view.unknownCards} people={view.people} onSetUp={async (digits, userId, replace, issuer) => {
-          const r = await api.setUpCard(digits, userId, replace, issuer);
-          onSaved(r.check.created ? `Card set up · ${r.check.created} Missing receipt ${r.check.created === 1 ? 'row' : 'rows'} made` : 'Card set up');
-          load();
-        }} />
-      ) : null}
-
-      <div className="ccr-st-bar">
-        <h2>{monthLabel(month)} · Amex and Encore</h2>
-        <DashboardSearch value={search} onChange={setSearch} label="Search card lines" placeholder="Search merchant, cardholder, card, bank"
-          count={search ? `${base.length} of ${view?.lines.length || 0}` : null} />
-      </div>
-
-      {!isPhone ? (
-        <div className="ccr-tiles">
-          {LINE_STATUSES.map((s) => {
-            const t = counts[s.key];
-            const on = status === s.key;
-            if (!t.count && (s.key === 'no_card' || s.key === 'unassigned' || s.key === 'before_start')) return null;
-            return (
-              <button key={s.key} type="button" className={`ccr-tile${on ? ' is-on' : ''}`} aria-pressed={on}
-                title={on ? 'Show every line' : `Show only ${s.label}`} onClick={() => setStatus(on ? 'all' : s.key)}>
-                <span className="ccr-tile-k"><span className={`ccr-dot is-${DOT[s.key]}`} aria-hidden="true" />{s.label}</span>
-                <span className="ccr-tile-v">{t.count.toLocaleString()}</span>
-                <span className="ccr-tile-c">{formatMoney(t.cents)}</span>
-              </button>
-            );
-          })}
-        </div>
+      {isPhone ? (
+        <>
+          <DashboardSearch value={search} onChange={setSearch} label={`Search ${name} lines`} placeholder="Search merchant, cardholder, card"
+            count={search ? `${base.length} of ${bankLines.length}` : null} />
+          {filterOpen ? (
+            <div className="ccr-st-sheet" role="group" aria-label="Status">
+              {statusOptions.map((o) => (
+                <button key={o.key} type="button" className={`ccr-st-opt${status === o.key ? ' is-on' : ''}`} aria-pressed={status === o.key}
+                  onClick={() => { setStatus(o.key); setFilterOpen(false); }}>
+                  <span>{o.dot ? <span className={`ccr-dot is-${o.dot}`} aria-hidden="true" /> : null} {o.label}</span>
+                  <span>{o.count.toLocaleString()}{o.cents === null ? '' : ` · ${formatMoney(o.cents)}`}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {status !== 'all' ? (
+            <div className="ccr-st-cur"><span>Status: <b>{lineStatusLabel(status)}</b></span><button type="button" onClick={() => setStatus('all')}>Clear</button></div>
+          ) : null}
+        </>
       ) : (
-        <div className="ccr-st-chips" role="group" aria-label="Status">
-          {(['all', ...LINE_STATUSES.map((s) => s.key)] as const).map((k) => (
-            <button key={k} type="button" className={`ccr-st-chipbtn${status === k ? ' is-on' : ''}`} aria-pressed={status === k} onClick={() => setStatus(k)}>
-              {k === 'all' ? `All · ${base.length}` : `${lineStatusLabel(k)} · ${counts[k].count}`}
-            </button>
-          ))}
-        </div>
+        <>
+          <div className="ccr-st-bar">
+            <h2>{monthLabel(month)} · {name}</h2>
+            <DashboardSearch value={search} onChange={setSearch} label={`Search ${name} lines`} placeholder="Search merchant, cardholder, card"
+              count={search ? `${base.length} of ${bankLines.length}` : null} />
+          </div>
+          <div className="ccr-tiles">
+            {tiles.map((s) => {
+              const t = counts[s.key];
+              const on = status === s.key;
+              return (
+                <button key={s.key} type="button" className={`ccr-tile${on ? ' is-on' : ''}`} aria-pressed={on}
+                  title={on ? 'Show every line' : `Show only ${s.label}`} onClick={() => setStatus(on ? 'all' : s.key)}>
+                  <span className="ccr-tile-k"><span className={`ccr-dot is-${DOT[s.key]}`} aria-hidden="true" />{s.label}</span>
+                  <span className="ccr-tile-v">{t.count.toLocaleString()}</span>
+                  <span className="ccr-tile-c">{formatMoney(t.cents)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
 
       <div className={`ccr-box${loading ? ' is-loading' : ''}`} aria-busy={loading}>
         {rows.length ? <Lines rows={paged} isPhone={isPhone} /> : (
           <div className="ccr-empty">
             {loading ? <span>Loading…</span> : base.length ? <><h3>Nothing matches</h3><span>Clear the search or the status.</span></>
-              : <><h3>No card lines for {monthLabel(month)}</h3><span>Upload Amex’s activity export or Encore’s transactions export to check it against the receipts.</span></>}
+              : <><h3>No {name} lines for {monthLabel(month)}</h3><span>Upload {bank === 'encore' ? 'Encore’s transactions export' : 'Amex’s activity export'} to check it against the receipts.</span></>}
           </div>
         )}
       </div>
       <Pagination currentPage={pager.currentPage} totalPages={Math.max(1, Math.ceil(rows.length / pager.rowsPerPage))}
         onPageChange={pager.setCurrentPage} rowsPerPage={pager.rowsPerPage} onRowsPerPageChange={pager.setRowsPerPage} totalCount={rows.length} />
 
-      {view?.imports.length ? (
+      {bankImports.length ? (
         <div className="ccr-box">
-          <h2 className="ccr-st-h">Uploads</h2>
+          <h2 className="ccr-st-h">{name} uploads</h2>
           <div className="ccr-table-wrap">
             <table className="ccr-table ccr-st-uploads">
               <thead><tr><th>Uploaded</th><th>Period</th><th className="ccr-col-wide">File</th><th className="ccr-num">Lines</th><th className="ccr-num">New</th><th className="ccr-num">Charges</th><th>By</th></tr></thead>
               <tbody>
-                {view.imports.map((i) => (
+                {bankImports.map((i) => (
                   <tr key={i.id}>
                     <td>{usDate(String(i.at).slice(0, 10))}</td>
                     <td>{periodLabel(i.periodFrom, i.periodTo)}</td>
@@ -143,24 +213,30 @@ export default function StatementsPanel({ month, isPhone, onSaved }: { month: st
         </div>
       ) : null}
 
-      {uploading ? <AmexUploadForm onDone={uploaded} onClose={() => setUploading(false)} /> : null}
+      {uploading ? <AmexUploadForm initialIssuer={bank} onDone={uploaded} onClose={() => setUploading(false)} /> : null}
     </div>
   );
 }
 
-/** Each line: Amex's day, card, who holds it, what Amex printed, the amount and where it stands. */
+/** Each line: the bank's day, who holds the card, what the bank printed, the amount and where it stands. The tab says which bank. */
 function Lines({ rows, isPhone }: { rows: StatementLine[]; isPhone: boolean }) {
   const who = (l: StatementLine) => l.holderName || l.cardMember;
-  const card = (l: StatementLine) => `${l.issuer === 'encore' ? 'Encore' : 'Amex'} · ${l.cardLabel || (l.digits ? `…${l.digits}` : 'no card')}`;
+  const card = (l: StatementLine) => l.cardLabel || (l.digits ? `…${l.digits}` : 'no card');
   if (isPhone) {
     return (
       <div className="ccr-cards">
         {rows.map((l) => (
-          <div key={l.reference} className="ccr-card ccr-st-card">
-            <b className="ccr-st-desc">{l.description}</b>
-            <span className={`ccr-amt${l.cents < 0 ? ' ccr-st-credit' : ''}`}>{formatMoney(l.cents)}</span>
-            <span className="ccr-card-meta">{usDate(l.date)} · {who(l)} · {card(l)}</span>
-            <span style={{ justifySelf: 'end' }}><StatusChip status={l.status} /></span>
+          <div key={l.reference} className="ccr-card ccr-st-pcard">
+            <span className={`ccr-dot is-${DOT[l.status]}`} aria-hidden="true" />
+            <span className="ccr-st-pm">
+              <b>{who(l)}</b>
+              <span className="ccr-st-desc">{l.description}</span>
+              <span className="ccr-card-meta">{usDate(l.date)} · {card(l)}</span>
+            </span>
+            <span className="ccr-st-pa">
+              <b className={`ccr-amt${l.cents < 0 ? ' ccr-st-credit' : ''}`}>{formatMoney(l.cents)}</b>
+              <StatusChip status={l.status} />
+            </span>
           </div>
         ))}
       </div>
@@ -185,47 +261,6 @@ function Lines({ rows, isPhone }: { rows: StatementLine[]; isPhone: boolean }) {
           ))}
         </tbody>
       </table>
-    </div>
-  );
-}
-
-/** Cards Amex named that nobody has set up: pick the holder, Set up card, and their charges are checked. */
-function UnknownCards({ cards, people, onSetUp }: {
-  cards: UnknownCard[]; people: StatementsView['people']; onSetUp: (digits: string, userId: string, replace: boolean, issuer: Issuer) => Promise<void>;
-}) {
-  const [picks, setPicks] = useState<Record<string, string>>(() => Object.fromEntries(cards.map((c) => [c.digits, c.suggestedUserId])));
-  const [busy, setBusy] = useState('');
-  const [notes, setNotes] = useState<Record<string, string>>({});
-  const encoreOptions = useMemo(() => personOptions(people, 'encore'), [people]);
-  const options = useMemo(() => personOptions(people), [people]);
-  const nameOf = (id: string) => people.find((p) => p.id === id)?.name || '';
-  return (
-    <div className="ccr-box ccr-st-unset">
-      <h2 className="ccr-st-h"><CreditCard size={16} aria-hidden="true" /> Cards not set up · {cards.length}</h2>
-      <div className="ccr-st-unknown">
-        {cards.map((c) => (
-          <div key={`${c.issuer}${c.digits}`} className="ccr-st-urow">
-            <div className="ccr-who">
-              <b>{c.cardMember}</b>
-              <span>{c.issuer === 'encore' ? 'Encore' : 'Amex'} …{c.digits} · {c.charges} {c.charges === 1 ? 'charge' : 'charges'}, {formatMoney(c.cents)} · {usDate(c.first)} to {usDate(c.last)}</span>
-              {notes[c.digits] ? <span className="ccr-st-note" role="alert">{notes[c.digits]}</span> : null}
-            </div>
-            <div className="ccr-st-pick fm-tokens">
-              <FormSearchPicker id={`ccr-st-u-${c.digits}`} value={picks[c.digits] || ''} selectedLabel={picks[c.digits] ? nameOf(picks[c.digits]!) : 'Choose the cardholder'}
-                onChange={(id) => setPicks((p) => ({ ...p, [c.digits]: id }))} options={(c.issuer === 'encore' ? encoreOptions : options).slice(1)}
-                placeholder="Choose the cardholder" searchPlaceholder="Search people" sheetTitle={`Card …${c.digits}`} keepInForm />
-            </div>
-            <button type="button" className="ccr-btn" disabled={!picks[c.digits] || Boolean(busy)} onClick={async () => {
-              setBusy(c.digits);
-              setNotes(({ [c.digits]: _gone, ...rest }) => rest);
-              const holder = people.find((p) => p.id === picks[c.digits]);
-              const had = c.issuer === 'encore' ? holder?.encoreCard : holder?.card;
-              if (had && !window.confirm(`${nameOf(picks[c.digits]!)} already has card ${had}. Deactivate it and set up …${c.digits} instead?`)) { setBusy(''); return; }
-              try { await onSetUp(c.digits, picks[c.digits]!, Boolean(had), c.issuer); } catch (e) { setNotes((n) => ({ ...n, [c.digits]: (e as Error).message })); } finally { setBusy(''); }
-            }}>{busy === c.digits ? 'Setting up…' : 'Set up card'}</button>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

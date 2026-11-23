@@ -12,6 +12,15 @@ export function periodLabel(from: string | null | undefined, to: string | null |
   return `${short(from)} – ${short(to)}, ${to.slice(0, 4)}`;
 }
 
+export const BANK_NAMES: Record<Issuer, string> = { amex: 'Amex', encore: 'Encore' };
+export const BANK_KEYS: readonly Issuer[] = ['amex', 'encore'];
+
+/** The Statements tab shows one bank at a time (2026-11-23): its lines only. */
+export const linesOfBank = <T extends { issuer: Issuer }>(rows: readonly T[], bank: Issuer) => rows.filter((r) => r.issuer === bank);
+
+/** "2 Encore cards not set up", "1 Amex card not set up". */
+export const unsetCardsNote = (count: number, bank: Issuer) => `${count} ${BANK_NAMES[bank]} ${count === 1 ? 'card' : 'cards'} not set up`;
+
 /** What the tiles count (`base`, the search applied) and what's listed (`rows`, the tile too). */
 export function visibleLines(lines: readonly StatementLine[], { search, status }: { search: string; status: LineStatus | 'all' }) {
   const q = search.trim().toLowerCase();

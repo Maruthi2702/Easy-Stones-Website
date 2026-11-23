@@ -21,9 +21,9 @@ const BANKS: { key: Issuer; label: string; file: string; hint: string }[] = [
  * set up right here by picking its holder (the preview runs again with the pick). Upload and
  * check keeps it.
  */
-export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: UploadResult) => void; onClose: () => void }) {
+export default function AmexUploadForm({ onDone, onClose, initialIssuer = 'amex' }: { onDone: (r: UploadResult) => void; onClose: () => void; initialIssuer?: Issuer }) {
   const fileInput = useRef<HTMLInputElement>(null);
-  const [issuer, setIssuer] = useState<Issuer>('amex');
+  const [issuer, setIssuer] = useState<Issuer>(initialIssuer);
   const [file, setFile] = useState<File | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<UploadResult | null>(null);

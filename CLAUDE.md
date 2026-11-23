@@ -1500,6 +1500,15 @@ cards by `holderOf`, `claimUpload` looks at the holder's cards) and the receipt 
 (history: "Card changed to …"); a new receipt is saved on the person's first card (`activeCardOf`: Amex first). Not built:
 a card choice on Add receipt. New tables/columns reach RDS with `npm run pg:migrate -- --apply` on Render.
 
+**Statements are kept apart by bank** (2026-11-23, on `feat/receipt-categories-list`; claude.ai artifact **Statements by bank**,
+https://claude.ai/artifact/XVMYJJRpHrrxSfTQ2Ey2pD; the owner's calls on it): the Statements tab has an **Amex | Encore** switch (remembered
+on the device, default Amex, **no "All" tab** — my default, owner unanswered) and everything under it — tiles, lines, last upload, the
+still-missing count (`missingByBank` from `statementView`, uploads carry `issuer`), the uploads log — is that bank's alone; Upload statement
+opens on the chosen bank. **Cards not set up moved to the Cards tab** (`statements/UnknownCards.tsx`, both banks, each with its badge,
+needs the Amex-check switch); Statements keeps a one-line "2 Encore cards not set up · Set up in Cards" notice and an orange dot on the
+tab. A login with the Amex check but **no Cards tab** (`canCards` false) still gets the box on Statements, so nobody is stranded. On a
+phone the status filter is a round icon beside Upload (a list with counts, a gold dot and "Status: … Clear" when on).
+
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
 
 Design and the owner's calls: the claude.ai artifact **Supplier Portal Design**

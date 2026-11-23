@@ -204,9 +204,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         ) : null}
 
         {tab === 'cards' ? (
-          <CardsPanel canManage={can(currentUser, CARD_RECEIPTS.MANAGE_CARDS)} onSaved={say} />
+          <CardsPanel canManage={can(currentUser, CARD_RECEIPTS.MANAGE_CARDS)} canSetUp={canStatements} month={data.month || ''} onSaved={say} />
         ) : tab === 'statements' ? (
-          data.month ? <StatementsPanel month={data.month} isPhone={isPhone} onSaved={(text) => { say(text); data.reload(); }} /> : null
+          data.month ? <StatementsPanel month={data.month} isPhone={isPhone} canCards={canCards} onOpenCards={() => setTab('cards')}
+            onSaved={(text) => { say(text); data.reload(); }} /> : null
         ) : (
           <>
             {isPhone && tab === 'expenses' && todo.length ? (

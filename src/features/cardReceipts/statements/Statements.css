@@ -12,7 +12,6 @@
 .ccr-st-credit { color: var(--ccr-ok); }
 .ccr-st-file { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
 .ccr-st-lines tbody tr, .ccr-st-uploads tbody tr { cursor: default; }
-.ccr-st-card { cursor: default; }
 
 /* Cards not set up */
 .ccr-st-unknown { display: grid; }
@@ -24,10 +23,36 @@
 .ccr-st-unset { overflow: visible; }
 .ccr-st-urow:focus-within { position: relative; z-index: 2; }
 
-/* Phone: the status filter as a row of chips */
-.ccr-st-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
-.ccr-st-chipbtn { flex: none; height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--ccr-line); background: var(--ccr-surface); color: var(--ccr-text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-.ccr-st-chipbtn.is-on { border-color: var(--ccr-gold); color: var(--ccr-gold-ink); background: var(--ccr-gold-tint); }
+/* The bank switch (Amex | Encore), 2026-11-23 */
+.ccr-bank-seg { display: inline-flex; align-self: flex-start; max-width: 100%; gap: 2px; padding: 3px; border: 1px solid var(--ccr-line); border-radius: 10px; background: var(--ccr-surface); }
+.ccr-bank-seg button { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent; color: var(--ccr-text-2); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.ccr-bank-seg button.is-on { background: var(--ccr-hover); color: var(--ccr-text); box-shadow: inset 0 0 0 1px var(--ccr-line); }
+.ccr-bank-seg button:focus-visible, .ccr-st-fbtn:focus-visible, .ccr-st-opt:focus-visible { outline: 2px solid var(--ccr-text); outline-offset: 2px; }
+.ccr-bank-n { font-size: 12px; font-weight: 500; padding: 1px 7px; border-radius: 99px; background: var(--ccr-hover); color: var(--ccr-muted); }
+.ccr-bank-sw { width: 8px; height: 8px; border-radius: 50%; background: #2a6fd6; }
+.ccr-bank-sw.is-encore { background: #7a4bc4; }
+.ccr-bank-flag { width: 7px; height: 7px; border-radius: 50%; background: #c76a12; }
+.ccr-bank { display: inline-block; padding: 1px 6px; border-radius: 5px; font-size: 11px; font-weight: 700; color: #fff; background: #2a6fd6; }
+.ccr-bank.is-encore { background: #7a4bc4; }
+.ccr-st-warn { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; background: rgba(199, 106, 18, 0.12); font-size: 13px; }
+.ccr-st-warn > span { min-width: 0; }
+
+/* Phone: header row, filter button and its list, the current filter, and a line card */
+.ccr-st-ptop { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ccr-st-pact { display: flex; align-items: center; gap: 8px; }
+.ccr-st-fbtn { position: relative; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--ccr-line); background: var(--ccr-surface); color: var(--ccr-text); display: grid; place-items: center; cursor: pointer; }
+.ccr-st-fbtn.has { border-color: var(--ccr-gold); }
+.ccr-st-fdot { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--ccr-gold); }
+.ccr-st-sheet { display: grid; gap: 6px; padding: 10px; border: 1px solid var(--ccr-line); border-radius: 12px; background: var(--ccr-surface); }
+.ccr-st-opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 46px; padding: 0 12px; border: 1px solid var(--ccr-line); border-radius: 10px; background: transparent; color: var(--ccr-text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+.ccr-st-opt.is-on { background: var(--ccr-text); color: var(--ccr-surface); border-color: var(--ccr-text); font-weight: 600; }
+.ccr-st-opt span:last-child { font-variant-numeric: tabular-nums; opacity: 0.8; }
+.ccr-st-cur { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ccr-muted); }
+.ccr-st-cur button { min-height: 32px; border: 0; background: none; color: var(--ccr-text); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.ccr-st-pcard { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; cursor: default; }
+.ccr-st-pcard > .ccr-dot { margin-top: 6px; }
+.ccr-st-pm { display: grid; gap: 2px; min-width: 0; }
+.ccr-st-pa { display: grid; gap: 5px; justify-items: end; }
 
 /* The upload form */
 .ccr-st-drop { width: 100%; display: grid; justify-items: center; gap: 6px; padding: 22px 16px; border: 1.5px dashed rgba(212, 175, 55, 0.5); border-radius: 12px; background: rgba(212, 175, 55, 0.06); color: inherit; font: inherit; text-align: center; cursor: pointer; }

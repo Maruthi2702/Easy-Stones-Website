@@ -139,6 +139,15 @@ describe('the Encore check', () => {
     expect(history2).toEqual([expect.objectContaining({ changes: expect.stringMatching(/^Missing receipt: Encore charge ENC-E-missing/) })]);
   });
 
+  it('the Statements view keeps the banks apart: each upload says its bank and the still-missing count is per bank', async () => {
+    const res = await request(app).get('/api/card-receipts/statements').query({ month: '2026-11' });
+    expect(res.status).toBe(200);
+    expect(res.body.imports.map((i: { issuer: string }) => i.issuer)).toEqual(['encore']);
+    expect(res.body.missingByBank.encore.count).toBeGreaterThanOrEqual(1);
+    expect(res.body.missingByBank.amex).toEqual({ count: 0, cents: 0 });
+    expect(res.body.missingNow.count).toBe(res.body.missingByBank.amex.count + res.body.missingByBank.encore.count);
+  });
+
   it('uploading the same file again adds nothing and changes no card', async () => {
     const before = (await db.select().from(cardStatementLines)).length;
     const res = await post('import');

@@ -376,21 +376,27 @@ export async function statementView(month: string, { missingFrom = MISSING_FROM 
     linesWhere(d, and(gte(lines.day, from), lt(lines.day, to)), missingFrom),
     d.select({ issuer: lines.issuer, digits: lines.digits, cardMember: lines.cardMember, cents: lines.cents, kind: lines.kind, date: lines.day, cardId: lines.cardId })
       .from(lines).where(isNull(lines.cardId)),
-    d.select({ n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
+    d.select({ issuer: lines.issuer, n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
       .innerJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
-      .where(and(eq(cardExpenses.status, 'missing'), isNull(cardExpenses.voidedAt))),
+      .where(and(eq(cardExpenses.status, 'missing'), isNull(cardExpenses.voidedAt)))
+      .groupBy(lines.issuer),
     // Charges on a card nobody holds yet have no Missing row to count, but they are still missing (shown as such).
-    d.select({ n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
+    d.select({ issuer: lines.issuer, n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
       .innerJoin(companyCards, eq(companyCards.id, lines.cardId))
-      .where(and(isNull(companyCards.userId), isNull(lines.expenseId), eq(lines.kind, 'charge'), gte(lines.day, missingFrom))),
+      .where(and(isNull(companyCards.userId), isNull(lines.expenseId), eq(lines.kind, 'charge'), gte(lines.day, missingFrom)))
+      .groupBy(lines.issuer),
     d.select().from(imports).orderBy(desc(imports.at)).limit(20)
   ]);
+  // Still-missing receipts, in all and by bank (the Statements tab shows one bank at a time).
+  const stillMissing = (bank?: string) => [...missingNow, ...missingUnheld].filter(r => !bank || r.issuer === bank)
+    .reduce((t, r) => ({ count: t.count + Number(r.n), cents: t.cents + Number(r.cents) }), { count: 0, cents: 0 });
   return {
     lines: monthLines,
     unknownCards: unknownCards(noCard.map(l => ({ ...l, kind: l.kind as LineKind }))),
-    missingNow: { count: (missingNow[0]?.n ?? 0) + (missingUnheld[0]?.n ?? 0), cents: Number(missingNow[0]?.cents ?? 0) + Number(missingUnheld[0]?.cents ?? 0) },
+    missingNow: stillMissing(),
+    missingByBank: { amex: stillMissing('amex'), encore: stillMissing('encore') },
     imports: uploads.map(i => ({
-      id: i.id, fileName: i.fileName, periodFrom: i.periodFrom, periodTo: i.periodTo, lines: i.lines, added: i.added,
+      id: i.id, issuer: i.issuer as Issuer, fileName: i.fileName, periodFrom: i.periodFrom, periodTo: i.periodTo, lines: i.lines, added: i.added,
       chargesCents: i.chargesCents, summary: i.summary, byName: i.byName, at: i.at
     })),
     missingFrom
