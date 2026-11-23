@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { RefreshCw } from 'lucide-react';
 import DashboardSearch from '../../components/shared/DashboardSearch';
 import LocationFilter from '../../components/shared/LocationFilter';
+import RepFilterPicker from '../../components/shared/form/RepFilterPicker';
 import type { Loose } from '../../types/records';
 import { canViewLocationAudit, canViewTeamLocations } from '../../utils/locationTracking';
 import { canLocateOnRequest } from '../../utils/locationRequests';
@@ -15,7 +16,7 @@ import AccessLogPanel from './AccessLogPanel';
 import PersonPanel from './PersonPanel';
 import useLocate from './useLocate';
 import useTeamLocation from './useTeamLocation';
-import { branchesOf, deviceLine, filterPeople, initials, isUnagreed, liveCount, sortPeople, statusLabel } from './teamLocationView';
+import { deviceLine, filterPeople, initials, isUnagreed, liveCount, sortPeople, statusLabel } from './teamLocationView';
 import type { PeopleFilter } from './teamLocationView';
 import './TeamLocation.css';
 
@@ -39,18 +40,24 @@ export default function TeamLocationPage({ currentUser, sidebarToggle = null, is
   const [tab, setTab] = useState<'map' | 'log'>(canMap ? 'map' : 'log');
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<PeopleFilter>('all');
-  const [branch, setBranch] = useState('');
+  // Who is ticked in Filters → People; null = everyone.
+  const [picked, setPicked] = useState<string[] | null>(null);
   const t = useTeamLocation(canMap && isActive);
   const canLocate = canLocateOnRequest(currentUser);
   const canRemind = canSendNotifications(currentUser as never);
   const stops = useMemo(() => findStops((t.trail?.points ?? []).map((p) => ({ lat: p.lat, lng: p.lng, at: new Date(p.at) }))), [t.trail]);
   const everyone = useMemo(() => sortPeople(t.people), [t.people]);
-  const branches = useMemo(() => branchesOf(everyone), [everyone]);
-  const people = useMemo(() => filterPeople(everyone, query, filter).filter((p) => !branch || p.branch === branch), [everyone, query, filter, branch]);
+  const peopleOptions = useMemo(() => [...everyone].sort((a, b) => a.name.localeCompare(b.name)).map((p) => ({ value: p.id, label: p.name, location: p.branch })), [everyone]);
+  const ticked = picked ?? everyone.map((p) => p.id);
+  const togglePerson = (id: string) => {
+    const next = ticked.includes(id) ? ticked.filter((v) => v !== id) : [...ticked, id];
+    setPicked(next.length === everyone.length ? null : next);
+  };
+  const people = useMemo(() => filterPeople(everyone, query, filter).filter((p) => !picked || picked.includes(p.id)), [everyone, query, filter, picked]);
   const selected = everyone.find((p) => p.id === t.selectedId) || null;
   const locate = useLocate(selected?.id || '', allowed && canLocate);
   const today = trackingDay(new Date(), selected?.branch || currentUser?.assignedLocations?.[0] || 'Seattle');
-  const narrowed = Boolean(query.trim()) || filter !== 'all' || Boolean(branch);
+  const narrowed = Boolean(query.trim()) || filter !== 'all' || picked !== null;
 
   const showLog = tab === 'log' || !canMap;
   if (!allowed) return <div className="tl"><div className="tl-empty"><h3>You can’t see your team’s locations</h3></div></div>;
@@ -94,10 +101,15 @@ export default function TeamLocationPage({ currentUser, sidebarToggle = null, is
               <DashboardSearch value={query} onChange={setQuery} label="Search people" placeholder="Search name, branch or role"
                 count={`${people.length} of ${everyone.length}`} />
               <LocationFilter
-                options={branches} value={branch} onChange={setBranch} user={currentUser as never}
-                active={filter !== 'all'} activeCount={(filter !== 'all' ? 1 : 0) + (branch ? 1 : 0)}
-                onClear={() => setFilter('all')} doneLabel={`Show ${people.length} of ${everyone.length}`}
+                user={currentUser as never}
+                active={filter !== 'all' || picked !== null} activeCount={(filter !== 'all' ? 1 : 0) + (picked !== null ? 1 : 0)}
+                onClear={() => { setFilter('all'); setPicked(null); }} doneLabel={`Show ${people.length} of ${everyone.length}`}
               >
+                <RepFilterPicker
+                  label="People" options={peopleOptions} selected={ticked} onToggle={togglePerson} you={currentUser?.id || ''}
+                  onAll={() => setPicked(null)} onNone={() => setPicked([])} searchPlaceholder="Search people"
+                  summary={picked === null ? 'All people' : picked.length === 0 ? 'No one' : picked.length === 1 ? peopleOptions.find((o) => o.value === picked[0])?.label : `${picked.length} of ${everyone.length} people`}
+                />
                 <div className="lf-group" role="group" aria-label="Show">
                   <span className="lf-group-label">Show</span>
                   <div className="tl-opts">
