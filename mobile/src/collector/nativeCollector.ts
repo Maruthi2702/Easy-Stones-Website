@@ -5,6 +5,7 @@ import { NOTIFICATION_BODY, NOTIFICATION_TITLE, TICK_EVERY_MS, WATCH_TASK } from
 import { readDeviceState } from './device';
 import * as api from './api';
 import * as store from './store';
+import { answerLocateRequests } from '../locate/answerNow';
 
 /**
  * The collector's owner: one engine for the signed-in person, driven by the Expo background-location task and a 30 s timer. It starts
@@ -66,7 +67,9 @@ async function begin(userId: string): Promise<boolean> {
 async function tick() {
   if (!engine) return;
   await engine.tick();
-  if (engine?.signedOut) await disable();               // the session is gone: stop, and forget the person
+  if (engine?.signedOut) { await disable(); return; }   // the session is gone: stop, and forget the person
+  // An admin's "Locate now" ask is answered whatever the hour, for a tracked person who has agreed (the server checks again).
+  if (engine?.status?.tracked && engine.status.consented) void answerLocateRequests();
 }
 
 async function halt(clearEnabled: boolean) {

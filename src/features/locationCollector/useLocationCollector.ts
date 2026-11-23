@@ -194,5 +194,5 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
   }, [refreshStatus]);
   const retryAfterSettings = useCallback(() => setDenied(false), []);
 
-  return { phase, status, consent, saving, consentError, retryAfterSettings };
+  return { phase, status, consent, saving, consentError, retryAfterSettings, /** The React Native app draws the consent screen and the "location is off" banner itself. */ phoneOwns: phone === true };
 }

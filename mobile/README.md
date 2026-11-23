@@ -27,9 +27,17 @@ It cannot run in Expo Go (background location, secure store with biometrics and 
 ## Known differences from the Capacitor app (read before replacing it)
 1. **No iOS "significant change" relaunch.** The Swift plugin asked iOS to restart a force-quit app when the phone moved. Expo has no
    such call; `startSignificantChange` answers `started: false`. A force-quit app stays stopped until opened.
-2. **Background collection still runs in the website's JavaScript.** Positions come from an Expo background task and are handed to the
-   page. If the OS suspends the WebView while the app is in the background, points are lost until it resumes. Moving the collector
-   itself into React Native (headless task) is the next step if a real-phone day shows gaps.
+2. **The collector runs in React Native, not the page** (`src/collector/`, on `expo-location` + `expo-task-manager`): the rules are
+   `core.ts` (plain TypeScript, every outside thing passed in; tested by `core.test.ts`, run from the repo root with `npx vitest run
+   mobile/src/collector`), driven by the background-location task and a 30 s timer, and it resumes from saved state on a launch with no
+   page. The website only switches it on / off and shows consent and the pill. It still only runs while the OS keeps the app's
+   JavaScript alive: a force-quit app stays stopped, and the 7 AM start needs the app alive. Not tested on a real phone.
+   **Consent and the "location is off" banner are native too** (`src/location/`, mounted in `App.tsx` over the website): the agreement is
+   one paragraph (`consentBody` in the website's `collectorRules.ts`, version 3), posted to `/api/location-tracking/consent`; the website
+   draws neither inside the app (`phoneOwns`). Changing the wording means bumping `CONSENT_VERSION`.
+   **"Locate now" is answered by the phone** (`src/locate/`): one position per run for every open ask, sent silently (no notice, no
+   push — owner, 2026-11-22), at most once a minute, from the collector's 30 s timer and whenever the app comes to the front. Limit: outside
+   7–6 the OS suspends the app, so an ask waits until the app is next opened (a silent push to wake it isn't built).
 3. **Push:** iOS gives the APNs token (the server's existing sender works). **Android needs Firebase Cloud Messaging** (a
    `google-services.json` and a server sender) — not built.
 4. **Keyboard:** the website pads itself by the keyboard height (it was told the native resize is "none"); on Android check the page

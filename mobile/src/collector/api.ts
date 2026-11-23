@@ -1,5 +1,5 @@
 import { SERVER_URL } from '../config';
-import type { RawPoint } from '../../../src/utils/locationTracking';
+import { CONSENT_VERSION, type RawPoint } from '../../../src/utils/locationTracking';
 import type { TrackingStatus } from '../../../src/features/locationCollector/collectorRules';
 import type { SendResult, StatusAnswer } from './core';
 
@@ -39,4 +39,31 @@ export async function sendPoints(points: RawPoint[]): Promise<SendResult> {
 
 export async function sendHeartbeat(body: object): Promise<boolean> {
   try { return (await call('/api/location-tracking/heartbeat', { method: 'POST', body: JSON.stringify(body) })).ok; } catch { return false; }
+}
+
+/** Saves this person's agreement to the current wording on the server (the only record that counts). Throws a message to show. */
+export async function recordConsent(): Promise<void> {
+  let res: Response;
+  try { res = await call('/api/location-tracking/consent', { method: 'POST', body: JSON.stringify({ version: CONSENT_VERSION }) }); }
+  catch { throw new Error('Couldn’t reach the server. Check your connection and try again.'); }
+  if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { message?: string }).message || `Something went wrong (${res.status}).`);
+}
+
+/** "Locate now" asks still open for this person (who asked and when — never why). A failure answers none: it is tried again. */
+export async function loadOpenRequests(): Promise<{ id: string; requestedByName: string }[]> {
+  try {
+    const res = await call('/api/location-tracking/locate/pending');
+    if (!res.ok) return [];
+    return (((await res.json()) as { requests?: { id: string; requestedByName: string }[] }).requests) ?? [];
+  } catch { return []; }
+}
+
+/** Sends the one position an ask wants; true when the server took it. */
+export async function sendRequestAnswer(id: string, at: { lat: number; lng: number; accuracy?: number | null }): Promise<boolean> {
+  try {
+    const res = await call(`/api/location-tracking/locate/${encodeURIComponent(id)}/answer`, {
+      method: 'POST', body: JSON.stringify({ lat: at.lat, lng: at.lng, accuracy: at.accuracy ?? undefined })
+    });
+    return res.ok;
+  } catch { return false; }
 }

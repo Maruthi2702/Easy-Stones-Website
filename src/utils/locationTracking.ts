@@ -35,8 +35,11 @@ export const TRACKING = Object.freeze({
 /**
  * The consent wording's version (src/features/locationCollector). Bump it when the wording changes: everyone is asked again.
  * 2 (2026-11-20): adds that an admin may ask the phone for its location outside work hours ("Locate now", src/utils/locationRequests.ts).
+ * 3 (2026-11-22, not shipped before this): a "Locate now" request no longer notifies the person (owner's call), and the wording is one
+ * short paragraph (`consentBody` in collectorRules.ts): when, why, that your manager sees it, and that a manager may also request it
+ * outside work hours.
  */
-export const CONSENT_VERSION = 2;
+export const CONSENT_VERSION = 3;
 
 /** The visit type that marks a day off (an Office visit, src/utils/officeAccounts.ts OFFICE_VISIT_TYPES). */
 export const TIME_OFF_VISIT_TYPE = 'Personal Time Off';

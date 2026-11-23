@@ -138,3 +138,11 @@ export function platformWords(platform: Platform) {
     battery: ''
   };
 }
+
+/**
+ * The consent screen's one paragraph (version 3, 2026-11-22; owner: short, no detail on the tracking). Shared by the website's pop-up
+ * and the React Native app's own screen. It still says when, why, who sees it and that a manager may ask outside work hours, so the
+ * person agrees to what really happens; the wording of an older version is in git. Change it → bump CONSENT_VERSION.
+ */
+export const consentBody = (platform: Platform) =>
+  `Allow Easy Surfaces to use your location during work hours, ${platformWords(platform).background}, to record your visits and show your manager where you are on the job. A manager may also request your location outside work hours.`;

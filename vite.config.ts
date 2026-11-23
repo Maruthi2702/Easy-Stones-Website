@@ -93,7 +93,7 @@ export default defineConfig({
   // Pure logic and backend tests use node; React suites opt into jsdom with
   // their @vitest-environment directive. Browser journeys use Playwright.
   test: {
-    include: ['src/**/*.test.{js,ts,tsx}'],
+    include: ['src/**/*.test.{js,ts,tsx}', 'mobile/src/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}', 'server.ts'],

@@ -108,8 +108,8 @@ describe('LocationCollector in the app', () => {
     api.loadStatus.mockResolvedValue({ ...STATUS, consented: false });
     render(<LocationCollector />);
     expect(await screen.findByText('Share your location during work hours')).toBeTruthy();
-    expect(screen.getByText(/only when you have a delivery or stop scheduled/)).toBeTruthy();
-    expect(screen.getByText(/not on a day you log Personal Time Off/)).toBeTruthy();
+    expect(screen.getByText(/to record your visits and show your manager where you are on the job/)).toBeTruthy();
+    expect(screen.getByText(/A manager may also request your location outside work hours/)).toBeTruthy();
     expect(bg.startWatching).not.toHaveBeenCalled();
   });
   it('saves Allow on the server and starts only when the server says it has it', async () => {
@@ -159,15 +159,15 @@ describe('LocationCollector in the app', () => {
   it('writes the queue to the native file as well, and joins that file back in after a restart', async () => {
     bg.loadDurable.mockResolvedValue([{ id: 'from-file', at: '2026-11-18T19:00:00.000Z', lat: 47.6, lng: -122.3 }]);
     render(<LocationCollector />);
-    await screen.findByText(/Location on until 6 PM/);
+    await waitFor(() => expect(bg.loadDurable).toHaveBeenCalled());
     await waitFor(() => expect(bg.loadDurable).toHaveBeenCalledWith('u1'));
     // the file's point is now in the queue (saved back to both copies) and goes out with the next batch
     await waitFor(() => expect(bg.saveDurable).toHaveBeenCalledWith('u1', expect.arrayContaining([expect.objectContaining({ id: 'from-file' })])));
     expect(loadQueue('u1').map((p) => p.id)).toContain('from-file');
   });
-  it('after consent, watches, shows the pill and sends points in a batch', async () => {
+  it('after consent, watches, shows no pin and sends points in a batch', async () => {
     render(<LocationCollector />);
-    expect(await screen.findByText(/Location on until 6 PM/)).toBeTruthy();
+    expect(screen.queryByText(/Location on until/)).toBeNull();
     await waitFor(() => expect(bg.startWatching).toHaveBeenCalledTimes(1));
     for (let i = 0; i < FLUSH_AT; i++) act(() => onLocation({ latitude: 47.6 + i / 1000, longitude: -122.3, accuracy: 10, time: NOON.getTime() - 1000 + i * 60_000 - 20 * 60_000 }));
     await waitFor(() => expect(api.sendPoints).toHaveBeenCalledTimes(1));
@@ -175,10 +175,9 @@ describe('LocationCollector in the app', () => {
     expect(loadQueue('u1')).toEqual([]);
   });
   describe('inside the React Native app (the phone collects)', () => {
-    it('never collects or sends in the page, asks the phone to collect, and still shows the pill', async () => {
+    it('never collects or sends in the page, asks the phone to collect, ', async () => {
       bg.insideReactNativeApp.mockReturnValue(true); bg.phoneCollects.mockResolvedValue(true);
       render(<LocationCollector />);
-      expect(await screen.findByText(/Location on until 6 PM/)).toBeTruthy();
       await waitFor(() => expect(bg.startPhoneCollecting).toHaveBeenCalledWith('u1'));
       expect(bg.startWatching).not.toHaveBeenCalled();
       expect(bg.startWakeups).not.toHaveBeenCalled();
@@ -193,11 +192,19 @@ describe('LocationCollector in the app', () => {
       await waitFor(() => expect(bg.stopPhoneCollecting).toHaveBeenCalled());
       expect(bg.startPhoneCollecting).not.toHaveBeenCalled();
     });
-    it('offers Settings when the phone says location was refused', async () => {
+    it('draws no "location is off" banner of its own: the React Native app shows it natively', async () => {
       bg.insideReactNativeApp.mockReturnValue(true); bg.phoneCollects.mockResolvedValue(true);
       bg.startPhoneCollecting.mockResolvedValueOnce({ started: false, denied: true });
       render(<LocationCollector />);
-      expect(await screen.findByText(/Location is off for Easy Surfaces/)).toBeTruthy();
+      await waitFor(() => expect(bg.startPhoneCollecting).toHaveBeenCalled());
+      expect(screen.queryByText(/Location is off for Easy Surfaces/)).toBeNull();
+    });
+    it('draws no consent screen of its own: the phone asks, with the same wording', async () => {
+      bg.insideReactNativeApp.mockReturnValue(true); bg.phoneCollects.mockResolvedValue(true);
+      api.loadStatus.mockResolvedValue({ ...STATUS, consented: false });
+      render(<LocationCollector />);
+      await waitFor(() => expect(bg.stopPhoneCollecting).toHaveBeenCalled());
+      expect(screen.queryByText('Share your location during work hours')).toBeNull();
     });
     it('falls back to collecting in the page on a build whose phone cannot collect', async () => {
       bg.insideReactNativeApp.mockReturnValue(true); bg.phoneCollects.mockResolvedValue(false);
@@ -210,7 +217,7 @@ describe('LocationCollector in the app', () => {
       let answer: (v: boolean) => void = () => undefined;
       bg.phoneCollects.mockReturnValue(new Promise<boolean>((r) => { answer = r; }));
       render(<LocationCollector />);
-      expect(await screen.findByText(/Location on until 6 PM/)).toBeTruthy();
+      await waitFor(() => expect(bg.phoneCollects).toHaveBeenCalled());
       expect(bg.startWatching).not.toHaveBeenCalled();
       answer(true);
       await waitFor(() => expect(bg.startPhoneCollecting).toHaveBeenCalled());

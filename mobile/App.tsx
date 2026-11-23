@@ -5,6 +5,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import LoginScreen from './src/auth/LoginScreen';
 import { hasValidSession } from './src/auth/signIn';
 import WebHost from './src/WebHost';
+import LocationConsent from './src/location/LocationConsent';
 
 type Screen = 'checking' | 'login' | 'web';
 
@@ -29,6 +30,8 @@ export default function App() {
           {screen === 'web' ? <WebHost onSignedOut={() => { setAfterSignOut(true); setScreen('login'); }} /> : null}
         </SafeAreaView>
       )}
+      {/* The phone's own location screens (agreement, "location is off"), over the website. */}
+      <LocationConsent active={screen === 'web'} />
     </SafeAreaProvider>
   );
 }
