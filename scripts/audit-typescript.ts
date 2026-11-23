@@ -5,11 +5,14 @@ import { fileURLToPath } from 'node:url';
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const extensions = new Set(['.js', '.jsx', '.mjs', '.cjs', '.ts', '.tsx', '.mts', '.cts']);
 const ignored = new Set(['node_modules', 'dist', 'build', 'coverage', 'playwright-report', 'test-results', 'ios']);
+// mobile/ is its own Expo app: Metro / Expo read metro.config.js as JavaScript, so it is not part of the website's TypeScript migration.
+const ignoredFolders = new Set(['mobile']);
 
 function walk(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     if (entry.name.startsWith('.') || ignored.has(entry.name)) return [];
     const path = join(directory, entry.name);
+    if (ignoredFolders.has(relative(root, path))) return [];
     if (entry.isDirectory()) return walk(path);
     return entry.isFile() && extensions.has(extname(path)) && !path.endsWith('.d.ts')
       ? [relative(root, path)] : [];
