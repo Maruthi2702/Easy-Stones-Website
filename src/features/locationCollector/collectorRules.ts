@@ -127,7 +127,12 @@ export function platformWords(platform: Platform) {
       settingsButton: 'Open Settings',
       background: 'including when the app is closed or not in use',
       next: 'Your phone will ask you to allow location next. Choose “Allow all the time” so this works when the app is closed.',
-      battery: 'Some phones stop background apps to save battery. After you allow, set Battery for Easy Surfaces to “Unrestricted”.'
+      battery: 'Some phones stop background apps to save battery. After you allow, set Battery for Easy Surfaces to “Unrestricted”.',
+      /** No step list on Android: its second step is a Settings page, not a pop-up, so `next` says it. */
+      steps: null,
+      alwaysTitle: 'Set location to “Allow all the time”',
+      alwaysBody: 'Then your phone stops asking, and your work-hours visits are recorded even when the app is closed.',
+      alwaysPath: ['Settings', 'Permissions', 'Location', 'Allow all the time']
     };
   }
   return {
@@ -135,14 +140,32 @@ export function platformWords(platform: Platform) {
     settingsButton: 'Open Settings',
     background: 'including when the app is in the background',
     next: 'iPhone will ask you to allow location next. Choose “Always” so this works when the app is closed.',
-    battery: ''
+    battery: '',
+    /** The consent screen's "Next, iPhone asks twice" box (owner's design, 2026-11-23): the two buttons to tap, and the one not to. */
+    steps: {
+      heading: 'Next, iPhone asks twice',
+      items: [
+        { lead: 'On the first, tap', button: 'Allow While Using App' },
+        { lead: 'Then on the second, tap', button: 'Change to Always Allow' }
+      ],
+      warning: 'Don’t tap Allow Once — iPhone would ask again every time.'
+    },
+    /** The banner for a tracked person whose phone isn't on Always ("While Using" or "Ask Next Time"). */
+    alwaysTitle: 'Set location to “Always”',
+    alwaysBody: 'Then iPhone stops asking, and your work-hours visits are recorded even when the app is closed.',
+    alwaysPath: ['Settings', 'Location', 'Always']
   };
 }
 
+/** The consent screen's title (version 4, 2026-11-23, owner's wording). */
+export const CONSENT_TITLE = 'Easy Surfaces requires location';
+
 /**
- * The consent screen's one paragraph (version 3, 2026-11-22; owner: short, no detail on the tracking). Shared by the website's pop-up
- * and the React Native app's own screen. It still says when, why, who sees it and that a manager may ask outside work hours, so the
- * person agrees to what really happens; the wording of an older version is in git. Change it → bump CONSENT_VERSION.
+ * The consent screen's text (version 4, 2026-11-23, owner's wording; the owner chose not to mention the manager's view or Locate
+ * now). Shared by the website's pop-up and the React Native app's own screen. Android adds that location is used when the app is
+ * closed, which Google Play requires before the permission prompt. Change it → bump CONSENT_VERSION.
  */
-export const consentBody = (platform: Platform) =>
-  `Allow Easy Surfaces to use your location during work hours, ${platformWords(platform).background}, to record your visits and show your manager where you are on the job. A manager may also request your location outside work hours.`;
+export const consentBody = (platform: Platform) => {
+  const line = 'Allow Easy Surfaces to use your location during work hours to record Visits and Resources, and to schedule your day.';
+  return platform === 'android' ? `${line} This includes when the app is closed or not in use.` : line;
+};

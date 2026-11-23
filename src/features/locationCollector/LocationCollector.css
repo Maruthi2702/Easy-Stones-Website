@@ -18,4 +18,12 @@
 .lc-consent p, .lc-consent ul { margin: 0; }
 .lc-consent ul { padding-left: 18px; display: grid; gap: 6px; }
 .lc-error { color: #f87171; }
+/* "Next, iPhone asks twice" (owner's design 2026-11-23, the same as the React Native app's screen). */
+.lc-steps { display: grid; gap: 14px; padding: 16px; border-radius: 16px; border: 1px solid var(--fm-bd, #3a362d); background: var(--fm-hover, rgba(255, 255, 255, 0.04)); }
+.lc-steps-head { font-weight: 700; }
+.lc-steps ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: lc-step; }
+.lc-steps li { counter-increment: lc-step; display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px; row-gap: 8px; align-items: start; }
+.lc-steps li::before { content: counter(lc-step); grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; background: #b8892b; color: #fff; font-weight: 700; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+.lc-steps-btn { justify-self: start; padding: 8px 16px; border-radius: 999px; background: #3a3a3c; color: #fff; font-weight: 600; }
+.lc-steps-warn { color: var(--fm-err, #ff8a7a); font-weight: 600; }
 .lc-link { border: 0; background: none; padding: 0; margin-left: 4px; color: #d4af37; font: inherit; text-decoration: underline; cursor: pointer; }

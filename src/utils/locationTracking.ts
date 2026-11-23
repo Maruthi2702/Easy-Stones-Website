@@ -38,8 +38,10 @@ export const TRACKING = Object.freeze({
  * 3 (2026-11-22, not shipped before this): a "Locate now" request no longer notifies the person (owner's call), and the wording is one
  * short paragraph (`consentBody` in collectorRules.ts): when, why, that your manager sees it, and that a manager may also request it
  * outside work hours.
+ * 4 (2026-11-23): the owner's wording — title "Easy Surfaces requires location", one line on Visits, Resources and the day's plan,
+ * and on iPhone the two buttons to tap (`CONSENT_TITLE`, `consentBody`, `platformWords(...).steps` in collectorRules.ts).
  */
-export const CONSENT_VERSION = 3;
+export const CONSENT_VERSION = 4;
 
 /** The visit type that marks a day off (an Office visit, src/utils/officeAccounts.ts OFFICE_VISIT_TYPES). */
 export const TIME_OFF_VISIT_TYPE = 'Personal Time Off';

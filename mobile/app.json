@@ -16,8 +16,8 @@
         "NSCameraUsageDescription": "Easy Surfaces uses the camera to scan slab tags, receipts and business cards, and to take photos for visits, resources and deliveries.",
         "NSPhotoLibraryUsageDescription": "Choose photos and PDFs to attach to visits, resources and receipts.",
         "NSFaceIDUsageDescription": "Easy Surfaces uses Face ID to sign you in quickly and securely.",
-        "NSLocationWhenInUseUsageDescription": "Easy Surfaces uses your location to show where you are on the route map and to record where a visit was logged.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Easy Surfaces reads your location during work hours (7 AM to 6 PM on your workdays, on your branch time), including when the app is in the background, so your manager can see where you are on the job. Choose Always so it works when the app is closed.",
+        "NSLocationWhenInUseUsageDescription": "Allow Easy Surfaces to use your location during work hours to record Visits and Resources, and to schedule your day.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Choose Always Allow so Easy Surfaces can record your Visits and Resources and plan your day. Without it, some features won’t work.",
         "UIBackgroundModes": [
           "location",
           "remote-notification"
@@ -56,8 +56,8 @@
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true,
-          "locationAlwaysAndWhenInUsePermission": "Easy Surfaces reads your location during work hours (7 AM to 6 PM on your workdays, on your branch time), including when the app is in the background, so your manager can see where you are on the job. Choose Always so it works when the app is closed.",
-          "locationWhenInUsePermission": "Easy Surfaces uses your location to show where you are on the route map and to record where a visit was logged."
+          "locationAlwaysAndWhenInUsePermission": "Choose Always Allow so Easy Surfaces can record your Visits and Resources and plan your day. Without it, some features won’t work.",
+          "locationWhenInUsePermission": "Allow Easy Surfaces to use your location during work hours to record Visits and Resources, and to schedule your day."
         }
       ],
       "expo-notifications",

@@ -16,6 +16,10 @@ const LOOK_EVERY_MS = 60 * 1000;
 export function useLocationConsent(active: boolean) {
   const [needsConsent, setNeedsConsent] = useState(false);
   const [denied, setDenied] = useState(false);
+  // Tracked and agreed, but not on Always ("While Using", or "Ask Next Time" after Allow Once): iOS asks for Always once and never
+  // again, so the banner sends them to Settings. Later / ✕ hides it until the app next comes to the front.
+  const [notAlways, setNotAlways] = useState(false);
+  const [later, setLater] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const looking = useRef(false);
@@ -25,25 +29,27 @@ export function useLocationConsent(active: boolean) {
     looking.current = true;
     try {
       const answer = await api.loadStatus();
-      if (answer.kind !== 'status') { setNeedsConsent(false); setDenied(false); return; }
+      if (answer.kind !== 'status') { setNeedsConsent(false); setDenied(false); setNotAlways(false); return; }
       const { tracked, consented } = answer.status;
       setNeedsConsent(tracked && !consented);
-      if (!tracked || !consented) { setDenied(false); return; }
+      if (!tracked || !consented) { setDenied(false); setNotAlways(false); return; }
       // Agreed: make sure the phone is collecting (the first time on a new phone this asks for location), and watch the permission.
       if (!collectorState().enabled) {
         const me = await api.whoAmI();
         if (me) await startCollecting(me);
       }
-      setDenied((await authorization()) === 'denied');
+      const level = await authorization();
+      setDenied(level === 'denied');
+      setNotAlways(level === 'when-in-use' || level === 'unknown');
     } catch { /* no signal: look again later */ }
     finally { looking.current = false; }
   }, []);
 
   useEffect(() => {
-    if (!active) { setNeedsConsent(false); setDenied(false); return undefined; }
+    if (!active) { setNeedsConsent(false); setDenied(false); setNotAlways(false); return undefined; }
     void look();
     const timer = setInterval(() => { void look(); }, LOOK_EVERY_MS);
-    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') void look(); });
+    const sub = AppState.addEventListener('change', (s) => { if (s === 'active') { setLater(false); void look(); } });
     return () => { clearInterval(timer); sub.remove(); };
   }, [active, look]);
 
@@ -60,5 +66,5 @@ export function useLocationConsent(active: boolean) {
     finally { setSaving(false); }
   }, [look]);
 
-  return { needsConsent, denied, saving, error, allow };
+  return { needsConsent, denied, askAlways: notAlways && !later, dismissAlways: () => setLater(true), saving, error, allow };
 }

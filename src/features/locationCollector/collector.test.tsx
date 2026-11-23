@@ -107,9 +107,12 @@ describe('LocationCollector in the app', () => {
   it('asks for consent first and starts nothing before it', async () => {
     api.loadStatus.mockResolvedValue({ ...STATUS, consented: false });
     render(<LocationCollector />);
-    expect(await screen.findByText('Share your location during work hours')).toBeTruthy();
-    expect(screen.getByText(/to record your visits and show your manager where you are on the job/)).toBeTruthy();
-    expect(screen.getByText(/A manager may also request your location outside work hours/)).toBeTruthy();
+    expect(await screen.findByText('Easy Surfaces requires location')).toBeTruthy();
+    expect(screen.getByText(/to record Visits and Resources, and to schedule your day/)).toBeTruthy();
+    expect(screen.getByText('Next, iPhone asks twice')).toBeTruthy();
+    expect(screen.getByText('Allow While Using App')).toBeTruthy();
+    expect(screen.getByText('Change to Always Allow')).toBeTruthy();
+    expect(screen.getByText(/Don’t tap Allow Once/)).toBeTruthy();
     expect(bg.startWatching).not.toHaveBeenCalled();
   });
   it('saves Allow on the server and starts only when the server says it has it', async () => {
@@ -118,13 +121,13 @@ describe('LocationCollector in the app', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Allow' }));
     await waitFor(() => expect(api.recordConsent).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(bg.startWatching).toHaveBeenCalledTimes(1));
-    expect(screen.queryByText('Share your location during work hours')).toBeNull();
+    expect(screen.queryByText('Easy Surfaces requires location')).toBeNull();
   });
   it('on Android: discloses use when the app is closed, then asks for "Allow all the time" after Allow, and not on iPhone', async () => {
     native.platform = 'android';
     api.loadStatus.mockResolvedValueOnce({ ...STATUS, consented: false }).mockResolvedValue(STATUS);
     render(<LocationCollector />);
-    expect(await screen.findByText(/including when the app is closed or not in use/)).toBeTruthy();
+    expect(await screen.findByText(/This includes when the app is closed or not in use/)).toBeTruthy();
     expect(screen.getByText(/Choose “Allow all the time”/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Open battery settings' }));
     expect(bg.openBatterySettings).toHaveBeenCalledTimes(1);
@@ -134,7 +137,7 @@ describe('LocationCollector in the app', () => {
     native.platform = 'ios'; bg.askAlways.mockClear();
     api.loadStatus.mockResolvedValueOnce({ ...STATUS, consented: false }).mockResolvedValue(STATUS);
     render(<LocationCollector />);
-    expect(await screen.findByText(/including when the app is in the background/)).toBeTruthy();
+    expect(await screen.findByText('Next, iPhone asks twice')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }));
     await waitFor(() => expect(bg.startWatching).toHaveBeenCalled());
     expect(bg.askAlways).not.toHaveBeenCalled();
@@ -204,7 +207,7 @@ describe('LocationCollector in the app', () => {
       api.loadStatus.mockResolvedValue({ ...STATUS, consented: false });
       render(<LocationCollector />);
       await waitFor(() => expect(bg.stopPhoneCollecting).toHaveBeenCalled());
-      expect(screen.queryByText('Share your location during work hours')).toBeNull();
+      expect(screen.queryByText('Easy Surfaces requires location')).toBeNull();
     });
     it('falls back to collecting in the page on a build whose phone cannot collect', async () => {
       bg.insideReactNativeApp.mockReturnValue(true); bg.phoneCollects.mockResolvedValue(false);
