@@ -3,8 +3,8 @@
 Plans for moving the app's stack, written 2026-10-23 when the owner asked to
 move the frontend to TypeScript, the backend to Django, and MongoDB to
 PostgreSQL or DynamoDB. **TypeScript step 1–3 started 2026-10-23** (owner's go-ahead,
-on `feat/typescript`); the rest is not approved or started. The original
-2026-10-11 review is [`TECH_STACK_REVIEW.md`](TECH_STACK_REVIEW.md).
+on `feat/typescript`); the rest is not approved or started. The final stack is
+in [`TECH_STACK.md`](TECH_STACK.md) (2026-11-22; the 2026-10-11 review was folded into it).
 
 The rule for all of it: **no feature may break.** `main` is live and there is
 no staging server, so every step below is small, reversible, and checked by

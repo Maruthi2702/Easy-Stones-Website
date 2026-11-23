@@ -44,8 +44,6 @@ final class RootViewController: UIViewController {
         Task { await launchCheck() }
     }
 
-    override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
-
     // MARK: Launch
 
     private func launchCheck() async {
@@ -87,7 +85,7 @@ final class RootViewController: UIViewController {
                 CredentialVault.clear()
                 self?.model.refreshVault()
             }))
-        host.view.backgroundColor = .black
+        host.view.backgroundColor = .systemBackground
         addChild(host)
         host.view.frame = view.bounds
         host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
