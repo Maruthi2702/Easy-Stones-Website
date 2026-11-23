@@ -9,6 +9,7 @@ import CopyButton from './CopyButton';
 import SignInHandover from './SignInHandover';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
+import { formatPhoneInput } from '../../../utils/phoneUtils';
 import { locationNames } from '../../../utils/locationFilter';
 import {
     suggestUsername, usernameProblem, generateTempPassword, validateNewUser, normalizePhone,
@@ -250,16 +251,16 @@ export default function AddUserForm({ roles, locations, describeRole, isDriverRo
                             {...describedBy('au-email', shown('email'))}
                         />
                     </FormField>
-                    <FormField name="phone" id="au-phone" label="Mobile phone" error={shown('phone')}>
+                    <FormField name="phone" id="au-phone" label="Phone number" error={shown('phone')}>
                         <input
                             id="au-phone"
                             className="fm-input"
                             type="tel"
                             inputMode="tel"
                             autoComplete="off"
-                            placeholder="(206) 555-0142"
+                            placeholder="(555) 000-0000"
                             value={values.phone}
-                            onChange={(e) => set({ phone: e.target.value })}
+                            onChange={(e) => set({ phone: e.target.value.trim().startsWith('+') ? e.target.value : formatPhoneInput(e.target.value) })}
                             onBlur={() => touch('phone')}
                             {...describedBy('au-phone', shown('phone'))}
                         />

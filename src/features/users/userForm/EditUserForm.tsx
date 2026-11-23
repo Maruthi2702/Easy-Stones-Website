@@ -10,6 +10,7 @@ import SignInHandover from './SignInHandover';
 import { withDriverHandover } from './userAccess';
 import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
+import { formatPhoneInput } from '../../../utils/phoneUtils';
 import { locationNames } from '../../../utils/locationFilter';
 import { prettifyUsername } from '../../../utils/textUtils';
 import {
@@ -254,16 +255,16 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
                             {...describedBy('eu-email', shown('email'))}
                         />
                     </FormField>
-                    <FormField name="phone" id="eu-phone" label="Mobile phone" error={shown('phone')}>
+                    <FormField name="phone" id="eu-phone" label="Phone number" error={shown('phone')}>
                         <input
                             id="eu-phone"
                             className="fm-input"
                             type="tel"
                             inputMode="tel"
                             autoComplete="off"
-                            placeholder="(206) 555-0142"
+                            placeholder="(555) 000-0000"
                             value={values.phone}
-                            onChange={(e) => set({ phone: e.target.value })}
+                            onChange={(e) => set({ phone: e.target.value.trim().startsWith('+') ? e.target.value : formatPhoneInput(e.target.value) })}
                             onBlur={() => touch('phone')}
                             {...describedBy('eu-phone', shown('phone'))}
                         />

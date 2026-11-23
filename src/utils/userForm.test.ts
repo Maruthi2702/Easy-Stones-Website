@@ -280,7 +280,7 @@ describe('staff mobile phone', () => {
         expect(phoneProblem('')).toBe('');
         expect(phoneProblem('   ')).toBe('');
         expect(phoneProblem('(206) 555-0142')).toBe('');
-        expect(phoneProblem('555-0142')).toContain('Enter a mobile number');
+        expect(phoneProblem('555-0142')).toContain('Enter a phone number');
     });
     it('shows a US number the way people write it', () => {
         expect(formatPhone('+12065550142')).toBe('(206) 555-0142');

@@ -59,7 +59,7 @@ export const normalizePhone = (raw: unknown): string => {
 };
 /** '' when blank or valid; else the words for the form and the server. */
 export const phoneProblem = (raw: unknown): string =>
-    String(raw ?? '').trim() && !normalizePhone(raw) ? 'Enter a mobile number like (206) 555-0142, or +44… for another country' : '';
+    String(raw ?? '').trim() && !normalizePhone(raw) ? 'Enter a phone number like (206) 555-0142, or +44… for another country' : '';
 /** "(206) 555-0142" for a US number, the stored form otherwise, '' for none. */
 export const formatPhone = (stored: unknown): string => {
     const text = String(stored ?? '').trim();
@@ -241,7 +241,7 @@ export const lockedUntilTime = (user: Loose, now = Date.now()) => {
 export const FIELD_LABELS = {
     displayName: 'Full name',
     email: 'Work email',
-    phone: 'Mobile phone',
+    phone: 'Phone number',
     username: 'Username',
     joiningDate: 'Joining date',
     role: 'Role',
