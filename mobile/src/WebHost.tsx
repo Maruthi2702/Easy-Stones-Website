@@ -4,6 +4,7 @@ import { WebView } from 'react-native-webview';
 import type { WebViewNavigation } from 'react-native-webview';
 import { HOME_PATH, SERVER_HOST, SERVER_URL } from './config';
 import { shimFor } from './host/protocol';
+import { GEOLOCATION_SHIM } from './host/geolocationShim';
 import HostRouter from './host/router';
 import { PLUGINS } from './host/plugins';
 
@@ -45,7 +46,7 @@ export default function WebHost({ onSignedOut }: { onSignedOut: () => void }) {
       ref={ref}
       style={styles.web}
       source={{ uri: `${SERVER_URL}${HOME_PATH}` }}
-      injectedJavaScriptBeforeContentLoaded={`${themeScript(scheme)}${shim}`}
+      injectedJavaScriptBeforeContentLoaded={`${themeScript(scheme)}${shim}${GEOLOCATION_SHIM}`}
       onMessage={(e) => { void router.handle(e.nativeEvent.data); }}
       onLoadStart={() => router.reset()}
       onNavigationStateChange={onNavigation}

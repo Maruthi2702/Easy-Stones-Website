@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Emit, PluginImpl } from '../protocol';
 import { WATCH_TASK } from '../../collector/constants';
 import { authorization } from '../../collector/device';
+import { fixWithin, rememberFix, type Fix } from '../lastFix';
 import { collectorState, disable, isWatching, onLocations, resume, startCollecting } from '../../collector/nativeCollector';
 
 
@@ -13,6 +14,11 @@ type PluginLocation = { latitude: number; longitude: number; accuracy: number; a
 const toPlugin = (l: Location.LocationObject): PluginLocation => ({
   latitude: l.coords.latitude, longitude: l.coords.longitude, accuracy: l.coords.accuracy ?? 0, altitude: l.coords.altitude, altitudeAccuracy: l.coords.altitudeAccuracy,
   simulated: false, speed: l.coords.speed, bearing: l.coords.heading, time: l.timestamp
+});
+
+const toFix = (l: Location.LocationObject): Fix => ({
+  timestamp: l.timestamp,
+  coords: { latitude: l.coords.latitude, longitude: l.coords.longitude, accuracy: l.coords.accuracy ?? 0, altitude: l.coords.altitude, altitudeAccuracy: l.coords.altitudeAccuracy, speed: l.coords.speed, heading: l.coords.heading }
 });
 
 /**
@@ -23,7 +29,7 @@ const watchers = new Set<Emit>();
 TaskManager.defineTask(WATCH_TASK, async ({ data, error }) => {
   if (error || !data) return;
   const { locations } = data as { locations: Location.LocationObject[] };
-  for (const l of locations) for (const emit of watchers) emit(toPlugin(l));
+  for (const l of locations) { rememberFix(toFix(l)); for (const emit of watchers) emit(toPlugin(l)); }
   await onLocations(locations.map(toPlugin)).catch(() => undefined);
 });
 // A launch with no UI (the OS woke the app for a location update) still resumes collecting from what the phone saved.
@@ -34,14 +40,19 @@ export const Geolocation: PluginImpl = {
   calls: {
     checkPermissions: async () => { const p = await Location.getForegroundPermissionsAsync(); const s = p.granted ? 'granted' : p.canAskAgain ? 'prompt' : 'denied'; return { location: s, coarseLocation: s }; },
     requestPermissions: async () => { const p = await Location.requestForegroundPermissionsAsync(); const s = p.granted ? 'granted' : 'denied'; return { location: s, coarseLocation: s }; },
-    getCurrentPosition: async (o: { enableHighAccuracy?: boolean; timeout?: number }) => {
+    getCurrentPosition: async (o: { enableHighAccuracy?: boolean; timeout?: number; maximumAge?: number }) => {
+      // The collector's newest point, when the page accepts one this old (the page's own location calls ask for up to 20 s).
+      const recent = fixWithin(Number(o.maximumAge) || 0);
+      if (recent && (await Location.getForegroundPermissionsAsync()).granted) return recent;
       const fg = await Location.requestForegroundPermissionsAsync();
       if (!fg.granted) { const e = new Error('Location permission was denied'); (e as { code?: string }).code = 'OS-PLUG-GLOC-0003'; throw e; }
       const pos = await Promise.race([
         Location.getCurrentPositionAsync({ accuracy: o.enableHighAccuracy === false ? Location.Accuracy.Balanced : Location.Accuracy.Highest }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout expired')), o.timeout ?? 20_000))
       ]);
-      return { timestamp: pos.timestamp, coords: { latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy ?? 0, altitude: pos.coords.altitude, altitudeAccuracy: pos.coords.altitudeAccuracy, speed: pos.coords.speed, heading: pos.coords.heading } };
+      const fix = toFix(pos);
+      rememberFix(fix);
+      return fix;
     }
   },
   callbacks: {}, events: {}
