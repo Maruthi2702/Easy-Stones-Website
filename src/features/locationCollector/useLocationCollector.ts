@@ -9,7 +9,7 @@ import {
 } from './collectorRules';
 import { clearQueue, loadQueue, mergeQueues, saveQueue } from './pointQueue';
 import { loadStatus, recordConsent, sendHeartbeat, sendPoints } from './collectorApi';
-import { clearDurable, currentPosition, loadDurable, readDevice, saveDurable, startWatching, startWakeups, stopWakeups } from './backgroundLocation';
+import { askAlways, clearDurable, currentPosition, insideReactNativeApp, phoneCollects, phoneDenied, startPhoneCollecting, stopPhoneCollecting, loadDurable, readDevice, saveDurable, startWatching, startWakeups, stopWakeups } from './backgroundLocation';
 
 /**
  * Collects the phone's location for a tracked staff member, only inside the
@@ -24,6 +24,12 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
   const [saving, setSaving] = useState(false);
   const [consentError, setConsentError] = useState('');
   const [denied, setDenied] = useState(false);
+  // Inside the React Native app the PHONE collects and sends (mobile/src/collector), not this page: it works with the page suspended or
+  // closed. `phone`: null = still asking, true = the phone collects (this page must not), false = this page collects (the Capacitor app,
+  // or a React Native build whose phone can't). Until the phone answers this page collects nothing, so a point is never sent twice.
+  const hosted = insideReactNativeApp();
+  const [phone, setPhone] = useState<boolean | null>(hosted ? null : false);
+  const pageCollects = phone === false;
   const [now, setNow] = useState(() => new Date());
   const queue = useRef<RawPoint[]>([]);
   const lastKept = useRef<number | null>(null);
@@ -40,7 +46,7 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
   }, []);
 
   const flush = useCallback(async () => {
-    if (flushing.current || !queue.current.length) return;
+    if (!pageCollects || flushing.current || !queue.current.length) return;
     flushing.current = true;
     try {
       while (queue.current.length) {
@@ -53,7 +59,7 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
         if (result === 'off') { void refreshStatus(); break; }
       }
     } finally { flushing.current = false; }
-  }, [userId, refreshStatus]);
+  }, [userId, refreshStatus, pageCollects]);
 
   // Sign-in: load this person's unsent points and consent; sign-out: forget them.
   useEffect(() => {
@@ -78,6 +84,7 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
 
   // Watch while running; a final send when the window closes.
   useEffect(() => {
+    if (!pageCollects) return undefined;                                  // the phone collects (React Native app)
     if (phase !== 'running') { void flush(); return undefined; }
     let stop: (() => Promise<void>) | null = null; let cancelled = false;
     startWatching(
@@ -94,7 +101,7 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
     ).then((s) => { if (cancelled) void s(); else stop = s; }).catch(() => setDenied(true));
     const timer = setInterval(() => { void flush(); }, FLUSH_EVERY_MS);
     return () => { cancelled = true; clearInterval(timer); if (stop) void stop(); };
-  }, [phase, userId, flush]);
+  }, [phase, userId, flush, pageCollects]);
 
   // What the phone says about itself: on start, every 5 minutes, and at once when the battery falls to 15% / 5%
   // (so a manager can see "Battery 3% at 2:14 PM" instead of an unexplained silence). Also while location is denied.
@@ -104,7 +111,7 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
     return device;
   }, []);
   useEffect(() => {
-    if (phase !== 'running' && phase !== 'denied') return undefined;
+    if (!pageCollects || (phase !== 'running' && phase !== 'denied')) return undefined;
     let battery: number | null = null; let cancelled = false;
     void beat().then((d) => { if (!cancelled) battery = d.batteryPct; });
     const every = setInterval(() => { void beat(); }, HEARTBEAT_EVERY_MS);
@@ -117,12 +124,12 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
       });
     }, BATTERY_CHECK_MS);
     return () => { cancelled = true; clearInterval(every); clearInterval(watch); };
-  }, [phase, beat, flush]);
+  }, [phase, beat, flush, pageCollects]);
 
   // "Still here": the watcher only fires on movement, so a phone sitting in a showroom sends nothing. Read one position
   // when none was kept for 5 minutes, so a gap on the map means missing data, not a person who didn't move.
   useEffect(() => {
-    if (phase !== 'running') return undefined;
+    if (!pageCollects || phase !== 'running') return undefined;
     let busy = false;
     const check = async () => {
       if (busy || !needsStillPoint(lastKept.current, Date.now())) return;
@@ -140,7 +147,7 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
     };
     const timer = setInterval(() => { void check(); }, Math.min(STILL_EVERY_MS, 60 * 1000));
     return () => clearInterval(timer);
-  }, [phase, userId]);
+  }, [phase, userId, pageCollects]);
 
   // A different person on this phone: drop what belongs to the last one (both copies).
   useEffect(() => { if (!userId) { clearQueue(); void clearDurable(); } }, [userId]);
@@ -148,15 +155,40 @@ export default function useLocationCollector(user: { id?: string; _id?: string; 
   // Wake-ups: while this person is tracked and has agreed, ask iOS to relaunch the app when the phone moves, even after the
   // app was force-quit (needs "Always"); stop when they aren't tracked or haven't agreed. Older app builds ignore it.
   useEffect(() => {
-    if (!active) return;
+    if (!active || !pageCollects) return;
     if (phase === 'running' || phase === 'waiting' || phase === 'denied') void startWakeups();
     else void stopWakeups();
-  }, [active, phase]);
+  }, [active, phase, pageCollects]);
+
+  // React Native app: ask the phone whether it collects by itself; then switch it on and off with the phase, and mirror its permission.
+  useEffect(() => {
+    if (!active || !hosted) return undefined;
+    let alive = true;
+    void phoneCollects().then((yes) => { if (alive) setPhone(yes); });
+    return () => { alive = false; };
+  }, [active, hosted]);
+  useEffect(() => {
+    if (!active || phone !== true) return;
+    // Tracked and agreed: the phone collects (it asks for location the first time) and sends; otherwise it stops.
+    if (phase === 'running' || phase === 'waiting') void startPhoneCollecting(userId).then((r) => { if (r.denied) setDenied(true); });
+    else if (phase === 'off' || phase === 'needs-consent') void stopPhoneCollecting();
+  }, [active, phone, phase, userId]);
+  useEffect(() => { if (hosted && !userId) void stopPhoneCollecting(); }, [hosted, userId]);
+  useEffect(() => {
+    if (!active || phone !== true) return undefined;
+    const timer = setInterval(() => { void phoneDenied().then((d) => setDenied(d)); }, 60 * 1000);
+    return () => clearInterval(timer);
+  }, [active, phone]);
 
   // Allow: saved on the server first; collecting starts when the server's answer says so.
   const consent = useCallback(async () => {
     setSaving(true); setConsentError('');
-    try { await recordConsent(); setDenied(false); await refreshStatus(); }
+    try {
+      await recordConsent(); setDenied(false);
+      // Android asks for "Allow all the time" as its own step; the disclosure above has just been shown, as Google Play requires.
+      if (Capacitor.getPlatform() === 'android') await askAlways();
+      await refreshStatus();
+    }
     catch (e) { setConsentError((e as Error).message); }
     finally { setSaving(false); }
   }, [refreshStatus]);

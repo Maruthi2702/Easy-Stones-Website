@@ -84,3 +84,31 @@ export async function loadDurable(userId: string): Promise<RawPoint[]> {
 export async function clearDurable(): Promise<void> {
   try { await LocationHealth.queueClear(); } catch { /* older build */ }
 }
+
+/** Android: ask for "Allow all the time" (after location itself). No-op elsewhere or on an older build. */
+export async function askAlways(): Promise<void> {
+  try { await LocationHealth.requestAlways(); } catch { /* iPhone or an older build: nothing to ask */ }
+}
+/** Android: open the battery list so the app can be set to "Unrestricted". */
+export async function openBatterySettings(): Promise<void> {
+  try { await LocationHealth.openBatterySettings(); } catch { /* not Android, or an older build */ }
+}
+
+/** True inside the React Native app (mobile/), which injects this marker before the page loads. */
+export const insideReactNativeApp = () => typeof window !== 'undefined' && (window as unknown as { __EASY_HOST__?: string }).__EASY_HOST__ === 'react-native';
+
+/** Does the phone collect and send by itself (so this page must not)? False on any build that can't say. */
+export async function phoneCollects(): Promise<boolean> {
+  try { return (await LocationHealth.collectorState()).native === true; } catch { return false; }
+}
+/** Ask the phone to collect for this person; `denied` when they refused location. Never throws. */
+export async function startPhoneCollecting(userId: string): Promise<{ started: boolean; denied: boolean }> {
+  try { return await LocationHealth.startCollecting({ userId }); } catch { return { started: false, denied: false }; }
+}
+export async function stopPhoneCollecting(): Promise<void> {
+  try { await LocationHealth.stopCollecting(); } catch { /* an older build */ }
+}
+/** Has the person refused or revoked location since? */
+export async function phoneDenied(): Promise<boolean> {
+  try { return (await LocationHealth.collectorState()).denied === true; } catch { return false; }
+}
