@@ -4,14 +4,14 @@ import { Camera, ChevronLeft, ChevronRight, Download, Info } from 'lucide-react'
 import useIsPhone from '../../components/shared/form/useIsPhone';
 import DashboardSearch from '../../components/shared/DashboardSearch';
 import LocationFilter from '../../components/shared/LocationFilter';
-import { FormPicker } from '../../components/shared/form/FormControls';
+import { FormPicker, SegmentedToggle } from '../../components/shared/form/FormControls';
 import PeopleField from '../../components/shared/people/PeopleField';
 import { useStaffList } from '../../api/salesRepOptions';
 import usePeopleFilter from '../../components/shared/people/usePeopleFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import Pagination from '../../components/shared/Pagination';
 import { usePagination } from '../../components/shared/paginationConfig';
-import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, exportRows, formatMoney, holderMayEdit, monthLabel, shiftMonth, monthOf } from '../../utils/cardReceipts';
+import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, exportRows, formatMoney, holderMayEdit, onBank, monthLabel, shiftMonth, monthOf } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
 import { listAllExpenses } from './cardReceiptsApi';
 import { NO_FILTERS, holderPeople, statusLine, visibleExpenses, type ReceiptFilters } from './cardReceiptsView';
@@ -71,6 +71,15 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   });
   const receiptFilters = useMemo(() => ({ ...filters, people: peopleFilter.value }), [filters, peopleFilter.value]);
   const { base, rows, totals, shown } = visibleExpenses(source, receiptFilters, categories);
+  // What each Filters choice would show with the others as they are now: the number beside it.
+  const counts = useMemo(() => {
+    const n = (patch: Partial<ReceiptFilters>) => visibleExpenses(source, { ...receiptFilters, ...patch }, categories).rows.length;
+    return {
+      status: Object.fromEntries([['all', n({ status: 'all' })], ...STATUSES.map((s) => [s.key, n({ status: s.key })])]) as Record<string, number>,
+      bank: Object.fromEntries([['', n({ bank: '' })], ...BANK_FILTERS.map((b) => [b.key, n({ bank: b.key })])]) as Record<string, number>,
+      category: Object.fromEntries([['', n({ category: '' })], ...categories.map((c) => [c.name, n({ category: c.name })])]) as Record<string, number>
+    };
+  }, [source, receiptFilters, categories]);
   const paged = rows.slice((pager.currentPage - 1) * pager.rowsPerPage, pager.currentPage * pager.rowsPerPage);
   // Changing what's listed goes back to page 1.
   const { resetPage } = pager;
@@ -103,6 +112,14 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
       say((e as Error).message || 'Could not build the file.');
     }
   };
+  // The month on screen for one bank, whatever the Card and other filters say.
+  const exportMonth = async (bank: string) => {
+    try {
+      await writeExcel(data.expenses.filter((e) => !e.voided && onBank(e, bank)), `card-receipts-${data.month}-${bank}.xlsx`);
+    } catch (e) {
+      say((e as Error).message || 'Could not build the file.');
+    }
+  };
   // Every month for one bank ('' = both), straight from the More menu whatever the Card filter says:
   // the server answers only with the Export all switch.
   const exportAll = async (bank: string) => {
@@ -117,6 +134,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   };
   const exportItems = [
     ...(canExport ? [{ key: 'excel', label: bankName ? `Export this view (${bankName}) to Excel` : 'Export this view to Excel', icon: Download, onClick: exportExcel }] : []),
+    ...(canExport && tab === 'expenses' ? BANK_FILTERS.map((b) => ({ key: `excel-month-${b.key}`, label: `Export this month (${b.label} only)`, icon: Download, onClick: () => exportMonth(b.key) })) : []),
     ...(canExportAll ? [
       ...BANK_FILTERS.map((b) => ({ key: `excel-all-${b.key}`, label: `Export all months (${b.label} only)`, icon: Download, onClick: () => exportAll(b.key) })),
       { key: 'excel-all', label: 'Export all months (Amex and Encore)', icon: Download, onClick: () => exportAll('') }
@@ -127,9 +145,6 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
     : tab === 'cards' ? 'Company cards'
     : tab === 'statements' ? 'Amex check · every charge against an uploaded receipt'
     : `${data.month ? monthLabel(data.month) : ''} · ${data.viewAll ? (data.teamOnly ? 'Your team' : 'All cardholders') : me?.card ? `${me.card.label}${me.user.location ? ` · ${me.user.location}` : ''}` : 'Your receipts'}`;
-
-  const categoryOptions = categories.map((c) => ({ value: c.name, label: c.label }));
-  const statusOptions = STATUSES.map((s) => ({ value: s.key, label: s.label }));
 
   return (
     <div className="ccr">
@@ -152,26 +167,36 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 active={filtered}
                 wide
                 onClear={() => { setFilters((f) => ({ ...NO_FILTERS, search: f.search })); peopleFilter.reset(); }}
+                activeCount={(peopleFilter.active ? 1 : 0) + (filters.category ? 1 : 0) + (filters.bank ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
+                doneLabel={rows.length ? `Show ${rows.length} receipt${rows.length === 1 ? '' : 's'}` : 'No receipts match'}
               >
-                {people.length > 1 ? (
-                  <PeopleField {...peopleFilter.field} />
-                ) : null}
-                <div className="lf-group ccr-filter-gap">
-                  <label className="lf-group-label" htmlFor="ccr-f-category">Category</label>
-                  <FormPicker id="ccr-f-category" value={filters.category} onChange={(category) => patchFilters({ category })}
-                    options={[{ value: '', label: 'Every category' }, ...categoryOptions]} sheetTitle="Category" keepInForm />
-                </div>
-                {data.viewAll || canExport || canExportAll ? (
-                  <div className="lf-group ccr-filter-gap">
-                    <label className="lf-group-label" htmlFor="ccr-f-bank">Card</label>
-                    <FormPicker id="ccr-f-bank" value={filters.bank} onChange={(bank) => patchFilters({ bank })}
-                      options={[{ value: '', label: 'Amex and Encore' }, ...BANK_FILTERS.map((b) => ({ value: b.key, label: b.label }))]} sheetTitle="Card" keepInForm />
+                {/* Card, Status, Category, Cardholder — each choice says how many receipts it would show
+                    given the others (the Follow-ups panel's "Label · 3" format). */}
+                <div className="fm-tokens ccr-fields">
+                  {data.viewAll || canExport || canExportAll ? (
+                    <div className="lf-group" role="group" aria-labelledby="ccr-f-bank">
+                      <span className="lf-group-label" id="ccr-f-bank">Card</span>
+                      <SegmentedToggle<string>
+                        label="Card"
+                        value={filters.bank}
+                        onChange={(bank) => patchFilters({ bank })}
+                        options={[{ value: '', label: `All · ${counts.bank['']}` }, ...BANK_FILTERS.map((b) => ({ value: b.key, label: `${b.label} · ${counts.bank[b.key]}` }))]}
+                      />
+                    </div>
+                  ) : null}
+                  <div className="lf-group">
+                    <label className="lf-group-label" htmlFor="ccr-f-status">Status</label>
+                    <FormPicker id="ccr-f-status" value={filters.status} onChange={(status) => patchFilters({ status })}
+                      options={[{ value: 'all', label: `Every status · ${counts.status.all}` }, ...STATUSES.map((s) => ({ value: s.key, label: `${s.label} · ${counts.status[s.key]}` }))]}
+                      sheetTitle="Status" keepInForm />
                   </div>
-                ) : null}
-                <div className="lf-group ccr-filter-gap">
-                  <label className="lf-group-label" htmlFor="ccr-f-status">Status</label>
-                  <FormPicker id="ccr-f-status" value={filters.status} onChange={(status) => patchFilters({ status })}
-                    options={[{ value: 'all', label: 'Every status' }, ...statusOptions]} sheetTitle="Status" keepInForm />
+                  <div className="lf-group">
+                    <label className="lf-group-label" htmlFor="ccr-f-category">Category</label>
+                    <FormPicker id="ccr-f-category" value={filters.category} onChange={(category) => patchFilters({ category })}
+                      options={[{ value: '', label: `Every category · ${counts.category['']}` }, ...categories.map((c) => ({ value: c.name, label: `${c.label} · ${counts.category[c.name] ?? 0}` }))]}
+                      sheetTitle="Category" keepInForm />
+                  </div>
+                  {people.length > 1 ? <PeopleField {...peopleFilter.field} /> : null}
                 </div>
               </LocationFilter>
               {exportItems.length ? <RowMenu label="More" items={exportItems} /> : null}

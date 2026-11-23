@@ -84,7 +84,9 @@ body.light-theme-active .ccr {
 .ccr-round:hover:not(:disabled) { border-color: var(--ccr-gold-bd); }
 .ccr-round:disabled { opacity: 0.45; cursor: not-allowed; }
 .ccr-round.is-small { width: 32px; height: 32px; }
-.ccr-filter-gap { margin-top: 1rem; }
+/* The Filters panel's fields: Card, Status, Category, Cardholder (the Follow-ups panel's spacing). */
+.ccr-fields { display: flex; flex-direction: column; gap: 22px; }
+.ccr-fields .fm-picker-wrap, .ccr-fields .fm-picker-trigger { width: 100%; }
 
 /* ── Tabs + month ── */
 .ccr-tabs { display: flex; align-items: center; gap: 22px; border-bottom: 1px solid var(--ccr-line); flex-wrap: wrap; }

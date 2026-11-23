@@ -67,6 +67,24 @@ describe('the Credit Card Receipts page', () => {
     expect(screen.queryByLabelText('Add receipt')).toBeNull();
   });
 
+  it('puts a count beside every Filters choice and a live "Show N receipts" button', async () => {
+    await show(['view_all_card_receipts', 'export_card_receipts']);
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }));
+    await settle();
+    const dialog = screen.getByRole('dialog', { name: 'Filters' });
+    expect(dialog.textContent).toContain('Show 4 receipts');
+    expect(dialog.textContent).toContain('Amex · 4');
+    expect(dialog.textContent).toContain('Encore · 0');
+    // Card comes first, the cardholder list last.
+    const order = ['Card', 'Status', 'Category'].map((l) => dialog.textContent!.indexOf(l));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    // A pick with nothing behind it says so and shows the badge.
+    fireEvent.click(screen.getByText('Encore · 0'));
+    await settle();
+    expect(dialog.textContent).toContain('No receipts match');
+    expect(dialog.querySelector('.lf-badge')?.textContent).toBe('1');
+  });
+
   it('offers Export all months only with its own switch', async () => {
     const menu = async (permissions: string[]) => {
       await show(permissions);
@@ -79,6 +97,8 @@ describe('the Credit Card Receipts page', () => {
     const both = await menu(['view_all_card_receipts', 'export_card_receipts', 'export_all_card_receipts']);
     expect(both).toContain('Export this view to Excel');
     expect(both).toContain('Export all months (Amex and Encore)');
+    expect(both).toContain('Export this month (Amex only)');
+    expect(both).toContain('Export this month (Encore only)');
     expect(both).toContain('Export all months (Amex only)');
     expect(both).toContain('Export all months (Encore only)');
     const viewOnly = await menu(['view_all_card_receipts', 'export_card_receipts']);
