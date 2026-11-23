@@ -30,7 +30,7 @@ export interface ReadOptions { select?: string; sort?: Record<string, 1 | -1> }
 function fullDoc(u: UserRow, homeName: string | null, assignedNames: string[]): Loose {
   const doc: Loose = {
     _id: u.id, username: u.username, displayName: u.displayName, password: u.passwordHash,
-    email: u.email ?? undefined, role: u.role, loginAttempts: u.loginAttempts, lockUntil: u.lockUntil ?? undefined,
+    email: u.email ?? undefined, phone: u.phone ?? undefined, role: u.role, loginAttempts: u.loginAttempts, lockUntil: u.lockUntil ?? undefined,
     isActive: u.isActive, deactivatedAt: u.deactivatedAt, deactivatedBy: u.deactivatedBy, joiningDate: u.joiningDate,
     mustChangePassword: u.mustChangePassword, tempPasswordExpiresAt: u.tempPasswordExpiresAt, sessionVersion: u.sessionVersion,
     inviteTokenHash: u.inviteTokenHash, inviteExpiresAt: u.inviteExpiresAt, editedBy: u.editedBy, editedAt: u.editedAt,
@@ -126,6 +126,7 @@ function tidy(doc: Loose): Loose {
   if (typeof out.username === 'string') out.username = out.username.trim().toLowerCase();
   if (typeof out.email === 'string') out.email = out.email.trim().toLowerCase() || undefined;
   if (typeof out.displayName === 'string') out.displayName = out.displayName.trim();
+  if (typeof out.phone === 'string') out.phone = out.phone.trim() || undefined;
   if (typeof out.location === 'string') out.location = out.location.trim() || undefined;
   return out;
 }

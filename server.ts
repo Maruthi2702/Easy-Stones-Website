@@ -204,7 +204,7 @@ import {
   sessionIsCurrent, sessionVersionOf, temporaryPasswordFields, temporaryPasswordAnswer,
   startStaffSession, clearPasswordSetup, readSetupToken, clearSignInLock
 } from './src/services/staffSession.ts';
-import { usernameProblem, isValidEmail, isValidDateInput, PASSWORD_MIN } from './src/utils/userForm.ts';
+import { usernameProblem, isValidEmail, isValidDateInput, normalizePhone, phoneProblem, PASSWORD_MIN } from './src/utils/userForm.ts';
 import { findDeliveries, movePending, freightDeliveries } from './src/db/deliveries/index.ts';
 import { withDbRetry } from './src/utils/dbRetry.ts';
 import { relay } from './src/lambda/relay.ts';
@@ -1721,12 +1721,14 @@ app.get('/api/admin/users', authenticate, usersAccess('view'), async (req: Reque
 // (src/routes/userOnboarding.ts).
 app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req: Request, res: Response) => {
   try {
-    const { displayName, email, role, location, assignedLocations, joiningDate, signInMethod = 'password', password } = req.body;
+    const { displayName, email, phone, role, location, assignedLocations, joiningDate, signInMethod = 'password', password } = req.body;
     const username = String(req.body.username || '').trim().toLowerCase();
     const fail = (field: string, message: string) => res.status(400).json({ field, message });
 
     if (!String(displayName || '').trim()) return fail('displayName', 'Enter their full name');
     if (!isValidEmail(email)) return fail('email', 'Enter a valid work email');
+    const phoneErr = phoneProblem(phone);
+    if (phoneErr) return fail('phone', phoneErr);
     const uProblem = usernameProblem(username);
     if (uProblem) return fail('username', uProblem);
     if (!isValidDateInput(joiningDate)) return fail('joiningDate', 'Pick the day they start');
@@ -1751,6 +1753,7 @@ app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req:
       displayName: String(displayName).trim(),
       password: invite ? invite.placeholderPassword : password,
       email: String(email).trim(),
+      ...(normalizePhone(phone) ? { phone: normalizePhone(phone) } : {}),
       role: roleName,
       location: home.location,
       assignedLocations,
@@ -1801,6 +1804,7 @@ app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req:
         displayName: newUser.displayName,
         name: displayNameOf(newUser),
         email: newUser.email,
+        phone: newUser.phone,
         role: newUser.role,
         location: newUser.location,
         assignedLocations: newUser.assignedLocations,
@@ -1818,7 +1822,7 @@ app.post('/api/admin/users', authenticate, requireAction(USERS.ADD), async (req:
 app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), validateScalarRequest, async (req: Request, res: Response) => {
   const requestParams = scalarParams(req);
   try {
-    const { username, displayName, email, role, password, location, assignedLocations, joiningDate, signInReset } = req.body;
+    const { username, displayName, email, phone, role, password, location, assignedLocations, joiningDate, signInReset } = req.body;
     const userId = requestParams.id;
     // Fields are checked only when sent, so the older /admin screen's partial
     // saves still work; Edit user (features/users/userForm/EditUserForm.tsx) sends them all.
@@ -1878,6 +1882,11 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), validat
     // the username", so this is an !== undefined check, not a truthiness one.
     if (displayName !== undefined) user.displayName = String(displayName).trim();
     if (email !== undefined) user.email = String(email).trim();
+    if (phone !== undefined) {
+      const phoneErr = phoneProblem(phone);
+      if (phoneErr) return fail('phone', phoneErr);
+      user.phone = normalizePhone(phone);   // '' clears it
+    }
     if (nextRole) user.role = nextRole;
     if (joiningDate !== undefined) user.joiningDate = new Date(`${joiningDate}T00:00:00Z`);
     if (location !== undefined || assignedLocations !== undefined) {
@@ -1964,6 +1973,7 @@ app.put('/api/admin/users/:id', authenticate, requireAction(USERS.EDIT), validat
         displayName: user.displayName,
         name: displayNameOf(user),
         email: user.email,
+        phone: user.phone,
         role: user.role,
         location: user.location,
         assignedLocations: user.assignedLocations,

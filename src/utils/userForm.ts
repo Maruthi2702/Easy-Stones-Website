@@ -43,6 +43,30 @@ export const usernameProblem = (username = '') => {
 
 export const isValidEmail = (email = '') => EMAIL_RE.test(String(email).trim());
 
+/**
+ * A staff mobile number for text messages (2026-11-22). Stored in international form (+12065550142). A 10-digit number
+ * or 1 + 10 digits is a US number; anything else must start with + and hold 8 to 15 digits. Blank is allowed (optional).
+ * Returns '' for blank or for something that isn't a number: use phoneProblem to tell which.
+ */
+export const normalizePhone = (raw: unknown): string => {
+    const text = String(raw ?? '').trim();
+    if (!text) return '';
+    const digits = text.replace(/\D/g, '');
+    if (text.startsWith('+')) return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : '';
+    if (digits.length === 10) return `+1${digits}`;
+    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+    return '';
+};
+/** '' when blank or valid; else the words for the form and the server. */
+export const phoneProblem = (raw: unknown): string =>
+    String(raw ?? '').trim() && !normalizePhone(raw) ? 'Enter a mobile number like (206) 555-0142, or +44… for another country' : '';
+/** "(206) 555-0142" for a US number, the stored form otherwise, '' for none. */
+export const formatPhone = (stored: unknown): string => {
+    const text = String(stored ?? '').trim();
+    const us = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(text);
+    return us ? `(${us[1]}) ${us[2]}-${us[3]}` : text;
+};
+
 /** True for a real calendar date written YYYY-MM-DD (what <input type="date"> gives). */
 export const isValidDateInput = (value = '') => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -85,6 +109,8 @@ export const validateNewUser = (values: Loose, { usernameTaken = false, checkUse
     if (!String(values.displayName || '').trim()) errors.displayName = 'Enter their full name';
     if (!String(values.email || '').trim()) errors.email = 'Enter their work email';
     else if (!isValidEmail(values.email)) errors.email = 'That doesn’t look like an email address';
+    const phoneErr = phoneProblem(values.phone);
+    if (phoneErr) errors.phone = phoneErr;
     if (checkUsername) {
         const uProblem = usernameProblem(values.username);
         if (uProblem) errors.username = uProblem;
@@ -143,6 +169,9 @@ export const userEditFields = (values: Loose, initial: Loose = {}) => {
         assignedLocations: values.assignedLocations
     };
     for (const [k, v] of Object.entries(fields)) if (!sameValue(v, initial[k])) out[k] = v;
+    // The form shows (206) 555-0142; compare and send the stored form. '' clears the number.
+    const phone = normalizePhone(values.phone);
+    if (phone !== normalizePhone(initial.phone)) out.phone = phone;
     return out;
 };
 
@@ -152,6 +181,7 @@ export const userToFormValues = (user: Loose = {}) => {
     return {
         displayName: String(user.displayName || '').trim(),
         email: user.email || '',
+        phone: formatPhone(user.phone),
         username: user.username || '',
         // Stored as midnight UTC of the calendar day; the date input wants YYYY-MM-DD.
         joiningDate: user.joiningDate ? String(user.joiningDate).slice(0, 10) : '',
@@ -211,6 +241,7 @@ export const lockedUntilTime = (user: Loose, now = Date.now()) => {
 export const FIELD_LABELS = {
     displayName: 'Full name',
     email: 'Work email',
+    phone: 'Mobile phone',
     username: 'Username',
     joiningDate: 'Joining date',
     role: 'Role',

@@ -254,6 +254,20 @@ export default function EditUserForm({ user, roles, locations, describeRole, onC
                             {...describedBy('eu-email', shown('email'))}
                         />
                     </FormField>
+                    <FormField name="phone" id="eu-phone" label="Mobile phone" error={shown('phone')}>
+                        <input
+                            id="eu-phone"
+                            className="fm-input"
+                            type="tel"
+                            inputMode="tel"
+                            autoComplete="off"
+                            placeholder="(206) 555-0142"
+                            value={values.phone}
+                            onChange={(e) => set({ phone: e.target.value })}
+                            onBlur={() => touch('phone')}
+                            {...describedBy('eu-phone', shown('phone'))}
+                        />
+                    </FormField>
                     <FormField name="username" id="eu-username" label="Username">
                         <input
                             id="eu-username"

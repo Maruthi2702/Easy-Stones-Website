@@ -14,6 +14,8 @@ export type UserRecord = {
     username: string;
     displayName?: string;
     email?: string;
+    /** Mobile number in international form, for text messages. */
+    phone?: string;
     role: string;
     location?: string;
     assignedLocations?: string[];

@@ -132,7 +132,7 @@ export function referenceRows(src: ReferenceSource, problems: CopyProblem[]): { 
     userIds.add(id);
     rows.users.push({
       id, username: d.username, displayName: textOf(d.displayName), passwordHash: d.password,
-      email: d.email ? String(d.email) : null, role: d.role, homeLocationId, allLocations: assigned.includes('*'),
+      email: d.email ? String(d.email) : null, phone: d.phone ? String(d.phone) : null, role: d.role, homeLocationId, allLocations: assigned.includes('*'),
       isActive: d.isActive !== false, deactivatedAt: c.moment('deactivated_at', d.deactivatedAt),
       deactivatedBy: textOf(d.deactivatedBy), joiningDate: c.moment('joining_date', d.joiningDate),
       loginAttempts: numOrNull(d.loginAttempts) ?? 0, lockUntil: c.moment('lock_until', d.lockUntil),
