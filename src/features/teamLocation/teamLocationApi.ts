@@ -44,3 +44,19 @@ async function send<T>(path: string, body: object): Promise<T> {
 export const askLocate = (userId: string, reason: string) => send<{ request: LocateRequest; pushed: boolean }>('/locate', { userId, reason });
 export const loadLocate = (id: string) => call<{ request: LocateRequest }>(`/locate/${encodeURIComponent(id)}`);
 export const loadLocateLog = (userId: string) => call<{ requests: LocateRequest[] }>(`/locate?userId=${encodeURIComponent(userId)}`);
+
+/**
+ * A short reminder to one person's iPhone through the Send Notification route (needs `send_notifications`; the server
+ * drops anyone outside the sender's team). The message comes from `reminderFor` (src/utils/locationHealth.ts).
+ */
+export const sendReminder = async (userId: string, message: string) => {
+  let res: Response;
+  try {
+    res = await authFetch(`${API_URL}/api/push-send`, { method: 'POST', body: JSON.stringify({ userIds: [userId], message }) });
+  } catch {
+    throw new Error('Couldn’t reach the server. Check your connection and try again.');
+  }
+  const data: ErrorBody & { line?: string; reached?: number } = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || data.error || `Something went wrong (${res.status}).`);
+  return { line: data.line || 'Sent.', reached: data.reached ?? 0 };
+};
