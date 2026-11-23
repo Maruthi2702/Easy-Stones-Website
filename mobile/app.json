@@ -23,7 +23,7 @@
           "remote-notification"
         ]
       },
-      "buildNumber": "10"
+      "buildNumber": "11"
     },
     "android": {
       "package": "app.easysurfaces",
