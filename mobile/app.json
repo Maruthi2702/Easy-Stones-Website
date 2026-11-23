@@ -12,6 +12,7 @@
       "bundleIdentifier": "app.easysurfaces",
       "supportsTablet": true,
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Easy Surfaces uses the camera to scan slab tags, receipts and business cards, and to take photos for visits, resources and deliveries.",
         "NSPhotoLibraryUsageDescription": "Choose photos and PDFs to attach to visits, resources and receipts.",
         "NSFaceIDUsageDescription": "Easy Surfaces uses Face ID to sign you in quickly and securely.",
