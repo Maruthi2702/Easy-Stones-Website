@@ -41,7 +41,7 @@ async function send<T>(path: string, body: object): Promise<T> {
 }
 
 /** "Locate now": asks one person's phone for one position, with a reason. */
-export const askLocate = (userId: string, reason: string) => send<{ request: LocateRequest; pushed: boolean }>('/locate', { userId, reason });
+export const askLocate = (userId: string, reason: string) => send<{ request: LocateRequest }>('/locate', { userId, reason });
 export const loadLocate = (id: string) => call<{ request: LocateRequest }>(`/locate/${encodeURIComponent(id)}`);
 export const loadLocateLog = (userId: string) => call<{ requests: LocateRequest[] }>(`/locate?userId=${encodeURIComponent(userId)}`);
 

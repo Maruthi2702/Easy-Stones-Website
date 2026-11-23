@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANSWER_MAX_ACCURACY_M, REQUEST_TTL_MS, canLocateOnRequest, cleanAnswer, cleanReason, requestStatus, requestLine, askedNotice, LOCATE } from './locationRequests.ts';
+import { ANSWER_MAX_ACCURACY_M, REQUEST_TTL_MS, canLocateOnRequest, cleanAnswer, cleanReason, requestStatus, requestLine, LOCATE } from './locationRequests.ts';
 
 const t = (iso: string) => new Date(iso);
 
@@ -44,8 +44,6 @@ describe('the answer', () => {
 
 describe('wording', () => {
   it('names who asked', () => {
-    expect(askedNotice('Krish').body).toContain('Krish');
-    expect(askedNotice('').body).toContain('Your manager');
     expect(requestLine('Kevin', 'pending')).toMatch(/Waiting/);
     expect(requestLine('Kevin', 'expired')).toMatch(/15 minutes/);
     expect(requestLine('Kevin', 'answered', t('2026-11-20T04:14:00Z'))).toMatch(/^Located Kevin at /);

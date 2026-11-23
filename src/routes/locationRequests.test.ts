@@ -36,8 +36,6 @@ const requests = {
   },
   log: async (userId: string) => rows.filter(r => r.targetUserId === userId).reverse()
 };
-const pushed: { ids: string[]; body: string }[] = [];
-const notify = async (ids: string[], m: { body: string }) => { pushed.push({ ids, body: m.body }); return { sent: 1 }; };
 
 let server: Server; let base = '';
 let current: { id: string; permissions: string[]; assignedLocations: string[] } = { id: 'adm1', permissions: [], assignedLocations: ['Seattle'] };
@@ -47,12 +45,12 @@ beforeAll(async () => {
   const app = express();
   app.use(express.json());
   const authenticate: express.RequestHandler = (req, _res, next) => { req.userId = current.id; req.user = { ...current, type: 'staff' } as never; next(); };
-  app.use('/api/location-tracking', createLocationRequestsRouter({ authenticate, directory, requests: requests as never, consents, audit: { logView: async (v: unknown) => { AUDIT.push(v as never); return true; } }, notify: notify as never, now: () => NOW }));
+  app.use('/api/location-tracking', createLocationRequestsRouter({ authenticate, directory, requests: requests as never, consents, audit: { logView: async (v: unknown) => { AUDIT.push(v as never); return true; } }, now: () => NOW }));
   await new Promise<void>(r => { server = app.listen(0, () => r()); });
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}/api/location-tracking`;
 });
 afterAll(() => { server?.close(); });
-beforeEach(() => { rows = []; pushed.length = 0; NOW = new Date('2026-11-20T03:00:00Z'); as('adm1', ['locate_on_request']); });
+beforeEach(() => { rows = []; NOW = new Date('2026-11-20T03:00:00Z'); as('adm1', ['locate_on_request']); });
 
 const ask = (body: object) => fetch(`${base}/locate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const answer = (id: string, body: object) => fetch(`${base}/locate/${id}/answer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -67,13 +65,12 @@ describe('asking', () => {
     expect(res.status).toBe(400);
     expect((await res.json()).code).toBe('reason');
   });
-  it('asks a tracked, consented person on the team, tells their phone and logs it', async () => {
+  it('asks a tracked, consented person on the team and logs it, without notifying them', async () => {
     const res = await ask({ userId: 'rep1', reason: 'Truck not back' });
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.pushed).toBe(true);
+    expect(body.pushed).toBeUndefined();
     expect(body.request).toMatchObject({ userId: 'rep1', status: 'pending', reason: 'Truck not back' });
-    expect(pushed).toEqual([{ ids: ['rep1'], body: expect.stringContaining('asked for your phone') }]);
     expect(rows).toHaveLength(1);
     expect(AUDIT).toEqual([expect.objectContaining({ subjectId: 'rep1', kind: 'locate' })]); // and one line in the access log
   });

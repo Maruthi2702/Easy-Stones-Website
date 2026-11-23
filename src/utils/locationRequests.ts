@@ -9,7 +9,7 @@
  *   Answer     the person's phone sends one position within 15 minutes, or the request
  *              expires. The position lives with the request, never in location_points,
  *              so the window rule for ordinary points is untouched.
- *   Kept       90 days, like points. The person is told by a push when it is asked.
+ *   Kept       90 days, like points. The person is NOT notified when asked (owner, 2026-11-22); the phone answers silently.
  * Pure: no database, no DOM. Tested in locationRequests.test.ts.
  */
 export const LOCATE = Object.freeze({ ASK: 'locate_on_request' });
@@ -50,13 +50,6 @@ export function cleanAnswer(raw: unknown): { lat: number; lng: number; accuracyM
   if (accuracy !== null && (!Number.isFinite(accuracy) || accuracy < 0 || accuracy > ANSWER_MAX_ACCURACY_M)) return null;
   return { lat, lng, accuracyM: accuracy };
 }
-
-/** What the person's phone is told when it is asked. */
-export const askedNotice = (askerName: string) => ({
-  title: 'Location requested',
-  body: `${askerName || 'Your manager'} asked for your phone’s location. Open Easy Surfaces to send it.`,
-  path: '/sales'
-});
 
 /** "Kevin’s phone hasn’t answered yet" and the like — the admin's status line. */
 export function requestLine(name: string, status: RequestStatus, answeredAt?: Date | null): string {

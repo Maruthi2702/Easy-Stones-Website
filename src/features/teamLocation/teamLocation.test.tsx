@@ -100,7 +100,7 @@ describe('Locate now', () => {
     expect((screen.getByText('Locate now').closest('button') as HTMLButtonElement).disabled).toBe(true);
   });
   it('needs a reason, then asks and shows it waiting', async () => {
-    api.askLocate.mockResolvedValue({ request: asked, pushed: true });
+    api.askLocate.mockResolvedValue({ request: asked });
     render(<TeamLocationPage currentUser={locator} />);
     await pick('Rita Rep');
     fireEvent.click(screen.getByText('Locate now'));

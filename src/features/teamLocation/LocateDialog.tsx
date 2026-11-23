@@ -34,7 +34,7 @@ export default function LocateDialog({ name, sending, error, onAsk, onClose }: {
         <textarea id="tl-reason" className="fm-input" rows={3} maxLength={REASON_MAX} value={reason} disabled={sending}
           autoCapitalize="sentences" onChange={(e) => setReason(e.target.value)} />
       </FormField>
-      <p className="tl-ask-note">{name}’s phone is asked once and gets a notification that you asked. Your name, the time, this reason and their answer are kept for 90 days.</p>
+      <p className="tl-ask-note">{name}’s phone is asked once and answers silently — they are not notified. Your name, the time, this reason and their answer are kept for 90 days.</p>
     </FormModal>
   );
 }

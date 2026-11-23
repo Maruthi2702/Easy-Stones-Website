@@ -2,14 +2,13 @@ import type { Request, RequestHandler } from 'express';
 import express from 'express';
 import { CONSENT_VERSION, canBeTracked } from '../utils/locationTracking.ts';
 import {
-  askedNotice, canLocateOnRequest, cleanAnswer, cleanReason, requestStatus
+  canLocateOnRequest, cleanAnswer, cleanReason, requestStatus
 } from '../utils/locationRequests.ts';
 import { inTeam, teammatesOf } from '../utils/teamScope.ts';
 import { staffDirectory, type Directory } from '../services/locationTracking.ts';
 import * as pointStore from '../db/locationPoints/index.ts';
 import * as requestStore from '../db/locationPoints/requests.ts';
 import * as liveStore from '../db/locationPoints/live.ts';
-import { sendPushToUsers, type PushMessage } from '../services/apns.ts';
 
 /**
  * "Locate now" (2026-11-20; rules in src/utils/locationRequests.ts). Outside 7 AM – 6 PM the
@@ -23,16 +22,16 @@ import { sendPushToUsers, type PushMessage } from '../services/apns.ts';
  *   GET  /api/location-tracking/locate/:id        one ask and its answer — same switch and team
  *
  * The answer is kept with the ask (location_requests), never in location_points, so the rule that
- * ordinary points are dropped outside the window is untouched. The person is told by a push when asked.
+ * ordinary points are dropped outside the window is untouched. The person is NOT notified of a request
+ * (owner's call, 2026-11-22; consent wording v3 says so) — it is answered silently when the app is in front.
  */
 type Requests = Pick<typeof requestStore, 'createRequest' | 'requestById' | 'openFor' | 'answerRequest' | 'log'>;
 type Consents = Pick<typeof pointStore, 'consentsFor'>;
 type Audit = Pick<typeof liveStore, 'logView'>;
-type Notify = (userIds: string[], message: PushMessage) => Promise<{ sent: number }>;
 
 export default function createLocationRequestsRouter(
-  { authenticate, directory = staffDirectory, requests = requestStore, consents = pointStore, audit = liveStore, notify = sendPushToUsers, now = () => new Date() }:
-  { authenticate: RequestHandler; directory?: Directory; requests?: Requests; consents?: Consents; audit?: Audit; notify?: Notify; now?: () => Date }
+  { authenticate, directory = staffDirectory, requests = requestStore, consents = pointStore, audit = liveStore, now = () => new Date() }:
+  { authenticate: RequestHandler; directory?: Directory; requests?: Requests; consents?: Consents; audit?: Audit; now?: () => Date }
 ) {
   const router = express.Router();
   const meOf = (req: Request) => ({ id: String(req.userId || ''), permissions: req.user?.permissions, assignedLocations: req.user?.assignedLocations });
@@ -73,8 +72,7 @@ export default function createLocationRequestsRouter(
       // Also a line in the access log (admins read one log of every look and every ask); the ask itself is already kept with its reason.
       await audit.logView({ viewerId: String(req.userId), viewerName: asker?.name || '', subjectId: person.id, subjectName: person.name, kind: 'locate' }, at)
         .catch(err => console.error('Location access log error:', err));
-      const pushed = (await notify([person.id], askedNotice(asker?.name || '')).catch(() => ({ sent: 0 }))).sent > 0;
-      res.status(201).json({ request: view(record), pushed });
+      res.status(201).json({ request: view(record) });
     } catch (err) { fail(res, 'create', err); }
   });
 
