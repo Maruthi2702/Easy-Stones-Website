@@ -66,6 +66,26 @@ describe('the Credit Card Receipts page', () => {
     expect(screen.queryByLabelText('Add receipt')).toBeNull();
   });
 
+  it('offers Export all months only with its own switch', async () => {
+    const menu = async (permissions: string[]) => {
+      await show(permissions);
+      const more = screen.queryByRole('button', { name: 'More' });
+      if (more) { fireEvent.click(more); await settle(); }
+      const t = text();
+      cleanup();
+      return t;
+    };
+    const both = await menu(['view_all_card_receipts', 'export_card_receipts', 'export_all_card_receipts']);
+    expect(both).toContain('Export this view to Excel');
+    expect(both).toContain('Export all months (Amex and Encore)');
+    const viewOnly = await menu(['view_all_card_receipts', 'export_card_receipts']);
+    expect(viewOnly).toContain('Export this view to Excel');
+    expect(viewOnly).not.toContain('Export all months');
+    const allOnly = await menu(['view_all_card_receipts', 'export_all_card_receipts']);
+    expect(allOnly).toContain('Export all months');
+    expect(allOnly).not.toContain('Export this view');
+  });
+
   it('lets an approver open a lost receipt and approve it only with a comment', async () => {
     await show(['use_card_receipts', 'approve_card_receipts']);
     fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));

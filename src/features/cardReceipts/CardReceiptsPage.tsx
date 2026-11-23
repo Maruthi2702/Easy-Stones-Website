@@ -11,8 +11,9 @@ import usePeopleFilter from '../../components/shared/people/usePeopleFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import Pagination from '../../components/shared/Pagination';
 import { usePagination } from '../../components/shared/paginationConfig';
-import { CARD_RECEIPTS, STATUSES, can, exportRows, formatMoney, holderMayEdit, monthLabel, shiftMonth, monthOf } from '../../utils/cardReceipts';
+import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, exportRows, formatMoney, holderMayEdit, monthLabel, shiftMonth, monthOf } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
+import { listAllExpenses } from './cardReceiptsApi';
 import { NO_FILTERS, holderPeople, statusLine, visibleExpenses, type ReceiptFilters } from './cardReceiptsView';
 import StatusTiles from './components/StatusTiles';
 import ExpenseList from './components/ExpenseList';
@@ -45,6 +46,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const { me } = data;
   const canUse = can(currentUser, CARD_RECEIPTS.USE);
   const canExport = can(currentUser, CARD_RECEIPTS.EXPORT);
+  const canExportAll = can(currentUser, CARD_RECEIPTS.EXPORT_ALL);
   const canCards = can(currentUser, CARD_RECEIPTS.MANAGE_CARDS) || can(currentUser, CARD_RECEIPTS.VIEW_ALL);
   const canStatements = can(currentUser, CARD_RECEIPTS.STATEMENTS);
   // Someone who only runs the Amex check opens on it.
@@ -80,21 +82,42 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
 
   const say = (text: string) => { setToast(text); window.setTimeout(() => setToast(''), 2600); };
   const patchFilters = (patch: Partial<ReceiptFilters>) => setFilters((f) => ({ ...f, ...patch }));
-  const filtered = Boolean(peopleFilter.active || filters.category || filters.status !== 'all');
+  const filtered = Boolean(peopleFilter.active || filters.category || filters.bank || filters.status !== 'all');
 
+  const bankName = BANK_FILTERS.find((b) => b.key === filters.bank)?.label || '';
+  const bankSuffix = filters.bank ? `-${filters.bank}` : '';
+  /** A private receipt's link is this site's own address: it opens only for someone signed in who may see it. */
+  const writeExcel = async (list: Expense[], file: string) => {
+    const XLSX = await import('xlsx');
+    const withSite = (u: string) => (u.startsWith('/') ? `${window.location.origin}${u}` : u);
+    const ws = XLSX.utils.json_to_sheet(exportRows(list.map((e) => ({ ...e, receiptUrl: e.receiptUrl ? withSite(e.receiptUrl) : e.receiptUrl })), categories));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Card receipts');
+    XLSX.writeFile(wb, file);
+  };
+  // The list on screen: the month and every filter, the Card (bank) one included.
   const exportExcel = async () => {
     try {
-      const XLSX = await import('xlsx');
-      // A private receipt's link is this site's own address: it opens only for someone signed in who may see it.
-      const withSite = (u: string) => (u.startsWith('/') ? `${window.location.origin}${u}` : u);
-      const ws = XLSX.utils.json_to_sheet(exportRows(rows.map((e) => ({ ...e, receiptUrl: e.receiptUrl ? withSite(e.receiptUrl) : e.receiptUrl })), categories));
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Card receipts');
-      XLSX.writeFile(wb, `card-receipts-${tab === 'waiting' ? 'waiting' : data.month}.xlsx`);
+      await writeExcel(rows, `card-receipts-${tab === 'waiting' ? 'waiting' : data.month}${bankSuffix}.xlsx`);
     } catch (e) {
       say((e as Error).message || 'Could not build the file.');
     }
   };
+  // Every month for the bank picked (or both): the server answers only with the Export all switch.
+  const exportAll = async () => {
+    try {
+      say('Getting every month…');
+      const res = await listAllExpenses(filters.bank);
+      await writeExcel(res.expenses, `card-receipts-all${bankSuffix}.xlsx`);
+      say(res.truncated ? 'Too many to list: the file holds the newest ones only.' : `Downloaded ${res.expenses.filter((e) => !e.voided).length} expenses`);
+    } catch (e) {
+      say((e as Error).message || 'Could not build the file.');
+    }
+  };
+  const exportItems = [
+    ...(canExport ? [{ key: 'excel', label: bankName ? `Export this view (${bankName}) to Excel` : 'Export this view to Excel', icon: Download, onClick: exportExcel }] : []),
+    ...(canExportAll ? [{ key: 'excel-all', label: bankName ? `Export all months (${bankName})` : 'Export all months (Amex and Encore)', icon: Download, onClick: exportAll }] : [])
+  ];
 
   const subtitle = tab === 'waiting' ? `Waiting for me · ${data.waiting.length} · ${formatMoney(data.waiting.reduce((s, e) => s + e.cents, 0))}`
     : tab === 'cards' ? 'Company cards'
@@ -134,15 +157,20 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                   <FormPicker id="ccr-f-category" value={filters.category} onChange={(category) => patchFilters({ category })}
                     options={[{ value: '', label: 'Every category' }, ...categoryOptions]} sheetTitle="Category" keepInForm />
                 </div>
+                {data.viewAll || canExport || canExportAll ? (
+                  <div className="lf-group ccr-filter-gap">
+                    <label className="lf-group-label" htmlFor="ccr-f-bank">Card</label>
+                    <FormPicker id="ccr-f-bank" value={filters.bank} onChange={(bank) => patchFilters({ bank })}
+                      options={[{ value: '', label: 'Amex and Encore' }, ...BANK_FILTERS.map((b) => ({ value: b.key, label: b.label }))]} sheetTitle="Card" keepInForm />
+                  </div>
+                ) : null}
                 <div className="lf-group ccr-filter-gap">
                   <label className="lf-group-label" htmlFor="ccr-f-status">Status</label>
                   <FormPicker id="ccr-f-status" value={filters.status} onChange={(status) => patchFilters({ status })}
                     options={[{ value: 'all', label: 'Every status' }, ...statusOptions]} sheetTitle="Status" keepInForm />
                 </div>
               </LocationFilter>
-              {canExport ? (
-                <RowMenu label="More" items={[{ key: 'excel', label: 'Export this view to Excel', icon: Download, onClick: exportExcel }]} />
-              ) : null}
+              {exportItems.length ? <RowMenu label="More" items={exportItems} /> : null}
             </div>
           ) : null}
         </div>

@@ -1386,7 +1386,15 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   deleted only by moving its expenses to a shown one.
 - **Excel** starts with the six columns of the card log accounting keeps today
   (Transaction Date MM-DD-YYYY · Location · C C Holder Name · Credit Card Number ·
-  Description · Spent Amount; owner's sample), new fields after (`exportRows`).
+  Description · Spent Amount; owner's sample), new fields after (`exportRows`; a **Bank** column right after
+  Spent Amount since 2026-11-23). **Download by bank (2026-11-23, on `feat/receipt-categories-list`):** every expense the list
+  sends carries its card's `issuer` (`issuersByCard` / `viewOf` in `src/routes/cardReceipts.ts`; a row with none is Amex,
+  `onBank`), the Filters panel has a **Card** field (Amex and Encore / Amex / Encore) and "Export this view" follows it
+  (switch `export_card_receipts`). **Export all months** is a second switch, `export_all_card_receipts` ("Export all",
+  Users & Roles → Credit Card Receipts; nobody holds it until an admin ticks it — admin through
+  `ALL_CARD_RECEIPT_PERMISSIONS`): `GET /api/card-receipts/expenses/export?bank=` answers every month for one bank or both,
+  only the people the caller may see (View all → everyone, View branch → their team, else their own), capped at
+  `EXPENSE_LIST_CAP` with `truncated`. The server checks the switch; the menu item is only its mirror.
 - Switches (Users & Roles → Accounting · Credit Card Receipts and Admin ·
   Receipt Categories, `CARD_RECEIPTS`): My receipts, View all, Approve, Export,
   Manage cards; categories add / edit / reorder / delete. Admin gets them through

@@ -222,6 +222,46 @@ describe('who sees what', () => {
   });
 });
 
+describe('export all', () => {
+  const EXPORTER = { id: ids.acct, role: 'accounting', permissions: ['view_all_card_receipts', 'export_all_card_receipts'] };
+  it('says which bank each expense is on, and lets the list be read by bank', async () => {
+    const encore = await CompanyCard.create({ userId: ids.director, label: 'DEER3992', lastDigits: '3992', issuer: 'encore' });
+    await as(REP).post('/expenses', receipt()).expect(201);
+    await as(DIRECTOR).post('/expenses', receipt({ merchant: 'Shell' })).expect(201);
+    const list = (await as(ACCOUNTING).get('/expenses?scope=all&month=2026-10').expect(200)).body.expenses;
+    expect(Object.fromEntries(list.map((e: Loose) => [e.merchant, e.issuer]))).toEqual({ "McDonald's, Kent": 'amex', Shell: 'encore' });
+    expect(String(encore._id)).toBe(list.find((e: Loose) => e.merchant === 'Shell').cardId);
+  });
+
+  it('needs its own switch, not Export or View all', async () => {
+    await as(ACCOUNTING).get('/expenses/export').expect(403);
+    await as({ ...ACCOUNTING, permissions: ['view_all_card_receipts', 'export_card_receipts'] }).get('/expenses/export').expect(403);
+    await as(EXPORTER).get('/expenses/export').expect(200);
+  });
+
+  it('gives every month, or one bank, and refuses a bank it does not know', async () => {
+    await CompanyCard.create({ userId: ids.director, label: 'DEER3992', lastDigits: '3992', issuer: 'encore' });
+    await as(REP).post('/expenses', receipt()).expect(201);
+    await as(REP).post('/expenses', receipt({ merchant: 'Chevron', date: '2026-09-14' })).expect(201);
+    await as(DIRECTOR).post('/expenses', receipt({ merchant: 'Shell', date: '2026-08-02' })).expect(201);
+    const all = (await as(EXPORTER).get('/expenses/export').expect(200)).body.expenses;
+    expect(all.map((e: Loose) => e.merchant)).toEqual(["McDonald's, Kent", 'Chevron', 'Shell']);
+    const encoreOnly = (await as(EXPORTER).get('/expenses/export?bank=encore').expect(200)).body.expenses;
+    expect(encoreOnly.map((e: Loose) => e.merchant)).toEqual(['Shell']);
+    const amexOnly = (await as(EXPORTER).get('/expenses/export?bank=amex').expect(200)).body.expenses;
+    expect(amexOnly.map((e: Loose) => e.merchant)).toEqual(["McDonald's, Kent", 'Chevron']);
+    await as(EXPORTER).get('/expenses/export?bank=visa').expect(400);
+  });
+
+  it('only holds what the caller may see: View all everyone, else their own', async () => {
+    await as(REP).post('/expenses', receipt()).expect(201);
+    await as(MANAGER).post('/expenses', receipt({ merchant: 'Staples' })).expect(201);
+    expect((await as(EXPORTER).get('/expenses/export').expect(200)).body.expenses).toHaveLength(2);
+    const ownOnly = { ...REP, permissions: [USE, 'export_all_card_receipts'] };
+    expect((await as(ownOnly).get('/expenses/export').expect(200)).body.expenses.map((e: Loose) => e.merchant)).toEqual(["McDonald's, Kent"]);
+  });
+});
+
 describe('cardholders for the filter', () => {
   it('lists everyone with a card to View all, none to a plain cardholder, and no one twice', async () => {
     await as(REP).get('/cardholders').expect(403);

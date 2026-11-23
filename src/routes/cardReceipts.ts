@@ -18,7 +18,7 @@ import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup } from 
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, missingFor, holderMayEdit, changeSummary, possibleRepeat, canApprove, approvalStep, isBigReceipt, isBigReceiptApprover, BIG_RECEIPT_CENTS, cleanApproverRoles, decisionProblem,
-  isMonth, monthOf, matchedChangeProblem, isReceiptFolderUrl, isPrivateReceiptName, privateReceiptNameOf, privateReceiptUrlOfKey, PRIVATE_RECEIPT_ROUTE, PRIVATE_RECEIPT_KEY_PREFIX, type CleanExpense
+  isMonth, monthOf, BANK_FILTERS, onBank, matchedChangeProblem, isReceiptFolderUrl, isPrivateReceiptName, privateReceiptNameOf, privateReceiptUrlOfKey, PRIVATE_RECEIPT_ROUTE, PRIVATE_RECEIPT_KEY_PREFIX, type CleanExpense
 } from '../utils/cardReceipts.ts';
 import type { Loose } from '../types/records.ts';
 
@@ -36,6 +36,7 @@ import type { Loose } from '../types/records.ts';
  *   POST   /cards, PUT /cards/:id    (manage_company_cards) one active card per person
  *   POST   /attachments              { data } a photo or PDF → { url }, the moment it's picked
  *   GET    /expenses?scope=&month=   mine (default) · all (view all, or view branch: the caller's team) · waiting (what the caller may approve, any month)
+ *   GET    /expenses/export?bank=    every month, one bank or both (export_all_card_receipts), the caller's own view's people
  *   POST   /expenses                 add, with the screen's own `id` (a repeat answers alreadySaved);
  *                                    the same day + total already saved answers 409 `repeat` unless `confirmRepeat`
  *   PUT    /expenses/:id             the cardholder, until it's approved
@@ -85,8 +86,8 @@ const categoryView = (c: Loose) => ({
   }))
 });
 const cardView = (c: Loose) => ({ _id: String(c._id), userId: c.userId, label: c.label, issuer: c.issuer, lastDigits: c.lastDigits, amexName: c.amexName || '', location: c.location || '', active: c.active !== false });
-const expenseView = (e: Loose, viewer: { id: string; approvable: Set<string>; bigApprover?: boolean }) => ({
-  id: String(e._id), userId: e.userId, holderName: e.holderName, cardId: e.cardId, cardLabel: e.cardLabel, location: e.location,
+const expenseView = (e: Loose, viewer: { id: string; approvable: Set<string>; bigApprover?: boolean }, issuer = 'amex') => ({
+  id: String(e._id), userId: e.userId, holderName: e.holderName, cardId: e.cardId, cardLabel: e.cardLabel, issuer: issuer || 'amex', location: e.location,
   date: e.date, merchant: e.merchant, cents: e.cents, subtotalCents: e.subtotalCents ?? null, taxCents: e.taxCents ?? null, tipCents: e.tipCents ?? null,
   category: e.category || '', subcategory: e.subcategory || '', customerId: e.customerId || '', customerName: e.customerName || '', attendees: e.attendees || [],
   purpose: e.purpose || '', note: e.note || '', recurring: Boolean(e.recurring), receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || '',
@@ -97,6 +98,12 @@ const expenseView = (e: Loose, viewer: { id: string; approvable: Set<string>; bi
   canDecide: e.status === 'waiting' && !e.voidedAt && e.userId !== viewer.id && (approvalStep(e) === 2 ? Boolean(viewer.bigApprover) && e.approval?.by !== viewer.id : viewer.approvable.has(e.userId)),
   step: approvalStep({ ...e, voided: e.voidedAt })
 });
+
+/** Each card's bank, by card id — the expense carries only its card, and the screens filter by bank. */
+const issuersByCard = async () => new Map((await db.listCards()).map((c) => [String(c._id), String(c.issuer || 'amex')]));
+/** One expense as the screens get it, with its card's bank. */
+const viewOf = async (e: Loose, viewer: { id: string; approvable: Set<string>; bigApprover?: boolean }) =>
+  expenseView(e, viewer, (await issuersByCard()).get(String(e.cardId)));
 
 /** Seeds the starting list into an empty collection, once. */
 async function categoriesList() {
@@ -406,11 +413,42 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         }
       }
       let rows = await db.listExpenses(filter);
+      const issuers = await issuersByCard();
       // Waiting for me: a big receipt is the Accounting / Director / Admin step alone, never your own.
       if (scope === 'waiting') rows = rows.filter((e) => e.userId !== me && (approvalStep(e) === 2 ? bigApprover && e.approval?.by !== me : approvable.has(e.userId)));
-      res.json({ expenses: rows.map((e) => expenseView(e, { id: me, approvable, bigApprover })), ...(rows.length >= EXPENSE_LIST_CAP ? { truncated: true } : {}) });
+      res.json({ expenses: rows.map((e) => expenseView(e, { id: me, approvable, bigApprover }, issuers.get(String(e.cardId)))), ...(rows.length >= EXPENSE_LIST_CAP ? { truncated: true } : {}) });
     } catch (error) {
       console.error('[card-receipts] list failed:', error);
+      res.status(500).json({ message: 'Could not load the expenses.' });
+    }
+  });
+
+  /**
+   * Export all (2026-11-23): every month at once, for one bank (`?bank=amex|encore`) or both. Only with the Export all
+   * switch, and only the expenses the caller may see on screen: View all → everyone's, View branch → their team's,
+   * else their own. Registered before anything with an :id.
+   */
+  router.get('/expenses/export', authenticate, anyOf(CARD_RECEIPTS.EXPORT_ALL), validateScalarRequest, async (req: Request, res: Response) => {
+    const { bank = '' } = scalarQuery(req) as { bank?: string };
+    if (bank && !BANK_FILTERS.some((b) => b.key === bank)) return res.status(400).json({ message: 'Pick Amex, Encore or every bank.' });
+    const me = userIdOf(req);
+    try {
+      let filter: db.ExpenseFilter;
+      if (has(req, CARD_RECEIPTS.VIEW_ALL)) {
+        filter = { kind: 'all' };
+      } else if (has(req, CARD_RECEIPTS.VIEW_BRANCH)) {
+        const team = await teamOfRequest(req);
+        filter = team === ALL_PEOPLE ? { kind: 'all' } : { kind: 'all', userIds: [...team] };
+      } else {
+        filter = { kind: 'all', userId: me };
+      }
+      const rows = await db.listExpenses(filter);
+      const issuers = await issuersByCard();
+      const approvable = new Set<string>();
+      const shown = rows.filter((e) => onBank({ issuer: issuers.get(String(e.cardId)) }, bank));
+      res.json({ expenses: shown.map((e) => expenseView(e, { id: me, approvable }, issuers.get(String(e.cardId)))), ...(rows.length >= EXPENSE_LIST_CAP ? { truncated: true } : {}) });
+    } catch (error) {
+      console.error('[card-receipts] export failed:', error);
       res.status(500).json({ message: 'Could not load the expenses.' });
     }
   });
@@ -438,7 +476,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const existing = await db.findExpense(body.id);
       if (existing) {
         if (existing.userId !== me) return res.status(409).json({ message: 'That id belongs to another expense.' });
-        return res.json({ expense: expenseView(existing, { id: me, approvable: new Set() }), alreadySaved: true });
+        return res.json({ expense: await viewOf(existing, { id: me, approvable: new Set() }), alreadySaved: true });
       }
       const card = await db.activeCardOf(me);
       if (!card) return res.status(409).json({ message: 'You don’t have a company card set up yet. Ask accounting to add it.' });
@@ -471,12 +509,12 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         const again = await db.findExpense(body.id);
         // The id is one person's: never hand back someone else's receipt.
         if (again && again.userId !== me) return res.status(409).json({ message: 'That id belongs to another expense.' });
-        if (again) return res.json({ expense: expenseView(again, { id: me, approvable: new Set() }), alreadySaved: true });
+        if (again) return res.json({ expense: await viewOf(again, { id: me, approvable: new Set() }), alreadySaved: true });
         return res.status(500).json({ message: 'Could not save the receipt.' });
       }
       // The Amex check: a charge waiting for this receipt points at it, and its Missing receipt row goes.
       const replacedMissing = await afterReceiptSaved(saved, { id: me, name: by });
-      res.status(201).json({ expense: expenseView(saved, { id: me, approvable: new Set() }), ...(replacedMissing ? { replacedMissing } : {}) });
+      res.status(201).json({ expense: await viewOf(saved, { id: me, approvable: new Set() }), ...(replacedMissing ? { replacedMissing } : {}) });
     } catch (error) {
       if (error instanceof RepeatExpenseError) {
         const e = error.existing;
@@ -522,7 +560,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       }
       const changes = changeSummary(cleanOf(expense), value);
       const status = statusAfterSave(Object.keys(missing).length === 0, expense.status, Boolean(value.receiptUrl || value.lostReason));
-      if (!changes.length && status === expense.status) return res.json({ expense: expenseView(expense, { id: me, approvable: new Set() }), unchanged: true });
+      if (!changes.length && status === expense.status) return res.json({ expense: await viewOf(expense, { id: me, approvable: new Set() }), unchanged: true });
       const by = actor(req);
       const sentForApproval = status === 'waiting' && expense.status !== 'waiting';
       // An edit takes back a step 1 already given: the receipt starts its approvals again.
@@ -530,7 +568,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const saved = await db.changeExpense(id, { ...value, month: monthOf(value.date), status, ...(clearsStep1 ? { approval: null } : {}) },
         { at: new Date(), by, action: 'edited', expectedUpdatedAt: expense.updatedAt as Date, changes: [changes.join(', '), clearsStep1 ? 'step 1 approval cleared' : '', sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
-      res.json({ expense: expenseView(saved, { id: me, approvable: new Set() }) });
+      res.json({ expense: await viewOf(saved, { id: me, approvable: new Set() }) });
     } catch (error) {
       if (error instanceof StaleExpenseError) return res.status(409).json({ message: error.message, changed: true });
       console.error('[card-receipts] edit failed:', error);
@@ -567,7 +605,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
           changes: [action === 'approve' && isBigReceipt(expense.cents) ? (stepOne ? 'Step 1 of 2, now with Accounting' : 'Step 2 of 2') : '', comment].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
       if (action === 'send_back') pushReceiptSentBack(saved, comment); // the cardholder is told, with the reason
-      res.json({ expense: expenseView(saved, { id: approver.id, approvable: new Set() }) });
+      res.json({ expense: await viewOf(saved, { id: approver.id, approvable: new Set() }) });
     } catch (error) {
       if (error instanceof StaleExpenseError) return res.status(409).json({ message: error.message, changed: true });
       console.error(`[card-receipts] ${action} failed:`, error);
@@ -625,13 +663,13 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     try {
       const expense = await db.findExpense(id);
       if (!expense || expense.userId !== me) return res.status(404).json({ message: 'Expense not found.' });
-      if (expense.voidedAt) return res.json({ expense: expenseView(expense, { id: me, approvable: new Set() }), alreadyVoided: true });
+      if (expense.voidedAt) return res.json({ expense: await viewOf(expense, { id: me, approvable: new Set() }), alreadyVoided: true });
       if (expense.status === 'approved') return res.status(409).json({ message: 'It’s approved, so it can’t be voided.' });
       if (await amexChargeOf(id)) return res.status(409).json({ message: 'This is a charge on the Amex statement, so it can’t be voided. Add the receipt, or say why it’s lost.' });
       const by = actor(req);
       const saved = await db.changeExpense(id, { voidedAt: new Date(), voidedBy: by, voidReason: reason }, { at: new Date(), by, action: 'voided', expectedUpdatedAt: expense.updatedAt as Date, changes: reason });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
-      res.json({ expense: expenseView(saved, { id: me, approvable: new Set() }) });
+      res.json({ expense: await viewOf(saved, { id: me, approvable: new Set() }) });
     } catch (error) {
       if (error instanceof StaleExpenseError) return res.status(409).json({ message: error.message, changed: true });
       console.error('[card-receipts] void failed:', error);

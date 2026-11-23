@@ -77,7 +77,7 @@ export async function changeCard(id: string, set: Loose): Promise<Loose | null> 
 export function listExpenses(filter: ExpenseFilter): Promise<Loose[]> {
   const where: Record<string, unknown> = filter.kind === 'waiting'
     ? { status: 'waiting', voidedAt: null, $or: [{ userId: { $in: [...filter.userIds] } }, ...(filter.overCents != null ? [{ cents: { $gt: filter.overCents } }] : [])] }
-    : { month: filter.month, ...(filter.userId ? { userId: filter.userId } : {}), ...(filter.userIds ? { userId: { $in: [...filter.userIds] } } : {}) };
+    : { ...(filter.kind === 'month' ? { month: filter.month } : {}), ...(filter.userId ? { userId: filter.userId } : {}), ...(filter.userIds ? { userId: { $in: [...filter.userIds] } } : {}) };
   // `_id` last: two receipts of one day and moment keep a fixed order (it was arbitrary).
   return lean<Loose[]>(CardExpense.find(where).sort({ date: -1, createdAt: -1, _id: -1 }).limit(EXPENSE_LIST_CAP).lean());
 }

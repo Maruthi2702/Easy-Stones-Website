@@ -26,7 +26,10 @@ export const CARD_RECEIPTS = Object.freeze({
   /** Everyone on the caller's team, by the rep's branch (src/utils/teamScope.ts), like Visits → View branch. */
   VIEW_BRANCH: 'view_branch_card_receipts',
   APPROVE: 'approve_card_receipts',
+  /** Download the list on screen (the month, the filters) to Excel. */
   EXPORT: 'export_card_receipts',
+  /** Download every month at once, for one bank or both (2026-11-23). Nobody holds it until an admin ticks it. */
+  EXPORT_ALL: 'export_all_card_receipts',
   MANAGE_CARDS: 'manage_company_cards',
   /** Upload Amex's activity export and see every charge matched to a receipt (src/utils/amexStatement.ts). */
   STATEMENTS: 'check_amex_statements',
@@ -206,6 +209,12 @@ export const usDate = (day: string) => (isDay(day) ? `${day.slice(5, 7)}-${day.s
 // ── Cards ───────────────────────────────────────────────────────────────────
 
 export const ISSUERS = Object.freeze([{ key: 'amex', label: 'American Express' }, { key: 'encore', label: 'Encore' }, { key: 'other', label: 'Other card' }]);
+/** The short bank name on the screen and in the Excel's Bank column. */
+export const issuerName = (issuer: string) => (issuer === 'encore' ? 'Encore' : issuer === 'other' ? 'Other card' : 'Amex');
+/** The Bank filter's choices (the Expenses list and its Excel); '' = every bank. */
+export const BANK_FILTERS = Object.freeze([{ key: 'amex', label: 'Amex' }, { key: 'encore', label: 'Encore' }]);
+/** Does an expense's card belong to the bank picked ('' = any)? An expense with no bank known is Amex's, the original card. */
+export const onBank = (e: { issuer?: string }, bank: string) => !bank || (e.issuer || 'amex') === bank;
 /** The card ID accounting already uses: first 4 letters of the name + the last 5 digits (MARU92069). */
 export const suggestCardLabel = (name: string, digits: string) =>
   `${String(name || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 4)}${String(digits || '').replace(/\D/g, '').slice(-5)}`;
@@ -478,7 +487,7 @@ export function statusTotals(list: readonly Countable[]) {
 // ── Excel ───────────────────────────────────────────────────────────────────
 
 export type ExportExpense = {
-  date: string; location: string; holderName: string; cardLabel: string; merchant: string; cents: number;
+  date: string; location: string; holderName: string; cardLabel: string; issuer?: string; merchant: string; cents: number;
   category: string; subcategory?: string; customerName?: string; attendees?: string[]; purpose?: string; receiptUrl?: string; lostReason?: string;
   status: string; approval?: { byName?: string; at?: string | Date; comment?: string } | null; note?: string; recurring?: boolean;
   voided?: unknown;
@@ -498,6 +507,7 @@ export function exportRows(list: readonly ExportExpense[], categories: readonly 
     'Credit Card Number': e.cardLabel || '',
     Description: (e.merchant || '').toUpperCase(),
     'Spent Amount': e.cents / 100,
+    Bank: e.issuer ? issuerName(e.issuer) : '',
     Category: label(e.category),
     'Sub-category': subLabel(categories.find((c) => c.name === e.category), e.subcategory || ''),
     Customer: e.customerName || '',

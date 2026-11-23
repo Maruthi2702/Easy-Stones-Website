@@ -35,7 +35,10 @@ export type ExpenseBody = ExpenseInput & { confirmRepeat?: boolean };
 export const loadMe = () => call<Me>('/me');
 export const listExpenses = (scope: 'mine' | 'all' | 'waiting', month: string) =>
   call<{ expenses: Expense[] }>('/expenses', { query: scope === 'waiting' ? { scope } : { scope, month } });
-export const addExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense; alreadySaved?: boolean; replacedMissing?: string }>('/expenses', { method: 'POST', body: { id, ...body } });
+/** Export all: every month for one bank ('amex' | 'encore') or both (''). Needs the Export all switch; `truncated` when the list hit its cap. */
+export const listAllExpenses = (bank: string) =>
+  call<{ expenses: Expense[]; truncated?: boolean }>('/expenses/export', { query: bank ? { bank } : {} });
+export const addExpense =(id: string, body: ExpenseBody) => call<{ expense: Expense; alreadySaved?: boolean; replacedMissing?: string }>('/expenses', { method: 'POST', body: { id, ...body } });
 export const editExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense }>(`/expenses/${id}`, { method: 'PUT', body });
 /** `seen`: the updatedAt the approver was looking at; the server refuses the decision if the receipt changed since. */
 export const approveExpense = (id: string, comment: string, seen?: string) => call<{ expense: Expense }>(`/expenses/${id}/approve`, { method: 'POST', body: { comment, expectedUpdatedAt: seen } });

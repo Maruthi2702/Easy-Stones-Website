@@ -151,6 +151,27 @@ describe('totals and the export', () => {
     expect(Object.keys(row!).slice(0, 6)).toEqual(['Transaction Date', 'Location', 'C C Holder Name', 'Credit Card Number', 'Description', 'Spent Amount']);
     expect(row).toMatchObject({ 'Transaction Date': '10-07-2026', Location: 'SEATTLE', 'C C Holder Name': 'MARUTHI PONUGUPATI', Description: 'CHEVRON', 'Spent Amount': 125, Category: 'Fuel', Receipt: 'Lost: Pump didn’t print one' });
   });
+  it('names the bank after the six columns, and only when it is known', () => {
+    const base = { date: '2026-10-07', location: 'Seattle', holderName: 'A', cardLabel: 'A1', merchant: 'Chevron', cents: 100, category: 'fuel', status: 'approved' };
+    const cols = (e: object) => Object.keys(exportRows([e as never], [])[0]!);
+    expect(cols({ ...base, issuer: 'encore' }).slice(5, 8)).toEqual(['Spent Amount', 'Bank', 'Category']);
+    expect(exportRows([{ ...base, issuer: 'encore' }], [])[0]!.Bank).toBe('Encore');
+    expect(exportRows([{ ...base, issuer: 'amex' }], [])[0]!.Bank).toBe('Amex');
+    expect(exportRows([base], [])[0]!.Bank).toBe('');
+  });
+  it('filters by bank: none picked keeps all, and an expense with no bank is Amex’s', async () => {
+    const { onBank } = await import('./cardReceipts');
+    expect(onBank({ issuer: 'encore' }, '')).toBe(true);
+    expect(onBank({ issuer: 'encore' }, 'encore')).toBe(true);
+    expect(onBank({ issuer: 'encore' }, 'amex')).toBe(false);
+    expect(onBank({}, 'amex')).toBe(true);
+    expect(onBank({}, 'encore')).toBe(false);
+  });
+  it('keeps Export and Export all as two switches', () => {
+    expect(CARD_RECEIPTS.EXPORT_ALL).toBe('export_all_card_receipts');
+    expect(CARD_RECEIPTS.EXPORT_ALL).not.toBe(CARD_RECEIPTS.EXPORT);
+    expect(canOpenReceipts({ permissions: [CARD_RECEIPTS.EXPORT_ALL] })).toBe(false);
+  });
   it('opens the page with any of its switches', () => {
     expect(canOpenReceipts({ permissions: [CARD_RECEIPTS.APPROVE] })).toBe(true);
     expect(canOpenReceipts({ permissions: [CARD_RECEIPTS.EXPORT] })).toBe(false);

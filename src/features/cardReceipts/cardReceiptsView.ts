@@ -1,5 +1,5 @@
 import { displayNameOf } from '../../utils/salesReps';
-import { missingFor, missingLine, statusTotals, subLabel } from '../../utils/cardReceipts';
+import { missingFor, missingLine, onBank, statusTotals, subLabel } from '../../utils/cardReceipts';
 import { ALL_PEOPLE, viewerLocations, workLocationsOf } from '../../utils/teamScope';
 import type { PersonOption } from '../../api/myTeam';
 import type { Loose } from '../../types/records';
@@ -13,8 +13,9 @@ export const categoryText = (categories: readonly Category[], e: { category: str
 
 /** What the Filters panel, the search box and the status tiles narrow the list to. */
 /** `people` is the cardholders ticked in the People filter; [] = everyone in view. */
-export type ReceiptFilters = { search: string; status: string; people: string[]; category: string };
-export const NO_FILTERS: ReceiptFilters = { search: '', status: 'all', people: [], category: '' };
+/** `bank`: '' (every bank), 'amex' or 'encore'. */
+export type ReceiptFilters = { search: string; status: string; people: string[]; category: string; bank: string };
+export const NO_FILTERS: ReceiptFilters = { search: '', status: 'all', people: [], category: '', bank: '' };
 
 export const categoryLabel = (categories: readonly Category[], name: string) =>
   categories.find((c) => c.name === name)?.label || (name ? name.replace(/_/g, ' ') : '');
@@ -26,7 +27,8 @@ export const categoryLabel = (categories: readonly Category[], name: string) =>
 export function visibleExpenses(list: readonly Expense[], f: ReceiptFilters, categories: readonly Category[]) {
   const base = list.filter((e) => !e.voided
     && (!f.people.length || f.people.includes(e.userId))
-    && (!f.category || e.category === f.category));
+    && (!f.category || e.category === f.category)
+    && onBank(e, f.bank));
   const q = f.search.trim().toLowerCase();
   const rows = base.filter((e) => (f.status === 'all' || e.status === f.status)
     && (!q || [e.merchant, e.holderName, e.cardLabel, e.note, e.purpose, e.customerName, categoryText(categories, e), e.location]

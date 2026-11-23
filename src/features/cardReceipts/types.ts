@@ -16,6 +16,7 @@ export type Decision = { by: string; byName: string; at: string; comment: string
 /** An expense as /api/card-receipts sends it (src/routes/cardReceipts.ts's `expenseView`). */
 export type Expense = {
   id: string; userId: string; holderName: string; cardId: string; cardLabel: string; location: string;
+  /** The bank of the card it's on ('amex' | 'encore' | 'other'). */ issuer: string;
   date: string; merchant: string; cents: number; subtotalCents: number | null; taxCents: number | null; tipCents: number | null;
   category: string; subcategory: string; customerId: string; customerName: string; attendees: string[]; purpose: string; note: string; recurring: boolean;
   receiptUrl: string; lostReason: string; status: string; approval: Decision | null; sentBack: Decision | null;

@@ -38,4 +38,6 @@ export type ExpenseFilter =
   /** `overCents`: also every waiting receipt above that total, whoever's it is (for the roles that decide big ones). */
   | { kind: 'waiting'; userIds: readonly string[]; overCents?: number }
   /** `userIds`: only these people's (a team); an empty list matches nobody. */
-  | { kind: 'month'; month: string; userId?: string; userIds?: readonly string[] };
+  | { kind: 'month'; month: string; userId?: string; userIds?: readonly string[] }
+  /** Every month (Export all): the same people rules as 'month', newest first, capped like it. */
+  | { kind: 'all'; userId?: string; userIds?: readonly string[] };
