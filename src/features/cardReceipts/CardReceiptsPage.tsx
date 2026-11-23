@@ -11,15 +11,18 @@ import usePeopleFilter from '../../components/shared/people/usePeopleFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import Pagination from '../../components/shared/Pagination';
 import { usePagination } from '../../components/shared/paginationConfig';
-import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, exportRows, formatMoney, holderMayEdit, onBank, monthLabel, shiftMonth, monthOf } from '../../utils/cardReceipts';
+import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, holderMayEdit, onBank, monthLabel, shiftMonth, monthOf } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
 import { listAllExpenses } from './cardReceiptsApi';
+import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
+import { writeExcel, writePdf } from './exportFiles';
 import { NO_FILTERS, holderPeople, statusLine, visibleExpenses, type ReceiptFilters } from './cardReceiptsView';
 import StatusTiles from './components/StatusTiles';
 import ExpenseList from './components/ExpenseList';
 import ExpenseDrawer from './components/ExpenseDrawer';
 import ExpenseForm from './components/ExpenseForm';
 import AddReceiptChoice from './components/AddReceiptChoice';
+import ExportDialog from './components/ExportDialog';
 import CameraCapture from './components/CameraCapture';
 import VoidExpenseForm from './components/VoidExpenseForm';
 import CardsPanel from './components/CardsPanel';
@@ -30,7 +33,7 @@ import './CardReceipts.css';
 export type CardReceiptsPageProps = { currentUser: ReceiptsUser | null; sidebarToggle?: ReactNode };
 
 type Tab = 'expenses' | 'waiting' | 'statements' | 'cards';
-type Open = { kind: 'choose' } | { kind: 'camera' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | null;
+type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | null;
 
 /**
  * Sales → Credit Card Receipts (2026-11-05). Design: the claude.ai
@@ -93,53 +96,26 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const patchFilters = (patch: Partial<ReceiptFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const filtered = Boolean(peopleFilter.active || filters.category || filters.bank || filters.status !== 'all');
 
-  const bankName = BANK_FILTERS.find((b) => b.key === filters.bank)?.label || '';
-  const bankSuffix = filters.bank ? `-${filters.bank}` : '';
-  /** A private receipt's link is this site's own address: it opens only for someone signed in who may see it. */
-  const writeExcel = async (list: Expense[], file: string) => {
-    const XLSX = await import('xlsx');
-    const withSite = (u: string) => (u.startsWith('/') ? `${window.location.origin}${u}` : u);
-    const ws = XLSX.utils.json_to_sheet(exportRows(list.map((e) => ({ ...e, receiptUrl: e.receiptUrl ? withSite(e.receiptUrl) : e.receiptUrl })), categories));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Card receipts');
-    XLSX.writeFile(wb, file);
-  };
-  // The list on screen: the month and every filter, the Card (bank) one included.
-  const exportExcel = async () => {
-    try {
-      await writeExcel(rows, `card-receipts-${tab === 'waiting' ? 'waiting' : data.month}${bankSuffix}.xlsx`);
-    } catch (e) {
-      say((e as Error).message || 'Could not build the file.');
-    }
-  };
-  // The month on screen for one bank, whatever the Card and other filters say.
-  const exportMonth = async (bank: string) => {
-    try {
-      await writeExcel(data.expenses.filter((e) => !e.voided && onBank(e, bank)), `card-receipts-${data.month}-${bank}.xlsx`);
-    } catch (e) {
-      say((e as Error).message || 'Could not build the file.');
-    }
-  };
-  // Every month for one bank ('' = both), straight from the More menu whatever the Card filter says:
-  // the server answers only with the Export all switch.
-  const exportAll = async (bank: string) => {
-    try {
+  // Export…: one pop-up (Card, Months, Format). "This month" is that month's receipts for the bank picked,
+  // whatever the other filters say; "All months" asks the server and needs the Export all switch.
+  // A failure is thrown back to the pop-up, which stays open and says so.
+  const runExport = async (c: ExportChoice) => {
+    const file = exportFileName(c, data.month || '');
+    if (c.months === 'all') {
       say('Getting every month…');
-      const res = await listAllExpenses(bank);
-      await writeExcel(res.expenses, `card-receipts-all${bank ? `-${bank}` : ''}.xlsx`);
+      const res = await listAllExpenses(c.bank);
+      await writeExcel(res.expenses, categories, file);
       say(res.truncated ? 'Too many to list: the file holds the newest ones only.' : `Downloaded ${res.expenses.filter((e) => !e.voided).length} expenses`);
-    } catch (e) {
-      say((e as Error).message || 'Could not build the file.');
+      return;
     }
+    const list = data.expenses.filter((e) => !e.voided && onBank(e, c.bank));
+    if (c.format === 'pdf') await writePdf(list, categories, exportScope(c, data.month ? monthLabel(data.month) : ''), file);
+    else await writeExcel(list, categories, file);
+    say(`Downloaded ${list.length} expenses`);
   };
-  const exportItems = [
-    ...(canExport ? [{ key: 'excel', label: bankName ? `Export this view (${bankName}) to Excel` : 'Export this view to Excel', icon: Download, onClick: exportExcel }] : []),
-    ...(canExport && tab === 'expenses' ? BANK_FILTERS.map((b) => ({ key: `excel-month-${b.key}`, label: `Export this month (${b.label} only)`, icon: Download, onClick: () => exportMonth(b.key) })) : []),
-    ...(canExportAll ? [
-      ...BANK_FILTERS.map((b) => ({ key: `excel-all-${b.key}`, label: `Export all months (${b.label} only)`, icon: Download, onClick: () => exportAll(b.key) })),
-      { key: 'excel-all', label: 'Export all months (Amex and Encore)', icon: Download, onClick: () => exportAll('') }
-    ] : [])
-  ];
+  const exportItems = canExport || canExportAll
+    ? [{ key: 'export', label: 'Export…', icon: Download, onClick: () => setOpen({ kind: 'export' }) }]
+    : [];
 
   const subtitle = tab === 'waiting' ? `Waiting for me · ${data.waiting.length} · ${formatMoney(data.waiting.reduce((s, e) => s + e.cents, 0))}`
     : tab === 'cards' ? 'Company cards'
@@ -340,6 +316,11 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             say(saved.status === 'waiting' ? 'Sent for approval' : 'Saved as a draft');
           }}
         />
+      ) : null}
+
+      {open?.kind === 'export' ? (
+        <ExportDialog month={data.month || ''} canExport={canExport} canExportAll={canExportAll} startBank={filters.bank}
+          onExport={runExport} onClose={() => setOpen(null)} />
       ) : null}
 
       {open?.kind === 'void' ? (

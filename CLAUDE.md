@@ -1456,8 +1456,16 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   (not written). **Not done:** the Cardholder filter, not the dashboard's People field, narrows the list.
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
-  sample statement), the daily reminder email, closing a month, the PDF export.
+  sample statement), the daily reminder email, closing a month.
   The `missing` status and `approvesCardReceiptsOf` already exist for them.
+- **Export… (2026-11-23, claude.ai artifact **Card Receipts Export Pop-up**, https://claude.ai/artifact/Kwi3UnW7tYAb7j56F6295p):**
+  the ⋯ menu has one item that opens `components/ExportDialog.tsx` — **Card** (Amex and Encore / Amex / Encore, starts on the
+  Filters panel's Card), **Months** (This month / All months; hidden without Export all) and **Format** (Excel / PDF). Rules in
+  `src/utils/cardReceiptsExport.ts` (tested): This month needs Export, All months needs Export all, and **a PDF is one month
+  only** (PDF and All months grey each other out). "This month" is the month's receipts for the bank, ignoring the other
+  filters (the old "Export this view" is gone, my call — owner unanswered). The PDF (`src/utils/cardReceiptsPdf.ts`, pdf-lib in
+  the browser, same rows as the Excel minus the link / approver / notes columns, 2,000-line cap, total of the whole month) is
+  written by `exportFiles.ts`. Never opened in a real PDF reader yet.
 
 **The Amex check** (2026-11-20, on `feat/amex-check`; owner's answers that day — it replaces the
 weekly PDF plan): Credit Card Receipts → **Statements** tab (switch `check_amex_statements`,

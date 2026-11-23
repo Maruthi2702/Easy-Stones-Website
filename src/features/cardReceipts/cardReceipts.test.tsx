@@ -85,28 +85,36 @@ describe('the Credit Card Receipts page', () => {
     expect(dialog.querySelector('.lf-badge')?.textContent).toBe('1');
   });
 
-  it('offers Export all months only with its own switch', async () => {
-    const menu = async (permissions: string[]) => {
+  it('has one Export… item that opens a pop-up whose choices follow the two switches', async () => {
+    const popup = async (permissions: string[]) => {
       await show(permissions);
       const more = screen.queryByRole('button', { name: 'More' });
-      if (more) { fireEvent.click(more); await settle(); }
-      const t = text();
+      if (!more) { cleanup(); return null; }
+      fireEvent.click(more);
+      await settle();
+      const items = [...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent);
+      fireEvent.click(screen.getByText('Export…'));
+      await settle();
+      const out = {
+        items,
+        card: Boolean(document.getElementById('ccr-ex-bank')),
+        months: Boolean(document.getElementById('ccr-ex-months')),
+        format: Boolean(document.getElementById('ccr-ex-format')),
+        text: text()
+      };
       cleanup();
-      return t;
+      return out;
     };
-    const both = await menu(['view_all_card_receipts', 'export_card_receipts', 'export_all_card_receipts']);
-    expect(both).toContain('Export this view to Excel');
-    expect(both).toContain('Export all months (Amex and Encore)');
-    expect(both).toContain('Export this month (Amex only)');
-    expect(both).toContain('Export this month (Encore only)');
-    expect(both).toContain('Export all months (Amex only)');
-    expect(both).toContain('Export all months (Encore only)');
-    const viewOnly = await menu(['view_all_card_receipts', 'export_card_receipts']);
-    expect(viewOnly).toContain('Export this view to Excel');
-    expect(viewOnly).not.toContain('Export all months');
-    const allOnly = await menu(['view_all_card_receipts', 'export_all_card_receipts']);
-    expect(allOnly).toContain('Export all months');
-    expect(allOnly).not.toContain('Export this view');
+    const both = await popup(['view_all_card_receipts', 'export_card_receipts', 'export_all_card_receipts']);
+    expect(both!.items).toEqual(['Export…']);
+    expect(both).toMatchObject({ card: true, months: true, format: true });
+    expect(both!.text).toContain('card-receipts-2026-10.xlsx');
+    const monthOnly = await popup(['view_all_card_receipts', 'export_card_receipts']);
+    expect(monthOnly).toMatchObject({ card: true, months: false, format: true });
+    const allOnly = await popup(['view_all_card_receipts', 'export_all_card_receipts']);
+    expect(allOnly).toMatchObject({ card: true, months: true, format: true });
+    expect(allOnly!.text).toContain('card-receipts-all.xlsx');
+    expect(await popup(['view_all_card_receipts'])).toBeNull();
   });
 
   it('lets an approver open a lost receipt and approve it only with a comment', async () => {
