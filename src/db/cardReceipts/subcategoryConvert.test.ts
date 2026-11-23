@@ -54,7 +54,7 @@ describe('moving the old categories onto Gas and Food', () => {
     expect(r.moves.map(m => m.expenses)).toEqual([2, 1, 1]);
     const cats = await catsByName();
     expect((cats.gas!.subcategories as { name: string; isDefault: boolean }[]).map(s => [s.name, s.isDefault])).toEqual([['car', true], ['truck', false], ['van', false], ['forklift', false]]);
-    expect((cats.food!.subcategories as { name: string; fields: { customer: boolean; attendees: boolean } }[]).map(s => [s.name, s.fields.customer, s.fields.attendees]))
+    expect((cats.food!.subcategories as { name: string; fields: { customer: boolean; note: boolean } }[]).map(s => [s.name, s.fields.customer, s.fields.note]))
       .toEqual([['travel_lunch', false, false], ['customer_lunch', true, false], ['office_team_lunch', false, false]]);
     expect([cats.fuel!.active, cats.travel_lunch!.active, cats.customer_lunch!.active, cats.parking!.active]).toEqual([false, false, false, true]);
     expect(await expenseOf(1)).toMatchObject({ category: 'gas', subcategory: 'car', status: 'approved' });

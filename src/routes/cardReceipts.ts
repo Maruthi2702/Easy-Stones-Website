@@ -79,10 +79,10 @@ const anyOf = (...perms: readonly string[]) => (req: Request, res: Response, nex
 
 const categoryView = (c: Loose) => ({
   _id: String(c._id), name: c.name, label: c.label, order: c.order ?? 0, active: c.active !== false,
-  fields: { customer: Boolean(c.fields?.customer), attendees: Boolean(c.fields?.attendees), purpose: Boolean(c.fields?.purpose), recurring: Boolean(c.fields?.recurring) },
+  fields: { customer: Boolean(c.fields?.customer), note: Boolean(c.fields?.note), recurring: Boolean(c.fields?.recurring) },
   subcategories: ((c.subcategories || []) as Loose[]).map((s) => ({
     name: String(s.name), label: String(s.label), active: s.active !== false, isDefault: Boolean(s.isDefault),
-    fields: { customer: Boolean(s.fields?.customer), attendees: Boolean(s.fields?.attendees), purpose: Boolean(s.fields?.purpose), recurring: Boolean(s.fields?.recurring) }
+    fields: { customer: Boolean(s.fields?.customer), note: Boolean(s.fields?.note), recurring: Boolean(s.fields?.recurring) }
   }))
 });
 const cardView = (c: Loose) => ({ _id: String(c._id), userId: c.userId, label: c.label, issuer: c.issuer, lastDigits: c.lastDigits, amexName: c.amexName || '', location: c.location || '', active: c.active !== false });
@@ -247,10 +247,10 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
           return res.status(409).json({ message: `${uses} expense${uses === 1 ? ' uses' : 's use'} it. Choose a shown category to move them to.`, uses });
         }
         // Approved receipts are history: if the new category asks for something they don't have (a customer,
-        // who attended…), moving them would leave approved receipts that fail its rules. Hide the category instead.
+        // a note…), moving them would leave approved receipts that fail its rules. Hide the category instead.
         const targetView = categoryView(target);
         const approved = await db.approvedInCategory(category.name);
-        const failing = approved.filter((e) => Object.keys(missingFor({ receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || '', category: target.name, customerId: e.customerId || '', attendees: e.attendees || [], purpose: e.purpose || '', subcategory: '' }, targetView)).length);
+        const failing = approved.filter((e) => Object.keys(missingFor({ receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || '', category: target.name, customerId: e.customerId || '', note: e.note || '', subcategory: '' }, targetView)).length);
         if (failing.length) {
           // Approved history keeps its category: the category is hidden (never offered for new receipts) instead of deleted.
           await db.changeCategory(id, { active: false });

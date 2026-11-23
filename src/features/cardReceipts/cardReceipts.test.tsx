@@ -35,6 +35,7 @@ const answer = (url: string, init?: RequestInit) => {
     return ok({ expense: exp(body.id || 'new', { merchant: body.merchant, cents: Math.round(Number(body.total) * 100), date: body.date, status: body.category ? 'waiting' : 'draft' }) });
   }
   if (/\/me$/.test(u)) return ok({ user: { id: 'u1', name: 'Maruthi Ponugupati', location: 'Seattle' }, card: fake.card ? { _id: 'c1', userId: 'u1', label: 'MARU92069', issuer: 'amex', lastDigits: '92069', active: true } : null, categories: CATEGORIES, approverRoles: ['manager'], today: '2026-10-20' });
+  if (/\/categories$/.test(u)) return ok({ categories: CATEGORIES });
   if (/scope=waiting/.test(u)) return ok({ expenses: WAITING });
   if (/scope=all/.test(u)) return ok({ expenses: EXPENSES });
   if (/scope=mine/.test(u)) return ok({ expenses: EXPENSES.filter((e) => e.mine) });
@@ -242,5 +243,39 @@ describe('the sub-category on Add / Edit receipt', () => {
     await open(exp('g3', { category: 'gas', subcategory: '', status: 'draft' }));
     expect(text()).toContain('Sub-category');
     expect(text()).not.toContain('Still to do');
+  });
+});
+
+describe('a category that needs a note (2026-11-23)', () => {
+  const TRAVEL = { _id: 'k11', name: 'travel', label: 'Travel', order: 5, active: true, fields: { customer: false, note: true, recurring: false }, subcategories: [] };
+  const open = async (expense: ReturnType<typeof exp>) => {
+    const { default: ExpenseForm } = await import('./components/ExpenseForm');
+    render(<ExpenseForm expense={expense as never} cardLabel="MARU92069" holderName="Maruthi Ponugupati" today="2026-10-20"
+      categories={[...CATEGORIES, TRAVEL] as never} upload={async () => ({ url: '' })} onSave={async () => undefined} onClose={() => {}} />);
+    await settle();
+  };
+  const noteMark = () => document.getElementById('ccr-note')?.closest('.fm-field')?.querySelector('.fm-req');
+
+  it('marks the Note required under that category only', async () => {
+    await open(exp('t1', { category: 'travel', note: '', status: 'draft' }));
+    expect(noteMark()).toBeTruthy();
+    cleanup();
+    await open(exp('t2', { category: 'fuel', note: '', status: 'draft' }));
+    expect(document.getElementById('ccr-note')).toBeTruthy();
+    expect(noteMark()).toBeFalsy();
+  });
+
+  it('is set in the category editor, which no longer offers Who attended or Business purpose', async () => {
+    const { default: ReceiptCategoriesPage } = await import('./categories/ReceiptCategoriesPage');
+    render(<ReceiptCategoriesPage currentUser={{ _id: 'u1', displayName: 'Karunakar', permissions: ['add_receipt_categories'] } as never} />);
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: /Add category/ }));
+    await settle();
+    expect(text()).toContain('Required on every receipt in this category');
+    expect(screen.getByLabelText('Note')).toBeTruthy();
+    expect(screen.getByLabelText('Customer (from the customer list)')).toBeTruthy();
+    expect(screen.getByLabelText('Can be marked recurring')).toBeTruthy();
+    expect(text()).not.toContain('Who attended');
+    expect(text()).not.toContain('Business purpose');
   });
 });

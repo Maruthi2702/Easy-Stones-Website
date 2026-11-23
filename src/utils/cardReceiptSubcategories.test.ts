@@ -61,8 +61,7 @@ describe('types on a category', () => {
     expect(fieldsOf(FOOD, 'customer_lunch').customer).toBe(true);
     expect(fieldsOf(FOOD, 'travel_lunch').customer).toBe(false);
     expect(fieldsOf(FOOD).customer).toBe(false);
-    // "Who attended" was taken out for now (owner, 2026-11-20).
-    expect(fieldsOf(FOOD, 'customer_lunch').attendees).toBe(false);
+    expect(fieldsOf(FOOD, 'customer_lunch').note).toBe(false);
   });
 });
 
@@ -87,10 +86,9 @@ describe('an expense with a type', () => {
     expect(cleanExpense({ ...base, category: 'parking', subcategory: 'car' }, { today: TODAY, categories: PLAIN }).value!.subcategory).toBe('');
   });
 
-  it('Customer Lunch needs the customer and drops who attended; Office Team Lunch needs nothing extra', () => {
-    const lunch = cleanExpense({ ...base, category: 'food', subcategory: 'customer_lunch', attendees: ['A'] }, { today: TODAY, categories: [FOOD] });
+  it('Customer Lunch needs the customer; Office Team Lunch needs nothing extra', () => {
+    const lunch = cleanExpense({ ...base, category: 'food', subcategory: 'customer_lunch' }, { today: TODAY, categories: [FOOD] });
     expect(lunch.missing.customer).toBeDefined();
-    expect(lunch.value!.attendees).toEqual([]);
     const office = cleanExpense({ ...base, category: 'food', subcategory: 'office_team_lunch', customerId: 'c1' }, { today: TODAY, categories: [FOOD] });
     expect(office.value!.customerId).toBe('');
     expect(office.missing).toEqual({});

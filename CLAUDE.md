@@ -1373,7 +1373,9 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   "Save anyway" (`confirmRepeat`).
 - **Draft → Waiting for approval → Approved**, or **Sent back** with a comment.
   Complete = a receipt or a **lost-receipt reason**, a category, and the
-  category's own fields (customer, who attended, purpose); until then it saves
+  category's own fields (customer, and a **note** when the category requires one — 2026-11-23: a category's
+  "Required on every receipt" ticks are Customer and Note; Who attended and Business purpose were removed, old receipts keep
+  theirs and nothing asks for them; Postgres `receipt_categories.needs_note`, migration `0031`); until then it saves
   as a draft. Approved can't be edited; voided with a reason, never deleted.
 - **Approval by role** (owner): each role lists the roles whose receipts it
   approves — `Role.approvesCardReceiptsOf`, ticked under Roles & Permissions

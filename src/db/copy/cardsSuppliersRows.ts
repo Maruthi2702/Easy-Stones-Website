@@ -81,7 +81,7 @@ export function companyCardRowOf(d: Loose, ref: ReferenceIndex, problems: CopyPr
 /** A category's types as stored: [{ name, label, active, isDefault, fields }], in order, kept whole. */
 const subcategoriesOf = (v: unknown) => (Array.isArray(v) ? v : []).map((s) => {
   const o = obj(s), f = obj(o.fields);
-  return { name: textOf(o.name), label: textOf(o.label), active: boolOf(o.active, true), isDefault: boolOf(o.isDefault), fields: { customer: boolOf(f.customer), attendees: boolOf(f.attendees), purpose: boolOf(f.purpose), recurring: boolOf(f.recurring) } };
+  return { name: textOf(o.name), label: textOf(o.label), active: boolOf(o.active, true), isDefault: boolOf(o.isDefault), fields: { customer: boolOf(f.customer), note: boolOf(f.note), recurring: boolOf(f.recurring) } };
 }).filter((s) => s.name);
 
 /** The row for one receipt category, or null when it has no id. */
@@ -92,7 +92,7 @@ export function receiptCategoryRowOf(d: Loose, problems: CopyProblem[]): Row<typ
   const f = obj(d.fields);
   return {
     id, name: textOf(d.name), label: textOf(d.label), order: intOf(c, 'order', d.order) ?? 0, active: boolOf(d.active, true),
-    needsCustomer: boolOf(f.customer), needsAttendees: boolOf(f.attendees), needsPurpose: boolOf(f.purpose),
+    needsCustomer: boolOf(f.customer), needsAttendees: false, needsPurpose: false, needsNote: boolOf(f.note),
     needsRecurring: boolOf(f.recurring), subcategories: subcategoriesOf(d.subcategories), updatedBy: textOf(d.updatedBy), ...stamp(c, d)
   };
 }

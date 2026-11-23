@@ -10,12 +10,17 @@ import * as api from '../cardReceiptsApi';
 import type { Category, ReceiptsUser, Subcategory } from '../types';
 import '../CardReceipts.css';
 
-const ASKS: { key: keyof CategoryFields; label: string; long: string }[] = [
-  { key: 'customer', label: 'Customer', long: 'Customer (from the customer list)' },
-  { key: 'attendees', label: 'Who attended', long: 'Who attended' },
-  { key: 'purpose', label: 'Business purpose', long: 'Business purpose' },
+type Ask = { key: keyof CategoryFields; label: string; long: string };
+/** Ticked = the cardholder can't send the receipt without it (2026-11-23: Note added; Who attended and Business purpose removed). */
+const REQUIRED_ASKS: Ask[] = [
+  { key: 'customer', label: 'Customer required', long: 'Customer (from the customer list)' },
+  { key: 'note', label: 'Note required', long: 'Note' }
+];
+/** Ticked = the form shows it; nothing is required. */
+const OPTIONAL_ASKS: Ask[] = [
   { key: 'recurring', label: 'Can be recurring', long: 'Can be marked recurring' }
 ];
+const ASKS: Ask[] = [...REQUIRED_ASKS, ...OPTIONAL_ASKS];
 
 type SubDraft = { name?: string; label: string; active: boolean; isDefault: boolean; fields: CategoryFields };
 
@@ -114,14 +119,16 @@ function CategoryForm({ category, all, onSave, onClose }: {
         <FormField name="label" id="ccr-cat-name" label="Name" required error={submitted ? problems.label : ''}>
           <input id="ccr-cat-name" className="fm-input" maxLength={60} autoComplete="off" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Customer Lunch" />
         </FormField>
-        <fieldset style={{ border: 0, margin: 0, padding: 0, display: 'grid', gap: 10 }}>
-          <legend className="fm-label" style={{ marginBottom: 8 }}>When a receipt uses it, also ask for</legend>
-          {ASKS.map((a) => (
-            <label key={a.key} className="ccr-check">
-              <input type="checkbox" checked={fields[a.key]} onChange={(e) => setFields((f) => ({ ...f, [a.key]: e.target.checked }))} /> {a.long}
-            </label>
-          ))}
-        </fieldset>
+        {([['Required on every receipt in this category', REQUIRED_ASKS], ['Optional', OPTIONAL_ASKS]] as const).map(([legend, asks]) => (
+          <fieldset key={legend} style={{ border: 0, margin: 0, padding: 0, display: 'grid', gap: 10 }}>
+            <legend className="fm-label" style={{ marginBottom: 8 }}>{legend}</legend>
+            {asks.map((a) => (
+              <label key={a.key} className="ccr-check">
+                <input type="checkbox" checked={fields[a.key]} onChange={(e) => setFields((f) => ({ ...f, [a.key]: e.target.checked }))} /> {a.long}
+              </label>
+            ))}
+          </fieldset>
+        ))}
         <FormField name="subcategories" id="ccr-cat-subs" label="Sub-categories" error={submitted ? problems.subcategories : ''}>
           <SubcategoryEditor value={subs} onChange={setSubs} />
         </FormField>

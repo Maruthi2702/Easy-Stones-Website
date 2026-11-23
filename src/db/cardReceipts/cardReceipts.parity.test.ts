@@ -135,13 +135,13 @@ describe('categories', () => {
 
   it('adds, renames, hides and reorders with the Admin switches only', async () => {
     expect((await same(REP, a => a.post('/categories', { label: 'Travel' }))).status).toBe(403);
-    const added = await same(ACCOUNTING, a => a.post('/categories', { label: 'Travel', fields: { purpose: true, recurring: true } }));
-    expect(added.body.category).toMatchObject({ name: 'travel', order: 6, fields: { purpose: true, recurring: true } });
+    const added = await same(ACCOUNTING, a => a.post('/categories', { label: 'Travel', fields: { note: true, recurring: true } }));
+    expect(added.body.category).toMatchObject({ name: 'travel', order: 6, fields: { note: true, recurring: true } });
     expect((await same(ACCOUNTING, a => a.post('/categories', { label: 'fuel' }))).status).toBe(400);
     const id = added.body.category._id;
     const renamed = await same(ACCOUNTING, a => a.put(`/categories/${id}`, { label: 'Travel & Hotels', active: false }));
     expect(renamed.body.category).toMatchObject({ name: 'travel', label: 'Travel & Hotels', active: false });
-    await same(ACCOUNTING, a => a.put(`/categories/${id}`, { label: 'Travel & Hotels', fields: { customer: true, attendees: true } }));
+    await same(ACCOUNTING, a => a.put(`/categories/${id}`, { label: 'Travel & Hotels', fields: { customer: true, note: true } }));
     expect((await same(ACCOUNTING, a => a.put(`/categories/${nextId()}`, { label: 'Nope' }))).status).toBe(404);
     const order = (await same(ACCOUNTING, a => a.get('/categories'))).body.categories.map((c: Loose) => c._id).reverse();
     const reordered = await same(ACCOUNTING, a => a.patch('/categories/reorder', { ids: order }));
@@ -317,7 +317,7 @@ describe('the starting list, on an empty Postgres', () => {
     await seedCategories(empty.db, docs);
     await seedCategories(empty.db, docs.map(d => ({ ...d, _id: randomBytes(12).toString('hex') })));
     const list = await listCategories(empty.db);
-    expect(list.map(c => [c.name, c.label, c.order, c.active, c.fields])).toEqual(docs.map(d => [d.name, d.label, d.order, true, { customer: false, attendees: false, purpose: false, recurring: false, ...d.fields }]));
+    expect(list.map(c => [c.name, c.label, c.order, c.active, c.fields])).toEqual(docs.map(d => [d.name, d.label, d.order, true, { customer: false, note: false, recurring: false, ...d.fields }]));
     await empty.close();
   });
 });

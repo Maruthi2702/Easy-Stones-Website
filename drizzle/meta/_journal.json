@@ -218,6 +218,13 @@
       "when": 1795384425126,
       "tag": "0030_user_phone",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795462856733,
+      "tag": "0031_receipt_category_note",
+      "breakpoints": true
     }
   ]
 }

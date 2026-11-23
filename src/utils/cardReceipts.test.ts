@@ -7,9 +7,9 @@ import {
 
 const CATS: CategoryLike[] = [
   { name: 'travel_lunch', label: 'Travel Lunch' },
-  { name: 'customer_lunch', label: 'Customer Lunch', fields: { customer: true, attendees: true } },
+  { name: 'customer_lunch', label: 'Customer Lunch', fields: { customer: true } },
   { name: 'software_and_subscriptions', label: 'Software & Subscriptions', fields: { recurring: true } },
-  { name: 'travel', label: 'Travel', fields: { purpose: true } }
+  { name: 'travel', label: 'Travel', fields: { note: true } }
 ];
 const TODAY = '2026-11-05';
 const base = { date: '2026-10-03', merchant: "McDonald's, Kent", total: '14.32', category: 'travel_lunch', receiptUrl: 'https://res.cloudinary.com/x/r.webp' };
@@ -23,8 +23,10 @@ describe('categories', () => {
     expect(cleanCategory({ label: '' }, []).problems.label).toBeTruthy();
     expect(cleanCategory({ label: 'fuel' }, [{ _id: 'a', label: 'Fuel' }]).problems.label).toMatch(/already/);
     expect(cleanCategory({ label: 'Fuel' }, [{ _id: 'a', label: 'Fuel' }], 'a').value?.label).toBe('Fuel');
-    expect(cleanCategory({ label: 'Gifts', fields: { customer: true, attendees: 'yes' } }, []).value?.fields)
-      .toEqual({ customer: true, attendees: false, purpose: false, recurring: false });
+    expect(cleanCategory({ label: 'Gifts', fields: { customer: true, note: 'yes', attendees: true, purpose: true } }, []).value?.fields)
+      .toEqual({ customer: true, note: false, recurring: false });
+    expect(cleanCategory({ label: 'Gifts', fields: { note: true } }, []).value?.fields)
+      .toEqual({ customer: false, note: true, recurring: false });
   });
 });
 
@@ -71,11 +73,25 @@ describe('an expense', () => {
   });
   it('asks a category’s extra fields and drops the ones another category doesn’t use', () => {
     const lunch = cleanExpense({ ...base, category: 'customer_lunch', customerId: '', recurring: true }, { today: TODAY, categories: CATS });
-    expect(Object.keys(lunch.missing)).toEqual(['customer', 'attendees']);
+    expect(Object.keys(lunch.missing)).toEqual(['customer']);
     expect(lunch.value?.recurring).toBe(false);
-    const travel = cleanExpense({ ...base, category: 'travel_lunch', customerId: 'c1', attendees: ['A'] }, { today: TODAY, categories: CATS });
-    expect(travel.value).toMatchObject({ customerId: '', attendees: [] });
-    expect(missingFor({ ...travel.value!, category: 'travel', purpose: '' }, CATS[3])).toEqual({ purpose: 'Say what it was for' });
+    const travel = cleanExpense({ ...base, category: 'travel_lunch', customerId: 'c1' }, { today: TODAY, categories: CATS });
+    expect(travel.value).toMatchObject({ customerId: '' });
+  });
+  it('a category that requires a note holds the receipt as a draft until one is written', () => {
+    const none = cleanExpense({ ...base, category: 'travel', note: '' }, { today: TODAY, categories: CATS });
+    expect(none.missing).toEqual({ note: 'Add a note' });
+    expect(missingLine(none.missing)).toBe('Add a note');
+    expect(cleanExpense({ ...base, category: 'travel', note: '   ' }, { today: TODAY, categories: CATS }).missing).toEqual({ note: 'Add a note' });
+    expect(cleanExpense({ ...base, category: 'travel', note: 'Hotel for the Boise show' }, { today: TODAY, categories: CATS }).missing).toEqual({});
+    // Other categories never ask for one.
+    expect(cleanExpense({ ...base, note: '' }, { today: TODAY, categories: CATS }).missing).toEqual({});
+    expect(missingFor({ ...none.value!, note: '' }, CATS[3])).toEqual({ note: 'Add a note' });
+  });
+  it('keeps who attended / a purpose a receipt already carries, though nothing asks for them any more', () => {
+    const old = cleanExpense({ ...base, category: 'customer_lunch', customerId: 'c1', attendees: ['A', 'B'], purpose: 'Quote review' }, { today: TODAY, categories: CATS });
+    expect(old.value).toMatchObject({ attendees: ['A', 'B'], purpose: 'Quote review' });
+    expect(Object.keys(old.missing)).toEqual([]);
   });
   it('takes a lost-receipt reason instead of a photo, never both', () => {
     const lost = cleanExpense({ ...base, receiptUrl: '', lostReason: 'Pump didn’t print one' }, { today: TODAY, categories: CATS });

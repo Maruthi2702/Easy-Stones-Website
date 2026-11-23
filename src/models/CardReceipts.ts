@@ -31,8 +31,7 @@ const receiptCategorySchema = new mongoose.Schema({
   active: { type: Boolean, default: true },
   fields: {
     customer: { type: Boolean, default: false },
-    attendees: { type: Boolean, default: false },
-    purpose: { type: Boolean, default: false },
+    note: { type: Boolean, default: false },
     recurring: { type: Boolean, default: false }
   },
   // The types under it, in order; `name` never changes and one shown type is the default.
@@ -44,8 +43,7 @@ const receiptCategorySchema = new mongoose.Schema({
       isDefault: { type: Boolean, default: false },
       fields: {
         customer: { type: Boolean, default: false },
-        attendees: { type: Boolean, default: false },
-        purpose: { type: Boolean, default: false },
+        note: { type: Boolean, default: false },
         recurring: { type: Boolean, default: false }
       }
     }, { _id: false })],

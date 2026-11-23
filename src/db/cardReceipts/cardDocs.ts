@@ -16,7 +16,7 @@ export function cardDoc(c: typeof companyCards.$inferSelect): Loose {
 export function categoryDoc(c: typeof receiptCategories.$inferSelect): Loose {
   return {
     _id: c.id, name: c.name, label: c.label, order: c.order, active: c.active,
-    fields: { customer: c.needsCustomer, attendees: c.needsAttendees, purpose: c.needsPurpose, recurring: c.needsRecurring },
+    fields: { customer: c.needsCustomer, note: c.needsNote, recurring: c.needsRecurring },
     subcategories: c.subcategories,
     updatedBy: c.updatedBy, createdAt: c.createdAt, updatedAt: c.updatedAt
   };

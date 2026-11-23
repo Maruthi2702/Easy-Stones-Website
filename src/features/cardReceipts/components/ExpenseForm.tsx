@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
 import BillCard, { type BillField, type BillValues } from './BillCard';
 import BillDetailsEdit from './BillDetailsEdit';
 import ReceiptPreview from './ReceiptPreview';
@@ -28,7 +27,7 @@ const fromExpense = (e: Expense): Values => ({
   purpose: e.purpose, note: e.note, recurring: e.recurring, receiptUrl: e.receiptUrl, lostReason: e.lostReason
 });
 
-const LABELS = { receipt: 'Receipt', lostReason: 'Why there’s no receipt', date: 'Date', merchant: 'Merchant', total: 'Total', subtotal: 'Subtotal', tax: 'Tax', tip: 'Tip', category: 'Category', subcategory: 'Sub-category', customer: 'Customer', attendees: 'Who attended', purpose: 'Business purpose' };
+const LABELS = { receipt: 'Receipt', lostReason: 'Why there’s no receipt', date: 'Date', merchant: 'Merchant', total: 'Total', subtotal: 'Subtotal', tax: 'Tax', tip: 'Tip', category: 'Category', subcategory: 'Sub-category', customer: 'Customer', note: 'Note' };
 /** The fields on the Edit bill details screen (the pencil); the rest are on the form itself. */
 const BILL_FIELDS: readonly BillField[] = ['merchant', 'date', 'total', 'subtotal', 'tax', 'tip'];
 const isBillField = (k: string): k is BillField => (BILL_FIELDS as readonly string[]).includes(k);
@@ -70,7 +69,7 @@ export type ExpenseFormProps = {
  * (src/utils/receiptScan.ts); the card says which, so they get checked, and
  * when merchant or total are still blank the edit screen opens for them.
  */
-export default function ExpenseForm({ expense, startLost = false, initialFile = null, cardLabel, holderName, categories, today, upload, scan, onSave, onClose }: ExpenseFormProps) {
+export default function ExpenseForm({ expense, startLost = false, initialFile = null, cardLabel, categories, today, upload, scan, onSave, onClose }: ExpenseFormProps) {
   const editing = Boolean(expense);
   const start = useMemo(() => (expense ? fromExpense(expense) : blank(today)), [expense, today]);
   const [values, setValues] = useState<Values>(start);
@@ -81,7 +80,6 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const [serverError, setServerError] = useState('');
   const [serverProblems, setServerProblems] = useState<ExpenseProblems>({});
   const [repeat, setRepeat] = useState<{ merchant: string; date: string; cents: number } | null>(null);
-  const [person, setPerson] = useState('');
   // Which screen of the window: the form, or Edit bill details (the pencil).
   const [view, setView] = useState<'form' | 'bill'>('form');
   const [billStart, setBillStart] = useState<BillValues | null>(null);
@@ -190,13 +188,6 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
         askForDetails(after, image);
       }
     }
-  };
-
-  const addPerson = () => {
-    const name = person.trim();
-    if (!name || values.attendees.includes(name)) { setPerson(''); return; }
-    set({ attendees: [...values.attendees, name] });
-    setPerson('');
   };
 
   const submit = async (confirmRepeat = false) => {
@@ -317,33 +308,10 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
                   searchPlaceholder="Search name, city or contact" sheetTitle="Customer" keepInForm />
               </FormField>
             ) : null}
-            {fields.attendees ? (
-              <FormField name="attendees" id="ccr-person" label="Who attended" required error={submitted ? check.missing.attendees : ''}>
-                {values.attendees.length ? (
-                  <div className="ccr-people" style={{ marginBottom: 8 }}>
-                    {values.attendees.map((a) => (
-                      <span key={a} className="ccr-person">{a}
-                        <button type="button" aria-label={`Remove ${a}`} onClick={() => set({ attendees: values.attendees.filter((x) => x !== a) })}><X size={14} /></button>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="ccr-add-person">
-                  <input id="ccr-person" className="fm-input" autoComplete="off" maxLength={80} placeholder={values.attendees.length ? 'Add another name' : `${holderName}, and who else?`}
-                    value={person} onChange={(e) => setPerson(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPerson(); } }} />
-                  <button type="button" className="fm-btn fm-btn-small" onClick={addPerson} disabled={!person.trim()}>Add</button>
-                </div>
-              </FormField>
-            ) : null}
-            {fields.purpose ? (
-              <FormField name="purpose" id="ccr-purpose" label="Business purpose" required error={submitted ? check.missing.purpose : ''}>
-                <textarea id="ccr-purpose" className="fm-input fm-textarea" rows={2} maxLength={500} autoCapitalize="sentences" value={values.purpose} onChange={(e) => set({ purpose: e.target.value })} />
-              </FormField>
-            ) : null}
             {fields.recurring ? (
               <label className="ccr-check"><input type="checkbox" checked={values.recurring} onChange={(e) => set({ recurring: e.target.checked })} /> Recurring every month</label>
             ) : null}
-            <FormField id="ccr-note" label="Note">
+            <FormField name="note" id="ccr-note" label="Note" required={fields.note} error={submitted ? check.missing.note : ''}>
               <textarea id="ccr-note" className="fm-input fm-textarea" rows={2} maxLength={500} autoCapitalize="sentences" placeholder="Anything the approver should know" value={values.note} onChange={(e) => set({ note: e.target.value })} />
             </FormField>
           </FormSection>

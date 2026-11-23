@@ -100,7 +100,7 @@ describe('categories', () => {
   it('seeds the starting list once and lists it to anyone who can open the page', async () => {
     const res = await as(REP).get('/categories').expect(200);
     expect(res.body.categories.map((c: Loose) => c.label)).toEqual(['Travel Lunch', 'Customer Lunch', 'Office Supplies', 'Fuel', 'Parking', 'Software & Subscriptions']);
-    expect(res.body.categories[1].fields).toMatchObject({ customer: true, attendees: true });
+    expect(res.body.categories[1].fields).toEqual({ customer: true, note: false, recurring: false });
     await as(REP).get('/categories').expect(200);
     expect(await ReceiptCategory.countDocuments()).toBe(6);
     await as(NOBODY).get('/categories').expect(403);
@@ -108,8 +108,8 @@ describe('categories', () => {
 
   it('adds, renames, hides and reorders with the Admin switches only', async () => {
     await as(REP).post('/categories', { label: 'Travel' }).expect(403);
-    const added = await as(ACCOUNTING).post('/categories', { label: 'Travel', fields: { purpose: true } }).expect(201);
-    expect(added.body.category).toMatchObject({ name: 'travel', order: 6, fields: { purpose: true } });
+    const added = await as(ACCOUNTING).post('/categories', { label: 'Travel', fields: { note: true } }).expect(201);
+    expect(added.body.category).toMatchObject({ name: 'travel', order: 6, fields: { customer: false, note: true, recurring: false } });
     await as(ACCOUNTING).post('/categories', { label: 'fuel' }).expect(400);
     const renamed = await as(ACCOUNTING).put(`/categories/${added.body.category._id}`, { label: 'Travel & Hotels', active: false }).expect(200);
     expect(renamed.body.category).toMatchObject({ name: 'travel', label: 'Travel & Hotels', active: false });
@@ -438,8 +438,8 @@ describe('sub-categories', () => {
   it('Customer Lunch asks for the customer only, and a moved category clears the type', async () => {
     const gas = await makeGas();
     const food = await as(ACCOUNTING).post('/categories', { label: 'Food', subcategories: [{ label: 'Travel Lunch' }, { label: 'Customer Lunch', fields: { customer: true } }, { label: 'Office Team Lunch' }] }).expect(201);
-    const lunch = await as(REP).post('/expenses', receipt({ category: 'food', subcategory: 'customer_lunch', total: '44.00', attendees: ['Someone'] })).expect(201);
-    expect(lunch.body.expense).toMatchObject({ status: 'draft', attendees: [] });
+    const lunch = await as(REP).post('/expenses', receipt({ category: 'food', subcategory: 'customer_lunch', total: '44.00' })).expect(201);
+    expect(lunch.body.expense).toMatchObject({ status: 'draft' });
     const team = await as(REP).post('/expenses', receipt({ category: 'food', subcategory: 'office_team_lunch', total: '45.00' })).expect(201);
     expect(team.body.expense.status).toBe('waiting');
     await as(ACCOUNTING).del(`/categories/${food.body.category._id}`, { replaceWith: gas.body.category._id }).expect(200);

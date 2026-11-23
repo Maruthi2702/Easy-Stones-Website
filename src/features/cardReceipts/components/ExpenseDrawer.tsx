@@ -172,7 +172,7 @@ export default function ExpenseDrawer({ expense: e, categories, canEdit, onEdit,
           <Ro label="Tip">{e.tipCents != null ? formatMoney(e.tipCents) : '—'}</Ro>
           <Ro label="Branch">{e.location || '—'}</Ro>
         </FormRow>
-        {fields.attendees || e.attendees.length ? <Ro label={`Who attended (${e.attendees.length})`}>{e.attendees.join(', ') || <span className="ccr-muted">Nobody added</span>}</Ro> : null}
+        {e.attendees.length ? <Ro label={`Who attended (${e.attendees.length})`}>{e.attendees.join(', ')}</Ro> : null}
         {e.purpose ? <Ro label="Business purpose">{e.purpose}</Ro> : null}
         {e.note ? <Ro label="Note">{e.note}</Ro> : null}
         {e.recurring ? <Ro label="Recurring">Yes, every month</Ro> : null}

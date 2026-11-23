@@ -48,6 +48,8 @@ export const receiptCategories = pgTable('receipt_categories', {
   needsCustomer: boolean('needs_customer').notNull().default(false),
   needsAttendees: boolean('needs_attendees').notNull().default(false),
   needsPurpose: boolean('needs_purpose').notNull().default(false),
+  /** A receipt in this category must carry a note (2026-11-23). The two columns above are no longer asked for; they stay so no data is dropped. */
+  needsNote: boolean('needs_note').notNull().default(false),
   needsRecurring: boolean('needs_recurring').notNull().default(false),
   /** The types under it ([{ name, label, active, isDefault, fields }], in order), kept whole. */
   subcategories: jsonb('subcategories').notNull().default(sql`'[]'::jsonb`),

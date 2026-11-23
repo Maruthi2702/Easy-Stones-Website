@@ -10,7 +10,7 @@
  *   - One card per person. An expense belongs to the person who uploads it and
  *     their card — never to a name or digits printed on the receipt.
  *   - Every expense needs a receipt (or a lost-receipt reason) and a category;
- *     a category may also ask for the customer, who attended, a purpose.
+ *     a category may also require the customer and / or a note.
  *   - Someone above the cardholder approves: each role lists the roles whose
  *     receipts it approves (Roles & Permissions), from any branch. Nobody
  *     approves their own. A lost receipt needs the approver's comment.
@@ -67,7 +67,12 @@ export const STATUS_KEYS: readonly string[] = STATUSES.map((s) => s.key);
 
 // ── Categories ──────────────────────────────────────────────────────────────
 
-export type CategoryFields = { customer: boolean; attendees: boolean; purpose: boolean; recurring: boolean };
+/**
+ * What a category asks for on every receipt (2026-11-23, owner): the customer, a **note** (required), and whether it
+ * can be marked recurring. "Who attended" and "Business purpose" were removed from the categories — receipts that
+ * already carry them keep them (the drawer and the Excel still show them), nothing asks for them any more.
+ */
+export type CategoryFields = { customer: boolean; note: boolean; recurring: boolean };
 /**
  * A type under a category (owner, 2026-11-20): Gas → Car / Truck / Van / Forklift, Food → Travel Lunch / Customer
  * Lunch / Office Team Lunch. Managers add, rename, hide and reorder them in Admin; `name` is what expenses store and
@@ -77,13 +82,14 @@ export type SubcategoryLike = { name: string; label: string; active?: boolean; i
 export type CategoryLike = {
   name: string; label: string; active?: boolean; fields?: Partial<CategoryFields> | null; subcategories?: readonly SubcategoryLike[] | null;
 };
-export const NO_FIELDS: CategoryFields = { customer: false, attendees: false, purpose: false, recurring: false };
+export const NO_FIELDS: CategoryFields = { customer: false, note: false, recurring: false };
 /** What a receipt under this category — and its type, when it has one — asks for: the category's asks plus the type's. */
 export const fieldsOf = (category: CategoryLike | null | undefined, subcategory = ''): CategoryFields => {
-  const base = { ...NO_FIELDS, ...(category?.fields || {}) };
+  const own = category?.fields || {};
+  const base: CategoryFields = { customer: own.customer === true, note: own.note === true, recurring: own.recurring === true };
   const sub = subcategory ? (category?.subcategories || []).find((s) => s.name === subcategory)?.fields : null;
   return sub
-    ? { customer: base.customer || sub.customer === true, attendees: base.attendees || sub.attendees === true, purpose: base.purpose || sub.purpose === true, recurring: base.recurring || sub.recurring === true }
+    ? { customer: base.customer || sub.customer === true, note: base.note || sub.note === true, recurring: base.recurring || sub.recurring === true }
     : base;
 };
 /** The types a new receipt may pick (hidden ones stay valid on the receipts that have them). */
@@ -100,7 +106,7 @@ export type StartingCategory = { label: string; fields?: Partial<CategoryFields>
 /** Seeded once into an empty list (owner's examples, plus the sample receipts' Fuel / Parking / Software). Types are added in Admin. */
 export const STARTING_CATEGORIES: readonly StartingCategory[] = [
   { label: 'Travel Lunch' },
-  { label: 'Customer Lunch', fields: { customer: true, attendees: true } },
+  { label: 'Customer Lunch', fields: { customer: true } },
   { label: 'Office Supplies' },
   { label: 'Fuel' },
   { label: 'Parking' },
@@ -145,7 +151,7 @@ export function cleanSubcategories(raw: unknown, current: readonly SubcategoryLi
     const f = (r.fields || {}) as Record<string, unknown>;
     out.push({
       name, label, active: r.active !== false, isDefault: r.isDefault === true,
-      fields: { customer: f.customer === true, attendees: f.attendees === true, purpose: f.purpose === true, recurring: f.recurring === true }
+      fields: { customer: f.customer === true, note: f.note === true, recurring: f.recurring === true }
     });
   }
   const chosen = out.filter((s) => s.active).find((s) => s.isDefault) || out.find((s) => s.active);
@@ -159,7 +165,7 @@ export function cleanCategory(body: Record<string, unknown>, others: readonly { 
   if (!label) problems.label = 'Enter a name';
   else if (others.some((o) => String(o._id) !== String(id) && o.label.toLowerCase() === label.toLowerCase())) problems.label = 'That name is already on the list';
   const f = (body.fields || {}) as Record<string, unknown>;
-  const fields: CategoryFields = { customer: f.customer === true, attendees: f.attendees === true, purpose: f.purpose === true, recurring: f.recurring === true };
+  const fields: CategoryFields = { customer: f.customer === true, note: f.note === true, recurring: f.recurring === true };
   // Types not sent (a hide / show toggle) stay as they are.
   const subs = body.subcategories === undefined
     ? { value: current.map((s) => ({ name: s.name, label: s.label, active: s.active !== false, isDefault: s.isDefault === true, fields: { ...NO_FIELDS, ...(s.fields || {}) } })), problems: {} as Record<string, string> }
@@ -247,7 +253,7 @@ export type CleanExpense = {
   category: string; subcategory: string; customerId: string; customerName: string; attendees: string[]; purpose: string; note: string;
   recurring: boolean; receiptUrl: string; lostReason: string;
 };
-export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'tax' | 'tip' | 'category' | 'subcategory' | 'customer' | 'attendees' | 'purpose' | 'receipt' | 'lostReason', string>>;
+export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'tax' | 'tip' | 'category' | 'subcategory' | 'customer' | 'note' | 'receipt' | 'lostReason', string>>;
 
 const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
 const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uploads/') || Boolean(privateReceiptNameOf(v));
@@ -303,7 +309,8 @@ export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknow
     category: category ? category.name : '', subcategory,
     customerId: fields.customer ? text(body.customerId, 40) : '',
     customerName: fields.customer ? text(body.customerName, 120) : '',
-    attendees: fields.attendees ? attendees : [],
+    // Kept as sent: older receipts carry who attended / a purpose; nothing asks for them any more.
+    attendees,
     purpose: text(body.purpose, 500),
     note: text(body.note, 500),
     recurring: fields.recurring ? body.recurring === true : false,
@@ -321,7 +328,7 @@ const nextDay = (day: string) => {
 };
 
 /** What still stops an expense going to the approver. Empty = complete. */
-export function missingFor(e: Pick<CleanExpense, 'receiptUrl' | 'lostReason' | 'category' | 'customerId' | 'attendees' | 'purpose'> & { subcategory?: string }, category: CategoryLike | null | undefined): ExpenseProblems {
+export function missingFor(e: Pick<CleanExpense, 'receiptUrl' | 'lostReason' | 'category' | 'customerId' | 'note'> & { subcategory?: string }, category: CategoryLike | null | undefined): ExpenseProblems {
   const out: ExpenseProblems = {};
   if (!e.receiptUrl && !e.lostReason) out.receipt = 'Upload the receipt, or say why it’s lost';
   if (!e.category || !category) out.category = 'Choose a category';
@@ -329,8 +336,7 @@ export function missingFor(e: Pick<CleanExpense, 'receiptUrl' | 'lostReason' | '
   else if (shownSubs(category).length && !e.subcategory) out.subcategory = 'Choose the type';
   const f = fieldsOf(category, e.subcategory || '');
   if (f.customer && !e.customerId) out.customer = 'Choose the customer';
-  if (f.attendees && !(e.attendees || []).length) out.attendees = 'Add who attended';
-  if (f.purpose && !e.purpose) out.purpose = 'Say what it was for';
+  if (f.note && !String(e.note || '').trim()) out.note = 'Add a note';
   return out;
 }
 
@@ -341,8 +347,7 @@ export const missingLine = (missing: ExpenseProblems) => {
   if (missing.category) parts.push('pick a category');
   if (missing.subcategory) parts.push('pick the type');
   if (missing.customer) parts.push('add the customer');
-  if (missing.attendees) parts.push(missing.customer ? 'who attended' : 'add who attended');
-  if (missing.purpose) parts.push('say what it was for');
+  if (missing.note) parts.push(missing.customer ? 'a note' : 'add a note');
   if (!parts.length) return '';
   const joined = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0]!;
   return joined.charAt(0).toUpperCase() + joined.slice(1);
