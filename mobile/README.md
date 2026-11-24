@@ -25,13 +25,21 @@ EXPO_PUBLIC_SERVER_URL=https://<preview>.onrender.com npx expo run:android   # a
 It cannot run in Expo Go (background location, secure store with biometrics and push need a development build).
 
 ## Known differences from the Capacitor app (read before replacing it)
-1. **No iOS "significant change" relaunch.** The Swift plugin asked iOS to restart a force-quit app when the phone moved. Expo has no
-   such call; `startSignificantChange` answers `started: false`. A force-quit app stays stopped until opened.
+1. **No iOS "significant change" call — a geofence stands in for it (2026-11-23).** Expo has no such call, but its docs say iOS restarts
+   a terminated app when a geofence event fires. The collector keeps one 200 m circle around the newest in-window position
+   (`src/collector/wake.ts` rules, tested; `armWake` in `nativeCollector.ts`; the `WAKE_TASK` in `host/handlers/location.ts` calls `wake()`
+   → `resume()` + a tick). It moves when the phone is 100 m from the centre (at most once a minute), needs "Always", is iPhone only
+   (Expo's docs: Android does not restart a terminated app for geofences) and reads no position outside 7–6. **Unproven on a real phone:**
+   whether iOS (26 especially) relaunches an app the person force-quit, and the 7 AM start only happens if the phone crosses the circle
+   (e.g. leaves the place the last evening point was) — a phone that stays put is not woken. Why it exists: on 2026-11-23 a phone showed no data
+   8:53–11:06 AM; nothing restarted the closed app. Adding this changes what the app does while closed, so check the consent wording
+   (`CONSENT_VERSION` 3) with HR / legal before shipping.
 2. **The collector runs in React Native, not the page** (`src/collector/`, on `expo-location` + `expo-task-manager`): the rules are
    `core.ts` (plain TypeScript, every outside thing passed in; tested by `core.test.ts`, run from the repo root with `npx vitest run
    mobile/src/collector`), driven by the background-location task and a 30 s timer, and it resumes from saved state on a launch with no
    page. The website only switches it on / off and shows consent and the pill. It still only runs while the OS keeps the app's
-   JavaScript alive: a force-quit app stays stopped, and the 7 AM start needs the app alive. Not tested on a real phone.
+   JavaScript alive (a closed iPhone app can be restarted by the geofence in item 1, if iOS allows it), and the 7 AM start needs the app
+   alive or that geofence crossed. Not tested on a real phone.
    **Consent and the "location is off" banner are native too** (`src/location/`, mounted in `App.tsx` over the website): the agreement is
    one paragraph (`consentBody` in the website's `collectorRules.ts`, version 3), posted to `/api/location-tracking/consent`; the website
    draws neither inside the app (`phoneOwns`). Changing the wording means bumping `CONSENT_VERSION`.

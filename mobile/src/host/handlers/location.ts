@@ -4,10 +4,10 @@ import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Emit, PluginImpl } from '../protocol';
-import { WATCH_TASK } from '../../collector/constants';
+import { WAKE_TASK, WATCH_TASK } from '../../collector/constants';
 import { authorization } from '../../collector/device';
 import { fixWithin, rememberFix, type Fix } from '../lastFix';
-import { collectorState, disable, isWatching, onLocations, resume, startCollecting } from '../../collector/nativeCollector';
+import { collectorState, disable, isWakeArmed, isWatching, onLocations, resume, startCollecting, wake } from '../../collector/nativeCollector';
 
 
 type PluginLocation = { latitude: number; longitude: number; accuracy: number; altitude: number | null; altitudeAccuracy: number | null; simulated: boolean; speed: number | null; bearing: number | null; time: number };
@@ -31,6 +31,12 @@ TaskManager.defineTask(WATCH_TASK, async ({ data, error }) => {
   const { locations } = data as { locations: Location.LocationObject[] };
   for (const l of locations) { rememberFix(toFix(l)); for (const emit of watchers) emit(toPlugin(l)); }
   await onLocations(locations.map(toPlugin)).catch(() => undefined);
+});
+// iPhone: leaving or re-entering the circle the collector keeps around the phone restarts a closed app (collector/wake.ts). Like the
+// task above it must be defined here, at the top level, before the app starts.
+TaskManager.defineTask(WAKE_TASK, async ({ error }) => {
+  if (error) return;
+  await wake().catch(() => undefined);
 });
 // A launch with no UI (the OS woke the app for a location update) still resumes collecting from what the phone saved.
 void resume().catch(() => undefined);
@@ -103,8 +109,8 @@ const queueKey = (userId: string) => `${QUEUE_PREFIX}${String(userId).replace(/[
 /**
  * Our own plugin (the website's src/features/locationCollector/locationHealthPlugin.ts; the Capacitor app had a Swift and a Java
  * twin of it): the real permission level, battery, Battery saver / Low Power Mode, and the durable queue of unsent points.
- * NOT carried over: iOS "significant change" relaunch of a force-quit app (Expo has no such call), so `startSignificantChange`
- * answers { started: false }.
+ * iOS "significant change" is replaced by a geofence the collector keeps around the phone (collector/wake.ts): the collector arms it
+ * itself, so `startSignificantChange` only reports whether it is armed, and `significantChange` in `status` says the same.
  */
 export const LocationHealth: PluginImpl = {
   calls: {
@@ -113,7 +119,7 @@ export const LocationHealth: PluginImpl = {
       return {
         authorization: auth, precise: true, lowPower: low,
         batteryPct: level >= 0 ? Math.round(level * 100) : null,
-        charging: state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL, significantChange: false
+        charging: state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL, significantChange: isWakeArmed()
       };
     },
     requestAlways: async () => {
@@ -130,7 +136,7 @@ export const LocationHealth: PluginImpl = {
     stopCollecting: async () => { await disable(); return {}; },
     /** `native: true` tells the website it must NOT collect and send points itself. */
     collectorState: async () => ({ ...collectorState(), authorization: await authorization() }),
-    startSignificantChange: async () => ({ started: false, reason: 'not-applicable', authorization: await authorization() }),
+    startSignificantChange: async () => ({ started: isWakeArmed(), ...(isWakeArmed() ? {} : { reason: 'not-armed-yet' }), authorization: await authorization() }),
     stopSignificantChange: () => ({}),
     openBatterySettings: async () => {
       if (Platform.OS === 'android') await Linking.sendIntent('android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS');
