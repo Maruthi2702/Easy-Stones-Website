@@ -150,6 +150,8 @@ export async function changeCard(db: Db, id: string, set: Loose): Promise<Loose 
     if (!row) throw new Error('That card can’t be stored: the cardholder is not in Postgres yet.');
     const { id: _id, createdAt: _created, ...columns } = row;
     await tx.update(companyCards).set(columns).where(eq(companyCards.id, found.id));
+    // An expense keeps its own copy of the card ID, so a renamed card carries it onto every expense it holds.
+    if (columns.label !== found.label) await tx.update(cardExpenses).set({ cardLabel: columns.label }).where(eq(cardExpenses.cardId, found.id));
     return (await findCard(tx as unknown as Db, found.id))!;
   });
 }

@@ -69,8 +69,11 @@ export async function addCard(id: string, value: Loose): Promise<Loose> {
 export async function changeCard(id: string, set: Loose): Promise<Loose | null> {
   const card = await CompanyCard.findById(id);
   if (!card) return null;
+  const before = card.label;
   card.set(set);
   await card.save();
+  // An expense keeps its own copy of the card ID, so a renamed card carries it onto every expense it holds.
+  if (card.label !== before) await CardExpense.updateMany({ cardId: String(card._id) }, { $set: { cardLabel: card.label } });
   return card.toObject() as unknown as Loose;
 }
 
