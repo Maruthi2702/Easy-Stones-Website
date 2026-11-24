@@ -50,6 +50,8 @@ export async function deleteCategory(id: string, name: string, move: { to: strin
 export const listCards = () => lean<Loose[]>(CompanyCard.find({}).sort({ active: -1, label: 1 }).lean());
 export const findCard = (id: string) => lean<Loose | null>(CompanyCard.findById(id).lean());
 export const activeCardOf = (userId: string) => lean<Loose | null>(CompanyCard.findOne({ userId, active: true }).lean());
+/** Every active card this person holds (one per bank), the Amex card first. */
+export const activeCardsOf = (userId: string) => lean<Loose[]>(CompanyCard.find({ userId, active: true }).sort({ issuer: 1, createdAt: 1 }).lean());
 
 /** Another active card held by this person or with this ID (`exceptId` = the card being saved). */
 export const activeCardClash = (userId: string, label: string, exceptId: string | null, issuer: 'amex' | 'encore' | 'other' = 'amex') =>

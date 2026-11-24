@@ -36,7 +36,7 @@ export const CHANGED_MESSAGE = 'This receipt changed after you opened it. Look a
 /** The error a write threw was the receipt changing under it (the screen reloads). */
 export const isChanged = (err: unknown) => Boolean((err as { changed?: boolean } | null)?.changed);
 
-export type ExpenseBody = ExpenseInput & { confirmRepeat?: boolean };
+export type ExpenseBody = ExpenseInput & { confirmRepeat?: boolean; /** The card it was paid with, when the person holds more than one. */ cardId?: string };
 type One = { expense: Expense };
 /** Every decision sends the `updatedAt` the screen saw; the server answers 409 `changed` if it moved since. */
 const write = (path: string, body: Record<string, unknown>, seen?: string, method = 'POST') =>

@@ -261,7 +261,7 @@ export type CleanExpense = {
   category: string; subcategory: string; customerId: string; customerName: string; attendees: string[]; purpose: string; note: string;
   recurring: boolean; receiptUrl: string; lostReason: string;
 };
-export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'tax' | 'tip' | 'category' | 'subcategory' | 'customer' | 'note' | 'receipt' | 'lostReason', string>>;
+export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'tax' | 'tip' | 'category' | 'subcategory' | 'customer' | 'note' | 'receipt' | 'lostReason' | 'card', string>>;
 
 const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
 const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uploads/') || Boolean(privateReceiptNameOf(v));
@@ -535,4 +535,18 @@ export function exportRows(list: readonly ExportExpense[], categories: readonly 
     'Approver comment': e.approval?.comment || '',
     'Receipt link': e.receiptUrl || ''
   }));
+}
+
+/**
+ * Which of a person's own cards a receipt is on. `wanted` is the card the form chose; blank means their first
+ * (the Amex card first), so an older client that sends nothing behaves as before. A card that isn't theirs, or
+ * isn't active, is refused — never trusted from the request.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- takes stored card records of either database
+export function chooseCard<T extends Record<string, any>>(cards: readonly T[], wanted: unknown): { card: T | null; problem: string } {
+  if (!cards.length) return { card: null, problem: '' };
+  const id = String(wanted ?? '').trim();
+  if (!id) return { card: cards[0]!, problem: '' };
+  const card = cards.find((c) => String(c._id) === id);
+  return card ? { card, problem: '' } : { card: null, problem: 'Choose one of your cards.' };
 }

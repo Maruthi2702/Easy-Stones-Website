@@ -51,7 +51,8 @@ export type Expense = {
   /** actions.approve != null || actions.answer. */ canDecide: boolean;
 };
 
-export type Me = { user: { id: string; name: string; location: string }; card: Card | null; categories: Category[]; role?: string; today: string };
+export type Me = { user: { id: string; name: string; location: string }; card: Card | null;
+  /** Every active card they hold (one per bank), Amex first; a card choice shows only with two or more. */ cards?: Card[]; categories: Category[]; role?: string; today: string };
 
 /** Someone a question may go to (GET /expenses/:id/ask-targets). */
 export type AskTarget = { id: string; name: string; role: string; branch: string };
