@@ -182,9 +182,25 @@ describe('saving a receipt', () => {
       const saved = (await CardExpense.findById(res.body.expense.id).lean()) as Loose;
       expect(saved.createdBy).toBe('Ann Count');
       expect(saved.history[0]).toMatchObject({ by: 'Ann Count', action: 'added', changes: 'on behalf of Maruthi Ponugupati · sent for approval' });
-      // It is theirs to edit; the person who added it is not.
+      // It is theirs to edit; someone who manages cards may only fix it once it is sent back (below).
       await as(REP).put(`/expenses/${res.body.expense.id}`, receipt({ id: res.body.expense.id, total: '15.00' })).expect(200);
-      await as(ADDER).put(`/expenses/${res.body.expense.id}`, receipt({ id: res.body.expense.id, total: '16.00' })).expect(404);
+      await as(ADDER).put(`/expenses/${res.body.expense.id}`, receipt({ id: res.body.expense.id, total: '16.00' })).expect(409);
+    });
+
+    it('can be fixed by someone who manages cards once it is sent back, and the history keeps who did', async () => {
+      await User.collection.updateOne({ _id: new mongoose.Types.ObjectId(ids.rep) }, { $set: { location: 'Seattle' } });
+      const res = await as(ADDER).post('/expenses', receipt({ onBehalfOf: ids.rep })).expect(201);
+      const id = res.body.expense.id;
+      await as(ADMIN2).post(`/expenses/${id}/send-back`, { comment: 'Wrong total' }).expect(200);
+      // Someone without the switch still can't touch another person's receipt.
+      await as(DIRECTOR).put(`/expenses/${id}`, receipt({ id, total: '16.00' })).expect(404);
+      const fixed = await as(ADDER).put(`/expenses/${id}`, receipt({ id, total: '16.00' })).expect(200);
+      expect(fixed.body.expense).toMatchObject({ userId: ids.rep, cents: 1600, mine: false });
+      const saved = (await CardExpense.findById(id).lean()) as Loose;
+      const last = saved.history[saved.history.length - 1];
+      expect(last).toMatchObject({ by: 'Ann Count', action: 'edited' });
+      expect(last.changes).toContain('on behalf of Maruthi');
+      expect(saved.history.length).toBeGreaterThanOrEqual(3);
     });
 
     it('can\u2019t be approved by the person who added it, but by someone else', async () => {

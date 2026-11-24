@@ -417,6 +417,9 @@ export const isReceiptFolderUrl = (url: unknown): boolean =>
 /** The card holder may change it while it isn't approved or voided. */
 export const holderMayEdit = (e: { status: string; voided?: unknown }) => !e.voided && e.status !== 'approved';
 
+/** Someone who manages company cards (admin, accounting) may fix another person's receipt only while it is a draft or sent back; the edit is kept in its history. */
+export const managerMayEdit = (e: { status: string; voided?: unknown }) => !e.voided && (e.status === 'draft' || e.status === 'sent_back');
+
 /** Fields that differ, in words, for the history line. */
 export function changeSummary(before: Partial<CleanExpense>, after: CleanExpense) {
   const names: [keyof CleanExpense, string][] = [

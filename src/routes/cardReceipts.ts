@@ -23,7 +23,7 @@ import { ALL_PEOPLE } from '../utils/teamScope.ts';
 import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup, nearReceiptsOf, matchByHand, NearMatchError } from '../db/cardStatements/hooks.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
-  statusAfterSave, missingFor, holderMayEdit, changeSummary, possibleRepeat, centsText,
+  statusAfterSave, missingFor, holderMayEdit, managerMayEdit, changeSummary, possibleRepeat, centsText,
   chooseCard, isMonth, monthOf, BANK_FILTERS, onBank, matchedChangeProblem, isReceiptFolderUrl, isPrivateReceiptName, privateReceiptNameOf, privateReceiptUrlOfKey, PRIVATE_RECEIPT_ROUTE, PRIVATE_RECEIPT_KEY_PREFIX, type CleanExpense
 } from '../utils/cardReceipts.ts';
 import type { Loose } from '../types/records.ts';
@@ -633,13 +633,21 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || ''
   });
 
-  router.put('/expenses/:id', authenticate, anyOf(CARD_RECEIPTS.USE), validateScalarRequest, async (req: Request, res: Response) => {
+  router.put('/expenses/:id', authenticate, anyOf(CARD_RECEIPTS.USE, CARD_RECEIPTS.MANAGE_CARDS), validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
     const me = userIdOf(req);
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Expense not found.' });
     try {
       const expense = await db.findExpense(id);
-      if (!expense || expense.userId !== me) return res.status(404).json({ message: 'Expense not found.' });
+      if (!expense) return res.status(404).json({ message: 'Expense not found.' });
+      const onBehalf = expense.userId !== me;
+      if (onBehalf) {
+        // Not theirs: only someone who manages cards, and only a draft or a sent-back one.
+        if (!has(req, CARD_RECEIPTS.MANAGE_CARDS)) return res.status(404).json({ message: 'Expense not found.' });
+        if (!managerMayEdit({ status: expense.status, voided: expense.voidedAt })) {
+          return res.status(409).json({ message: expense.voidedAt ? 'A voided expense can’t be changed.' : 'Only a draft or a sent-back receipt can be changed for someone else.' });
+        }
+      } else if (!has(req, CARD_RECEIPTS.USE)) return res.status(404).json({ message: 'Expense not found.' });
       if (!holderMayEdit({ status: expense.status, voided: expense.voidedAt })) {
         return res.status(409).json({ message: expense.voidedAt ? 'A voided expense can’t be changed.' : 'It’s approved, so it can’t be changed.' });
       }
@@ -662,7 +670,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       // A different card: one of this person's own, and not once the charge on a statement has claimed it.
       let newCard: Loose | null = null;
       const wantedCard = String(req.body?.cardId ?? '').trim();
-      if (wantedCard && wantedCard !== String(expense.cardId)) {
+      if (!onBehalf && wantedCard && wantedCard !== String(expense.cardId)) {
         const chosen = chooseCard(await db.activeCardsOf(me), wantedCard);
         if (!chosen.card) return res.status(400).json({ message: 'Some fields need attention.', problems: { card: chosen.problem || 'Choose one of your cards.' } });
         if (await amexChargeOf(id)) return res.status(409).json({ message: 'It’s matched to a charge on a statement, so its card stands.', problems: { card: 'Matched to a statement charge' } });
@@ -676,7 +684,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       // An edit takes back every approval already given: the receipt starts its approvals again (an open question stays).
       const clearsApprovals = Boolean(expense.approval || expense.secondApproval) && changes.length > 0;
       const saved = await db.changeExpense(id, { ...value, ...(newCard ? { cardId: String(newCard._id), cardLabel: newCard.label } : {}), month: monthOf(value.date), status, ...(clearsApprovals ? { approval: null, secondApproval: null } : {}) },
-        { at: new Date(), by, action: 'edited', expectedUpdatedAt: expense.updatedAt as Date, changes: [changes.join(', '), clearsApprovals ? 'approvals cleared' : '', sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
+        { at: new Date(), by, action: 'edited', expectedUpdatedAt: expense.updatedAt as Date, changes: [changes.join(', '), onBehalf ? `on behalf of ${String(expense.holderName || '').split(' ')[0] || 'the cardholder'}` : '', clearsApprovals ? 'approvals cleared' : '', sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
       // A corrected day or total may now answer a charge that has a Missing receipt row: look again (no-op if it's already linked).
       const replacedMissing = changes.some((c) => c === 'date' || c === 'total') ? await afterReceiptSaved(saved, { id: me, name: by }) : null;

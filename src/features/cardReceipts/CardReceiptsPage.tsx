@@ -11,7 +11,7 @@ import usePeopleFilter from '../../components/shared/people/usePeopleFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import Pagination from '../../components/shared/Pagination';
 import { usePagination } from '../../components/shared/paginationConfig';
-import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, holderMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
+import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, holderMayEdit, managerMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
 import { getAddForHolders, listAllExpenses, listMonthForExport } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
@@ -363,7 +363,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           expense={opened}
           categories={categories}
           today={me?.today || ''}
-          canEdit={opened.mine && canUse && holderMayEdit(opened)}
+          canEdit={(opened.mine && canUse && holderMayEdit(opened)) || (!opened.mine && can(currentUser, CARD_RECEIPTS.MANAGE_CARDS) && managerMayEdit(opened))}
           canRemind={canRemind}
           onEdit={() => setOpen({ kind: 'edit', expense: opened })}
           onVoid={() => setOpen({ kind: 'void', expense: opened })}

@@ -127,7 +127,7 @@ export default function ExpenseDrawer({
   const needsCategory = Boolean(act.approve && adminsOwn && !e.category);
   const needsComment = Boolean(act.approve && e.lostReason && !e.receiptUrl && !adminsOwn);
   const answerLen = answer.trim().length;
-  const canVoid = canEdit && !e.canDecide && e.status !== 'missing';
+  const canVoid = canEdit && e.mine && !e.canDecide && e.status !== 'missing';
   // A Missing receipt row is a charge on the Amex statement: it gets its receipt (or a lost reason), never voided.
   const editLabel = e.status === 'missing' ? 'Add receipt' : e.status === 'draft' || e.status === 'sent_back' ? 'Finish it' : 'Edit receipt';
   const showRemind = canRemind && remindable(e);
