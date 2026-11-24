@@ -524,3 +524,6 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 .ccr-tg-b[aria-checked="true"] .ccr-tg-tick { opacity: 1; transform: none; }
 @media (max-width: 440px) { .ccr-tg-b { gap: 8px; padding: 6px 8px; } .ccr-tg-tick { display: none; } }
 @media (prefers-reduced-motion: reduce) { .ccr-tg-thumb, .ccr-tg-tick { transition: none; } }
+
+/* A row's ⋯ (Void receipt, Delete receipt…): one narrow last column. */
+.ccr-table th.ccr-act, .ccr-table td.ccr-act { width: 44px; padding-left: 0; text-align: right; cursor: default; }

@@ -137,6 +137,18 @@ export const cardExpenseHistory = pgTable('card_expense_history', {
   changes: text('changes').notNull().default('')
 }, t => [primaryKey({ columns: [t.expenseId, t.position] })]);
 
+/**
+ * A receipt deleted for good (2026-11-24, "Delete receipts"): the whole expense as it was, with who deleted it and why.
+ * No link to card_expenses (the row is gone); an admin can read it back from here. Postgres only.
+ */
+export const cardExpenseDeletions = pgTable('card_expense_deletions', {
+  expenseId: objectId('expense_id').primaryKey(),
+  expense: jsonb('expense').notNull(),
+  deletedBy: text('deleted_by').notNull(),
+  reason: text('reason').notNull(),
+  deletedAt: moment('deleted_at').notNull().defaultNow()
+});
+
 /* ---- Suppliers ---- */
 
 export const suppliers = pgTable('suppliers', {

@@ -1508,9 +1508,23 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   with `%PDF-` (`src/utils/receiptPdf.ts`); **setting up a card from the Statements tab** (`POST /statements/cards`, or card
   picks in a preview / import) needs **Manage cards**, not just the Amex check; `/api/card-receipts` parses JSON up to
   **15 MB** (server.ts, before the global 200 MB parser); the upload and AI-scan limits count in **Postgres**
-  (`rate_limit_hits`, migration `0034`, `PostgresRateLimitStore`) so every Lambda instance shares them — if the database
-  can't be reached the request passes (`passOnStoreError`). **Run `npm run pg:migrate -- --apply` on Render for `0034`.**
+  (`rate_limit_hits`, migration `0035`, `PostgresRateLimitStore`) so every Lambda instance shares them — if the database
+  can't be reached the request passes (`passOnStoreError`). **Run `npm run pg:migrate -- --apply` on Render for `0035`.**
   A new limit that guards money uses that store, never the default in-memory one.
+- **Edit any, Void any, Delete** (2026-11-24, on `feat/receipt-edit-any`; owner's ask — Accounting fixes any receipt, admins delete):
+  three switches on the Credit Card Receipts card, nobody holds them until an admin ticks them (Admins hold every key):
+  `edit_any_card_receipt` — `PUT /expenses/:id` for anyone's receipt, approved ones too, never a voided one; a waiting or approved
+  receipt **keeps its status and approvals** (`statusAfterAnyEdit`: a typo fix isn't approved again), a missing / draft / sent-back one
+  follows the usual rule, the card choice is the holder's, history says "edited for <first name>"; an Amex-matched receipt still keeps
+  Amex's date and total. `void_any_card_receipt` — `POST /expenses/:id/void` for anyone's, approved ones too, reason required; a charge
+  on a bank statement still can't be voided. `delete_card_receipts` — `DELETE /expenses/:id` with a reason of 5+ characters
+  (`deleteReasonProblem`): the whole record is saved first to `card_expense_deletions` (Postgres, migration `0034`; MongoDB's
+  `cardexpensedeletions`) with who and why, then removed with its history; a bank-statement charge's row can't be deleted. The
+  drawer's ⋯ shows Void receipt / Delete receipt… by these switches. **Run `npm run pg:migrate -- --apply` on Render for `0034`.**
+  Void and Delete are also in each desktop row's ⋯ (a last column in `ExpenseList`, the shared `RowMenu`) and, for **ticked**
+  receipts, in the header ⋯ under Export… ("Void 3 selected…" / "Delete 3 selected…", `BulkReasonForm`: one reason, each goes through
+  the single route, a refused one is listed and the rest still go). Phone cards have no row ⋯ — a tap opens the receipt, whose ⋯ has them.
+  Not built: reading a deleted receipt back in the app (an admin reads the table), restoring one.
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
   sample statement), the daily reminder email, closing a month.
@@ -1560,6 +1574,13 @@ screen size — a charge from last month found by this month's statement used to
 receipt takes the bank's day, total and card (what a matched receipt keeps), a changed total takes back its approvals, and the
 Missing row is voided. Holder only; never automatic. A PUT that corrects the day or total looks for the charge again (3fdf09b9), and
 the screen drops the Missing row it replaced.
+
+**Refunds, previews and replacements** (2026-11-24; review B7–B9): a refund pairs with its charge (`pairRefunds`: same bank and card,
+the exact amount back, up to 30 days after, never a card payment) and that charge reads **Refunded** — no Missing row is made, one
+already made is voided ("Charge refunded"). Nothing is stored: the pairing is worked out each check and each view. A **preview**
+takes no global lock (it rolls back anyway) and gives up after 2 s on a row a real upload is writing (409 "try again"); only a real
+upload takes `card_statement_check`. An upload sends `replace` only for the cards the person confirmed in the dialog.
+Not done: a refunded charge on a card nobody holds yet still counts in "still missing".
 
 **Export and public links** (2026-11-24; review S2 / S3): both exports read `GET /expenses/export` — `?month=` needs Export (or
 Export all), no month needs Export all; the same people rules as the list apply and each export is logged (who, scope, count). The

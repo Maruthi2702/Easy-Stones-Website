@@ -69,8 +69,11 @@ export async function addCard(id: string, value: Loose): Promise<Loose> {
 export async function changeCard(id: string, set: Loose): Promise<Loose | null> {
   const card = await CompanyCard.findById(id);
   if (!card) return null;
+  const before = card.label;
   card.set(set);
   await card.save();
+  // An expense keeps its own copy of the card ID, so a renamed card carries it onto every expense it holds.
+  if (card.label !== before) await CardExpense.updateMany({ cardId: String(card._id) }, { $set: { cardLabel: card.label } });
   return card.toObject() as unknown as Loose;
 }
 
@@ -117,4 +120,14 @@ export async function changeExpense(id: string, set: Loose, fullEntry: ExpenseHi
   expense.history.push(entry);
   await expense.save();
   return expense.toObject() as unknown as Loose;
+}
+
+/** Delete an expense for good, after saving its whole record (MongoDB's copy of card_expense_deletions). Null if it is gone. */
+export async function deleteExpense(id: string, by: string, reason: string): Promise<Loose | null> {
+  const expense = await CardExpense.findById(id);
+  if (!expense) return null;
+  const doc = expense.toObject() as unknown as Loose;
+  await CardExpense.db.collection('cardexpensedeletions').insertOne({ expenseId: String(id), expense: doc, deletedBy: by, reason, deletedAt: new Date() });
+  await CardExpense.deleteOne({ _id: expense._id });
+  return doc;
 }

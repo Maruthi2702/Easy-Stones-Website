@@ -374,3 +374,15 @@ describe('sub-categories', () => {
     expect(mine.body.expenses.find((e: Loose) => e.id === saved.body.expense.id)).toMatchObject({ category: parking.name, subcategory: '' });
   });
 });
+
+describe('renaming a card', () => {
+  it('shows the new card ID on the expenses it already holds', async () => {
+    const before = await same(ACCOUNTING, a => a.get('/expenses?scope=all&month=2026-10'));
+    expect(new Set(before.body.expenses.filter((e: Loose) => e.userId === manager).map((e: Loose) => e.cardLabel))).toEqual(new Set(['DANA41008']));
+    await same(ACCOUNTING, a => a.put(`/cards/${cardOf.manager}`, { label: 'DANA41009', lastDigits: '41009' }));
+    const after = await same(ACCOUNTING, a => a.get('/expenses?scope=all&month=2026-10'));
+    expect(new Set(after.body.expenses.filter((e: Loose) => e.userId === manager).map((e: Loose) => e.cardLabel))).toEqual(new Set(['DANA41009']));
+    // Someone else's card is left alone.
+    expect(after.body.expenses.find((e: Loose) => e.id === seeded.waiting).cardLabel).toBe('MARU92069');
+  });
+});

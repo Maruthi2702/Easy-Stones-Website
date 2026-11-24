@@ -179,6 +179,27 @@ export function kindOf(line: Pick<AmexLine, 'cents' | 'description' | 'amexCateg
   return 'charge';
 }
 
+/**
+ * A refund pairs with the charge it returns (review B9, 2026-11-24): same bank and card, exactly the amount back, the credit
+ * on the charge's day or up to `REFUND_DAYS` after, newest earlier charge first, one credit for one charge. Card payments
+ * ("ONLINE PAYMENT - THANK YOU") are credits too but return nothing. A refunded charge needs no receipt.
+ */
+export const REFUND_DAYS = 30;
+const PAYMENT = /\b(PAYMENT|THANK YOU|AUTOPAY|AUTO PAY|AUTO PAYMENT)\b/i;
+type RefundLine = { reference: string; issuer: string; digits: string; date: string; cents: number };
+export function pairRefunds(charges: readonly RefundLine[], credits: readonly (RefundLine & { description?: string })[]): Map<string, string> {
+  const paired = new Map<string, string>();
+  const sorted = [...credits].filter((c) => c.cents < 0 && !PAYMENT.test(c.description || '')).sort((a, b) => a.date.localeCompare(b.date) || a.reference.localeCompare(b.reference));
+  for (const credit of sorted) {
+    const match = charges
+      .filter((c) => c.cents === -credit.cents && c.issuer === credit.issuer && c.digits === credit.digits && !paired.has(c.reference)
+        && c.date <= credit.date && daysApart(c.date, credit.date) <= REFUND_DAYS)
+      .sort((a, b) => b.date.localeCompare(a.date) || a.reference.localeCompare(b.reference))[0];
+    if (match) paired.set(match.reference, credit.reference);
+  }
+  return paired;
+}
+
 export const LINE_STATUSES = [
   { key: 'missing', label: 'Missing receipt' },
   { key: 'matched', label: 'Receipt uploaded' },
@@ -187,7 +208,9 @@ export const LINE_STATUSES = [
   { key: 'no_card', label: 'Card not set up' },
   { key: 'unassigned', label: 'Waiting for a login' },
   { key: 'before_start', label: 'Before the check started' },
-  { key: 'no_receipt', label: 'No receipt needed' }
+  { key: 'no_receipt', label: 'No receipt needed' },
+  /** A charge a later refund returned (pairRefunds). */
+  { key: 'refunded', label: 'Refunded' }
 ] as const;
 export type LineStatus = typeof LINE_STATUSES[number]['key'];
 export const lineStatusLabel = (key: string) => LINE_STATUSES.find((s) => s.key === key)?.label || key;
@@ -195,13 +218,16 @@ export const lineStatusLabel = (key: string) => LINE_STATUSES.find((s) => s.key 
 /** Where a line stands, from what it's linked to. */
 export function lineStatus(l: { kind: LineKind; date: string; cardId: string | null; expenseStatus: string | null; expenseVoided?: boolean;
   /** The card exists but nobody holds it yet: no one to ask for the receipt. */ unassigned?: boolean;
-  /** The linked expense has a receipt or a lost-receipt reason (default true: older callers don't say). */ hasReceipt?: boolean },
+  /** The linked expense has a receipt or a lost-receipt reason (default true: older callers don't say). */ hasReceipt?: boolean;
+  /** A later refund returned this charge (pairRefunds): no receipt is asked for unless one is already on it. */ refunded?: boolean },
   missingFrom = MISSING_FROM): LineStatus {
   if (l.kind !== 'charge') return 'no_receipt';
   if (l.expenseStatus && !l.expenseVoided) {
-    if (l.expenseStatus === 'missing') return 'missing';
-    return l.expenseStatus === 'waiting' && l.hasReceipt === false ? 'awaiting' : 'matched';
+    if (l.expenseStatus === 'missing') return l.refunded ? 'refunded' : 'missing';
+    if (l.expenseStatus === 'waiting' && l.hasReceipt === false) return l.refunded ? 'refunded' : 'awaiting';
+    return 'matched';
   }
+  if (l.refunded) return 'refunded';
   if (l.date < missingFrom) return 'before_start';
   if (!l.cardId) return 'no_card';
   if (l.unassigned) return 'unassigned';

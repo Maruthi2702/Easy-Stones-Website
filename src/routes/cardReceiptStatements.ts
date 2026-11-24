@@ -178,6 +178,9 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
         });
       } catch (err) {
         if (cardError(res, err)) return;
+        // A preview that met a real upload mid-write (lock_timeout): nothing is wrong, look again in a moment.
+        const code = (err as { code?: string; cause?: { code?: string } })?.code ?? (err as { cause?: { code?: string } })?.cause?.code;
+        if (preview && code === '55P03') return res.status(409).json({ message: 'Another upload is being saved. Try again in a moment.' });
         console.error('[card-statements] import failed:', err);
         res.status(500).json({ message: preview ? 'Could not check the file.' : 'The upload failed. Nothing was changed.' });
       }

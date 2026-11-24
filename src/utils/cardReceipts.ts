@@ -41,6 +41,15 @@ export const CARD_RECEIPTS = Object.freeze({
    * Nobody holds it until an admin ticks it (Admins hold every key).
    */
   ADD_FOR_OTHERS: 'add_receipts_for_others',
+  /**
+   * Edit any receipt, whoever's it is and whatever its state except voided (2026-11-24, owner: Accounting). A waiting or approved
+   * receipt keeps its status and approvals; the history says who changed what. Nobody holds it until an admin ticks it.
+   */
+  EDIT_ANY: 'edit_any_card_receipt',
+  /** Void any receipt, whoever's it is, approved ones too; a charge on a bank statement still can't be voided. */
+  VOID_ANY: 'void_any_card_receipt',
+  /** Delete a receipt for good (a copy is kept, with who and why). Admins hold it; nobody else until an admin ticks it. */
+  DELETE: 'delete_card_receipts',
   /** Upload Amex's activity export and see every charge matched to a receipt (src/utils/amexStatement.ts). */
   STATEMENTS: 'check_amex_statements',
   CATEGORY_ADD: 'add_receipt_categories',
@@ -419,6 +428,20 @@ export const holderMayEdit = (e: { status: string; voided?: unknown }) => !e.voi
 
 /** Someone who manages company cards (admin, accounting) may fix another person's receipt only while it is a draft or sent back; the edit is kept in its history. */
 export const managerMayEdit = (e: { status: string; voided?: unknown }) => !e.voided && (e.status === 'draft' || e.status === 'sent_back');
+
+/** What someone with "Edit any receipt" may still change: anything not voided, approved ones too. */
+export const anyoneMayEdit = (e: { voided?: unknown }) => !e.voided;
+
+/**
+ * A save by someone with "Edit any receipt": a waiting or approved receipt keeps its status and its approvals (a typo fixed by
+ * Accounting isn't approved again); a missing / draft / sent-back one follows the usual rule.
+ */
+export const statusAfterAnyEdit = (before: string, complete: boolean, hasProof: boolean): StatusKey =>
+  before === 'waiting' || before === 'approved' ? before as StatusKey : statusAfterSave(complete, before, hasProof);
+
+/** A delete asks why; the reason is kept with the copy of the receipt. */
+export const DELETE_REASON_MIN = 5;
+export const deleteReasonProblem = (reason: unknown) => (String(reason ?? '').trim().length < DELETE_REASON_MIN ? 'Say why it’s being deleted (a few words)' : '');
 
 /** Fields that differ, in words, for the history line. */
 export function changeSummary(before: Partial<CleanExpense>, after: CleanExpense) {

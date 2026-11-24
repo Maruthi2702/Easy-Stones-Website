@@ -12,7 +12,7 @@ import UnknownCards from './UnknownCards';
 import type { StatementLine, StatementsView, UploadResult } from './statementsApi';
 import './Statements.css';
 
-const CHIP: Record<LineStatus, string> = { missing: 'miss', matched: 'ok', awaiting: 'wait', no_card: 'back', unassigned: 'back', before_start: 'draft', no_receipt: 'draft' };
+const CHIP: Record<LineStatus, string> = { missing: 'miss', matched: 'ok', awaiting: 'wait', no_card: 'back', unassigned: 'back', before_start: 'draft', no_receipt: 'draft', refunded: 'draft' };
 const DOT: Record<LineStatus, string> = CHIP;
 
 const StatusChip = ({ status }: { status: LineStatus }) => <span className={`ccr-chip is-${CHIP[status]}`}>{lineStatusLabel(status)}</span>;

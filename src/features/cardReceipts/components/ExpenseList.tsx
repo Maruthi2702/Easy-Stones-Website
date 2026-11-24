@@ -1,6 +1,8 @@
+import RowMenu from '../../../components/shared/RowMenu';
+import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import { Check } from 'lucide-react';
 import { formatMoney, isBigReceipt, statusOf, usDate } from '../../../utils/cardReceipts';
-import { askIsOpen, categoryText, chipShort, chipText, chipsShown, firstName, isPdfUrl, remindable, statusLine } from '../cardReceiptsView';
+import { askIsOpen, categoryText, chipShort, chipText, chipsShown, firstName, isPdfUrl, statusLine } from '../cardReceiptsView';
 import type { Category, Expense } from '../types';
 
 export function StatusChip({ status }: { status: string }) {
@@ -55,6 +57,8 @@ export type ListSelection = {
   onToggleAll: () => void;
   /** Phone: the cards are in Select mode (a tap ticks instead of opening). */
   active: boolean;
+  /** Which rows have a checkbox (can be reminded about, voided or deleted). */
+  selectable: (e: Expense) => boolean;
 };
 
 export type ExpenseListProps = {
@@ -66,8 +70,10 @@ export type ExpenseListProps = {
   shownCents: number;
   shownCount: number;
   onOpen: (e: Expense) => void;
-  /** Absent without Send reminders. */
+  /** Absent without Send reminders / Void any / Delete. */
   selection?: ListSelection | null;
+  /** A desktop row's ⋯ (Void, Delete…); a row with no items shows none. Phone cards open the receipt, whose ⋯ has them. */
+  rowActions?: (e: Expense) => RowMenuItem[];
 };
 
 /**
@@ -76,7 +82,7 @@ export type ExpenseListProps = {
  * opens the expense. With Send reminders a checkbox column (a phone's Select
  * mode) ticks receipts that aren't approved yet.
  */
-export default function ExpenseList({ rows, isPhone, categories, showHolder, shownCents, shownCount, onOpen, selection = null }: ExpenseListProps) {
+export default function ExpenseList({ rows, isPhone, categories, showHolder, shownCents, shownCount, onOpen, selection = null, rowActions }: ExpenseListProps) {
   const total = (
     <>
       <span>{shownCount} {shownCount === 1 ? 'expense' : 'expenses'}</span>
@@ -90,7 +96,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
         {rows.map((e) => {
           const line = statusLine(e, categories);
           const chips = e.status === 'waiting' ? chipsShown(e) : [];
-          const canTick = ticking && remindable(e);
+          const canTick = ticking && Boolean(selection?.selectable(e));
           const ticked = Boolean(selection?.selected.has(e.id));
           return (
             <button key={e.id} type="button" className={`ccr-card${ticking ? ' is-ticking' : ''}${ticked ? ' is-ticked' : ''}`}
@@ -126,6 +132,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
             ) : null}
             <th>Date</th>{showHolder ? <th>Cardholder</th> : null}<th>Merchant</th><th className="ccr-col-wide">Category</th>
             <th className="ccr-num">Amount</th><th>Status</th><th className="ccr-col-wide">Receipt</th>
+            {rowActions ? <th className="ccr-act" aria-label="Actions" /> : null}
           </tr>
         </thead>
         <tbody>
@@ -135,7 +142,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
               <tr key={e.id} onClick={() => onOpen(e)} className={selection?.selected.has(e.id) ? 'is-ticked' : undefined}>
                 {selection ? (
                   <td className="ccr-sel" onClick={(ev) => ev.stopPropagation()}>
-                    {remindable(e) ? (
+                    {selection.selectable(e) ? (
                       <input type="checkbox" aria-label={`Select ${e.merchant} ${formatMoney(e.cents)}`}
                         checked={selection.selected.has(e.id)} onChange={() => selection.onToggle(e.id)} />
                     ) : null}
@@ -157,6 +164,11 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
                   {line ? <div className="ccr-sub">{line}</div> : null}
                 </td>
                 <td className="ccr-col-wide"><Thumb e={e} /></td>
+                {rowActions ? (
+                  <td className="ccr-act" onClick={(ev) => ev.stopPropagation()}>
+                    {(() => { const items = rowActions(e); return items.length ? <RowMenu label={`Actions for ${e.merchant} ${formatMoney(e.cents)}`} items={items} /> : null; })()}
+                  </td>
+                ) : null}
               </tr>
             );
           })}
