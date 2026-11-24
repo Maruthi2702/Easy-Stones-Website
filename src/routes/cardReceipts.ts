@@ -111,7 +111,8 @@ const askView = (a: Loose | null | undefined) => (a && typeof a === 'object'
 /** What the approval rules read off a stored expense (receiptApproval.ts), with its cardholder's role now. */
 const stateOf = (e: Loose, holderRole: string): ApprovalState => ({
   userId: String(e.userId ?? ''), holderRole, location: e.location || '', cents: Number(e.cents) || 0, status: String(e.status || ''),
-  voided: e.voidedAt || null, approval: decisionView(e.approval), secondApproval: decisionView(e.secondApproval), ask: askView(e.ask)
+  voided: e.voidedAt || null, approval: decisionView(e.approval), secondApproval: decisionView(e.secondApproval), ask: askView(e.ask),
+  addedById: e.addedById ? String(e.addedById) : null
 });
 
 const expenseView = (e: Loose, viewer: ApprovalViewer, holderRole = '', issuer = 'amex') => {
@@ -130,6 +131,9 @@ const expenseView = (e: Loose, viewer: ApprovalViewer, holderRole = '', issuer =
     createdAt: e.createdAt, updatedAt: e.updatedAt, history: e.history || [],
     reminders: (e.reminders && typeof e.reminders === 'object' ? e.reminders : {}) as Loose,
     mine: e.userId === viewer.id,
+    /** Added on the cardholder's behalf: who typed it (they can't approve it). */
+    addedByName: e.addedById ? String(e.createdBy || '') : '',
+    addedById: e.addedById ? String(e.addedById) : '',
     needsSecond: secondNeeded(s),
     chips: approvalChips(s),
     waitingReason: waitingReason(viewer, s),
@@ -588,7 +592,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const saved = await db.addExpense(body.id, {
         repeatCheck: body.confirmRepeat !== true,
         userId: me, holderName: nameOf(u), cardId: String(card._id), cardLabel: card.label, location: homeOf(u) || card.location || '',
-        ...value, month: monthOf(value.date), status, createdBy: by,
+        ...value, month: monthOf(value.date), status, createdBy: by, addedById: behalf ? actorId : '',
         history: [{ at: new Date(), by, action: 'added', changes }]
       });
       if (!saved) {

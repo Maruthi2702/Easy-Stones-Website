@@ -113,6 +113,8 @@ export const cardExpenses = pgTable('card_expenses', {
   sentBackAt: moment('sent_back_at'),
   sentBackComment: text('sent_back_comment'),
   createdBy: text('created_by').notNull().default(''),
+  /** Who typed it when added on the cardholder's behalf; null = the cardholder. */
+  addedById: text('added_by_id'),
   voidedAt: moment('voided_at'),
   voidedBy: text('voided_by').notNull().default(''),
   voidReason: text('void_reason').notNull().default(''),

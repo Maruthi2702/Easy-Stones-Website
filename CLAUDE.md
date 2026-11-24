@@ -1427,6 +1427,10 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   person (400), a person with no card (409). The form's "Receipt for" picker (search) comes from `GET /add-for-holders`
   (active people with an active card); the round + shows for someone with the switch even with no card of their own. Editing,
   voiding and the rest stay the cardholder's / Approve's.
+  **The person who added it can't approve it** (owner, 2026-11-23): `addedById` on the expense (`card_expenses.added_by_id`,
+  migration `0033`; Mongo `addedById`) counts like the cardholder in `receiptApproval.ts`'s `isHolder` — no Approve, Ask, Send back,
+  Reopen or Answer, never asked, not a reminder recipient — so someone else does the Accounting approval and the second one. The
+  drawer says "Added by". Receipts added before this have no `addedById`. **Run `npm run pg:migrate -- --apply` on Render for 0033.**
 - **Categories** are a list in the database, seeded once
   (`STARTING_CATEGORIES`); `name` is stored and never changes, `label` is shown.
   A hidden one can't start an expense but stays valid on old ones; one in use is

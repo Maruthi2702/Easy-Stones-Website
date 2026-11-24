@@ -40,7 +40,7 @@ export function expenseDoc(e: typeof cardExpenses.$inferSelect, locationName: st
     reminders: (e.reminders as Loose | null) ?? {},
     sentBack: e.sentBackById == null ? null
       : { by: e.sentBackById, byName: e.sentBackByName ?? '', at: e.sentBackAt, comment: e.sentBackComment ?? '' },
-    createdBy: e.createdBy, voidedAt: e.voidedAt, voidedBy: e.voidedBy, voidReason: e.voidReason,
+    createdBy: e.createdBy, addedById: e.addedById ?? '', voidedAt: e.voidedAt, voidedBy: e.voidedBy, voidReason: e.voidReason,
     history: [...history].sort((a, b) => a.position - b.position)
       .map(h => ({ at: h.at, by: h.by, action: h.action, changes: h.changes })),
     createdAt: e.createdAt, updatedAt: e.updatedAt
