@@ -192,18 +192,18 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-view-top { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 20px; align-items: start; }
 .ccr-view-fields { display: grid; gap: 14px; min-width: 0; }
 .ccr-receipt { display: grid; gap: 4px; margin: 0; align-content: start; }
-.ccr-receipt-img { position: relative; display: block; width: 100%; padding: 0; border: 0; border-radius: 10px; background: var(--ccr-paper); overflow: hidden; cursor: zoom-in; font: inherit; }
+.ccr-receipt-img { position: relative; display: block; width: fit-content; max-width: 100%; padding: 0; border: 0; border-radius: 10px; background: var(--ccr-paper); overflow: hidden; cursor: zoom-in; font: inherit; }
 .ccr-receipt-img:focus-visible { outline: 2px solid var(--ccr-gold-ink); outline-offset: 2px; }
 .ccr-pdf-tile { display: grid; justify-items: center; align-content: center; gap: 8px; min-height: 220px; color: var(--fm-label); font-size: 14px; }
-.ccr-receipt-img.is-pdf { background: var(--ccr-draft-bg); }
+.ccr-receipt-img.is-pdf { width: 100%; background: var(--ccr-draft-bg); }
 .ccr-pdf-pages { box-sizing: border-box; margin: 0 auto; padding: 12px; display: grid; gap: 12px; }
 .ccr-pdf-page { display: block; width: 100%; height: auto; background: #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.22); }
 .ccr-pdf-note { margin: 0; padding: 20px; text-align: center; font-size: 14px; color: #3a3a3a; }
 .ccr-pdf-note a { color: inherit; font-weight: 600; }
-.ccr-receipt-zoom { position: absolute; right: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px; background: rgba(17, 17, 19, 0.82); color: #fff; font-size: 13px; font-weight: 600; pointer-events: none; transition: background 0.15s; }
+.ccr-receipt-zoom { position: absolute; right: 8px; bottom: 8px; max-width: calc(100% - 16px); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px; background: rgba(17, 17, 19, 0.82); color: #fff; font-size: 13px; font-weight: 600; pointer-events: none; transition: background 0.15s; }
 .ccr-receipt-img:hover .ccr-receipt-zoom { background: rgba(17, 17, 19, 0.95); }
 @media (hover: none) { .ccr-receipt-zoom { min-height: 36px; } }
-.ccr-receipt img { display: block; width: 100%; max-height: 370px; object-fit: contain; }
+.ccr-receipt img { display: block; width: auto; max-width: 100%; height: auto; max-height: 370px; }
 .ccr-receipt-full { display: flex; align-items: center; min-height: 44px; color: var(--ccr-gold-ink); font-size: 14px; font-weight: 600; text-decoration: underline; }
 .ccr-lost { display: grid; gap: 6px; padding: 14px; border-radius: 12px; border: 1.5px dashed var(--ccr-line); }
 .ccr-lost-k { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ccr-back); }
