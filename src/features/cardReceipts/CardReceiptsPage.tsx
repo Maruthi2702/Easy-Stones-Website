@@ -135,7 +135,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
 
   const say = (text: string) => { setToast(text); window.setTimeout(() => setToast(''), 2600); };
   const patchFilters = (patch: Partial<ReceiptFilters>) => setFilters((f) => ({ ...f, ...patch }));
-  const filtered = Boolean(peopleFilter.active || filters.category || filters.bank || filters.status !== 'all');
+  // Waiting for me's queue (Needs Accounting / second approval / Asked of me) is a Filters field, only for approvers.
+  const queueField = tab === 'waiting' && data.approver;
+  const queueActive = queueField && waitFilter !== 'all';
+  const filtered = Boolean(peopleFilter.active || filters.category || filters.bank || filters.status !== 'all' || queueActive);
 
   // Export…: one pop-up (Card, Months, Format). "This month" is that month's receipts for the bank picked,
   // whatever the other filters say; "All months" asks the server and needs the Export all switch.
@@ -183,13 +186,21 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 user={currentUser}
                 active={filtered}
                 wide
-                onClear={() => { setFilters((f) => ({ ...NO_FILTERS, search: f.search })); peopleFilter.reset(); }}
-                activeCount={(peopleFilter.active ? 1 : 0) + (filters.category ? 1 : 0) + (filters.bank ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
+                onClear={() => { setFilters((f) => ({ ...NO_FILTERS, search: f.search })); peopleFilter.reset(); setWaitFilter('all'); }}
+                activeCount={(queueActive ? 1 : 0) + (peopleFilter.active ? 1 : 0) + (filters.category ? 1 : 0) + (filters.bank ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
                 doneLabel={rows.length ? `Show ${rows.length} receipt${rows.length === 1 ? '' : 's'}` : 'No receipts match'}
               >
                 {/* Card, Status, Category, Cardholder — each choice says how many receipts it would show
                     given the others (the Follow-ups panel's "Label · 3" format). */}
                 <div className="fm-tokens ccr-fields">
+                  {queueField ? (
+                    <div className="lf-group">
+                      <label className="lf-group-label" htmlFor="ccr-f-queue">Queue</label>
+                      <FormPicker id="ccr-f-queue" value={waitFilter} onChange={(v) => setWaitFilter(v as WaitFilter)}
+                        options={WAIT_FILTERS.map((f) => ({ value: f.key, label: `${f.label} · ${waitN[f.key]}` }))}
+                        sheetTitle="Queue" keepInForm />
+                    </div>
+                  ) : null}
                   {data.viewAll || canExport || canExportAll ? (
                     <div className="lf-group" role="group" aria-labelledby="ccr-f-bank">
                       <span className="lf-group-label" id="ccr-f-bank">Card</span>
@@ -266,17 +277,6 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 <button type="button" className="ccr-btn ccr-banner-btn" onClick={() => setOpenId(missingMine[missingMine.length - 1].id)}>
                   Upload
                 </button>
-              </div>
-            ) : null}
-
-            {tab === 'waiting' && data.approver ? (
-              <div className="fm-tokens ccr-waitseg">
-                <SegmentedToggle<WaitFilter>
-                  label="Show"
-                  value={waitFilter}
-                  onChange={setWaitFilter}
-                  options={WAIT_FILTERS.map((f) => ({ value: f.key, label: `${isPhone ? f.short : f.label} · ${waitN[f.key]}` }))}
-                />
               </div>
             ) : null}
 

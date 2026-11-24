@@ -352,11 +352,19 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
     fake.waiting = [WAITING_LOST, WAITING_SECOND, WAITING_ASKED];
     await show(['use_card_receipts', 'approve_card_receipts']);
     fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));
-    for (const label of ['All · 3', 'Needs Accounting · 1', 'Needs second approval · 1', 'Asked of me · 1']) {
-      expect(screen.getByRole('radio', { name: label })).toBeTruthy();
-    }
-    fireEvent.click(screen.getByRole('radio', { name: 'Asked of me · 1' }));
+    // The queue is a field in the Filters panel, not a row on the page.
+    expect(screen.queryByRole('radio', { name: /Asked of me/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }));
     await settle();
+    const dialog = screen.getByRole('dialog', { name: 'Filters' });
+    fireEvent.click(dialog.querySelector('#ccr-f-queue')!);
+    await settle();
+    for (const label of ['All · 3', 'Needs Accounting · 1', 'Needs second approval · 1', 'Asked of me · 1']) {
+      expect(document.body.textContent).toContain(label);
+    }
+    fireEvent.click(screen.getByText('Asked of me · 1'));
+    await settle();
+    expect(dialog.querySelector('.lf-badge')?.textContent).toBe('1');
     expect(screen.getByText('Costco')).toBeTruthy();
     expect(screen.queryByText('CHEVRON')).toBeNull();
     expect(text()).toContain('Asked Maruthi');

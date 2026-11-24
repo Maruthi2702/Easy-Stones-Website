@@ -456,9 +456,6 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 .ccr-banner { align-items: center; flex-wrap: wrap; }
 .ccr-banner > span { flex: 1 1 200px; min-width: 0; }
 .ccr-banner-btn { height: 36px; border-color: currentColor; background: transparent; color: inherit; }
-/* Waiting for me: All · Needs Accounting · Needs second approval · Asked of me. */
-.ccr-waitseg { max-width: 720px; background: transparent; }
-.ccr-waitseg .fm-seg-btn { height: auto; min-height: 40px; padding: 4px 8px; line-height: 1.2; }
 /* Ticking receipts for Send reminder…: the checkbox column, the bar over the list. */
 .ccr-table th.ccr-sel, .ccr-table td.ccr-sel { width: 40px; padding-right: 0; cursor: default; }
 .ccr-sel input { width: 18px; height: 18px; accent-color: #d4af37; cursor: pointer; display: block; }
@@ -472,8 +469,6 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 .ccr-card-tick { grid-row: 1 / span 2; align-self: center; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--ccr-muted); display: grid; place-items: center; color: var(--ccr-on-gold); }
 .ccr-card.is-ticked .ccr-card-tick { background: var(--ccr-gold); border-color: var(--ccr-gold); }
 @media (max-width: 639px) {
-  .ccr-waitseg { max-width: none; }
-  .ccr-waitseg .fm-seg-btn { min-height: 44px; font-size: 13px; overflow-wrap: anywhere; }
   .ccr-selbar { padding: 8px 10px; gap: 8px; }
   .ccr-selbar .ccr-btn, .ccr-banner-btn { height: 44px; }
   .ccr-selbar-n { flex: 1 1 100%; }
