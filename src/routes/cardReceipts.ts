@@ -337,6 +337,31 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     }
   });
 
+  // Who a receipt can be added for (the switch "Add receipts for others"): active people with an active card, and those cards.
+  router.get('/add-for-holders', authenticate, anyOf(CARD_RECEIPTS.ADD_FOR_OTHERS), async (_req: Request, res: Response) => {
+    try {
+      const [cards, people] = await Promise.all([
+        db.listCards(),
+        staffData.findUsers({}, { select: 'username displayName isActive', sort: { displayName: 1 } })
+      ]);
+      const byId = new Map(people.map((p) => [String(p._id), p]));
+      const by = new Map<string, Loose[]>();
+      for (const c of cards) {
+        if (c.active === false || !c.userId) continue;
+        const id = String(c.userId);
+        by.set(id, [...(by.get(id) || []), c]);
+      }
+      const holders = [...by].flatMap(([id, list]) => {
+        const person = byId.get(id);
+        return person && person.username !== 'admin' && person.isActive !== false ? [{ id, name: nameOf(person), cards: list.map(cardView) }] : [];
+      }).sort((a, b) => a.name.localeCompare(b.name));
+      res.json({ holders });
+    } catch (error) {
+      console.error('[card-receipts] add-for-holders failed:', error);
+      res.status(500).json({ message: 'Could not load the cardholders.' });
+    }
+  });
+
   // Everyone with a company card (active or not, a holder set), for the Cardholder filter — even with no expense this
   // month. Limited like the expenses list: View all → everyone, View branch → the caller's team (by where the person works).
   router.get('/cardholders', opener, async (req: Request, res: Response) => {
@@ -512,9 +537,16 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
 
   const categoriesForSave = async () => (await categoriesList()).map(categoryView);
 
-  router.post('/expenses', authenticate, anyOf(CARD_RECEIPTS.USE), async (req: Request, res: Response) => {
+  router.post('/expenses', authenticate, anyOf(CARD_RECEIPTS.USE, CARD_RECEIPTS.ADD_FOR_OTHERS), async (req: Request, res: Response) => {
     const body = req.body || {};
-    const me = userIdOf(req);
+    const actorId = userIdOf(req);
+    // Added on someone's behalf: it is theirs (their card, their name, their edits); only the history says who typed it.
+    const forId = String(body.onBehalfOf || '').trim();
+    const behalf = Boolean(forId) && forId !== actorId;
+    if (behalf && !has(req, CARD_RECEIPTS.ADD_FOR_OTHERS)) return res.status(403).json({ message: 'You can add your own receipts only.' });
+    if (!behalf && !has(req, CARD_RECEIPTS.USE)) return res.status(403).json({ message: 'Choose whose receipt this is.' });
+    if (behalf && !mongoose.isValidObjectId(forId)) return res.status(400).json({ message: 'Some fields need attention.', problems: { holder: 'Choose a cardholder.' } });
+    const me = behalf ? forId : actorId;
     if (!mongoose.isValidObjectId(body.id)) return res.status(400).json({ message: 'The receipt has no id. Reload the page and try again.' });
     try {
       const existing = await db.findExpense(body.id);
@@ -522,8 +554,14 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         if (existing.userId !== me) return res.status(409).json({ message: 'That id belongs to another expense.' });
         return res.json({ expense: await viewOf(existing, approvalViewerOf(req)), alreadySaved: true });
       }
+      let holder: Loose = userOf(req);
+      if (behalf) {
+        const [found] = await staffData.findUsers({ _id: { $in: [forId] } }, { select: 'username displayName location assignedLocations isActive' });
+        if (!found || found.isActive === false) return res.status(400).json({ message: 'Some fields need attention.', problems: { holder: 'Choose an active cardholder.' } });
+        holder = found;
+      }
       const mine = await db.activeCardsOf(me);
-      if (!mine.length) return res.status(409).json({ message: 'You don’t have a company card set up yet. Ask accounting to add it.' });
+      if (!mine.length) return res.status(409).json({ message: behalf ? `${nameOf(holder)} doesn’t have a company card set up yet.` : 'You don’t have a company card set up yet. Ask accounting to add it.' });
       const chosen = chooseCard(mine, body.cardId);
       if (!chosen.card) return res.status(400).json({ message: 'Some fields need attention.', problems: { card: chosen.problem } });
       const card = chosen.card;
@@ -532,7 +570,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const shown = categories.filter((c) => c.active);
       const { value, problems, missing } = cleanExpense(body, { today: todayOf(), categories: shown });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      const linkProblem = await receiptLinkProblem(fileStore(), value.receiptUrl, '', me);
+      const linkProblem = await receiptLinkProblem(fileStore(), value.receiptUrl, '', actorId); // the file is the uploader's
       if (linkProblem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: linkProblem } });
       const noCustomer = await customerProblem(value);
       if (noCustomer) return res.status(400).json({ message: 'Some fields need attention.', problems: { customer: noCustomer } });
@@ -543,14 +581,15 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         const repeat = possibleRepeat(same.map((e) => ({ ...e, id: String(e._id) })) as never, { userId: me, date: value.date, cents: value.cents }) as Loose | null | undefined;
         if (repeat) return res.status(409).json({ message: 'This receipt looks already uploaded.', repeat: { id: String(repeat._id), merchant: repeat.merchant, date: repeat.date, cents: repeat.cents } });
       }
-      const u = userOf(req);
+      const u = holder as { displayName?: string | null; username?: string | null; location?: string | null; assignedLocations?: string[] | null };
       const by = actor(req);
       const status = statusAfterSave(Object.keys(missing).length === 0, undefined, true);
+      const changes = [behalf ? `on behalf of ${nameOf(u)}` : '', status === 'waiting' ? 'sent for approval' : ''].filter(Boolean).join(' · ');
       const saved = await db.addExpense(body.id, {
         repeatCheck: body.confirmRepeat !== true,
         userId: me, holderName: nameOf(u), cardId: String(card._id), cardLabel: card.label, location: homeOf(u) || card.location || '',
         ...value, month: monthOf(value.date), status, createdBy: by,
-        history: [{ at: new Date(), by, action: 'added', changes: status === 'waiting' ? 'sent for approval' : '' }]
+        history: [{ at: new Date(), by, action: 'added', changes }]
       });
       if (!saved) {
         // The same save arrived twice at once: the other one got there first.
@@ -561,7 +600,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         return res.status(500).json({ message: 'Could not save the receipt.' });
       }
       // The Amex check: a charge waiting for this receipt points at it, and its Missing receipt row goes.
-      const replacedMissing = await afterReceiptSaved(saved, { id: me, name: by });
+      const replacedMissing = await afterReceiptSaved(saved, { id: actorId, name: by });
       res.status(201).json({ expense: await viewOf(saved, approvalViewerOf(req)), ...(replacedMissing ? { replacedMissing } : {}) });
     } catch (error) {
       if (error instanceof RepeatExpenseError) {

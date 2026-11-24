@@ -1419,6 +1419,14 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   skipped, unstamped, and they're listed in `noContact`); if nothing got through, the day's stamp is cleared (`lastDay: ''`)
   with a "reminder not delivered" history line and the receipt is skipped with "Try again"; the preview leaves out receipts
   the send would skip (`remindProblem`) and returns them with their reasons.
+- **Adding a receipt for someone** (2026-11-23, on `feat/receipt-on-behalf`; owner's ask): switch `add_receipts_for_others`
+  (Users & Roles → Credit Card Receipts → **Add receipts for others**; Admins hold it, nobody else until ticked). `POST /expenses`
+  takes `onBehalfOf` (a cardholder's id): the receipt is **theirs** — their card (their other card by `cardId`), name and home
+  location, they edit it, the Amex check matches it as theirs — and only the history says who typed it ("added · on behalf of
+  Maria"; `createdBy` is the adder). The photo must be one the adder uploaded. Refused: without the switch (403), an inactive
+  person (400), a person with no card (409). The form's "Receipt for" picker (search) comes from `GET /add-for-holders`
+  (active people with an active card); the round + shows for someone with the switch even with no card of their own. Editing,
+  voiding and the rest stay the cardholder's / Approve's.
 - **Categories** are a list in the database, seeded once
   (`STARTING_CATEGORIES`); `name` is stored and never changes, `label` is shown.
   A hidden one can't start an expense but stays valid on old ones; one in use is

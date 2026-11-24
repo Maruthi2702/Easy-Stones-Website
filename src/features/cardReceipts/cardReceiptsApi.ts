@@ -3,7 +3,7 @@ import { authFetch } from '../../api/authFetch';
 import { queryEntries, type ErrorBody, type Query } from '../../types/api';
 import type { ExpenseInput } from '../../utils/cardReceipts';
 import type { ReceiptScan } from '../../utils/receiptScan';
-import type { AskTarget, Card, Category, Expense, Me, Person, RemindBody, RemindPreview, RemindResult } from './types';
+import type { AskTarget, Card, Category, Expense, Me, Person, RemindBody, AddableHolder, RemindPreview, RemindResult } from './types';
 
 /**
  * Credit Card Receipts' calls to /api/card-receipts (src/routes/cardReceipts.ts).
@@ -36,7 +36,7 @@ export const CHANGED_MESSAGE = 'This receipt changed after you opened it. Look a
 /** The error a write threw was the receipt changing under it (the screen reloads). */
 export const isChanged = (err: unknown) => Boolean((err as { changed?: boolean } | null)?.changed);
 
-export type ExpenseBody = ExpenseInput & { confirmRepeat?: boolean; /** The card it was paid with, when the person holds more than one. */ cardId?: string };
+export type ExpenseBody = ExpenseInput & { confirmRepeat?: boolean; /** The card it was paid with, when the person holds more than one. */ cardId?: string; /** Added for this cardholder (needs "Add receipts for others"). */ onBehalfOf?: string };
 type One = { expense: Expense };
 /** Every decision sends the `updatedAt` the screen saw; the server answers 409 `changed` if it moved since. */
 const write = (path: string, body: Record<string, unknown>, seen?: string, method = 'POST') =>
@@ -88,3 +88,5 @@ export const addCard = (body: Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDi
 export const editCard = (id: string, body: Partial<Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'location' | 'active'>>) => call<{ card: Card }>(`/cards/${id}`, { method: 'PUT', body });
 /** Who each group would reach, so the form can name them before anything is sent. */
 export const remindPreview = (ids: string[]) => call<RemindPreview>('/expenses/remind/preview', { method: 'POST', body: { ids } });
+/** Who a receipt can be added for, with their cards. */
+export const getAddForHolders = () => call<{ holders: AddableHolder[] }>('/add-for-holders');

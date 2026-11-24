@@ -36,6 +36,11 @@ export const CARD_RECEIPTS = Object.freeze({
    * for anyone, managers / directors for their team. Given once to every role holding Approve (ACTION_MIGRATIONS).
    */
   REMIND: 'send_receipt_reminders',
+  /**
+   * Add a receipt on a cardholder's behalf (2026-11-23): saved to their card and owned by them, the history says who added it.
+   * Nobody holds it until an admin ticks it (Admins hold every key).
+   */
+  ADD_FOR_OTHERS: 'add_receipts_for_others',
   /** Upload Amex's activity export and see every charge matched to a receipt (src/utils/amexStatement.ts). */
   STATEMENTS: 'check_amex_statements',
   CATEGORY_ADD: 'add_receipt_categories',

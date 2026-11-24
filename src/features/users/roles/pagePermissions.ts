@@ -398,6 +398,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: CARD_RECEIPTS.VIEW_BRANCH, label: 'View branch', icon: Eye, desc: 'See the expenses and receipts of everyone who works at their branches, by where the person works (like Visits → View branch)' },
             { key: CARD_RECEIPTS.VIEW_ALL, label: 'View all', icon: Eye, desc: 'See every cardholder’s expenses and receipts' },
             { key: CARD_RECEIPTS.APPROVE, label: 'Approve', icon: CheckCheck, desc: 'Accounting and Admins approve every receipt; from $150 a branch manager / director or an Admin also approves. Never their own.' },
+            { key: CARD_RECEIPTS.ADD_FOR_OTHERS, label: 'Add receipts for others', icon: Plus, desc: 'Add a receipt on a cardholder’s behalf: it is saved to their card and belongs to them (they can edit it), and its history says who added it' },
             { key: CARD_RECEIPTS.REMIND, label: 'Send reminders', icon: Bell, desc: 'Email and push a reminder about a receipt to its cardholder, their branch manager, Accounting or whoever still has to approve it — Accounting and Admins about anyone’s, managers about their team’s; once per receipt a day' },
             { key: CARD_RECEIPTS.EXPORT, label: 'Export', icon: Download, desc: 'Download the list on screen (the month and filters, Amex or Encore) to Excel' },
             { key: CARD_RECEIPTS.EXPORT_ALL, label: 'Export all', icon: Download, desc: 'Download every month at once, for Amex, Encore or both — only the expenses they can see' },
