@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Ban, Bell, CornerUpLeft, HelpCircle, MessageSquareOff, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react';
+import { AlertTriangle, Ban, Bell, CornerUpLeft, FileText, HelpCircle, Maximize2, MessageSquareOff, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormField } from '../../../components/shared/form/FormControls';
 import { formatMoney, isBigReceipt, usDate, fieldsOf } from '../../../utils/cardReceipts';
@@ -9,6 +9,7 @@ import type { StatusBand } from '../cardReceiptsView';
 import type { DetailsBody } from '../cardReceiptsApi';
 import FillDetailsSection from './FillDetailsSection';
 import NearReceipts from './NearReceipts';
+import ReceiptPreview from './ReceiptPreview';
 import type { NearReceipts as NearList } from '../cardReceiptsApi';
 import type { Category, Expense } from '../types';
 
@@ -111,12 +112,14 @@ export default function ExpenseDrawer({
   const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState<'' | 'approve' | 'answer' | 'back' | 'withdraw'>('');
   const [error, setError] = useState('');
+  // "View full size": the big, zoomable receipt takes this same window's place until Back (or ✕ / Esc).
+  const [viewing, setViewing] = useState(false);
   const fields = fieldsOf(categories.find((c) => c.name === e.category), e.subcategory);
   const band = statusBandOf(e, categories);
   const act = actionsOf(e);
   const reminded = reminderLine(e.reminders, today);
 
-  useEffect(() => { setComment(''); setAnswer(''); setError(''); }, [e.id]);
+  useEffect(() => { setComment(''); setAnswer(''); setError(''); setViewing(false); }, [e.id]);
 
   const run = async (kind: typeof busy, fn: () => Promise<unknown>) => {
     setBusy(kind);
@@ -183,23 +186,25 @@ export default function ExpenseDrawer({
   const more = items.length ? <MoreMenu>{items}</MoreMenu> : null;
 
   const ask = e.ask;
+  const bigView = viewing && Boolean(e.receiptUrl);
 
   return (
     <FormModal
-      title={<span className="ccr-ttl2"><span className="ccr-ttl2-name"><span className="ccr-ttl2-pre">Receipt · </span>{e.merchant}</span><span className={`ccr-ttl2-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? '$150 and up' : undefined}>{formatMoney(e.cents)}</span></span>}
-      size="m"
-      onClose={onClose}
-      onSubmit={() => { if (main && !main.disabled && !busy) main.run(); }}
+      title={<span className="ccr-ttl2"><span className="ccr-ttl2-name"><span className="ccr-ttl2-pre">Receipt · </span>{e.merchant}</span></span>}
+      size={bigView ? 'l' : 'm'}
+      onClose={bigView ? () => setViewing(false) : onClose}
+      onSubmit={() => { if (!bigView && main && !main.disabled && !busy) main.run(); }}
       submitLabel={main?.label}
       savingLabel={main?.saving || undefined}
       saving={Boolean(main?.kind) && busy === main?.kind}
       submitDisabled={Boolean(main?.disabled) || (Boolean(busy) && busy !== main?.kind)}
       hideSubmit={!main}
-      headerActions={more}
+      hideFooter={bigView}
+      headerActions={bigView ? null : more}
     >
+      {bigView && e.receiptUrl ? <ReceiptPreview url={e.receiptUrl} variant="viewer" onClose={() => setViewing(false)} /> : <>
       {error ? <div className="ccr-form-error" role="alert">{error}</div> : null}
       {e.voided ? <div className="ccr-note is-error">Voided by {e.voided.by || 'someone'}: {e.voided.reason}</div> : null}
-      {band ? <Band band={band} /> : null}
       {ask ? (
         <div className={`ccr-ask${askIsOpen(e) ? ' is-open' : ''}`}>
           <p><b>{ask.byName} asked {ask.toName}:</b> {ask.question}</p>
@@ -207,16 +212,18 @@ export default function ExpenseDrawer({
         </div>
       ) : null}
       {needsCategory ? <div className="ccr-note is-warn"><AlertTriangle size={16} aria-hidden="true" /><span>Pick a category first — fill it in below, then approve.</span></div> : null}
-      {reminded ? <p className="ccr-reminded">{reminded}</p> : null}
 
       <FormSection>
         <div className="ccr-view-top">
           {e.receiptUrl ? (
             <figure className="ccr-receipt">
-              {isPdfUrl(e.receiptUrl)
-                ? <a className="ccr-btn" href={e.receiptUrl} target="_blank" rel="noreferrer">Open the PDF receipt</a>
-                : <a className="ccr-receipt-img" href={e.receiptUrl} target="_blank" rel="noreferrer"><img src={e.receiptUrl} alt={`Receipt from ${e.merchant}`} /></a>}
-              <a className="ccr-receipt-full" href={e.receiptUrl} target="_blank" rel="noreferrer">View full size</a>
+              <button type="button" className={`ccr-receipt-img${isPdfUrl(e.receiptUrl) ? ' is-pdf' : ''}`} onClick={() => setViewing(true)}
+                aria-label={isPdfUrl(e.receiptUrl) ? `View the PDF receipt from ${e.merchant}` : `View the receipt from ${e.merchant} full size`}>
+                {isPdfUrl(e.receiptUrl)
+                  ? <span className="ccr-pdf-tile"><FileText size={44} aria-hidden="true" /><b>PDF receipt</b></span>
+                  : <img src={e.receiptUrl} alt="" />}
+                <span className="ccr-receipt-zoom"><Maximize2 size={14} aria-hidden="true" />{isPdfUrl(e.receiptUrl) ? 'View PDF' : 'View full size'}</span>
+              </button>
             </figure>
           ) : e.lostReason ? (
             <div className="ccr-lost">
@@ -246,7 +253,7 @@ export default function ExpenseDrawer({
               {e.subtotalCents != null ? <Row label="Subtotal">{formatMoney(e.subtotalCents)}</Row> : null}
               {e.taxCents != null ? <Row label="Tax">{formatMoney(e.taxCents)}</Row> : null}
               {e.tipCents != null ? <Row label="Tip">{formatMoney(e.tipCents)}</Row> : null}
-              <div className="ccr-row is-total"><dt>Total</dt><dd>{formatMoney(e.cents)}</dd></div>
+              <div className={`ccr-row is-total${isBigReceipt(e.cents) ? ' is-big' : ''}`}><dt>Total</dt><dd title={isBigReceipt(e.cents) ? '$150 and up' : undefined}>{formatMoney(e.cents)}</dd></div>
             </dl>
           </div>
         </div>
@@ -277,6 +284,15 @@ export default function ExpenseDrawer({
         </FormSection>
       ) : null}
 
+      {band || reminded ? (
+        <FormSection>
+          <div className="ccr-state">
+            {band ? <Band band={band} /> : null}
+            {reminded ? <p className="ccr-reminded"><Bell size={13} aria-hidden="true" />{reminded}</p> : null}
+          </div>
+        </FormSection>
+      ) : null}
+
       <FormSection>
         <details className="ccr-hist ccr-act-wrap" open={e.history.length < 4}>
           <summary className="ccr-act-h">Activity · {e.history.length + 1}</summary>
@@ -288,6 +304,7 @@ export default function ExpenseDrawer({
           </ul>
         </details>
       </FormSection>
+      </>}
     </FormModal>
   );
 }

@@ -49,8 +49,8 @@ export default function BillCard({ merchant, date, total, subtotal, tax, tip, re
     <div className="ccr-bill">
       <div className="ccr-bill-head">
         <button type="button" className="ccr-bill-thumb" onClick={onPhoto} disabled={uploading}
-          aria-label={receiptUrl ? (isPdfUrl(receiptUrl) ? 'Open the PDF receipt' : 'View the receipt large') : 'Take a photo or choose a file'}
-          aria-expanded={receiptUrl && !isPdfUrl(receiptUrl) ? viewingLarge : undefined}>
+          aria-label={receiptUrl ? (isPdfUrl(receiptUrl) ? 'View the PDF receipt large' : 'View the receipt large') : 'Take a photo or choose a file'}
+          aria-expanded={receiptUrl ? viewingLarge : undefined}>
           {receiptUrl
             ? (isPdfUrl(receiptUrl) ? <span className="ccr-bill-pdf">PDF</span> : <img src={receiptUrl} alt="" />)
             : (lost ? <FileText size={22} aria-hidden="true" /> : <Camera size={22} aria-hidden="true" />)}

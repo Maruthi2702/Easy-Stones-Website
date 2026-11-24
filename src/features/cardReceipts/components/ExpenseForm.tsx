@@ -11,7 +11,6 @@ import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
 import { receiptFileProblem } from '../../../utils/receiptFile';
 import { centsText, cleanExpense, defaultSubOf, fieldsOf, formatMoney, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
-import { isPdfUrl } from '../cardReceiptsView';
 import type { ExpenseBody } from '../cardReceiptsApi';
 import CardToggle from './CardToggle';
 import { lastCardFor, rememberCard } from '../cardChoice';
@@ -244,10 +243,9 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const cardNote = reading ? 'Reading the receipt…' : readLine;
   const onBillScreen = view === 'bill';
 
-  // The photo slot: take one when there is none, else see it large (a PDF opens in its own tab).
+  // The photo slot: take one when there is none, else see it large (a PDF too, drawn here).
   const onPhoto = () => {
     if (!values.receiptUrl || lost) { fileRef.current?.click(); return; }
-    if (isPdfUrl(values.receiptUrl)) { window.open(values.receiptUrl, '_blank', 'noreferrer'); return; }
     setViewing((v) => !v);
   };
 
@@ -275,7 +273,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
         </div>
       ) : null}
 
-      {viewing && !lost && values.receiptUrl && !isPdfUrl(values.receiptUrl)
+      {viewing && !lost && values.receiptUrl
         ? <ReceiptPreview url={values.receiptUrl} onClose={() => setViewing(false)} />
         : null}
 

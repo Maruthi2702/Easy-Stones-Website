@@ -1475,6 +1475,14 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   them, opens that screen; after a photo, if the reading left merchant or total blank (or reading
   is off) it opens by itself with the photo large. Total is what was charged to the card;
   subtotal / tax / tip are information only — nothing adds them up.
+- **An opened receipt: View full size stays in the window** (2026-11-24, on `feat/receipt-view-fullsize`; claude.ai artifact **Receipt full-size viewer**,
+  https://claude.ai/artifact/VFEf8Ffa4RZqTeMNr3b1a1 — boards 1–7 light, 8–11 light and dark; the owner's comments set every rule). The photo
+  thumbnail is a button with a "View full size" chip; it swaps `ExpenseDrawer`'s body for `ReceiptPreview variant="viewer"` (Back to receipt, − / + / fit,
+  double-tap and pinch; ✕ and Esc go back, not close) — never a new tab. A **PDF** opens the same way, drawn by pdf.js (`receiptPdf.ts`, a copy of the Hold
+  letter preview's loader: the receipt file route answers with `sandbox`, which blocks the browser's own PDF viewer in a frame, and iOS frames show page 1 only);
+  a file it can't fetch (an old Cloudinary / CDN address with no CORS) says so and links "Open it in a new tab". The Add / Edit form's thumbnail does the same.
+  The header carries no amount (the Total row does, gold from $150); the status band and the reminder pill sit directly above Activity (`.ccr-state`).
+  Every colour is a token, so light and dark follow the app. Phone: the viewer is the full-screen sheet. Not tried on a real iPhone.
 - **Add receipt asks how first** (2026-11-21, on `feat/receipt-capture`; claude.ai artifact **Receipt capture flow**,
   https://claude.ai/artifact/XZPwWL45sLa6o2EbQZPKDU): the round camera opens `AddReceiptChoice` (a size-S form, ✕, no
   footer — `FormModal`'s `hideFooter`): **Open Camera** (`CameraCapture`: `getUserMedia` back camera, corner guides, flash
