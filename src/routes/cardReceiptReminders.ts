@@ -4,7 +4,7 @@ import * as staffData from '../db/staff/index.ts';
 import { readSetting, writeSetting } from '../db/settings/index.ts';
 import * as reminderData from '../db/cardReceipts/reminders.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
-import { deliverReminders, siteBase, unreachable, type ReminderSenders } from '../services/receiptReminders.ts';
+import { deliverReminders, phoneSetOf, siteBase, type ReminderSenders } from '../services/receiptReminders.ts';
 import { CARD_RECEIPTS } from '../utils/cardReceipts.ts';
 import { isAccountingSide } from '../utils/receiptApproval.ts';
 import { displayNameOf } from '../utils/salesReps.ts';
@@ -71,8 +71,9 @@ export default function createCardReceiptRemindersRouter({ authenticate, senders
       const staff = staffIndex(staffList);
       const byId = new Map(found.map((e) => [idOf(e), e]));
       const skipped: { id: string; merchant: string; reason: string }[] = [];
-      const items: ReminderItem[] = [];
       const channels = { email: body.email, push: body.push };
+      // First who each receipt means, then who can actually be reached, so nothing is stamped that goes nowhere.
+      const planned: { id: string; e: ReminderExpense; people: string[] }[] = [];
       for (const id of body.ids) {
         const e = byId.get(id);
         if (!e) { skipped.push({ id, merchant: '', reason: 'Not found.' }); continue; }
@@ -81,20 +82,53 @@ export default function createCardReceiptRemindersRouter({ authenticate, senders
         if (problem) { skip(problem); continue; }
         const people = resolveGroups(body.to, e, staff, { senderId: me });
         if (!people.length) { skip(nobodyReason(body.to, e, staff, me)); continue; }
-        const names = people.map((p) => nameOfPerson(staff.byId.get(p)));
+        planned.push({ id, e, people });
+      }
+      const phones = body.push ? await phoneSetOf([...new Set(planned.flatMap((p) => p.people))], senders) : new Set<string>();
+      const hasEmail = (pid: string) => !!String(staff.byId.get(pid)?.email ?? '').trim();
+      const hasPhone = (pid: string) => phones === null || phones.has(pid); // phones unreadable: nobody is ruled out
+      const reach = (pid: string) => (body.email && hasEmail(pid)) || (body.push && hasPhone(pid));
+      const items: ReminderItem[] = [];
+      const noContact = new Set<string>();
+      for (const { id, e, people } of planned) {
+        const skip = (reason: string) => skipped.push({ id, merchant: String(e.merchant || ''), reason });
+        const reached = people.filter(reach);
+        people.filter((pid) => !reach(pid)).forEach((pid) => noContact.add(nameOfPerson(staff.byId.get(pid))));
+        if (!reached.length) {
+          const what = body.email && body.push ? 'email address or phone with the app' : body.email ? 'email address' : 'phone with the app';
+          skip(`${people.map((pid) => nameOfPerson(staff.byId.get(pid))).join(', ')} ${people.length === 1 ? 'has' : 'have'} no ${what}, so nothing could be sent.`);
+          continue;
+        }
+        const names = reached.map((pid) => nameOfPerson(staff.byId.get(pid)));
         const line = reminderHistory({ byName: senderName, names, ...channels, message: body.message });
         const marked = await reminderData.markReminded(id, { lastDay: today, lastAt: at.toISOString(), lastBy: me, lastByName: senderName },
           { at, ...line }, { key: 'lastDay', value: today });
         if (!marked) { skip('A reminder was already sent today.'); continue; }
-        items.push({ expense: e, stage: 'manual', email: body.email ? people : [], push: body.push ? people : [] });
+        items.push({ expense: e, stage: 'manual', email: body.email ? reached.filter(hasEmail) : [], push: body.push ? reached.filter(hasPhone) : [] });
       }
       const batches = groupByRecipient(items);
       const everyone = batches.map((b) => b.userId);
-      const { noEmail, noPhone } = await unreachable({ email: body.email ? everyone : [], push: body.push ? everyone : [] }, staff, senders);
       const base = siteBase(req.get('origin') || '');
-      void deliverReminders(batches, staff, { senderName, message: body.message, link: base ? `${base}${RECEIPTS_PATH}` : '', senders })
-        .catch((err) => console.error('Receipt reminders failed:', (err as Error)?.message || err));
-      res.json({ sent: { people: batches.length, receipts: items.length }, skipped, noPhone, noEmail });
+      const nameOf = (pid: string) => nameOfPerson(staff.byId.get(pid));
+      // Reached one way only: named so the sender knows.
+      const noEmail = body.email ? everyone.filter((pid) => !hasEmail(pid)).map(nameOf) : [];
+      const noPhone = body.push ? everyone.filter((pid) => !hasPhone(pid)).map(nameOf) : [];
+      // Send before answering, so what we say happened did: a receipt nobody got a message about is not "reminded".
+      const delivery = await deliverReminders(batches, staff, { senderName, message: body.message, link: base ? `${base}${RECEIPTS_PATH}` : '', senders })
+        .catch((err) => { console.error('Receipt reminders failed:', (err as Error)?.message || err); return { emails: 0, pushes: 0, failed: everyone }; });
+      const failed = new Set(delivery.failed);
+      let done = 0;
+      for (const item of items) {
+        const targets = [...new Set([...item.email, ...item.push])];
+        if (!targets.some((t) => !failed.has(t))) {
+          // Nothing got through: free the day again and leave a line saying so.
+          await reminderData.markReminded(idOf(item.expense), { lastDay: '' },
+            { at: now(), by: senderName, action: 'reminder not delivered', changes: 'Could not be sent — try again' }).catch(() => false);
+          skipped.push({ id: idOf(item.expense), merchant: String(item.expense.merchant || ''), reason: 'The email and phone message could not be sent. Try again.' });
+        } else done++;
+      }
+      const people = batches.filter((b) => !failed.has(b.userId)).length;
+      res.json({ sent: { people: done ? people : 0, receipts: done }, skipped, noPhone, noEmail, noContact: [...noContact] });
     } catch (error) {
       console.error('[card-receipts] remind failed:', error);
       res.status(500).json({ message: 'Could not send the reminders.' });
@@ -112,7 +146,21 @@ export default function createCardReceiptRemindersRouter({ authenticate, senders
         reminderData.listByIds(ids) as Promise<ReminderExpense[]>,
         staffData.findUsers({}, { select: STAFF_FIELDS }) as Promise<Person[]>
       ]);
-      res.json({ groups: previewGroups(found, staffIndex(staffList), userIdOf(req)) });
+      // Only what the real send would act on, so the names and the count match what happens.
+      const me = userIdOf(req);
+      const today = pacificDay(now());
+      const team: Team = isAccountingSide(sender.role) ? '*' : await teamOfRequest(req) as Team;
+      const byId = new Map(found.map((e) => [idOf(e), e]));
+      const ok: ReminderExpense[] = [];
+      const skipped: { id: string; merchant: string; reason: string }[] = [];
+      for (const id of ids) {
+        const e = byId.get(id);
+        if (!e) { skipped.push({ id, merchant: '', reason: 'Not found.' }); continue; }
+        const problem = remindProblem({ ...sender, id: me }, e, team, today);
+        if (problem) skipped.push({ id, merchant: String(e.merchant || ''), reason: problem });
+        else ok.push(e);
+      }
+      res.json({ groups: previewGroups(ok, staffIndex(staffList), me), skipped });
     } catch (error) {
       console.error('[card-receipts] remind preview failed:', error);
       res.status(500).json({ message: 'Could not work out who would be reminded.' });

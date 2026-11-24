@@ -23,6 +23,17 @@ const escapeHtml = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
 /** The site's address for the email's button (the caller's own origin when there is one). */
 export const siteBase = (origin = '') => (origin || process.env.FRONTEND_URL || process.env.RENDER_EXTERNAL_URL || '').replace(/\/+$/, '');
 
+/** Of these people, who has a phone registered for push; null when that couldn't be read (nobody is then ruled out). */
+export async function phoneSetOf(ids: readonly string[], senders: ReminderSenders = {}): Promise<Set<string> | null> {
+  if (!ids.length) return new Set();
+  try {
+    return new Set(await (senders.phonesOf ?? defaultPhonesOf)([...ids]));
+  } catch (err) {
+    console.error('Receipt reminders: could not read phones:', (err as Error)?.message || err);
+    return null;
+  }
+}
+
 const defaultPhonesOf = async (ids: string[]) => [...new Set((await devicesFor(ids)).map((d) => String(d.userId)))];
 
 export function reminderEmailHtml(words: ReturnType<typeof reminderEmailWords>, link: string) {
@@ -83,27 +94,34 @@ export async function deliverReminders(batches: readonly RecipientBatch[], staff
   const sendPush = senders.sendPush ?? sendPushToUsers;
   const url = link || (siteBase() ? `${siteBase()}${RECEIPTS_PATH}` : '');
   let emails = 0, pushes = 0;
+  /** People something was tried for and nothing got through to. */
+  const failed: string[] = [];
   await Promise.all(batches.map(async (b) => {
+    let tried = false, delivered = false;
     const p = staff.byId.get(b.userId);
     const to = String(p?.email ?? '').trim();
     if (b.email.length && to) {
+      tried = true;
       try {
         const words = reminderEmailWords({ readerId: b.userId, items: b.email, senderName, message });
         const r = await sendEmail({ to, subject: words.subject, html: reminderEmailHtml(words, url), defaultSenderName: SENDER_NAME });
         if (r?.success === false) console.error(`⚠️ Receipt reminder email to ${to} failed: ${r.error ?? ''}`);
-        else emails++;
+        else { emails++; delivered = true; }
       } catch (err) {
         console.error(`⚠️ Receipt reminder email to ${to} threw:`, (err as Error)?.message || err);
       }
     }
     if (b.push.length) {
+      tried = true;
       try {
         await sendPush([b.userId], reminderPushWords({ readerId: b.userId, items: b.push, senderName }));
         pushes++;
+        delivered = true;
       } catch (err) {
         console.error('⚠️ Receipt reminder push threw:', (err as Error)?.message || err);
       }
     }
+    if (tried && !delivered) failed.push(b.userId);
   }));
-  return { emails, pushes };
+  return { emails, pushes, failed };
 }

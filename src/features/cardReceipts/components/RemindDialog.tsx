@@ -80,7 +80,7 @@ export default function RemindDialog({ expenses, onSend, onClose }: RemindDialog
       submitLabel={result ? 'Close' : reach ? `Send to ${reach} ${reach === 1 ? 'person' : 'people'}` : 'Send'}
       savingLabel="Sending…"
       saving={saving}
-      submitDisabled={!result && (!anyone || !anyWay || !n)}
+      submitDisabled={!result && (!anyone || !anyWay || !n || (!!preview?.groups && reach === 0))}
       dirtyCount={result ? 0 : message ? 1 : 0}
     >
       {error ? <div className="ccr-form-error" role="alert">{error}</div> : null}
@@ -91,6 +91,9 @@ export default function RemindDialog({ expenses, onSend, onClose }: RemindDialog
       ) : (
       <FormSection>
         <p className="ccr-dialog-lead">{n === 1 ? `${expenses[0].merchant} · ${expenses[0].holderName}` : `${n} receipts`}</p>
+        {preview?.skipped?.length ? (
+          <p className="ccr-remind-note">{preview.skipped.length === n ? 'None of these can be reminded' : `${preview.skipped.length} of these will be skipped`}: {preview.skipped.map((x) => `${x.merchant || 'A receipt'} (${x.reason.replace(/\.$/, '').toLowerCase()})`).join(', ')}.</p>
+        ) : null}
         <fieldset className="ccr-remind-set">
           <legend className="fm-label">To</legend>
           {GROUPS.map((g) => (
@@ -120,7 +123,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 /** What Send reminder answered: who was reached, each receipt skipped with its reason, who only got one way. */
 function RemindOutcome({ result, onAgain }: { result: RemindResult; onAgain: () => void }) {
-  const { sent, skipped, noPhone, noEmail } = result;
+  const { sent, skipped, noPhone, noEmail, noContact = [] } = result;
   return (
     <div className="ccr-remind-out" role="status">
       <p className={`ccr-remind-head ${sent.people ? 'ok' : 'none'}`}>
@@ -136,6 +139,7 @@ function RemindOutcome({ result, onAgain }: { result: RemindResult; onAgain: () 
         </div>
       ) : null}
       {noPhone.length ? <p className="ccr-remind-note">No phone with the app: {noPhone.join(', ')} (email only).</p> : null}
+      {noContact.length ? <p className="ccr-remind-note">Couldn’t be reached (no email address and no phone with the app): {noContact.join(', ')}.</p> : null}
       {noEmail.length ? <p className="ccr-remind-note">No email address: {noEmail.join(', ')} (phone only).</p> : null}
       {!sent.people ? <button type="button" className="ccr-btn" onClick={onAgain}>Choose who again</button> : null}
     </div>

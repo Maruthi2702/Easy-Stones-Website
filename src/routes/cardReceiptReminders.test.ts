@@ -16,6 +16,7 @@ let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
 const emails: { to: string; subject: string; html: string }[] = [];
 const pushes: { ids: string[]; title: string; body: string }[] = [];
+let failEmail = false;
 const flush = () => new Promise((r) => setTimeout(r, 20));
 
 const oid = () => new mongoose.Types.ObjectId().toString();
@@ -37,7 +38,7 @@ beforeAll(async () => {
     authenticate: (req: Loose, _res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); req.userId = req.user.id; next(); },
     now: () => NOW,
     senders: {
-      sendEmail: async (o) => { emails.push(o); return { success: true }; },
+      sendEmail: async (o) => { emails.push(o); return failEmail ? { success: false, error: 'down' } : { success: true }; },
       sendPush: async (ids, m) => { pushes.push({ ids, title: m.title, body: m.body }); },
       phonesOf: async (ids) => ids.filter((i) => i === P.rep)
     }
@@ -51,7 +52,7 @@ afterAll(async () => {
 
 const exp = { waiting: oid(), missing: oid(), missing2: oid(), approved: oid(), voided: oid(), kent: oid(), remindedToday: oid() };
 beforeEach(async () => {
-  emails.length = 0; pushes.length = 0;
+  emails.length = 0; pushes.length = 0; failEmail = false;
   await Promise.all([CardExpense, User].map((M) => (M as Loose).collection.deleteMany({})));
   const u = (id: string, f: Loose) => ({ _id: new mongoose.Types.ObjectId(id), password: 'x'.repeat(10), isActive: true, ...f });
   await User.collection.insertMany([
@@ -141,9 +142,12 @@ describe('POST /expenses/remind', () => {
     expect(res.body.skipped).toEqual([{ id: exp.kent, merchant: 'Arco', reason: 'Not on your team.' }]);
     expect(res.body.sent).toEqual({ people: 2, receipts: 1 });
     expect(res.body.noPhone).toEqual(['Ann Count']);
+    // Ray has neither an email address nor a phone: nothing can reach him, so it isn't "sent" and isn't stamped.
     const acctRes = await as(ACCT).remind(body([exp.kent])).expect(200);
-    expect(acctRes.body.noEmail).toEqual(['Ray Ortiz']);
-    expect(acctRes.body.noPhone).toEqual(['Ray Ortiz']);
+    expect(acctRes.body.sent).toEqual({ people: 0, receipts: 0 });
+    expect(acctRes.body.skipped[0].reason).toMatch(/Ray Ortiz has no email address or phone with the app/);
+    expect(acctRes.body.noContact).toEqual(['Ray Ortiz']);
+    expect(((await CardExpense.findById(exp.kent).lean()) as Loose).reminders ?? {}).toEqual({});
   });
 
   it('a receipt with nobody to remind is skipped, not stamped', async () => {
@@ -159,12 +163,36 @@ describe('POST /expenses/remind', () => {
   });
 });
 
+describe('what the answer says happened', () => {
+  it('a send that gets through nowhere is not "reminded": the day is freed and a line says so', async () => {
+    failEmail = true;
+    const res = await as(ACCT).remind(body([exp.missing], { push: false, to: { managers: true } })).expect(200);
+    expect(res.body.sent).toEqual({ people: 0, receipts: 0 });
+    expect(res.body.skipped[0].reason).toMatch(/could not be sent/);
+    const saved = (await CardExpense.findById(exp.missing).lean()) as Loose;
+    expect(saved.reminders.lastDay).toBe('');
+    expect(saved.history.at(-1)).toMatchObject({ action: 'reminder not delivered' });
+    failEmail = false;
+    const again = await as(ACCT).remind(body([exp.missing], { push: false, to: { managers: true } })).expect(200);
+    expect(again.body.sent).toEqual({ people: 1, receipts: 1 });
+  });
+});
+
 describe('POST /expenses/remind/preview', () => {
   const preview = (user: Loose, ids: string[]) => request(app).post('/api/card-receipts/expenses/remind/preview').set('x-test-user', JSON.stringify(user)).send({ ids });
 
   it('needs the switch and a receipt', async () => {
     await preview(NOSWITCH, [exp.missing]).expect(403);
     await preview(ACCT, []).expect(400);
+  });
+
+  it('leaves out receipts the send would skip, and says why', async () => {
+    const res = await preview(ACCT, [exp.missing, exp.approved, exp.remindedToday]).expect(200);
+    expect(res.body.skipped.map((x: Loose) => x.reason)).toEqual(['It’s already approved.', 'A reminder was already sent today.']);
+    expect(res.body.groups.holder.names).toEqual(['Maria Lopez']);
+    const mgrRes = await preview(MGR, [exp.kent]).expect(200);
+    expect(mgrRes.body.skipped[0].reason).toBe('Not on your team.');
+    expect(mgrRes.body.groups.holder.names).toEqual([]);
   });
 
   it('names who each group means and marks the sender, who is never named', async () => {

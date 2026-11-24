@@ -1414,7 +1414,11 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   lists who was reached, each skipped receipt with its reason and who got only one way (`RemindOutcome`); a receipt whose only
   possible people is the sender is skipped with that reason (`nobodyReason`), not stamped; the email lists each receipt as a row
   with its amount and a total for several (`EmailWords.rows` / `total`, table layout so a forward keeps it). Not built from the
-  canvas: the "no phone" warning before sending (it's in the answer after).
+  canvas: the "no phone" warning before sending (it's in the answer after). **What the answer says is true (same day):** the
+  server sends *before* answering; someone with neither an email nor a phone is never counted as reminded (the receipt is
+  skipped, unstamped, and they're listed in `noContact`); if nothing got through, the day's stamp is cleared (`lastDay: ''`)
+  with a "reminder not delivered" history line and the receipt is skipped with "Try again"; the preview leaves out receipts
+  the send would skip (`remindProblem`) and returns them with their reasons.
 - **Categories** are a list in the database, seeded once
   (`STARTING_CATEGORIES`); `name` is stored and never changes, `label` is shown.
   A hidden one can't start an expense but stays valid on old ones; one in use is

@@ -3,7 +3,7 @@ import { missingFor, missingLine, onBank, statusTotals, subLabel } from '../../u
 import { ALL_PEOPLE, viewerLocations, workLocationsOf } from '../../utils/teamScope';
 import type { PersonOption } from '../../api/myTeam';
 import type { Loose } from '../../types/records';
-import type { ApprovalChip, Category, Expense, ExpenseActions, Reminders, RemindGroups, RemindResult, WaitingReason } from './types';
+import type { ApprovalChip, Category, Expense, ExpenseActions, Reminders, RemindGroups, WaitingReason } from './types';
 
 /** "Gas · Truck": the category and, when it has one, the type. */
 export const categoryText = (categories: readonly Category[], e: { category: string; subcategory?: string }) => {
@@ -112,20 +112,6 @@ export function reminderLine(r: Reminders | null | undefined, today: string) {
   const auto = r.missing3At || r.missing2At;
   const day = auto ? shortDay(auto) : '';
   return day ? `Automatic reminder sent ${day}` : '';
-}
-
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-/** What Send reminder… answered, as one paragraph. */
-export function remindSummary(r: RemindResult) {
-  const parts = [
-    r.sent.people
-      ? `Sent to ${plural(r.sent.people, 'person', 'people')} about ${plural(r.sent.receipts, 'receipt')}.`
-      : 'Nobody was reminded.'
-  ];
-  if (r.skipped.length) parts.push(`Skipped ${r.skipped.length}: ${r.skipped.map((s) => `${s.merchant || 'a receipt'} (${s.reason})`).join(', ')}.`);
-  if (r.noPhone.length) parts.push(`No phone: ${r.noPhone.join(', ')} (email only).`);
-  if (r.noEmail.length) parts.push(`No email: ${r.noEmail.join(', ')} (phone only).`);
-  return parts.join(' ');
 }
 
 /**
