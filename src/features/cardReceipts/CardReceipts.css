@@ -7,7 +7,8 @@
  * LocationFilter, like the Payments page.
  */
 
-.ccr {
+.ccr,
+.fm-overlay {
   --ccr-bg: var(--bg-primary, #0f1013);
   --ccr-surface: var(--bg-card, #17191e);
   --ccr-head: #1f2228;
@@ -31,6 +32,8 @@
   --ccr-warn-bg: rgba(251, 191, 36, 0.12); --ccr-warn: #fcd34d;
   --ccr-paper: #f3f1ea;
   --ccr-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.ccr {
   height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -44,7 +47,8 @@
 .ccr::-webkit-scrollbar { display: none; }
 .ccr *, .ccr *::before, .ccr *::after { box-sizing: border-box; }
 
-body.light-theme-active .ccr {
+body.light-theme-active .ccr,
+body.light-theme-active .fm-overlay {
   --ccr-bg: #f5f6f8;
   --ccr-surface: #ffffff;
   --ccr-head: #edf1f7;

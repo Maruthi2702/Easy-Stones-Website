@@ -294,7 +294,7 @@ export default function ExpenseDrawer({
       ) : null}
 
       <FormSection>
-        <details className="ccr-hist ccr-act-wrap" open={e.history.length < 4}>
+        <details className="ccr-hist ccr-act-wrap" open>
           <summary className="ccr-act-h">Activity · {e.history.length + 1}</summary>
           <ul className="ccr-act">
             {[...e.history].reverse().map((h, i) => (
