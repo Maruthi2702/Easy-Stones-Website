@@ -1514,6 +1514,9 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   (`deleteReasonProblem`): the whole record is saved first to `card_expense_deletions` (Postgres, migration `0034`; MongoDB's
   `cardexpensedeletions`) with who and why, then removed with its history; a bank-statement charge's row can't be deleted. The
   drawer's ⋯ shows Void receipt / Delete receipt… by these switches. **Run `npm run pg:migrate -- --apply` on Render for `0034`.**
+  Void and Delete are also in each desktop row's ⋯ (a last column in `ExpenseList`, the shared `RowMenu`) and, for **ticked**
+  receipts, in the header ⋯ under Export… ("Void 3 selected…" / "Delete 3 selected…", `BulkReasonForm`: one reason, each goes through
+  the single route, a refused one is listed and the rest still go). Phone cards have no row ⋯ — a tap opens the receipt, whose ⋯ has them.
   Not built: reading a deleted receipt back in the app (an admin reads the table), restoring one.
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { AlertTriangle, Camera, ChevronLeft, ChevronRight, Download, Info } from 'lucide-react';
+import { AlertTriangle, Ban, Camera, ChevronLeft, ChevronRight, Download, Info, Trash2 } from 'lucide-react';
 import useIsPhone from '../../components/shared/form/useIsPhone';
 import DashboardSearch from '../../components/shared/DashboardSearch';
 import LocationFilter from '../../components/shared/LocationFilter';
@@ -29,6 +29,8 @@ import ExportDialog from './components/ExportDialog';
 import CameraCapture from './components/CameraCapture';
 import VoidExpenseForm from './components/VoidExpenseForm';
 import DeleteExpenseForm from './components/DeleteExpenseForm';
+import BulkReasonForm from './components/BulkReasonForm';
+import type { RowMenuItem } from '../../components/shared/RowMenu';
 import CardsPanel from './components/CardsPanel';
 import StatementsPanel from './statements/StatementsPanel';
 import type { AddableHolder, Expense, ReceiptsUser } from './types';
@@ -37,7 +39,7 @@ import './CardReceipts.css';
 export type CardReceiptsPageProps = { currentUser: ReceiptsUser | null; sidebarToggle?: ReactNode };
 
 type Tab = 'expenses' | 'waiting' | 'statements' | 'cards';
-type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | { kind: 'delete'; expense: Expense }
+type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | { kind: 'delete'; expense: Expense } | { kind: 'bulk'; mode: 'void' | 'delete'; expenses: Expense[] }
   | { kind: 'ask'; expense: Expense } | { kind: 'reopen'; expense: Expense } | { kind: 'remind'; expenses: Expense[] } | null;
 
 /**
@@ -117,14 +119,19 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   useEffect(() => { setSelected(new Set()); setSelecting(false); }, [tab, data.month]);
 
   // What "Select all shown" ticks: every row the filters show (not just this page) that a reminder can go about.
-  const remindRows = canRemind && (tab === 'expenses' || tab === 'waiting') ? rows.filter(remindable) : [];
+  // Voiding and deleting ticked receipts also use the ticks (Void any receipt / Delete receipts).
+  const bulkVoidable = (e: Expense) => canVoidAny && !e.voided && e.status !== 'missing';
+  const deletable = (e: Expense) => canDelete && e.status !== 'missing';
+  const selectable = (e: Expense) => (canRemind && remindable(e)) || bulkVoidable(e) || deletable(e);
+  const remindRows = tab === 'expenses' || tab === 'waiting' ? rows.filter(selectable) : [];
   const ticked = remindRows.filter((e) => selected.has(e.id));
+  const remindTicked = canRemind ? ticked.filter(remindable) : [];
   const allShown = remindRows.length > 0 && ticked.length === remindRows.length;
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleAll = () => setSelected(allShown ? new Set() : new Set(remindRows.map((e) => e.id)));
   const clearSelection = () => { setSelected(new Set()); setSelecting(false); };
   const selection: ListSelection | null = remindRows.length && (!isPhone || selecting)
-    ? { selected, onToggle: toggle, allShown, onToggleAll: toggleAll, active: selecting }
+    ? { selected, onToggle: toggle, allShown, onToggleAll: toggleAll, active: selecting, selectable }
     : null;
 
   const opened = openId ? source.find((e) => e.id === openId) || data.expenses.find((e) => e.id === openId) || data.waiting.find((e) => e.id === openId)
@@ -165,6 +172,32 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
     if (c.format === 'pdf') await writePdf(list, categories, exportScope(c, data.month ? monthLabel(data.month) : ''), file);
     else await writeExcel(list, categories, file);
     say(`Downloaded ${list.length} expenses`);
+  };
+  // A row's ⋯ (desktop): Void and Delete for the receipts those switches reach, or the holder's own void rule.
+  const voidableRow = (e: Expense) => e.status !== 'missing' && ((e.mine && canUse && holderMayEdit(e) && !e.canDecide) || bulkVoidable(e));
+  const rowActions = (e: Expense): RowMenuItem[] => [
+    ...(voidableRow(e) ? [{ key: 'void', label: 'Void receipt', icon: Ban, danger: true, onClick: () => setOpen({ kind: 'void', expense: e }) }] : []),
+    ...(deletable(e) ? [{ key: 'delete', label: 'Delete receipt…', icon: Trash2, danger: true, onClick: () => setOpen({ kind: 'delete', expense: e }) }] : [])
+  ];
+  const showRowActions = canVoidAny || canDelete || rows.some((e) => voidableRow(e));
+  // Ticked receipts, in the header ⋯ under Export…
+  const tickedVoid = ticked.filter(bulkVoidable);
+  const tickedDelete = ticked.filter(deletable);
+  const bulkItems: RowMenuItem[] = [
+    ...(tickedVoid.length ? [{ key: 'void-sel', label: `Void ${tickedVoid.length} selected…`, icon: Ban, danger: true, onClick: () => setOpen({ kind: 'bulk', mode: 'void', expenses: tickedVoid }) }] : []),
+    ...(tickedDelete.length ? [{ key: 'delete-sel', label: `Delete ${tickedDelete.length} selected…`, icon: Trash2, danger: true, onClick: () => setOpen({ kind: 'bulk', mode: 'delete', expenses: tickedDelete }) }] : [])
+  ];
+  /** Void or delete the ticked ones one by one; answers the ones the server refused, in its words. */
+  const runBulk = async (mode: 'void' | 'delete', list: Expense[], reason: string) => {
+    const failed: string[] = [];
+    for (const e of list) {
+      try { if (mode === 'void') await data.voidOne(e, reason); else await data.deleteOne(e, reason); } catch (err) { failed.push(`${e.merchant} ${formatMoney(e.cents)}: ${(err as Error).message}`); }
+    }
+    clearSelection();
+    const done = list.length - failed.length;
+    if (done) say(`${done} receipt${done === 1 ? '' : 's'} ${mode === 'void' ? 'voided' : 'deleted'}`);
+    if (!failed.length) setOpen(null);
+    return failed;
   };
   const exportItems = canExport || canExportAll
     ? [{ key: 'export', label: 'Export…', icon: Download, onClick: () => setOpen({ kind: 'export' }) }]
@@ -236,7 +269,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                   {people.length > 1 ? <PeopleField {...peopleFilter.field} /> : null}
                 </div>
               </LocationFilter>
-              {exportItems.length ? <RowMenu label="More" items={exportItems} /> : null}
+              {exportItems.length || bulkItems.length ? <RowMenu label="More" items={[...exportItems, ...bulkItems.map((it, i) => (i === 0 && exportItems.length ? { ...it, divider: true } : it))]} /> : null}
             </div>
           ) : null}
         </div>
@@ -317,7 +350,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             {remindRows.length && (ticked.length || (isPhone && selecting)) ? (
               <div className="ccr-selbar" role="region" aria-label="Selected receipts">
                 <span className="ccr-selbar-n">{ticked.length} selected</span>
-                <button type="button" className="ccr-btn gold" disabled={!ticked.length} onClick={() => setOpen({ kind: 'remind', expenses: ticked })}>Send reminder</button>
+                {canRemind ? <button type="button" className="ccr-btn gold" disabled={!remindTicked.length} onClick={() => setOpen({ kind: 'remind', expenses: remindTicked })}>Send reminder</button> : null}
                 {!allShown ? <button type="button" className="ccr-btn" onClick={toggleAll}>Select all shown</button> : null}
                 <button type="button" className="ccr-btn" onClick={clearSelection}>{isPhone ? 'Cancel' : 'Clear'}</button>
               </div>
@@ -330,7 +363,8 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             <div className={`ccr-box${data.loading ? ' is-loading' : ''}`} aria-busy={data.loading}>
               {rows.length ? (
                 <ExpenseList rows={paged} isPhone={isPhone} categories={categories} showHolder={tab === 'waiting' || data.viewAll}
-                  shownCents={shown.cents} shownCount={shown.count} onOpen={(e) => setOpenId(e.id)} selection={selection} />
+                  shownCents={shown.cents} shownCount={shown.count} onOpen={(e) => setOpenId(e.id)} selection={selection}
+                  rowActions={showRowActions ? rowActions : undefined} />
               ) : (
                 <div className="ccr-empty">
                   {data.loading ? <span>Loading…</span> : tab === 'waiting' && data.waitingError ? (
@@ -368,7 +402,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           categories={categories}
           today={me?.today || ''}
           canEdit={(opened.mine && canUse && holderMayEdit(opened)) || (canEditAny && anyoneMayEdit(opened))}
-          canVoid={opened.status !== 'missing' && ((opened.mine && canUse && holderMayEdit(opened) && !opened.canDecide) || (canVoidAny && !opened.voided))}
+          canVoid={voidableRow(opened)}
           canDelete={canDelete && opened.status !== 'missing'}
           onDelete={() => setOpen({ kind: 'delete', expense: opened })}
           canRemind={canRemind}
@@ -463,6 +497,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
       {open?.kind === 'delete' ? (
         <DeleteExpenseForm expense={open.expense} onClose={() => setOpen(null)}
           onDelete={async (reason) => { await data.deleteOne(open.expense, reason); setOpen(null); setOpenId(null); say('Receipt deleted'); }} />
+      ) : null}
+
+      {open?.kind === 'bulk' ? (
+        <BulkReasonForm mode={open.mode} expenses={open.expenses} onClose={() => setOpen(null)} onRun={(reason) => runBulk(open.mode, open.expenses, reason)} />
       ) : null}
 
       {toast ? <div className="ccr-toast" role="status">{toast}</div> : null}
