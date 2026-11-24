@@ -309,6 +309,7 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 .ccr-bill-total { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--fm-bd, rgba(255, 255, 255, 0.18)); font-size: 18px; color: var(--fm-tx); }
 .ccr-bill-total strong { font-weight: 700; font-variant-numeric: tabular-nums; }
 .ccr-bill-note { margin: 12px 0 0; font-size: 13px; color: var(--fm-mut); }
+.ccr-bill-note.is-check { color: var(--fm-err, #d93025); font-weight: 600; }
 .ccr-bill-links { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
 
 .ccr-money { position: relative; }

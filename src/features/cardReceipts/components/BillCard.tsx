@@ -21,6 +21,8 @@ type Props = BillValues & {
   uploading: boolean;
   /** "Reading the receipt…" / what was filled in. */
   note: string;
+  /** 'check': what was read off the receipt, shown in red so it gets looked at. */
+  noteTone?: 'check';
   viewingLarge: boolean;
   /** The photo slot: take / choose a photo when there is none, else show it large. */
   onPhoto: () => void;
@@ -35,7 +37,7 @@ type Props = BillValues & {
  * (BillDetailsEdit), so the form itself stays short: this card, the category
  * and a note.
  */
-export default function BillCard({ merchant, date, total, subtotal, tax, tip, receiptUrl, lost, uploading, note, viewingLarge, onPhoto, onEdit }: Props) {
+export default function BillCard({ merchant, date, total, subtotal, tax, tip, receiptUrl, lost, uploading, note, noteTone, viewingLarge, onPhoto, onEdit }: Props) {
   const day = dayLabel(date);
   const totalText = money(total);
   const blank = !merchant.trim() && !totalText;
@@ -74,7 +76,7 @@ export default function BillCard({ merchant, date, total, subtotal, tax, tip, re
       ) : null}
 
       <div className="ccr-bill-total"><span>Total</span><strong>{totalText || '—'}</strong></div>
-      {note ? <p className="ccr-bill-note" aria-live="polite">{note}</p> : null}
+      {note ? <p className={`ccr-bill-note${noteTone === 'check' ? ' is-check' : ''}`} aria-live="polite">{note}</p> : null}
     </div>
   );
 }
