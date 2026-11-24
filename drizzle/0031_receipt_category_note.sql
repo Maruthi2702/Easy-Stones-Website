@@ -1,0 +1,1 @@
+ALTER TABLE "receipt_categories" ADD COLUMN "needs_note" boolean DEFAULT false NOT NULL;

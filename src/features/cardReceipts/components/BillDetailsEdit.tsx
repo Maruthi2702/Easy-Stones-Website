@@ -1,6 +1,6 @@
 import { FormSection, FormRow, FormField } from '../../../components/shared/form/FormControls';
 import { DatePicker } from '../../../components/shared/calendar/Calendar';
-import type { ExpenseProblems } from '../../../utils/cardReceipts';
+import { usDate, type ExpenseProblems } from '../../../utils/cardReceipts';
 import type { BillValues } from './BillCard';
 
 type Props = {
@@ -8,6 +8,8 @@ type Props = {
   errors: ExpenseProblems;
   today: string;
   set: (patch: Partial<BillValues>) => void;
+  /** A Missing receipt row: the bank's day and total stand, so they can't be changed here (review B10). */
+  fromBank?: boolean;
 };
 
 const MONEY: { key: 'subtotal' | 'tax' | 'tip'; label: string }[] = [
@@ -22,21 +24,24 @@ const MONEY: { key: 'subtotal' | 'tax' | 'tip'; label: string }[] = [
  * and the optional subtotal, tax and tip. Total is what was charged — the
  * rest are only for the approver's information.
  */
-export default function BillDetailsEdit({ values, errors, today, set }: Props) {
+export default function BillDetailsEdit({ values, errors, today, set, fromBank = false }: Props) {
   return (
     <>
       <FormSection>
         <FormField name="merchant" id="ccr-merchant" label="Merchant" required error={errors.merchant}>
           <input id="ccr-merchant" className="fm-input" autoComplete="off" maxLength={80} placeholder="Where you paid" value={values.merchant} onChange={(e) => set({ merchant: e.target.value })} />
         </FormField>
+        {fromBank ? <p className="ccr-sub" role="note">The date and total come from the bank’s statement, so they can’t be changed.</p> : null}
         <FormRow>
           <FormField name="date" id="ccr-date" label="Date" required error={errors.date}>
-            <DatePicker id="ccr-date" value={values.date} max={today} today={today} onChange={(d) => set({ date: d })} error={errors.date} sheetTitle="Date" />
+            {fromBank ? <div className="ccr-ro" id="ccr-date">{usDate(values.date)}</div> : (
+            <DatePicker id="ccr-date" value={values.date} max={today} today={today} onChange={(d) => set({ date: d })} error={errors.date} sheetTitle="Date" />)}
           </FormField>
           <FormField name="total" id="ccr-total" label="Total" required error={errors.total}>
-            <div className="ccr-money"><span aria-hidden="true">$</span>
-              <input id="ccr-total" className="fm-input" inputMode="decimal" autoComplete="off" placeholder="0.00" value={values.total} onChange={(e) => set({ total: e.target.value })} />
-            </div>
+            {fromBank ? <div className="ccr-ro" id="ccr-total">${values.total}</div> : (
+              <div className="ccr-money"><span aria-hidden="true">$</span>
+                <input id="ccr-total" className="fm-input" inputMode="decimal" autoComplete="off" placeholder="0.00" value={values.total} onChange={(e) => set({ total: e.target.value })} />
+              </div>)}
           </FormField>
         </FormRow>
       </FormSection>

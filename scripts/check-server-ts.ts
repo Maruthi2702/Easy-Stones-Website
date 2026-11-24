@@ -18,8 +18,10 @@ import type { Loose } from '../src/types/records.ts';
 //   node scripts/check-server-ts.ts --server-list   …and the files the server loads
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+// fileURLToPath, not `new URL(...).pathname`: on Windows that gives "/C:/…" (and %20 for a space in the folder name).
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Block comments, and lines that are only a comment: their example imports
 // (`import createX from './src/routes/x.js'` in a doc comment) aren't real.

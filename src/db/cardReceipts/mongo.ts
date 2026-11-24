@@ -1,7 +1,7 @@
 /** Credit Card Receipts on MongoDB — the route's own Mongoose calls, moved here unchanged. */
 import { CompanyCard, ReceiptCategory, CardExpense } from '../../models/CardReceipts.ts';
 import type { Loose } from '../../types/records.ts';
-import { StaleExpenseError, EXPENSE_LIST_CAP } from './types.ts';
+import { StaleExpenseError, EXPENSE_LIST_CAP, TODO_STATUSES } from './types.ts';
 import type { ExpenseFilter, ExpenseHistoryEntry } from './types.ts';
 
 const lean = <T>(q: PromiseLike<unknown>) => q as unknown as Promise<T>;
@@ -50,6 +50,8 @@ export async function deleteCategory(id: string, name: string, move: { to: strin
 export const listCards = () => lean<Loose[]>(CompanyCard.find({}).sort({ active: -1, label: 1 }).lean());
 export const findCard = (id: string) => lean<Loose | null>(CompanyCard.findById(id).lean());
 export const activeCardOf = (userId: string) => lean<Loose | null>(CompanyCard.findOne({ userId, active: true }).lean());
+/** Every active card this person holds (one per bank), the Amex card first. */
+export const activeCardsOf = (userId: string) => lean<Loose[]>(CompanyCard.find({ userId, active: true }).sort({ issuer: 1, createdAt: 1 }).lean());
 
 /** Another active card held by this person or with this ID (`exceptId` = the card being saved). */
 export const activeCardClash = (userId: string, label: string, exceptId: string | null, issuer: 'amex' | 'encore' | 'other' = 'amex') =>
@@ -67,17 +69,31 @@ export async function addCard(id: string, value: Loose): Promise<Loose> {
 export async function changeCard(id: string, set: Loose): Promise<Loose | null> {
   const card = await CompanyCard.findById(id);
   if (!card) return null;
+  const before = card.label;
   card.set(set);
   await card.save();
+  // An expense keeps its own copy of the card ID, so a renamed card carries it onto every expense it holds.
+  if (card.label !== before) await CardExpense.updateMany({ cardId: String(card._id) }, { $set: { cardLabel: card.label } });
   return card.toObject() as unknown as Loose;
+}
+
+/** Delete a card nothing was ever logged on: 'missing' when it is gone, 'in_use' (with the count) when expenses name it. */
+export async function deleteCard(id: string): Promise<{ deleted: true } | { deleted: false; reason: 'missing' | 'in_use'; expenses?: number }> {
+  if (!(await CompanyCard.exists({ _id: id }))) return { deleted: false, reason: 'missing' };
+  const expenses = await CardExpense.countDocuments({ cardId: id });
+  if (expenses) return { deleted: false, reason: 'in_use', expenses };
+  await CompanyCard.deleteOne({ _id: id });
+  return { deleted: true };
 }
 
 /* ---- Expenses ---- */
 
 export function listExpenses(filter: ExpenseFilter): Promise<Loose[]> {
   const where: Record<string, unknown> = filter.kind === 'waiting'
-    ? { status: 'waiting', voidedAt: null, $or: [{ userId: { $in: [...filter.userIds] } }, ...(filter.overCents != null ? [{ cents: { $gt: filter.overCents } }] : [])] }
-    : { month: filter.month, ...(filter.userId ? { userId: filter.userId } : {}), ...(filter.userIds ? { userId: { $in: [...filter.userIds] } } : {}) };
+    ? { status: 'waiting', voidedAt: null }
+    : filter.kind === 'todo'
+      ? { userId: filter.userId, status: { $in: [...TODO_STATUSES] }, voidedAt: null }
+      : { ...(filter.kind === 'month' ? { month: filter.month } : filter.kind === 'range' ? { date: { $gte: filter.from, $lte: filter.to } } : {}), ...(filter.userId ? { userId: filter.userId } : {}), ...(filter.userIds ? { userId: { $in: [...filter.userIds] } } : {}) };
   // `_id` last: two receipts of one day and moment keep a fixed order (it was arbitrary).
   return lean<Loose[]>(CardExpense.find(where).sort({ date: -1, createdAt: -1, _id: -1 }).limit(EXPENSE_LIST_CAP).lean());
 }
@@ -113,4 +129,14 @@ export async function changeExpense(id: string, set: Loose, fullEntry: ExpenseHi
   expense.history.push(entry);
   await expense.save();
   return expense.toObject() as unknown as Loose;
+}
+
+/** Delete an expense for good, after saving its whole record (MongoDB's copy of card_expense_deletions). Null if it is gone. */
+export async function deleteExpense(id: string, by: string, reason: string): Promise<Loose | null> {
+  const expense = await CardExpense.findById(id);
+  if (!expense) return null;
+  const doc = expense.toObject() as unknown as Loose;
+  await CardExpense.db.collection('cardexpensedeletions').insertOne({ expenseId: String(id), expense: doc, deletedBy: by, reason, deletedAt: new Date() });
+  await CardExpense.deleteOne({ _id: expense._id });
+  return doc;
 }

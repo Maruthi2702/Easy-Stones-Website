@@ -4,7 +4,6 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import { clearDriversCache } from '../../../api/deliverySchedule';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
-import { CARD_RECEIPTS } from '../../../utils/cardReceipts';
 import { withCustomerViewRule } from '../../../utils/customerAccess';
 import { withTeamFilesViewRule } from '../../../utils/teamFilesAccess';
 import type { PageDef, RoleRecord } from '../types';
@@ -20,8 +19,6 @@ export function useRoleEditor(roles: RoleRecord[], setRoles: Dispatch<SetStateAc
     const [editedPermissions, setEditedPermissions] = useState<string[]>([]);
     // Team access: the roles whose people this role may manage.
     const [editedManageable, setEditedManageable] = useState<string[]>([]);
-    // Credit Card Receipts: the roles whose receipts this role approves.
-    const [editedApprovable, setEditedApprovable] = useState<string[]>([]);
     const [savingPermissions, setSavingPermissions] = useState(false);
 
     // Page permission popup state
@@ -38,7 +35,6 @@ export function useRoleEditor(roles: RoleRecord[], setRoles: Dispatch<SetStateAc
         setSelectedRole(role);
         setEditedPermissions(role.permissions || []);
         setEditedManageable(role.manageableRoles || []);
-        setEditedApprovable(role.approvesCardReceiptsOf || []);
     };
 
     // Toggle permission checkbox
@@ -59,9 +55,6 @@ export function useRoleEditor(roles: RoleRecord[], setRoles: Dispatch<SetStateAc
     const toggleManageable = (roleName: string) =>
         setEditedManageable(prev => (prev.includes(roleName) ? prev.filter(n => n !== roleName) : [...prev, roleName]));
 
-    const toggleApprovable = (roleName: string) =>
-        setEditedApprovable(prev => (prev.includes(roleName) ? prev.filter(n => n !== roleName) : [...prev, roleName]));
-
     // Save updated permissions for a role
     const savePermissions = async () => {
         if (!selectedRole) return;
@@ -74,8 +67,9 @@ export function useRoleEditor(roles: RoleRecord[], setRoles: Dispatch<SetStateAc
                 },
                 body: JSON.stringify({
                     permissions: editedPermissions,
-                    manageableRoles: editedPermissions.includes(TEAM_PERMISSION) ? editedManageable : [],
-                    approvesCardReceiptsOf: editedPermissions.includes(CARD_RECEIPTS.APPROVE) ? editedApprovable : []
+                    // Card receipts: who approves is by role now (src/utils/receiptApproval.ts), so the
+                    // old "approves receipts of" list is no longer sent.
+                    manageableRoles: editedPermissions.includes(TEAM_PERMISSION) ? editedManageable : []
                 })
             });
 
@@ -86,13 +80,11 @@ export function useRoleEditor(roles: RoleRecord[], setRoles: Dispatch<SetStateAc
 
             // Update local state
             const manageableRoles = editedPermissions.includes(TEAM_PERMISSION) ? editedManageable : [];
-            const approvesCardReceiptsOf = editedPermissions.includes(CARD_RECEIPTS.APPROVE) ? editedApprovable : [];
-            setRoles(prev => prev.map(r => r._id === selectedRole._id ? { ...r, permissions: editedPermissions, manageableRoles, approvesCardReceiptsOf } : r));
+            setRoles(prev => prev.map(r => r._id === selectedRole._id ? { ...r, permissions: editedPermissions, manageableRoles } : r));
             // Driver view decides who's a truck column on the delivery board.
             clearDriversCache();
-            setSelectedRole(prev => ({ ...prev!, permissions: editedPermissions, manageableRoles, approvesCardReceiptsOf }));
+            setSelectedRole(prev => ({ ...prev!, permissions: editedPermissions, manageableRoles }));
             setEditedManageable(manageableRoles);
-            setEditedApprovable(approvesCardReceiptsOf);
             alert('Permissions updated successfully!');
         } catch (err) {
             alert((err as Error).message);
@@ -173,8 +165,8 @@ export function useRoleEditor(roles: RoleRecord[], setRoles: Dispatch<SetStateAc
     const closePage = () => setPagePopup(null);
 
     return {
-        selectedRole, editedPermissions, editedManageable, editedApprovable, savingPermissions, pagePopup, showRoleModal, roleForm, setRoleForm,
-        selectRole, changePermissions, togglePermission, toggleManageable, toggleApprovable, savePermissions, createRole, deleteRole,
+        selectedRole, editedPermissions, editedManageable, savingPermissions, pagePopup, showRoleModal, roleForm, setRoleForm,
+        selectRole, changePermissions, togglePermission, toggleManageable, savePermissions, createRole, deleteRole,
         openCreateRole, closeCreateRole, openPage, closePage
     };
 }

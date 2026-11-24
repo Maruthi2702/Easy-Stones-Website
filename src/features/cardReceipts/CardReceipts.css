@@ -7,7 +7,8 @@
  * LocationFilter, like the Payments page.
  */
 
-.ccr {
+.ccr,
+.fm-overlay {
   --ccr-bg: var(--bg-primary, #0f1013);
   --ccr-surface: var(--bg-card, #17191e);
   --ccr-head: #1f2228;
@@ -31,6 +32,8 @@
   --ccr-warn-bg: rgba(251, 191, 36, 0.12); --ccr-warn: #fcd34d;
   --ccr-paper: #f3f1ea;
   --ccr-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.ccr {
   height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -44,7 +47,8 @@
 .ccr::-webkit-scrollbar { display: none; }
 .ccr *, .ccr *::before, .ccr *::after { box-sizing: border-box; }
 
-body.light-theme-active .ccr {
+body.light-theme-active .ccr,
+body.light-theme-active .fm-overlay {
   --ccr-bg: #f5f6f8;
   --ccr-surface: #ffffff;
   --ccr-head: #edf1f7;
@@ -84,7 +88,9 @@ body.light-theme-active .ccr {
 .ccr-round:hover:not(:disabled) { border-color: var(--ccr-gold-bd); }
 .ccr-round:disabled { opacity: 0.45; cursor: not-allowed; }
 .ccr-round.is-small { width: 32px; height: 32px; }
-.ccr-filter-gap { margin-top: 1rem; }
+/* The Filters panel's fields: Card, Status, Category, Cardholder (the Follow-ups panel's spacing). */
+.ccr-fields { display: flex; flex-direction: column; gap: 22px; }
+.ccr-fields .fm-picker-wrap, .ccr-fields .fm-picker-trigger { width: 100%; }
 
 /* ── Tabs + month ── */
 .ccr-tabs { display: flex; align-items: center; gap: 22px; border-bottom: 1px solid var(--ccr-line); flex-wrap: wrap; }
@@ -93,6 +99,10 @@ body.light-theme-active .ccr {
 .ccr-count { background: var(--ccr-gold); color: var(--ccr-on-gold); font-size: 11px; font-weight: 700; border-radius: 99px; padding: 1px 7px; }
 .ccr-month { margin-left: auto; display: flex; align-items: center; gap: 4px; padding-bottom: 6px; }
 .ccr-month span { font-weight: 600; min-width: 120px; text-align: center; }
+.ccr-month .ccr-btn.is-small { height: 32px; padding: 0 12px; margin-left: 8px; font-size: 13px; }
+.ccr-month.is-range { gap: 8px; }
+.ccr-month.is-range i { font-style: normal; color: var(--ccr-muted); }
+.ccr-range-field { width: 150px; }
 
 /* ── Notes ── */
 .ccr-note { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 10px; font-size: 13px; background: var(--ccr-info-bg); color: var(--ccr-info); }
@@ -173,13 +183,35 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-todo-top { display: flex; align-items: baseline; gap: 8px; }
 .ccr-todo-top b { font-size: 15px; }
 .ccr-todo-top .ccr-amt { margin-left: auto; }
+/* To do on every screen size (review B1, 2026-11-24): every month's, cards in a grid; a phone stacks them. */
+.ccr-todos { display: grid; gap: 8px; }
+.ccr-todo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.ccr-todo-more { justify-self: start; }
+@media (max-width: 639px) { .ccr-todo-grid { grid-template-columns: minmax(0, 1fr); } }
+/* A Missing receipt row's "Is it one you already uploaded?" (review B2). */
+.ccr-near { display: grid; gap: 8px; }
+.ccr-near-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 10px 12px; border: 1px solid var(--ccr-line); border-radius: 10px; background: var(--ccr-surface); }
+.ccr-near-row b { font-weight: 600; }
+.ccr-near-row > .ccr-btn, .ccr-near-act { grid-row: span 2; }
+.ccr-near-act { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 639px) { .ccr-near-row { grid-template-columns: minmax(0, 1fr); } .ccr-near-row > .ccr-btn, .ccr-near-act { grid-row: auto; } .ccr-near-row .ccr-btn { height: 44px; } .ccr-near-act { justify-content: flex-start; } }
 
 /* ── An expense opened (FormModal, size M) ── */
 .ccr-view-top { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 20px; align-items: start; }
 .ccr-view-fields { display: grid; gap: 14px; min-width: 0; }
 .ccr-receipt { display: grid; gap: 4px; margin: 0; align-content: start; }
-.ccr-receipt-img { display: block; border-radius: 10px; background: var(--ccr-paper); overflow: hidden; }
-.ccr-receipt img { display: block; width: 100%; max-height: 300px; object-fit: contain; }
+.ccr-receipt-img { position: relative; display: block; width: fit-content; max-width: 100%; padding: 0; border: 0; border-radius: 10px; background: var(--ccr-paper); overflow: hidden; cursor: zoom-in; font: inherit; }
+.ccr-receipt-img:focus-visible { outline: 2px solid var(--ccr-gold-ink); outline-offset: 2px; }
+.ccr-pdf-tile { display: grid; justify-items: center; align-content: center; gap: 8px; min-height: 220px; color: var(--fm-label); font-size: 14px; }
+.ccr-receipt-img.is-pdf { width: 100%; background: var(--ccr-draft-bg); }
+.ccr-pdf-pages { box-sizing: border-box; margin: 0 auto; padding: 12px; display: grid; gap: 12px; }
+.ccr-pdf-page { display: block; width: 100%; height: auto; background: #fff; box-shadow: 0 1px 6px rgba(0, 0, 0, 0.22); }
+.ccr-pdf-note { margin: 0; padding: 20px; text-align: center; font-size: 14px; color: #3a3a3a; }
+.ccr-pdf-note a { color: inherit; font-weight: 600; }
+.ccr-receipt-zoom { position: absolute; right: 8px; bottom: 8px; max-width: calc(100% - 16px); white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 12px; border-radius: 999px; background: rgba(17, 17, 19, 0.82); color: #fff; font-size: 13px; font-weight: 600; pointer-events: none; transition: background 0.15s; }
+.ccr-receipt-img:hover .ccr-receipt-zoom { background: rgba(17, 17, 19, 0.95); }
+@media (hover: none) { .ccr-receipt-zoom { min-height: 36px; } }
+.ccr-receipt img { display: block; width: auto; max-width: 100%; height: auto; max-height: 370px; }
 .ccr-receipt-full { display: flex; align-items: center; min-height: 44px; color: var(--ccr-gold-ink); font-size: 14px; font-weight: 600; text-decoration: underline; }
 .ccr-lost { display: grid; gap: 6px; padding: 14px; border-radius: 12px; border: 1.5px dashed var(--ccr-line); }
 .ccr-lost-k { font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ccr-back); }
@@ -190,6 +222,55 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-big { font-size: inherit; font-weight: inherit; }
 .ccr-history { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; color: var(--ccr-muted); }
 .ccr-hist summary { font-size: 15px; font-weight: 600; min-height: 44px; display: flex; align-items: center; cursor: pointer; }
+/* Opened receipt: one thin status band, plain rows, a totals box, Activity last. */
+.ccr-state { display: grid; justify-items: start; gap: 8px; }
+.ccr-state .ccr-band { justify-self: stretch; margin: 0; }
+.ccr-state .ccr-reminded { margin: 0; }
+.ccr-band { display: flex; align-items: center; gap: 12px; padding: 9px 12px; margin: 8px 0 14px; border-radius: 10px; flex-wrap: wrap; }
+.ccr-band.is-wait { background: var(--ccr-wait-bg); color: var(--ccr-wait); }
+.ccr-band.is-ok { background: var(--ccr-ok-bg); color: var(--ccr-ok); }
+.ccr-band.is-back { background: var(--ccr-back-bg); color: var(--ccr-back); }
+.ccr-band.is-draft { background: var(--ccr-draft-bg); color: var(--ccr-draft); }
+.ccr-band-ico { flex: none; width: 24px; height: 24px; border-radius: 50%; background: currentColor; display: grid; place-items: center; }
+.ccr-band-ico b { font-size: 12px; font-weight: 800; line-height: 1; color: var(--ccr-surface, #fff); }
+.ccr-band-txt { flex: 1; min-width: 0; display: grid; }
+.ccr-band-txt strong { font-size: 14px; font-weight: 700; color: var(--fm-tx); line-height: 1.3; }
+.ccr-band-txt small { font-size: 12px; color: var(--ccr-muted); line-height: 1.35; overflow-wrap: anywhere; }
+.ccr-band-segs { display: flex; gap: 3px; width: 84px; flex: none; }
+.ccr-band-segs i { flex: 1; height: 4px; border-radius: 2px; background: var(--ccr-line); }
+.ccr-band-segs i.done { background: var(--ccr-ok); }
+.ccr-band-segs i.now { background: var(--ccr-wait); }
+.ccr-ttl2 { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.ccr-ttl2-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ccr-sum .is-total.is-big dd { color: var(--ccr-gold-ink, inherit); }
+.ccr-rows, .ccr-sum { margin: 0; display: grid; }
+.ccr-row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--ccr-line); font-size: 14px; }
+.ccr-rows .ccr-row:last-child { border-bottom: 0; }
+.ccr-row dt { color: var(--ccr-muted); flex: none; }
+.ccr-row dd { margin: 0; font-weight: 600; text-align: right; overflow-wrap: anywhere; min-width: 0; color: var(--fm-tx); }
+.ccr-sum { padding: 4px 14px; border-radius: 12px; background: var(--ccr-draft-bg); }
+.ccr-sum .ccr-row { padding: 8px 0; }
+.ccr-sum .ccr-row:last-child { border-bottom: 0; }
+.ccr-sum .is-total { font-size: 16px; }
+.ccr-sum .is-total dd { font-weight: 800; }
+.ccr-act-h { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ccr-muted); cursor: pointer; }
+.ccr-act-wrap summary.ccr-act-h { min-height: 44px; display: flex; align-items: center; }
+.ccr-act { list-style: none; margin: 0; padding: 0; display: grid; }
+.ccr-act li { position: relative; display: flex; gap: 12px; padding: 6px 0; font-size: 13px; min-width: 0; }
+.ccr-act li::before { content: ""; position: absolute; left: 4px; top: 18px; bottom: -8px; width: 2px; background: var(--ccr-line); }
+.ccr-act li:last-child::before { display: none; }
+.ccr-act em { flex: none; width: 10px; height: 10px; margin-top: 6px; border-radius: 50%; background: var(--ccr-line); }
+.ccr-act li:first-child em { background: var(--ccr-gold, currentColor); }
+.ccr-act div { min-width: 0; display: grid; }
+.ccr-act b { font-weight: 600; }
+.ccr-act small, .ccr-act-chg { color: var(--ccr-muted); font-size: 12px; overflow-wrap: anywhere; }
+@media (max-width: 639px) {
+  .ccr-view-top { grid-template-columns: 1fr; gap: 14px; }
+  .ccr-receipt-img img { max-height: 200px; }
+  .ccr-band { padding: 8px 10px; }
+  .ccr-band-segs { width: 100%; order: 3; }
+  .ccr-ttl2-pre { display: none; }
+}
 /* The ⋯ beside the ✕, and its menu. */
 .ccr-more { position: relative; }
 .ccr-more-btn { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--fm-bd); background: var(--fm-card, transparent); color: var(--fm-tx); display: grid; place-items: center; cursor: pointer; padding: 0; }
@@ -216,6 +297,12 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-preview-bar { display: flex; align-items: center; gap: 6px; }
 .ccr-preview-k { font-size: 12px; font-weight: 700; color: var(--fm-label); margin-right: auto; }
 .ccr-preview-btn, .ccr-preview-pct { height: 34px; min-width: 34px; padding: 0 8px; border-radius: 9px; border: 1px solid var(--fm-bd, rgba(255, 255, 255, 0.18)); background: var(--fm-in, #111113); color: var(--fm-label); font: inherit; font-size: 13px; font-weight: 600; display: grid; place-items: center; cursor: pointer; font-variant-numeric: tabular-nums; }
+.ccr-preview-back { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px 0 8px; border-radius: 9px; border: 1px solid var(--fm-bd, rgba(255, 255, 255, 0.18)); background: var(--fm-in, #111113); color: var(--fm-label); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.ccr-preview.is-viewer { position: static; margin: 0; padding: 0; border-bottom: 0; background: transparent; gap: 12px; }
+.ccr-preview.is-viewer .ccr-preview-scroll { height: min(72vh, 760px); }
+.ccr-preview-hint { margin: 0; text-align: center; font-size: 13px; color: var(--ccr-muted, var(--fm-mut)); }
+/* A phone: the receipt takes what's left under the header and the toolbar. */
+@media (max-width: 639px) { .ccr-preview.is-viewer .ccr-preview-scroll { height: calc(100vh - 200px); height: calc(100dvh - 200px); } }
 .ccr-preview-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .ccr-preview-btn.is-close { margin-left: 4px; color: var(--fm-err, #f87171); }
 .ccr-preview-link { font-size: 13px; font-weight: 600; color: var(--fm-gold-tx, #e6c25e); padding: 0 6px; }
@@ -259,6 +346,7 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 .ccr-bill-total { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--fm-bd, rgba(255, 255, 255, 0.18)); font-size: 18px; color: var(--fm-tx); }
 .ccr-bill-total strong { font-weight: 700; font-variant-numeric: tabular-nums; }
 .ccr-bill-note { margin: 12px 0 0; font-size: 13px; color: var(--fm-mut); }
+.ccr-bill-note.is-check { color: var(--fm-err, #d93025); font-weight: 600; }
 .ccr-bill-links { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
 
 .ccr-money { position: relative; }
@@ -315,6 +403,8 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
   .ccr-tools .dsx { flex: 1; }
   .ccr-tabs { gap: 16px; }
   .ccr-month { margin-left: 0; width: 100%; justify-content: space-between; padding: 8px 0; }
+  .ccr-month.is-range { justify-content: flex-start; }
+  .ccr-range-field { flex: 1; min-width: 0; width: auto; }
   .ccr-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ccr-tiles .ccr-tile.is-total { grid-column: 1 / -1; }
   .ccr-fab { right: 18px; bottom: calc(20px + var(--app-bottom-h, 0px)); }
@@ -380,8 +470,87 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 @media (prefers-reduced-motion: reduce) { .ccr-cam-spin { animation-duration: 2.4s; } }
 @media (min-width: 900px) { .ccr-cam-video, .ccr-cam-shot { inset: 64px 0 120px; height: calc(100% - 184px); } .ccr-cam-guide { top: 14%; bottom: 22%; left: 25%; right: 25%; } }
 
+/* ── Approvals, questions and reminders (2026-11-23, src/utils/receiptApproval.ts) ── */
+/* "Accounting ✓ Maria" · "Manager or Admin — waiting" (the drawer's Approvals field; a line on phone cards). */
+.ccr-appr { display: flex; flex-wrap: wrap; gap: 6px; }
+.ccr-appr-chip { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--ccr-wait-bg); color: var(--ccr-wait); overflow-wrap: anywhere; }
+.ccr-appr-chip.is-done { background: var(--ccr-ok-bg); color: var(--ccr-ok); }
+.ccr-appr-short { margin-top: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ccr-appr-line { color: var(--ccr-wait); font-weight: 600; }
+.ccr-tag.is-ask { color: var(--ccr-info); border-color: currentColor; }
+/* The question block in the drawer: "Maria asked Jo: …" / "Jo answered: …". */
+.ccr-ask { display: grid; gap: 6px; margin-bottom: 14px; padding: 10px 14px; border-radius: 10px; background: var(--fm-chip-bg, rgba(255, 255, 255, 0.06)); border: 1px solid var(--fm-bd, rgba(255, 255, 255, 0.14)); color: var(--fm-tx); font-size: 14px; overflow-wrap: anywhere; }
+.ccr-ask.is-open { border-color: var(--fm-gold, #d4af37); }
+.ccr-ask p { margin: 0; }
+.ccr-reminded { display: inline-flex; align-items: center; gap: 6px; margin: -6px 0 14px; padding: 4px 10px; border-radius: 999px; background: var(--ccr-draft-bg); font-size: 13px; color: var(--fm-mut); }
+.ccr-counter { display: block; margin-top: 4px; text-align: right; font-size: 12px; color: var(--fm-mut); font-variant-numeric: tabular-nums; }
+.ccr-dialog-lead { margin: 0 0 14px; font-size: 14px; color: var(--fm-label); overflow-wrap: anywhere; }
+.ccr-inline-actions { display: flex; justify-content: flex-end; }
+.ccr-inline-actions .fm-btn { min-height: 44px; }
+/* Send reminder…: the To / How ticks, 44px rows. */
+.ccr-remind-set { margin: 0 0 12px; padding: 0; border: 0; display: grid; gap: 0; min-width: 0; }
+.ccr-remind-set legend { padding: 0; margin-bottom: 4px; }
+.ccr-remind-opt { min-height: 44px; font-size: 15px; }
+/* The banner over the Expenses tab: "You have 2 missing receipts — upload them". */
+.ccr-banner { align-items: center; flex-wrap: wrap; }
+.ccr-banner > span { flex: 1 1 200px; min-width: 0; }
+.ccr-banner-btn { height: 36px; border-color: currentColor; background: transparent; color: inherit; }
+/* Ticking receipts for Send reminder…: the checkbox column, the bar over the list. */
+.ccr-table th.ccr-sel, .ccr-table td.ccr-sel { width: 40px; padding-right: 0; cursor: default; }
+.ccr-sel input { width: 18px; height: 18px; accent-color: #d4af37; cursor: pointer; display: block; }
+.ccr-table tbody tr.is-ticked td { background: var(--ccr-gold-tint); }
+.ccr-selbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--ccr-gold-bd); background: var(--ccr-surface); box-shadow: var(--ccr-shadow); }
+.ccr-selbar-n { font-weight: 700; margin-right: auto; }
+.ccr-selbar.is-idle { position: static; padding: 0; border: 0; background: none; box-shadow: none; justify-content: flex-end; }
+.ccr-card.is-ticking { grid-template-columns: 24px minmax(0, 1fr) auto; }
+.ccr-card.is-ticked { background: var(--ccr-gold-tint); }
+.ccr-card:disabled { opacity: 0.5; cursor: default; }
+.ccr-card-tick { grid-row: 1 / span 2; align-self: center; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--ccr-muted); display: grid; place-items: center; color: var(--ccr-on-gold); }
+.ccr-card.is-ticked .ccr-card-tick { background: var(--ccr-gold); border-color: var(--ccr-gold); }
+@media (max-width: 639px) {
+  .ccr-selbar { padding: 8px 10px; gap: 8px; }
+  .ccr-selbar .ccr-btn, .ccr-banner-btn { height: 44px; }
+  .ccr-selbar-n { flex: 1 1 100%; }
+  .ccr-selbar .ccr-btn { flex: 1 1 auto; padding: 0 12px; }
+}
+
 /* Cards: a person's cards (Amex, Encore) sit together under their name, 2026-11-21. */
 .ccr-cardlines { display: grid; gap: 8px; }
 .ccr-cardline { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ccr-cardline-main { display: grid; gap: 2px; min-width: 0; flex: 1; }
 .ccr-cardline-menu { margin-left: auto; }
+
+/* Send reminder: who each group means, and the answer */
+.ccr-remind-text { display: grid; gap: 1px; min-width: 0; }
+.ccr-remind-who { font-size: 13px; color: var(--fm-mut); overflow-wrap: anywhere; }
+.ccr-remind-out { display: grid; gap: 12px; }
+.ccr-remind-head { margin: 0; display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 600; color: var(--fm-label); }
+.ccr-remind-icon { width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex: none; }
+.ccr-remind-head.ok .ccr-remind-icon { background: #e3f4e8; color: #1a7f3c; }
+.ccr-remind-head.none .ccr-remind-icon { background: #fde8e6; color: #b3261e; }
+.ccr-remind-sub { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--fm-label); }
+.ccr-remind-skip { display: grid; gap: 3px; padding: 12px 14px; border: 1px solid var(--fm-line, #e2e8f0); border-radius: 10px; font-size: 14px; color: var(--fm-label); overflow-wrap: anywhere; }
+.ccr-remind-skip + .ccr-remind-skip { margin-top: 8px; }
+.ccr-remind-skip span { font-size: 13px; color: var(--fm-mut); }
+.ccr-remind-note { margin: 0; font-size: 13px; color: var(--fm-mut); }
+
+/* ── Card choice on Add / Edit receipt (CardToggle.tsx): two cards in one track, the chosen one lifted ── */
+.ccr-tg { position: relative; display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); padding: 4px; border-radius: 14px; background: var(--fm-seg, var(--ccr-draft-bg)); border: 1px solid var(--fm-bd, var(--ccr-line)); }
+.ccr-tg-thumb { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--n, 2)); border-radius: 10px; background: var(--fm-card, var(--ccr-surface)); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 1.5px var(--ccr-gold, #d4af37); transform: translateX(calc(var(--i, 0) * 100%)); transition: transform 0.22s ease; }
+.ccr-tg-b { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 6px 12px; border: 0; border-radius: 10px; background: none; color: var(--fm-mut, var(--ccr-muted)); font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.ccr-tg-b[aria-checked="true"] { color: var(--fm-tx, inherit); }
+.ccr-tg-b:focus-visible { outline: 2px solid var(--ccr-gold, #d4af37); outline-offset: 2px; }
+.ccr-tg-logo { flex: none; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; padding: 3px 7px; border-radius: 6px; color: #fff; background: #2b6cb0; }
+.ccr-tg-b.is-encore .ccr-tg-logo { background: #7b3fa0; }
+.ccr-tg-b.is-other .ccr-tg-logo { background: #5b6475; }
+.ccr-tg-b[aria-checked="false"] .ccr-tg-logo { filter: grayscale(1); opacity: 0.55; }
+.ccr-tg-tx { display: grid; min-width: 0; line-height: 1.25; }
+.ccr-tg-tx b { font-size: 14px; font-weight: 700; }
+.ccr-tg-tx span { font-size: 12px; color: var(--fm-mut, var(--ccr-muted)); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.ccr-tg-tick { margin-left: auto; flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--ccr-gold, #d4af37); color: #1d1603; font-size: 11px; font-weight: 800; display: grid; place-items: center; opacity: 0; transform: scale(0.6); transition: opacity 0.2s, transform 0.2s; }
+.ccr-tg-b[aria-checked="true"] .ccr-tg-tick { opacity: 1; transform: none; }
+@media (max-width: 440px) { .ccr-tg-b { gap: 8px; padding: 6px 8px; } .ccr-tg-tick { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ccr-tg-thumb, .ccr-tg-tick { transition: none; } }
+
+/* A row's ⋯ (Void receipt, Delete receipt…): one narrow last column. */
+.ccr-table th.ccr-act, .ccr-table td.ccr-act { width: 44px; padding-left: 0; text-align: right; cursor: default; }

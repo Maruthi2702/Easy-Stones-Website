@@ -18,11 +18,22 @@ const LINES = [
   line('r3', { description: 'ONLINE PAYMENT - THANK YOU', cents: -50000, kind: 'credit', status: 'no_receipt', expenseId: null, expenseStatus: null }),
   line('r4', { description: 'OFFICE DEPOT', cardMember: 'SRINI MANAM', digits: '93018', cardId: null, cardLabel: '', holderName: '', status: 'no_card', expenseId: null, expenseStatus: null })
 ];
+const ENCORE_LINES = [
+  line('e1', { issuer: 'encore', description: 'LAMPLIGHTE* LAMPLIGHTE', cents: 9567, cardMember: 'TRACI HENRICKSON', digits: '8572', cardLabel: 'TRAC8572', holderName: 'Traci Henrickson' }),
+  line('e2', { issuer: 'encore', description: 'AMAZON RETA* 3J8TH1CP3', cents: 2814, cardMember: 'THIVIKRAM VALLURU', digits: '8842', cardId: null, cardLabel: '', holderName: '', status: 'no_card', expenseId: null, expenseStatus: null })
+];
 const VIEW = {
-  lines: LINES,
-  unknownCards: [{ issuer: 'amex' as const, digits: '93018', cardMember: 'SRINI MANAM', charges: 1, cents: 1200, first: '2026-11-05', last: '2026-11-05', suggestedUserId: 'u2' }],
-  missingNow: { count: 3, cents: 4100 },
-  imports: [{ id: 'i1', fileName: 'amex.xlsx', periodFrom: '2026-11-01', periodTo: '2026-11-07', lines: 4, added: 4, chargesCents: 7440, byName: 'Ann Count', at: '2026-11-08T17:00:00Z' }],
+  lines: [...LINES, ...ENCORE_LINES],
+  unknownCards: [
+    { issuer: 'amex' as const, digits: '93018', cardMember: 'SRINI MANAM', charges: 1, cents: 1200, first: '2026-11-05', last: '2026-11-05', suggestedUserId: 'u2' },
+    { issuer: 'encore' as const, digits: '8842', cardMember: 'THIVIKRAM VALLURU', charges: 1, cents: 2814, first: '2026-11-15', last: '2026-11-15', suggestedUserId: '' }
+  ],
+  missingNow: { count: 4, cents: 6500 },
+  missingByBank: { amex: { count: 3, cents: 4100 }, encore: { count: 1, cents: 2400 } },
+  imports: [
+    { id: 'i1', issuer: 'amex' as const, fileName: 'amex.xlsx', periodFrom: '2026-11-01', periodTo: '2026-11-07', lines: 4, added: 4, chargesCents: 7440, byName: 'Ann Count', at: '2026-11-08T17:00:00Z' },
+    { id: 'i2', issuer: 'encore' as const, fileName: 'encore.xlsx', periodFrom: '2026-11-01', periodTo: '2026-11-16', lines: 2, added: 2, chargesCents: 12381, byName: 'Ann Count', at: '2026-11-20T17:00:00Z' }
+  ],
   people: [{ id: 'u1', name: 'Maruthi Ponugupati', role: 'sales_rep', location: 'Seattle', active: true, card: 'MARU92069', encoreCard: '' }, { id: 'u2', name: 'Srini Manam', role: 'sales_rep', location: 'Seattle', active: true, card: '', encoreCard: '' }],
   missingFrom: '2026-11-01'
 };
@@ -32,6 +43,7 @@ const answer = (url: string, init?: RequestInit) => {
   const u = String(url);
   if (init?.method === 'POST') { posted.push({ url: u, body: JSON.parse(String(init.body || '{}')) }); return ok({ check: { linked: 0, created: 1, retired: 0, cardsFound: 1 } }); }
   if (/\/statements\?month=/.test(u)) return ok(VIEW);
+  if (/\/card-receipts\/cards$/.test(u)) return ok({ cards: [], people: [] });
   if (/\/me$/.test(u)) return ok({ user: { id: 'a1', name: 'Ann Count', location: 'Seattle' }, card: null, categories: [], approverRoles: [], today: '2026-11-20' });
   if (/\/expenses/.test(u)) return ok({ expenses: [] });
   return ok({});
@@ -42,7 +54,7 @@ const { default: CardReceiptsPage } = await import('../CardReceiptsPage');
 const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => { await new Promise((r) => setTimeout(r, 10)); }); };
 const text = () => document.body.textContent || '';
 
-beforeEach(() => { posted.length = 0; Element.prototype.scrollIntoView = () => {}; });
+beforeEach(() => { posted.length = 0; Element.prototype.scrollIntoView = () => {}; window.localStorage.clear(); });
 afterEach(cleanup);
 
 describe('the Statements tab', () => {
@@ -50,10 +62,12 @@ describe('the Statements tab', () => {
     render(<CardReceiptsPage currentUser={{ _id: 'a1', displayName: 'Ann Count', permissions: ['check_amex_statements'] }} />);
     await settle();
     expect(document.querySelector('.ccr-tab.is-on')?.textContent).toBe('Statements');
-    expect(text()).toContain('Last upload 11-08-2026 by Ann Count');
+    // Amex alone: its upload, its still-missing count, its four lines and its one unset card (no Cards tab to go to, so the box is here).
+    expect(text()).toContain('Last Amex upload 11-08-2026 by Ann Count');
     expect(text()).toContain('3 receipts still missing · $41.00');
     expect(text()).toContain('Cards not set up · 1');
     expect(text()).toContain('SRINI MANAM');
+    expect(text()).not.toContain('LAMPLIGHTE');
     expect(document.querySelectorAll('.ccr-st-lines tbody tr')).toHaveLength(4);
     expect(text()).toContain('Receipt uploaded');
     expect(text()).toContain('No receipt needed');
@@ -61,6 +75,34 @@ describe('the Statements tab', () => {
     const tile = [...document.querySelectorAll('.ccr-tile')].find((t) => t.textContent?.includes('Missing receipt'))!;
     fireEvent.click(tile);
     expect(document.querySelectorAll('.ccr-st-lines tbody tr')).toHaveLength(1);
+  });
+
+  it('keeps Encore apart: its own lines, last upload, missing count and uploads', async () => {
+    render(<CardReceiptsPage currentUser={{ _id: 'a1', displayName: 'Ann Count', permissions: ['check_amex_statements'] }} />);
+    await settle();
+    const encoreTab = [...document.querySelectorAll('.ccr-bank-seg button')].find((b) => b.textContent?.startsWith('Encore'))!;
+    fireEvent.click(encoreTab);
+    expect(document.querySelectorAll('.ccr-st-lines tbody tr')).toHaveLength(2);
+    expect(text()).toContain('Last Encore upload 11-20-2026 by Ann Count');
+    expect(text()).toContain('1 receipts still missing · $24.00');
+    expect(text()).toContain('LAMPLIGHTE');
+    expect(text()).not.toContain('JINYA RAMEN BAR');
+    expect(text()).not.toContain('amex.xlsx');
+    expect(text()).toContain('encore.xlsx');
+    expect(text()).toContain('THIVIKRAM VALLURU');
+  });
+
+  it('with the Cards tab, Statements only counts the unset cards and the Cards tab sets them up (both banks)', async () => {
+    render(<CardReceiptsPage currentUser={{ _id: 'a1', displayName: 'Ann Count', permissions: ['check_amex_statements', 'manage_company_cards'] }} />);
+    await settle();
+    expect(text()).toContain('1 Amex card not set up.');
+    expect(text()).not.toContain('Cards not set up · ');
+    fireEvent.click([...document.querySelectorAll('button')].find((b) => b.textContent === 'Set up in Cards')!);
+    await settle();
+    expect(document.querySelector('.ccr-tab.is-on')?.textContent).toBe('Cards');
+    expect(text()).toContain('Cards not set up · 2');
+    expect(text()).toContain('SRINI MANAM');
+    expect(text()).toContain('THIVIKRAM VALLURU');
   });
 
   it('sets up a card with the suggested holder', async () => {

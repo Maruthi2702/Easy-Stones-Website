@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
 import BillCard, { type BillField, type BillValues } from './BillCard';
 import BillDetailsEdit from './BillDetailsEdit';
 import ReceiptPreview from './ReceiptPreview';
@@ -12,9 +11,10 @@ import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
 import { receiptFileProblem } from '../../../utils/receiptFile';
 import { centsText, cleanExpense, defaultSubOf, fieldsOf, formatMoney, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
-import { isPdfUrl } from '../cardReceiptsView';
 import type { ExpenseBody } from '../cardReceiptsApi';
-import type { Category, Expense } from '../types';
+import CardToggle from './CardToggle';
+import { lastCardFor, rememberCard } from '../cardChoice';
+import type { AddableHolder, Card, Category, Expense } from '../types';
 
 type Values = Required<Omit<ExpenseInput, 'recurring'>> & { recurring: boolean };
 
@@ -28,7 +28,7 @@ const fromExpense = (e: Expense): Values => ({
   purpose: e.purpose, note: e.note, recurring: e.recurring, receiptUrl: e.receiptUrl, lostReason: e.lostReason
 });
 
-const LABELS = { receipt: 'Receipt', lostReason: 'Why there’s no receipt', date: 'Date', merchant: 'Merchant', total: 'Total', subtotal: 'Subtotal', tax: 'Tax', tip: 'Tip', category: 'Category', subcategory: 'Sub-category', customer: 'Customer', attendees: 'Who attended', purpose: 'Business purpose' };
+const LABELS = { receipt: 'Receipt', lostReason: 'Why there’s no receipt', date: 'Date', merchant: 'Merchant', total: 'Total', subtotal: 'Subtotal', tax: 'Tax', tip: 'Tip', category: 'Category', subcategory: 'Sub-category', customer: 'Customer', note: 'Note' };
 /** The fields on the Edit bill details screen (the pencil); the rest are on the form itself. */
 const BILL_FIELDS: readonly BillField[] = ['merchant', 'date', 'total', 'subtotal', 'tax', 'tip'];
 const isBillField = (k: string): k is BillField => (BILL_FIELDS as readonly string[]).includes(k);
@@ -44,6 +44,12 @@ export type ExpenseFormProps = {
   /** A photo or file already chosen in Add receipt's first step: uploaded and read as the form opens. */
   initialFile?: File | null;
   cardLabel: string;
+  /** Every active card of the person; the Card choice shows with two or more. */
+  cards?: Card[];
+  /** With "Add receipts for others": the people a new receipt can be added for (their cards come with them). */
+  holders?: AddableHolder[];
+  /** Whose "last used card" is remembered on this device. */
+  meId?: string;
   holderName: string;
   categories: Category[];
   today: string;
@@ -70,7 +76,7 @@ export type ExpenseFormProps = {
  * (src/utils/receiptScan.ts); the card says which, so they get checked, and
  * when merchant or total are still blank the edit screen opens for them.
  */
-export default function ExpenseForm({ expense, startLost = false, initialFile = null, cardLabel, holderName, categories, today, upload, scan, onSave, onClose }: ExpenseFormProps) {
+export default function ExpenseForm({ expense, startLost = false, initialFile = null, cardLabel, cards: ownCards = [], holders = [], meId = '', categories, today, upload, scan, onSave, onClose }: ExpenseFormProps) {
   const editing = Boolean(expense);
   const start = useMemo(() => (expense ? fromExpense(expense) : blank(today)), [expense, today]);
   const [values, setValues] = useState<Values>(start);
@@ -79,9 +85,21 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [serverError, setServerError] = useState('');
+  // Whose receipt a new one is: the person's own when they have a card, else someone they pick.
+  const forOthers = !expense && holders.length > 0;
+  const [holderId, setHolderId] = useState(() => (ownCards.length || !forOthers ? meId : ''));
+  const behalf = forOthers && holderId !== meId;
+  const cards = behalf ? holders.find((h) => h.id === holderId)?.cards ?? [] : ownCards;
+  const choosing = cards.length > 1;
+  const [cardId, setCardId] = useState(() => expense?.cardId || lastCardFor(meId, cards));
+  const pickHolder = (id: string) => {
+    setHolderId(id);
+    const list = id === meId ? ownCards : holders.find((h) => h.id === id)?.cards ?? [];
+    setCardId(lastCardFor(id, list));
+  };
+  const chosenCard = cards.find((c) => c._id === cardId);
   const [serverProblems, setServerProblems] = useState<ExpenseProblems>({});
   const [repeat, setRepeat] = useState<{ merchant: string; date: string; cents: number } | null>(null);
-  const [person, setPerson] = useState('');
   // Which screen of the window: the form, or Edit bill details (the pencil).
   const [view, setView] = useState<'form' | 'bill'>('form');
   const [billStart, setBillStart] = useState<BillValues | null>(null);
@@ -101,8 +119,8 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const offered = categories.filter((c) => c.active || c.name === start.category);
   const category = offered.find((c) => c.name === values.category);
   const fields = fieldsOf(category, values.subcategory);
-  const body: ExpenseBody = { ...values, receiptUrl: lost ? '' : values.receiptUrl, lostReason: lost ? values.lostReason : '' };
-  const check = cleanExpense(body, { today, categories: offered, currentSubcategory: start.subcategory });
+  const body: ExpenseBody = { ...values, ...(choosing ? { cardId } : {}), ...(behalf ? { onBehalfOf: holderId } : {}), receiptUrl: lost ? '' : values.receiptUrl, lostReason: lost ? values.lostReason : '' };
+  const check = cleanExpense(body, { today, categories: offered, currentSubcategory: start.subcategory, currentLostReason: expense?.lostReason || '' });
   const problems: ExpenseProblems = { ...check.problems, ...serverProblems };
   const complete = Object.keys(check.missing).length === 0;
 
@@ -192,15 +210,9 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
     }
   };
 
-  const addPerson = () => {
-    const name = person.trim();
-    if (!name || values.attendees.includes(name)) { setPerson(''); return; }
-    set({ attendees: [...values.attendees, name] });
-    setPerson('');
-  };
-
   const submit = async (confirmRepeat = false) => {
     setSubmitted(true);
+    if (forOthers && !holderId) { setServerError('Choose whose receipt this is.'); return; }
     const first = (Object.keys(LABELS) as (keyof typeof LABELS)[]).find((k) => problems[k as keyof ExpenseProblems]);
     // A problem in the bill details is fixed on the edit screen.
     if (first && isBillField(first)) { openBill(first, true); return; }
@@ -209,6 +221,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
     setServerError('');
     try {
       await onSave({ ...body, ...(confirmRepeat ? { confirmRepeat: true } : {}) });
+      if (choosing && !editing) rememberCard(behalf ? holderId : meId, cardId);
     } catch (err) {
       const e = err as Error & { problems?: ExpenseProblems; repeat?: { merchant: string; date: string; cents: number } | null };
       const fromServer = e.problems && typeof e.problems === 'object' ? e.problems : {};
@@ -221,7 +234,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
     }
   };
 
-  const categoryOptions: FormOption[] = offered.map((c) => ({ value: c.name, label: c.active ? c.label : `${c.label} (hidden)`, keywords: c.label }));
+  const categoryOptions = offered.map((c) => ({ value: c.name, label: c.active ? c.label : `${c.label} (hidden)`, keywords: c.label }));
   // The category's types: the shown ones, plus the one this expense already has if it was hidden since.
   const subOptions: FormOption[] = (category?.subcategories || [])
     .filter((s) => s.active || s.name === start.subcategory)
@@ -230,16 +243,15 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const cardNote = reading ? 'Reading the receipt…' : readLine;
   const onBillScreen = view === 'bill';
 
-  // The photo slot: take one when there is none, else see it large (a PDF opens in its own tab).
+  // The photo slot: take one when there is none, else see it large (a PDF too, drawn here).
   const onPhoto = () => {
     if (!values.receiptUrl || lost) { fileRef.current?.click(); return; }
-    if (isPdfUrl(values.receiptUrl)) { window.open(values.receiptUrl, '_blank', 'noreferrer'); return; }
     setViewing((v) => !v);
   };
 
   return (
     <FormModal
-      title={onBillScreen ? 'Edit bill details' : editing ? <>Edit receipt <span className="fm-title-sub">· {expense?.merchant}</span></> : <>Add receipt <span className="fm-title-sub">· {cardLabel}</span></>}
+      title={onBillScreen ? 'Edit bill details' : editing ? <>Edit receipt <span className="fm-title-sub">· {expense?.merchant}</span></> : <>Add receipt <span className="fm-title-sub">· {chosenCard?.label || cardLabel}</span></>}
       size="m"
       onClose={onBillScreen ? () => closeBill(false) : onClose}
       onSubmit={onBillScreen ? submitBill : () => submit(false)}
@@ -261,7 +273,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
         </div>
       ) : null}
 
-      {viewing && !lost && values.receiptUrl && !isPdfUrl(values.receiptUrl)
+      {viewing && !lost && values.receiptUrl
         ? <ReceiptPreview url={values.receiptUrl} onClose={() => setViewing(false)} />
         : null}
 
@@ -269,12 +281,25 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
       <input ref={fileRef} type="file" accept="image/*,application/pdf" hidden onChange={(e) => pickFile(e.target.files?.[0])} />
 
       {onBillScreen ? (
-        <BillDetailsEdit values={billOf(values)} errors={billSubmitted ? pick(problems, true) : {}} today={today} set={set} />
+        <BillDetailsEdit values={billOf(values)} errors={billSubmitted ? pick(problems, true) : {}} today={today} set={set} fromBank={expense?.status === 'missing'} />
       ) : (
         <>
+          {forOthers ? (
+            <FormSection>
+              <FormField name="holder" id="ccr-holder" label="Receipt for" required error={submitted && !holderId ? 'Choose whose receipt this is' : ''}>
+                <FormSearchPicker id="ccr-holder" value={holderId} onChange={pickHolder} keepInForm
+                  options={[
+                    ...(ownCards.length ? [{ value: meId, label: 'Me', description: ownCards[0]?.label }] : []),
+                    ...holders.filter((h) => h.id !== meId).map((h) => ({ value: h.id, label: h.name, description: h.cards.map((c) => c.label).join(' · ') }))
+                  ]}
+                  placeholder="Choose a cardholder" searchPlaceholder="Type a name" sheetTitle="Receipt for" selectedLabel={holderId === meId ? 'Me' : holders.find((h) => h.id === holderId)?.name || ''} />
+              </FormField>
+              {behalf ? <p className="ccr-remind-note">Saved to {holders.find((h) => h.id === holderId)?.name}’s card and theirs to edit; the history says you added it.</p> : null}
+            </FormSection>
+          ) : null}
           <FormSection>
             <FormField name="receipt" id="ccr-file-btn" label="Bill details" error={submitted ? problems.receipt : ''}>
-              <BillCard {...billOf(values)} receiptUrl={lost ? '' : values.receiptUrl} lost={lost} uploading={uploading} note={cardNote}
+              <BillCard {...billOf(values)} receiptUrl={lost ? '' : values.receiptUrl} lost={lost} uploading={uploading} note={cardNote} noteTone={!reading && readLine ? 'check' : undefined}
                 viewingLarge={viewing} onPhoto={onPhoto} onEdit={(focus) => openBill(focus)} />
               <div className="ccr-bill-links">
                 {!lost ? (
@@ -297,11 +322,17 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
             ) : null}
           </FormSection>
 
+          {choosing ? (
+            <FormSection>
+              <CardToggle cards={cards} value={cardId} onChange={setCardId} lastId={lastCardFor(meId, cards)} error={submitted ? problems.card : ''} />
+            </FormSection>
+          ) : null}
+
           <FormSection>
             <FormField name="category" id="ccr-category" label="Category" required error={(submitted ? problems.category : '') || (submitted ? check.missing.category : '')}>
-              <FormPicker id="ccr-category" value={values.category}
+              <FormSearchPicker id="ccr-category" value={values.category}
                 onChange={(c) => set({ category: c, subcategory: defaultSubOf(offered.find((o) => o.name === c))?.name || '' })} options={categoryOptions}
-                placeholder="Choose a category" sheetTitle="Category" error={submitted ? problems.category : ''} keepInForm />
+                placeholder="Choose a category" searchPlaceholder="Search categories" sheetTitle="Category" maxResults={200} error={submitted ? problems.category : ''} keepInForm />
             </FormField>
             {subOptions.length ? (
               <FormField name="subcategory" id="ccr-subcategory" label="Sub-category" required error={(submitted ? problems.subcategory : '') || (submitted ? check.missing.subcategory : '')}>
@@ -317,33 +348,10 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
                   searchPlaceholder="Search name, city or contact" sheetTitle="Customer" keepInForm />
               </FormField>
             ) : null}
-            {fields.attendees ? (
-              <FormField name="attendees" id="ccr-person" label="Who attended" required error={submitted ? check.missing.attendees : ''}>
-                {values.attendees.length ? (
-                  <div className="ccr-people" style={{ marginBottom: 8 }}>
-                    {values.attendees.map((a) => (
-                      <span key={a} className="ccr-person">{a}
-                        <button type="button" aria-label={`Remove ${a}`} onClick={() => set({ attendees: values.attendees.filter((x) => x !== a) })}><X size={14} /></button>
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                <div className="ccr-add-person">
-                  <input id="ccr-person" className="fm-input" autoComplete="off" maxLength={80} placeholder={values.attendees.length ? 'Add another name' : `${holderName}, and who else?`}
-                    value={person} onChange={(e) => setPerson(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addPerson(); } }} />
-                  <button type="button" className="fm-btn fm-btn-small" onClick={addPerson} disabled={!person.trim()}>Add</button>
-                </div>
-              </FormField>
-            ) : null}
-            {fields.purpose ? (
-              <FormField name="purpose" id="ccr-purpose" label="Business purpose" required error={submitted ? check.missing.purpose : ''}>
-                <textarea id="ccr-purpose" className="fm-input fm-textarea" rows={2} maxLength={500} autoCapitalize="sentences" value={values.purpose} onChange={(e) => set({ purpose: e.target.value })} />
-              </FormField>
-            ) : null}
             {fields.recurring ? (
               <label className="ccr-check"><input type="checkbox" checked={values.recurring} onChange={(e) => set({ recurring: e.target.checked })} /> Recurring every month</label>
             ) : null}
-            <FormField id="ccr-note" label="Note">
+            <FormField name="note" id="ccr-note" label="Note" required={fields.note} error={submitted ? check.missing.note : ''}>
               <textarea id="ccr-note" className="fm-input fm-textarea" rows={2} maxLength={500} autoCapitalize="sentences" placeholder="Anything the approver should know" value={values.note} onChange={(e) => set({ note: e.target.value })} />
             </FormField>
           </FormSection>

@@ -3,7 +3,7 @@ import * as staffData from '../db/staff/index.ts';
 import { sendPushToUsers } from './apns.ts';
 import {
   type Message, checkInMessage, checkInRecipients, driverAssignedMessage, driverChanged, driverUserFor,
-  receiptSentBackMessage, reportRecipients, reportSubmittedMessage
+  receiptSentBackMessage, reportRecipients, reportSubmittedMessage, receiptReopenedMessage
 } from '../utils/pushEvents.ts';
 
 /**
@@ -18,6 +18,10 @@ const run = (label: string, job: () => Promise<unknown>) => { void job().catch(e
 
 export function pushReceiptSentBack(expense: Loose, comment: unknown, send: Send = sendPushToUsers) {
   run('receipt sent back', async () => { if (expense?.userId) await send([String(expense.userId)], receiptSentBackMessage(expense, comment)); });
+}
+
+export function pushReceiptReopened(expense: Loose, reason: unknown, send: Send = sendPushToUsers) {
+  run('receipt reopened', async () => { if (expense?.userId) await send([String(expense.userId)], receiptReopenedMessage(expense, reason)); });
 }
 
 export function pushDriverAssigned(before: unknown, delivery: Loose, send: Send = sendPushToUsers) {

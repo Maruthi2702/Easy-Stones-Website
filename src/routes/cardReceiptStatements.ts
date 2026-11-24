@@ -107,6 +107,8 @@ const setUpCards = (picks: CardPick[], by: string, mayReplace: boolean, issuer: 
   }
 };
 
+// Review S6 (2026-11-24): the Amex check alone reads statements; deciding whose card a number is (and so whose Missing rows and receipts move) is Manage cards.
+const SET_UP_NEEDS_MANAGE = 'Setting up a card needs someone who manages company cards (accounting or an admin).';
 const canManageCards = (req: Request) => (userOf(req).permissions || []).includes(CARD_RECEIPTS.MANAGE_CARDS);
 
 export default function createCardReceiptStatementsRouter({ authenticate }: { authenticate: RequestHandler }) {
@@ -158,6 +160,7 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
       try {
         const by = actorOf(req);
         const picks = picksOf(req.body?.cards);
+        if (picks.length && !canManageCards(req)) return res.status(403).json({ message: SET_UP_NEEDS_MANAGE });
         const [result, people] = await Promise.all([
           statements.importStatement({
             lines: read.lines, fileName: String(req.file.originalname || ''), period: read.period, by, issuer,
@@ -175,6 +178,9 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
         });
       } catch (err) {
         if (cardError(res, err)) return;
+        // A preview that met a real upload mid-write (lock_timeout): nothing is wrong, look again in a moment.
+        const code = (err as { code?: string; cause?: { code?: string } })?.code ?? (err as { cause?: { code?: string } })?.cause?.code;
+        if (preview && code === '55P03') return res.status(409).json({ message: 'Another upload is being saved. Try again in a moment.' });
         console.error('[card-statements] import failed:', err);
         res.status(500).json({ message: preview ? 'Could not check the file.' : 'The upload failed. Nothing was changed.' });
       }
@@ -187,6 +193,7 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
     let picks: CardPick[];
     try { picks = picksOf([req.body || {}]); } catch (err) { return void cardError(res, err); }
     if (!picks.length) return res.status(400).json({ message: 'Choose the cardholder.' });
+    if (!canManageCards(req)) return res.status(403).json({ message: SET_UP_NEEDS_MANAGE });
     try {
       const by = actorOf(req);
       const check = await statements.recheck(by, { beforeCheck: setUpCards(picks, by.name, canManageCards(req), issuerOf(req.body?.issuer)) });

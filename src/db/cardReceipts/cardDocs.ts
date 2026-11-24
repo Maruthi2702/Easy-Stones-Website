@@ -16,7 +16,7 @@ export function cardDoc(c: typeof companyCards.$inferSelect): Loose {
 export function categoryDoc(c: typeof receiptCategories.$inferSelect): Loose {
   return {
     _id: c.id, name: c.name, label: c.label, order: c.order, active: c.active,
-    fields: { customer: c.needsCustomer, attendees: c.needsAttendees, purpose: c.needsPurpose, recurring: c.needsRecurring },
+    fields: { customer: c.needsCustomer, note: c.needsNote, recurring: c.needsRecurring },
     subcategories: c.subcategories,
     updatedBy: c.updatedBy, createdAt: c.createdAt, updatedAt: c.updatedAt
   };
@@ -34,10 +34,13 @@ export function expenseDoc(e: typeof cardExpenses.$inferSelect, locationName: st
     attendees: e.attendees, purpose: e.purpose, note: e.note, recurring: e.recurring,
     receiptUrl: e.receiptUrl, lostReason: e.lostReason, status: e.status,
     approval: e.approvedById == null ? null
-      : { by: e.approvedById, byName: e.approvedByName ?? '', at: e.approvedAt, comment: e.approvalComment ?? '' },
+      : { by: e.approvedById, byName: e.approvedByName ?? '', at: e.approvedAt, comment: e.approvalComment ?? '', as: e.approvedAs ?? null },
+    secondApproval: (e.secondApproval as Loose | null) ?? null,
+    ask: (e.ask as Loose | null) ?? null,
+    reminders: (e.reminders as Loose | null) ?? {},
     sentBack: e.sentBackById == null ? null
       : { by: e.sentBackById, byName: e.sentBackByName ?? '', at: e.sentBackAt, comment: e.sentBackComment ?? '' },
-    createdBy: e.createdBy, voidedAt: e.voidedAt, voidedBy: e.voidedBy, voidReason: e.voidReason,
+    createdBy: e.createdBy, addedById: e.addedById ?? '', voidedAt: e.voidedAt, voidedBy: e.voidedBy, voidReason: e.voidReason,
     history: [...history].sort((a, b) => a.position - b.position)
       .map(h => ({ at: h.at, by: h.by, action: h.action, changes: h.changes })),
     createdAt: e.createdAt, updatedAt: e.updatedAt

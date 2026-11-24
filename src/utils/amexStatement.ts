@@ -173,28 +173,61 @@ export type LineKind = 'charge' | 'credit' | 'fee';
 export function kindOf(line: Pick<AmexLine, 'cents' | 'description' | 'amexCategory'>): LineKind {
   if (line.cents <= 0) return 'credit';
   if (/^fees\s*&\s*adjustments/i.test(line.amexCategory)) return 'fee';
-  // "JPMC FEE", "TN SERV FEE", "TEXAS.GOV*SERVICEFEE" — a whole word, so COFFEE isn't one.
-  if (/\bFEE\b|SERVICEFEE/i.test(line.description)) return 'fee';
+  // A card processor's or portal's own fee: "JPMC FEE", "TN SERV FEE", "TEXAS.GOV*SERVICEFEE", "CONVENIENCE FEE".
+  // Any other FEE is a purchase (a permit, recording or filing fee) and needs its receipt (owner, 2026-11-24).
+  if (/^JPMC FEE\b|\b(SERV|SERVICE|CONVENIENCE|PROCESSING|ANNUAL|LATE|FOREIGN TRANSACTION|CARD DELIVERY)\s*FEE\b|SERVICEFEE/i.test(line.description)) return 'fee';
   return 'charge';
+}
+
+/**
+ * A refund pairs with the charge it returns (review B9, 2026-11-24): same bank and card, exactly the amount back, the credit
+ * on the charge's day or up to `REFUND_DAYS` after, newest earlier charge first, one credit for one charge. Card payments
+ * ("ONLINE PAYMENT - THANK YOU") are credits too but return nothing. A refunded charge needs no receipt.
+ */
+export const REFUND_DAYS = 30;
+const PAYMENT = /\b(PAYMENT|THANK YOU|AUTOPAY|AUTO PAY|AUTO PAYMENT)\b/i;
+type RefundLine = { reference: string; issuer: string; digits: string; date: string; cents: number };
+export function pairRefunds(charges: readonly RefundLine[], credits: readonly (RefundLine & { description?: string })[]): Map<string, string> {
+  const paired = new Map<string, string>();
+  const sorted = [...credits].filter((c) => c.cents < 0 && !PAYMENT.test(c.description || '')).sort((a, b) => a.date.localeCompare(b.date) || a.reference.localeCompare(b.reference));
+  for (const credit of sorted) {
+    const match = charges
+      .filter((c) => c.cents === -credit.cents && c.issuer === credit.issuer && c.digits === credit.digits && !paired.has(c.reference)
+        && c.date <= credit.date && daysApart(c.date, credit.date) <= REFUND_DAYS)
+      .sort((a, b) => b.date.localeCompare(a.date) || a.reference.localeCompare(b.reference))[0];
+    if (match) paired.set(match.reference, credit.reference);
+  }
+  return paired;
 }
 
 export const LINE_STATUSES = [
   { key: 'missing', label: 'Missing receipt' },
   { key: 'matched', label: 'Receipt uploaded' },
+  /** An Admin's charge with no upload: it waits for Accounting, who fills in the category and approves it (2026-11-23). */
+  { key: 'awaiting', label: 'Waiting for Accounting' },
   { key: 'no_card', label: 'Card not set up' },
   { key: 'unassigned', label: 'Waiting for a login' },
   { key: 'before_start', label: 'Before the check started' },
-  { key: 'no_receipt', label: 'No receipt needed' }
+  { key: 'no_receipt', label: 'No receipt needed' },
+  /** A charge a later refund returned (pairRefunds). */
+  { key: 'refunded', label: 'Refunded' }
 ] as const;
 export type LineStatus = typeof LINE_STATUSES[number]['key'];
 export const lineStatusLabel = (key: string) => LINE_STATUSES.find((s) => s.key === key)?.label || key;
 
 /** Where a line stands, from what it's linked to. */
 export function lineStatus(l: { kind: LineKind; date: string; cardId: string | null; expenseStatus: string | null; expenseVoided?: boolean;
-  /** The card exists but nobody holds it yet: no one to ask for the receipt. */ unassigned?: boolean },
+  /** The card exists but nobody holds it yet: no one to ask for the receipt. */ unassigned?: boolean;
+  /** The linked expense has a receipt or a lost-receipt reason (default true: older callers don't say). */ hasReceipt?: boolean;
+  /** A later refund returned this charge (pairRefunds): no receipt is asked for unless one is already on it. */ refunded?: boolean },
   missingFrom = MISSING_FROM): LineStatus {
   if (l.kind !== 'charge') return 'no_receipt';
-  if (l.expenseStatus && !l.expenseVoided) return l.expenseStatus === 'missing' ? 'missing' : 'matched';
+  if (l.expenseStatus && !l.expenseVoided) {
+    if (l.expenseStatus === 'missing') return l.refunded ? 'refunded' : 'missing';
+    if (l.expenseStatus === 'waiting' && l.hasReceipt === false) return l.refunded ? 'refunded' : 'awaiting';
+    return 'matched';
+  }
+  if (l.refunded) return 'refunded';
   if (l.date < missingFrom) return 'before_start';
   if (!l.cardId) return 'no_card';
   if (l.unassigned) return 'unassigned';
@@ -315,6 +348,29 @@ export function planMatches({ lines, expenses, missingFrom = MISSING_FROM }: {
     if (l.date >= missingFrom) plan.create.push(l.reference);
   }
   return plan;
+}
+
+/**
+ * Near matches (2026-11-24, review B2): the automatic match stays exact (owner, 2026-11-20), but a charge
+ * with a Missing receipt row offers the holder their own receipts that are *close* — a tip changed, a total
+ * mistyped, a hotel that posted days later — so they pick "This is my receipt" instead of uploading the
+ * same receipt a second time (which put one purchase in the Excel twice).
+ * Close = at most `NEAR_DAYS` apart and the amounts within `NEAR_CENTS` or `NEAR_SHARE` of the charge,
+ * whichever is wider. Never automatic: a person confirms each one.
+ */
+export const NEAR_DAYS = 7;
+export const NEAR_CENTS = 500;
+export const NEAR_SHARE = 0.1;
+
+export const isNearMatch = (charge: { date: string; cents: number }, receipt: { date: string; cents: number }) =>
+  daysApart(charge.date, receipt.date) <= NEAR_DAYS
+  && Math.abs(charge.cents - receipt.cents) <= Math.max(NEAR_CENTS, Math.round(Math.abs(charge.cents) * NEAR_SHARE));
+
+/** The receipts close to a charge, closest first: the amount nearest, then the day nearest. */
+export function nearMatches<T extends { id: string; date: string; cents: number }>(charge: { date: string; cents: number }, receipts: readonly T[]): T[] {
+  return receipts.filter((r) => isNearMatch(charge, r))
+    .sort((a, b) => Math.abs(a.cents - charge.cents) - Math.abs(b.cents - charge.cents)
+      || daysApart(a.date, charge.date) - daysApart(b.date, charge.date) || a.id.localeCompare(b.id));
 }
 
 /** "AMAZON PRIME*UC99N4EAMZN.COM/BILL       WA" → one-spaced, at most 80 characters (an expense's merchant). */

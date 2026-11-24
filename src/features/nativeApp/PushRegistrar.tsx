@@ -4,6 +4,7 @@ import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { useAuth } from '../../context/AuthContext';
 import { registerPushDevice } from '../../api/pushDevices';
+import { requestSalesTab, salesTabOf } from '../../utils/salesTabEvent';
 
 /**
  * Push notifications in the phone app (server: src/services/apns.ts for iPhones, src/services/fcm.ts for Android). For a
@@ -23,7 +24,12 @@ export default function PushRegistrar() {
       PushNotifications.addListener('registrationError', e => console.error('Push registration:', e.error)),
       PushNotifications.addListener('pushNotificationActionPerformed', a => {
         const path = (a.notification.data as { path?: unknown } | undefined)?.path;
-        if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')) navigate(path);
+        if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')) {
+          navigate(path);
+          // Sales already open only reads ?tab= when it loads, so ask it to show the page too.
+          const tab = salesTabOf(path);
+          if (tab) requestSalesTab(tab);
+        }
       })
     ];
     (async () => {

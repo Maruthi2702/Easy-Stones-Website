@@ -21,11 +21,12 @@ vi.mock('../db/appDb.ts', async (importOriginal) => ({
 }));
 
 const hex = (n: number) => n.toString(16).padStart(24, '0');
-const SEATTLE = hex(1), MARU = hex(2), SRINI = hex(3), ACCT = hex(4), MARU_CARD = hex(5), UPLOADED = hex(6);
+const SEATTLE = hex(1), MARU = hex(2), SRINI = hex(3), ACCT = hex(4), MARU_CARD = hex(5), UPLOADED = hex(6), ADA = hex(7), ADA_CARD = hex(8);
 const PEOPLE = [
   { _id: MARU, username: 'maruthi', displayName: 'Maruthi Ponugupati', role: 'sales_rep', location: 'Seattle', isActive: true },
   { _id: SRINI, username: 'srini', displayName: 'Srini Manam', role: 'sales_rep', location: 'Seattle', isActive: true },
-  { _id: ACCT, username: 'ann', displayName: 'Ann Count', role: 'accounting', location: 'Seattle', isActive: true }
+  { _id: ACCT, username: 'ann', displayName: 'Ann Count', role: 'accounting', location: 'Seattle', isActive: true },
+  { _id: ADA, username: 'ada', displayName: 'Ada Min', role: 'admin', location: 'Seattle', isActive: true }
 ];
 vi.mock('../db/staff/index.ts', () => ({
   findUsers: async () => PEOPLE,
@@ -68,7 +69,7 @@ beforeAll(async () => {
   db = drizzle(client, { schema, casing: 'snake_case' }) as unknown as Db;
   await migrateDb(db, 'pglite:memory');
   state.db = db;
-  await db.insert(roles).values([{ id: hex(50), name: 'sales_rep', displayName: 'Sales rep' }, { id: hex(51), name: 'accounting', displayName: 'Accounting' }]);
+  await db.insert(roles).values([{ id: hex(50), name: 'sales_rep', displayName: 'Sales rep' }, { id: hex(51), name: 'accounting', displayName: 'Accounting' }, { id: hex(52), name: 'admin', displayName: 'Admin' }]);
   await db.insert(locations).values({ id: SEATTLE, name: 'Seattle' });
   await db.insert(users).values(PEOPLE.map((p) => ({ id: p._id, username: p.username, displayName: p.displayName, passwordHash: 'x', role: p.role, homeLocationId: SEATTLE })));
   await db.insert(companyCards).values({ id: MARU_CARD, userId: MARU, label: 'MARU92069', lastDigits: '92069' });
@@ -115,9 +116,11 @@ describe('the Amex check', () => {
   });
 
   it('a preview with a card picked shows its effect, still keeping nothing', async () => {
+    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
     const res = await post('preview', FILE_ROWS, [{ digits: '93018', userId: SRINI }]);
     expect(res.body.counts).toMatchObject({ missing: { count: 2 }, no_card: { count: 0 } });
     expect(await db.select().from(companyCards)).toHaveLength(1);
+    who = ACCOUNTANT;
   });
 
   it('imports: matches the upload, makes one Missing receipt row, leaves the rest', async () => {
@@ -147,7 +150,19 @@ describe('the Amex check', () => {
     expect(await db.select().from(cardStatementImports)).toHaveLength(2);
   });
 
+  it('review S6: the Amex check alone can read a file but not set up a card', async () => {
+    who = ACCOUNTANT; // only check_amex_statements
+    const before = await db.select().from(companyCards);
+    const res = await request(app).post('/api/card-receipts/statements/cards').send({ digits: '93018', userId: SRINI });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/manages company cards/);
+    const picked = await post('preview', FILE_ROWS, [{ digits: '93018', userId: SRINI }]);
+    expect(picked.status).toBe(403);
+    expect(await db.select().from(companyCards)).toHaveLength(before.length);
+  });
+
   it('sets up a card from the Statements tab and asks its holder for the receipt', async () => {
+    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
     const res = await request(app).post('/api/card-receipts/statements/cards').send({ digits: '93018', userId: SRINI });
     expect(res.status).toBe(200);
     expect(res.body.check).toMatchObject({ cardsFound: 1, created: 1 });
@@ -263,11 +278,11 @@ describe('approving a month from before the check started', () => {
   it('a replaced card (new digits, same name) deactivates the old one only when confirmed by someone who manages cards', async () => {
     await post('import', [line('11/12/2026', 'NEW CARD SHOP', 25, 'ref-new', '-77777', 'MARUTHI PONUGUPATI')]);
     const setUp = (body: object) => request(app).post('/api/card-receipts/statements/cards').send(body);
+    // This login can't manage cards (S6): refused before anything is looked at.
+    expect((await setUp({ digits: '77777', userId: MARU, replace: true })).status).toBe(403);
+    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
     // Not confirmed: still refused, nothing changes.
     expect((await setUp({ digits: '77777', userId: MARU })).body.message).toMatch(/Confirm the replacement/);
-    // Confirmed, but this login can't manage cards.
-    expect((await setUp({ digits: '77777', userId: MARU, replace: true })).body.message).toMatch(/needs someone who manages company cards/);
-    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
     // A different name on the new digits is not a replacement.
     await post('import', [line('11/12/2026', 'OTHER', 25, 'ref-other', '-88888', 'SOMEBODY ELSE')]);
     expect((await setUp({ digits: '88888', userId: MARU, replace: true })).body.message).toMatch(/already has card MARU92069/);
@@ -295,5 +310,136 @@ describe('approving a month from before the check started', () => {
     // It can be cleared again.
     expect((await request(app).put(`/api/card-receipts/cards/${by.THIV95555._id}`).send({ amexName: '' })).body.card.amexName).toBe('');
     who = ACCOUNTANT;
+  });
+});
+
+describe('an Admin’s own charge', () => {
+  const ADMIN = { id: ADA, displayName: 'Ada Min', role: 'admin', location: 'Seattle', permissions: ['use_card_receipts'] };
+  it('waits for Accounting instead of Missing receipt, and the receipt the Admin uploads later replaces it', async () => {
+    await db.insert(companyCards).values({ id: ADA_CARD, userId: ADA, label: 'ADAM66666', lastDigits: '66666' });
+    const missingBefore = (await request(app).get('/api/card-receipts/statements?month=2026-11')).body.missingNow;
+    const res = await post('import', [line('11/14/2026', 'DELTA AIR LINES', 480, 'ref-admin', '-66666', 'ADA MIN'), line('11/15/2026', 'HERTZ', 90, 'ref-admin-2', '-66666', 'ADA MIN')]);
+    expect(res.body.check).toMatchObject({ created: 2 });
+    const rows = await db.select().from(cardExpenses).where(eq(cardExpenses.userId, ADA));
+    expect(rows.map((r) => [r.merchant, r.status]).sort()).toEqual([['DELTA AIR LINES', 'waiting'], ['HERTZ', 'waiting']]);
+    const delta = rows.find((r) => r.merchant === 'DELTA AIR LINES')!;
+    const history = await db.select().from(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, delta.id));
+    expect(history[0]!.changes).toBe('An Admin’s charge: waiting for Accounting (Amex charge ref-admin)');
+    // Not counted as a missing receipt.
+    expect((await request(app).get('/api/card-receipts/statements?month=2026-11')).body.missingNow).toEqual(missingBefore);
+    // Accounting sees it waiting; what it needs before approval is its category.
+    who = { ...ACCOUNTANT, permissions: ['approve_card_receipts'] };
+    const waiting = (await request(app).get('/api/card-receipts/expenses?scope=waiting')).body.expenses.find((e: { id: string }) => e.id === delta.id);
+    expect(waiting).toMatchObject({ holderRole: 'admin', waitingReason: 'accounting', actions: { fillDetails: true } });
+    // A charge already approved is never replaced.
+    const hertz = rows.find((r) => r.merchant === 'HERTZ')!;
+    await db.update(cardExpenses).set({ status: 'approved', approvedById: ACCT, approvedByName: 'Ann Count', approvedAt: new Date() }).where(eq(cardExpenses.id, hertz.id));
+    // The Admin uploads the receipt the usual way: the same day and total is not a repeat, it takes the waiting row's place.
+    who = ADMIN;
+    const up = await request(app).post('/api/card-receipts/expenses').send({ id: hex(400), date: '2026-11-14', merchant: 'Delta', total: '480.00' });
+    expect(up.status).toBe(201);
+    expect(up.body.replacedMissing).toBe(delta.id);
+    const [gone] = await db.select().from(cardExpenses).where(eq(cardExpenses.id, delta.id));
+    expect(gone).toMatchObject({ voidReason: 'Receipt uploaded' });
+    const [l] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-admin'));
+    expect(l!.expenseId).toBe(hex(400));
+    const again = await request(app).post('/api/card-receipts/expenses').send({ id: hex(401), date: '2026-11-15', merchant: 'Hertz', total: '90.00', confirmRepeat: true });
+    expect(again.status).toBe(201);
+    expect(again.body.replacedMissing).toBeUndefined();
+    const [kept] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-admin-2'));
+    expect(kept!.expenseId).toBe(hertz.id);
+    who = ACCOUNTANT;
+  });
+});
+
+describe('review B1 / B2: the To-do list and a receipt that is close but not exact', () => {
+  const NEAR = hex(500), OCT_DRAFT = hex(501), VOIDED = hex(502);
+  const SRINI_USER = { id: SRINI, displayName: 'Srini Manam', role: 'sales_rep', location: 'Seattle', permissions: ['use_card_receipts'] };
+  let missingId = '';
+
+  it('a charge a few cents off an approved receipt still gets a Missing receipt row (the automatic match stays exact)', async () => {
+    await db.insert(cardExpenses).values([
+      // Maruthi uploaded $45.00 the day before; the restaurant charged $45.18 (tip changed). Approved already.
+      { id: NEAR, userId: MARU, holderName: 'Maruthi Ponugupati', cardId: MARU_CARD, cardLabel: 'MARU92069', locationId: SEATTLE, day: '2026-11-20', month: '2026-11',
+        merchant: 'Sushi Kai', cents: 4500, status: 'approved', receiptUrl: 'https://files.test/s.webp', approvedById: ACCT, approvedByName: 'Ann Count', approvedAt: new Date() },
+      { id: OCT_DRAFT, userId: MARU, holderName: 'Maruthi Ponugupati', cardId: MARU_CARD, cardLabel: 'MARU92069', locationId: SEATTLE, day: '2026-10-15', month: '2026-10',
+        merchant: 'Home Depot', cents: 1999, status: 'draft' },
+      { id: VOIDED, userId: MARU, holderName: 'Maruthi Ponugupati', cardId: MARU_CARD, cardLabel: 'MARU92069', locationId: SEATTLE, day: '2026-10-16', month: '2026-10',
+        merchant: 'Lowe’s', cents: 999, status: 'draft', voidedAt: new Date(), voidedBy: 'Maruthi', voidReason: 'duplicate' }
+    ]);
+    const res = await post('import', [line('11/21/2026', 'SUSHI KAI', 45.18, 'ref-near')]);
+    expect(res.body.check).toMatchObject({ created: 1, linked: 0 });
+    const [l] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-near'));
+    missingId = l!.expenseId!;
+    expect(missingId).toBeTruthy();
+  });
+
+  it('To-do lists the holder’s Missing / Draft / Sent back from every month, never a voided one or someone else’s', async () => {
+    who = MARUTHI;
+    const res = await request(app).get('/api/card-receipts/expenses?scope=todo');
+    expect(res.status).toBe(200);
+    const ids = res.body.expenses.map((e: { id: string }) => e.id);
+    expect(ids).toContain(missingId);
+    expect(ids).toContain(OCT_DRAFT);
+    expect(ids).not.toContain(VOIDED);
+    expect(ids).not.toContain(NEAR);
+    expect(res.body.expenses.every((e: { userId: string; status: string }) => e.userId === MARU && ['missing', 'draft', 'sent_back'].includes(e.status))).toBe(true);
+    who = ACCOUNTANT;
+  });
+
+  it('offers the close receipt on the Missing receipt row, only to its holder', async () => {
+    who = MARUTHI;
+    const res = await request(app).get(`/api/card-receipts/expenses/${missingId}/near-receipts`);
+    expect(res.status).toBe(200);
+    expect(res.body.charge).toMatchObject({ reference: 'ref-near', cents: 4518, date: '2026-11-21' });
+    expect(res.body.receipts).toEqual([expect.objectContaining({ id: NEAR, cents: 4500, merchant: 'Sushi Kai', status: 'approved', hasReceipt: true })]);
+    who = SRINI_USER;
+    expect((await request(app).get(`/api/card-receipts/expenses/${missingId}/near-receipts`)).status).toBe(404);
+    expect((await request(app).post(`/api/card-receipts/expenses/${missingId}/use-receipt`).send({ receiptId: NEAR })).status).toBe(404);
+    who = ACCOUNTANT;
+  });
+
+  it('"This is my receipt" links the charge, takes the bank’s total, clears the approval and voids the Missing row', async () => {
+    who = MARUTHI;
+    // A receipt that isn't close is refused and changes nothing.
+    const far = await request(app).post(`/api/card-receipts/expenses/${missingId}/use-receipt`).send({ receiptId: OCT_DRAFT });
+    expect(far.status).toBe(409);
+    const res = await request(app).post(`/api/card-receipts/expenses/${missingId}/use-receipt`).send({ receiptId: NEAR });
+    expect(res.status).toBe(200);
+    expect(res.body.replacedMissing).toBe(missingId);
+    expect(res.body.expense).toMatchObject({ id: NEAR, cents: 4518, date: '2026-11-21', status: 'waiting', approval: null });
+    const [l] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-near'));
+    expect(l!.expenseId).toBe(NEAR);
+    const [gone] = await db.select().from(cardExpenses).where(eq(cardExpenses.id, missingId));
+    expect(gone).toMatchObject({ voidReason: 'Receipt uploaded', voidedBy: 'Maruthi Ponugupati' });
+    const history = await db.select().from(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, NEAR));
+    expect(history.at(-1)!.changes).toBe('Matched by hand to Amex charge ref-near · total $45.00 → $45.18 · date 11-20-2026 → 11-21-2026 · approvals cleared');
+    // Done once: the row is no charge's stand-in any more, and the receipt answers a charge now (its total stands).
+    expect((await request(app).post(`/api/card-receipts/expenses/${missingId}/use-receipt`).send({ receiptId: NEAR })).status).toBe(409);
+    expect((await request(app).get(`/api/card-receipts/expenses?scope=todo`)).body.expenses.map((e: { id: string }) => e.id)).not.toContain(missingId);
+    who = ACCOUNTANT;
+  });
+});
+
+describe('review B9: a refunded charge needs no receipt', () => {
+  it('lets go of a Missing receipt row when the refund arrives, and asks for none when both come together', async () => {
+    who = ACCOUNTANT;
+    const first = await post('import', [line('11/22/2026', 'BEST BUY', 200, 'ref-bb', '-92069')]);
+    expect(first.body.check).toMatchObject({ created: 1 });
+    const [bb] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-bb'));
+    const missingId = bb!.expenseId!;
+    // The refund comes in a later file.
+    const second = await post('import', [line('11/23/2026', 'BEST BUY', -200, 'ref-bb-refund', '-92069')]);
+    expect(second.body.check).toMatchObject({ retired: 1, created: 0 });
+    const [gone] = await db.select().from(cardExpenses).where(eq(cardExpenses.id, missingId));
+    expect(gone).toMatchObject({ voidReason: 'Charge refunded' });
+    const view = (await request(app).get('/api/card-receipts/statements?month=2026-11')).body;
+    expect(view.lines.find((x: { reference: string }) => x.reference === 'ref-bb').status).toBe('refunded');
+    // Charge and refund in one file: no Missing row is ever made.
+    const together = await post('import', [line('11/24/2026', 'LOWES', 80, 'ref-lw', '-92069'), line('11/25/2026', 'LOWES', -80, 'ref-lw-refund', '-92069')]);
+    expect(together.body.check).toMatchObject({ created: 0 });
+    // An ordinary charge on the card is still asked for.
+    const plain = await post('import', [line('11/26/2026', 'SHELL OIL', 41.5, 'ref-sh', '-92069')]);
+    expect(plain.body.check).toMatchObject({ created: 1 });
   });
 });

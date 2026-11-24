@@ -30,12 +30,14 @@ export const deleteCategory = async (id: string, name: string, move: { to: strin
 export const listCards = async () => onPostgres() ? pg.listCards(await appDb()) : mongo.listCards();
 export const findCard = async (id: string) => onPostgres() ? pg.findCard(await appDb(), id) : mongo.findCard(id);
 export const activeCardOf = async (userId: string) => onPostgres() ? pg.activeCardOf(await appDb(), userId) : mongo.activeCardOf(userId);
+export const activeCardsOf = async (userId: string) => onPostgres() ? pg.activeCardsOf(await appDb(), userId) : mongo.activeCardsOf(userId);
 export const activeCardClash = async (userId: string, label: string, exceptId: string | null, issuer: 'amex' | 'encore' | 'other' = 'amex') =>
   onPostgres() ? pg.activeCardClash(await appDb(), userId, label, exceptId, issuer) : mongo.activeCardClash(userId, label, exceptId, issuer);
 export const cardWithLabel = async (label: string, exceptId: string | null) =>
   onPostgres() ? pg.cardWithLabel(await appDb(), label, exceptId) : mongo.cardWithLabel(label, exceptId);
 export const addCard = async (id: string, value: Loose) => onPostgres() ? pg.addCard(await appDb(), id, value) : mongo.addCard(id, value);
 export const changeCard = async (id: string, set: Loose) => onPostgres() ? pg.changeCard(await appDb(), id, set) : mongo.changeCard(id, set);
+export const deleteCard = async (id: string) => onPostgres() ? pg.deleteCard(await appDb(), id) : mongo.deleteCard(id);
 
 // Expenses
 export const listExpenses = async (filter: ExpenseFilter) => onPostgres() ? pg.listExpenses(await appDb(), filter) : mongo.listExpenses(filter);
@@ -47,3 +49,7 @@ export const sameDayAmount = async (userId: string, date: string, cents: number)
 export const addExpense = async (id: string, doc: Loose) => onPostgres() ? pg.addExpense(await appDb(), id, doc) : mongo.addExpense(id, doc);
 export const changeExpense = async (id: string, set: Loose, entry: ExpenseHistoryEntry) =>
   onPostgres() ? pg.changeExpense(await appDb(), id, set, entry) : mongo.changeExpense(id, set, entry);
+
+/** Delete an expense for good; a copy with who and why is kept first. Null if it is gone. */
+export const deleteExpense = async (id: string, by: string, reason: string) =>
+  onPostgres() ? pg.deleteExpense(await appDb(), id, by, reason) : mongo.deleteExpense(id, by, reason);

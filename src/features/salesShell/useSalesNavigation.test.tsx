@@ -21,6 +21,15 @@ const setup = (over: Record<string, unknown> = {}) => {
 beforeEach(() => { go('/sales'); vi.spyOn(window, 'scrollTo').mockImplementation(() => {}); });
 
 describe('useSalesNavigation', () => {
+  it('shows a page a tapped notification asks for, only if they may see it', async () => {
+    const { requestSalesTab } = await import('../../utils/salesTabEvent');
+    const { result } = setup({ currentUser: { permissions: ['view_dashboard', 'use_card_receipts'], role: 'sales_rep' } });
+    act(() => requestSalesTab('pricelist'));
+    expect(result.current.crmTab).toBe('dashboard');
+    act(() => requestSalesTab('card_receipts'));
+    expect(result.current.crmTab).toBe('card_receipts');
+    expect(params().get('tab')).toBe('card_receipts');
+  });
   it('opens Fuel Man for a role with only its accounting permission', () => {
     expect(setup({ currentUser: { permissions: ['view_fuel_man'] } }).result.current.crmTab).toBe('fuel_man');
   });

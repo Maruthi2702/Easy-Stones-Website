@@ -706,8 +706,10 @@ the background task and a 30 s timer, resumed from saved state on a launch with 
 answering Locate now are native too** (`mobile/src/location/`, `mobile/src/locate/`, mounted in `mobile/App.tsx` over the site): the
 phone shows the agreement itself and posts it to `/api/location-tracking/consent`, the website draws neither inside the app
 (`phoneOwns` in `useLocationCollector`), and an open Locate now ask is answered silently at most once a minute (collector timer and
-app foreground). **The page's own `navigator.geolocation` is answered by the phone too** (2026-11-23, `mobile/src/host/geolocationShim.ts`, injected with the bridge shim; tested): without it WKWebView asked for location a second time for the website (Route Planner's dot, Optimize route) although the app already had it. Page calls go to the app's `Geolocation` plugin, which returns the collector's newest point if under 20 s old (`host/lastFix.ts`); a visit's stamp asks for `maximumAge: 0` and still gets a fresh read. App only, needs a new app build; not tried on a real iPhone. Still true: a force-quit app stays stopped on iPhone (no significant-change relaunch; Apple forum reports say
-iOS 26 may not relaunch it at all), an ask outside 7–6 waits until the app is next opened, and none of it has run on a real phone. Known
+app foreground). **The page's own `navigator.geolocation` is answered by the phone too** (2026-11-23, `mobile/src/host/geolocationShim.ts`, injected with the bridge shim; tested): without it WKWebView asked for location a second time for the website (Route Planner's dot, Optimize route) although the app already had it. Page calls go to the app's `Geolocation` plugin, which returns the collector's newest point if under 20 s old (`host/lastFix.ts`); a visit's stamp asks for `maximumAge: 0` and still gets a fresh read. App only, needs a new app build; not tried on a real iPhone. **A closed iPhone app is restarted by a geofence (2026-11-23, after a phone showed no data 8:53–11:06 AM; `mobile/src/collector/wake.ts`, tested):**
+the collector keeps a 200 m circle around the newest in-window position, `WAKE_TASK` calls `wake()` (→ `resume()` + tick) when iOS fires it, and
+Team Location's "No data" line now says the app may not have been running (`PersonPanel.tsx`). Unproven: whether iOS (26 especially) relaunches a
+force-quit app, and a phone that never crosses the circle isn't woken. Android is not restarted. Still true: an ask outside 7–6 waits until the app is next opened, and none of it has run on a real phone. Known
 losses and unverified parts are in `mobile/README.md` (Android push needs FCM; **never run on a real phone**; the Android debug app builds, the iOS build is
 untried because CocoaPods isn't installed). The web `/login` page renders nothing in any native app (`CustomerLoginPage`), so a native
 sign-in screen is mandatory on every platform (the earlier Capacitor Android app had none: its login was blank).
@@ -1373,20 +1375,77 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   "Save anyway" (`confirmRepeat`).
 - **Draft → Waiting for approval → Approved**, or **Sent back** with a comment.
   Complete = a receipt or a **lost-receipt reason**, a category, and the
-  category's own fields (customer, who attended, purpose); until then it saves
+  category's own fields (customer, and a **note** when the category requires one — 2026-11-23: a category's
+  "Required on every receipt" ticks are Customer and Note; Who attended and Business purpose were removed, old receipts keep
+  theirs and nothing asks for them; Postgres `receipt_categories.needs_note`, migration `0031`); until then it saves
   as a draft. Approved can't be edited; voided with a reason, never deleted.
-- **Approval by role** (owner): each role lists the roles whose receipts it
-  approves — `Role.approvesCardReceiptsOf`, ticked under Roles & Permissions
-  once the role has Approve — from any branch, never your own. A lost receipt
-  needs the approver's comment. A new rule goes through `canApprove` /
-  `decisionProblem`; never check a role name.
+- **Approval: Accounting always, a second person from $150** (owner, 2026-11-23, on `feat/receipt-approvals`; replaces the
+  old "each role lists the roles whose receipts it approves" — `Role.approvesCardReceiptsOf` and its Roles screen picker are
+  gone, nothing reads it). **Every rule is `src/utils/receiptApproval.ts` (tested); never re-implement one, never check a
+  role name elsewhere.** Every receipt needs the **Accounting approval** (an Accounting member, or an Admin standing in —
+  two Admins cover it when Accounting is away); **$150.00 and above** (`needsSecondApproval`; `isBigReceipt` is the same
+  line now) also needs a **second approval, in parallel, by a different person**: for a staff member's receipt their branch's
+  manager / director (`isBranchManagerOf`: home or assigned location, an all-locations '*' login is on no branch) **or** an
+  Admin; for a manager's, director's or Accounting member's, an Admin; an **Admin's own** receipt needs Accounting only, at any
+  amount. Nobody approves their own; a lost receipt needs the approver's comment. Stored on the expense as `approval` (the
+  Accounting one, with `as`), `secondApproval`, `ask` and `reminders` (`card_expenses`, migration `0032`, which also moves a
+  waiting receipt's old step 1 to the matching approval and turns an Admin's Missing rows into Waiting). The screens read
+  the server's per-viewer `actions` / `chips` / `waitingReason`, not the rules. **Ask** (Accounting or an Admin; the target
+  must be an active person whose role holds Approve — branch manager / Admin for staff receipts, an Admin otherwise): they
+  comment, which **approves** (fills the second approval when theirs); asking takes back an Accounting approval, so
+  Accounting gives the final one; while a question is open nobody else approves, and it can be withdrawn. **Send back**
+  (comment) clears both approvals and the question; **Reopen** (reason) puts an approved receipt back to Waiting; **a holder's
+  edit clears both approvals**. An **Admin's charge with no upload** is Waiting, never Missing (Statements shows "Waiting for
+  Accounting"); Accounting fills category / type / customer / note (`PUT /expenses/:id/details`) and approves it with no
+  receipt. Accounting, Manager and Director roles are given Approve once (`NEW_PERMISSION_GRANTS` in server.ts), which
+  chains to **Send receipt reminders** (`send_receipt_reminders`, `ACTION_MIGRATIONS`). **Reminders**
+  (`src/utils/receiptReminders.ts`, tested; job `src/jobs/missingReceiptReminders.ts`, hourly): a Missing receipt gets one email
+  to the holder and their branch managers (Admins if none) + a phone push to the holder 48 h after its row was made, and one to
+  the holder, branch managers, every Accounting member and Admin at 72 h (an older row gets the 72 h one only; stamps in
+  `reminders`, set before sending so a crash can't double-send). A person sends more with **Send reminder** on one or several
+  receipts (`POST /api/card-receipts/expenses/remind`, `src/routes/cardReceiptReminders.ts`): Accounting / Admins for anyone,
+  managers for their team, **once per receipt per Pacific day**, one email per person listing their receipts, written in the
+  receipt's history without moving `updatedAt`. Push is iPhone only (no FCM yet) and a tap opens the Credit Card Receipts page (2026-11-23: an app already open on Sales used to stay where it was — the URL's `?tab=` is only read at load, so `PushRegistrar` also fires `requestSalesTab`, `src/utils/salesTabEvent.ts`, which `useSalesNavigation` answers if they may see the page); it still doesn't open the one receipt.
+  **Not tried on a real phone or with real mail**; the owner has not answered whether an Admin's own Missing row should get a
+  reminder (it doesn't) or how a receipt with no branch is handled (Admins get the 48 h email).
+  **Send reminder redesign (2026-11-23, on `feat/reminder-design`; claude.ai artifact **Receipt Reminder Canvas**,
+  https://claude.ai/artifact/X8An8cCBgbQVXuHYWqwGsZ):** the form names who each group means
+  (`POST /expenses/remind/preview` → `previewGroups`, never the sender) and the Send button says "Send to N people"; the answer
+  lists who was reached, each skipped receipt with its reason and who got only one way (`RemindOutcome`); a receipt whose only
+  possible people is the sender is skipped with that reason (`nobodyReason`), not stamped; the email lists each receipt as a row
+  with its amount and a total for several (`EmailWords.rows` / `total`, table layout so a forward keeps it). Not built from the
+  canvas: the "no phone" warning before sending (it's in the answer after). **What the answer says is true (same day):** the
+  server sends *before* answering; someone with neither an email nor a phone is never counted as reminded (the receipt is
+  skipped, unstamped, and they're listed in `noContact`); if nothing got through, the day's stamp is cleared (`lastDay: ''`)
+  with a "reminder not delivered" history line and the receipt is skipped with "Try again"; the preview leaves out receipts
+  the send would skip (`remindProblem`) and returns them with their reasons.
+- **Adding a receipt for someone** (2026-11-23, on `feat/receipt-on-behalf`; owner's ask): switch `add_receipts_for_others`
+  (Users & Roles → Credit Card Receipts → **Add receipts for others**; Admins hold it, nobody else until ticked). `POST /expenses`
+  takes `onBehalfOf` (a cardholder's id): the receipt is **theirs** — their card (their other card by `cardId`), name and home
+  location, they edit it, the Amex check matches it as theirs — and only the history says who typed it ("added · on behalf of
+  Maria"; `createdBy` is the adder). The photo must be one the adder uploaded. Refused: without the switch (403), an inactive
+  person (400), a person with no card (409). The form's "Receipt for" picker (search) comes from `GET /add-for-holders`
+  (active people with an active card); the round + shows for someone with the switch even with no card of their own. Editing,
+  voiding and the rest stay the cardholder's / Approve's.
+  **The person who added it can't approve it** (owner, 2026-11-23): `addedById` on the expense (`card_expenses.added_by_id`,
+  migration `0033`; Mongo `addedById`) counts like the cardholder in `receiptApproval.ts`'s `isHolder` — no Approve, Ask, Send back,
+  Reopen or Answer, never asked, not a reminder recipient — so someone else does the Accounting approval and the second one. The
+  drawer says "Added by". Receipts added before this have no `addedById`. **Run `npm run pg:migrate -- --apply` on Render for 0033.**
 - **Categories** are a list in the database, seeded once
   (`STARTING_CATEGORIES`); `name` is stored and never changes, `label` is shown.
   A hidden one can't start an expense but stays valid on old ones; one in use is
   deleted only by moving its expenses to a shown one.
 - **Excel** starts with the six columns of the card log accounting keeps today
   (Transaction Date MM-DD-YYYY · Location · C C Holder Name · Credit Card Number ·
-  Description · Spent Amount; owner's sample), new fields after (`exportRows`).
+  Description · Spent Amount; owner's sample), new fields after (`exportRows`; a **Bank** column right after
+  Spent Amount since 2026-11-23). **Download by bank (2026-11-23, on `feat/receipt-categories-list`):** every expense the list
+  sends carries its card's `issuer` (`issuersByCard` / `viewOf` in `src/routes/cardReceipts.ts`; a row with none is Amex,
+  `onBank`), the Filters panel has a **Card** field (Amex and Encore / Amex / Encore) and "Export this view" follows it
+  (switch `export_card_receipts`). **Export all months** is a second switch, `export_all_card_receipts` ("Export all",
+  Users & Roles → Credit Card Receipts; nobody holds it until an admin ticks it — admin through
+  `ALL_CARD_RECEIPT_PERMISSIONS`): `GET /api/card-receipts/expenses/export?bank=` answers every month for one bank or both,
+  only the people the caller may see (View all → everyone, View branch → their team, else their own), capped at
+  `EXPENSE_LIST_CAP` with `truncated`. The server checks the switch; the menu item is only its mirror.
 - Switches (Users & Roles → Accounting · Credit Card Receipts and Admin ·
   Receipt Categories, `CARD_RECEIPTS`): My receipts, View all, Approve, Export,
   Manage cards; categories add / edit / reorder / delete. Admin gets them through
@@ -1416,6 +1475,14 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   them, opens that screen; after a photo, if the reading left merchant or total blank (or reading
   is off) it opens by itself with the photo large. Total is what was charged to the card;
   subtotal / tax / tip are information only — nothing adds them up.
+- **An opened receipt: View full size stays in the window** (2026-11-24, on `feat/receipt-view-fullsize`; claude.ai artifact **Receipt full-size viewer**,
+  https://claude.ai/artifact/VFEf8Ffa4RZqTeMNr3b1a1 — boards 1–7 light, 8–11 light and dark; the owner's comments set every rule). The photo
+  thumbnail is a button with a "View full size" chip; it swaps `ExpenseDrawer`'s body for `ReceiptPreview variant="viewer"` (Back to receipt, − / + / fit,
+  double-tap and pinch; ✕ and Esc go back, not close) — never a new tab. A **PDF** opens the same way, drawn by pdf.js (`receiptPdf.ts`, a copy of the Hold
+  letter preview's loader: the receipt file route answers with `sandbox`, which blocks the browser's own PDF viewer in a frame, and iOS frames show page 1 only);
+  a file it can't fetch (an old Cloudinary / CDN address with no CORS) says so and links "Open it in a new tab". The Add / Edit form's thumbnail does the same.
+  The header carries no amount (the Total row does, gold from $150); the status band and the reminder pill sit directly above Activity (`.ccr-state`).
+  Every colour is a token, so light and dark follow the app. Phone: the viewer is the full-screen sheet. Not tried on a real iPhone.
 - **Add receipt asks how first** (2026-11-21, on `feat/receipt-capture`; claude.ai artifact **Receipt capture flow**,
   https://claude.ai/artifact/XZPwWL45sLa6o2EbQZPKDU): the round camera opens `AddReceiptChoice` (a size-S form, ✕, no
   footer — `FormModal`'s `hideFooter`): **Open Camera** (`CameraCapture`: `getUserMedia` back camera, corner guides, flash
@@ -1426,7 +1493,8 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   the choice is the form template's full-screen sheet, not the canvas's bottom sheet. Not built: the canvas's step list while
   reading. **Never tried on a real iPhone** (camera permission text is in Info.plist; test the shutter there).
 - **Review of 2026-11-20 (on `main`, owner's calls):** the **$150 second step stays a fixed limit** (no per-role
-  dollar limit yet; `BIG_RECEIPT_APPROVER_ROLES`). **View branch** (`view_branch_card_receipts`, Users & Roles →
+  dollar limit yet; since 2026-11-23 it is `needsSecondApproval` in `receiptApproval.ts`, and the old
+  `BIG_RECEIPT_APPROVER_ROLES` / `canApprove` / `approvalStep` in `cardReceipts.ts` are left unused — delete them). **View branch** (`view_branch_card_receipts`, Users & Roles →
   Credit Card Receipts) shows the expenses of the caller's **team by where the person works** — the Visits rule, `teamOfRequest`
   (`GET /expenses?scope=all`); View all still wins; the Cards tab stays View all / Manage cards only. An expense that
   answers an Amex charge keeps Amex's **date and total** (`matchedChangeProblem`; the rest is still editable). The
@@ -1444,10 +1512,51 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   Excel's Receipt link is the site address (opens only when signed in). Only S3 can keep a private file (Cloudinary /
   disk stay public); receipts saved before 2026-11-20 are still public links until a copy script moves them
   (not written). **Not done:** the Cardholder filter, not the dashboard's People field, narrows the list.
+- **Hardening of 2026-11-24 (review S5–S8, on `fix/card-receipts-hardening`):** a PDF sent to `/attachments` must start
+  with `%PDF-` (`src/utils/receiptPdf.ts`); **setting up a card from the Statements tab** (`POST /statements/cards`, or card
+  picks in a preview / import) needs **Manage cards**, not just the Amex check; `/api/card-receipts` parses JSON up to
+  **15 MB** (server.ts, before the global 200 MB parser); the upload and AI-scan limits count in **Postgres**
+  (`rate_limit_hits`, migration `0035`, `PostgresRateLimitStore`) so every Lambda instance shares them — if the database
+  can't be reached the request passes (`passOnStoreError`). **Run `npm run pg:migrate -- --apply` on Render for `0035`.**
+  A new limit that guards money uses that store, never the default in-memory one.
+  **Limits raised 2026-11-24 (owner):** uploads 100 per 10 min, AI scan 40 per 10 min and 200 a day; files — a **photo** up to
+  25 MB on the phone (`MAX_RECEIPT_PHOTO_BYTES`; the browser shrinks it to 2000px JPEG before sending, so the wire is small), a
+  **PDF** up to 20 MB (`MAX_RECEIPT_PDF_BYTES`; sent as it is, never recompressed — a bigger scan should be a photo), JSON for
+  `/api/card-receipts` up to 30 MB. **Receipt photos are saved as JPEG** (quality 85, mozjpeg, white behind any transparency —
+  `format: 'jpeg'` on `processBase64Image`); visits and resources still save WebP; receipts stored earlier as WebP still open.
+  Not built: HEIC conversion for Chrome / Firefox on a desktop (those can't open a HEIC photo; iPhones / Safari can) — add
+  `heic2any` if staff hit it. On Lambda a request body is capped at about 6 MB, so uploads will need to go straight to S3.
+- **Edit any, Void any, Delete** (2026-11-24, on `feat/receipt-edit-any`; owner's ask — Accounting fixes any receipt, admins delete):
+  three switches on the Credit Card Receipts card, nobody holds them until an admin ticks them (Admins hold every key):
+  `edit_any_card_receipt` — `PUT /expenses/:id` for anyone's receipt, approved ones too, never a voided one; a waiting or approved
+  receipt **keeps its status and approvals** (`statusAfterAnyEdit`: a typo fix isn't approved again), a missing / draft / sent-back one
+  follows the usual rule, the card choice is the holder's, history says "edited for <first name>"; an Amex-matched receipt still keeps
+  Amex's date and total. `void_any_card_receipt` — `POST /expenses/:id/void` for anyone's, approved ones too, reason required; a charge
+  on a bank statement still can't be voided. `delete_card_receipts` — `DELETE /expenses/:id` with a reason of 5+ characters
+  (`deleteReasonProblem`): the whole record is saved first to `card_expense_deletions` (Postgres, migration `0034`; MongoDB's
+  `cardexpensedeletions`) with who and why, then removed with its history; a bank-statement charge's row can't be deleted. The
+  drawer's ⋯ shows Void receipt / Delete receipt… by these switches. **Run `npm run pg:migrate -- --apply` on Render for `0034`.**
+  Void and Delete are also in each desktop row's ⋯ (a last column in `ExpenseList`, the shared `RowMenu`) and, for **ticked**
+  receipts, in the header ⋯ under Export… ("Void 3 selected…" / "Delete 3 selected…", `BulkReasonForm`: one reason, each goes through
+  the single route, a refused one is listed and the rest still go). Phone cards have no row ⋯ — a tap opens the receipt, whose ⋯ has them.
+  Not built: reading a deleted receipt back in the app (an admin reads the table), restoring one.
+- **Custom date range** (2026-11-24): the Expenses tab's month stepper has a **Custom** button — From / To days
+  (shared `DatePicker`, at most a year, both ends included) in place of the month; **Month** goes back. The server
+  answers `GET /expenses?scope=…&from=&to=` (rules `rangeProblem` / `inRange` / `rangeLabel` in `src/utils/cardReceipts.ts`;
+  filter kind `range` in `src/db/cardReceipts`, Mongo and Postgres, parity-tested) with the same people rules as a month.
+  Waiting for me, To do, Statements and Export… are unchanged (Export still asks for a month or all months).
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
-  sample statement), the daily reminder email, closing a month, the PDF export.
+  sample statement), the daily reminder email, closing a month.
   The `missing` status and `approvesCardReceiptsOf` already exist for them.
+- **Export… (2026-11-23, claude.ai artifact **Card Receipts Export Pop-up**, https://claude.ai/artifact/Kwi3UnW7tYAb7j56F6295p):**
+  the ⋯ menu has one item that opens `components/ExportDialog.tsx` — **Card** (Amex and Encore / Amex / Encore, starts on the
+  Filters panel's Card), **Months** (This month / All months; hidden without Export all) and **Format** (Excel / PDF). Rules in
+  `src/utils/cardReceiptsExport.ts` (tested): This month needs Export, All months needs Export all, and **a PDF is one month
+  only** (PDF and All months grey each other out). "This month" is the month's receipts for the bank, ignoring the other
+  filters (the old "Export this view" is gone, my call — owner unanswered). The PDF (`src/utils/cardReceiptsPdf.ts`, pdf-lib in
+  the browser, same rows as the Excel minus the link / approver / notes columns, 2,000-line cap, total of the whole month) is
+  written by `exportFiles.ts`. Never opened in a real PDF reader yet.
 
 **The Amex check** (2026-11-20, on `feat/amex-check`; owner's answers that day — it replaces the
 weekly PDF plan): Credit Card Receipts → **Statements** tab (switch `check_amex_statements`,
@@ -1476,6 +1585,28 @@ by several holders, then name) — the sheet itself stays out of the repo, it's 
 card link to it and show **Missing receipt** (owner, 2026-11-20: the card is enough to identify the charge; counted in the still-missing total); the openable Missing row is made only once Cards →
 **Assign to a person** gives it a holder, which re-runs the check (`afterCardSaved`). **A replaced card** (lost / reissued: new digits, same Card Member name; owner 2026-11-20): Set up card / the upload's picks accept a person who already has a card; the old card is deactivated (history kept) only when the screen confirmed it (`replace: true`), the login manages company cards (`manage_company_cards`: accounting / admin) and Amex's name on the new digits is that person's — else the usual "deactivate it under Cards first" refusal. Not built: the daily reminder email.
 
+**To do and near matches** (2026-11-24, on `fix/card-receipts-todo-match`; review B1–B3): a cardholder's **To do** is
+every month's own Missing receipt / Draft / Sent back (`GET /expenses?scope=todo`, `TODO_STATUSES`), shown above the list on every
+screen size — a charge from last month found by this month's statement used to sit only in last month. The automatic match stays
+**exact** (owner's rule), but a Missing receipt row offers its holder their own receipts **close** to the charge (`isNearMatch` in
+`amexStatement.ts`: a week either side, within $5 or 10%; `GET /expenses/:id/near-receipts`) and **"This is my receipt"**
+(`POST /expenses/:id/use-receipt`, `matchReceiptToCharge` in `db/cardStatements`, under the check's lock) links the charge to it: the
+receipt takes the bank's day, total and card (what a matched receipt keeps), a changed total takes back its approvals, and the
+Missing row is voided. Holder only; never automatic. A PUT that corrects the day or total looks for the charge again (3fdf09b9), and
+the screen drops the Missing row it replaced.
+
+**Refunds, previews and replacements** (2026-11-24; review B7–B9): a refund pairs with its charge (`pairRefunds`: same bank and card,
+the exact amount back, up to 30 days after, never a card payment) and that charge reads **Refunded** — no Missing row is made, one
+already made is voided ("Charge refunded"). Nothing is stored: the pairing is worked out each check and each view. A **preview**
+takes no global lock (it rolls back anyway) and gives up after 2 s on a row a real upload is writing (409 "try again"); only a real
+upload takes `card_statement_check`. An upload sends `replace` only for the cards the person confirmed in the dialog.
+Not done: a refunded charge on a card nobody holds yet still counts in "still missing".
+
+**Export and public links** (2026-11-24; review S2 / S3): both exports read `GET /expenses/export` — `?month=` needs Export (or
+Export all), no month needs Export all; the same people rules as the list apply and each export is logged (who, scope, count). The
+screen no longer builds a month's file from the list it already holds. A **public** receipt link (an old one, or a store that can't
+keep it private) is refused when another person's expense already holds it (`receiptLinkProblem`).
+
 **The Encore check** (2026-11-21, on `feat/encore-statements`; owner's answers that day: Encore cards are **additional**
 to Amex, a person may hold one of each, and some holders are new): Statements → **Upload statement** has a **Bank** choice
 (Amex | Encore). Encore's export is one sheet, one row per transaction (`src/utils/encoreStatement.ts`, tested; worker kind
@@ -1491,6 +1622,15 @@ Because a person uploads one receipt, a charge matches a receipt of the same **h
 cards by `holderOf`, `claimUpload` looks at the holder's cards) and the receipt is **moved to the card the charge is on**
 (history: "Card changed to …"); a new receipt is saved on the person's first card (`activeCardOf`: Amex first). Not built:
 a card choice on Add receipt. New tables/columns reach RDS with `npm run pg:migrate -- --apply` on Render.
+
+**Statements are kept apart by bank** (2026-11-23, on `feat/receipt-categories-list`; claude.ai artifact **Statements by bank**,
+https://claude.ai/artifact/XVMYJJRpHrrxSfTQ2Ey2pD; the owner's calls on it): the Statements tab has an **Amex | Encore** switch (remembered
+on the device, default Amex, **no "All" tab** — my default, owner unanswered) and everything under it — tiles, lines, last upload, the
+still-missing count (`missingByBank` from `statementView`, uploads carry `issuer`), the uploads log — is that bank's alone; Upload statement
+opens on the chosen bank. **Cards not set up moved to the Cards tab** (`statements/UnknownCards.tsx`, both banks, each with its badge,
+needs the Amex-check switch); Statements keeps a one-line "2 Encore cards not set up · Set up in Cards" notice and an orange dot on the
+tab. A login with the Amex check but **no Cards tab** (`canCards` false) still gets the box on Statements, so nobody is stranded. On a
+phone the status filter is a round icon beside Upload (a list with counts, a gold dot and "Status: … Clear" when on).
 
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
 

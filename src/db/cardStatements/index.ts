@@ -21,8 +21,11 @@ import { users, locations } from '../schema/reference.ts';
 import { cardExpenseRowsOf } from '../copy/cardsSuppliersRows.ts';
 import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
 import { changeExpense } from '../cardReceipts/postgres.ts';
+import { isAdminRole } from '../../utils/receiptApproval.ts';
+import { formatMoney, usDate } from '../../utils/cardReceipts.ts';
 import {
   MISSING_FROM, MATCH_DAYS, kindOf, lineStatus, planMatches, cardForDigits, merchantOf, statusCounts, unknownCards, daysApart, issuerLabel,
+  NEAR_DAYS, isNearMatch, nearMatches, pairRefunds, REFUND_DAYS,
   type AmexLine, type Issuer, type LineKind, type LineStatus
 } from '../../utils/amexStatement.ts';
 
@@ -35,6 +38,17 @@ const CHUNK = 500;
 const shiftDay = (day: string, by: number) => new Date(Date.parse(`${day}T00:00:00Z`) + by * 86400000).toISOString().slice(0, 10);
 const lock = (c: Conn) => q(c).execute(sql`select pg_advisory_xact_lock(hashtext('card_statement_check'))`);
 
+/**
+ * A charge's stand-in row an upload replaces: a Missing receipt row, or an Admin's own charge waiting for Accounting
+ * with nothing on it yet (no receipt, no lost-receipt reason, no approval) — db/cardReceipts/types.ts's isChargePlaceholder.
+ */
+const placeholderSql = () => or(eq(cardExpenses.status, 'missing'), and(eq(cardExpenses.status, 'waiting'), eq(cardExpenses.receiptUrl, ''), eq(cardExpenses.lostReason, ''),
+  isNull(cardExpenses.approvedById), sql`(${cardExpenses.secondApproval} is null or ${cardExpenses.secondApproval} = 'null'::jsonb)`));
+type PlaceholderFields = { status: string | null; receiptUrl: string | null; lostReason: string | null; approvedById: string | null; secondApproval: unknown; voidedAt?: Date | null };
+const isPlaceholder = (e: PlaceholderFields) => !e.voidedAt && (e.status === 'missing'
+  || (e.status === 'waiting' && !e.receiptUrl && !e.lostReason && !e.approvedById && (e.secondApproval == null)));
+const placeholderCols = { receiptUrl: cardExpenses.receiptUrl, lostReason: cardExpenses.lostReason, approvedById: cardExpenses.approvedById, secondApproval: cardExpenses.secondApproval };
+
 /** Thrown to roll a preview back; carries what the check would have done. */
 class Preview extends Error {
   result: unknown;
@@ -42,6 +56,17 @@ class Preview extends Error {
 }
 
 export type CheckResult = { linked: number; created: number; retired: number; cardsFound: number };
+
+type RefundCharge = { reference: string; issuer: string; digits: string; date: string; cents: number };
+/** The charges (of those given) a later refund returned, by reference (review B9). Reads the credits it needs, nothing else. */
+async function refundedOf(c: Conn, charges: readonly RefundCharge[]): Promise<Set<string>> {
+  if (!charges.length) return new Set();
+  const days = charges.map(x => x.date).sort();
+  const credits = await q(c).select({ reference: lines.reference, issuer: lines.issuer, digits: lines.digits, date: lines.day, cents: lines.cents, description: lines.description })
+    .from(lines).where(and(eq(lines.kind, 'credit'), lt(lines.cents, 0), gte(lines.day, days[0]!), lt(lines.day, shiftDay(days.at(-1)!, REFUND_DAYS + 1)),
+      inArray(lines.digits, [...new Set(charges.map(x => x.digits))])));
+  return new Set(pairRefunds(charges, credits).keys());
+}
 
 /**
  * The check, inside a transaction the caller holds. Every charge still waiting for an upload is
@@ -66,13 +91,30 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
     }
   }
 
-  // 2. Charges still waiting for an upload: none yet, or a Missing receipt row, or a voided one.
+  // 2. Charges still waiting for an upload: none yet, or a Missing receipt row (or an Admin's waiting stand-in), or a voided one.
   const waiting = await q(tx).select({
     reference: lines.reference, issuer: lines.issuer, date: lines.day, cents: lines.cents, kind: lines.kind, cardId: lines.cardId, expenseId: lines.expenseId,
     status: cardExpenses.status, voidedAt: cardExpenses.voidedAt
   }).from(lines).leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
     .where(and(eq(lines.kind, 'charge'), sql`${lines.cardId} is not null`,
-      or(isNull(lines.expenseId), eq(cardExpenses.status, 'missing'), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))));
+      or(isNull(lines.expenseId), placeholderSql(), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))));
+  // A charge a refund returned needs no receipt (review B9): its Missing receipt row, if one was made, is let go.
+  const refunded = await refundedOf(tx, (await q(tx).select({ reference: lines.reference, issuer: lines.issuer, digits: lines.digits, date: lines.day, cents: lines.cents })
+    .from(lines).where(inArray(lines.reference, waiting.map(w => w.reference)))));
+  for (const w of waiting.filter(x => refunded.has(x.reference))) {
+    if (w.expenseId && !w.voidedAt && (w.status === 'missing' || w.status === 'waiting')) {
+      const [row] = await q(tx).select({ status: cardExpenses.status, ...placeholderCols }).from(cardExpenses).where(eq(cardExpenses.id, w.expenseId));
+      if (row && isPlaceholder({ ...row, voidedAt: null })) {
+        const now = new Date();
+        await changeExpense(q(tx), w.expenseId, { voidedAt: now, voidedBy: by.name, voidReason: 'Charge refunded' },
+          { at: now, by: by.name, action: 'voided', changes: `The ${issuerLabel(w.issuer)} charge (${w.reference}) was refunded: no receipt is needed` });
+        result.retired += 1;
+      }
+    }
+  }
+  const stillWaiting = waiting.filter(w => !refunded.has(w.reference));
+  waiting.length = 0;
+  waiting.push(...stillWaiting);
   if (!waiting.length) return result;
   const days = waiting.map(w => w.date).sort();
   // A person may hold a card at each bank and upload one receipt: a charge matches a receipt of the same
@@ -84,7 +126,7 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
   const linkedIds = waiting.map(w => w.expenseId).filter((id): id is string => Boolean(id));
   const candidates = await q(tx).select({
     id: cardExpenses.id, cardId: cardExpenses.cardId, date: cardExpenses.day, cents: cardExpenses.cents, status: cardExpenses.status,
-    voidedAt: cardExpenses.voidedAt, createdAt: cardExpenses.createdAt
+    voidedAt: cardExpenses.voidedAt, createdAt: cardExpenses.createdAt, ...placeholderCols
   }).from(cardExpenses).where(or(
     and(inArray(cardExpenses.cardId, cardIds), gte(cardExpenses.day, shiftDay(days[0]!, -MATCH_DAYS)), lt(cardExpenses.day, shiftDay(days.at(-1)!, MATCH_DAYS + 1))),
     linkedIds.length ? inArray(cardExpenses.id, linkedIds) : undefined
@@ -97,7 +139,9 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
   const linkedHere = new Set(linkedIds);
   const expenses = candidates
     .filter(c => !elsewhere.has(c.id) || linkedHere.has(c.id))
-    .map(c => ({ id: c.id, cardId: holderOf.get(c.cardId ?? '') ?? c.cardId ?? '', date: c.date, cents: c.cents, status: c.status, voided: Boolean(c.voidedAt), createdAt: c.createdAt }));
+    .map(c => ({ id: c.id, cardId: holderOf.get(c.cardId ?? '') ?? c.cardId ?? '', date: c.date, cents: c.cents,
+      // An Admin's waiting stand-in counts as a Missing receipt row here: an upload replaces it, it never answers a charge.
+      status: isPlaceholder(c) ? 'missing' : c.status, voided: Boolean(c.voidedAt), createdAt: c.createdAt }));
   const plan = planMatches({
     lines: waiting.map(w => ({ reference: w.reference, date: w.date, cents: w.cents, kind: w.kind as LineKind, cardId: holderOf.get(w.cardId!) ?? w.cardId, expenseId: w.expenseId })),
     expenses, missingFrom
@@ -132,7 +176,7 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
 async function createMissingRows(tx: Conn, references: string[], by: Actor, now: Date, approvedNote?: string): Promise<number> {
   const rows = await q(tx).select({
     reference: lines.reference, issuer: lines.issuer, day: lines.day, description: lines.description, cents: lines.cents,
-    cardId: companyCards.id, cardLabel: companyCards.label, userId: companyCards.userId,
+    cardId: companyCards.id, cardLabel: companyCards.label, userId: companyCards.userId, role: users.role,
     displayName: users.displayName, username: users.username, location: locations.name, cardLocation: companyCards.location
   }).from(lines)
     .innerJoin(companyCards, eq(companyCards.id, lines.cardId))
@@ -145,15 +189,19 @@ async function createMissingRows(tx: Conn, references: string[], by: Actor, now:
   const links = { cardIds: new Set(rows.map(r => r.cardId)), categoryNames: new Set<string>(), customerIds: new Set<string>() };
   const built = rows.map(r => {
     const id = newId();
+    // An Admin's own charge is never "Missing receipt": it waits for Accounting, who fills it in and approves it (receiptApproval.ts).
+    const adminWaits = !approvedNote && isAdminRole(r.role);
     const doc = {
       _id: id, userId: r.userId, holderName: r.displayName || r.username || '', cardId: r.cardId, cardLabel: r.cardLabel,
       location: r.location || r.cardLocation || '', date: r.day, month: r.day.slice(0, 7), merchant: merchantOf(r.description, issuerLabel(r.issuer)), cents: r.cents,
       subtotalCents: null, taxCents: null, tipCents: null, category: '', customerId: '', customerName: '', attendees: [],
       purpose: '', note: approvedNote ?? '', recurring: false, receiptUrl: '', lostReason: '',
-      status: approvedNote ? 'approved' : 'missing', sentBack: null,
+      status: approvedNote ? 'approved' : adminWaits ? 'waiting' : 'missing', sentBack: null,
       approval: approvedNote ? { by: by.id, byName: by.name, at: now, comment: approvedNote } : null,
       createdBy: by.name, voidedAt: null, voidedBy: '', voidReason: '',
-      history: [{ at: now, by: by.name, action: 'added', changes: approvedNote ? `${approvedNote} (${issuerLabel(r.issuer)} charge ${r.reference})` : `Missing receipt: ${issuerLabel(r.issuer)} charge ${r.reference}` }],
+      history: [{ at: now, by: by.name, action: 'added', changes: approvedNote ? `${approvedNote} (${issuerLabel(r.issuer)} charge ${r.reference})`
+        : adminWaits ? `An Admin’s charge: waiting for Accounting (${issuerLabel(r.issuer)} charge ${r.reference})`
+          : `Missing receipt: ${issuerLabel(r.issuer)} charge ${r.reference}` }],
       createdAt: now, updatedAt: now
     };
     const made = cardExpenseRowsOf(doc, ref, links, []);
@@ -224,7 +272,9 @@ export async function importStatement(input: {
   const references = input.lines.map(l => l.reference);
   try {
     return await d.transaction(async tx => {
-      await lock(tx);
+      // Review B7 (2026-11-24): a real upload takes the check's lock; a preview rolls back anyway, so it takes none (every
+      // receipt save waits on that lock) and gives up after 2 s if it meets a row a real upload is writing.
+      if (input.preview) await q(tx).execute(sql`set local lock_timeout = '2s'`); else await lock(tx);
       const known = new Set<string>();
       for (let i = 0; i < references.length; i += 5000) {
         for (const r of await tx.select({ reference: lines.reference }).from(lines).where(inArray(lines.reference, references.slice(i, i + 5000)))) known.add(r.reference);
@@ -232,7 +282,7 @@ export async function importStatement(input: {
       const now = new Date();
       // A refreshed line whose amount, card or day no longer fits the receipt it was matched to is let go: the
       // check below matches it again (or makes it Missing) instead of keeping a match that no longer holds.
-      const matched = await tx.select({ reference: lines.reference, digits: lines.digits, expenseId: lines.expenseId, expDay: cardExpenses.day, expCents: cardExpenses.cents, expStatus: cardExpenses.status, expVoided: cardExpenses.voidedAt })
+      const matched = await tx.select({ reference: lines.reference, digits: lines.digits, expenseId: lines.expenseId, expDay: cardExpenses.day, expCents: cardExpenses.cents, expStatus: cardExpenses.status, expVoided: cardExpenses.voidedAt, ...placeholderCols })
         .from(lines).innerJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId)).where(inArray(lines.reference, references));
       const incoming = new Map(input.lines.map(l => [l.reference, l]));
       for (const m of matched) {
@@ -242,7 +292,7 @@ export async function importStatement(input: {
         if (next.cents === m.expCents && next.digits === m.digits && daysApart <= MATCH_DAYS) continue;
         await tx.update(lines).set({ expenseId: null, cardId: null, updatedAt: now }).where(eq(lines.reference, m.reference));
         // A Missing row only ever stood for this charge as it was: it goes, and the new one is made by the check.
-        if (m.expStatus === 'missing' && !m.expVoided) {
+        if (isPlaceholder({ ...m, status: m.expStatus, voidedAt: m.expVoided })) {
           await changeExpense(q(tx), m.expenseId!, { voidedAt: now, voidedBy: input.by.name, voidReason: 'Amex charge changed' },
             { at: now, by: input.by.name, action: 'voided', changes: `The Amex charge (${m.reference}) changed in a later upload` });
         }
@@ -306,13 +356,13 @@ export async function claimUpload(expense: { id: string; cardId: string; date: s
     // The holder's cards at every bank: a receipt may answer a charge on any of them.
     const [mine] = await tx.select({ userId: companyCards.userId }).from(companyCards).where(eq(companyCards.id, expense.cardId));
     const siblings = mine?.userId ? (await tx.select({ id: companyCards.id }).from(companyCards).where(eq(companyCards.userId, mine.userId))).map(r => r.id) : [expense.cardId];
-    const found = await tx.select({ reference: lines.reference, issuer: lines.issuer, cardId: lines.cardId, day: lines.day, expenseId: lines.expenseId, status: cardExpenses.status, voidedAt: cardExpenses.voidedAt })
+    const found = await tx.select({ reference: lines.reference, issuer: lines.issuer, cardId: lines.cardId, day: lines.day, expenseId: lines.expenseId, status: cardExpenses.status, voidedAt: cardExpenses.voidedAt, ...placeholderCols })
       .from(lines).leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
       .where(and(eq(lines.kind, 'charge'), inArray(lines.cardId, siblings), eq(lines.cents, expense.cents),
         gte(lines.day, shiftDay(expense.date, -MATCH_DAYS)), lt(lines.day, shiftDay(expense.date, MATCH_DAYS + 1)),
-        or(isNull(lines.expenseId), eq(cardExpenses.status, 'missing'), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))))
+        or(isNull(lines.expenseId), placeholderSql(), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))))
       .orderBy(asc(lines.day), asc(lines.reference));
-    const open = found.filter(f => !f.expenseId || f.status === 'missing' || f.voidedAt || !f.status);
+    const open = found.filter(f => !f.expenseId || isPlaceholder(f) || f.voidedAt || !f.status);
     const best = open.sort((a, b) => daysApart(a.day, expense.date) - daysApart(b.day, expense.date))[0];
     if (!best) return null;
     const now = new Date();
@@ -322,12 +372,105 @@ export async function claimUpload(expense: { id: string; cardId: string; date: s
       await changeExpense(tx as unknown as Db, expense.id, { cardId: best.cardId, cardLabel: card?.label ?? '' },
         { at: now, by: by.name, action: 'edited', changes: `Card changed to ${card?.label ?? 'the card'}: it answers a ${issuerLabel(best.issuer)} charge (${best.reference})` });
     }
-    if (best.expenseId && best.status === 'missing' && !best.voidedAt) {
+    if (best.expenseId && isPlaceholder(best)) {
       await changeExpense(tx as unknown as Db, best.expenseId, { voidedAt: now, voidedBy: by.name, voidReason: 'Receipt uploaded' },
         { at: now, by: by.name, action: 'voided', changes: `Receipt uploaded for this ${issuerLabel(best.issuer)} charge (${best.reference})${expense.merchant ? `: ${expense.merchant}` : ''}` });
       return best.expenseId;
     }
     return '';
+  });
+}
+
+/** Why a hand match was refused (the route answers 409 with it). */
+export class NearMatchError extends Error {}
+
+export type NearReceipt = { id: string; date: string; cents: number; merchant: string; status: string; cardLabel: string; hasReceipt: boolean };
+export type NearMatchList = { charge: { reference: string; issuer: Issuer; date: string; cents: number; description: string }; receipts: NearReceipt[] };
+
+/** The charge a Missing receipt row (or an Admin's waiting stand-in) stands for, with the row; null when it stands for none. */
+async function chargeOfPlaceholder(c: Conn, placeholderId: string) {
+  const [row] = await q(c).select({
+    reference: lines.reference, issuer: lines.issuer, day: lines.day, cents: lines.cents, description: lines.description, cardId: lines.cardId,
+    userId: cardExpenses.userId, status: cardExpenses.status, voidedAt: cardExpenses.voidedAt, ...placeholderCols
+  }).from(lines).innerJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
+    .where(and(eq(lines.kind, 'charge'), eq(lines.expenseId, String(placeholderId).toLowerCase())));
+  return row && isPlaceholder(row) ? row : null;
+}
+
+/** The holder's receipts a charge may be (any of their cards, any bank): live, not a stand-in, answering no charge yet. */
+async function openReceiptsNear(c: Conn, userId: string, day: string) {
+  const cards = (await q(c).select({ id: companyCards.id }).from(companyCards).where(eq(companyCards.userId, userId))).map(r => r.id);
+  if (!cards.length) return [];
+  const rows = await q(c).select({
+    id: cardExpenses.id, date: cardExpenses.day, cents: cardExpenses.cents, merchant: cardExpenses.merchant, status: cardExpenses.status,
+    cardId: cardExpenses.cardId, cardLabel: cardExpenses.cardLabel, voidedAt: cardExpenses.voidedAt, approvedAt: cardExpenses.approvedAt, ...placeholderCols
+  }).from(cardExpenses).where(and(
+    inArray(cardExpenses.cardId, cards), isNull(cardExpenses.voidedAt),
+    gte(cardExpenses.day, shiftDay(day, -NEAR_DAYS)), lt(cardExpenses.day, shiftDay(day, NEAR_DAYS + 1)),
+    sql`not exists (select 1 from ${lines} where ${lines.expenseId} = ${cardExpenses.id})`
+  ));
+  return rows.filter(r => !isPlaceholder(r));
+}
+
+/**
+ * Review B2 (2026-11-24): the holder's own receipts close to the charge behind a Missing receipt row (amount
+ * within $5 / 10%, a week either side — `isNearMatch`), closest first. Null when the row stands for no charge.
+ */
+export async function nearReceiptsFor(placeholderId: string, db?: Db): Promise<NearMatchList | null> {
+  const d = db ?? await appDb();
+  const charge = await chargeOfPlaceholder(d, placeholderId);
+  if (!charge || !charge.userId) return null;
+  const open = await openReceiptsNear(d, charge.userId, charge.day);
+  return {
+    charge: { reference: charge.reference, issuer: charge.issuer as Issuer, date: charge.day, cents: charge.cents, description: charge.description },
+    receipts: nearMatches({ date: charge.day, cents: charge.cents }, open).map(r => ({
+      id: r.id, date: r.date, cents: r.cents, merchant: r.merchant, status: r.status ?? '', cardLabel: r.cardLabel ?? '',
+      hasReceipt: Boolean(r.receiptUrl || r.lostReason)
+    }))
+  };
+}
+
+/**
+ * "This is my receipt": the charge behind a Missing receipt row is answered by a receipt the holder already
+ * saved. In one transaction under the check's lock: the charge points at the receipt, which takes the bank's
+ * day and total (what a matched receipt keeps — matchedChangeProblem) and the charge's card; a changed total
+ * takes back any approval given (the PUT's rule), so an Approved one waits again; the Missing receipt row is
+ * voided. Everything is checked again here; a refusal throws NearMatchError and changes nothing.
+ * `holderId`: the caller, who must be the row's holder.
+ */
+export async function matchReceiptToCharge(placeholderId: string, receiptId: string, holderId: string, by: Actor, db?: Db): Promise<{ voided: string; receiptId: string }> {
+  const d = db ?? await appDb();
+  return d.transaction(async tx => {
+    await lock(tx);
+    const charge = await chargeOfPlaceholder(tx, placeholderId);
+    if (!charge || charge.userId !== holderId) throw new NearMatchError('This charge already has its receipt, or isn’t yours.');
+    const receipt = (await openReceiptsNear(tx, holderId, charge.day)).find(r => r.id === String(receiptId).toLowerCase());
+    if (!receipt) throw new NearMatchError('That receipt can’t be used for this charge: it already answers one, was voided, or isn’t yours.');
+    if (!isNearMatch({ date: charge.day, cents: charge.cents }, receipt)) throw new NearMatchError('That receipt is too far from this charge in amount or date to be the same purchase.');
+    const now = new Date();
+    const bank = issuerLabel(charge.issuer);
+    await q(tx).update(lines).set({ expenseId: receipt.id, updatedAt: now }).where(eq(lines.reference, charge.reference));
+
+    const totalChanged = receipt.cents !== charge.cents;
+    const hadApproval = Boolean(receipt.approvedById || receipt.approvedAt || (receipt.secondApproval != null && receipt.secondApproval !== 'null'));
+    const clears = totalChanged && hadApproval;
+    const card = charge.cardId && charge.cardId !== receipt.cardId
+      ? (await q(tx).select({ label: companyCards.label }).from(companyCards).where(eq(companyCards.id, charge.cardId)))[0] : undefined;
+    const changes = [
+      `Matched by hand to ${bank} charge ${charge.reference}`,
+      totalChanged ? `total ${formatMoney(receipt.cents)} → ${formatMoney(charge.cents)}` : '',
+      receipt.date !== charge.day ? `date ${usDate(receipt.date)} → ${usDate(charge.day)}` : '',
+      card ? `card ${receipt.cardLabel} → ${card.label}` : '',
+      clears ? 'approvals cleared' : ''
+    ].filter(Boolean).join(' · ');
+    await changeExpense(q(tx), receipt.id, {
+      date: charge.day, month: charge.day.slice(0, 7), cents: charge.cents,
+      ...(card ? { cardId: charge.cardId, cardLabel: card.label } : {}),
+      ...(clears ? { approval: null, secondApproval: null, ...(receipt.status === 'approved' ? { status: 'waiting' } : {}) } : {})
+    }, { at: now, by: by.name, action: 'edited', changes });
+    await changeExpense(q(tx), placeholderId, { voidedAt: now, voidedBy: by.name, voidReason: 'Receipt uploaded' },
+      { at: now, by: by.name, action: 'voided', changes: `Receipt already uploaded for this ${bank} charge (${charge.reference}): ${receipt.merchant}` });
+    return { voided: String(placeholderId).toLowerCase(), receiptId: receipt.id };
   });
 }
 
@@ -347,13 +490,15 @@ export type StatementLineView = {
 async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: string): Promise<StatementLineView[]> {
   const rows = await q(c).select({
     l: lines, cardLabel: companyCards.label, holderId: companyCards.userId, displayName: users.displayName, username: users.username,
-    expenseStatus: cardExpenses.status, expenseVoided: cardExpenses.voidedAt
+    expenseStatus: cardExpenses.status, expenseVoided: cardExpenses.voidedAt,
+    expenseReceipt: cardExpenses.receiptUrl, expenseLost: cardExpenses.lostReason
   }).from(lines)
     .leftJoin(companyCards, eq(companyCards.id, lines.cardId))
     .leftJoin(users, eq(users.id, companyCards.userId))
     .leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
     .where(where)
     .orderBy(desc(lines.day), asc(lines.reference));
+  const refunded = await refundedOf(c, rows.filter(r => r.l.kind === 'charge').map(r => ({ reference: r.l.reference, issuer: r.l.issuer, digits: r.l.digits, date: r.l.day, cents: r.l.cents })));
   return rows.map(r => {
     const kind = r.l.kind as LineKind;
     return {
@@ -361,7 +506,10 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: s
       kind, amexCategory: r.l.amexCategory, cityState: r.l.cityState, cardId: r.l.cardId, cardLabel: r.cardLabel ?? '',
       holderId: r.holderId ?? '', holderName: r.displayName || r.username || '',
       expenseId: r.l.expenseId, expenseStatus: r.expenseStatus ?? null,
-      status: lineStatus({ kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided) }, missingFrom)
+      status: lineStatus({
+        kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided),
+        hasReceipt: Boolean(r.expenseReceipt || r.expenseLost), refunded: refunded.has(r.l.reference)
+      }, missingFrom)
     };
   });
 }
@@ -376,21 +524,27 @@ export async function statementView(month: string, { missingFrom = MISSING_FROM 
     linesWhere(d, and(gte(lines.day, from), lt(lines.day, to)), missingFrom),
     d.select({ issuer: lines.issuer, digits: lines.digits, cardMember: lines.cardMember, cents: lines.cents, kind: lines.kind, date: lines.day, cardId: lines.cardId })
       .from(lines).where(isNull(lines.cardId)),
-    d.select({ n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
+    d.select({ issuer: lines.issuer, n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
       .innerJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
-      .where(and(eq(cardExpenses.status, 'missing'), isNull(cardExpenses.voidedAt))),
+      .where(and(eq(cardExpenses.status, 'missing'), isNull(cardExpenses.voidedAt)))
+      .groupBy(lines.issuer),
     // Charges on a card nobody holds yet have no Missing row to count, but they are still missing (shown as such).
-    d.select({ n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
+    d.select({ issuer: lines.issuer, n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
       .innerJoin(companyCards, eq(companyCards.id, lines.cardId))
-      .where(and(isNull(companyCards.userId), isNull(lines.expenseId), eq(lines.kind, 'charge'), gte(lines.day, missingFrom))),
+      .where(and(isNull(companyCards.userId), isNull(lines.expenseId), eq(lines.kind, 'charge'), gte(lines.day, missingFrom)))
+      .groupBy(lines.issuer),
     d.select().from(imports).orderBy(desc(imports.at)).limit(20)
   ]);
+  // Still-missing receipts, in all and by bank (the Statements tab shows one bank at a time).
+  const stillMissing = (bank?: string) => [...missingNow, ...missingUnheld].filter(r => !bank || r.issuer === bank)
+    .reduce((t, r) => ({ count: t.count + Number(r.n), cents: t.cents + Number(r.cents) }), { count: 0, cents: 0 });
   return {
     lines: monthLines,
     unknownCards: unknownCards(noCard.map(l => ({ ...l, kind: l.kind as LineKind }))),
-    missingNow: { count: (missingNow[0]?.n ?? 0) + (missingUnheld[0]?.n ?? 0), cents: Number(missingNow[0]?.cents ?? 0) + Number(missingUnheld[0]?.cents ?? 0) },
+    missingNow: stillMissing(),
+    missingByBank: { amex: stillMissing('amex'), encore: stillMissing('encore') },
     imports: uploads.map(i => ({
-      id: i.id, fileName: i.fileName, periodFrom: i.periodFrom, periodTo: i.periodTo, lines: i.lines, added: i.added,
+      id: i.id, issuer: i.issuer as Issuer, fileName: i.fileName, periodFrom: i.periodFrom, periodTo: i.periodTo, lines: i.lines, added: i.added,
       chargesCents: i.chargesCents, summary: i.summary, byName: i.byName, at: i.at
     })),
     missingFrom

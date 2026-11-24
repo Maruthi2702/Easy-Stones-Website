@@ -13,11 +13,12 @@ export type StatementLine = {
 export type UnknownCard = { issuer: Issuer; digits: string; cardMember: string; charges: number; cents: number; first: string; last: string; suggestedUserId: string };
 export type StaffPerson = { id: string; name: string; role: string; location: string; active: boolean; card: string; encoreCard: string };
 export type StatementUpload = {
-  id: string; fileName: string; periodFrom: string | null; periodTo: string | null; lines: number; added: number;
+  id: string; issuer: Issuer; fileName: string; periodFrom: string | null; periodTo: string | null; lines: number; added: number;
   chargesCents: number; byName: string; at: string;
 };
 export type StatementsView = {
   lines: StatementLine[]; unknownCards: UnknownCard[]; missingNow: { count: number; cents: number };
+  missingByBank: Record<Issuer, { count: number; cents: number }>;
   imports: StatementUpload[]; people: StaffPerson[]; missingFrom: string;
 };
 export type CheckResult = { linked: number; created: number; retired: number; cardsFound: number };

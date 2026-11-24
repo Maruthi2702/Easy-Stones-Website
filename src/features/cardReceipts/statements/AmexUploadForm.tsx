@@ -21,9 +21,9 @@ const BANKS: { key: Issuer; label: string; file: string; hint: string }[] = [
  * set up right here by picking its holder (the preview runs again with the pick). Upload and
  * check keeps it.
  */
-export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: UploadResult) => void; onClose: () => void }) {
+export default function AmexUploadForm({ onDone, onClose, initialIssuer = 'amex' }: { onDone: (r: UploadResult) => void; onClose: () => void; initialIssuer?: Issuer }) {
   const fileInput = useRef<HTMLInputElement>(null);
-  const [issuer, setIssuer] = useState<Issuer>('amex');
+  const [issuer, setIssuer] = useState<Issuer>(initialIssuer);
   const [file, setFile] = useState<File | null>(null);
   const [picks, setPicks] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<UploadResult | null>(null);
@@ -84,7 +84,8 @@ export default function AmexUploadForm({ onDone, onClose }: { onDone: (r: Upload
         if (replacing.length && !window.confirm(`Replace ${replacing.length === 1 ? 'a card' : `${replacing.length} cards`}? ${replacing.map((r) => `${r.name}'s card ${r.card} will be deactivated and …${r.digits} set up instead`).join('; ')}.`)) return;
         setSaving(true);
         setProblem(null);
-        try { onDone(await api.importUpload(file, picks, Object.keys(picks), issuer)); } catch (e) {
+        // Only the cards the person just agreed to replace are sent as replacements (review B8): a card that gained a holder meanwhile is refused, not swapped silently.
+        try { onDone(await api.importUpload(file, picks, replacing.map((r) => r.digits), issuer)); } catch (e) {
           const err = e as Problem;
           if (err.digits) { setCardNotes((cur) => ({ ...cur, [err.digits!]: err.message })); setPicks((p) => ({ ...p, [err.digits!]: '' })); } else setProblem(err);
           setSaving(false);

@@ -1,15 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CARD_RECEIPTS, canOpenReceipts, categoryKey, cleanCategory, parseCents, formatMoney, usDate, shiftMonth, monthLabel,
+  CARD_RECEIPTS, canOpenReceipts, categoryKey, cleanCategory, parseCents, formatMoney, usDate, shiftMonth, monthLabel, rangeProblem, inRange, rangeLabel, MAX_RANGE_DAYS,
   suggestCardLabel, cleanCard, cleanExpense, missingFor, missingLine, statusAfterSave, holderMayEdit, changeSummary,
   possibleRepeat, canApprove, cleanApproverRoles, decisionProblem, statusTotals, exportRows, type CategoryLike
 } from './cardReceipts.ts';
 
 const CATS: CategoryLike[] = [
   { name: 'travel_lunch', label: 'Travel Lunch' },
-  { name: 'customer_lunch', label: 'Customer Lunch', fields: { customer: true, attendees: true } },
+  { name: 'customer_lunch', label: 'Customer Lunch', fields: { customer: true } },
   { name: 'software_and_subscriptions', label: 'Software & Subscriptions', fields: { recurring: true } },
-  { name: 'travel', label: 'Travel', fields: { purpose: true } }
+  { name: 'travel', label: 'Travel', fields: { note: true } }
 ];
 const TODAY = '2026-11-05';
 const base = { date: '2026-10-03', merchant: "McDonald's, Kent", total: '14.32', category: 'travel_lunch', receiptUrl: 'https://res.cloudinary.com/x/r.webp' };
@@ -23,8 +23,10 @@ describe('categories', () => {
     expect(cleanCategory({ label: '' }, []).problems.label).toBeTruthy();
     expect(cleanCategory({ label: 'fuel' }, [{ _id: 'a', label: 'Fuel' }]).problems.label).toMatch(/already/);
     expect(cleanCategory({ label: 'Fuel' }, [{ _id: 'a', label: 'Fuel' }], 'a').value?.label).toBe('Fuel');
-    expect(cleanCategory({ label: 'Gifts', fields: { customer: true, attendees: 'yes' } }, []).value?.fields)
-      .toEqual({ customer: true, attendees: false, purpose: false, recurring: false });
+    expect(cleanCategory({ label: 'Gifts', fields: { customer: true, note: 'yes', attendees: true, purpose: true } }, []).value?.fields)
+      .toEqual({ customer: true, note: false, recurring: false });
+    expect(cleanCategory({ label: 'Gifts', fields: { note: true } }, []).value?.fields)
+      .toEqual({ customer: false, note: true, recurring: false });
   });
 });
 
@@ -41,6 +43,24 @@ describe('money, dates, cards', () => {
     expect(usDate('2026-10-03')).toBe('10-03-2026');
     expect(shiftMonth('2026-01', -1)).toBe('2025-12');
     expect(monthLabel('2026-10')).toBe('October 2026');
+  });
+  it('checks a custom range: both days, in order, at most a year', () => {
+    expect(rangeProblem('2026-10-01', '2026-10-31')).toBe('');
+    expect(rangeProblem('2026-10-01', '2026-10-01')).toBe('');
+    expect(rangeProblem('', '2026-10-31')).toMatch(/both days/i);
+    expect(rangeProblem('2026-02-30', '2026-10-31')).toMatch(/both days/i);
+    expect(rangeProblem('2026-11-01', '2026-10-31')).toMatch(/after/i);
+    expect(rangeProblem('2025-11-30', '2026-11-29')).toBe('');
+    expect(rangeProblem('2025-11-29', '2026-11-29')).toBe('');
+    expect(rangeProblem('2025-11-28', '2026-11-29')).toMatch(/a year/i);
+    expect(MAX_RANGE_DAYS).toBe(366);
+  });
+  it('puts a day in a range with both ends included, and words the range', () => {
+    expect(inRange('2026-10-03', '2026-10-03', '2026-10-20')).toBe(true);
+    expect(inRange('2026-10-20', '2026-10-03', '2026-10-20')).toBe(true);
+    expect(inRange('2026-10-21', '2026-10-03', '2026-10-20')).toBe(false);
+    expect(rangeLabel('2026-10-03', '2026-10-20')).toBe('Oct 3 – Oct 20, 2026');
+    expect(rangeLabel('2025-12-20', '2026-01-05')).toBe('Dec 20, 2025 – Jan 5, 2026');
   });
   it('suggests the card ID accounting uses and checks a card', () => {
     expect(suggestCardLabel('Maruthi Ponugupati', '92069')).toBe('MARU92069');
@@ -71,11 +91,25 @@ describe('an expense', () => {
   });
   it('asks a category’s extra fields and drops the ones another category doesn’t use', () => {
     const lunch = cleanExpense({ ...base, category: 'customer_lunch', customerId: '', recurring: true }, { today: TODAY, categories: CATS });
-    expect(Object.keys(lunch.missing)).toEqual(['customer', 'attendees']);
+    expect(Object.keys(lunch.missing)).toEqual(['customer']);
     expect(lunch.value?.recurring).toBe(false);
-    const travel = cleanExpense({ ...base, category: 'travel_lunch', customerId: 'c1', attendees: ['A'] }, { today: TODAY, categories: CATS });
-    expect(travel.value).toMatchObject({ customerId: '', attendees: [] });
-    expect(missingFor({ ...travel.value!, category: 'travel', purpose: '' }, CATS[3])).toEqual({ purpose: 'Say what it was for' });
+    const travel = cleanExpense({ ...base, category: 'travel_lunch', customerId: 'c1' }, { today: TODAY, categories: CATS });
+    expect(travel.value).toMatchObject({ customerId: '' });
+  });
+  it('a category that requires a note holds the receipt as a draft until one is written', () => {
+    const none = cleanExpense({ ...base, category: 'travel', note: '' }, { today: TODAY, categories: CATS });
+    expect(none.missing).toEqual({ note: 'Add a note' });
+    expect(missingLine(none.missing)).toBe('Add a note');
+    expect(cleanExpense({ ...base, category: 'travel', note: '   ' }, { today: TODAY, categories: CATS }).missing).toEqual({ note: 'Add a note' });
+    expect(cleanExpense({ ...base, category: 'travel', note: 'Hotel for the Boise show' }, { today: TODAY, categories: CATS }).missing).toEqual({});
+    // Other categories never ask for one.
+    expect(cleanExpense({ ...base, note: '' }, { today: TODAY, categories: CATS }).missing).toEqual({});
+    expect(missingFor({ ...none.value!, note: '' }, CATS[3])).toEqual({ note: 'Add a note' });
+  });
+  it('keeps who attended / a purpose a receipt already carries, though nothing asks for them any more', () => {
+    const old = cleanExpense({ ...base, category: 'customer_lunch', customerId: 'c1', attendees: ['A', 'B'], purpose: 'Quote review' }, { today: TODAY, categories: CATS });
+    expect(old.value).toMatchObject({ attendees: ['A', 'B'], purpose: 'Quote review' });
+    expect(Object.keys(old.missing)).toEqual([]);
   });
   it('takes a lost-receipt reason instead of a photo, never both', () => {
     const lost = cleanExpense({ ...base, receiptUrl: '', lostReason: 'Pump didn’t print one' }, { today: TODAY, categories: CATS });
@@ -83,6 +117,14 @@ describe('an expense', () => {
     const both = cleanExpense({ ...base, lostReason: 'x' }, { today: TODAY, categories: CATS });
     expect(both.value?.lostReason).toBe('');
     expect(cleanExpense({ ...base, receiptUrl: 'javascript:1' }, { today: TODAY, categories: CATS }).problems.receipt).toBeTruthy();
+  });
+  it('asks a lost-receipt reason to say something, but lets an old short one stay as it is (review B11)', () => {
+    const lost = (reason: string, current = '') => cleanExpense({ ...base, receiptUrl: '', lostReason: reason }, { today: TODAY, categories: CATS, currentLostReason: current });
+    expect(lost('x').problems.lostReason).toMatch(/at least 10/);
+    expect(lost('x').value).toBeUndefined();
+    expect(lost('Pump didn’t print one').problems.lostReason).toBeUndefined();
+    expect(lost('lost', 'lost').problems.lostReason).toBeUndefined();
+    expect(lost('lost it', 'lost').problems.lostReason).toBeTruthy();
   });
   it('refuses a category that left the list', () => {
     expect(cleanExpense({ ...base, category: 'gone' }, { today: TODAY, categories: CATS }).problems.category).toBeTruthy();
@@ -151,6 +193,27 @@ describe('totals and the export', () => {
     expect(Object.keys(row!).slice(0, 6)).toEqual(['Transaction Date', 'Location', 'C C Holder Name', 'Credit Card Number', 'Description', 'Spent Amount']);
     expect(row).toMatchObject({ 'Transaction Date': '10-07-2026', Location: 'SEATTLE', 'C C Holder Name': 'MARUTHI PONUGUPATI', Description: 'CHEVRON', 'Spent Amount': 125, Category: 'Fuel', Receipt: 'Lost: Pump didn’t print one' });
   });
+  it('names the bank after the six columns, and only when it is known', () => {
+    const base = { date: '2026-10-07', location: 'Seattle', holderName: 'A', cardLabel: 'A1', merchant: 'Chevron', cents: 100, category: 'fuel', status: 'approved' };
+    const cols = (e: object) => Object.keys(exportRows([e as never], [])[0]!);
+    expect(cols({ ...base, issuer: 'encore' }).slice(5, 8)).toEqual(['Spent Amount', 'Bank', 'Category']);
+    expect(exportRows([{ ...base, issuer: 'encore' }], [])[0]!.Bank).toBe('Encore');
+    expect(exportRows([{ ...base, issuer: 'amex' }], [])[0]!.Bank).toBe('Amex');
+    expect(exportRows([base], [])[0]!.Bank).toBe('');
+  });
+  it('filters by bank: none picked keeps all, and an expense with no bank is Amex’s', async () => {
+    const { onBank } = await import('./cardReceipts');
+    expect(onBank({ issuer: 'encore' }, '')).toBe(true);
+    expect(onBank({ issuer: 'encore' }, 'encore')).toBe(true);
+    expect(onBank({ issuer: 'encore' }, 'amex')).toBe(false);
+    expect(onBank({}, 'amex')).toBe(true);
+    expect(onBank({}, 'encore')).toBe(false);
+  });
+  it('keeps Export and Export all as two switches', () => {
+    expect(CARD_RECEIPTS.EXPORT_ALL).toBe('export_all_card_receipts');
+    expect(CARD_RECEIPTS.EXPORT_ALL).not.toBe(CARD_RECEIPTS.EXPORT);
+    expect(canOpenReceipts({ permissions: [CARD_RECEIPTS.EXPORT_ALL] })).toBe(false);
+  });
   it('opens the page with any of its switches', () => {
     expect(canOpenReceipts({ permissions: [CARD_RECEIPTS.APPROVE] })).toBe(true);
     expect(canOpenReceipts({ permissions: [CARD_RECEIPTS.EXPORT] })).toBe(false);
@@ -160,8 +223,8 @@ describe('totals and the export', () => {
 describe('isBigReceipt', () => {
   it('marks only receipts strictly over $150', async () => {
     const { isBigReceipt } = await import('./cardReceipts');
-    expect(isBigReceipt(15000)).toBe(false);
-    expect(isBigReceipt(15001)).toBe(true);
+    expect(isBigReceipt(14999)).toBe(false);
+    expect(isBigReceipt(15000)).toBe(true);
     expect(isBigReceipt(null)).toBe(false);
   });
 });

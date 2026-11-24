@@ -4,16 +4,17 @@
  * (companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf), so it writes what a re-copy
  * of MongoDB would.
  */
-import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, isNull, ne, or, sql } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
-import { companyCards, receiptCategories, cardExpenses, cardExpenseHistory } from '../schema/cardsSuppliers.ts';
+import { companyCards, receiptCategories, cardExpenses, cardExpenseHistory, cardExpenseDeletions } from '../schema/cardsSuppliers.ts';
 import { locations } from '../schema/reference.ts';
 import { customers } from '../schema/customers.ts';
+import { cardStatementLines } from '../schema/cardStatements.ts';
 import { companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf } from '../copy/cardsSuppliersRows.ts';
 import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
 import { cardDoc, categoryDoc, expenseDoc } from './cardDocs.ts';
 import type { Loose } from '../../types/records.ts';
-import { StaleExpenseError, RepeatExpenseError, EXPENSE_LIST_CAP } from './types.ts';
+import { StaleExpenseError, RepeatExpenseError, EXPENSE_LIST_CAP, TODO_STATUSES, isChargePlaceholder } from './types.ts';
 import type { ExpenseFilter, ExpenseHistoryEntry } from './types.ts';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -112,6 +113,12 @@ export async function activeCardOf(db: Db, userId: string): Promise<Loose | null
   return row ? cardDoc(row) : null;
 }
 
+export async function activeCardsOf(db: Db, userId: string): Promise<Loose[]> {
+  const rows = await db.select().from(companyCards).where(and(eq(companyCards.userId, lower(userId)), eq(companyCards.active, true)))
+    .orderBy(asc(companyCards.issuer), asc(companyCards.createdAt), asc(companyCards.id));
+  return rows.map(cardDoc);
+}
+
 export async function activeCardClash(db: Db, userId: string, label: string, exceptId: string | null, issuer: string = 'amex'): Promise<Loose | null> {
   // One active card per person per bank (2026-11-21), and an active card ID is never used twice.
   const [row] = await db.select().from(companyCards).where(and(
@@ -144,7 +151,25 @@ export async function changeCard(db: Db, id: string, set: Loose): Promise<Loose 
     if (!row) throw new Error('That card can’t be stored: the cardholder is not in Postgres yet.');
     const { id: _id, createdAt: _created, ...columns } = row;
     await tx.update(companyCards).set(columns).where(eq(companyCards.id, found.id));
+    // An expense keeps its own copy of the card ID, so a renamed card carries it onto every expense it holds.
+    if (columns.label !== found.label) await tx.update(cardExpenses).set({ cardLabel: columns.label }).where(eq(cardExpenses.cardId, found.id));
     return (await findCard(tx as unknown as Db, found.id))!;
+  });
+}
+
+/**
+ * Delete a card nothing was ever logged on ('in_use' with the count when expenses name it, voided and Missing rows included).
+ * Statement lines that pointed at it go back to "no card set up" — the next check or upload matches them again.
+ */
+export async function deleteCard(db: Db, id: string): Promise<{ deleted: true } | { deleted: false; reason: 'missing' | 'in_use'; expenses?: number }> {
+  return db.transaction(async tx => {
+    const [found] = await tx.select().from(companyCards).where(eq(companyCards.id, lower(id))).for('update');
+    if (!found) return { deleted: false as const, reason: 'missing' as const };
+    const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(cardExpenses).where(eq(cardExpenses.cardId, found.id));
+    if (n) return { deleted: false as const, reason: 'in_use' as const, expenses: n };
+    await tx.update(cardStatementLines).set({ cardId: null }).where(eq(cardStatementLines.cardId, found.id));
+    await tx.delete(companyCards).where(eq(companyCards.id, found.id));
+    return { deleted: true as const };
   });
 }
 
@@ -161,11 +186,12 @@ async function withHistory(c: Conn, rows: { e: typeof cardExpenses.$inferSelect;
 }
 
 export async function listExpenses(db: Db, filter: ExpenseFilter): Promise<Loose[]> {
-  if (filter.kind === 'waiting' && !filter.userIds.length && filter.overCents == null) return [];
   const where = filter.kind === 'waiting'
-    ? and(eq(cardExpenses.status, 'waiting'), isNull(cardExpenses.voidedAt), or(filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : undefined, filter.overCents != null ? gt(cardExpenses.cents, filter.overCents) : undefined))
-    : and(eq(cardExpenses.month, filter.month), filter.userId ? eq(cardExpenses.userId, lower(filter.userId)) : undefined,
-      filter.userIds ? (filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : sql`false`) : undefined);
+    ? and(eq(cardExpenses.status, 'waiting'), isNull(cardExpenses.voidedAt))
+    : filter.kind === 'todo'
+      ? and(eq(cardExpenses.userId, lower(filter.userId)), inArray(cardExpenses.status, [...TODO_STATUSES]), isNull(cardExpenses.voidedAt))
+      : and(filter.kind === 'month' ? eq(cardExpenses.month, filter.month) : filter.kind === 'range' ? and(gte(cardExpenses.day, filter.from), lte(cardExpenses.day, filter.to)) : undefined, filter.userId ? eq(cardExpenses.userId, lower(filter.userId)) : undefined,
+        filter.userIds ? (filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : sql`false`) : undefined);
   const rows = await selectExpenses(db).where(where).orderBy(desc(cardExpenses.day), desc(cardExpenses.createdAt), desc(cardExpenses.id)).limit(EXPENSE_LIST_CAP);
   return withHistory(db, rows);
 }
@@ -213,7 +239,7 @@ export async function addExpense(db: Db, id: string, value: Loose): Promise<Loos
     if (repeatCheck && rest.userId && rest.date && rest.cents != null) {
       // One save at a time per holder / day / amount, so two requests can't both pass the duplicate warning.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`card-expense|${String(rest.userId).toLowerCase()}|${rest.date}|${rest.cents}`}))`);
-      const same = (await sameDayAmount(tx as unknown as Db, String(rest.userId), String(rest.date), Number(rest.cents))).filter(e => e.status !== 'missing');
+      const same = (await sameDayAmount(tx as unknown as Db, String(rest.userId), String(rest.date), Number(rest.cents))).filter(e => !isChargePlaceholder(e));
       if (same.length) throw new RepeatExpenseError(same[0]!);
     }
     const now = new Date();
@@ -238,5 +264,17 @@ export async function changeExpense(db: Db, id: string, set: Loose, fullEntry: E
     await tx.delete(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, found.id));
     if (built.history.length) await tx.insert(cardExpenseHistory).values(built.history);
     return (await findExpense(tx as unknown as Db, found.id))!;
+  });
+}
+
+/** Delete an expense for good: its whole record is saved to card_expense_deletions first, in the same transaction. Null if it is gone. */
+export async function deleteExpense(db: Db, id: string, by: string, reason: string): Promise<Loose | null> {
+  return db.transaction(async tx => {
+    const [found] = await tx.select({ id: cardExpenses.id }).from(cardExpenses).where(eq(cardExpenses.id, lower(id))).for('update');
+    if (!found) return null;
+    const existing = (await findExpense(tx as unknown as Db, found.id))!;
+    await tx.insert(cardExpenseDeletions).values({ expenseId: found.id, expense: JSON.parse(JSON.stringify(existing)), deletedBy: by, reason });
+    await tx.delete(cardExpenses).where(eq(cardExpenses.id, found.id)); // its history lines go with it (cascade)
+    return existing;
   });
 }

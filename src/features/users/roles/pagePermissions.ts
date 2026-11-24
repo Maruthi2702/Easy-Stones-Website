@@ -9,7 +9,7 @@ import { PROJECT_LEADS } from '../../../utils/projectLeadAccess';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, ListOrdered, PackageCheck, Ship, Unlock, Factory, Bell
+    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, Ban, PackageCheck, Ship, Unlock, Factory, Bell
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
@@ -389,28 +389,28 @@ export const PAGE_PERMISSIONS: PageDef[] = [
     },
     {
         // Sales → Credit Card Receipts (src/utils/cardReceipts.ts, 2026-11-05).
-        // Who approves whom is set on each role under Roles & Permissions
-        // ("Card receipts … approves"), shown once Approve is on.
-        id: 'accounting_card_receipts', page: 'Sales · Credit Card Receipts', icon: CreditCard,
-        description: 'Company-card receipts: uploaded when paid, approved by someone above, exported for accounting', color: '#d4af37',
+        // Who approves whom is by role (src/utils/receiptApproval.ts, 2026-11-23):
+        // Accounting / Admins, plus a branch manager or Admin from $150.
+        id: 'accounting_card_receipts', page: 'Credit Card Receipts', icon: CreditCard,
+        description: 'Company-card receipts: uploaded when paid, approved by someone above, exported for accounting — and the category list staff pick from', color: '#d4af37',
         actions: [
-            { key: CARD_RECEIPTS.USE, label: 'My receipts', icon: Camera, desc: 'Upload receipts for their own company card and see their own expenses' },
-            { key: CARD_RECEIPTS.VIEW_BRANCH, label: 'View branch', icon: Eye, desc: 'See the expenses and receipts of everyone who works at their branches, by where the person works (like Visits → View branch)' },
-            { key: CARD_RECEIPTS.VIEW_ALL, label: 'View all', icon: Eye, desc: 'See every cardholder’s expenses and receipts' },
-            { key: CARD_RECEIPTS.APPROVE, label: 'Approve', icon: CheckCheck, desc: 'Approve or send back the receipts of the roles this role approves (set below the cards), never their own' },
-            { key: CARD_RECEIPTS.EXPORT, label: 'Export', icon: Download, desc: 'Download the expenses they can see to Excel' },
-            { key: CARD_RECEIPTS.MANAGE_CARDS, label: 'Manage cards', icon: CreditCard, desc: 'Add company cards, link each to its holder, deactivate them' },
-            { key: CARD_RECEIPTS.STATEMENTS, label: 'Amex check', icon: Upload, desc: 'Upload Amex’s activity export, see every charge matched to a receipt, set up the cards it names' }
-        ]
-    },
-    {
-        id: 'receipt_categories', page: 'Admin · Receipt Categories', icon: ListOrdered,
-        description: 'The list staff pick from when they save a card receipt', color: '#a16207',
-        actions: [
-            { key: CARD_RECEIPTS.CATEGORY_ADD, label: 'Add', icon: Plus, desc: 'Add a receipt category' },
-            { key: CARD_RECEIPTS.CATEGORY_EDIT, label: 'Edit', icon: Pencil, desc: 'Rename a category, choose what it asks for, hide or show it' },
-            { key: CARD_RECEIPTS.CATEGORY_REORDER, label: 'Reorder', icon: ArrowUpDown, desc: 'Change the order everyone’s dropdown shows' },
-            { key: CARD_RECEIPTS.CATEGORY_DELETE, label: 'Delete', icon: Trash2, desc: 'Delete a category; expenses that use it move to another one first' }
+            { key: CARD_RECEIPTS.USE, section: 'Receipts', label: 'My receipts', icon: Camera, desc: 'Upload receipts for their own company card and see their own expenses' },
+            { key: CARD_RECEIPTS.VIEW_BRANCH, section: 'Receipts', label: 'View branch', icon: Eye, desc: 'See the expenses and receipts of everyone who works at their branches, by where the person works (like Visits → View branch)' },
+            { key: CARD_RECEIPTS.VIEW_ALL, section: 'Receipts', label: 'View all', icon: Eye, desc: 'See every cardholder’s expenses and receipts' },
+            { key: CARD_RECEIPTS.APPROVE, section: 'Receipts', label: 'Approve', icon: CheckCheck, desc: 'Accounting and Admins approve every receipt; from $150 a branch manager / director or an Admin also approves. Never their own.' },
+            { key: CARD_RECEIPTS.ADD_FOR_OTHERS, section: 'Receipts', label: 'Add receipts for others', icon: Plus, desc: 'Add a receipt on a cardholder’s behalf: it is saved to their card and belongs to them (they can edit it), and its history says who added it' },
+            { key: CARD_RECEIPTS.EDIT_ANY, section: 'Receipts', label: 'Edit any receipt', icon: Pencil, desc: 'Change any cardholder’s receipt, approved ones too (it keeps its status and approvals; the history says who changed what). For Accounting' },
+            { key: CARD_RECEIPTS.VOID_ANY, section: 'Receipts', label: 'Void any receipt', icon: Ban, desc: 'Void any cardholder’s receipt with a reason, approved ones too (a charge on a bank statement can’t be voided). It stays in the history, marked voided' },
+            { key: CARD_RECEIPTS.DELETE, section: 'Receipts', label: 'Delete receipts', icon: Trash2, desc: 'Delete a receipt for good, with a reason. A copy is kept with who deleted it and why. Admins only to start' },
+            { key: CARD_RECEIPTS.REMIND, section: 'Receipts', label: 'Send reminders', icon: Bell, desc: 'Email and push a reminder about a receipt to its cardholder, their branch manager, Accounting or whoever still has to approve it — Accounting and Admins about anyone’s, managers about their team’s; once per receipt a day' },
+            { key: CARD_RECEIPTS.EXPORT, section: 'Receipts', label: 'Export', icon: Download, desc: 'Download the list on screen (the month and filters, Amex or Encore) to Excel' },
+            { key: CARD_RECEIPTS.EXPORT_ALL, section: 'Receipts', label: 'Export all', icon: Download, desc: 'Download every month at once, for Amex, Encore or both — only the expenses they can see' },
+            { key: CARD_RECEIPTS.MANAGE_CARDS, section: 'Cards & statements', label: 'Manage cards', icon: CreditCard, desc: 'Add company cards, link each to its holder, deactivate them' },
+            { key: CARD_RECEIPTS.STATEMENTS, section: 'Cards & statements', label: 'Amex check', icon: Upload, desc: 'Upload Amex’s activity export, see every charge matched to a receipt, set up the cards it names' },
+            { key: CARD_RECEIPTS.CATEGORY_ADD, section: 'Categories', label: 'Add', icon: Plus, desc: 'Add a receipt category' },
+            { key: CARD_RECEIPTS.CATEGORY_EDIT, section: 'Categories', label: 'Edit', icon: Pencil, desc: 'Rename a category, choose what it asks for, hide or show it' },
+            { key: CARD_RECEIPTS.CATEGORY_REORDER, section: 'Categories', label: 'Reorder', icon: ArrowUpDown, desc: 'Change the order everyone’s dropdown shows' },
+            { key: CARD_RECEIPTS.CATEGORY_DELETE, section: 'Categories', label: 'Delete', icon: Trash2, desc: 'Delete a category; expenses that use it move to another one first' }
         ]
     },
     {

@@ -1,7 +1,9 @@
+import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import type { PluginLocation } from '../../../src/features/locationCollector/collectorRules';
 import { CollectorEngine, type Ports } from './core';
-import { NOTIFICATION_BODY, NOTIFICATION_TITLE, TICK_EVERY_MS, WATCH_TASK } from './constants';
+import { NOTIFICATION_BODY, NOTIFICATION_TITLE, TICK_EVERY_MS, WAKE_TASK, WATCH_TASK } from './constants';
+import { WAKE_RADIUS_M, shouldRearm, type WakeCenter } from './wake';
 import { readDeviceState } from './device';
 import * as api from './api';
 import * as store from './store';
@@ -28,7 +30,9 @@ const ports: Ports = {
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timeout')), 20_000))
       ]);
-      return { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy ?? null };
+      const here = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy ?? null };
+      void armWake(here);
+      return here;
     } catch { return null; }
   },
   loadQueue: store.loadQueue,
@@ -72,7 +76,44 @@ async function tick() {
   if (engine?.status?.tracked && engine.status.consented) void answerLocateRequests();
 }
 
+/**
+ * Wake a closed app (iPhone; see wake.ts). One geofence around the newest in-window position; iOS restarts a terminated app when it
+ * is crossed, and `defineTask(WAKE_TASK)` (host/handlers/location.ts) then calls `wake()`. Needs "Always". Best effort: never throws.
+ */
+let wakeCenter: WakeCenter | null = null;
+let wakeBusy = false;
+
+async function armWake(here: { lat: number; lng: number; accuracy: number | null }): Promise<void> {
+  if (Platform.OS !== 'ios' || wakeBusy || !engine) return;
+  const now = Date.now();
+  if (!shouldRearm(wakeCenter, here, now)) return;
+  wakeBusy = true;
+  try {
+    if (!(await Location.getBackgroundPermissionsAsync()).granted) return;
+    await Location.startGeofencingAsync(WAKE_TASK, [{ identifier: 'wake', latitude: here.lat, longitude: here.lng, radius: WAKE_RADIUS_M, notifyOnEnter: true, notifyOnExit: true }]);
+    wakeCenter = { lat: here.lat, lng: here.lng, at: now };
+  } catch { /* no permission, or the OS refused: the app still collects while it is alive */ }
+  finally { wakeBusy = false; }
+}
+
+async function disarmWake(): Promise<void> {
+  wakeCenter = null;
+  if (Platform.OS !== 'ios') return;
+  try { if (await Location.hasStartedGeofencingAsync(WAKE_TASK)) await Location.stopGeofencingAsync(WAKE_TASK); } catch { /* nothing to stop */ }
+}
+
+/** True while the circle is registered, so the website's health report can say a closed app can restart. */
+export const isWakeArmed = () => Boolean(wakeCenter);
+
+/** The geofence fired (the app may have just been started by it with no screen): pick the collector up and let it look at the clock. */
+export async function wake(): Promise<void> {
+  await resume();
+  if (engine) await engine.tick();
+}
+
 async function halt(clearEnabled: boolean) {
+  // Not on a plain start (`engine` is null): a relaunch must leave the circle the OS still holds, or nothing could wake the app again.
+  if (engine || clearEnabled) await disarmWake();
   if (timer) { clearInterval(timer); timer = null; }
   const e = engine; engine = null;
   if (e) await e.stop().catch(() => undefined);
@@ -114,6 +155,8 @@ export async function onLocations(locations: PluginLocation[]): Promise<void> {
   if (!engine) return;
   if (!engine.status) await engine.tick();
   await engine.onLocations(locations);
+  const newest = locations[locations.length - 1];
+  if (newest && engine.phase() === 'running') void armWake({ lat: newest.latitude, lng: newest.longitude, accuracy: newest.accuracy ?? null });
 }
 
 export function collectorState() {

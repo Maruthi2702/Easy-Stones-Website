@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   amexDay, amexCents, amexDigits, periodOf, readAmexActivity, kindOf, lineStatus, cardForDigits, suggestHolder,
-  unknownCards, planMatches, merchantOf, statusCounts, type MatchLine, type MatchExpense
+  unknownCards, planMatches, merchantOf, statusCounts, isNearMatch, nearMatches, pairRefunds, type MatchLine, type MatchExpense
 } from './amexStatement.ts';
 
 const HEADER = ['Date', 'Receipt', 'Description', 'Card Member', 'Account #', 'Amount', 'Extended Details', 'Appears On Your Statement As', 'Address', 'City/State', 'Zip Code', 'Country', 'Reference', 'Category'];
@@ -87,6 +87,8 @@ describe('kindOf and lineStatus', () => {
     expect(kindOf({ cents: 3320, description: 'JPMC FEE            REDMOND             WA', amexCategory: 'Other-Utilities' })).toBe('fee');
     expect(kindOf({ cents: 200, description: 'TEXAS.GOV*SERVICEFEEAUSTIN              TX', amexCategory: 'Other-Government Services' })).toBe('fee');
     expect(kindOf({ cents: 11207, description: 'TN SERV FEE ST FRANCJEFFERSONVILL       IN', amexCategory: 'Other-Education' })).toBe('fee');
+    expect(kindOf({ cents: 25000, description: 'CITY OF SEATTLE PERMIT FEE SEATTLE             WA', amexCategory: 'Other-Government Services' })).toBe('charge');
+    expect(kindOf({ cents: 7500, description: 'KING CO RECORDING FEE', amexCategory: 'Other-Government Services' })).toBe('charge');
     expect(kindOf({ cents: 650, description: "JANNA'S COFFEE", amexCategory: 'Restaurant-Bar & Café' })).toBe('charge');
     expect(kindOf({ cents: 35000, description: 'MYFREIGHTWORLDCARRIEOVERLAND PARK       KS', amexCategory: 'Business Services-Other Services' })).toBe('charge');
     expect(kindOf({ cents: 1800, description: 'EZPASS', amexCategory: 'Transportation-Tolls & Fees' })).toBe('charge');
@@ -103,6 +105,10 @@ describe('kindOf and lineStatus', () => {
     expect(lineStatus({ ...base, date: '2026-10-20', cardId: null })).toBe('before_start');
     expect(lineStatus({ ...base, date: '2026-10-20', expenseStatus: 'approved' })).toBe('matched');
     expect(lineStatus({ ...base, expenseStatus: 'draft', expenseVoided: true })).toBe('missing');
+    // An Admin's charge with no upload waits for Accounting; once it has a receipt or a lost reason it is matched.
+    expect(lineStatus({ ...base, expenseStatus: 'waiting', hasReceipt: false })).toBe('awaiting');
+    expect(lineStatus({ ...base, expenseStatus: 'waiting', hasReceipt: true })).toBe('matched');
+    expect(lineStatus({ ...base, expenseStatus: 'approved', hasReceipt: false })).toBe('matched');
   });
   it('counts per status', () => {
     const c = statusCounts([{ status: 'missing', cents: 100 }, { status: 'missing', cents: 50 }, { status: 'matched', cents: 7 }]);
@@ -215,4 +221,49 @@ it('merchantOf keeps one space and 80 characters', () => {
   expect(merchantOf('AMAZON PRIME*UC99N4EAMZN.COM/BILL       WA')).toBe('AMAZON PRIME*UC99N4EAMZN.COM/BILL WA');
   expect(merchantOf('   ')).toBe('Amex charge');
   expect(merchantOf('x'.repeat(100))).toHaveLength(80);
+});
+
+describe('near matches (offered, never automatic)', () => {
+  const charge = { date: '2026-11-10', cents: 4518 };
+  it('is close when within a week and within $5 or 10%, whichever is wider', () => {
+    expect(isNearMatch(charge, { date: '2026-11-09', cents: 4500 })).toBe(true);
+    expect(isNearMatch(charge, { date: '2026-11-17', cents: 4518 })).toBe(true);
+    expect(isNearMatch(charge, { date: '2026-11-18', cents: 4518 })).toBe(false);
+    expect(isNearMatch(charge, { date: '2026-11-10', cents: 4018 })).toBe(true);
+    expect(isNearMatch(charge, { date: '2026-11-10', cents: 4017 })).toBe(false);
+    // A $480 hotel: 10% ($48) is wider than $5.
+    expect(isNearMatch({ date: '2026-11-10', cents: 48000 }, { date: '2026-11-06', cents: 43200 })).toBe(true);
+    expect(isNearMatch({ date: '2026-11-10', cents: 48000 }, { date: '2026-11-06', cents: 43199 })).toBe(false);
+  });
+  it('lists the closest amount first, then the closest day', () => {
+    const list = nearMatches(charge, [
+      { id: 'a', date: '2026-11-10', cents: 4300 },
+      { id: 'b', date: '2026-11-14', cents: 4500 },
+      { id: 'c', date: '2026-11-10', cents: 4500 },
+      { id: 'd', date: '2026-11-01', cents: 4518 }
+    ]);
+    expect(list.map((r) => r.id)).toEqual(['c', 'b', 'a']);
+  });
+});
+
+describe('refunds pair with their charges (review B9)', () => {
+  const l = (reference: string, date: string, cents: number, digits = '92069', description = 'HOME DEPOT') => ({ reference, issuer: 'amex', digits, date, cents, description });
+  it('pairs the same card, the exact amount back, within 30 days after, one credit for one charge', () => {
+    const charges = [l('c1', '2026-11-03', 20000), l('c2', '2026-11-05', 20000), l('c3', '2026-11-04', 20000, '11111')];
+    const pairs = pairRefunds(charges, [l('r1', '2026-11-06', -20000), l('r2', '2026-12-30', -20000)]);
+    // The newest earlier charge on that card; the credit 55 days later returns nothing; another card is untouched.
+    expect([...pairs]).toEqual([['c2', 'r1']]);
+  });
+  it('never pairs a charge with a credit before it, a different amount, or a card payment', () => {
+    expect(pairRefunds([l('c1', '2026-11-10', 5000)], [l('r1', '2026-11-09', -5000)]).size).toBe(0);
+    expect(pairRefunds([l('c1', '2026-11-10', 5000)], [l('r1', '2026-11-11', -4999)]).size).toBe(0);
+    expect(pairRefunds([l('c1', '2026-11-10', 5000)], [l('r1', '2026-11-11', -5000, '92069', 'ONLINE PAYMENT - THANK YOU')]).size).toBe(0);
+  });
+  it('a refunded charge reads as Refunded unless a receipt is already on it', () => {
+    const base = { kind: 'charge' as const, date: '2026-11-06', cardId: 'k' };
+    expect(lineStatus({ ...base, expenseStatus: null, refunded: true })).toBe('refunded');
+    expect(lineStatus({ ...base, expenseStatus: 'missing', refunded: true })).toBe('refunded');
+    expect(lineStatus({ ...base, expenseStatus: 'waiting', hasReceipt: true, refunded: true })).toBe('matched');
+    expect(lineStatus({ ...base, expenseStatus: null })).toBe('missing');
+  });
 });

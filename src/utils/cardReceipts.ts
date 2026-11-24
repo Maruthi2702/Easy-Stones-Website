@@ -10,7 +10,7 @@
  *   - One card per person. An expense belongs to the person who uploads it and
  *     their card — never to a name or digits printed on the receipt.
  *   - Every expense needs a receipt (or a lost-receipt reason) and a category;
- *     a category may also ask for the customer, who attended, a purpose.
+ *     a category may also require the customer and / or a note.
  *   - Someone above the cardholder approves: each role lists the roles whose
  *     receipts it approves (Roles & Permissions), from any branch. Nobody
  *     approves their own. A lost receipt needs the approver's comment.
@@ -26,8 +26,30 @@ export const CARD_RECEIPTS = Object.freeze({
   /** Everyone on the caller's team, by the rep's branch (src/utils/teamScope.ts), like Visits → View branch. */
   VIEW_BRANCH: 'view_branch_card_receipts',
   APPROVE: 'approve_card_receipts',
+  /** Download the list on screen (the month, the filters) to Excel. */
   EXPORT: 'export_card_receipts',
+  /** Download every month at once, for one bank or both (2026-11-23). Nobody holds it until an admin ticks it. */
+  EXPORT_ALL: 'export_all_card_receipts',
   MANAGE_CARDS: 'manage_company_cards',
+  /**
+   * Send a reminder about one receipt or several (2026-11-23, src/utils/receiptReminders.ts): Accounting and Admins
+   * for anyone, managers / directors for their team. Given once to every role holding Approve (ACTION_MIGRATIONS).
+   */
+  REMIND: 'send_receipt_reminders',
+  /**
+   * Add a receipt on a cardholder's behalf (2026-11-23): saved to their card and owned by them, the history says who added it.
+   * Nobody holds it until an admin ticks it (Admins hold every key).
+   */
+  ADD_FOR_OTHERS: 'add_receipts_for_others',
+  /**
+   * Edit any receipt, whoever's it is and whatever its state except voided (2026-11-24, owner: Accounting). A waiting or approved
+   * receipt keeps its status and approvals; the history says who changed what. Nobody holds it until an admin ticks it.
+   */
+  EDIT_ANY: 'edit_any_card_receipt',
+  /** Void any receipt, whoever's it is, approved ones too; a charge on a bank statement still can't be voided. */
+  VOID_ANY: 'void_any_card_receipt',
+  /** Delete a receipt for good (a copy is kept, with who and why). Admins hold it; nobody else until an admin ticks it. */
+  DELETE: 'delete_card_receipts',
   /** Upload Amex's activity export and see every charge matched to a receipt (src/utils/amexStatement.ts). */
   STATEMENTS: 'check_amex_statements',
   CATEGORY_ADD: 'add_receipt_categories',
@@ -64,7 +86,12 @@ export const STATUS_KEYS: readonly string[] = STATUSES.map((s) => s.key);
 
 // ── Categories ──────────────────────────────────────────────────────────────
 
-export type CategoryFields = { customer: boolean; attendees: boolean; purpose: boolean; recurring: boolean };
+/**
+ * What a category asks for on every receipt (2026-11-23, owner): the customer, a **note** (required), and whether it
+ * can be marked recurring. "Who attended" and "Business purpose" were removed from the categories — receipts that
+ * already carry them keep them (the drawer and the Excel still show them), nothing asks for them any more.
+ */
+export type CategoryFields = { customer: boolean; note: boolean; recurring: boolean };
 /**
  * A type under a category (owner, 2026-11-20): Gas → Car / Truck / Van / Forklift, Food → Travel Lunch / Customer
  * Lunch / Office Team Lunch. Managers add, rename, hide and reorder them in Admin; `name` is what expenses store and
@@ -74,13 +101,14 @@ export type SubcategoryLike = { name: string; label: string; active?: boolean; i
 export type CategoryLike = {
   name: string; label: string; active?: boolean; fields?: Partial<CategoryFields> | null; subcategories?: readonly SubcategoryLike[] | null;
 };
-export const NO_FIELDS: CategoryFields = { customer: false, attendees: false, purpose: false, recurring: false };
+export const NO_FIELDS: CategoryFields = { customer: false, note: false, recurring: false };
 /** What a receipt under this category — and its type, when it has one — asks for: the category's asks plus the type's. */
 export const fieldsOf = (category: CategoryLike | null | undefined, subcategory = ''): CategoryFields => {
-  const base = { ...NO_FIELDS, ...(category?.fields || {}) };
+  const own = category?.fields || {};
+  const base: CategoryFields = { customer: own.customer === true, note: own.note === true, recurring: own.recurring === true };
   const sub = subcategory ? (category?.subcategories || []).find((s) => s.name === subcategory)?.fields : null;
   return sub
-    ? { customer: base.customer || sub.customer === true, attendees: base.attendees || sub.attendees === true, purpose: base.purpose || sub.purpose === true, recurring: base.recurring || sub.recurring === true }
+    ? { customer: base.customer || sub.customer === true, note: base.note || sub.note === true, recurring: base.recurring || sub.recurring === true }
     : base;
 };
 /** The types a new receipt may pick (hidden ones stay valid on the receipts that have them). */
@@ -97,7 +125,7 @@ export type StartingCategory = { label: string; fields?: Partial<CategoryFields>
 /** Seeded once into an empty list (owner's examples, plus the sample receipts' Fuel / Parking / Software). Types are added in Admin. */
 export const STARTING_CATEGORIES: readonly StartingCategory[] = [
   { label: 'Travel Lunch' },
-  { label: 'Customer Lunch', fields: { customer: true, attendees: true } },
+  { label: 'Customer Lunch', fields: { customer: true } },
   { label: 'Office Supplies' },
   { label: 'Fuel' },
   { label: 'Parking' },
@@ -142,7 +170,7 @@ export function cleanSubcategories(raw: unknown, current: readonly SubcategoryLi
     const f = (r.fields || {}) as Record<string, unknown>;
     out.push({
       name, label, active: r.active !== false, isDefault: r.isDefault === true,
-      fields: { customer: f.customer === true, attendees: f.attendees === true, purpose: f.purpose === true, recurring: f.recurring === true }
+      fields: { customer: f.customer === true, note: f.note === true, recurring: f.recurring === true }
     });
   }
   const chosen = out.filter((s) => s.active).find((s) => s.isDefault) || out.find((s) => s.active);
@@ -156,7 +184,7 @@ export function cleanCategory(body: Record<string, unknown>, others: readonly { 
   if (!label) problems.label = 'Enter a name';
   else if (others.some((o) => String(o._id) !== String(id) && o.label.toLowerCase() === label.toLowerCase())) problems.label = 'That name is already on the list';
   const f = (body.fields || {}) as Record<string, unknown>;
-  const fields: CategoryFields = { customer: f.customer === true, attendees: f.attendees === true, purpose: f.purpose === true, recurring: f.recurring === true };
+  const fields: CategoryFields = { customer: f.customer === true, note: f.note === true, recurring: f.recurring === true };
   // Types not sent (a hide / show toggle) stay as they are.
   const subs = body.subcategories === undefined
     ? { value: current.map((s) => ({ name: s.name, label: s.label, active: s.active !== false, isDefault: s.isDefault === true, fields: { ...NO_FIELDS, ...(s.fields || {}) } })), problems: {} as Record<string, string> }
@@ -178,9 +206,12 @@ export function parseCents(typed: unknown): number | null {
   const cents = Math.round(Number(text) * 100);
   return cents > 10_000_000 ? Number.NaN : cents;
 }
-/** A receipt over this (strictly more than $150.00) is marked gold so approvers see it. */
+/**
+ * $150.00 and above (owner, 2026-11-23): marked gold, and it needs a second approval (src/utils/receiptApproval.ts,
+ * `needsSecondApproval` — the same line).
+ */
 export const BIG_RECEIPT_CENTS = 15_000;
-export const isBigReceipt = (cents: number | null | undefined) => (cents ?? 0) > BIG_RECEIPT_CENTS;
+export const isBigReceipt = (cents: number | null | undefined) => (cents ?? 0) >= BIG_RECEIPT_CENTS;
 /** Over the limit a receipt needs two steps (owner, 2026-11-19): the usual approver, then one of these roles, per receipt. Limits per role come later. */
 export const SAME_PERSON_BOTH_STEPS = false; // my default — owner unanswered
 export const BIG_RECEIPT_APPROVER_ROLES: readonly string[] = ['accounting', 'director', 'admin'];
@@ -200,12 +231,35 @@ export const shiftMonth = (month: string, by: number) => {
   const d = new Date(Date.UTC(y!, m! - 1 + by, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 };
+/** Longest custom date range the list answers (a year; a month is ~1,000 charges). */
+export const MAX_RANGE_DAYS = 366;
+const dayNumber = (day: string) => Date.parse(`${day}T00:00:00Z`) / 86_400_000;
+/** What is wrong with a custom From–To range, or '' when it is fine. Both days are required. */
+export const rangeProblem = (from: unknown, to: unknown): string => {
+  if (!isDay(from) || !isDay(to)) return 'Choose both days.';
+  if (from > to) return 'The start day is after the end day.';
+  if (dayNumber(to) - dayNumber(from) + 1 > MAX_RANGE_DAYS) return 'Choose at most a year at a time.';
+  return '';
+};
+/** Whether a receipt's day falls in a custom range (both ends included). */
+export const inRange = (day: string, from: string, to: string) => day >= from && day <= to;
+/** "Oct 3 – Oct 20, 2026" (the year once when both ends share it). */
+export const rangeLabel = (from: string, to: string) => {
+  const part = (d: string, year: boolean) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' });
+  return from.slice(0, 4) === to.slice(0, 4) ? `${part(from, false)} – ${part(to, true)}` : `${part(from, true)} – ${part(to, true)}`;
+};
 /** 2026-10-03 → 10-03-2026, the card log's format. */
 export const usDate = (day: string) => (isDay(day) ? `${day.slice(5, 7)}-${day.slice(8, 10)}-${day.slice(0, 4)}` : day);
 
 // ── Cards ───────────────────────────────────────────────────────────────────
 
 export const ISSUERS = Object.freeze([{ key: 'amex', label: 'American Express' }, { key: 'encore', label: 'Encore' }, { key: 'other', label: 'Other card' }]);
+/** The short bank name on the screen and in the Excel's Bank column. */
+export const issuerName = (issuer: string) => (issuer === 'encore' ? 'Encore' : issuer === 'other' ? 'Other card' : 'Amex');
+/** The Bank filter's choices (the Expenses list and its Excel); '' = every bank. */
+export const BANK_FILTERS = Object.freeze([{ key: 'amex', label: 'Amex' }, { key: 'encore', label: 'Encore' }]);
+/** Does an expense's card belong to the bank picked ('' = any)? An expense with no bank known is Amex's, the original card. */
+export const onBank = (e: { issuer?: string }, bank: string) => !bank || (e.issuer || 'amex') === bank;
 /** The card ID accounting already uses: first 4 letters of the name + the last 5 digits (MARU92069). */
 export const suggestCardLabel = (name: string, digits: string) =>
   `${String(name || '').replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 4)}${String(digits || '').replace(/\D/g, '').slice(-5)}`;
@@ -238,7 +292,7 @@ export type CleanExpense = {
   category: string; subcategory: string; customerId: string; customerName: string; attendees: string[]; purpose: string; note: string;
   recurring: boolean; receiptUrl: string; lostReason: string;
 };
-export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'tax' | 'tip' | 'category' | 'subcategory' | 'customer' | 'attendees' | 'purpose' | 'receipt' | 'lostReason', string>>;
+export type ExpenseProblems = Partial<Record<'date' | 'merchant' | 'total' | 'subtotal' | 'tax' | 'tip' | 'category' | 'subcategory' | 'customer' | 'note' | 'receipt' | 'lostReason' | 'card', string>>;
 
 const text = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
 const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uploads/') || Boolean(privateReceiptNameOf(v));
@@ -249,8 +303,11 @@ const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uplo
  * and total are needed to save at all. `complete` says whether it can go to
  * the approver.
  */
-export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknown>, { today, categories, currentSubcategory = '' }: {
-  today: string; categories: readonly CategoryLike[]; currentCategory?: string; currentSubcategory?: string;
+/** A lost-receipt reason has to say something (review B11, 2026-11-24): one letter was enough to send a receipt on. */
+export const LOST_REASON_MIN = 10;
+
+export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknown>, { today, categories, currentSubcategory = '', currentLostReason = '' }: {
+  today: string; categories: readonly CategoryLike[]; currentCategory?: string; currentSubcategory?: string; currentLostReason?: string;
 }): { value?: CleanExpense; problems: ExpenseProblems; missing: ExpenseProblems } {
   const problems: ExpenseProblems = {};
   // The whole string must be a day: cutting it to 10 characters turned "2026-11-05garbage" into a real date.
@@ -286,6 +343,8 @@ export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknow
   const receiptUrl = text(body.receiptUrl, 500);
   if (receiptUrl && !isReceiptUrl(receiptUrl)) problems.receipt = 'Upload the receipt again';
   const lostReason = receiptUrl ? '' : text(body.lostReason, 500);
+  // A reason saved before the minimum may stay as it is; a new or changed one must say something.
+  if (lostReason && lostReason.length < LOST_REASON_MIN && lostReason !== currentLostReason) problems.lostReason = `Say a little more (at least ${LOST_REASON_MIN} characters)`;
   const attendees = (Array.isArray(body.attendees) ? body.attendees : [])
     .map((a) => text(a, 80)).filter(Boolean).slice(0, 30);
   const fields = fieldsOf(category, subcategory);
@@ -294,7 +353,8 @@ export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknow
     category: category ? category.name : '', subcategory,
     customerId: fields.customer ? text(body.customerId, 40) : '',
     customerName: fields.customer ? text(body.customerName, 120) : '',
-    attendees: fields.attendees ? attendees : [],
+    // Kept as sent: older receipts carry who attended / a purpose; nothing asks for them any more.
+    attendees,
     purpose: text(body.purpose, 500),
     note: text(body.note, 500),
     recurring: fields.recurring ? body.recurring === true : false,
@@ -312,7 +372,7 @@ const nextDay = (day: string) => {
 };
 
 /** What still stops an expense going to the approver. Empty = complete. */
-export function missingFor(e: Pick<CleanExpense, 'receiptUrl' | 'lostReason' | 'category' | 'customerId' | 'attendees' | 'purpose'> & { subcategory?: string }, category: CategoryLike | null | undefined): ExpenseProblems {
+export function missingFor(e: Pick<CleanExpense, 'receiptUrl' | 'lostReason' | 'category' | 'customerId' | 'note'> & { subcategory?: string }, category: CategoryLike | null | undefined): ExpenseProblems {
   const out: ExpenseProblems = {};
   if (!e.receiptUrl && !e.lostReason) out.receipt = 'Upload the receipt, or say why it’s lost';
   if (!e.category || !category) out.category = 'Choose a category';
@@ -320,8 +380,7 @@ export function missingFor(e: Pick<CleanExpense, 'receiptUrl' | 'lostReason' | '
   else if (shownSubs(category).length && !e.subcategory) out.subcategory = 'Choose the type';
   const f = fieldsOf(category, e.subcategory || '');
   if (f.customer && !e.customerId) out.customer = 'Choose the customer';
-  if (f.attendees && !(e.attendees || []).length) out.attendees = 'Add who attended';
-  if (f.purpose && !e.purpose) out.purpose = 'Say what it was for';
+  if (f.note && !String(e.note || '').trim()) out.note = 'Add a note';
   return out;
 }
 
@@ -332,8 +391,7 @@ export const missingLine = (missing: ExpenseProblems) => {
   if (missing.category) parts.push('pick a category');
   if (missing.subcategory) parts.push('pick the type');
   if (missing.customer) parts.push('add the customer');
-  if (missing.attendees) parts.push(missing.customer ? 'who attended' : 'add who attended');
-  if (missing.purpose) parts.push('say what it was for');
+  if (missing.note) parts.push(missing.customer ? 'a note' : 'add a note');
   if (!parts.length) return '';
   const joined = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}` : parts[0]!;
   return joined.charAt(0).toUpperCase() + joined.slice(1);
@@ -384,6 +442,23 @@ export const isReceiptFolderUrl = (url: unknown): boolean =>
 
 /** The card holder may change it while it isn't approved or voided. */
 export const holderMayEdit = (e: { status: string; voided?: unknown }) => !e.voided && e.status !== 'approved';
+
+/** Someone who manages company cards (admin, accounting) may fix another person's receipt only while it is a draft or sent back; the edit is kept in its history. */
+export const managerMayEdit = (e: { status: string; voided?: unknown }) => !e.voided && (e.status === 'draft' || e.status === 'sent_back');
+
+/** What someone with "Edit any receipt" may still change: anything not voided, approved ones too. */
+export const anyoneMayEdit = (e: { voided?: unknown }) => !e.voided;
+
+/**
+ * A save by someone with "Edit any receipt": a waiting or approved receipt keeps its status and its approvals (a typo fixed by
+ * Accounting isn't approved again); a missing / draft / sent-back one follows the usual rule.
+ */
+export const statusAfterAnyEdit = (before: string, complete: boolean, hasProof: boolean): StatusKey =>
+  before === 'waiting' || before === 'approved' ? before as StatusKey : statusAfterSave(complete, before, hasProof);
+
+/** A delete asks why; the reason is kept with the copy of the receipt. */
+export const DELETE_REASON_MIN = 5;
+export const deleteReasonProblem = (reason: unknown) => (String(reason ?? '').trim().length < DELETE_REASON_MIN ? 'Say why it’s being deleted (a few words)' : '');
 
 /** Fields that differ, in words, for the history line. */
 export function changeSummary(before: Partial<CleanExpense>, after: CleanExpense) {
@@ -478,7 +553,7 @@ export function statusTotals(list: readonly Countable[]) {
 // ── Excel ───────────────────────────────────────────────────────────────────
 
 export type ExportExpense = {
-  date: string; location: string; holderName: string; cardLabel: string; merchant: string; cents: number;
+  date: string; location: string; holderName: string; cardLabel: string; issuer?: string; merchant: string; cents: number;
   category: string; subcategory?: string; customerName?: string; attendees?: string[]; purpose?: string; receiptUrl?: string; lostReason?: string;
   status: string; approval?: { byName?: string; at?: string | Date; comment?: string } | null; note?: string; recurring?: boolean;
   voided?: unknown;
@@ -498,6 +573,7 @@ export function exportRows(list: readonly ExportExpense[], categories: readonly 
     'Credit Card Number': e.cardLabel || '',
     Description: (e.merchant || '').toUpperCase(),
     'Spent Amount': e.cents / 100,
+    Bank: e.issuer ? issuerName(e.issuer) : '',
     Category: label(e.category),
     'Sub-category': subLabel(categories.find((c) => c.name === e.category), e.subcategory || ''),
     Customer: e.customerName || '',
@@ -512,4 +588,18 @@ export function exportRows(list: readonly ExportExpense[], categories: readonly 
     'Approver comment': e.approval?.comment || '',
     'Receipt link': e.receiptUrl || ''
   }));
+}
+
+/**
+ * Which of a person's own cards a receipt is on. `wanted` is the card the form chose; blank means their first
+ * (the Amex card first), so an older client that sends nothing behaves as before. A card that isn't theirs, or
+ * isn't active, is refused — never trusted from the request.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- takes stored card records of either database
+export function chooseCard<T extends Record<string, any>>(cards: readonly T[], wanted: unknown): { card: T | null; problem: string } {
+  if (!cards.length) return { card: null, problem: '' };
+  const id = String(wanted ?? '').trim();
+  if (!id) return { card: cards[0]!, problem: '' };
+  const card = cards.find((c) => String(c._id) === id);
+  return card ? { card, problem: '' } : { card: null, problem: 'Choose one of your cards.' };
 }

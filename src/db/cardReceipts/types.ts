@@ -2,7 +2,7 @@
 export interface ExpenseHistoryEntry {
   at: Date;
   by: string;
-  action: 'added' | 'edited' | 'approved' | 'sent back' | 'voided';
+  action: 'added' | 'edited' | 'approved' | 'sent back' | 'voided' | 'asked' | 'answered' | 'question withdrawn' | 'reopened';
   changes?: string;
   /**
    * The `updatedAt` of the expense the caller read and decided on. If the row has moved on by the time the
@@ -32,10 +32,26 @@ export class StaleExpenseError extends Error {
 
 /** The most expenses one list answers with. A month never gets near it; if one does, the answer says `truncated`. */
 export const EXPENSE_LIST_CAP = 20_000;
+/** What a cardholder still has to finish (the To-do list): a Missing receipt, a Draft, one Sent back. */
+export const TODO_STATUSES = ['missing', 'draft', 'sent_back'] as const;
+
+/**
+ * A statement charge's stand-in row an upload may still replace: a Missing receipt row, or an Admin's own
+ * charge that waits for Accounting with nothing on it yet (no receipt, no lost-receipt reason, no approval).
+ */
+export const isChargePlaceholder = (e: { status?: unknown; receiptUrl?: unknown; lostReason?: unknown; approval?: unknown; secondApproval?: unknown; voidedAt?: unknown }) =>
+  !e.voidedAt && (e.status === 'missing'
+    || (e.status === 'waiting' && !e.receiptUrl && !e.lostReason && !e.approval && !e.secondApproval));
 
 /** What the Expenses list asks for: a month (the caller's, or everyone's), or what is waiting for approval. */
 export type ExpenseFilter =
-  /** `overCents`: also every waiting receipt above that total, whoever's it is (for the roles that decide big ones). */
-  | { kind: 'waiting'; userIds: readonly string[]; overCents?: number }
+  /** Every waiting, not voided receipt (the route keeps those waiting for the caller: receiptApproval.ts's waitingReason). */
+  | { kind: 'waiting' }
+  /** One person's receipts still to finish, any month (review B1): Missing receipt, Draft, Sent back; not voided. */
+  | { kind: 'todo'; userId: string }
   /** `userIds`: only these people's (a team); an empty list matches nobody. */
-  | { kind: 'month'; month: string; userId?: string; userIds?: readonly string[] };
+  | { kind: 'month'; month: string; userId?: string; userIds?: readonly string[] }
+  /** A custom From–To (both days included, 'YYYY-MM-DD'), the same people rules as 'month'. */
+  | { kind: 'range'; from: string; to: string; userId?: string; userIds?: readonly string[] }
+  /** Every month (Export all): the same people rules as 'month', newest first, capped like it. */
+  | { kind: 'all'; userId?: string; userIds?: readonly string[] };

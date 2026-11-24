@@ -81,7 +81,7 @@ export function companyCardRowOf(d: Loose, ref: ReferenceIndex, problems: CopyPr
 /** A category's types as stored: [{ name, label, active, isDefault, fields }], in order, kept whole. */
 const subcategoriesOf = (v: unknown) => (Array.isArray(v) ? v : []).map((s) => {
   const o = obj(s), f = obj(o.fields);
-  return { name: textOf(o.name), label: textOf(o.label), active: boolOf(o.active, true), isDefault: boolOf(o.isDefault), fields: { customer: boolOf(f.customer), attendees: boolOf(f.attendees), purpose: boolOf(f.purpose), recurring: boolOf(f.recurring) } };
+  return { name: textOf(o.name), label: textOf(o.label), active: boolOf(o.active, true), isDefault: boolOf(o.isDefault), fields: { customer: boolOf(f.customer), note: boolOf(f.note), recurring: boolOf(f.recurring) } };
 }).filter((s) => s.name);
 
 /** The row for one receipt category, or null when it has no id. */
@@ -92,7 +92,7 @@ export function receiptCategoryRowOf(d: Loose, problems: CopyProblem[]): Row<typ
   const f = obj(d.fields);
   return {
     id, name: textOf(d.name), label: textOf(d.label), order: intOf(c, 'order', d.order) ?? 0, active: boolOf(d.active, true),
-    needsCustomer: boolOf(f.customer), needsAttendees: boolOf(f.attendees), needsPurpose: boolOf(f.purpose),
+    needsCustomer: boolOf(f.customer), needsAttendees: false, needsPurpose: false, needsNote: boolOf(f.note),
     needsRecurring: boolOf(f.recurring), subcategories: subcategoriesOf(d.subcategories), updatedBy: textOf(d.updatedBy), ...stamp(c, d)
   };
 }
@@ -125,9 +125,11 @@ export function cardExpenseRowsOf(d: Loose, ref: ReferenceIndex, links: ExpenseL
       receiptUrl: textOf(d.receiptUrl), lostReason: textOf(d.lostReason), status,
       approvedById: approval ? textOf(approval.by) : null, approvedByName: approval ? textOf(approval.byName) : null,
       approvedAt: approval ? c.moment('approved_at', approval.at) : null, approvalComment: approval ? textOf(approval.comment) : null,
+      approvedAs: approval && textOf(approval.as) ? textOf(approval.as) : null,
+      secondApproval: optObj(d.secondApproval) ?? null, ask: optObj(d.ask) ?? null, reminders: optObj(d.reminders) ?? {},
       sentBackById: sentBack ? textOf(sentBack.by) : null, sentBackByName: sentBack ? textOf(sentBack.byName) : null,
       sentBackAt: sentBack ? c.moment('sent_back_at', sentBack.at) : null, sentBackComment: sentBack ? textOf(sentBack.comment) : null,
-      createdBy: textOf(d.createdBy), voidedAt: c.moment('voided_at', d.voidedAt), voidedBy: textOf(d.voidedBy),
+      createdBy: textOf(d.createdBy), addedById: d.addedById ? textOf(d.addedById) : null, voidedAt: c.moment('voided_at', d.voidedAt), voidedBy: textOf(d.voidedBy),
       voidReason: textOf(d.voidReason), ...stamp(c, d)
     },
     history: historyRows(c, id, d.history).map(h => ({ expenseId: id, position: h.position, at: h.at, by: h.by, action: h.action, changes: h.changes }))

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Ban, Pencil, Plus, RotateCcw } from 'lucide-react';
+import { Ban, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import RowMenu from '../../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import useIsPhone from '../../../components/shared/form/useIsPhone';
@@ -8,9 +8,36 @@ import { FormSection, FormRow, FormField, FormPicker, FormSearchPicker } from '.
 import LocationPicker from '../../../components/shared/form/LocationPicker';
 import { ISSUERS, cleanCard, suggestCardLabel } from '../../../utils/cardReceipts';
 import * as api from '../cardReceiptsApi';
+import * as statementsApi from '../statements/statementsApi';
+import UnknownCards from '../statements/UnknownCards';
+import type { StatementsView, UnknownCard } from '../statements/statementsApi';
 import type { Card, Person } from '../types';
 
 type CardValues = { userId: string; issuer: 'amex' | 'encore' | 'other'; lastDigits: string; label: string; amexName: string; location: string };
+
+/** The switch for the hourly Missing-receipt emails and pushes. Off until someone turns it on. */
+function AutoRemindersSwitch() {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => { api.getAutoReminders().then((r) => setOn(r.on)).catch((e) => setError((e as Error).message)); }, []);
+  const flip = async () => {
+    if (on === null || busy) return;
+    if (!on && !window.confirm('Turn on automatic reminders? Every cardholder with a Missing receipt older than 2 days gets an email and a phone notification on the next hourly check, and managers, Accounting and Admins from day 3.')) return;
+    setBusy(true); setError('');
+    try { setOn((await api.setAutoReminders(!on)).on); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="ccr-note" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input type="checkbox" role="switch" checked={on === true} disabled={on === null || busy} onChange={flip} />
+        <b>Automatic missing-receipt reminders: {on === null ? '…' : on ? 'On' : 'Off'}</b>
+      </label>
+      <span className="ccr-sub">Emails and phone notifications on day 2 and day 3. Send reminder by hand always works.</span>
+      {error ? <span role="alert">{error}</span> : null}
+    </div>
+  );
+}
 
 function CardForm({ card, people, onSave, onClose }: {
   card: Card | null; people: Person[]; onSave: (v: CardValues & { active?: boolean }) => Promise<unknown>; onClose: () => void;
@@ -105,16 +132,20 @@ function CardForm({ card, people, onSave, onClose }: {
  * person; the card ID is the first 4 letters of the name + the last 4 or 5 digits. With Manage cards: add, edit, deactivate — a
  * person needs their old card deactivated before they get a new one.
  */
-export default function CardsPanel({ canManage, onSaved }: { canManage: boolean; onSaved: (text: string) => void }) {
+export default function CardsPanel({ canManage, canSetUp = false, month = '', onSaved }: { canManage: boolean; canSetUp?: boolean; month?: string; onSaved: (text: string) => void }) {
   const [cards, setCards] = useState<Card[]>([]);
   const [people, setPeople] = useState<Person[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<Card | 'new' | null>(null);
+  /** Cards the bank statements name that nobody has set up, from the Statements check (needs its switch). */
+  const [unset, setUnset] = useState<{ cards: UnknownCard[]; people: StatementsView['people'] } | null>(null);
 
-  useEffect(() => {
-    api.listCards().then((r) => { setCards(r.cards); setPeople(r.people); }).catch((e: Error) => setError(e.message)).finally(() => setLoading(false));
-  }, []);
+  const reload = () => api.listCards().then((r) => { setCards(r.cards); setPeople(r.people); }).catch((e: Error) => setError(e.message)).finally(() => setLoading(false));
+  const loadUnset = () => (canSetUp && month ? statementsApi.loadStatements(month).then((v) => setUnset({ cards: v.unknownCards, people: v.people })).catch(() => setUnset(null)) : Promise.resolve());
+  useEffect(() => { reload(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadUnset(); }, [canSetUp, month]);
 
   // A card set up from the Amex check before its holder has a login has no one yet: Edit assigns it.
   const nameOf = (id: string) => (id ? people.find((p) => p.id === id)?.name || 'Someone who left' : 'Not assigned yet');
@@ -124,14 +155,15 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
   const replace = (card: Card) => setCards((list) => [{ statementName: list.find((c) => c._id === card._id)?.statementName, ...card }, ...list.filter((c) => c._id !== card._id)].sort((a, b) => Number(b.active) - Number(a.active) || a.label.localeCompare(b.label)));
 
   const isPhone = useIsPhone();
-  /** Edit and Deactivate / Reactivate, in the row's ⋯ like the other screens. */
+  /** Edit, Deactivate / Reactivate and Delete, in the row's ⋯ like the other screens. */
   const menu = (c: Card) => {
     if (!canManage) return null;
     const items: RowMenuItem[] = [
       { key: 'edit', label: c.userId ? 'Edit' : 'Assign to a person', icon: Pencil, onClick: () => setOpen(c) },
       c.active
         ? { key: 'off', label: 'Deactivate', icon: Ban, danger: true, onClick: () => toggle(c) }
-        : { key: 'on', label: 'Reactivate', icon: RotateCcw, onClick: () => toggle(c) }
+        : { key: 'on', label: 'Reactivate', icon: RotateCcw, onClick: () => toggle(c) },
+      { key: 'delete', label: 'Delete', icon: Trash2, danger: true, divider: true, onClick: () => remove(c) }
     ];
     return <RowMenu items={items} label={`Actions for card ${c.label}`} />;
   };
@@ -139,6 +171,12 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
 
   const toggle = async (card: Card) => {
     try { replace((await api.editCard(card._id, { active: !card.active })).card); onSaved(card.active ? `${card.label} deactivated` : `${card.label} active again`); } catch (e) { setError((e as Error).message); }
+  };
+
+  /** Only a card with no expenses can go; the server says so otherwise and the card stays. */
+  const remove = async (card: Card) => {
+    if (!window.confirm(`Delete card ${card.label}? This can’t be undone.`)) return;
+    try { await api.deleteCard(card._id); setCards((list) => list.filter((c) => c._id !== card._id)); setError(''); onSaved(`${card.label} deleted`); } catch (e) { setError((e as Error).message); }
   };
 
   // One entry per person: their Amex and Encore cards sit together (a card with no holder yet stands alone).
@@ -173,7 +211,15 @@ export default function CardsPanel({ canManage, onSaved }: { canManage: boolean;
         <span className="ccr-sub">{cards.filter((c) => c.active).length} active{cards.some((c) => c.active && !c.userId) ? ` · ${cards.filter((c) => c.active && !c.userId).length} not assigned yet` : ''}</span>
         {canManage ? <button type="button" className="ccr-btn gold" style={{ marginLeft: 'auto' }} onClick={() => setOpen('new')}><Plus size={16} aria-hidden="true" /> Add card</button> : null}
       </div>
+      {canManage ? <AutoRemindersSwitch /> : null}
       {error ? <div className="ccr-note is-error" role="alert">{error}</div> : null}
+      {unset?.cards.length ? (
+        <UnknownCards cards={unset.cards} people={unset.people} onSetUp={async (digits, userId, replace, issuer) => {
+          const r = await statementsApi.setUpCard(digits, userId, replace, issuer);
+          onSaved(r.check.created ? `Card set up · ${r.check.created} Missing receipt ${r.check.created === 1 ? 'row' : 'rows'} made` : 'Card set up');
+          await Promise.all([reload(), loadUnset()]);
+        }} />
+      ) : null}
       <div className={`ccr-box${loading ? ' is-loading' : ''}`}>
         {cards.length && isPhone ? (
           <div className="ccr-cards">

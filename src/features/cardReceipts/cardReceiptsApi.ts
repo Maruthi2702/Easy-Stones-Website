@@ -3,7 +3,7 @@ import { authFetch } from '../../api/authFetch';
 import { queryEntries, type ErrorBody, type Query } from '../../types/api';
 import type { ExpenseInput } from '../../utils/cardReceipts';
 import type { ReceiptScan } from '../../utils/receiptScan';
-import type { Card, Category, Expense, Me, Person } from './types';
+import type { AskTarget, Card, Category, Expense, Me, Person, RemindBody, AddableHolder, RemindPreview, RemindResult } from './types';
 
 /**
  * Credit Card Receipts' calls to /api/card-receipts (src/routes/cardReceipts.ts).
@@ -21,26 +21,69 @@ async function call<T>(path: string, { method = 'GET', body, query }: { method?:
   } catch {
     throw Object.assign(new Error('Couldn’t reach the server. Check your connection and try again.'), { status: 0 });
   }
-  const data: ErrorBody & { problems?: unknown; repeat?: unknown } = await res.json().catch(() => ({}));
+  const data: ErrorBody & { problems?: unknown; repeat?: unknown; changed?: unknown } = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw Object.assign(new Error(data.message || data.error || `Something went wrong (${res.status}).`), {
-      status: res.status, problems: data.problems || {}, repeat: data.repeat || null
+    // 409 `changed`: someone saved the receipt after this screen read it (`expectedUpdatedAt`).
+    const changed = res.status === 409 && Boolean(data.changed);
+    throw Object.assign(new Error(changed ? CHANGED_MESSAGE : data.message || data.error || `Something went wrong (${res.status}).`), {
+      status: res.status, problems: data.problems || {}, repeat: data.repeat || null, changed
     });
   }
   return data as T;
 }
 
-export type ExpenseBody = ExpenseInput & { confirmRepeat?: boolean };
+export const CHANGED_MESSAGE = 'This receipt changed after you opened it. Look at it again.';
+/** The error a write threw was the receipt changing under it (the screen reloads). */
+export const isChanged = (err: unknown) => Boolean((err as { changed?: boolean } | null)?.changed);
+
+export type ExpenseBody = ExpenseInput & { confirmRepeat?: boolean; /** The card it was paid with, when the person holds more than one. */ cardId?: string; /** Added for this cardholder (needs "Add receipts for others"). */ onBehalfOf?: string };
+type One = { expense: Expense };
+/** Every decision sends the `updatedAt` the screen saw; the server answers 409 `changed` if it moved since. */
+const write = (path: string, body: Record<string, unknown>, seen?: string, method = 'POST') =>
+  call<One>(path, { method, body: { ...body, expectedUpdatedAt: seen } });
 
 export const loadMe = () => call<Me>('/me');
-export const listExpenses = (scope: 'mine' | 'all' | 'waiting', month: string) =>
-  call<{ expenses: Expense[] }>('/expenses', { query: scope === 'waiting' ? { scope } : { scope, month } });
-export const addExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense; alreadySaved?: boolean; replacedMissing?: string }>('/expenses', { method: 'POST', body: { id, ...body } });
-export const editExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense }>(`/expenses/${id}`, { method: 'PUT', body });
+/** 'waiting' and 'todo' are every month (the month is not sent): what waits for the caller, and their own receipts still to finish. */
+/** `range` (a custom From–To) replaces `month` when given. */
+export const listExpenses = (scope: 'mine' | 'all' | 'waiting' | 'todo', month: string, range?: { from: string; to: string } | null) =>
+  call<{ expenses: Expense[] }>('/expenses', { query: scope === 'waiting' || scope === 'todo' ? { scope } : range ? { scope, from: range.from, to: range.to } : { scope, month } });
+/** Export all: every month for one bank ('amex' | 'encore') or both (''). Needs the Export all switch; `truncated` when the list hit its cap. */
+export const listAllExpenses = (bank: string) =>
+  call<{ expenses: Expense[]; truncated?: boolean }>('/expenses/export', { query: bank ? { bank } : {} });
+/** Export: one month's, for one bank or both — the server checks the Export switch and logs it (review S2). */
+export const listMonthForExport = (month: string, bank: string) =>
+  call<{ expenses: Expense[]; truncated?: boolean }>('/expenses/export', { query: bank ? { month, bank } : { month } });
+export const addExpense =(id: string, body: ExpenseBody) => call<{ expense: Expense; alreadySaved?: boolean; replacedMissing?: string }>('/expenses', { method: 'POST', body: { id, ...body } });
+export const editExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense; replacedMissing?: string }>(`/expenses/${id}`, { method: 'PUT', body });
+/** A receipt of the holder's close to the charge behind a Missing receipt row (review B2). */
+export type NearReceipt = { id: string; date: string; cents: number; merchant: string; status: string; cardLabel: string; hasReceipt: boolean };
+export type NearReceipts = { charge: { reference: string; issuer: string; date: string; cents: number; description: string } | null; receipts: NearReceipt[] };
+export const nearReceipts = (missingId: string) => call<NearReceipts>(`/expenses/${missingId}/near-receipts`);
+/** "This is my receipt": the charge is answered by `receiptId` and the Missing receipt row is voided. */
+export const matchReceiptToCharge = (missingId: string, receiptId: string) =>
+  call<{ expense: Expense; replacedMissing: string }>(`/expenses/${missingId}/use-receipt`, { method: 'POST', body: { receiptId } });
 /** `seen`: the updatedAt the approver was looking at; the server refuses the decision if the receipt changed since. */
-export const approveExpense = (id: string, comment: string, seen?: string) => call<{ expense: Expense }>(`/expenses/${id}/approve`, { method: 'POST', body: { comment, expectedUpdatedAt: seen } });
-export const sendBackExpense = (id: string, comment: string, seen?: string) => call<{ expense: Expense }>(`/expenses/${id}/send-back`, { method: 'POST', body: { comment, expectedUpdatedAt: seen } });
-export const voidExpense = (id: string, reason: string) => call<{ expense: Expense }>(`/expenses/${id}/void`, { method: 'POST', body: { reason } });
+export const approveExpense = (id: string, comment: string, seen?: string) => write(`/expenses/${id}/approve`, { comment }, seen);
+export const sendBackExpense = (id: string, comment: string, seen?: string) => write(`/expenses/${id}/send-back`, { comment }, seen);
+/** Delete a receipt for good (Delete receipts); the server keeps a copy with who and why. */
+export const deleteExpense = (id: string, reason: string) => call<{ deleted: true; id: string }>(`/expenses/${id}`, { method: 'DELETE', body: { reason } });
+export const voidExpense = (id: string, reason: string, seen?: string) => write(`/expenses/${id}/void`, { reason }, seen);
+/** Ask the cardholder's branch manager / director or an Admin a question (5–500 characters). */
+export const askAboutExpense = (id: string, to: string, question: string, seen?: string) => write(`/expenses/${id}/ask`, { to, question }, seen);
+export const withdrawAsk = (id: string, seen?: string) => write(`/expenses/${id}/ask/withdraw`, {}, seen);
+/** The person asked answers (2–500 characters); answering approves. */
+export const answerAsk = (id: string, answer: string, seen?: string) => write(`/expenses/${id}/answer`, { answer }, seen);
+/** Approved → waiting again, both approvals cleared (5–300 characters). */
+export const reopenExpense = (id: string, reason: string, seen?: string) => write(`/expenses/${id}/reopen`, { reason }, seen);
+/** Accounting fills in an Admin's own receipt: category, type, customer and note. */
+export type DetailsBody = { category: string; subcategory: string; customerId: string; note: string };
+export const fillExpenseDetails = (id: string, body: DetailsBody, seen?: string) => write(`/expenses/${id}/details`, body, seen, 'PUT');
+export const askTargets = (id: string) => call<{ people: AskTarget[] }>(`/expenses/${id}/ask-targets`);
+/** The hourly Missing-receipt reminders' switch (Manage cards). */
+export const getAutoReminders = () => call<{ on: boolean }>('/auto-reminders');
+export const setAutoReminders = (on: boolean) => call<{ on: boolean }>('/auto-reminders', { method: 'PUT', body: { on } });
+/** Send reminder… about one receipt or several (src/routes/cardReceiptReminders.ts). */
+export const remindExpenses = (body: RemindBody) => call<RemindResult>('/expenses/remind', { method: 'POST', body });
 export const uploadReceipt = (data: string) => call<{ url: string }>('/attachments', { method: 'POST', body: { data } });
 /** What Claude read off an uploaded receipt (src/routes/cardReceiptScan.ts). Throws (status 503) when reading isn't set up. */
 export const scanReceipt = (url: string) => call<{ scan: ReceiptScan }>('/scan', { method: 'POST', body: { url } });
@@ -56,4 +99,9 @@ export const deleteCategory = (id: string, replaceWith?: string) => call<{ delet
 export const listCardholders = () => call<{ holders: { id: string; name: string; active: boolean }[] }>('/cardholders');
 export const listCards = () => call<{ cards: Card[]; people: Person[] }>('/cards');
 export const addCard = (body: Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'location'>) => call<{ card: Card }>('/cards', { method: 'POST', body });
+export const deleteCard = (id: string) => call<{ deleted: true }>(`/cards/${id}`, { method: 'DELETE' });
 export const editCard = (id: string, body: Partial<Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'location' | 'active'>>) => call<{ card: Card }>(`/cards/${id}`, { method: 'PUT', body });
+/** Who each group would reach, so the form can name them before anything is sent. */
+export const remindPreview = (ids: string[]) => call<RemindPreview>('/expenses/remind/preview', { method: 'POST', body: { ids } });
+/** Who a receipt can be added for, with their cards. */
+export const getAddForHolders = () => call<{ holders: AddableHolder[] }>('/add-for-holders');

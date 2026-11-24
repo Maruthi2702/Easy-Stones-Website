@@ -77,7 +77,7 @@ export default function PersonPanel({ person, trail, stops, trailLoading, trailE
             ) : null}
             {trail?.gaps?.length ? (
               <details className="tl-log">
-                <summary>No data for {trail.gaps.length} stretch{trail.gaps.length === 1 ? '' : 'es'} (phone off, no signal or battery died)</summary>
+                <summary>No data for {trail.gaps.length} stretch{trail.gaps.length === 1 ? '' : 'es'} (the app wasn't running — closed, or stopped by the phone — or the phone was off or its battery died)</summary>
                 <ul>{trail.gaps.map((g) => <li key={g.from}>{gapText(g, person.branch)}</li>)}</ul>
               </details>
             ) : null}
