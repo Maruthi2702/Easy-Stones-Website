@@ -277,8 +277,11 @@ const isReceiptUrl = (v: string) => /^https:\/\//.test(v) || v.startsWith('/uplo
  * and total are needed to save at all. `complete` says whether it can go to
  * the approver.
  */
-export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknown>, { today, categories, currentSubcategory = '' }: {
-  today: string; categories: readonly CategoryLike[]; currentCategory?: string; currentSubcategory?: string;
+/** A lost-receipt reason has to say something (review B11, 2026-11-24): one letter was enough to send a receipt on. */
+export const LOST_REASON_MIN = 10;
+
+export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknown>, { today, categories, currentSubcategory = '', currentLostReason = '' }: {
+  today: string; categories: readonly CategoryLike[]; currentCategory?: string; currentSubcategory?: string; currentLostReason?: string;
 }): { value?: CleanExpense; problems: ExpenseProblems; missing: ExpenseProblems } {
   const problems: ExpenseProblems = {};
   // The whole string must be a day: cutting it to 10 characters turned "2026-11-05garbage" into a real date.
@@ -314,6 +317,8 @@ export function cleanExpense(body: Partial<ExpenseInput> & Record<string, unknow
   const receiptUrl = text(body.receiptUrl, 500);
   if (receiptUrl && !isReceiptUrl(receiptUrl)) problems.receipt = 'Upload the receipt again';
   const lostReason = receiptUrl ? '' : text(body.lostReason, 500);
+  // A reason saved before the minimum may stay as it is; a new or changed one must say something.
+  if (lostReason && lostReason.length < LOST_REASON_MIN && lostReason !== currentLostReason) problems.lostReason = `Say a little more (at least ${LOST_REASON_MIN} characters)`;
   const attendees = (Array.isArray(body.attendees) ? body.attendees : [])
     .map((a) => text(a, 80)).filter(Boolean).slice(0, 30);
   const fields = fieldsOf(category, subcategory);

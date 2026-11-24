@@ -646,7 +646,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const categories = await categoriesForSave();
       // The category it already has stays valid even if it was hidden since.
       const allowed = categories.filter((c) => c.active || c.name === expense.category);
-      const { value, problems, missing } = cleanExpense(req.body || {}, { today: todayOf(), categories: allowed, currentSubcategory: expense.subcategory || '' });
+      const { value, problems, missing } = cleanExpense(req.body || {}, { today: todayOf(), categories: allowed, currentSubcategory: expense.subcategory || '', currentLostReason: expense.lostReason || '' });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
       const linkProblem = await receiptLinkProblem(fileStore(), value.receiptUrl, expense.receiptUrl || '', me);
       if (linkProblem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: linkProblem } });
@@ -898,7 +898,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       date: before.date, merchant: before.merchant, total: centsText(before.cents), subtotal: centsText(before.subtotalCents), tax: centsText(before.taxCents),
       tip: centsText(before.tipCents), receiptUrl: before.receiptUrl, lostReason: before.lostReason, attendees: before.attendees, purpose: before.purpose,
       recurring: before.recurring, category: body.category, subcategory: body.subcategory, customerId: body.customerId, customerName: '', note: body.note
-    }, { today: todayOf(), categories: allowed, currentSubcategory: expense.subcategory || '' });
+    }, { today: todayOf(), categories: allowed, currentSubcategory: expense.subcategory || '', currentLostReason: expense.lostReason || '' });
     if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
     if (value.customerId && value.customerId !== before.customerId) {
       const noCustomer = await customerProblem(value);

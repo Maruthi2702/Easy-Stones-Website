@@ -121,7 +121,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const category = offered.find((c) => c.name === values.category);
   const fields = fieldsOf(category, values.subcategory);
   const body: ExpenseBody = { ...values, ...(choosing ? { cardId } : {}), ...(behalf ? { onBehalfOf: holderId } : {}), receiptUrl: lost ? '' : values.receiptUrl, lostReason: lost ? values.lostReason : '' };
-  const check = cleanExpense(body, { today, categories: offered, currentSubcategory: start.subcategory });
+  const check = cleanExpense(body, { today, categories: offered, currentSubcategory: start.subcategory, currentLostReason: expense?.lostReason || '' });
   const problems: ExpenseProblems = { ...check.problems, ...serverProblems };
   const complete = Object.keys(check.missing).length === 0;
 
@@ -283,7 +283,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
       <input ref={fileRef} type="file" accept="image/*,application/pdf" hidden onChange={(e) => pickFile(e.target.files?.[0])} />
 
       {onBillScreen ? (
-        <BillDetailsEdit values={billOf(values)} errors={billSubmitted ? pick(problems, true) : {}} today={today} set={set} />
+        <BillDetailsEdit values={billOf(values)} errors={billSubmitted ? pick(problems, true) : {}} today={today} set={set} fromBank={expense?.status === 'missing'} />
       ) : (
         <>
           {forOthers ? (

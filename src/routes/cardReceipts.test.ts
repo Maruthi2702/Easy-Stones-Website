@@ -373,6 +373,15 @@ describe('export of one month (review S2) and reusing a public receipt link (rev
   });
 });
 
+describe('a lost-receipt reason has to say something (review B11)', () => {
+  it('refuses a one-letter reason and takes a real one', async () => {
+    const body = (reason: string) => receipt({ receiptUrl: '', lostReason: reason, category: 'fuel', total: '125.00' });
+    const bad = await as(REP).post('/expenses', body('x')).expect(400);
+    expect(bad.body.problems.lostReason).toMatch(/at least 10/);
+    await as(REP).post('/expenses', body('The pump didn’t print one')).expect(201);
+  });
+});
+
 describe('cardholders for the filter', () => {
   it('lists everyone with a card to View all, none to a plain cardholder, and no one twice', async () => {
     await as(REP).get('/cardholders').expect(403);

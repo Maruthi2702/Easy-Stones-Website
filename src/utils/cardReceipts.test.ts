@@ -100,6 +100,14 @@ describe('an expense', () => {
     expect(both.value?.lostReason).toBe('');
     expect(cleanExpense({ ...base, receiptUrl: 'javascript:1' }, { today: TODAY, categories: CATS }).problems.receipt).toBeTruthy();
   });
+  it('asks a lost-receipt reason to say something, but lets an old short one stay as it is (review B11)', () => {
+    const lost = (reason: string, current = '') => cleanExpense({ ...base, receiptUrl: '', lostReason: reason }, { today: TODAY, categories: CATS, currentLostReason: current });
+    expect(lost('x').problems.lostReason).toMatch(/at least 10/);
+    expect(lost('x').value).toBeUndefined();
+    expect(lost('Pump didn’t print one').problems.lostReason).toBeUndefined();
+    expect(lost('lost', 'lost').problems.lostReason).toBeUndefined();
+    expect(lost('lost it', 'lost').problems.lostReason).toBeTruthy();
+  });
   it('refuses a category that left the list', () => {
     expect(cleanExpense({ ...base, category: 'gone' }, { today: TODAY, categories: CATS }).problems.category).toBeTruthy();
   });

@@ -4,7 +4,7 @@
 // be approved without a comment, a cardholder adding a receipt, and a login
 // with no card. The API is a fake keyed on the URL.
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, act, within } from '@testing-library/react';
 
 const CATEGORIES = [
   { _id: 'k1', name: 'travel_lunch', label: 'Travel Lunch', order: 0, active: true, fields: { customer: false, attendees: false, purpose: false, recurring: false } },
@@ -237,6 +237,21 @@ describe('the Credit Card Receipts page', () => {
     fireEvent.click(screen.getByRole('button', { name: /Add tip/ }));
     expect(text()).toContain('Edit bill details');
     expect(document.getElementById('ccr-tip')).not.toBeNull();
+  });
+
+  it('shows a Missing receipt row’s date and total as the bank’s, not editable (review B10)', async () => {
+    fake.waiting = [];
+    fake.todo = [exp('miss2', { merchant: 'SHELL', cents: 4518, date: '2026-10-21', status: 'missing', receiptUrl: '', category: '' })];
+    await show(['use_card_receipts']);
+    fireEvent.click(document.querySelector('.ccr-todo') as HTMLElement);
+    await settle();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Add receipt' }));
+    await settle();
+    fireEvent.click(screen.getByLabelText('Edit bill details'));
+    expect(text()).toContain('come from the bank’s statement');
+    expect(document.querySelector('input#ccr-total')).toBeNull();
+    expect(document.getElementById('ccr-total')?.textContent).toBe('$45.18');
+    expect(document.getElementById('ccr-merchant')).not.toBeNull();
   });
 
   it('sends someone to Edit bill details when a save is missing the merchant or total', async () => {
