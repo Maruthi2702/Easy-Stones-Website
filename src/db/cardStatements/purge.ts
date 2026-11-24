@@ -83,3 +83,32 @@ export async function applyPurge(db: Db, by: string, { missingRows = false }: { 
     return plan;
   });
 }
+
+/**
+ * The Missing receipt rows a removed upload left behind (2026-11-24): still Missing, no receipt, never edited
+ * (one history line, "Missing receipt: … charge …"), and no statement line points at them any more.
+ */
+export async function planOrphanMissingRows(db: Db) {
+  const rows = await db.select({
+    id: cardExpenses.id, holderName: cardExpenses.holderName, cardLabel: cardExpenses.cardLabel, day: cardExpenses.day, cents: cardExpenses.cents,
+    createdBy: cardExpenseHistory.by, changes: cardExpenseHistory.changes
+  }).from(cardExpenses)
+    .innerJoin(cardExpenseHistory, and(eq(cardExpenseHistory.expenseId, cardExpenses.id), eq(cardExpenseHistory.position, 0)))
+    .where(and(
+      eq(cardExpenses.status, 'missing'), sql`${cardExpenses.voidedAt} is null`, eq(cardExpenses.receiptUrl, ''), eq(cardExpenses.lostReason, ''),
+      eq(cardExpenseHistory.action, 'added'), sql`${cardExpenseHistory.changes} like 'Missing receipt: %charge %'`,
+      sql`(select count(*) from ${cardExpenseHistory} x where x.expense_id = ${cardExpenses.id}) = 1`,
+      sql`not exists (select 1 from ${lines} l where l.expense_id = ${cardExpenses.id})`
+    ));
+  return rows;
+}
+
+export async function applyOrphanMissingRows(db: Db) {
+  return db.transaction(async (tx: Db) => {
+    const rows = await planOrphanMissingRows(tx);
+    for (const part of chunks(rows.map(r => r.id))) {
+      await tx.delete(cardExpenses).where(and(inArray(cardExpenses.id, part), eq(cardExpenses.status, 'missing')));
+    }
+    return rows;
+  });
+}

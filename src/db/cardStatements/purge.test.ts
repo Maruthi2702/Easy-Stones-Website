@@ -8,7 +8,7 @@ import { migrateDb } from '../client.ts';
 import type { Db } from '../copy/plan.ts';
 import { cardStatementLines as lines, cardStatementImports as imports } from '../schema/cardStatements.ts';
 import { cardExpenses, cardExpenseHistory } from '../schema/cardsSuppliers.ts';
-import { planPurge, applyPurge } from './purge.ts';
+import { planPurge, applyPurge, planOrphanMissingRows, applyOrphanMissingRows } from './purge.ts';
 
 const hex = (n: number) => n.toString(16).padStart(24, '0');
 let client: PGlite, db: Db;
@@ -70,5 +70,24 @@ describe('removing one person’s statement uploads', () => {
   it('does nothing for a name with no uploads', async () => {
     expect((await applyPurge(db, 'nobody')).imports).toEqual([]);
     expect(await db.select().from(lines)).toHaveLength(6);
+  });
+});
+
+describe('Missing rows left behind by a removed upload', () => {
+  it('finds only untouched Missing rows no line points at, and deletes just those', async () => {
+    await db.insert(cardExpenses).values([expense(hex(10)), expense(hex(11)), expense(hex(12), { status: 'draft' })]);
+    await db.insert(cardExpenseHistory).values([
+      { expenseId: hex(10), position: 0, at: new Date(), by: 'Krish', action: 'added', changes: 'Missing receipt: Amex charge ref-gone' },
+      { expenseId: hex(11), position: 0, at: new Date(), by: 'Krish', action: 'added', changes: 'Missing receipt: Amex charge ref-gone-2' },
+      { expenseId: hex(11), position: 1, at: new Date(), by: 'Srini', action: 'edited', changes: 'merchant' },
+      { expenseId: hex(12), position: 0, at: new Date(), by: 'Krish', action: 'added', changes: 'Missing receipt: Amex charge ref-gone-3' }
+    ]);
+    // hex(1) is still pointed at by a line, hex(10) by none, hex(11) was edited, hex(12) is a draft.
+    expect((await planOrphanMissingRows(db)).map(r => r.id)).toEqual([hex(10)]);
+    expect(await db.select().from(cardExpenses)).toHaveLength(7);
+    await applyOrphanMissingRows(db);
+    expect((await db.select().from(cardExpenses)).map(e => e.id)).not.toContain(hex(10));
+    expect(await db.select().from(cardExpenses)).toHaveLength(6);
+    expect(await planOrphanMissingRows(db)).toEqual([]);
   });
 });
