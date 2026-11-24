@@ -56,7 +56,9 @@ export default function RemindDialog({ expenses, onSend, onClose }: RemindDialog
   const anyone = Object.values(to).some(Boolean);
   const anyWay = email || push;
   const n = expenses.length;
-  const reach = preview ? new Set(GROUPS.filter((g) => to[g.key]).flatMap((g) => preview.groups?.[g.key]?.names ?? [])).size : 0;
+  // Who would really get it: ticked, and reachable the way(s) chosen.
+  const reach = preview?.groups ? new Set(GROUPS.filter((g) => to[g.key]).flatMap((g) => preview.groups[g.key]?.ids ?? [])
+    .filter((id) => { const c = preview.contact?.[id]; return !c || (email && c.email) || (push && c.phone); })).size : 0;
 
   return (
     <FormModal

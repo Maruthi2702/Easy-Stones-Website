@@ -67,4 +67,4 @@ export type RemindResult = {
 };
 
 /** Who each Send reminder group means for the receipts ticked (POST /expenses/remind/preview). */
-export type RemindPreview = { groups: Record<keyof RemindGroups, { names: string[]; self: boolean }>; skipped?: { id: string; merchant: string; reason: string }[] };
+export type RemindPreview = { groups: Record<keyof RemindGroups, { names: string[]; ids?: string[]; self: boolean }>; contact?: Record<string, { email: boolean; phone: boolean }>; skipped?: { id: string; merchant: string; reason: string }[] };

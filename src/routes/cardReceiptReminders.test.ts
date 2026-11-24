@@ -197,9 +197,11 @@ describe('POST /expenses/remind/preview', () => {
 
   it('names who each group means and marks the sender, who is never named', async () => {
     const res = await preview(ACCT, [exp.missing]).expect(200);
-    expect(res.body.groups.holder).toEqual({ names: ['Maria Lopez'], self: false });
+    expect(res.body.groups.holder).toEqual({ names: ['Maria Lopez'], ids: [P.rep], self: false });
     expect(res.body.groups.managers.names).toEqual(['Dana Whitfield']);
-    expect(res.body.groups.accounting).toEqual({ names: [], self: true });
+    expect(res.body.groups.accounting).toEqual({ names: [], ids: [], self: true });
     expect(res.body.groups.admins.names).toEqual(['Ada Min']);
+    expect(res.body.contact[P.admin]).toEqual({ email: true, phone: false });
+    expect(res.body.contact[P.rep]).toEqual({ email: true, phone: true });
   });
 });

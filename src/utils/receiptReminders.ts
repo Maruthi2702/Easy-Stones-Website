@@ -165,13 +165,15 @@ export function nobodyReason(groups: readonly ReminderGroup[] | GroupFlags, e: R
 }
 
 /** Names of who each group means, for one or more receipts, never the sender: what the form shows before sending. */
-export function previewGroups(expenses: readonly ReminderExpense[], staff: StaffIndex, senderId: string): Record<ReminderGroup, { names: string[]; self: boolean }> {
-  const out = {} as Record<ReminderGroup, { names: string[]; self: boolean }>;
+export function previewGroups(expenses: readonly ReminderExpense[], staff: StaffIndex, senderId: string): Record<ReminderGroup, { names: string[]; ids: string[]; self: boolean }> {
+  const out = {} as Record<ReminderGroup, { names: string[]; ids: string[]; self: boolean }>;
   for (const g of REMINDER_GROUPS) {
     const ids = new Set<string>();
     for (const e of expenses) for (const id of resolveGroups([g], e, staff)) ids.add(id);
+    const others = [...ids].filter((id) => id !== String(senderId));
     out[g] = {
-      names: [...ids].filter((id) => id !== String(senderId)).map((id) => nameOfPerson(staff.byId.get(id))),
+      ids: others,
+      names: others.map((id) => nameOfPerson(staff.byId.get(id))),
       self: ids.has(String(senderId))
     };
   }

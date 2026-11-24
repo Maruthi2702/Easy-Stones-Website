@@ -201,7 +201,7 @@ describe('words', () => {
     expect(nobodyReason(['accounting'], waiting(), solo, P.acct)).toMatch(/only person in the groups you picked/);
     expect(nobodyReason(['accounting'], waiting(), staff, P.rep)).toBe('Nobody to remind.');
     const pv = previewGroups([waiting()], solo, P.acct);
-    expect(pv.accounting).toEqual({ names: [], self: true });
+    expect(pv.accounting).toEqual({ names: [], ids: [], self: true });
     expect(pv.holder.names).toEqual(['Maria Lopez']);
   });
   it('a manual reminder carries who sent it and the note', () => {

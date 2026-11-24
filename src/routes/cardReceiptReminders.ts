@@ -160,7 +160,13 @@ export default function createCardReceiptRemindersRouter({ authenticate, senders
         if (problem) skipped.push({ id, merchant: String(e.merchant || ''), reason: problem });
         else ok.push(e);
       }
-      res.json({ groups: previewGroups(ok, staffIndex(staffList), me), skipped });
+      const staff = staffIndex(staffList);
+      const groups = previewGroups(ok, staff, me);
+      // Who can be reached by email / phone, so the button's count is who would really get it.
+      const everyone = [...new Set(Object.values(groups).flatMap((g) => g.ids))];
+      const phones = await phoneSetOf(everyone, senders);
+      const contact = Object.fromEntries(everyone.map((pid) => [pid, { email: !!String(staff.byId.get(pid)?.email ?? '').trim(), phone: phones === null || phones.has(pid) }]));
+      res.json({ groups, contact, skipped });
     } catch (error) {
       console.error('[card-receipts] remind preview failed:', error);
       res.status(500).json({ message: 'Could not work out who would be reminded.' });

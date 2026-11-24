@@ -58,8 +58,9 @@ const answer = (url: string, init?: RequestInit) => {
     fake.posted.push({ url: u, body });
     if (fake.conflict) return ok({ message: 'Changed', changed: true }, 409);
     if (/\/expenses\/remind\/preview$/.test(u)) {
-      const g = (names: string[]) => ({ names, self: false });
-      return ok({ groups: { holder: g(['Maria Lopez']), managers: g([]), accounting: g([]), admins: g([]), approvers: g(['Ann Count', 'Ada Min']) } });
+      const g = (names: string[]) => ({ names, ids: names, self: false });
+      return ok({ groups: { holder: g(['Maria Lopez']), managers: g([]), accounting: g([]), admins: g([]), approvers: g(['Ann Count', 'Ada Min']) },
+        contact: { 'Maria Lopez': { email: true, phone: true }, 'Ann Count': { email: true, phone: false }, 'Ada Min': { email: true, phone: true } } });
     }
     if (/\/expenses\/remind$/.test(u)) return ok({ sent: { people: 3, receipts: 1 }, skipped: [{ id: 'c', merchant: 'Kashish Cuisine of India', reason: 'reminded today' }], noPhone: ['Dana Whitfield'], noEmail: [] });
     const which = fake.waiting.find((w) => u.includes(`/expenses/${w.id}/`)) || fake.waiting[0];
