@@ -105,9 +105,14 @@ export function branchManagersOf<T extends ApprovalViewer & { _id?: unknown; isA
 
 export const askOpen = (s: Pick<ApprovalState, 'ask'>) => Boolean(s.ask && !s.ask.answeredAt);
 const live = (s: ApprovalState) => s.status === 'waiting' && !s.voided;
-/** The cardholder, or whoever added the receipt for them: neither approves, asks about, sends back or reopens it. */
+/**
+ * The cardholder, or someone who added the receipt for them who isn't Accounting or an Admin (owner, 2026-11-23):
+ * neither approves, asks about, sends back or reopens it. Accounting / an Admin who added it still may.
+ */
+const addedItAndMayNotJudge = (viewer: Pick<ApprovalViewer, 'id' | 'role'>, s: Pick<ApprovalState, 'addedById'>) =>
+  Boolean(s.addedById) && String(viewer.id) === String(s.addedById) && !isAccountingSide(viewer.role);
 const isHolder = (viewer: ApprovalViewer, s: ApprovalState) =>
-  String(viewer.id) === String(s.userId) || (Boolean(s.addedById) && String(viewer.id) === String(s.addedById));
+  String(viewer.id) === String(s.userId) || addedItAndMayNotJudge(viewer, s);
 const approver = (viewer: ApprovalViewer | null | undefined) => Boolean(viewer && can(viewer, CARD_RECEIPTS.APPROVE));
 
 export const secondNeeded = (s: Pick<ApprovalState, 'cents' | 'holderRole'>) =>
@@ -170,7 +175,7 @@ export const canFillDetails = (viewer: ApprovalViewer | null | undefined, s: App
  * anyone else's an Admin. Never the cardholder or the person asking.
  */
 export function mayBeAsked(person: ApprovalViewer, s: ApprovalState, askerId: string) {
-  if (String(person.id) === String(s.userId) || (s.addedById && String(person.id) === String(s.addedById)) || String(person.id) === String(askerId)) return false;
+  if (String(person.id) === String(s.userId) || addedItAndMayNotJudge(person, s) || String(person.id) === String(askerId)) return false;
   if (isAdminRole(person.role)) return true;
   return holderKindOf(s.holderRole) === 'staff' && isBranchManagerOf(person, s.location);
 }
