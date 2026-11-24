@@ -54,7 +54,7 @@ export type ReminderExpense = {
   _id?: unknown; id?: unknown; userId?: string | null; holderName?: string | null; merchant?: string | null; cents?: number | null;
   date?: string | null; location?: string | null; status: string; voidedAt?: unknown;
   approval?: ApprovalState['approval']; secondApproval?: ApprovalState['secondApproval']; ask?: ApprovalState['ask'];
-  reminders?: Reminders | null; createdAt?: string | Date | null;
+  reminders?: Reminders | null; createdAt?: string | Date | null; addedById?: string | null;
 };
 
 export const idOf = (x: { _id?: unknown; id?: unknown } | null | undefined) => String(x?._id ?? x?.id ?? '');
