@@ -13,7 +13,7 @@ import Pagination from '../../components/shared/Pagination';
 import { usePagination } from '../../components/shared/paginationConfig';
 import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, holderMayEdit, onBank, monthLabel, shiftMonth, monthOf } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
-import { listAllExpenses } from './cardReceiptsApi';
+import { getAddForHolders, listAllExpenses } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
 import { writeExcel, writePdf } from './exportFiles';
 import { NO_FILTERS, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
@@ -30,7 +30,7 @@ import CameraCapture from './components/CameraCapture';
 import VoidExpenseForm from './components/VoidExpenseForm';
 import CardsPanel from './components/CardsPanel';
 import StatementsPanel from './statements/StatementsPanel';
-import type { Expense, ReceiptsUser } from './types';
+import type { AddableHolder, Expense, ReceiptsUser } from './types';
 import './CardReceipts.css';
 
 export type CardReceiptsPageProps = { currentUser: ReceiptsUser | null; sidebarToggle?: ReactNode };
@@ -57,6 +57,15 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const canCards = can(currentUser, CARD_RECEIPTS.MANAGE_CARDS) || can(currentUser, CARD_RECEIPTS.VIEW_ALL);
   const canStatements = can(currentUser, CARD_RECEIPTS.STATEMENTS);
   const canRemind = can(currentUser, CARD_RECEIPTS.REMIND);
+  const canAddForOthers = can(currentUser, CARD_RECEIPTS.ADD_FOR_OTHERS);
+  const [addHolders, setAddHolders] = useState<AddableHolder[]>([]);
+  useEffect(() => {
+    if (!canAddForOthers) return;
+    let live = true;
+    getAddForHolders().then((r) => { if (live) setAddHolders(r.holders); }).catch(() => { /* the form still adds your own */ });
+    return () => { live = false; };
+  }, [canAddForOthers]);
+  const canAdd = (canUse && Boolean(me?.card)) || (canAddForOthers && addHolders.length > 0);
   // Someone who only runs the Amex check opens on it.
   const [tab, setTab] = useState<Tab>(() => ([CARD_RECEIPTS.USE, CARD_RECEIPTS.VIEW_ALL, CARD_RECEIPTS.APPROVE].some((p) => can(currentUser, p)) || !can(currentUser, CARD_RECEIPTS.STATEMENTS) ? 'expenses' : 'statements'));
   const [filters, setFilters] = useState<ReceiptFilters>(NO_FILTERS);
@@ -319,7 +328,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                   ) : (
                     <>
                       <h3>No receipts for {data.month ? monthLabel(data.month) : 'this month'}</h3>
-                      {canUse && me?.card ? <button type="button" className="ccr-btn gold" onClick={() => setOpen({ kind: 'choose' })}><Camera size={16} aria-hidden="true" /> Add receipt</button> : null}
+                      {canAdd ? <button type="button" className="ccr-btn gold" onClick={() => setOpen({ kind: 'choose' })}><Camera size={16} aria-hidden="true" /> Add receipt</button> : null}
                     </>
                   )}
                 </div>
@@ -331,7 +340,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         )}
       </div>
 
-      {canUse && me?.card ? (
+      {canAdd ? (
         <button type="button" className="ccr-fab" aria-label="Add receipt" title="Add receipt" onClick={() => setOpen({ kind: 'choose' })}>
           <Camera size={24} strokeWidth={2.2} aria-hidden="true" />
         </button>
@@ -382,6 +391,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           initialFile={open.kind === 'add' ? open.file : null}
           cardLabel={me?.card?.label || ''}
           cards={me?.cards || []}
+          holders={canAddForOthers ? addHolders : []}
           meId={me?.user.id || ''}
           holderName={me?.user.name || ''}
           categories={categories}

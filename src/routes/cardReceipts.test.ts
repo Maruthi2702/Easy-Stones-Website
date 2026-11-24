@@ -168,6 +168,38 @@ describe('saving a receipt', () => {
     expect(me.body.card.label).toBe('MARU92069');
   });
 
+  describe('added on someone\u2019s behalf', () => {
+    const ADDER = { ...ACCOUNTING, permissions: [...ACCOUNTING.permissions, 'add_receipts_for_others'] };
+
+    it('is saved to the cardholder\u2019s card and owned by them, and the history says who added it', async () => {
+      await User.collection.updateOne({ _id: new mongoose.Types.ObjectId(ids.rep) }, { $set: { location: 'Seattle' } });
+      const res = await as(ADDER).post('/expenses', receipt({ onBehalfOf: ids.rep })).expect(201);
+      expect(res.body.expense).toMatchObject({ userId: ids.rep, holderName: 'Maruthi Ponugupati', cardLabel: 'MARU92069', location: 'Seattle', status: 'waiting', mine: false });
+      const saved = (await CardExpense.findById(res.body.expense.id).lean()) as Loose;
+      expect(saved.createdBy).toBe('Ann Count');
+      expect(saved.history[0]).toMatchObject({ by: 'Ann Count', action: 'added', changes: 'on behalf of Maruthi Ponugupati · sent for approval' });
+      // It is theirs to edit; the person who added it is not.
+      await as(REP).put(`/expenses/${res.body.expense.id}`, receipt({ id: res.body.expense.id, total: '15.00' })).expect(200);
+      await as(ADDER).put(`/expenses/${res.body.expense.id}`, receipt({ id: res.body.expense.id, total: '16.00' })).expect(404);
+    });
+
+    it('needs the switch, an active cardholder, and a card', async () => {
+      await as(ACCOUNTING).post('/expenses', receipt({ onBehalfOf: ids.rep })).expect(403);
+      await as(ADDER).post('/expenses', receipt({ onBehalfOf: 'nope' })).expect(400);
+      await as(ADDER).post('/expenses', receipt({ onBehalfOf: ids.director })).expect(409); // no card
+      await User.collection.updateOne({ _id: new mongoose.Types.ObjectId(ids.rep) }, { $set: { isActive: false } });
+      const off = await as(ADDER).post('/expenses', receipt({ onBehalfOf: ids.rep })).expect(400);
+      expect(off.body.problems.holder).toMatch(/active/);
+    });
+
+    it('lists only active people with an active card, for those who hold the switch', async () => {
+      await as(ACCOUNTING).get('/add-for-holders').expect(403);
+      const res = await as(ADDER).get('/add-for-holders').expect(200);
+      expect(res.body.holders.map((h: Loose) => h.name)).toEqual(['Dana Whitfield', 'Maruthi Ponugupati']);
+      expect(res.body.holders[1].cards.map((c: Loose) => c.label)).toEqual(['MARU92069']);
+    });
+  });
+
   it('puts the receipt on the card the person chose, only among their own', async () => {
     const encore = await CompanyCard.create({ userId: ids.rep, label: 'PATH3992', lastDigits: '3992', issuer: 'encore' });
     const me = await as(REP).get('/me').expect(200);
