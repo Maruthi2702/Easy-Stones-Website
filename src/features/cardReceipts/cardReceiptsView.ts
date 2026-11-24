@@ -1,5 +1,5 @@
 import { displayNameOf } from '../../utils/salesReps';
-import { missingFor, missingLine, onBank, statusTotals, subLabel } from '../../utils/cardReceipts';
+import { isBigReceipt, missingFor, missingLine, onBank, statusTotals, subLabel } from '../../utils/cardReceipts';
 import { ALL_PEOPLE, viewerLocations, workLocationsOf } from '../../utils/teamScope';
 import type { PersonOption } from '../../api/myTeam';
 import type { Loose } from '../../types/records';
@@ -152,4 +152,44 @@ export function holderPeople(
     const heading = (mine === ALL_PEOPLE ? works[0] : works.find((l) => mine.includes(l)) || works[0]) || e.location || '';
     return { value: id, id, label: person ? displayNameOf(person) : e.name, location: heading, locations: works, inactive: Boolean(person && person.isActive === false) };
   }).sort((a, b) => a.label.localeCompare(b.label));
+}
+
+export type StatusBand = {
+  tone: 'wait' | 'ok' | 'back' | 'draft';
+  icon: string;
+  title: string;
+  sub: string;
+  /** The thin progress bar: sent → each approval the receipt needs (its chips) → approved. Empty when there is no path to show. */
+  segs: ('done' | 'now' | 'off')[];
+};
+
+/**
+ * The one thin band at the top of an opened receipt (it replaces the Status
+ * field and the Approvals chips row): the state, who it waits on, and how far
+ * the approvals are. It reads the server's `chips` and `ask`; voided ones have
+ * their own note, so none here.
+ */
+export function statusBandOf(e: Expense, categories: readonly Category[]): StatusBand | null {
+  if (e.voided) return null;
+  const chips = chipsShown(e);
+  const pending = chips.findIndex((c) => !c.done);
+  const segs: StatusBand['segs'] = ['done', ...chips.map((c, i): 'done' | 'now' | 'off' => (c.done ? 'done' : i === pending ? 'now' : 'off')), e.status === 'approved' ? 'done' : 'off'];
+  const doneText = chips.map(chipText).join(' · ');
+  if (e.status === 'waiting') {
+    if (askIsOpen(e) && e.ask) return { tone: 'wait', icon: '?', title: `Waiting for ${e.ask.toName}`, sub: `${e.ask.byName} asked a question`, segs };
+    const next = chips[pending];
+    return {
+      tone: 'wait', icon: '●',
+      title: next ? `Waiting for ${next.key === 'accounting' ? 'Accounting' : next.label}` : 'Waiting for approval',
+      sub: doneText || (e.needsSecond || isBigReceipt(e.cents) ? 'Over $150 also needs a second approval' : 'Accounting approves every receipt'),
+      segs,
+    };
+  }
+  if (e.status === 'approved') return { tone: 'ok', icon: '✓', title: 'Approved', sub: doneText || 'Locked until it is reopened', segs };
+  if (e.status === 'sent_back') {
+    return { tone: 'back', icon: '!', title: `${e.sentBack?.byName || 'An approver'} sent this back`, sub: e.sentBack?.comment ? `“${e.sentBack.comment}”` : statusLine(e, categories), segs: [] };
+  }
+  if (e.status === 'missing') return { tone: 'back', icon: '!', title: 'Missing receipt', sub: statusLine(e, categories), segs: [] };
+  if (e.status === 'draft') return { tone: 'draft', icon: '✎', title: 'Draft, not sent yet', sub: statusLine(e, categories), segs: [] };
+  return null;
 }

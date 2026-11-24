@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Ban, Bell, CornerUpLeft, HelpCircle, MessageSquareOff, MoreHorizontal, RotateCcw } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
-import { FormSection, FormField, FormRow } from '../../../components/shared/form/FormControls';
+import { FormSection, FormField } from '../../../components/shared/form/FormControls';
 import { formatMoney, isBigReceipt, usDate, fieldsOf } from '../../../utils/cardReceipts';
 import { approveProblem, holderKindOf } from '../../../utils/receiptApproval';
-import { actionsOf, askIsOpen, categoryText, isPdfUrl, reminderLine, remindable, statusLine } from '../cardReceiptsView';
+import { actionsOf, askIsOpen, categoryText, isPdfUrl, reminderLine, remindable, statusBandOf } from '../cardReceiptsView';
+import type { StatusBand } from '../cardReceiptsView';
 import type { DetailsBody } from '../cardReceiptsApi';
-import { ApprovalChips, StatusChip } from './ExpenseList';
 import FillDetailsSection from './FillDetailsSection';
 import type { Category, Expense } from '../types';
 
@@ -38,12 +38,18 @@ const when = (at: string) => new Date(at).toLocaleString('en-US', { month: 'shor
 const ANSWER_MIN = 2;
 const ANSWER_MAX = 500;
 
-/** One read-only value: the form template's dashed, grey field. */
-function Ro({ label, children, big = false, wide = false }: { label: React.ReactNode; children: React.ReactNode; big?: boolean; wide?: boolean }) {
+/** One saved value as a plain row: the label, then the value on the right. */
+function Row({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+  return <div className="ccr-row"><dt>{label}</dt><dd>{children}</dd></div>;
+}
+
+/** The one thin strip under the title: the state, who it waits on, and the approvals so far. */
+function Band({ band }: { band: StatusBand }) {
   return (
-    <div className={`fm-field${wide ? ' ccr-ro-wide' : ''}`}>
-      <span className="fm-label">{label}</span>
-      <div className={`ccr-ro${big ? ' is-big' : ''}`}>{children}</div>
+    <div className={`ccr-band is-${band.tone}`}>
+      <span className="ccr-band-ico" aria-hidden="true">{band.icon}</span>
+      <div className="ccr-band-txt"><strong>{band.title}</strong>{band.sub ? <small>{band.sub}</small> : null}</div>
+      {band.segs.length ? <div className="ccr-band-segs" aria-hidden="true">{band.segs.map((x, i) => <i key={i} className={x} />)}</div> : null}
     </div>
   );
 }
@@ -95,7 +101,7 @@ export default function ExpenseDrawer({
   const [busy, setBusy] = useState<'' | 'approve' | 'answer' | 'back' | 'withdraw'>('');
   const [error, setError] = useState('');
   const fields = fieldsOf(categories.find((c) => c.name === e.category), e.subcategory);
-  const line = statusLine(e, categories);
+  const band = statusBandOf(e, categories);
   const act = actionsOf(e);
   const reminded = reminderLine(e.reminders, today);
 
@@ -161,7 +167,6 @@ export default function ExpenseDrawer({
   ].filter(Boolean);
   const more = items.length ? <MoreMenu>{items}</MoreMenu> : null;
 
-  const uploaded = `Uploaded ${when(e.createdAt)} · ${e.holderName}`;
   const ask = e.ask;
 
   return (
@@ -179,9 +184,7 @@ export default function ExpenseDrawer({
     >
       {error ? <div className="ccr-form-error" role="alert">{error}</div> : null}
       {e.voided ? <div className="ccr-note is-error">Voided by {e.voided.by || 'someone'}: {e.voided.reason}</div> : null}
-      {e.status === 'sent_back' && e.sentBack ? (
-        <div className="ccr-note is-warn"><AlertTriangle size={16} aria-hidden="true" /><span><b>Sent back by {e.sentBack.byName}:</b> {e.sentBack.comment}</span></div>
-      ) : line ? <div className="ccr-note">{line}</div> : null}
+      {band ? <Band band={band} /> : null}
       {ask ? (
         <div className={`ccr-ask${askIsOpen(e) ? ' is-open' : ''}`}>
           <p><b>{ask.byName} asked {ask.toName}:</b> {ask.question}</p>
@@ -210,39 +213,34 @@ export default function ExpenseDrawer({
             <div className="ccr-lost"><span className="ccr-lost-k">No receipt yet</span></div>
           )}
           <div className="ccr-view-fields">
-            <FormRow>
-              <Ro label="Amount" big><span className={isBigReceipt(e.cents) ? 'ccr-big is-big' : undefined}>{formatMoney(e.cents)}</span></Ro>
-              <Ro label="Status"><StatusChip status={e.status} /></Ro>
-            </FormRow>
-            {e.chips?.length && (e.status === 'waiting' || e.status === 'approved') ? <Ro label="Approvals"><ApprovalChips e={e} /></Ro> : null}
-            <FormRow>
-              <Ro label="Date">{usDate(e.date)}</Ro>
-              <Ro label="Cardholder">{e.holderName} · {e.cardLabel}</Ro>
-            </FormRow>
-            <Ro label="Category">{e.category ? categoryText(categories, e) : <span className="ccr-muted">Not picked</span>}</Ro>
-            {fields.customer || e.customerName ? <Ro label="Customer">{e.customerName || <span className="ccr-muted">Not chosen</span>}</Ro> : null}
+            <div className="ccr-amount">
+              <span className={isBigReceipt(e.cents) ? 'ccr-big is-big' : undefined}>{formatMoney(e.cents)}</span>
+              {isBigReceipt(e.cents) ? <small>$150 and up</small> : null}
+            </div>
+            <dl className="ccr-rows">
+              <Row label="Date">{usDate(e.date)}</Row>
+              <Row label="Cardholder">{e.holderName} · {e.cardLabel}</Row>
+              <Row label="Category">{e.category ? categoryText(categories, e) : <span className="ccr-muted">Not picked</span>}</Row>
+              {fields.customer || e.customerName ? <Row label="Customer">{e.customerName || <span className="ccr-muted">Not chosen</span>}</Row> : null}
+              <Row label="Branch">{e.location || '—'}</Row>
+              {e.attendees.length ? <Row label={`Who attended (${e.attendees.length})`}>{e.attendees.join(', ')}</Row> : null}
+              {e.purpose ? <Row label="Business purpose">{e.purpose}</Row> : null}
+              {e.note && !act.fillDetails ? <Row label="Note">{e.note}</Row> : null}
+              {e.recurring ? <Row label="Recurring">Yes, every month</Row> : null}
+              {e.approval ? <Row label="Accounting approval">{e.approval.byName} · {when(e.approval.at)}{e.approval.comment ? ` · “${e.approval.comment}”` : ''}</Row> : null}
+              {e.secondApproval ? <Row label="Second approval">{e.secondApproval.byName} · {when(e.secondApproval.at)}{e.secondApproval.comment ? ` · “${e.secondApproval.comment}”` : ''}</Row> : null}
+            </dl>
+            <dl className="ccr-sum">
+              {e.subtotalCents != null ? <Row label="Subtotal">{formatMoney(e.subtotalCents)}</Row> : null}
+              {e.taxCents != null ? <Row label="Tax">{formatMoney(e.taxCents)}</Row> : null}
+              {e.tipCents != null ? <Row label="Tip">{formatMoney(e.tipCents)}</Row> : null}
+              <div className="ccr-row is-total"><dt>Total</dt><dd>{formatMoney(e.cents)}</dd></div>
+            </dl>
           </div>
         </div>
       </FormSection>
 
       {act.fillDetails ? <FillDetailsSection expense={e} categories={categories} onSave={onFillDetails} /> : null}
-
-      <FormSection>
-        <FormRow>
-          <Ro label="Subtotal">{e.subtotalCents != null ? formatMoney(e.subtotalCents) : '—'}</Ro>
-          <Ro label="Tax">{e.taxCents != null ? formatMoney(e.taxCents) : '—'}</Ro>
-        </FormRow>
-        <FormRow>
-          <Ro label="Tip">{e.tipCents != null ? formatMoney(e.tipCents) : '—'}</Ro>
-          <Ro label="Branch">{e.location || '—'}</Ro>
-        </FormRow>
-        {e.attendees.length ? <Ro label={`Who attended (${e.attendees.length})`}>{e.attendees.join(', ')}</Ro> : null}
-        {e.purpose ? <Ro label="Business purpose">{e.purpose}</Ro> : null}
-        {e.note && !act.fillDetails ? <Ro label="Note">{e.note}</Ro> : null}
-        {e.recurring ? <Ro label="Recurring">Yes, every month</Ro> : null}
-        {e.approval ? <Ro label="Accounting approval">{e.approval.byName} · {when(e.approval.at)}{e.approval.comment ? ` · “${e.approval.comment}”` : ''}</Ro> : null}
-        {e.secondApproval ? <Ro label="Second approval">{e.secondApproval.byName} · {when(e.secondApproval.at)}{e.secondApproval.comment ? ` · “${e.secondApproval.comment}”` : ''}</Ro> : null}
-      </FormSection>
 
       {act.answer ? (
         <FormSection>
@@ -265,15 +263,13 @@ export default function ExpenseDrawer({
       ) : null}
 
       <FormSection>
-        <details open className="ccr-hist">
-          <summary>History</summary>
-          <ul className="ccr-history">
-            <li>{uploaded}</li>
-            {[...e.history].reverse().map((h, i) => (
-              <li key={i}>{when(h.at)} · {h.by || 'Someone'} {h.action}{h.changes ? `: ${h.changes}` : ''}</li>
-            ))}
-          </ul>
-        </details>
+        <h3 className="ccr-act-h">Activity</h3>
+        <ul className="ccr-act">
+          {[...e.history].reverse().map((h, i) => (
+            <li key={i}><em aria-hidden="true" /><div><b>{h.by || 'Someone'} {h.action}</b>{h.changes ? <span className="ccr-act-chg">{h.changes}</span> : null}<small>{when(h.at)}</small></div></li>
+          ))}
+          <li><em aria-hidden="true" /><div><b>{e.holderName} added the receipt</b><small>{when(e.createdAt)}</small></div></li>
+        </ul>
       </FormSection>
     </FormModal>
   );
