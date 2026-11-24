@@ -183,6 +183,17 @@ describe('saving a receipt', () => {
       await as(ADDER).put(`/expenses/${res.body.expense.id}`, receipt({ id: res.body.expense.id, total: '16.00' })).expect(404);
     });
 
+    it('can\u2019t be approved by the person who added it, but by someone else', async () => {
+      const res = await as(ADDER).post('/expenses', receipt({ onBehalfOf: ids.rep })).expect(201);
+      const id = res.body.expense.id;
+      expect(res.body.expense).toMatchObject({ addedByName: 'Ann Count', addedById: ids.acct });
+      expect(res.body.expense.actions.approve).toBe(null);
+      await as(ADDER).post(`/expenses/${id}/approve`, {}).expect(res2 => { if (res2.status < 400) throw new Error('adder approved'); });
+      const other = { ...ADMIN1, permissions: [...ADMIN1.permissions] };
+      const ok = await as(other).post(`/expenses/${id}/approve`, {});
+      expect(ok.status).toBeLessThan(400);
+    });
+
     it('needs the switch, an active cardholder, and a card', async () => {
       await as(ACCOUNTING).post('/expenses', receipt({ onBehalfOf: ids.rep })).expect(403);
       await as(ADDER).post('/expenses', receipt({ onBehalfOf: 'nope' })).expect(400);

@@ -1,0 +1,1 @@
+ALTER TABLE "card_expenses" ADD COLUMN "added_by_id" text;

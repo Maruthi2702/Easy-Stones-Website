@@ -78,6 +78,26 @@ describe('under $150', () => {
   });
 });
 
+describe('added on the cardholder\u2019s behalf', () => {
+  it('the person who added it can\u2019t approve, ask, send back or reopen it; someone else can', () => {
+    const s = exp({ addedById: 'acct' });
+    expect(slotFor(acct, s)).toBe(null);
+    expect(canSendBack(acct, s)).toBe(false);
+    expect(canAsk(acct, s)).toBe(false);
+    expect(canReopen(acct, { ...s, status: 'approved' })).toBe(false);
+    expect(waitingReason(acct, s)).toBe(null);
+    expect(slotFor(acct2, s)).toBe('accounting');
+    expect(canSendBack(acct2, s)).toBe(true);
+    expect(mayBeAsked(acct, s, 'acct2')).toBe(false);
+    expect(mayBeAsked(admin, s, 'acct2')).toBe(true);
+  });
+  it('an Admin who added a $150+ receipt gives neither approval', () => {
+    const s = exp({ cents: 20_000, addedById: 'adm' });
+    expect(slotFor(admin, s)).toBe(null);
+    expect(slotFor(admin2, s)).toBe('second');
+  });
+});
+
 describe('$150 and above', () => {
   const big = exp({ cents: 20_000 });
   it('a staff receipt needs Accounting and the branch manager or an Admin, in either order', () => {

@@ -216,6 +216,7 @@ export default function ExpenseDrawer({
             <dl className="ccr-rows">
               <Row label="Date">{usDate(e.date)}</Row>
               <Row label="Cardholder">{e.holderName} · {e.cardLabel}</Row>
+              {e.addedByName ? <Row label="Added by">{e.addedByName}</Row> : null}
               <Row label="Category">{e.category ? categoryText(categories, e) : <span className="ccr-muted">Not picked</span>}</Row>
               {fields.customer || e.customerName ? <Row label="Customer">{e.customerName || <span className="ccr-muted">Not chosen</span>}</Row> : null}
               <Row label="Branch">{e.location || '—'}</Row>
@@ -265,7 +266,7 @@ export default function ExpenseDrawer({
             {[...e.history].reverse().map((h, i) => (
               <li key={i}><em aria-hidden="true" /><div><b>{h.by || 'Someone'} {h.action}</b>{h.changes ? <span className="ccr-act-chg">{h.changes}</span> : null}<small>{when(h.at)}</small></div></li>
             ))}
-            <li><em aria-hidden="true" /><div><b>{e.holderName} added the receipt</b><small>{when(e.createdAt)}</small></div></li>
+            <li><em aria-hidden="true" /><div><b>{e.addedByName || e.holderName} added the receipt{e.addedByName ? ` for ${e.holderName}` : ''}</b><small>{when(e.createdAt)}</small></div></li>
           </ul>
         </details>
       </FormSection>

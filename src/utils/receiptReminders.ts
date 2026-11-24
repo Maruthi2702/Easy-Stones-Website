@@ -106,7 +106,8 @@ export const staffIndex = (staff: readonly Person[]): StaffIndex => ({ list: sta
 export const approvalStateOf = (e: ReminderExpense, staff: StaffIndex): ApprovalState => ({
   userId: String(e.userId ?? ''), holderRole: staff.byId.get(String(e.userId ?? ''))?.role ?? null, location: e.location ?? '',
   cents: Number(e.cents) || 0, status: e.status, voided: e.voidedAt || null,
-  approval: e.approval ?? null, secondApproval: e.secondApproval ?? null, ask: e.ask ?? null
+  approval: e.approval ?? null, secondApproval: e.secondApproval ?? null, ask: e.ask ?? null,
+  addedById: e.addedById ? String(e.addedById) : null
 });
 
 const activeWhere = (staff: StaffIndex, test: (p: Person) => boolean) => staff.list.filter((p) => isActive(p) && test(p)).map(idOf);
@@ -126,7 +127,7 @@ export function approverIds(e: ReminderExpense, staff: StaffIndex): string[] {
     const managers = holderKindOf(s.holderRole) === 'staff' ? branchManagersOf(staff.list as never[], s.location, holder).map(idOf) : [];
     ids.push(...[...managers, ...admins].filter((id) => id !== gaveAccounting));
   }
-  return ids.filter((id) => id !== holder);
+  return ids.filter((id) => id !== holder && id !== (s.addedById ?? ''));
 }
 
 /**

@@ -106,6 +106,8 @@ const cardExpenseSchema = new mongoose.Schema({
   reminders: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
   sentBack: { type: decisionSchema, default: null },
   createdBy: { type: String, default: '' },
+  /** Who typed it when added on the cardholder's behalf (empty = the cardholder). */
+  addedById: { type: String, default: '' },
   voidedAt: { type: Date, default: null },
   voidedBy: { type: String, default: '' },
   voidReason: { type: String, default: '' },
