@@ -127,7 +127,8 @@ export function approverIds(e: ReminderExpense, staff: StaffIndex): string[] {
     const managers = holderKindOf(s.holderRole) === 'staff' ? branchManagersOf(staff.list as never[], s.location, holder).map(idOf) : [];
     ids.push(...[...managers, ...admins].filter((id) => id !== gaveAccounting));
   }
-  return ids.filter((id) => id !== holder && id !== (s.addedById ?? ''));
+  // Whoever added it for the cardholder is left out unless they're Accounting or an Admin (they may approve it).
+  return ids.filter((id) => id !== holder && !(id === (s.addedById ?? '') && !isAccountingSide(staff.byId.get(id)?.role)));
 }
 
 /**

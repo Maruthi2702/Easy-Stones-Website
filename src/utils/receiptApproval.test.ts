@@ -79,21 +79,25 @@ describe('under $150', () => {
 });
 
 describe('added on the cardholder\u2019s behalf', () => {
-  it('the person who added it can\u2019t approve, ask, send back or reopen it; someone else can', () => {
+  it('Accounting or an Admin who added it may still approve, ask, send back or reopen it', () => {
     const s = exp({ addedById: 'acct' });
-    expect(slotFor(acct, s)).toBe(null);
-    expect(canSendBack(acct, s)).toBe(false);
-    expect(canAsk(acct, s)).toBe(false);
-    expect(canReopen(acct, { ...s, status: 'approved' })).toBe(false);
-    expect(waitingReason(acct, s)).toBe(null);
-    expect(slotFor(acct2, s)).toBe('accounting');
-    expect(canSendBack(acct2, s)).toBe(true);
-    expect(mayBeAsked(acct, s, 'acct2')).toBe(false);
-    expect(mayBeAsked(admin, s, 'acct2')).toBe(true);
+    expect(slotFor(acct, s)).toBe('accounting');
+    expect(canSendBack(acct, s)).toBe(true);
+    expect(canAsk(acct, s)).toBe(true);
+    expect(canReopen(acct, { ...s, status: 'approved' })).toBe(true);
+    expect(waitingReason(acct, s)).toBe('accounting');
+    expect(waitingReason(admin, exp({ addedById: 'adm' }))).toBe('accounting');
   });
-  it('an Admin who added a $150+ receipt gives neither approval', () => {
+  it('someone else who added it (not Accounting / Admin) may not', () => {
+    const s = exp({ addedById: 'mgr' });
+    expect(slotFor(seaMgr, exp({ cents: 20_000, addedById: 'mgr' }))).toBe(null);
+    expect(waitingReason(seaMgr, s)).toBe(null);
+    expect(mayBeAsked(seaMgr, s, 'acct')).toBe(false);
+  });
+  it('an Admin who added a $150+ receipt still can\u2019t give both approvals', () => {
     const s = exp({ cents: 20_000, addedById: 'adm' });
-    expect(slotFor(admin, s)).toBe(null);
+    expect(slotFor(admin, s)).toBe('second');
+    expect(slotFor(admin, { ...s, secondApproval: by(admin, 'admin') })).toBe(null);
     expect(slotFor(admin2, s)).toBe('second');
   });
 });
