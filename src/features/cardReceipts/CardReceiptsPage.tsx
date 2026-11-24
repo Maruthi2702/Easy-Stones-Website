@@ -381,6 +381,8 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           startLost={open.kind === 'add' && Boolean(open.lost)}
           initialFile={open.kind === 'add' ? open.file : null}
           cardLabel={me?.card?.label || ''}
+          cards={me?.cards || []}
+          meId={me?.user.id || ''}
           holderName={me?.user.name || ''}
           categories={categories}
           today={me?.today || ''}

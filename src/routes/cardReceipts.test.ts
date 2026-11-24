@@ -168,6 +168,31 @@ describe('saving a receipt', () => {
     expect(me.body.card.label).toBe('MARU92069');
   });
 
+  it('puts the receipt on the card the person chose, only among their own', async () => {
+    const encore = await CompanyCard.create({ userId: ids.rep, label: 'PATH3992', lastDigits: '3992', issuer: 'encore' });
+    const me = await as(REP).get('/me').expect(200);
+    expect(me.body.cards.map((c: Loose) => c.label)).toEqual(['MARU92069', 'PATH3992']);
+    // No choice → the first card, as before.
+    const plain = await as(REP).post('/expenses', receipt()).expect(201);
+    expect(plain.body.expense.cardLabel).toBe('MARU92069');
+    // A chosen card sticks, and a card that isn't theirs is refused.
+    const chosen = await as(REP).post('/expenses', receipt({ total: '15.00', cardId: String(encore._id) })).expect(201);
+    expect(chosen.body.expense.cardLabel).toBe('PATH3992');
+    const other = await CompanyCard.create({ userId: ids.manager, label: 'DANA9999', lastDigits: '9999', issuer: 'encore' });
+    const refused = await as(REP).post('/expenses', receipt({ total: '16.00', cardId: String(other._id) })).expect(400);
+    expect(refused.body.problems.card).toMatch(/one of your cards/);
+  });
+
+  it('lets the cardholder move a receipt to their other card until it is approved, and says so in its history', async () => {
+    const encore = await CompanyCard.create({ userId: ids.rep, label: 'PATH3992', lastDigits: '3992', issuer: 'encore' });
+    const body = receipt();
+    await as(REP).post('/expenses', body).expect(201);
+    const moved = await as(REP).put(`/expenses/${body.id}`, { ...body, cardId: String(encore._id) }).expect(200);
+    expect(moved.body.expense.cardLabel).toBe('PATH3992');
+    expect(moved.body.expense.history.at(-1).changes).toMatch(/card MARU92069 → PATH3992/);
+    await as(REP).put(`/expenses/${body.id}`, { ...body, cardId: 'nope' }).expect(400);
+  });
+
   it('keeps an unfinished one as a draft, and finishing it sends it for approval', async () => {
     const body = receipt({ category: 'customer_lunch', merchant: 'Kashish Cuisine of India', total: '57.29' });
     const draft = await as(REP).post('/expenses', body).expect(201);

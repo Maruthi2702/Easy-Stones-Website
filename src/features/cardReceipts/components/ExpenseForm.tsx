@@ -13,7 +13,9 @@ import { centsText, cleanExpense, defaultSubOf, fieldsOf, formatMoney, usDate, t
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
 import { isPdfUrl } from '../cardReceiptsView';
 import type { ExpenseBody } from '../cardReceiptsApi';
-import type { Category, Expense } from '../types';
+import CardToggle from './CardToggle';
+import { lastCardFor, rememberCard } from '../cardChoice';
+import type { Card, Category, Expense } from '../types';
 
 type Values = Required<Omit<ExpenseInput, 'recurring'>> & { recurring: boolean };
 
@@ -43,6 +45,10 @@ export type ExpenseFormProps = {
   /** A photo or file already chosen in Add receipt's first step: uploaded and read as the form opens. */
   initialFile?: File | null;
   cardLabel: string;
+  /** Every active card of the person; the Card choice shows with two or more. */
+  cards?: Card[];
+  /** Whose "last used card" is remembered on this device. */
+  meId?: string;
   holderName: string;
   categories: Category[];
   today: string;
@@ -69,7 +75,7 @@ export type ExpenseFormProps = {
  * (src/utils/receiptScan.ts); the card says which, so they get checked, and
  * when merchant or total are still blank the edit screen opens for them.
  */
-export default function ExpenseForm({ expense, startLost = false, initialFile = null, cardLabel, categories, today, upload, scan, onSave, onClose }: ExpenseFormProps) {
+export default function ExpenseForm({ expense, startLost = false, initialFile = null, cardLabel, cards = [], meId = '', categories, today, upload, scan, onSave, onClose }: ExpenseFormProps) {
   const editing = Boolean(expense);
   const start = useMemo(() => (expense ? fromExpense(expense) : blank(today)), [expense, today]);
   const [values, setValues] = useState<Values>(start);
@@ -78,6 +84,9 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [serverError, setServerError] = useState('');
+  const choosing = cards.length > 1;
+  const [cardId, setCardId] = useState(() => expense?.cardId || lastCardFor(meId, cards));
+  const chosenCard = cards.find((c) => c._id === cardId);
   const [serverProblems, setServerProblems] = useState<ExpenseProblems>({});
   const [repeat, setRepeat] = useState<{ merchant: string; date: string; cents: number } | null>(null);
   // Which screen of the window: the form, or Edit bill details (the pencil).
@@ -99,7 +108,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   const offered = categories.filter((c) => c.active || c.name === start.category);
   const category = offered.find((c) => c.name === values.category);
   const fields = fieldsOf(category, values.subcategory);
-  const body: ExpenseBody = { ...values, receiptUrl: lost ? '' : values.receiptUrl, lostReason: lost ? values.lostReason : '' };
+  const body: ExpenseBody = { ...values, ...(choosing ? { cardId } : {}), receiptUrl: lost ? '' : values.receiptUrl, lostReason: lost ? values.lostReason : '' };
   const check = cleanExpense(body, { today, categories: offered, currentSubcategory: start.subcategory });
   const problems: ExpenseProblems = { ...check.problems, ...serverProblems };
   const complete = Object.keys(check.missing).length === 0;
@@ -200,6 +209,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
     setServerError('');
     try {
       await onSave({ ...body, ...(confirmRepeat ? { confirmRepeat: true } : {}) });
+      if (choosing && !editing) rememberCard(meId, cardId);
     } catch (err) {
       const e = err as Error & { problems?: ExpenseProblems; repeat?: { merchant: string; date: string; cents: number } | null };
       const fromServer = e.problems && typeof e.problems === 'object' ? e.problems : {};
@@ -230,7 +240,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
 
   return (
     <FormModal
-      title={onBillScreen ? 'Edit bill details' : editing ? <>Edit receipt <span className="fm-title-sub">· {expense?.merchant}</span></> : <>Add receipt <span className="fm-title-sub">· {cardLabel}</span></>}
+      title={onBillScreen ? 'Edit bill details' : editing ? <>Edit receipt <span className="fm-title-sub">· {expense?.merchant}</span></> : <>Add receipt <span className="fm-title-sub">· {chosenCard?.label || cardLabel}</span></>}
       size="m"
       onClose={onBillScreen ? () => closeBill(false) : onClose}
       onSubmit={onBillScreen ? submitBill : () => submit(false)}
@@ -287,6 +297,12 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
               </FormField>
             ) : null}
           </FormSection>
+
+          {choosing ? (
+            <FormSection>
+              <CardToggle cards={cards} value={cardId} onChange={setCardId} lastId={lastCardFor(meId, cards)} error={submitted ? problems.card : ''} />
+            </FormSection>
+          ) : null}
 
           <FormSection>
             <FormField name="category" id="ccr-category" label="Category" required error={(submitted ? problems.category : '') || (submitted ? check.missing.category : '')}>

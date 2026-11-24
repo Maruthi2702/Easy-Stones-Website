@@ -112,6 +112,12 @@ export async function activeCardOf(db: Db, userId: string): Promise<Loose | null
   return row ? cardDoc(row) : null;
 }
 
+export async function activeCardsOf(db: Db, userId: string): Promise<Loose[]> {
+  const rows = await db.select().from(companyCards).where(and(eq(companyCards.userId, lower(userId)), eq(companyCards.active, true)))
+    .orderBy(asc(companyCards.issuer), asc(companyCards.createdAt), asc(companyCards.id));
+  return rows.map(cardDoc);
+}
+
 export async function activeCardClash(db: Db, userId: string, label: string, exceptId: string | null, issuer: string = 'amex'): Promise<Loose | null> {
   // One active card per person per bank (2026-11-21), and an active card ID is never used twice.
   const [row] = await db.select().from(companyCards).where(and(
