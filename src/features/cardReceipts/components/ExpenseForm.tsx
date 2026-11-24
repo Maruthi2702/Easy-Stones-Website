@@ -301,7 +301,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
           ) : null}
           <FormSection>
             <FormField name="receipt" id="ccr-file-btn" label="Bill details" error={submitted ? problems.receipt : ''}>
-              <BillCard {...billOf(values)} receiptUrl={lost ? '' : values.receiptUrl} lost={lost} uploading={uploading} note={cardNote}
+              <BillCard {...billOf(values)} receiptUrl={lost ? '' : values.receiptUrl} lost={lost} uploading={uploading} note={cardNote} noteTone={!reading && readLine ? 'check' : undefined}
                 viewingLarge={viewing} onPhoto={onPhoto} onEdit={(focus) => openBill(focus)} />
               <div className="ccr-bill-links">
                 {!lost ? (
