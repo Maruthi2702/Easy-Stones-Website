@@ -1,9 +1,11 @@
 /**
  * Which files can be a card receipt (Add receipt → Upload Photo / Upload File):
- * a photo or a PDF, up to 10 MB. Shared by the choice window and the form, so a
+ * a photo (up to 25 MB — the browser shrinks it before it is sent) or a PDF (up to 20 MB, sent as it is).
+ * Shared by the choice window and the form, so a
  * wrong file is turned away before anything uploads.
  */
-export const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
+export const MAX_RECEIPT_PHOTO_BYTES = 25 * 1024 * 1024;
+export const MAX_RECEIPT_PDF_BYTES = 20 * 1024 * 1024;
 
 type FileLike = { name: string; type: string; size: number };
 
@@ -18,9 +20,10 @@ export function receiptFileProblem(f: FileLike): string {
   if (!isPdfFile(f) && !isImageFile(f)) {
     const ext = extensionOf(f.name);
     const kind = ext ? `${f.name} is a ${ext.toUpperCase()} file` : `${f.name || 'This file'} isn’t a photo or a PDF`;
-    return `${kind}. A receipt can be a photo (JPG, PNG, HEIC) or a PDF, up to 10 MB.`;
+    return `${kind}. A receipt can be a photo (JPG, PNG, HEIC) or a PDF (photos up to 25 MB, PDFs up to 20 MB).`;
   }
-  if (f.size > MAX_RECEIPT_BYTES) return `${f.name || 'This file'} is over 10 MB. Choose a smaller photo or PDF.`;
+  if (isPdfFile(f) && f.size > MAX_RECEIPT_PDF_BYTES) return `${f.name || 'This file'} is over 20 MB. Take a photo of the receipt instead, or choose a smaller PDF.`;
+  if (!isPdfFile(f) && f.size > MAX_RECEIPT_PHOTO_BYTES) return `${f.name || 'This file'} is over 25 MB. Choose a smaller photo.`;
   if (f.size === 0) return `${f.name || 'This file'} is empty. Choose another file.`;
   return '';
 }

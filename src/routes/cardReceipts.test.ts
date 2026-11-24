@@ -38,6 +38,7 @@ const { default: User } = await import('../models/User.ts');
 
 let mongo!: MongoMemoryServer;
 let app!: import('express').Express;
+const seenFormats: (string | undefined)[] = [];
 
 const USE = 'use_card_receipts';
 const oid = () => new mongoose.Types.ObjectId().toString();
@@ -58,8 +59,8 @@ beforeAll(async () => {
   app.use(express.json({ limit: '2mb' }));
   app.use('/api/card-receipts', createCardReceiptsRouter({
     authenticate: (req: Loose, _res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
-    processBase64Image: async (_d: string, _f?: string, _m?: number, opts?: { private?: boolean }) =>
-      (opts?.private ? `https://cdn.test/private/CardReceipts/${PRIV}` : 'https://res.cloudinary.com/test/CardReceipts/img_1.webp'),
+    processBase64Image: async (_d: string, _f?: string, _m?: number, opts?: { private?: boolean; format?: string }) =>
+      (seenFormats.push(opts?.format), opts?.private ? `https://cdn.test/private/CardReceipts/${PRIV}` : 'https://res.cloudinary.com/test/CardReceipts/img_1.webp'),
     fileStore: () => fakeStore
   }));
 }, 180000);
@@ -297,6 +298,8 @@ describe('saving a receipt', () => {
     const res = await as(REP).post('/attachments', { data: 'data:image/jpeg;base64,AAAA' }).expect(200);
     // Kept privately: the saved address is the app's own, never the CDN's.
     expect(res.body.url).toBe(`/api/card-receipts/files/${PRIV}`);
+    // Review of 2026-11-24: receipt photos are stored as JPEG (not the WebP visits use).
+    expect(seenFormats.at(-1)).toBe('jpeg');
     await as(REP).post('/attachments', { data: 'hello' }).expect(400);
     await as(NOBODY).post('/attachments', { data: 'data:image/jpeg;base64,AAAA' }).expect(403);
   });

@@ -1511,6 +1511,13 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   (`rate_limit_hits`, migration `0035`, `PostgresRateLimitStore`) so every Lambda instance shares them — if the database
   can't be reached the request passes (`passOnStoreError`). **Run `npm run pg:migrate -- --apply` on Render for `0035`.**
   A new limit that guards money uses that store, never the default in-memory one.
+  **Limits raised 2026-11-24 (owner):** uploads 100 per 10 min, AI scan 40 per 10 min and 200 a day; files — a **photo** up to
+  25 MB on the phone (`MAX_RECEIPT_PHOTO_BYTES`; the browser shrinks it to 2000px JPEG before sending, so the wire is small), a
+  **PDF** up to 20 MB (`MAX_RECEIPT_PDF_BYTES`; sent as it is, never recompressed — a bigger scan should be a photo), JSON for
+  `/api/card-receipts` up to 30 MB. **Receipt photos are saved as JPEG** (quality 85, mozjpeg, white behind any transparency —
+  `format: 'jpeg'` on `processBase64Image`); visits and resources still save WebP; receipts stored earlier as WebP still open.
+  Not built: HEIC conversion for Chrome / Firefox on a desktop (those can't open a HEIC photo; iPhones / Safari can) — add
+  `heic2any` if staff hit it. On Lambda a request body is capped at about 6 MB, so uploads will need to go straight to S3.
 - **Edit any, Void any, Delete** (2026-11-24, on `feat/receipt-edit-any`; owner's ask — Accounting fixes any receipt, admins delete):
   three switches on the Credit Card Receipts card, nobody holds them until an admin ticks them (Admins hold every key):
   `edit_any_card_receipt` — `PUT /expenses/:id` for anyone's receipt, approved ones too, never a voided one; a waiting or approved
