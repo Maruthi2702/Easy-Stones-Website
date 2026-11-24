@@ -248,6 +248,8 @@ export const rangeProblem = (from: unknown, to: unknown): string => {
 };
 /** Whether a receipt's day falls in a custom range (both ends included). */
 export const inRange = (day: string, from: string, to: string) => day >= from && day <= to;
+/** "Nov 1, 2026": a day in the short form the range fields show. */
+export const shortDay = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 /** "Oct 3 – Oct 20, 2026" (the year once when both ends share it). */
 export const rangeLabel = (from: string, to: string) => {
   const part = (d: string, year: boolean) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' });

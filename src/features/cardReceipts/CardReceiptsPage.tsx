@@ -13,7 +13,7 @@ import Pagination from '../../components/shared/Pagination';
 import { DatePicker } from '../../components/shared/calendar/Calendar';
 import { shiftDay } from '../../components/shared/calendar/calendarDates';
 import { usePagination } from '../../components/shared/paginationConfig';
-import { BANK_FILTERS, CARD_RECEIPTS, MAX_RANGE_DAYS, STATUSES, can, formatMoney, inRange, rangeLabel, holderMayEdit, anyoneMayEdit, managerMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
+import { BANK_FILTERS, CARD_RECEIPTS, MAX_RANGE_DAYS, STATUSES, can, formatMoney, inRange, rangeLabel, shortDay, holderMayEdit, anyoneMayEdit, managerMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
 import { getAddForHolders, listAllExpenses, listMonthForExport } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
@@ -571,9 +571,9 @@ function PeriodBar({ month, range, custom, today, onMonth, onRange }: {
   };
   return (
     <div className="ccr-month is-range">
-      <div className="ccr-range-field"><DatePicker id="ccr-range-from" ariaLabel="From" value={range.from} max={today || range.to} today={today} onChange={setFrom} sheetTitle="From" /></div>
+      <div className="ccr-range-field"><DatePicker id="ccr-range-from" ariaLabel="From" formatText={shortDay} value={range.from} max={today || range.to} today={today} onChange={setFrom} sheetTitle="From" /></div>
       <i aria-hidden="true">–</i>
-      <div className="ccr-range-field"><DatePicker id="ccr-range-to" ariaLabel="To" value={range.to} min={range.from} max={today || undefined} today={today} onChange={setTo} sheetTitle="To" /></div>
+      <div className="ccr-range-field"><DatePicker id="ccr-range-to" ariaLabel="To" formatText={shortDay} value={range.to} min={range.from} max={today || undefined} today={today} onChange={setTo} sheetTitle="To" /></div>
       <button type="button" className="ccr-btn is-small" onClick={() => onMonth(monthOf(range.to))}>Month</button>
     </div>
   );

@@ -98,11 +98,14 @@ body.light-theme-active .fm-overlay {
 .ccr-tab.is-on { color: var(--ccr-text); border-bottom-color: var(--ccr-gold); }
 .ccr-count { background: var(--ccr-gold); color: var(--ccr-on-gold); font-size: 11px; font-weight: 700; border-radius: 99px; padding: 1px 7px; }
 .ccr-month { margin-left: auto; display: flex; align-items: center; gap: 4px; padding-bottom: 6px; }
-.ccr-month span { font-weight: 600; min-width: 120px; text-align: center; }
-.ccr-month .ccr-btn.is-small { height: 32px; padding: 0 12px; margin-left: 8px; font-size: 13px; }
+.ccr-month > span { font-weight: 600; min-width: 120px; text-align: center; }
+.ccr-month .ccr-btn.is-small { height: 36px; padding: 0 14px; margin-left: 4px; font-size: 14px; }
 .ccr-month.is-range { gap: 8px; }
 .ccr-month.is-range i { font-style: normal; color: var(--ccr-muted); }
-.ccr-range-field { width: 150px; }
+.ccr-range-field { width: 156px; }
+.ccr-range-field .cal-trigger { min-height: 36px; height: 36px; padding: 0 10px; font-size: 14px; gap: 8px; white-space: nowrap; }
+.ccr-range-field .cal-trigger span { min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; }
+.ccr-month.is-range i { padding: 0 2px; }
 
 /* ── Notes ── */
 .ccr-note { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 10px; font-size: 13px; background: var(--ccr-info-bg); color: var(--ccr-info); }

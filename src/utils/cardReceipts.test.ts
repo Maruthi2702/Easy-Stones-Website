@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CARD_RECEIPTS, canOpenReceipts, categoryKey, cleanCategory, parseCents, formatMoney, usDate, shiftMonth, monthLabel, rangeProblem, inRange, rangeLabel, MAX_RANGE_DAYS,
+  CARD_RECEIPTS, canOpenReceipts, categoryKey, cleanCategory, parseCents, formatMoney, usDate, shiftMonth, monthLabel, rangeProblem, inRange, rangeLabel, shortDay, MAX_RANGE_DAYS,
   suggestCardLabel, cleanCard, cleanExpense, missingFor, missingLine, statusAfterSave, holderMayEdit, changeSummary,
   possibleRepeat, canApprove, cleanApproverRoles, decisionProblem, statusTotals, exportRows, type CategoryLike
 } from './cardReceipts.ts';
@@ -59,6 +59,8 @@ describe('money, dates, cards', () => {
     expect(inRange('2026-10-03', '2026-10-03', '2026-10-20')).toBe(true);
     expect(inRange('2026-10-20', '2026-10-03', '2026-10-20')).toBe(true);
     expect(inRange('2026-10-21', '2026-10-03', '2026-10-20')).toBe(false);
+    expect(shortDay('2026-11-01')).toBe('Nov 1, 2026');
+    expect(shortDay('2026-11-24')).toBe('Nov 24, 2026');
     expect(rangeLabel('2026-10-03', '2026-10-20')).toBe('Oct 3 – Oct 20, 2026');
     expect(rangeLabel('2025-12-20', '2026-01-05')).toBe('Dec 20, 2025 – Jan 5, 2026');
   });
