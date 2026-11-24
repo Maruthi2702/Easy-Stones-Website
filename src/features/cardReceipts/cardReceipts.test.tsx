@@ -356,6 +356,22 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
     expect(plain).not.toContain('Delete receipt…');
   });
 
+  it('puts Void and Delete in each row’s ⋯ and, for ticked receipts, in the header More menu', async () => {
+    await show(['view_all_card_receipts', 'void_any_card_receipt', 'delete_card_receipts']);
+    const rowMenus = screen.getAllByRole('button', { name: /^Actions for / });
+    expect(rowMenus.length).toBeGreaterThan(0);
+    fireEvent.click(rowMenus[0]!);
+    await settle();
+    expect([...document.querySelectorAll('.row-menu-popover [role="menuitem"]')].map((i) => i.textContent)).toEqual(expect.arrayContaining(['Void receipt', 'Delete receipt…']));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    // Nothing ticked: the header menu has no bulk items (and no Export without its switch).
+    expect(screen.queryByRole('button', { name: 'More' })).toBeNull();
+    fireEvent.click(screen.getByLabelText(/Select Kashish/));
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    await settle();
+    expect([...document.querySelectorAll('.row-menu-popover [role="menuitem"]')].map((i) => i.textContent)).toEqual(['Void 1 selected…', 'Delete 1 selected…']);
+  });
+
   it('asks a manager / Admin the server offers, with the question', async () => {
     await openWaiting(['use_card_receipts', 'approve_card_receipts'], 'CHEVRON');
     await menuItems();
