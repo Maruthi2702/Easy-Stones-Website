@@ -57,6 +57,11 @@ const answer = (url: string, init?: RequestInit) => {
     const body = JSON.parse(String(init.body || '{}'));
     fake.posted.push({ url: u, body });
     if (fake.conflict) return ok({ message: 'Changed', changed: true }, 409);
+    if (/\/expenses\/remind\/preview$/.test(u)) {
+      const g = (names: string[]) => ({ names, ids: names, self: false });
+      return ok({ groups: { holder: g(['Maria Lopez']), managers: g([]), accounting: g([]), admins: g([]), approvers: g(['Ann Count', 'Ada Min']) },
+        contact: { 'Maria Lopez': { email: true, phone: true }, 'Ann Count': { email: true, phone: false }, 'Ada Min': { email: true, phone: true } } });
+    }
     if (/\/expenses\/remind$/.test(u)) return ok({ sent: { people: 3, receipts: 1 }, skipped: [{ id: 'c', merchant: 'Kashish Cuisine of India', reason: 'reminded today' }], noPhone: ['Dana Whitfield'], noEmail: [] });
     const which = fake.waiting.find((w) => u.includes(`/expenses/${w.id}/`)) || fake.waiting[0];
     if (/\/(approve|answer)$/.test(u)) return ok({ expense: { ...which, status: 'approved', canDecide: false, waitingReason: null, actions: NO_ACTIONS } });
@@ -370,11 +375,12 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send reminder' }));
     await settle();
     // A draft and a waiting one: the cardholder and whoever must approve start ticked.
-    const box = (name: string) => (screen.getByLabelText(name) as HTMLInputElement).checked;
-    expect([box('Cardholder'), box('Branch manager'), box('Accounting'), box('Admins'), box('Whoever must approve')]).toEqual([true, false, false, false, true]);
+    const box = (name: RegExp | string) => (screen.getByLabelText(name) as HTMLInputElement).checked;
+    expect([box(/The cardholder/), box(/Branch managers/), box(/Accounting/), box(/Admins/), box(/Whoever still has to approve/)]).toEqual([true, false, false, false, true]);
+    expect(text()).toContain('Ann Count, Ada Min');
     expect([box('Email'), box('Phone notification')]).toEqual([true, true]);
     fireEvent.change(document.getElementById('ccr-remind-message')!, { target: { value: 'Please finish these today' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Send to 3 people' }));
     await settle();
     const sent = fake.posted.at(-1)!;
     expect(sent.url).toMatch(/\/expenses\/remind$/);
@@ -383,7 +389,10 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
       to: { holder: true, managers: false, accounting: false, admins: false, approvers: true },
       email: true, push: true, message: 'Please finish these today'
     });
-    expect(text()).toContain('Sent to 3 people about 1 receipt. Skipped 1: Kashish Cuisine of India (reminded today). No phone: Dana Whitfield (email only).');
+    expect(text()).toContain('3 people reminded about 1 receipt');
+    expect(text()).toContain('Kashish Cuisine of India');
+    expect(text()).toContain('reminded today');
+    expect(text()).toContain('No phone with the app: Dana Whitfield (email only).');
     fireEvent.click(screen.getAllByRole('button', { name: 'Close' }).find((b) => b.textContent === 'Close')!);
     await settle();
     expect(text()).not.toContain('selected');

@@ -64,4 +64,8 @@ export type RemindResult = {
   sent: { people: number; receipts: number };
   skipped: { id: string; merchant: string; reason: string }[];
   noPhone: string[]; noEmail: string[];
+  /** People with neither an email address nor a phone with the app. */ noContact?: string[];
 };
+
+/** Who each Send reminder group means for the receipts ticked (POST /expenses/remind/preview). */
+export type RemindPreview = { groups: Record<keyof RemindGroups, { names: string[]; ids?: string[]; self: boolean }>; contact?: Record<string, { email: boolean; phone: boolean }>; skipped?: { id: string; merchant: string; reason: string }[] };

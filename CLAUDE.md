@@ -1405,9 +1405,20 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   `reminders`, set before sending so a crash can't double-send). A person sends more with **Send reminder** on one or several
   receipts (`POST /api/card-receipts/expenses/remind`, `src/routes/cardReceiptReminders.ts`): Accounting / Admins for anyone,
   managers for their team, **once per receipt per Pacific day**, one email per person listing their receipts, written in the
-  receipt's history without moving `updatedAt`. Push is iPhone only (no FCM yet) and opens `/sales`, not the receipt.
+  receipt's history without moving `updatedAt`. Push is iPhone only (no FCM yet) and a tap opens the Credit Card Receipts page (2026-11-23: an app already open on Sales used to stay where it was — the URL's `?tab=` is only read at load, so `PushRegistrar` also fires `requestSalesTab`, `src/utils/salesTabEvent.ts`, which `useSalesNavigation` answers if they may see the page); it still doesn't open the one receipt.
   **Not tried on a real phone or with real mail**; the owner has not answered whether an Admin's own Missing row should get a
   reminder (it doesn't) or how a receipt with no branch is handled (Admins get the 48 h email).
+  **Send reminder redesign (2026-11-23, on `feat/reminder-design`; claude.ai artifact **Receipt Reminder Canvas**,
+  https://claude.ai/artifact/X8An8cCBgbQVXuHYWqwGsZ):** the form names who each group means
+  (`POST /expenses/remind/preview` → `previewGroups`, never the sender) and the Send button says "Send to N people"; the answer
+  lists who was reached, each skipped receipt with its reason and who got only one way (`RemindOutcome`); a receipt whose only
+  possible people is the sender is skipped with that reason (`nobodyReason`), not stamped; the email lists each receipt as a row
+  with its amount and a total for several (`EmailWords.rows` / `total`, table layout so a forward keeps it). Not built from the
+  canvas: the "no phone" warning before sending (it's in the answer after). **What the answer says is true (same day):** the
+  server sends *before* answering; someone with neither an email nor a phone is never counted as reminded (the receipt is
+  skipped, unstamped, and they're listed in `noContact`); if nothing got through, the day's stamp is cleared (`lastDay: ''`)
+  with a "reminder not delivered" history line and the receipt is skipped with "Try again"; the preview leaves out receipts
+  the send would skip (`remindProblem`) and returns them with their reasons.
 - **Categories** are a list in the database, seeded once
   (`STARTING_CATEGORIES`); `name` is stored and never changes, `label` is shown.
   A hidden one can't start an expense but stays valid on old ones; one in use is

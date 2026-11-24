@@ -155,6 +155,31 @@ export function resolveGroups(groups: readonly ReminderGroup[] | GroupFlags, e: 
   return out;
 }
 
+/** Why a receipt had nobody to remind: the sender is the only one the ticked groups hold, or nobody is in them. */
+export function nobodyReason(groups: readonly ReminderGroup[] | GroupFlags, e: ReminderExpense, staff: StaffIndex, senderId: string): string {
+  const withSender = resolveGroups(groups, e, staff);
+  if (withSender.length && withSender.every((id) => id === String(senderId))) {
+    return 'You’re the only person in the groups you picked, and a reminder never goes to the person who sends it.';
+  }
+  return 'Nobody to remind.';
+}
+
+/** Names of who each group means, for one or more receipts, never the sender: what the form shows before sending. */
+export function previewGroups(expenses: readonly ReminderExpense[], staff: StaffIndex, senderId: string): Record<ReminderGroup, { names: string[]; ids: string[]; self: boolean }> {
+  const out = {} as Record<ReminderGroup, { names: string[]; ids: string[]; self: boolean }>;
+  for (const g of REMINDER_GROUPS) {
+    const ids = new Set<string>();
+    for (const e of expenses) for (const id of resolveGroups([g], e, staff)) ids.add(id);
+    const others = [...ids].filter((id) => id !== String(senderId));
+    out[g] = {
+      ids: others,
+      names: others.map((id) => nameOfPerson(staff.byId.get(id))),
+      self: ids.has(String(senderId))
+    };
+  }
+  return out;
+}
+
 /** A Missing row's people for its stage: { email, push } ids. A cardholder who is an Admin is never reminded (their charge waits for Accounting). */
 export function missingRecipients(due: DueReminder, staff: StaffIndex): { email: string[]; push: string[] } {
   const holder = staff.byId.get(String(due.expense.userId ?? ''));
@@ -269,7 +294,8 @@ export function receiptLine(e: ReminderExpense, readerId: string) {
   return need ? `${head} — ${need}` : head;
 }
 
-export type EmailWords = { subject: string; headline: string; intro: string; lines: string[]; message: string; button: string };
+export type EmailRow = { title: string; sub: string; amount: string };
+export type EmailWords = { subject: string; headline: string; intro: string; lines: string[]; rows: EmailRow[]; total: string; message: string; button: string };
 
 /** The email one person gets for their receipts in a run (or one Send reminder). */
 export function reminderEmailWords({ readerId, items, senderName = '', message = '' }: {
@@ -299,7 +325,12 @@ export function reminderEmailWords({ readerId, items, senderName = '', message =
       : `${n === 1 ? 'This company-card charge has' : 'These company-card charges have'} had no receipt for ${late ? 'three days' : 'two days'}.`;
   }
   if (!allMissing && !manual) intro = 'These receipts need attention.';
-  return { subject, headline, intro, lines: list.map((e) => receiptLine(e, readerId)), message: clip(message, MAX_REMIND_MESSAGE), button: 'Open Credit Card Receipts' };
+  const rows = list.map((e) => {
+    const need = needLine(e, String(e.userId ?? '') === readerId, clip(e.holderName, 40) || 'The cardholder');
+    return { title: merchantOf(e), sub: [e.date ? usDate(String(e.date)) : '', need].filter(Boolean).join(' · '), amount: formatMoney(Number(e.cents) || 0) };
+  });
+  const total = n > 1 ? formatMoney(list.reduce((sum, e) => sum + (Number(e.cents) || 0), 0)) : '';
+  return { subject, headline, intro, lines: list.map((e) => receiptLine(e, readerId)), rows, total, message: clip(message, MAX_REMIND_MESSAGE), button: 'Open Credit Card Receipts' };
 }
 
 /** The push one person gets: title and body (opens Credit Card Receipts). */
