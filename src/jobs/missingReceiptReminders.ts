@@ -75,7 +75,15 @@ export async function runMissingReceiptReminders(now: Date = new Date(), deps: R
   }
 }
 
+/**
+ * PAUSED 2026-11-23 (owner): no automatic receipt emails or pushes until the owner confirms. The first run after the
+ * deploy emailed every cardholder with an old Missing row. Turn on with MISSING_RECEIPT_REMINDERS=on. Send reminder
+ * (by hand) is unaffected.
+ */
+export const automaticRemindersOn = () => process.env.MISSING_RECEIPT_REMINDERS === 'on';
+
 export function startMissingReceiptReminders() {
+  if (!automaticRemindersOn()) { console.log('🧾 Automatic missing-receipt reminders are paused (MISSING_RECEIPT_REMINDERS is not "on").'); return; }
   setTimeout(() => { void runMissingReceiptReminders(); }, 5 * 60 * 1000).unref();
   setInterval(() => { void runMissingReceiptReminders(); }, 60 * 60 * 1000).unref();
 }
