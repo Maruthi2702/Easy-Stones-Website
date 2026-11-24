@@ -827,8 +827,9 @@ describe('Accounting edits and voids any receipt; admins delete', () => {
     const body = receipt();
     await as(REP).post('/expenses', body).expect(201);
     await approve(ACCOUNTING, body.id).expect(200);
-    // Not their receipt, not the switch: nothing there for them.
-    await as(ACCOUNTING).put(`/expenses/${body.id}`, { ...body, note: 'x' }).expect(404);
+    // Managing cards reaches only a draft or sent-back receipt of someone else; a plain cardholder has nothing there.
+    await as(ACCOUNTING).put(`/expenses/${body.id}`, { ...body, note: 'x' }).expect(409);
+    await as(MANAGER).put(`/expenses/${body.id}`, { ...body, note: 'x' }).expect(404);
     await as(REP).put(`/expenses/${body.id}`, { ...body, note: 'x' }).expect(409);
     const saved = await as(EDITOR).put(`/expenses/${body.id}`, { ...body, note: 'Kent lunch with the crew' }).expect(200);
     expect(saved.body.expense).toMatchObject({ status: 'approved', note: 'Kent lunch with the crew' });
