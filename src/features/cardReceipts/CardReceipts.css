@@ -193,13 +193,13 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-history { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; color: var(--ccr-muted); }
 .ccr-hist summary { font-size: 15px; font-weight: 600; min-height: 44px; display: flex; align-items: center; cursor: pointer; }
 /* Opened receipt: one thin status band, plain rows, a totals box, Activity last. */
-.ccr-band { display: flex; align-items: center; gap: 12px; padding: 9px 12px; margin-bottom: 14px; border-radius: 10px; flex-wrap: wrap; }
+.ccr-band { display: flex; align-items: center; gap: 12px; padding: 9px 12px; margin: 8px 0 14px; border-radius: 10px; flex-wrap: wrap; }
 .ccr-band.is-wait { background: var(--ccr-wait-bg); color: var(--ccr-wait); }
 .ccr-band.is-ok { background: var(--ccr-ok-bg); color: var(--ccr-ok); }
 .ccr-band.is-back { background: var(--ccr-back-bg); color: var(--ccr-back); }
 .ccr-band.is-draft { background: var(--ccr-draft-bg); color: var(--ccr-draft); }
 .ccr-band-ico { flex: none; width: 24px; height: 24px; border-radius: 50%; background: currentColor; display: grid; place-items: center; }
-.ccr-band-ico { font-size: 12px; font-weight: 800; line-height: 1; }
+.ccr-band-ico b { font-size: 12px; font-weight: 800; line-height: 1; color: var(--ccr-surface, #fff); }
 .ccr-band-txt { flex: 1; min-width: 0; display: grid; }
 .ccr-band-txt strong { font-size: 14px; font-weight: 700; color: var(--fm-tx); line-height: 1.3; }
 .ccr-band-txt small { font-size: 12px; color: var(--ccr-muted); line-height: 1.35; overflow-wrap: anywhere; }
@@ -238,6 +238,7 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
   .ccr-band { padding: 8px 10px; }
   .ccr-band-segs { width: 100%; order: 3; }
   .ccr-ttl2-amt { font-size: 19px; }
+  .ccr-ttl2-pre { display: none; }
 }
 /* The ⋯ beside the ✕, and its menu. */
 .ccr-more { position: relative; }

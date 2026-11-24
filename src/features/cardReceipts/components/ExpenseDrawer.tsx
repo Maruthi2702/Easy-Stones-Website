@@ -47,7 +47,7 @@ function Row({ label, children }: { label: React.ReactNode; children: React.Reac
 function Band({ band }: { band: StatusBand }) {
   return (
     <div className={`ccr-band is-${band.tone}`}>
-      <span className="ccr-band-ico" aria-hidden="true">{band.icon}</span>
+      <span className="ccr-band-ico" aria-hidden="true"><b>{band.icon}</b></span>
       <div className="ccr-band-txt"><strong>{band.title}</strong>{band.sub ? <small>{band.sub}</small> : null}</div>
       {band.segs.length ? <div className="ccr-band-segs" aria-hidden="true">{band.segs.map((x, i) => <i key={i} className={x} />)}</div> : null}
     </div>
@@ -171,7 +171,7 @@ export default function ExpenseDrawer({
 
   return (
     <FormModal
-      title={<span className="ccr-ttl2"><span className="ccr-ttl2-name">{`Receipt · ${e.merchant}`}</span><span className={`ccr-ttl2-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? '$150 and up' : undefined}>{formatMoney(e.cents)}</span></span>}
+      title={<span className="ccr-ttl2"><span className="ccr-ttl2-name"><span className="ccr-ttl2-pre">Receipt · </span>{e.merchant}</span><span className={`ccr-ttl2-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? '$150 and up' : undefined}>{formatMoney(e.cents)}</span></span>}
       size="m"
       onClose={onClose}
       onSubmit={() => { if (main && !main.disabled && !busy) main.run(); }}
