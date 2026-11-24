@@ -26,16 +26,33 @@ export const siteBase = (origin = '') => (origin || process.env.FRONTEND_URL || 
 const defaultPhonesOf = async (ids: string[]) => [...new Set((await devicesFor(ids)).map((d) => String(d.userId)))];
 
 export function reminderEmailHtml(words: ReturnType<typeof reminderEmailWords>, link: string) {
+  // Tables and outright colours, so a forward keeps its look (see the Selection Sheet email).
+  const row = (r: { title: string; sub: string; amount: string }, first: boolean) => `
+        <tr>
+          <td style="padding:14px 16px;${first ? '' : 'border-top:1px solid #e2e8f0;'}font-family:Inter,Arial,sans-serif;color:#0f172a">
+            <div style="font-size:15px;font-weight:600;color:#0f172a">${escapeHtml(r.title)}</div>
+            <div style="font-size:13px;color:#64748b;padding-top:3px">${escapeHtml(r.sub)}</div>
+          </td>
+          <td align="right" valign="top" style="padding:14px 16px;${first ? '' : 'border-top:1px solid #e2e8f0;'}font-family:Inter,Arial,sans-serif;font-size:15px;font-weight:700;color:#0f172a;white-space:nowrap">${escapeHtml(r.amount)}</td>
+        </tr>`;
   return `
     <div style="font-family:Inter,Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a">
-      <h2 style="margin:0 0 12px;font-size:18px">${escapeHtml(words.headline)}</h2>
-      <p style="margin:0 0 14px;line-height:1.5">${escapeHtml(words.intro)}</p>
-      ${words.message ? `<p style="margin:0 0 14px;padding:10px 14px;border-left:3px solid #c9a227;background:#faf7ea;line-height:1.5">“${escapeHtml(words.message)}”</p>` : ''}
-      <ul style="margin:0 0 20px;padding-left:18px;line-height:1.6">
-        ${words.lines.map((l) => `<li>${escapeHtml(l)}</li>`).join('')}
-      </ul>
-      ${link ? `<p style="margin:0 0 20px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#c9a227;color:#1f1a08;font-weight:700;text-decoration:none;padding:12px 20px;border-radius:10px">${escapeHtml(words.button)}</a></p>` : ''}
-      <p style="margin:0;font-size:13px;color:#5a6574;line-height:1.5">Sales → Credit Card Receipts</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px"><tr>
+        <td width="30" height="30" align="center" valign="middle" bgcolor="#c9a227" style="width:30px;height:30px;border-radius:8px;font-weight:700;font-size:15px;color:#1f1a08">E</td>
+        <td style="padding-left:10px;font-size:12px;font-weight:700;letter-spacing:1px;color:#334155">EASY SURFACES</td>
+      </tr></table>
+      <h2 style="margin:0 0 12px;font-size:22px;line-height:1.25;color:#0f172a">${escapeHtml(words.headline)}</h2>
+      <p style="margin:0 0 16px;line-height:1.55;color:#334155">${escapeHtml(words.intro)}</p>
+      ${words.message ? `<p style="margin:0 0 16px;padding:12px 16px;border-left:3px solid #c9a227;background:#faf7ea;line-height:1.5;color:#1f2937">“${escapeHtml(words.message)}”</p>` : ''}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 22px;border:1px solid #e2e8f0;border-radius:10px;border-collapse:separate">
+        ${words.rows.map((r, i) => row(r, i === 0)).join('')}
+        ${words.total ? `<tr>
+          <td style="padding:12px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;font-family:Inter,Arial,sans-serif;font-size:13px;color:#475569">${words.rows.length} receipts</td>
+          <td align="right" style="padding:12px 16px;border-top:1px solid #e2e8f0;background:#f8fafc;font-family:Inter,Arial,sans-serif;font-size:13px;font-weight:700;color:#0f172a">${escapeHtml(words.total)}</td>
+        </tr>` : ''}
+      </table>
+      ${link ? `<p style="margin:0 0 22px"><a href="${escapeHtml(link)}" style="display:inline-block;background:#c9a227;color:#1f1a08;font-weight:700;text-decoration:none;padding:13px 22px;border-radius:10px">${escapeHtml(words.button)}</a></p>` : ''}
+      <p style="margin:0;font-size:13px;color:#5a6574;line-height:1.5;border-top:1px solid #e2e8f0;padding-top:14px">Sales → Credit Card Receipts</p>
     </div>`;
 }
 

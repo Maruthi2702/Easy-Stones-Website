@@ -3,7 +3,7 @@ import { authFetch } from '../../api/authFetch';
 import { queryEntries, type ErrorBody, type Query } from '../../types/api';
 import type { ExpenseInput } from '../../utils/cardReceipts';
 import type { ReceiptScan } from '../../utils/receiptScan';
-import type { AskTarget, Card, Category, Expense, Me, Person, RemindBody, RemindResult } from './types';
+import type { AskTarget, Card, Category, Expense, Me, Person, RemindBody, RemindPreview, RemindResult } from './types';
 
 /**
  * Credit Card Receipts' calls to /api/card-receipts (src/routes/cardReceipts.ts).
@@ -86,3 +86,5 @@ export const listCardholders = () => call<{ holders: { id: string; name: string;
 export const listCards = () => call<{ cards: Card[]; people: Person[] }>('/cards');
 export const addCard = (body: Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'location'>) => call<{ card: Card }>('/cards', { method: 'POST', body });
 export const editCard = (id: string, body: Partial<Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'location' | 'active'>>) => call<{ card: Card }>(`/cards/${id}`, { method: 'PUT', body });
+/** Who each group would reach, so the form can name them before anything is sent. */
+export const remindPreview = (ids: string[]) => call<RemindPreview>('/expenses/remind/preview', { method: 'POST', body: { ids } });

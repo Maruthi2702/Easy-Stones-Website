@@ -151,4 +151,27 @@ describe('POST /expenses/remind', () => {
     expect(res.body.skipped).toEqual([{ id: exp.kent, merchant: 'Arco', reason: 'Nobody to remind.' }]);
     expect(((await CardExpense.findById(exp.kent).lean()) as Loose).reminders ?? {}).toEqual({});
   });
+  it('says so when the sender is the only person in the groups picked', async () => {
+    const res = await as(ACCT).remind(body([exp.missing], { to: { accounting: true } })).expect(200);
+    expect(res.body.sent).toEqual({ people: 0, receipts: 0 });
+    expect(res.body.skipped[0].reason).toMatch(/only person in the groups you picked/);
+    expect(((await CardExpense.findById(exp.missing).lean()) as Loose).reminders ?? {}).toEqual({});
+  });
+});
+
+describe('POST /expenses/remind/preview', () => {
+  const preview = (user: Loose, ids: string[]) => request(app).post('/api/card-receipts/expenses/remind/preview').set('x-test-user', JSON.stringify(user)).send({ ids });
+
+  it('needs the switch and a receipt', async () => {
+    await preview(NOSWITCH, [exp.missing]).expect(403);
+    await preview(ACCT, []).expect(400);
+  });
+
+  it('names who each group means and marks the sender, who is never named', async () => {
+    const res = await preview(ACCT, [exp.missing]).expect(200);
+    expect(res.body.groups.holder).toEqual({ names: ['Maria Lopez'], self: false });
+    expect(res.body.groups.managers.names).toEqual(['Dana Whitfield']);
+    expect(res.body.groups.accounting).toEqual({ names: [], self: true });
+    expect(res.body.groups.admins.names).toEqual(['Ada Min']);
+  });
 });

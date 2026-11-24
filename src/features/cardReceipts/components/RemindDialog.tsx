@@ -1,17 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { remindPreview } from '../cardReceiptsApi';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormField } from '../../../components/shared/form/FormControls';
-import { remindDefaults, remindSummary } from '../cardReceiptsView';
-import type { Expense, RemindBody, RemindGroups, RemindResult } from '../types';
+import { remindDefaults } from '../cardReceiptsView';
+import type { Expense, RemindBody, RemindGroups, RemindPreview, RemindResult } from '../types';
 
 const MAX = 300;
 const GROUPS: readonly { key: keyof RemindGroups; label: string }[] = [
-  { key: 'holder', label: 'Cardholder' },
-  { key: 'managers', label: 'Branch manager' },
+  { key: 'approvers', label: 'Whoever still has to approve' },
+  { key: 'holder', label: 'The cardholder' },
+  { key: 'managers', label: 'Branch managers' },
   { key: 'accounting', label: 'Accounting' },
-  { key: 'admins', label: 'Admins' },
-  { key: 'approvers', label: 'Whoever must approve' }
+  { key: 'admins', label: 'Admins' }
 ];
+
+/** "Dana Whitfield, Maria Lopez", or why it's empty (it's you, or nobody holds it). */
+function whoLine(g: RemindPreview['groups'][keyof RemindGroups] | undefined) {
+  if (!g) return '';
+  const names = g.names.slice(0, 3).join(', ') + (g.names.length > 3 ? ` +${g.names.length - 3} more` : '');
+  if (!g.names.length) return g.self ? 'That’s you, so it’s skipped' : 'Nobody';
+  return g.self ? `${names} (you’re skipped)` : names;
+}
 
 export type RemindDialogProps = {
   /** The receipts ticked (or the one open). */
@@ -36,14 +45,22 @@ export default function RemindDialog({ expenses, onSend, onClose }: RemindDialog
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<RemindResult | null>(null);
+  const [preview, setPreview] = useState<RemindPreview | null>(null);
+  const idsKey = expenses.map((e) => e.id).join(',');
+  useEffect(() => {
+    let live = true;
+    remindPreview(idsKey.split(',')).then((p) => { if (live) setPreview(p); }).catch(() => { /* the form still works without names */ });
+    return () => { live = false; };
+  }, [idsKey]);
 
   const anyone = Object.values(to).some(Boolean);
   const anyWay = email || push;
   const n = expenses.length;
+  const reach = preview ? new Set(GROUPS.filter((g) => to[g.key]).flatMap((g) => preview.groups?.[g.key]?.names ?? [])).size : 0;
 
   return (
     <FormModal
-      title={result ? 'Reminder sent' : 'Send reminder'}
+      title={!result ? 'Send reminder' : result.sent.people ? 'Reminder sent' : 'Nobody was reminded'}
       size="s"
       onClose={onClose}
       onSubmit={async () => {
@@ -60,7 +77,7 @@ export default function RemindDialog({ expenses, onSend, onClose }: RemindDialog
           setSaving(false);
         }
       }}
-      submitLabel={result ? 'Close' : 'Send'}
+      submitLabel={result ? 'Close' : reach ? `Send to ${reach} ${reach === 1 ? 'person' : 'people'}` : 'Send'}
       savingLabel="Sending…"
       saving={saving}
       submitDisabled={!result && (!anyone || !anyWay || !n)}
@@ -69,7 +86,7 @@ export default function RemindDialog({ expenses, onSend, onClose }: RemindDialog
       {error ? <div className="ccr-form-error" role="alert">{error}</div> : null}
       {result ? (
         <FormSection>
-          <p className="ccr-dialog-lead" role="status">{remindSummary(result)}</p>
+          <RemindOutcome result={result} onAgain={() => setResult(null)} />
         </FormSection>
       ) : (
       <FormSection>
@@ -78,7 +95,8 @@ export default function RemindDialog({ expenses, onSend, onClose }: RemindDialog
           <legend className="fm-label">To</legend>
           {GROUPS.map((g) => (
             <label key={g.key} className="ccr-check ccr-remind-opt">
-              <input type="checkbox" checked={to[g.key]} onChange={(e) => setTo((t) => ({ ...t, [g.key]: e.target.checked }))} /> {g.label}
+              <input type="checkbox" checked={to[g.key]} onChange={(e) => setTo((t) => ({ ...t, [g.key]: e.target.checked }))} />
+              <span className="ccr-remind-text">{g.label}<span className="ccr-remind-who">{whoLine(preview?.groups?.[g.key])}</span></span>
             </label>
           ))}
         </fieldset>
@@ -95,5 +113,31 @@ export default function RemindDialog({ expenses, onSend, onClose }: RemindDialog
       </FormSection>
       )}
     </FormModal>
+  );
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** What Send reminder answered: who was reached, each receipt skipped with its reason, who only got one way. */
+function RemindOutcome({ result, onAgain }: { result: RemindResult; onAgain: () => void }) {
+  const { sent, skipped, noPhone, noEmail } = result;
+  return (
+    <div className="ccr-remind-out" role="status">
+      <p className={`ccr-remind-head ${sent.people ? 'ok' : 'none'}`}>
+        <span className="ccr-remind-icon" aria-hidden="true">{sent.people ? '✓' : '!'}</span>
+        {sent.people ? `${plural(sent.people, 'person', 'people')} reminded about ${plural(sent.receipts, 'receipt')}` : 'Nothing was sent'}
+      </p>
+      {skipped.length ? (
+        <div className="ccr-remind-skips">
+          <p className="ccr-remind-sub">Skipped {skipped.length}</p>
+          {skipped.map((s) => (
+            <div key={s.id} className="ccr-remind-skip"><strong>{s.merchant || 'A receipt'}</strong><span>{s.reason}</span></div>
+          ))}
+        </div>
+      ) : null}
+      {noPhone.length ? <p className="ccr-remind-note">No phone with the app: {noPhone.join(', ')} (email only).</p> : null}
+      {noEmail.length ? <p className="ccr-remind-note">No email address: {noEmail.join(', ')} (phone only).</p> : null}
+      {!sent.people ? <button type="button" className="ccr-btn" onClick={onAgain}>Choose who again</button> : null}
+    </div>
   );
 }

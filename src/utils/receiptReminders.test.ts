@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DAY2_MS, DAY3_MS, HOUR_MS, RECEIPT_REMINDER_MIGRATION, approverIds, cleanRemindBody, defaultGroupsFor, dueMissingReminders,
-  groupByRecipient, missingRecipients, missingStageOf, pacificDay, remindProblem, reminderEmailWords, reminderHistory,
+  groupByRecipient, missingRecipients, nobodyReason, previewGroups, missingStageOf, pacificDay, remindProblem, reminderEmailWords, reminderHistory,
   reminderPushWords, resolveGroups, staffIndex, type Person, type ReminderExpense
 } from './receiptReminders.ts';
 
@@ -188,6 +188,21 @@ describe('words', () => {
     const mgr = reminderEmailWords({ readerId: P.mgr, items: [item, { ...item, stage: 'day3' }] });
     expect(mgr.subject).toBe('Still missing: 2 card receipts');
     expect(mgr.lines[0]).toBe('11-20-2026 · Shell · $61.20 — Maria Lopez hasn’t uploaded the receipt');
+  });
+  it('email rows carry the amount and a total only for several', () => {
+    const item = { expense: missing(), stage: 'day2' as const, email: [], push: [] };
+    const one = reminderEmailWords({ readerId: P.rep, items: [item] });
+    expect(one.rows).toEqual([{ title: 'Shell', sub: '11-20-2026 · Upload the receipt', amount: '$61.20' }]);
+    expect(one.total).toBe('');
+    expect(reminderEmailWords({ readerId: P.rep, items: [item, item] }).total).toBe('$122.40');
+  });
+  it('says when the sender is the only one in the groups, and names who each group means', () => {
+    const solo = staffIndex(STAFF.filter((p) => p._id !== P.acct2));
+    expect(nobodyReason(['accounting'], waiting(), solo, P.acct)).toMatch(/only person in the groups you picked/);
+    expect(nobodyReason(['accounting'], waiting(), staff, P.rep)).toBe('Nobody to remind.');
+    const pv = previewGroups([waiting()], solo, P.acct);
+    expect(pv.accounting).toEqual({ names: [], self: true });
+    expect(pv.holder.names).toEqual(['Maria Lopez']);
   });
   it('a manual reminder carries who sent it and the note', () => {
     const item = { expense: waiting(), stage: 'manual' as const, email: [], push: [] };

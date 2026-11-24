@@ -1408,6 +1408,13 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   receipt's history without moving `updatedAt`. Push is iPhone only (no FCM yet) and opens `/sales`, not the receipt.
   **Not tried on a real phone or with real mail**; the owner has not answered whether an Admin's own Missing row should get a
   reminder (it doesn't) or how a receipt with no branch is handled (Admins get the 48 h email).
+  **Send reminder redesign (2026-11-23, on `feat/reminder-design`; claude.ai artifact **Receipt Reminder Canvas**,
+  https://claude.ai/artifact/X8An8cCBgbQVXuHYWqwGsZ):** the form names who each group means
+  (`POST /expenses/remind/preview` → `previewGroups`, never the sender) and the Send button says "Send to N people"; the answer
+  lists who was reached, each skipped receipt with its reason and who got only one way (`RemindOutcome`); a receipt whose only
+  possible people is the sender is skipped with that reason (`nobodyReason`), not stamped; the email lists each receipt as a row
+  with its amount and a total for several (`EmailWords.rows` / `total`, table layout so a forward keeps it). Not built from the
+  canvas: the "no phone" warning before sending (it's in the answer after).
 - **Categories** are a list in the database, seeded once
   (`STARTING_CATEGORIES`); `name` is stored and never changes, `label` is shown.
   A hidden one can't start an expense but stays valid on old ones; one in use is

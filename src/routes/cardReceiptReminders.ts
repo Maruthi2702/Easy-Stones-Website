@@ -9,7 +9,7 @@ import { CARD_RECEIPTS } from '../utils/cardReceipts.ts';
 import { isAccountingSide } from '../utils/receiptApproval.ts';
 import { displayNameOf } from '../utils/salesReps.ts';
 import {
-  RECEIPTS_PATH, STAFF_FIELDS, cleanRemindBody, groupByRecipient, idOf, nameOfPerson, pacificDay, remindProblem, reminderHistory, resolveGroups,
+  RECEIPTS_PATH, STAFF_FIELDS, cleanRemindBody, groupByRecipient, idOf, nameOfPerson, nobodyReason, pacificDay, previewGroups, remindProblem, reminderHistory, resolveGroups,
   staffIndex, type Person, type ReminderExpense, type ReminderItem, type Sender, type Team
 } from '../utils/receiptReminders.ts';
 
@@ -80,7 +80,7 @@ export default function createCardReceiptRemindersRouter({ authenticate, senders
         const problem = remindProblem({ ...sender, id: me }, e, team, today);
         if (problem) { skip(problem); continue; }
         const people = resolveGroups(body.to, e, staff, { senderId: me });
-        if (!people.length) { skip('Nobody to remind.'); continue; }
+        if (!people.length) { skip(nobodyReason(body.to, e, staff, me)); continue; }
         const names = people.map((p) => nameOfPerson(staff.byId.get(p)));
         const line = reminderHistory({ byName: senderName, names, ...channels, message: body.message });
         const marked = await reminderData.markReminded(id, { lastDay: today, lastAt: at.toISOString(), lastBy: me, lastByName: senderName },
@@ -98,6 +98,24 @@ export default function createCardReceiptRemindersRouter({ authenticate, senders
     } catch (error) {
       console.error('[card-receipts] remind failed:', error);
       res.status(500).json({ message: 'Could not send the reminders.' });
+    }
+  });
+
+  /** Who each group means for these receipts (names, never the sender), so the form says who it will reach. */
+  router.post('/expenses/remind/preview', authenticate, async (req: Request, res: Response) => {
+    const sender = userOf(req);
+    if (!(sender.permissions || []).includes(CARD_RECEIPTS.REMIND)) return res.status(403).json({ message: 'Access denied.' });
+    const ids = Array.isArray(req.body?.ids) ? (req.body.ids as unknown[]).map(String).slice(0, 200) : [];
+    if (!ids.length) return res.status(400).json({ message: 'Pick at least one receipt.' });
+    try {
+      const [found, staffList] = await Promise.all([
+        reminderData.listByIds(ids) as Promise<ReminderExpense[]>,
+        staffData.findUsers({}, { select: STAFF_FIELDS }) as Promise<Person[]>
+      ]);
+      res.json({ groups: previewGroups(found, staffIndex(staffList), userIdOf(req)) });
+    } catch (error) {
+      console.error('[card-receipts] remind preview failed:', error);
+      res.status(500).json({ message: 'Could not work out who would be reminded.' });
     }
   });
 
