@@ -94,6 +94,20 @@ export const cardExpenses = pgTable('card_expenses', {
   approvedByName: text('approved_by_name'),
   approvedAt: moment('approved_at'),
   approvalComment: text('approval_comment'),
+  /**
+   * The approved_* columns are the **Accounting approval** (src/utils/receiptApproval.ts); this says who gave it:
+   * 'accounting' or 'admin' (standing in). Null on receipts approved before 2026-11-23's rules.
+   */
+  approvedAs: text('approved_as'),
+  /** The second approval ($150+): { by, byName, at, comment, as: 'manager' | 'admin' } or null. */
+  secondApproval: jsonb('second_approval'),
+  /** The clarification question: { to, toName, by, byName, at, question, answer, answeredAt } or null. Open while answeredAt is null. */
+  ask: jsonb('ask'),
+  /**
+   * Reminders sent (src/utils/receiptReminders.ts): { missing2At, missing3At } for the automatic Missing-receipt emails,
+   * { lastDay, lastAt, lastBy, lastByName } for the last manual one (once per receipt per day).
+   */
+  reminders: jsonb('reminders').notNull().default(sql`'{}'::jsonb`),
   sentBackById: text('sent_back_by_id'),
   sentBackByName: text('sent_back_by_name'),
   sentBackAt: moment('sent_back_at'),

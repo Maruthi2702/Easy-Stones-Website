@@ -2,14 +2,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { newVisitId } from '../../utils/visitForm';
 import { CARD_RECEIPTS, can, monthOf } from '../../utils/cardReceipts';
 import * as api from './cardReceiptsApi';
-import type { ExpenseBody } from './cardReceiptsApi';
-import type { Expense, Me, ReceiptsUser } from './types';
+import type { DetailsBody, ExpenseBody } from './cardReceiptsApi';
+import { reasonOf } from './cardReceiptsView';
+import type { Expense, Me, ReceiptsUser, RemindBody } from './types';
 
 /**
  * Credit Card Receipts' data: who's signed in (their card, the categories,
- * whose receipts they approve), the month on screen and its expenses — every
- * cardholder's with View all, else their own — and what waits for their
- * approval (any month). Answers for a month no longer on screen are ignored.
+ * their role), the month on screen and its expenses — every cardholder's with
+ * View all, else their own — and what waits for them (any month): receipts
+ * they approve, and questions asked of them. Answers for a month no longer on
+ * screen are ignored.
+ *
+ * Every decision sends the `updatedAt` the screen saw; a 409 `changed` reloads
+ * the lists so the receipt shows as it is now, and the error is thrown on for
+ * the screen to show.
  */
 export function useCardReceipts(user: ReceiptsUser | null) {
   const canAll = can(user, CARD_RECEIPTS.VIEW_ALL);
@@ -61,12 +67,17 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   }, [scope, month]);
   useEffect(() => { load(); }, [load]);
 
+  // Waiting for me: approvers' receipts, and questions asked of anyone (a manager without Approve may be
+  // asked too), so everyone asks once; only an approver is told when it fails.
   const loadWaiting = useCallback(async () => {
-    if (!approver) return;
     setWaitingError('');
-    try { setWaiting((await api.listExpenses('waiting', '')).expenses); } catch (e) { setWaitingError((e as Error).message || 'Couldn’t load the receipts waiting for you.'); }
+    try { setWaiting((await api.listExpenses('waiting', '')).expenses); } catch (e) {
+      if (approver) setWaitingError((e as Error).message || 'Couldn’t load the receipts waiting for you.');
+    }
   }, [approver]);
   useEffect(() => { loadWaiting(); }, [loadWaiting]);
+
+  const reload = useCallback(() => { load(); loadWaiting(); }, [load, loadWaiting]);
 
   /** Puts a saved expense in place everywhere it shows. */
   const place = (e: Expense) => {
@@ -76,9 +87,23 @@ export function useCardReceipts(user: ReceiptsUser | null) {
       const without = list.filter((x) => x.id !== e.id);
       return inMonth ? [e, ...without].sort((a, b) => b.date.localeCompare(a.date)) : without;
     });
-    setWaiting((list) => (e.status === 'waiting' && e.canDecide
-      ? list.map((x) => (x.id === e.id ? e : x))
-      : list.filter((x) => x.id !== e.id)));
+    setWaiting((list) => {
+      const mine = e.status === 'waiting' && !e.voided && reasonOf(e) !== null;
+      if (!mine) return list.filter((x) => x.id !== e.id);
+      return list.some((x) => x.id === e.id) ? list.map((x) => (x.id === e.id ? e : x)) : [e, ...list];
+    });
+  };
+
+  /** A write: the answer is put in place; a 409 `changed` reloads, so the screen shows the receipt as it is now. */
+  const run = async (fn: () => Promise<{ expense: Expense }>) => {
+    try {
+      const r = await fn();
+      place(r.expense);
+      return r.expense;
+    } catch (e) {
+      if (api.isChanged(e)) reload();
+      throw e;
+    }
   };
 
   const add = async (body: ExpenseBody) => {
@@ -88,14 +113,26 @@ export function useCardReceipts(user: ReceiptsUser | null) {
     place(r.expense);
     return r.expense;
   };
-  const edit = async (id: string, body: ExpenseBody) => { const r = await api.editExpense(id, body); place(r.expense); return r.expense; };
-  const approve = async (id: string, comment: string, seen?: string) => { const r = await api.approveExpense(id, comment, seen); place(r.expense); return r.expense; };
-  const sendBack = async (id: string, comment: string, seen?: string) => { const r = await api.sendBackExpense(id, comment, seen); place(r.expense); return r.expense; };
-  const voidOne = async (id: string, reason: string) => { const r = await api.voidExpense(id, reason); place(r.expense); return r.expense; };
+  const edit = (id: string, body: ExpenseBody) => run(() => api.editExpense(id, body));
+  const approve = (e: Expense, comment: string) => run(() => api.approveExpense(e.id, comment, e.updatedAt));
+  const sendBack = (e: Expense, comment: string) => run(() => api.sendBackExpense(e.id, comment, e.updatedAt));
+  const ask = (e: Expense, to: string, question: string) => run(() => api.askAboutExpense(e.id, to, question, e.updatedAt));
+  const withdrawAsk = (e: Expense) => run(() => api.withdrawAsk(e.id, e.updatedAt));
+  const answer = (e: Expense, text: string) => run(() => api.answerAsk(e.id, text, e.updatedAt));
+  const reopen = (e: Expense, reason: string) => run(() => api.reopenExpense(e.id, reason, e.updatedAt));
+  const fillDetails = (e: Expense, body: DetailsBody) => run(() => api.fillExpenseDetails(e.id, body, e.updatedAt));
+  const voidOne = (e: Expense, reason: string) => run(() => api.voidExpense(e.id, reason, e.updatedAt));
+  /** Send reminder…: the server's summary; the lists reload so "Reminded today" shows. */
+  const remind = async (body: RemindBody) => {
+    const r = await api.remindExpenses(body);
+    reload();
+    return r;
+  };
 
   return {
     me, month, setMonth, expenses, waiting, waitingError, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
-    reload: () => { load(); loadWaiting(); }, add, edit, approve, sendBack, voidOne, upload: api.uploadReceipt, scan: api.scanReceipt
+    reload, add, edit, approve, sendBack, ask, withdrawAsk, answer, reopen, fillDetails, voidOne, remind,
+    askTargets: api.askTargets, upload: api.uploadReceipt, scan: api.scanReceipt
   };
 }
 

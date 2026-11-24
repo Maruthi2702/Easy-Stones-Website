@@ -126,13 +126,15 @@ import { PAYMENTS_MIGRATION } from './src/utils/paymentsReceived.ts';
 import createCardReceiptsRouter from './src/routes/cardReceipts.ts';
 import createCardReceiptStatementsRouter from './src/routes/cardReceiptStatements.ts';
 import createCardReceiptScanRouter from './src/routes/cardReceiptScan.ts';
+import createCardReceiptRemindersRouter from './src/routes/cardReceiptReminders.ts';
+import { RECEIPT_REMINDER_MIGRATION } from './src/utils/receiptReminders.ts';
 import { createReceiptScanner } from './src/services/receiptScan.ts';
 import createSuppliersRouter from './src/routes/suppliers.ts';
 import createProjectLeadsRouter from './src/routes/projectLeads.ts';
 import { ALL_PROJECT_LEAD_PERMISSIONS } from './src/utils/projectLeadAccess.ts';
 import createSupplierPortalRouter from './src/routes/supplierPortal.ts';
 import { ALL_SUPPLIER_PERMISSIONS, DIRECTOR_SUPPLIER_GRANTS } from './src/utils/supplierAccess.ts';
-import { cleanApproverRoles } from './src/utils/cardReceipts.ts';
+import { cleanApproverRoles, CARD_RECEIPTS } from './src/utils/cardReceipts.ts';
 import createDeliveriesRouter, { deliveryRoomsFor, renumberAllRuns } from './src/routes/deliveries.ts';
 import createCheckInRouter from './src/routes/checkIn.ts';
 import createFuelManRouter from './src/fuelman/router.ts';
@@ -177,6 +179,7 @@ import createPushDevicesRouter from './src/routes/pushDevices.ts';
 import { appSiteAssociation } from './src/utils/appLinks.ts';
 import { startLocationRetention } from './src/jobs/locationRetention.ts';
 import { startFollowUpPush } from './src/jobs/followUpPush.ts';
+import { startMissingReceiptReminders } from './src/jobs/missingReceiptReminders.ts';
 import createCustomerSpsImportRouter from './src/routes/customerSpsImport.ts';
 import { resumeRunningImports } from './src/services/spsImportRunner.ts';
 import createVisitsRouter from './src/routes/visits.ts';
@@ -925,6 +928,10 @@ async function startServer() {
         // Project Leads (src/utils/projectLeadAccess.ts, 2026-11-20): admin only to start;
         // an admin ticks the rest under Users & Roles.
         { roles: ['admin'], permissions: [...ALL_PROJECT_LEAD_PERMISSIONS] },
+        // Card receipt approvals (2026-11-23, src/utils/receiptApproval.ts): Accounting approves every receipt and a
+        // branch manager / director gives the second approval at $150+, so all three need Approve (the reminders switch
+        // follows from it, in ACTION_MIGRATIONS). Given once; an admin can switch it off under Users & Roles.
+        { roles: ['accounting', 'manager', 'director'], permissions: [CARD_RECEIPTS.APPROVE] },
         { roles: ['director'], permissions: [...DIRECTOR_SUPPLIER_GRANTS] }
       ];
 
@@ -980,7 +987,10 @@ async function startServer() {
         // Payments (2026-11-02, src/utils/paymentsReceived.ts): whoever could
         // edit the Daily Report's payments can add / edit / void them on the
         // new page; whoever could view the report can view it.
-        ...PAYMENTS_MIGRATION
+        ...PAYMENTS_MIGRATION,
+        // Card receipt reminders (2026-11-23, src/utils/receiptReminders.ts):
+        // every role that approves receipts can send reminders, once.
+        ...RECEIPT_REMINDER_MIGRATION
       ];
       const migratedPerms = [...new Set(ACTION_MIGRATIONS.flatMap(m => m.grant))];
       for (const role of await staffData.roleDocsFor({})) {
@@ -1070,6 +1080,8 @@ async function startServer() {
       // Location points are kept 90 days (src/utils/locationTracking.ts); older ones are deleted nightly.
       startLocationRetention();
       startFollowUpPush();
+      // Missing card receipts: day-2 and day-3 reminders, checked hourly (src/utils/receiptReminders.ts).
+      startMissingReceiptReminders();
 
       // Permits: the first pull reads six months back straight away; then one
       // pull a day from 5:00 AM Pacific (src/permits/sync.ts).
@@ -3780,6 +3792,9 @@ app.use('/api/payments-received', createPaymentsReceivedRouter({
 // The weekly Amex check: Amex's activity export matched to the receipts staff uploaded
 // (src/routes/cardReceiptStatements.ts, rules in src/utils/amexStatement.ts). Postgres only.
 app.use('/api/card-receipts/statements', createCardReceiptStatementsRouter({ authenticate }));
+// Send reminder about receipts (src/routes/cardReceiptReminders.ts): before the main router, so
+// POST /expenses/remind is never read as an expense id.
+app.use('/api/card-receipts', createCardReceiptRemindersRouter({ authenticate }));
 // ── CREDIT CARD RECEIPTS ── company-card expenses, one per receipt, with
 // approval by role (src/routes/cardReceipts.ts, rules in src/utils/cardReceipts.ts).
 app.use('/api/card-receipts', createCardReceiptsRouter({

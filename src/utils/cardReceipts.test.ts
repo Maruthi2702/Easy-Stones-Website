@@ -197,8 +197,8 @@ describe('totals and the export', () => {
 describe('isBigReceipt', () => {
   it('marks only receipts strictly over $150', async () => {
     const { isBigReceipt } = await import('./cardReceipts');
-    expect(isBigReceipt(15000)).toBe(false);
-    expect(isBigReceipt(15001)).toBe(true);
+    expect(isBigReceipt(14999)).toBe(false);
+    expect(isBigReceipt(15000)).toBe(true);
     expect(isBigReceipt(null)).toBe(false);
   });
 });

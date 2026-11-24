@@ -23,20 +23,50 @@ const EXPENSES = [
   exp('c', { merchant: 'Kashish Cuisine of India', cents: 5729, category: 'customer_lunch', status: 'draft' }),
   exp('d', { userId: 'u2', holderName: 'Dana Whitfield', cardLabel: 'DANA41008', location: 'Kent', merchant: 'Staples', cents: 8642, category: '', status: 'sent_back', mine: false, sentBack: { by: 'x', byName: 'Dee', at: '2026-10-07T00:00:00Z', comment: 'Pick a category' } })
 ];
-const WAITING = [exp('w1', { userId: 'u2', holderName: 'Dana Whitfield', cardLabel: 'DANA41008', merchant: 'CHEVRON', cents: 12500, category: 'fuel', receiptUrl: '', lostReason: 'The pump didn’t print one', status: 'waiting', mine: false, canDecide: true })];
-const fake = { card: true as boolean, posted: [] as { url: string; body: Record<string, unknown> }[] };
-const ok = (body: unknown) => Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+const NO_ACTIONS = { approve: null, sendBack: false, ask: false, withdrawAsk: false, answer: false, reopen: false, fillDetails: false };
+const ACCOUNTING_ACTIONS = { ...NO_ACTIONS, approve: 'accounting', sendBack: true, ask: true };
+const WAITING_LOST = exp('w1', {
+  userId: 'u2', holderName: 'Dana Whitfield', cardLabel: 'DANA41008', merchant: 'CHEVRON', cents: 12500, category: 'fuel', receiptUrl: '',
+  lostReason: 'The pump didn’t print one', status: 'waiting', mine: false, canDecide: true,
+  chips: [{ key: 'accounting', label: 'Accounting', by: '', done: false }], waitingReason: 'accounting', actions: ACCOUNTING_ACTIONS
+});
+// A $150+ receipt Accounting approved; the second approval is still open.
+const WAITING_SECOND = exp('w2', {
+  userId: 'u3', holderName: 'Jo Park', cardLabel: 'JOPA12345', merchant: 'Home Depot', cents: 18900, status: 'waiting', mine: false, canDecide: true,
+  approval: { by: 'm1', byName: 'Maria', at: '2026-10-10T00:00:00Z', comment: '', as: 'accounting' },
+  chips: [{ key: 'accounting', label: 'Accounting', by: 'Maria', done: true }, { key: 'second', label: 'Manager or Admin', by: '', done: false }],
+  waitingReason: 'second', actions: { ...NO_ACTIONS, approve: 'second' }
+});
+// A question asked of the viewer.
+const WAITING_ASKED = exp('w3', {
+  userId: 'u4', holderName: 'Sam Lee', cardLabel: 'SAML55555', merchant: 'Costco', cents: 21000, status: 'waiting', mine: false, canDecide: true,
+  ask: { to: 'u1', toName: 'Maruthi Ponugupati', by: 'm1', byName: 'Maria', at: '2026-10-11T00:00:00Z', question: 'Was this for the Kent showroom?', answer: '', answeredAt: null },
+  chips: [{ key: 'accounting', label: 'Accounting', by: '', done: false }, { key: 'second', label: 'Manager or Admin', by: '', done: false }],
+  waitingReason: 'asked', actions: { ...NO_ACTIONS, answer: true }
+});
+const fake = {
+  card: true as boolean,
+  posted: [] as { url: string; body: Record<string, unknown> }[],
+  waiting: [WAITING_LOST] as Record<string, unknown>[],
+  conflict: false as boolean
+};
+const ok = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
 const answer = (url: string, init?: RequestInit) => {
   const u = String(url);
-  if (init?.method === 'POST') {
+  if (init?.method === 'POST' || init?.method === 'PUT') {
     const body = JSON.parse(String(init.body || '{}'));
     fake.posted.push({ url: u, body });
-    if (/\/approve$/.test(u)) return ok({ expense: { ...WAITING[0], status: 'approved', canDecide: false } });
+    if (fake.conflict) return ok({ message: 'Changed', changed: true }, 409);
+    if (/\/expenses\/remind$/.test(u)) return ok({ sent: { people: 3, receipts: 1 }, skipped: [{ id: 'c', merchant: 'Kashish Cuisine of India', reason: 'reminded today' }], noPhone: ['Dana Whitfield'], noEmail: [] });
+    const which = fake.waiting.find((w) => u.includes(`/expenses/${w.id}/`)) || fake.waiting[0];
+    if (/\/(approve|answer)$/.test(u)) return ok({ expense: { ...which, status: 'approved', canDecide: false, waitingReason: null, actions: NO_ACTIONS } });
+    if (/\/expenses\/[^/]+\/(ask|ask\/withdraw|send-back|reopen|details|void)$/.test(u)) return ok({ expense: which });
     return ok({ expense: exp(body.id || 'new', { merchant: body.merchant, cents: Math.round(Number(body.total) * 100), date: body.date, status: body.category ? 'waiting' : 'draft' }) });
   }
-  if (/\/me$/.test(u)) return ok({ user: { id: 'u1', name: 'Maruthi Ponugupati', location: 'Seattle' }, card: fake.card ? { _id: 'c1', userId: 'u1', label: 'MARU92069', issuer: 'amex', lastDigits: '92069', active: true } : null, categories: CATEGORIES, approverRoles: ['manager'], today: '2026-10-20' });
+  if (/\/me$/.test(u)) return ok({ user: { id: 'u1', name: 'Maruthi Ponugupati', location: 'Seattle' }, card: fake.card ? { _id: 'c1', userId: 'u1', label: 'MARU92069', issuer: 'amex', lastDigits: '92069', active: true } : null, categories: CATEGORIES, role: 'accounting', today: '2026-10-20' });
   if (/\/categories$/.test(u)) return ok({ categories: CATEGORIES });
-  if (/scope=waiting/.test(u)) return ok({ expenses: WAITING });
+  if (/scope=waiting/.test(u)) return ok({ expenses: fake.waiting });
+  if (/\/ask-targets$/.test(u)) return ok({ people: [{ id: 'k1', name: 'Kim Branch', role: 'manager', branch: 'Kent' }] });
   if (/scope=all/.test(u)) return ok({ expenses: EXPENSES });
   if (/scope=mine/.test(u)) return ok({ expenses: EXPENSES.filter((e) => e.mine) });
   if (/customers\/dropdown/.test(u)) return ok([]);
@@ -51,7 +81,7 @@ const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => {
 const show = async (permissions: string[]) => { render(<CardReceiptsPage currentUser={{ _id: 'u1', displayName: 'Maruthi Ponugupati', permissions }} />); await settle(); };
 const text = () => document.body.textContent || '';
 
-beforeEach(() => { fake.card = true; fake.posted = []; Element.prototype.scrollIntoView = () => {}; });
+beforeEach(() => { fake.card = true; fake.posted = []; fake.waiting = [WAITING_LOST]; fake.conflict = false; Element.prototype.scrollIntoView = () => {}; });
 afterEach(cleanup);
 
 describe('the Credit Card Receipts page', () => {
@@ -129,7 +159,7 @@ describe('the Credit Card Receipts page', () => {
     expect(approve.disabled).toBe(false);
     fireEvent.click(approve);
     await settle();
-    expect(fake.posted.at(-1)).toMatchObject({ body: { comment: 'Burlington delivery run. OK.' } });
+    expect(fake.posted.at(-1)).toMatchObject({ body: { comment: 'Burlington delivery run. OK.', expectedUpdatedAt: '2026-10-03T17:21:00Z' } });
     expect(fake.posted.at(-1)!.url).toMatch(/w1\/approve$/);
   });
 
@@ -164,6 +194,7 @@ describe('the Credit Card Receipts page', () => {
   });
 
   it('lets a cardholder add a receipt with the round +', async () => {
+    fake.waiting = [];
     await show(['use_card_receipts']);
     expect(screen.queryByRole('tab')).toBeNull();
     openAdd();
@@ -225,6 +256,149 @@ describe('the Credit Card Receipts page', () => {
     expect(img.style.width).toBe('100%');
     fireEvent.click(screen.getByLabelText('Hide the receipt'));
     expect(closed).toEqual(['x']);
+  });
+});
+
+describe('approvals, questions and reminders (2026-11-23)', () => {
+  const openWaiting = async (permissions: string[], merchant: string) => {
+    await show(permissions);
+    fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));
+    fireEvent.click(screen.getByLabelText(new RegExp(`Open ${merchant}`)));
+    await settle();
+  };
+  const menuItems = async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
+    await settle();
+    return [...document.querySelectorAll('.ccr-more-menu [role="menuitem"]')].map((i) => i.textContent);
+  };
+
+  it('shows the approvals as chips, short in the list and in full on the receipt', async () => {
+    fake.waiting = [WAITING_SECOND];
+    await show(['view_all_card_receipts', 'approve_card_receipts']);
+    fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));
+    expect(text()).toContain('Acct ✓ · Mgr –');
+    fireEvent.click(screen.getByLabelText(/Open Home Depot/));
+    await settle();
+    expect(text()).toContain('Accounting ✓ Maria');
+    expect(text()).toContain('Manager or Admin — waiting');
+    expect(screen.getByRole('button', { name: 'Approve receipt' })).toBeTruthy();
+  });
+
+  it('asks the person a question went to for "Answer & approve", with the answer required', async () => {
+    fake.waiting = [WAITING_ASKED];
+    await openWaiting(['use_card_receipts'], 'Costco');
+    expect(text()).toContain('Maria asked Maruthi Ponugupati: Was this for the Kent showroom?');
+    expect(screen.queryByRole('button', { name: 'Approve receipt' })).toBeNull();
+    const main = screen.getByRole('button', { name: 'Answer & approve' }) as HTMLButtonElement;
+    expect(main.disabled).toBe(true);
+    fireEvent.change(document.getElementById('ccr-answer')!, { target: { value: 'Yes, the Kent install.' } });
+    expect(main.disabled).toBe(false);
+    fireEvent.click(main);
+    await settle();
+    expect(fake.posted.at(-1)!.url).toMatch(/w3\/answer$/);
+    expect(fake.posted.at(-1)!.body).toEqual({ answer: 'Yes, the Kent install.', expectedUpdatedAt: '2026-10-03T17:21:00Z' });
+  });
+
+  it('shows Waiting for me to someone without Approve only while a question is asked of them', async () => {
+    fake.waiting = [WAITING_ASKED];
+    await show(['use_card_receipts']);
+    expect(screen.getByRole('tab', { name: /Waiting for me/ })).toBeTruthy();
+    // No group filter for them: everything there is asked of them.
+    expect(screen.queryByRole('radio', { name: /Asked of me/ })).toBeNull();
+    cleanup();
+    fake.waiting = [];
+    await show(['use_card_receipts']);
+    expect(screen.queryByRole('tab', { name: /Waiting for me/ })).toBeNull();
+  });
+
+  it('puts in ⋯ only what the receipt’s actions allow', async () => {
+    await openWaiting(['use_card_receipts', 'approve_card_receipts', 'send_receipt_reminders'], 'CHEVRON');
+    expect(await menuItems()).toEqual(['Send back', 'Ask manager / Admin…', 'Send reminder…']);
+    cleanup();
+    fake.waiting = [{ ...WAITING_LOST, actions: { ...NO_ACTIONS, approve: 'accounting', withdrawAsk: true }, ask: (WAITING_ASKED as Record<string, unknown>).ask }];
+    await openWaiting(['use_card_receipts', 'approve_card_receipts'], 'CHEVRON');
+    expect(await menuItems()).toEqual(['Withdraw question']);
+  });
+
+  it('asks a manager / Admin the server offers, with the question', async () => {
+    await openWaiting(['use_card_receipts', 'approve_card_receipts'], 'CHEVRON');
+    await menuItems();
+    fireEvent.click(screen.getByRole('menuitem', { name: /Ask manager/ }));
+    await settle();
+    // The only person offered is picked already.
+    expect(text()).toContain('Kim Branch');
+    fireEvent.change(document.getElementById('ccr-ask-question')!, { target: { value: 'Was this a delivery run?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send question' }));
+    await settle();
+    expect(fake.posted.at(-1)!.url).toMatch(/w1\/ask$/);
+    expect(fake.posted.at(-1)!.body).toEqual({ to: 'k1', question: 'Was this a delivery run?', expectedUpdatedAt: '2026-10-03T17:21:00Z' });
+  });
+
+  it('says the receipt changed when the server answers 409 changed', async () => {
+    fake.waiting = [WAITING_SECOND];
+    await openWaiting(['use_card_receipts', 'approve_card_receipts'], 'Home Depot');
+    fake.conflict = true;
+    fireEvent.click(screen.getByRole('button', { name: 'Approve receipt' }));
+    await settle();
+    expect(text()).toContain('This receipt changed after you opened it. Look at it again.');
+  });
+
+  it('counts Waiting for me by why it waits, and filters by it', async () => {
+    fake.waiting = [WAITING_LOST, WAITING_SECOND, WAITING_ASKED];
+    await show(['use_card_receipts', 'approve_card_receipts']);
+    fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));
+    for (const label of ['All · 3', 'Needs Accounting · 1', 'Needs second approval · 1', 'Asked of me · 1']) {
+      expect(screen.getByRole('radio', { name: label })).toBeTruthy();
+    }
+    fireEvent.click(screen.getByRole('radio', { name: 'Asked of me · 1' }));
+    await settle();
+    expect(screen.getByText('Costco')).toBeTruthy();
+    expect(screen.queryByText('CHEVRON')).toBeNull();
+    expect(text()).toContain('Asked Maruthi');
+  });
+
+  it('ticks receipts, and Send reminder sends who and how for them', async () => {
+    await show(['view_all_card_receipts', 'send_receipt_reminders']);
+    // An approved receipt can't be ticked.
+    expect(screen.queryByLabelText(/Select McDonald's/)).toBeNull();
+    fireEvent.click(screen.getByLabelText(/Select Kashish/));
+    fireEvent.click(screen.getByLabelText(/Select JINYA/));
+    expect(text()).toContain('2 selected');
+    fireEvent.click(screen.getByRole('button', { name: 'Select all shown' }));
+    expect(text()).toContain('3 selected');
+    fireEvent.click(screen.getByLabelText(/Select Staples/));
+    fireEvent.click(screen.getByRole('button', { name: 'Send reminder' }));
+    await settle();
+    // A draft and a waiting one: the cardholder and whoever must approve start ticked.
+    const box = (name: string) => (screen.getByLabelText(name) as HTMLInputElement).checked;
+    expect([box('Cardholder'), box('Branch manager'), box('Accounting'), box('Admins'), box('Whoever must approve')]).toEqual([true, false, false, false, true]);
+    expect([box('Email'), box('Phone notification')]).toEqual([true, true]);
+    fireEvent.change(document.getElementById('ccr-remind-message')!, { target: { value: 'Please finish these today' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await settle();
+    const sent = fake.posted.at(-1)!;
+    expect(sent.url).toMatch(/\/expenses\/remind$/);
+    expect(new Set(sent.body.ids as string[])).toEqual(new Set(['b', 'c']));
+    expect(sent.body).toMatchObject({
+      to: { holder: true, managers: false, accounting: false, admins: false, approvers: true },
+      email: true, push: true, message: 'Please finish these today'
+    });
+    expect(text()).toContain('Sent to 3 people about 1 receipt. Skipped 1: Kashish Cuisine of India (reminded today). No phone: Dana Whitfield (email only).');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close' }).find((b) => b.textContent === 'Close')!);
+    await settle();
+    expect(text()).not.toContain('selected');
+  });
+
+  it('tells a cardholder about their missing receipts', async () => {
+    const before = EXPENSES.length;
+    EXPENSES.push(exp('m1', { merchant: 'SHELL', status: 'missing', receiptUrl: '', category: '' }));
+    try {
+      fake.waiting = [];
+      await show(['use_card_receipts']);
+      expect(text()).toContain('You have 1 missing receipt in October 2026 — upload it.');
+    } finally {
+      EXPENSES.length = before;
+    }
   });
 });
 

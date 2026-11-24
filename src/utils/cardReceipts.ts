@@ -31,6 +31,11 @@ export const CARD_RECEIPTS = Object.freeze({
   /** Download every month at once, for one bank or both (2026-11-23). Nobody holds it until an admin ticks it. */
   EXPORT_ALL: 'export_all_card_receipts',
   MANAGE_CARDS: 'manage_company_cards',
+  /**
+   * Send a reminder about one receipt or several (2026-11-23, src/utils/receiptReminders.ts): Accounting and Admins
+   * for anyone, managers / directors for their team. Given once to every role holding Approve (ACTION_MIGRATIONS).
+   */
+  REMIND: 'send_receipt_reminders',
   /** Upload Amex's activity export and see every charge matched to a receipt (src/utils/amexStatement.ts). */
   STATEMENTS: 'check_amex_statements',
   CATEGORY_ADD: 'add_receipt_categories',
@@ -187,9 +192,12 @@ export function parseCents(typed: unknown): number | null {
   const cents = Math.round(Number(text) * 100);
   return cents > 10_000_000 ? Number.NaN : cents;
 }
-/** A receipt over this (strictly more than $150.00) is marked gold so approvers see it. */
+/**
+ * $150.00 and above (owner, 2026-11-23): marked gold, and it needs a second approval (src/utils/receiptApproval.ts,
+ * `needsSecondApproval` — the same line).
+ */
 export const BIG_RECEIPT_CENTS = 15_000;
-export const isBigReceipt = (cents: number | null | undefined) => (cents ?? 0) > BIG_RECEIPT_CENTS;
+export const isBigReceipt = (cents: number | null | undefined) => (cents ?? 0) >= BIG_RECEIPT_CENTS;
 /** Over the limit a receipt needs two steps (owner, 2026-11-19): the usual approver, then one of these roles, per receipt. Limits per role come later. */
 export const SAME_PERSON_BOTH_STEPS = false; // my default — owner unanswered
 export const BIG_RECEIPT_APPROVER_ROLES: readonly string[] = ['accounting', 'director', 'admin'];

@@ -225,6 +225,13 @@
       "when": 1795462856733,
       "tag": "0031_receipt_category_note",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795470749923,
+      "tag": "0032_receipt_approvals",
+      "breakpoints": true
     }
   ]
 }

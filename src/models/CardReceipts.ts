@@ -63,7 +63,9 @@ const decisionSchema = new mongoose.Schema({
   by: { type: String, default: '' },
   byName: { type: String, default: '' },
   at: { type: Date, required: true },
-  comment: { type: String, default: '' }
+  comment: { type: String, default: '' },
+  /** Who gave it (src/utils/receiptApproval.ts): 'accounting' | 'admin' | 'manager'; blank before 2026-11-23. */
+  as: { type: String, default: null }
 }, { _id: false });
 
 const cardExpenseSchema = new mongoose.Schema({
@@ -94,7 +96,14 @@ const cardExpenseSchema = new mongoose.Schema({
   receiptUrl: { type: String, default: '' },
   lostReason: { type: String, default: '' },
   status: { type: String, enum: ['missing', 'draft', 'waiting', 'sent_back', 'approved'], required: true },
+  /** The Accounting approval (src/utils/receiptApproval.ts). */
   approval: { type: decisionSchema, default: null },
+  /** The second approval, $150 and above. */
+  secondApproval: { type: decisionSchema, default: null },
+  /** The clarification question: { to, toName, by, byName, at, question, answer, answeredAt }. */
+  ask: { type: mongoose.Schema.Types.Mixed, default: null },
+  /** { missing2At, missing3At, lastDay, lastAt, lastBy, lastByName } (src/utils/receiptReminders.ts). */
+  reminders: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
   sentBack: { type: decisionSchema, default: null },
   createdBy: { type: String, default: '' },
   voidedAt: { type: Date, default: null },

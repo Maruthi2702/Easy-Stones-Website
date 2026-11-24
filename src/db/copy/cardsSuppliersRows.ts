@@ -125,6 +125,8 @@ export function cardExpenseRowsOf(d: Loose, ref: ReferenceIndex, links: ExpenseL
       receiptUrl: textOf(d.receiptUrl), lostReason: textOf(d.lostReason), status,
       approvedById: approval ? textOf(approval.by) : null, approvedByName: approval ? textOf(approval.byName) : null,
       approvedAt: approval ? c.moment('approved_at', approval.at) : null, approvalComment: approval ? textOf(approval.comment) : null,
+      approvedAs: approval && textOf(approval.as) ? textOf(approval.as) : null,
+      secondApproval: optObj(d.secondApproval) ?? null, ask: optObj(d.ask) ?? null, reminders: optObj(d.reminders) ?? {},
       sentBackById: sentBack ? textOf(sentBack.by) : null, sentBackByName: sentBack ? textOf(sentBack.byName) : null,
       sentBackAt: sentBack ? c.moment('sent_back_at', sentBack.at) : null, sentBackComment: sentBack ? textOf(sentBack.comment) : null,
       createdBy: textOf(d.createdBy), voidedAt: c.moment('voided_at', d.voidedAt), voidedBy: textOf(d.voidedBy),

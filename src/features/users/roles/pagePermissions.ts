@@ -389,15 +389,16 @@ export const PAGE_PERMISSIONS: PageDef[] = [
     },
     {
         // Sales → Credit Card Receipts (src/utils/cardReceipts.ts, 2026-11-05).
-        // Who approves whom is set on each role under Roles & Permissions
-        // ("Card receipts … approves"), shown once Approve is on.
+        // Who approves whom is by role (src/utils/receiptApproval.ts, 2026-11-23):
+        // Accounting / Admins, plus a branch manager or Admin from $150.
         id: 'accounting_card_receipts', page: 'Sales · Credit Card Receipts', icon: CreditCard,
         description: 'Company-card receipts: uploaded when paid, approved by someone above, exported for accounting', color: '#d4af37',
         actions: [
             { key: CARD_RECEIPTS.USE, label: 'My receipts', icon: Camera, desc: 'Upload receipts for their own company card and see their own expenses' },
             { key: CARD_RECEIPTS.VIEW_BRANCH, label: 'View branch', icon: Eye, desc: 'See the expenses and receipts of everyone who works at their branches, by where the person works (like Visits → View branch)' },
             { key: CARD_RECEIPTS.VIEW_ALL, label: 'View all', icon: Eye, desc: 'See every cardholder’s expenses and receipts' },
-            { key: CARD_RECEIPTS.APPROVE, label: 'Approve', icon: CheckCheck, desc: 'Approve or send back the receipts of the roles this role approves (set below the cards), never their own' },
+            { key: CARD_RECEIPTS.APPROVE, label: 'Approve', icon: CheckCheck, desc: 'Accounting and Admins approve every receipt; from $150 a branch manager / director or an Admin also approves. Never their own.' },
+            { key: CARD_RECEIPTS.REMIND, label: 'Send reminders', icon: Bell, desc: 'Email and push a reminder about a receipt to its cardholder, their branch manager, Accounting or whoever still has to approve it — Accounting and Admins about anyone’s, managers about their team’s; once per receipt a day' },
             { key: CARD_RECEIPTS.EXPORT, label: 'Export', icon: Download, desc: 'Download the list on screen (the month and filters, Amex or Encore) to Excel' },
             { key: CARD_RECEIPTS.EXPORT_ALL, label: 'Export all', icon: Download, desc: 'Download every month at once, for Amex, Encore or both — only the expenses they can see' },
             { key: CARD_RECEIPTS.MANAGE_CARDS, label: 'Manage cards', icon: CreditCard, desc: 'Add company cards, link each to its holder, deactivate them' },

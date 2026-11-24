@@ -34,7 +34,10 @@ export function expenseDoc(e: typeof cardExpenses.$inferSelect, locationName: st
     attendees: e.attendees, purpose: e.purpose, note: e.note, recurring: e.recurring,
     receiptUrl: e.receiptUrl, lostReason: e.lostReason, status: e.status,
     approval: e.approvedById == null ? null
-      : { by: e.approvedById, byName: e.approvedByName ?? '', at: e.approvedAt, comment: e.approvalComment ?? '' },
+      : { by: e.approvedById, byName: e.approvedByName ?? '', at: e.approvedAt, comment: e.approvalComment ?? '', as: e.approvedAs ?? null },
+    secondApproval: (e.secondApproval as Loose | null) ?? null,
+    ask: (e.ask as Loose | null) ?? null,
+    reminders: (e.reminders as Loose | null) ?? {},
     sentBack: e.sentBackById == null ? null
       : { by: e.sentBackById, byName: e.sentBackByName ?? '', at: e.sentBackAt, comment: e.sentBackComment ?? '' },
     createdBy: e.createdBy, voidedAt: e.voidedAt, voidedBy: e.voidedBy, voidReason: e.voidReason,

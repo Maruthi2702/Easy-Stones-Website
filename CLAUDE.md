@@ -706,8 +706,10 @@ the background task and a 30 s timer, resumed from saved state on a launch with 
 answering Locate now are native too** (`mobile/src/location/`, `mobile/src/locate/`, mounted in `mobile/App.tsx` over the site): the
 phone shows the agreement itself and posts it to `/api/location-tracking/consent`, the website draws neither inside the app
 (`phoneOwns` in `useLocationCollector`), and an open Locate now ask is answered silently at most once a minute (collector timer and
-app foreground). **The page's own `navigator.geolocation` is answered by the phone too** (2026-11-23, `mobile/src/host/geolocationShim.ts`, injected with the bridge shim; tested): without it WKWebView asked for location a second time for the website (Route Planner's dot, Optimize route) although the app already had it. Page calls go to the app's `Geolocation` plugin, which returns the collector's newest point if under 20 s old (`host/lastFix.ts`); a visit's stamp asks for `maximumAge: 0` and still gets a fresh read. App only, needs a new app build; not tried on a real iPhone. Still true: a force-quit app stays stopped on iPhone (no significant-change relaunch; Apple forum reports say
-iOS 26 may not relaunch it at all), an ask outside 7–6 waits until the app is next opened, and none of it has run on a real phone. Known
+app foreground). **The page's own `navigator.geolocation` is answered by the phone too** (2026-11-23, `mobile/src/host/geolocationShim.ts`, injected with the bridge shim; tested): without it WKWebView asked for location a second time for the website (Route Planner's dot, Optimize route) although the app already had it. Page calls go to the app's `Geolocation` plugin, which returns the collector's newest point if under 20 s old (`host/lastFix.ts`); a visit's stamp asks for `maximumAge: 0` and still gets a fresh read. App only, needs a new app build; not tried on a real iPhone. **A closed iPhone app is restarted by a geofence (2026-11-23, after a phone showed no data 8:53–11:06 AM; `mobile/src/collector/wake.ts`, tested):**
+the collector keeps a 200 m circle around the newest in-window position, `WAKE_TASK` calls `wake()` (→ `resume()` + tick) when iOS fires it, and
+Team Location's "No data" line now says the app may not have been running (`PersonPanel.tsx`). Unproven: whether iOS (26 especially) relaunches a
+force-quit app, and a phone that never crosses the circle isn't woken. Android is not restarted. Still true: an ask outside 7–6 waits until the app is next opened, and none of it has run on a real phone. Known
 losses and unverified parts are in `mobile/README.md` (Android push needs FCM; **never run on a real phone**; the Android debug app builds, the iOS build is
 untried because CocoaPods isn't installed). The web `/login` page renders nothing in any native app (`CustomerLoginPage`), so a native
 sign-in screen is mandatory on every platform (the earlier Capacitor Android app had none: its login was blank).
@@ -1377,11 +1379,35 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   "Required on every receipt" ticks are Customer and Note; Who attended and Business purpose were removed, old receipts keep
   theirs and nothing asks for them; Postgres `receipt_categories.needs_note`, migration `0031`); until then it saves
   as a draft. Approved can't be edited; voided with a reason, never deleted.
-- **Approval by role** (owner): each role lists the roles whose receipts it
-  approves — `Role.approvesCardReceiptsOf`, ticked under Roles & Permissions
-  once the role has Approve — from any branch, never your own. A lost receipt
-  needs the approver's comment. A new rule goes through `canApprove` /
-  `decisionProblem`; never check a role name.
+- **Approval: Accounting always, a second person from $150** (owner, 2026-11-23, on `feat/receipt-approvals`; replaces the
+  old "each role lists the roles whose receipts it approves" — `Role.approvesCardReceiptsOf` and its Roles screen picker are
+  gone, nothing reads it). **Every rule is `src/utils/receiptApproval.ts` (tested); never re-implement one, never check a
+  role name elsewhere.** Every receipt needs the **Accounting approval** (an Accounting member, or an Admin standing in —
+  two Admins cover it when Accounting is away); **$150.00 and above** (`needsSecondApproval`; `isBigReceipt` is the same
+  line now) also needs a **second approval, in parallel, by a different person**: for a staff member's receipt their branch's
+  manager / director (`isBranchManagerOf`: home or assigned location, an all-locations '*' login is on no branch) **or** an
+  Admin; for a manager's, director's or Accounting member's, an Admin; an **Admin's own** receipt needs Accounting only, at any
+  amount. Nobody approves their own; a lost receipt needs the approver's comment. Stored on the expense as `approval` (the
+  Accounting one, with `as`), `secondApproval`, `ask` and `reminders` (`card_expenses`, migration `0032`, which also moves a
+  waiting receipt's old step 1 to the matching approval and turns an Admin's Missing rows into Waiting). The screens read
+  the server's per-viewer `actions` / `chips` / `waitingReason`, not the rules. **Ask** (Accounting or an Admin; the target
+  must be an active person whose role holds Approve — branch manager / Admin for staff receipts, an Admin otherwise): they
+  comment, which **approves** (fills the second approval when theirs); asking takes back an Accounting approval, so
+  Accounting gives the final one; while a question is open nobody else approves, and it can be withdrawn. **Send back**
+  (comment) clears both approvals and the question; **Reopen** (reason) puts an approved receipt back to Waiting; **a holder's
+  edit clears both approvals**. An **Admin's charge with no upload** is Waiting, never Missing (Statements shows "Waiting for
+  Accounting"); Accounting fills category / type / customer / note (`PUT /expenses/:id/details`) and approves it with no
+  receipt. Accounting, Manager and Director roles are given Approve once (`NEW_PERMISSION_GRANTS` in server.ts), which
+  chains to **Send receipt reminders** (`send_receipt_reminders`, `ACTION_MIGRATIONS`). **Reminders**
+  (`src/utils/receiptReminders.ts`, tested; job `src/jobs/missingReceiptReminders.ts`, hourly): a Missing receipt gets one email
+  to the holder and their branch managers (Admins if none) + a phone push to the holder 48 h after its row was made, and one to
+  the holder, branch managers, every Accounting member and Admin at 72 h (an older row gets the 72 h one only; stamps in
+  `reminders`, set before sending so a crash can't double-send). A person sends more with **Send reminder** on one or several
+  receipts (`POST /api/card-receipts/expenses/remind`, `src/routes/cardReceiptReminders.ts`): Accounting / Admins for anyone,
+  managers for their team, **once per receipt per Pacific day**, one email per person listing their receipts, written in the
+  receipt's history without moving `updatedAt`. Push is iPhone only (no FCM yet) and opens `/sales`, not the receipt.
+  **Not tried on a real phone or with real mail**; the owner has not answered whether an Admin's own Missing row should get a
+  reminder (it doesn't) or how a receipt with no branch is handled (Admins get the 48 h email).
 - **Categories** are a list in the database, seeded once
   (`STARTING_CATEGORIES`); `name` is stored and never changes, `label` is shown.
   A hidden one can't start an expense but stays valid on old ones; one in use is
@@ -1436,7 +1462,8 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   the choice is the form template's full-screen sheet, not the canvas's bottom sheet. Not built: the canvas's step list while
   reading. **Never tried on a real iPhone** (camera permission text is in Info.plist; test the shutter there).
 - **Review of 2026-11-20 (on `main`, owner's calls):** the **$150 second step stays a fixed limit** (no per-role
-  dollar limit yet; `BIG_RECEIPT_APPROVER_ROLES`). **View branch** (`view_branch_card_receipts`, Users & Roles →
+  dollar limit yet; since 2026-11-23 it is `needsSecondApproval` in `receiptApproval.ts`, and the old
+  `BIG_RECEIPT_APPROVER_ROLES` / `canApprove` / `approvalStep` in `cardReceipts.ts` are left unused — delete them). **View branch** (`view_branch_card_receipts`, Users & Roles →
   Credit Card Receipts) shows the expenses of the caller's **team by where the person works** — the Visits rule, `teamOfRequest`
   (`GET /expenses?scope=all`); View all still wins; the Cards tab stays View all / Manage cards only. An expense that
   answers an Amex charge keeps Amex's **date and total** (`matchedChangeProblem`; the rest is still editable). The

@@ -33,12 +33,13 @@ type Loose = Record<string, any>;
 
 const oid = () => new mongoose.Types.ObjectId();
 const USE = 'use_card_receipts';
-const rep = oid().toString(), manager = oid().toString(), director = oid().toString(), acct = oid().toString();
+const rep = oid().toString(), manager = oid().toString(), director = oid().toString(), acct = oid().toString(), admin = oid().toString();
 const acme = oid().toString();
 const REP = { id: rep, displayName: 'Maruthi Ponugupati', role: 'sales_rep', location: 'Seattle', permissions: [USE] };
 const MANAGER = { id: manager, displayName: 'Dana Whitfield', role: 'manager', location: 'Kent', permissions: [USE, 'approve_card_receipts'] };
 const DIRECTOR = { id: director, displayName: 'Dee Rector', role: 'director', location: 'Seattle', permissions: [USE, 'approve_card_receipts'] };
-const ACCOUNTING = { id: acct, displayName: 'Ann Count', role: 'accounting', permissions: ['view_all_card_receipts', 'manage_company_cards', 'add_receipt_categories', 'edit_receipt_categories', 'reorder_receipt_categories', 'delete_receipt_categories'] };
+const ACCOUNTING = { id: acct, displayName: 'Ann Count', role: 'accounting', permissions: ['approve_card_receipts', 'view_all_card_receipts', 'manage_company_cards', 'add_receipt_categories', 'edit_receipt_categories', 'reorder_receipt_categories', 'delete_receipt_categories'] };
+const ADMIN = { id: admin, displayName: 'Ada Min', role: 'admin', permissions: [USE, 'approve_card_receipts'] };
 const NOCARD = { id: oid().toString(), displayName: 'No Card', role: 'sales_rep', permissions: [USE] };
 const NOBODY = { id: oid().toString(), role: 'sales_rep', permissions: [] };
 
@@ -54,15 +55,17 @@ beforeAll(async () => {
     await db.collection('locations').insertMany(['Seattle', 'Kent'].map(name => ({ _id: oid(), name })));
     await db.collection('roles').insertMany([
       { _id: oid(), name: 'sales_rep', displayName: 'Sales rep', permissions: [] },
-      { _id: oid(), name: 'manager', displayName: 'Manager', permissions: [], approvesCardReceiptsOf: ['sales_rep'] },
-      { _id: oid(), name: 'director', displayName: 'Director', permissions: [], approvesCardReceiptsOf: ['sales_rep', 'manager', 'director'] },
-      { _id: oid(), name: 'accounting', displayName: 'Accounting', permissions: [] }
+      { _id: oid(), name: 'manager', displayName: 'Manager', permissions: [USE, 'approve_card_receipts'] },
+      { _id: oid(), name: 'director', displayName: 'Director', permissions: [USE, 'approve_card_receipts'] },
+      { _id: oid(), name: 'accounting', displayName: 'Accounting', permissions: ['approve_card_receipts'] },
+      { _id: oid(), name: 'admin', displayName: 'Admin', permissions: [USE, 'approve_card_receipts'] }
     ]);
     await db.collection('users').insertMany([
       { _id: new mongoose.Types.ObjectId(rep), username: 'maruthi', displayName: 'Maruthi Ponugupati', password: 'x', role: 'sales_rep', email: 'm@x.com', isActive: true },
       { _id: new mongoose.Types.ObjectId(manager), username: 'dana', displayName: 'Dana Whitfield', password: 'x', role: 'manager', email: 'd@x.com', isActive: true },
-      { _id: new mongoose.Types.ObjectId(director), username: 'dee', displayName: 'Dee Rector', password: 'x', role: 'director', email: 'dee@x.com', isActive: true },
-      { _id: new mongoose.Types.ObjectId(acct), username: 'ann', displayName: 'Ann Count', password: 'x', role: 'accounting', email: 'a@x.com', isActive: true }
+      { _id: new mongoose.Types.ObjectId(director), username: 'dee', displayName: 'Dee Rector', password: 'x', role: 'director', email: 'dee@x.com', isActive: true, location: 'Seattle' },
+      { _id: new mongoose.Types.ObjectId(acct), username: 'ann', displayName: 'Ann Count', password: 'x', role: 'accounting', email: 'a@x.com', isActive: true },
+      { _id: new mongoose.Types.ObjectId(admin), username: 'ada', displayName: 'Ada Min', password: 'x', role: 'admin', email: 'ada@x.com', isActive: true }
     ]);
     await Customer.insertMany([{ _id: acme, company: 'Acme Stone', contactName: 'Ann', email: 'ann@acme.test' }]);
     await db.collection('receiptcategories').insertMany(CATEGORIES);
@@ -253,43 +256,69 @@ describe('who sees what', () => {
 });
 
 describe('approval', () => {
-  it('lets someone above approve, from another branch, and never the cardholder themselves', async () => {
+  it('Accounting approves a small one, never the cardholder or a branch manager alone', async () => {
     const body = receipt({ date: '2026-10-14', total: '33.00' });
     await same(REP, a => a.post('/expenses', body));
     const mgr = receipt({ merchant: 'Staples', total: '86.42', category: 'office_supplies', date: '2026-10-14' });
     await same(MANAGER, a => a.post('/expenses', mgr));
     expect((await same(MANAGER, a => a.post(`/expenses/${mgr.id}/approve`))).status).toBe(403);
     expect((await same(REP, a => a.post(`/expenses/${body.id}/approve`))).status).toBe(403);
-    const ok = await same(MANAGER, a => a.post(`/expenses/${body.id}/approve`));
-    expect(ok.body.expense).toMatchObject({ status: 'approved', approval: { byName: 'Dana Whitfield' } });
-    expect((await same(DIRECTOR, a => a.post(`/expenses/${body.id}/approve`))).status).toBe(409);
+    expect((await same(DIRECTOR, a => a.post(`/expenses/${body.id}/approve`))).status).toBe(403);
+    const ok = await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/approve`));
+    expect(ok.body.expense).toMatchObject({ status: 'approved', approval: { byName: 'Ann Count', as: 'accounting' } });
+    expect((await same(ADMIN, a => a.post(`/expenses/${body.id}/approve`))).status).toBe(409);
     expect((await same(REP, a => a.put(`/expenses/${body.id}`, { ...body, total: '1.00' }))).status).toBe(409);
     expect((await same(REP, a => a.post(`/expenses/${body.id}/void`, { reason: 'late' }))).status).toBe(409);
-    await same(DIRECTOR, a => a.post(`/expenses/${mgr.id}/approve`));
-    expect((await same(DIRECTOR, a => a.post(`/expenses/${nextId()}/approve`))).status).toBe(404);
+    await same(ACCOUNTING, a => a.post(`/expenses/${mgr.id}/approve`));
+    expect((await same(ACCOUNTING, a => a.post(`/expenses/${nextId()}/approve`))).status).toBe(404);
+    await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/reopen`, { reason: 'Wrong category' }));
+    await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/approve`, { comment: 'again' }));
+  });
+
+  it('a $150+ receipt: Accounting, a question to the branch manager, their answer as the second approval', async () => {
+    const body = receipt({ date: '2026-10-18', total: '240.00', merchant: 'Shell' });
+    await same(REP, a => a.post('/expenses', body));
+    await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/approve`));
+    await same(ACCOUNTING, a => a.get(`/expenses/${body.id}/ask-targets`));
+    const asked = await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/ask`, { to: director, question: 'Which job was this?' }));
+    expect(asked.body.expense).toMatchObject({ approval: null, ask: { to: director, question: 'Which job was this?' } });
+    await same(DIRECTOR, a => a.get('/expenses?scope=waiting'));
+    const answered = await same(DIRECTOR, a => a.post(`/expenses/${body.id}/answer`, { answer: 'The Bellevue showroom job' }));
+    expect(answered.body.expense).toMatchObject({ status: 'waiting', secondApproval: { by: director, as: 'manager' } });
+    const done = await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/approve`));
+    expect(done.body.expense.status).toBe('approved');
+    // Another: an Admin's second approval, a question withdrawn, the holder's edit clearing it.
+    const two = receipt({ date: '2026-10-19', total: '300.00', merchant: 'Chevron' });
+    await same(REP, a => a.post('/expenses', two));
+    await same(ADMIN, a => a.post(`/expenses/${two.id}/approve`));
+    await same(ACCOUNTING, a => a.post(`/expenses/${two.id}/ask`, { to: admin, question: 'Which truck?' }));
+    await same(ACCOUNTING, a => a.post(`/expenses/${two.id}/ask/withdraw`));
+    const edited = await same(REP, a => a.put(`/expenses/${two.id}`, { ...two, note: 'Kent run' }));
+    expect(edited.body.expense).toMatchObject({ secondApproval: null, ask: null });
   });
 
   it('needs the approver’s comment for a lost receipt', async () => {
     const body = receipt({ receiptUrl: '', lostReason: 'Pump didn’t print one', category: 'fuel', date: '2026-10-15', total: '70.00' });
     await same(REP, a => a.post('/expenses', body));
-    const refused = await same(MANAGER, a => a.post(`/expenses/${body.id}/approve`, { comment: ' ' }));
+    const refused = await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/approve`, { comment: ' ' }));
     expect(refused.status).toBe(400);
-    const ok = await same(MANAGER, a => a.post(`/expenses/${body.id}/approve`, { comment: 'Burlington delivery run. OK.' }));
+    const ok = await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/approve`, { comment: 'Burlington delivery run. OK.' }));
     expect(ok.body.expense.approval.comment).toBe('Burlington delivery run. OK.');
   });
 
   it('sends back with a reason; fixing it sends it for approval again, and a sent-back one can be approved after', async () => {
     const body = receipt({ merchant: 'SP PARK', total: '12.85', category: 'office_supplies', date: '2026-10-16' });
     await same(REP, a => a.post('/expenses', body));
-    expect((await same(MANAGER, a => a.post(`/expenses/${body.id}/send-back`, { comment: '' }))).status).toBe(400);
-    const back = await same(MANAGER, a => a.post(`/expenses/${body.id}/send-back`, { comment: 'Was this the customer visit?' }));
+    expect((await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/send-back`, { comment: '' }))).status).toBe(400);
+    expect((await same(DIRECTOR, a => a.post(`/expenses/${body.id}/send-back`, { comment: 'Hmm' }))).status).toBe(403);
+    const back = await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/send-back`, { comment: 'Was this the customer visit?' }));
     expect(back.body.expense).toMatchObject({ status: 'sent_back', sentBack: { comment: 'Was this the customer visit?' } });
     const fixed = await same(REP, a => a.put(`/expenses/${body.id}`, { ...body, note: 'Parking for the Bellevue showroom visit' }));
     expect(fixed.body.expense.status).toBe('waiting');
-    await same(MANAGER, a => a.post(`/expenses/${body.id}/approve`, { comment: 'fine' }));
+    await same(ACCOUNTING, a => a.post(`/expenses/${body.id}/approve`, { comment: 'fine' }));
     // The one seeded as sent back (Kent, lost receipt) is fixed by its holder and goes round again.
     await same(MANAGER, a => a.put(`/expenses/${seeded.lost}`, { id: seeded.lost, date: '2026-10-04', merchant: 'Chevron', total: '40.00', category: 'fuel', lostReason: 'No receipt printed', note: 'Run to Burlington' }));
-    await same(DIRECTOR, a => a.post(`/expenses/${seeded.lost}/approve`, { comment: 'ok' }));
+    await same(ADMIN, a => a.post(`/expenses/${seeded.lost}/approve`, { comment: 'ok' }));
   });
 });
 

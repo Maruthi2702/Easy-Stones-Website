@@ -103,6 +103,10 @@ describe('kindOf and lineStatus', () => {
     expect(lineStatus({ ...base, date: '2026-10-20', cardId: null })).toBe('before_start');
     expect(lineStatus({ ...base, date: '2026-10-20', expenseStatus: 'approved' })).toBe('matched');
     expect(lineStatus({ ...base, expenseStatus: 'draft', expenseVoided: true })).toBe('missing');
+    // An Admin's charge with no upload waits for Accounting; once it has a receipt or a lost reason it is matched.
+    expect(lineStatus({ ...base, expenseStatus: 'waiting', hasReceipt: false })).toBe('awaiting');
+    expect(lineStatus({ ...base, expenseStatus: 'waiting', hasReceipt: true })).toBe('matched');
+    expect(lineStatus({ ...base, expenseStatus: 'approved', hasReceipt: false })).toBe('matched');
   });
   it('counts per status', () => {
     const c = statusCounts([{ status: 'missing', cents: 100 }, { status: 'missing', cents: 50 }, { status: 'matched', cents: 7 }]);

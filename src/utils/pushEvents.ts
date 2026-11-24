@@ -22,6 +22,39 @@ export function receiptSentBackMessage(expense: Loose, comment: unknown): Messag
   return { title: 'Receipt sent back', body: why ? `${what} — ${why}` : what, path: '/sales?tab=card_receipts' };
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** '2026-11-20' → 'Nov 20' (a receipt's day as the messages say it). */
+export const shortDay = (day: unknown) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day ?? ''));
+  return m ? `${MONTHS[Number(m[2]) - 1] ?? ''} ${Number(m[3])}`.trim() : '';
+};
+const firstName = (name: unknown) => String(name ?? '').trim().split(/\s+/)[0] || '';
+/** "Dan’s $240.00 receipt (Shell, Nov 20)" — which receipt a question or a reopen is about. */
+export function receiptPhrase(expense: Loose) {
+  const holder = firstName(expense.holderName);
+  const where = [clip(expense.merchant, 40), shortDay(expense.date)].filter(Boolean).join(', ');
+  return `${holder ? `${holder}’s ` : ''}${money(expense.cents)} receipt${where ? ` (${where})` : ''}`;
+}
+
+/** Accounting asked someone about a receipt (receiptApproval.ts's Ask): to the person asked. */
+export function receiptAskedMessage(expense: Loose, ask: Loose): Message {
+  const who = firstName(ask.byName) || 'Accounting';
+  return { title: 'Question about a receipt', body: `${who} asked about ${receiptPhrase(expense)}: ${clip(ask.question, 140)}`, path: '/sales?tab=card_receipts' };
+}
+
+/** The person asked answered (and approved): to whoever asked. */
+export function receiptAnsweredMessage(expense: Loose, ask: Loose): Message {
+  const who = firstName(ask.toName) || 'They';
+  return { title: 'Question answered', body: `${who} answered about ${receiptPhrase(expense)}: ${clip(ask.answer, 140)}`, path: '/sales?tab=card_receipts' };
+}
+
+/** An approved receipt was reopened by Accounting or an Admin: to its cardholder. */
+export function receiptReopenedMessage(expense: Loose, reason: unknown): Message {
+  const what = [clip(expense.merchant, 40), money(expense.cents)].filter(Boolean).join(' · ');
+  const why = clip(reason, 140);
+  return { title: 'Receipt reopened', body: why ? `${what} — ${why}` : what, path: '/sales?tab=card_receipts' };
+}
+
 /** 'drv_jsmith' is a driver's board column; the login is the user named jsmith. */
 export function driverUserFor(truckId: unknown, staff: Loose[]): Loose | null {
   const id = String(truckId ?? '');

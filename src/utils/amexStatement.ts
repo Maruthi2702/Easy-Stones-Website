@@ -181,6 +181,8 @@ export function kindOf(line: Pick<AmexLine, 'cents' | 'description' | 'amexCateg
 export const LINE_STATUSES = [
   { key: 'missing', label: 'Missing receipt' },
   { key: 'matched', label: 'Receipt uploaded' },
+  /** An Admin's charge with no upload: it waits for Accounting, who fills in the category and approves it (2026-11-23). */
+  { key: 'awaiting', label: 'Waiting for Accounting' },
   { key: 'no_card', label: 'Card not set up' },
   { key: 'unassigned', label: 'Waiting for a login' },
   { key: 'before_start', label: 'Before the check started' },
@@ -191,10 +193,14 @@ export const lineStatusLabel = (key: string) => LINE_STATUSES.find((s) => s.key 
 
 /** Where a line stands, from what it's linked to. */
 export function lineStatus(l: { kind: LineKind; date: string; cardId: string | null; expenseStatus: string | null; expenseVoided?: boolean;
-  /** The card exists but nobody holds it yet: no one to ask for the receipt. */ unassigned?: boolean },
+  /** The card exists but nobody holds it yet: no one to ask for the receipt. */ unassigned?: boolean;
+  /** The linked expense has a receipt or a lost-receipt reason (default true: older callers don't say). */ hasReceipt?: boolean },
   missingFrom = MISSING_FROM): LineStatus {
   if (l.kind !== 'charge') return 'no_receipt';
-  if (l.expenseStatus && !l.expenseVoided) return l.expenseStatus === 'missing' ? 'missing' : 'matched';
+  if (l.expenseStatus && !l.expenseVoided) {
+    if (l.expenseStatus === 'missing') return 'missing';
+    return l.expenseStatus === 'waiting' && l.hasReceipt === false ? 'awaiting' : 'matched';
+  }
   if (l.date < missingFrom) return 'before_start';
   if (!l.cardId) return 'no_card';
   if (l.unassigned) return 'unassigned';

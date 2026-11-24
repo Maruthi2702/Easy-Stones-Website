@@ -4,7 +4,7 @@
  * (companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf), so it writes what a re-copy
  * of MongoDB would.
  */
-import { and, asc, desc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
 import { companyCards, receiptCategories, cardExpenses, cardExpenseHistory } from '../schema/cardsSuppliers.ts';
 import { locations } from '../schema/reference.ts';
@@ -13,7 +13,7 @@ import { companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf } from '../co
 import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
 import { cardDoc, categoryDoc, expenseDoc } from './cardDocs.ts';
 import type { Loose } from '../../types/records.ts';
-import { StaleExpenseError, RepeatExpenseError, EXPENSE_LIST_CAP } from './types.ts';
+import { StaleExpenseError, RepeatExpenseError, EXPENSE_LIST_CAP, isChargePlaceholder } from './types.ts';
 import type { ExpenseFilter, ExpenseHistoryEntry } from './types.ts';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -161,9 +161,8 @@ async function withHistory(c: Conn, rows: { e: typeof cardExpenses.$inferSelect;
 }
 
 export async function listExpenses(db: Db, filter: ExpenseFilter): Promise<Loose[]> {
-  if (filter.kind === 'waiting' && !filter.userIds.length && filter.overCents == null) return [];
   const where = filter.kind === 'waiting'
-    ? and(eq(cardExpenses.status, 'waiting'), isNull(cardExpenses.voidedAt), or(filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : undefined, filter.overCents != null ? gt(cardExpenses.cents, filter.overCents) : undefined))
+    ? and(eq(cardExpenses.status, 'waiting'), isNull(cardExpenses.voidedAt))
     : and(filter.kind === 'month' ? eq(cardExpenses.month, filter.month) : undefined, filter.userId ? eq(cardExpenses.userId, lower(filter.userId)) : undefined,
       filter.userIds ? (filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : sql`false`) : undefined);
   const rows = await selectExpenses(db).where(where).orderBy(desc(cardExpenses.day), desc(cardExpenses.createdAt), desc(cardExpenses.id)).limit(EXPENSE_LIST_CAP);
@@ -213,7 +212,7 @@ export async function addExpense(db: Db, id: string, value: Loose): Promise<Loos
     if (repeatCheck && rest.userId && rest.date && rest.cents != null) {
       // One save at a time per holder / day / amount, so two requests can't both pass the duplicate warning.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`card-expense|${String(rest.userId).toLowerCase()}|${rest.date}|${rest.cents}`}))`);
-      const same = (await sameDayAmount(tx as unknown as Db, String(rest.userId), String(rest.date), Number(rest.cents))).filter(e => e.status !== 'missing');
+      const same = (await sameDayAmount(tx as unknown as Db, String(rest.userId), String(rest.date), Number(rest.cents))).filter(e => !isChargePlaceholder(e));
       if (same.length) throw new RepeatExpenseError(same[0]!);
     }
     const now = new Date();

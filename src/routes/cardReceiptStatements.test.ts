@@ -21,11 +21,12 @@ vi.mock('../db/appDb.ts', async (importOriginal) => ({
 }));
 
 const hex = (n: number) => n.toString(16).padStart(24, '0');
-const SEATTLE = hex(1), MARU = hex(2), SRINI = hex(3), ACCT = hex(4), MARU_CARD = hex(5), UPLOADED = hex(6);
+const SEATTLE = hex(1), MARU = hex(2), SRINI = hex(3), ACCT = hex(4), MARU_CARD = hex(5), UPLOADED = hex(6), ADA = hex(7), ADA_CARD = hex(8);
 const PEOPLE = [
   { _id: MARU, username: 'maruthi', displayName: 'Maruthi Ponugupati', role: 'sales_rep', location: 'Seattle', isActive: true },
   { _id: SRINI, username: 'srini', displayName: 'Srini Manam', role: 'sales_rep', location: 'Seattle', isActive: true },
-  { _id: ACCT, username: 'ann', displayName: 'Ann Count', role: 'accounting', location: 'Seattle', isActive: true }
+  { _id: ACCT, username: 'ann', displayName: 'Ann Count', role: 'accounting', location: 'Seattle', isActive: true },
+  { _id: ADA, username: 'ada', displayName: 'Ada Min', role: 'admin', location: 'Seattle', isActive: true }
 ];
 vi.mock('../db/staff/index.ts', () => ({
   findUsers: async () => PEOPLE,
@@ -68,7 +69,7 @@ beforeAll(async () => {
   db = drizzle(client, { schema, casing: 'snake_case' }) as unknown as Db;
   await migrateDb(db, 'pglite:memory');
   state.db = db;
-  await db.insert(roles).values([{ id: hex(50), name: 'sales_rep', displayName: 'Sales rep' }, { id: hex(51), name: 'accounting', displayName: 'Accounting' }]);
+  await db.insert(roles).values([{ id: hex(50), name: 'sales_rep', displayName: 'Sales rep' }, { id: hex(51), name: 'accounting', displayName: 'Accounting' }, { id: hex(52), name: 'admin', displayName: 'Admin' }]);
   await db.insert(locations).values({ id: SEATTLE, name: 'Seattle' });
   await db.insert(users).values(PEOPLE.map((p) => ({ id: p._id, username: p.username, displayName: p.displayName, passwordHash: 'x', role: p.role, homeLocationId: SEATTLE })));
   await db.insert(companyCards).values({ id: MARU_CARD, userId: MARU, label: 'MARU92069', lastDigits: '92069' });
@@ -294,6 +295,45 @@ describe('approving a month from before the check started', () => {
     expect(again.body.cards.find((c: { label: string }) => c.label === 'THIV95555')).toMatchObject({ amexName: 'THIVIKRAM VALLURU', statementName: 'THIVIKRAM VALLURU' });
     // It can be cleared again.
     expect((await request(app).put(`/api/card-receipts/cards/${by.THIV95555._id}`).send({ amexName: '' })).body.card.amexName).toBe('');
+    who = ACCOUNTANT;
+  });
+});
+
+describe('an Admin’s own charge', () => {
+  const ADMIN = { id: ADA, displayName: 'Ada Min', role: 'admin', location: 'Seattle', permissions: ['use_card_receipts'] };
+  it('waits for Accounting instead of Missing receipt, and the receipt the Admin uploads later replaces it', async () => {
+    await db.insert(companyCards).values({ id: ADA_CARD, userId: ADA, label: 'ADAM66666', lastDigits: '66666' });
+    const missingBefore = (await request(app).get('/api/card-receipts/statements?month=2026-11')).body.missingNow;
+    const res = await post('import', [line('11/14/2026', 'DELTA AIR LINES', 480, 'ref-admin', '-66666', 'ADA MIN'), line('11/15/2026', 'HERTZ', 90, 'ref-admin-2', '-66666', 'ADA MIN')]);
+    expect(res.body.check).toMatchObject({ created: 2 });
+    const rows = await db.select().from(cardExpenses).where(eq(cardExpenses.userId, ADA));
+    expect(rows.map((r) => [r.merchant, r.status]).sort()).toEqual([['DELTA AIR LINES', 'waiting'], ['HERTZ', 'waiting']]);
+    const delta = rows.find((r) => r.merchant === 'DELTA AIR LINES')!;
+    const history = await db.select().from(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, delta.id));
+    expect(history[0]!.changes).toBe('An Admin’s charge: waiting for Accounting (Amex charge ref-admin)');
+    // Not counted as a missing receipt.
+    expect((await request(app).get('/api/card-receipts/statements?month=2026-11')).body.missingNow).toEqual(missingBefore);
+    // Accounting sees it waiting; what it needs before approval is its category.
+    who = { ...ACCOUNTANT, permissions: ['approve_card_receipts'] };
+    const waiting = (await request(app).get('/api/card-receipts/expenses?scope=waiting')).body.expenses.find((e: { id: string }) => e.id === delta.id);
+    expect(waiting).toMatchObject({ holderRole: 'admin', waitingReason: 'accounting', actions: { fillDetails: true } });
+    // A charge already approved is never replaced.
+    const hertz = rows.find((r) => r.merchant === 'HERTZ')!;
+    await db.update(cardExpenses).set({ status: 'approved', approvedById: ACCT, approvedByName: 'Ann Count', approvedAt: new Date() }).where(eq(cardExpenses.id, hertz.id));
+    // The Admin uploads the receipt the usual way: the same day and total is not a repeat, it takes the waiting row's place.
+    who = ADMIN;
+    const up = await request(app).post('/api/card-receipts/expenses').send({ id: hex(400), date: '2026-11-14', merchant: 'Delta', total: '480.00' });
+    expect(up.status).toBe(201);
+    expect(up.body.replacedMissing).toBe(delta.id);
+    const [gone] = await db.select().from(cardExpenses).where(eq(cardExpenses.id, delta.id));
+    expect(gone).toMatchObject({ voidReason: 'Receipt uploaded' });
+    const [l] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-admin'));
+    expect(l!.expenseId).toBe(hex(400));
+    const again = await request(app).post('/api/card-receipts/expenses').send({ id: hex(401), date: '2026-11-15', merchant: 'Hertz', total: '90.00', confirmRepeat: true });
+    expect(again.status).toBe(201);
+    expect(again.body.replacedMissing).toBeUndefined();
+    const [kept] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-admin-2'));
+    expect(kept!.expenseId).toBe(hertz.id);
     who = ACCOUNTANT;
   });
 });

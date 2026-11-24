@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Camera, ChevronLeft, ChevronRight, Download, Info } from 'lucide-react';
+import { AlertTriangle, Camera, ChevronLeft, ChevronRight, Download, Info } from 'lucide-react';
 import useIsPhone from '../../components/shared/form/useIsPhone';
 import DashboardSearch from '../../components/shared/DashboardSearch';
 import LocationFilter from '../../components/shared/LocationFilter';
@@ -16,10 +16,13 @@ import { useCardReceipts } from './useCardReceipts';
 import { listAllExpenses } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
 import { writeExcel, writePdf } from './exportFiles';
-import { NO_FILTERS, holderPeople, statusLine, visibleExpenses, type ReceiptFilters } from './cardReceiptsView';
+import { NO_FILTERS, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
 import StatusTiles from './components/StatusTiles';
-import ExpenseList from './components/ExpenseList';
+import ExpenseList, { type ListSelection } from './components/ExpenseList';
 import ExpenseDrawer from './components/ExpenseDrawer';
+import AskForm from './components/AskForm';
+import ReopenForm from './components/ReopenForm';
+import RemindDialog from './components/RemindDialog';
 import ExpenseForm from './components/ExpenseForm';
 import AddReceiptChoice from './components/AddReceiptChoice';
 import ExportDialog from './components/ExportDialog';
@@ -33,7 +36,8 @@ import './CardReceipts.css';
 export type CardReceiptsPageProps = { currentUser: ReceiptsUser | null; sidebarToggle?: ReactNode };
 
 type Tab = 'expenses' | 'waiting' | 'statements' | 'cards';
-type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | null;
+type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense }
+  | { kind: 'ask'; expense: Expense } | { kind: 'reopen'; expense: Expense } | { kind: 'remind'; expenses: Expense[] } | null;
 
 /**
  * Sales → Credit Card Receipts (2026-11-05). Design: the claude.ai
@@ -52,16 +56,24 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const canExportAll = can(currentUser, CARD_RECEIPTS.EXPORT_ALL);
   const canCards = can(currentUser, CARD_RECEIPTS.MANAGE_CARDS) || can(currentUser, CARD_RECEIPTS.VIEW_ALL);
   const canStatements = can(currentUser, CARD_RECEIPTS.STATEMENTS);
+  const canRemind = can(currentUser, CARD_RECEIPTS.REMIND);
   // Someone who only runs the Amex check opens on it.
   const [tab, setTab] = useState<Tab>(() => ([CARD_RECEIPTS.USE, CARD_RECEIPTS.VIEW_ALL, CARD_RECEIPTS.APPROVE].some((p) => can(currentUser, p)) || !can(currentUser, CARD_RECEIPTS.STATEMENTS) ? 'expenses' : 'statements'));
   const [filters, setFilters] = useState<ReceiptFilters>(NO_FILTERS);
+  const [waitFilter, setWaitFilter] = useState<WaitFilter>('all');
   const [openId, setOpenId] = useState<string | null>(null);
   const [open, setOpen] = useState<Open>(null);
   const [toast, setToast] = useState('');
+  // Receipts ticked for Send reminder… (and a phone's Select mode).
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [selecting, setSelecting] = useState(false);
   const pager = usePagination();
   const categories = me?.categories || [];
+  // Waiting for me: approvers always; anyone else while a question is asked of them.
+  const showWaiting = data.approver || data.waiting.length > 0 || tab === 'waiting';
+  const waitN = useMemo(() => waitCounts(data.waiting), [data.waiting]);
 
-  const source = tab === 'waiting' ? data.waiting : data.expenses;
+  const source = tab === 'waiting' ? byWaitFilter(data.waiting, waitFilter) : data.expenses;
   // One People filter for cardholder and branch (the shared one): only who this login may see.
   const staff = useStaffList();
   const viewerId = String(me?.user.id || currentUser?.id || currentUser?._id || '');
@@ -86,11 +98,31 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const paged = rows.slice((pager.currentPage - 1) * pager.rowsPerPage, pager.currentPage * pager.rowsPerPage);
   // Changing what's listed goes back to page 1.
   const { resetPage } = pager;
-  useEffect(() => { resetPage(); }, [receiptFilters, tab, data.month, resetPage]);
+  useEffect(() => { resetPage(); }, [receiptFilters, tab, data.month, waitFilter, resetPage]);
+  // Another tab or month starts with nothing ticked.
+  useEffect(() => { setSelected(new Set()); setSelecting(false); }, [tab, data.month]);
+
+  // What "Select all shown" ticks: every row the filters show (not just this page) that a reminder can go about.
+  const remindRows = canRemind && (tab === 'expenses' || tab === 'waiting') ? rows.filter(remindable) : [];
+  const ticked = remindRows.filter((e) => selected.has(e.id));
+  const allShown = remindRows.length > 0 && ticked.length === remindRows.length;
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggleAll = () => setSelected(allShown ? new Set() : new Set(remindRows.map((e) => e.id)));
+  const clearSelection = () => { setSelected(new Set()); setSelecting(false); };
+  const selection: ListSelection | null = remindRows.length && (!isPhone || selecting)
+    ? { selected, onToggle: toggle, allShown, onToggleAll: toggleAll, active: selecting }
+    : null;
 
   const opened = openId ? source.find((e) => e.id === openId) || data.expenses.find((e) => e.id === openId) || data.waiting.find((e) => e.id === openId) || null : null;
   const index = opened ? rows.findIndex((e) => e.id === opened.id) : -1;
   const todo = useMemo(() => data.expenses.filter((e) => e.mine && !e.voided && ['missing', 'draft', 'sent_back'].includes(e.status)), [data.expenses]);
+  const missingMine = todo.filter((e) => e.status === 'missing');
+
+  /** After a decision from Waiting for me, the next one opens; otherwise the drawer closes. */
+  const openNext = (id: string) => {
+    const next = tab === 'waiting' ? rows[index + 1] || rows[index - 1] : null;
+    setOpenId(next && next.id !== id ? next.id : null);
+  };
 
   const say = (text: string) => { setToast(text); window.setTimeout(() => setToast(''), 2600); };
   const patchFilters = (patch: Partial<ReceiptFilters>) => setFilters((f) => ({ ...f, ...patch }));
@@ -180,12 +212,12 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           ) : null}
         </div>
 
-        {data.approver || canCards || canStatements ? (
+        {showWaiting || canCards || canStatements ? (
           <div className="ccr-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={tab === 'expenses'} className={`ccr-tab${tab === 'expenses' ? ' is-on' : ''}`} onClick={() => setTab('expenses')}>
               {data.viewAll ? 'Expenses' : 'My expenses'}
             </button>
-            {data.approver ? (
+            {showWaiting ? (
               <button type="button" role="tab" aria-selected={tab === 'waiting'} className={`ccr-tab${tab === 'waiting' ? ' is-on' : ''}`} onClick={() => setTab('waiting')}>
                 Waiting for me {data.waiting.length ? <span className="ccr-count">{data.waiting.length}</span> : null}
               </button>
@@ -215,6 +247,30 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             onSaved={(text) => { say(text); data.reload(); }} /> : null
         ) : (
           <>
+            {tab === 'expenses' && missingMine.length ? (
+              <div className="ccr-note is-warn ccr-banner" role="status">
+                <AlertTriangle size={16} aria-hidden="true" />
+                <span>
+                  You have {missingMine.length} missing {missingMine.length === 1 ? 'receipt' : 'receipts'}
+                  {data.month ? ` in ${monthLabel(data.month)}` : ''} — upload {missingMine.length === 1 ? 'it' : 'them'}.
+                </span>
+                <button type="button" className="ccr-btn ccr-banner-btn" onClick={() => setOpenId(missingMine[missingMine.length - 1].id)}>
+                  Upload
+                </button>
+              </div>
+            ) : null}
+
+            {tab === 'waiting' && data.approver ? (
+              <div className="fm-tokens ccr-waitseg">
+                <SegmentedToggle<WaitFilter>
+                  label="Show"
+                  value={waitFilter}
+                  onChange={setWaitFilter}
+                  options={WAIT_FILTERS.map((f) => ({ value: f.key, label: `${isPhone ? f.short : f.label} · ${waitN[f.key]}` }))}
+                />
+              </div>
+            ) : null}
+
             {isPhone && tab === 'expenses' && todo.length ? (
               <>
                 <h2 className="ccr-todo-h">To do · {todo.length}</h2>
@@ -233,10 +289,23 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
               <h2 className="ccr-todo-h" style={{ display: 'flex' }}>{data.month ? monthLabel(data.month).split(' ')[0] : ''}<span style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{formatMoney(shown.cents)} · {shown.count}</span></h2>
             ) : null}
 
+            {remindRows.length && (ticked.length || (isPhone && selecting)) ? (
+              <div className="ccr-selbar" role="region" aria-label="Selected receipts">
+                <span className="ccr-selbar-n">{ticked.length} selected</span>
+                <button type="button" className="ccr-btn gold" disabled={!ticked.length} onClick={() => setOpen({ kind: 'remind', expenses: ticked })}>Send reminder</button>
+                {!allShown ? <button type="button" className="ccr-btn" onClick={toggleAll}>Select all shown</button> : null}
+                <button type="button" className="ccr-btn" onClick={clearSelection}>{isPhone ? 'Cancel' : 'Clear'}</button>
+              </div>
+            ) : remindRows.length && isPhone ? (
+              <div className="ccr-selbar is-idle">
+                <button type="button" className="ccr-btn" onClick={() => setSelecting(true)}>Select</button>
+              </div>
+            ) : null}
+
             <div className={`ccr-box${data.loading ? ' is-loading' : ''}`} aria-busy={data.loading}>
               {rows.length ? (
                 <ExpenseList rows={paged} isPhone={isPhone} categories={categories} showHolder={tab === 'waiting' || data.viewAll}
-                  shownCents={shown.cents} shownCount={shown.count} onOpen={(e) => setOpenId(e.id)} />
+                  shownCents={shown.cents} shownCount={shown.count} onOpen={(e) => setOpenId(e.id)} selection={selection} />
               ) : (
                 <div className="ccr-empty">
                   {data.loading ? <span>Loading…</span> : tab === 'waiting' && data.waitingError ? (
@@ -244,7 +313,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                   ) : base.length ? (
                     <><h3>Nothing matches</h3><span>Clear the search or the filters.</span></>
                   ) : tab === 'waiting' ? (
-                    <><h3>Nothing is waiting for you</h3><span>Receipts you approve show here once they’re sent.</span></>
+                    data.waiting.length
+                      ? <><h3>Nothing in this group</h3><span>Pick All to see everything waiting for you.</span></>
+                      : <><h3>Nothing is waiting for you</h3><span>Receipts you approve, and questions asked of you, show here.</span></>
                   ) : (
                     <>
                       <h3>No receipts for {data.month ? monthLabel(data.month) : 'this month'}</h3>
@@ -270,16 +341,23 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         <ExpenseDrawer
           expense={opened}
           categories={categories}
+          today={me?.today || ''}
           canEdit={opened.mine && canUse && holderMayEdit(opened)}
+          canRemind={canRemind}
           onEdit={() => setOpen({ kind: 'edit', expense: opened })}
           onVoid={() => setOpen({ kind: 'void', expense: opened })}
           onApprove={async (comment) => {
-            try { await data.approve(opened.id, comment, opened.updatedAt); } catch (e) { data.reload(); throw e; }
-            say('Approved');
-            const next = tab === 'waiting' ? rows[index + 1] || rows[index - 1] : null;
-            setOpenId(next && next.id !== opened.id ? next.id : null);
+            const saved = await data.approve(opened, comment);
+            say(saved.status === 'approved' ? 'Approved' : 'Approval saved');
+            openNext(opened.id);
           }}
-          onSendBack={async (comment) => { try { await data.sendBack(opened.id, comment, opened.updatedAt); } catch (e) { data.reload(); throw e; } say('Sent back'); setOpenId(null); }}
+          onAnswer={async (text) => { await data.answer(opened, text); say('Answered and approved'); openNext(opened.id); }}
+          onSendBack={async (comment) => { await data.sendBack(opened, comment); say('Sent back'); setOpenId(null); }}
+          onAsk={() => setOpen({ kind: 'ask', expense: opened })}
+          onWithdrawAsk={async () => { await data.withdrawAsk(opened); say('Question withdrawn'); }}
+          onReopen={() => setOpen({ kind: 'reopen', expense: opened })}
+          onRemind={() => setOpen({ kind: 'remind', expenses: [opened] })}
+          onFillDetails={async (body) => { await data.fillDetails(opened, body); say('Details saved'); }}
           onClose={() => setOpenId(null)}
         />
       ) : null}
@@ -325,7 +403,22 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
 
       {open?.kind === 'void' ? (
         <VoidExpenseForm expense={open.expense} onClose={() => setOpen(null)}
-          onVoid={async (reason) => { await data.voidOne(open.expense.id, reason); setOpen(null); setOpenId(null); say('Expense voided'); }} />
+          onVoid={async (reason) => { await data.voidOne(open.expense, reason); setOpen(null); setOpenId(null); say('Expense voided'); }} />
+      ) : null}
+
+      {open?.kind === 'ask' ? (
+        <AskForm expense={open.expense} loadTargets={data.askTargets} onClose={() => setOpen(null)}
+          onAsk={async (to, question) => { await data.ask(open.expense, to, question); setOpen(null); say('Question sent'); }} />
+      ) : null}
+
+      {open?.kind === 'reopen' ? (
+        <ReopenForm expense={open.expense} onClose={() => setOpen(null)}
+          onReopen={async (reason) => { await data.reopen(open.expense, reason); setOpen(null); say('Reopened'); }} />
+      ) : null}
+
+      {open?.kind === 'remind' ? (
+        <RemindDialog expenses={open.expenses} onSend={data.remind}
+          onClose={() => { if (open.expenses.length > 1) clearSelection(); setOpen(null); }} />
       ) : null}
 
       {toast ? <div className="ccr-toast" role="status">{toast}</div> : null}
