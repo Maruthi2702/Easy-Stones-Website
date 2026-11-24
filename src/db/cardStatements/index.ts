@@ -25,7 +25,7 @@ import { isAdminRole } from '../../utils/receiptApproval.ts';
 import { formatMoney, usDate } from '../../utils/cardReceipts.ts';
 import {
   MISSING_FROM, MATCH_DAYS, kindOf, lineStatus, planMatches, cardForDigits, merchantOf, statusCounts, unknownCards, daysApart, issuerLabel,
-  NEAR_DAYS, isNearMatch, nearMatches,
+  NEAR_DAYS, isNearMatch, nearMatches, pairRefunds, REFUND_DAYS,
   type AmexLine, type Issuer, type LineKind, type LineStatus
 } from '../../utils/amexStatement.ts';
 
@@ -57,6 +57,17 @@ class Preview extends Error {
 
 export type CheckResult = { linked: number; created: number; retired: number; cardsFound: number };
 
+type RefundCharge = { reference: string; issuer: string; digits: string; date: string; cents: number };
+/** The charges (of those given) a later refund returned, by reference (review B9). Reads the credits it needs, nothing else. */
+async function refundedOf(c: Conn, charges: readonly RefundCharge[]): Promise<Set<string>> {
+  if (!charges.length) return new Set();
+  const days = charges.map(x => x.date).sort();
+  const credits = await q(c).select({ reference: lines.reference, issuer: lines.issuer, digits: lines.digits, date: lines.day, cents: lines.cents, description: lines.description })
+    .from(lines).where(and(eq(lines.kind, 'credit'), lt(lines.cents, 0), gte(lines.day, days[0]!), lt(lines.day, shiftDay(days.at(-1)!, REFUND_DAYS + 1)),
+      inArray(lines.digits, [...new Set(charges.map(x => x.digits))])));
+  return new Set(pairRefunds(charges, credits).keys());
+}
+
 /**
  * The check, inside a transaction the caller holds. Every charge still waiting for an upload is
  * looked at, not only the newest file's, so a receipt saved since the last upload (or a card set
@@ -87,6 +98,23 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
   }).from(lines).leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
     .where(and(eq(lines.kind, 'charge'), sql`${lines.cardId} is not null`,
       or(isNull(lines.expenseId), placeholderSql(), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))));
+  // A charge a refund returned needs no receipt (review B9): its Missing receipt row, if one was made, is let go.
+  const refunded = await refundedOf(tx, (await q(tx).select({ reference: lines.reference, issuer: lines.issuer, digits: lines.digits, date: lines.day, cents: lines.cents })
+    .from(lines).where(inArray(lines.reference, waiting.map(w => w.reference)))));
+  for (const w of waiting.filter(x => refunded.has(x.reference))) {
+    if (w.expenseId && !w.voidedAt && (w.status === 'missing' || w.status === 'waiting')) {
+      const [row] = await q(tx).select({ status: cardExpenses.status, ...placeholderCols }).from(cardExpenses).where(eq(cardExpenses.id, w.expenseId));
+      if (row && isPlaceholder({ ...row, voidedAt: null })) {
+        const now = new Date();
+        await changeExpense(q(tx), w.expenseId, { voidedAt: now, voidedBy: by.name, voidReason: 'Charge refunded' },
+          { at: now, by: by.name, action: 'voided', changes: `The ${issuerLabel(w.issuer)} charge (${w.reference}) was refunded: no receipt is needed` });
+        result.retired += 1;
+      }
+    }
+  }
+  const stillWaiting = waiting.filter(w => !refunded.has(w.reference));
+  waiting.length = 0;
+  waiting.push(...stillWaiting);
   if (!waiting.length) return result;
   const days = waiting.map(w => w.date).sort();
   // A person may hold a card at each bank and upload one receipt: a charge matches a receipt of the same
@@ -244,7 +272,9 @@ export async function importStatement(input: {
   const references = input.lines.map(l => l.reference);
   try {
     return await d.transaction(async tx => {
-      await lock(tx);
+      // Review B7 (2026-11-24): a real upload takes the check's lock; a preview rolls back anyway, so it takes none (every
+      // receipt save waits on that lock) and gives up after 2 s if it meets a row a real upload is writing.
+      if (input.preview) await q(tx).execute(sql`set local lock_timeout = '2s'`); else await lock(tx);
       const known = new Set<string>();
       for (let i = 0; i < references.length; i += 5000) {
         for (const r of await tx.select({ reference: lines.reference }).from(lines).where(inArray(lines.reference, references.slice(i, i + 5000)))) known.add(r.reference);
@@ -468,6 +498,7 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: s
     .leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
     .where(where)
     .orderBy(desc(lines.day), asc(lines.reference));
+  const refunded = await refundedOf(c, rows.filter(r => r.l.kind === 'charge').map(r => ({ reference: r.l.reference, issuer: r.l.issuer, digits: r.l.digits, date: r.l.day, cents: r.l.cents })));
   return rows.map(r => {
     const kind = r.l.kind as LineKind;
     return {
@@ -477,7 +508,7 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: s
       expenseId: r.l.expenseId, expenseStatus: r.expenseStatus ?? null,
       status: lineStatus({
         kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided),
-        hasReceipt: Boolean(r.expenseReceipt || r.expenseLost)
+        hasReceipt: Boolean(r.expenseReceipt || r.expenseLost), refunded: refunded.has(r.l.reference)
       }, missingFrom)
     };
   });

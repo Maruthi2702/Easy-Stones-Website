@@ -406,3 +406,26 @@ describe('review B1 / B2: the To-do list and a receipt that is close but not exa
     who = ACCOUNTANT;
   });
 });
+
+describe('review B9: a refunded charge needs no receipt', () => {
+  it('lets go of a Missing receipt row when the refund arrives, and asks for none when both come together', async () => {
+    who = ACCOUNTANT;
+    const first = await post('import', [line('11/22/2026', 'BEST BUY', 200, 'ref-bb', '-92069')]);
+    expect(first.body.check).toMatchObject({ created: 1 });
+    const [bb] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-bb'));
+    const missingId = bb!.expenseId!;
+    // The refund comes in a later file.
+    const second = await post('import', [line('11/23/2026', 'BEST BUY', -200, 'ref-bb-refund', '-92069')]);
+    expect(second.body.check).toMatchObject({ retired: 1, created: 0 });
+    const [gone] = await db.select().from(cardExpenses).where(eq(cardExpenses.id, missingId));
+    expect(gone).toMatchObject({ voidReason: 'Charge refunded' });
+    const view = (await request(app).get('/api/card-receipts/statements?month=2026-11')).body;
+    expect(view.lines.find((x: { reference: string }) => x.reference === 'ref-bb').status).toBe('refunded');
+    // Charge and refund in one file: no Missing row is ever made.
+    const together = await post('import', [line('11/24/2026', 'LOWES', 80, 'ref-lw', '-92069'), line('11/25/2026', 'LOWES', -80, 'ref-lw-refund', '-92069')]);
+    expect(together.body.check).toMatchObject({ created: 0 });
+    // An ordinary charge on the card is still asked for.
+    const plain = await post('import', [line('11/26/2026', 'SHELL OIL', 41.5, 'ref-sh', '-92069')]);
+    expect(plain.body.check).toMatchObject({ created: 1 });
+  });
+});

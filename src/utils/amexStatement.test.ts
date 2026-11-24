@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   amexDay, amexCents, amexDigits, periodOf, readAmexActivity, kindOf, lineStatus, cardForDigits, suggestHolder,
-  unknownCards, planMatches, merchantOf, statusCounts, isNearMatch, nearMatches, type MatchLine, type MatchExpense
+  unknownCards, planMatches, merchantOf, statusCounts, isNearMatch, nearMatches, pairRefunds, type MatchLine, type MatchExpense
 } from './amexStatement.ts';
 
 const HEADER = ['Date', 'Receipt', 'Description', 'Card Member', 'Account #', 'Amount', 'Extended Details', 'Appears On Your Statement As', 'Address', 'City/State', 'Zip Code', 'Country', 'Reference', 'Category'];
@@ -243,5 +243,27 @@ describe('near matches (offered, never automatic)', () => {
       { id: 'd', date: '2026-11-01', cents: 4518 }
     ]);
     expect(list.map((r) => r.id)).toEqual(['c', 'b', 'a']);
+  });
+});
+
+describe('refunds pair with their charges (review B9)', () => {
+  const l = (reference: string, date: string, cents: number, digits = '92069', description = 'HOME DEPOT') => ({ reference, issuer: 'amex', digits, date, cents, description });
+  it('pairs the same card, the exact amount back, within 30 days after, one credit for one charge', () => {
+    const charges = [l('c1', '2026-11-03', 20000), l('c2', '2026-11-05', 20000), l('c3', '2026-11-04', 20000, '11111')];
+    const pairs = pairRefunds(charges, [l('r1', '2026-11-06', -20000), l('r2', '2026-12-30', -20000)]);
+    // The newest earlier charge on that card; the credit 55 days later returns nothing; another card is untouched.
+    expect([...pairs]).toEqual([['c2', 'r1']]);
+  });
+  it('never pairs a charge with a credit before it, a different amount, or a card payment', () => {
+    expect(pairRefunds([l('c1', '2026-11-10', 5000)], [l('r1', '2026-11-09', -5000)]).size).toBe(0);
+    expect(pairRefunds([l('c1', '2026-11-10', 5000)], [l('r1', '2026-11-11', -4999)]).size).toBe(0);
+    expect(pairRefunds([l('c1', '2026-11-10', 5000)], [l('r1', '2026-11-11', -5000, '92069', 'ONLINE PAYMENT - THANK YOU')]).size).toBe(0);
+  });
+  it('a refunded charge reads as Refunded unless a receipt is already on it', () => {
+    const base = { kind: 'charge' as const, date: '2026-11-06', cardId: 'k' };
+    expect(lineStatus({ ...base, expenseStatus: null, refunded: true })).toBe('refunded');
+    expect(lineStatus({ ...base, expenseStatus: 'missing', refunded: true })).toBe('refunded');
+    expect(lineStatus({ ...base, expenseStatus: 'waiting', hasReceipt: true, refunded: true })).toBe('matched');
+    expect(lineStatus({ ...base, expenseStatus: null })).toBe('missing');
   });
 });

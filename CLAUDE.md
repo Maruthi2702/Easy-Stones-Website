@@ -1554,6 +1554,13 @@ receipt takes the bank's day, total and card (what a matched receipt keeps), a c
 Missing row is voided. Holder only; never automatic. A PUT that corrects the day or total looks for the charge again (3fdf09b9), and
 the screen drops the Missing row it replaced.
 
+**Refunds, previews and replacements** (2026-11-24; review B7–B9): a refund pairs with its charge (`pairRefunds`: same bank and card,
+the exact amount back, up to 30 days after, never a card payment) and that charge reads **Refunded** — no Missing row is made, one
+already made is voided ("Charge refunded"). Nothing is stored: the pairing is worked out each check and each view. A **preview**
+takes no global lock (it rolls back anyway) and gives up after 2 s on a row a real upload is writing (409 "try again"); only a real
+upload takes `card_statement_check`. An upload sends `replace` only for the cards the person confirmed in the dialog.
+Not done: a refunded charge on a card nobody holds yet still counts in "still missing".
+
 **Export and public links** (2026-11-24; review S2 / S3): both exports read `GET /expenses/export` — `?month=` needs Export (or
 Export all), no month needs Export all; the same people rules as the list apply and each export is logged (who, scope, count). The
 screen no longer builds a month's file from the list it already holds. A **public** receipt link (an old one, or a store that can't
