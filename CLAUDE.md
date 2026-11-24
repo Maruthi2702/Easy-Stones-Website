@@ -1540,7 +1540,8 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   receipts, in the header ⋯ under Export… ("Void 3 selected…" / "Delete 3 selected…", `BulkReasonForm`: one reason, each goes through
   the single route, a refused one is listed and the rest still go). Phone cards have no row ⋯ — a tap opens the receipt, whose ⋯ has them.
   Not built: reading a deleted receipt back in the app (an admin reads the table), restoring one.
-- **Add several receipts** (2026-11-24, owner's ask — to clear a pile of pending receipts at once): Add receipt →
+- **Add several receipts** (2026-11-24, owner's ask — to clear a pile of pending receipts at once; design: claude.ai artifact
+  **Add several receipts**, https://claude.ai/artifact/S2vxNjAb6abdokf1qRtDqJ — made after the build, so change one with the other): Add receipt →
   **Add several**, only with the switch `add_several_card_receipts` **and** `add_receipts_for_others` (Users & Roles →
   Credit Card Receipts → Receipts; admins hold it, Accounting is ticked by an admin). One **cardholder and one card per
   batch** (locked once files are in; people with two cards pick one), up to 25 files (`src/utils/receiptBatch.ts`, tested).
