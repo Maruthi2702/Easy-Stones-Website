@@ -1504,6 +1504,17 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   Excel's Receipt link is the site address (opens only when signed in). Only S3 can keep a private file (Cloudinary /
   disk stay public); receipts saved before 2026-11-20 are still public links until a copy script moves them
   (not written). **Not done:** the Cardholder filter, not the dashboard's People field, narrows the list.
+- **Edit any, Void any, Delete** (2026-11-24, on `feat/receipt-edit-any`; owner's ask — Accounting fixes any receipt, admins delete):
+  three switches on the Credit Card Receipts card, nobody holds them until an admin ticks them (Admins hold every key):
+  `edit_any_card_receipt` — `PUT /expenses/:id` for anyone's receipt, approved ones too, never a voided one; a waiting or approved
+  receipt **keeps its status and approvals** (`statusAfterAnyEdit`: a typo fix isn't approved again), a missing / draft / sent-back one
+  follows the usual rule, the card choice is the holder's, history says "edited for <first name>"; an Amex-matched receipt still keeps
+  Amex's date and total. `void_any_card_receipt` — `POST /expenses/:id/void` for anyone's, approved ones too, reason required; a charge
+  on a bank statement still can't be voided. `delete_card_receipts` — `DELETE /expenses/:id` with a reason of 5+ characters
+  (`deleteReasonProblem`): the whole record is saved first to `card_expense_deletions` (Postgres, migration `0034`; MongoDB's
+  `cardexpensedeletions`) with who and why, then removed with its history; a bank-statement charge's row can't be deleted. The
+  drawer's ⋯ shows Void receipt / Delete receipt… by these switches. **Run `npm run pg:migrate -- --apply` on Render for `0034`.**
+  Not built: reading a deleted receipt back in the app (an admin reads the table), restoring one.
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
   sample statement), the daily reminder email, closing a month.

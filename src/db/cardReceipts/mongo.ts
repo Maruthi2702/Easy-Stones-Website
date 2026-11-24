@@ -121,3 +121,13 @@ export async function changeExpense(id: string, set: Loose, fullEntry: ExpenseHi
   await expense.save();
   return expense.toObject() as unknown as Loose;
 }
+
+/** Delete an expense for good, after saving its whole record (MongoDB's copy of card_expense_deletions). Null if it is gone. */
+export async function deleteExpense(id: string, by: string, reason: string): Promise<Loose | null> {
+  const expense = await CardExpense.findById(id);
+  if (!expense) return null;
+  const doc = expense.toObject() as unknown as Loose;
+  await CardExpense.db.collection('cardexpensedeletions').insertOne({ expenseId: String(id), expense: doc, deletedBy: by, reason, deletedAt: new Date() });
+  await CardExpense.deleteOne({ _id: expense._id });
+  return doc;
+}

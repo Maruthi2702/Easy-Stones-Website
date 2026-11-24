@@ -64,6 +64,8 @@ export const matchReceiptToCharge = (missingId: string, receiptId: string) =>
 /** `seen`: the updatedAt the approver was looking at; the server refuses the decision if the receipt changed since. */
 export const approveExpense = (id: string, comment: string, seen?: string) => write(`/expenses/${id}/approve`, { comment }, seen);
 export const sendBackExpense = (id: string, comment: string, seen?: string) => write(`/expenses/${id}/send-back`, { comment }, seen);
+/** Delete a receipt for good (Delete receipts); the server keeps a copy with who and why. */
+export const deleteExpense = (id: string, reason: string) => call<{ deleted: true; id: string }>(`/expenses/${id}`, { method: 'DELETE', body: { reason } });
 export const voidExpense = (id: string, reason: string, seen?: string) => write(`/expenses/${id}/void`, { reason }, seen);
 /** Ask the cardholder's branch manager / director or an Admin a question (5–500 characters). */
 export const askAboutExpense = (id: string, to: string, question: string, seen?: string) => write(`/expenses/${id}/ask`, { to, question }, seen);

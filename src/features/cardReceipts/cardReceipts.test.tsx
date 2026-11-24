@@ -346,6 +346,16 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
     expect(await menuItems()).toEqual(['Withdraw question']);
   });
 
+  it('offers Void and Delete in ⋯ only with their switches, on a receipt that is not the viewer’s', async () => {
+    await openWaiting(['use_card_receipts', 'approve_card_receipts', 'void_any_card_receipt', 'delete_card_receipts'], 'CHEVRON');
+    expect(await menuItems()).toEqual(expect.arrayContaining(['Void receipt', 'Delete receipt…']));
+    cleanup();
+    await openWaiting(['use_card_receipts', 'approve_card_receipts'], 'CHEVRON');
+    const plain = await menuItems();
+    expect(plain).not.toContain('Void receipt');
+    expect(plain).not.toContain('Delete receipt…');
+  });
+
   it('asks a manager / Admin the server offers, with the question', async () => {
     await openWaiting(['use_card_receipts', 'approve_card_receipts'], 'CHEVRON');
     await menuItems();

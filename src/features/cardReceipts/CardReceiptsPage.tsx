@@ -11,7 +11,7 @@ import usePeopleFilter from '../../components/shared/people/usePeopleFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import Pagination from '../../components/shared/Pagination';
 import { usePagination } from '../../components/shared/paginationConfig';
-import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, holderMayEdit, managerMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
+import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, holderMayEdit, anyoneMayEdit, managerMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
 import { getAddForHolders, listAllExpenses, listMonthForExport } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
@@ -28,6 +28,7 @@ import AddReceiptChoice from './components/AddReceiptChoice';
 import ExportDialog from './components/ExportDialog';
 import CameraCapture from './components/CameraCapture';
 import VoidExpenseForm from './components/VoidExpenseForm';
+import DeleteExpenseForm from './components/DeleteExpenseForm';
 import CardsPanel from './components/CardsPanel';
 import StatementsPanel from './statements/StatementsPanel';
 import type { AddableHolder, Expense, ReceiptsUser } from './types';
@@ -36,7 +37,7 @@ import './CardReceipts.css';
 export type CardReceiptsPageProps = { currentUser: ReceiptsUser | null; sidebarToggle?: ReactNode };
 
 type Tab = 'expenses' | 'waiting' | 'statements' | 'cards';
-type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense }
+type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | { kind: 'delete'; expense: Expense }
   | { kind: 'ask'; expense: Expense } | { kind: 'reopen'; expense: Expense } | { kind: 'remind'; expenses: Expense[] } | null;
 
 /**
@@ -58,6 +59,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const canStatements = can(currentUser, CARD_RECEIPTS.STATEMENTS);
   const canRemind = can(currentUser, CARD_RECEIPTS.REMIND);
   const canAddForOthers = can(currentUser, CARD_RECEIPTS.ADD_FOR_OTHERS);
+  // Accounting's switches (2026-11-24): change or void anyone's receipt, approved ones too; admins delete.
+  const canEditAny = can(currentUser, CARD_RECEIPTS.EDIT_ANY);
+  const canVoidAny = can(currentUser, CARD_RECEIPTS.VOID_ANY);
+  const canDelete = can(currentUser, CARD_RECEIPTS.DELETE);
   const [addHolders, setAddHolders] = useState<AddableHolder[]>([]);
   useEffect(() => {
     if (!canAddForOthers) return;
@@ -363,7 +368,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           expense={opened}
           categories={categories}
           today={me?.today || ''}
-          canEdit={(opened.mine && canUse && holderMayEdit(opened)) || (!opened.mine && can(currentUser, CARD_RECEIPTS.MANAGE_CARDS) && managerMayEdit(opened))}
+          canEdit={(opened.mine && canUse && holderMayEdit(opened)) || (canEditAny && anyoneMayEdit(opened)) || (!opened.mine && can(currentUser, CARD_RECEIPTS.MANAGE_CARDS) && managerMayEdit(opened))}
+          canVoid={opened.status !== 'missing' && ((opened.mine && canUse && holderMayEdit(opened) && !opened.canDecide) || (canVoidAny && !opened.voided))}
+          canDelete={canDelete && opened.status !== 'missing'}
+          onDelete={() => setOpen({ kind: 'delete', expense: opened })}
           canRemind={canRemind}
           onEdit={() => setOpen({ kind: 'edit', expense: opened })}
           onVoid={() => setOpen({ kind: 'void', expense: opened })}
@@ -410,7 +418,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           startLost={open.kind === 'add' && Boolean(open.lost)}
           initialFile={open.kind === 'add' ? open.file : null}
           cardLabel={me?.card?.label || ''}
-          cards={me?.cards || []}
+          cards={open.kind === 'edit' && !open.expense.mine ? [] : me?.cards || []}
           holders={canAddForOthers ? addHolders : []}
           meId={me?.user.id || ''}
           holderName={me?.user.name || ''}
@@ -451,6 +459,11 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
       {open?.kind === 'remind' ? (
         <RemindDialog expenses={open.expenses} onSend={data.remind}
           onClose={() => { if (open.expenses.length > 1) clearSelection(); setOpen(null); }} />
+      ) : null}
+
+      {open?.kind === 'delete' ? (
+        <DeleteExpenseForm expense={open.expense} onClose={() => setOpen(null)}
+          onDelete={async (reason) => { await data.deleteOne(open.expense, reason); setOpen(null); setOpenId(null); say('Receipt deleted'); }} />
       ) : null}
 
       {toast ? <div className="ccr-toast" role="status">{toast}</div> : null}
