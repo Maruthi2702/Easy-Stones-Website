@@ -239,6 +239,13 @@
       "when": 1795494547232,
       "tag": "0033_receipt_added_by",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795534544273,
+      "tag": "0034_rate_limit_hits",
+      "breakpoints": true
     }
   ]
 }

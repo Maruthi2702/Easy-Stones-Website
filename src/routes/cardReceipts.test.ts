@@ -300,6 +300,13 @@ describe('saving a receipt', () => {
     await as(REP).post('/attachments', { data: 'hello' }).expect(400);
     await as(NOBODY).post('/attachments', { data: 'data:image/jpeg;base64,AAAA' }).expect(403);
   });
+
+  it('review S5: a PDF must start like one', async () => {
+    const pdf = (bytes: string) => `data:application/pdf;base64,${Buffer.from(bytes, 'latin1').toString('base64')}`;
+    await as(REP).post('/attachments', { data: pdf('%PDF-1.7\n1 0 obj') }).expect(200);
+    const res = await as(REP).post('/attachments', { data: pdf('<html>not a pdf</html>') }).expect(400);
+    expect(res.body.message).toMatch(/isn’t a PDF/);
+  });
 });
 
 describe('who sees what', () => {

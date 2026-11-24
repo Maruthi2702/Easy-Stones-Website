@@ -1504,6 +1504,13 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   Excel's Receipt link is the site address (opens only when signed in). Only S3 can keep a private file (Cloudinary /
   disk stay public); receipts saved before 2026-11-20 are still public links until a copy script moves them
   (not written). **Not done:** the Cardholder filter, not the dashboard's People field, narrows the list.
+- **Hardening of 2026-11-24 (review S5–S8, on `fix/card-receipts-hardening`):** a PDF sent to `/attachments` must start
+  with `%PDF-` (`src/utils/receiptPdf.ts`); **setting up a card from the Statements tab** (`POST /statements/cards`, or card
+  picks in a preview / import) needs **Manage cards**, not just the Amex check; `/api/card-receipts` parses JSON up to
+  **15 MB** (server.ts, before the global 200 MB parser); the upload and AI-scan limits count in **Postgres**
+  (`rate_limit_hits`, migration `0034`, `PostgresRateLimitStore`) so every Lambda instance shares them — if the database
+  can't be reached the request passes (`passOnStoreError`). **Run `npm run pg:migrate -- --apply` on Render for `0034`.**
+  A new limit that guards money uses that store, never the default in-memory one.
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
   sample statement), the daily reminder email, closing a month.

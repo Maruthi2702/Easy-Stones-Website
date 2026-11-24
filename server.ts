@@ -1199,6 +1199,8 @@ if (!IS_LAMBDA) {
 // Compression middleware - reduces response sizes by 70-90%
 app.use(compression());
 
+// Card receipts' JSON is a receipt photo at most (10 MB as base64): parse no more than that for them (review S7, 2026-11-24).
+app.use('/api/card-receipts', express.json({ limit: '15mb' }));
 app.use(express.json({ limit: '200mb' })); // Increase limit for large payloads (multiple images)
 app.use(cookieParser());
 

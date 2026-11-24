@@ -40,7 +40,7 @@ const { cardStatementLines, cardStatementImports } = await import('../db/schema/
 const { cardExpenses, companyCards, cardExpenseHistory } = await import('../db/schema/cardsSuppliers.ts');
 const { roles, users, locations } = await import('../db/schema/reference.ts');
 
-const ACCOUNTANT = { id: ACCT, displayName: 'Ann Count', role: 'accounting', permissions: ['check_amex_statements'] };
+const ACCOUNTANT = { id: ACCT, displayName: 'Ann Count', role: 'accounting', permissions: ['check_amex_statements', 'manage_company_cards'] };
 const MARUTHI = { id: MARU, displayName: 'Maruthi Ponugupati', role: 'sales_rep', location: 'Seattle', permissions: ['use_card_receipts'] };
 let who: Record<string, unknown> = ACCOUNTANT;
 

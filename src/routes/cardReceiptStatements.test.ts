@@ -116,9 +116,11 @@ describe('the Amex check', () => {
   });
 
   it('a preview with a card picked shows its effect, still keeping nothing', async () => {
+    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
     const res = await post('preview', FILE_ROWS, [{ digits: '93018', userId: SRINI }]);
     expect(res.body.counts).toMatchObject({ missing: { count: 2 }, no_card: { count: 0 } });
     expect(await db.select().from(companyCards)).toHaveLength(1);
+    who = ACCOUNTANT;
   });
 
   it('imports: matches the upload, makes one Missing receipt row, leaves the rest', async () => {
@@ -148,7 +150,19 @@ describe('the Amex check', () => {
     expect(await db.select().from(cardStatementImports)).toHaveLength(2);
   });
 
+  it('review S6: the Amex check alone can read a file but not set up a card', async () => {
+    who = ACCOUNTANT; // only check_amex_statements
+    const before = await db.select().from(companyCards);
+    const res = await request(app).post('/api/card-receipts/statements/cards').send({ digits: '93018', userId: SRINI });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/manages company cards/);
+    const picked = await post('preview', FILE_ROWS, [{ digits: '93018', userId: SRINI }]);
+    expect(picked.status).toBe(403);
+    expect(await db.select().from(companyCards)).toHaveLength(before.length);
+  });
+
   it('sets up a card from the Statements tab and asks its holder for the receipt', async () => {
+    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
     const res = await request(app).post('/api/card-receipts/statements/cards').send({ digits: '93018', userId: SRINI });
     expect(res.status).toBe(200);
     expect(res.body.check).toMatchObject({ cardsFound: 1, created: 1 });
@@ -264,11 +278,11 @@ describe('approving a month from before the check started', () => {
   it('a replaced card (new digits, same name) deactivates the old one only when confirmed by someone who manages cards', async () => {
     await post('import', [line('11/12/2026', 'NEW CARD SHOP', 25, 'ref-new', '-77777', 'MARUTHI PONUGUPATI')]);
     const setUp = (body: object) => request(app).post('/api/card-receipts/statements/cards').send(body);
+    // This login can't manage cards (S6): refused before anything is looked at.
+    expect((await setUp({ digits: '77777', userId: MARU, replace: true })).status).toBe(403);
+    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
     // Not confirmed: still refused, nothing changes.
     expect((await setUp({ digits: '77777', userId: MARU })).body.message).toMatch(/Confirm the replacement/);
-    // Confirmed, but this login can't manage cards.
-    expect((await setUp({ digits: '77777', userId: MARU, replace: true })).body.message).toMatch(/needs someone who manages company cards/);
-    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'manage_company_cards'] };
     // A different name on the new digits is not a replacement.
     await post('import', [line('11/12/2026', 'OTHER', 25, 'ref-other', '-88888', 'SOMEBODY ELSE')]);
     expect((await setUp({ digits: '88888', userId: MARU, replace: true })).body.message).toMatch(/already has card MARU92069/);

@@ -15,6 +15,8 @@ import {
 } from '../utils/receiptApproval.ts';
 import { newId } from '../db/ids.ts';
 import rateLimit from 'express-rate-limit';
+import { PostgresRateLimitStore } from '../services/rateLimitStore.ts';
+import { isRealPdfDataUrl } from '../utils/receiptPdf.ts';
 import { isFilesCdnUrl, isCloudinaryUrl } from '../utils/fileUrls.ts';
 import { getFileStore, type FileStore } from '../services/fileStore.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
@@ -195,7 +197,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   const router = express.Router();
   const opener = [authenticate, anyOf(...PAGE_PERMISSIONS)];
   const uploader = (req: Request) => userIdOf(req) || 'anonymous';
-  const uploadLimit = rateLimit({ windowMs: 10 * 60 * 1000, limit: 40, keyGenerator: uploader, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Too many uploads. Wait a few minutes.' } });
+  const uploadLimit = rateLimit({ windowMs: 10 * 60 * 1000, limit: 40, keyGenerator: uploader, store: new PostgresRateLimitStore('card-receipt-upload'), passOnStoreError: true, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Too many uploads. Wait a few minutes.' } });
   const actor = (req: Request) => nameOf(userOf(req));
   const actorOf = (req: Request) => ({ id: userIdOf(req), name: actor(req) });
 
@@ -454,6 +456,10 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     if (typeof data === 'string' && data.length > MAX_UPLOAD_CHARS) return res.status(413).json({ message: 'That file is too large. Use a photo under 10 MB.' });
     if (typeof data !== 'string' || !/^data:(image\/|application\/pdf)/.test(data)) {
       return res.status(400).json({ message: 'Send a photo or a PDF of the receipt.' });
+    }
+    // Review S5: a file that says it is a PDF must start like one.
+    if (data.startsWith('data:application/pdf') && !isRealPdfDataUrl(data)) {
+      return res.status(400).json({ message: 'That file isn’t a PDF. Send a photo or a PDF of the receipt.' });
     }
     try {
       // Receipts keep up to 2000px (visit photos 1000) so the print stays readable when zoomed.

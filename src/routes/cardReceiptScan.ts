@@ -4,6 +4,7 @@ import * as db from '../db/cardReceipts/index.ts';
 import { CARD_RECEIPTS, isReceiptFolderUrl, privateReceiptNameOf, PRIVATE_RECEIPT_KEY_PREFIX } from '../utils/cardReceipts.ts';
 import { getFileStore, type FileStore } from '../services/fileStore.ts';
 import rateLimit from 'express-rate-limit';
+import { PostgresRateLimitStore } from '../services/rateLimitStore.ts';
 import { isCloudinaryUrl, isFilesCdnUrl } from '../utils/fileUrls.ts';
 import { isPdfSource } from '../utils/attachments.ts';
 import type { ReceiptScanner } from '../services/receiptScan.ts';
@@ -32,8 +33,8 @@ export default function createCardReceiptScanRouter({ authenticate, scanner, fil
 
   // Each read costs money: a person gets a burst and a day's worth, not an open tap.
   const perPerson = (req: Request) => String((req as Request & { user?: { id?: string; _id?: string } }).user?.id || (req as Request & { user?: { _id?: string } }).user?._id || 'anonymous');
-  const burst = rateLimit({ windowMs: 10 * 60 * 1000, limit: 20, keyGenerator: perPerson, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Too many receipts at once. Wait a few minutes.' } });
-  const daily = rateLimit({ windowMs: 24 * 60 * 60 * 1000, limit: 100, keyGenerator: perPerson, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Today’s reading limit is reached. Type the details instead.' } });
+  const burst = rateLimit({ windowMs: 10 * 60 * 1000, limit: 20, keyGenerator: perPerson, store: new PostgresRateLimitStore('receipt-scan-burst'), passOnStoreError: true, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Too many receipts at once. Wait a few minutes.' } });
+  const daily = rateLimit({ windowMs: 24 * 60 * 60 * 1000, limit: 100, keyGenerator: perPerson, store: new PostgresRateLimitStore('receipt-scan-daily'), passOnStoreError: true, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Today’s reading limit is reached. Type the details instead.' } });
 
   const readIt = async (source: Parameters<ReceiptScanner['scan']>[0], res: Response) => {
     try {
