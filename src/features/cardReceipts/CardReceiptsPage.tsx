@@ -11,12 +11,12 @@ import usePeopleFilter from '../../components/shared/people/usePeopleFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import Pagination from '../../components/shared/Pagination';
 import { usePagination } from '../../components/shared/paginationConfig';
-import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, holderMayEdit, onBank, monthLabel, shiftMonth, monthOf } from '../../utils/cardReceipts';
+import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, holderMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
 import { getAddForHolders, listAllExpenses } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
 import { writeExcel, writePdf } from './exportFiles';
-import { NO_FILTERS, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
+import { NO_FILTERS, TODO_SHOWN, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
 import StatusTiles from './components/StatusTiles';
 import ExpenseList, { type ListSelection } from './components/ExpenseList';
 import ExpenseDrawer from './components/ExpenseDrawer';
@@ -122,10 +122,14 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
     ? { selected, onToggle: toggle, allShown, onToggleAll: toggleAll, active: selecting }
     : null;
 
-  const opened = openId ? source.find((e) => e.id === openId) || data.expenses.find((e) => e.id === openId) || data.waiting.find((e) => e.id === openId) || null : null;
+  const opened = openId ? source.find((e) => e.id === openId) || data.expenses.find((e) => e.id === openId) || data.waiting.find((e) => e.id === openId)
+    || data.todo.find((e) => e.id === openId) || null : null;
   const index = opened ? rows.findIndex((e) => e.id === opened.id) : -1;
-  const todo = useMemo(() => data.expenses.filter((e) => e.mine && !e.voided && ['missing', 'draft', 'sent_back'].includes(e.status)), [data.expenses]);
+  // To do (review B1): every month's, from the server — a charge from last month found by this month's statement shows too.
+  const todo = data.todo;
   const missingMine = todo.filter((e) => e.status === 'missing');
+  const [allTodo, setAllTodo] = useState(false);
+  const todoShown = allTodo ? todo : todo.slice(0, TODO_SHOWN);
 
   /** After a decision from Waiting for me, the next one opens; otherwise the drawer closes. */
   const openNext = (id: string) => {
@@ -272,7 +276,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 <AlertTriangle size={16} aria-hidden="true" />
                 <span>
                   You have {missingMine.length} missing {missingMine.length === 1 ? 'receipt' : 'receipts'}
-                  {data.month ? ` in ${monthLabel(data.month)}` : ''} — upload {missingMine.length === 1 ? 'it' : 'them'}.
+                  {missingMine.some((e) => monthOf(e.date) !== data.month) ? ' (some from another month)' : ''} — upload {missingMine.length === 1 ? 'it' : 'them'}.
                 </span>
                 <button type="button" className="ccr-btn ccr-banner-btn" onClick={() => setOpenId(missingMine[missingMine.length - 1].id)}>
                   Upload
@@ -280,16 +284,23 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
               </div>
             ) : null}
 
-            {isPhone && tab === 'expenses' && todo.length ? (
-              <>
+            {tab === 'expenses' && todo.length ? (
+              <section className="ccr-todos" aria-label="To do">
                 <h2 className="ccr-todo-h">To do · {todo.length}</h2>
-                {todo.map((e) => (
-                  <button key={e.id} type="button" className={`ccr-todo${e.status === 'missing' ? ' is-miss' : ''}`} onClick={() => setOpenId(e.id)}>
-                    <span className="ccr-todo-top"><b>{e.merchant}</b><span className="ccr-amt">{formatMoney(e.cents)}</span></span>
-                    <span className="ccr-sub" style={{ fontSize: 13 }}>{statusLine(e, categories)}</span>
+                <div className="ccr-todo-grid">
+                  {todoShown.map((e) => (
+                    <button key={e.id} type="button" className={`ccr-todo${e.status === 'missing' ? ' is-miss' : ''}`} onClick={() => setOpenId(e.id)}>
+                      <span className="ccr-todo-top"><b>{e.merchant}</b><span className="ccr-amt">{formatMoney(e.cents)}</span></span>
+                      <span className="ccr-sub" style={{ fontSize: 13 }}>{usDate(e.date)} · {statusLine(e, categories)}</span>
+                    </button>
+                  ))}
+                </div>
+                {todo.length > TODO_SHOWN ? (
+                  <button type="button" className="ccr-btn ccr-todo-more" onClick={() => setAllTodo((a) => !a)}>
+                    {allTodo ? 'Show fewer' : `Show all ${todo.length}`}
                   </button>
-                ))}
-              </>
+                ) : null}
+              </section>
             ) : null}
 
             {!isPhone && tab === 'expenses' ? <StatusTiles totals={totals} status={filters.status} onStatus={(status) => patchFilters({ status })}
@@ -367,6 +378,14 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           onReopen={() => setOpen({ kind: 'reopen', expense: opened })}
           onRemind={() => setOpen({ kind: 'remind', expenses: [opened] })}
           onFillDetails={async (body) => { await data.fillDetails(opened, body); say('Details saved'); }}
+          nearReceipts={data.nearReceipts}
+          onUseReceipt={async (receiptId) => {
+            const saved = await data.matchToCharge(opened, receiptId);
+            say('Matched to the charge');
+            // Open the receipt that now answers the charge (in its own month).
+            if (tab === 'expenses' && monthOf(saved.date) !== data.month) data.setMonth(monthOf(saved.date));
+            setOpenId(saved.id);
+          }}
           onClose={() => setOpenId(null)}
         />
       ) : null}

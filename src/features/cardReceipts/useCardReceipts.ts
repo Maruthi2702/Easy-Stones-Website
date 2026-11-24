@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { newVisitId } from '../../utils/visitForm';
 import { CARD_RECEIPTS, can, monthOf } from '../../utils/cardReceipts';
+import { isTodo } from './cardReceiptsView';
 import * as api from './cardReceiptsApi';
 import type { DetailsBody, ExpenseBody } from './cardReceiptsApi';
 import { reasonOf } from './cardReceiptsView';
@@ -27,6 +28,8 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   const [month, setMonth] = useState('');
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [waiting, setWaiting] = useState<Expense[]>([]);
+  // To do (review B1): the caller's own Missing receipt / Draft / Sent back from every month, not only the one on screen.
+  const [todo, setTodo] = useState<Expense[]>([]);
   const [holders, setHolders] = useState<{ id: string; name: string; active: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -77,7 +80,13 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   }, [approver]);
   useEffect(() => { loadWaiting(); }, [loadWaiting]);
 
-  const reload = useCallback(() => { load(); loadWaiting(); }, [load, loadWaiting]);
+  const loadTodo = useCallback(async () => {
+    if (!can(user, CARD_RECEIPTS.USE)) return;
+    try { setTodo((await api.listExpenses('todo', '')).expenses || []); } catch { /* the month's own list still shows them */ }
+  }, [user]);
+  useEffect(() => { loadTodo(); }, [loadTodo]);
+
+  const reload = useCallback(() => { load(); loadWaiting(); loadTodo(); }, [load, loadWaiting, loadTodo]);
 
   /** Puts a saved expense in place everywhere it shows. */
   const place = (e: Expense) => {
@@ -86,6 +95,11 @@ export function useCardReceipts(user: ReceiptsUser | null) {
       const inMonth = monthOf(e.date) === month && (canAll || e.mine || list.some((x) => x.id === e.id));
       const without = list.filter((x) => x.id !== e.id);
       return inMonth ? [e, ...without].sort((a, b) => b.date.localeCompare(a.date)) : without;
+    });
+    setTodo((list) => {
+      const still = e.mine && !e.voided && isTodo(e);
+      const without = list.filter((x) => x.id !== e.id);
+      return still ? [e, ...without].sort((a, b) => b.date.localeCompare(a.date)) : without;
     });
     setWaiting((list) => {
       const mine = e.status === 'waiting' && !e.voided && reasonOf(e) !== null;
@@ -106,14 +120,22 @@ export function useCardReceipts(user: ReceiptsUser | null) {
     }
   };
 
+  /** It answered a bank charge: that charge's Missing receipt row is gone (voided on the server). */
+  const dropMissing = (id?: string) => {
+    if (!id) return;
+    setExpenses((list) => list.filter((x) => x.id !== id));
+    setTodo((list) => list.filter((x) => x.id !== id));
+  };
   const add = async (body: ExpenseBody) => {
     const r = await api.addExpense(newVisitId(), body);
-    // It answered an Amex charge: that charge's Missing receipt row is gone (voided on the server).
-    if (r.replacedMissing) setExpenses((list) => list.filter((x) => x.id !== r.replacedMissing));
+    dropMissing(r.replacedMissing);
     place(r.expense);
     return r.expense;
   };
-  const edit = (id: string, body: ExpenseBody) => run(() => api.editExpense(id, body));
+  // A corrected day or total may answer a charge too (the server looks again).
+  const edit = (id: string, body: ExpenseBody) => run(async () => { const r = await api.editExpense(id, body); dropMissing(r.replacedMissing); return r; });
+  /** "This is my receipt" on a Missing receipt row (review B2): the row goes, the receipt shows as the server left it. */
+  const matchToCharge = (missing: Expense, receiptId: string) => run(async () => { const r = await api.matchReceiptToCharge(missing.id, receiptId); dropMissing(r.replacedMissing); return r; });
   const approve = (e: Expense, comment: string) => run(() => api.approveExpense(e.id, comment, e.updatedAt));
   const sendBack = (e: Expense, comment: string) => run(() => api.sendBackExpense(e.id, comment, e.updatedAt));
   const ask = (e: Expense, to: string, question: string) => run(() => api.askAboutExpense(e.id, to, question, e.updatedAt));
@@ -130,8 +152,8 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   };
 
   return {
-    me, month, setMonth, expenses, waiting, waitingError, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
-    reload, add, edit, approve, sendBack, ask, withdrawAsk, answer, reopen, fillDetails, voidOne, remind,
+    me, month, setMonth, expenses, waiting, todo, waitingError, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
+    reload, add, edit, matchToCharge, nearReceipts: api.nearReceipts, approve, sendBack, ask, withdrawAsk, answer, reopen, fillDetails, voidOne, remind,
     askTargets: api.askTargets, upload: api.uploadReceipt, scan: api.scanReceipt
   };
 }

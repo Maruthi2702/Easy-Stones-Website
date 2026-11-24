@@ -20,7 +20,7 @@ import { getFileStore, type FileStore } from '../services/fileStore.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
 import { displayNameOf } from '../utils/salesReps.ts';
 import { ALL_PEOPLE } from '../utils/teamScope.ts';
-import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup } from '../db/cardStatements/hooks.ts';
+import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup, nearReceiptsOf, matchByHand, NearMatchError } from '../db/cardStatements/hooks.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, missingFor, holderMayEdit, changeSummary, possibleRepeat, centsText,
@@ -42,6 +42,7 @@ import type { Loose } from '../types/records.ts';
  *   POST   /cards, PUT /cards/:id    (manage_company_cards) one active card per person
  *   POST   /attachments              { data } a photo or PDF → { url }, the moment it's picked
  *   GET    /expenses?scope=&month=   mine (default) · all (view all, or view branch: the caller's team) · waiting (what waits for the caller, any month)
+ *                                     · todo (the caller's own Missing receipt / Draft / Sent back, any month)
  *   GET    /expenses/export?bank=    every month, one bank or both (export_all_card_receipts), the caller's own view's people
  *   POST   /expenses                 add, with the screen's own `id` (a repeat answers alreadySaved);
  *                                    the same day + total already saved answers 409 `repeat` unless `confirmRepeat`
@@ -471,6 +472,10 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       let filter: db.ExpenseFilter;
       if (scope === 'waiting') {
         filter = { kind: 'waiting' };
+      } else if (scope === 'todo') {
+        // Review B1 (2026-11-24): the caller's own receipts still to finish, from any month — a charge from
+        // last month found by this month's statement must not hide behind the month stepper.
+        filter = { kind: 'todo', userId: me };
       } else {
         if (!isMonth(month)) return res.status(400).json({ message: 'Provide a month as YYYY-MM.' });
         if (scope === 'all') {
@@ -939,6 +944,48 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     } catch (error) {
       console.error('[card-receipts] receipt file failed:', error);
       res.status(500).json({ message: 'Could not open the receipt.' });
+    }
+  });
+
+  /**
+   * Review B2 (2026-11-24): a Missing receipt row's charge, with the holder's own receipts close to it
+   * (amount within $5 / 10%, a week either side) — the receipt they may already have uploaded. Holder only.
+   */
+  router.get('/expenses/:id/near-receipts', authenticate, anyOf(CARD_RECEIPTS.USE), validateScalarRequest, async (req: Request, res: Response) => {
+    const { id } = scalarParams(req);
+    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Expense not found.' });
+    try {
+      const expense = await db.findExpense(id);
+      if (!expense || expense.userId !== userIdOf(req)) return res.status(404).json({ message: 'Expense not found.' });
+      const found = await nearReceiptsOf(id);
+      res.json(found ?? { charge: null, receipts: [] });
+    } catch (error) {
+      console.error('[card-receipts] near receipts failed:', error);
+      res.status(500).json({ message: 'Could not look for your receipts.' });
+    }
+  });
+
+  /**
+   * "This is my receipt" (review B2): the charge behind this Missing receipt row is answered by `receiptId`, a
+   * receipt the holder already saved; the row is voided. Answers the receipt as it is now and `replacedMissing`.
+   */
+  router.post('/expenses/:id/use-receipt', authenticate, anyOf(CARD_RECEIPTS.USE), validateScalarRequest, async (req: Request, res: Response) => {
+    const { id } = scalarParams(req);
+    const me = userIdOf(req);
+    const receiptId = String(req.body?.receiptId ?? '').trim();
+    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Expense not found.' });
+    if (!mongoose.isValidObjectId(receiptId)) return res.status(400).json({ message: 'Pick the receipt this charge is.' });
+    try {
+      const expense = await db.findExpense(id);
+      if (!expense || expense.userId !== me) return res.status(404).json({ message: 'Expense not found.' });
+      const done = await matchByHand(id, receiptId, me, actorOf(req));
+      const saved = await db.findExpense(done.receiptId);
+      if (!saved) return res.status(404).json({ message: 'Expense not found.' });
+      res.json({ expense: await viewOf(saved, approvalViewerOf(req)), replacedMissing: done.voided });
+    } catch (error) {
+      if (error instanceof NearMatchError) return res.status(409).json({ message: error.message });
+      console.error('[card-receipts] match by hand failed:', error);
+      res.status(500).json({ message: 'Could not use that receipt. Try again.' });
     }
   });
 

@@ -1544,6 +1544,16 @@ by several holders, then name) — the sheet itself stays out of the repo, it's 
 card link to it and show **Missing receipt** (owner, 2026-11-20: the card is enough to identify the charge; counted in the still-missing total); the openable Missing row is made only once Cards →
 **Assign to a person** gives it a holder, which re-runs the check (`afterCardSaved`). **A replaced card** (lost / reissued: new digits, same Card Member name; owner 2026-11-20): Set up card / the upload's picks accept a person who already has a card; the old card is deactivated (history kept) only when the screen confirmed it (`replace: true`), the login manages company cards (`manage_company_cards`: accounting / admin) and Amex's name on the new digits is that person's — else the usual "deactivate it under Cards first" refusal. Not built: the daily reminder email.
 
+**To do and near matches** (2026-11-24, on `fix/card-receipts-todo-match`; review B1–B3): a cardholder's **To do** is
+every month's own Missing receipt / Draft / Sent back (`GET /expenses?scope=todo`, `TODO_STATUSES`), shown above the list on every
+screen size — a charge from last month found by this month's statement used to sit only in last month. The automatic match stays
+**exact** (owner's rule), but a Missing receipt row offers its holder their own receipts **close** to the charge (`isNearMatch` in
+`amexStatement.ts`: a week either side, within $5 or 10%; `GET /expenses/:id/near-receipts`) and **"This is my receipt"**
+(`POST /expenses/:id/use-receipt`, `matchReceiptToCharge` in `db/cardStatements`, under the check's lock) links the charge to it: the
+receipt takes the bank's day, total and card (what a matched receipt keeps), a changed total takes back its approvals, and the
+Missing row is voided. Holder only; never automatic. A PUT that corrects the day or total looks for the charge again (3fdf09b9), and
+the screen drops the Missing row it replaced.
+
 **The Encore check** (2026-11-21, on `feat/encore-statements`; owner's answers that day: Encore cards are **additional**
 to Amex, a person may hold one of each, and some holders are new): Statements → **Upload statement** has a **Bank** choice
 (Amex | Encore). Encore's export is one sheet, one row per transaction (`src/utils/encoreStatement.ts`, tested; worker kind

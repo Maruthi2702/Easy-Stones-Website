@@ -8,6 +8,8 @@ import { actionsOf, askIsOpen, categoryText, isPdfUrl, reminderLine, remindable,
 import type { StatusBand } from '../cardReceiptsView';
 import type { DetailsBody } from '../cardReceiptsApi';
 import FillDetailsSection from './FillDetailsSection';
+import NearReceipts from './NearReceipts';
+import type { NearReceipts as NearList } from '../cardReceiptsApi';
 import type { Category, Expense } from '../types';
 
 export type ExpenseDrawerProps = {
@@ -31,6 +33,10 @@ export type ExpenseDrawerProps = {
   /** Opens "Send reminder…" for this receipt. */
   onRemind: () => void;
   onFillDetails: (body: DetailsBody) => Promise<unknown>;
+  /** A Missing receipt row's close receipts (review B2); with onUseReceipt, offered to its holder. */
+  nearReceipts?: (missingId: string) => Promise<NearList>;
+  /** "This is my receipt": the charge is answered by that receipt. */
+  onUseReceipt?: (receiptId: string) => Promise<unknown>;
   onClose: () => void;
 };
 
@@ -94,7 +100,7 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
  */
 export default function ExpenseDrawer({
   expense: e, categories, today = '', canEdit, canRemind = false,
-  onEdit, onVoid, onApprove, onAnswer, onSendBack, onAsk, onWithdrawAsk, onReopen, onRemind, onFillDetails, onClose
+  onEdit, onVoid, onApprove, onAnswer, onSendBack, onAsk, onWithdrawAsk, onReopen, onRemind, onFillDetails, nearReceipts, onUseReceipt, onClose
 }: ExpenseDrawerProps) {
   const [comment, setComment] = useState('');
   const [answer, setAnswer] = useState('');
@@ -236,6 +242,9 @@ export default function ExpenseDrawer({
           </div>
         </div>
       </FormSection>
+
+      {e.status === 'missing' && e.mine && canEdit && !e.voided && nearReceipts && onUseReceipt
+        ? <NearReceipts missing={e} load={nearReceipts} onUse={onUseReceipt} /> : null}
 
       {act.fillDetails ? <FillDetailsSection expense={e} categories={categories} onSave={onFillDetails} /> : null}
 

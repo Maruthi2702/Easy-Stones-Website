@@ -3,7 +3,9 @@
  * Both do nothing while Credit Card Receipts is on MongoDB (the check is Postgres only).
  */
 import { areaOn } from '../appDb.ts';
-import { claimUpload, linkedLine, recheck, amexNamesByDigits } from './index.ts';
+import { claimUpload, linkedLine, recheck, amexNamesByDigits, nearReceiptsFor, matchReceiptToCharge, NearMatchError, type NearMatchList } from './index.ts';
+
+export { NearMatchError };
 
 const on = () => areaOn('card_receipts') === 'postgres';
 
@@ -67,4 +69,16 @@ export async function amexChargeOf(expenseId: string) {
     console.error('[card-statements] reading an expense’s Amex charge failed:', error);
     throw error;
   }
+}
+
+/** The holder's receipts close to the charge behind a Missing receipt row (review B2); null off Postgres or when it stands for no charge. */
+export async function nearReceiptsOf(placeholderId: string): Promise<NearMatchList | null> {
+  if (!on()) return null;
+  return nearReceiptsFor(placeholderId);
+}
+
+/** "This is my receipt" (review B2): see matchReceiptToCharge. Throws NearMatchError with the reason when refused. */
+export async function matchByHand(placeholderId: string, receiptId: string, holderId: string, by: { id: string; name: string }) {
+  if (!on()) throw new NearMatchError('Statements aren’t checked here yet.');
+  return matchReceiptToCharge(placeholderId, receiptId, holderId, by);
 }

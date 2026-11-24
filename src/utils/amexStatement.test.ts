@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   amexDay, amexCents, amexDigits, periodOf, readAmexActivity, kindOf, lineStatus, cardForDigits, suggestHolder,
-  unknownCards, planMatches, merchantOf, statusCounts, type MatchLine, type MatchExpense
+  unknownCards, planMatches, merchantOf, statusCounts, isNearMatch, nearMatches, type MatchLine, type MatchExpense
 } from './amexStatement.ts';
 
 const HEADER = ['Date', 'Receipt', 'Description', 'Card Member', 'Account #', 'Amount', 'Extended Details', 'Appears On Your Statement As', 'Address', 'City/State', 'Zip Code', 'Country', 'Reference', 'Category'];
@@ -219,4 +219,27 @@ it('merchantOf keeps one space and 80 characters', () => {
   expect(merchantOf('AMAZON PRIME*UC99N4EAMZN.COM/BILL       WA')).toBe('AMAZON PRIME*UC99N4EAMZN.COM/BILL WA');
   expect(merchantOf('   ')).toBe('Amex charge');
   expect(merchantOf('x'.repeat(100))).toHaveLength(80);
+});
+
+describe('near matches (offered, never automatic)', () => {
+  const charge = { date: '2026-11-10', cents: 4518 };
+  it('is close when within a week and within $5 or 10%, whichever is wider', () => {
+    expect(isNearMatch(charge, { date: '2026-11-09', cents: 4500 })).toBe(true);
+    expect(isNearMatch(charge, { date: '2026-11-17', cents: 4518 })).toBe(true);
+    expect(isNearMatch(charge, { date: '2026-11-18', cents: 4518 })).toBe(false);
+    expect(isNearMatch(charge, { date: '2026-11-10', cents: 4018 })).toBe(true);
+    expect(isNearMatch(charge, { date: '2026-11-10', cents: 4017 })).toBe(false);
+    // A $480 hotel: 10% ($48) is wider than $5.
+    expect(isNearMatch({ date: '2026-11-10', cents: 48000 }, { date: '2026-11-06', cents: 43200 })).toBe(true);
+    expect(isNearMatch({ date: '2026-11-10', cents: 48000 }, { date: '2026-11-06', cents: 43199 })).toBe(false);
+  });
+  it('lists the closest amount first, then the closest day', () => {
+    const list = nearMatches(charge, [
+      { id: 'a', date: '2026-11-10', cents: 4300 },
+      { id: 'b', date: '2026-11-14', cents: 4500 },
+      { id: 'c', date: '2026-11-10', cents: 4500 },
+      { id: 'd', date: '2026-11-01', cents: 4518 }
+    ]);
+    expect(list.map((r) => r.id)).toEqual(['c', 'b', 'a']);
+  });
 });

@@ -43,13 +43,21 @@ const write = (path: string, body: Record<string, unknown>, seen?: string, metho
   call<One>(path, { method, body: { ...body, expectedUpdatedAt: seen } });
 
 export const loadMe = () => call<Me>('/me');
-export const listExpenses = (scope: 'mine' | 'all' | 'waiting', month: string) =>
-  call<{ expenses: Expense[] }>('/expenses', { query: scope === 'waiting' ? { scope } : { scope, month } });
+/** 'waiting' and 'todo' are every month (the month is not sent): what waits for the caller, and their own receipts still to finish. */
+export const listExpenses = (scope: 'mine' | 'all' | 'waiting' | 'todo', month: string) =>
+  call<{ expenses: Expense[] }>('/expenses', { query: scope === 'waiting' || scope === 'todo' ? { scope } : { scope, month } });
 /** Export all: every month for one bank ('amex' | 'encore') or both (''). Needs the Export all switch; `truncated` when the list hit its cap. */
 export const listAllExpenses = (bank: string) =>
   call<{ expenses: Expense[]; truncated?: boolean }>('/expenses/export', { query: bank ? { bank } : {} });
 export const addExpense =(id: string, body: ExpenseBody) => call<{ expense: Expense; alreadySaved?: boolean; replacedMissing?: string }>('/expenses', { method: 'POST', body: { id, ...body } });
-export const editExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense }>(`/expenses/${id}`, { method: 'PUT', body });
+export const editExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense; replacedMissing?: string }>(`/expenses/${id}`, { method: 'PUT', body });
+/** A receipt of the holder's close to the charge behind a Missing receipt row (review B2). */
+export type NearReceipt = { id: string; date: string; cents: number; merchant: string; status: string; cardLabel: string; hasReceipt: boolean };
+export type NearReceipts = { charge: { reference: string; issuer: string; date: string; cents: number; description: string } | null; receipts: NearReceipt[] };
+export const nearReceipts = (missingId: string) => call<NearReceipts>(`/expenses/${missingId}/near-receipts`);
+/** "This is my receipt": the charge is answered by `receiptId` and the Missing receipt row is voided. */
+export const matchReceiptToCharge = (missingId: string, receiptId: string) =>
+  call<{ expense: Expense; replacedMissing: string }>(`/expenses/${missingId}/use-receipt`, { method: 'POST', body: { receiptId } });
 /** `seen`: the updatedAt the approver was looking at; the server refuses the decision if the receipt changed since. */
 export const approveExpense = (id: string, comment: string, seen?: string) => write(`/expenses/${id}/approve`, { comment }, seen);
 export const sendBackExpense = (id: string, comment: string, seen?: string) => write(`/expenses/${id}/send-back`, { comment }, seen);

@@ -337,3 +337,72 @@ describe('an Admin’s own charge', () => {
     who = ACCOUNTANT;
   });
 });
+
+describe('review B1 / B2: the To-do list and a receipt that is close but not exact', () => {
+  const NEAR = hex(500), OCT_DRAFT = hex(501), VOIDED = hex(502);
+  const SRINI_USER = { id: SRINI, displayName: 'Srini Manam', role: 'sales_rep', location: 'Seattle', permissions: ['use_card_receipts'] };
+  let missingId = '';
+
+  it('a charge a few cents off an approved receipt still gets a Missing receipt row (the automatic match stays exact)', async () => {
+    await db.insert(cardExpenses).values([
+      // Maruthi uploaded $45.00 the day before; the restaurant charged $45.18 (tip changed). Approved already.
+      { id: NEAR, userId: MARU, holderName: 'Maruthi Ponugupati', cardId: MARU_CARD, cardLabel: 'MARU92069', locationId: SEATTLE, day: '2026-11-20', month: '2026-11',
+        merchant: 'Sushi Kai', cents: 4500, status: 'approved', receiptUrl: 'https://files.test/s.webp', approvedById: ACCT, approvedByName: 'Ann Count', approvedAt: new Date() },
+      { id: OCT_DRAFT, userId: MARU, holderName: 'Maruthi Ponugupati', cardId: MARU_CARD, cardLabel: 'MARU92069', locationId: SEATTLE, day: '2026-10-15', month: '2026-10',
+        merchant: 'Home Depot', cents: 1999, status: 'draft' },
+      { id: VOIDED, userId: MARU, holderName: 'Maruthi Ponugupati', cardId: MARU_CARD, cardLabel: 'MARU92069', locationId: SEATTLE, day: '2026-10-16', month: '2026-10',
+        merchant: 'Lowe’s', cents: 999, status: 'draft', voidedAt: new Date(), voidedBy: 'Maruthi', voidReason: 'duplicate' }
+    ]);
+    const res = await post('import', [line('11/21/2026', 'SUSHI KAI', 45.18, 'ref-near')]);
+    expect(res.body.check).toMatchObject({ created: 1, linked: 0 });
+    const [l] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-near'));
+    missingId = l!.expenseId!;
+    expect(missingId).toBeTruthy();
+  });
+
+  it('To-do lists the holder’s Missing / Draft / Sent back from every month, never a voided one or someone else’s', async () => {
+    who = MARUTHI;
+    const res = await request(app).get('/api/card-receipts/expenses?scope=todo');
+    expect(res.status).toBe(200);
+    const ids = res.body.expenses.map((e: { id: string }) => e.id);
+    expect(ids).toContain(missingId);
+    expect(ids).toContain(OCT_DRAFT);
+    expect(ids).not.toContain(VOIDED);
+    expect(ids).not.toContain(NEAR);
+    expect(res.body.expenses.every((e: { userId: string; status: string }) => e.userId === MARU && ['missing', 'draft', 'sent_back'].includes(e.status))).toBe(true);
+    who = ACCOUNTANT;
+  });
+
+  it('offers the close receipt on the Missing receipt row, only to its holder', async () => {
+    who = MARUTHI;
+    const res = await request(app).get(`/api/card-receipts/expenses/${missingId}/near-receipts`);
+    expect(res.status).toBe(200);
+    expect(res.body.charge).toMatchObject({ reference: 'ref-near', cents: 4518, date: '2026-11-21' });
+    expect(res.body.receipts).toEqual([expect.objectContaining({ id: NEAR, cents: 4500, merchant: 'Sushi Kai', status: 'approved', hasReceipt: true })]);
+    who = SRINI_USER;
+    expect((await request(app).get(`/api/card-receipts/expenses/${missingId}/near-receipts`)).status).toBe(404);
+    expect((await request(app).post(`/api/card-receipts/expenses/${missingId}/use-receipt`).send({ receiptId: NEAR })).status).toBe(404);
+    who = ACCOUNTANT;
+  });
+
+  it('"This is my receipt" links the charge, takes the bank’s total, clears the approval and voids the Missing row', async () => {
+    who = MARUTHI;
+    // A receipt that isn't close is refused and changes nothing.
+    const far = await request(app).post(`/api/card-receipts/expenses/${missingId}/use-receipt`).send({ receiptId: OCT_DRAFT });
+    expect(far.status).toBe(409);
+    const res = await request(app).post(`/api/card-receipts/expenses/${missingId}/use-receipt`).send({ receiptId: NEAR });
+    expect(res.status).toBe(200);
+    expect(res.body.replacedMissing).toBe(missingId);
+    expect(res.body.expense).toMatchObject({ id: NEAR, cents: 4518, date: '2026-11-21', status: 'waiting', approval: null });
+    const [l] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, 'ref-near'));
+    expect(l!.expenseId).toBe(NEAR);
+    const [gone] = await db.select().from(cardExpenses).where(eq(cardExpenses.id, missingId));
+    expect(gone).toMatchObject({ voidReason: 'Receipt uploaded', voidedBy: 'Maruthi Ponugupati' });
+    const history = await db.select().from(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, NEAR));
+    expect(history.at(-1)!.changes).toBe('Matched by hand to Amex charge ref-near · total $45.00 → $45.18 · date 11-20-2026 → 11-21-2026 · approvals cleared');
+    // Done once: the row is no charge's stand-in any more, and the receipt answers a charge now (its total stands).
+    expect((await request(app).post(`/api/card-receipts/expenses/${missingId}/use-receipt`).send({ receiptId: NEAR })).status).toBe(409);
+    expect((await request(app).get(`/api/card-receipts/expenses?scope=todo`)).body.expenses.map((e: { id: string }) => e.id)).not.toContain(missingId);
+    who = ACCOUNTANT;
+  });
+});

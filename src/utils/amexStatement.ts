@@ -323,5 +323,28 @@ export function planMatches({ lines, expenses, missingFrom = MISSING_FROM }: {
   return plan;
 }
 
+/**
+ * Near matches (2026-11-24, review B2): the automatic match stays exact (owner, 2026-11-20), but a charge
+ * with a Missing receipt row offers the holder their own receipts that are *close* — a tip changed, a total
+ * mistyped, a hotel that posted days later — so they pick "This is my receipt" instead of uploading the
+ * same receipt a second time (which put one purchase in the Excel twice).
+ * Close = at most `NEAR_DAYS` apart and the amounts within `NEAR_CENTS` or `NEAR_SHARE` of the charge,
+ * whichever is wider. Never automatic: a person confirms each one.
+ */
+export const NEAR_DAYS = 7;
+export const NEAR_CENTS = 500;
+export const NEAR_SHARE = 0.1;
+
+export const isNearMatch = (charge: { date: string; cents: number }, receipt: { date: string; cents: number }) =>
+  daysApart(charge.date, receipt.date) <= NEAR_DAYS
+  && Math.abs(charge.cents - receipt.cents) <= Math.max(NEAR_CENTS, Math.round(Math.abs(charge.cents) * NEAR_SHARE));
+
+/** The receipts close to a charge, closest first: the amount nearest, then the day nearest. */
+export function nearMatches<T extends { id: string; date: string; cents: number }>(charge: { date: string; cents: number }, receipts: readonly T[]): T[] {
+  return receipts.filter((r) => isNearMatch(charge, r))
+    .sort((a, b) => Math.abs(a.cents - charge.cents) - Math.abs(b.cents - charge.cents)
+      || daysApart(a.date, charge.date) - daysApart(b.date, charge.date) || a.id.localeCompare(b.id));
+}
+
 /** "AMAZON PRIME*UC99N4EAMZN.COM/BILL       WA" → one-spaced, at most 80 characters (an expense's merchant). */
 export const merchantOf = (description: string, bank = 'Amex') => description.replace(/\s+/g, ' ').trim().slice(0, 80) || `${bank} charge`;

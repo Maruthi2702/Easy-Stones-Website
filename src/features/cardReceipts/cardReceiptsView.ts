@@ -86,6 +86,11 @@ export const waitCounts = (list: readonly Expense[]) => {
 export const byWaitFilter = (list: readonly Expense[], f: WaitFilter) => (f === 'all' ? [...list] : list.filter((e) => reasonOf(e) === f));
 
 /** A reminder can be sent about a receipt that isn't finished: not approved, not voided. */
+/** Still the cardholder's to finish (the To-do list, review B1): a Missing receipt, a Draft, one Sent back. */
+export const isTodo = (e: Pick<Expense, 'status' | 'voided'>) => !e.voided && (e.status === 'missing' || e.status === 'draft' || e.status === 'sent_back');
+/** How many To-do cards show before "Show all". */
+export const TODO_SHOWN = 6;
+
 export const remindable = (e: Expense) => !e.voided && e.status !== 'approved';
 
 /** Send reminder…'s starting ticks: missing / draft / sent back → the cardholder; waiting → whoever must approve. */

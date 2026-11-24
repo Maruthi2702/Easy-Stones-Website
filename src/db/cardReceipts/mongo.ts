@@ -1,7 +1,7 @@
 /** Credit Card Receipts on MongoDB — the route's own Mongoose calls, moved here unchanged. */
 import { CompanyCard, ReceiptCategory, CardExpense } from '../../models/CardReceipts.ts';
 import type { Loose } from '../../types/records.ts';
-import { StaleExpenseError, EXPENSE_LIST_CAP } from './types.ts';
+import { StaleExpenseError, EXPENSE_LIST_CAP, TODO_STATUSES } from './types.ts';
 import type { ExpenseFilter, ExpenseHistoryEntry } from './types.ts';
 
 const lean = <T>(q: PromiseLike<unknown>) => q as unknown as Promise<T>;
@@ -79,7 +79,9 @@ export async function changeCard(id: string, set: Loose): Promise<Loose | null> 
 export function listExpenses(filter: ExpenseFilter): Promise<Loose[]> {
   const where: Record<string, unknown> = filter.kind === 'waiting'
     ? { status: 'waiting', voidedAt: null }
-    : { ...(filter.kind === 'month' ? { month: filter.month } : {}), ...(filter.userId ? { userId: filter.userId } : {}), ...(filter.userIds ? { userId: { $in: [...filter.userIds] } } : {}) };
+    : filter.kind === 'todo'
+      ? { userId: filter.userId, status: { $in: [...TODO_STATUSES] }, voidedAt: null }
+      : { ...(filter.kind === 'month' ? { month: filter.month } : {}), ...(filter.userId ? { userId: filter.userId } : {}), ...(filter.userIds ? { userId: { $in: [...filter.userIds] } } : {}) };
   // `_id` last: two receipts of one day and moment keep a fixed order (it was arbitrary).
   return lean<Loose[]>(CardExpense.find(where).sort({ date: -1, createdAt: -1, _id: -1 }).limit(EXPENSE_LIST_CAP).lean());
 }

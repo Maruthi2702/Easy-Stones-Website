@@ -32,6 +32,8 @@ export class StaleExpenseError extends Error {
 
 /** The most expenses one list answers with. A month never gets near it; if one does, the answer says `truncated`. */
 export const EXPENSE_LIST_CAP = 20_000;
+/** What a cardholder still has to finish (the To-do list): a Missing receipt, a Draft, one Sent back. */
+export const TODO_STATUSES = ['missing', 'draft', 'sent_back'] as const;
 
 /**
  * A statement charge's stand-in row an upload may still replace: a Missing receipt row, or an Admin's own
@@ -45,6 +47,8 @@ export const isChargePlaceholder = (e: { status?: unknown; receiptUrl?: unknown;
 export type ExpenseFilter =
   /** Every waiting, not voided receipt (the route keeps those waiting for the caller: receiptApproval.ts's waitingReason). */
   | { kind: 'waiting' }
+  /** One person's receipts still to finish, any month (review B1): Missing receipt, Draft, Sent back; not voided. */
+  | { kind: 'todo'; userId: string }
   /** `userIds`: only these people's (a team); an empty list matches nobody. */
   | { kind: 'month'; month: string; userId?: string; userIds?: readonly string[] }
   /** Every month (Export all): the same people rules as 'month', newest first, capped like it. */

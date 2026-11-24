@@ -175,6 +175,18 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-todo-top { display: flex; align-items: baseline; gap: 8px; }
 .ccr-todo-top b { font-size: 15px; }
 .ccr-todo-top .ccr-amt { margin-left: auto; }
+/* To do on every screen size (review B1, 2026-11-24): every month's, cards in a grid; a phone stacks them. */
+.ccr-todos { display: grid; gap: 8px; }
+.ccr-todo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.ccr-todo-more { justify-self: start; }
+@media (max-width: 639px) { .ccr-todo-grid { grid-template-columns: minmax(0, 1fr); } }
+/* A Missing receipt row's "Is it one you already uploaded?" (review B2). */
+.ccr-near { display: grid; gap: 8px; }
+.ccr-near-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 10px 12px; border: 1px solid var(--ccr-line); border-radius: 10px; background: var(--ccr-surface); }
+.ccr-near-row b { font-weight: 600; }
+.ccr-near-row > .ccr-btn, .ccr-near-act { grid-row: span 2; }
+.ccr-near-act { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 639px) { .ccr-near-row { grid-template-columns: minmax(0, 1fr); } .ccr-near-row > .ccr-btn, .ccr-near-act { grid-row: auto; } .ccr-near-row .ccr-btn { height: 44px; } .ccr-near-act { justify-content: flex-start; } }
 
 /* ── An expense opened (FormModal, size M) ── */
 .ccr-view-top { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 20px; align-items: start; }

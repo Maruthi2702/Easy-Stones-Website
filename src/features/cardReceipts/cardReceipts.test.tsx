@@ -48,7 +48,10 @@ const fake = {
   card: true as boolean,
   posted: [] as { url: string; body: Record<string, unknown> }[],
   waiting: [WAITING_LOST] as Record<string, unknown>[],
-  conflict: false as boolean
+  conflict: false as boolean,
+  /** Answered to ?scope=todo (every month); null = the month's own To-do ones. */
+  todo: null as Record<string, unknown>[] | null,
+  near: { charge: null, receipts: [] } as Record<string, unknown>
 };
 const ok = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
 const answer = (url: string, init?: RequestInit) => {
@@ -62,6 +65,7 @@ const answer = (url: string, init?: RequestInit) => {
       return ok({ groups: { holder: g(['Maria Lopez']), managers: g([]), accounting: g([]), admins: g([]), approvers: g(['Ann Count', 'Ada Min']) },
         contact: { 'Maria Lopez': { email: true, phone: true }, 'Ann Count': { email: true, phone: false }, 'Ada Min': { email: true, phone: true } } });
     }
+    if (/\/use-receipt$/.test(u)) return ok({ expense: exp('near1', { merchant: 'Sushi Kai', cents: 4518, date: '2026-10-21', status: 'waiting' }), replacedMissing: u.split('/expenses/')[1]!.split('/')[0] });
     if (/\/expenses\/remind$/.test(u)) return ok({ sent: { people: 3, receipts: 1 }, skipped: [{ id: 'c', merchant: 'Kashish Cuisine of India', reason: 'reminded today' }], noPhone: ['Dana Whitfield'], noEmail: [] });
     const which = fake.waiting.find((w) => u.includes(`/expenses/${w.id}/`)) || fake.waiting[0];
     if (/\/(approve|answer)$/.test(u)) return ok({ expense: { ...which, status: 'approved', canDecide: false, waitingReason: null, actions: NO_ACTIONS } });
@@ -71,6 +75,8 @@ const answer = (url: string, init?: RequestInit) => {
   if (/\/me$/.test(u)) return ok({ user: { id: 'u1', name: 'Maruthi Ponugupati', location: 'Seattle' }, card: fake.card ? { _id: 'c1', userId: 'u1', label: 'MARU92069', issuer: 'amex', lastDigits: '92069', active: true } : null, categories: CATEGORIES, role: 'accounting', today: '2026-10-20' });
   if (/\/categories$/.test(u)) return ok({ categories: CATEGORIES });
   if (/scope=waiting/.test(u)) return ok({ expenses: fake.waiting });
+  if (/scope=todo/.test(u)) return ok({ expenses: fake.todo ?? EXPENSES.filter((e) => e.mine && ['missing', 'draft', 'sent_back'].includes(String(e.status))) });
+  if (/\/near-receipts$/.test(u)) return ok(fake.near);
   if (/\/ask-targets$/.test(u)) return ok({ people: [{ id: 'k1', name: 'Kim Branch', role: 'manager', branch: 'Kent' }] });
   if (/scope=all/.test(u)) return ok({ expenses: EXPENSES });
   if (/scope=mine/.test(u)) return ok({ expenses: EXPENSES.filter((e) => e.mine) });
@@ -86,7 +92,7 @@ const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => {
 const show = async (permissions: string[]) => { render(<CardReceiptsPage currentUser={{ _id: 'u1', displayName: 'Maruthi Ponugupati', permissions }} />); await settle(); };
 const text = () => document.body.textContent || '';
 
-beforeEach(() => { fake.card = true; fake.posted = []; fake.waiting = [WAITING_LOST]; fake.conflict = false; Element.prototype.scrollIntoView = () => {}; });
+beforeEach(() => { fake.card = true; fake.posted = []; fake.waiting = [WAITING_LOST]; fake.conflict = false; fake.todo = null; fake.near = { charge: null, receipts: [] }; Element.prototype.scrollIntoView = () => {}; });
 afterEach(cleanup);
 
 describe('the Credit Card Receipts page', () => {
@@ -412,10 +418,42 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
     try {
       fake.waiting = [];
       await show(['use_card_receipts']);
-      expect(text()).toContain('You have 1 missing receipt in October 2026 — upload it.');
+      expect(text()).toContain('You have 1 missing receipt — upload it.');
     } finally {
       EXPENSES.length = before;
     }
+  });
+
+  it('lists To do from every month on a desktop too, so last month’s missing receipt isn’t hidden (review B1)', async () => {
+    fake.waiting = [];
+    fake.todo = [exp('sep1', { merchant: 'CHEVRON 0207730', date: '2026-09-30', status: 'missing', receiptUrl: '', category: '' })];
+    await show(['use_card_receipts']);
+    expect(text()).toContain('You have 1 missing receipt (some from another month) — upload it.');
+    expect(document.querySelector('.ccr-todos')?.textContent).toContain('CHEVRON 0207730');
+    expect(document.querySelector('.ccr-todos')?.textContent).toContain('09-30-2026');
+    // Opening it works although September isn't the month on screen.
+    fireEvent.click(document.querySelector('.ccr-todo') as HTMLElement);
+    await settle();
+    expect(screen.getByRole('dialog').textContent).toContain('CHEVRON 0207730');
+  });
+
+  it('offers a close receipt on a Missing receipt row, and "This is my receipt" uses it (review B2)', async () => {
+    fake.waiting = [];
+    fake.todo = [exp('miss1', { merchant: 'SUSHI KAI', cents: 4518, date: '2026-10-21', status: 'missing', receiptUrl: '', category: '' })];
+    fake.near = { charge: { reference: 'R9', issuer: 'amex', date: '2026-10-21', cents: 4518, description: 'SUSHI KAI' },
+      receipts: [{ id: 'near1', date: '2026-10-20', cents: 4500, merchant: 'Sushi Kai', status: 'approved', cardLabel: 'MARU92069', hasReceipt: true }] };
+    await show(['use_card_receipts']);
+    fireEvent.click(document.querySelector('.ccr-todo') as HTMLElement);
+    await settle();
+    expect(text()).toContain('Already uploaded this one?');
+    expect(text()).toContain('Sushi Kai · $45.00');
+    fireEvent.click(screen.getByRole('button', { name: 'This is my receipt' }));
+    expect(text()).toContain('Its total becomes $45.18 and its date becomes 10-21-2026, and it goes back for approval. This Missing receipt goes away.');
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, use it' }));
+    await settle();
+    expect(fake.posted.at(-1)).toEqual({ url: expect.stringMatching(/\/expenses\/miss1\/use-receipt$/), body: { receiptId: 'near1' } });
+    expect(text()).toContain('Matched to the charge');
+    expect(document.querySelector('.ccr-todos')).toBeNull();
   });
 });
 
