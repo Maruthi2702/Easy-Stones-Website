@@ -13,7 +13,7 @@ import Pagination from '../../components/shared/Pagination';
 import { usePagination } from '../../components/shared/paginationConfig';
 import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, holderMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
-import { getAddForHolders, listAllExpenses } from './cardReceiptsApi';
+import { getAddForHolders, listAllExpenses, listMonthForExport } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
 import { writeExcel, writePdf } from './exportFiles';
 import { NO_FILTERS, TODO_SHOWN, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
@@ -156,7 +156,8 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
       say(res.truncated ? 'Too many to list: the file holds the newest ones only.' : `Downloaded ${res.expenses.filter((e) => !e.voided).length} expenses`);
       return;
     }
-    const list = data.expenses.filter((e) => !e.voided && onBank(e, c.bank));
+    // This month's file is read from the server too: the Export switch is checked there and the export is logged.
+    const list = (await listMonthForExport(data.month || '', c.bank)).expenses.filter((e) => !e.voided && onBank(e, c.bank));
     if (c.format === 'pdf') await writePdf(list, categories, exportScope(c, data.month ? monthLabel(data.month) : ''), file);
     else await writeExcel(list, categories, file);
     say(`Downloaded ${list.length} expenses`);

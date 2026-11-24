@@ -1554,6 +1554,11 @@ receipt takes the bank's day, total and card (what a matched receipt keeps), a c
 Missing row is voided. Holder only; never automatic. A PUT that corrects the day or total looks for the charge again (3fdf09b9), and
 the screen drops the Missing row it replaced.
 
+**Export and public links** (2026-11-24; review S2 / S3): both exports read `GET /expenses/export` — `?month=` needs Export (or
+Export all), no month needs Export all; the same people rules as the list apply and each export is logged (who, scope, count). The
+screen no longer builds a month's file from the list it already holds. A **public** receipt link (an old one, or a store that can't
+keep it private) is refused when another person's expense already holds it (`receiptLinkProblem`).
+
 **The Encore check** (2026-11-21, on `feat/encore-statements`; owner's answers that day: Encore cards are **additional**
 to Amex, a person may hold one of each, and some holders are new): Statements → **Upload statement** has a **Bank** choice
 (Amex | Encore). Encore's export is one sheet, one row per transaction (`src/utils/encoreStatement.ts`, tested; worker kind

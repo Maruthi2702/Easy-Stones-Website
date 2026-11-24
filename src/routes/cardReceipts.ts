@@ -79,7 +79,11 @@ const receiptLinkProblem = async (store: FileStore | null, url: string, current:
   if (!url || url === current) return '';
   const name = privateReceiptNameOf(url);
   if (name) return (await store?.get(`${PRIVATE_RECEIPT_KEY_PREFIX}${name}`))?.metadata.uploader === me ? '' : 'Upload the receipt again';
-  return isReceiptFolderUrl(url) && (isFilesCdnUrl(url) || isCloudinaryUrl(url) || /^\/uploads\//.test(url)) ? '' : 'Upload the receipt again';
+  if (!(isReceiptFolderUrl(url) && (isFilesCdnUrl(url) || isCloudinaryUrl(url) || /^\/uploads\//.test(url)))) return 'Upload the receipt again';
+  // Review S3 (2026-11-24): a public link (a receipt saved before receipts went private, or on a store that can't keep one
+  // private) is just an address, so it must not be someone else's already-saved receipt.
+  const holder = await db.findExpenseByReceipt(url);
+  return holder && String(holder.userId) !== String(me) ? 'Upload the receipt again' : '';
 };
 /** The address to save for a file just stored: private ones become the app's own address. */
 const savedAddressOf = (url: string) => {
@@ -508,21 +512,22 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
    * switch, and only the expenses the caller may see on screen: View all → everyone's, View branch → their team's,
    * else their own. Registered before anything with an :id.
    */
-  router.get('/expenses/export', authenticate, anyOf(CARD_RECEIPTS.EXPORT_ALL), validateScalarRequest, async (req: Request, res: Response) => {
-    const { bank = '' } = scalarQuery(req) as { bank?: string };
+  router.get('/expenses/export', authenticate, anyOf(CARD_RECEIPTS.EXPORT, CARD_RECEIPTS.EXPORT_ALL), validateScalarRequest, async (req: Request, res: Response) => {
+    const { bank = '', month = '' } = scalarQuery(req) as { bank?: string; month?: string };
     if (bank && !BANK_FILTERS.some((b) => b.key === bank)) return res.status(400).json({ message: 'Pick Amex, Encore or every bank.' });
+    // Review S2 (2026-11-24): "Export" is one month's file, "Export all" every month — each enforced here, not only by the
+    // screen's buttons, and every export is logged (who, which scope, how many).
+    if (month ? !isMonth(month) : !has(req, CARD_RECEIPTS.EXPORT_ALL)) {
+      return res.status(month ? 400 : 403).json({ message: month ? 'Provide a month as YYYY-MM.' : 'Access denied.' });
+    }
     const me = userIdOf(req);
     try {
-      let filter: db.ExpenseFilter;
-      if (has(req, CARD_RECEIPTS.VIEW_ALL)) {
-        filter = { kind: 'all' };
-      } else if (has(req, CARD_RECEIPTS.VIEW_BRANCH)) {
-        const team = await teamOfRequest(req);
-        filter = team === ALL_PEOPLE ? { kind: 'all' } : { kind: 'all', userIds: [...team] };
-      } else {
-        filter = { kind: 'all', userId: me };
-      }
+      const people = has(req, CARD_RECEIPTS.VIEW_ALL) ? {}
+        : has(req, CARD_RECEIPTS.VIEW_BRANCH) ? await (async () => { const team = await teamOfRequest(req); return team === ALL_PEOPLE ? {} : { userIds: [...team] }; })()
+          : { userId: me };
+      const filter: db.ExpenseFilter = month ? { kind: 'month', month, ...people } : { kind: 'all', ...people };
       const rows = await db.listExpenses(filter);
+      console.log(`[card-receipts] export by ${me}: ${month || 'all months'}${bank ? ` · ${bank}` : ''} · ${rows.length} expenses`);
       const views = (await viewsOf(rows, approvalViewerOf(req))).filter((v) => onBank(v, bank));
       res.json({ expenses: views, ...(rows.length >= EXPENSE_LIST_CAP ? { truncated: true } : {}) });
     } catch (error) {

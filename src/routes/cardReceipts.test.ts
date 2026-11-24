@@ -101,9 +101,11 @@ const as = (user: Loose) => {
   };
 };
 const newId = () => new mongoose.Types.ObjectId().toString();
+// Each receipt its own file (a public link already on someone else's expense is refused: review S3).
+let fileNo = 0;
 const receipt = (over: Loose = {}) => ({
   id: newId(), date: '2026-10-03', merchant: "McDonald's, Kent", total: '14.32', tax: '1.35', category: 'travel_lunch',
-  receiptUrl: 'https://res.cloudinary.com/test/CardReceipts/img_1.webp', ...over
+  receiptUrl: `https://res.cloudinary.com/test/CardReceipts/img_${++fileNo}.webp`, ...over
 });
 
 describe('categories', () => {
@@ -337,6 +339,37 @@ describe('export all', () => {
     expect((await as(EXPORTER).get('/expenses/export').expect(200)).body.expenses).toHaveLength(2);
     const ownOnly = { ...REP, permissions: [USE, 'export_all_card_receipts'] };
     expect((await as(ownOnly).get('/expenses/export').expect(200)).body.expenses.map((e: Loose) => e.merchant)).toEqual(["McDonald's, Kent"]);
+  });
+});
+
+describe('export of one month (review S2) and reusing a public receipt link (review S3)', () => {
+  const MONTH_EXPORTER = { id: ids.acct, role: 'accounting', permissions: ['view_all_card_receipts', 'export_card_receipts'] };
+  it('Export gives one month to the Export switch, never every month, and logs it', async () => {
+    await as(REP).post('/expenses', receipt()).expect(201);
+    await as(REP).post('/expenses', receipt({ merchant: 'Chevron', date: '2026-09-14' })).expect(201);
+    await as(ACCOUNTING).get('/expenses/export?month=2026-10').expect(403);
+    await as(MONTH_EXPORTER).get('/expenses/export').expect(403);
+    await as(MONTH_EXPORTER).get('/expenses/export?month=October').expect(400);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const res = await as(MONTH_EXPORTER).get('/expenses/export?month=2026-10').expect(200);
+    expect(res.body.expenses.map((e: Loose) => e.merchant)).toEqual(["McDonald's, Kent"]);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('export by'));
+    log.mockRestore();
+  });
+
+  it('a person with only their own view exports only their own month', async () => {
+    await as(REP).post('/expenses', receipt()).expect(201);
+    await as(MANAGER).post('/expenses', receipt({ merchant: 'Staples' })).expect(201);
+    const mine = { ...REP, permissions: [USE, 'export_card_receipts'] };
+    expect((await as(mine).get('/expenses/export?month=2026-10').expect(200)).body.expenses.map((e: Loose) => e.merchant)).toEqual(["McDonald's, Kent"]);
+  });
+
+  it('a public receipt link already on someone else’s expense is refused; their own is fine', async () => {
+    const url = 'https://res.cloudinary.com/test/CardReceipts/shared.webp';
+    await as(REP).post('/expenses', receipt({ receiptUrl: url, merchant: 'Mine', total: '20.00' })).expect(201);
+    const theirs = await as(MANAGER).post('/expenses', receipt({ merchant: 'Staples', receiptUrl: url })).expect(400);
+    expect(theirs.body.problems.receipt).toBe('Upload the receipt again');
+    await as(REP).post('/expenses', receipt({ merchant: 'Second look', total: '9.99', receiptUrl: url })).expect(201);
   });
 });
 

@@ -49,6 +49,9 @@ export const listExpenses = (scope: 'mine' | 'all' | 'waiting' | 'todo', month: 
 /** Export all: every month for one bank ('amex' | 'encore') or both (''). Needs the Export all switch; `truncated` when the list hit its cap. */
 export const listAllExpenses = (bank: string) =>
   call<{ expenses: Expense[]; truncated?: boolean }>('/expenses/export', { query: bank ? { bank } : {} });
+/** Export: one month's, for one bank or both — the server checks the Export switch and logs it (review S2). */
+export const listMonthForExport = (month: string, bank: string) =>
+  call<{ expenses: Expense[]; truncated?: boolean }>('/expenses/export', { query: bank ? { month, bank } : { month } });
 export const addExpense =(id: string, body: ExpenseBody) => call<{ expense: Expense; alreadySaved?: boolean; replacedMissing?: string }>('/expenses', { method: 'POST', body: { id, ...body } });
 export const editExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense; replacedMissing?: string }>(`/expenses/${id}`, { method: 'PUT', body });
 /** A receipt of the holder's close to the charge behind a Missing receipt row (review B2). */
