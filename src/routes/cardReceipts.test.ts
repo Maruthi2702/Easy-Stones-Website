@@ -163,6 +163,20 @@ describe('cards', () => {
     expect(list.body.cards).toHaveLength(4);
     expect(list.body.people.map((p: Loose) => p.name)).toContain('Maruthi Ponugupati');
   });
+
+  it('deletes a card with nothing logged on it, and refuses one with expenses', async () => {
+    const spare = (await as(ACCOUNTING).post('/cards', { userId: ids.director, label: 'DEER22222', lastDigits: '22222' }).expect(201)).body.card;
+    await as(REP).del(`/cards/${spare._id}`).expect(403);
+    await as(ACCOUNTING).del(`/cards/${spare._id}`).expect(200);
+    await as(ACCOUNTING).del(`/cards/${spare._id}`).expect(404);
+    expect(await CompanyCard.findById(spare._id)).toBeNull();
+    // The rep's card holds an expense once a receipt is saved: it can only be deactivated.
+    await as(REP).post('/expenses', receipt()).expect(201);
+    const used = await CompanyCard.findOne({ userId: ids.rep }).lean();
+    const refused = await as(ACCOUNTING).del(`/cards/${used!._id}`).expect(409);
+    expect(refused.body.message).toMatch(/1 expense/);
+    expect(await CompanyCard.findById(used!._id)).not.toBeNull();
+  });
 });
 
 describe('saving a receipt', () => {

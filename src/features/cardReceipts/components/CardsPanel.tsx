@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Ban, Pencil, Plus, RotateCcw } from 'lucide-react';
+import { Ban, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import RowMenu from '../../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import useIsPhone from '../../../components/shared/form/useIsPhone';
@@ -155,14 +155,15 @@ export default function CardsPanel({ canManage, canSetUp = false, month = '', on
   const replace = (card: Card) => setCards((list) => [{ statementName: list.find((c) => c._id === card._id)?.statementName, ...card }, ...list.filter((c) => c._id !== card._id)].sort((a, b) => Number(b.active) - Number(a.active) || a.label.localeCompare(b.label)));
 
   const isPhone = useIsPhone();
-  /** Edit and Deactivate / Reactivate, in the row's ⋯ like the other screens. */
+  /** Edit, Deactivate / Reactivate and Delete, in the row's ⋯ like the other screens. */
   const menu = (c: Card) => {
     if (!canManage) return null;
     const items: RowMenuItem[] = [
       { key: 'edit', label: c.userId ? 'Edit' : 'Assign to a person', icon: Pencil, onClick: () => setOpen(c) },
       c.active
         ? { key: 'off', label: 'Deactivate', icon: Ban, danger: true, onClick: () => toggle(c) }
-        : { key: 'on', label: 'Reactivate', icon: RotateCcw, onClick: () => toggle(c) }
+        : { key: 'on', label: 'Reactivate', icon: RotateCcw, onClick: () => toggle(c) },
+      { key: 'delete', label: 'Delete', icon: Trash2, danger: true, divider: true, onClick: () => remove(c) }
     ];
     return <RowMenu items={items} label={`Actions for card ${c.label}`} />;
   };
@@ -170,6 +171,12 @@ export default function CardsPanel({ canManage, canSetUp = false, month = '', on
 
   const toggle = async (card: Card) => {
     try { replace((await api.editCard(card._id, { active: !card.active })).card); onSaved(card.active ? `${card.label} deactivated` : `${card.label} active again`); } catch (e) { setError((e as Error).message); }
+  };
+
+  /** Only a card with no expenses can go; the server says so otherwise and the card stays. */
+  const remove = async (card: Card) => {
+    if (!window.confirm(`Delete card ${card.label}? This can’t be undone.`)) return;
+    try { await api.deleteCard(card._id); setCards((list) => list.filter((c) => c._id !== card._id)); setError(''); onSaved(`${card.label} deleted`); } catch (e) { setError((e as Error).message); }
   };
 
   // One entry per person: their Amex and Encore cards sit together (a card with no holder yet stands alone).

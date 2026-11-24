@@ -190,6 +190,15 @@ describe('cards', () => {
     await same(REP, a => a.get('/me'));
     await same(ACCOUNTING, a => a.put(`/cards/${cardOf.rep}`, { active: true }));
   });
+
+  it('deletes a card with nothing logged on it, and refuses one with expenses', async () => {
+    const spare = await same(ACCOUNTING, a => a.post('/cards', { userId: director, label: 'DEER3333', lastDigits: '3333', issuer: 'encore' }));
+    expect((await same(REP, a => a.del(`/cards/${spare.body.card._id}`))).status).toBe(403);
+    expect((await same(ACCOUNTING, a => a.del(`/cards/${spare.body.card._id}`))).status).toBe(200);
+    expect((await same(ACCOUNTING, a => a.del(`/cards/${spare.body.card._id}`))).status).toBe(404);
+    await same(REP, a => a.post('/expenses', receipt({ date: '2026-10-09', total: '12.00' })));
+    expect((await same(ACCOUNTING, a => a.del(`/cards/${cardOf.rep}`))).status).toBe(409);
+  });
 });
 
 describe('saving a receipt', () => {

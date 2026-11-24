@@ -452,6 +452,22 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     }
   });
 
+  // A card nobody logged anything on (a leftover from an upload, a mistake). One with expenses is deactivated instead, never deleted.
+  router.delete('/cards/:id', authenticate, anyOf(CARD_RECEIPTS.MANAGE_CARDS), validateScalarRequest, async (req: Request, res: Response) => {
+    const { id } = scalarParams(req);
+    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Card not found.' });
+    try {
+      const result = await db.deleteCard(id);
+      if (result.deleted) return res.json({ deleted: true });
+      if (result.reason === 'missing') return res.status(404).json({ message: 'Card not found.' });
+      const n = result.expenses || 0;
+      return res.status(409).json({ message: `This card has ${n} expense${n === 1 ? '' : 's'} on it, so it can’t be deleted. Deactivate it instead.` });
+    } catch (error) {
+      console.error('[card-receipts] delete card failed:', error);
+      res.status(500).json({ message: 'Could not delete the card.' });
+    }
+  });
+
   // ── Receipts ──────────────────────────────────────────────────────────────
 
   router.post('/attachments', authenticate, anyOf(CARD_RECEIPTS.USE), uploadLimit, async (req: Request, res: Response) => {

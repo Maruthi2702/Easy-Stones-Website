@@ -37,6 +37,7 @@ export const cardWithLabel = async (label: string, exceptId: string | null) =>
   onPostgres() ? pg.cardWithLabel(await appDb(), label, exceptId) : mongo.cardWithLabel(label, exceptId);
 export const addCard = async (id: string, value: Loose) => onPostgres() ? pg.addCard(await appDb(), id, value) : mongo.addCard(id, value);
 export const changeCard = async (id: string, set: Loose) => onPostgres() ? pg.changeCard(await appDb(), id, set) : mongo.changeCard(id, set);
+export const deleteCard = async (id: string) => onPostgres() ? pg.deleteCard(await appDb(), id) : mongo.deleteCard(id);
 
 // Expenses
 export const listExpenses = async (filter: ExpenseFilter) => onPostgres() ? pg.listExpenses(await appDb(), filter) : mongo.listExpenses(filter);
