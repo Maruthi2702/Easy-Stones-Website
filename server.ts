@@ -360,7 +360,7 @@ const bustUserCaches = () => {
 // document — 6 of them, up to 269 KB each, by Feb 2026. Without a file store, or
 // if the upload fails, it stays inline as before rather than being lost.
 /** A file only the app may read back (card receipts): S3 keeps it under private/ with these facts. */
-type PrivateUpload = { private?: boolean; metadata?: Record<string, string> };
+type PrivateUpload = { private?: boolean; metadata?: Record<string, string>; /** Save the photo as a JPEG instead of WebP (card receipts). */ format?: 'jpeg' };
 const processBase64Pdf = async (dataUrl: string, subDir: string, options: PrivateUpload = {}) => {
   const store = getFileStore();
   if (!store) return dataUrl;
@@ -390,10 +390,9 @@ const processBase64Image = async (base64String: string, subDir: string = 'Visits
     const buffer = Buffer.from(base64Data!, 'base64');
 
     // Optimize with sharp before uploading
-    const optimizedBuffer = await sharp(buffer)
-      .resize(maxSide, maxSide, { fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 75, effort: 2 })
-      .toBuffer();
+    const resized = sharp(buffer).resize(maxSide, maxSide, { fit: 'inside', withoutEnlargement: true });
+    const asJpeg = options.format === 'jpeg';
+    const optimizedBuffer = await (asJpeg ? resized.flatten({ background: '#ffffff' }).jpeg({ quality: 85, mozjpeg: true }) : resized.webp({ quality: 75, effort: 2 })).toBuffer();
 
     // Upload to the file store if configured (persistent — survives Render restarts)
     const store = getFileStore();
@@ -412,7 +411,7 @@ const processBase64Image = async (base64String: string, subDir: string = 'Visits
       await fs.promises.mkdir(uploadDir, { recursive: true });
     }
 
-    const filename = `img_${Date.now()}_${Math.round(Math.random() * 1E9)}.webp`;
+    const filename = `img_${Date.now()}_${Math.round(Math.random() * 1E9)}.${asJpeg ? 'jpg' : 'webp'}`;
     const filePath = path.join(uploadDir, filename);
     await fs.promises.writeFile(filePath, optimizedBuffer);
 
@@ -1199,8 +1198,8 @@ if (!IS_LAMBDA) {
 // Compression middleware - reduces response sizes by 70-90%
 app.use(compression());
 
-// Card receipts' JSON is a receipt photo at most (10 MB as base64): parse no more than that for them (review S7, 2026-11-24).
-app.use('/api/card-receipts', express.json({ limit: '15mb' }));
+// Card receipts' JSON is a receipt at most: a PDF up to 20 MB as base64 (about 27 MB); parse no more than that for them (review S7, 2026-11-24).
+app.use('/api/card-receipts', express.json({ limit: '30mb' }));
 app.use(express.json({ limit: '200mb' })); // Increase limit for large payloads (multiple images)
 app.use(cookieParser());
 

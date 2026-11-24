@@ -98,6 +98,7 @@ export const deleteCategory = (id: string, replaceWith?: string) => call<{ delet
 export const listCardholders = () => call<{ holders: { id: string; name: string; active: boolean }[] }>('/cardholders');
 export const listCards = () => call<{ cards: Card[]; people: Person[] }>('/cards');
 export const addCard = (body: Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'location'>) => call<{ card: Card }>('/cards', { method: 'POST', body });
+export const deleteCard = (id: string) => call<{ deleted: true }>(`/cards/${id}`, { method: 'DELETE' });
 export const editCard = (id: string, body: Partial<Pick<Card, 'userId' | 'label' | 'issuer' | 'lastDigits' | 'amexName' | 'location' | 'active'>>) => call<{ card: Card }>(`/cards/${id}`, { method: 'PUT', body });
 /** Who each group would reach, so the form can name them before anything is sent. */
 export const remindPreview = (ids: string[]) => call<RemindPreview>('/expenses/remind/preview', { method: 'POST', body: { ids } });

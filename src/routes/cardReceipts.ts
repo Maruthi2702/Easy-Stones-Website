@@ -93,7 +93,9 @@ const savedAddressOf = (url: string) => {
   const m = /\/(private\/CardReceipts\/[^/?#]+)$/.exec(url.split('?')[0] || '');
   return (m && privateReceiptUrlOfKey(decodeURIComponent(m[1]!))) || url;
 };
-const MAX_UPLOAD_CHARS = 14_000_000; // about a 10 MB file as base64
+// A PDF goes up as it is (20 MB as base64); a photo is shrunk by the browser first, so it is far smaller than this.
+const MAX_PDF_CHARS = 28_000_000;
+const MAX_PHOTO_CHARS = 14_000_000;
 
 const anyOf = (...perms: readonly string[]) => (req: Request, res: Response, next: NextFunction) =>
   (perms.some((p) => has(req, p)) ? next() : res.status(403).json({ message: 'Access denied.' }));
@@ -188,7 +190,7 @@ const siteBase = (req: Request) => (req.get('origin') || process.env.FRONTEND_UR
 
 export default function createCardReceiptsRouter({ authenticate, processBase64Image, fileStore = getFileStore, notify = {} }: {
   authenticate: RequestHandler;
-  processBase64Image: (data: string, folder?: string, maxSide?: number, options?: { private?: boolean; metadata?: Record<string, string> }) => Promise<unknown>;
+  processBase64Image: (data: string, folder?: string, maxSide?: number, options?: { private?: boolean; format?: 'jpeg'; metadata?: Record<string, string> }) => Promise<unknown>;
   fileStore?: () => FileStore | null;
   /** Ask / answer notices (src/services/receiptAskNotify.ts); tests pass their own. */
   notify?: { asked?: (expense: Loose, ask: Loose, deps?: AskNotifyDeps) => unknown; answered?: (expense: Loose, ask: Loose, deps?: AskNotifyDeps) => unknown };
@@ -198,7 +200,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   const router = express.Router();
   const opener = [authenticate, anyOf(...PAGE_PERMISSIONS)];
   const uploader = (req: Request) => userIdOf(req) || 'anonymous';
-  const uploadLimit = rateLimit({ windowMs: 10 * 60 * 1000, limit: 40, keyGenerator: uploader, store: new PostgresRateLimitStore('card-receipt-upload'), passOnStoreError: true, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Too many uploads. Wait a few minutes.' } });
+  const uploadLimit = rateLimit({ windowMs: 10 * 60 * 1000, limit: 100, keyGenerator: uploader, store: new PostgresRateLimitStore('card-receipt-upload'), passOnStoreError: true, standardHeaders: true, legacyHeaders: false, validate: false, message: { message: 'Too many uploads. Wait a few minutes.' } });
   const actor = (req: Request) => nameOf(userOf(req));
   const actorOf = (req: Request) => ({ id: userIdOf(req), name: actor(req) });
 
@@ -450,11 +452,27 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     }
   });
 
+  // A card nobody logged anything on (a leftover from an upload, a mistake). One with expenses is deactivated instead, never deleted.
+  router.delete('/cards/:id', authenticate, anyOf(CARD_RECEIPTS.MANAGE_CARDS), validateScalarRequest, async (req: Request, res: Response) => {
+    const { id } = scalarParams(req);
+    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Card not found.' });
+    try {
+      const result = await db.deleteCard(id);
+      if (result.deleted) return res.json({ deleted: true });
+      if (result.reason === 'missing') return res.status(404).json({ message: 'Card not found.' });
+      const n = result.expenses || 0;
+      return res.status(409).json({ message: `This card has ${n} expense${n === 1 ? '' : 's'} on it, so it can’t be deleted. Deactivate it instead.` });
+    } catch (error) {
+      console.error('[card-receipts] delete card failed:', error);
+      res.status(500).json({ message: 'Could not delete the card.' });
+    }
+  });
+
   // ── Receipts ──────────────────────────────────────────────────────────────
 
   router.post('/attachments', authenticate, anyOf(CARD_RECEIPTS.USE), uploadLimit, async (req: Request, res: Response) => {
     const data = req.body?.data;
-    if (typeof data === 'string' && data.length > MAX_UPLOAD_CHARS) return res.status(413).json({ message: 'That file is too large. Use a photo under 10 MB.' });
+    if (typeof data === 'string' && data.length > (data.startsWith('data:application/pdf') ? MAX_PDF_CHARS : MAX_PHOTO_CHARS)) return res.status(413).json({ message: 'That file is too large. Use a photo, or a PDF under 20 MB.' });
     if (typeof data !== 'string' || !/^data:(image\/|application\/pdf)/.test(data)) {
       return res.status(400).json({ message: 'Send a photo or a PDF of the receipt.' });
     }
@@ -465,7 +483,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     try {
       // Receipts keep up to 2000px (visit photos 1000) so the print stays readable when zoomed.
       // Kept private where the store can (S3): the CDN never serves it, GET /files/:name does, to whoever may see the expense.
-      const url = await processBase64Image(data, 'CardReceipts', 2000, { private: true, metadata: { uploader: userIdOf(req) } });
+      const url = await processBase64Image(data, 'CardReceipts', 2000, { private: true, format: 'jpeg', metadata: { uploader: userIdOf(req) } });
       // processBase64Image hands the data back when the upload fails.
       if (typeof url !== 'string' || url.startsWith('data:')) return res.status(502).json({ message: 'Could not store the receipt. Try again.' });
       res.json({ url: savedAddressOf(url) });

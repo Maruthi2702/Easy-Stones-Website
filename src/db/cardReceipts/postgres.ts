@@ -9,6 +9,7 @@ import type { Db } from '../copy/plan.ts';
 import { companyCards, receiptCategories, cardExpenses, cardExpenseHistory, cardExpenseDeletions } from '../schema/cardsSuppliers.ts';
 import { locations } from '../schema/reference.ts';
 import { customers } from '../schema/customers.ts';
+import { cardStatementLines } from '../schema/cardStatements.ts';
 import { companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf } from '../copy/cardsSuppliersRows.ts';
 import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
 import { cardDoc, categoryDoc, expenseDoc } from './cardDocs.ts';
@@ -153,6 +154,22 @@ export async function changeCard(db: Db, id: string, set: Loose): Promise<Loose 
     // An expense keeps its own copy of the card ID, so a renamed card carries it onto every expense it holds.
     if (columns.label !== found.label) await tx.update(cardExpenses).set({ cardLabel: columns.label }).where(eq(cardExpenses.cardId, found.id));
     return (await findCard(tx as unknown as Db, found.id))!;
+  });
+}
+
+/**
+ * Delete a card nothing was ever logged on ('in_use' with the count when expenses name it, voided and Missing rows included).
+ * Statement lines that pointed at it go back to "no card set up" — the next check or upload matches them again.
+ */
+export async function deleteCard(db: Db, id: string): Promise<{ deleted: true } | { deleted: false; reason: 'missing' | 'in_use'; expenses?: number }> {
+  return db.transaction(async tx => {
+    const [found] = await tx.select().from(companyCards).where(eq(companyCards.id, lower(id))).for('update');
+    if (!found) return { deleted: false as const, reason: 'missing' as const };
+    const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(cardExpenses).where(eq(cardExpenses.cardId, found.id));
+    if (n) return { deleted: false as const, reason: 'in_use' as const, expenses: n };
+    await tx.update(cardStatementLines).set({ cardId: null }).where(eq(cardStatementLines.cardId, found.id));
+    await tx.delete(companyCards).where(eq(companyCards.id, found.id));
+    return { deleted: true as const };
   });
 }
 

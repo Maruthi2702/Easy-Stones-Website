@@ -77,6 +77,15 @@ export async function changeCard(id: string, set: Loose): Promise<Loose | null> 
   return card.toObject() as unknown as Loose;
 }
 
+/** Delete a card nothing was ever logged on: 'missing' when it is gone, 'in_use' (with the count) when expenses name it. */
+export async function deleteCard(id: string): Promise<{ deleted: true } | { deleted: false; reason: 'missing' | 'in_use'; expenses?: number }> {
+  if (!(await CompanyCard.exists({ _id: id }))) return { deleted: false, reason: 'missing' };
+  const expenses = await CardExpense.countDocuments({ cardId: id });
+  if (expenses) return { deleted: false, reason: 'in_use', expenses };
+  await CompanyCard.deleteOne({ _id: id });
+  return { deleted: true };
+}
+
 /* ---- Expenses ---- */
 
 export function listExpenses(filter: ExpenseFilter): Promise<Loose[]> {
