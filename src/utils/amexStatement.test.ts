@@ -87,6 +87,8 @@ describe('kindOf and lineStatus', () => {
     expect(kindOf({ cents: 3320, description: 'JPMC FEE            REDMOND             WA', amexCategory: 'Other-Utilities' })).toBe('fee');
     expect(kindOf({ cents: 200, description: 'TEXAS.GOV*SERVICEFEEAUSTIN              TX', amexCategory: 'Other-Government Services' })).toBe('fee');
     expect(kindOf({ cents: 11207, description: 'TN SERV FEE ST FRANCJEFFERSONVILL       IN', amexCategory: 'Other-Education' })).toBe('fee');
+    expect(kindOf({ cents: 25000, description: 'CITY OF SEATTLE PERMIT FEE SEATTLE             WA', amexCategory: 'Other-Government Services' })).toBe('charge');
+    expect(kindOf({ cents: 7500, description: 'KING CO RECORDING FEE', amexCategory: 'Other-Government Services' })).toBe('charge');
     expect(kindOf({ cents: 650, description: "JANNA'S COFFEE", amexCategory: 'Restaurant-Bar & Café' })).toBe('charge');
     expect(kindOf({ cents: 35000, description: 'MYFREIGHTWORLDCARRIEOVERLAND PARK       KS', amexCategory: 'Business Services-Other Services' })).toBe('charge');
     expect(kindOf({ cents: 1800, description: 'EZPASS', amexCategory: 'Transportation-Tolls & Fees' })).toBe('charge');

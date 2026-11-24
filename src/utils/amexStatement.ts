@@ -173,8 +173,9 @@ export type LineKind = 'charge' | 'credit' | 'fee';
 export function kindOf(line: Pick<AmexLine, 'cents' | 'description' | 'amexCategory'>): LineKind {
   if (line.cents <= 0) return 'credit';
   if (/^fees\s*&\s*adjustments/i.test(line.amexCategory)) return 'fee';
-  // "JPMC FEE", "TN SERV FEE", "TEXAS.GOV*SERVICEFEE" — a whole word, so COFFEE isn't one.
-  if (/\bFEE\b|SERVICEFEE/i.test(line.description)) return 'fee';
+  // A card processor's or portal's own fee: "JPMC FEE", "TN SERV FEE", "TEXAS.GOV*SERVICEFEE", "CONVENIENCE FEE".
+  // Any other FEE is a purchase (a permit, recording or filing fee) and needs its receipt (owner, 2026-11-24).
+  if (/^JPMC FEE\b|\b(SERV|SERVICE|CONVENIENCE|PROCESSING|ANNUAL|LATE|FOREIGN TRANSACTION|CARD DELIVERY)\s*FEE\b|SERVICEFEE/i.test(line.description)) return 'fee';
   return 'charge';
 }
 
