@@ -171,7 +171,7 @@ export default function ExpenseDrawer({
 
   return (
     <FormModal
-      title={`Receipt · ${e.merchant}`}
+      title={<span className="ccr-ttl2"><span className="ccr-ttl2-name">{`Receipt · ${e.merchant}`}</span><span className={`ccr-ttl2-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? '$150 and up' : undefined}>{formatMoney(e.cents)}</span></span>}
       size="m"
       onClose={onClose}
       onSubmit={() => { if (main && !main.disabled && !busy) main.run(); }}
@@ -213,10 +213,6 @@ export default function ExpenseDrawer({
             <div className="ccr-lost"><span className="ccr-lost-k">No receipt yet</span></div>
           )}
           <div className="ccr-view-fields">
-            <div className="ccr-amount">
-              <span className={isBigReceipt(e.cents) ? 'ccr-big is-big' : undefined}>{formatMoney(e.cents)}</span>
-              {isBigReceipt(e.cents) ? <small>$150 and up</small> : null}
-            </div>
             <dl className="ccr-rows">
               <Row label="Date">{usDate(e.date)}</Row>
               <Row label="Cardholder">{e.holderName} · {e.cardLabel}</Row>
@@ -263,13 +259,15 @@ export default function ExpenseDrawer({
       ) : null}
 
       <FormSection>
-        <h3 className="ccr-act-h">Activity</h3>
-        <ul className="ccr-act">
-          {[...e.history].reverse().map((h, i) => (
-            <li key={i}><em aria-hidden="true" /><div><b>{h.by || 'Someone'} {h.action}</b>{h.changes ? <span className="ccr-act-chg">{h.changes}</span> : null}<small>{when(h.at)}</small></div></li>
-          ))}
-          <li><em aria-hidden="true" /><div><b>{e.holderName} added the receipt</b><small>{when(e.createdAt)}</small></div></li>
-        </ul>
+        <details className="ccr-hist ccr-act-wrap" open={e.history.length < 4}>
+          <summary className="ccr-act-h">Activity · {e.history.length + 1}</summary>
+          <ul className="ccr-act">
+            {[...e.history].reverse().map((h, i) => (
+              <li key={i}><em aria-hidden="true" /><div><b>{h.by || 'Someone'} {h.action}</b>{h.changes ? <span className="ccr-act-chg">{h.changes}</span> : null}<small>{when(h.at)}</small></div></li>
+            ))}
+            <li><em aria-hidden="true" /><div><b>{e.holderName} added the receipt</b><small>{when(e.createdAt)}</small></div></li>
+          </ul>
+        </details>
       </FormSection>
     </FormModal>
   );

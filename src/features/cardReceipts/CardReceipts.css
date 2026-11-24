@@ -207,8 +207,10 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-band-segs i { flex: 1; height: 4px; border-radius: 2px; background: var(--ccr-line); }
 .ccr-band-segs i.done { background: var(--ccr-ok); }
 .ccr-band-segs i.now { background: var(--ccr-wait); }
-.ccr-amount { display: flex; align-items: baseline; gap: 10px; font-size: 26px; font-weight: 800; color: var(--fm-tx); font-variant-numeric: tabular-nums; }
-.ccr-amount small { font-size: 12px; font-weight: 600; color: var(--ccr-muted); }
+.ccr-ttl2 { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.ccr-ttl2-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ccr-ttl2-amt { flex: none; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.ccr-ttl2-amt.is-big { color: var(--ccr-gold-ink, inherit); }
 .ccr-rows, .ccr-sum { margin: 0; display: grid; }
 .ccr-row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--ccr-line); font-size: 14px; }
 .ccr-rows .ccr-row:last-child { border-bottom: 0; }
@@ -219,7 +221,8 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-sum .ccr-row:last-child { border-bottom: 0; }
 .ccr-sum .is-total { font-size: 16px; }
 .ccr-sum .is-total dd { font-weight: 800; }
-.ccr-act-h { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ccr-muted); }
+.ccr-act-h { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ccr-muted); cursor: pointer; }
+.ccr-act-wrap summary.ccr-act-h { min-height: 44px; display: flex; align-items: center; }
 .ccr-act { list-style: none; margin: 0; padding: 0; display: grid; }
 .ccr-act li { position: relative; display: flex; gap: 12px; padding: 6px 0; font-size: 13px; min-width: 0; }
 .ccr-act li::before { content: ""; position: absolute; left: 4px; top: 18px; bottom: -8px; width: 2px; background: var(--ccr-line); }
@@ -234,7 +237,7 @@ td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
   .ccr-receipt-img img { max-height: 200px; }
   .ccr-band { padding: 8px 10px; }
   .ccr-band-segs { width: 100%; order: 3; }
-  .ccr-amount { font-size: 28px; }
+  .ccr-ttl2-amt { font-size: 19px; }
 }
 /* The ⋯ beside the ✕, and its menu. */
 .ccr-more { position: relative; }
