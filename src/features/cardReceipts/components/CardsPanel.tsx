@@ -15,6 +15,30 @@ import type { Card, Person } from '../types';
 
 type CardValues = { userId: string; issuer: 'amex' | 'encore' | 'other'; lastDigits: string; label: string; amexName: string; location: string };
 
+/** The switch for the hourly Missing-receipt emails and pushes. Off until someone turns it on. */
+function AutoRemindersSwitch() {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => { api.getAutoReminders().then((r) => setOn(r.on)).catch((e) => setError((e as Error).message)); }, []);
+  const flip = async () => {
+    if (on === null || busy) return;
+    if (!on && !window.confirm('Turn on automatic reminders? Every cardholder with a Missing receipt older than 2 days gets an email and a phone notification on the next hourly check, and managers, Accounting and Admins from day 3.')) return;
+    setBusy(true); setError('');
+    try { setOn((await api.setAutoReminders(!on)).on); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
+  return (
+    <div className="ccr-note" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input type="checkbox" role="switch" checked={on === true} disabled={on === null || busy} onChange={flip} />
+        <b>Automatic missing-receipt reminders: {on === null ? '…' : on ? 'On' : 'Off'}</b>
+      </label>
+      <span className="ccr-sub">Emails and phone notifications on day 2 and day 3. Send reminder by hand always works.</span>
+      {error ? <span role="alert">{error}</span> : null}
+    </div>
+  );
+}
+
 function CardForm({ card, people, onSave, onClose }: {
   card: Card | null; people: Person[]; onSave: (v: CardValues & { active?: boolean }) => Promise<unknown>; onClose: () => void;
 }) {
@@ -180,6 +204,7 @@ export default function CardsPanel({ canManage, canSetUp = false, month = '', on
         <span className="ccr-sub">{cards.filter((c) => c.active).length} active{cards.some((c) => c.active && !c.userId) ? ` · ${cards.filter((c) => c.active && !c.userId).length} not assigned yet` : ''}</span>
         {canManage ? <button type="button" className="ccr-btn gold" style={{ marginLeft: 'auto' }} onClick={() => setOpen('new')}><Plus size={16} aria-hidden="true" /> Add card</button> : null}
       </div>
+      {canManage ? <AutoRemindersSwitch /> : null}
       {error ? <div className="ccr-note is-error" role="alert">{error}</div> : null}
       {unset?.cards.length ? (
         <UnknownCards cards={unset.cards} people={unset.people} onSetUp={async (digits, userId, replace, issuer) => {

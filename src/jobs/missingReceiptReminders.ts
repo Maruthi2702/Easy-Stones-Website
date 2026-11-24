@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import * as staffData from '../db/staff/index.ts';
 import * as reminderData from '../db/cardReceipts/reminders.ts';
 import { areaOn } from '../db/appDb.ts';
+import { readSetting } from '../db/settings/index.ts';
 import { deliverReminders, type ReminderSenders } from '../services/receiptReminders.ts';
 import {
   AUTOMATIC_BY, STAFF_FIELDS, dueMissingReminders, groupByRecipient, idOf, missingRecipients, nameOfPerson, reminderHistory, staffIndex,
@@ -76,14 +77,20 @@ export async function runMissingReceiptReminders(now: Date = new Date(), deps: R
 }
 
 /**
- * PAUSED 2026-11-23 (owner): no automatic receipt emails or pushes until the owner confirms. The first run after the
- * deploy emailed every cardholder with an old Missing row. Turn on with MISSING_RECEIPT_REMINDERS=on. Send reminder
- * (by hand) is unaffected.
+ * Automatic reminders are OFF until someone with Manage cards turns the switch on (Credit Card Receipts → Cards;
+ * owner, 2026-11-23: the first run after the deploy emailed every cardholder with an old Missing row). The setting is
+ * read on every tick, so no restart is needed. Send reminder (by hand) is unaffected.
  */
-export const automaticRemindersOn = () => process.env.MISSING_RECEIPT_REMINDERS === 'on';
+export const AUTO_REMINDERS_KEY = 'cardReceiptAutoReminders';
+export const automaticRemindersOn = async () => (await readSetting(AUTO_REMINDERS_KEY)) === true;
+
+async function tick() {
+  try {
+    if (await automaticRemindersOn()) await runMissingReceiptReminders();
+  } catch (err) { console.error('Missing-receipt reminders check failed:', (err as Error)?.message || err); }
+}
 
 export function startMissingReceiptReminders() {
-  if (!automaticRemindersOn()) { console.log('🧾 Automatic missing-receipt reminders are paused (MISSING_RECEIPT_REMINDERS is not "on").'); return; }
-  setTimeout(() => { void runMissingReceiptReminders(); }, 5 * 60 * 1000).unref();
-  setInterval(() => { void runMissingReceiptReminders(); }, 60 * 60 * 1000).unref();
+  setTimeout(() => { void tick(); }, 5 * 60 * 1000).unref();
+  setInterval(() => { void tick(); }, 60 * 60 * 1000).unref();
 }

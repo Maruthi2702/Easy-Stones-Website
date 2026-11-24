@@ -65,6 +65,9 @@ export const reopenExpense = (id: string, reason: string, seen?: string) => writ
 export type DetailsBody = { category: string; subcategory: string; customerId: string; note: string };
 export const fillExpenseDetails = (id: string, body: DetailsBody, seen?: string) => write(`/expenses/${id}/details`, body, seen, 'PUT');
 export const askTargets = (id: string) => call<{ people: AskTarget[] }>(`/expenses/${id}/ask-targets`);
+/** The hourly Missing-receipt reminders' switch (Manage cards). */
+export const getAutoReminders = () => call<{ on: boolean }>('/auto-reminders');
+export const setAutoReminders = (on: boolean) => call<{ on: boolean }>('/auto-reminders', { method: 'PUT', body: { on } });
 /** Send reminder… about one receipt or several (src/routes/cardReceiptReminders.ts). */
 export const remindExpenses = (body: RemindBody) => call<RemindResult>('/expenses/remind', { method: 'POST', body });
 export const uploadReceipt = (data: string) => call<{ url: string }>('/attachments', { method: 'POST', body: { data } });

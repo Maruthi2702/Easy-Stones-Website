@@ -1,6 +1,7 @@
 import type { Request, RequestHandler, Response } from 'express';
 import express from 'express';
 import * as staffData from '../db/staff/index.ts';
+import { readSetting, writeSetting } from '../db/settings/index.ts';
 import * as reminderData from '../db/cardReceipts/reminders.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
 import { deliverReminders, siteBase, unreachable, type ReminderSenders } from '../services/receiptReminders.ts';
@@ -33,6 +34,23 @@ export default function createCardReceiptRemindersRouter({ authenticate, senders
   now?: () => Date;
 }) {
   const router = express.Router();
+
+  // The switch for the hourly Missing-receipt job (src/jobs/missingReceiptReminders.ts). Off until turned on.
+  const AUTO_KEY = 'cardReceiptAutoReminders';
+  const manages = (req: Request) => (userOf(req).permissions || []).includes(CARD_RECEIPTS.MANAGE_CARDS);
+  router.get('/auto-reminders', authenticate, async (req: Request, res: Response) => {
+    if (!manages(req)) return res.status(403).json({ message: 'Access denied.' });
+    try { res.json({ on: (await readSetting(AUTO_KEY)) === true }); } catch { res.status(500).json({ message: 'Could not read the setting.' }); }
+  });
+  router.put('/auto-reminders', authenticate, async (req: Request, res: Response) => {
+    if (!manages(req)) return res.status(403).json({ message: 'Access denied.' });
+    if (typeof req.body?.on !== 'boolean') return res.status(400).json({ message: 'on must be true or false.' });
+    try {
+      await writeSetting(AUTO_KEY, req.body.on, userIdOf(req));
+      console.log(`Automatic receipt reminders turned ${req.body.on ? 'ON' : 'off'} by ${userIdOf(req)}`);
+      res.json({ on: req.body.on });
+    } catch { res.status(500).json({ message: 'Could not save the setting.' }); }
+  });
 
   router.post('/expenses/remind', authenticate, async (req: Request, res: Response) => {
     const sender = userOf(req);
