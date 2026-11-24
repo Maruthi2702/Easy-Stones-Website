@@ -202,6 +202,25 @@ describe('saving a receipt', () => {
       await as(ADDER).put(`/expenses/${res.body.expense.id}`, receipt({ id: res.body.expense.id, total: '16.00' })).expect(409);
     });
 
+    it('takes several at once only with Add several too: each its own receipt, its place in the batch in the history', async () => {
+      await User.collection.updateOne({ _id: new mongoose.Types.ObjectId(ids.rep) }, { $set: { location: 'Seattle' } });
+      const SEVERAL = { ...ADDER, permissions: [...ADDER.permissions, 'add_several_card_receipts'] };
+      // Adding for others isn't enough, and the marker must make sense.
+      await as(ADDER).post('/expenses', receipt({ onBehalfOf: ids.rep, batch: { n: 1, of: 2 } })).expect(403);
+      await as(SEVERAL).post('/expenses', receipt({ onBehalfOf: ids.rep, batch: { n: 3, of: 2 } })).expect(400);
+      await as(SEVERAL).post('/expenses', receipt({ onBehalfOf: ids.rep, batch: { n: 1, of: 26 } })).expect(400);
+      const a = await as(SEVERAL).post('/expenses', receipt({ onBehalfOf: ids.rep, merchant: 'Shell', total: '40.00', category: 'travel_lunch', batch: { n: 1, of: 2 } })).expect(201);
+      const b = await as(SEVERAL).post('/expenses', receipt({ onBehalfOf: ids.rep, merchant: 'Staples', total: '86.42', category: 'office_supplies', batch: { n: 2, of: 2 } })).expect(201);
+      expect(a.body.expense.id).not.toBe(b.body.expense.id);
+      expect([a.body.expense.category, b.body.expense.category]).toEqual(['travel_lunch', 'office_supplies']);
+      expect(a.body.expense.userId).toBe(ids.rep);
+      const saved = (await CardExpense.findById(b.body.expense.id).lean()) as Loose;
+      expect(saved.history[0].changes).toBe('on behalf of Maruthi Ponugupati · added in a batch (2 of 2) · sent for approval');
+      // The same receipt id sent again (a retry) is answered, not doubled.
+      const again = await as(SEVERAL).post('/expenses', receipt({ id: a.body.expense.id, onBehalfOf: ids.rep, merchant: 'Shell', total: '40.00', batch: { n: 1, of: 2 } })).expect(200);
+      expect(again.body.alreadySaved).toBe(true);
+    });
+
     it('can be fixed by someone who manages cards once it is sent back, and the history keeps who did', async () => {
       await User.collection.updateOne({ _id: new mongoose.Types.ObjectId(ids.rep) }, { $set: { location: 'Seattle' } });
       const res = await as(ADDER).post('/expenses', receipt({ onBehalfOf: ids.rep })).expect(201);

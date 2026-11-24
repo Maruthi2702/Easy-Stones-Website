@@ -1540,6 +1540,16 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   receipts, in the header ⋯ under Export… ("Void 3 selected…" / "Delete 3 selected…", `BulkReasonForm`: one reason, each goes through
   the single route, a refused one is listed and the rest still go). Phone cards have no row ⋯ — a tap opens the receipt, whose ⋯ has them.
   Not built: reading a deleted receipt back in the app (an admin reads the table), restoring one.
+- **Add several receipts** (2026-11-24, owner's ask — to clear a pile of pending receipts at once): Add receipt →
+  **Add several**, only with the switch `add_several_card_receipts` **and** `add_receipts_for_others` (Users & Roles →
+  Credit Card Receipts → Receipts; admins hold it, Accounting is ticked by an admin). One **cardholder and one card per
+  batch** (locked once files are in; people with two cards pick one), up to 25 files (`src/utils/receiptBatch.ts`, tested).
+  Each file uploads and is read as it's picked; each row has its own category / customer / note; **Save all** sends one
+  ordinary `POST /expenses` per row with the row's own id (a retry can't double it, the Amex check still matches each to
+  its charge and clears its Missing row), complete rows go to approval, incomplete ones are kept as **drafts** (owner's
+  call), a row that looks like a repeat waits for its own Save anyway. A save carries `batch: {n, of}`: the server
+  needs both switches for it and the history says "added in a batch (3 of 5)". The one-person rule is the screen's (the
+  server can't see across requests). Screen `src/features/cardReceipts/bulk/` (`useReceiptBatch`, `BulkReceiptsForm`).
 - **Custom date range** (2026-11-24): the Expenses tab's month stepper has a **Custom** button — From / To days
   (shared `DatePicker`, at most a year, both ends included) in place of the month; **Month** goes back. The server
   answers `GET /expenses?scope=…&from=&to=` (rules `rangeProblem` / `inRange` / `rangeLabel` in `src/utils/cardReceipts.ts`;

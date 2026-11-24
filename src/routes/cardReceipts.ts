@@ -14,6 +14,7 @@ import {
   isAccountingSide, isBranchManagerOf, isManagerRole, isAdminRole, holderKindOf
 } from '../utils/receiptApproval.ts';
 import { newId } from '../db/ids.ts';
+import { isBatchMarker, batchNote, type BatchMarker } from '../utils/receiptBatch.ts';
 import rateLimit from 'express-rate-limit';
 import { PostgresRateLimitStore } from '../services/rateLimitStore.ts';
 import { isRealPdfDataUrl } from '../utils/receiptPdf.ts';
@@ -593,6 +594,10 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const behalf = Boolean(forId) && forId !== actorId;
     if (behalf && !has(req, CARD_RECEIPTS.ADD_FOR_OTHERS)) return res.status(403).json({ message: 'You can add your own receipts only.' });
     if (!behalf && !has(req, CARD_RECEIPTS.USE)) return res.status(403).json({ message: 'Choose whose receipt this is.' });
+    // One of a batch (Add several): its own switch on top of adding for others; the history keeps "3 of 5".
+    const batch = body.batch;
+    if (batch !== undefined && !isBatchMarker(batch)) return res.status(400).json({ message: 'That batch isn’t valid.' });
+    if (batch !== undefined && !(has(req, CARD_RECEIPTS.ADD_SEVERAL) && has(req, CARD_RECEIPTS.ADD_FOR_OTHERS))) return res.status(403).json({ message: 'You can add one receipt at a time.' });
     if (behalf && !mongoose.isValidObjectId(forId)) return res.status(400).json({ message: 'Some fields need attention.', problems: { holder: 'Choose a cardholder.' } });
     const me = behalf ? forId : actorId;
     if (!mongoose.isValidObjectId(body.id)) return res.status(400).json({ message: 'The receipt has no id. Reload the page and try again.' });
@@ -632,7 +637,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const u = holder as { displayName?: string | null; username?: string | null; location?: string | null; assignedLocations?: string[] | null };
       const by = actor(req);
       const status = statusAfterSave(Object.keys(missing).length === 0, undefined, true);
-      const changes = [behalf ? `on behalf of ${nameOf(u)}` : '', status === 'waiting' ? 'sent for approval' : ''].filter(Boolean).join(' · ');
+      const changes = [behalf ? `on behalf of ${nameOf(u)}` : '', batch !== undefined ? batchNote(batch as BatchMarker) : '', status === 'waiting' ? 'sent for approval' : ''].filter(Boolean).join(' · ');
       const saved = await db.addExpense(body.id, {
         repeatCheck: body.confirmRepeat !== true,
         userId: me, holderName: nameOf(u), cardId: String(card._id), cardLabel: card.label, location: homeOf(u) || card.location || '',

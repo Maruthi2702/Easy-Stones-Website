@@ -1,0 +1,114 @@
+// @vitest-environment jsdom
+// Add several receipts: the files upload and are read, each row keeps its own category and note, Save all sends one
+// receipt per row (own id, same cardholder, "n of N"), and a failure on one row leaves the others saved.
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, cleanup, fireEvent, act, renderHook, waitFor } from '@testing-library/react';
+
+vi.mock('../../../utils/attachmentFiles', () => ({ compressImage: async () => 'data:image/jpeg;base64,xx', fileToBase64: async () => 'data:application/pdf;base64,xx' }));
+vi.mock('../../../api/customerOptions', () => ({ useCustomerOptions: () => ({ options: [], loading: false }) }));
+
+const { useReceiptBatch } = await import('./useReceiptBatch');
+const { default: BulkReceiptsForm } = await import('./BulkReceiptsForm');
+
+const CATEGORIES = [
+  { _id: 'k1', name: 'travel_lunch', label: 'Travel Lunch', order: 0, active: true, fields: { customer: false, note: false, recurring: false }, subcategories: [] },
+  { _id: 'k2', name: 'fuel', label: 'Fuel', order: 1, active: true, fields: { customer: false, note: false, recurring: false }, subcategories: [] }
+] as never[];
+const photo = (name: string) => new File(['x'], name, { type: 'image/jpeg' });
+const scanFor = (merchant: string, cents: number) => ({ scan: { isReceipt: true, date: '2026-10-03', merchant, totalCents: cents, subtotalCents: null, taxCents: null, tipCents: null, category: '' } });
+
+const deps = () => {
+  let n = 0;
+  const upload = vi.fn(async () => ({ url: `https://files/${++n}.jpg` }));
+  const names = ['Shell', 'Staples', 'Jinya'];
+  let s = 0;
+  const scan = vi.fn(async () => scanFor(names[s++ % 3]!, 1000 * (s)));
+  const addOne = vi.fn(async (_id: string, body: Record<string, unknown>) => ({ expense: { status: body.category ? 'waiting' : 'draft' } as never, matchedMissing: body.merchant === 'Shell' }));
+  return { today: '2026-10-20', categories: CATEGORIES, upload, scan, addOne };
+};
+afterEach(cleanup);
+URL.createObjectURL = () => 'blob:thumb';
+URL.revokeObjectURL = () => {};
+
+describe('the batch hook', () => {
+  it('uploads and reads each file, then saves one receipt per row with its own category', async () => {
+    const d = deps();
+    const { result } = renderHook(() => useReceiptBatch(d));
+    act(() => { result.current.addFiles([photo('a.jpg'), photo('b.jpg'), photo('c.jpg')]); });
+    await waitFor(() => expect(result.current.rows.every((r) => r.stage === 'ready')).toBe(true));
+    expect(result.current.rows.map((r) => r.values.merchant)).toEqual(['Shell', 'Staples', 'Jinya']);
+    expect(result.current.rows.map((r) => r.values.receiptUrl)).toEqual(['https://files/1.jpg', 'https://files/2.jpg', 'https://files/3.jpg']);
+    expect(result.current.rows[0]!.note).toMatch(/Filled in the date, merchant and total/);
+    // No category yet: every row would be a draft, none blocked.
+    expect(result.current.blocked).toHaveLength(0);
+    expect(result.current.ready).toBe(0);
+    const [a, b, c] = result.current.rows;
+    act(() => { result.current.setValues(a!.key, { category: 'fuel' }); result.current.setValues(b!.key, { category: 'travel_lunch', note: 'Team lunch' }); });
+    expect(result.current.ready).toBe(2);
+    await act(async () => { await result.current.saveAll((r, n, of) => ({ ...r.values, onBehalfOf: 'u7', batch: { n, of } } as never)); });
+    expect(d.addOne).toHaveBeenCalledTimes(3);
+    const calls = d.addOne.mock.calls;
+    expect(calls.map((x) => x[0])).toEqual([a!.key, b!.key, c!.key]);
+    expect(new Set(calls.map((x) => x[0])).size).toBe(3);
+    expect(calls.map((x) => x[1].category)).toEqual(['fuel', 'travel_lunch', '']);
+    expect(calls.map((x) => [x[1].onBehalfOf, x[1].batch])).toEqual([['u7', { n: 1, of: 3 }], ['u7', { n: 2, of: 3 }], ['u7', { n: 3, of: 3 }]]);
+    expect(result.current.rows.map((r) => r.saved)).toEqual([{ status: 'waiting', matchedMissing: true }, { status: 'waiting', matchedMissing: false }, { status: 'draft', matchedMissing: false }]);
+  });
+
+  it('keeps going when one fails, offers Save anyway for a repeat, and never saves a saved row twice', async () => {
+    const d = deps();
+    d.addOne.mockImplementationOnce(async () => { throw Object.assign(new Error('Could not save the receipt.'), { problems: {} }); });
+    d.addOne.mockImplementationOnce(async () => { throw Object.assign(new Error('repeat'), { repeat: { merchant: 'Staples', date: '2026-10-03', cents: 2000 } }); });
+    const { result } = renderHook(() => useReceiptBatch(d));
+    act(() => { result.current.addFiles([photo('a.jpg'), photo('b.jpg'), photo('c.jpg')]); });
+    await waitFor(() => expect(result.current.rows.every((r) => r.stage === 'ready')).toBe(true));
+    const send = (r: { values: object }, n: number, of: number) => ({ ...r.values, batch: { n, of } } as never);
+    await act(async () => { await result.current.saveAll(send); });
+    expect(result.current.rows.map((r) => r.save)).toEqual(['failed', 'repeat', 'saved']);
+    // Retry: the failed one goes again; the repeat waits for its own decision; the saved one is not sent again.
+    await act(async () => { await result.current.saveAll(send); });
+    expect(d.addOne).toHaveBeenCalledTimes(4);
+    expect(result.current.rows.map((r) => r.save)).toEqual(['saved', 'repeat', 'saved']);
+    await act(async () => { await result.current.saveAnyway(result.current.rows[1]!.key, send); });
+    expect(d.addOne.mock.calls[4]![1]).toMatchObject({ confirmRepeat: true });
+    expect(result.current.rows.every((r) => r.save === 'saved')).toBe(true);
+  });
+
+  it('takes 25 at most and names a file that isn’t a photo or PDF', () => {
+    const d = deps();
+    const { result } = renderHook(() => useReceiptBatch(d));
+    let said = '';
+    act(() => { said = result.current.addFiles(Array.from({ length: 27 }, (_, i) => photo(`r${i}.jpg`))); });
+    expect(result.current.rows).toHaveLength(25);
+    expect(said).toMatch(/2 files were left out/);
+    act(() => { said = result.current.addFiles([new File(['x'], 'notes.docx', { type: 'application/msword' })]); });
+    expect(said).toMatch(/notes\.docx/);
+    expect(result.current.rows).toHaveLength(25);
+  });
+});
+
+describe('the Add several window', () => {
+  const props = () => ({
+    holders: [{ id: 'u7', name: 'Maruthi Ponugupati', cards: [{ _id: 'c7', userId: 'u7', label: 'MARU92069', issuer: 'amex', lastDigits: '92069', active: true }] }] as never[],
+    ownCards: [{ _id: 'c1', userId: 'u1', label: 'ANNA11111', issuer: 'amex', lastDigits: '11111', active: true }] as never[],
+    meId: 'u1', onSaved: vi.fn(), onClose: vi.fn(), ...deps()
+  });
+
+  it('locks the cardholder once files are in and saves them all', async () => {
+    const p = props();
+    const { container } = render(<BulkReceiptsForm {...p} />);
+    expect(screen.getByText('Choose photos or PDFs')).toBeTruthy();
+    const input = container.ownerDocument.querySelector('input[type=file]') as HTMLInputElement;
+    await act(async () => { fireEvent.change(input, { target: { files: [photo('a.jpg'), photo('b.jpg')] } }); });
+    await waitFor(() => expect(screen.getAllByText(/Needs a category/).length).toBe(2));
+    expect(screen.getByText(/One cardholder per batch/)).toBeTruthy();
+    expect((screen.getByRole('button', { name: /Save all \(2\)/ }) as HTMLButtonElement).disabled).toBe(false);
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Save all \(2\)/ })); });
+    await waitFor(() => expect(p.addOne).toHaveBeenCalledTimes(2));
+    // Saved for "Me" (the signed-in person's own card): no onBehalfOf, one batch of two.
+    expect(p.addOne.mock.calls.map((c) => [c[1].onBehalfOf, c[1].batch])).toEqual([[undefined, { n: 1, of: 2 }], [undefined, { n: 2, of: 2 }]]);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy());
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(p.onSaved).toHaveBeenCalledWith('2 saved as drafts · 1 matched a Missing receipt');
+  });
+});

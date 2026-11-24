@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, FileText, FileX, Image as ImageIcon } from 'lucide-react';
+import { Camera, FileText, FileX, Image as ImageIcon, Layers } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { receiptFileProblem } from '../../../utils/receiptFile';
 
 type Props = {
   onCamera: () => void;
   onLost: () => void;
+  /** Add several receipts at once (Accounting and Admins); absent = no such option. */
+  onSeveral?: () => void;
   /** A photo or file was chosen (or dropped). It has not been checked yet. */
   onFile: (file: File) => void;
   onClose: () => void;
@@ -20,7 +22,7 @@ type Props = {
  * Desktop also takes a dropped or pasted file. A wrong file type is refused here, in the
  * window, before anything uploads.
  */
-export default function AddReceiptChoice({ onCamera, onLost, onFile, onClose }: Props) {
+export default function AddReceiptChoice({ onCamera, onLost, onSeveral, onFile, onClose }: Props) {
   const photoRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [problem, setProblem] = useState('');
@@ -69,6 +71,13 @@ export default function AddReceiptChoice({ onCamera, onLost, onFile, onClose }: 
           <span className="ccr-choice-icon"><FileX size={22} aria-hidden="true" /></span>
           <span className="ccr-choice-text"><b>Lost Receipt</b><small>No receipt: say why and enter the details</small></span>
         </button>
+
+        {onSeveral ? (
+          <button type="button" className="ccr-choice-opt" onClick={onSeveral}>
+            <span className="ccr-choice-icon"><Layers size={22} aria-hidden="true" /></span>
+            <span className="ccr-choice-text"><b>Add several</b><small>A pile of receipts for one cardholder, each with its own category</small></span>
+          </button>
+        ) : null}
 
         {/* A mouse can drop a file; a phone has no use for the box. */}
         <div className={`ccr-choice-drop${over ? ' is-over' : ''}`}

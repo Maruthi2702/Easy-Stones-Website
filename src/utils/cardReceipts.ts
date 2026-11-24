@@ -42,6 +42,11 @@ export const CARD_RECEIPTS = Object.freeze({
    */
   ADD_FOR_OTHERS: 'add_receipts_for_others',
   /**
+   * Add several receipts at once for one cardholder (2026-11-24, src/utils/receiptBatch.ts): each is still its own
+   * expense. Used together with ADD_FOR_OTHERS. Admins hold it; nobody else until an admin ticks it (Accounting).
+   */
+  ADD_SEVERAL: 'add_several_card_receipts',
+  /**
    * Edit any receipt, whoever's it is and whatever its state except voided (2026-11-24, owner: Accounting). A waiting or approved
    * receipt keeps its status and approvals; the history says who changed what. Nobody holds it until an admin ticks it.
    */

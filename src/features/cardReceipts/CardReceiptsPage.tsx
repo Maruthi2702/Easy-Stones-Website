@@ -27,6 +27,7 @@ import ReopenForm from './components/ReopenForm';
 import RemindDialog from './components/RemindDialog';
 import ExpenseForm from './components/ExpenseForm';
 import AddReceiptChoice from './components/AddReceiptChoice';
+import BulkReceiptsForm from './bulk/BulkReceiptsForm';
 import ExportDialog from './components/ExportDialog';
 import CameraCapture from './components/CameraCapture';
 import VoidExpenseForm from './components/VoidExpenseForm';
@@ -41,7 +42,7 @@ import './CardReceipts.css';
 export type CardReceiptsPageProps = { currentUser: ReceiptsUser | null; sidebarToggle?: ReactNode };
 
 type Tab = 'expenses' | 'waiting' | 'statements' | 'cards';
-type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | { kind: 'delete'; expense: Expense } | { kind: 'bulk'; mode: 'void' | 'delete'; expenses: Expense[] }
+type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kind: 'several' } | { kind: 'add'; lost?: boolean; file?: File } | { kind: 'edit'; expense: Expense } | { kind: 'void'; expense: Expense } | { kind: 'delete'; expense: Expense } | { kind: 'bulk'; mode: 'void' | 'delete'; expenses: Expense[] }
   | { kind: 'ask'; expense: Expense } | { kind: 'reopen'; expense: Expense } | { kind: 'remind'; expenses: Expense[] } | null;
 
 /**
@@ -63,6 +64,8 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const canStatements = can(currentUser, CARD_RECEIPTS.STATEMENTS);
   const canRemind = can(currentUser, CARD_RECEIPTS.REMIND);
   const canAddForOthers = can(currentUser, CARD_RECEIPTS.ADD_FOR_OTHERS);
+  // Add several needs its own switch as well as adding for others.
+  const canAddSeveral = canAddForOthers && can(currentUser, CARD_RECEIPTS.ADD_SEVERAL);
   // Accounting's switches (2026-11-24): change or void anyone's receipt, approved ones too; admins delete.
   const canEditAny = can(currentUser, CARD_RECEIPTS.EDIT_ANY);
   const canVoidAny = can(currentUser, CARD_RECEIPTS.VOID_ANY);
@@ -444,7 +447,23 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           onClose={() => setOpen(null)}
           onCamera={() => setOpen({ kind: 'camera' })}
           onLost={() => setOpen({ kind: 'add', lost: true })}
+          onSeveral={canAddSeveral && addHolders.length ? () => setOpen({ kind: 'several' }) : undefined}
           onFile={(file) => setOpen({ kind: 'add', file })}
+        />
+      ) : null}
+
+      {open?.kind === 'several' ? (
+        <BulkReceiptsForm
+          holders={addHolders}
+          ownCards={me?.cards || []}
+          meId={me?.user.id || ''}
+          categories={categories}
+          today={me?.today || ''}
+          upload={data.upload}
+          scan={data.scan}
+          addOne={data.addOne}
+          onSaved={(text) => { say(text || 'Saved'); data.reload(); }}
+          onClose={() => setOpen(null)}
         />
       ) : null}
 
