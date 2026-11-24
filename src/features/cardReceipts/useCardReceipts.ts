@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { newVisitId } from '../../utils/visitForm';
-import { CARD_RECEIPTS, can, monthOf } from '../../utils/cardReceipts';
+import { CARD_RECEIPTS, can, inRange, monthOf } from '../../utils/cardReceipts';
 import { isTodo } from './cardReceiptsView';
 import * as api from './cardReceiptsApi';
 import type { DetailsBody, ExpenseBody } from './cardReceiptsApi';
@@ -25,7 +25,11 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   const teamOnly = viewAll && !canAll;
   const approver = can(user, CARD_RECEIPTS.APPROVE);
   const [me, setMe] = useState<Me | null>(null);
-  const [month, setMonth] = useState('');
+  const [month, setMonthOnly] = useState('');
+  // A custom From–To on the Expenses tab; null = the month.
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null);
+  /** Picking a month leaves any custom range. */
+  const setMonth = useCallback((m: string) => { setRange(null); setMonthOnly(m); }, []);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [waiting, setWaiting] = useState<Expense[]>([]);
   // To do (review B1): the caller's own Missing receipt / Draft / Sent back from every month, not only the one on screen.
@@ -39,7 +43,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   useEffect(() => {
     let live = true;
     api.loadMe()
-      .then((res) => { if (live) { setMe(res); setMonth(monthOf(res.today)); } })
+      .then((res) => { if (live) { setMe(res); setMonthOnly(monthOf(res.today)); } })
       .catch((e: Error) => { if (live) { setError(e.message); setLoading(false); } });
     return () => { live = false; };
   }, []);
@@ -55,19 +59,19 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   const scope = viewAll ? 'all' : 'mine';
   const load = useCallback(async () => {
     if (!month) return;
-    const key = `${scope}|${month}`;
+    const key = `${scope}|${range ? `${range.from}..${range.to}` : month}`;
     asked.current = key;
     setLoading(true);
     setError('');
     try {
-      const res = await api.listExpenses(scope, month);
+      const res = await api.listExpenses(scope, month, range);
       if (asked.current === key) setExpenses(res.expenses);
     } catch (e) {
       if (asked.current === key) setError((e as Error).message);
     } finally {
       if (asked.current === key) setLoading(false);
     }
-  }, [scope, month]);
+  }, [scope, month, range]);
   useEffect(() => { load(); }, [load]);
 
   // Waiting for me: approvers' receipts, and questions asked of anyone (a manager without Approve may be
@@ -92,7 +96,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   const place = (e: Expense) => {
     setExpenses((list) => {
       // Someone else's expense (approved from Waiting for me) joins the list only with View all.
-      const inMonth = monthOf(e.date) === month && (canAll || e.mine || list.some((x) => x.id === e.id));
+      const inMonth = (range ? inRange(e.date, range.from, range.to) : monthOf(e.date) === month) && (canAll || e.mine || list.some((x) => x.id === e.id));
       const without = list.filter((x) => x.id !== e.id);
       return inMonth ? [e, ...without].sort((a, b) => b.date.localeCompare(a.date)) : without;
     });
@@ -163,7 +167,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   };
 
   return {
-    me, month, setMonth, expenses, waiting, todo, waitingError, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
+    me, month, setMonth, range, setRange, expenses, waiting, todo, waitingError, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
     reload, add, edit, matchToCharge, nearReceipts: api.nearReceipts, approve, sendBack, ask, withdrawAsk, answer, reopen, fillDetails, voidOne, deleteOne, remind,
     askTargets: api.askTargets, upload: api.uploadReceipt, scan: api.scanReceipt
   };

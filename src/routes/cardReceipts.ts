@@ -26,7 +26,7 @@ import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup, nearRe
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, statusAfterAnyEdit, anyoneMayEdit, deleteReasonProblem, missingFor, holderMayEdit, managerMayEdit, changeSummary, possibleRepeat, centsText,
-  chooseCard, isMonth, monthOf, BANK_FILTERS, onBank, matchedChangeProblem, isReceiptFolderUrl, isPrivateReceiptName, privateReceiptNameOf, privateReceiptUrlOfKey, PRIVATE_RECEIPT_ROUTE, PRIVATE_RECEIPT_KEY_PREFIX, type CleanExpense
+  chooseCard, isMonth, rangeProblem, monthOf, BANK_FILTERS, onBank, matchedChangeProblem, isReceiptFolderUrl, isPrivateReceiptName, privateReceiptNameOf, privateReceiptUrlOfKey, PRIVATE_RECEIPT_ROUTE, PRIVATE_RECEIPT_KEY_PREFIX, type CleanExpense
 } from '../utils/cardReceipts.ts';
 import type { Loose } from '../types/records.ts';
 
@@ -494,7 +494,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
   });
 
   router.get('/expenses', opener, validateScalarRequest, async (req: Request, res: Response) => {
-    const { scope = '', month = '' } = scalarQuery(req) as { scope?: string; month?: string };
+    const { scope = '', month = '', from = '', to = '' } = scalarQuery(req) as { scope?: string; month?: string; from?: string; to?: string };
     const me = userIdOf(req);
     try {
       const viewer = approvalViewerOf(req);
@@ -506,19 +506,28 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         // last month found by this month's statement must not hide behind the month stepper.
         filter = { kind: 'todo', userId: me };
       } else {
-        if (!isMonth(month)) return res.status(400).json({ message: 'Provide a month as YYYY-MM.' });
+        // A custom From–To (the Expenses tab's Custom) or a month; the same people either way.
+        let period: { kind: 'month'; month: string } | { kind: 'range'; from: string; to: string };
+        if (from || to) {
+          const problem = rangeProblem(from, to);
+          if (problem) return res.status(400).json({ message: problem });
+          period = { kind: 'range', from, to };
+        } else {
+          if (!isMonth(month)) return res.status(400).json({ message: 'Provide a month as YYYY-MM.' });
+          period = { kind: 'month', month };
+        }
         if (scope === 'all') {
           if (has(req, CARD_RECEIPTS.VIEW_ALL)) {
-            filter = { kind: 'month', month };
+            filter = { ...period };
           } else if (has(req, CARD_RECEIPTS.VIEW_BRANCH)) {
             // Everyone on the caller's team, by where the person works (the Visits rule, teamScope.ts).
             const team = await teamOfRequest(req);
-            filter = team === ALL_PEOPLE ? { kind: 'month', month } : { kind: 'month', month, userIds: [...team] };
+            filter = team === ALL_PEOPLE ? { ...period } : { ...period, userIds: [...team] };
           } else {
             return res.status(403).json({ message: 'You can see your own expenses only.' });
           }
         } else {
-          filter = { kind: 'month', month, userId: me };
+          filter = { ...period, userId: me };
         }
       }
       const rows = await db.listExpenses(filter);

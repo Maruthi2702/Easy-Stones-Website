@@ -51,5 +51,7 @@ export type ExpenseFilter =
   | { kind: 'todo'; userId: string }
   /** `userIds`: only these people's (a team); an empty list matches nobody. */
   | { kind: 'month'; month: string; userId?: string; userIds?: readonly string[] }
+  /** A custom From–To (both days included, 'YYYY-MM-DD'), the same people rules as 'month'. */
+  | { kind: 'range'; from: string; to: string; userId?: string; userIds?: readonly string[] }
   /** Every month (Export all): the same people rules as 'month', newest first, capped like it. */
   | { kind: 'all'; userId?: string; userIds?: readonly string[] };

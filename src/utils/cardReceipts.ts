@@ -231,6 +231,23 @@ export const shiftMonth = (month: string, by: number) => {
   const d = new Date(Date.UTC(y!, m! - 1 + by, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 };
+/** Longest custom date range the list answers (a year; a month is ~1,000 charges). */
+export const MAX_RANGE_DAYS = 366;
+const dayNumber = (day: string) => Date.parse(`${day}T00:00:00Z`) / 86_400_000;
+/** What is wrong with a custom From–To range, or '' when it is fine. Both days are required. */
+export const rangeProblem = (from: unknown, to: unknown): string => {
+  if (!isDay(from) || !isDay(to)) return 'Choose both days.';
+  if (from > to) return 'The start day is after the end day.';
+  if (dayNumber(to) - dayNumber(from) + 1 > MAX_RANGE_DAYS) return 'Choose at most a year at a time.';
+  return '';
+};
+/** Whether a receipt's day falls in a custom range (both ends included). */
+export const inRange = (day: string, from: string, to: string) => day >= from && day <= to;
+/** "Oct 3 – Oct 20, 2026" (the year once when both ends share it). */
+export const rangeLabel = (from: string, to: string) => {
+  const part = (d: string, year: boolean) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' });
+  return from.slice(0, 4) === to.slice(0, 4) ? `${part(from, false)} – ${part(to, true)}` : `${part(from, true)} – ${part(to, true)}`;
+};
 /** 2026-10-03 → 10-03-2026, the card log's format. */
 export const usDate = (day: string) => (isDay(day) ? `${day.slice(5, 7)}-${day.slice(8, 10)}-${day.slice(0, 4)}` : day);
 

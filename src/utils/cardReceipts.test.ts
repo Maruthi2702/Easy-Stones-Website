@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CARD_RECEIPTS, canOpenReceipts, categoryKey, cleanCategory, parseCents, formatMoney, usDate, shiftMonth, monthLabel,
+  CARD_RECEIPTS, canOpenReceipts, categoryKey, cleanCategory, parseCents, formatMoney, usDate, shiftMonth, monthLabel, rangeProblem, inRange, rangeLabel, MAX_RANGE_DAYS,
   suggestCardLabel, cleanCard, cleanExpense, missingFor, missingLine, statusAfterSave, holderMayEdit, changeSummary,
   possibleRepeat, canApprove, cleanApproverRoles, decisionProblem, statusTotals, exportRows, type CategoryLike
 } from './cardReceipts.ts';
@@ -43,6 +43,24 @@ describe('money, dates, cards', () => {
     expect(usDate('2026-10-03')).toBe('10-03-2026');
     expect(shiftMonth('2026-01', -1)).toBe('2025-12');
     expect(monthLabel('2026-10')).toBe('October 2026');
+  });
+  it('checks a custom range: both days, in order, at most a year', () => {
+    expect(rangeProblem('2026-10-01', '2026-10-31')).toBe('');
+    expect(rangeProblem('2026-10-01', '2026-10-01')).toBe('');
+    expect(rangeProblem('', '2026-10-31')).toMatch(/both days/i);
+    expect(rangeProblem('2026-02-30', '2026-10-31')).toMatch(/both days/i);
+    expect(rangeProblem('2026-11-01', '2026-10-31')).toMatch(/after/i);
+    expect(rangeProblem('2025-11-30', '2026-11-29')).toBe('');
+    expect(rangeProblem('2025-11-29', '2026-11-29')).toBe('');
+    expect(rangeProblem('2025-11-28', '2026-11-29')).toMatch(/a year/i);
+    expect(MAX_RANGE_DAYS).toBe(366);
+  });
+  it('puts a day in a range with both ends included, and words the range', () => {
+    expect(inRange('2026-10-03', '2026-10-03', '2026-10-20')).toBe(true);
+    expect(inRange('2026-10-20', '2026-10-03', '2026-10-20')).toBe(true);
+    expect(inRange('2026-10-21', '2026-10-03', '2026-10-20')).toBe(false);
+    expect(rangeLabel('2026-10-03', '2026-10-20')).toBe('Oct 3 – Oct 20, 2026');
+    expect(rangeLabel('2025-12-20', '2026-01-05')).toBe('Dec 20, 2025 – Jan 5, 2026');
   });
   it('suggests the card ID accounting uses and checks a card', () => {
     expect(suggestCardLabel('Maruthi Ponugupati', '92069')).toBe('MARU92069');

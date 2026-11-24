@@ -93,7 +93,7 @@ export function listExpenses(filter: ExpenseFilter): Promise<Loose[]> {
     ? { status: 'waiting', voidedAt: null }
     : filter.kind === 'todo'
       ? { userId: filter.userId, status: { $in: [...TODO_STATUSES] }, voidedAt: null }
-      : { ...(filter.kind === 'month' ? { month: filter.month } : {}), ...(filter.userId ? { userId: filter.userId } : {}), ...(filter.userIds ? { userId: { $in: [...filter.userIds] } } : {}) };
+      : { ...(filter.kind === 'month' ? { month: filter.month } : filter.kind === 'range' ? { date: { $gte: filter.from, $lte: filter.to } } : {}), ...(filter.userId ? { userId: filter.userId } : {}), ...(filter.userIds ? { userId: { $in: [...filter.userIds] } } : {}) };
   // `_id` last: two receipts of one day and moment keep a fixed order (it was arbitrary).
   return lean<Loose[]>(CardExpense.find(where).sort({ date: -1, createdAt: -1, _id: -1 }).limit(EXPENSE_LIST_CAP).lean());
 }

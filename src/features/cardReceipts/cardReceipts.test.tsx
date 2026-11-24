@@ -51,11 +51,14 @@ const fake = {
   conflict: false as boolean,
   /** Answered to ?scope=todo (every month); null = the month's own To-do ones. */
   todo: null as Record<string, unknown>[] | null,
-  near: { charge: null, receipts: [] } as Record<string, unknown>
+  near: { charge: null, receipts: [] } as Record<string, unknown>,
+  /** Every list URL asked for. */
+  asked: [] as string[]
 };
 const ok = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
 const answer = (url: string, init?: RequestInit) => {
   const u = String(url);
+  if (!init?.method || init.method === 'GET') fake.asked.push(u);
   if (init?.method === 'POST' || init?.method === 'PUT') {
     const body = JSON.parse(String(init.body || '{}'));
     fake.posted.push({ url: u, body });
@@ -92,7 +95,7 @@ const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => {
 const show = async (permissions: string[]) => { render(<CardReceiptsPage currentUser={{ _id: 'u1', displayName: 'Maruthi Ponugupati', permissions }} />); await settle(); };
 const text = () => document.body.textContent || '';
 
-beforeEach(() => { fake.card = true; fake.posted = []; fake.waiting = [WAITING_LOST]; fake.conflict = false; fake.todo = null; fake.near = { charge: null, receipts: [] }; Element.prototype.scrollIntoView = () => {}; });
+beforeEach(() => { fake.card = true; fake.posted = []; fake.asked = []; fake.waiting = [WAITING_LOST]; fake.conflict = false; fake.todo = null; fake.near = { charge: null, receipts: [] }; Element.prototype.scrollIntoView = () => {}; });
 afterEach(cleanup);
 
 describe('the Credit Card Receipts page', () => {
@@ -156,6 +159,21 @@ describe('the Credit Card Receipts page', () => {
     expect(allOnly).toMatchObject({ card: true, months: true, format: true });
     expect(allOnly!.text).toContain('card-receipts-all.xlsx');
     expect(await popup(['view_all_card_receipts'])).toBeNull();
+  });
+
+  it('lists a custom From–To instead of the month, and Month goes back', async () => {
+    await show(['view_all_card_receipts']);
+    fireEvent.click(screen.getByRole('button', { name: /Custom/ }));
+    await settle();
+    // Opens on the month on screen, up to today (Oct 20).
+    expect(fake.asked.some((u) => /scope=all/.test(u) && /from=2026-10-01/.test(u) && /to=2026-10-20/.test(u) && !/month=/.test(u))).toBe(true);
+    expect(text()).toContain('Oct 1 – Oct 20, 2026 · All cardholders');
+    expect(screen.queryByLabelText('Previous month')).toBeNull();
+    expect(screen.getByText('Staples')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Month' }));
+    await settle();
+    expect(text()).toContain('October 2026 · All cardholders');
+    expect(fake.asked.filter((u) => /scope=all/.test(u) && /month=2026-10/.test(u)).length).toBeGreaterThan(0);
   });
 
   it('lets an approver open a lost receipt and approve it only with a comment', async () => {

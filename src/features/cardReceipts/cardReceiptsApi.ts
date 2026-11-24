@@ -44,8 +44,9 @@ const write = (path: string, body: Record<string, unknown>, seen?: string, metho
 
 export const loadMe = () => call<Me>('/me');
 /** 'waiting' and 'todo' are every month (the month is not sent): what waits for the caller, and their own receipts still to finish. */
-export const listExpenses = (scope: 'mine' | 'all' | 'waiting' | 'todo', month: string) =>
-  call<{ expenses: Expense[] }>('/expenses', { query: scope === 'waiting' || scope === 'todo' ? { scope } : { scope, month } });
+/** `range` (a custom From–To) replaces `month` when given. */
+export const listExpenses = (scope: 'mine' | 'all' | 'waiting' | 'todo', month: string, range?: { from: string; to: string } | null) =>
+  call<{ expenses: Expense[] }>('/expenses', { query: scope === 'waiting' || scope === 'todo' ? { scope } : range ? { scope, from: range.from, to: range.to } : { scope, month } });
 /** Export all: every month for one bank ('amex' | 'encore') or both (''). Needs the Export all switch; `truncated` when the list hit its cap. */
 export const listAllExpenses = (bank: string) =>
   call<{ expenses: Expense[]; truncated?: boolean }>('/expenses/export', { query: bank ? { bank } : {} });

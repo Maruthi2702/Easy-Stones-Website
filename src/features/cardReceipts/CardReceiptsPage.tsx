@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { AlertTriangle, Ban, Camera, ChevronLeft, ChevronRight, Download, Info, Trash2 } from 'lucide-react';
+import { AlertTriangle, Ban, Camera, CalendarRange, ChevronLeft, ChevronRight, Download, Info, Trash2 } from 'lucide-react';
 import useIsPhone from '../../components/shared/form/useIsPhone';
 import DashboardSearch from '../../components/shared/DashboardSearch';
 import LocationFilter from '../../components/shared/LocationFilter';
@@ -10,8 +10,10 @@ import { useStaffList } from '../../api/salesRepOptions';
 import usePeopleFilter from '../../components/shared/people/usePeopleFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import Pagination from '../../components/shared/Pagination';
+import { DatePicker } from '../../components/shared/calendar/Calendar';
+import { shiftDay } from '../../components/shared/calendar/calendarDates';
 import { usePagination } from '../../components/shared/paginationConfig';
-import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, holderMayEdit, anyoneMayEdit, managerMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
+import { BANK_FILTERS, CARD_RECEIPTS, MAX_RANGE_DAYS, STATUSES, can, formatMoney, inRange, rangeLabel, holderMayEdit, anyoneMayEdit, managerMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
 import { getAddForHolders, listAllExpenses, listMonthForExport } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
@@ -114,7 +116,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const paged = rows.slice((pager.currentPage - 1) * pager.rowsPerPage, pager.currentPage * pager.rowsPerPage);
   // Changing what's listed goes back to page 1.
   const { resetPage } = pager;
-  useEffect(() => { resetPage(); }, [receiptFilters, tab, data.month, waitFilter, resetPage]);
+  useEffect(() => { resetPage(); }, [receiptFilters, tab, data.month, data.range, waitFilter, resetPage]);
   // Another tab or month starts with nothing ticked.
   useEffect(() => { setSelected(new Set()); setSelecting(false); }, [tab, data.month]);
 
@@ -204,10 +206,14 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
     ? [{ key: 'export', label: 'Export…', icon: Download, onClick: () => setOpen({ kind: 'export' }) }]
     : [];
 
+  // The period on screen: a custom range on the Expenses tab, else the month.
+  const periodRange = tab === 'expenses' ? data.range : null;
+  const periodName = periodRange ? rangeLabel(periodRange.from, periodRange.to) : data.month ? monthLabel(data.month) : '';
+
   const subtitle = tab === 'waiting' ? `Waiting for me · ${data.waiting.length} · ${formatMoney(data.waiting.reduce((s, e) => s + e.cents, 0))}`
     : tab === 'cards' ? 'Company cards'
     : tab === 'statements' ? 'Amex check · every charge against an uploaded receipt'
-    : `${data.month ? monthLabel(data.month) : ''} · ${data.viewAll ? (data.teamOnly ? 'Your team' : 'All cardholders') : me?.card ? `${me.card.label}${me.user.location ? ` · ${me.user.location}` : ''}` : 'Your receipts'}`;
+    : `${periodName} · ${data.viewAll ? (data.teamOnly ? 'Your team' : 'All cardholders') : me?.card ? `${me.card.label}${me.user.location ? ` · ${me.user.location}` : ''}` : 'Your receipts'}`;
 
   return (
     <div className="ccr">
@@ -291,9 +297,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             {canCards ? (
               <button type="button" role="tab" aria-selected={tab === 'cards'} className={`ccr-tab${tab === 'cards' ? ' is-on' : ''}`} onClick={() => setTab('cards')}>Cards</button>
             ) : null}
-            {(tab === 'expenses' || tab === 'statements') && data.month ? <MonthStepper month={data.month} today={me?.today || ''} onMonth={data.setMonth} /> : null}
+            {(tab === 'expenses' || tab === 'statements') && data.month ? <PeriodBar month={data.month} range={tab === 'expenses' ? data.range : null} custom={tab === 'expenses'} today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /> : null}
           </div>
-        ) : data.month ? <div className="ccr-tabs"><MonthStepper month={data.month} today={me?.today || ''} onMonth={data.setMonth} /></div> : null}
+        ) : data.month ? <div className="ccr-tabs"><PeriodBar month={data.month} range={data.range} custom today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /></div> : null}
 
         {data.error ? <div className="ccr-note is-error" role="alert">{data.error}</div> : null}
         {tab === 'waiting' && data.waitingError ? (
@@ -343,9 +349,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             ) : null}
 
             {!isPhone && tab === 'expenses' ? <StatusTiles totals={totals} status={filters.status} onStatus={(status) => patchFilters({ status })}
-              totalLabel={`Total for ${data.month ? monthLabel(data.month).split(' ')[0] : 'the month'}`} /> : null}
+              totalLabel={periodRange ? 'Total for the range' : `Total for ${data.month ? monthLabel(data.month).split(' ')[0] : 'the month'}`} /> : null}
             {isPhone && tab === 'expenses' && todo.length && rows.length ? (
-              <h2 className="ccr-todo-h" style={{ display: 'flex' }}>{data.month ? monthLabel(data.month).split(' ')[0] : ''}<span style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{formatMoney(shown.cents)} · {shown.count}</span></h2>
+              <h2 className="ccr-todo-h" style={{ display: 'flex' }}>{periodRange ? periodName : data.month ? monthLabel(data.month).split(' ')[0] : ''}<span style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{formatMoney(shown.cents)} · {shown.count}</span></h2>
             ) : null}
 
             {remindRows.length && (ticked.length || (isPhone && selecting)) ? (
@@ -378,7 +384,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                       : <><h3>Nothing is waiting for you</h3><span>Receipts you approve, and questions asked of you, show here.</span></>
                   ) : (
                     <>
-                      <h3>No receipts for {data.month ? monthLabel(data.month) : 'this month'}</h3>
+                      <h3>No receipts for {periodName || 'this month'}</h3>
                       {canAdd ? <button type="button" className="ccr-btn gold" onClick={() => setOpen({ kind: 'choose' })}><Camera size={16} aria-hidden="true" /> Add receipt</button> : null}
                     </>
                   )}
@@ -426,7 +432,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             const saved = await data.matchToCharge(opened, receiptId);
             say('Matched to the charge');
             // Open the receipt that now answers the charge (in its own month).
-            if (tab === 'expenses' && monthOf(saved.date) !== data.month) data.setMonth(monthOf(saved.date));
+            if (tab === 'expenses' && (data.range ? !inRange(saved.date, data.range.from, data.range.to) : monthOf(saved.date) !== data.month)) data.setMonth(monthOf(saved.date));
             setOpenId(saved.id);
           }}
           onClose={() => setOpenId(null)}
@@ -464,7 +470,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           onSave={async (body) => {
             const saved = open.kind === 'edit' ? await data.edit(open.expense.id, body) : await data.add(body);
             setOpen(null);
-            if (monthOf(saved.date) !== data.month && tab === 'expenses') data.setMonth(monthOf(saved.date));
+            if (tab === 'expenses' && (data.range ? !inRange(saved.date, data.range.from, data.range.to) : monthOf(saved.date) !== data.month)) data.setMonth(monthOf(saved.date));
             say(saved.status === 'waiting' ? 'Sent for approval' : 'Saved as a draft');
           }}
         />
@@ -509,14 +515,59 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   );
 }
 
+/**
+ * The Expenses tab's period: ‹ October 2026 › with a Custom button, or — once Custom is
+ * picked — From and To days (at most a year) and a button back to the month.
+ */
+function PeriodBar({ month, range, custom, today, onMonth, onRange }: {
+  month: string; range: { from: string; to: string } | null; custom: boolean; today: string;
+  onMonth: (m: string) => void; onRange: (r: { from: string; to: string } | null) => void;
+}) {
+  if (!range) {
+    return (
+      <div className="ccr-month">
+        <MonthStepper month={month} today={today} onMonth={onMonth} />
+        {custom ? (
+          <button type="button" className="ccr-btn is-small" onClick={() => {
+            // Opens on the month that was showing, never past today.
+            const last = shiftDay(`${shiftMonth(month, 1)}-01`, -1);
+            onRange({ from: `${month}-01`, to: today && last > today ? today : last });
+          }}><CalendarRange size={15} aria-hidden="true" /> Custom</button>
+        ) : null}
+      </div>
+    );
+  }
+  const span = MAX_RANGE_DAYS - 1;
+  const setFrom = (from: string) => {
+    if (!from) return;
+    let to = range.to < from ? from : range.to;
+    if (to > shiftDay(from, span)) to = shiftDay(from, span);
+    onRange({ from, to });
+  };
+  const setTo = (to: string) => {
+    if (!to) return;
+    let from = range.from > to ? to : range.from;
+    if (from < shiftDay(to, -span)) from = shiftDay(to, -span);
+    onRange({ from, to });
+  };
+  return (
+    <div className="ccr-month is-range">
+      <div className="ccr-range-field"><DatePicker id="ccr-range-from" ariaLabel="From" value={range.from} max={today || range.to} today={today} onChange={setFrom} sheetTitle="From" /></div>
+      <i aria-hidden="true">–</i>
+      <div className="ccr-range-field"><DatePicker id="ccr-range-to" ariaLabel="To" value={range.to} min={range.from} max={today || undefined} today={today} onChange={setTo} sheetTitle="To" /></div>
+      <button type="button" className="ccr-btn is-small" onClick={() => onMonth(monthOf(range.to))}>Month</button>
+    </div>
+  );
+}
+
 /** ‹ October 2026 › — no month after this one. */
 function MonthStepper({ month, today, onMonth }: { month: string; today: string; onMonth: (m: string) => void }) {
   const latest = today ? monthOf(today) : month;
   return (
-    <div className="ccr-month">
+    <>
       <button type="button" className="ccr-round is-small" aria-label="Previous month" onClick={() => onMonth(shiftMonth(month, -1))}><ChevronLeft size={16} /></button>
       <span>{monthLabel(month)}</span>
       <button type="button" className="ccr-round is-small" aria-label="Next month" disabled={month >= latest} onClick={() => onMonth(shiftMonth(month, 1))}><ChevronRight size={16} /></button>
-    </div>
+    </>
   );
 }

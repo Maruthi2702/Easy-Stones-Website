@@ -257,6 +257,12 @@ describe('who sees what', () => {
     expect((await same(REP, a => a.get('/expenses?scope=all&month=2026-10'))).status).toBe(403);
     expect((await same(ACCOUNTING, a => a.get('/expenses?scope=all&month=2026-10'))).body.expenses.length).toBeGreaterThan(mine.body.expenses.length);
     await same(ACCOUNTING, a => a.get('/expenses?scope=all&month=2026-11'));
+    // A custom From–To answers the same on both databases, ends included.
+    const span = await same(ACCOUNTING, a => a.get('/expenses?scope=all&from=2026-10-15&to=2026-11-15'));
+    expect(span.body.expenses.every((e: Loose) => e.date >= '2026-10-15' && e.date <= '2026-11-15')).toBe(true);
+    expect(span.body.expenses.length).toBeGreaterThan(0);
+    await same(REP, a => a.get('/expenses?from=2026-10-01&to=2026-10-31'));
+    expect((await same(REP, a => a.get('/expenses?from=2026-11-01&to=2026-10-01'))).status).toBe(400);
     await same(MANAGER, a => a.get('/expenses?scope=waiting'));
     await same(DIRECTOR, a => a.get('/expenses?scope=waiting'));
     await same(REP, a => a.get('/expenses?scope=waiting'));

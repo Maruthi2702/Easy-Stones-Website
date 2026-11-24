@@ -1540,6 +1540,11 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   receipts, in the header ⋯ under Export… ("Void 3 selected…" / "Delete 3 selected…", `BulkReasonForm`: one reason, each goes through
   the single route, a refused one is listed and the rest still go). Phone cards have no row ⋯ — a tap opens the receipt, whose ⋯ has them.
   Not built: reading a deleted receipt back in the app (an admin reads the table), restoring one.
+- **Custom date range** (2026-11-24): the Expenses tab's month stepper has a **Custom** button — From / To days
+  (shared `DatePicker`, at most a year, both ends included) in place of the month; **Month** goes back. The server
+  answers `GET /expenses?scope=…&from=&to=` (rules `rangeProblem` / `inRange` / `rangeLabel` in `src/utils/cardReceipts.ts`;
+  filter kind `range` in `src/db/cardReceipts`, Mongo and Postgres, parity-tested) with the same people rules as a month.
+  Waiting for me, To do, Statements and Export… are unchanged (Export still asks for a month or all months).
 - **Not built yet** (owner's plan, in this order): the weekly **Amex
   PDF** check (a line with no upload → `missing` "Missing receipt"; needs a
   sample statement), the daily reminder email, closing a month.

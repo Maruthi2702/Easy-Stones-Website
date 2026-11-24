@@ -99,6 +99,10 @@ body.light-theme-active .fm-overlay {
 .ccr-count { background: var(--ccr-gold); color: var(--ccr-on-gold); font-size: 11px; font-weight: 700; border-radius: 99px; padding: 1px 7px; }
 .ccr-month { margin-left: auto; display: flex; align-items: center; gap: 4px; padding-bottom: 6px; }
 .ccr-month span { font-weight: 600; min-width: 120px; text-align: center; }
+.ccr-month .ccr-btn.is-small { height: 32px; padding: 0 12px; margin-left: 8px; font-size: 13px; }
+.ccr-month.is-range { gap: 8px; }
+.ccr-month.is-range i { font-style: normal; color: var(--ccr-muted); }
+.ccr-range-field { width: 150px; }
 
 /* ── Notes ── */
 .ccr-note { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 10px; font-size: 13px; background: var(--ccr-info-bg); color: var(--ccr-info); }
@@ -399,6 +403,8 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
   .ccr-tools .dsx { flex: 1; }
   .ccr-tabs { gap: 16px; }
   .ccr-month { margin-left: 0; width: 100%; justify-content: space-between; padding: 8px 0; }
+  .ccr-month.is-range { justify-content: flex-start; }
+  .ccr-range-field { flex: 1; min-width: 0; width: auto; }
   .ccr-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ccr-tiles .ccr-tile.is-total { grid-column: 1 / -1; }
   .ccr-fab { right: 18px; bottom: calc(20px + var(--app-bottom-h, 0px)); }

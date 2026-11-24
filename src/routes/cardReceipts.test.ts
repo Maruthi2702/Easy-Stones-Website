@@ -340,6 +340,24 @@ describe('who sees what', () => {
     expect((await as(DIRECTOR).get('/expenses?scope=waiting').expect(200)).body.expenses).toEqual([]);
     await as(REP).get('/expenses').expect(400);
   });
+
+  it('lists a custom From–To by day, both ends included, with the same people rules as a month', async () => {
+    await as(REP).post('/expenses', receipt({ date: '2026-10-03' })).expect(201);
+    await as(MANAGER).post('/expenses', receipt({ date: '2026-10-20', merchant: 'Staples', total: '86.42', category: 'office_supplies' })).expect(201);
+    await as(REP).post('/expenses', receipt({ date: '2026-11-02', merchant: 'Shell' })).expect(201);
+    const merchants = (body: Loose) => body.expenses.map((e: Loose) => e.merchant).sort();
+    // Crosses a month; the 3rd and the 2nd are both on the ends.
+    expect(merchants((await as(ACCOUNTING).get('/expenses?scope=all&from=2026-10-03&to=2026-11-02').expect(200)).body)).toEqual(["McDonald's, Kent", 'Shell', 'Staples']);
+    expect(merchants((await as(ACCOUNTING).get('/expenses?scope=all&from=2026-10-04&to=2026-11-01').expect(200)).body)).toEqual(['Staples']);
+    // A cardholder sees only their own in it, and can't ask for everyone's.
+    expect(merchants((await as(REP).get('/expenses?from=2026-10-01&to=2026-11-30').expect(200)).body)).toEqual(["McDonald's, Kent", 'Shell']);
+    await as(REP).get('/expenses?scope=all&from=2026-10-01&to=2026-11-30').expect(403);
+    // Both days, in order, at most a year.
+    await as(REP).get('/expenses?from=2026-10-01').expect(400);
+    await as(REP).get('/expenses?from=2026-11-01&to=2026-10-01').expect(400);
+    await as(REP).get('/expenses?from=2025-01-01&to=2026-11-30').expect(400);
+    await as(REP).get('/expenses?from=nope&to=2026-11-30').expect(400);
+  });
 });
 
 describe('export all', () => {

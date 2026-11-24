@@ -4,7 +4,7 @@
  * (companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf), so it writes what a re-copy
  * of MongoDB would.
  */
-import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, isNull, ne, or, sql } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
 import { companyCards, receiptCategories, cardExpenses, cardExpenseHistory, cardExpenseDeletions } from '../schema/cardsSuppliers.ts';
 import { locations } from '../schema/reference.ts';
@@ -190,7 +190,7 @@ export async function listExpenses(db: Db, filter: ExpenseFilter): Promise<Loose
     ? and(eq(cardExpenses.status, 'waiting'), isNull(cardExpenses.voidedAt))
     : filter.kind === 'todo'
       ? and(eq(cardExpenses.userId, lower(filter.userId)), inArray(cardExpenses.status, [...TODO_STATUSES]), isNull(cardExpenses.voidedAt))
-      : and(filter.kind === 'month' ? eq(cardExpenses.month, filter.month) : undefined, filter.userId ? eq(cardExpenses.userId, lower(filter.userId)) : undefined,
+      : and(filter.kind === 'month' ? eq(cardExpenses.month, filter.month) : filter.kind === 'range' ? and(gte(cardExpenses.day, filter.from), lte(cardExpenses.day, filter.to)) : undefined, filter.userId ? eq(cardExpenses.userId, lower(filter.userId)) : undefined,
         filter.userIds ? (filter.userIds.length ? inArray(cardExpenses.userId, filter.userIds.map(lower)) : sql`false`) : undefined);
   const rows = await selectExpenses(db).where(where).orderBy(desc(cardExpenses.day), desc(cardExpenses.createdAt), desc(cardExpenses.id)).limit(EXPENSE_LIST_CAP);
   return withHistory(db, rows);
