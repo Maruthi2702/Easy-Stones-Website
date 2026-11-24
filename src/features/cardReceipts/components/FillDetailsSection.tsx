@@ -61,10 +61,10 @@ export default function FillDetailsSection({ expense: e, categories, onSave }: F
     <FormSection title="Fill in for Accounting">
       {error ? <div className="ccr-form-error" role="alert">{error}</div> : null}
       <FormField name="fillCategory" id="ccr-fill-category" label="Category" required error={submitted ? problems.category : ''}>
-        <FormPicker id="ccr-fill-category" value={v.category}
+        <FormSearchPicker id="ccr-fill-category" value={v.category}
           onChange={(c) => setV((x) => ({ ...x, category: c, subcategory: defaultSubOf(offered.find((o) => o.name === c))?.name || '' }))}
           options={offered.map((c) => ({ value: c.name, label: c.active ? c.label : `${c.label} (hidden)`, keywords: c.label }))}
-          placeholder="Choose a category" sheetTitle="Category" keepInForm />
+          placeholder="Choose a category" searchPlaceholder="Search categories" sheetTitle="Category" maxResults={200} keepInForm />
       </FormField>
       {subOptions.length ? (
         <FormField name="fillSubcategory" id="ccr-fill-subcategory" label="Sub-category" required error={submitted ? problems.subcategory : ''}>
