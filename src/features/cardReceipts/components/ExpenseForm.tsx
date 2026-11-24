@@ -234,7 +234,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
     }
   };
 
-  const categoryOptions: FormOption[] = offered.map((c) => ({ value: c.name, label: c.active ? c.label : `${c.label} (hidden)`, keywords: c.label }));
+  const categoryOptions = offered.map((c) => ({ value: c.name, label: c.active ? c.label : `${c.label} (hidden)`, keywords: c.label }));
   // The category's types: the shown ones, plus the one this expense already has if it was hidden since.
   const subOptions: FormOption[] = (category?.subcategories || [])
     .filter((s) => s.active || s.name === start.subcategory)
@@ -330,9 +330,9 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
 
           <FormSection>
             <FormField name="category" id="ccr-category" label="Category" required error={(submitted ? problems.category : '') || (submitted ? check.missing.category : '')}>
-              <FormPicker id="ccr-category" value={values.category}
+              <FormSearchPicker id="ccr-category" value={values.category}
                 onChange={(c) => set({ category: c, subcategory: defaultSubOf(offered.find((o) => o.name === c))?.name || '' })} options={categoryOptions}
-                placeholder="Choose a category" sheetTitle="Category" error={submitted ? problems.category : ''} keepInForm />
+                placeholder="Choose a category" searchPlaceholder="Search categories" sheetTitle="Category" maxResults={200} error={submitted ? problems.category : ''} keepInForm />
             </FormField>
             {subOptions.length ? (
               <FormField name="subcategory" id="ccr-subcategory" label="Sub-category" required error={(submitted ? problems.subcategory : '') || (submitted ? check.missing.subcategory : '')}>
