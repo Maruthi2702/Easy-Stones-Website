@@ -758,3 +758,65 @@ describe('sub-categories', () => {
     expect(moved).toMatchObject({ category: 'gas', subcategory: '' });
   });
 });
+
+// Edit any receipt, void any receipt and Delete receipts (2026-11-24).
+describe('Accounting edits and voids any receipt; admins delete', () => {
+  const EDITOR = { ...ACCOUNTING, permissions: [...ACCOUNTING.permissions, 'edit_any_card_receipt', 'void_any_card_receipt'] };
+  const DELETER = { ...ADMIN1, permissions: [USE, 'delete_card_receipts'] };
+  const approve = (who: Loose, id: string) => as(who).post(`/expenses/${id}/approve`, { comment: '' });
+
+  it('lets Edit any receipt change someone else’s approved receipt without taking its approvals back', async () => {
+    const body = receipt();
+    await as(REP).post('/expenses', body).expect(201);
+    await approve(ACCOUNTING, body.id).expect(200);
+    // Not their receipt, not the switch: nothing there for them.
+    await as(ACCOUNTING).put(`/expenses/${body.id}`, { ...body, note: 'x' }).expect(404);
+    await as(REP).put(`/expenses/${body.id}`, { ...body, note: 'x' }).expect(409);
+    const saved = await as(EDITOR).put(`/expenses/${body.id}`, { ...body, note: 'Kent lunch with the crew' }).expect(200);
+    expect(saved.body.expense).toMatchObject({ status: 'approved', note: 'Kent lunch with the crew' });
+    expect(saved.body.expense.approval).not.toBeNull();
+    expect(saved.body.expense.history.at(-1)).toMatchObject({ action: 'edited', by: 'Ann Count' });
+    expect(saved.body.expense.history.at(-1).changes).toMatch(/edited for Maruthi/);
+  });
+
+  it('keeps a waiting receipt waiting, finishes someone’s draft the usual way, and never touches a voided one', async () => {
+    const draft = receipt({ category: '', receiptUrl: '', total: '20.00' });
+    await as(REP).post('/expenses', draft).expect(201);
+    const finished = await as(EDITOR).put(`/expenses/${draft.id}`, { ...receipt({ id: draft.id, total: '20.00' }), note: 'fixed' }).expect(200);
+    expect(finished.body.expense.status).toBe('waiting');
+    const body = receipt({ total: '31.00' });
+    await as(REP).post('/expenses', body).expect(201);
+    await as(EDITOR).post(`/expenses/${body.id}/void`, { reason: 'Uploaded twice' }).expect(200);
+    await as(EDITOR).put(`/expenses/${body.id}`, { ...body, note: 'late' }).expect(409);
+  });
+
+  it('lets Void any receipt void an approved receipt of someone else, with a reason, but not a bank charge', async () => {
+    const body = receipt();
+    await as(REP).post('/expenses', body).expect(201);
+    await approve(ACCOUNTING, body.id).expect(200);
+    await as(REP).post(`/expenses/${body.id}/void`, { reason: 'mine' }).expect(409);
+    await as(ACCOUNTING).post(`/expenses/${body.id}/void`, { reason: 'x' }).expect(404);
+    await as(EDITOR).post(`/expenses/${body.id}/void`, { reason: '' }).expect(400);
+    matched.add(body.id);
+    await as(EDITOR).post(`/expenses/${body.id}/void`, { reason: 'Duplicate' }).expect(409);
+    matched.delete(body.id);
+    const voided = await as(EDITOR).post(`/expenses/${body.id}/void`, { reason: 'Duplicate of the Home Depot one' }).expect(200);
+    expect(voided.body.expense.voided).toMatchObject({ reason: 'Duplicate of the Home Depot one', by: 'Ann Count' });
+  });
+
+  it('deletes only with the switch and a reason, keeps a copy, and refuses a bank charge', async () => {
+    const body = receipt();
+    await as(REP).post('/expenses', body).expect(201);
+    await as(EDITOR).del(`/expenses/${body.id}`, { reason: 'Test receipt' }).expect(403);
+    await as(DELETER).del(`/expenses/${body.id}`, { reason: 'no' }).expect(400);
+    matched.add(body.id);
+    await as(DELETER).del(`/expenses/${body.id}`, { reason: 'Test receipt, uploaded by mistake' }).expect(409);
+    matched.delete(body.id);
+    await as(DELETER).del(`/expenses/${body.id}`, { reason: 'Test receipt, uploaded by mistake' }).expect(200);
+    expect(await CardExpense.findById(body.id)).toBeNull();
+    const kept = await mongoose.connection.collection('cardexpensedeletions').findOne({ expenseId: body.id });
+    expect(kept).toMatchObject({ deletedBy: 'Ada Min', reason: 'Test receipt, uploaded by mistake' });
+    expect((kept as Loose).expense.merchant).toBe("McDonald's, Kent");
+    await as(DELETER).del(`/expenses/${body.id}`, { reason: 'Test receipt, uploaded by mistake' }).expect(404);
+  });
+});

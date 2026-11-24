@@ -6,7 +6,7 @@
  */
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import type { Db } from '../copy/plan.ts';
-import { companyCards, receiptCategories, cardExpenses, cardExpenseHistory } from '../schema/cardsSuppliers.ts';
+import { companyCards, receiptCategories, cardExpenses, cardExpenseHistory, cardExpenseDeletions } from '../schema/cardsSuppliers.ts';
 import { locations } from '../schema/reference.ts';
 import { customers } from '../schema/customers.ts';
 import { companyCardRowOf, receiptCategoryRowOf, cardExpenseRowsOf } from '../copy/cardsSuppliersRows.ts';
@@ -245,5 +245,17 @@ export async function changeExpense(db: Db, id: string, set: Loose, fullEntry: E
     await tx.delete(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, found.id));
     if (built.history.length) await tx.insert(cardExpenseHistory).values(built.history);
     return (await findExpense(tx as unknown as Db, found.id))!;
+  });
+}
+
+/** Delete an expense for good: its whole record is saved to card_expense_deletions first, in the same transaction. Null if it is gone. */
+export async function deleteExpense(db: Db, id: string, by: string, reason: string): Promise<Loose | null> {
+  return db.transaction(async tx => {
+    const [found] = await tx.select({ id: cardExpenses.id }).from(cardExpenses).where(eq(cardExpenses.id, lower(id))).for('update');
+    if (!found) return null;
+    const existing = (await findExpense(tx as unknown as Db, found.id))!;
+    await tx.insert(cardExpenseDeletions).values({ expenseId: found.id, expense: JSON.parse(JSON.stringify(existing)), deletedBy: by, reason });
+    await tx.delete(cardExpenses).where(eq(cardExpenses.id, found.id)); // its history lines go with it (cascade)
+    return existing;
   });
 }

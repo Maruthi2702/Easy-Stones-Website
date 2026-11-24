@@ -9,7 +9,7 @@ import { PROJECT_LEADS } from '../../../utils/projectLeadAccess';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, PackageCheck, Ship, Unlock, Factory, Bell
+    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, Ban, PackageCheck, Ship, Unlock, Factory, Bell
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
@@ -399,6 +399,9 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: CARD_RECEIPTS.VIEW_ALL, section: 'Receipts', label: 'View all', icon: Eye, desc: 'See every cardholder’s expenses and receipts' },
             { key: CARD_RECEIPTS.APPROVE, section: 'Receipts', label: 'Approve', icon: CheckCheck, desc: 'Accounting and Admins approve every receipt; from $150 a branch manager / director or an Admin also approves. Never their own.' },
             { key: CARD_RECEIPTS.ADD_FOR_OTHERS, section: 'Receipts', label: 'Add receipts for others', icon: Plus, desc: 'Add a receipt on a cardholder’s behalf: it is saved to their card and belongs to them (they can edit it), and its history says who added it' },
+            { key: CARD_RECEIPTS.EDIT_ANY, section: 'Receipts', label: 'Edit any receipt', icon: Pencil, desc: 'Change any cardholder’s receipt, approved ones too (it keeps its status and approvals; the history says who changed what). For Accounting' },
+            { key: CARD_RECEIPTS.VOID_ANY, section: 'Receipts', label: 'Void any receipt', icon: Ban, desc: 'Void any cardholder’s receipt with a reason, approved ones too (a charge on a bank statement can’t be voided). It stays in the history, marked voided' },
+            { key: CARD_RECEIPTS.DELETE, section: 'Receipts', label: 'Delete receipts', icon: Trash2, desc: 'Delete a receipt for good, with a reason. A copy is kept with who deleted it and why. Admins only to start' },
             { key: CARD_RECEIPTS.REMIND, section: 'Receipts', label: 'Send reminders', icon: Bell, desc: 'Email and push a reminder about a receipt to its cardholder, their branch manager, Accounting or whoever still has to approve it — Accounting and Admins about anyone’s, managers about their team’s; once per receipt a day' },
             { key: CARD_RECEIPTS.EXPORT, section: 'Receipts', label: 'Export', icon: Download, desc: 'Download the list on screen (the month and filters, Amex or Encore) to Excel' },
             { key: CARD_RECEIPTS.EXPORT_ALL, section: 'Receipts', label: 'Export all', icon: Download, desc: 'Download every month at once, for Amex, Encore or both — only the expenses they can see' },

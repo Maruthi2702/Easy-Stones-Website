@@ -48,3 +48,7 @@ export const sameDayAmount = async (userId: string, date: string, cents: number)
 export const addExpense = async (id: string, doc: Loose) => onPostgres() ? pg.addExpense(await appDb(), id, doc) : mongo.addExpense(id, doc);
 export const changeExpense = async (id: string, set: Loose, entry: ExpenseHistoryEntry) =>
   onPostgres() ? pg.changeExpense(await appDb(), id, set, entry) : mongo.changeExpense(id, set, entry);
+
+/** Delete an expense for good; a copy with who and why is kept first. Null if it is gone. */
+export const deleteExpense = async (id: string, by: string, reason: string) =>
+  onPostgres() ? pg.deleteExpense(await appDb(), id, by, reason) : mongo.deleteExpense(id, by, reason);

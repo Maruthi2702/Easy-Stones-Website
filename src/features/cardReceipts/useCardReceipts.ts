@@ -143,6 +143,17 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   const answer = (e: Expense, text: string) => run(() => api.answerAsk(e.id, text, e.updatedAt));
   const reopen = (e: Expense, reason: string) => run(() => api.reopenExpense(e.id, reason, e.updatedAt));
   const fillDetails = (e: Expense, body: DetailsBody) => run(() => api.fillExpenseDetails(e.id, body, e.updatedAt));
+  /** Delete for good: the receipt leaves every list here at once. */
+  const deleteOne = async (e: Expense, reason: string) => {
+    try {
+      await api.deleteExpense(e.id, reason);
+    } catch (err) {
+      if (api.isChanged(err)) reload();
+      throw err;
+    }
+    dropMissing(e.id);
+    setWaiting((list) => list.filter((x) => x.id !== e.id));
+  };
   const voidOne = (e: Expense, reason: string) => run(() => api.voidExpense(e.id, reason, e.updatedAt));
   /** Send reminder…: the server's summary; the lists reload so "Reminded today" shows. */
   const remind = async (body: RemindBody) => {
@@ -153,7 +164,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
 
   return {
     me, month, setMonth, expenses, waiting, todo, waitingError, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
-    reload, add, edit, matchToCharge, nearReceipts: api.nearReceipts, approve, sendBack, ask, withdrawAsk, answer, reopen, fillDetails, voidOne, remind,
+    reload, add, edit, matchToCharge, nearReceipts: api.nearReceipts, approve, sendBack, ask, withdrawAsk, answer, reopen, fillDetails, voidOne, deleteOne, remind,
     askTargets: api.askTargets, upload: api.uploadReceipt, scan: api.scanReceipt
   };
 }

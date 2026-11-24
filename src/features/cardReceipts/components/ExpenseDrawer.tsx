@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Ban, Bell, CornerUpLeft, HelpCircle, MessageSquareOff, MoreHorizontal, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Ban, Bell, CornerUpLeft, HelpCircle, MessageSquareOff, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormField } from '../../../components/shared/form/FormControls';
 import { formatMoney, isBigReceipt, usDate, fieldsOf } from '../../../utils/cardReceipts';
@@ -18,10 +18,15 @@ export type ExpenseDrawerProps = {
   /** The viewer's day (GET /me), for "Reminded today". */
   today?: string;
   canEdit: boolean;
+  /** Void receipt in ⋯: the holder's own rule, or the Void any receipt switch. */
+  canVoid: boolean;
+  /** Delete receipt in ⋯ (the Delete receipts switch). */
+  canDelete?: boolean;
   /** The Send reminders switch. */
   canRemind?: boolean;
   onEdit: () => void;
   onVoid: () => void;
+  onDelete?: () => void;
   onApprove: (comment: string) => Promise<unknown>;
   onAnswer: (answer: string) => Promise<unknown>;
   onSendBack: (comment: string) => Promise<unknown>;
@@ -99,8 +104,8 @@ function MoreMenu({ children }: { children: React.ReactNode }) {
  * always does. An Admin's own receipt is filled in by Accounting here first.
  */
 export default function ExpenseDrawer({
-  expense: e, categories, today = '', canEdit, canRemind = false,
-  onEdit, onVoid, onApprove, onAnswer, onSendBack, onAsk, onWithdrawAsk, onReopen, onRemind, onFillDetails, nearReceipts, onUseReceipt, onClose
+  expense: e, categories, today = '', canEdit, canVoid, canDelete = false, canRemind = false,
+  onEdit, onVoid, onDelete, onApprove, onAnswer, onSendBack, onAsk, onWithdrawAsk, onReopen, onRemind, onFillDetails, nearReceipts, onUseReceipt, onClose
 }: ExpenseDrawerProps) {
   const [comment, setComment] = useState('');
   const [answer, setAnswer] = useState('');
@@ -127,7 +132,6 @@ export default function ExpenseDrawer({
   const needsCategory = Boolean(act.approve && adminsOwn && !e.category);
   const needsComment = Boolean(act.approve && e.lostReason && !e.receiptUrl && !adminsOwn);
   const answerLen = answer.trim().length;
-  const canVoid = canEdit && !e.canDecide && e.status !== 'missing';
   // A Missing receipt row is a charge on the Amex statement: it gets its receipt (or a lost reason), never voided.
   const editLabel = e.status === 'missing' ? 'Add receipt' : e.status === 'draft' || e.status === 'sent_back' ? 'Finish it' : 'Edit receipt';
   const showRemind = canRemind && remindable(e);
@@ -168,6 +172,11 @@ export default function ExpenseDrawer({
     canVoid ? (
       <button key="void" type="button" role="menuitem" className="ccr-more-item is-danger" onClick={onVoid}>
         <Ban size={18} aria-hidden="true" />Void receipt
+      </button>
+    ) : null,
+    canDelete && onDelete ? (
+      <button key="delete" type="button" role="menuitem" className="ccr-more-item is-danger" onClick={onDelete}>
+        <Trash2 size={18} aria-hidden="true" />Delete receipt…
       </button>
     ) : null
   ].filter(Boolean);
