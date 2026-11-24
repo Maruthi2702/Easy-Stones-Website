@@ -1405,7 +1405,7 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   `reminders`, set before sending so a crash can't double-send). A person sends more with **Send reminder** on one or several
   receipts (`POST /api/card-receipts/expenses/remind`, `src/routes/cardReceiptReminders.ts`): Accounting / Admins for anyone,
   managers for their team, **once per receipt per Pacific day**, one email per person listing their receipts, written in the
-  receipt's history without moving `updatedAt`. Push is iPhone only (no FCM yet) and opens `/sales`, not the receipt.
+  receipt's history without moving `updatedAt`. Push is iPhone only (no FCM yet) and a tap opens the Credit Card Receipts page (2026-11-23: an app already open on Sales used to stay where it was — the URL's `?tab=` is only read at load, so `PushRegistrar` also fires `requestSalesTab`, `src/utils/salesTabEvent.ts`, which `useSalesNavigation` answers if they may see the page); it still doesn't open the one receipt.
   **Not tried on a real phone or with real mail**; the owner has not answered whether an Admin's own Missing row should get a
   reminder (it doesn't) or how a receipt with no branch is handled (Admins get the 48 h email).
   **Send reminder redesign (2026-11-23, on `feat/reminder-design`; claude.ai artifact **Receipt Reminder Canvas**,

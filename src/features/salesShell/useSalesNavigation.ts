@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { OPEN_SALES_TAB_EVENT } from '../../utils/salesTabEvent';
 import { navItem, pinnedDefaultTab } from '../../utils/navPins';
 import { CHECKIN_PERMISSIONS } from '../../utils/checkInAccess';
 import { canOpenUsersPage } from '../../utils/teamAccess';
@@ -102,6 +103,19 @@ export function useSalesNavigation({ currentUser, pinnedTabsRef, isMobile, setIs
             setIsSidebarOpen(false);
         }
     };
+
+    // A tapped push (or anything else) asking an open Sales page to show a page it may see.
+    const changeTabRef = useRef(handleCrmTabChange);
+    changeTabRef.current = handleCrmTabChange;
+    useEffect(() => {
+        const onOpen = (event: Event) => {
+            const tab = (event as CustomEvent<{ tab?: unknown }>).detail?.tab;
+            const item = typeof tab === 'string' ? navItem(tab) : null;
+            if (typeof tab === 'string' && item && !item.href && currentUser && item.canSee(currentUser as never)) changeTabRef.current(tab);
+        };
+        window.addEventListener(OPEN_SALES_TAB_EVENT, onOpen);
+        return () => window.removeEventListener(OPEN_SALES_TAB_EVENT, onOpen);
+    }, [currentUser]);
 
     const handleGoHome = () => {
         setSelectedCustomerId(null);
