@@ -12,8 +12,10 @@ import { MongoMemoryServer } from 'mongodb-memory-server';
 
 // Which expenses answer an Amex charge (the check itself is Postgres only; the rule is the route's).
 const matched = new Set<string>();
+const claims: { id: string; date: string; cents: number }[] = [];
 vi.mock('../db/cardStatements/hooks.ts', async (orig) => ({
   ...(await orig<typeof import('../db/cardStatements/hooks.ts')>()),
+  afterReceiptSaved: async (e: { _id?: unknown; date: string; cents: number }) => { claims.push({ id: String(e._id), date: e.date, cents: e.cents }); return null; },
   amexChargeOf: async (id: string) => (matched.has(id) ? { reference: 'R1' } : null)
 }));
 
@@ -633,6 +635,16 @@ describe('what a receipt link, a decision and a matched charge may do', () => {
       await as(REP).put(`/expenses/${saved.id}`, body({ date: '2026-10-04' })).expect(409);
       await as(REP).put(`/expenses/${saved.id}`, body({ note: 'client visit' })).expect(200);
     } finally { matched.delete(saved.id); }
+  });
+
+  it('looks for a matching charge again when a fix changes the day or total, and not for other edits', async () => {
+    const saved = (await as(REP).post('/expenses', receipt()).expect(201)).body.expense;
+    claims.length = 0;
+    const body = (over: Loose) => ({ date: saved.date, merchant: saved.merchant, total: '14.32', category: 'travel_lunch', receiptUrl: saved.receiptUrl, ...over });
+    await as(REP).put(`/expenses/${saved.id}`, body({ note: 'client visit' })).expect(200);
+    expect(claims).toEqual([]);
+    await as(REP).put(`/expenses/${saved.id}`, body({ total: '20.00' })).expect(200);
+    expect(claims).toEqual([{ id: saved.id, date: saved.date, cents: 2000 }]);
   });
 });
 

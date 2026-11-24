@@ -668,7 +668,9 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const saved = await db.changeExpense(id, { ...value, ...(newCard ? { cardId: String(newCard._id), cardLabel: newCard.label } : {}), month: monthOf(value.date), status, ...(clearsApprovals ? { approval: null, secondApproval: null } : {}) },
         { at: new Date(), by, action: 'edited', expectedUpdatedAt: expense.updatedAt as Date, changes: [changes.join(', '), clearsApprovals ? 'approvals cleared' : '', sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
-      res.json({ expense: await viewOf(saved, approvalViewerOf(req)) });
+      // A corrected day or total may now answer a charge that has a Missing receipt row: look again (no-op if it's already linked).
+      const replacedMissing = changes.some((c) => c === 'date' || c === 'total') ? await afterReceiptSaved(saved, { id: me, name: by }) : null;
+      res.json({ expense: await viewOf(saved, approvalViewerOf(req)), ...(replacedMissing ? { replacedMissing } : {}) });
     } catch (error) {
       if (error instanceof StaleExpenseError) return res.status(409).json({ message: error.message, changed: true });
       console.error('[card-receipts] edit failed:', error);
