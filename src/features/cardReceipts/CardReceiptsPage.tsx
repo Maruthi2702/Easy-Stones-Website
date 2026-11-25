@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { AlertTriangle, Ban, Camera, CalendarRange, ChevronLeft, ChevronRight, Download, Info, Trash2 } from 'lucide-react';
+import { AlertTriangle, Ban, Camera, CalendarRange, ChevronLeft, ChevronRight, Clock, CreditCard, Download, FileText, Info, ReceiptText, Trash2 } from 'lucide-react';
 import useIsPhone from '../../components/shared/form/useIsPhone';
 import DashboardSearch from '../../components/shared/DashboardSearch';
 import LocationFilter from '../../components/shared/LocationFilter';
@@ -55,6 +55,10 @@ type Open = { kind: 'choose' } | { kind: 'export' } | { kind: 'camera' } | { kin
  */
 export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: CardReceiptsPageProps) {
   const isPhone = useIsPhone();
+  // Statements puts its search, Upload and dropdowns into the header and tab row (as the Customers tab has them).
+  const [headSlot, setHeadSlot] = useState<HTMLDivElement | null>(null);
+  const [tabSlot, setTabSlot] = useState<HTMLSpanElement | null>(null);
+  const [statementCount, setStatementCount] = useState<number | null>(null);
   const data = useCardReceipts(currentUser);
   const { me } = data;
   const canUse = can(currentUser, CARD_RECEIPTS.USE);
@@ -213,10 +217,15 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const periodRange = tab === 'expenses' ? data.range : null;
   const periodName = periodRange ? rangeLabel(periodRange.from, periodRange.to) : data.month ? monthLabel(data.month) : '';
 
-  const subtitle = tab === 'waiting' ? `Waiting for me · ${data.waiting.length} · ${formatMoney(data.waiting.reduce((s, e) => s + e.cents, 0))}`
-    : tab === 'cards' ? 'Company cards'
-    : tab === 'statements' ? 'Amex check · every charge against an uploaded receipt'
+  // The header follows the Customers tab (2026-11-24, owner: "match whole page"): the title with a gold count,
+  // then who and what period it is in a muted line beside it; Statements and Cards need no line.
+  const subtitle = tab === 'waiting' ? `${formatMoney(data.waiting.reduce((s, e) => s + e.cents, 0))} waiting`
+    : tab === 'cards' || tab === 'statements' ? ''
     : `${periodName} · ${data.viewAll ? (data.teamOnly ? 'Your team' : 'All cardholders') : me?.card ? `${me.card.label}${me.user.location ? ` · ${me.user.location}` : ''}` : 'Your receipts'}`;
+  const titleCount = tab === 'waiting' ? data.waiting.length : tab === 'statements' ? statementCount : tab === 'cards' ? null : rows.length;
+  const addButton = canAdd && !isPhone && (tab === 'expenses' || tab === 'waiting') ? (
+    <button type="button" className="ccr-btn gold" aria-label="Add receipt" onClick={() => setOpen({ kind: 'choose' })}><Camera size={16} aria-hidden="true" /> Add receipt</button>
+  ) : null;
 
   return (
     <div className="ccr">
@@ -225,8 +234,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           {sidebarToggle}
           <div className="ccr-ttl">
             <h1>{isPhone && !data.viewAll ? 'Card receipts' : 'Credit Card Receipts'}</h1>
-            <span>{subtitle}</span>
+            {titleCount != null ? <span className="ccr-hcount">{titleCount.toLocaleString()}</span> : null}
+            {subtitle ? <span className="ccr-ttl-sub">{subtitle}</span> : null}
           </div>
+          {tab === 'statements' ? <div className="ccr-tools" ref={setHeadSlot} /> : null}
           {tab !== 'cards' && tab !== 'statements' ? (
             <div className="ccr-tools">
               <DashboardSearch value={filters.search} onChange={(search) => patchFilters({ search })} label="Search expenses"
@@ -280,6 +291,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 </div>
               </LocationFilter>
               {exportItems.length || bulkItems.length ? <RowMenu label="More" items={[...exportItems, ...bulkItems.map((it, i) => (i === 0 && exportItems.length ? { ...it, divider: true } : it))]} /> : null}
+              {addButton}
             </div>
           ) : null}
         </div>
@@ -287,20 +299,25 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         {showWaiting || canCards || canStatements ? (
           <div className="ccr-tabs" role="tablist">
             <button type="button" role="tab" aria-selected={tab === 'expenses'} className={`ccr-tab${tab === 'expenses' ? ' is-on' : ''}`} onClick={() => setTab('expenses')}>
-              {data.viewAll ? 'Expenses' : 'My expenses'}
+              <ReceiptText size={17} aria-hidden="true" />{data.viewAll ? 'Expenses' : 'My expenses'}
             </button>
             {showWaiting ? (
               <button type="button" role="tab" aria-selected={tab === 'waiting'} className={`ccr-tab${tab === 'waiting' ? ' is-on' : ''}`} onClick={() => setTab('waiting')}>
-                Waiting for me {data.waiting.length ? <span className="ccr-count">{data.waiting.length}</span> : null}
+                <Clock size={17} aria-hidden="true" />Waiting for me{data.waiting.length ? <span className="n">{data.waiting.length}</span> : null}
               </button>
             ) : null}
             {canStatements ? (
-              <button type="button" role="tab" aria-selected={tab === 'statements'} className={`ccr-tab${tab === 'statements' ? ' is-on' : ''}`} onClick={() => setTab('statements')}>Statements</button>
+              <button type="button" role="tab" aria-selected={tab === 'statements'} className={`ccr-tab${tab === 'statements' ? ' is-on' : ''}`} onClick={() => setTab('statements')}>
+                <FileText size={17} aria-hidden="true" />Statements
+              </button>
             ) : null}
             {canCards ? (
-              <button type="button" role="tab" aria-selected={tab === 'cards'} className={`ccr-tab${tab === 'cards' ? ' is-on' : ''}`} onClick={() => setTab('cards')}>Cards</button>
+              <button type="button" role="tab" aria-selected={tab === 'cards'} className={`ccr-tab${tab === 'cards' ? ' is-on' : ''}`} onClick={() => setTab('cards')}>
+                <CreditCard size={17} aria-hidden="true" />Cards
+              </button>
             ) : null}
             {(tab === 'expenses' || tab === 'statements') && data.month ? <PeriodBar month={data.month} range={tab === 'expenses' ? data.range : null} custom={tab === 'expenses'} today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /> : null}
+            {tab === 'statements' && !isPhone ? <span className="ccr-tab-tools" ref={setTabSlot} /> : null}
           </div>
         ) : data.month ? <div className="ccr-tabs"><PeriodBar month={data.month} range={data.range} custom today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /></div> : null}
 
@@ -316,6 +333,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           <CardsPanel canManage={can(currentUser, CARD_RECEIPTS.MANAGE_CARDS)} canSetUp={canStatements} month={data.month || ''} onSaved={say} />
         ) : tab === 'statements' ? (
           data.month ? <StatementsPanel month={data.month} isPhone={isPhone} canCards={canCards} onOpenCards={() => setTab('cards')}
+            headSlot={headSlot} tabSlot={tabSlot} onCount={setStatementCount}
             onSaved={(text) => { say(text); data.reload(); }} /> : null
         ) : (
           <>
@@ -400,7 +418,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         )}
       </div>
 
-      {canAdd ? (
+      {canAdd && !addButton ? (
         <button type="button" className="ccr-fab" aria-label="Add receipt" title="Add receipt" onClick={() => setOpen({ kind: 'choose' })}>
           <Camera size={24} strokeWidth={2.2} aria-hidden="true" />
         </button>

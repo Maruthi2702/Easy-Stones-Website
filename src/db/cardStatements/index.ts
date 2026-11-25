@@ -23,6 +23,7 @@ import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
 import { changeExpense } from '../cardReceipts/postgres.ts';
 import { isAdminRole } from '../../utils/receiptApproval.ts';
 import { formatMoney, usDate } from '../../utils/cardReceipts.ts';
+import { lineStage, pacificDay, type LineStage, type StageExpense } from '../../utils/statementStage.ts';
 import {
   MISSING_FROM, MATCH_DAYS, kindOf, lineStatus, planMatches, cardForDigits, merchantOf, statusCounts, unknownCards, daysApart, issuerLabel,
   NEAR_DAYS, isNearMatch, nearMatches, pairRefunds, REFUND_DAYS,
@@ -485,31 +486,61 @@ export type StatementLineView = {
   reference: string; issuer: Issuer; date: string; description: string; cardMember: string; digits: string; cents: number; kind: LineKind;
   amexCategory: string; cityState: string; cardId: string | null; cardLabel: string; holderId: string; holderName: string;
   expenseId: string | null; expenseStatus: string | null; status: LineStatus;
+  /** The Status column (statementStage.ts): the receipt's approval stage, or what the line is. */
+  stage: LineStage;
+  /** The cardholder's home branch ('' = none), for the branch pill beside the card. */
+  branch: string;
+};
+
+/** A stored approval ({ by, byName, at, … } jsonb, or the expense's approved_* columns) as the stage rule reads it. */
+const decisionOf = (v: unknown) => {
+  const d = v && typeof v === 'object' ? v as { byName?: unknown; at?: unknown } : null;
+  return d ? { byName: String(d.byName ?? ''), at: (d.at as string | Date | null) ?? '' } : null;
+};
+const askOf = (v: unknown) => {
+  const a = v && typeof v === 'object' ? v as { toName?: unknown; answeredAt?: unknown } : null;
+  return a ? { toName: String(a.toName ?? ''), answeredAt: (a.answeredAt as string | Date | null) ?? null } : null;
 };
 
 async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: string): Promise<StatementLineView[]> {
   const rows = await q(c).select({
-    l: lines, cardLabel: companyCards.label, holderId: companyCards.userId, displayName: users.displayName, username: users.username,
+    l: lines, cardLabel: companyCards.label, cardLocation: companyCards.location, holderId: companyCards.userId,
+    displayName: users.displayName, username: users.username, holderRole: users.role, homeLocation: locations.name,
     expenseStatus: cardExpenses.status, expenseVoided: cardExpenses.voidedAt,
-    expenseReceipt: cardExpenses.receiptUrl, expenseLost: cardExpenses.lostReason
+    expenseReceipt: cardExpenses.receiptUrl, expenseLost: cardExpenses.lostReason,
+    expenseDay: cardExpenses.day, expenseCents: cardExpenses.cents, expenseHolder: cardExpenses.holderName,
+    approvedByName: cardExpenses.approvedByName, approvedAt: cardExpenses.approvedAt, approvedById: cardExpenses.approvedById,
+    secondApproval: cardExpenses.secondApproval, ask: cardExpenses.ask, sentBackAt: cardExpenses.sentBackAt
   }).from(lines)
     .leftJoin(companyCards, eq(companyCards.id, lines.cardId))
     .leftJoin(users, eq(users.id, companyCards.userId))
+    .leftJoin(locations, eq(locations.id, users.homeLocationId))
     .leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
     .where(where)
     .orderBy(desc(lines.day), asc(lines.reference));
   const refunded = await refundedOf(c, rows.filter(r => r.l.kind === 'charge').map(r => ({ reference: r.l.reference, issuer: r.l.issuer, digits: r.l.digits, date: r.l.day, cents: r.l.cents })));
+  const today = pacificDay(new Date());
   return rows.map(r => {
     const kind = r.l.kind as LineKind;
+    const status = lineStatus({
+      kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided),
+      hasReceipt: Boolean(r.expenseReceipt || r.expenseLost), refunded: refunded.has(r.l.reference)
+    }, missingFrom);
+    const holderName = r.displayName || r.username || '';
+    const expense: StageExpense | null = r.expenseStatus && !r.expenseVoided ? {
+      day: r.expenseDay ?? '', status: r.expenseStatus, cents: Number(r.expenseCents) || 0, holderRole: r.holderRole ?? '',
+      holderName: r.expenseHolder || holderName,
+      approval: r.approvedById == null ? null : { byName: r.approvedByName ?? '', at: r.approvedAt ?? '' },
+      secondApproval: decisionOf(r.secondApproval), ask: askOf(r.ask), sentBackAt: r.sentBackAt ?? null
+    } : null;
     return {
       reference: r.l.reference, issuer: r.l.issuer as Issuer, date: r.l.day, description: r.l.description, cardMember: r.l.cardMember, digits: r.l.digits, cents: r.l.cents,
       kind, amexCategory: r.l.amexCategory, cityState: r.l.cityState, cardId: r.l.cardId, cardLabel: r.cardLabel ?? '',
-      holderId: r.holderId ?? '', holderName: r.displayName || r.username || '',
+      holderId: r.holderId ?? '', holderName,
       expenseId: r.l.expenseId, expenseStatus: r.expenseStatus ?? null,
-      status: lineStatus({
-        kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided),
-        hasReceipt: Boolean(r.expenseReceipt || r.expenseLost), refunded: refunded.has(r.l.reference)
-      }, missingFrom)
+      status,
+      stage: lineStage(status, { date: r.l.day }, expense, today),
+      branch: r.homeLocation || r.cardLocation || ''
     };
   });
 }

@@ -21,14 +21,54 @@ export const linesOfBank = <T extends { issuer: Issuer }>(rows: readonly T[], ba
 /** "2 Encore cards not set up", "1 Amex card not set up". */
 export const unsetCardsNote = (count: number, bank: Issuer) => `${count} ${BANK_NAMES[bank]} ${count === 1 ? 'card' : 'cards'} not set up`;
 
-/** What the tiles count (`base`, the search applied) and what's listed (`rows`, the tile too). */
-export function visibleLines(lines: readonly StatementLine[], { search, status }: { search: string; status: LineStatus | 'all' }) {
+/** Who a line belongs to on screen: the holder we know, else the name the bank printed. */
+export const holderOfLine = (l: StatementLine) => l.holderName || l.cardMember || '';
+
+/**
+ * What the Status and Cardholder filters count (`base`: the search and the other filter applied) and what's
+ * listed (`rows`: every filter). `counts` are by status over `base` without the status filter.
+ */
+export function visibleLines(lines: readonly StatementLine[], { search, status, holder = '' }: { search: string; status: LineStatus | 'all'; holder?: string }) {
   const q = search.trim().toLowerCase();
-  const base = q ? lines.filter((l) => [l.description, l.cardMember, l.holderName, l.cardLabel, l.digits, l.reference, l.cityState, l.issuer]
+  const searched = q ? lines.filter((l) => [l.description, l.cardMember, l.holderName, l.cardLabel, l.digits, l.reference, l.cityState, l.issuer]
     .some((v) => String(v || '').toLowerCase().includes(q))) : [...lines];
+  const base = holder ? searched.filter((l) => holderOfLine(l) === holder) : searched;
   const rows = status === 'all' ? base : base.filter((l) => l.status === status);
-  return { base, rows, counts: statusCounts(base) };
+  return { base, rows, counts: statusCounts(base), holders: holderCounts(status === 'all' ? searched : searched.filter((l) => l.status === status)) };
 }
+
+/** Each cardholder on the lines, A–Z, with how many lines they have. */
+export function holderCounts(lines: readonly StatementLine[]) {
+  const by = new Map<string, number>();
+  for (const l of lines) { const h = holderOfLine(l); if (h) by.set(h, (by.get(h) ?? 0) + 1); }
+  return [...by.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([name, count]) => ({ name, count }));
+}
+
+/**
+ * The words the Status filter and the row colours use (2026-11-24, "Statement row colours" board C): a matched
+ * line is green, one waiting for its receipt red; the rest keep the statuses' own words.
+ */
+export const STATUS_WORDS: Partial<Record<LineStatus, string>> = { matched: 'Matched', missing: 'Waiting for receipt' };
+export const statusWord = (s: LineStatus, fallback: string) => STATUS_WORDS[s] ?? fallback;
+
+/** A row's background: green for matched, red for waiting for its receipt, faded for lines that need no receipt. */
+export function rowTone(s: LineStatus): 'ok' | 'miss' | 'quiet' | '' {
+  if (s === 'matched') return 'ok';
+  if (s === 'missing') return 'miss';
+  return s === 'no_receipt' || s === 'refunded' || s === 'before_start' ? 'quiet' : '';
+}
+
+/** "Transportation-Fuel" → the category and its kind, as the bank prints them. */
+export function categoryParts(amexCategory: string) {
+  const [main = '', ...rest] = String(amexCategory || '').split('-');
+  return { main: main.trim(), sub: rest.join('-').trim() };
+}
+
+/** The branch pill's colour: the four branches the Customers tab colours (PartnersSheet.css), else neutral. */
+export const branchClass = (branch: string) => {
+  const k = branch.trim().toLowerCase().replace(/\s+/g, '-');
+  return ['seattle', 'spokane', 'salt-lake-city', 'dallas'].includes(k) ? `is-${k}` : '';
+};
 
 /**
  * Who a new card can go to: active staff with no card at that bank yet (one card per person per bank),

@@ -1640,8 +1640,25 @@ on the device, default Amex, **no "All" tab** — my default, owner unanswered) 
 still-missing count (`missingByBank` from `statementView`, uploads carry `issuer`), the uploads log — is that bank's alone; Upload statement
 opens on the chosen bank. **Cards not set up moved to the Cards tab** (`statements/UnknownCards.tsx`, both banks, each with its badge,
 needs the Amex-check switch); Statements keeps a one-line "2 Encore cards not set up · Set up in Cards" notice and an orange dot on the
-tab. A login with the Amex check but **no Cards tab** (`canCards` false) still gets the box on Statements, so nobody is stranded. On a
-phone the status filter is a round icon beside Upload (a list with counts, a gold dot and "Status: … Clear" when on).
+tab. A login with the Amex check but **no Cards tab** (`canCards` false) still gets the box on Statements, so nobody is stranded.
+
+**The whole page in the Customers tab's look; Statements rows coloured by match** (2026-11-24, on `feat/ccr-customers-look`; claude.ai
+artifact **Statement row colours**, https://claude.ai/artifact/GSbdExUZTArcH7EgsDWQjP, board C — the owner's comments on it set every
+rule here). Every tab uses the Customers spacing (`CustomerList.css`): the title 22px / 750 with a gold count (`.ccr-hcount`), 44px tabs
+with icons and Customers' count pill, a 42px table header and 60px rows (`.ccr-table th/td`), a 44px checkbox and 48px ⋯ column, 12px
+between sections. A computer gets **Add receipt** as the gold header button (Expenses / Waiting for me; the round camera stays on a phone
+and on the other tabs). **Statements:** the bank is a **Bank** dropdown (Amex / Encore, still one at a time, remembered), beside
+**Status** and **Cardholder** dropdowns on the tab row after the month (`statements/FilterMenu.tsx`, the Customers `.cl-dd` look; the
+panel portals them into the page's `ccr-tab-tools` and its search + **Upload statement** into the header's `ccr-tools`, so nothing floats
+outside the page); the tiles are gone. Columns (owner's order): **Date · Cardholder & card** (initial avatar, name, branch pill in the
+Customers location-badge colours, card ID) **· Merchant** (bank's line bold, city under) **· Category · Amount · Status**. A **matched**
+line's row is **green**, one **waiting for its receipt red** (no Receipt column — the colour says it, owner's call), lines needing no
+receipt fade. **Status** is the Customers dot + word with a grey line under it, worked out on the server by `src/utils/statementStage.ts`
+(tested) and sent as each line's `stage` (with the holder's `branch`) from `linesWhere`: a matched line's approval stage from
+`receiptApproval.ts` — Waiting for Accounting / for Manager or Admin / for Admin / for both ("$150+ · needs both"), Asked …, Sent back,
+Draft, Approved (last approver · day) — else "No receipt · N days", "Waiting for Accounting" (an Admin charge), Card not set up, etc.
+Not built: checkboxes / bulk actions and a row ⋯ on Statements (reminder emails stay off until the owner says), the Expenses tab's
+filters as dropdowns (it keeps the Filters panel and its tiles). Phone: one list box with dividers, the same row colours.
 
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
 

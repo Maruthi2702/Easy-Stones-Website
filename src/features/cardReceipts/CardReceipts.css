@@ -11,7 +11,7 @@
 .fm-overlay {
   --ccr-bg: var(--bg-primary, #0f1013);
   --ccr-surface: var(--bg-card, #17191e);
-  --ccr-head: #1f2228;
+  --ccr-head: #1c1f25;
   --ccr-hover: #23262d;
   --ccr-line: rgba(255, 255, 255, 0.09);
   --ccr-line-soft: rgba(255, 255, 255, 0.05);
@@ -51,7 +51,7 @@ body.light-theme-active .ccr,
 body.light-theme-active .fm-overlay {
   --ccr-bg: #f5f6f8;
   --ccr-surface: #ffffff;
-  --ccr-head: #edf1f7;
+  --ccr-head: #fafbfc;
   --ccr-hover: #f4f5f7;
   --ccr-line: #e3e6ea;
   --ccr-line-soft: #eef0f3;
@@ -73,16 +73,19 @@ body.light-theme-active .fm-overlay {
   --ccr-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
 }
 
-.ccr-page { max-width: 1440px; margin: 0 auto; padding: 22px 28px 120px; display: flex; flex-direction: column; gap: 16px; }
+/* Spacing follows the Customers tab (CustomerList.css; owner 2026-11-24, "match whole page"): 12px from the tab
+   row to the list and between sections, the title row's 22px / 750 heading with a gold count, 44px tabs. */
+.ccr-page { max-width: 1440px; margin: 0 auto; padding: 22px 28px 120px; display: flex; flex-direction: column; gap: 12px; }
 .ccr-muted { color: var(--ccr-muted); }
 .ccr-sub { font-size: 12px; color: var(--ccr-muted); }
 .ccr-num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* ── Header ── */
-.ccr-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.ccr-ttl { display: grid; gap: 2px; min-width: 0; }
-.ccr-ttl h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.01em; }
-.ccr-ttl span { font-size: 13px; color: var(--ccr-muted); }
+.ccr-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 0 2px; }
+.ccr-ttl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.ccr-ttl h1 { margin: 0; font-size: 22px; font-weight: 750; letter-spacing: -0.3px; }
+.ccr-hcount { background: var(--ccr-gold-tint); color: var(--ccr-gold-ink); font-weight: 700; font-size: 12px; border-radius: 999px; padding: 3px 9px; }
+.ccr-ttl-sub { font-size: 13px; color: var(--ccr-muted); }
 .ccr-tools { margin-left: auto; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .ccr-round { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--ccr-line); background: var(--ccr-surface); color: var(--ccr-text-2); cursor: pointer; padding: 0; flex: none; }
 .ccr-round:hover:not(:disabled) { border-color: var(--ccr-gold-bd); }
@@ -93,9 +96,14 @@ body.light-theme-active .fm-overlay {
 .ccr-fields .fm-picker-wrap, .ccr-fields .fm-picker-trigger { width: 100%; }
 
 /* ── Tabs + month ── */
-.ccr-tabs { display: flex; align-items: center; gap: 22px; border-bottom: 1px solid var(--ccr-line); flex-wrap: wrap; }
-.ccr-tab { background: none; border: 0; color: var(--ccr-muted); font: inherit; font-weight: 600; font-size: 14px; padding: 10px 2px; cursor: pointer; border-bottom: 2px solid transparent; display: inline-flex; gap: 6px; align-items: center; }
+.ccr-tabs { display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--ccr-line); flex-wrap: wrap; row-gap: 6px; }
+.ccr-tab { background: none; border: 0; color: var(--ccr-muted); font: inherit; font-weight: 600; font-size: 14px; height: 44px; padding: 0 2px; margin-bottom: -1px; cursor: pointer; border-bottom: 2px solid transparent; display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; }
 .ccr-tab.is-on { color: var(--ccr-text); border-bottom-color: var(--ccr-gold); }
+.ccr-tab .n { font-size: 12px; background: var(--ccr-hover); border-radius: 999px; padding: 1px 8px; color: var(--ccr-text-2); }
+.ccr-tab.is-on .n { background: var(--ccr-gold-tint); color: var(--ccr-gold-ink); }
+/* The Statements tab's Bank / Status / Cardholder dropdowns, after the month (StatementsPanel's tabSlot). */
+.ccr-tab-tools { display: flex; align-items: center; gap: 8px; padding: 5px 0; flex-wrap: wrap; }
+.ccr-tab-tools:empty { display: none; }
 .ccr-count { background: var(--ccr-gold); color: var(--ccr-on-gold); font-size: 11px; font-weight: 700; border-radius: 99px; padding: 1px 7px; }
 .ccr-month { margin-left: auto; display: flex; align-items: center; gap: 4px; padding-bottom: 6px; }
 .ccr-month > span { font-weight: 600; min-width: 120px; text-align: center; }
@@ -141,8 +149,10 @@ body.light-theme-active .fm-overlay {
 .ccr-box.is-loading { opacity: 0.6; }
 .ccr-table-wrap { overflow-x: auto; scrollbar-width: none; }
 .ccr-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-.ccr-table th { text-align: left; font-size: 12px; font-weight: 600; color: var(--ccr-text-2); background: var(--ccr-head); padding: 9px 12px; white-space: nowrap; }
-.ccr-table td { padding: 11px 12px; border-top: 1px solid var(--ccr-line-soft); vertical-align: middle; }
+/* The Customers table's rows (CustomerList.css .cl-table): a 42px header, 60px rows, 12px cell sides, a line under each row. */
+.ccr-table th { text-align: left; font-size: 12px; font-weight: 650; color: var(--ccr-muted); background: var(--ccr-head); height: 42px; padding: 0 12px; border-bottom: 1px solid var(--ccr-line); white-space: nowrap; }
+.ccr-table td { padding: 8px 12px; height: 60px; border-bottom: 1px solid var(--ccr-line-soft); vertical-align: middle; }
+.ccr-table tbody tr:last-child td { border-bottom: 0; }
 .ccr-table tbody tr { cursor: pointer; }
 .ccr-table tbody tr:hover td { background: var(--ccr-hover); }
 .ccr-table th.ccr-num { text-align: right; }
@@ -499,7 +509,7 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 .ccr-banner > span { flex: 1 1 200px; min-width: 0; }
 .ccr-banner-btn { height: 36px; border-color: currentColor; background: transparent; color: inherit; }
 /* Ticking receipts for Send reminder…: the checkbox column, the bar over the list. */
-.ccr-table th.ccr-sel, .ccr-table td.ccr-sel { width: 40px; padding-right: 0; cursor: default; }
+.ccr-table th.ccr-sel, .ccr-table td.ccr-sel { width: 44px; padding-right: 0; cursor: default; }
 .ccr-sel input { width: 18px; height: 18px; accent-color: #d4af37; cursor: pointer; display: block; }
 .ccr-table tbody tr.is-ticked td { background: var(--ccr-gold-tint); }
 .ccr-selbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--ccr-gold-bd); background: var(--ccr-surface); box-shadow: var(--ccr-shadow); }
@@ -556,7 +566,7 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 @media (prefers-reduced-motion: reduce) { .ccr-tg-thumb, .ccr-tg-tick { transition: none; } }
 
 /* A row's ⋯ (Void receipt, Delete receipt…): one narrow last column. */
-.ccr-table th.ccr-act, .ccr-table td.ccr-act { width: 44px; padding-left: 0; text-align: right; cursor: default; }
+.ccr-table th.ccr-act, .ccr-table td.ccr-act { width: 48px; padding-left: 0; text-align: right; cursor: default; }
 
 /* ── Add several receipts (src/features/cardReceipts/bulk) ── */
 .ccr-bulk-drop { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px; padding: 22px 16px; margin: 4px 0 14px; border: 2px dashed var(--fm-bd); border-radius: 12px; color: var(--fm-mut); text-align: center; }

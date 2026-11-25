@@ -202,6 +202,12 @@ describe('the Amex check', () => {
     const status = Object.fromEntries(res.body.lines.map((l: { reference: string; status: string }) => [l.reference, l.status]));
     expect(status).toEqual({ 'ref-matched': 'matched', 'ref-missing': 'matched', 'ref-nocard': 'missing', 'ref-credit': 'no_receipt', 'ref-fee': 'no_receipt' });
     expect(res.body.lines.find((l: { reference: string }) => l.reference === 'ref-nocard')).toMatchObject({ cardLabel: 'SRIN93018', holderName: 'Srini Manam' });
+    // The Status column (statementStage.ts) comes with every line: a missing one counts its days, a matched one its approvals.
+    const stage = Object.fromEntries(res.body.lines.map((l: { reference: string; stage: { tone: string; label: string } }) => [l.reference, l.stage]));
+    expect(stage['ref-nocard']).toMatchObject({ tone: 'miss', label: expect.stringMatching(/^No receipt · /) });
+    expect(stage['ref-matched']).toMatchObject({ tone: expect.stringMatching(/^(wait|ok|back)$/) });
+    expect(stage['ref-credit']).toEqual({ tone: 'none', label: 'No receipt needed', detail: '' });
+    for (const l of res.body.lines) expect(typeof l.branch).toBe('string');
     expect(res.body.missingNow).toEqual({ count: 1, cents: 2500 });
     // 97001 has only the payment and the interest: nothing to set up.
     expect(res.body.unknownCards).toEqual([]);

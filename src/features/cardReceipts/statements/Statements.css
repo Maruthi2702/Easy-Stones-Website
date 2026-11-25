@@ -1,12 +1,93 @@
 /* Credit Card Receipts → Statements (the Amex check). Built on the page's --ccr-* tokens
    (CardReceipts.css), so light and dark follow the app. */
 
-.ccr-st { display: flex; flex-direction: column; gap: 14px; }
-.ccr-st-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 16px; border: 1px solid var(--ccr-line); border-radius: 12px; background: var(--ccr-surface); }
-.ccr-st-last { display: grid; gap: 2px; flex: 1 1 320px; min-width: 0; }
-.ccr-st-last span { font-size: 13px; color: var(--ccr-muted); }
-.ccr-st-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.ccr-st-bar h2 { margin: 0; font-size: 16px; font-weight: 700; margin-right: auto; }
+.ccr-st { display: flex; flex-direction: column; gap: 12px; }
+/* Phone: the dropdowns and Upload under the search (a computer has them in the page header and tab row). */
+.ccr-st-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ccr-st-bar-end { margin-left: auto; }
+.ccr-st-bar .ccr-btn.gold { width: 44px; height: 40px; padding: 0; }
+/* Last upload · period · still missing, one muted line above the list. */
+.ccr-st-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--ccr-muted); }
+.ccr-st-meta .is-miss { color: var(--ccr-miss); font-weight: 600; }
+
+/* ── The lines (2026-11-24, claude.ai artifact "Statement row colours", board C) ──
+   The Customers table's look: the row says matched (green) or waiting for its receipt (red) by its background,
+   lines that need no receipt fade, the Status column is a dot and a word with a grey line under it. */
+.ccr-st {
+  --ccr-row-ok: rgba(74, 222, 128, 0.08); --ccr-row-ok-line: rgba(74, 222, 128, 0.22);
+  --ccr-row-miss: rgba(248, 113, 113, 0.11); --ccr-row-miss-line: rgba(248, 113, 113, 0.28);
+}
+body.light-theme-active .ccr-st {
+  --ccr-row-ok: #edf8f1; --ccr-row-ok-line: #cfe9d8;
+  --ccr-row-miss: #fdeeec; --ccr-row-miss-line: #f5cdc7;
+}
+.ccr-st-lines tr.is-ok td { background: var(--ccr-row-ok); border-bottom-color: var(--ccr-row-ok-line); }
+.ccr-st-lines tr.is-miss td { background: var(--ccr-row-miss); border-bottom-color: var(--ccr-row-miss-line); }
+.ccr-st-lines tr.is-quiet td { opacity: 0.72; }
+.ccr-st-lines tbody tr:hover td { background: var(--ccr-hover); }
+.ccr-st-lines tr.is-ok:hover td { background: var(--ccr-row-ok); }
+.ccr-st-lines tr.is-miss:hover td { background: var(--ccr-row-miss); }
+.ccr-st-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ccr-st-who { display: flex; align-items: center; gap: 7px; font-size: 13px; white-space: nowrap; min-width: 0; }
+.ccr-st-name { overflow: hidden; text-overflow: ellipsis; }
+.ccr-av { width: 24px; height: 24px; border-radius: 50%; background: var(--ccr-text-2); color: var(--ccr-surface); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.ccr-st-card { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--ccr-muted); white-space: nowrap; }
+.ccr-st-m { font-weight: 650; overflow-wrap: anywhere; }
+.ccr-st-sub { font-size: 12.5px; color: var(--ccr-muted); margin-top: 2px; overflow-wrap: anywhere; }
+.ccr-amt.is-miss { color: var(--ccr-miss); }
+/* The branch pill: the Customers tab's location badge (PartnersSheet.css), same four colours. */
+.ccr-branch { padding: 1px 8px; border-radius: 20px; font-size: 11.5px; font-weight: 600; white-space: nowrap; background: rgba(255, 255, 255, 0.05); color: #a0aec0; border: 1px solid rgba(255, 255, 255, 0.12); }
+.ccr-branch.is-seattle { background: rgba(129, 140, 248, 0.12); color: #818cf8; border-color: rgba(129, 140, 248, 0.3); }
+.ccr-branch.is-spokane { background: rgba(244, 114, 182, 0.12); color: #f472b6; border-color: rgba(244, 114, 182, 0.3); }
+.ccr-branch.is-salt-lake-city { background: rgba(34, 211, 238, 0.12); color: #22d3ee; border-color: rgba(34, 211, 238, 0.3); }
+.ccr-branch.is-dallas { background: rgba(194, 112, 61, 0.12); color: #c2703d; border-color: rgba(194, 112, 61, 0.3); }
+body.light-theme-active .ccr-branch { background: rgba(0, 0, 0, 0.03); color: #475569; border-color: rgba(0, 0, 0, 0.14); }
+body.light-theme-active .ccr-branch.is-seattle { background: rgba(67, 56, 202, 0.1); color: #4338ca; border-color: rgba(67, 56, 202, 0.28); }
+body.light-theme-active .ccr-branch.is-spokane { background: rgba(190, 24, 93, 0.1); color: #be185d; border-color: rgba(190, 24, 93, 0.28); }
+body.light-theme-active .ccr-branch.is-salt-lake-city { background: rgba(14, 116, 144, 0.1); color: #0e7490; border-color: rgba(14, 116, 144, 0.28); }
+body.light-theme-active .ccr-branch.is-dallas { background: rgba(154, 52, 18, 0.1); color: #9a3412; border-color: rgba(154, 52, 18, 0.28); }
+/* Status: the Customers tab's status dot (9px) and word. */
+.ccr-stage { display: grid; gap: 2px; min-width: 0; }
+.ccr-stage-l { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--ccr-text); white-space: nowrap; }
+.ccr-stage-l.is-none { color: var(--ccr-muted); font-weight: 500; }
+.ccr-stage-d { padding-left: 17px; font-size: 12.5px; color: var(--ccr-muted); }
+.ccr-sdot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-sizing: border-box; display: inline-block; }
+.ccr-sdot.is-ok { background: #16a34a; } .ccr-sdot.is-wait { background: #d4af37; } .ccr-sdot.is-back { background: #e08a00; }
+.ccr-sdot.is-miss { background: #dc2626; } .ccr-sdot.is-none { background: transparent; border: 2px solid var(--ccr-muted); }
+/* Phone: one list box with divider lines (the Customers list on a phone), the same row colours. */
+.ccr-st-plist { display: flex; flex-direction: column; }
+.ccr-st-pcard { display: grid; gap: 2px; padding: 12px 14px; border-bottom: 1px solid var(--ccr-line-soft); }
+.ccr-st-pcard:last-child { border-bottom: 0; }
+.ccr-st-pcard.is-ok { background: var(--ccr-row-ok); border-bottom-color: var(--ccr-row-ok-line); }
+.ccr-st-pcard.is-miss { background: var(--ccr-row-miss); border-bottom-color: var(--ccr-row-miss-line); }
+.ccr-st-pcard.is-quiet { opacity: 0.72; }
+.ccr-st-ptop { display: flex; align-items: baseline; gap: 10px; }
+.ccr-st-ptop b:first-child { flex: 1; min-width: 0; font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ccr-st-ptop b:last-child { font-weight: 650; font-variant-numeric: tabular-nums; }
+.ccr-st-pcard .ccr-stage { margin-top: 6px; }
+
+/* ── Filter dropdowns (the Customers tab's .cl-dd, on --ccr-* tokens) ── */
+.ccr-dd { position: relative; flex: none; }
+.ccr-dd-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px 0 12px; border-radius: 8px; border: 1px solid var(--ccr-line); background: var(--ccr-surface); font: inherit; font-size: 13px; font-weight: 550; color: var(--ccr-text-2); white-space: nowrap; cursor: pointer; max-width: 260px; }
+.ccr-dd-btn .lbl { overflow: hidden; text-overflow: ellipsis; }
+.ccr-dd-btn .k { color: var(--ccr-muted); font-weight: 500; }
+.ccr-dd-btn.set { background: var(--ccr-gold-tint); border-color: rgba(212, 175, 55, 0.4); color: var(--ccr-gold-ink); }
+.ccr-dd-btn.set .k { color: inherit; opacity: 0.8; }
+.ccr-dd-btn:focus-visible, .ccr-opt:focus-visible { outline: 2px solid var(--ccr-text); outline-offset: 2px; }
+.ccr-dd-x { display: inline-flex; border-radius: 4px; }
+.ccr-dd-x:hover { background: rgba(0, 0, 0, 0.12); }
+.ccr-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; background: var(--ccr-surface); border: 1px solid var(--ccr-line); border-radius: 12px; box-shadow: var(--ccr-shadow); padding: 6px; min-width: 240px; max-width: 320px; max-height: 380px; overflow-y: auto; scrollbar-width: none; }
+.ccr-pop.right { left: auto; right: 0; }
+.ccr-pop-search { display: flex; align-items: center; gap: 6px; height: 36px; border: 1px solid var(--ccr-line); border-radius: 8px; padding: 0 10px; margin: 2px 2px 6px; color: var(--ccr-muted); }
+.ccr-pop-search input { border: 0; outline: 0; background: transparent; flex: 1; min-width: 0; font: inherit; font-size: 16px; color: var(--ccr-text); }
+.ccr-opt { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 10px; border-radius: 8px; font: inherit; font-size: 13.5px; color: var(--ccr-text); cursor: pointer; width: 100%; text-align: left; border: 0; background: none; }
+.ccr-opt:hover { background: var(--ccr-hover); }
+.ccr-opt.is-on { font-weight: 600; }
+.ccr-opt-l { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ccr-opt .n { color: var(--ccr-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ccr-opt-tick { color: var(--ccr-gold-ink); }
+.ccr-pop-empty { padding: 10px; color: var(--ccr-muted); font-size: 13px; }
+@media (max-width: 639px) { .ccr-pop { max-width: calc(100vw - 32px); } .ccr-dd-btn { height: 40px; } }
 .ccr-st-h { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 16px; font-size: 15px; font-weight: 700; border-bottom: 1px solid var(--ccr-line); }
 .ccr-st-desc { font-family: 'IBM Plex Mono', ui-monospace, Menlo, monospace; font-size: 12px; overflow-wrap: anywhere; }
 .ccr-st-credit { color: var(--ccr-ok); }

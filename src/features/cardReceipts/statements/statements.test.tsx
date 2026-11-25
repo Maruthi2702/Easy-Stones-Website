@@ -14,7 +14,8 @@ const line = (reference: string, o: Partial<StatementLine> = {}): StatementLine 
 });
 const LINES = [
   line('r1'),
-  line('r2', { description: 'JINYA RAMEN BAR', cents: 5040, status: 'matched', expenseStatus: 'waiting' }),
+  line('r2', { description: 'JINYA RAMEN BAR', cents: 5040, status: 'matched', expenseStatus: 'waiting', branch: 'Seattle',
+    stage: { tone: 'wait', label: 'Waiting for Accounting', detail: 'Receipt of 11-05' } }),
   line('r3', { description: 'ONLINE PAYMENT - THANK YOU', cents: -50000, kind: 'credit', status: 'no_receipt', expenseId: null, expenseStatus: null }),
   line('r4', { description: 'OFFICE DEPOT', cardMember: 'SRINI MANAM', digits: '93018', cardId: null, cardLabel: '', holderName: '', status: 'no_card', expenseId: null, expenseStatus: null })
 ];
@@ -69,19 +70,32 @@ describe('the Statements tab', () => {
     expect(text()).toContain('SRINI MANAM');
     expect(text()).not.toContain('LAMPLIGHTE');
     expect(document.querySelectorAll('.ccr-st-lines tbody tr')).toHaveLength(4);
-    expect(text()).toContain('Receipt uploaded');
+    // The row's background says matched (green) or waiting for its receipt (red); the Status column the approval stage.
+    const rowOf = (merchant: string) => [...document.querySelectorAll('.ccr-st-lines tbody tr')].find((r) => r.textContent?.includes(merchant))!;
+    expect(rowOf('JINYA RAMEN BAR').className).toBe('is-ok');
+    expect(rowOf('CHEVRON').className).toBe('is-miss');
+    expect(rowOf('ONLINE PAYMENT').className).toBe('is-quiet');
+    expect(rowOf('JINYA RAMEN BAR').textContent).toContain('Waiting for Accounting');
+    expect(rowOf('JINYA RAMEN BAR').textContent).toContain('Receipt of 11-05');
+    expect(rowOf('JINYA RAMEN BAR').querySelector('.ccr-branch')?.textContent).toBe('Seattle');
     expect(text()).toContain('No receipt needed');
-    // The Missing receipt tile lists only those.
-    const tile = [...document.querySelectorAll('.ccr-tile')].find((t) => t.textContent?.includes('Missing receipt'))!;
-    fireEvent.click(tile);
+    // The title's count is the bank's lines; the search and Upload sit in the page header, the dropdowns on the tab row.
+    expect(document.querySelector('.ccr-hcount')?.textContent).toBe('4');
+    expect(document.querySelector('.ccr-head .ccr-btn.gold')?.textContent).toContain('Upload statement');
+    expect(document.querySelectorAll('.ccr-tab-tools .ccr-dd-btn')).toHaveLength(3);
+    // Status → Waiting for receipt lists only those, and the button says so.
+    const statusBtn = [...document.querySelectorAll('.ccr-dd-btn')].find((b) => b.textContent?.startsWith('Status'))!;
+    fireEvent.click(statusBtn);
+    fireEvent.click([...document.querySelectorAll('.ccr-opt')].find((o) => o.textContent?.includes('Waiting for receipt'))!);
     expect(document.querySelectorAll('.ccr-st-lines tbody tr')).toHaveLength(1);
+    expect(statusBtn.textContent).toContain('Waiting for receipt');
   });
 
   it('keeps Encore apart: its own lines, last upload, missing count and uploads', async () => {
     render(<CardReceiptsPage currentUser={{ _id: 'a1', displayName: 'Ann Count', permissions: ['check_amex_statements'] }} />);
     await settle();
-    const encoreTab = [...document.querySelectorAll('.ccr-bank-seg button')].find((b) => b.textContent?.startsWith('Encore'))!;
-    fireEvent.click(encoreTab);
+    fireEvent.click([...document.querySelectorAll('.ccr-dd-btn')].find((b) => b.textContent?.startsWith('Bank'))!);
+    fireEvent.click([...document.querySelectorAll('.ccr-opt')].find((o) => o.textContent?.startsWith('Encore'))!);
     expect(document.querySelectorAll('.ccr-st-lines tbody tr')).toHaveLength(2);
     expect(text()).toContain('Last Encore upload 11-20-2026 by Ann Count');
     expect(text()).toContain('1 receipts still missing · $24.00');

@@ -2,6 +2,7 @@ import { API_URL } from '../../../config/api';
 import { authFetch } from '../../../api/authFetch';
 import type { ErrorBody } from '../../../types/api';
 import type { Issuer, LineKind, LineStatus } from '../../../utils/amexStatement';
+import type { LineStage } from '../../../utils/statementStage';
 
 /** The Amex check's calls to /api/card-receipts/statements (src/routes/cardReceiptStatements.ts). */
 
@@ -9,6 +10,10 @@ export type StatementLine = {
   reference: string; issuer: Issuer; date: string; description: string; cardMember: string; digits: string; cents: number; kind: LineKind;
   amexCategory: string; cityState: string; cardId: string | null; cardLabel: string; holderId: string; holderName: string;
   expenseId: string | null; expenseStatus: string | null; status: LineStatus;
+  /** The Status column (src/utils/statementStage.ts, worked out by the server). Older servers send none. */
+  stage?: LineStage;
+  /** The cardholder's home branch ('' = none). */
+  branch?: string;
 };
 export type UnknownCard = { issuer: Issuer; digits: string; cardMember: string; charges: number; cents: number; first: string; last: string; suggestedUserId: string };
 export type StaffPerson = { id: string; name: string; role: string; location: string; active: boolean; card: string; encoreCard: string };
