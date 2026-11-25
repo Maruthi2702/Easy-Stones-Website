@@ -129,4 +129,13 @@ describe('receipts by anyone but the people to keep', () => {
     const l = Object.fromEntries((await db.select().from(lines)).map(x => [x.reference, x.expenseId]));
     expect(l).toEqual({ 'on-22': null, 'on-20': hex(20) });
   });
+
+  it('in delete mode removes only what those people made, approved excepted', async () => {
+    await db.update(cardExpenses).set({ status: 'approved' }).where(eq(cardExpenses.id, hex(20)));
+    const plan = await planPrune(db, ['krish', 'karunakar'], 'delete');
+    expect(plan.remove.map(r => r.id).sort()).toEqual([hex(21)]);
+    await applyPrune(db, ['krish', 'karunakar'], 'cleanup', 'script', 'delete');
+    expect((await db.select().from(cardExpenses)).map(e => e.id).sort()).toEqual([hex(20), hex(22), hex(23), hex(24), hex(25), hex(26)]);
+    expect((await db.select().from(cardExpenseDeletions)).map(d => d.expenseId)).toEqual([hex(21)]);
+  });
 });
