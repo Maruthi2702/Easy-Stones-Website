@@ -99,7 +99,7 @@ body.light-theme-active .fm-overlay {
 .ccr-tabs { display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--ccr-line); flex-wrap: wrap; row-gap: 6px; }
 .ccr-tab { background: none; border: 0; color: var(--ccr-muted); font: inherit; font-weight: 600; font-size: 14px; height: 44px; padding: 0 2px; margin-bottom: -1px; cursor: pointer; border-bottom: 2px solid transparent; display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; }
 .ccr-tab.is-on { color: var(--ccr-text); border-bottom-color: var(--ccr-gold); }
-.ccr-tab .n { font-size: 12px; background: var(--ccr-hover); border-radius: 999px; padding: 1px 8px; color: var(--ccr-text-2); }
+.ccr-tab .n { font-size: 12px; background: var(--ccr-draft-bg); border-radius: 999px; padding: 1px 8px; color: var(--ccr-text-2); }
 .ccr-tab.is-on .n { background: var(--ccr-gold-tint); color: var(--ccr-gold-ink); }
 /* The Statements tab's Bank / Status / Cardholder dropdowns, after the month (StatementsPanel's tabSlot). */
 .ccr-tab-tools { display: flex; align-items: center; gap: 8px; padding: 5px 0; flex-wrap: wrap; }
@@ -162,7 +162,9 @@ body.light-theme-active .fm-overlay {
 .ccr-amt { font-weight: 700; }
 /* Over $150 (isBigReceipt): a gold pill so approvers spot it. */
 .ccr-amt.is-big, .ccr-big.is-big { color: var(--ccr-gold-ink); background: var(--ccr-gold-tint); border: 1px solid var(--ccr-gold-bd); border-radius: 999px; padding: 1px 9px; }
-td.ccr-amt.is-big { background: none; border: 0; padding: 0; }
+/* A $150+ amount in a table is a gold dot and gold text, not the pill: the cell keeps the table's own padding and
+   square corners, or the row's hover turns into a grey circle around it (seen 2026-11-24). */
+td.ccr-amt.is-big { background: none; border: 0; border-radius: 0; padding: 8px 12px; }
 td.ccr-amt.is-big::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ccr-gold); margin-right: 6px; }
 td.ccr-amt.is-big { color: var(--ccr-gold-ink); }
 .ccr-status-cell { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
