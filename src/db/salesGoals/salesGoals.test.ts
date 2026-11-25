@@ -9,12 +9,12 @@ import type { Db } from '../copy/plan.ts';
 import { createCustomer } from '../customers/writes/core.postgres.ts';
 import { readSalesSheet } from '../../utils/customerSales.ts';
 import { replaceYear } from '../customerSales/index.ts';
-import { goalsFor, saveGoals, salesByRep, goalYears } from './index.ts';
+import { goalsFor, saveGoals, salesByReportRep, goalYears, replaceRepYear, repLinks, lastRepImport } from './index.ts';
 
 const HEAD = ['Customer', 'Code', 'Customer Route', 'Primary Sales Person', 'Secondary Sales Person',
   'Jan 26', 'Feb 26', 'Mar 26', 'Apr 26', 'May 26', 'Jun 26', 'Jul 26', 'Aug 26', 'Sep 26', 'Oct 26', 'Nov 26', 'Dec 26', 'Total', '12 Months Avg.'];
-const row = (name: string, m: Record<number, number>) =>
-  [name, null, null, 'x', null, ...Array.from({ length: 12 }, (_, i) => m[i] ?? null), 0, 0];
+const row = (name: string, m: Record<number, number>, rep = 'x') =>
+  [name, null, null, rep, null, ...Array.from({ length: 12 }, (_, i) => m[i] ?? null), 0, 0];
 
 describe('sales goals data layer', () => {
   let client: PGlite, db: Db;
@@ -60,21 +60,40 @@ describe('sales goals data layer', () => {
     expect((await goalsFor(2027, [maria], db)).get(maria)?.[0]).toBe(300);
   });
 
-  it('adds a rep\'s sales up over the customers they own, matched by name, and skips unowned ones', async () => {
-    const sheet = readSalesSheet([HEAD, row('360 COUNTERS LLC', { 0: 1000, 1: 500 }), row('Granite Top, Inc.', { 0: 250 }), row('Daniel Stone', { 10: 4000 }), row('Nobody Owns Me', { 0: 9999 }), row('Nobody Knows', { 0: 7 })]);
+  it('adds sales up by the report\'s Primary Sales Person on each row — not by who owns the customer today', async () => {
+    const sheet = readSalesSheet([HEAD,
+      row('360 COUNTERS LLC', { 0: 1000, 1: 500 }, 'Maria R'),      // Maria's customer in the app, Maria on the report
+      row('Daniel Stone', { 10: 4000 }, 'Maria R'),                 // Daniel owns it in the app today, the report says Maria
+      row('Granite Top, Inc.', { 0: 250 }, 'DANIEL K'),             // a name the app has never heard of still counts
+      row('Nobody Owns Me', { 0: 9999 }, ''),                       // no sales person: counts for nobody
+      row('Nobody Knows', { 0: 7 }, 'daniel k')]);                  // same person, other spelling: one bucket
     expect(sheet.problems).toEqual([]);
     await replaceYear({ year: 2026, entries: sheet.entries, totalCents: sheet.totalCents, fileName: '', exportedOn: '', by: 'k', links: {} }, db);
-    const sales = await salesByRep(2026, db);
-    // "Granite Top, Inc." is not "Granite Top Inc" to the matcher, so only 360 Counters is Maria's here.
-    expect(sales.get(maria)?.slice(0, 3)).toEqual([1000 * 100, 500 * 100, null]);
-    expect(sales.get(daniel)?.[10]).toBe(400_000);
-    expect([...sales.keys()].sort()).toEqual([maria, daniel].sort());
+    const sales = await salesByReportRep(2026, db);
+    expect([...sales.keys()].sort()).toEqual(['daniel k', 'maria r']);
+    expect(sales.get('maria r')?.name).toBe('Maria R');
+    expect(sales.get('maria r')?.months.slice(0, 3)).toEqual([100_000, 50_000, null]);
+    expect(sales.get('maria r')?.months[10]).toBe(400_000);
+    expect(sales.get('daniel k')?.months[0]).toBe(25_000 + 700);
   });
 
-  it('a link a person made counts that name for the linked customer\'s rep', async () => {
-    const s26 = readSalesSheet([HEAD, row('Granite Top, Inc.', { 0: 250 })]);
-    await replaceYear({ year: 2026, entries: s26.entries, totalCents: s26.totalCents, fileName: '', exportedOn: '', by: 'k', links: { [s26.entries[0].key]: c2 } }, db);
-    expect((await salesByRep(2026, db)).get(maria)?.[0]).toBe(25_000);
+  it('the rep file becomes the source for its year, keeps links, and an import replaces the year', async () => {
+    const entry = (name: string, key: string, nov: number | null) => ({ name, key, cents: [...Array(10).fill(null), nov, null] });
+    const done = await replaceRepYear({
+      year: 2026, entries: [entry('Maria R', 'maria r', 123_400), entry('Daniel K', 'daniel k', null)], totalCents: 123_400, noRepCents: 0,
+      fileName: 'rep.xlsx', exportedOn: '2026-11-25', by: 'dir', links: { 'maria r': maria, 'nobody in the file': daniel }
+    }, db);
+    expect(done).toMatchObject({ reps: 2, rows: 1, linked: 1 });     // a link for a name not in the file is dropped
+    const sales = await salesByReportRep(2026, db);
+    expect([...sales.keys()]).toEqual(['maria r']);                  // only names with a figure; the customer report is no longer read
+    expect(sales.get('maria r')?.months[10]).toBe(123_400);
+    expect([...(await repLinks(db)).entries()]).toEqual([['maria r', maria]]);
+    expect((await lastRepImport(2026, db))?.reps).toBe(2);
+    await replaceRepYear({ year: 2026, entries: [entry('Daniel K', 'daniel k', 9)], totalCents: 9, noRepCents: 0, fileName: '', exportedOn: '', by: 'dir' }, db);
+    expect([...(await salesByReportRep(2026, db)).keys()]).toEqual(['daniel k']);
+    expect((await repLinks(db)).get('maria r')).toBe(maria);         // links outlive an import
+    expect(await lastRepImport(2025, db)).toBeNull();
+    expect(await salesByReportRep(2024, db)).toEqual(new Map());
   });
 
   it('years worth showing: this year, any year with a goal or an import, newest first', async () => {

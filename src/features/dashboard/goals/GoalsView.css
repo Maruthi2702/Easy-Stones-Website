@@ -34,6 +34,7 @@ body.light-theme-active, .light-theme-active {
 .gl-year button:disabled { opacity: 0.35; cursor: default; }
 .gl-year button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 1px; }
 .gl-set { gap: 8px; }
+.gl-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .gl-wrap { border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; overflow-x: auto; }
 .gl-table { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--text-primary); }
@@ -142,3 +143,25 @@ body:not(.light-theme-active) .gl-set-error { color: #f87171; }
   .gl-set-annual { width: 100%; }
   .gl-set-months { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Import sales (RepSalesImportModal.tsx). */
+.gl-imp { display: flex; flex-direction: column; gap: 14px; }
+.gl-imp-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+.gl-imp-steps li { padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; background: var(--dfx-soft); color: var(--text-secondary); }
+.gl-imp-steps li.on { background: var(--accent-primary); color: #1a1405; }
+.gl-imp-steps li.done { color: var(--gl-up-text); }
+.gl-imp-banner { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.5; background: var(--dfx-soft); color: var(--text-primary); }
+.gl-imp-banner.is-bad { background: rgba(220, 38, 38, 0.1); color: #b91c1c; }
+body:not(.light-theme-active) .gl-imp-banner.is-bad { color: #f87171; }
+.gl-imp-banner.is-ok { background: color-mix(in srgb, var(--gl-up) 14%, transparent); color: var(--gl-up-text); }
+.gl-imp-drop { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 22px 16px; border: 1.5px dashed var(--text-muted); border-radius: 12px; background: transparent; color: var(--text-primary); font: inherit; text-align: center; cursor: pointer; }
+.gl-imp-drop span { font-size: 12.5px; color: var(--text-secondary); }
+.gl-imp-drop:disabled { opacity: 0.6; cursor: default; }
+.gl-imp-checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.gl-imp-checks li::before { content: '✓ '; color: var(--gl-up-text); font-weight: 700; }
+.gl-imp-checks li.is-warn::before { content: '! '; color: var(--gl-dn-text); }
+.gl-imp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.gl-imp-list li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) auto; align-items: center; gap: 10px; }
+.gl-imp-who { display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
+.gl-imp-who span { font-size: 12.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+@media (max-width: 639px) { .gl-imp-list li { grid-template-columns: minmax(0, 1fr); } }

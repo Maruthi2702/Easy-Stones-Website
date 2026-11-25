@@ -323,12 +323,21 @@ everyone else is ticked by an admin. Every rule — who may, the twelve-month ch
 Behind pace / Under / Upcoming / No goal, quarters, "To date", money text — is `src/utils/salesGoals.ts`
 (tested); a month with no goal is `null` and reads "No goal", never a miss; 99.6% reads 99 and Under, never 100.
 Data: `sales_goals` (one row per person per month that has a goal, whole cents; **Postgres only**, migration
-`0037_sales_goals`, data layer `src/db/salesGoals/`, tested on PGlite). **A rep's sales are the SPS monthly
-report (`customer_sales_monthly`) added up over the customers that rep owns** (`customers.sales_rep_id`),
-matched by a link a person made, else the SPS key, else the company name — my choice, since the report's own
-"Sales person" and the customer's rep are the same field after an SPS import; customers nobody owns count for
-nobody. Today is Pacific (`asOfIn`). **Run `npm run pg:migrate -- --apply` on Render for `0037`** before the
-Goals view can load. Set goals is `SetGoalsModal.tsx` (FormModal M: an annual goal spreads evenly over the
+`0037_sales_goals`, data layer `src/db/salesGoals/`, tested on PGlite). **A rep's sales are NOT worked out
+from who owns the customer today** (owner, 2026-11-25: a customer's rep changes often and would carry its
+whole history to the new rep). They are the SPS report **"Sales by Primary Sales Rep - Monthly"**
+(`src/utils/repSales.ts`, tested; one row per sales person, "Jan 26" … "Dec 26", a nameless first row = sales
+credited to no one and a nameless last row = the grand total, left out only when it equals the columns),
+uploaded in **Goals → Import sales** (`RepSalesImportModal.tsx`, needs Set goals; three steps: Upload and file
+check → Match names → Results; `POST /api/sales-goals/sales/preview` writes nothing, `/sales/import`
+replaces its year — upload it every day / week / month, as often as wanted) into `rep_sales_monthly` +
+`rep_sales_imports` (migration `0039`). Until a year has such an upload, the Primary Sales Person on each row
+of the per-customer report (`customer_sales_monthly.primary_rep`) stands in. The report's names are matched to
+staff by `matchReportReps` (Display Name or username, spacing and punctuation aside; a one-word name only when
+it starts exactly one person's Display Name — never guessed between two), then by the picks a person made in
+Match names, which win and are remembered in `rep_sales_links`. A name that matches nobody counts for nobody
+and is listed to people with Set goals under the table. Today is Pacific (`asOfIn`). **Run
+`npm run pg:migrate -- --apply` on Render for `0037` and `0039`** before the Goals view can load / import. Set goals is `SetGoalsModal.tsx` (FormModal M: an annual goal spreads evenly over the
 months in whole cents, an arrow opens the months to set by hand, the months always add up to the annual goal;
 saves each changed person on its own). **Not built:** the weekly visit goal, a history of goal changes, goals
 by branch or team, a Goals tile / tab (design option D), and the alternatives B and C. **Never looked at in a

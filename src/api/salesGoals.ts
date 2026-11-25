@@ -25,6 +25,8 @@ export type GoalsAnswer = {
     canSet: boolean;
     canViewTeam: boolean;
     people: GoalPerson[];
+    /** SPS report sales persons that match no staff member (only sent to someone who sets goals). */
+    unmatchedReps?: { name: string; salesCents: number }[];
 };
 
 export type UseSalesGoals = {
@@ -82,3 +84,34 @@ export async function saveSalesGoals(userId: string, year: number, months: (numb
     if (!res.ok) throw new Error(body?.message || 'Could not save the goals.');
     return body.person as GoalPerson;
 }
+
+/** What the rep file ("Sales by Primary Sales Rep - Monthly") holds, and which of its names match staff. Nothing is written. */
+export type RepSalesPreview = {
+    year: number;
+    reps: number;
+    totalCents: number;
+    noRepCents: number;
+    matched: { name: string; key: string; cents: number; userId: string; userName: string }[];
+    unmatched: { name: string; key: string; cents: number }[];
+    earlier: { importedAt: string; reps: number } | null;
+};
+export type RepSalesDone = {
+    year: number;
+    reps: number;
+    rows: number;
+    linked: number;
+    totalCents: number;
+    matched: number;
+    unmatched: { name: string; cents: number }[];
+};
+
+const postSales = async (path: 'preview' | 'import', body: unknown) => {
+    const res = await authFetch(`${API_URL}/api/sales-goals/sales/${path}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(out?.message || `The server refused it (HTTP ${res.status}).`);
+    return out;
+};
+export const previewRepSales = (rows: unknown[][]): Promise<RepSalesPreview> => postSales('preview', { rows });
+export const importRepSales = (body: { rows: unknown[][]; fileName: string; exportedOn: string; links: Record<string, string> }): Promise<RepSalesDone> => postSales('import', body);

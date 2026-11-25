@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, Loader, Target } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Loader, Target, Upload } from 'lucide-react';
 import { useSalesGoals } from '../../../api/salesGoals';
 import type { GoalPerson, GoalsAnswer } from '../../../api/salesGoals';
 import { annualGoal, focusMonth, monthLine, monthPace, moneyCompact, MONTH_SHORT, sumCents, yearLine } from '../../../utils/salesGoals';
@@ -7,6 +7,7 @@ import type { AsOf, MonthLine, YearLine } from '../../../utils/salesGoals';
 import GoalBar from './GoalBar';
 import MonthlyGoals from './MonthlyGoals';
 import SetGoalsModal from './SetGoalsModal';
+import RepSalesImportModal from './RepSalesImportModal';
 import './GoalsView.css';
 
 /**
@@ -43,6 +44,7 @@ export default function GoalsView() {
     const { data, loading, error, reload, patchPerson } = useSalesGoals(year);
     const [openId, setOpenId] = useState<string | null>(null);
     const [setting, setSetting] = useState(false);
+    const [importing, setImporting] = useState(false);
 
     const rows = useMemo(() => (data ? buildRows(data) : []), [data]);
 
@@ -72,7 +74,10 @@ export default function GoalsView() {
                     <button type="button" aria-label="Next year" disabled={at < 0 || at >= years.length - 1} onClick={() => setYear(years[at + 1])}><ChevronRight size={16} /></button>
                 </div>
                 {data.canSet && (
-                    <button type="button" className="dfx-btn dfx-btn--gold gl-set" onClick={() => setSetting(true)}><Target size={16} aria-hidden="true" /> Set goals</button>
+                    <div className="gl-actions">
+                        <button type="button" className="dfx-btn gl-set" onClick={() => setImporting(true)}><Upload size={16} aria-hidden="true" /> Import sales</button>
+                        <button type="button" className="dfx-btn dfx-btn--gold gl-set" onClick={() => setSetting(true)}><Target size={16} aria-hidden="true" /> Set goals</button>
+                    </div>
                 )}
             </div>
             {error && <div className="dfx-muted" role="alert">{error} <button type="button" className="dfx-link" onClick={reload}>Try again</button></div>}
@@ -131,8 +136,15 @@ export default function GoalsView() {
                     </table>
                 </div>
             )}
-            <p className="gl-note"><span className="gl-mark" aria-hidden="true" /> Where a rep would be on pace today. Sales are the SPS monthly report for the customers each rep owns, tax not included.</p>
+            <p className="gl-note"><span className="gl-mark" aria-hidden="true" /> Where a rep would be on pace today. Sales are the SPS monthly report, by the Primary Sales Person on each line, tax not included.</p>
+            {data.canSet && (data.unmatchedReps?.length ?? 0) > 0 && (
+                <p className="gl-note gl-unmatched" role="status">
+                    Not counted — these SPS sales persons match no staff member: {data.unmatchedReps!.slice(0, 6).map((u) => `${u.name} (${moneyCompact(u.salesCents)})`).join(', ')}
+                    {data.unmatchedReps!.length > 6 ? ` and ${data.unmatchedReps!.length - 6} more` : ''}. Match their Display Name in Users & Roles to the name SPS uses.
+                </p>
+            )}
 
+            {importing && <RepSalesImportModal onClose={() => setImporting(false)} onDone={reload} />}
             {setting && (
                 <SetGoalsModal
                     year={shownYear}

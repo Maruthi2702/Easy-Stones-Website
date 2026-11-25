@@ -14,6 +14,7 @@ import type { Loose } from '../types/records.ts';
  * their sum. A month with no goal is `null`, which is not a zero goal.
  */
 import { inTeam } from './teamScope.ts';
+import { displayNameOf } from './salesReps.ts';
 
 export const GOAL_PERMISSIONS = Object.freeze({
   VIEW_TEAM: 'view_team_goals',
@@ -212,5 +213,43 @@ export function moneyCompact(cents: number): string {
   return `${sign}$${Math.round(d).toLocaleString('en-US')}`;
 }
 
-export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** A sales person's name as the SPS report spells it, lowercased, with dots and commas and extra spaces dropped. */
+export const repNameKey = (name: unknown) =>
+  String(name ?? '').toLowerCase().replace(/[.,]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/**
+ * Which staff member each SPS report sales person is (report name key → user id). A name matches a
+ * person's Display Name or username exactly (spacing and punctuation aside); a one-word name ("Maria")
+ * also matches the one person whose Display Name starts with it. A name that fits two people, or nobody,
+ * is left out — never guessed — and the screen lists it so an admin can fix the spelling in SPS or the
+ * Display Name in Users & Roles.
+ */
+export function matchReportReps(staff: Loose[], names: Iterable<string>): Map<string, string> {
+  const full = new Map<string, Set<string>>();
+  const first = new Map<string, Set<string>>();
+  const add = (m: Map<string, Set<string>>, key: string, id: string) => {
+    if (!key) return;
+    (m.get(key) ?? m.set(key, new Set()).get(key)!).add(id);
+  };
+  for (const u of staff) {
+    const id = String(u._id ?? u.id ?? '');
+    if (!id) continue;
+    for (const label of [u.displayName, u.username, displayNameOf(u)]) add(full, repNameKey(label), id);
+    add(first, repNameKey(displayNameOf(u)).split(' ')[0], id);
+  }
+  const out = new Map<string, string>();
+  for (const raw of names) {
+    const key = repNameKey(raw);
+    if (!key) continue;
+    const exact = full.get(key);
+    if (exact?.size === 1) { out.set(key, [...exact][0]); continue; }
+    if (!exact && !key.includes(' ')) {
+      const byFirst = first.get(key);
+      if (byFirst?.size === 1) out.set(key, [...byFirst][0]);
+    }
+  }
+  return out;
+}
+
+export const MONTH_NAMES =['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const MONTH_SHORT = MONTH_NAMES.map((m) => m.slice(0, 3));

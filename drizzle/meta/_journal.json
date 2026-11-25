@@ -274,6 +274,13 @@
       "when": 1795640759648,
       "tag": "0038_card_statement_rows",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795644295848,
+      "tag": "0039_rep_sales",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   GOAL_PERMISSIONS, canViewTeamGoals, canSetGoals, mayViewGoalsOf, mayChangeGoalsOf, readGoalMonths, sumCents, annualGoal, spreadEvenly,
-  asOfIn, monthPace, yearPace, focusMonth, monthLine, monthLines, toDate, quarterTotals, yearLine, moneyFull, moneyCompact, daysInMonth
+  repNameKey, matchReportReps, asOfIn, monthPace, yearPace, focusMonth, monthLine, monthLines, toDate, quarterTotals, yearLine, moneyFull, moneyCompact, daysInMonth
 } from './salesGoals.ts';
 
 const rep = { id: 'r1', permissions: ['view_dashboard'] };
@@ -137,6 +137,30 @@ describe('totals over the year', () => {
     expect(yearLine(nov25, 2026, sales.map((s) => (s ?? 0) / 2), goals).state).toBe('behind');
     expect(yearLine(nov25, 2026, [101_000_000], goals).state).toBe('met');
     expect(yearLine(nov25, 2026, sales, Array(12).fill(null))).toMatchObject({ goalCents: null, pct: null, state: 'none' });
+  });
+});
+
+describe('matching the report\'s sales person to staff', () => {
+  const staff = [
+    { _id: 'm1', username: 'maria.r', displayName: 'Maria Rojas' },
+    { _id: 'm2', username: 'maria.s', displayName: 'Maria Silva' },
+    { _id: 'd1', username: 'daniel', displayName: 'Daniel Kim' },
+    { _id: 'k1', username: 'krish', displayName: '' }
+  ];
+  it('spelling, case, dots and spacing don\'t matter', () => {
+    expect(repNameKey('  DANIEL   Kim ')).toBe('daniel kim');
+    expect(repNameKey('Kim, Daniel.')).toBe('kim daniel');
+    const m = matchReportReps(staff, ['DANIEL KIM', 'Maria  Rojas', 'krish']);
+    expect(m.get('daniel kim')).toBe('d1');
+    expect(m.get('maria rojas')).toBe('m1');
+    expect(m.get('krish')).toBe('k1');
+  });
+  it('a one-word name matches the one person it starts, never one of two, and a full name that fits nobody stays out', () => {
+    const m = matchReportReps(staff, ['Daniel', 'Maria', 'Priya Shah', 'Daniel Park']);
+    expect(m.get('daniel')).toBe('d1');
+    expect(m.has('maria')).toBe(false);          // two Marias: not guessed
+    expect(m.has('priya shah')).toBe(false);
+    expect(m.has('daniel park')).toBe(false);    // a different Daniel is not Daniel Kim
   });
 });
 
