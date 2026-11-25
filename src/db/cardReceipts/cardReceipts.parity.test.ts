@@ -277,8 +277,9 @@ describe('approval', () => {
   it('Accounting approves a small one, never the cardholder or a branch manager alone', async () => {
     const body = receipt({ date: '2026-10-14', total: '33.00' });
     await same(REP, a => a.post('/expenses', body));
-    const mgr = receipt({ merchant: 'Staples', total: '86.42', category: 'office_supplies', date: '2026-10-14' });
-    await same(MANAGER, a => a.post('/expenses', mgr));
+    // Its own receipt file: one file can't back two people's expenses (a receipt link another person's expense holds is refused).
+    const mgr = receipt({ merchant: 'Staples', total: '86.42', category: 'office_supplies', date: '2026-10-14', receiptUrl: 'https://res.cloudinary.com/test/CardReceipts/img_2.webp' });
+    expect((await same(MANAGER, a => a.post('/expenses', mgr))).status).toBe(201);
     expect((await same(MANAGER, a => a.post(`/expenses/${mgr.id}/approve`))).status).toBe(403);
     expect((await same(REP, a => a.post(`/expenses/${body.id}/approve`))).status).toBe(403);
     expect((await same(DIRECTOR, a => a.post(`/expenses/${body.id}/approve`))).status).toBe(403);
