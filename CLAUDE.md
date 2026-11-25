@@ -302,6 +302,39 @@ in-person visits with a pin count). Nothing is built beyond this; a mark never c
 visit answer apart from the add's. A new place that creates a visit or resource from
 the app needs `useLocationReading` and must send `loggedFrom`.
 
+## Sales goals: a rep's own, the team's with a switch (2026-11-25, on `feat/sales-goals`)
+
+Design and the directors' calls: claude.ai artifact **Sales Dash — Rep Sales & Goals**
+(https://claude.ai/artifact/KZhMwDU6dzH8pgtGhCs66X; the owner's comments on it set every rule here).
+Dashboard → Visits → the card's **Visits | Goals** switch (`VisitsPanel.tsx`; it shows for a sales rep by role
+or anyone with a team-goals switch, and opens on Visits as before). Goals (`src/features/dashboard/goals/`,
+`GoalsView.tsx`) replaces the list with a table of **sales against goal for the month and the year** (a bar
+with a mark where the rep would be on pace today), a **Weekly visits** column held for the weekly visit goal
+("Goal not set" — not built), and an arrow on every row that opens that person's **twelve months**
+(`MonthlyGoals.tsx`: the layout of the customer profile's Sales Report tab with the goal beside the sales,
+quarters with their totals, "This month", a "To date" row; the month bar's track runs to 120% with a line at
+the goal). Goals mode puts Today / Follow-ups under the table (`.dfx-board--goals`, `GoalsView.css`).
+**Who sees what is the server's job, not the screen's:** `GET /api/sales-goals?year=` sends a rep **only their
+own row** — never a teammate's goals, sales against them or the team total (owner's call) — and a person with
+**Team goals** (`view_team_goals`) or **Set goals** (`set_sales_goals`, Users & Roles → Visits) the people on
+their team (`teamScope.ts`, by the rep's branch). `PUT /api/sales-goals/:userId?year=` needs Set goals and the
+person on your team; it replaces that person's year. Admin and director get both switches (`NEW_PERMISSION_GRANTS`);
+everyone else is ticked by an admin. Every rule — who may, the twelve-month check, pace, Goal met / On pace /
+Behind pace / Under / Upcoming / No goal, quarters, "To date", money text — is `src/utils/salesGoals.ts`
+(tested); a month with no goal is `null` and reads "No goal", never a miss; 99.6% reads 99 and Under, never 100.
+Data: `sales_goals` (one row per person per month that has a goal, whole cents; **Postgres only**, migration
+`0037_sales_goals`, data layer `src/db/salesGoals/`, tested on PGlite). **A rep's sales are the SPS monthly
+report (`customer_sales_monthly`) added up over the customers that rep owns** (`customers.sales_rep_id`),
+matched by a link a person made, else the SPS key, else the company name — my choice, since the report's own
+"Sales person" and the customer's rep are the same field after an SPS import; customers nobody owns count for
+nobody. Today is Pacific (`asOfIn`). **Run `npm run pg:migrate -- --apply` on Render for `0037`** before the
+Goals view can load. Set goals is `SetGoalsModal.tsx` (FormModal M: an annual goal spreads evenly over the
+months in whole cents, an arrow opens the months to set by hand, the months always add up to the annual goal;
+saves each changed person on its own). **Not built:** the weekly visit goal, a history of goal changes, goals
+by branch or team, a Goals tile / tab (design option D), and the alternatives B and C. **Never looked at in a
+real browser** — check the table, the months, Set goals and the phone layout with the people a director and a
+rep would see.
+
 ## Locations: one dropdown, one order (2026-10-17)
 
 Every single-choice location field and filter is

@@ -260,6 +260,13 @@
       "when": 1795593509958,
       "tag": "0036_receipt_hash",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795639509209,
+      "tag": "0037_sales_goals",
+      "breakpoints": true
     }
   ]
 }

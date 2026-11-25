@@ -24,6 +24,7 @@ vi.mock('../../api/authFetch', () => ({
       return Promise.resolve(new Response(JSON.stringify({ rows: followUps.rows, counts, summary: counts, doneThisWeek: 0 })));
     }
     if (url.includes('/follow-up')) return Promise.resolve(new Response(JSON.stringify({ visit: {} })));
+    if (String(url).includes('/api/sales-goals')) return Promise.resolve(new Response(JSON.stringify({ year: 2026, years: [2026], asOf: { year: 2026, month: 11, day: 25 }, canSet: false, canViewTeam: false, people: [] })));
     if (String(url).includes('/api/resource-types')) return Promise.resolve(new Response(JSON.stringify({ types: RESOURCE_TYPE_LIST })));
     return Promise.resolve(new Response('{}'));
   }
@@ -223,6 +224,31 @@ describe('Sales Visits tab', () => {
     expect(screen.getByText('Stone River')).toBeTruthy();
     expect(screen.getByText('Nothing on the calendar today')).toBeTruthy();
     expect(screen.getByText('No follow-ups in this period.')).toBeTruthy();
+    // Someone who is no sales rep and holds no team-goals switch has no Visits | Goals switch.
+    expect(screen.queryByRole('button', { name: 'Goals' })).toBeNull();
+  });
+
+  it('a sales rep gets Visits | Goals: Goals replaces the list and moves Today / Follow-ups under it, Visits brings the list back', async () => {
+    const { container } = render(
+      <VisitsPanel
+        pagedVisits={[{ _id: 'v1', date: '2026-10-20', company: 'Stone River', contactName: 'Max', customerId: 'c2', location: 'Seattle' }]}
+        totalCount={1} searchTerm="" onSearchChange={noop} page={1} rowsPerPage={50} onPageChange={noop} onRowsPerPageChange={noop}
+        tableLoading={false} busyVisitId={null} currentUser={{ role: 'sales_rep', permissions: ['view_customers'] }} currentUserId="a1b2c3d4e5f6a7b8c9d0e1f2" customers={[]} schedules={[]}
+        followUpPanel={[]} followUpCount={0} showWhoLogged={false} byRep={null} onOpenTab={noop} onOpenVisitCard={noop} onEditVisit={noop} onDeleteVisit={noop}
+        onOpenGallery={noop} onOpenCustomer={noop}
+      />
+    );
+    expect(screen.getByText('Stone River')).toBeTruthy();
+    expect(container.querySelector('.dfx-board--goals')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Goals' }));
+    expect(await screen.findByText('No one to show.')).toBeTruthy();
+    expect(screen.queryByText('Stone River')).toBeNull();
+    expect(screen.queryByLabelText('Search visits')).toBeNull();
+    expect(container.querySelector('.dfx-board--goals')).not.toBeNull();
+    expect(screen.getByText('Nothing on the calendar today')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Visits' }));
+    expect(screen.getByText('Stone River')).toBeTruthy();
+    expect(container.querySelector('.dfx-board--goals')).toBeNull();
   });
 });
 

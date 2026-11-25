@@ -14,3 +14,4 @@ export * from './pushDevices.ts';
 export * from './projectLeads.ts';
 export * from './cardStatements.ts';
 export * from './rateLimits.ts';
+export * from './salesGoals.ts';

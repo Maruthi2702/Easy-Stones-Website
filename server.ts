@@ -184,6 +184,7 @@ import createCustomerSpsImportRouter from './src/routes/customerSpsImport.ts';
 import { resumeRunningImports } from './src/services/spsImportRunner.ts';
 import createVisitsRouter from './src/routes/visits.ts';
 import createVisitLocationsRouter from './src/routes/visitLocations.ts';
+import createSalesGoalsRouter from './src/routes/salesGoals.ts';
 import createCustomerHistoryRouter, { customerHistoryResponse } from './src/routes/customerHistory.ts';
 import createCustomerResourcesRouter from './src/routes/customerResources.ts';
 import { loadFamilies } from './src/services/modaCount.ts';
@@ -927,6 +928,9 @@ async function startServer() {
         // Project Leads (src/utils/projectLeadAccess.ts, 2026-11-20): admin only to start;
         // an admin ticks the rest under Users & Roles.
         { roles: ['admin'], permissions: [...ALL_PROJECT_LEAD_PERMISSIONS] },
+        // Sales goals (2026-11-25, src/utils/salesGoals.ts): admin and director see their team's goals and set them
+        // (the owner asked for directors); a rep always sees their own. Managers and others are ticked by an admin.
+        { roles: ['admin', 'director'], permissions: ['view_team_goals', 'set_sales_goals'] },
         // Card receipt approvals (2026-11-23, src/utils/receiptApproval.ts): Accounting approves every receipt and a
         // branch manager / director gives the second approval at $150+, so all three need Approve (the reminders switch
         // follows from it, in ACTION_MIGRATIONS). Given once; an admin can switch it off under Users & Roles.
@@ -3726,6 +3730,9 @@ app.use('/api/customers', createVisitsRouter({
 
 // Where visits and resources were logged (src/routes/visitLocations.ts, tested): only to who may see them.
 app.use('/api/visit-locations', createVisitLocationsRouter({ authenticate, requireSalesPage }));
+
+// Sales goals (src/routes/salesGoals.ts, tested): a rep's own, their team's with a switch, set only with Set goals.
+app.use('/api/sales-goals', createSalesGoalsRouter({ authenticate, requireSalesPage }));
 
 // Delete visit
 // Delete visit

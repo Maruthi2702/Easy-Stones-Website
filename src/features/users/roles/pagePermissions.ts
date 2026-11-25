@@ -9,7 +9,7 @@ import { PROJECT_LEADS } from '../../../utils/projectLeadAccess';
 import { CHECKIN_PERMISSIONS, CHECKIN_SECTIONS } from '../../../utils/checkInAccess';
 import { TEAM_FILES_PERMISSIONS as TEAM_FILES } from '../../../utils/teamFilesAccess';
 import {
-    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, Ban, PackageCheck, Ship, Unlock, Factory, Bell
+    ArrowLeftRight, Boxes, CalendarDays, CheckCheck, Download, FolderOpen, Building2, HardHat, RefreshCw, ClipboardList, Clock, DollarSign, Edit2, Eraser, Eye, FileCog, LayoutDashboard, Mail as MailIcon, Map, MapPin, Lock, Palette, Pencil, Plus, Printer, QrCode, Receipt, Repeat, ShoppingCart, Timer, RotateCcw, Route, ShieldCheck, Tag, Trash2, TrendingDown, Truck, Upload, User, UserCheck, UserX, Users, Key, ArrowUpDown, ShieldAlert, Wallet, CreditCard, Camera, Ban, PackageCheck, Ship, Unlock, Factory, Bell, Target
 } from 'lucide-react';
 import { CUSTOMER_PERMISSIONS, CUSTOMER_SECTIONS } from '../../../utils/customerAccess';
 import { TEAM_PERMISSION } from '../../../utils/teamAccess';
@@ -95,6 +95,8 @@ export const PAGE_PERMISSIONS: PageDef[] = [
             { key: 'view_all_visits',      label: 'View all',      icon: Eye,    desc: "See every branch's visits and resources on the dashboard" },
             { key: 'view_team_calendar',   label: 'Team calendar', icon: CalendarDays, desc: "See the calendars of everyone working at the user's assigned locations, read only (everyone sees their own)" },
             { key: 'see_visit_locations',  label: 'Where logged', icon: MapPin, desc: "See where visits and resources were logged (On site, Nearby, how far away) for everyone working at the user's assigned locations (everyone sees their own)" },
+            { key: 'view_team_goals',      label: 'Team goals',    icon: Target, desc: "See the monthly sales goals, and sales against them, of everyone working at the user's assigned locations (everyone sees their own)" },
+            { key: 'set_sales_goals',      label: 'Set goals',     icon: Target, desc: "Set the monthly sales goals of everyone working at the user's assigned locations (includes seeing them)" },
             { key: 'edit_own_visits',      label: 'Edit own',      icon: Pencil, desc: 'Edit visits and resources the user logged themselves' },
             { key: 'edit_branch_visits',   label: 'Edit branch',   icon: Edit2,  desc: "Edit visits and resources logged by anyone working at the user's assigned locations" },
             { key: 'edit_all_visits',      label: 'Edit all',      icon: FileCog, desc: "Edit anyone's visits and resources" },

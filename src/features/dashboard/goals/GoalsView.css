@@ -1,0 +1,144 @@
+/* Dashboard → Sales Visits → Goals (GoalsView.tsx, MonthlyGoals.tsx, SetGoalsModal.tsx).
+   On the Focus board's tokens (DashboardFocus.css). Blue is on or past the goal, orange is under it:
+   the two differ in lightness as well as hue, and every state is also said in words. Phone = under 640px. */
+
+:root {
+  --gl-up: #5aa9cc; --gl-up-text: #7cc0e0; --gl-dn: #e8863f; --gl-dn-text: #fb9a5a;
+  --gl-track: rgba(255, 255, 255, 0.14);
+}
+body.light-theme-active, .light-theme-active {
+  --gl-up: #2b6f8a; --gl-up-text: #1d5a74; --gl-dn: #c2571a; --gl-dn-text: #9a3f0f;
+  --gl-track: #e2e8f0;
+}
+
+/* Goals fills the screen: the Today / Follow-ups panels go under it, side by side. */
+.dfx-board--goals { flex-direction: column; align-items: stretch; }
+.dfx-board--goals > .visits-table-section { flex: none; width: 100%; box-sizing: border-box; }
+.dfx-board--goals > .dfx-aside { flex: none; width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; gap: 20px; }
+
+/* The Visits | Goals switch beside the card's title. */
+.dfx-tab-title { display: flex; align-items: center; gap: 14px; min-width: 0; flex-wrap: wrap; }
+.dfx-tab-title .dfx-range button { min-width: 72px; }
+@media (max-width: 1023px) { .dfx-tab-title h2 { display: none; } }
+@media (max-width: 639px) {
+  .dfx-tab-title { flex: 1; }
+  .dfx-tab-title .dfx-range { display: flex; width: 100%; }
+  .dfx-tab-title .dfx-range button { flex: 1; height: 40px; }
+}
+
+.gl { display: flex; flex-direction: column; gap: 14px; color: var(--text-primary); }
+.gl-bar-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.gl-year { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--dfx-soft); }
+.gl-year span { min-width: 52px; text-align: center; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.gl-year button { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 9px; background: transparent; color: var(--text-primary); cursor: pointer; }
+.gl-year button:disabled { opacity: 0.35; cursor: default; }
+.gl-year button:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 1px; }
+.gl-set { gap: 8px; }
+
+.gl-wrap { border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; overflow-x: auto; }
+.gl-table { width: 100%; border-collapse: collapse; font-size: 14px; color: var(--text-primary); }
+.gl-table th, .gl-table td { padding: 12px 16px; border-bottom: 1px solid var(--border-color); text-align: left; font-weight: 400; vertical-align: middle; }
+.gl-table thead th { padding-top: 10px; padding-bottom: 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); background: var(--dfx-soft); white-space: nowrap; }
+.gl-table tbody tr.is-open > * { background: var(--dfx-hover); }
+.gl-table tfoot th, .gl-table tfoot td { border-bottom: 0; background: var(--dfx-soft); font-weight: 700; }
+.gl-table tbody tr:last-child > *, .gl-table tbody tr.gl-open > * { border-bottom: 1px solid var(--border-color); }
+.gl-table tbody tr.gl-open > td { padding: 14px 16px 18px; background: var(--dfx-soft); }
+.gl-table > tbody > tr:not(.gl-open):last-child > * { border-bottom: 0; }
+.gl-table > tbody > tr:not(.gl-open):last-child.is-open > * { border-bottom: 1px solid var(--border-color); }
+.gl-rowhead { display: flex; align-items: center; gap: 6px; min-width: 190px; }
+.gl-who { display: flex; flex-direction: column; min-width: 0; }
+.gl-name { color: var(--dfx-gold-text); font-weight: 600; }
+tfoot .gl-name { color: var(--text-primary); }
+.gl-who small { margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+.gl-chev { flex: none; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--text-secondary); cursor: pointer; }
+.gl-chev:hover { background: var(--dfx-hover); color: var(--text-primary); }
+.gl-chev:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 1px; }
+.gl-chev svg { transition: transform 0.15s; transform: rotate(-90deg); }
+.gl-chev svg.is-up { transform: rotate(0); }
+
+/* A sales cell: "$84.2k of $90k", then the bar with its percent and word. */
+.gl-cell { display: flex; flex-direction: column; gap: 6px; min-width: 150px; }
+.gl-cell-top { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gl-cell-top b { font-weight: 600; }
+.gl-cell-top i { font-style: normal; font-size: 12px; color: var(--text-secondary); }
+.gl-cell-bar { display: flex; align-items: center; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.gl-cell-bar .gl-bar { width: 96px; flex: none; overflow: visible; }
+.gl-cell-bar b { min-width: 34px; font-weight: 700; }
+.gl-cell-bar em { font-style: normal; font-weight: 600; }
+.gl-ok { color: var(--gl-up-text); }
+.gl-bad { color: var(--gl-dn-text); }
+.gl-nogoal { font-size: 12.5px; color: var(--text-muted); }
+.gl-weekly { white-space: nowrap; }
+.gl-vph { display: inline-block; padding: 3px 10px; border: 1px dashed var(--text-muted); border-radius: 999px; font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.gl-note { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.gl-mark { flex: none; width: 2px; height: 14px; border-radius: 1px; background: var(--text-primary); }
+
+/* The bar. */
+.gl-bar { display: block; }
+.gl-track { fill: var(--gl-track); }
+.gl-up { fill: var(--gl-up); }
+.gl-dn { fill: var(--gl-dn); }
+.gl-over { fill-opacity: 0.5; }
+.gl-line { fill: var(--text-primary); }
+.gl-bar--goal { overflow: visible; }
+
+/* One person's twelve months. */
+.gl-months-wrap { display: flex; flex-direction: column; gap: 10px; }
+.gl-months { width: 100%; border: 1px solid var(--border-color); border-radius: 10px; border-collapse: separate; border-spacing: 0; overflow: hidden; background: var(--bg-card); font-variant-numeric: tabular-nums; font-size: 14px; }
+.gl-months th, .gl-months td { padding: 0 14px; height: 44px; border-top: 1px solid var(--border-color); text-align: left; font-weight: 400; white-space: nowrap; }
+.gl-months thead th { height: 34px; border-top: 0; background: var(--dfx-soft); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
+.gl-months .gl-r { text-align: right; }
+.gl-months .gl-barcell { width: 100%; min-width: 80px; }
+.gl-months small { display: block; margin-top: 1px; font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+.gl-months tr.gl-q > * { height: 38px; background: var(--dfx-soft); font-size: 12.5px; font-weight: 700; }
+.gl-months tr.gl-q small { display: inline; margin-left: 8px; font-weight: 500; }
+.gl-months tr.gl-m:hover > * { background: var(--dfx-hover); }
+.gl-months tr.is-now > * { background: rgba(212, 175, 55, 0.08); }
+.gl-months tr.is-now > :first-child { box-shadow: inset 3px 0 0 var(--accent-primary); }
+.gl-months tr.is-soon { opacity: 0.65; }
+.gl-months .gl-now { color: var(--dfx-gold-text); }
+.gl-months .gl-strong { font-weight: 600; }
+.gl-months .gl-goalcol { color: var(--text-secondary); }
+.gl-months tfoot th, .gl-months tfoot td { height: 46px; border-top: 2px solid var(--border-color); background: var(--dfx-soft); font-weight: 700; }
+.gl-mshort { display: none; }
+.gl-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.gl-pill { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; background: var(--border-color); color: var(--text-secondary); }
+.gl-pill--up { color: var(--gl-up-text); background: color-mix(in srgb, var(--gl-up) 18%, transparent); }
+.gl-pill--dn { color: var(--gl-dn-text); background: color-mix(in srgb, var(--gl-dn) 18%, transparent); }
+.gl-legend { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-secondary); }
+
+/* Set goals. */
+.gl-set-note { margin: 0 0 12px; font-size: 13px; color: var(--fm-muted, var(--text-secondary)); }
+.gl-set-error { margin: 6px 0; padding: 8px 10px; border-radius: 8px; font-size: 13px; background: rgba(220, 38, 38, 0.1); color: #b91c1c; }
+body:not(.light-theme-active) .gl-set-error { color: #f87171; }
+.gl-set-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.gl-set-item { border: 1px solid var(--fm-line, var(--border-color)); border-radius: 12px; padding: 10px 12px; }
+.gl-set-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.gl-set-head .gl-who { flex: 1 1 130px; }
+.gl-set-lbl { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fm-muted, var(--text-secondary)); margin-bottom: 4px; }
+.gl-set-annual { display: block; width: 170px; }
+.gl-set-money { display: flex; align-items: center; gap: 6px; }
+.gl-set-money .fm-input { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
+.gl-set-avg { display: block; font-size: 14px; font-variant-numeric: tabular-nums; min-width: 100px; }
+.gl-set-weekly { opacity: 0.8; }
+.gl-set-months { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--fm-line, var(--border-color)); }
+.gl-set-m { display: block; min-width: 0; }
+.gl-set-sum { grid-column: 1 / -1; margin: 2px 0 0; font-size: 13px; display: flex; justify-content: space-between; gap: 8px; }
+
+@media (max-width: 639px) {
+  .gl-table th, .gl-table td { padding: 11px 8px; }
+  .gl-rowhead { min-width: 0; }
+  .gl-weekly { display: none; }
+  .gl-cell { min-width: 0; }
+  .gl-amt { display: none; }
+  .gl-cell-bar { flex-direction: column; align-items: flex-end; gap: 4px; }
+  .gl-cell-bar .gl-bar { width: 58px; }
+  .gl-cell-bar em { display: none; }
+  .gl-months th, .gl-months td { padding: 0 8px; height: 44px; font-size: 12.5px; }
+  .gl-months .gl-goalcol, .gl-months .gl-word, .gl-months .gl-mname, .gl-months .gl-now { display: none; }
+  .gl-months .gl-mshort { display: inline; }
+  .gl-months .gl-barcell { min-width: 60px; }
+  .gl-pill { padding: 2px 7px; font-size: 11.5px; }
+  .gl-set-annual { width: 100%; }
+  .gl-set-months { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

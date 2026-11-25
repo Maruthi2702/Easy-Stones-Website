@@ -1,5 +1,9 @@
+import { useState } from 'react';
 import Pagination from '../../../components/shared/Pagination';
 import { canModifyVisit, canDeleteVisit } from '../../../utils/visitAccess';
+import { isSalesRep } from '../../../utils/salesReps';
+import { wantsGoalsView } from '../../../utils/salesGoals';
+import GoalsView from '../goals/GoalsView';
 import { useMyTeam } from '../../../api/myTeam';
 import DashboardAside from '../components/DashboardAside';
 import DashboardSearch from '../../../components/shared/DashboardSearch';
@@ -52,13 +56,25 @@ export default function VisitsPanel({
 }: VisitsPanelProps) {
     const team = useMyTeam(currentUser, currentUserId);
     const showingByRep = byRep?.view === 'byRep';
+    // Visits | Goals (2026-11-25): for a sales rep, or anyone with a team-goals switch. Opens on Visits, as before.
+    const goalsEnabled = wantsGoalsView(currentUser, isSalesRep({ ...currentUser, _id: currentUserId }));
+    const [section, setSection] = useState<'visits' | 'goals'>('visits');
+    const showingGoals = goalsEnabled && section === 'goals';
     return (
-        <div className="dfx-board">
+        <div className={`dfx-board${showingGoals ? ' dfx-board--goals' : ''}`}>
         <div className="visits-table-section">
             {/* Title on the left, the dashboard's search box on the right (every tab). */}
             <div className="section-header dfx-tab-head">
-                <h2>Sales Visits</h2>
-                {!showingByRep && (
+                <div className="dfx-tab-title">
+                    <h2>{showingGoals ? 'Sales Goals' : 'Sales Visits'}</h2>
+                    {goalsEnabled && (
+                        <div className="dfx-range" role="group" aria-label="Show">
+                            <button type="button" aria-pressed={!showingGoals} className={!showingGoals ? 'is-on' : ''} onClick={() => setSection('visits')}>Visits</button>
+                            <button type="button" aria-pressed={showingGoals} className={showingGoals ? 'is-on' : ''} onClick={() => setSection('goals')}>Goals</button>
+                        </div>
+                    )}
+                </div>
+                {!showingByRep && !showingGoals && (
                     <DashboardSearch
                         value={searchTerm}
                         onChange={onSearchChange}
@@ -68,7 +84,9 @@ export default function VisitsPanel({
                 )}
             </div>
 
-            {showingByRep && byRep ? (
+            {showingGoals ? (
+                <GoalsView />
+            ) : showingByRep && byRep ? (
                 <RepBreakdownTable rows={byRep.rows} loading={tableLoading} showToday={byRep.showToday} showOnSite={byRep.showOnSite} onPick={byRep.onPick} />
             ) : (
             <>
