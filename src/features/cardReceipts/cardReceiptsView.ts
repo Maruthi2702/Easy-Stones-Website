@@ -19,16 +19,15 @@ export const NO_FILTERS: ReceiptFilters = { search: '', status: 'all', people: [
 
 /**
  * The Statement filter's choices (2026-11-24; owner: "everything apart from what matched with reports"): Matched is
- * exactly the green rows, Not matched is **everything else** — a receipt no statement line answers, one from before the
- * check began or on another kind of card, and a charge still waiting for its receipt (on the statement, but no receipt
- * matched it).
+ * exactly the green rows (a report line answers it — a Missing receipt row counts, it is made from the line), Not matched
+ * is **everything else** — a receipt no statement line answers, and one from before the check began or on another kind of card.
  */
 export const STATEMENT_FILTERS = [
   { key: 'on', label: 'Matched', dot: 'ok' },
   { key: 'off', label: 'Not matched', dot: 'none' }
 ] as const;
-/** 'on' for a receipt a bank statement line answers (the green row), else 'off'. */
-export const statementState = (e: Pick<Expense, 'onStatement' | 'status'>) => (e.onStatement === true && e.status !== 'missing' ? 'on' : 'off');
+/** 'on' for an expense a bank report line answers — a matched receipt, or a Missing receipt row made from the line (the green row) — else 'off'. */
+export const statementState = (e: Pick<Expense, 'onStatement'>) => (e.onStatement === true ? 'on' : 'off');
 
 export const categoryLabel = (categories: readonly Category[], name: string) =>
   categories.find((c) => c.name === name)?.label || (name ? name.replace(/_/g, ' ') : '');
