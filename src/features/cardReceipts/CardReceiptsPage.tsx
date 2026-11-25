@@ -19,7 +19,7 @@ import { getAddForHolders, listAllExpenses, listMonthForExport } from './cardRec
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
 import { writeExcel, writePdf } from './exportFiles';
 import { NO_FILTERS, TODO_SHOWN, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
-import StatusTiles from './components/StatusTiles';
+import FilterMenu from './components/FilterMenu';
 import ExpenseList, { type ListSelection } from './components/ExpenseList';
 import ExpenseDrawer from './components/ExpenseDrawer';
 import AskForm from './components/AskForm';
@@ -164,6 +164,39 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const queueField = tab === 'waiting' && data.approver;
   const queueActive = queueField && waitFilter !== 'all';
   const filtered = Boolean(peopleFilter.active || filters.category || filters.bank || filters.status !== 'all' || queueActive);
+  const clearFilters = () => { setFilters((f) => ({ ...NO_FILTERS, search: f.search })); peopleFilter.reset(); setWaitFilter('all'); };
+
+  // A computer's filters (2026-11-24, the Customers tab's look): one dropdown per Filters field on the tab row, each
+  // choice with how many receipts it would show given the others, and Clear all once something narrows the list.
+  const peopleValue = peopleFilter.value;
+  const holderValue = peopleValue.length === 0 ? '' : peopleValue.length === 1 ? peopleValue[0]! : '__several';
+  const holderChoices = [
+    { value: '', label: data.teamOnly ? 'My team' : 'All cardholders' },
+    ...(meId ? [{ value: meId, label: 'Me' }] : []),
+    ...[...people].filter((p) => p.value !== meId).sort((a, b) => a.label.localeCompare(b.label)).map((p) => ({ value: p.value, label: p.label })),
+    ...(holderValue === '__several' ? [{ value: '__several', label: `${peopleValue.length} people` }] : [])
+  ];
+  const expenseFilterMenus = (
+    <>
+      {queueField ? (
+        <FilterMenu label="Queue" value={waitFilter} clearTo="all" onChange={(v) => setWaitFilter(v as WaitFilter)}
+          choices={WAIT_FILTERS.map((f) => ({ value: f.key, label: f.label, count: waitN[f.key] }))} />
+      ) : null}
+      {data.viewAll || canExport || canExportAll ? (
+        <FilterMenu label="Card" value={filters.bank} clearTo="" onChange={(bank) => patchFilters({ bank })}
+          choices={[{ value: '', label: 'All', count: counts.bank[''] }, ...BANK_FILTERS.map((b) => ({ value: b.key, label: b.label, count: counts.bank[b.key] }))]} />
+      ) : null}
+      <FilterMenu label="Status" value={filters.status} clearTo="all" onChange={(status) => patchFilters({ status })}
+        choices={[{ value: 'all', label: 'All', count: counts.status.all }, ...STATUSES.map((s) => ({ value: s.key, label: s.label, count: counts.status[s.key], dot: s.colour }))]} />
+      <FilterMenu label="Category" value={filters.category} clearTo="" onChange={(category) => patchFilters({ category })} searchable={categories.length > 8}
+        choices={[{ value: '', label: 'All', count: counts.category[''] }, ...categories.map((c) => ({ value: c.name, label: c.label, count: counts.category[c.name] ?? 0 }))]} />
+      {people.length > 1 ? (
+        <FilterMenu label="Cardholder" value={holderValue} clearTo="" align="right" searchable={people.length > 8} choices={holderChoices}
+          onChange={(v) => { if (v !== '__several') peopleFilter.field.onChange(v ? [v] : []); }} />
+      ) : null}
+      {filtered ? <button type="button" className="ccr-clear-all" onClick={clearFilters}>Clear all</button> : null}
+    </>
+  );
 
   // Export…: one pop-up (Card, Months, Format). "This month" is that month's receipts for the bank picked,
   // whatever the other filters say; "All months" asks the server and needs the Export all switch.
@@ -242,14 +275,15 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             <div className="ccr-tools">
               <DashboardSearch value={filters.search} onChange={(search) => patchFilters({ search })} label="Search expenses"
                 placeholder="Search merchant, cardholder, note" count={filters.search ? `${rows.length} of ${base.length}` : null} />
-              <LocationFilter
+              {/* A phone keeps the Filters panel; a computer has the same fields as dropdowns on the tab row (Customers' look). */}
+              {isPhone ? <LocationFilter
                 options={[]}
                 value=""
                 onChange={() => {}}
                 user={currentUser}
                 active={filtered}
                 wide
-                onClear={() => { setFilters((f) => ({ ...NO_FILTERS, search: f.search })); peopleFilter.reset(); setWaitFilter('all'); }}
+                onClear={clearFilters}
                 activeCount={(queueActive ? 1 : 0) + (peopleFilter.active ? 1 : 0) + (filters.category ? 1 : 0) + (filters.bank ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
                 doneLabel={rows.length ? `Show ${rows.length} receipt${rows.length === 1 ? '' : 's'}` : 'No receipts match'}
               >
@@ -289,7 +323,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                   </div>
                   {people.length > 1 ? <PeopleField {...peopleFilter.field} /> : null}
                 </div>
-              </LocationFilter>
+              </LocationFilter> : null}
               {exportItems.length || bulkItems.length ? <RowMenu label="More" items={[...exportItems, ...bulkItems.map((it, i) => (i === 0 && exportItems.length ? { ...it, divider: true } : it))]} /> : null}
               {addButton}
             </div>
@@ -318,6 +352,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             ) : null}
             {(tab === 'expenses' || tab === 'statements') && data.month ? <PeriodBar month={data.month} range={tab === 'expenses' ? data.range : null} custom={tab === 'expenses'} today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /> : null}
             {tab === 'statements' && !isPhone ? <span className="ccr-tab-tools" ref={setTabSlot} /> : null}
+            {(tab === 'expenses' || tab === 'waiting') && !isPhone ? <span className="ccr-tab-tools">{expenseFilterMenus}</span> : null}
           </div>
         ) : data.month ? <div className="ccr-tabs"><PeriodBar month={data.month} range={data.range} custom today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /></div> : null}
 
@@ -369,8 +404,6 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
               </section>
             ) : null}
 
-            {!isPhone && tab === 'expenses' ? <StatusTiles totals={totals} status={filters.status} onStatus={(status) => patchFilters({ status })}
-              totalLabel={periodRange ? 'Total for the range' : `Total for ${data.month ? monthLabel(data.month).split(' ')[0] : 'the month'}`} /> : null}
             {isPhone && tab === 'expenses' && todo.length && rows.length ? (
               <h2 className="ccr-todo-h" style={{ display: 'flex' }}>{periodRange ? periodName : data.month ? monthLabel(data.month).split(' ')[0] : ''}<span style={{ marginLeft: 'auto', textTransform: 'none', letterSpacing: 0, fontWeight: 500 }}>{formatMoney(shown.cents)} · {shown.count}</span></h2>
             ) : null}
@@ -397,7 +430,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 <div className="ccr-empty">
                   {data.loading ? <span>Loading…</span> : tab === 'waiting' && data.waitingError ? (
                     <span>The receipts waiting for you couldn’t be loaded.</span>
-                  ) : base.length ? (
+                  ) : base.length || filtered || filters.search ? (
                     <><h3>Nothing matches</h3><span>Clear the search or the filters.</span></>
                   ) : tab === 'waiting' ? (
                     data.waiting.length
@@ -413,7 +446,19 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
               )}
             </div>
             <Pagination currentPage={pager.currentPage} totalPages={Math.max(1, Math.ceil(rows.length / pager.rowsPerPage))}
-              onPageChange={pager.setCurrentPage} rowsPerPage={pager.rowsPerPage} onRowsPerPageChange={pager.setRowsPerPage} totalCount={rows.length} />
+              onPageChange={pager.setCurrentPage} rowsPerPage={pager.rowsPerPage} onRowsPerPageChange={pager.setRowsPerPage} totalCount={rows.length}>
+              {/* What the status tiles held, now in the pager's bar (Customers has no tiles): each status's money, then the total. */}
+              {!isPhone && tab === 'expenses' && totals.count ? (
+                <span className="ccr-pg-totals">
+                  {STATUSES.filter((s) => totals.byStatus[s.key]!.count).map((s) => (
+                    <span key={s.key} title={`${totals.byStatus[s.key]!.count} ${totals.byStatus[s.key]!.count === 1 ? 'expense' : 'expenses'}`}>
+                      <span className={`ccr-sdot is-${s.colour}`} aria-hidden="true" />{s.label} <b>{formatMoney(totals.byStatus[s.key]!.cents)}</b>
+                    </span>
+                  ))}
+                  <span className="is-total">{periodRange ? 'Total' : `Total for ${data.month ? monthLabel(data.month).split(' ')[0] : 'the month'}`} <b>{formatMoney(totals.cents)}</b></span>
+                </span>
+              ) : null}
+            </Pagination>
           </>
         )}
       </div>

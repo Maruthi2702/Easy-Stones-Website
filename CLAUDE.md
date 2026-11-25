@@ -1657,8 +1657,16 @@ receipt fade. **Status** is the Customers dot + word with a grey line under it, 
 (tested) and sent as each line's `stage` (with the holder's `branch`) from `linesWhere`: a matched line's approval stage from
 `receiptApproval.ts` — Waiting for Accounting / for Manager or Admin / for Admin / for both ("$150+ · needs both"), Asked …, Sent back,
 Draft, Approved (last approver · day) — else "No receipt · N days", "Waiting for Accounting" (an Admin charge), Card not set up, etc.
-Not built: checkboxes / bulk actions and a row ⋯ on Statements (reminder emails stay off until the owner says), the Expenses tab's
-filters as dropdowns (it keeps the Filters panel and its tiles). Phone: one list box with dividers, the same row colours.
+Not built: checkboxes / bulk actions and a row ⋯ on Statements (reminder emails stay off until the owner says). Phone: one list box
+with dividers, the same row colours.
+
+**Expenses / Waiting for me follow it** (2026-11-24, same branch, owner: "build it to match"): on a computer the tiles and the Filters
+panel are gone — **Queue** (approvers, Waiting for me), **Card**, **Status**, **Category** and **Cardholder** are dropdowns on the tab row
+(`components/FilterMenu.tsx`, shared with Statements; each choice carries its count given the others, **Clear all** appears once one
+narrows the list), and what the tiles held — each status's money and the month's total — sits in the pager's bar (`.ccr-pg-totals`).
+A **phone keeps the Filters panel**. Rows: Cardholder & card (avatar, branch pill), Status as the dot + word with the approvals / what's
+owed under it (`ExpenseStatus`), **Missing receipt rows red** (`tr.is-miss`, the `--ccr-row-miss` colours now on `.ccr-`). Dropped
+`StatusTiles.tsx`. An empty list with a filter on says "Nothing matches", never "No receipts for <month>".
 
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
 

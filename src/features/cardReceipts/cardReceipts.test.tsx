@@ -98,35 +98,47 @@ const text = () => document.body.textContent || '';
 beforeEach(() => { fake.card = true; fake.posted = []; fake.asked = []; fake.waiting = [WAITING_LOST]; fake.conflict = false; fake.todo = null; fake.near = { charge: null, receipts: [] }; Element.prototype.scrollIntoView = () => {}; });
 afterEach(cleanup);
 
+/** A tab-row dropdown (Card, Status, …) by its label: its button, and a way to pick one of its choices. */
+const menu = (label: string) => [...document.querySelectorAll('.ccr-tab-tools .ccr-dd-btn')].find((b) => b.textContent?.startsWith(label)) as HTMLElement;
+const pick = (label: string, choice: RegExp | string) => {
+  fireEvent.click(menu(label));
+  fireEvent.click([...document.querySelectorAll('.ccr-opt')].find((o) => (typeof choice === 'string' ? o.textContent?.includes(choice) : choice.test(o.textContent || '')))!);
+};
+
 describe('the Credit Card Receipts page', () => {
-  it('shows accounting the month with tiles, and a tile filters the list', async () => {
+
+  it('shows accounting the month with the money per status in the bar, and the Status dropdown filters the list', async () => {
     await show(['view_all_card_receipts', 'export_card_receipts']);
     expect(text()).toContain('October 2026 · All cardholders');
-    expect(document.querySelector('.ccr-tile.is-total .ccr-tile-v')?.textContent).toBe('$273.82');
+    // The tiles are gone: each status's money and the total sit beside the pager.
+    expect(document.querySelector('.ccr-tile')).toBeNull();
+    expect(document.querySelector('.ccr-pg-totals .is-total b')?.textContent).toBe('$273.82');
     expect(screen.getByText('Staples')).toBeTruthy();
     expect(text()).toContain('“Pick a category” · Dee');
-    fireEvent.click(screen.getByRole('button', { name: /Draft/ }));
+    pick('Status', 'Draft');
     expect(screen.queryByText('Staples')).toBeNull();
     expect(screen.getByText('Kashish Cuisine of India')).toBeTruthy();
+    expect(menu('Status').textContent).toContain('Draft');
     expect(screen.queryByLabelText('Add receipt')).toBeNull();
   });
 
-  it('puts a count beside every Filters choice and a live "Show N receipts" button', async () => {
+  it('puts a count beside every dropdown choice and Clear all once one narrows the list', async () => {
     await show(['view_all_card_receipts', 'export_card_receipts']);
-    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }));
-    await settle();
-    const dialog = screen.getByRole('dialog', { name: 'Filters' });
-    expect(dialog.textContent).toContain('Show 4 receipts');
-    expect(dialog.textContent).toContain('Amex · 4');
-    expect(dialog.textContent).toContain('Encore · 0');
-    // Card comes first, the cardholder list last.
-    const order = ['Card', 'Status', 'Category'].map((l) => dialog.textContent!.indexOf(l));
+    expect(document.querySelector('.ccr-clear-all')).toBeNull();
+    fireEvent.click(menu('Card'));
+    const options = [...document.querySelectorAll('.ccr-opt')].map((o) => o.textContent || '');
+    expect(options.some((o) => o.includes('Amex') && o.includes('4'))).toBe(true);
+    expect(options.some((o) => o.includes('Encore') && o.includes('0'))).toBe(true);
+    // Card comes first, then Status and Category.
+    const order = ['Card', 'Status', 'Category'].map((l) => [...document.querySelectorAll('.ccr-tab-tools .ccr-dd-btn')].findIndex((b) => b.textContent?.startsWith(l)));
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    // A pick with nothing behind it says so and shows the badge.
-    fireEvent.click(screen.getByText('Encore · 0'));
-    await settle();
-    expect(dialog.textContent).toContain('No receipts match');
-    expect(dialog.querySelector('.lf-badge')?.textContent).toBe('1');
+    // A pick with nothing behind it says so, turns the button gold and offers Clear all.
+    fireEvent.click([...document.querySelectorAll('.ccr-opt')].find((o) => o.textContent?.includes('Encore'))!);
+    expect(text()).toContain('Nothing matches');
+    expect(menu('Card').className).toContain('set');
+    fireEvent.click(document.querySelector('.ccr-clear-all')!);
+    expect(document.querySelector('.ccr-clear-all')).toBeNull();
+    expect(screen.getByText('Staples')).toBeTruthy();
   });
 
   it('has one Export… item that opens a pop-up whose choices follow the two switches', async () => {
@@ -320,7 +332,9 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
     fake.waiting = [WAITING_SECOND];
     await show(['view_all_card_receipts', 'approve_card_receipts']);
     fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));
-    expect(text()).toContain('Acct ✓ · Mgr –');
+    // A row's Status says Waiting for approval, and under it the approvals (full words, since the column has the room).
+    expect(text()).toContain('Waiting for approval');
+    expect(document.querySelector('.ccr-stage-d')?.textContent).toContain('Accounting ✓');
     fireEvent.click(screen.getByLabelText(/Open Home Depot/));
     await settle();
     expect(text()).toContain('Accounting ✓ Maria');
@@ -417,19 +431,15 @@ describe('approvals, questions and reminders (2026-11-23)', () => {
     fake.waiting = [WAITING_LOST, WAITING_SECOND, WAITING_ASKED];
     await show(['use_card_receipts', 'approve_card_receipts']);
     fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));
-    // The queue is a field in the Filters panel, not a row on the page.
+    // The queue is a dropdown on the tab row, not a row on the page.
     expect(screen.queryByRole('radio', { name: /Asked of me/ })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /^Filters/ }));
-    await settle();
-    const dialog = screen.getByRole('dialog', { name: 'Filters' });
-    fireEvent.click(dialog.querySelector('#ccr-f-queue')!);
-    await settle();
-    for (const label of ['All · 3', 'Needs Accounting · 1', 'Needs second approval · 1', 'Asked of me · 1']) {
-      expect(document.body.textContent).toContain(label);
+    fireEvent.click(menu('Queue'));
+    const options = [...document.querySelectorAll('.ccr-opt')].map((o) => (o.textContent || '').replace(/\s+/g, ' ').trim());
+    for (const [label, n] of [['All', '3'], ['Needs Accounting', '1'], ['Needs second approval', '1'], ['Asked of me', '1']]) {
+      expect(options.some((o) => o.startsWith(label!) && o.includes(n!))).toBe(true);
     }
-    fireEvent.click(screen.getByText('Asked of me · 1'));
-    await settle();
-    expect(dialog.querySelector('.lf-badge')?.textContent).toBe('1');
+    fireEvent.click([...document.querySelectorAll('.ccr-opt')].find((o) => o.textContent?.startsWith('Asked of me'))!);
+    expect(menu('Queue').className).toContain('set');
     expect(screen.getByText('Costco')).toBeTruthy();
     expect(screen.queryByText('CHEVRON')).toBeNull();
     expect(text()).toContain('Asked Maruthi');

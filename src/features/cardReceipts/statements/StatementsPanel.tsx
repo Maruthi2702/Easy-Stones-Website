@@ -13,7 +13,7 @@ import {
 } from './statementsView';
 import AmexUploadForm from './AmexUploadForm';
 import UnknownCards from './UnknownCards';
-import FilterMenu from './FilterMenu';
+import FilterMenu from '../components/FilterMenu';
 import type { StatementLine, StatementsView, UploadResult } from './statementsApi';
 import './Statements.css';
 

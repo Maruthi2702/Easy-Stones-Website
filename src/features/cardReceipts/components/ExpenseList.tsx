@@ -2,7 +2,8 @@ import RowMenu from '../../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import { Check } from 'lucide-react';
 import { formatMoney, isBigReceipt, statusOf, usDate } from '../../../utils/cardReceipts';
-import { askIsOpen, categoryText, chipShort, chipText, chipsShown, firstName, isPdfUrl, statusLine } from '../cardReceiptsView';
+import { askIsOpen, categoryText, chipText, chipsShown, firstName, isPdfUrl, statusLine } from '../cardReceiptsView';
+import { branchClass } from '../statements/statementsView';
 import type { Category, Expense } from '../types';
 
 export function StatusChip({ status }: { status: string }) {
@@ -41,12 +42,22 @@ const Tags = ({ e }: { e: Expense }) => (
   </>
 );
 
-/** The short approvals line for a table row ("Acct ✓ · Mgr –"), with the full words as its title. */
-const ChipsShort = ({ e }: { e: Expense }) => {
+/**
+ * A table row's Status (2026-11-24, the Customers tab's look, as on Statements): a dot and the status word, then
+ * a grey line — the approvals while it waits ("Accounting ✓ · Manager or Admin –", full words in its title) or
+ * what's still owed — and its tags (Lost receipt, Recurring, Asked …).
+ */
+export function ExpenseStatus({ e, categories }: { e: Expense; categories: Category[] }) {
+  const s = statusOf(e.status);
   const chips = e.status === 'waiting' ? chipsShown(e) : [];
-  if (!chips.length) return null;
-  return <div className="ccr-sub ccr-appr-short" title={chips.map(chipText).join(' · ')}>{chips.map(chipShort).join(' · ')}</div>;
-};
+  const detail = chips.length ? chips.map(chipText).join(' · ') : statusLine(e, categories);
+  return (
+    <span className="ccr-stage">
+      <span className="ccr-stage-l"><span className={`ccr-sdot is-${s?.colour || 'draft'}`} aria-hidden="true" />{s?.label || e.status}<Tags e={e} /></span>
+      {detail ? <span className="ccr-stage-d">{detail}</span> : null}
+    </span>
+  );
+}
 
 /** Ticking receipts for Send reminder…: who may remind, what's ticked. */
 export type ListSelection = {
@@ -99,7 +110,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
           const canTick = ticking && Boolean(selection?.selectable(e));
           const ticked = Boolean(selection?.selected.has(e.id));
           return (
-            <button key={e.id} type="button" className={`ccr-card${ticking ? ' is-ticking' : ''}${ticked ? ' is-ticked' : ''}`}
+            <button key={e.id} type="button" className={`ccr-card${ticking ? ' is-ticking' : ''}${ticked ? ' is-ticked' : ''}${e.status === 'missing' ? ' is-miss' : ''}`}
               disabled={ticking && !canTick}
               aria-pressed={ticking ? ticked : undefined}
               onClick={() => (ticking ? selection!.onToggle(e.id) : onOpen(e))}>
@@ -130,16 +141,16 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
                 <input type="checkbox" aria-label="Select all shown" checked={selection.allShown} onChange={selection.onToggleAll} />
               </th>
             ) : null}
-            <th>Date</th>{showHolder ? <th>Cardholder</th> : null}<th>Merchant</th><th className="ccr-col-wide">Category</th>
+            <th>Date</th>{showHolder ? <th>Cardholder &amp; card</th> : null}<th>Merchant</th><th className="ccr-col-wide">Category</th>
             <th className="ccr-num">Amount</th><th>Status</th><th className="ccr-col-wide">Receipt</th>
             {rowActions ? <th className="ccr-act" aria-label="Actions" /> : null}
           </tr>
         </thead>
         <tbody>
           {rows.map((e) => {
-            const line = statusLine(e, categories);
+            const rowClass = [selection?.selected.has(e.id) ? 'is-ticked' : '', e.status === 'missing' ? 'is-miss' : ''].filter(Boolean).join(' ');
             return (
-              <tr key={e.id} onClick={() => onOpen(e)} className={selection?.selected.has(e.id) ? 'is-ticked' : undefined}>
+              <tr key={e.id} onClick={() => onOpen(e)} className={rowClass || undefined}>
                 {selection ? (
                   <td className="ccr-sel" onClick={(ev) => ev.stopPropagation()}>
                     {selection.selectable(e) ? (
@@ -148,21 +159,22 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
                     ) : null}
                   </td>
                 ) : null}
-                <td style={{ whiteSpace: 'nowrap' }}>
+                <td className="ccr-st-date">
                   <button type="button" className="ccr-link-btn" onClick={(ev) => { ev.stopPropagation(); onOpen(e); }}
                     style={{ all: 'unset', cursor: 'pointer' }} aria-label={`Open ${e.merchant} ${formatMoney(e.cents)}`}>
                     {usDate(e.date)}
                   </button>
                 </td>
-                {showHolder ? <td><div className="ccr-who"><b>{e.holderName}</b><span>{e.cardLabel}{e.location ? ` · ${e.location}` : ''}</span></div></td> : null}
-                <td>{e.merchant}</td>
+                {showHolder ? (
+                  <td>
+                    <div className="ccr-st-who"><span className="ccr-av" aria-hidden="true">{(e.holderName || '?')[0].toUpperCase()}</span><span className="ccr-st-name">{e.holderName}</span></div>
+                    <div className="ccr-st-card">{e.location ? <span className={`ccr-branch ${branchClass(e.location)}`}>{e.location}</span> : null}<span>{e.cardLabel}</span></div>
+                  </td>
+                ) : null}
+                <td><div className="ccr-st-m">{e.merchant}</div></td>
                 <td className="ccr-col-wide">{e.category ? categoryText(categories, e) : <span className="ccr-muted">Not picked</span>}</td>
                 <td className={`ccr-num ccr-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? '$150 or more' : undefined}>{formatMoney(e.cents)}</td>
-                <td>
-                  <div className="ccr-status-cell"><StatusChip status={e.status} /><Tags e={e} /></div>
-                  <ChipsShort e={e} />
-                  {line ? <div className="ccr-sub">{line}</div> : null}
-                </td>
+                <td><ExpenseStatus e={e} categories={categories} /></td>
                 <td className="ccr-col-wide"><Thumb e={e} /></td>
                 {rowActions ? (
                   <td className="ccr-act" onClick={(ev) => ev.stopPropagation()}>

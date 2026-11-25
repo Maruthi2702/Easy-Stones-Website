@@ -13,11 +13,12 @@
 /* ── The lines (2026-11-24, claude.ai artifact "Statement row colours", board C) ──
    The Customers table's look: the row says matched (green) or waiting for its receipt (red) by its background,
    lines that need no receipt fade, the Status column is a dot and a word with a grey line under it. */
-.ccr-st {
+/* On the page (.ccr), not just this tab: Expenses' Missing receipt rows use the same red. */
+.ccr {
   --ccr-row-ok: rgba(74, 222, 128, 0.08); --ccr-row-ok-line: rgba(74, 222, 128, 0.22);
   --ccr-row-miss: rgba(248, 113, 113, 0.11); --ccr-row-miss-line: rgba(248, 113, 113, 0.28);
 }
-body.light-theme-active .ccr-st {
+body.light-theme-active .ccr {
   --ccr-row-ok: #edf8f1; --ccr-row-ok-line: #cfe9d8;
   --ccr-row-miss: #fdeeec; --ccr-row-miss-line: #f5cdc7;
 }
