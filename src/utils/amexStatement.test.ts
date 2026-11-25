@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   amexDay, amexCents, amexDigits, periodOf, readAmexActivity, kindOf, lineStatus, cardForDigits, suggestHolder,
-  unknownCards, planMatches, merchantOf, statusCounts, isNearMatch, nearMatches, pairRefunds, type MatchLine, type MatchExpense
+  unknownCards, planMatches, merchantOf, missingFromFor, MISSING_FROM_BY_BANK, statusCounts, isNearMatch, nearMatches, pairRefunds, type MatchLine, type MatchExpense
 } from './amexStatement.ts';
 
 const HEADER = ['Date', 'Receipt', 'Description', 'Card Member', 'Account #', 'Amount', 'Extended Details', 'Appears On Your Statement As', 'Address', 'City/State', 'Zip Code', 'Country', 'Reference', 'Category'];
@@ -214,6 +214,31 @@ describe('planMatches', () => {
   it('lets go of a voided upload and asks for the receipt again', () => {
     const plan = planMatches({ lines: [line('r1', '2026-11-10', 100, { expenseId: 'gone' })], expenses: [exp('gone', '2026-11-10', 100, { voided: true })] });
     expect(plan).toEqual({ link: [{ reference: 'r1', expenseId: null }], create: ['r1'], retire: [] });
+  });
+});
+
+describe('each bank has its own Missing-receipt start day (owner, 2026-11-25)', () => {
+  it('is Oct 26 for Amex and Oct 14 for Encore', () => {
+    expect(MISSING_FROM_BY_BANK).toEqual({ amex: '2026-10-26', encore: '2026-10-14' });
+    expect(missingFromFor('amex')).toBe('2026-10-26');
+    expect(missingFromFor('encore')).toBe('2026-10-14');
+    expect(missingFromFor()).toBe('2026-10-26');
+  });
+  it('asks for a receipt from a line’s own bank start, not the other bank’s', () => {
+    const base = { kind: 'charge' as const, cardId: 'CARD1', expenseStatus: null };
+    expect(lineStatus({ ...base, date: '2026-10-20', issuer: 'amex' })).toBe('before_start');
+    expect(lineStatus({ ...base, date: '2026-10-26', issuer: 'amex' })).toBe('missing');
+    expect(lineStatus({ ...base, date: '2026-10-20', issuer: 'encore' })).toBe('missing');
+    expect(lineStatus({ ...base, date: '2026-10-13', issuer: 'encore' })).toBe('before_start');
+  });
+  it('makes Missing rows per bank in one plan', () => {
+    const line = (reference: string, date: string, cents: number, over: Partial<MatchLine>): MatchLine => ({ reference, date, cents, kind: 'charge', cardId: 'CARD1', expenseId: null, ...over });
+    const plan = planMatches({
+      lines: [line('a1', '2026-10-25', 100, { issuer: 'amex' }), line('a2', '2026-10-26', 200, { issuer: 'amex' }),
+        line('e1', '2026-10-13', 300, { issuer: 'encore' }), line('e2', '2026-10-14', 400, { issuer: 'encore' })],
+      expenses: []
+    });
+    expect([...plan.create].sort()).toEqual(['a2', 'e2']);
   });
 });
 

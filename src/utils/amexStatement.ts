@@ -21,8 +21,15 @@
  *     ignored: staff don't attach receipts in the Amex app.
  */
 
-/** The first day a charge with no upload becomes a Missing receipt row (owner, 2026-11-20). */
-export const MISSING_FROM = '2026-11-01';
+/**
+ * The first day a charge with no upload becomes a Missing receipt row, **per bank** (owner, 2026-11-20 for the start;
+ * 2026-11-25: Amex moved from 2026-11-01 to 2026-10-26, and Encore starts 2026-10-14).
+ */
+export const MISSING_FROM_BY_BANK = { amex: '2026-10-26', encore: '2026-10-14' } as const;
+/** Amex's start, kept for callers that read one date; a line's own bank is `missingFromFor`. */
+export const MISSING_FROM = MISSING_FROM_BY_BANK.amex;
+/** The start for a bank ('amex' when it isn't said). */
+export const missingFromFor = (issuer?: string): string => (issuer === 'encore' ? MISSING_FROM_BY_BANK.encore : MISSING_FROM_BY_BANK.amex);
 /** How many days a receipt's date may be from Amex's (owner, 2026-11-20). */
 export const MATCH_DAYS = 2;
 
@@ -219,8 +226,9 @@ export const lineStatusLabel = (key: string) => LINE_STATUSES.find((s) => s.key 
 export function lineStatus(l: { kind: LineKind; date: string; cardId: string | null; expenseStatus: string | null; expenseVoided?: boolean;
   /** The card exists but nobody holds it yet: no one to ask for the receipt. */ unassigned?: boolean;
   /** The linked expense has a receipt or a lost-receipt reason (default true: older callers don't say). */ hasReceipt?: boolean;
-  /** A later refund returned this charge (pairRefunds): no receipt is asked for unless one is already on it. */ refunded?: boolean },
-  missingFrom = MISSING_FROM): LineStatus {
+  /** A later refund returned this charge (pairRefunds): no receipt is asked for unless one is already on it. */ refunded?: boolean;
+  /** The line's bank: each bank has its own start (`missingFromFor`) unless `missingFrom` is passed. */ issuer?: string },
+  missingFrom?: string): LineStatus {
   if (l.kind !== 'charge') return 'no_receipt';
   if (l.expenseStatus && !l.expenseVoided) {
     if (l.expenseStatus === 'missing') return l.refunded ? 'refunded' : 'missing';
@@ -228,7 +236,7 @@ export function lineStatus(l: { kind: LineKind; date: string; cardId: string | n
     return 'matched';
   }
   if (l.refunded) return 'refunded';
-  if (l.date < missingFrom) return 'before_start';
+  if (l.date < (missingFrom ?? missingFromFor(l.issuer))) return 'before_start';
   if (!l.cardId) return 'no_card';
   if (l.unassigned) return 'unassigned';
   return 'missing';
@@ -299,7 +307,7 @@ export function unknownCards(lines: readonly { digits: string; cardMember: strin
 
 export const daysApart = (a: string, b: string) => Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86400000;
 
-export type MatchLine = { reference: string; date: string; cents: number; kind: LineKind; cardId: string | null; expenseId: string | null };
+export type MatchLine = { reference: string; date: string; cents: number; kind: LineKind; cardId: string | null; expenseId: string | null; /** the line's bank, for its own start day */ issuer?: string };
 export type MatchExpense = { id: string; cardId: string; date: string; cents: number; status: string; voided: boolean; createdAt?: string | Date };
 export type MatchPlan = {
   /** Lines to point at an upload (or away from a voided one: expenseId null). */
@@ -317,7 +325,7 @@ export type MatchPlan = {
  * has; a Missing receipt row is swapped for a real upload when one appears.
  * A charge from `missingFrom` on with no upload gets a Missing receipt row.
  */
-export function planMatches({ lines, expenses, missingFrom = MISSING_FROM }: {
+export function planMatches({ lines, expenses, missingFrom }: {
   lines: readonly MatchLine[]; expenses: readonly MatchExpense[]; missingFrom?: string;
 }): MatchPlan {
   const plan: MatchPlan = { link: [], create: [], retire: [] };
@@ -345,7 +353,7 @@ export function planMatches({ lines, expenses, missingFrom = MISSING_FROM }: {
     }
     if (current && !current.voided) continue; // its Missing receipt row stays
     if (current) plan.link.push({ reference: l.reference, expenseId: null });
-    if (l.date >= missingFrom) plan.create.push(l.reference);
+    if (l.date >= (missingFrom ?? missingFromFor(l.issuer))) plan.create.push(l.reference);
   }
   return plan;
 }

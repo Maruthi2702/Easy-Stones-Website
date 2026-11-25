@@ -10,7 +10,7 @@ import type { Db } from '../db/copy/plan.ts';
 import { newId } from '../db/ids.ts';
 import { runWorkbookParse } from '../utils/runWorkbookParse.ts';
 import { CARD_RECEIPTS, isMonth, suggestCardLabel } from '../utils/cardReceipts.ts';
-import { MISSING_FROM, suggestHolder, issuerLabel, type Issuer } from '../utils/amexStatement.ts';
+import { missingFromFor, suggestHolder, issuerLabel, type Issuer } from '../utils/amexStatement.ts';
 import type { Loose } from '../types/records.ts';
 
 /**
@@ -171,7 +171,7 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
         res.json({
           ...result,
           period: read.period,
-          missingFrom: MISSING_FROM,
+          missingFrom: missingFromFor(issuer),
           unknownCards: result.unknownCards.map((c) => ({ ...c, suggestedUserId: suggestHolder(people, c.cardMember)?.id ?? '' })),
           people,
           preview

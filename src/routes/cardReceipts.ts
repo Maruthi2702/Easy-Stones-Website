@@ -26,7 +26,7 @@ import { teamOfRequest } from '../services/teamDirectory.ts';
 import { displayNameOf } from '../utils/salesReps.ts';
 import { ALL_PEOPLE } from '../utils/teamScope.ts';
 import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup, nearReceiptsOf, matchByHand, statementMatches, NearMatchError } from '../db/cardStatements/hooks.ts';
-import { MISSING_FROM } from '../utils/amexStatement.ts';
+import { missingFromFor } from '../utils/amexStatement.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, statusAfterAnyEdit, anyoneMayEdit, deleteReasonProblem, missingFor, holderMayEdit, managerMayEdit, changeSummary, possibleRepeat, centsText,
@@ -187,7 +187,7 @@ async function viewsOf(rows: readonly Loose[], viewer: ApprovalViewer) {
     const issuer = issuers.get(String(e.cardId));
     // Matched = a statement line answers it. Not matched only counts from the day the check began and on a bank we read
     // statements for; before that (or off Postgres) nothing is known, so nothing is claimed.
-    const checked = (issuer === 'amex' || issuer === 'encore') && String(e.date ?? '') >= MISSING_FROM;
+    const checked = (issuer === 'amex' || issuer === 'encore') && String(e.date ?? '') >= missingFromFor(issuer);
     const onStatement = !linked ? null : linked.has(String(e._id ?? e.id ?? '').toLowerCase()) ? true : checked ? false : null;
     return expenseView(e, viewer, roles.get(String(e.userId)) ?? '', issuer, onStatement);
   });

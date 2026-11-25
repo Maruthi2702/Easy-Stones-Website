@@ -25,7 +25,7 @@ import { isAdminRole } from '../../utils/receiptApproval.ts';
 import { formatMoney, usDate } from '../../utils/cardReceipts.ts';
 import { lineStage, pacificDay, type LineStage, type StageExpense } from '../../utils/statementStage.ts';
 import {
-  MISSING_FROM, MATCH_DAYS, kindOf, lineStatus, planMatches, cardForDigits, merchantOf, statusCounts, unknownCards, daysApart, issuerLabel,
+  MISSING_FROM_BY_BANK, missingFromFor, MATCH_DAYS, kindOf, lineStatus, planMatches, cardForDigits, merchantOf, statusCounts, unknownCards, daysApart, issuerLabel,
   NEAR_DAYS, isNearMatch, nearMatches, pairRefunds, REFUND_DAYS,
   type AmexLine, type Issuer, type LineKind, type LineStatus
 } from '../../utils/amexStatement.ts';
@@ -80,7 +80,7 @@ async function refundedOf(c: Conn, charges: readonly RefundCharge[]): Promise<Se
  * check; a person can still confirm one by hand from a Missing receipt row ("This is my receipt").
  * With no `bank` (nothing says which) every bank is checked, each on its own.
  */
-async function check(tx: Conn, by: Actor, missingFrom: string, bank?: Issuer): Promise<CheckResult> {
+async function check(tx: Conn, by: Actor, missingFrom: string | undefined, bank?: Issuer): Promise<CheckResult> {
   const result: CheckResult = { linked: 0, created: 0, retired: 0, cardsFound: 0 };
   const thisBank = bank ? eq(lines.issuer, bank) : undefined;
 
@@ -151,7 +151,7 @@ async function check(tx: Conn, by: Actor, missingFrom: string, bank?: Issuer): P
       // An Admin's waiting stand-in counts as a Missing receipt row here: an upload replaces it, it never answers a charge.
       status: isPlaceholder(c) ? 'missing' : c.status, voided: Boolean(c.voidedAt), createdAt: c.createdAt }));
   const plan = planMatches({
-    lines: waiting.map(w => ({ reference: w.reference, date: w.date, cents: w.cents, kind: w.kind as LineKind, cardId: holderOf.get(w.cardId!) ?? w.cardId, expenseId: w.expenseId })),
+    lines: waiting.map(w => ({ reference: w.reference, date: w.date, cents: w.cents, kind: w.kind as LineKind, cardId: holderOf.get(w.cardId!) ?? w.cardId, expenseId: w.expenseId, issuer: w.issuer })),
     expenses, missingFrom
   });
 
@@ -251,7 +251,7 @@ export async function approveMonthWithoutReceipts(month: string, by: Actor, { pr
 }
 
 /** What an upload found: its own lines' statuses, the cards it couldn't place, what the check did. */
-async function summaryOf(tx: Conn, references: string[], missingFrom: string, did: CheckResult) {
+async function summaryOf(tx: Conn, references: string[], missingFrom: string | undefined, did: CheckResult) {
   const mine = await linesWhere(tx, inArray(lines.reference, references), missingFrom);
   const counts = statusCounts(mine);
   return {
@@ -274,7 +274,8 @@ export async function importStatement(input: {
   missingFrom?: string; preview?: boolean; beforeCheck?: (tx: Db) => Promise<void>;
 }, db?: Db): Promise<StatementSummary & { importId: string; added: number; known: number }> {
   const d = db ?? await appDb();
-  const missingFrom = input.missingFrom ?? MISSING_FROM;
+  // Each bank has its own start day (missingFromFor); `input.missingFrom` overrides both (tests).
+  const missingFrom = input.missingFrom;
   const importId = newId();
   const issuer: Issuer = input.issuer ?? 'amex';
   const references = input.lines.map(l => l.reference);
@@ -342,7 +343,7 @@ export async function importStatement(input: {
 }
 
 /** The check alone (after a card is set up or changed): only `issuer`'s bank when given, else each bank on its own. */
-export async function recheck(by: Actor, { missingFrom = MISSING_FROM, beforeCheck, issuer }: { missingFrom?: string; beforeCheck?: (tx: Db) => Promise<void>; issuer?: Issuer } = {}, db?: Db) {
+export async function recheck(by: Actor, { missingFrom, beforeCheck, issuer }: { missingFrom?: string; beforeCheck?: (tx: Db) => Promise<void>; issuer?: Issuer } = {}, db?: Db) {
   const d = db ?? await appDb();
   return d.transaction(async tx => {
     await lock(tx);
@@ -530,7 +531,7 @@ const askOf = (v: unknown) => {
   return a ? { toName: String(a.toName ?? ''), answeredAt: (a.answeredAt as string | Date | null) ?? null } : null;
 };
 
-async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: string): Promise<StatementLineView[]> {
+async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom?: string): Promise<StatementLineView[]> {
   const rows = await q(c).select({
     l: lines, cardLabel: companyCards.label, cardLocation: companyCards.location, holderId: companyCards.userId,
     displayName: users.displayName, username: users.username, holderRole: users.role, homeLocation: locations.name,
@@ -552,7 +553,7 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: s
     const kind = r.l.kind as LineKind;
     const status = lineStatus({
       kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided),
-      hasReceipt: Boolean(r.expenseReceipt || r.expenseLost), refunded: refunded.has(r.l.reference)
+      hasReceipt: Boolean(r.expenseReceipt || r.expenseLost), refunded: refunded.has(r.l.reference), issuer: r.l.issuer
     }, missingFrom);
     const holderName = r.displayName || r.username || '';
     const expense: StageExpense | null = r.expenseStatus && !r.expenseVoided ? {
@@ -574,7 +575,7 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom: s
 }
 
 /** One month of lines (by Amex's day), the cards no line could be placed on, how many receipts are still missing, and the uploads. */
-export async function statementView(month: string, { missingFrom = MISSING_FROM }: { missingFrom?: string } = {}, db?: Db) {
+export async function statementView(month: string, { missingFrom }: { missingFrom?: string } = {}, db?: Db) {
   const d = db ?? await appDb();
   const from = `${month}-01`;
   const [y, m] = month.split('-').map(Number);
@@ -590,7 +591,9 @@ export async function statementView(month: string, { missingFrom = MISSING_FROM 
     // Charges on a card nobody holds yet have no Missing row to count, but they are still missing (shown as such).
     d.select({ issuer: lines.issuer, n: sql<number>`count(*)::int`, cents: sql<number>`coalesce(sum(${lines.cents}), 0)::bigint` }).from(lines)
       .innerJoin(companyCards, eq(companyCards.id, lines.cardId))
-      .where(and(isNull(companyCards.userId), isNull(lines.expenseId), eq(lines.kind, 'charge'), gte(lines.day, missingFrom)))
+      .where(and(isNull(companyCards.userId), isNull(lines.expenseId), eq(lines.kind, 'charge'),
+        missingFrom ? gte(lines.day, missingFrom)
+          : or(and(eq(lines.issuer, 'amex'), gte(lines.day, MISSING_FROM_BY_BANK.amex)), and(eq(lines.issuer, 'encore'), gte(lines.day, MISSING_FROM_BY_BANK.encore)))))
       .groupBy(lines.issuer),
     d.select().from(imports).orderBy(desc(imports.at)).limit(20)
   ]);
@@ -606,7 +609,8 @@ export async function statementView(month: string, { missingFrom = MISSING_FROM 
       id: i.id, issuer: i.issuer as Issuer, fileName: i.fileName, periodFrom: i.periodFrom, periodTo: i.periodTo, lines: i.lines, added: i.added,
       chargesCents: i.chargesCents, summary: i.summary, byName: i.byName, at: i.at
     })),
-    missingFrom
+    missingFrom: missingFrom ?? MISSING_FROM_BY_BANK.amex,
+    missingFromByBank: missingFrom ? { amex: missingFrom, encore: missingFrom } : { ...MISSING_FROM_BY_BANK }
   };
 }
 

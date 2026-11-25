@@ -52,7 +52,7 @@ const line = (occurred: string, merchant: string, amount: number, ref: string, c
 const FILE_ROWS = [
   line('11/05/26', 'CAFE ONE', 40, 'E-matched'),
   line('11/06/26', 'FUEL STOP', 12, 'E-missing'),
-  line('10/20/26', 'OLD LUNCH', 9.99, 'E-old'),
+  line('10/10/26', 'OLD LUNCH', 9.99, 'E-old'), // before Encore's start day (2026-10-14)
   line('11/07/26', 'TOOL SHOP', 25, 'E-nocard', '448462******5555', 'SRINI MANAM'),
   line('11/08/26', 'AUTO PAYMENT DEDUCTION', -500, '', '', '', 'C'),
   line('11/09/26', 'ANNUAL FEE', 25, '')

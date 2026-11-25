@@ -1620,7 +1620,7 @@ card, exact amount, at most 2 days apart**, automatic (the cardholder enters the
 tip — no hand-linking). **Credits / payments / refunds and interest / fees need no receipt**
 (`kindOf`); freight and subscriptions do. A charge with no upload becomes a real `missing`
 expense for its holder (Amex's day, merchant, amount), which they finish like a draft; only charges
-from `MISSING_FROM` (**2026-11-01**) do — earlier ones are listed and matched only. A receipt saved
+from the bank's start (`MISSING_FROM_BY_BANK` / `missingFromFor`: **Amex 2026-10-26, Encore 2026-10-14**, owner, 2026-11-25; Amex was 2026-11-01) do — earlier ones are listed and matched only. A receipt saved
 later claims its charge and voids that Missing row (`afterReceiptSaved` in `POST /expenses`, which
 no longer calls a Missing row a repeat); an expense that answers a charge can't be voided. Cards
 Amex names that nobody set up are listed (only cards with a charge), picked in the upload or the
@@ -1720,7 +1720,7 @@ owed under it (`ExpenseStatus`), a Missing receipt row is green like any row on 
 expenses as well"). The server adds `onStatement` to every expense it sends (`viewsOf` in `routes/cardReceipts.ts`, from
 `linkedExpenseIds` in `db/cardStatements`, through `statementMatches` in its hooks): **true** when a statement line points at the expense
 (an upload matched to its charge, or the Missing receipt row made for it), **false** when none does and the expense is on an Amex / Encore
-card dated **2026-11-01 or later** (`MISSING_FROM`; the same start as the check), **null** otherwise (earlier days, another bank, or
+card dated on or after its bank's start (`missingFromFor`: Amex 2026-10-26, Encore 2026-10-14; the same start as the check), **null** otherwise (earlier days, another bank, or
 Credit Card Receipts still on MongoDB / the lookup failed — nothing is claimed). The row's background says it (`rowTone` in
 `ExpenseList.tsx`): **green** on the statement — a Missing receipt row too, since it is made from a report line (owner, 2026-11-24: green is the only row colour; "missing receipt also, if matched with the report, has the green background") — and **plain for everything
 else** (a receipt not on a report yet, or not known) — not matched (owner, same day:
