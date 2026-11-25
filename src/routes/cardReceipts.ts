@@ -23,7 +23,8 @@ import { getFileStore, type FileStore } from '../services/fileStore.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
 import { displayNameOf } from '../utils/salesReps.ts';
 import { ALL_PEOPLE } from '../utils/teamScope.ts';
-import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup, nearReceiptsOf, matchByHand, NearMatchError } from '../db/cardStatements/hooks.ts';
+import { afterReceiptSaved, afterCardSaved, amexChargeOf, amexNameLookup, nearReceiptsOf, matchByHand, statementMatches, NearMatchError } from '../db/cardStatements/hooks.ts';
+import { MISSING_FROM } from '../utils/amexStatement.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, statusAfterAnyEdit, anyoneMayEdit, deleteReasonProblem, missingFor, holderMayEdit, managerMayEdit, changeSummary, possibleRepeat, centsText,
@@ -126,7 +127,7 @@ const stateOf = (e: Loose, holderRole: string): ApprovalState => ({
   addedById: e.addedById ? String(e.addedById) : null
 });
 
-const expenseView = (e: Loose, viewer: ApprovalViewer, holderRole = '', issuer = 'amex') => {
+const expenseView = (e: Loose, viewer: ApprovalViewer, holderRole = '', issuer = 'amex', onStatement: boolean | null = null) => {
   const s = stateOf(e, holderRole);
   const actions = {
     approve: slotFor(viewer, s), sendBack: canSendBack(viewer, s), ask: canAsk(viewer, s), withdrawAsk: canWithdrawAsk(viewer, s),
@@ -138,6 +139,8 @@ const expenseView = (e: Loose, viewer: ApprovalViewer, holderRole = '', issuer =
     category: e.category || '', subcategory: e.subcategory || '', customerId: e.customerId || '', customerName: e.customerName || '', attendees: e.attendees || [],
     purpose: e.purpose || '', note: e.note || '', recurring: Boolean(e.recurring), receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || '',
     status: e.status, approval: s.approval ?? null, secondApproval: s.secondApproval ?? null, ask: s.ask ?? null, sentBack: decisionView(e.sentBack, false),
+    /** On a bank statement's line (true), not on one yet (false) or not known (null) — the Expenses list's green / amber rows. */
+    onStatement,
     voided: e.voidedAt ? { at: e.voidedAt, by: e.voidedBy || '', reason: e.voidReason || '' } : null,
     createdAt: e.createdAt, updatedAt: e.updatedAt, history: e.history || [],
     reminders: (e.reminders && typeof e.reminders === 'object' ? e.reminders : {}) as Loose,
@@ -166,8 +169,15 @@ async function holderRolesOf(rows: readonly Loose[]): Promise<Map<string, string
 
 /** Expenses as the screens get them: each with its card's bank and its holder's role. */
 async function viewsOf(rows: readonly Loose[], viewer: ApprovalViewer) {
-  const [issuers, roles] = await Promise.all([issuersByCard(), holderRolesOf(rows)]);
-  return rows.map((e) => expenseView(e, viewer, roles.get(String(e.userId)) ?? '', issuers.get(String(e.cardId))));
+  const [issuers, roles, linked] = await Promise.all([issuersByCard(), holderRolesOf(rows), statementMatches(rows.map((e) => String(e._id ?? e.id ?? '')))]);
+  return rows.map((e) => {
+    const issuer = issuers.get(String(e.cardId));
+    // Matched = a statement line answers it. Not matched only counts from the day the check began and on a bank we read
+    // statements for; before that (or off Postgres) nothing is known, so nothing is claimed.
+    const checked = (issuer === 'amex' || issuer === 'encore') && String(e.date ?? '') >= MISSING_FROM;
+    const onStatement = !linked ? null : linked.has(String(e._id ?? e.id ?? '').toLowerCase()) ? true : checked ? false : null;
+    return expenseView(e, viewer, roles.get(String(e.userId)) ?? '', issuer, onStatement);
+  });
 }
 /** One expense as the screens get it. */
 const viewOf = async (e: Loose, viewer: ApprovalViewer) => (await viewsOf([e], viewer))[0]!;

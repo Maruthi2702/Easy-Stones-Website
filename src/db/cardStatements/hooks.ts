@@ -3,7 +3,7 @@
  * Both do nothing while Credit Card Receipts is on MongoDB (the check is Postgres only).
  */
 import { areaOn } from '../appDb.ts';
-import { claimUpload, linkedLine, recheck, amexNamesByDigits, nearReceiptsFor, matchReceiptToCharge, NearMatchError, type NearMatchList } from './index.ts';
+import { claimUpload, linkedExpenseIds, linkedLine, recheck, amexNamesByDigits, nearReceiptsFor, matchReceiptToCharge, NearMatchError, type NearMatchList } from './index.ts';
 
 export { NearMatchError };
 
@@ -68,6 +68,21 @@ export async function amexChargeOf(expenseId: string) {
   } catch (error) {
     console.error('[card-statements] reading an expense’s Amex charge failed:', error);
     throw error;
+  }
+}
+
+/**
+ * Which of these expenses are matched to a line on a bank statement, for the Expenses list's green / amber rows.
+ * null = not known (Credit Card Receipts is on MongoDB, or the lookup failed): the screen then says nothing,
+ * never "not matched". Never fails the list.
+ */
+export async function statementMatches(ids: readonly string[]): Promise<Set<string> | null> {
+  if (!on()) return null;
+  try {
+    return await linkedExpenseIds(ids);
+  } catch (error) {
+    console.error('[card-statements] reading which expenses are on a statement failed:', error);
+    return null;
   }
 }
 

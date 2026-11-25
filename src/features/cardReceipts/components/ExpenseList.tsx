@@ -34,8 +34,18 @@ export function Thumb({ e }: { e: Expense }) {
   return <span className={`ccr-thumb ${e.lostReason ? 'is-lost' : 'is-none'}`} aria-label={e.lostReason ? 'Lost receipt' : 'No receipt yet'} />;
 }
 
+/**
+ * A row's background says whether a line on a bank statement answers it (2026-11-24): green = matched, red = a
+ * charge still waiting for its receipt (Missing receipt, which is on the statement by definition), amber = not on
+ * a statement yet, none = not known (before the check began, or off Postgres).
+ */
+const rowTone = (e: Expense) => (e.status === 'missing' ? 'is-miss' : e.onStatement === true ? 'is-ok' : e.onStatement === false ? 'is-off' : '');
+const toneTitle = (e: Expense) => (e.status === 'missing' ? 'On the statement, no receipt yet' : e.onStatement === true ? 'Matched with a line on the statement'
+  : e.onStatement === false ? 'Not on a statement yet' : undefined);
+
 const Tags = ({ e }: { e: Expense }) => (
   <>
+    {e.onStatement === false && e.status !== 'missing' ? <span className="ccr-tag">Not on statement</span> : null}
     {e.lostReason ? <span className="ccr-tag">Lost receipt</span> : null}
     {e.recurring ? <span className="ccr-tag">Recurring</span> : null}
     {askIsOpen(e) ? <span className="ccr-tag is-ask">Asked {firstName(e.ask!.toName)}</span> : null}
@@ -110,7 +120,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
           const canTick = ticking && Boolean(selection?.selectable(e));
           const ticked = Boolean(selection?.selected.has(e.id));
           return (
-            <button key={e.id} type="button" className={`ccr-card${ticking ? ' is-ticking' : ''}${ticked ? ' is-ticked' : ''}${e.status === 'missing' ? ' is-miss' : ''}`}
+            <button key={e.id} type="button" className={`ccr-card${ticking ? ' is-ticking' : ''}${ticked ? ' is-ticked' : ''}${rowTone(e) ? ` ${rowTone(e)}` : ''}`}
               disabled={ticking && !canTick}
               aria-pressed={ticking ? ticked : undefined}
               onClick={() => (ticking ? selection!.onToggle(e.id) : onOpen(e))}>
@@ -148,9 +158,9 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
         </thead>
         <tbody>
           {rows.map((e) => {
-            const rowClass = [selection?.selected.has(e.id) ? 'is-ticked' : '', e.status === 'missing' ? 'is-miss' : ''].filter(Boolean).join(' ');
+            const rowClass = [selection?.selected.has(e.id) ? 'is-ticked' : '', rowTone(e)].filter(Boolean).join(' ');
             return (
-              <tr key={e.id} onClick={() => onOpen(e)} className={rowClass || undefined}>
+              <tr key={e.id} onClick={() => onOpen(e)} className={rowClass || undefined} title={toneTitle(e)}>
                 {selection ? (
                   <td className="ccr-sel" onClick={(ev) => ev.stopPropagation()}>
                     {selection.selectable(e) ? (

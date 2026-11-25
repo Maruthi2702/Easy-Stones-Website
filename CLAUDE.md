@@ -1668,6 +1668,17 @@ A **phone keeps the Filters panel**. Rows: Cardholder & card (avatar, branch pil
 owed under it (`ExpenseStatus`), **Missing receipt rows red** (`tr.is-miss`, the `--ccr-row-miss` colours now on `.ccr-`). Dropped
 `StatusTiles.tsx`. An empty list with a filter on says "Nothing matches", never "No receipts for <month>".
 
+**Expenses say whether a bank statement line answers them** (2026-11-24, owner: "show if they are matched with the Amex report or not in
+expenses as well"). The server adds `onStatement` to every expense it sends (`viewsOf` in `routes/cardReceipts.ts`, from
+`linkedExpenseIds` in `db/cardStatements`, through `statementMatches` in its hooks): **true** when a statement line points at the expense
+(an upload matched to its charge, or the Missing receipt row made for it), **false** when none does and the expense is on an Amex / Encore
+card dated **2026-11-01 or later** (`MISSING_FROM`; the same start as the check), **null** otherwise (earlier days, another bank, or
+Credit Card Receipts still on MongoDB / the lookup failed — nothing is claimed). The row's background says it (`rowTone` in
+`ExpenseList.tsx`): **green** on the statement, **red** a Missing receipt row (on the statement, no receipt yet), **amber** not on a
+statement yet (with a "Not on statement" tag, so colour isn't the only signal), plain = not known; a hover `title` says the same. A
+**Statement** dropdown (All / On the statement / Not on the statement, with counts; a field in the phone's Filters panel too) filters
+them (`ReceiptFilters.statement`, `statementState`). The MongoDB / Postgres parity test leaves `onStatement` out (Postgres-only data).
+
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
 
 Design and the owner's calls: the claude.ai artifact **Supplier Portal Design**

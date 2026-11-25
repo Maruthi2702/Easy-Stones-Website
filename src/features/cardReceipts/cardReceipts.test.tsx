@@ -17,9 +17,10 @@ const exp = (id: string, o: Record<string, unknown> = {}) => ({
   attendees: [], purpose: '', note: '', recurring: false, receiptUrl: 'https://res.cloudinary.com/x/r.webp', lostReason: '', status: 'approved',
   approval: null, sentBack: null, voided: null, createdAt: '2026-10-03T17:21:00Z', updatedAt: '2026-10-03T17:21:00Z', history: [], mine: true, canDecide: false, ...o
 });
+// onStatement: a is on a bank statement line, b is not on one yet, the rest aren't known.
 const EXPENSES = [
-  exp('a'),
-  exp('b', { merchant: 'JINYA Ramen Bar', cents: 11579, category: 'customer_lunch', customerId: 'cu1', customerName: 'Cascade Countertops', attendees: ['Maruthi Ponugupati', 'J. Alvarez'], status: 'waiting', date: '2026-10-09' }),
+  exp('a', { onStatement: true }),
+  exp('b', { merchant: 'JINYA Ramen Bar', cents: 11579, category: 'customer_lunch', customerId: 'cu1', customerName: 'Cascade Countertops', attendees: ['Maruthi Ponugupati', 'J. Alvarez'], status: 'waiting', date: '2026-10-09', onStatement: false }),
   exp('c', { merchant: 'Kashish Cuisine of India', cents: 5729, category: 'customer_lunch', status: 'draft' }),
   exp('d', { userId: 'u2', holderName: 'Dana Whitfield', cardLabel: 'DANA41008', location: 'Kent', merchant: 'Staples', cents: 8642, category: '', status: 'sent_back', mine: false, sentBack: { by: 'x', byName: 'Dee', at: '2026-10-07T00:00:00Z', comment: 'Pick a category' } })
 ];
@@ -120,6 +121,27 @@ describe('the Credit Card Receipts page', () => {
     expect(screen.getByText('Kashish Cuisine of India')).toBeTruthy();
     expect(menu('Status').textContent).toContain('Draft');
     expect(screen.queryByLabelText('Add receipt')).toBeNull();
+  });
+
+  it('colours each row by whether a bank statement line answers it, and filters by it', async () => {
+    await show(['view_all_card_receipts', 'export_card_receipts']);
+    const rowOf = (merchant: string) => [...document.querySelectorAll('.ccr-table tbody tr')].find((r) => r.textContent?.includes(merchant))!;
+    // Matched = green, not on a statement yet = amber (with a words tag, so colour isn't the only signal), not known = plain.
+    expect(rowOf('Kashish').className).toBe('');
+    expect(rowOf('JINYA').className).toBe('is-off');
+    expect(rowOf('JINYA').textContent).toContain('Not on statement');
+    expect(rowOf('JINYA').getAttribute('title')).toBe('Not on a statement yet');
+    const green = [...document.querySelectorAll('.ccr-table tbody tr.is-ok')];
+    expect(green).toHaveLength(1);
+    expect(green[0]!.getAttribute('title')).toBe('Matched with a line on the statement');
+    // The Statement dropdown counts and filters them.
+    fireEvent.click(menu('Statement'));
+    const options = [...document.querySelectorAll('.ccr-opt')].map((o) => (o.textContent || '').replace(/\s+/g, ' ').trim());
+    expect(options).toEqual(expect.arrayContaining([expect.stringMatching(/^On the statement.*1/), expect.stringMatching(/^Not on the statement.*1/)]));
+    fireEvent.click([...document.querySelectorAll('.ccr-opt')].find((o) => o.textContent?.startsWith('Not on the statement'))!);
+    expect(document.querySelectorAll('.ccr-table tbody tr')).toHaveLength(1);
+    expect(screen.getByText('JINYA Ramen Bar')).toBeTruthy();
+    expect(menu('Statement').className).toContain('set');
   });
 
   it('puts a count beside every dropdown choice and Clear all once one narrows the list', async () => {

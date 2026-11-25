@@ -475,6 +475,23 @@ export async function matchReceiptToCharge(placeholderId: string, receiptId: str
   });
 }
 
+/**
+ * Which of these expenses answer a line on a bank statement (an upload matched to its charge, or the Missing
+ * receipt row made for it) — the Expenses tab's "matched with the statement" (2026-11-24). In chunks, so a long
+ * list stays under the parameter limit.
+ */
+export async function linkedExpenseIds(ids: readonly string[], db?: Db): Promise<Set<string>> {
+  const clean = [...new Set(ids.map((i) => String(i ?? '').toLowerCase()).filter(Boolean))];
+  const found = new Set<string>();
+  if (!clean.length) return found;
+  const d = db ?? await appDb();
+  for (let i = 0; i < clean.length; i += 2000) {
+    const rows = await d.select({ id: lines.expenseId }).from(lines).where(inArray(lines.expenseId, clean.slice(i, i + 2000)));
+    for (const r of rows) if (r.id) found.add(String(r.id).toLowerCase());
+  }
+  return found;
+}
+
 /** The Amex charge an expense answers, if any. */
 export async function linkedLine(expenseId: string, db?: Db): Promise<string | null> {
   const d = db ?? await appDb();

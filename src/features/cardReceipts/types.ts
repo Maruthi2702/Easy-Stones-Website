@@ -48,6 +48,8 @@ export type Expense = {
   voided: { at: string; by: string; reason: string } | null;
   createdAt: string; updatedAt: string; history: { at: string; by: string; action: string; changes: string }[];
   mine: boolean;
+  /** A line on a bank statement answers it (true), none does yet (false), or that isn't known (null / missing). */
+  onStatement?: boolean | null;
   /** Added on the cardholder's behalf: who typed it (empty otherwise). They can't approve it. */
   addedByName?: string; addedById?: string;
   /** actions.approve != null || actions.answer. */ canDecide: boolean;

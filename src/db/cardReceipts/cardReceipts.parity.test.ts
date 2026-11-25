@@ -100,9 +100,12 @@ beforeAll(async () => {
 afterAll(async () => { await t?.close(); });
 
 type Api = ReturnType<typeof apiFor>;
+/** `onStatement` (which expenses a bank statement line answers) reads Postgres-only tables, so it isn't compared. */
+const withoutStatement = (v: unknown): unknown => Array.isArray(v) ? v.map(withoutStatement)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== 'onStatement').map(([k, x]) => [k, withoutStatement(x)])) : v;
 const apiFor = (user: Loose) => {
   const h = (r: request.Test) => r.set('x-test-user', JSON.stringify(user));
-  const done = async (r: request.Test) => { const x = await h(r); return { status: x.status, body: x.body }; };
+  const done = async (r: request.Test) => { const x = await h(r); return { status: x.status, body: withoutStatement(x.body) }; };
   return {
     get: (url: string) => done(request(app).get(`/api/card-receipts${url}`)),
     post: (url: string, body: Loose = {}) => done(request(app).post(`/api/card-receipts${url}`).send(body)),

@@ -193,6 +193,11 @@ describe('the Amex check', () => {
     // A second receipt of the same total has no charge left to answer.
     const again = await request(app).post('/api/card-receipts/expenses').send({ id: hex(100), date: '2026-11-06', merchant: 'Chevron', total: '12.00', confirmRepeat: true });
     expect(again.body.replacedMissing).toBeUndefined();
+    // The Expenses list says which receipts a statement line answers (green rows) and which none does yet (amber rows).
+    const listed: { id: string; onStatement: boolean | null }[] = (await request(app).get('/api/card-receipts/expenses?month=2026-11')).body.expenses;
+    expect(listed.find((e) => e.id === id)).toMatchObject({ onStatement: true });
+    expect(listed.find((e) => e.id === hex(100))).toMatchObject({ onStatement: false });
+    expect(res.body.expense.onStatement).toBe(true);
     who = ACCOUNTANT;
   });
 

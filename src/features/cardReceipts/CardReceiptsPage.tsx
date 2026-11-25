@@ -18,7 +18,7 @@ import { useCardReceipts } from './useCardReceipts';
 import { getAddForHolders, listAllExpenses, listMonthForExport } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
 import { writeExcel, writePdf } from './exportFiles';
-import { NO_FILTERS, TODO_SHOWN, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
+import { NO_FILTERS, STATEMENT_FILTERS, TODO_SHOWN, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
 import FilterMenu from './components/FilterMenu';
 import ExpenseList, { type ListSelection } from './components/ExpenseList';
 import ExpenseDrawer from './components/ExpenseDrawer';
@@ -117,6 +117,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
     return {
       status: Object.fromEntries([['all', n({ status: 'all' })], ...STATUSES.map((s) => [s.key, n({ status: s.key })])]) as Record<string, number>,
       bank: Object.fromEntries([['', n({ bank: '' })], ...BANK_FILTERS.map((b) => [b.key, n({ bank: b.key })])]) as Record<string, number>,
+      statement: Object.fromEntries([['', n({ statement: '' })], ...STATEMENT_FILTERS.map((s) => [s.key, n({ statement: s.key })])]) as Record<string, number>,
       category: Object.fromEntries([['', n({ category: '' })], ...categories.map((c) => [c.name, n({ category: c.name })])]) as Record<string, number>
     };
   }, [source, receiptFilters, categories]);
@@ -163,7 +164,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   // Waiting for me's queue (Needs Accounting / second approval / Asked of me) is a Filters field, only for approvers.
   const queueField = tab === 'waiting' && data.approver;
   const queueActive = queueField && waitFilter !== 'all';
-  const filtered = Boolean(peopleFilter.active || filters.category || filters.bank || filters.status !== 'all' || queueActive);
+  const filtered = Boolean(peopleFilter.active || filters.category || filters.bank || filters.statement || filters.status !== 'all' || queueActive);
   const clearFilters = () => { setFilters((f) => ({ ...NO_FILTERS, search: f.search })); peopleFilter.reset(); setWaitFilter('all'); };
 
   // A computer's filters (2026-11-24, the Customers tab's look): one dropdown per Filters field on the tab row, each
@@ -188,6 +189,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
       ) : null}
       <FilterMenu label="Status" value={filters.status} clearTo="all" onChange={(status) => patchFilters({ status })}
         choices={[{ value: 'all', label: 'All', count: counts.status.all }, ...STATUSES.map((s) => ({ value: s.key, label: s.label, count: counts.status[s.key], dot: s.colour }))]} />
+      {/* Matched with a line on a bank statement: green rows are on it, amber rows aren't yet (2026-11-24). */}
+      <FilterMenu label="Statement" value={filters.statement} clearTo="" onChange={(statement) => patchFilters({ statement })}
+        choices={[{ value: '', label: 'All', count: counts.statement[''] }, ...STATEMENT_FILTERS.map((s) => ({ value: s.key, label: s.label, count: counts.statement[s.key], dot: s.dot }))]} />
       <FilterMenu label="Category" value={filters.category} clearTo="" onChange={(category) => patchFilters({ category })} searchable={categories.length > 8}
         choices={[{ value: '', label: 'All', count: counts.category[''] }, ...categories.map((c) => ({ value: c.name, label: c.label, count: counts.category[c.name] ?? 0 }))]} />
       {people.length > 1 ? (
@@ -284,7 +288,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 active={filtered}
                 wide
                 onClear={clearFilters}
-                activeCount={(queueActive ? 1 : 0) + (peopleFilter.active ? 1 : 0) + (filters.category ? 1 : 0) + (filters.bank ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
+                activeCount={(queueActive ? 1 : 0) + (peopleFilter.active ? 1 : 0) + (filters.category ? 1 : 0) + (filters.bank ? 1 : 0) + (filters.statement ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
                 doneLabel={rows.length ? `Show ${rows.length} receipt${rows.length === 1 ? '' : 's'}` : 'No receipts match'}
               >
                 {/* Card, Status, Category, Cardholder — each choice says how many receipts it would show
@@ -314,6 +318,12 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                     <FormPicker id="ccr-f-status" value={filters.status} onChange={(status) => patchFilters({ status })}
                       options={[{ value: 'all', label: `Every status · ${counts.status.all}` }, ...STATUSES.map((s) => ({ value: s.key, label: `${s.label} · ${counts.status[s.key]}` }))]}
                       sheetTitle="Status" keepInForm />
+                  </div>
+                  <div className="lf-group">
+                    <label className="lf-group-label" htmlFor="ccr-f-statement">Statement</label>
+                    <FormPicker id="ccr-f-statement" value={filters.statement} onChange={(statement) => patchFilters({ statement })}
+                      options={[{ value: '', label: `All · ${counts.statement['']}` }, ...STATEMENT_FILTERS.map((s) => ({ value: s.key, label: `${s.label} · ${counts.statement[s.key]}` }))]}
+                      sheetTitle="Statement" keepInForm />
                   </div>
                   <div className="lf-group">
                     <label className="lf-group-label" htmlFor="ccr-f-category">Category</label>

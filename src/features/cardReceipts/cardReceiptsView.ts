@@ -13,9 +13,17 @@ export const categoryText = (categories: readonly Category[], e: { category: str
 
 /** What the Filters panel, the search box and the status tiles narrow the list to. */
 /** `people` is the cardholders ticked in the People filter; [] = everyone in view. */
-/** `bank`: '' (every bank), 'amex' or 'encore'. */
-export type ReceiptFilters = { search: string; status: string; people: string[]; category: string; bank: string };
-export const NO_FILTERS: ReceiptFilters = { search: '', status: 'all', people: [], category: '', bank: '' };
+/** `bank`: '' (every bank), 'amex' or 'encore'. `statement`: '' (all), 'on' (matched with a statement line) or 'off' (not on one yet). */
+export type ReceiptFilters = { search: string; status: string; people: string[]; category: string; bank: string; statement: string };
+export const NO_FILTERS: ReceiptFilters = { search: '', status: 'all', people: [], category: '', bank: '', statement: '' };
+
+/** The Statement filter's choices (2026-11-24): the Expenses list's green rows and amber rows. */
+export const STATEMENT_FILTERS = [
+  { key: 'on', label: 'On the statement', dot: 'ok' },
+  { key: 'off', label: 'Not on the statement', dot: 'wait' }
+] as const;
+/** 'on' / 'off' / '' (unknown) for one expense, as the rows and the filter read it. */
+export const statementState = (e: Pick<Expense, 'onStatement'>) => (e.onStatement === true ? 'on' : e.onStatement === false ? 'off' : '');
 
 export const categoryLabel = (categories: readonly Category[], name: string) =>
   categories.find((c) => c.name === name)?.label || (name ? name.replace(/_/g, ' ') : '');
@@ -28,6 +36,7 @@ export function visibleExpenses(list: readonly Expense[], f: ReceiptFilters, cat
   const base = list.filter((e) => !e.voided
     && (!f.people.length || f.people.includes(e.userId))
     && (!f.category || e.category === f.category)
+    && (!f.statement || statementState(e) === f.statement)
     && onBank(e, f.bank));
   const q = f.search.trim().toLowerCase();
   const rows = base.filter((e) => (f.status === 'all' || e.status === f.status)

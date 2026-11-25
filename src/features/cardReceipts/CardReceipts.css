@@ -156,9 +156,14 @@ body.light-theme-active .fm-overlay {
 .ccr-table tbody tr { cursor: pointer; }
 .ccr-table tbody tr:hover td { background: var(--ccr-hover); }
 /* Expenses: a Missing receipt row is red, as a charge waiting for its receipt is on Statements (2026-11-24). */
+/* Matched with a line on a bank statement = green; not on one yet = amber; a charge still waiting for its receipt = red. */
 .ccr-table tbody tr.is-miss td { background: var(--ccr-row-miss); border-bottom-color: var(--ccr-row-miss-line); }
-.ccr-table tbody tr.is-miss:hover td { background: var(--ccr-row-miss); filter: brightness(0.98); }
+.ccr-table tbody tr.is-ok td { background: var(--ccr-row-ok); border-bottom-color: var(--ccr-row-ok-line); }
+.ccr-table tbody tr.is-off td { background: var(--ccr-row-off); border-bottom-color: var(--ccr-row-off-line); }
+.ccr-table tbody tr.is-miss:hover td, .ccr-table tbody tr.is-ok:hover td, .ccr-table tbody tr.is-off:hover td { filter: brightness(0.97); }
 .ccr-card.is-miss { background: var(--ccr-row-miss); }
+.ccr-card.is-ok { background: var(--ccr-row-ok); }
+.ccr-card.is-off { background: var(--ccr-row-off); }
 .ccr-sdot.is-draft { background: #9aa3af; }
 .ccr-stage-l .ccr-tag { margin-left: 2px; }
 /* The tab row's Clear all (Customers' gold link) and the money per status in the pager's bar (where the tiles were). */
