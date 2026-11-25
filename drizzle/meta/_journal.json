@@ -267,6 +267,13 @@
       "when": 1795639509209,
       "tag": "0037_sales_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795640759648,
+      "tag": "0038_card_statement_rows",
+      "breakpoints": true
     }
   ]
 }

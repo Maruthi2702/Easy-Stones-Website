@@ -36,6 +36,8 @@ export type Expense = {
   date: string; merchant: string; cents: number; subtotalCents: number | null; taxCents: number | null; tipCents: number | null;
   category: string; subcategory: string; customerId: string; customerName: string; attendees: string[]; purpose: string; note: string; recurring: boolean;
   receiptUrl: string; lostReason: string; status: string;
+  /** '' for a receipt; refund / fee / refunded_charge for a row made from a bank statement line (no receipt needed). */
+  statementKind?: string;
   /** The Accounting approval. */ approval: Decision | null;
   /** The second approval ($150 and up). */ secondApproval?: Decision | null;
   ask?: Ask | null;

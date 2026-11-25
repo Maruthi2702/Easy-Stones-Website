@@ -1688,11 +1688,30 @@ Missing row is voided. Holder only; never automatic. A PUT that corrects the day
 the screen drops the Missing row it replaced.
 
 **Refunds, previews and replacements** (2026-11-24; review B7–B9): a refund pairs with its charge (`pairRefunds`: same bank and card,
-the exact amount back, up to 30 days after, never a card payment) and that charge reads **Refunded** — no Missing row is made, one
-already made is voided ("Charge refunded"). Nothing is stored: the pairing is worked out each check and each view. A **preview**
+the exact amount back, up to 30 days after, never a card payment) and that charge reads **Refunded** — no receipt is asked for. Since
+2026-11-25 it is no longer voided: see "Statement rows" below. Nothing is stored: the pairing is worked out each check and each view. A **preview**
 takes no global lock (it rolls back anyway) and gives up after 2 s on a row a real upload is writing (409 "try again"); only a real
 upload takes `card_statement_check`. An upload sends `replace` only for the cards the person confirmed in the dialog.
 Not done: a refunded charge on a card nobody holds yet still counts in "still missing".
+
+**Statement rows: refunds, fees and refunded charges are expenses too** (2026-11-25, owner: the bank report is final, so what accounting
+downloads at month end must have the same rows and totals as it, for both Amex and Encore). Besides a charge's receipt or Missing row, the
+check (`src/db/cardStatements/index.ts`, rules `src/utils/statementRows.ts`, tested) makes a row for the card's holder for: a **refund**
+(a credit that isn't a card payment — saved **negative**), a **fee** (interest, annual, card delivery, foreign transaction — positive) and a
+**refunded charge** (a charge a later credit returned; it used to lose its Missing row, now its row becomes this one, so the charge and
+its refund net to zero as in the report). **Card payments** (`isPaymentLine`: "AUTO PAYMENT DEDUCTION", "ONLINE PAYMENT - THANK YOU") get
+no row. Each is **Waiting for Accounting** (owner's pick), no receipt asked, no reminder, no second approval at any amount
+(`secondNeeded` ignores a `statementKind`); an Admin-held one needs no category either. They sit in `card_expenses.statement_kind`
+(`'' | refund | fee | refunded_charge`, migration 0038; cardDocs / cardsSuppliersRows carry it, expenseView sends it), show a Refund / Fee /
+Refunded charge tag in the Expenses list, and the Excel has an **Entry type** column. A statement row never answers a charge as a receipt
+(the check's candidates require `statement_kind = ''`). A row a person voided or deleted isn't made again (`isDismissed`); a card with no
+holder waits; days before the bank's start day get none. `check` returns `statementRows` beside `created`. **The Missing-row start day is
+per bank**: Amex 2026-10-26, Encore **2026-10-13** (`MISSING_FROM_BY_BANK`; Encore was 2026-10-14 for a few hours the same day).
+`scripts/card-statement-rows.ts` (dry run, then `--apply`) runs the same check for both banks to make the rows for lines already loaded;
+read-only helpers: `card-statement-reconcile.ts` (lines vs expenses per day / card), `card-receipt-counts.ts`, `card-expense-duplicates.ts`,
+and `amex-before-remove.ts` (removed the Amex report before 2026-10-26 and the Oct'26 backfill, 2026-11-25). Not built: filling a category on a
+refund row (the details form needs a positive total), a statement-row figure in the upload preview. **Run `npm run pg:migrate -- --apply` on Render
+for 0038.**
 
 **Export and public links** (2026-11-24; review S2 / S3): both exports read `GET /expenses/export` — `?month=` needs Export (or
 Export all), no month needs Export all; the same people rules as the list apply and each export is logged (who, scope, count). The

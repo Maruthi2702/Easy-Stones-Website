@@ -23,9 +23,9 @@
 
 /**
  * The first day a charge with no upload becomes a Missing receipt row, **per bank** (owner, 2026-11-20 for the start;
- * 2026-11-25: Amex moved from 2026-11-01 to 2026-10-26, and Encore starts 2026-10-14).
+ * 2026-11-25: Amex moved from 2026-11-01 to 2026-10-26, and Encore starts 2026-10-13 (it was 2026-10-14 for a few hours).
  */
-export const MISSING_FROM_BY_BANK = { amex: '2026-10-26', encore: '2026-10-14' } as const;
+export const MISSING_FROM_BY_BANK = { amex: '2026-10-26', encore: '2026-10-13' } as const;
 /** Amex's start, kept for callers that read one date; a line's own bank is `missingFromFor`. */
 export const MISSING_FROM = MISSING_FROM_BY_BANK.amex;
 /** The start for a bank ('amex' when it isn't said). */
@@ -193,6 +193,8 @@ export function kindOf(line: Pick<AmexLine, 'cents' | 'description' | 'amexCateg
  */
 export const REFUND_DAYS = 30;
 const PAYMENT = /\b(PAYMENT|THANK YOU|AUTOPAY|AUTO PAY|AUTO PAYMENT)\b/i;
+/** A card payment ("ONLINE PAYMENT - THANK YOU", "AUTO PAYMENT DEDUCTION"): a credit that is money paid to the bank, not spending. */
+export const isPaymentLine = (description: string | null | undefined) => PAYMENT.test(description || '');
 type RefundLine = { reference: string; issuer: string; digits: string; date: string; cents: number };
 export function pairRefunds(charges: readonly RefundLine[], credits: readonly (RefundLine & { description?: string })[]): Map<string, string> {
   const paired = new Map<string, string>();

@@ -23,6 +23,7 @@ import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
 import { changeExpense } from '../cardReceipts/postgres.ts';
 import { isAdminRole } from '../../utils/receiptApproval.ts';
 import { formatMoney, usDate } from '../../utils/cardReceipts.ts';
+import { statementKindFor, statementRowWords, type StatementKind } from '../../utils/statementRows.ts';
 import { lineStage, pacificDay, type LineStage, type StageExpense } from '../../utils/statementStage.ts';
 import {
   MISSING_FROM_BY_BANK, missingFromFor, MATCH_DAYS, kindOf, lineStatus, planMatches, cardForDigits, merchantOf, statusCounts, unknownCards, daysApart, issuerLabel,
@@ -56,7 +57,8 @@ class Preview extends Error {
   constructor(result: unknown) { super('preview'); this.result = result; }
 }
 
-export type CheckResult = { linked: number; created: number; retired: number; cardsFound: number };
+/** `statementRows`: refund, fee and refunded-charge rows made from the statement itself (src/utils/statementRows.ts). */
+export type CheckResult = { linked: number; created: number; retired: number; cardsFound: number; statementRows: number };
 
 type RefundCharge = { reference: string; issuer: string; digits: string; date: string; cents: number };
 /** The charges (of those given) a later refund returned, by reference (review B9). Reads the credits it needs, nothing else. */
@@ -81,13 +83,13 @@ async function refundedOf(c: Conn, charges: readonly RefundCharge[]): Promise<Se
  * With no `bank` (nothing says which) every bank is checked, each on its own.
  */
 async function check(tx: Conn, by: Actor, missingFrom: string | undefined, bank?: Issuer): Promise<CheckResult> {
-  const result: CheckResult = { linked: 0, created: 0, retired: 0, cardsFound: 0 };
+  const result: CheckResult = { linked: 0, created: 0, retired: 0, cardsFound: 0, statementRows: 0 };
   const thisBank = bank ? eq(lines.issuer, bank) : undefined;
 
   // 1. Cards for lines that have none, or no upload yet (a card fixed since applies).
   const cards = await q(tx).select().from(companyCards);
   const open = await q(tx).select({ reference: lines.reference, digits: lines.digits, issuer: lines.issuer, cardId: lines.cardId }).from(lines)
-    .where(and(eq(lines.kind, 'charge'), or(isNull(lines.cardId), isNull(lines.expenseId)), thisBank));
+    .where(and(inArray(lines.kind, ['charge', 'credit', 'fee']), or(isNull(lines.cardId), isNull(lines.expenseId)), thisBank));
   const byDigits = new Map<string, string | null>();
   for (const l of open) {
     const key = `${l.issuer}:${l.digits}`;
@@ -107,20 +109,43 @@ async function check(tx: Conn, by: Actor, missingFrom: string | undefined, bank?
     .leftJoin(cardExpenseDeletions, eq(cardExpenseDeletions.expenseId, lines.expenseId))
     .where(and(eq(lines.kind, 'charge'), sql`${lines.cardId} is not null`, thisBank,
       or(isNull(lines.expenseId), placeholderSql(), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))));
-  // A charge a refund returned needs no receipt (review B9): its Missing receipt row, if one was made, is let go.
+  // A charge a refund returned needs no receipt (review B9). Since 2026-11-25 it stays a row — Waiting for Accounting, no
+  // receipt asked — so it and its refund net to zero in the Expenses totals and the Excel, as in the bank's report (it used
+  // to lose its Missing receipt row). Its Missing row, if one was made, becomes that row; a row a person voided or deleted
+  // isn't made again; one that already holds a receipt is left alone.
   const refunded = await refundedOf(tx, (await q(tx).select({ reference: lines.reference, issuer: lines.issuer, digits: lines.digits, date: lines.day, cents: lines.cents })
     .from(lines).where(inArray(lines.reference, waiting.map(w => w.reference)))));
+  const startOf = (issuer: string) => missingFrom ?? missingFromFor(issuer);
+  const kinds = new Map<string, StatementKind>();
   for (const w of waiting.filter(x => refunded.has(x.reference))) {
-    if (w.expenseId && !w.voidedAt && (w.status === 'missing' || w.status === 'waiting')) {
-      const [row] = await q(tx).select({ status: cardExpenses.status, ...placeholderCols }).from(cardExpenses).where(eq(cardExpenses.id, w.expenseId));
-      if (row && isPlaceholder({ ...row, voidedAt: null })) {
+    if (w.date < startOf(w.issuer)) continue;
+    if (w.expenseId && !w.voidedAt && w.status) {
+      const [row] = await q(tx).select({ status: cardExpenses.status, statementKind: cardExpenses.statementKind, ...placeholderCols }).from(cardExpenses).where(eq(cardExpenses.id, w.expenseId));
+      if (row && !row.statementKind && isPlaceholder({ ...row, voidedAt: null })) {
         const now = new Date();
-        await changeExpense(q(tx), w.expenseId, { voidedAt: now, voidedBy: by.name, voidReason: 'Charge refunded' },
-          { at: now, by: by.name, action: 'voided', changes: `The ${issuerLabel(w.issuer)} charge (${w.reference}) was refunded: no receipt is needed` });
-        result.retired += 1;
+        await changeExpense(q(tx), w.expenseId, { status: 'waiting', statementKind: 'refunded_charge' },
+          { at: now, by: by.name, action: 'edited', changes: statementRowWords('refunded_charge', issuerLabel(w.issuer), w.reference) });
+        result.statementRows += 1;
       }
+    } else if (!isDismissed({ voided: Boolean(w.voidedAt), voidReason: w.voidReason }, !w.status && Boolean(w.deletedId))) {
+      kinds.set(w.reference, 'refunded_charge');
     }
   }
+  // Credits (refunds) and fees are rows too, for the card's holder (card payments are not). A card with no holder waits.
+  const others = await q(tx).select({
+    reference: lines.reference, issuer: lines.issuer, date: lines.day, cents: lines.cents, kind: lines.kind, description: lines.description,
+    status: cardExpenses.status, voidedAt: cardExpenses.voidedAt, voidReason: cardExpenses.voidReason, deletedId: cardExpenseDeletions.expenseId
+  }).from(lines).leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
+    .leftJoin(cardExpenseDeletions, eq(cardExpenseDeletions.expenseId, lines.expenseId))
+    .where(and(inArray(lines.kind, ['credit', 'fee']), sql`${lines.cardId} is not null`, thisBank,
+      or(isNull(lines.expenseId), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))));
+  for (const o of others) {
+    if (o.date < startOf(o.issuer)) continue;
+    if (isDismissed({ voided: Boolean(o.voidedAt), voidReason: o.voidReason }, !o.status && Boolean(o.deletedId))) continue;
+    const kind = statementKindFor({ kind: o.kind as LineKind, cents: Number(o.cents), description: o.description }, false);
+    if (kind) kinds.set(o.reference, kind);
+  }
+  if (kinds.size) result.statementRows += await createMissingRows(tx, [...kinds.keys()], by, new Date(), undefined, kinds);
   const stillWaiting = waiting.filter(w => !refunded.has(w.reference));
   waiting.length = 0;
   waiting.push(...stillWaiting);
@@ -137,7 +162,7 @@ async function check(tx: Conn, by: Actor, missingFrom: string | undefined, bank?
     id: cardExpenses.id, cardId: cardExpenses.cardId, date: cardExpenses.day, cents: cardExpenses.cents, status: cardExpenses.status,
     voidedAt: cardExpenses.voidedAt, createdAt: cardExpenses.createdAt, ...placeholderCols
   }).from(cardExpenses).where(or(
-    and(inArray(cardExpenses.cardId, cardIds), gte(cardExpenses.day, shiftDay(days[0]!, -MATCH_DAYS)), lt(cardExpenses.day, shiftDay(days.at(-1)!, MATCH_DAYS + 1))),
+    and(inArray(cardExpenses.cardId, cardIds), eq(cardExpenses.statementKind, ''), gte(cardExpenses.day, shiftDay(days[0]!, -MATCH_DAYS)), lt(cardExpenses.day, shiftDay(days.at(-1)!, MATCH_DAYS + 1))),
     linkedIds.length ? inArray(cardExpenses.id, linkedIds) : undefined
   ));
   // An upload already answering a charge outside this set is taken.
@@ -184,7 +209,7 @@ async function check(tx: Conn, by: Actor, missingFrom: string | undefined, bank?
 }
 
 /** One Missing receipt row per charge, for the card's holder, with Amex's day, merchant and amount. */
-async function createMissingRows(tx: Conn, references: string[], by: Actor, now: Date, approvedNote?: string): Promise<number> {
+async function createMissingRows(tx: Conn, references: string[], by: Actor, now: Date, approvedNote?: string, kinds?: ReadonlyMap<string, StatementKind>): Promise<number> {
   const rows = await q(tx).select({
     reference: lines.reference, issuer: lines.issuer, day: lines.day, description: lines.description, cents: lines.cents,
     cardId: companyCards.id, cardLabel: companyCards.label, userId: companyCards.userId, role: users.role,
@@ -202,15 +227,17 @@ async function createMissingRows(tx: Conn, references: string[], by: Actor, now:
     const id = newId();
     // An Admin's own charge is never "Missing receipt": it waits for Accounting, who fills it in and approves it (receiptApproval.ts).
     const adminWaits = !approvedNote && isAdminRole(r.role);
+    // A refund, a fee or a refunded charge (src/utils/statementRows.ts): Waiting for Accounting, no receipt asked.
+    const kind = kinds?.get(r.reference);
     const doc = {
       _id: id, userId: r.userId, holderName: r.displayName || r.username || '', cardId: r.cardId, cardLabel: r.cardLabel,
       location: r.location || r.cardLocation || '', date: r.day, month: r.day.slice(0, 7), merchant: merchantOf(r.description, issuerLabel(r.issuer)), cents: r.cents,
       subtotalCents: null, taxCents: null, tipCents: null, category: '', customerId: '', customerName: '', attendees: [],
-      purpose: '', note: approvedNote ?? '', recurring: false, receiptUrl: '', lostReason: '',
-      status: approvedNote ? 'approved' : adminWaits ? 'waiting' : 'missing', sentBack: null,
+      purpose: '', note: approvedNote ?? '', recurring: false, receiptUrl: '', lostReason: '', statementKind: kind ?? '',
+      status: kind ? 'waiting' : approvedNote ? 'approved' : adminWaits ? 'waiting' : 'missing', sentBack: null,
       approval: approvedNote ? { by: by.id, byName: by.name, at: now, comment: approvedNote } : null,
       createdBy: by.name, voidedAt: null, voidedBy: '', voidReason: '',
-      history: [{ at: now, by: by.name, action: 'added', changes: approvedNote ? `${approvedNote} (${issuerLabel(r.issuer)} charge ${r.reference})`
+      history: [{ at: now, by: by.name, action: 'added', changes: kind ? statementRowWords(kind, issuerLabel(r.issuer), r.reference) : approvedNote ? `${approvedNote} (${issuerLabel(r.issuer)} charge ${r.reference})`
         : adminWaits ? `An Admin’s charge: waiting for Accounting (${issuerLabel(r.issuer)} charge ${r.reference})`
           : `Missing receipt: ${issuerLabel(r.issuer)} charge ${r.reference}` }],
       createdAt: now, updatedAt: now

@@ -83,6 +83,8 @@ export type ApprovalState = {
   ask: Ask | null | undefined;
   /** Who typed it when it was added on the cardholder's behalf (2026-11-23): never one of its approvers either. */
   addedById?: string | null;
+  /** A row made from a bank statement line (refund / fee / refunded charge, 2026-11-25): Accounting alone approves it. */
+  statementKind?: string | null;
 };
 
 export type ApprovalViewer = {
@@ -125,8 +127,8 @@ const isHolder = (viewer: ApprovalViewer, s: ApprovalState) =>
   String(viewer.id) === String(s.userId) || addedItAndMayNotJudge(viewer, s);
 const approver = (viewer: ApprovalViewer | null | undefined) => Boolean(viewer && can(viewer, CARD_RECEIPTS.APPROVE));
 
-export const secondNeeded = (s: Pick<ApprovalState, 'cents' | 'holderRole'>) =>
-  needsSecondApproval(s.cents) && holderKindOf(s.holderRole) !== 'admin';
+export const secondNeeded = (s: Pick<ApprovalState, 'cents' | 'holderRole'> & { statementKind?: string | null }) =>
+  needsSecondApproval(s.cents) && holderKindOf(s.holderRole) !== 'admin' && !s.statementKind;
 
 /** Who may give the second approval, ignoring whether it's open (also used to pick who an Ask may go to). */
 function mayGiveSecond(viewer: ApprovalViewer, s: ApprovalState) {
@@ -234,7 +236,7 @@ export function approveProblem(s: ApprovalState & { lostReason?: string; receipt
   if (s.voided) return 'This expense was voided.';
   if (s.status !== 'waiting') return s.status === 'approved' ? 'It’s already approved.' : 'It isn’t waiting for approval.';
   if (askOpen(s)) return 'A question about this receipt is still open.';
-  if (holderKindOf(s.holderRole) === 'admin') return s.category ? '' : 'Pick a category before approving.';
+  if (holderKindOf(s.holderRole) === 'admin') return s.category || s.statementKind ? '' : 'Pick a category before approving.';
   if (s.lostReason && !s.receiptUrl && !comment.trim()) return 'A lost receipt needs your comment to approve it.';
   return '';
 }

@@ -90,6 +90,11 @@ export const cardExpenses = pgTable('card_expenses', {
   receiptUrl: text('receipt_url').notNull().default(''),
   /** SHA-256 of the receipt file as picked (src/utils/receiptFile.ts), to warn when the same photo is uploaded twice; '' = not known. */
   receiptHash: text('receipt_hash').notNull().default(''),
+  /**
+   * '' for a receipt; 'refund' | 'fee' | 'refunded_charge' for a row made from a bank statement line (2026-11-25): no receipt
+   * is needed and Accounting alone approves it (src/utils/statementRows.ts).
+   */
+  statementKind: text('statement_kind').notNull().default(''),
   lostReason: text('lost_reason').notNull().default(''),
   status: text('status').notNull(),
   approvedById: text('approved_by_id'),

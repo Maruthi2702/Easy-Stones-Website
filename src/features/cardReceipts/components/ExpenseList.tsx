@@ -2,6 +2,7 @@ import RowMenu from '../../../components/shared/RowMenu';
 import type { RowMenuItem } from '../../../components/shared/RowMenu';
 import { Check } from 'lucide-react';
 import { formatMoney, isBigReceipt, statusOf, usDate } from '../../../utils/cardReceipts';
+import { statementKindLabel } from '../../../utils/statementRows';
 import { askIsOpen, categoryText, chipText, chipsShown, firstName, isPdfUrl, statusLine } from '../cardReceiptsView';
 import { branchClass } from '../statements/statementsView';
 import type { Category, Expense } from '../types';
@@ -126,7 +127,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
               <b>{e.merchant}</b>
               <span className={`ccr-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? '$150 or more' : undefined}>{formatMoney(e.cents)}</span>
               <span className="ccr-card-meta">
-                {usDate(e.date)}{showHolder ? ` · ${e.holderName}` : ''}{e.category ? ` · ${categoryText(categories, e)}` : ''}
+                {usDate(e.date)}{e.statementKind ? ` · ${statementKindLabel(e.statementKind)}` : ''}{showHolder ? ` · ${e.holderName}` : ''}{e.category ? ` · ${categoryText(categories, e)}` : ''}
                 {line ? <><br />{line}</> : null}
                 {chips.length ? <><br /><span className="ccr-appr-line">{chips.map(chipText).join(' · ')}</span></> : null}
                 {askIsOpen(e) ? <><br /><span className="ccr-tag is-ask">Asked {firstName(e.ask!.toName)}</span></> : null}
@@ -179,7 +180,7 @@ export default function ExpenseList({ rows, isPhone, categories, showHolder, sho
                     <div className="ccr-st-card">{e.location ? <span className={`ccr-branch ${branchClass(e.location)}`}>{e.location}</span> : null}<span>{e.cardLabel}</span></div>
                   </td>
                 ) : null}
-                <td><div className="ccr-st-m">{e.merchant}</div></td>
+                <td><div className="ccr-st-m">{e.merchant}{e.statementKind ? <span className="ccr-tag" style={{ marginLeft: 8 }}>{statementKindLabel(e.statementKind)}</span> : null}</div></td>
                 <td className="ccr-col-wide">{e.category ? categoryText(categories, e) : <span className="ccr-muted">Not picked</span>}</td>
                 <td className={`ccr-num ccr-amt${isBigReceipt(e.cents) ? ' is-big' : ''}`} title={isBigReceipt(e.cents) ? '$150 or more' : undefined}>{formatMoney(e.cents)}</td>
                 <td><ExpenseStatus e={e} categories={categories} /></td>

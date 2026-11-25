@@ -52,7 +52,7 @@ const line = (occurred: string, merchant: string, amount: number, ref: string, c
 const FILE_ROWS = [
   line('11/05/26', 'CAFE ONE', 40, 'E-matched'),
   line('11/06/26', 'FUEL STOP', 12, 'E-missing'),
-  line('10/10/26', 'OLD LUNCH', 9.99, 'E-old'), // before Encore's start day (2026-10-14)
+  line('10/10/26', 'OLD LUNCH', 9.99, 'E-old'), // before Encore's start day (2026-10-13)
   line('11/07/26', 'TOOL SHOP', 25, 'E-nocard', '448462******5555', 'SRINI MANAM'),
   line('11/08/26', 'AUTO PAYMENT DEDUCTION', -500, '', '', '', 'C'),
   line('11/09/26', 'ANNUAL FEE', 25, '')
@@ -137,7 +137,10 @@ describe('the Encore check', () => {
     const missing = (await placeholders()).find((p) => p.merchant === 'FUEL STOP')!;
     expect(missing).toMatchObject({ userId: MARU, cardId: encore.id, merchant: 'FUEL STOP', cents: 1200, day: '2026-11-06' });
     const fee = lines.find((l) => l.description === 'ANNUAL FEE')!, payment = lines.find((l) => l.description === 'AUTO PAYMENT DEDUCTION')!;
-    expect(fee).toMatchObject({ kind: 'fee', expenseId: null });
+    // The fee is a row too (2026-11-25): Waiting for Accounting, no receipt asked.
+    expect(fee).toMatchObject({ kind: 'fee' });
+    expect(fee.expenseId).not.toBeNull();
+    expect((await db.select().from(cardExpenses).where(eq(cardExpenses.id, fee.expenseId!)))[0]).toMatchObject({ status: 'waiting', statementKind: 'fee', cents: 2500 });
     expect(payment).toMatchObject({ kind: 'credit', digits: '', cardId: null });
     const history2 = await db.select().from(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, missing!.id));
     expect(history2).toEqual([expect.objectContaining({ changes: expect.stringMatching(/^Missing receipt: Encore charge ENC-E-missing/) })]);

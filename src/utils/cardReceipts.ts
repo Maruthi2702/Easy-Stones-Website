@@ -18,6 +18,7 @@
  *   - Amounts are whole cents. An expense is voided with a reason, never deleted.
  */
 import { isDay } from './paymentsReceived.ts';
+import { statementKindLabel } from './statementRows.ts';
 
 export const CARD_RECEIPTS = Object.freeze({
   /** Upload your own receipts and see your own expenses. */
@@ -646,6 +647,8 @@ export type ExportExpense = {
   category: string; subcategory?: string; customerName?: string; attendees?: string[]; purpose?: string; receiptUrl?: string; lostReason?: string;
   status: string; approval?: { byName?: string; at?: string | Date; comment?: string } | null; note?: string; recurring?: boolean;
   voided?: unknown;
+  /** refund / fee / refunded_charge for a row made from a bank statement line (src/utils/statementRows.ts). */
+  statementKind?: string;
 };
 
 /**
@@ -672,6 +675,8 @@ export function exportRows(list: readonly ExportExpense[], categories: readonly 
     Receipt: e.receiptUrl ? 'Yes' : e.lostReason ? `Lost: ${e.lostReason}` : 'No',
     Recurring: e.recurring ? 'Yes' : '',
     Status: statusOf(e.status)?.label || e.status,
+    // 'Refund' / 'Fee' / 'Refunded charge' for a row made from the bank statement, blank for a receipt (2026-11-25).
+    'Entry type': statementKindLabel(e.statementKind),
     'Approved by': e.approval?.byName || '',
     'Approved on': e.approval?.at ? new Date(e.approval.at).toISOString().slice(0, 10) : '',
     'Approver comment': e.approval?.comment || '',

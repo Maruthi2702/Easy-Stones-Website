@@ -1,0 +1,1 @@
+ALTER TABLE "card_expenses" ADD COLUMN "statement_kind" text DEFAULT '' NOT NULL;

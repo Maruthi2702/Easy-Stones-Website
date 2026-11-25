@@ -137,7 +137,7 @@ const askView = (a: Loose | null | undefined) => (a && typeof a === 'object'
 const stateOf = (e: Loose, holderRole: string): ApprovalState => ({
   userId: String(e.userId ?? ''), holderRole, location: e.location || '', cents: Number(e.cents) || 0, status: String(e.status || ''),
   voided: e.voidedAt || null, approval: decisionView(e.approval), secondApproval: decisionView(e.secondApproval), ask: askView(e.ask),
-  addedById: e.addedById ? String(e.addedById) : null
+  addedById: e.addedById ? String(e.addedById) : null, statementKind: e.statementKind ? String(e.statementKind) : ''
 });
 
 const expenseView = (e: Loose, viewer: ApprovalViewer, holderRole = '', issuer = 'amex', onStatement: boolean | null = null) => {
@@ -151,6 +151,8 @@ const expenseView = (e: Loose, viewer: ApprovalViewer, holderRole = '', issuer =
     date: e.date, merchant: e.merchant, cents: e.cents, subtotalCents: e.subtotalCents ?? null, taxCents: e.taxCents ?? null, tipCents: e.tipCents ?? null,
     category: e.category || '', subcategory: e.subcategory || '', customerId: e.customerId || '', customerName: e.customerName || '', attendees: e.attendees || [],
     purpose: e.purpose || '', note: e.note || '', recurring: Boolean(e.recurring), receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || '',
+    /** '' for a receipt; refund / fee / refunded_charge for a row made from a bank statement line (src/utils/statementRows.ts). */
+    statementKind: e.statementKind || '',
     status: e.status, approval: s.approval ?? null, secondApproval: s.secondApproval ?? null, ask: s.ask ?? null, sentBack: decisionView(e.sentBack, false),
     /** On a bank statement's line (true), not on one yet (false) or not known (null) — the Expenses list's green / amber rows. */
     onStatement,
