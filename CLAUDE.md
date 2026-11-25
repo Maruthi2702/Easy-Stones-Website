@@ -1581,6 +1581,16 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   the browser, same rows as the Excel minus the link / approver / notes columns, 2,000-line cap, total of the whole month) is
   written by `exportFiles.ts`. Never opened in a real PDF reader yet.
 
+**Cards tab, in the Customers look** (2026-11-25, owner; claude.ai artifact **Cards tab redesign canvas**,
+https://claude.ai/artifact/T24JF9juv4RC2q4pwXELPZ): one entry per person with their Amex / Encore cards listed inside it, **sorted by
+location A–Z, then name A–Z, people with no holder last** (`src/features/cardReceipts/cardsView.ts`, tested). The page header holds
+"Company cards · N active", the "N not assigned yet" shortcut, search, the round **Filters** button (Bank, Status — opens on Active —
+and Location) and Add card (`CardsPanel` portals them into the header's `ccr-tools` slot on a computer); shared `Pagination` pages by
+person. **The automatic-reminders switch moved off this tab into Users & Roles → Roles → Credit Card Receipts → Reminders**
+(`AutoRemindersSwitch`, exported from the module's index; one setting for everyone, the server still needs Manage cards to change it).
+**Not built from the canvas:** swipe actions and the tap-a-row details sheet on a phone, "Replace card…" and "Change cardholder"
+(the cards API has no such operations; a replaced card still goes through Statements' set-up), and a dark-mode check.
+
 **The Amex check** (2026-11-20, on `feat/amex-check`; owner's answers that day — it replaces the
 weekly PDF plan): Credit Card Receipts → **Statements** tab (switch `check_amex_statements`,
 "Amex check" on the Users & Roles card; admin gets it with the other Accounting keys). Accounting

@@ -25,7 +25,7 @@ describe('Company cards', () => {
     const row = holder.closest('tr')!;
     expect(within(row).getByText('ABHI92001')).toBeTruthy();
     expect(within(row).getByText('ABHI9902')).toBeTruthy();
-    expect(within(row).getByText(/Encore ···9902/)).toBeTruthy();
+    expect(row.textContent).toMatch(/Encore ···9902/);
     expect(screen.getAllByText('Abhinav Meduri')).toHaveLength(1);
     expect(screen.getAllByRole('row')).toHaveLength(3); // header + two people
   });

@@ -3,6 +3,7 @@ import { Check } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection } from '../../../components/shared/form/FormControls';
 import { groupBySection, fullAccessOn, listedActions, setAllIn } from './permissionGroups';
+import { AutoRemindersSwitch } from '../../cardReceipts';
 import type { PageDef } from '../types';
 
 export type PagePermissionDialogProps = {
@@ -77,6 +78,12 @@ export default function PagePermissionDialog({ page, roleName, editedPermissions
                     </FormSection>
                 );
             })}
+            {/* Credit Card Receipts only: the one setting that isn't a per-role switch (owner, 2026-11-25). */}
+            {page.id === 'accounting_card_receipts' && (
+                <FormSection title="Reminders">
+                    <div className="perm-form-list"><AutoRemindersSwitch /></div>
+                </FormSection>
+            )}
         </FormModal>
     );
 }

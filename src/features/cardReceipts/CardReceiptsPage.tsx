@@ -57,6 +57,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const [headSlot, setHeadSlot] = useState<HTMLDivElement | null>(null);
   const [tabSlot, setTabSlot] = useState<HTMLSpanElement | null>(null);
   const [statementCount, setStatementCount] = useState<number | null>(null);
+  const [cardsSummary, setCardsSummary] = useState<{ total: number; active: number; unassigned: number } | null>(null);
   const data = useCardReceipts(currentUser);
   const { me } = data;
   const canUse = can(currentUser, CARD_RECEIPTS.USE);
@@ -225,9 +226,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   // The header follows the Customers tab (2026-11-24, owner: "match whole page"): the title with a gold count,
   // then who and what period it is in a muted line beside it; Statements and Cards need no line.
   const subtitle = tab === 'waiting' ? `${formatMoney(data.waiting.reduce((s, e) => s + e.cents, 0))} waiting`
-    : tab === 'cards' || tab === 'statements' ? ''
+    : tab === 'cards' ? (cardsSummary ? `Company cards · ${cardsSummary.active.toLocaleString()} active` : '')
+    : tab === 'statements' ? ''
     : `${periodName} · ${data.viewAll ? (data.teamOnly ? 'Your team' : 'All cardholders') : me?.card ? `${me.card.label}${me.user.location ? ` · ${me.user.location}` : ''}` : 'Your receipts'}`;
-  const titleCount = tab === 'waiting' ? data.waiting.length : tab === 'statements' ? statementCount : tab === 'cards' ? null : rows.length;
+  const titleCount = tab === 'waiting' ? data.waiting.length : tab === 'statements' ? statementCount : tab === 'cards' ? (cardsSummary?.total ?? null) : rows.length;
 
   return (
     <div className="ccr">
@@ -239,7 +241,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             {titleCount != null ? <span className="ccr-hcount">{titleCount.toLocaleString()}</span> : null}
             {subtitle ? <span className="ccr-ttl-sub">{subtitle}</span> : null}
           </div>
-          {tab === 'statements' ? <div className="ccr-tools" ref={setHeadSlot} /> : null}
+          {tab === 'statements' || tab === 'cards' ? <div className="ccr-tools" ref={setHeadSlot} /> : null}
           {tab !== 'cards' && tab !== 'statements' ? (
             <div className="ccr-tools">
               <DashboardSearch value={filters.search} onChange={(search) => patchFilters({ search })} label="Search expenses"
@@ -341,7 +343,8 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
         ) : null}
 
         {tab === 'cards' ? (
-          <CardsPanel canManage={can(currentUser, CARD_RECEIPTS.MANAGE_CARDS)} canSetUp={canStatements} month={data.month || ''} onSaved={say} />
+          <CardsPanel canManage={can(currentUser, CARD_RECEIPTS.MANAGE_CARDS)} canSetUp={canStatements} month={data.month || ''} onSaved={say}
+            user={currentUser} headSlot={headSlot} onSummary={setCardsSummary} />
         ) : tab === 'statements' ? (
           data.month ? <StatementsPanel month={data.month} isPhone={isPhone} canCards={canCards} onOpenCards={() => setTab('cards')}
             headSlot={headSlot} tabSlot={tabSlot} onCount={setStatementCount}

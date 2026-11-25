@@ -653,3 +653,34 @@ body.light-theme-active .ccr-drawer-root { --dr-sheet: #f8fafc; --dr-card: #ffff
 .ccr-period-head .lf-group-label { margin-bottom: 0; }
 .ccr-period-back { border: 0; background: none; padding: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--ccr-gold-ink); cursor: pointer; }
 .ccr-period-back:hover { text-decoration: underline; }
+
+/* Cards, in the Customers look (2026-11-25; claude.ai artifact "Cards tab redesign canvas",
+   https://claude.ai/artifact/T24JF9juv4RC2q4pwXELPZ): its tools live in the page header, a person's row has an
+   avatar, a location pill and their cards listed inside it, sorted by location then name. */
+.ccr-cards-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ccr-cards-bar .dsx { flex: 1 1 220px; }
+.ccr-chip-btn { height: 40px; padding: 0 14px; border: 0; border-radius: 999px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 650; }
+.ccr-av.lg { width: 36px; height: 36px; font-size: 13px; }
+.ccr-av.is-none { background: transparent; border: 1px dashed var(--ccr-wait); color: var(--ccr-wait); }
+.ccr-who { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }
+.ccr-who-name { font-size: 14.5px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.ccr-who-name.is-none { color: var(--ccr-wait); }
+.ccr-first { display: flex; align-items: center; min-height: 48px; }
+.ccr-cards-table .ccr-cardline { min-height: 48px; }
+.ccr-cards-table tr.is-none { background: var(--ccr-wait-bg); }
+.ccr-sorted { margin-left: 4px; color: var(--ccr-text); font-weight: 700; }
+.ccr-bank { display: inline-block; padding: 0 6px; border-radius: 5px; font-size: 11px; font-weight: 700; line-height: 17px; }
+.ccr-bank.is-amex { background: rgba(37, 99, 235, 0.14); color: #2563eb; }
+.ccr-bank.is-encore { background: rgba(124, 58, 237, 0.14); color: #7c3aed; }
+body.light-theme-active .ccr-bank.is-amex { background: #e4efff; color: #1747a6; }
+body.light-theme-active .ccr-bank.is-encore { background: #f1e9ff; color: #5b21b6; }
+.ccr-hold-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.ccr-hold-head .ccr-who { flex: 1; }
+.ccr-hold-tags { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.ccr-two { font-size: 12.5px; font-weight: 600; color: var(--ccr-muted); }
+.ccr-hold.is-none { background: var(--ccr-wait-bg); }
+@media (max-width: 599px) {
+  .ccr-hold { padding: 12px 14px; }
+  .ccr-hold .ccr-cardlines { padding-left: 48px; gap: 6px; }
+  .ccr-hold .ccr-cardline { min-height: 44px; }
+}
