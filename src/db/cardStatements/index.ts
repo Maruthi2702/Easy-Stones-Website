@@ -16,7 +16,7 @@ import type { Db } from '../copy/plan.ts';
 import { appDb } from '../appDb.ts';
 import { newId } from '../ids.ts';
 import { cardStatementLines as lines, cardStatementImports as imports } from '../schema/cardStatements.ts';
-import { cardExpenses, cardExpenseHistory, companyCards } from '../schema/cardsSuppliers.ts';
+import { cardExpenses, cardExpenseHistory, cardExpenseDeletions, companyCards } from '../schema/cardsSuppliers.ts';
 import { users, locations } from '../schema/reference.ts';
 import { cardExpenseRowsOf } from '../copy/cardsSuppliersRows.ts';
 import { referenceIndexOf } from '../customers/writes/coreSupport.postgres.ts';
@@ -26,7 +26,7 @@ import { formatMoney, usDate } from '../../utils/cardReceipts.ts';
 import { lineStage, pacificDay, type LineStage, type StageExpense } from '../../utils/statementStage.ts';
 import {
   MISSING_FROM_BY_BANK, missingFromFor, MATCH_DAYS, kindOf, lineStatus, planMatches, cardForDigits, merchantOf, statusCounts, unknownCards, daysApart, issuerLabel,
-  NEAR_DAYS, isNearMatch, nearMatches, pairRefunds, REFUND_DAYS,
+  NEAR_DAYS, isNearMatch, nearMatches, pairRefunds, REFUND_DAYS, isDismissed,
   type AmexLine, type Issuer, type LineKind, type LineStatus
 } from '../../utils/amexStatement.ts';
 
@@ -102,8 +102,9 @@ async function check(tx: Conn, by: Actor, missingFrom: string | undefined, bank?
   // 2. Charges still waiting for an upload: none yet, or a Missing receipt row (or an Admin's waiting stand-in), or a voided one.
   const waiting = await q(tx).select({
     reference: lines.reference, issuer: lines.issuer, date: lines.day, cents: lines.cents, kind: lines.kind, cardId: lines.cardId, expenseId: lines.expenseId,
-    status: cardExpenses.status, voidedAt: cardExpenses.voidedAt
+    status: cardExpenses.status, voidedAt: cardExpenses.voidedAt, voidReason: cardExpenses.voidReason, deletedId: cardExpenseDeletions.expenseId
   }).from(lines).leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
+    .leftJoin(cardExpenseDeletions, eq(cardExpenseDeletions.expenseId, lines.expenseId))
     .where(and(eq(lines.kind, 'charge'), sql`${lines.cardId} is not null`, thisBank,
       or(isNull(lines.expenseId), placeholderSql(), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))));
   // A charge a refund returned needs no receipt (review B9): its Missing receipt row, if one was made, is let go.
@@ -151,7 +152,9 @@ async function check(tx: Conn, by: Actor, missingFrom: string | undefined, bank?
       // An Admin's waiting stand-in counts as a Missing receipt row here: an upload replaces it, it never answers a charge.
       status: isPlaceholder(c) ? 'missing' : c.status, voided: Boolean(c.voidedAt), createdAt: c.createdAt }));
   const plan = planMatches({
-    lines: waiting.map(w => ({ reference: w.reference, date: w.date, cents: w.cents, kind: w.kind as LineKind, cardId: holderOf.get(w.cardId!) ?? w.cardId, expenseId: w.expenseId, issuer: w.issuer })),
+    lines: waiting.map(w => ({ reference: w.reference, date: w.date, cents: w.cents, kind: w.kind as LineKind, cardId: holderOf.get(w.cardId!) ?? w.cardId, expenseId: w.expenseId, issuer: w.issuer,
+      // A person voided or deleted this charge's Missing receipt row: don't make another (2026-11-25).
+      dismissed: isDismissed({ voided: Boolean(w.voidedAt), voidReason: w.voidReason }, !w.status && Boolean(w.deletedId)) })),
     expenses, missingFrom
   });
 
@@ -535,7 +538,7 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom?: 
   const rows = await q(c).select({
     l: lines, cardLabel: companyCards.label, cardLocation: companyCards.location, holderId: companyCards.userId,
     displayName: users.displayName, username: users.username, holderRole: users.role, homeLocation: locations.name,
-    expenseStatus: cardExpenses.status, expenseVoided: cardExpenses.voidedAt,
+    expenseStatus: cardExpenses.status, expenseVoided: cardExpenses.voidedAt, expenseVoidReason: cardExpenses.voidReason, deletedId: cardExpenseDeletions.expenseId,
     expenseReceipt: cardExpenses.receiptUrl, expenseLost: cardExpenses.lostReason,
     expenseDay: cardExpenses.day, expenseCents: cardExpenses.cents, expenseHolder: cardExpenses.holderName,
     approvedByName: cardExpenses.approvedByName, approvedAt: cardExpenses.approvedAt, approvedById: cardExpenses.approvedById,
@@ -545,6 +548,7 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom?: 
     .leftJoin(users, eq(users.id, companyCards.userId))
     .leftJoin(locations, eq(locations.id, users.homeLocationId))
     .leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
+    .leftJoin(cardExpenseDeletions, eq(cardExpenseDeletions.expenseId, lines.expenseId))
     .where(where)
     .orderBy(desc(lines.day), asc(lines.reference));
   const refunded = await refundedOf(c, rows.filter(r => r.l.kind === 'charge').map(r => ({ reference: r.l.reference, issuer: r.l.issuer, digits: r.l.digits, date: r.l.day, cents: r.l.cents })));
@@ -553,7 +557,8 @@ async function linesWhere(c: Conn, where: ReturnType<typeof and>, missingFrom?: 
     const kind = r.l.kind as LineKind;
     const status = lineStatus({
       kind, date: r.l.day, cardId: r.l.cardId, expenseStatus: r.expenseStatus ?? null, expenseVoided: Boolean(r.expenseVoided),
-      hasReceipt: Boolean(r.expenseReceipt || r.expenseLost), refunded: refunded.has(r.l.reference), issuer: r.l.issuer
+      hasReceipt: Boolean(r.expenseReceipt || r.expenseLost), refunded: refunded.has(r.l.reference), issuer: r.l.issuer,
+      dismissed: isDismissed({ voided: Boolean(r.expenseVoided), voidReason: r.expenseVoidReason }, !r.expenseStatus && Boolean(r.deletedId))
     }, missingFrom);
     const holderName = r.displayName || r.username || '';
     const expense: StageExpense | null = r.expenseStatus && !r.expenseVoided ? {

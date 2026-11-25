@@ -131,8 +131,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
 
   // What "Select all shown" ticks: every row the filters show (not just this page) that a reminder can go about.
   // Voiding and deleting ticked receipts also use the ticks (Void any receipt / Delete receipts).
-  const bulkVoidable = (e: Expense) => canVoidAny && !e.voided && e.status !== 'missing';
-  const deletable = (e: Expense) => canDelete && e.status !== 'missing';
+  // A Missing receipt row too (2026-11-25, owner): by these switches only, never the holder's own void rule. The charge then
+  // reads "Removed" on Statements and the check makes no new row.
+  const bulkVoidable = (e: Expense) => canVoidAny && !e.voided;
+  const deletable = (e: Expense) => canDelete;
   const selectable = (e: Expense) => (canRemind && remindable(e)) || bulkVoidable(e) || deletable(e);
   const remindRows = tab === 'expenses' || tab === 'waiting' ? rows.filter(selectable) : [];
   const ticked = remindRows.filter((e) => selected.has(e.id));
@@ -192,7 +194,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
     say(`Downloaded ${list.length} expenses`);
   };
   // A row's ⋯ (desktop): Void and Delete for the receipts those switches reach, or the holder's own void rule.
-  const voidableRow = (e: Expense) => e.status !== 'missing' && ((e.mine && canUse && holderMayEdit(e) && !e.canDecide) || bulkVoidable(e));
+  const voidableRow = (e: Expense) => (e.status !== 'missing' && e.mine && canUse && holderMayEdit(e) && !e.canDecide) || bulkVoidable(e);
   const rowActions = (e: Expense): RowMenuItem[] => [
     ...(voidableRow(e) ? [{ key: 'void', label: 'Void receipt', icon: Ban, danger: true, onClick: () => setOpen({ kind: 'void', expense: e }) }] : []),
     ...(deletable(e) ? [{ key: 'delete', label: 'Delete receipt…', icon: Trash2, danger: true, onClick: () => setOpen({ kind: 'delete', expense: e }) }] : [])
@@ -457,7 +459,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           today={me?.today || ''}
           canEdit={(opened.mine && canUse && holderMayEdit(opened)) || (canEditAny && anyoneMayEdit(opened)) || (!opened.mine && can(currentUser, CARD_RECEIPTS.MANAGE_CARDS) && managerMayEdit(opened))}
           canVoid={voidableRow(opened)}
-          canDelete={canDelete && opened.status !== 'missing'}
+          canDelete={canDelete}
           onDelete={() => setOpen({ kind: 'delete', expense: opened })}
           canRemind={canRemind}
           onEdit={() => setOpen({ kind: 'edit', expense: opened })}

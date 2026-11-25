@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   amexDay, amexCents, amexDigits, periodOf, readAmexActivity, kindOf, lineStatus, cardForDigits, suggestHolder,
-  unknownCards, planMatches, merchantOf, missingFromFor, MISSING_FROM_BY_BANK, statusCounts, isNearMatch, nearMatches, pairRefunds, type MatchLine, type MatchExpense
+  unknownCards, planMatches, merchantOf, missingFromFor, MISSING_FROM_BY_BANK, statusCounts, isNearMatch, nearMatches, pairRefunds, isDismissed, SYSTEM_VOID_REASONS, type MatchLine, type MatchExpense
 } from './amexStatement.ts';
 
 const HEADER = ['Date', 'Receipt', 'Description', 'Card Member', 'Account #', 'Amount', 'Extended Details', 'Appears On Your Statement As', 'Address', 'City/State', 'Zip Code', 'Country', 'Reference', 'Category'];
@@ -105,6 +105,9 @@ describe('kindOf and lineStatus', () => {
     expect(lineStatus({ ...base, date: '2026-10-20', cardId: null })).toBe('before_start');
     expect(lineStatus({ ...base, date: '2026-10-20', expenseStatus: 'approved' })).toBe('matched');
     expect(lineStatus({ ...base, expenseStatus: 'draft', expenseVoided: true })).toBe('missing');
+    // A person removed its Missing receipt row: Removed (a refund still reads Refunded).
+    expect(lineStatus({ ...base, expenseStatus: 'missing', expenseVoided: true, dismissed: true })).toBe('dismissed');
+    expect(lineStatus({ ...base, dismissed: true, refunded: true })).toBe('refunded');
     // An Admin's charge with no upload waits for Accounting; once it has a receipt or a lost reason it is matched.
     expect(lineStatus({ ...base, expenseStatus: 'waiting', hasReceipt: false })).toBe('awaiting');
     expect(lineStatus({ ...base, expenseStatus: 'waiting', hasReceipt: true })).toBe('matched');
@@ -210,6 +213,19 @@ describe('planMatches', () => {
       missingFrom: '2026-11-01'
     });
     expect(plan).toEqual({ link: [{ reference: 'oldmatch', expenseId: 'x' }], create: ['new'], retire: [] });
+  });
+  it('leaves a charge alone when a person removed its Missing receipt row, but an exact receipt still answers it', () => {
+    const lines = [line('r1', '2026-11-10', 999, { expenseId: 'gone', dismissed: true })];
+    expect(planMatches({ lines, expenses: [exp('gone', '2026-11-10', 999, { status: 'missing', voided: true })] })).toEqual({ link: [], create: [], retire: [] });
+    expect(planMatches({ lines: [line('r2', '2026-11-10', 999, { expenseId: 'deleted-id', dismissed: true })], expenses: [] })).toEqual({ link: [], create: [], retire: [] });
+    expect(planMatches({ lines, expenses: [exp('gone', '2026-11-10', 999, { status: 'missing', voided: true }), exp('real', '2026-11-10', 999)] }).link)
+      .toEqual([{ reference: 'r1', expenseId: 'real' }]);
+  });
+  it('knows a person’s void from the check’s own', () => {
+    expect(isDismissed({ voided: true, voidReason: 'Not a business charge' })).toBe(true);
+    for (const r of SYSTEM_VOID_REASONS) expect(isDismissed({ voided: true, voidReason: r })).toBe(false);
+    expect(isDismissed({ voided: false, voidReason: '' })).toBe(false);
+    expect(isDismissed(null, true)).toBe(true);
   });
   it('lets go of a voided upload and asks for the receipt again', () => {
     const plan = planMatches({ lines: [line('r1', '2026-11-10', 100, { expenseId: 'gone' })], expenses: [exp('gone', '2026-11-10', 100, { voided: true })] });

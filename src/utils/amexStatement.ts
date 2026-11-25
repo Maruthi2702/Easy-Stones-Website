@@ -217,8 +217,19 @@ export const LINE_STATUSES = [
   { key: 'before_start', label: 'Before the check started' },
   { key: 'no_receipt', label: 'No receipt needed' },
   /** A charge a later refund returned (pairRefunds). */
-  { key: 'refunded', label: 'Refunded' }
+  { key: 'refunded', label: 'Refunded' },
+  /** Its Missing receipt row was voided or deleted by a person (Void any / Delete receipts): the check leaves the charge alone. */
+  { key: 'dismissed', label: 'Removed' }
 ] as const;
+
+/**
+ * The reasons the check itself gives when it voids a Missing receipt row. A void with any other reason is a person's
+ * (2026-11-25, owner: Void / Delete on Missing receipt rows): the charge then stays as it is and gets no new row.
+ */
+export const SYSTEM_VOID_REASONS = ['Receipt uploaded', 'Charge refunded', 'Amex charge changed'] as const;
+/** A charge whose Missing receipt row a person voided (not the check) or deleted (`deleted`: a copy is in the deletions). */
+export const isDismissed = (e: { voided: boolean; voidReason?: string | null } | null | undefined, deleted = false) =>
+  deleted || Boolean(e?.voided && !(SYSTEM_VOID_REASONS as readonly string[]).includes(String(e.voidReason ?? '')));
 export type LineStatus = typeof LINE_STATUSES[number]['key'];
 export const lineStatusLabel = (key: string) => LINE_STATUSES.find((s) => s.key === key)?.label || key;
 
@@ -227,6 +238,7 @@ export function lineStatus(l: { kind: LineKind; date: string; cardId: string | n
   /** The card exists but nobody holds it yet: no one to ask for the receipt. */ unassigned?: boolean;
   /** The linked expense has a receipt or a lost-receipt reason (default true: older callers don't say). */ hasReceipt?: boolean;
   /** A later refund returned this charge (pairRefunds): no receipt is asked for unless one is already on it. */ refunded?: boolean;
+  /** A person voided or deleted its Missing receipt row (`isDismissed`): it reads Removed, not Missing. */ dismissed?: boolean;
   /** The line's bank: each bank has its own start (`missingFromFor`) unless `missingFrom` is passed. */ issuer?: string },
   missingFrom?: string): LineStatus {
   if (l.kind !== 'charge') return 'no_receipt';
@@ -236,6 +248,7 @@ export function lineStatus(l: { kind: LineKind; date: string; cardId: string | n
     return 'matched';
   }
   if (l.refunded) return 'refunded';
+  if (l.dismissed) return 'dismissed';
   if (l.date < (missingFrom ?? missingFromFor(l.issuer))) return 'before_start';
   if (!l.cardId) return 'no_card';
   if (l.unassigned) return 'unassigned';
@@ -307,7 +320,8 @@ export function unknownCards(lines: readonly { digits: string; cardMember: strin
 
 export const daysApart = (a: string, b: string) => Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86400000;
 
-export type MatchLine = { reference: string; date: string; cents: number; kind: LineKind; cardId: string | null; expenseId: string | null; /** the line's bank, for its own start day */ issuer?: string };
+export type MatchLine = { reference: string; date: string; cents: number; kind: LineKind; cardId: string | null; expenseId: string | null; /** the line's bank, for its own start day */ issuer?: string;
+  /** A person removed its Missing receipt row: an exact receipt may still answer it, but no new row is made and the link stays. */ dismissed?: boolean };
 export type MatchExpense = { id: string; cardId: string; date: string; cents: number; status: string; voided: boolean; createdAt?: string | Date };
 export type MatchPlan = {
   /** Lines to point at an upload (or away from a voided one: expenseId null). */
@@ -352,6 +366,7 @@ export function planMatches({ lines, expenses, missingFrom }: {
       continue;
     }
     if (current && !current.voided) continue; // its Missing receipt row stays
+    if (l.dismissed) continue; // a person removed its row: leave the charge as it is
     if (current) plan.link.push({ reference: l.reference, expenseId: null });
     if (l.date >= (missingFrom ?? missingFromFor(l.issuer))) plan.create.push(l.reference);
   }

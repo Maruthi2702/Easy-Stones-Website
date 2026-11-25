@@ -56,6 +56,7 @@ export function lineStage(status: LineStatus, line: { date: string }, expense: S
     case 'before_start': return { tone: 'none', label: 'Before the check started', detail: '' };
     case 'no_receipt': return { tone: 'none', label: 'No receipt needed', detail: '' };
     case 'refunded': return { tone: 'none', label: 'Refunded', detail: '' };
+    case 'dismissed': return { tone: 'none', label: 'Removed', detail: 'No receipt asked for' };
     case 'matched': return matchedStage(expense);
   }
 }

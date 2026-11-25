@@ -1629,7 +1629,11 @@ tip — no hand-linking). **Credits / payments / refunds and interest / fees nee
 expense for its holder (Amex's day, merchant, amount), which they finish like a draft; only charges
 from the bank's start (`MISSING_FROM_BY_BANK` / `missingFromFor`: **Amex 2026-10-26, Encore 2026-10-14**, owner, 2026-11-25; Amex was 2026-11-01) do — earlier ones are listed and matched only. A receipt saved
 later claims its charge and voids that Missing row (`afterReceiptSaved` in `POST /expenses`, which
-no longer calls a Missing row a repeat); an expense that answers a charge can't be voided. Cards
+no longer calls a Missing row a repeat); a **receipt** that answers a charge can't be voided or deleted. **A Missing receipt row can be (2026-11-25, owner)**:
+Void any receipt voids it and Delete receipts deletes it (never the holder's own void rule), from the row's ⋯, the opened receipt's ⋯ or the ticked rows.
+The charge then reads **Removed** on Statements (`dismissed`, `isDismissed` in `amexStatement.ts`, tested) and the check makes **no new row**: a voided
+row stays linked, a deleted one is recognised by its copy in `card_expense_deletions`; the check's own voids (`SYSTEM_VOID_REASONS`) are not removals.
+An exact receipt uploaded later still answers the charge. Cards
 Amex names that nobody set up are listed (only cards with a charge), picked in the upload or the
 tab, and set up as `FIRS12345` in the same transaction as the check. Amex's "Receipt" `*` is
 ignored (merchant e-receipts; staff don't use the Amex app). **A card may have no holder yet**

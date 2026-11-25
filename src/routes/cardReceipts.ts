@@ -1157,7 +1157,12 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       if (!expense || !((expense.userId === me && has(req, CARD_RECEIPTS.USE)) || any)) return res.status(404).json({ message: 'Expense not found.' });
       if (expense.voidedAt) return res.json({ expense: await viewOf(expense, approvalViewerOf(req)), alreadyVoided: true });
       if (expense.status === 'approved' && !any) return res.status(409).json({ message: 'It’s approved, so it can’t be voided.' });
-      if (await amexChargeOf(id)) return res.status(409).json({ message: 'This is a charge on the Amex statement, so it can’t be voided. Add the receipt, or say why it’s lost.' });
+      // A receipt matched to a statement charge can't be voided. A **Missing receipt row** can (2026-11-25, owner), but only by
+      // Void any receipt: the holder can't clear their own. The charge then reads "Removed" and the check makes no new row.
+      if (await amexChargeOf(id)) {
+        if (expense.status !== 'missing') return res.status(409).json({ message: 'This is a charge on the bank statement, so it can’t be voided. Add the receipt, or say why it’s lost.' });
+        if (!any) return res.status(409).json({ message: 'A Missing receipt row is removed by Accounting. Add the receipt, or say why it’s lost.' });
+      }
       const by = actor(req);
       const saved = await db.changeExpense(id, { voidedAt: new Date(), voidedBy: by, voidReason: reason }, { at: new Date(), by, action: 'voided', expectedUpdatedAt: expense.updatedAt as Date, changes: reason });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
@@ -1171,7 +1176,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
 
   /**
    * Delete a receipt for good ("Delete receipts", admins). The whole record is saved to card_expense_deletions first, with who and
-   * why. A charge on a bank statement can't be deleted: its Missing receipt row stands for the charge (the check would only make it again).
+   * why. A receipt matched to a bank statement charge can't be deleted; a Missing receipt row can, and the saved copy stops the check making it again.
    */
   router.delete('/expenses/:id', authenticate, anyOf(CARD_RECEIPTS.DELETE), validateScalarRequest, async (req: Request, res: Response) => {
     const { id } = scalarParams(req);
@@ -1182,7 +1187,9 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     try {
       const expense = await db.findExpense(id);
       if (!expense) return res.status(404).json({ message: 'Expense not found.' });
-      if (await amexChargeOf(id)) return res.status(409).json({ message: 'This is a charge on a bank statement, so it can’t be deleted. Void it, or add the receipt.' });
+      // A receipt matched to a statement charge can't be deleted, but a Missing receipt row can (2026-11-25, owner): the copy kept
+      // in card_expense_deletions is what tells the check not to make it again.
+      if (expense.status !== 'missing' && await amexChargeOf(id)) return res.status(409).json({ message: 'This is a charge on a bank statement, so it can’t be deleted. Add the receipt, or say why it’s lost.' });
       const gone = await db.deleteExpense(id, actor(req), reason);
       if (!gone) return res.status(404).json({ message: 'Expense not found.' });
       console.log(`[card-receipts] deleted ${id} (${expense.merchant}, ${expense.cents}c, ${expense.userId}) by ${actor(req)}: ${reason}`);

@@ -18,7 +18,7 @@ import type { StatementLine, StatementsView, UploadResult } from './statementsAp
 import './Statements.css';
 
 /** The Status filter's dot by status (the same colours as the row and the Status column). */
-const DOT: Record<LineStatus, string> = { missing: 'miss', matched: 'ok', awaiting: 'wait', no_card: 'back', unassigned: 'back', before_start: 'none', no_receipt: 'none', refunded: 'none' };
+const DOT: Record<LineStatus, string> = { missing: 'miss', matched: 'ok', awaiting: 'wait', no_card: 'back', unassigned: 'back', before_start: 'none', no_receipt: 'none', refunded: 'none', dismissed: 'none' };
 
 const BANK_KEY = 'ccr-statements-bank';
 const savedBank = (): Issuer => {

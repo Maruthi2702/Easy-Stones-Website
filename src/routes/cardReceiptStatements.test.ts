@@ -177,10 +177,10 @@ describe('the Amex check', () => {
   it('a receipt uploaded the normal way takes the Missing receipt row’s place', async () => {
     who = MARUTHI;
     const [before] = (await placeholders()).filter((p) => p.userId === MARU);
-    // A Missing receipt row can't be voided away.
+    // The holder can't clear their own Missing receipt row (Accounting can: Void any receipt).
     const voided = await request(app).post(`/api/card-receipts/expenses/${before!.id}/void`).send({ reason: 'not mine' });
     expect(voided.status).toBe(409);
-    expect(voided.body.message).toMatch(/charge on the Amex statement/);
+    expect(voided.body.message).toMatch(/removed by Accounting/);
     // The same day and total as the Missing receipt row: not a repeat — it answers the charge.
     const id = hex(99);
     const res = await request(app).post('/api/card-receipts/expenses').send({ id, date: '2026-11-06', merchant: 'Chevron', total: '12.00' });
@@ -452,5 +452,63 @@ describe('review B9: a refunded charge needs no receipt', () => {
     // An ordinary charge on the card is still asked for.
     const plain = await post('import', [line('11/26/2026', 'SHELL OIL', 41.5, 'ref-sh', '-92069')]);
     expect(plain.body.check).toMatchObject({ created: 1 });
+  });
+});
+
+describe('a person removes a Missing receipt row (2026-11-25)', () => {
+  const SRINI_USER = { id: SRINI, displayName: 'Srini Manam', role: 'sales_rep', location: 'Seattle', permissions: ['use_card_receipts'] };
+  const ACCT_VOID = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'void_any_card_receipt'] };
+  const ACCT_DELETE = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'delete_card_receipts'] };
+  const rowOf = async (reference: string) => {
+    const [l] = await db.select().from(cardStatementLines).where(eq(cardStatementLines.reference, reference));
+    return l!;
+  };
+  const statusOf = async (reference: string) =>
+    (await request(app).get('/api/card-receipts/statements?month=2026-11')).body.lines.find((x: { reference: string }) => x.reference === reference);
+
+  it('Void any receipt voids it, and the next upload makes no new row; the charge reads Removed', async () => {
+    who = ACCOUNTANT;
+    const file = [line('11/14/2026', 'DISMISS ME', 18, 'ref-dismiss', '-93018', 'SRINI MANAM')];
+    expect((await post('import', file)).body.check).toMatchObject({ created: 1 });
+    const missing = (await rowOf('ref-dismiss')).expenseId!;
+    // The holder can't clear their own Missing row; Accounting (Void any receipt) can.
+    who = SRINI_USER;
+    const holder = await request(app).post(`/api/card-receipts/expenses/${missing}/void`).send({ reason: 'not mine' });
+    expect(holder.status).toBe(409);
+    expect(holder.body.message).toMatch(/removed by Accounting/);
+    who = ACCT_VOID;
+    const res = await request(app).post(`/api/card-receipts/expenses/${missing}/void`).send({ reason: 'Not a business charge' });
+    expect(res.status).toBe(200);
+    expect(res.body.expense.voided).toBeTruthy();
+    // Uploading again — the same file, or one that re-reads every waiting charge — leaves it alone.
+    who = ACCOUNTANT;
+    expect((await post('import', file)).body.check).toMatchObject({ created: 0, linked: 0 });
+    expect((await post('import', [line('11/16/2026', 'ANOTHER', 5, 'ref-another', '-93018', 'SRINI MANAM')])).body.check).toMatchObject({ created: 1 });
+    expect((await rowOf('ref-dismiss')).expenseId).toBe(missing);
+    expect(await statusOf('ref-dismiss')).toMatchObject({ status: 'dismissed', stage: { label: 'Removed' } });
+  });
+
+  it('Delete receipts deletes it, keeps a copy, and the check never makes it again', async () => {
+    who = ACCOUNTANT;
+    const file = [line('11/15/2026', 'DELETE ME', 22, 'ref-delete', '-93018', 'SRINI MANAM')];
+    expect((await post('import', file)).body.check).toMatchObject({ created: 1 });
+    const missing = (await rowOf('ref-delete')).expenseId!;
+    who = ACCT_DELETE;
+    const res = await request(app).delete(`/api/card-receipts/expenses/${missing}`).send({ reason: 'Duplicate of another charge' });
+    expect(res.status).toBe(200);
+    expect(await db.select().from(cardExpenses).where(eq(cardExpenses.id, missing))).toHaveLength(0);
+    who = ACCOUNTANT;
+    const before = (await placeholders()).length;
+    expect((await post('import', file)).body.check).toMatchObject({ created: 0 });
+    expect((await placeholders()).length).toBe(before);
+    expect(await statusOf('ref-delete')).toMatchObject({ status: 'dismissed' });
+  });
+
+  it('a receipt matched to a charge still can’t be voided or deleted', async () => {
+    who = { ...ACCOUNTANT, permissions: ['check_amex_statements', 'void_any_card_receipt', 'delete_card_receipts'] };
+    const matched = (await rowOf('ref-matched')).expenseId!;
+    expect((await request(app).post(`/api/card-receipts/expenses/${matched}/void`).send({ reason: 'x' })).status).toBe(409);
+    expect((await request(app).delete(`/api/card-receipts/expenses/${matched}`).send({ reason: 'a long enough reason' })).status).toBe(409);
+    who = ACCOUNTANT;
   });
 });
