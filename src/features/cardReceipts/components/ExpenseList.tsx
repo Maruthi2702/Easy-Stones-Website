@@ -35,11 +35,12 @@ export function Thumb({ e }: { e: Expense }) {
 }
 
 /**
- * A row's background (2026-11-24; owner: only green): green = a line on a bank statement answers a receipt. A Missing
- * receipt row, a receipt not on a statement yet and one not known stay plain; the Statement filter still lists them.
+ * A row's background (2026-11-24; owner: only green): green = a line on the bank report answers it. That is a receipt
+ * matched to its charge **and** a Missing receipt row, which is made from a report line (on the report by definition,
+ * only the receipt is still to come). A receipt not on a report yet, or not known, stays plain.
  */
-const rowTone = (e: Expense) => (e.status !== 'missing' && e.onStatement === true ? 'is-ok' : '');
-const toneTitle = (e: Expense) => (rowTone(e) ? 'Matched with a line on the statement' : undefined);
+const rowTone = (e: Expense) => (e.onStatement === true ? 'is-ok' : '');
+const toneTitle = (e: Expense) => (rowTone(e) ? (e.status === 'missing' ? 'On the bank report, receipt still to upload' : 'Matched with a line on the statement') : undefined);
 
 const Tags = ({ e }: { e: Expense }) => (
   <>
