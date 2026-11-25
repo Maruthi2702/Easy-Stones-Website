@@ -1,11 +1,12 @@
 import { useCallback, useRef, useState } from 'react';
 import { newVisitId } from '../../../utils/visitForm';
 import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
-import { receiptFileProblem } from '../../../utils/receiptFile';
+import { duplicatePhotoLine, receiptFileProblem } from '../../../utils/receiptFile';
+import { fingerprintOf } from '../receiptFingerprint';
 import { cleanExpense, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
 import { MAX_BATCH, batchLeftOut, batchRoom, rowReadiness } from '../../../utils/receiptBatch';
-import type { ExpenseBody } from '../cardReceiptsApi';
+import type { ExpenseBody, UploadOptions, UploadResult } from '../cardReceiptsApi';
 import type { Category, Expense } from '../types';
 
 export type RowValues = Required<Omit<ExpenseInput, 'recurring'>> & { recurring: boolean };
@@ -30,12 +31,16 @@ export type BatchRow = {
   problems: ExpenseProblems;
   repeat: { merchant: string; date: string; cents: number } | null;
   saved: { status: string; matchedMissing: boolean } | null;
+  /** The file's fingerprint ('' until it's worked out, or when the browser can't). */
+  hash: string;
+  /** The photo is already on a saved receipt (a warning, src/utils/receiptFile.ts's duplicatePhotoLine). */
+  dupLine: string;
 };
 
 type Deps = {
   today: string;
   categories: Category[];
-  upload: (data: string) => Promise<{ url: string }>;
+  upload: (data: string, opts?: UploadOptions) => Promise<UploadResult>;
   scan?: (url: string) => Promise<{ scan: ReceiptScan }>;
   /** Saves one receipt under the id the row carries. */
   addOne: (id: string, body: ExpenseBody) => Promise<{ expense: Expense; matchedMissing: boolean }>;
@@ -76,14 +81,22 @@ export function useReceiptBatch({ today, categories, upload, scan, addOne }: Dep
   const startRow = (key: string, file: File) => {
     uploads.current(async () => {
       let url = '';
+      let hash = '';
+      let dupLine = '';
       try {
-        const data = file.type === 'application/pdf' ? await fileToBase64(file) : await compressImage(file, 2000, 0.8);
-        ({ url } = await upload(data));
+        let data: string;
+        [data, hash] = await Promise.all([
+          file.type === 'application/pdf' ? fileToBase64(file) : compressImage(file, 2000, 0.8),
+          fingerprintOf(file)
+        ]);
+        const res = await upload(data, { hash });
+        url = res.url;
+        dupLine = duplicatePhotoLine(res.duplicate);
       } catch (err) {
         patch(key, { stage: 'unreadable', error: (err as Error).message || 'Could not upload this file.' });
         return;
       }
-      patch(key, (r) => ({ values: { ...r.values, receiptUrl: url }, stage: scan ? 'reading' : 'ready', note: '', open: !scan }));
+      patch(key, (r) => ({ values: { ...r.values, receiptUrl: url }, stage: scan ? 'reading' : 'ready', note: '', open: !scan, hash, dupLine }));
       if (!scan) return;
       await reads.current(async () => {
         try {
@@ -115,7 +128,8 @@ export function useReceiptBatch({ today, categories, upload, scan, addOne }: Dep
     const out = problem || batchLeftOut(have, files.filter((f) => !receiptFileProblem(f)).length);
     setLeft(out);
     const fresh: BatchRow[] = taken.map((file) => ({
-      key: newVisitId(), file, values: blankRow(today), stage: 'uploading', note: '', open: false, save: 'new', error: '', problems: {}, repeat: null, saved: null
+      key: newVisitId(), file, values: blankRow(today), stage: 'uploading', note: '', open: false, save: 'new', error: '', problems: {}, repeat: null, saved: null,
+      hash: '', dupLine: ''
     }));
     setRows((list) => [...list, ...fresh]);
     fresh.forEach((r) => startRow(r.key, r.file));
@@ -125,6 +139,15 @@ export function useReceiptBatch({ today, categories, upload, scan, addOne }: Dep
   const remove = (key: string) => setRows((list) => list.filter((r) => r.key !== key || r.save === 'saved'));
   const clear = () => { setRows([]); setLeft(''); };
   const toggle = (key: string) => patch(key, (r) => ({ open: !r.open }));
+
+  // The same file picked twice in this batch: each later row names the first one's number (1-based).
+  const sameAs: Record<string, number> = {};
+  const firstWith = new Map<string, number>();
+  rows.forEach((r, i) => {
+    if (!r.hash) return;
+    const first = firstWith.get(r.hash);
+    if (first == null) firstWith.set(r.hash, i); else sameAs[r.key] = first + 1;
+  });
 
   const busy = rows.some((r) => r.stage === 'uploading' || r.stage === 'reading' || r.save === 'saving');
   const todo = rows.filter((r) => r.save !== 'saved');
@@ -165,5 +188,5 @@ export function useReceiptBatch({ today, categories, upload, scan, addOne }: Dep
     }
   };
 
-  return { rows, left, busy, todo, blocked, ready, check, setValues, addFiles, remove, clear, toggle, saveAll, saveAnyway, max: MAX_BATCH };
+  return { rows, left, busy, todo, blocked, ready, check, sameAs, setValues, addFiles, remove, clear, toggle, saveAll, saveAnyway, max: MAX_BATCH };
 }

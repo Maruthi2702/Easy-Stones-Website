@@ -54,7 +54,9 @@ const fake = {
   todo: null as Record<string, unknown>[] | null,
   near: { charge: null, receipts: [] } as Record<string, unknown>,
   /** Every list URL asked for. */
-  asked: [] as string[]
+  asked: [] as string[],
+  /** What POST /attachments says the photo is already on (null = nothing). */
+  duplicate: null as Record<string, unknown> | null
 };
 const ok = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
 const answer = (url: string, init?: RequestInit) => {
@@ -64,6 +66,8 @@ const answer = (url: string, init?: RequestInit) => {
     const body = JSON.parse(String(init.body || '{}'));
     fake.posted.push({ url: u, body });
     if (fake.conflict) return ok({ message: 'Changed', changed: true }, 409);
+    if (/\/attachments$/.test(u)) return ok({ url: '/api/card-receipts/files/img_1700000000001_0123456789abcdef01234567.pdf', duplicate: fake.duplicate });
+    if (/\/scan$/.test(u)) return ok({ message: 'Reading is off' }, 503);
     if (/\/expenses\/remind\/preview$/.test(u)) {
       const g = (names: string[]) => ({ names, ids: names, self: false });
       return ok({ groups: { holder: g(['Maria Lopez']), managers: g([]), accounting: g([]), admins: g([]), approvers: g(['Ann Count', 'Ada Min']) },
@@ -96,7 +100,7 @@ const settle = async () => { for (let i = 0; i < 8; i++) await act(async () => {
 const show = async (permissions: string[]) => { render(<CardReceiptsPage currentUser={{ _id: 'u1', displayName: 'Maruthi Ponugupati', permissions }} />); await settle(); };
 const text = () => document.body.textContent || '';
 
-beforeEach(() => { fake.card = true; fake.posted = []; fake.asked = []; fake.waiting = [WAITING_LOST]; fake.conflict = false; fake.todo = null; fake.near = { charge: null, receipts: [] }; Element.prototype.scrollIntoView = () => {}; localStorage.clear(); sessionStorage.clear(); });
+beforeEach(() => { fake.card = true; fake.posted = []; fake.asked = []; fake.waiting = [WAITING_LOST]; fake.conflict = false; fake.todo = null; fake.duplicate = null; fake.near = { charge: null, receipts: [] }; Element.prototype.scrollIntoView = () => {}; localStorage.clear(); sessionStorage.clear(); });
 afterEach(cleanup);
 
 /** The one round Filters button (every screen size): opens the panel Queue, Card, Status, Statement, Category and People live in. */
@@ -699,5 +703,70 @@ describe('a category that needs a note (2026-11-23)', () => {
     expect(screen.getByLabelText('Can be marked recurring')).toBeTruthy();
     expect(text()).not.toContain('Who attended');
     expect(text()).not.toContain('Business purpose');
+  });
+});
+
+describe('checks that never block (2026-11-24)', () => {
+  it('reads Waiting for me and To do again when the page comes back into view, at most every 30 s', async () => {
+    const now = vi.spyOn(Date, 'now');
+    let clock = 1_000_000;
+    now.mockImplementation(() => clock);
+    try {
+      await show(['use_card_receipts', 'approve_card_receipts']);
+      const count = () => ({ waiting: fake.asked.filter((u) => /scope=waiting/.test(u)).length, todo: fake.asked.filter((u) => /scope=todo/.test(u)).length });
+      const first = count();
+      clock += 5_000;
+      await act(async () => { window.dispatchEvent(new Event('focus')); });
+      await settle();
+      expect(count()).toEqual(first);
+      clock += 30_000;
+      await act(async () => { document.dispatchEvent(new Event('visibilitychange')); window.dispatchEvent(new Event('focus')); });
+      await settle();
+      expect(count()).toEqual({ waiting: first.waiting + 1, todo: first.todo + 1 });
+    } finally {
+      now.mockRestore();
+    }
+  });
+
+  it('says when subtotal, tax and tip don’t add up to the total, on the opened receipt', async () => {
+    fake.waiting = [WAITING_SECOND];
+    await show(['use_card_receipts', 'approve_card_receipts']);
+    fireEvent.click(screen.getByRole('tab', { name: /Waiting for me/ }));
+    fireEvent.click(screen.getByLabelText(/Open Home Depot/));
+    expect(text()).toContain('Subtotal, tax and tip add up to $14.32, not the total of $189.00. Check them.');
+    // Still approvable: it's a check, not a block.
+    expect((screen.getByRole('button', { name: 'Approve receipt' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('says so while the bill details are typed, and still saves', async () => {
+    fake.waiting = [];
+    await show(['use_card_receipts']);
+    fireEvent.click(screen.getByLabelText('Add receipt'));
+    fireEvent.click(screen.getByRole('button', { name: /Lost Receipt/ }));
+    fireEvent.click(screen.getByLabelText('Edit bill details'));
+    fireEvent.change(document.getElementById('ccr-merchant')!, { target: { value: 'Shell' } });
+    fireEvent.change(document.getElementById('ccr-total')!, { target: { value: '43.20' } });
+    fireEvent.change(document.getElementById('ccr-subtotal')!, { target: { value: '38.20' } });
+    fireEvent.change(document.getElementById('ccr-tax')!, { target: { value: '3.00' } });
+    expect(text()).toContain('add up to $41.20, not the total of $43.20');
+    fireEvent.change(document.getElementById('ccr-tip')!, { target: { value: '2.00' } });
+    expect(text()).not.toContain('add up to');
+    fireEvent.change(document.getElementById('ccr-tip')!, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    // Back on the form, the bill card says it too.
+    expect(text()).toContain('add up to $41.20, not the total of $43.20');
+  });
+
+  it('warns when the photo is already on a receipt, sending the file’s fingerprint', async () => {
+    fake.waiting = [];
+    fake.duplicate = { seen: true, own: true, holderName: 'Maruthi Ponugupati', merchant: 'Chevron', date: '2026-10-03', cents: 4518, status: 'waiting' };
+    await show(['use_card_receipts']);
+    fireEvent.click(screen.getByLabelText('Add receipt'));
+    const input = document.querySelector('input[accept="application/pdf,image/*"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['%PDF-1.7 receipt'], 'chevron.pdf', { type: 'application/pdf' })] } });
+    await settle();
+    const sent = fake.posted.find((p) => /\/attachments$/.test(p.url))!;
+    expect(String(sent.body.hash)).toMatch(/^[0-9a-f]{64}$/);
+    expect(text()).toContain('This photo is already on your receipt (Chevron, $45.18, 10-03-2026, waiting for approval).');
   });
 });

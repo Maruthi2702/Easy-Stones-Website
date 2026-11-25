@@ -209,6 +209,13 @@ export async function findExpenseByReceipt(db: Db, receiptUrl: string): Promise<
   return (await withHistory(db, rows))[0] ?? null;
 }
 
+/** Live (not voided) expenses whose receipt is this file (its fingerprint), newest first: the same photo twice. */
+export async function expensesWithReceiptHash(db: Db, hash: string): Promise<Loose[]> {
+  if (!hash) return [];
+  return withHistory(db, await selectExpenses(db).where(and(eq(cardExpenses.receiptHash, hash), isNull(cardExpenses.voidedAt)))
+    .orderBy(desc(cardExpenses.createdAt)).limit(10));
+}
+
 export async function sameDayAmount(db: Db, userId: string, date: string, cents: number): Promise<Loose[]> {
   return withHistory(db, await selectExpenses(db).where(and(
     eq(cardExpenses.userId, lower(userId)), eq(cardExpenses.day, date), eq(cardExpenses.cents, cents), isNull(cardExpenses.voidedAt))));

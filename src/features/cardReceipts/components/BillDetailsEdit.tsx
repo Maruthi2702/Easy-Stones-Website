@@ -1,7 +1,8 @@
 import { FormSection, FormRow, FormField } from '../../../components/shared/form/FormControls';
 import { DatePicker } from '../../../components/shared/calendar/Calendar';
-import { usDate, type ExpenseProblems } from '../../../utils/cardReceipts';
+import { billMismatchLine, typedBillMismatch, usDate, type ExpenseProblems } from '../../../utils/cardReceipts';
 import type { BillValues } from './BillCard';
+import WarnLines from './WarnLines';
 
 type Props = {
   values: BillValues;
@@ -10,6 +11,8 @@ type Props = {
   set: (patch: Partial<BillValues>) => void;
   /** A Missing receipt row: the bank's day and total stand, so they can't be changed here (review B10). */
   fromBank?: boolean;
+  /** Checks shown above the fields (the same photo already on a receipt): this screen opens by itself after an upload. */
+  warnings?: readonly string[];
 };
 
 const MONEY: { key: 'subtotal' | 'tax' | 'tip'; label: string }[] = [
@@ -22,11 +25,13 @@ const MONEY: { key: 'subtotal' | 'tax' | 'tip'; label: string }[] = [
  * The "Edit bill details" screen the pencil on the Bill details card opens
  * (inside the same FormModal): merchant, date, the total charged to the card,
  * and the optional subtotal, tax and tip. Total is what was charged — the
- * rest are only for the approver's information.
+ * rest are for the approver's information; when they don't add up to the
+ * total a line says so (never blocks: a receipt can carry a discount or fee).
  */
-export default function BillDetailsEdit({ values, errors, today, set, fromBank = false }: Props) {
+export default function BillDetailsEdit({ values, errors, today, set, fromBank = false, warnings = [] }: Props) {
   return (
     <>
+      <WarnLines lines={warnings} />
       <FormSection>
         <FormField name="merchant" id="ccr-merchant" label="Merchant" required error={errors.merchant}>
           <input id="ccr-merchant" className="fm-input" autoComplete="off" maxLength={80} placeholder="Where you paid" value={values.merchant} onChange={(e) => set({ merchant: e.target.value })} />
@@ -55,6 +60,7 @@ export default function BillDetailsEdit({ values, errors, today, set, fromBank =
             </FormField>
           ))}
         </div>
+        <WarnLines lines={[billMismatchLine(typedBillMismatch(values))]} />
       </FormSection>
     </>
   );

@@ -225,6 +225,30 @@ export const centsText = (cents: number | null | undefined) => (cents == null ? 
 export const formatMoney = (cents: number) =>
   `${cents < 0 ? '−' : ''}$${(Math.abs(cents) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/**
+ * Subtotal + tax + tip against the total (2026-11-24, owner: warn when they don't add up). Only checked once a
+ * subtotal is there; a missing tax or tip counts as 0. A warning only: the total is what the card was charged, and a
+ * receipt can carry a discount or fee the bill details don't list. Null when they add up (or there is nothing to check).
+ */
+export function billMismatch(bill: { cents: number | null | undefined; subtotalCents?: number | null; taxCents?: number | null; tipCents?: number | null }) {
+  const whole = (n: unknown) => (typeof n === 'number' && Number.isFinite(n) ? n : null);
+  const total = whole(bill.cents);
+  const subtotal = whole(bill.subtotalCents);
+  if (total == null || subtotal == null) return null;
+  const sum = subtotal + (whole(bill.taxCents) ?? 0) + (whole(bill.tipCents) ?? 0);
+  return sum === total ? null : { sum, total };
+}
+
+/** The bill details as typed (Add / Edit receipt) → billMismatch; a field that isn't money yet is left out of the check. */
+export function typedBillMismatch(v: { total: string; subtotal: string; tax: string; tip: string }) {
+  const cents = (t: string) => { const c = parseCents(t); return c == null || Number.isNaN(c) ? null : c; };
+  return billMismatch({ cents: cents(v.total), subtotalCents: cents(v.subtotal), taxCents: cents(v.tax), tipCents: cents(v.tip) });
+}
+
+/** "Subtotal, tax and tip add up to $41.20, not the total of $43.20. Check them." */
+export const billMismatchLine = (m: { sum: number; total: number } | null) =>
+  m ? `Subtotal, tax and tip add up to ${formatMoney(m.sum)}, not the total of ${formatMoney(m.total)}. Check them.` : '';
+
 export const isMonth = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 export const monthOf = (day: string) => day.slice(0, 7);
 export const monthLabel = (month: string) => {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   CARD_RECEIPTS, canOpenReceipts, categoryKey, cleanCategory, parseCents, formatMoney, usDate, shiftMonth, monthLabel, rangeProblem, inRange, rangeLabel, shortDay, MAX_RANGE_DAYS,
   suggestCardLabel, cleanCard, cleanExpense, missingFor, missingLine, statusAfterSave, holderMayEdit, changeSummary,
-  possibleRepeat, canApprove, cleanApproverRoles, decisionProblem, statusTotals, exportRows, type CategoryLike
+  possibleRepeat, canApprove, cleanApproverRoles, decisionProblem, statusTotals, exportRows, billMismatch, typedBillMismatch, billMismatchLine, type CategoryLike
 } from './cardReceipts.ts';
 
 const CATS: CategoryLike[] = [
@@ -228,5 +228,26 @@ describe('isBigReceipt', () => {
     expect(isBigReceipt(14999)).toBe(false);
     expect(isBigReceipt(15000)).toBe(true);
     expect(isBigReceipt(null)).toBe(false);
+  });
+});
+
+describe('billMismatch', () => {
+  it('says nothing until a subtotal is there, or when the parts add up', () => {
+    expect(billMismatch({ cents: 4320, subtotalCents: null, taxCents: 300 })).toBeNull();
+    expect(billMismatch({ cents: 4320, subtotalCents: 3820, taxCents: 300, tipCents: 200 })).toBeNull();
+    expect(billMismatch({ cents: 4120, subtotalCents: 4120 })).toBeNull();
+    expect(billMismatch({ cents: null, subtotalCents: 4120 })).toBeNull();
+  });
+  it('flags parts that don’t add up to the total (a missing tax or tip is 0)', () => {
+    expect(billMismatch({ cents: 4320, subtotalCents: 3820, taxCents: 300 })).toEqual({ sum: 4120, total: 4320 });
+    expect(billMismatchLine(billMismatch({ cents: 4320, subtotalCents: 3820, taxCents: 300 })))
+      .toBe('Subtotal, tax and tip add up to $41.20, not the total of $43.20. Check them.');
+    expect(billMismatchLine(null)).toBe('');
+  });
+  it('reads the typed form, leaving out what isn’t money yet', () => {
+    expect(typedBillMismatch({ total: '43.20', subtotal: '38.20', tax: '3.00', tip: '' })).toEqual({ sum: 4120, total: 4320 });
+    expect(typedBillMismatch({ total: '43.20', subtotal: '38.20', tax: '3.00', tip: '2' })).toBeNull();
+    expect(typedBillMismatch({ total: '43.20', subtotal: 'abc', tax: '3.00', tip: '' })).toBeNull();
+    expect(typedBillMismatch({ total: '', subtotal: '38.20', tax: '', tip: '' })).toBeNull();
   });
 });

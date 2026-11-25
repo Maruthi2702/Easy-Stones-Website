@@ -88,6 +88,8 @@ export const cardExpenses = pgTable('card_expenses', {
   note: text('note').notNull().default(''),
   recurring: boolean('recurring').notNull().default(false),
   receiptUrl: text('receipt_url').notNull().default(''),
+  /** SHA-256 of the receipt file as picked (src/utils/receiptFile.ts), to warn when the same photo is uploaded twice; '' = not known. */
+  receiptHash: text('receipt_hash').notNull().default(''),
   lostReason: text('lost_reason').notNull().default(''),
   status: text('status').notNull(),
   approvedById: text('approved_by_id'),
@@ -125,6 +127,7 @@ export const cardExpenses = pgTable('card_expenses', {
   index('card_expenses_month_day_idx').on(t.month, t.day),
   index('card_expenses_user_month_idx').on(t.userId, t.month),
   index('card_expenses_status_user_idx').on(t.status, t.userId),
+  index('card_expenses_receipt_hash_idx').on(t.receiptHash),
   oneOf('card_expenses', 'status', CARD_EXPENSE_STATUSES)
 ]);
 

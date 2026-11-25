@@ -94,6 +94,8 @@ const cardExpenseSchema = new mongoose.Schema({
   note: { type: String, default: '' },
   recurring: { type: Boolean, default: false },
   receiptUrl: { type: String, default: '' },
+  /** SHA-256 of the receipt file as picked: the same photo uploaded twice is warned about. '' = not known. */
+  receiptHash: { type: String, default: '' },
   lostReason: { type: String, default: '' },
   status: { type: String, enum: ['missing', 'draft', 'waiting', 'sent_back', 'approved'], required: true },
   /** The Accounting approval (src/utils/receiptApproval.ts). */
@@ -117,6 +119,7 @@ const cardExpenseSchema = new mongoose.Schema({
 cardExpenseSchema.index({ month: 1, date: -1 });
 cardExpenseSchema.index({ userId: 1, month: 1 });
 cardExpenseSchema.index({ status: 1, userId: 1 });
+cardExpenseSchema.index({ receiptHash: 1 });
 
 type CardDoc = mongoose.InferSchemaType<typeof companyCardSchema>;
 type CategoryDoc = mongoose.InferSchemaType<typeof receiptCategorySchema>;

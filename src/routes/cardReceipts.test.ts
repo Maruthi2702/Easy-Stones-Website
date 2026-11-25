@@ -768,6 +768,61 @@ describe('what a receipt link, a decision and a matched charge may do', () => {
   });
 });
 
+describe('the same photo twice (2026-11-24)', () => {
+  // A store that keeps each upload under its own name with its metadata, as S3 does.
+  let up!: import('express').Express;
+  let n = 0;
+  beforeAll(() => {
+    up = express();
+    up.use(express.json({ limit: '2mb' }));
+    up.use('/api/card-receipts', createCardReceiptsRouter({
+      authenticate: (req: Loose, _res: Loose, next: () => void) => { req.user = JSON.parse(req.headers['x-test-user'] || '{}'); next(); },
+      processBase64Image: async (_d: string, _f?: string, _m?: number, opts?: { metadata?: Record<string, string> }) => {
+        const name = `img_1700000000${String(++n).padStart(3, '0')}_0123456789abcdef01234567.webp`;
+        files.set(`private/CardReceipts/${name}`, { body: Buffer.from('IMG'), contentType: 'image/jpeg', metadata: opts?.metadata ?? {} });
+        return `https://cdn.test/private/CardReceipts/${name}`;
+      },
+      fileStore: () => fakeStore
+    }));
+  });
+  beforeEach(() => files.clear());
+  const u = (user: Loose) => ({
+    post: (url: string, body: Loose = {}) => request(up).post(`/api/card-receipts${url}`).set('x-test-user', JSON.stringify(user)).send(body),
+    put: (url: string, body: Loose) => request(up).put(`/api/card-receipts${url}`).set('x-test-user', JSON.stringify(user)).send(body)
+  });
+  const HASH = 'ab'.repeat(32);
+  const photo = 'data:image/jpeg;base64,AAAA';
+
+  it('warns with the receipt the photo is already on, never blocks, and skips voided and the one being edited', async () => {
+    const first = await u(REP).post('/attachments', { data: photo, hash: HASH }).expect(200);
+    expect(first.body.duplicate).toBeNull();
+    const body = receipt({ receiptUrl: first.body.url, merchant: 'Chevron', total: '45.18', tax: '' });
+    await u(REP).post('/expenses', body).expect(201);
+    expect((await CardExpense.findById(body.id).lean() as Loose).receiptHash).toBe(HASH);
+
+    const again = await u(REP).post('/attachments', { data: photo, hash: HASH }).expect(200);
+    expect(again.body.duplicate).toEqual({ seen: true, own: true, holderName: 'Maruthi Ponugupati', merchant: 'Chevron', date: '2026-10-03', cents: 4518, status: 'waiting' });
+    // Re-picking the same photo while editing that receipt isn't a duplicate of itself.
+    expect((await u(REP).post('/attachments', { data: photo, hash: HASH, except: body.id }).expect(200)).body.duplicate).toBeNull();
+    // Another person may only learn that the photo is on someone's receipt.
+    expect((await u(MANAGER).post('/attachments', { data: photo, hash: HASH }).expect(200)).body.duplicate).toEqual({ seen: false });
+    // A voided receipt doesn't count.
+    await u(REP).post(`/expenses/${body.id}/void`, { reason: 'Saved twice' }).expect(200);
+    expect((await u(REP).post('/attachments', { data: photo, hash: HASH }).expect(200)).body.duplicate).toBeNull();
+  });
+
+  it('fingerprints the bytes when the browser sends none, and clears it when the receipt becomes lost', async () => {
+    const first = await u(REP).post('/attachments', { data: photo }).expect(200);
+    const body = receipt({ receiptUrl: first.body.url });
+    await u(REP).post('/expenses', body).expect(201);
+    const saved = await CardExpense.findById(body.id).lean() as Loose;
+    expect(saved.receiptHash).toMatch(/^[0-9a-f]{64}$/);
+    expect((await u(REP).post('/attachments', { data: photo, hash: 'not-a-hash' }).expect(200)).body.duplicate).toMatchObject({ seen: true, own: true });
+    await u(REP).put(`/expenses/${body.id}`, { ...body, receiptUrl: '', lostReason: 'The printer jammed at the pump' }).expect(200);
+    expect((await CardExpense.findById(body.id).lean() as Loose).receiptHash).toBe('');
+  });
+});
+
 describe('private receipt files', () => {
   const ref = `/api/card-receipts/files/${PRIV}`;
   const put = (uploader: string) => files.set(`private/CardReceipts/${PRIV}`, { body: Buffer.from('IMG'), contentType: 'image/webp', metadata: { uploader } });

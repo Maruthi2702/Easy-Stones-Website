@@ -32,7 +32,7 @@ export function expenseDoc(e: typeof cardExpenses.$inferSelect, locationName: st
     subtotalCents: e.subtotalCents, taxCents: e.taxCents, tipCents: e.tipCents,
     category: e.category ?? '', subcategory: e.subcategory, customerId: e.customerId ?? '', customerName: e.customerName,
     attendees: e.attendees, purpose: e.purpose, note: e.note, recurring: e.recurring,
-    receiptUrl: e.receiptUrl, lostReason: e.lostReason, status: e.status,
+    receiptUrl: e.receiptUrl, receiptHash: e.receiptHash, lostReason: e.lostReason, status: e.status,
     approval: e.approvedById == null ? null
       : { by: e.approvedById, byName: e.approvedByName ?? '', at: e.approvedAt, comment: e.approvalComment ?? '', as: e.approvedAs ?? null },
     secondApproval: (e.secondApproval as Loose | null) ?? null,

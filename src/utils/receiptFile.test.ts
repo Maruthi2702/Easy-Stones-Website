@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_RECEIPT_PDF_BYTES, MAX_RECEIPT_PHOTO_BYTES, isImageFile, isPdfFile, receiptFileProblem } from './receiptFile';
+import { MAX_RECEIPT_PDF_BYTES, MAX_RECEIPT_PHOTO_BYTES, duplicatePhotoLine, isImageFile, isPdfFile, isReceiptHash, receiptFileProblem } from './receiptFile';
 
 const file = (name: string, type: string, size = 1000) => ({ name, type, size });
 
@@ -26,5 +26,22 @@ describe('receiptFileProblem', () => {
     expect(receiptFileProblem(file('ok.jpg', 'image/jpeg', MAX_RECEIPT_PDF_BYTES + 1))).toBe('');
     expect(receiptFileProblem(file('ok.pdf', 'application/pdf', MAX_RECEIPT_PDF_BYTES))).toBe('');
     expect(receiptFileProblem(file('none.jpg', 'image/jpeg', 0))).toContain('empty');
+  });
+});
+
+describe('the same photo twice', () => {
+  it('takes a SHA-256 in lowercase hex only', () => {
+    expect(isReceiptHash('a'.repeat(64))).toBe(true);
+    expect(isReceiptHash('A'.repeat(64))).toBe(false);
+    expect(isReceiptHash('a'.repeat(63))).toBe(false);
+    expect(isReceiptHash(undefined)).toBe(false);
+  });
+  it('names the receipt the photo is already on, or only that one exists', () => {
+    expect(duplicatePhotoLine(null)).toBe('');
+    expect(duplicatePhotoLine({ seen: true, own: true, holderName: 'Maruthi P', merchant: 'Chevron', date: '2026-11-03', cents: 4518, status: 'waiting' }))
+      .toBe('This photo is already on your receipt (Chevron, $45.18, 11-03-2026, waiting for approval). Check it’s not the same receipt twice.');
+    expect(duplicatePhotoLine({ seen: true, own: false, holderName: 'Dana Whitfield', merchant: 'Chevron', date: '2026-11-03', cents: 4518, status: 'approved' }))
+      .toMatch(/^This photo is already on Dana’s receipt \(Chevron, \$45\.18, 11-03-2026, approved\)/);
+    expect(duplicatePhotoLine({ seen: false })).toMatch(/another person’s receipt/);
   });
 });

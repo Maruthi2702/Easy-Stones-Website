@@ -373,6 +373,10 @@ body.light-theme-active .ccr-preview { background: var(--fm-card); }
 .ccr-bill-total strong { font-weight: 700; font-variant-numeric: tabular-nums; }
 .ccr-bill-note { margin: 12px 0 0; font-size: 13px; color: var(--fm-mut); }
 .ccr-bill-note.is-check { color: var(--fm-err, #d93025); font-weight: 600; }
+/* A check, never a block: the same photo twice, or subtotal + tax + tip not adding up to the total (2026-11-24). */
+.ccr-warn-line { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; padding: 8px 10px; border-radius: 10px;
+  background: var(--ccr-warn-bg); color: var(--ccr-warn); font-size: 13px; line-height: 1.4; }
+.ccr-warn-line svg { flex: none; margin-top: 1px; }
 .ccr-bill-links { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
 
 .ccr-money { position: relative; }

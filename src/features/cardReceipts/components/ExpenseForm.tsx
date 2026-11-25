@@ -8,10 +8,11 @@ import type { FormOption } from '../../../components/shared/form/FormControls';
 import { goToField } from '../../../components/shared/form/formFocus';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
-import { receiptFileProblem } from '../../../utils/receiptFile';
-import { centsText, cleanExpense, defaultSubOf, fieldsOf, formatMoney, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
+import { duplicatePhotoLine, receiptFileProblem } from '../../../utils/receiptFile';
+import { billMismatchLine, centsText, cleanExpense, defaultSubOf, fieldsOf, formatMoney, typedBillMismatch, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
-import type { ExpenseBody } from '../cardReceiptsApi';
+import type { ExpenseBody, UploadOptions, UploadResult } from '../cardReceiptsApi';
+import { fingerprintOf } from '../receiptFingerprint';
 import CardToggle from './CardToggle';
 import { lastCardFor, rememberCard } from '../cardChoice';
 import type { AddableHolder, Card, Category, Expense } from '../types';
@@ -53,7 +54,8 @@ export type ExpenseFormProps = {
   holderName: string;
   categories: Category[];
   today: string;
-  upload: (data: string) => Promise<{ url: string }>;
+  /** Stores the file; `duplicate` in the answer is a receipt that already has this photo. */
+  upload: (data: string, opts?: UploadOptions) => Promise<UploadResult>;
   /** Reads an uploaded receipt (src/routes/cardReceiptScan.ts); absent = no reading. */
   scan?: (url: string) => Promise<{ scan: ReceiptScan }>;
   onSave: (values: ExpenseBody) => Promise<unknown>;
@@ -109,6 +111,8 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   // Reading the receipt after an upload, and what it filled in.
   const [reading, setReading] = useState(false);
   const [readLine, setReadLine] = useState('');
+  // The photo just picked is already on a receipt (a warning; Save still works).
+  const [dupLine, setDupLine] = useState('');
   const readSeq = useRef(0);
   const valuesRef = useRef(values);
   valuesRef.current = values;
@@ -153,10 +157,17 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
     setUploading(true);
     setServerError('');
     setReadLine('');
+    setDupLine('');
     let url = '';
     try {
-      const data = file.type === 'application/pdf' ? await fileToBase64(file) : await compressImage(file, 2000, 0.8);
-      ({ url } = await upload(data));
+      // The fingerprint is of the file as picked, so the same photo chosen again matches (receiptFingerprint.ts).
+      const [data, hash] = await Promise.all([
+        file.type === 'application/pdf' ? fileToBase64(file) : compressImage(file, 2000, 0.8),
+        fingerprintOf(file)
+      ]);
+      const res = await upload(data, { hash, except: expense?.id });
+      url = res.url;
+      setDupLine(duplicatePhotoLine(res.duplicate));
       set({ receiptUrl: url });
       setLost(false);
     } catch (err) {
@@ -281,7 +292,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
       <input ref={fileRef} type="file" accept="image/*,application/pdf" hidden onChange={(e) => pickFile(e.target.files?.[0])} />
 
       {onBillScreen ? (
-        <BillDetailsEdit values={billOf(values)} errors={billSubmitted ? pick(problems, true) : {}} today={today} set={set} fromBank={expense?.status === 'missing'} />
+        <BillDetailsEdit values={billOf(values)} errors={billSubmitted ? pick(problems, true) : {}} today={today} set={set} fromBank={expense?.status === 'missing'} warnings={[lost ? '' : dupLine]} />
       ) : (
         <>
           {forOthers ? (
@@ -300,7 +311,8 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
           <FormSection>
             <FormField name="receipt" id="ccr-file-btn" label="Bill details" error={submitted ? problems.receipt : ''}>
               <BillCard {...billOf(values)} receiptUrl={lost ? '' : values.receiptUrl} lost={lost} uploading={uploading} note={cardNote} noteTone={!reading && readLine ? 'check' : undefined}
-                viewingLarge={viewing} onPhoto={onPhoto} onEdit={(focus) => openBill(focus)} />
+                viewingLarge={viewing} onPhoto={onPhoto} onEdit={(focus) => openBill(focus)}
+                warnings={[lost ? '' : dupLine, billMismatchLine(typedBillMismatch(values))]} />
               <div className="ccr-bill-links">
                 {!lost ? (
                   <>

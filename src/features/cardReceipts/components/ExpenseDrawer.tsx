@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Ban, Bell, CornerUpLeft, FileText, HelpCircle, Maximize2, MessageSquareOff, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection, FormField } from '../../../components/shared/form/FormControls';
-import { formatMoney, isBigReceipt, usDate, fieldsOf } from '../../../utils/cardReceipts';
+import { billMismatch, billMismatchLine, formatMoney, isBigReceipt, usDate, fieldsOf } from '../../../utils/cardReceipts';
+import WarnLines from './WarnLines';
 import { approveProblem, holderKindOf } from '../../../utils/receiptApproval';
 import { actionsOf, askIsOpen, categoryText, isPdfUrl, reminderLine, remindable, statusBandOf } from '../cardReceiptsView';
 import type { StatusBand } from '../cardReceiptsView';
@@ -255,6 +256,7 @@ export default function ExpenseDrawer({
               {e.tipCents != null ? <Row label="Tip">{formatMoney(e.tipCents)}</Row> : null}
               <div className={`ccr-row is-total${isBigReceipt(e.cents) ? ' is-big' : ''}`}><dt>Total</dt><dd title={isBigReceipt(e.cents) ? '$150 and up' : undefined}>{formatMoney(e.cents)}</dd></div>
             </dl>
+            <WarnLines lines={[billMismatchLine(billMismatch(e))]} />
           </div>
         </div>
       </FormSection>

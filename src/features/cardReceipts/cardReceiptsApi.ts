@@ -3,6 +3,7 @@ import { authFetch } from '../../api/authFetch';
 import { queryEntries, type ErrorBody, type Query } from '../../types/api';
 import type { ExpenseInput } from '../../utils/cardReceipts';
 import type { ReceiptScan } from '../../utils/receiptScan';
+import type { PhotoDuplicate } from '../../utils/receiptFile';
 import type { AskTarget, Card, Category, Expense, Me, Person, RemindBody, AddableHolder, RemindPreview, RemindResult } from './types';
 
 /**
@@ -84,7 +85,14 @@ export const getAutoReminders = () => call<{ on: boolean }>('/auto-reminders');
 export const setAutoReminders = (on: boolean) => call<{ on: boolean }>('/auto-reminders', { method: 'PUT', body: { on } });
 /** Send reminder… about one receipt or several (src/routes/cardReceiptReminders.ts). */
 export const remindExpenses = (body: RemindBody) => call<RemindResult>('/expenses/remind', { method: 'POST', body });
-export const uploadReceipt = (data: string) => call<{ url: string }>('/attachments', { method: 'POST', body: { data } });
+/**
+ * Stores a photo / PDF. `hash` is its fingerprint (receiptFingerprint.ts) and `except` the receipt being edited: the answer's
+ * `duplicate` is a receipt that already has this file (src/utils/receiptFile.ts), a warning only.
+ */
+export type UploadOptions = { hash?: string; except?: string };
+export type UploadResult = { url: string; duplicate?: PhotoDuplicate | null };
+export const uploadReceipt = (data: string, opts: UploadOptions = {}) =>
+  call<UploadResult>('/attachments', { method: 'POST', body: { data, ...(opts.hash ? { hash: opts.hash } : {}), ...(opts.except ? { except: opts.except } : {}) } });
 /** What Claude read off an uploaded receipt (src/routes/cardReceiptScan.ts). Throws (status 503) when reading isn't set up. */
 export const scanReceipt = (url: string) => call<{ scan: ReceiptScan }>('/scan', { method: 'POST', body: { url } });
 

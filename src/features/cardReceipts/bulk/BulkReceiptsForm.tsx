@@ -7,8 +7,9 @@ import { useCustomerOptions } from '../../../api/customerOptions';
 import { cleanExpense, defaultSubOf, fieldsOf, formatMoney, usDate } from '../../../utils/cardReceipts';
 import { MAX_BATCH, batchSummary, rowReadiness } from '../../../utils/receiptBatch';
 import type { ReceiptScan } from '../../../utils/receiptScan';
-import type { ExpenseBody } from '../cardReceiptsApi';
+import type { ExpenseBody, UploadOptions, UploadResult } from '../cardReceiptsApi';
 import CardToggle from '../components/CardToggle';
+import WarnLines from '../components/WarnLines';
 import { lastCardFor, rememberCard } from '../cardChoice';
 import type { AddableHolder, Card, Category, Expense } from '../types';
 import { useReceiptBatch, type BatchRow } from './useReceiptBatch';
@@ -21,7 +22,7 @@ export type BulkReceiptsFormProps = {
   meId: string;
   categories: Category[];
   today: string;
-  upload: (data: string) => Promise<{ url: string }>;
+  upload: (data: string, opts?: UploadOptions) => Promise<UploadResult>;
   scan?: (url: string) => Promise<{ scan: ReceiptScan }>;
   addOne: (id: string, body: ExpenseBody) => Promise<{ expense: Expense; matchedMissing: boolean }>;
   /** The batch is over (some saved): the list reloads. */
@@ -153,7 +154,7 @@ export default function BulkReceiptsForm({ holders, ownCards, meId, categories, 
       {problem ? <div className="ccr-form-error" role="alert">{problem}</div> : null}
 
       {rows.map((r, i) => (
-        <Row key={r.key} row={r} index={i} categories={categories} today={today} customerOptions={customerOptions} customersLoading={customers.loading}
+        <Row key={r.key} row={r} index={i} sameAs={batch.sameAs[r.key]} categories={categories} today={today} customerOptions={customerOptions} customersLoading={customers.loading}
           categoryOptions={categoryOptions} check={batch.check(r)} locked={saving} onOpen={() => batch.toggle(r.key)} onRemove={() => batch.remove(r.key)}
           onChange={(v) => batch.setValues(r.key, v)} onSaveAnyway={() => batch.saveAnyway(r.key, send)} />
       ))}
@@ -163,13 +164,15 @@ export default function BulkReceiptsForm({ holders, ownCards, meId, categories, 
 
 type RowProps = {
   row: BatchRow; index: number; categories: Category[]; today: string; check: ReturnType<typeof cleanExpense>;
+  /** The number of an earlier row in this batch with the same file, if any. */
+  sameAs?: number;
   customerOptions: { value: string; label: string; description?: string; keywords?: string }[]; customersLoading: boolean;
   categoryOptions: { value: string; label: string; keywords?: string }[]; locked: boolean;
   onOpen: () => void; onRemove: () => void; onChange: (v: Partial<BatchRow['values']>) => void; onSaveAnyway: () => void;
 };
 
 /** One receipt of the batch: a summary line, and (open) its own fields. */
-function Row({ row, index, categories, today, check, customerOptions, customersLoading, categoryOptions, locked, onOpen, onRemove, onChange, onSaveAnyway }: RowProps) {
+function Row({ row, index, sameAs, categories, today, check, customerOptions, customersLoading, categoryOptions, locked, onOpen, onRemove, onChange, onSaveAnyway }: RowProps) {
   const v = row.values;
   const category = categories.find((c) => c.name === v.category);
   const fields = fieldsOf(category, v.subcategory);
@@ -218,6 +221,7 @@ function Row({ row, index, categories, today, check, customerOptions, customersL
         </div>
       ) : null}
       {row.note && row.open ? <p className="ccr-sub">{row.note}</p> : null}
+      {!saved ? <WarnLines lines={[sameAs ? `Same photo as receipt ${sameAs} in this batch. Remove one unless they’re two purchases.` : '', row.dupLine]} /> : null}
 
       {row.open && !saved && !working ? (
         <div className="ccr-bulk-body" onKeyDown={(e) => {

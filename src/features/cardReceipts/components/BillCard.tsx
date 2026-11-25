@@ -1,6 +1,7 @@
 import { Camera, FileText, Pencil, Plus } from 'lucide-react';
 import { formatMoney, parseCents } from '../../../utils/cardReceipts';
 import { isPdfUrl } from '../cardReceiptsView';
+import WarnLines from './WarnLines';
 
 export type BillValues = { merchant: string; date: string; total: string; subtotal: string; tax: string; tip: string };
 export type BillField = keyof BillValues;
@@ -24,6 +25,8 @@ type Props = BillValues & {
   /** 'check': what was read off the receipt, shown in red so it gets looked at. */
   noteTone?: 'check';
   viewingLarge: boolean;
+  /** Checks that don't stop a save: the same photo twice, the parts not adding up to the total. */
+  warnings?: readonly string[];
   /** The photo slot: take / choose a photo when there is none, else show it large. */
   onPhoto: () => void;
   onEdit: (focus?: BillField) => void;
@@ -37,7 +40,7 @@ type Props = BillValues & {
  * (BillDetailsEdit), so the form itself stays short: this card, the category
  * and a note.
  */
-export default function BillCard({ merchant, date, total, subtotal, tax, tip, receiptUrl, lost, uploading, note, noteTone, viewingLarge, onPhoto, onEdit }: Props) {
+export default function BillCard({ merchant, date, total, subtotal, tax, tip, receiptUrl, lost, uploading, note, noteTone, viewingLarge, warnings = [], onPhoto, onEdit }: Props) {
   const day = dayLabel(date);
   const totalText = money(total);
   const blank = !merchant.trim() && !totalText;
@@ -77,6 +80,7 @@ export default function BillCard({ merchant, date, total, subtotal, tax, tip, re
 
       <div className="ccr-bill-total"><span>Total</span><strong>{totalText || '—'}</strong></div>
       {note ? <p className={`ccr-bill-note${noteTone === 'check' ? ' is-check' : ''}`} aria-live="polite">{note}</p> : null}
+      <WarnLines lines={warnings} />
     </div>
   );
 }

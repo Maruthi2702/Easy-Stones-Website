@@ -122,7 +122,7 @@ export function cardExpenseRowsOf(d: Loose, ref: ReferenceIndex, links: ExpenseL
       taxCents: intOf(c, 'tax_cents', d.taxCents), tipCents: intOf(c, 'tip_cents', d.tipCents), category, subcategory: category ? textOf(d.subcategory) : '',
       customerId: linkOf(c, 'customer_id', d.customerId, links.customerIds, 'customer'), customerName: textOf(d.customerName),
       attendees: stringsOf(d.attendees), purpose: textOf(d.purpose), note: textOf(d.note), recurring: boolOf(d.recurring),
-      receiptUrl: textOf(d.receiptUrl), lostReason: textOf(d.lostReason), status,
+      receiptUrl: textOf(d.receiptUrl), receiptHash: textOf(d.receiptHash), lostReason: textOf(d.lostReason), status,
       approvedById: approval ? textOf(approval.by) : null, approvedByName: approval ? textOf(approval.byName) : null,
       approvedAt: approval ? c.moment('approved_at', approval.at) : null, approvalComment: approval ? textOf(approval.comment) : null,
       approvedAs: approval && textOf(approval.as) ? textOf(approval.as) : null,

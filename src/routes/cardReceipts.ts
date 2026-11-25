@@ -18,6 +18,8 @@ import { isBatchMarker, batchNote, type BatchMarker } from '../utils/receiptBatc
 import rateLimit from 'express-rate-limit';
 import { PostgresRateLimitStore } from '../services/rateLimitStore.ts';
 import { isRealPdfDataUrl } from '../utils/receiptPdf.ts';
+import { isReceiptHash, type PhotoDuplicate } from '../utils/receiptFile.ts';
+import { createHash } from 'node:crypto';
 import { isFilesCdnUrl, isCloudinaryUrl } from '../utils/fileUrls.ts';
 import { getFileStore, type FileStore } from '../services/fileStore.ts';
 import { teamOfRequest } from '../services/teamDirectory.ts';
@@ -79,17 +81,28 @@ const todayOf = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Americ
 /**
  * The receipt link must be a file this app stored for a receipt; one already on the expense may stay. A private
  * receipt (the app's own address) must be one the person uploaded themselves, so nobody attaches another's.
+ * Also answers the file's fingerprint to save on the expense (`hash`): null = keep what the expense has (the same
+ * file), '' = none known (no file, or one stored before fingerprints / on a store that keeps no metadata).
  */
-const receiptLinkProblem = async (store: FileStore | null, url: string, current: string, me: string) => {
-  if (!url || url === current) return '';
+const receiptFileOf = async (store: FileStore | null, url: string, current: string, me: string): Promise<{ problem: string; hash: string | null }> => {
+  if (url === current) return { problem: '', hash: null };
+  if (!url) return { problem: '', hash: '' };
+  const again = { problem: 'Upload the receipt again', hash: '' };
   const name = privateReceiptNameOf(url);
-  if (name) return (await store?.get(`${PRIVATE_RECEIPT_KEY_PREFIX}${name}`))?.metadata.uploader === me ? '' : 'Upload the receipt again';
-  if (!(isReceiptFolderUrl(url) && (isFilesCdnUrl(url) || isCloudinaryUrl(url) || /^\/uploads\//.test(url)))) return 'Upload the receipt again';
+  if (name) {
+    const file = await store?.get(`${PRIVATE_RECEIPT_KEY_PREFIX}${name}`);
+    if (file?.metadata.uploader !== me) return again;
+    return { problem: '', hash: isReceiptHash(file.metadata.sha256) ? file.metadata.sha256 : '' };
+  }
+  if (!(isReceiptFolderUrl(url) && (isFilesCdnUrl(url) || isCloudinaryUrl(url) || /^\/uploads\//.test(url)))) return again;
   // Review S3 (2026-11-24): a public link (a receipt saved before receipts went private, or on a store that can't keep one
   // private) is just an address, so it must not be someone else's already-saved receipt.
   const holder = await db.findExpenseByReceipt(url);
-  return holder && String(holder.userId) !== String(me) ? 'Upload the receipt again' : '';
+  return holder && String(holder.userId) !== String(me) ? again : { problem: '', hash: '' };
 };
+/** The fingerprint of an upload: the browser's (of the file as picked), else the bytes that arrived. */
+const fingerprintOf = (sent: unknown, data: string) =>
+  (isReceiptHash(sent) ? sent : createHash('sha256').update(Buffer.from(data.slice(data.indexOf(',') + 1), 'base64')).digest('hex'));
 /** The address to save for a file just stored: private ones become the app's own address. */
 const savedAddressOf = (url: string) => {
   const m = /\/(private\/CardReceipts\/[^/?#]+)$/.exec(url.split('?')[0] || '');
@@ -481,6 +494,26 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
 
   // ── Receipts ──────────────────────────────────────────────────────────────
 
+  /**
+   * The same photo twice (2026-11-24): a live receipt that already has this file. Its details only when the uploader may
+   * see that receipt (mayViewReceipt), else only that there is one; `except` is the receipt being edited. A warning only —
+   * a lookup that fails says nothing rather than failing the upload.
+   */
+  const duplicateOf = async (req: Request, hash: string, except: string): Promise<PhotoDuplicate | null> => {
+    try {
+      const found = (await db.expensesWithReceiptHash(hash)).filter((e) => String(e._id).toLowerCase() !== except.toLowerCase());
+      if (!found.length) return null;
+      for (const e of found) {
+        if (!(await mayViewReceipt(req, e))) continue;
+        return { seen: true, own: String(e.userId) === userIdOf(req), holderName: String(e.holderName || ''), merchant: String(e.merchant || ''), date: String(e.date || ''), cents: Number(e.cents) || 0, status: String(e.status || '') };
+      }
+      return { seen: false };
+    } catch (error) {
+      console.error('[card-receipts] duplicate photo lookup failed:', error);
+      return null;
+    }
+  };
+
   router.post('/attachments', authenticate, anyOf(CARD_RECEIPTS.USE), uploadLimit, async (req: Request, res: Response) => {
     const data = req.body?.data;
     if (typeof data === 'string' && data.length > (data.startsWith('data:application/pdf') ? MAX_PDF_CHARS : MAX_PHOTO_CHARS)) return res.status(413).json({ message: 'That file is too large. Use a photo, or a PDF under 20 MB.' });
@@ -492,12 +525,13 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       return res.status(400).json({ message: 'That file isn’t a PDF. Send a photo or a PDF of the receipt.' });
     }
     try {
+      const sha256 = fingerprintOf(req.body?.hash, data);
       // Receipts keep up to 2000px (visit photos 1000) so the print stays readable when zoomed.
       // Kept private where the store can (S3): the CDN never serves it, GET /files/:name does, to whoever may see the expense.
-      const url = await processBase64Image(data, 'CardReceipts', 2000, { private: true, format: 'jpeg', metadata: { uploader: userIdOf(req) } });
+      const url = await processBase64Image(data, 'CardReceipts', 2000, { private: true, format: 'jpeg', metadata: { uploader: userIdOf(req), sha256 } });
       // processBase64Image hands the data back when the upload fails.
       if (typeof url !== 'string' || url.startsWith('data:')) return res.status(502).json({ message: 'Could not store the receipt. Try again.' });
-      res.json({ url: savedAddressOf(url) });
+      res.json({ url: savedAddressOf(url), duplicate: await duplicateOf(req, sha256, String(req.body?.except ?? '')) });
     } catch (error) {
       console.error('[card-receipts] attachment failed:', error);
       res.status(502).json({ message: 'Could not store the receipt. Try again.' });
@@ -633,8 +667,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const shown = categories.filter((c) => c.active);
       const { value, problems, missing } = cleanExpense(body, { today: todayOf(), categories: shown });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      const linkProblem = await receiptLinkProblem(fileStore(), value.receiptUrl, '', actorId); // the file is the uploader's
-      if (linkProblem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: linkProblem } });
+      const file = await receiptFileOf(fileStore(), value.receiptUrl, '', actorId); // the file is the uploader's
+      if (file.problem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: file.problem } });
       const noCustomer = await customerProblem(value);
       if (noCustomer) return res.status(400).json({ message: 'Some fields need attention.', problems: { customer: noCustomer } });
       if (body.confirmRepeat !== true) {
@@ -651,7 +685,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const saved = await db.addExpense(body.id, {
         repeatCheck: body.confirmRepeat !== true,
         userId: me, holderName: nameOf(u), cardId: String(card._id), cardLabel: card.label, location: homeOf(u) || card.location || '',
-        ...value, month: monthOf(value.date), status, createdBy: by, addedById: behalf ? actorId : '',
+        ...value, receiptHash: file.hash ?? '', month: monthOf(value.date), status, createdBy: by, addedById: behalf ? actorId : '',
         history: [{ at: new Date(), by, action: 'added', changes }]
       });
       if (!saved) {
@@ -714,8 +748,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const allowed = categories.filter((c) => c.active || c.name === expense.category);
       const { value, problems, missing } = cleanExpense(req.body || {}, { today: todayOf(), categories: allowed, currentSubcategory: expense.subcategory || '', currentLostReason: expense.lostReason || '' });
       if (!value) return res.status(400).json({ message: 'Some fields need attention.', problems });
-      const linkProblem = await receiptLinkProblem(fileStore(), value.receiptUrl, expense.receiptUrl || '', me);
-      if (linkProblem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: linkProblem } });
+      const file = await receiptFileOf(fileStore(), value.receiptUrl, expense.receiptUrl || '', me);
+      if (file.problem) return res.status(400).json({ message: 'Some fields need attention.', problems: { receipt: file.problem } });
       // A customer deleted since doesn't block editing the rest; picking a different one is checked.
       if (value.customerId && value.customerId !== (expense.customerId || '')) {
         const noCustomer = await customerProblem(value);
@@ -743,7 +777,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       const sentForApproval = status === 'waiting' && expense.status !== 'waiting';
       // An edit takes back every approval already given: the receipt starts its approvals again (an open question stays).
       const clearsApprovals = !keepsState && Boolean(expense.approval || expense.secondApproval) && changes.length > 0;
-      const saved = await db.changeExpense(id, { ...value, ...(newCard ? { cardId: String(newCard._id), cardLabel: newCard.label } : {}), month: monthOf(value.date), status, ...(clearsApprovals ? { approval: null, secondApproval: null } : {}) },
+      const saved = await db.changeExpense(id, { ...value, ...(file.hash !== null ? { receiptHash: file.hash } : {}), ...(newCard ? { cardId: String(newCard._id), cardLabel: newCard.label } : {}), month: monthOf(value.date), status, ...(clearsApprovals ? { approval: null, secondApproval: null } : {}) },
         { at: new Date(), by, action: 'edited', expectedUpdatedAt: expense.updatedAt as Date, changes: [changes.join(', '), onBehalf ? `on behalf of ${String(expense.holderName || '').split(' ')[0] || 'the cardholder'}` : '', clearsApprovals ? 'approvals cleared' : '', sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
       // A corrected day or total may now answer a charge that has a Missing receipt row: look again (no-op if it's already linked).

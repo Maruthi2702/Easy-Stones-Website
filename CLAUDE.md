@@ -1474,7 +1474,21 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   ✕ puts back what was there). A save missing merchant / date / total, or a server answer about
   them, opens that screen; after a photo, if the reading left merchant or total blank (or reading
   is off) it opens by itself with the photo large. Total is what was charged to the card;
-  subtotal / tax / tip are information only — nothing adds them up.
+  subtotal / tax / tip are information only and never change it — but since 2026-11-24 (owner's ask) a **warning** says
+  when subtotal + tax + tip (a missing tax / tip is 0; nothing is checked without a subtotal) isn't the total, on the bill
+  card, the Edit bill details screen and the opened receipt (`billMismatch` / `typedBillMismatch` in `cardReceipts.ts`,
+  tested). It never blocks a save or an approval (a receipt can carry a discount or fee).
+- **The same photo twice** (2026-11-24, owner's ask): each upload carries a **fingerprint**, the SHA-256 of the file as
+  picked (`receiptFingerprint.ts`; the server hashes the bytes it got when the browser sends none). `POST /attachments`
+  keeps it in the stored file's metadata (`sha256`) and answers `duplicate` when a live (not voided) receipt already has it
+  (`except` = the receipt being edited): its merchant, total, day and status only if the uploader may see that receipt
+  (`mayViewReceipt`), else just "another person's receipt" (`PhotoDuplicate` / `duplicatePhotoLine` in
+  `src/utils/receiptFile.ts`, tested). A save copies the fingerprint onto the expense (`receipt_hash`, migration **0036**;
+  MongoDB `receiptHash`), a lost reason clears it. A warning only, on the bill card / Edit bill details and on each Add
+  several row (which also names a row with the same file earlier in the batch). Only S3 keeps metadata, so locally (no
+  `FILE_STORE=s3`) and for receipts saved before this nothing is found. **Run `npm run pg:migrate -- --apply` on Render for 0036.**
+- **Waiting for me and To do read again** when the page comes back into view (tab or app; `visibilitychange` / `focus`),
+  at most every 30 s (`REFRESH_GAP_MS` in `useCardReceipts.ts`). The month's list does not.
 - **An opened receipt: View full size stays in the window** (2026-11-24, on `feat/receipt-view-fullsize`; claude.ai artifact **Receipt full-size viewer**,
   https://claude.ai/artifact/VFEf8Ffa4RZqTeMNr3b1a1 — boards 1–7 light, 8–11 light and dark; the owner's comments set every rule). The photo
   thumbnail is a button with a "View full size" chip; it swaps `ExpenseDrawer`'s body for `ReceiptPreview variant="viewer"` (Back to receipt, − / + / fit,

@@ -3,6 +3,7 @@
 // receipt per row (own id, same cardholder, "n of N"), and a failure on one row leaves the others saved.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, renderHook, waitFor } from '@testing-library/react';
+import { createHash } from 'node:crypto';
 
 vi.mock('../../../utils/attachmentFiles', () => ({ compressImage: async () => 'data:image/jpeg;base64,xx', fileToBase64: async () => 'data:application/pdf;base64,xx' }));
 vi.mock('../../../api/customerOptions', () => ({ useCustomerOptions: () => ({ options: [], loading: false }) }));
@@ -14,15 +15,18 @@ const CATEGORIES = [
   { _id: 'k1', name: 'travel_lunch', label: 'Travel Lunch', order: 0, active: true, fields: { customer: false, note: false, recurring: false }, subcategories: [] },
   { _id: 'k2', name: 'fuel', label: 'Fuel', order: 1, active: true, fields: { customer: false, note: false, recurring: false }, subcategories: [] }
 ] as never[];
-const photo = (name: string) => new File(['x'], name, { type: 'image/jpeg' });
+// Each file's contents are its name, so its fingerprint says which file an upload is (uploads run three at once and
+// finish in any order; the fakes answer by file, not by arrival).
+const photo = (name: string) => new File([name], name, { type: 'image/jpeg' });
+const sha = (text: string) => createHash('sha256').update(text).digest('hex');
+const FILE_NO = new Map(['a.jpg', 'b.jpg', 'c.jpg'].map((f, i) => [sha(f), i + 1]));
 const scanFor = (merchant: string, cents: number) => ({ scan: { isReceipt: true, date: '2026-10-03', merchant, totalCents: cents, subtotalCents: null, taxCents: null, tipCents: null, category: '' } });
 
 const deps = () => {
-  let n = 0;
-  const upload = vi.fn(async () => ({ url: `https://files/${++n}.jpg` }));
+  const upload = vi.fn(async (_data: string, opts?: { hash?: string }): Promise<{ url: string; duplicate?: Record<string, unknown> | null }> =>
+    ({ url: `https://files/${FILE_NO.get(opts?.hash ?? '') ?? 0}.jpg` }));
   const names = ['Shell', 'Staples', 'Jinya'];
-  let s = 0;
-  const scan = vi.fn(async () => scanFor(names[s++ % 3]!, 1000 * (s)));
+  const scan = vi.fn(async (url: string) => { const n = Number(/(\d+)\.jpg$/.exec(url)?.[1]); return scanFor(names[n - 1]!, 1000 * n); });
   const addOne = vi.fn(async (_id: string, body: Record<string, unknown>) => ({ expense: { status: body.category ? 'waiting' : 'draft' } as never, matchedMissing: body.merchant === 'Shell' }));
   return { today: '2026-10-20', categories: CATEGORIES, upload, scan, addOne };
 };
@@ -53,6 +57,22 @@ describe('the batch hook', () => {
     expect(calls.map((x) => x[1].category)).toEqual(['fuel', 'travel_lunch', '']);
     expect(calls.map((x) => [x[1].onBehalfOf, x[1].batch])).toEqual([['u7', { n: 1, of: 3 }], ['u7', { n: 2, of: 3 }], ['u7', { n: 3, of: 3 }]]);
     expect(result.current.rows.map((r) => r.saved)).toEqual([{ status: 'waiting', matchedMissing: true }, { status: 'waiting', matchedMissing: false }, { status: 'draft', matchedMissing: false }]);
+  });
+
+  it('sends each file’s fingerprint, names a file picked twice in the batch, and says when a photo is already on a receipt', async () => {
+    const d = deps();
+    d.upload.mockImplementation(async (_data: string, opts?: { hash?: string }) => ({
+      url: `https://files/${FILE_NO.get(opts?.hash ?? '') ?? 0}.jpg`,
+      duplicate: opts?.hash === sha('b.jpg') ? { seen: false } : null
+    }));
+    const { result } = renderHook(() => useReceiptBatch(d));
+    act(() => { result.current.addFiles([photo('a.jpg'), photo('b.jpg'), photo('a.jpg')]); });
+    await waitFor(() => expect(result.current.rows.every((r) => r.stage === 'ready')).toBe(true));
+    expect(d.upload.mock.calls.map((c) => c[1]?.hash).sort()).toEqual([sha('a.jpg'), sha('a.jpg'), sha('b.jpg')].sort());
+    const [a, b, again] = result.current.rows;
+    expect(result.current.sameAs).toEqual({ [again!.key]: 1 });
+    expect(a!.dupLine).toBe('');
+    expect(b!.dupLine).toMatch(/already on another person’s receipt/);
   });
 
   it('keeps going when one fails, offers Save anyway for a repeat, and never saves a saved row twice', async () => {

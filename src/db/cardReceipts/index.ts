@@ -44,6 +44,8 @@ export const listExpenses = async (filter: ExpenseFilter) => onPostgres() ? pg.l
 export const approvedInCategory = async (name: string) => onPostgres() ? pg.approvedInCategory(await appDb(), name) : mongo.approvedInCategory(name);
 export const findExpense = async (id: string) => onPostgres() ? pg.findExpense(await appDb(), id) : mongo.findExpense(id);
 export const findExpenseByReceipt = async (receiptUrl: string) => onPostgres() ? pg.findExpenseByReceipt(await appDb(), receiptUrl) : mongo.findExpenseByReceipt(receiptUrl);
+export const expensesWithReceiptHash = async (hash: string) =>
+  onPostgres() ? pg.expensesWithReceiptHash(await appDb(), hash) : mongo.expensesWithReceiptHash(hash);
 export const sameDayAmount = async (userId: string, date: string, cents: number) =>
   onPostgres() ? pg.sameDayAmount(await appDb(), userId, date, cents) : mongo.sameDayAmount(userId, date, cents);
 export const addExpense = async (id: string, doc: Loose) => onPostgres() ? pg.addExpense(await appDb(), id, doc) : mongo.addExpense(id, doc);
