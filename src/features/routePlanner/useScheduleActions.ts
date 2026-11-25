@@ -179,7 +179,7 @@ export function useScheduleActions({ schedule, date, replaceExisting, canReplace
 
     const clearPlannedDay = async () => {
         if (saving) return;
-        if (!window.confirm(`Remove the stops the route planner put on ${date}? Anything you added by hand stays.`)) return;
+        if (!window.confirm(`Remove the stops the map put on ${date}? Anything you added by hand stays.`)) return;
         setSaving(true);
         setError('');
         try {

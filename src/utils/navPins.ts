@@ -53,7 +53,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', section: 'home', canSee: (u: NavUser) => has(u, 'view_dashboard') },
   { id: 'customers', label: 'Customers', section: 'sales', canSee: (u: NavUser) => has(u, 'view_customers') },
   // Granted deliberately under Users & Roles, so the permission is the only key.
-  { id: 'route_planner', label: 'Route Planner', section: 'sales', canSee: (u: NavUser) => has(u, 'view_route_planner') },
+  { id: 'route_planner', label: 'Map', section: 'sales', canSee: (u: NavUser) => has(u, 'view_route_planner') },
   // Holds (src/holds/): any of the three "whose holds" switches opens it.
   { id: 'holds', label: 'Holds', section: 'sales', canSee: (u: NavUser) => HOLD_VIEW_PERMISSIONS.some((p) => has(u, p)) },
   // Permits (src/permits/): building permits as sales leads; the permission is the only key.

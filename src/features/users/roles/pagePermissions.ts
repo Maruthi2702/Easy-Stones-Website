@@ -214,7 +214,7 @@ export const PAGE_PERMISSIONS: PageDef[] = [
     },
     {
         id: 'route_planner',
-        page: 'Route Planner',
+        page: 'Map',
         icon: Map,
         description: 'Plan a day of visits by area from the customer map',
         color: '#c33a3a',

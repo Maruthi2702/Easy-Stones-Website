@@ -29,7 +29,7 @@ test('Admin opens the product editor', async ({ page }) => {
   await expect(page.locator('input[value="Calacatta Lincoln"]')).toBeVisible();
 });
 
-test('Route Planner explains a missing map configuration', async ({ page }) => {
+test('Map explains a missing map configuration', async ({ page }) => {
   await page.goto('/sales?tab=route_planner');
   await expect(page.getByRole('heading', { name: 'The map needs a Google Maps key' })).toBeVisible();
 });

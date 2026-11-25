@@ -92,7 +92,7 @@ const AreaScheduleSection = ({
                     </button>
                 ) : (
                     <p className="rpv2-area-schedule-hint">
-                        Adding this to a calendar needs the &ldquo;Plan&rdquo; permission on Route Planner.
+                        Adding this to a calendar needs the &ldquo;Plan&rdquo; permission on Map.
                     </p>
                 )}
                 {can.clear && (
@@ -101,8 +101,8 @@ const AreaScheduleSection = ({
                         className="rpv2-area-schedule-secondary"
                         disabled={saving}
                         onClick={onClearPlannedDay}
-                        title="Clear the stops the route planner put on this date"
-                        aria-label="Clear the stops the route planner put on this date"
+                        title="Clear the stops the map put on this date"
+                        aria-label="Clear the stops the map put on this date"
                     >
                         <Trash2 size={13} />
                     </button>
