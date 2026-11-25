@@ -12,7 +12,8 @@
  */
 import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { cardStatementLines as lines, cardStatementImports as imports } from '../schema/cardStatements.ts';
-import { cardExpenses, cardExpenseHistory } from '../schema/cardsSuppliers.ts';
+import { cardExpenses, cardExpenseHistory, cardExpenseDeletions } from '../schema/cardsSuppliers.ts';
+import { findExpense } from '../cardReceipts/postgres.ts';
 import type { Db } from '../copy/plan.ts';
 
 export interface PurgePlan {
@@ -110,5 +111,60 @@ export async function applyOrphanMissingRows(db: Db) {
       await tx.delete(cardExpenses).where(and(inArray(cardExpenses.id, part), eq(cardExpenses.status, 'missing')));
     }
     return rows;
+  });
+}
+
+/**
+ * Receipts by anyone but the people to keep (2026-11-24, owner's ask): every expense that was **not** made by one of
+ * `keep` (matched on a whole word of the name it was created under, so "krish" keeps "Krish" but not "Krishna") and is not
+ * Approved. Approved ones are never touched; a row with no creator name is listed and left alone.
+ * Each deleted receipt is saved whole to `card_expense_deletions` first (the same record the app's own Delete writes),
+ * and a statement line that pointed at it is unlinked. Receipt files in storage are not removed.
+ */
+export interface PrunePlan {
+  /** Expenses that go. */
+  remove: { id: string; createdBy: string; holderName: string; status: string; day: string; cents: number; merchant: string; onStatement: boolean }[];
+  keptByName: number;
+  keptApproved: number;
+  noCreator: number;
+}
+
+const words = (name: string) => name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+export const isKeptName = (createdBy: string, keep: string[]) => {
+  const have = new Set(words(createdBy));
+  return keep.some(k => words(k).length > 0 && words(k).every(w => have.has(w)));
+};
+
+export async function planPrune(db: Db, keep: string[]): Promise<PrunePlan> {
+  if (!keep.length) throw new Error('Say whose receipts to keep.');
+  const rows = await db.select({
+    id: cardExpenses.id, createdBy: cardExpenses.createdBy, holderName: cardExpenses.holderName, status: cardExpenses.status,
+    day: cardExpenses.day, cents: cardExpenses.cents, merchant: cardExpenses.merchant,
+    onStatement: sql<boolean>`exists (select 1 from ${lines} l where l.expense_id = ${cardExpenses.id})`
+  }).from(cardExpenses);
+  const plan: PrunePlan = { remove: [], keptByName: 0, keptApproved: 0, noCreator: 0 };
+  for (const r of rows) {
+    if (r.status === 'approved') plan.keptApproved += 1;
+    else if (!r.createdBy.trim()) plan.noCreator += 1;
+    else if (isKeptName(r.createdBy, keep)) plan.keptByName += 1;
+    else plan.remove.push({ ...r, day: String(r.day) });
+  }
+  return plan;
+}
+
+export async function applyPrune(db: Db, keep: string[], reason: string, by = 'script'): Promise<PrunePlan> {
+  return db.transaction(async (tx: Db) => {
+    const plan = await planPrune(tx, keep);
+    for (const r of plan.remove) {
+      const existing = await findExpense(tx, r.id);
+      if (!existing) continue;
+      await tx.insert(cardExpenseDeletions).values({ expenseId: r.id, expense: JSON.parse(JSON.stringify(existing)), deletedBy: by, reason }).onConflictDoNothing();
+    }
+    const ids = plan.remove.map(r => r.id);
+    for (const part of chunks(ids)) {
+      await tx.update(lines).set({ expenseId: null, updatedAt: new Date() }).where(inArray(lines.expenseId, part));
+      await tx.delete(cardExpenses).where(and(inArray(cardExpenses.id, part), sql`${cardExpenses.status} <> 'approved'`));
+    }
+    return plan;
   });
 }

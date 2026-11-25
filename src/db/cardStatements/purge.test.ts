@@ -7,8 +7,8 @@ import * as schema from '../schema/index.ts';
 import { migrateDb } from '../client.ts';
 import type { Db } from '../copy/plan.ts';
 import { cardStatementLines as lines, cardStatementImports as imports } from '../schema/cardStatements.ts';
-import { cardExpenses, cardExpenseHistory } from '../schema/cardsSuppliers.ts';
-import { planPurge, applyPurge, planOrphanMissingRows, applyOrphanMissingRows } from './purge.ts';
+import { cardExpenses, cardExpenseHistory, cardExpenseDeletions } from '../schema/cardsSuppliers.ts';
+import { planPurge, applyPurge, planOrphanMissingRows, applyOrphanMissingRows, planPrune, applyPrune, isKeptName } from './purge.ts';
 
 const hex = (n: number) => n.toString(16).padStart(24, '0');
 let client: PGlite, db: Db;
@@ -89,5 +89,44 @@ describe('Missing rows left behind by a removed upload', () => {
     expect((await db.select().from(cardExpenses)).map(e => e.id)).not.toContain(hex(10));
     expect(await db.select().from(cardExpenses)).toHaveLength(6);
     expect(await planOrphanMissingRows(db)).toEqual([]);
+  });
+});
+
+describe('receipts by anyone but the people to keep', () => {
+  const made = (n: number, createdBy: string, status = 'waiting') => expense(hex(n), { createdBy, holderName: createdBy, status });
+  beforeEach(async () => {
+    await db.delete(lines);
+    await db.delete(cardExpenses);
+    await db.insert(cardExpenses).values([
+      made(20, 'Krish'), made(21, 'Karunakar Reddy', 'missing'), made(22, 'Ann Count'), made(23, 'Ann Count', 'approved'),
+      made(24, 'Krishna Rao', 'draft'), made(25, ''), made(26, 'Ben Hall', 'missing')
+    ]);
+    await db.insert(cardExpenseHistory).values([{ expenseId: hex(22), position: 0, at: new Date(), by: 'Ann Count', action: 'added', changes: '' }]);
+    await db.insert(lines).values([line('on-22', 'imp-o', 'imp-o', hex(22)), line('on-20', 'imp-o', 'imp-o', hex(20))]);
+  });
+
+  it('matches a whole word of the name', () => {
+    expect(isKeptName('Krish', ['krish'])).toBe(true);
+    expect(isKeptName('Krishna Rao', ['krish'])).toBe(false);
+    expect(isKeptName('Karunakar Reddy', ['krish', 'karunakar'])).toBe(true);
+  });
+
+  it('a dry run lists the others’ unapproved receipts and changes nothing', async () => {
+    const plan = await planPrune(db, ['krish', 'karunakar']);
+    expect(plan.remove.map(r => r.id).sort()).toEqual([hex(22), hex(24), hex(26)]);
+    expect(plan).toMatchObject({ keptByName: 2, keptApproved: 1, noCreator: 1 });
+    expect(plan.remove.find(r => r.id === hex(22))?.onStatement).toBe(true);
+    expect(await db.select().from(cardExpenses)).toHaveLength(7);
+  });
+
+  it('saves each to card_expense_deletions, deletes it with its history, unlinks its line, and never touches approved', async () => {
+    await applyPrune(db, ['krish', 'karunakar'], 'cleanup');
+    expect((await db.select().from(cardExpenses)).map(e => e.id).sort()).toEqual([hex(20), hex(21), hex(23), hex(25)]);
+    const saved = await db.select().from(cardExpenseDeletions);
+    expect(saved.map(s => s.expenseId).sort()).toEqual([hex(22), hex(24), hex(26)]);
+    expect(saved[0].reason).toBe('cleanup');
+    expect(await db.select().from(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, hex(22)))).toHaveLength(0);
+    const l = Object.fromEntries((await db.select().from(lines)).map(x => [x.reference, x.expenseId]));
+    expect(l).toEqual({ 'on-22': null, 'on-20': hex(20) });
   });
 });
