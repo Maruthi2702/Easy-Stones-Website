@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { newVisitId } from '../../utils/visitForm';
 import { CARD_RECEIPTS, can, inRange, monthOf } from '../../utils/cardReceipts';
+import { parseSavedPeriod, savedPeriodKey } from './savedFilters';
 import { isTodo } from './cardReceiptsView';
 import * as api from './cardReceiptsApi';
 import type { DetailsBody, ExpenseBody } from './cardReceiptsApi';
 import { reasonOf } from './cardReceiptsView';
 import type { Expense, Me, ReceiptsUser, RemindBody } from './types';
+
+/** The least time between two reads of Waiting for me / To do when the page comes back into view. */
+export const REFRESH_GAP_MS = 30_000;
 
 /**
  * Credit Card Receipts' data: who's signed in (their card, the categories,
@@ -43,10 +47,24 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   useEffect(() => {
     let live = true;
     api.loadMe()
-      .then((res) => { if (live) { setMe(res); setMonthOnly(monthOf(res.today)); } })
+      .then((res) => {
+        if (!live) return;
+        // The period kept from last time (savedFilters.ts), else this month.
+        let raw: string | null = null;
+        try { raw = res.user?.id ? localStorage.getItem(savedPeriodKey(String(res.user.id))) : null; } catch { /* private mode */ }
+        const kept = parseSavedPeriod(raw, res.today);
+        setMe(res); setMonthOnly(kept.month); setRange(kept.range);
+      })
       .catch((e: Error) => { if (live) { setError(e.message); setLoading(false); } });
     return () => { live = false; };
   }, []);
+
+  // Whatever period is on screen is kept for next time, per person (a refresh opens on it).
+  const periodKey = savedPeriodKey(String(me?.user?.id || ''));
+  useEffect(() => {
+    if (!periodKey || !month) return;
+    try { localStorage.setItem(periodKey, JSON.stringify({ month, range })); } catch { /* private mode: not kept */ }
+  }, [periodKey, month, range]);
 
   // Everyone with a card in view, for the Cardholder filter (not only who has an expense this month).
   useEffect(() => {
@@ -91,6 +109,24 @@ export function useCardReceipts(user: ReceiptsUser | null) {
   useEffect(() => { loadTodo(); }, [loadTodo]);
 
   const reload = useCallback(() => { load(); loadWaiting(); loadTodo(); }, [load, loadWaiting, loadTodo]);
+
+  // Waiting for me and To do change while the page sits open (a receipt sent for approval, a statement upload's Missing
+  // rows): read them again when the person comes back to the tab or the app (2026-11-24), at most every 30 s.
+  const lastFresh = useRef(Date.now());
+  useEffect(() => {
+    const again = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastFresh.current < REFRESH_GAP_MS) return;
+      lastFresh.current = Date.now();
+      loadWaiting();
+      loadTodo();
+    };
+    document.addEventListener('visibilitychange', again);
+    window.addEventListener('focus', again);
+    return () => {
+      document.removeEventListener('visibilitychange', again);
+      window.removeEventListener('focus', again);
+    };
+  }, [loadWaiting, loadTodo]);
 
   /** Puts a saved expense in place everywhere it shows. */
   const place = (e: Expense) => {
