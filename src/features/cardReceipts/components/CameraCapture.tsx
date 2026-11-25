@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Image as ImageIcon, X, Zap, ZapOff } from 'lucide-react';
 import { lockPage, unlockPage } from '../../../components/shared/pageLock';
+import { coverCrop } from '../../../utils/cameraCrop';
 
 type Props = {
   /** The shot, once they tap Use photo (or one picked from the library). */
@@ -90,10 +91,14 @@ export default function CameraCapture({ onFile, onClose }: Props) {
   const snap = () => {
     const v = video.current;
     if (!v || !v.videoWidth) return;
+    // A phone's viewfinder fills the screen (`object-fit: cover`), so the shot is cut to what
+    // showed; a desktop's letterboxed one is saved whole.
+    const covers = getComputedStyle(v).objectFit === 'cover';
+    const { sx, sy, sw, sh } = covers ? coverCrop(v.videoWidth, v.videoHeight, v.clientWidth, v.clientHeight) : { sx: 0, sy: 0, sw: v.videoWidth, sh: v.videoHeight };
     const canvas = document.createElement('canvas');
-    canvas.width = v.videoWidth;
-    canvas.height = v.videoHeight;
-    canvas.getContext('2d')?.drawImage(v, 0, 0);
+    canvas.width = sw;
+    canvas.height = sh;
+    canvas.getContext('2d')?.drawImage(v, sx, sy, sw, sh, 0, 0, sw, sh);
     canvas.toBlob((blob) => {
       if (!blob) return;
       const file = new File([blob], `receipt-${stamp()}.jpg`, { type: 'image/jpeg' });
