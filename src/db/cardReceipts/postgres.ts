@@ -279,7 +279,7 @@ export async function restoreExpenseDoc(db: Db, stored: Loose, note: string, by:
     if (taken) return null;
     const at = (v: unknown) => (typeof v === 'string' || v instanceof Date ? new Date(v as string) : v);
     const obj = (v: unknown) => (v && typeof v === 'object' ? { ...(v as Loose), at: at((v as Loose).at) } : v);
-    const history = ((stored.history as Loose[] | undefined) ?? []).map(h => ({ ...h, at: at(h.at) }));
+    const history: Loose[] = ((stored.history as Loose[] | undefined) ?? []).map(h => ({ ...h, at: at(h.at) }));
     history.push({ at: new Date(), by, action: 'restored', changes: note });
     const doc = {
       ...stored, createdAt: at(stored.createdAt), updatedAt: new Date(), voidedAt: at(stored.voidedAt) ?? null,
