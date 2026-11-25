@@ -217,28 +217,36 @@ describe('the Credit Card Receipts page', () => {
     expect(await popup(['view_all_card_receipts'])).toBeNull();
   });
 
-  it('has the period in the Filters panel: Custom is From / To and changes nothing until Apply, Month goes back', async () => {
+  it('has the period in the Filters panel: Custom range is a button in the month calendar, From / To change nothing until Apply', async () => {
     await show(['view_all_card_receipts']);
     // Nothing on the tab row any more: no arrows, no Custom button.
     expect(screen.queryByLabelText('Previous month')).toBeNull();
-    expect(screen.queryByRole('button', { name: /^Custom/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Custom$/ })).toBeNull();
     openFilters();
+    // One field, no Month | Custom toggle.
+    expect(screen.queryByRole('radio', { name: 'Custom' })).toBeNull();
     expect(document.getElementById('ccr-f-month')!.textContent).toContain('October 2026');
     const asked = fake.asked.length;
-    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }));
+    fireEvent.click(document.getElementById('ccr-f-month')!);
+    fireEvent.click(screen.getByRole('button', { name: 'Custom range…' }));
     await settle();
-    // Picking Custom alone asks nothing (the dashboard's Apply step).
+    // Picking Custom range alone asks nothing (the dashboard's Apply step), and the month field makes room for From / To.
     expect(fake.asked.length).toBe(asked);
+    expect(document.getElementById('ccr-f-month')).toBeNull();
     expect(document.getElementById('ccr-range-from')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
     await settle();
     // Opens on the month on screen, up to today (Oct 20).
     expect(fake.asked.some((u) => /scope=all/.test(u) && /from=2026-10-01/.test(u) && /to=2026-10-20/.test(u) && !/month=/.test(u))).toBe(true);
     expect(text()).toContain('Oct 1 – Oct 20, 2026 · All cardholders');
+    // While Custom is open the month field is not shown beside From / To.
+    expect(document.getElementById('ccr-f-month')).toBeNull();
     expect(screen.getByRole('button', { name: /^Filters/ }).className).toContain('is-active');
     expect(screen.getByText('Staples')).toBeTruthy();
-    fireEvent.click(screen.getByRole('radio', { name: 'Month' }));
+    // "Pick a month" brings the month field back.
+    fireEvent.click(screen.getByRole('button', { name: 'Pick a month' }));
     await settle();
+    expect(document.getElementById('ccr-f-month')).toBeTruthy();
     expect(text()).toContain('October 2026 · All cardholders');
     expect(fake.asked.filter((u) => /scope=all/.test(u) && /month=2026-10/.test(u)).length).toBeGreaterThan(0);
   });

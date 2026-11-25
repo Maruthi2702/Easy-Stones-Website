@@ -246,11 +246,13 @@ export type CalendarMode = 'date' | 'month' | 'year';
 
 export function CalendarPanel({
     mode = 'date', value = '', onPick, onClear, min = '', max = '', shortcuts, clearable = false,
-    highlightWeek = false, weekStart = WEEK_STARTS_ON, big = false, today: todayProp
+    highlightWeek = false, weekStart = WEEK_STARTS_ON, big = false, today: todayProp, extra
 }: {
     mode?: CalendarMode; value?: string; onPick: (value: string) => void; onClear?: () => void;
     min?: string; max?: string; shortcuts?: Shortcut[]; clearable?: boolean;
     highlightWeek?: boolean; weekStart?: number; big?: boolean; today?: string;
+    /** One more button in the footer beside the shortcuts (the Credit Card Receipts period's "Custom range…"). */
+    extra?: { label: string; onClick: () => void };
 }) {
     const today: string = isValidISO(todayProp) ? (todayProp as string) : todayISO();
     const rootRef = useRef<HTMLDivElement>(null);
@@ -483,11 +485,12 @@ export function CalendarPanel({
                 )}
             </div>
 
-            {(chips.length > 0 || showClear) && (
+            {(chips.length > 0 || showClear || extra) && (
                 <div className="cal-foot">
                     {chips.map((s) => (
                         <button key={s.label} type="button" className="cal-chip" disabled={s.off} onClick={() => onPick(s.value)}>{s.label}</button>
                     ))}
+                    {extra && <button type="button" className="cal-chip" onClick={extra.onClick}>{extra.label}</button>}
                     {showClear && <button type="button" className="cal-clear" onClick={() => onClear?.()}>Clear</button>}
                 </div>
             )}
@@ -529,8 +532,12 @@ export function DatePicker({
 export function MonthPicker({
     id, value = '', onChange, min = '', max = '', error, status, disabled, placeholder = 'Pick a month',
     shortcuts, clearable = false, onBlur, variant = 'field', className, triggerClassName,
-    sheetTitle = 'Month', ariaLabel, formatText = formatMonthText, icon, today
-}: FieldProps & { value?: string | null; onChange?: (value: string) => void; formatText?: (ym: string) => string }) {
+    sheetTitle = 'Month', ariaLabel, formatText = formatMonthText, icon, today, extra
+}: FieldProps & {
+    value?: string | null; onChange?: (value: string) => void; formatText?: (ym: string) => string;
+    /** One more footer button; it closes the calendar, then runs. */
+    extra?: { label: string; onClick: () => void };
+}) {
     const autoId = useId();
     const text = parseMonth(value) ? formatText(value as string) : '';
     return (
@@ -542,6 +549,7 @@ export function MonthPicker({
             {({ close, big }) => (
                 <CalendarPanel
                     mode="month" value={value || ''} min={min} max={max} shortcuts={shortcuts} clearable={clearable} big={big} today={today}
+                    extra={extra ? { label: extra.label, onClick: () => { close(); extra.onClick(); } } : undefined}
                     onPick={(v) => { onChange?.(v); close(); }}
                     onClear={() => { onChange?.(''); close(); }}
                 />

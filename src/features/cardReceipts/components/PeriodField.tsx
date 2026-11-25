@@ -1,22 +1,22 @@
 import { useEffect, useState } from 'react';
 import { DatePicker, MonthPicker } from '../../../components/shared/calendar/Calendar';
 import { shiftDay } from '../../../components/shared/calendar/calendarDates';
-import { SegmentedToggle } from '../../../components/shared/form/FormControls';
 import { MAX_RANGE_DAYS, monthOf, shiftMonth } from '../../../utils/cardReceipts';
 
 export type Range = { from: string; to: string };
 
 /**
- * The Expenses period, inside the Filters panel (2026-11-25, owner: "move this to filter icon, match it with the
- * dashboard custom filter"): Month | Custom, the way the dashboard's Time range has Custom. Month is the shared
- * month calendar (the picked month marked, nothing after this month); Custom is From / To (the shared day calendar,
- * at most a year, both ends included) and changes nothing until Apply — the dashboard's CustomDays.
+ * The Expenses period, one field in the Filters panel (2026-11-25, owner: "show custom button inside the dropdown so
+ * that we don't consume a lot of space"). The field is the shared month calendar (the picked month checked, nothing
+ * after this month) and its footer has a **Custom range** button; that swaps the field for From / To (the shared day
+ * calendar, at most a year, both ends included), which change nothing until Apply, like the dashboard's custom
+ * filter. The month field is not shown beside them; "Pick a month" in the label row goes back.
  */
 export default function PeriodField({ month, range, today, onMonth, onRange }: {
   month: string; range: Range | null; today: string;
   onMonth: (m: string) => void; onRange: (r: Range | null) => void;
 }) {
-  // Custom picked here but not applied yet; a range set anywhere else wins.
+  // Custom chosen in the calendar but not applied yet; a range set anywhere else wins.
   const [pending, setPending] = useState(false);
   const custom = pending || Boolean(range);
   // Opens on the month that was showing, never past today.
@@ -32,17 +32,14 @@ export default function PeriodField({ month, range, today, onMonth, onRange }: {
   const setTo = (to: string) => { setB(to); if (to && a && a > to) setA(to); else if (to && a && a < shiftDay(to, -span)) setA(shiftDay(to, -span)); };
 
   return (
-    <div className="lf-group ccr-period" role="group" aria-labelledby="ccr-f-period">
-      <span className="lf-group-label" id="ccr-f-period">Period</span>
-      <SegmentedToggle<string>
-        label="Period"
-        value={custom ? 'custom' : 'month'}
-        onChange={(v) => {
-          if (v === 'custom') setPending(true);
-          else { setPending(false); if (range) onMonth(monthOf(range.to)); }
-        }}
-        options={[{ value: 'month', label: 'Month' }, { value: 'custom', label: 'Custom' }]}
-      />
+    <div className="lf-group ccr-period">
+      <div className="ccr-period-head">
+        <label className="lf-group-label" htmlFor={custom ? 'ccr-range-from' : 'ccr-f-month'}>{custom ? 'Period · Custom range' : 'Period'}</label>
+        {/* While a custom range is open the month field is gone; this goes back to a month. */}
+        {custom ? (
+          <button type="button" className="ccr-period-back" onClick={() => { setPending(false); if (range) onMonth(monthOf(range.to)); }}>Pick a month</button>
+        ) : null}
+      </div>
       {custom ? (
         <div className="ccr-period-custom">
           <div className="ccr-period-days">
@@ -52,7 +49,11 @@ export default function PeriodField({ month, range, today, onMonth, onRange }: {
           <button type="button" className="ccr-period-apply" disabled={!a || !b} onClick={() => onRange({ from: a, to: b })}>Apply</button>
         </div>
       ) : (
-        <MonthPicker id="ccr-f-month" ariaLabel="Month" value={month} max={today || undefined} today={today} onChange={onMonth} sheetTitle="Month" />
+        <MonthPicker
+          id="ccr-f-month" ariaLabel="Period" value={month} max={today || undefined} today={today}
+          onChange={(m) => { setPending(false); onMonth(m); }} sheetTitle="Period"
+          extra={{ label: 'Custom range…', onClick: () => setPending(true) }}
+        />
       )}
     </div>
   );

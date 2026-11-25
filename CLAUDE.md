@@ -1556,11 +1556,14 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   call), a row that looks like a repeat waits for its own Save anyway. A save carries `batch: {n, of}`: the server
   needs both switches for it and the history says "added in a batch (3 of 5)". The one-person rule is the screen's (the
   server can't see across requests). Screen `src/features/cardReceipts/bulk/` (`useReceiptBatch`, `BulkReceiptsForm`).
-- **Custom date range** (2026-11-24; moved 2026-11-25): the Expenses period is a **Period** field at the top of the Filters panel
-  (`components/PeriodField.tsx`, owner: "move this to filter icon, match it with the dashboard custom filter"): **Month | Custom**. Month is
-  the shared month calendar (nothing after this month); Custom is From / To (shared `DatePicker`, at most a year, both ends included)
-  and changes nothing until **Apply**, like the dashboard's. A month other than this one, or a range, counts as a filter (gold dot, the
-  count) and Clear all goes back to this month. The tab row keeps no period on Expenses; Statements still has its ‹ month › there.
+- **Custom date range** (2026-11-24; moved 2026-11-25): the Expenses period is one **Period** field at the top of the Filters panel
+  (`components/PeriodField.tsx`, owner: "move this to filter icon, match it with the dashboard custom filter", then "show custom button
+  inside the dropdown so that we don't consume a lot of space" — no Month | Custom toggle). The field is the shared month calendar (the
+  picked month checked, nothing after this month) with a **Custom range…** button in its footer (`extra` on `MonthPicker` /
+  `CalendarPanel`, a shared-component addition used only here); that **replaces the field** with From / To (shared `DatePicker`, at most a
+  year, both ends included; the month field is not shown beside them, owner 2026-11-25) which change nothing until **Apply**, like the
+  dashboard's. "Pick a month" in the label row goes back to months. A month other than this one, or a range, counts as a filter (gold dot, the count) and Clear all
+  goes back to this month. The tab row keeps no period on Expenses; Statements still has its ‹ month › there.
   A shared month calendar's `min` / `max` are **days**, never `YYYY-MM` (a month string crashes the panel). The server
   answers `GET /expenses?scope=…&from=&to=` (rules `rangeProblem` / `inRange` / `rangeLabel` in `src/utils/cardReceipts.ts`;
   filter kind `range` in `src/db/cardReceipts`, Mongo and Postgres, parity-tested) with the same people rules as a month.
