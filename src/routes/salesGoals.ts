@@ -6,7 +6,7 @@ import { teamOfRequest } from '../services/teamDirectory.ts';
 import { displayNameOf, isSalesRep } from '../utils/salesReps.ts';
 import { workLocationsOf } from '../utils/teamScope.ts';
 import { readRepSalesSheet } from '../utils/repSales.ts';
-import { asOfIn, canSetGoals, canViewTeamGoals, matchReportReps, mayChangeGoalsOf, mayViewGoalsOf, readGoalMonths, sumCents } from '../utils/salesGoals.ts';
+import { asOfIn, canSetGoals, canViewGoals, canViewTeamGoals, matchReportReps, mayChangeGoalsOf, mayViewGoalsOf, readGoalMonths, sumCents } from '../utils/salesGoals.ts';
 import type { GoalMonths } from '../utils/salesGoals.ts';
 import type { Loose } from '../types/records.ts';
 
@@ -88,6 +88,7 @@ export default function createSalesGoalsRouter({ authenticate, requireSalesPage 
       const year = validYear(req.query.year, asOf.year);
       if (!year) return res.status(400).json({ message: 'Pick a year between 2000 and 2100.' });
       const viewer = viewerOf(req);
+      if (!canViewGoals(viewer)) return res.status(403).json({ message: 'Your role can’t see sales goals.' });
       const team = await teamOfRequest(req);
       const staff = await staffDirectory();
       // Everyone this person may see, who is a rep (or is themselves).

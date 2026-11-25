@@ -72,12 +72,16 @@ const put = (headers: Record<string, string>, id: string, months: unknown, year 
 
 describe('GET /api/sales-goals', () => {
   it('gives a rep only their own row, with their sales — never a teammate', async () => {
-    const res = await get(as(MARIA, ['view_dashboard'])).expect(200);
+    const res = await get(as(MARIA, ['view_goals'])).expect(200);
     expect(res.body.people.map((p: Loose) => p.id)).toEqual([MARIA]);
     expect(res.body.people[0]).toMatchObject({ you: true, name: 'Maria R', branch: 'Seattle' });
     expect(res.body.people[0].salesCents[10]).toBe(842_000);
     expect(res.body).toMatchObject({ year: 2026, canSet: false, canViewTeam: false });
     expect(JSON.stringify(res.body)).not.toContain(DANIEL);
+  });
+  it('without any goals switch a rep gets nothing, not even their own', async () => {
+    await get(as(MARIA, ['view_dashboard'])).expect(403);
+    await get(as(MARIA, [])).expect(403);
   });
   it('a team-goals switch sees the team (reps only, nobody outside it)', async () => {
     const res = await get(as(DIRECTOR, ['view_team_goals'])).expect(200);
@@ -88,7 +92,7 @@ describe('GET /api/sales-goals', () => {
     expect(JSON.stringify(res.body)).not.toContain(DRIVER);
   });
   it('counts sales by the report\'s sales person, and lists the names that match no staff — only to someone who sets goals', async () => {
-    const mine = await get(as(MARIA, ['view_dashboard'])).expect(200);
+    const mine = await get(as(MARIA, ['view_goals'])).expect(200);
     expect(mine.body.people[0].salesCents[10]).toBe(842_000);        // 7,420 + 1,000 on a customer Daniel owns today
     expect(mine.body.unmatchedReps).toEqual([]);
     expect((await get(as(DIRECTOR, ['view_team_goals']))).body.unmatchedReps).toEqual([]);
@@ -111,13 +115,13 @@ describe('PUT /api/sales-goals/:userId', () => {
     const res = await put(as(DIRECTOR, ['set_sales_goals']), MARIA, [70000, 70000, 80000, 85000, 90000, 90000, 80000, 85000, 95000, 95000, 90000, 70000]).expect(200);
     expect(res.body.person).toMatchObject({ id: MARIA, you: false });
     expect(res.body.person.goalCents.slice(0, 3)).toEqual([7_000_000, 7_000_000, 8_000_000]);
-    const mine = await get(as(MARIA, ['view_dashboard'])).expect(200);
+    const mine = await get(as(MARIA, ['view_goals'])).expect(200);
     expect(mine.body.people[0].goalCents[10]).toBe(9_000_000);
     const theirs = await get(as(DIRECTOR, ['set_sales_goals'])).expect(200);
     expect(theirs.body.people.find((p: Loose) => p.id === MARIA).goalCents[11]).toBe(7_000_000);
     // a blank month is no goal
     await put(as(DIRECTOR, ['set_sales_goals']), MARIA, [1000, ...twelve(null).slice(1)]).expect(200);
-    expect((await get(as(MARIA, [])).expect(200)).body.people[0].goalCents).toEqual([100_000, ...twelve(null).slice(1)]);
+    expect((await get(as(MARIA, ['view_goals'])).expect(200)).body.people[0].goalCents).toEqual([100_000, ...twelve(null).slice(1)]);
   });
   it('refuses someone outside the team, a non-rep, a bad id and bad months', async () => {
     const dir = as(DIRECTOR, ['set_sales_goals']);
@@ -150,7 +154,7 @@ describe('the rep file: "Sales by Primary Sales Rep - Monthly"', () => {
     expect(res.body.matched.map((m: Loose) => [m.name, m.userName])).toEqual([['Maria R', 'Maria R'], ['daniel k', 'Daniel K']]);
     expect(res.body.unmatched.map((u: Loose) => u.name)).toEqual(['Ex Employee', 'Pat Nobody']);   // biggest first, by size either way
     // nothing was written: the GET still uses the per-customer report
-    expect((await get(as(MARIA, [])).expect(200)).body.people[0].salesCents[10]).toBe(842_000);
+    expect((await get(as(MARIA, ['view_goals'])).expect(200)).body.people[0].salesCents[10]).toBe(842_000);
   });
 
   it('imports the year: the figures replace the per-customer report\'s, a name a person linked counts for that person, the rest is listed', async () => {
@@ -158,7 +162,7 @@ describe('the rep file: "Sales by Primary Sales Rep - Monthly"', () => {
     expect(res.body).toMatchObject({ year: 2026, reps: 4, linked: 1, matched: 3 });
     expect(res.body.unmatched).toEqual([{ name: 'Ex Employee', cents: -2000 }]);
     // Maria: her own line (500.50) plus Pat Nobody's (7), linked to her
-    const mine = await get(as(MARIA, [])).expect(200);
+    const mine = await get(as(MARIA, ['view_goals'])).expect(200);
     expect(mine.body.people[0].salesCents[10]).toBe(50_050 + 700);
     expect(mine.body.unmatchedReps).toEqual([]);
     const all = await get(dir).expect(200);
@@ -172,7 +176,7 @@ describe('the rep file: "Sales by Primary Sales Rep - Monthly"', () => {
 
   it('importing again replaces the year', async () => {
     await post(dir, 'import', { rows: [REP_HEAD, rep('Maria R', 1)], fileName: 'again.xlsx', links: {} }).expect(200);
-    const mine = await get(as(MARIA, [])).expect(200);
+    const mine = await get(as(MARIA, ['view_goals'])).expect(200);
     expect(mine.body.people[0].salesCents[10]).toBe(100);
     expect((await get(dir).expect(200)).body.people.find((p: Loose) => p.id === DANIEL).salesCents[10]).toBeNull();
   });

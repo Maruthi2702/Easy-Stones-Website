@@ -17,6 +17,7 @@ import { inTeam } from './teamScope.ts';
 import { displayNameOf } from './salesReps.ts';
 
 export const GOAL_PERMISSIONS = Object.freeze({
+  VIEW_OWN: 'view_goals',
   VIEW_TEAM: 'view_team_goals',
   SET: 'set_sales_goals'
 });
@@ -27,17 +28,21 @@ export const MAX_GOAL_DOLLARS = 100_000_000;
 const permsOf = (user: Loose | null | undefined): string[] => (Array.isArray(user?.permissions) ? user.permissions : []);
 const idOf = (user: Loose | null | undefined) => String(user?.id ?? user?._id ?? '');
 
+/** Whether the role may see the Goals view at all: View goals (their own), Team goals or Set goals (each includes the one before). */
+export const canViewGoals = (user: Loose | null | undefined) =>
+  permsOf(user).includes(GOAL_PERMISSIONS.VIEW_OWN) || canViewTeamGoals(user);
+
 /** Whether the role may see other people's goals (Set goals implies it). */
 export const canViewTeamGoals = (user: Loose | null | undefined) =>
   permsOf(user).includes(GOAL_PERMISSIONS.VIEW_TEAM) || permsOf(user).includes(GOAL_PERMISSIONS.SET);
 
 export const canSetGoals = (user: Loose | null | undefined) => permsOf(user).includes(GOAL_PERMISSIONS.SET);
 
-/** Your own always; someone else's only with a team-goals switch and only when they are on your team. */
+/** Your own with any goals switch (View goals, Team goals or Set goals); someone else's only with Team goals or Set goals, and only when they are on your team. */
 export const mayViewGoalsOf = (user: Loose | null | undefined, targetId: unknown, team: '*' | ReadonlySet<string> | null | undefined) => {
   const target = String(targetId ?? '');
   if (!target) return false;
-  if (target === idOf(user)) return true;
+  if (target === idOf(user)) return canViewGoals(user);
   return canViewTeamGoals(user) && inTeam(team, target);
 };
 
@@ -48,8 +53,6 @@ export const mayChangeGoalsOf = (user: Loose | null | undefined, targetId: unkno
   return target === idOf(user) || inTeam(team, target);
 };
 
-/** Is the viewer someone the Goals view is for: a sales rep by role, or anyone with a goals switch. */
-export const wantsGoalsView = (user: Loose | null | undefined, isRep: boolean) => isRep || canViewTeamGoals(user);
 
 export type GoalMonths = (number | null)[];
 

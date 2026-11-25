@@ -233,7 +233,7 @@ describe('Sales Visits tab', () => {
       <VisitsPanel
         pagedVisits={[{ _id: 'v1', date: '2026-10-20', company: 'Stone River', contactName: 'Max', customerId: 'c2', location: 'Seattle' }]}
         totalCount={1} searchTerm="" onSearchChange={noop} page={1} rowsPerPage={50} onPageChange={noop} onRowsPerPageChange={noop}
-        tableLoading={false} busyVisitId={null} currentUser={{ role: 'sales_rep', permissions: ['view_customers'] }} currentUserId="a1b2c3d4e5f6a7b8c9d0e1f2" customers={[]} schedules={[]}
+        tableLoading={false} busyVisitId={null} currentUser={{ role: 'sales_rep', permissions: ['view_customers', 'view_goals'] }} currentUserId="a1b2c3d4e5f6a7b8c9d0e1f2" customers={[]} schedules={[]}
         followUpPanel={[]} followUpCount={0} showWhoLogged={false} byRep={null} onOpenTab={noop} onOpenVisitCard={noop} onEditVisit={noop} onDeleteVisit={noop}
         onOpenGallery={noop} onOpenCustomer={noop}
       />

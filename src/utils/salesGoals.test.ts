@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
-  GOAL_PERMISSIONS, canViewTeamGoals, canSetGoals, mayViewGoalsOf, mayChangeGoalsOf, readGoalMonths, sumCents, annualGoal, spreadEvenly,
+  GOAL_PERMISSIONS, canViewGoals, canViewTeamGoals, canSetGoals, mayViewGoalsOf, mayChangeGoalsOf, readGoalMonths, sumCents, annualGoal, spreadEvenly,
   repNameKey, matchReportReps, asOfIn, monthPace, yearPace, focusMonth, monthLine, monthLines, toDate, quarterTotals, yearLine, moneyFull, moneyCompact, daysInMonth
 } from './salesGoals.ts';
 
-const rep = { id: 'r1', permissions: ['view_dashboard'] };
+const rep = { id: 'r1', permissions: ['view_goals'] };
+const plain = { id: 'r1', permissions: ['view_dashboard'] };
 const director = { id: 'd1', permissions: [GOAL_PERMISSIONS.SET] };
 const viewer = { id: 'v1', permissions: [GOAL_PERMISSIONS.VIEW_TEAM] };
 const team = new Set(['r1', 'r2', 'd1', 'v1']);

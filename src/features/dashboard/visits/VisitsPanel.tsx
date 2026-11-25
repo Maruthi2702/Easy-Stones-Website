@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import Pagination from '../../../components/shared/Pagination';
 import { canModifyVisit, canDeleteVisit } from '../../../utils/visitAccess';
-import { isSalesRep } from '../../../utils/salesReps';
-import { wantsGoalsView } from '../../../utils/salesGoals';
+import { canViewGoals } from '../../../utils/salesGoals';
 import GoalsView from '../goals/GoalsView';
 import { useMyTeam } from '../../../api/myTeam';
 import DashboardAside from '../components/DashboardAside';
@@ -56,8 +55,8 @@ export default function VisitsPanel({
 }: VisitsPanelProps) {
     const team = useMyTeam(currentUser, currentUserId);
     const showingByRep = byRep?.view === 'byRep';
-    // Visits | Goals (2026-11-25): for a sales rep, or anyone with a team-goals switch. Opens on Visits, as before.
-    const goalsEnabled = wantsGoalsView(currentUser, isSalesRep({ ...currentUser, _id: currentUserId }));
+    // Visits | Goals (2026-11-25): for anyone with View goals (their own), Team goals or Set goals. Opens on Visits, as before.
+    const goalsEnabled = canViewGoals(currentUser);
     const [section, setSection] = useState<'visits' | 'goals'>('visits');
     const showingGoals = goalsEnabled && section === 'goals';
     return (

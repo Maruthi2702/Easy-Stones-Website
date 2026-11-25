@@ -32,7 +32,7 @@ export default function GoalBar({ pct, state, pace = null, mode = 'pace', label 
                 <rect className="gl-track" width="100%" height="10" rx="5" />
                 {has && <rect className={tone} width={`${w1}%`} height="10" rx="5" />}
                 {has && w2 > 0 && <rect className={`${tone} gl-over`} x={`${GOAL_AT}%`} width={`${w2}%`} height="10" />}
-                <rect className="gl-line" x={`${GOAL_AT}%`} y="-2" width="2" height="14" rx="1" />
+                {state !== 'none' && <rect className="gl-line" x={`${GOAL_AT}%`} y="-2" width="2" height="14" rx="1" />}
             </svg>
         );
     }

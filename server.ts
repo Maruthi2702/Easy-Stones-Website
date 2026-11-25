@@ -929,8 +929,10 @@ async function startServer() {
         // an admin ticks the rest under Users & Roles.
         { roles: ['admin'], permissions: [...ALL_PROJECT_LEAD_PERMISSIONS] },
         // Sales goals (2026-11-25, src/utils/salesGoals.ts): admin and director see their team's goals and set them
-        // (the owner asked for directors); a rep always sees their own. Managers and others are ticked by an admin.
+        // (the owner asked for directors). View goals (a person's own only) goes to the roles that saw their own before
+        // the switch existed — managers and sales reps too — so nobody loses it; any other role is ticked by an admin.
         { roles: ['admin', 'director'], permissions: ['view_team_goals', 'set_sales_goals'] },
+        { roles: ['admin', 'director', 'manager', 'sales_rep'], permissions: ['view_goals'] },
         // Card receipt approvals (2026-11-23, src/utils/receiptApproval.ts): Accounting approves every receipt and a
         // branch manager / director gives the second approval at $150+, so all three need Approve (the reminders switch
         // follows from it, in ACTION_MIGRATIONS). Given once; an admin can switch it off under Users & Roles.
