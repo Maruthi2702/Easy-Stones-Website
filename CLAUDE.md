@@ -1661,7 +1661,7 @@ and on the other tabs). **Statements:** the bank is a **Bank** dropdown (Amex / 
 panel portals them into the page's `ccr-tab-tools` and its search + **Upload statement** into the header's `ccr-tools`, so nothing floats
 outside the page); the tiles are gone. Columns (owner's order): **Date · Cardholder & card** (initial avatar, name, branch pill in the
 Customers location-badge colours, card ID) **· Merchant** (bank's line bold, city under) **· Category · Amount · Status**. A **matched**
-line's row is **green**, one **waiting for its receipt red** (no Receipt column — the colour says it, owner's call), lines needing no
+line's row is **green**; one waiting for its receipt has **no colour** (red removed 2026-11-24, owner: "only green"); lines needing no
 receipt fade. **Status** is the Customers dot + word with a grey line under it, worked out on the server by `src/utils/statementStage.ts`
 (tested) and sent as each line's `stage` (with the holder's `branch`) from `linesWhere`: a matched line's approval stage from
 `receiptApproval.ts` — Waiting for Accounting / for Manager or Admin / for Admin / for both ("$150+ · needs both"), Asked …, Sent back,
@@ -1674,7 +1674,7 @@ panel are gone — **Queue** (approvers, Waiting for me), **Card**, **Status**, 
 (`components/FilterMenu.tsx`, shared with Statements; each choice carries its count given the others, **Clear all** appears once one
 narrows the list), and what the tiles held — each status's money and the month's total — sits in the pager's bar (`.ccr-pg-totals`).
 A **phone keeps the Filters panel**. Rows: Cardholder & card (avatar, branch pill), Status as the dot + word with the approvals / what's
-owed under it (`ExpenseStatus`), **Missing receipt rows red** (`tr.is-miss`, the `--ccr-row-miss` colours now on `.ccr-`). Dropped
+owed under it (`ExpenseStatus`), a Missing receipt row is plain (its red dot in Status stays). Dropped
 `StatusTiles.tsx`. An empty list with a filter on says "Nothing matches", never "No receipts for <month>".
 
 **Expenses say whether a bank statement line answers them** (2026-11-24, owner: "show if they are matched with the Amex report or not in
@@ -1683,9 +1683,9 @@ expenses as well"). The server adds `onStatement` to every expense it sends (`vi
 (an upload matched to its charge, or the Missing receipt row made for it), **false** when none does and the expense is on an Amex / Encore
 card dated **2026-11-01 or later** (`MISSING_FROM`; the same start as the check), **null** otherwise (earlier days, another bank, or
 Credit Card Receipts still on MongoDB / the lookup failed — nothing is claimed). The row's background says it (`rowTone` in
-`ExpenseList.tsx`): **green** on the statement, **red** a Missing receipt row (on the statement, no receipt yet), **plain for everything
-else** — not matched (owner, same day: "which are not matched don't keep any color", so the amber and its tag were removed) or not known;
-a hover `title` says what green / red mean. A **Statement** dropdown (All / On the statement / Not on the statement, with counts; a field in the phone's Filters panel too) filters
+`ExpenseList.tsx`): **green** on the statement and **plain for everything
+else** — a Missing receipt row too (owner, 2026-11-24: green is the only row colour in the whole module) — not matched (owner, same day: "which are not matched don't keep any color", so the amber and its tag were removed) or not known;
+a hover `title` says what green means. A **Statement** dropdown (All / On the statement / Not on the statement, with counts; a field in the phone's Filters panel too) filters
 them (`ReceiptFilters.statement`, `statementState`). The MongoDB / Postgres parity test leaves `onStatement` out (Postgres-only data).
 
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
