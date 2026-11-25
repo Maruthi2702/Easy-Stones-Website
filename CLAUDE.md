@@ -1685,8 +1685,10 @@ card dated **2026-11-01 or later** (`MISSING_FROM`; the same start as the check)
 Credit Card Receipts still on MongoDB / the lookup failed — nothing is claimed). The row's background says it (`rowTone` in
 `ExpenseList.tsx`): **green** on the statement, **red** a Missing receipt row (on the statement, no receipt yet), **plain for everything
 else** — not matched (owner, same day: "which are not matched don't keep any color", so the amber and its tag were removed) or not known;
-a hover `title` says what green / red mean. A **Statement** dropdown (All / On the statement / Not on the statement, with counts; a field in the phone's Filters panel too) filters
-them (`ReceiptFilters.statement`, `statementState`). The MongoDB / Postgres parity test leaves `onStatement` out (Postgres-only data).
+a hover `title` says what green / red mean. A **Statement** dropdown (All / Matched / Not matched, with counts; a field in the phone's Filters panel too) filters them
+(`ReceiptFilters.statement`, `statementState`): **Matched is exactly the green rows; Not matched is everything else** (owner: "everything
+apart from what matched with reports") — an unmatched receipt, one from before the check began or on another kind of card, and a charge
+still waiting for its receipt. The MongoDB / Postgres parity test leaves `onStatement` out (Postgres-only data).
 
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)
 

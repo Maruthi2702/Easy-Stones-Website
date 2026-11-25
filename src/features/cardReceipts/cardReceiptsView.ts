@@ -13,17 +13,22 @@ export const categoryText = (categories: readonly Category[], e: { category: str
 
 /** What the Filters panel, the search box and the status tiles narrow the list to. */
 /** `people` is the cardholders ticked in the People filter; [] = everyone in view. */
-/** `bank`: '' (every bank), 'amex' or 'encore'. `statement`: '' (all), 'on' (matched with a statement line) or 'off' (not on one yet). */
+/** `bank`: '' (every bank), 'amex' or 'encore'. `statement`: '' (all), 'on' (matched with a statement line) or 'off' (everything else). */
 export type ReceiptFilters = { search: string; status: string; people: string[]; category: string; bank: string; statement: string };
 export const NO_FILTERS: ReceiptFilters = { search: '', status: 'all', people: [], category: '', bank: '', statement: '' };
 
-/** The Statement filter's choices (2026-11-24): the Expenses list's green rows and amber rows. */
+/**
+ * The Statement filter's choices (2026-11-24; owner: "everything apart from what matched with reports"): Matched is
+ * exactly the green rows, Not matched is **everything else** — a receipt no statement line answers, one from before the
+ * check began or on another kind of card, and a charge still waiting for its receipt (on the statement, but no receipt
+ * matched it).
+ */
 export const STATEMENT_FILTERS = [
-  { key: 'on', label: 'On the statement', dot: 'ok' },
-  { key: 'off', label: 'Not on the statement', dot: 'wait' }
+  { key: 'on', label: 'Matched', dot: 'ok' },
+  { key: 'off', label: 'Not matched', dot: 'none' }
 ] as const;
-/** 'on' / 'off' / '' (unknown) for one expense, as the rows and the filter read it. */
-export const statementState = (e: Pick<Expense, 'onStatement'>) => (e.onStatement === true ? 'on' : e.onStatement === false ? 'off' : '');
+/** 'on' for a receipt a bank statement line answers (the green row), else 'off'. */
+export const statementState = (e: Pick<Expense, 'onStatement' | 'status'>) => (e.onStatement === true && e.status !== 'missing' ? 'on' : 'off');
 
 export const categoryLabel = (categories: readonly Category[], name: string) =>
   categories.find((c) => c.name === name)?.label || (name ? name.replace(/_/g, ' ') : '');

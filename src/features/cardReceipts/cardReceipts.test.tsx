@@ -137,11 +137,15 @@ describe('the Credit Card Receipts page', () => {
     // The Statement dropdown counts and filters them.
     fireEvent.click(menu('Statement'));
     const options = [...document.querySelectorAll('.ccr-opt')].map((o) => (o.textContent || '').replace(/\s+/g, ' ').trim());
-    expect(options).toEqual(expect.arrayContaining([expect.stringMatching(/^On the statement.*1/), expect.stringMatching(/^Not on the statement.*1/)]));
-    fireEvent.click([...document.querySelectorAll('.ccr-opt')].find((o) => o.textContent?.startsWith('Not on the statement'))!);
-    expect(document.querySelectorAll('.ccr-table tbody tr')).toHaveLength(1);
+    // Matched is the one green row; Not matched is everything else (4 receipts in all) — a not-checked one included.
+    expect(options).toEqual(expect.arrayContaining([expect.stringMatching(/^Matched.*1/), expect.stringMatching(/^Not matched.*3/)]));
+    fireEvent.click([...document.querySelectorAll('.ccr-opt')].find((o) => o.textContent?.startsWith('Not matched'))!);
+    expect(document.querySelectorAll('.ccr-table tbody tr')).toHaveLength(3);
+    expect(document.querySelectorAll('.ccr-table tbody tr.is-ok')).toHaveLength(0);
     expect(screen.getByText('JINYA Ramen Bar')).toBeTruthy();
+    expect(screen.getByText('Kashish Cuisine of India')).toBeTruthy();
     expect(menu('Statement').className).toContain('set');
+    expect(menu('Statement').textContent).toContain('Not matched');
   });
 
   it('puts a count beside every dropdown choice and Clear all once one narrows the list', async () => {
