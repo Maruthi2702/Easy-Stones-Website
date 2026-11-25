@@ -4,11 +4,14 @@ import FormModal from '../../../components/shared/form/FormModal';
 import { FormSection } from '../../../components/shared/form/FormControls';
 import { groupBySection, fullAccessOn, listedActions, setAllIn } from './permissionGroups';
 import { AutoRemindersSwitch } from '../../cardReceipts';
+import { isAccountingSide } from '../../../utils/receiptApproval';
 import type { PageDef } from '../types';
 
 export type PagePermissionDialogProps = {
     page: PageDef;
     roleName?: string;
+    /** The role's own name (not its label): the automatic reminders switch shows only on Accounting and Admin. */
+    roleKey?: string;
     editedPermissions: string[];
     /** Edit roles: without it the switches are read-only. */
     canEdit: boolean;
@@ -18,7 +21,7 @@ export type PagePermissionDialogProps = {
 };
 
 /** Roles & Permissions → a page card: its switches by section, "Turn all on / off". */
-export default function PagePermissionDialog({ page, roleName, editedPermissions, canEdit, onToggle, onChange, onClose }: PagePermissionDialogProps) {
+export default function PagePermissionDialog({ page, roleName, roleKey, editedPermissions, canEdit, onToggle, onChange, onClose }: PagePermissionDialogProps) {
     // Group the card's switches by section. A switch implied by another
     // that is on (Full access) isn't listed: one note instead.
     const groups = groupBySection(page.actions);
@@ -78,8 +81,9 @@ export default function PagePermissionDialog({ page, roleName, editedPermissions
                     </FormSection>
                 );
             })}
-            {/* Credit Card Receipts only: the one setting that isn't a per-role switch (owner, 2026-11-25). */}
-            {page.id === 'accounting_card_receipts' && (
+            {/* Credit Card Receipts only: the one setting that isn't a per-role switch (owner, 2026-11-25), and only on
+                the Accounting and Admin roles — nobody else sees or changes it (owner, 2026-11-25). */}
+            {page.id === 'accounting_card_receipts' && isAccountingSide(roleKey) && (
                 <FormSection title="Reminders">
                     <div className="perm-form-list"><AutoRemindersSwitch /></div>
                 </FormSection>

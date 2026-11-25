@@ -205,3 +205,31 @@ describe('POST /expenses/remind/preview', () => {
     expect(res.body.contact[P.rep]).toEqual({ email: true, phone: true });
   });
 });
+
+// The automatic Missing-receipt reminders switch (owner, 2026-11-25): only Accounting and Admins see or change it.
+describe('the automatic reminders switch is for Accounting and Admins only', () => {
+  const ADMIN = { id: P.admin, displayName: 'Ada Min', role: 'admin', permissions: [] as string[] };
+  const MANAGE_CARDS_ONLY = { id: P.rep, displayName: 'Maria Lopez', role: 'sales_rep', permissions: ['manage_company_cards'] };
+  const get = (user: Loose) => request(app).get('/api/card-receipts/auto-reminders').set('x-test-user', JSON.stringify(user));
+  const put = (user: Loose, on: unknown) => request(app).put('/api/card-receipts/auto-reminders').set('x-test-user', JSON.stringify(user)).send({ on });
+
+  it('Accounting reads it and turns it on, an Admin turns it off — neither needs a switch ticked', async () => {
+    const on = await put({ ...ACCT, permissions: [] }, true).expect(200);
+    expect(on.body).toEqual({ on: true });
+    expect((await get(ADMIN).expect(200)).body).toEqual({ on: true });
+    expect((await put(ADMIN, false).expect(200)).body).toEqual({ on: false });
+    expect((await get({ ...ACCT, permissions: [] }).expect(200)).body).toEqual({ on: false });
+  });
+
+  it('a manager, a rep and a login that only holds Manage cards are refused, for reading and for changing it', async () => {
+    for (const who of [MGR, MANAGE_CARDS_ONLY, { ...MANAGE_CARDS_ONLY, role: 'director' }]) {
+      await get(who).expect(403);
+      await put(who, true).expect(403);
+    }
+    expect((await get(ADMIN).expect(200)).body).toEqual({ on: false });
+  });
+
+  it('refuses a value that is not true or false', async () => {
+    await put(ADMIN, 'yes').expect(400);
+  });
+});

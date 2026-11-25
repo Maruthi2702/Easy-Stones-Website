@@ -1642,7 +1642,7 @@ location A–Z, then name A–Z, people with no holder last** (`src/features/car
 "Company cards · N active", the "N not assigned yet" shortcut, search, the round **Filters** button (Bank, Status — opens on Active —
 and Location) and Add card (`CardsPanel` portals them into the header's `ccr-tools` slot on a computer); shared `Pagination` pages by
 person. **The automatic-reminders switch moved off this tab into Users & Roles → Roles → Credit Card Receipts → Reminders**
-(`AutoRemindersSwitch`, exported from the module's index; one setting for everyone, the server still needs Manage cards to change it).
+(`AutoRemindersSwitch`, exported from the module's index; one setting for everyone). **Only the Accounting and Admin roles show it and only an Accounting or Admin login can read or change it** (owner, 2026-11-25: `isAccountingSide` on the role, in the Roles card's `PagePermissionDialog` and in `GET / PUT /auto-reminders`; it used to be any login with Manage cards).
 **Not built from the canvas:** swipe actions and the tap-a-row details sheet on a phone, "Replace card…" and "Change cardholder"
 (the cards API has no such operations; a replaced card still goes through Statements' set-up), and a dark-mode check.
 

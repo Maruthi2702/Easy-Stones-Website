@@ -4,7 +4,8 @@ import * as api from '../cardReceiptsApi';
 /**
  * The switch for the hourly Missing-receipt emails and pushes. Off until someone turns it on. It lives in
  * Users & Roles → Roles → Credit Card Receipts (owner, 2026-11-25: moved off the Cards tab); it is one setting
- * for everyone, not a per-role switch, and the server lets only a login with Manage cards change it.
+ * for everyone, not a per-role switch. Only the Accounting and Admin roles show it (their Roles card) and the server
+ * lets only an Accounting or Admin login read or change it (owner, 2026-11-25).
  */
 export default function AutoRemindersSwitch() {
   const [on, setOn] = useState<boolean | null>(null);

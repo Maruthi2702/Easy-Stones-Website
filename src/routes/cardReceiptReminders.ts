@@ -36,8 +36,9 @@ export default function createCardReceiptRemindersRouter({ authenticate, senders
   const router = express.Router();
 
   // The switch for the hourly Missing-receipt job (src/jobs/missingReceiptReminders.ts). Off until turned on.
+  // Only Accounting and Admins see it or change it (owner, 2026-11-25) — by role, not by a permission anyone can be given.
   const AUTO_KEY = 'cardReceiptAutoReminders';
-  const manages = (req: Request) => (userOf(req).permissions || []).includes(CARD_RECEIPTS.MANAGE_CARDS);
+  const manages = (req: Request) => isAccountingSide(userOf(req).role);
   router.get('/auto-reminders', authenticate, async (req: Request, res: Response) => {
     if (!manages(req)) return res.status(403).json({ message: 'Access denied.' });
     try { res.json({ on: (await readSetting(AUTO_KEY)) === true }); } catch { res.status(500).json({ message: 'Could not read the setting.' }); }

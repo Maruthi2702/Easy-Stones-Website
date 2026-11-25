@@ -143,6 +143,7 @@ export default function RolesSection({ roles, editor, allow }: RolesSectionProps
                 <PagePermissionDialog
                     page={pagePopup}
                     roleName={selectedRole?.displayName}
+                    roleKey={selectedRole?.name}
                     editedPermissions={editedPermissions}
                     canEdit={allow.editRole}
                     onToggle={editor.togglePermission}
