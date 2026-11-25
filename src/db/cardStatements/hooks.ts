@@ -32,10 +32,12 @@ export async function afterReceiptSaved(expense: { _id?: unknown; id?: unknown; 
  * A card was added or changed: charges on a card that now has a holder get their Missing receipt
  * rows (the check runs again over everything waiting). Never fails the save.
  */
-export async function afterCardSaved(by: { id: string; name: string }) {
+export async function afterCardSaved(by: { id: string; name: string }, issuer?: string) {
   if (!on()) return;
+  // Only that card's bank is checked; a card of another kind has no statements.
+  if (issuer && issuer !== 'amex' && issuer !== 'encore') return;
   try {
-    await recheck(by);
+    await recheck(by, { issuer: issuer as 'amex' | 'encore' | undefined });
   } catch (error) {
     console.error('[card-statements] checking after a card change failed:', error);
   }

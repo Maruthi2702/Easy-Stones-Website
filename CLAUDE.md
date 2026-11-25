@@ -1629,10 +1629,19 @@ digits. Everything else is shared with Amex through `issuer` (`amex` | `encore`)
 `card_statement_imports` / `company_cards` (migration `0028`): `cardForDigits(cards, digits, issuer)` (an Encore line only
 fits an Encore card; an Amex line never does), `unknownCards` per bank, card IDs like `PATH3992` (4 letters + 4 digits).
 **One active card per person per bank** (`company_cards_active_user_issuer_key`; `activeCardClash` takes the issuer).
-Because a person uploads one receipt, a charge matches a receipt of the same **holder** on either bank (`check` groups
-cards by `holderOf`, `claimUpload` looks at the holder's cards) and the receipt is **moved to the card the charge is on**
-(history: "Card changed to …"); a new receipt is saved on the person's first card (`activeCardOf`: Amex first). Not built:
-a card choice on Add receipt. New tables/columns reach RDS with `npm run pg:migrate -- --apply` on Render.
+**Until 2026-11-24 a charge matched a receipt of the same holder on either bank** (and moved the receipt to that card); that is
+**gone — see "One bank at a time" below.** A new receipt is saved on the card the person picks (the first card, Amex, by default).
+New tables/columns reach RDS with `npm run pg:migrate -- --apply` on Render.
+
+**One bank at a time** (2026-11-24, owner: "if the transactions are with Encore don't run that check — match with that report
+only"): `check(tx, by, missingFrom, bank)` in `src/db/cardStatements/index.ts` looks only at the **uploaded bank's** charges
+(`importStatement` passes its issuer; `recheck` after a card is set up or changed passes that card's bank; `afterCardSaved(by,
+issuer)`), and a charge matches a receipt of the same holder **at the same bank** (`holderOf` is `userId:issuer`, so a card
+replaced at that bank still matches and its receipts move to the new card). `claimUpload` (a receipt saved) looks at the holder's
+cards at the receipt's own bank only. So an Encore upload never reads, matches or makes anything at Amex, and an Amex receipt is
+never matched to an Encore charge by the check. The one way across is a **person's click**: a Missing receipt row's near
+receipts (`openReceiptsNear`, any of the holder's cards) and "This is my receipt" move it to the charge's card. Tests:
+`cardReceiptStatementsBanks.test.ts` (fails on the old check).
 
 **Statements are kept apart by bank** (2026-11-23, on `feat/receipt-categories-list`; claude.ai artifact **Statements by bank**,
 https://claude.ai/artifact/XVMYJJRpHrrxSfTQ2Ey2pD; the owner's calls on it): the Statements tab has an **Amex | Encore** switch (remembered

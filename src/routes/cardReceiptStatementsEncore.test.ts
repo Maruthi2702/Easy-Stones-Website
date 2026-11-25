@@ -113,24 +113,28 @@ describe('the Encore check', () => {
     expect(await db.select().from(cardStatementLines)).toHaveLength(0);
   });
 
-  it('a person with an Amex card gets an Encore card too; their receipt answers the charge and moves to that card', async () => {
+  it('a person with an Amex card gets an Encore card too; their Amex receipt is not taken for an Encore charge (one bank at a time)', async () => {
     const res = await post('import', FILE_ROWS, [{ digits: '3992', userId: MARU }]);
     expect(res.status).toBe(200);
-    expect(res.body.check).toMatchObject({ linked: 1, created: 1 });
+    // The cafe receipt is on his Amex card, so the Encore file can't answer with it: both Encore charges get a Missing receipt row.
+    expect(res.body.check).toMatchObject({ linked: 0, created: 2 });
     const cards = await db.select().from(companyCards);
     const encore = cards.find((c) => c.issuer === 'encore')!;
     expect(encore).toMatchObject({ userId: MARU, label: 'MARU3992', lastDigits: '3992', active: true });
     expect(cards.find((c) => c.id === MARU_CARD)).toMatchObject({ active: true, issuer: 'amex' });
 
     const lines = await db.select().from(cardStatementLines);
-    const matched = lines.find((l) => l.reference.startsWith('ENC-E-matched'))!;
-    expect(matched).toMatchObject({ issuer: 'encore', digits: '3992', cardId: encore.id, expenseId: UPLOADED, kind: 'charge' });
-    const [moved] = await db.select().from(cardExpenses).where(eq(cardExpenses.id, UPLOADED));
-    expect(moved).toMatchObject({ cardId: encore.id, cardLabel: 'MARU3992' });
+    const cafe = lines.find((l) => l.reference.startsWith('ENC-E-matched'))!;
+    expect(cafe).toMatchObject({ issuer: 'encore', digits: '3992', cardId: encore.id, kind: 'charge' });
+    expect(cafe.expenseId).not.toBe(UPLOADED);
+    expect(cafe.expenseId).not.toBeNull();
+    // The receipt stays on his Amex card, untouched.
+    const [same] = await db.select().from(cardExpenses).where(eq(cardExpenses.id, UPLOADED));
+    expect(same).toMatchObject({ cardId: MARU_CARD, cardLabel: 'MARU92069' });
     const history = await db.select().from(cardExpenseHistory).where(eq(cardExpenseHistory.expenseId, UPLOADED));
-    expect(history.map((h) => h.changes)).toEqual(expect.arrayContaining([expect.stringMatching(/Card changed to MARU3992: it answers a Encore charge/)]));
+    expect(history.map((h) => h.changes).join(' ')).not.toMatch(/Card changed/);
 
-    const [missing] = await placeholders();
+    const missing = (await placeholders()).find((p) => p.merchant === 'FUEL STOP')!;
     expect(missing).toMatchObject({ userId: MARU, cardId: encore.id, merchant: 'FUEL STOP', cents: 1200, day: '2026-11-06' });
     const fee = lines.find((l) => l.description === 'ANNUAL FEE')!, payment = lines.find((l) => l.description === 'AUTO PAYMENT DEDUCTION')!;
     expect(fee).toMatchObject({ kind: 'fee', expenseId: null });
@@ -163,19 +167,16 @@ describe('the Encore check', () => {
     expect(res.body.message).toMatch(/already has an Encore card, MARU3992/);
   });
 
-  it('a receipt saved later is matched to a charge on the person’s other bank’s card', async () => {
-    const [encore] = await encoreCards();
-    // A new Encore charge, then Maruthi uploads the receipt (it lands on his Amex card, the first of his cards).
+  it('a receipt saved later on the Amex card is not matched to an Encore charge (it stays plain until a person moves it)', async () => {
+    // A new Encore charge, then Maruthi saves a receipt for the same day and amount (it lands on his Amex card, the first of his cards).
     await post('import', [...FILE_ROWS, line('11/12/26', 'HARDWARE', 77.5, 'E-late')]);
     who = MARUTHI;
-    const saved = await request(app).post('/api/card-receipts/expenses').send({
-      id: UPLOADED_TWO, date: '2026-11-12', merchant: 'Hardware', total: '77.50', receiptUrl: '', lostReason: 'Lost it', category: '', note: ''
-    });
+    const saved = await request(app).post('/api/card-receipts/expenses').send({ id: UPLOADED_TWO, date: '2026-11-12', merchant: 'Hardware', total: '77.50' });
     who = ACCOUNTANT;
-    expect([200, 201, 400]).toContain(saved.status);
-    if (saved.status === 201 || saved.status === 200) {
-      const [line2] = (await db.select().from(cardStatementLines)).filter((l) => l.reference.startsWith('ENC-E-late'));
-      expect(line2!.cardId).toBe(encore!.id);
-    }
+    expect(saved.status).toBe(201);
+    const [late] = (await db.select().from(cardStatementLines)).filter((l) => l.reference.startsWith('ENC-E-late'));
+    expect(late!.expenseId).not.toBe(UPLOADED_TWO);
+    expect(saved.body.replacedMissing).toBeUndefined();
+    expect((await db.select().from(cardExpenses).where(eq(cardExpenses.id, UPLOADED_TWO)))[0]).toMatchObject({ cardId: MARU_CARD });
   });
 });

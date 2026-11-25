@@ -73,14 +73,21 @@ async function refundedOf(c: Conn, charges: readonly RefundCharge[]): Promise<Se
  * The check, inside a transaction the caller holds. Every charge still waiting for an upload is
  * looked at, not only the newest file's, so a receipt saved since the last upload (or a card set
  * up since) is found.
+ *
+ * **One bank at a time** (owner, 2026-11-24): given a `bank`, only that bank's charges are looked at and
+ * only receipts on that bank's cards can answer them, so an Encore upload never reads, matches or makes
+ * anything at Amex (and the other way round). A receipt is never matched to the other bank's charge by the
+ * check; a person can still confirm one by hand from a Missing receipt row ("This is my receipt").
+ * With no `bank` (nothing says which) every bank is checked, each on its own.
  */
-async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckResult> {
+async function check(tx: Conn, by: Actor, missingFrom: string, bank?: Issuer): Promise<CheckResult> {
   const result: CheckResult = { linked: 0, created: 0, retired: 0, cardsFound: 0 };
+  const thisBank = bank ? eq(lines.issuer, bank) : undefined;
 
   // 1. Cards for lines that have none, or no upload yet (a card fixed since applies).
   const cards = await q(tx).select().from(companyCards);
   const open = await q(tx).select({ reference: lines.reference, digits: lines.digits, issuer: lines.issuer, cardId: lines.cardId }).from(lines)
-    .where(and(eq(lines.kind, 'charge'), or(isNull(lines.cardId), isNull(lines.expenseId))));
+    .where(and(eq(lines.kind, 'charge'), or(isNull(lines.cardId), isNull(lines.expenseId)), thisBank));
   const byDigits = new Map<string, string | null>();
   for (const l of open) {
     const key = `${l.issuer}:${l.digits}`;
@@ -97,7 +104,7 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
     reference: lines.reference, issuer: lines.issuer, date: lines.day, cents: lines.cents, kind: lines.kind, cardId: lines.cardId, expenseId: lines.expenseId,
     status: cardExpenses.status, voidedAt: cardExpenses.voidedAt
   }).from(lines).leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
-    .where(and(eq(lines.kind, 'charge'), sql`${lines.cardId} is not null`,
+    .where(and(eq(lines.kind, 'charge'), sql`${lines.cardId} is not null`, thisBank,
       or(isNull(lines.expenseId), placeholderSql(), sql`${cardExpenses.voidedAt} is not null`, isNull(cardExpenses.id))));
   // A charge a refund returned needs no receipt (review B9): its Missing receipt row, if one was made, is let go.
   const refunded = await refundedOf(tx, (await q(tx).select({ reference: lines.reference, issuer: lines.issuer, digits: lines.digits, date: lines.day, cents: lines.cents })
@@ -118,10 +125,10 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
   waiting.push(...stillWaiting);
   if (!waiting.length) return result;
   const days = waiting.map(w => w.date).sort();
-  // A person may hold a card at each bank and upload one receipt: a charge matches a receipt of the same
-  // **holder** (a card with no holder stands for itself), and a receipt matched to the other bank's card
-  // is moved to the card it answers.
-  const holderOf = new Map(cards.map(c => [c.id, c.userId ?? c.id]));
+  // A charge matches a receipt of the same **holder at the same bank** (a card with no holder stands for itself):
+  // a card replaced at that bank keeps matching and its receipts move to the new card, but a person's receipts on
+  // their other bank's card are never looked at (owner, 2026-11-24; it was any bank until then).
+  const holderOf = new Map(cards.map(c => [c.id, c.userId ? `${c.userId}:${c.issuer}` : c.id]));
   const holders = new Set(waiting.map(w => holderOf.get(w.cardId!) ?? w.cardId!));
   const cardIds = cards.filter(c => holders.has(holderOf.get(c.id)!)).map(c => c.id);
   const linkedIds = waiting.map(w => w.expenseId).filter((id): id is string => Boolean(id));
@@ -153,7 +160,7 @@ async function check(tx: Conn, by: Actor, missingFrom: string): Promise<CheckRes
   for (const l of plan.link) {
     await q(tx).update(lines).set({ expenseId: l.expenseId, updatedAt: now }).where(eq(lines.reference, l.reference));
     if (l.expenseId) result.linked += 1;
-    // The receipt answers a charge on the person's other card: it now belongs to that card.
+    // The receipt answers a charge on the person's replaced card (same bank): it now belongs to the new card.
     const line = waiting.find(w => w.reference === l.reference);
     const expense = candidates.find(c => c.id === l.expenseId);
     if (line && expense && l.expenseId && line.cardId && expense.cardId !== line.cardId) {
@@ -315,7 +322,8 @@ export async function importStatement(input: {
         });
       }
       if (input.beforeCheck) await input.beforeCheck(tx as unknown as Db);
-      const did = await check(tx, input.by, missingFrom);
+      // Only the uploaded bank is checked: an Encore file never reads, matches or makes anything at Amex.
+      const did = await check(tx, input.by, missingFrom, issuer);
       const summary = await summaryOf(tx, references, missingFrom, did);
       const result = { ...summary, importId, added: references.length - known.size, known: known.size };
       if (input.preview) throw new Preview(result);
@@ -333,13 +341,13 @@ export async function importStatement(input: {
   }
 }
 
-/** The check alone (after a card is set up from the Statements tab). */
-export async function recheck(by: Actor, { missingFrom = MISSING_FROM, beforeCheck }: { missingFrom?: string; beforeCheck?: (tx: Db) => Promise<void> } = {}, db?: Db) {
+/** The check alone (after a card is set up or changed): only `issuer`'s bank when given, else each bank on its own. */
+export async function recheck(by: Actor, { missingFrom = MISSING_FROM, beforeCheck, issuer }: { missingFrom?: string; beforeCheck?: (tx: Db) => Promise<void>; issuer?: Issuer } = {}, db?: Db) {
   const d = db ?? await appDb();
   return d.transaction(async tx => {
     await lock(tx);
     if (beforeCheck) await beforeCheck(tx as unknown as Db);
-    return check(tx, by, missingFrom);
+    return check(tx, by, missingFrom, issuer);
   });
 }
 
@@ -354,9 +362,12 @@ export async function claimUpload(expense: { id: string; cardId: string; date: s
   return d.transaction(async tx => {
     await lock(tx);
     if (await linkedLine(expense.id, tx as unknown as Db)) return null;
-    // The holder's cards at every bank: a receipt may answer a charge on any of them.
-    const [mine] = await tx.select({ userId: companyCards.userId }).from(companyCards).where(eq(companyCards.id, expense.cardId));
-    const siblings = mine?.userId ? (await tx.select({ id: companyCards.id }).from(companyCards).where(eq(companyCards.userId, mine.userId))).map(r => r.id) : [expense.cardId];
+    // The holder's cards at the receipt's own bank (a replaced card keeps matching): only that bank's report can answer
+    // it — never the other bank's (owner, 2026-11-24).
+    const [mine] = await tx.select({ userId: companyCards.userId, issuer: companyCards.issuer }).from(companyCards).where(eq(companyCards.id, expense.cardId));
+    const siblings = mine?.userId
+      ? (await tx.select({ id: companyCards.id }).from(companyCards).where(and(eq(companyCards.userId, mine.userId), eq(companyCards.issuer, mine.issuer)))).map(r => r.id)
+      : [expense.cardId];
     const found = await tx.select({ reference: lines.reference, issuer: lines.issuer, cardId: lines.cardId, day: lines.day, expenseId: lines.expenseId, status: cardExpenses.status, voidedAt: cardExpenses.voidedAt, ...placeholderCols })
       .from(lines).leftJoin(cardExpenses, eq(cardExpenses.id, lines.expenseId))
       .where(and(eq(lines.kind, 'charge'), inArray(lines.cardId, siblings), eq(lines.cents, expense.cents),

@@ -196,7 +196,8 @@ export default function createCardReceiptStatementsRouter({ authenticate }: { au
     if (!canManageCards(req)) return res.status(403).json({ message: SET_UP_NEEDS_MANAGE });
     try {
       const by = actorOf(req);
-      const check = await statements.recheck(by, { beforeCheck: setUpCards(picks, by.name, canManageCards(req), issuerOf(req.body?.issuer)) });
+      // Only that card's bank is checked.
+      const check = await statements.recheck(by, { issuer: issuerOf(req.body?.issuer), beforeCheck: setUpCards(picks, by.name, canManageCards(req), issuerOf(req.body?.issuer)) });
       res.json({ check });
     } catch (err) {
       if (cardError(res, err)) return;

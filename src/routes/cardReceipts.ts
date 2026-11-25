@@ -439,7 +439,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     const saved = card ? await db.changeCard(String(card._id), fields) : await db.addCard(newId(), fields);
     if (!saved) return res.status(404).json({ message: 'Card not found.' });
     // The Amex check: a card that just got its holder asks for the receipts its charges are missing.
-    await afterCardSaved(actorOf(req));
+    await afterCardSaved(actorOf(req), String(value.issuer || 'amex'));
     res.status(card ? 200 : 201).json({ card: cardView(saved) });
   };
 
