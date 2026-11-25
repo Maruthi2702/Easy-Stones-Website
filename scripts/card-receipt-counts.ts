@@ -29,7 +29,15 @@ try {
   console.log(`\n${bank.toUpperCase()} expenses (voided left out): ${r.expenses.total}`);
   console.log(`  With a receipt (file or lost-receipt reason): ${r.expenses.withReceipt}`);
   console.log(`  Without a receipt file:                       ${r.expenses.noFile}`);
-  console.log(`  By status: ${Object.entries(r.expenses.byStatus).map(([k, n]) => `${k} ${n}`).join(' · ') || 'none'}`);
+  const money = (c: number) => (c / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  console.log(`
+Charges with no expense: ${r.noExpense.length}`);
+  r.noExpense.slice(0, 50).forEach(c => console.log(`  ${c.day}  ${c.cardMember} (…${c.digits})  ${c.description}  ${money(c.cents)}  line ${c.reference}
+      why: ${c.why}`));
+  console.log(`Expenses no statement line points at: ${r.unlinked.length}`);
+  r.unlinked.slice(0, 50).forEach(e => console.log(`  ${e.day}  ${e.holderName} (${e.cardLabel})  ${e.merchant}  ${money(e.cents)}  ${e.status}${e.hasReceipt ? ' · has a receipt' : ' · no receipt file'}  id ${e.id}`));
+  console.log(`
+  By status: ${Object.entries(r.expenses.byStatus).map(([k, n]) => `${k} ${n}`).join(' · ') || 'none'}`);
 } finally {
   await close();
 }

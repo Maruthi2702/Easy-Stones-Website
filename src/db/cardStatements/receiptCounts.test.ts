@@ -59,6 +59,14 @@ describe('receipt counts', () => {
     expect(r.expenses.byStatus).toEqual({ waiting: 1, draft: 1, approved: 2, missing: 1 });
   });
 
+  it('lists the charges with no expense (and why) and the expenses no line points at', async () => {
+    await db.insert(cardExpenses).values(expense(8, { merchant: 'LOOSE ONE', status: 'draft', receiptUrl: 'https://files.test/z.webp' }));
+    const r = await receiptCounts(db, { day: '2026-11-25' });
+    expect(r.noExpense.map(c => c.reference).sort()).toEqual(['e', 'f']);
+    expect(r.noExpense[0]).toMatchObject({ why: 'its card is not set up' });
+    expect(r.unlinked).toEqual([expect.objectContaining({ id: hex(8), merchant: 'LOOSE ONE', hasReceipt: true })]);
+  });
+
   it('a day with no upload still counts the expenses', async () => {
     const r = await receiptCounts(db, { day: '2026-11-22' });
     expect(r.uploads).toEqual([]);
