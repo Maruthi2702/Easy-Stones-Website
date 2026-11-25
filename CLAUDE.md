@@ -1490,10 +1490,12 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   **Upload Photo**, **Upload File**, **Lost Receipt** (opens the form on the lost reason), and a drop box with a mouse. A
   chosen file reaches the form as `initialFile`, uploads and is read as it opens. `receiptFileProblem`
   (`src/utils/receiptFile.ts`, tested) turns away anything but a photo / PDF ≤10 MB in the window and in the form. On a phone
-  the choice is the form template's full-screen sheet, not the canvas's bottom sheet, laid out as option A of the claude.ai artifact
-  **Add receipt on a phone** (https://claude.ai/artifact/1H3ocgSPHYgeCzKaNBycDK, 2026-11-24, owner's pick): one big gold **Take a photo** card, **Photo library** and **Files**
-  side by side, **Lost receipt** under "No receipt?" and **Add several** under "For accounting" (`useIsPhone` branch in `AddReceiptChoice.tsx`, `.ccr-choice-phone` on the form's
-  `--fm-*` tokens so both themes follow; desktop keeps its list). Not seen on a real iPhone. Not built: the canvas's step list while
+  the choice is the form template's full-screen sheet, not the canvas's bottom sheet, now a **bottom drawer** (2026-11-25, owner's pick; claude.ai artifact **Add receipt on a phone**,
+  https://claude.ai/artifact/1H3ocgSPHYgeCzKaNBycDK, "A as a drawer", dark and light): `BottomDrawer.tsx` over the dimmed page — a tap there, Esc, ✕ or dragging the
+  handle down closes it; one gold **Take a photo** card, **Library** and **Files** side by side, **Lost receipt** under "No receipt?" and **Add several** under
+  "For accounting" (`useIsPhone` branch in `AddReceiptChoice.tsx`; the form template's `--fm-*` tokens via `.fm-tokens`, so both themes follow; desktop keeps its
+  list). It follows the phone rules below (pinned, page locked, scrim covers the screen). A **phone's camera fills the whole screen** (`object-fit: cover`) and the
+  shot is cut to what showed (`src/utils/cameraCrop.ts`, tested); a desktop's stays letterboxed and whole. Not seen on a real iPhone. Not built: the canvas's step list while
   reading. **Never tried on a real iPhone** (camera permission text is in Info.plist; test the shutter there).
 - **Review of 2026-11-20 (on `main`, owner's calls):** the **$150 second step stays a fixed limit** (no per-role
   dollar limit yet; since 2026-11-23 it is `needsSecondApproval` in `receiptApproval.ts`, and the old
