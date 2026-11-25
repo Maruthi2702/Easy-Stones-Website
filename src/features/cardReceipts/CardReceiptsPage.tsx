@@ -506,6 +506,7 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
           upload={data.upload}
           scan={data.scan}
           addOne={data.addOne}
+          mergeOne={data.mergeOne}
           onSaved={(text) => { say(text || 'Saved'); data.reload(); }}
           onClose={() => setOpen(null)}
         />
@@ -536,6 +537,12 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             if (tab === 'expenses' && (data.range ? !inRange(saved.date, data.range.from, data.range.to) : monthOf(saved.date) !== data.month)) data.setMonth(monthOf(saved.date));
             say(saved.status === 'waiting' ? 'Sent for approval' : 'Saved as a draft');
           }}
+          onMerge={open.kind === 'add' ? async (savedId, body) => {
+            const saved = await data.mergeOne(savedId, body);
+            setOpen(null);
+            if (tab === 'expenses' && (data.range ? !inRange(saved.date, data.range.from, data.range.to) : monthOf(saved.date) !== data.month)) data.setMonth(monthOf(saved.date));
+            say('Updated the saved receipt');
+          } : undefined}
         />
       ) : null}
 

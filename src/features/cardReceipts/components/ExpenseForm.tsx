@@ -9,11 +9,12 @@ import { goToField } from '../../../components/shared/form/formFocus';
 import { useCustomerOptions } from '../../../api/customerOptions';
 import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
 import { duplicatePhotoLine, receiptFileProblem } from '../../../utils/receiptFile';
-import { billMismatchLine, centsText, cleanExpense, defaultSubOf, fieldsOf, formatMoney, typedBillMismatch, usDate, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
+import { billMismatchLine, centsText, cleanExpense, defaultSubOf, fieldsOf, typedBillMismatch, type ExpenseInput, type ExpenseProblems, type RepeatInfo } from '../../../utils/cardReceipts';
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
 import type { ExpenseBody, UploadOptions, UploadResult } from '../cardReceiptsApi';
 import { fingerprintOf } from '../receiptFingerprint';
 import CardToggle from './CardToggle';
+import RepeatLine from './RepeatLine';
 import { lastCardFor, rememberCard } from '../cardChoice';
 import type { AddableHolder, Card, Category, Expense } from '../types';
 
@@ -59,6 +60,8 @@ export type ExpenseFormProps = {
   /** Reads an uploaded receipt (src/routes/cardReceiptScan.ts); absent = no reading. */
   scan?: (url: string) => Promise<{ scan: ReceiptScan }>;
   onSave: (values: ExpenseBody) => Promise<unknown>;
+  /** "Update the saved one" on a repeat: the receipt already saved (by id) takes this one's photo, total and category. Absent = not offered. */
+  onMerge?: (savedId: string, values: ExpenseBody) => Promise<unknown>;
   onClose: () => void;
 };
 
@@ -78,7 +81,7 @@ export type ExpenseFormProps = {
  * (src/utils/receiptScan.ts); the card says which, so they get checked, and
  * when merchant or total are still blank the edit screen opens for them.
  */
-export default function ExpenseForm({ expense, startLost = false, initialFile = null, cardLabel, cards: ownCards = [], holders = [], meId = '', categories, today, upload, scan, onSave, onClose }: ExpenseFormProps) {
+export default function ExpenseForm({ expense, startLost = false, initialFile = null, cardLabel, cards: ownCards = [], holders = [], meId = '', categories, today, upload, scan, onSave, onMerge, onClose }: ExpenseFormProps) {
   const editing = Boolean(expense);
   const start = useMemo(() => (expense ? fromExpense(expense) : blank(today)), [expense, today]);
   const [values, setValues] = useState<Values>(start);
@@ -101,7 +104,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
   };
   const chosenCard = cards.find((c) => c._id === cardId);
   const [serverProblems, setServerProblems] = useState<ExpenseProblems>({});
-  const [repeat, setRepeat] = useState<{ merchant: string; date: string; cents: number } | null>(null);
+  const [repeat, setRepeat] = useState<RepeatInfo | null>(null);
   // Which screen of the window: the form, or Edit bill details (the pencil).
   const [view, setView] = useState<'form' | 'bill'>('form');
   const [billStart, setBillStart] = useState<BillValues | null>(null);
@@ -234,7 +237,7 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
       await onSave({ ...body, ...(confirmRepeat ? { confirmRepeat: true } : {}) });
       if (choosing && !editing) rememberCard(behalf ? holderId : meId, cardId);
     } catch (err) {
-      const e = err as Error & { problems?: ExpenseProblems; repeat?: { merchant: string; date: string; cents: number } | null };
+      const e = err as Error & { problems?: ExpenseProblems; repeat?: RepeatInfo | null };
       const fromServer = e.problems && typeof e.problems === 'object' ? e.problems : {};
       setServerProblems(fromServer);
       setRepeat(e.repeat || null);
@@ -242,6 +245,22 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
       setSaving(false);
       const billProblem = BILL_FIELDS.find((k) => fromServer[k]);
       if (billProblem) openBill(billProblem, true);
+    }
+  };
+
+  /** "Update the saved one": the same checks as a save, then the saved receipt takes this one's photo, total and category. */
+  const updateSaved = async (savedId: string) => {
+    if (!onMerge) return;
+    setSaving(true);
+    setServerError('');
+    try {
+      await onMerge(savedId, body);
+    } catch (err) {
+      const e = err as Error & { status?: number };
+      // Refused (approved since, or changed): the line stays, without the Update button.
+      setRepeat((r) => (r && e.status === 409 ? { ...r, canMerge: false } : r));
+      setServerError(e.message);
+      setSaving(false);
     }
   };
 
@@ -278,7 +297,8 @@ export default function ExpenseForm({ expense, startLost = false, initialFile = 
       {serverError ? (
         <div className="ccr-form-error" role="alert">
           {repeat
-            ? <>You already saved {repeat.merchant}, {formatMoney(repeat.cents)} on {usDate(repeat.date)}. Is this a second purchase?
+            ? <><RepeatLine repeat={repeat} />
+              {onMerge && repeat.canMerge ? <button type="button" className="fm-btn fm-btn-small fm-btn-primary" onClick={() => { setView('form'); updateSaved(repeat.id); }} disabled={saving}>Update the saved one</button> : null}
               <button type="button" className="fm-btn fm-btn-small" onClick={() => { setView('form'); submit(true); }} disabled={saving}>Save anyway</button></>
             : serverError}
         </div>

@@ -3,7 +3,7 @@ import { newVisitId } from '../../../utils/visitForm';
 import { compressImage, fileToBase64 } from '../../../utils/attachmentFiles';
 import { duplicatePhotoLine, receiptFileProblem } from '../../../utils/receiptFile';
 import { fingerprintOf } from '../receiptFingerprint';
-import { cleanExpense, type ExpenseInput, type ExpenseProblems } from '../../../utils/cardReceipts';
+import { cleanExpense, type ExpenseInput, type ExpenseProblems, type RepeatInfo } from '../../../utils/cardReceipts';
 import { fillFromScan, scanLine, type ReceiptScan } from '../../../utils/receiptScan';
 import { MAX_BATCH, batchLeftOut, batchRoom, rowReadiness } from '../../../utils/receiptBatch';
 import type { ExpenseBody, UploadOptions, UploadResult } from '../cardReceiptsApi';
@@ -29,8 +29,9 @@ export type BatchRow = {
   save: RowSave;
   error: string;
   problems: ExpenseProblems;
-  repeat: { merchant: string; date: string; cents: number } | null;
-  saved: { status: string; matchedMissing: boolean } | null;
+  /** The receipt already saved that this one looks like (it carries what "Update the saved one" needs). */
+  repeat: RepeatInfo | null;
+  saved: { status: string; matchedMissing: boolean; merged?: boolean } | null;
   /** The file's fingerprint ('' until it's worked out, or when the browser can't). */
   hash: string;
   /** The photo is already on a saved receipt (a warning, src/utils/receiptFile.ts's duplicatePhotoLine). */
@@ -44,6 +45,8 @@ type Deps = {
   scan?: (url: string) => Promise<{ scan: ReceiptScan }>;
   /** Saves one receipt under the id the row carries. */
   addOne: (id: string, body: ExpenseBody) => Promise<{ expense: Expense; matchedMissing: boolean }>;
+  /** "Update the saved one": the receipt already saved (by id) takes this row's photo, total and category. */
+  mergeOne?: (savedId: string, body: ExpenseBody) => Promise<Expense>;
 };
 
 /** Runs at most `n` jobs at once, in the order they were queued. */
@@ -62,7 +65,7 @@ function queue(n: number) {
  * time; the person fills in each row's category and note; Save all sends one `POST /expenses` per row, in order,
  * with the row's own id. Nothing here knows who the receipts are for: the form sends that with every save.
  */
-export function useReceiptBatch({ today, categories, upload, scan, addOne }: Deps) {
+export function useReceiptBatch({ today, categories, upload, scan, addOne, mergeOne }: Deps) {
   const [rows, setRows] = useState<BatchRow[]>([]);
   const [left, setLeft] = useState('');
   const rowsRef = useRef(rows);
@@ -166,7 +169,7 @@ export function useReceiptBatch({ today, categories, upload, scan, addOne }: Dep
         const res = await addOne(now.key, send(now, n, of));
         patch(now.key, { save: 'saved', saved: { status: res.expense.status, matchedMissing: res.matchedMissing }, open: false, error: '', repeat: null });
       } catch (err) {
-        const e = err as Error & { problems?: ExpenseProblems; repeat?: BatchRow['repeat'] };
+        const e = err as Error & { problems?: ExpenseProblems; repeat?: RepeatInfo | null };
         patch(now.key, e.repeat
           ? { save: 'repeat', repeat: e.repeat, error: '', open: true }
           : { save: 'failed', error: e.message || 'Could not save this receipt.', problems: e.problems && typeof e.problems === 'object' ? e.problems : {}, open: true });
@@ -188,5 +191,22 @@ export function useReceiptBatch({ today, categories, upload, scan, addOne }: Dep
     }
   };
 
-  return { rows, left, busy, todo, blocked, ready, check, sameAs, setValues, addFiles, remove, clear, toggle, saveAll, saveAnyway, max: MAX_BATCH };
+  /** Update the saved one on a row that looked like a repeat: the saved receipt takes this row's photo, total and category. */
+  const updateSaved = async (key: string, send: (r: BatchRow, n: number, of: number) => ExpenseBody) => {
+    const now = rowsRef.current.find((x) => x.key === key);
+    if (!now?.repeat || !mergeOne) return;
+    const n = rowsRef.current.findIndex((x) => x.key === key) + 1;
+    const savedId = now.repeat.id;
+    patch(key, { save: 'saving', error: '' });
+    try {
+      const expense = await mergeOne(savedId, send(now, n, rowsRef.current.length));
+      patch(key, { save: 'saved', saved: { status: expense.status, matchedMissing: false, merged: true }, open: false, error: '', repeat: null });
+    } catch (err) {
+      // The saved one was approved (or changed) meanwhile: the row stays a repeat, with the reason, so Save anyway is still its choice.
+      const refused = (err as { status?: number }).status === 409;
+      patch(key, (r) => ({ save: 'repeat', error: (err as Error).message || 'Could not update the saved receipt.', open: true, repeat: refused && r.repeat ? { ...r.repeat, canMerge: false } : r.repeat }));
+    }
+  };
+
+  return { rows, left, busy, todo, blocked, ready, check, sameAs, setValues, addFiles, remove, clear, toggle, saveAll, saveAnyway, updateSaved, canUpdateSaved: Boolean(mergeOne), max: MAX_BATCH };
 }

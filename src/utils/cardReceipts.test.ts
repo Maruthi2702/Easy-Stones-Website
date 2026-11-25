@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   CARD_RECEIPTS, canOpenReceipts, categoryKey, cleanCategory, parseCents, formatMoney, usDate, shiftMonth, monthLabel, rangeProblem, inRange, rangeLabel, shortDay, MAX_RANGE_DAYS,
   suggestCardLabel, cleanCard, cleanExpense, missingFor, missingLine, statusAfterSave, holderMayEdit, changeSummary,
-  possibleRepeat, canApprove, cleanApproverRoles, decisionProblem, statusTotals, exportRows, billMismatch, typedBillMismatch, billMismatchLine, type CategoryLike
+  possibleRepeat, mergeIntoSaved, mergeableRepeat, repeatInfoOf, canApprove, cleanApproverRoles, decisionProblem, statusTotals, exportRows, billMismatch, typedBillMismatch, billMismatchLine, type CategoryLike
 } from './cardReceipts.ts';
 
 const CATS: CategoryLike[] = [
@@ -152,6 +152,45 @@ describe('the same receipt twice', () => {
     expect(possibleRepeat(saved, { userId: 'u1', date: '2026-10-09', cents: 9900 })).toBeNull();
     expect(possibleRepeat(saved, { id: 'a', userId: 'u1', date: '2026-10-09', cents: 9817 })).toBeNull();
     expect(possibleRepeat([{ ...saved[0]!, voided: new Date() }], { userId: 'u1', date: '2026-10-09', cents: 9817 })).toBeNull();
+  });
+});
+
+describe('updating the saved receipt from a repeat', () => {
+  const clean = (over: Record<string, unknown> = {}) => cleanExpense({ ...base, ...over }, { today: TODAY, categories: CATS }).value!;
+  const saved = clean({ merchant: 'SHELL OIL 5741', category: 'travel_lunch', note: 'Truck fill-up', receiptUrl: 'https://res.cloudinary.com/x/old.webp' });
+
+  it('takes the new photo, total and category and keeps the merchant, day and note', () => {
+    const incoming = clean({ merchant: 'Shell', total: '15.00', category: 'customer_lunch', customerId: 'c1', customerName: 'Cascade', note: 'other', receiptUrl: 'https://res.cloudinary.com/x/new.webp' });
+    expect(mergeIntoSaved(saved, incoming)).toMatchObject({
+      merchant: 'SHELL OIL 5741', date: saved.date, total: '15.00', category: 'customer_lunch', customerId: 'c1', customerName: 'Cascade',
+      note: 'Truck fill-up', receiptUrl: 'https://res.cloudinary.com/x/new.webp', lostReason: ''
+    });
+  });
+  it('keeps the saved category and customer when the new one has no category, and fills only a blank note', () => {
+    const noCategory = clean({ category: '', note: 'from the photo' });
+    expect(mergeIntoSaved({ ...saved, note: '' }, noCategory)).toMatchObject({ category: 'travel_lunch', note: 'from the photo' });
+    expect(mergeIntoSaved(saved, noCategory)).toMatchObject({ category: 'travel_lunch', note: 'Truck fill-up' });
+  });
+  it('takes a read subtotal, tax and tip with the photo, else keeps its own', () => {
+    const withBill = clean({ subtotal: '13.00', tax: '1.32', tip: '' });
+    expect(mergeIntoSaved({ ...saved, subtotalCents: 999 }, withBill)).toMatchObject({ subtotal: '13.00', tax: '1.32', tip: '' });
+    expect(mergeIntoSaved({ ...saved, subtotalCents: 999, taxCents: 50 }, clean({}))).toMatchObject({ subtotal: '9.99', tax: '0.50' });
+  });
+  it('never replaces a photo with a lost-receipt reason', () => {
+    const lostOnly = clean({ receiptUrl: '', lostReason: 'The receipt went through the wash' });
+    expect(mergeIntoSaved(saved, lostOnly)).toMatchObject({ receiptUrl: 'https://res.cloudinary.com/x/old.webp', lostReason: '' });
+  });
+  it('is allowed until the receipt is approved or voided', () => {
+    for (const status of ['draft', 'waiting', 'sent_back', 'missing']) expect(mergeableRepeat({ status })).toBe(true);
+    expect(mergeableRepeat({ status: 'approved' })).toBe(false);
+    expect(mergeableRepeat({ status: 'waiting', voided: new Date() })).toBe(false);
+  });
+  it('tells the screen what it needs', () => {
+    const row = { _id: 'e1', merchant: 'Shell', date: '2026-10-03', cents: 1432, status: 'waiting', approval: { by: 'x' } };
+    expect(repeatInfoOf(row, { keepsApprovals: false, mayEdit: true })).toEqual({ id: 'e1', merchant: 'Shell', date: '2026-10-03', cents: 1432, status: 'waiting', canMerge: true, clearsApprovals: true });
+    expect(repeatInfoOf(row, { keepsApprovals: true, mayEdit: true }).clearsApprovals).toBe(false);
+    expect(repeatInfoOf(row, { keepsApprovals: false, mayEdit: false }).canMerge).toBe(false);
+    expect(repeatInfoOf({ ...row, status: 'approved' }, { keepsApprovals: false, mayEdit: true }).canMerge).toBe(false);
   });
 });
 

@@ -30,7 +30,7 @@ import { missingFromFor } from '../utils/amexStatement.ts';
 import {
   CARD_RECEIPTS, PAGE_PERMISSIONS, STARTING_CATEGORIES, startingSubcategories, categoryKey, cleanCategory, cleanCard, cleanExpense,
   statusAfterSave, statusAfterAnyEdit, anyoneMayEdit, deleteReasonProblem, missingFor, holderMayEdit, managerMayEdit, changeSummary, possibleRepeat, centsText,
-  chooseCard, isMonth, rangeProblem, monthOf, BANK_FILTERS, onBank, matchedChangeProblem, isReceiptFolderUrl, isPrivateReceiptName, privateReceiptNameOf, privateReceiptUrlOfKey, PRIVATE_RECEIPT_ROUTE, PRIVATE_RECEIPT_KEY_PREFIX, type CleanExpense
+  mergeableRepeat, mergeIntoSaved, repeatInfoOf, chooseCard, isMonth, rangeProblem, monthOf, BANK_FILTERS, onBank, matchedChangeProblem, isReceiptFolderUrl, isPrivateReceiptName, privateReceiptNameOf, privateReceiptUrlOfKey, PRIVATE_RECEIPT_ROUTE, PRIVATE_RECEIPT_KEY_PREFIX, type CleanExpense
 } from '../utils/cardReceipts.ts';
 import type { Loose } from '../types/records.ts';
 
@@ -638,6 +638,16 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
 
   const categoriesForSave = async () => (await categoriesList()).map(categoryView);
 
+  /**
+   * What a repeat's answer says about the receipt already saved. "Update the saved one" is offered only to whoever may edit it
+   * (the edit route's own rule: Edit any, or the holder, or Manage cards on a draft / sent-back one) and only while it isn't approved.
+   */
+  const repeatInfoFor = (req: Request, existing: Loose) => {
+    const own = String(existing.userId) === userIdOf(req);
+    const mayEdit = has(req, CARD_RECEIPTS.EDIT_ANY) || (own ? has(req, CARD_RECEIPTS.USE) : has(req, CARD_RECEIPTS.MANAGE_CARDS) && managerMayEdit({ status: existing.status, voided: existing.voidedAt }));
+    return repeatInfoOf(existing, { keepsApprovals: has(req, CARD_RECEIPTS.EDIT_ANY), mayEdit });
+  };
+
   router.post('/expenses', authenticate, anyOf(CARD_RECEIPTS.USE, CARD_RECEIPTS.ADD_FOR_OTHERS), async (req: Request, res: Response) => {
     const body = req.body || {};
     const actorId = userIdOf(req);
@@ -684,7 +694,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
         // Nor is an Admin's own charge still waiting for Accounting with nothing on it: the receipt replaces it too.
         const same = (await db.sameDayAmount(me, value.date, value.cents)).filter((e) => !isChargePlaceholder(e));
         const repeat = possibleRepeat(same.map((e) => ({ ...e, id: String(e._id) })) as never, { userId: me, date: value.date, cents: value.cents }) as Loose | null | undefined;
-        if (repeat) return res.status(409).json({ message: 'This receipt looks already uploaded.', repeat: { id: String(repeat._id), merchant: repeat.merchant, date: repeat.date, cents: repeat.cents } });
+        if (repeat) return res.status(409).json({ message: 'This receipt looks already uploaded.', repeat: repeatInfoFor(req, repeat) });
       }
       const u = holder as { displayName?: string | null; username?: string | null; location?: string | null; assignedLocations?: string[] | null };
       const by = actor(req);
@@ -709,8 +719,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       res.status(201).json({ expense: await viewOf(saved, approvalViewerOf(req)), ...(replacedMissing ? { replacedMissing } : {}) });
     } catch (error) {
       if (error instanceof RepeatExpenseError) {
-        const e = error.existing;
-        return res.status(409).json({ message: error.message, repeat: { id: String(e._id), merchant: e.merchant, date: e.date, cents: e.cents } });
+        return res.status(409).json({ message: error.message, repeat: repeatInfoFor(req, error.existing) });
       }
       console.error('[card-receipts] add failed:', error);
       res.status(500).json({ message: 'Could not save the receipt.' });
@@ -724,7 +733,8 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     receiptUrl: e.receiptUrl || '', lostReason: e.lostReason || ''
   });
 
-  router.put('/expenses/:id', authenticate, anyOf(CARD_RECEIPTS.USE, CARD_RECEIPTS.EDIT_ANY), validateScalarRequest, async (req: Request, res: Response) => {
+  /** An edit of one expense (PUT, and "Update the saved one" below, which sends the merged body here). `note` is a word for the history line. */
+  const editExpense = async (req: Request, res: Response, note = '') => {
     const { id } = scalarParams(req);
     const me = userIdOf(req);
     if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Expense not found.' });
@@ -786,7 +796,7 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
       // An edit takes back every approval already given: the receipt starts its approvals again (an open question stays).
       const clearsApprovals = !keepsState && Boolean(expense.approval || expense.secondApproval) && changes.length > 0;
       const saved = await db.changeExpense(id, { ...value, ...(file.hash !== null ? { receiptHash: file.hash } : {}), ...(newCard ? { cardId: String(newCard._id), cardLabel: newCard.label } : {}), month: monthOf(value.date), status, ...(clearsApprovals ? { approval: null, secondApproval: null } : {}) },
-        { at: new Date(), by, action: 'edited', expectedUpdatedAt: expense.updatedAt as Date, changes: [changes.join(', '), onBehalf ? `on behalf of ${String(expense.holderName || '').split(' ')[0] || 'the cardholder'}` : '', clearsApprovals ? 'approvals cleared' : '', sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
+        { at: new Date(), by, action: 'edited', expectedUpdatedAt: expense.updatedAt as Date, changes: [changes.join(', '), onBehalf ? `on behalf of ${String(expense.holderName || '').split(' ')[0] || 'the cardholder'}` : '', note, clearsApprovals ? 'approvals cleared' : '', sentForApproval ? 'sent for approval' : ''].filter(Boolean).join(' · ') });
       if (!saved) return res.status(404).json({ message: 'Expense not found.' });
       // A corrected day or total may now answer a charge that has a Missing receipt row: look again (no-op if it's already linked).
       const replacedMissing = changes.some((c) => c === 'date' || c === 'total') ? await afterReceiptSaved(saved, { id: me, name: by }) : null;
@@ -794,6 +804,33 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
     } catch (error) {
       if (error instanceof StaleExpenseError) return res.status(409).json({ message: error.message, changed: true });
       console.error('[card-receipts] edit failed:', error);
+      res.status(500).json({ message: 'Could not save the change.' });
+    }
+  };
+  router.put('/expenses/:id', authenticate, anyOf(CARD_RECEIPTS.USE, CARD_RECEIPTS.EDIT_ANY), validateScalarRequest, (req: Request, res: Response) => editExpense(req, res));
+
+  /**
+   * "Update the saved one" (owner, 2026-11-25): the receipt being added looked like one already saved (the 409 `repeat`), and it is.
+   * Body: the new receipt's fields, as for an add. The saved one takes its photo, total and category (`mergeIntoSaved`), keeps its
+   * merchant (the bank's report's) and everything else, and is edited like any other: the same who-may-edit rules, history and
+   * approvals. An approved or voided one is refused for everyone, Accounting included.
+   */
+  router.post('/expenses/:id/merge', authenticate, anyOf(CARD_RECEIPTS.USE, CARD_RECEIPTS.EDIT_ANY), validateScalarRequest, async (req: Request, res: Response) => {
+    const { id } = scalarParams(req);
+    if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Expense not found.' });
+    try {
+      const expense = await db.findExpense(id);
+      if (!expense) return res.status(404).json({ message: 'Expense not found.' });
+      if (!mergeableRepeat({ status: expense.status, voided: expense.voidedAt })) {
+        return res.status(409).json({ message: expense.voidedAt ? 'A voided expense can’t be changed.' : 'It’s approved, so it can’t be changed. Save this one as its own receipt instead.' });
+      }
+      const shown = (await categoriesForSave()).filter((c) => c.active);
+      const incoming = cleanExpense(req.body || {}, { today: todayOf(), categories: shown });
+      if (!incoming.value) return res.status(400).json({ message: 'Some fields need attention.', problems: incoming.problems });
+      req.body = mergeIntoSaved(cleanOf(expense), incoming.value);
+      return editExpense(req, res, 'updated from a new upload');
+    } catch (error) {
+      console.error('[card-receipts] merge failed:', error);
       res.status(500).json({ message: 'Could not save the change.' });
     }
   });

@@ -179,6 +179,8 @@ export function useCardReceipts(user: ReceiptsUser | null) {
     place(r.expense);
     return { expense: r.expense, matchedMissing: Boolean(r.replacedMissing) };
   };
+  /** "Update the saved one": the saved receipt takes the new one's photo, total and category; the answer is put in place. */
+  const mergeOne = (savedId: string, body: ExpenseBody) => run(async () => { const r = await api.mergeExpense(savedId, body); dropMissing(r.replacedMissing); return r; });
   // A corrected day or total may answer a charge too (the server looks again).
   const edit = (id: string, body: ExpenseBody) => run(async () => { const r = await api.editExpense(id, body); dropMissing(r.replacedMissing); return r; });
   /** "This is my receipt" on a Missing receipt row (review B2): the row goes, the receipt shows as the server left it. */
@@ -211,7 +213,7 @@ export function useCardReceipts(user: ReceiptsUser | null) {
 
   return {
     me, month, setMonth, range, setRange, expenses, waiting, todo, waitingError, holders, loading: loading || !me, error, viewAll, teamOnly, approver,
-    reload, add, addOne, edit, matchToCharge, nearReceipts: api.nearReceipts, approve, sendBack, ask, withdrawAsk, answer, reopen, fillDetails, voidOne, deleteOne, remind,
+    reload, add, addOne, mergeOne, edit, matchToCharge, nearReceipts: api.nearReceipts, approve, sendBack, ask, withdrawAsk, answer, reopen, fillDetails, voidOne, deleteOne, remind,
     askTargets: api.askTargets, upload: api.uploadReceipt, scan: api.scanReceipt
   };
 }

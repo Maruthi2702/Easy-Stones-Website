@@ -314,6 +314,75 @@ describe('saving a receipt', () => {
     await as(REP).post('/expenses', receipt({ confirmRepeat: true })).expect(201);
   });
 
+  describe('“Update the saved one” on a repeat (2026-11-25)', () => {
+    it('says which receipt it is and whether it can be updated', async () => {
+      const first = receipt();
+      await as(REP).post('/expenses', first).expect(201);
+      const again = await as(REP).post('/expenses', receipt({ merchant: 'McDonalds' })).expect(409);
+      expect(again.body.repeat).toMatchObject({ id: first.id, merchant: "McDonald's, Kent", status: 'waiting', canMerge: true, clearsApprovals: false });
+      await as(ACCOUNTING).post(`/expenses/${first.id}/approve`, { comment: '' }).expect(200);
+      const approved = await as(REP).post('/expenses', receipt({ merchant: 'McDonalds' })).expect(409);
+      expect(approved.body.repeat).toMatchObject({ status: 'approved', canMerge: false });
+    });
+
+    it('gives the saved receipt the new photo, total and category and keeps its merchant, day and note', async () => {
+      const first = receipt({ merchant: 'SHELL OIL 5741', category: 'travel_lunch', note: 'Truck fill-up' });
+      await as(REP).post('/expenses', first).expect(201);
+      const second = receipt({ merchant: 'Shell', category: 'fuel', note: 'second note', tax: '' });
+      const again = await as(REP).post('/expenses', second).expect(409);
+      const merged = await as(REP).post(`/expenses/${again.body.repeat.id}/merge`, second).expect(200);
+      expect(merged.body.expense).toMatchObject({ id: first.id, merchant: 'SHELL OIL 5741', category: 'fuel', receiptUrl: second.receiptUrl, note: 'Truck fill-up', date: '2026-10-03', cents: 1432, status: 'waiting' });
+      expect(await CardExpense.countDocuments()).toBe(1);
+      expect(merged.body.expense.history.at(-1)).toMatchObject({ action: 'edited' });
+      expect(merged.body.expense.history.at(-1).changes).toBe('category, receipt · updated from a new upload');
+    });
+
+    it('keeps its own category when the new receipt has none, and takes a note only when the saved one has none', async () => {
+      const first = receipt({ category: 'fuel', note: '' });
+      await as(REP).post('/expenses', first).expect(201);
+      const merged = await as(REP).post(`/expenses/${first.id}/merge`, receipt({ category: '', note: 'From the second photo' })).expect(200);
+      expect(merged.body.expense).toMatchObject({ category: 'fuel', note: 'From the second photo' });
+    });
+
+    it('refuses an approved or voided receipt for everyone, Accounting with Edit any included', async () => {
+      const EDITOR = { ...ACCOUNTING, permissions: [...ACCOUNTING.permissions, 'edit_any_card_receipt'] };
+      const first = receipt();
+      await as(REP).post('/expenses', first).expect(201);
+      await as(ACCOUNTING).post(`/expenses/${first.id}/approve`, { comment: '' }).expect(200);
+      const before = (await CardExpense.findById(first.id).lean()) as Loose;
+      await as(REP).post(`/expenses/${first.id}/merge`, receipt({ category: 'fuel' })).expect(409);
+      const refused = await as(EDITOR).post(`/expenses/${first.id}/merge`, receipt({ category: 'fuel' })).expect(409);
+      expect(refused.body.message).toMatch(/approved/);
+      const after = (await CardExpense.findById(first.id).lean()) as Loose;
+      expect([after.category, after.receiptUrl]).toEqual([before.category, before.receiptUrl]);
+      const other = receipt({ total: '31.00' });
+      await as(REP).post('/expenses', other).expect(201);
+      await as(REP).post(`/expenses/${other.id}/void`, { reason: 'Uploaded twice' }).expect(200);
+      await as(REP).post(`/expenses/${other.id}/merge`, receipt({ total: '31.00' })).expect(409);
+    });
+
+    it('takes the holder’s approvals back like any edit, and says so beforehand', async () => {
+      const big = receipt({ total: '200.00' });
+      await as(REP).post('/expenses', big).expect(201);
+      await as(ACCOUNTING).post(`/expenses/${big.id}/approve`, { comment: '' }).expect(200);
+      const again = await as(REP).post('/expenses', receipt({ total: '200.00', category: 'fuel' })).expect(409);
+      expect(again.body.repeat).toMatchObject({ status: 'waiting', canMerge: true, clearsApprovals: true });
+      const merged = await as(REP).post(`/expenses/${big.id}/merge`, receipt({ total: '200.00', category: 'fuel' })).expect(200);
+      expect(merged.body.expense.approval).toBeNull();
+      expect(merged.body.expense.history.at(-1).changes).toMatch(/approvals cleared/);
+    });
+
+    it('is offered only to someone who may edit that receipt', async () => {
+      const first = receipt();
+      await as(REP).post('/expenses', first).expect(201);
+      await as(MANAGER).post(`/expenses/${first.id}/merge`, receipt({ category: 'fuel' })).expect(404);
+      // Someone adding it for the cardholder (Manage cards, no Edit any) can't update a waiting one, so it isn't offered.
+      const ADDER = { ...ACCOUNTING, permissions: [...ACCOUNTING.permissions, 'add_receipts_for_others'] };
+      const again = await as(ADDER).post('/expenses', receipt({ onBehalfOf: ids.rep })).expect(409);
+      expect(again.body.repeat).toMatchObject({ id: first.id, status: 'waiting', canMerge: false });
+    });
+  });
+
   it('needs a card, a valid body, and a shown category', async () => {
     await as(DIRECTOR).post('/expenses', receipt()).expect(409);
     const bad = await as(REP).post('/expenses', receipt({ total: 'abc', date: '2027-01-01' })).expect(400);

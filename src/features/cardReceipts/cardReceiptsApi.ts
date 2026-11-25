@@ -56,6 +56,8 @@ export const listMonthForExport = (month: string, bank: string) =>
   call<{ expenses: Expense[]; truncated?: boolean }>('/expenses/export', { query: bank ? { month, bank } : { month } });
 export const addExpense =(id: string, body: ExpenseBody) => call<{ expense: Expense; alreadySaved?: boolean; replacedMissing?: string }>('/expenses', { method: 'POST', body: { id, ...body } });
 export const editExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense; replacedMissing?: string }>(`/expenses/${id}`, { method: 'PUT', body });
+/** "Update the saved one" on a repeat: the saved receipt takes this one's photo, total and category (an approved one is refused). */
+export const mergeExpense = (id: string, body: ExpenseBody) => call<{ expense: Expense; replacedMissing?: string }>(`/expenses/${id}/merge`, { method: 'POST', body });
 /** A receipt of the holder's close to the charge behind a Missing receipt row (review B2). */
 export type NearReceipt = { id: string; date: string; cents: number; merchant: string; status: string; cardLabel: string; hasReceipt: boolean };
 export type NearReceipts = { charge: { reference: string; issuer: string; date: string; cents: number; description: string } | null; receipts: NearReceipt[] };

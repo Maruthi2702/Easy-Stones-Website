@@ -95,6 +95,29 @@ describe('the batch hook', () => {
     expect(result.current.rows.every((r) => r.save === 'saved')).toBe(true);
   });
 
+  it('updates the saved receipt on a repeat, and keeps the row a repeat when that is refused', async () => {
+    const d = deps();
+    const mergeOne = vi.fn(async (_savedId: string, _body: Record<string, unknown>) => ({ status: 'waiting' } as never));
+    const repeat = { id: 'saved-1', merchant: 'SHELL OIL 5741', date: '2026-10-03', cents: 1000, status: 'waiting', canMerge: true, clearsApprovals: false };
+    d.addOne.mockImplementation(async () => { throw Object.assign(new Error('repeat'), { repeat }); });
+    const { result } = renderHook(() => useReceiptBatch({ ...d, mergeOne }));
+    act(() => { result.current.addFiles([photo('a.jpg'), photo('b.jpg')]); });
+    await waitFor(() => expect(result.current.rows.every((r) => r.stage === 'ready')).toBe(true));
+    const send = (r: { values: object }, n: number, of: number) => ({ ...r.values, batch: { n, of } } as never);
+    await act(async () => { await result.current.saveAll(send); });
+    expect(result.current.rows.map((r) => r.save)).toEqual(['repeat', 'repeat']);
+    expect(result.current.canUpdateSaved).toBe(true);
+
+    await act(async () => { await result.current.updateSaved(result.current.rows[0]!.key, send); });
+    expect(mergeOne).toHaveBeenCalledWith('saved-1', expect.objectContaining({ receiptUrl: 'https://files/1.jpg', batch: { n: 1, of: 2 } }));
+    expect(result.current.rows[0]).toMatchObject({ save: 'saved', saved: { status: 'waiting', matchedMissing: false, merged: true }, repeat: null });
+
+    // Approved meanwhile: the server says 409; the row stays a repeat, without the Update button, and Save anyway is still there.
+    mergeOne.mockImplementationOnce(async () => { throw Object.assign(new Error('It’s approved, so it can’t be changed.'), { status: 409 }); });
+    await act(async () => { await result.current.updateSaved(result.current.rows[1]!.key, send); });
+    expect(result.current.rows[1]).toMatchObject({ save: 'repeat', error: 'It’s approved, so it can’t be changed.', repeat: { canMerge: false } });
+  });
+
   it('takes 25 at most and names a file that isn’t a photo or PDF', () => {
     const d = deps();
     const { result } = renderHook(() => useReceiptBatch(d));

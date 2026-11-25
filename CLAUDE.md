@@ -1571,6 +1571,13 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   call), a row that looks like a repeat waits for its own Save anyway. A save carries `batch: {n, of}`: the server
   needs both switches for it and the history says "added in a batch (3 of 5)". The one-person rule is the screen's (the
   server can't see across requests). Screen `src/features/cardReceipts/bulk/` (`useReceiptBatch`, `BulkReceiptsForm`).
+  **"Looks already saved" → Update the saved one** (2026-11-25, owner; also in the single Add receipt form): the 409 `repeat` now carries
+  the saved receipt's `id`, `status`, `canMerge` and `clearsApprovals` (`repeatInfoOf`), and `POST /expenses/:id/merge` (same body as an add)
+  gives the saved receipt the new **photo, total and category** (`mergeIntoSaved`, tested) while it **keeps the merchant** the bank's report gave it,
+  its day, note and card; a subtotal / tax / tip read from the new photo come with it, a note only fills a blank one, and the old photo is replaced.
+  It is an ordinary edit (`editExpense`, history "updated from a new upload"): the holder's edit takes approvals back (the button says so), Edit any
+  keeps them. **An approved or voided receipt is refused for everyone** (`mergeableRepeat`, owner: no updating approved ones), and the button shows
+  only to someone who may edit that receipt (so Accounting adding for others needs Edit any to update a waiting one). Save anyway still adds a second one.
 - **Custom date range** (2026-11-24; moved 2026-11-25): the Expenses period is one **Period** field at the top of the Filters panel
   (`components/PeriodField.tsx`, owner: "move this to filter icon, match it with the dashboard custom filter", then "show custom button
   inside the dropdown so that we don't consume a lot of space" — no Month | Custom toggle). The field is the shared month calendar (the

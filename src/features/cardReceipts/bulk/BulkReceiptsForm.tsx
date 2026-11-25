@@ -10,6 +10,7 @@ import type { ReceiptScan } from '../../../utils/receiptScan';
 import type { ExpenseBody, UploadOptions, UploadResult } from '../cardReceiptsApi';
 import CardToggle from '../components/CardToggle';
 import WarnLines from '../components/WarnLines';
+import RepeatLine from '../components/RepeatLine';
 import { lastCardFor, rememberCard } from '../cardChoice';
 import type { AddableHolder, Card, Category, Expense } from '../types';
 import { useReceiptBatch, type BatchRow } from './useReceiptBatch';
@@ -25,6 +26,8 @@ export type BulkReceiptsFormProps = {
   upload: (data: string, opts?: UploadOptions) => Promise<UploadResult>;
   scan?: (url: string) => Promise<{ scan: ReceiptScan }>;
   addOne: (id: string, body: ExpenseBody) => Promise<{ expense: Expense; matchedMissing: boolean }>;
+  /** "Update the saved one" on a repeat; absent = only Save anyway is offered. */
+  mergeOne?: (savedId: string, body: ExpenseBody) => Promise<Expense>;
   /** The batch is over (some saved): the list reloads. */
   onSaved: (summary: string) => void;
   onClose: () => void;
@@ -38,8 +41,8 @@ const money = (v: string) => { const n = Number(v); return Number.isFinite(n) &&
  * approval, an incomplete one is kept as a draft, owner's call) and the Amex check still matches each to its charge.
  * The cardholder is locked once files are in, so one batch can't mix people.
  */
-export default function BulkReceiptsForm({ holders, ownCards, meId, categories, today, upload, scan, addOne, onSaved, onClose }: BulkReceiptsFormProps) {
-  const batch = useReceiptBatch({ today, categories, upload, scan, addOne });
+export default function BulkReceiptsForm({ holders, ownCards, meId, categories, today, upload, scan, addOne, mergeOne, onSaved, onClose }: BulkReceiptsFormProps) {
+  const batch = useReceiptBatch({ today, categories, upload, scan, addOne, mergeOne });
   const { rows } = batch;
   const [holderId, setHolderId] = useState(() => (ownCards.length ? meId : ''));
   const cards = holderId === meId ? ownCards : holders.find((h) => h.id === holderId)?.cards ?? [];
@@ -156,7 +159,8 @@ export default function BulkReceiptsForm({ holders, ownCards, meId, categories, 
       {rows.map((r, i) => (
         <Row key={r.key} row={r} index={i} sameAs={batch.sameAs[r.key]} categories={categories} today={today} customerOptions={customerOptions} customersLoading={customers.loading}
           categoryOptions={categoryOptions} check={batch.check(r)} locked={saving} onOpen={() => batch.toggle(r.key)} onRemove={() => batch.remove(r.key)}
-          onChange={(v) => batch.setValues(r.key, v)} onSaveAnyway={() => batch.saveAnyway(r.key, send)} />
+          onChange={(v) => batch.setValues(r.key, v)} onSaveAnyway={() => batch.saveAnyway(r.key, send)}
+          onUpdateSaved={batch.canUpdateSaved ? () => batch.updateSaved(r.key, send) : undefined} />
       ))}
     </FormModal>
   );
@@ -169,10 +173,12 @@ type RowProps = {
   customerOptions: { value: string; label: string; description?: string; keywords?: string }[]; customersLoading: boolean;
   categoryOptions: { value: string; label: string; keywords?: string }[]; locked: boolean;
   onOpen: () => void; onRemove: () => void; onChange: (v: Partial<BatchRow['values']>) => void; onSaveAnyway: () => void;
+  /** "Update the saved one"; absent when the screen can't do it. */
+  onUpdateSaved?: () => void;
 };
 
 /** One receipt of the batch: a summary line, and (open) its own fields. */
-function Row({ row, index, sameAs, categories, today, check, customerOptions, customersLoading, categoryOptions, locked, onOpen, onRemove, onChange, onSaveAnyway }: RowProps) {
+function Row({ row, index, sameAs, categories, today, check, customerOptions, customersLoading, categoryOptions, locked, onOpen, onRemove, onChange, onSaveAnyway, onUpdateSaved }: RowProps) {
   const v = row.values;
   const category = categories.find((c) => c.name === v.category);
   const fields = fieldsOf(category, v.subcategory);
@@ -182,7 +188,7 @@ function Row({ row, index, sameAs, categories, today, check, customerOptions, cu
   const idp = `ccr-bulk-${row.key}`;
   // What is needed to save at all shows as soon as the row is open; the rest (category, note…) only if the server asks.
   const need = { ...check.problems, ...row.problems };
-  const chip = row.save === 'saved' ? (row.saved?.status === 'waiting' ? 'Sent for approval' : 'Saved as a draft')
+  const chip = row.save === 'saved' ? (row.saved?.merged ? 'Updated the saved receipt' : row.saved?.status === 'waiting' ? 'Sent for approval' : 'Saved as a draft')
     : row.save === 'saving' ? 'Saving…'
     : row.save === 'repeat' ? 'Looks already saved'
     : row.save === 'failed' ? 'Didn’t save'
@@ -216,7 +222,8 @@ function Row({ row, index, sameAs, categories, today, check, customerOptions, cu
       {row.error ? <div className="ccr-form-error" role="alert">{row.error}</div> : null}
       {row.repeat ? (
         <div className="ccr-form-error" role="alert">
-          You already saved {row.repeat.merchant}, {formatMoney(row.repeat.cents)} on {usDate(row.repeat.date)}. Is this a second purchase?
+          <RepeatLine repeat={row.repeat} />
+          {onUpdateSaved && row.repeat.canMerge ? <button type="button" className="fm-btn fm-btn-small fm-btn-primary" onClick={onUpdateSaved} disabled={locked}>Update the saved one</button> : null}
           <button type="button" className="fm-btn fm-btn-small" onClick={onSaveAnyway} disabled={locked}>Save anyway</button>
         </div>
       ) : null}

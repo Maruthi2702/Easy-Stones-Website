@@ -516,6 +516,64 @@ export function possibleRepeat<T extends { id?: string; _id?: unknown; userId: s
     && e.userId === next.userId && e.date === next.date && e.cents === next.cents) || null;
 }
 
+/**
+ * "Update the saved one" on a repeat (owner, 2026-11-25): the receipt being added is the same purchase as one already
+ * saved, so instead of a second expense it fixes that one. Never an approved receipt (owner: nobody saves / edits /
+ * updates an approved one again) and never a voided one.
+ */
+export const mergeableRepeat = (e: { status: string; voided?: unknown }) => !e.voided && e.status !== 'approved';
+
+/**
+ * What the new receipt changes on the saved one, as the body of an ordinary edit (owner's rules): its photo, its total
+ * and its category (with that category's type, and its customer when the new one names one) — the merchant stays the
+ * one the bank's report gave it, and so do the day, the note, the card and everything else. A subtotal / tax / tip
+ * read from the new photo come with it; a note is taken only when the saved one has none. With no category on the
+ * new receipt the saved one keeps its own. A new lost-receipt reason (no photo) never replaces a photo.
+ */
+export function mergeIntoSaved(saved: CleanExpense, incoming: CleanExpense): ExpenseInput {
+  const newCategory = incoming.category && incoming.category !== saved.category ? incoming.category : '';
+  const takeCategory = Boolean(incoming.category);
+  const money = (cents: number | null) => centsText(cents);
+  const readBill = incoming.subtotalCents != null;
+  return {
+    date: saved.date,
+    merchant: saved.merchant,
+    total: money(incoming.cents),
+    subtotal: money(readBill ? incoming.subtotalCents : saved.subtotalCents),
+    tax: money(readBill ? incoming.taxCents : saved.taxCents),
+    tip: money(readBill ? incoming.tipCents : saved.tipCents),
+    category: takeCategory ? incoming.category : saved.category,
+    subcategory: takeCategory ? incoming.subcategory : saved.subcategory,
+    customerId: newCategory && incoming.customerId ? incoming.customerId : saved.customerId,
+    customerName: newCategory && incoming.customerId ? incoming.customerName : saved.customerName,
+    attendees: saved.attendees,
+    purpose: saved.purpose,
+    note: saved.note || incoming.note,
+    recurring: saved.recurring,
+    receiptUrl: incoming.receiptUrl || saved.receiptUrl,
+    lostReason: incoming.receiptUrl || saved.receiptUrl ? '' : saved.lostReason || incoming.lostReason
+  };
+}
+
+/** What a repeat's answer tells the screen about the saved receipt (the 409 `repeat` body). */
+export type RepeatInfo = {
+  id: string; merchant: string; date: string; cents: number;
+  /** Where the saved receipt stands (draft, waiting, sent_back, approved…). */
+  status: string;
+  /** Updating it is allowed: it isn't approved or voided, and the person asking may edit it (the same rule as an edit). */
+  canMerge: boolean;
+  /** Updating it would take back approvals already given (the cardholder's own edit does; Accounting's "edit any" doesn't). */
+  clearsApprovals: boolean;
+};
+export const repeatInfoOf = (e: { _id?: unknown; id?: unknown; merchant?: unknown; date?: unknown; cents?: unknown; status?: unknown; voidedAt?: unknown; approval?: unknown; secondApproval?: unknown }, { keepsApprovals, mayEdit }: { keepsApprovals: boolean; mayEdit: boolean }): RepeatInfo => {
+  const status = String(e.status ?? '');
+  return {
+    id: String(e.id ?? e._id ?? ''), merchant: String(e.merchant ?? ''), date: String(e.date ?? ''), cents: Number(e.cents) || 0, status,
+    canMerge: mayEdit && mergeableRepeat({ status, voided: e.voidedAt }),
+    clearsApprovals: !keepsApprovals && Boolean(e.approval || e.secondApproval)
+  };
+};
+
 // ── Approval ────────────────────────────────────────────────────────────────
 
 const roleKey = (r: unknown) => String(r ?? '').trim().toLowerCase();
