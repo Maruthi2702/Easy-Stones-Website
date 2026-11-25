@@ -9,7 +9,7 @@ import { LINE_STATUSES, lineStatusLabel, type Issuer, type LineStatus } from '..
 import type { LineStage } from '../../../utils/statementStage';
 import * as api from './statementsApi';
 import {
-  BANK_KEYS, BANK_NAMES, branchClass, categoryParts, holderOfLine, linesOfBank, periodLabel, rowTone, statusWord, unsetCardsNote, visibleLines
+  BANK_KEYS, BANK_NAMES, branchClass, categoryParts, holderOfLine, linesOfBank, periodLabel, statusWord, unsetCardsNote, visibleLines
 } from './statementsView';
 import AmexUploadForm from './AmexUploadForm';
 import UnknownCards from './UnknownCards';
@@ -33,7 +33,7 @@ const stageOf = (l: StatementLine): LineStage => l.stage ?? { tone: DOT[l.status
  * (https://claude.ai/artifact/GSbdExUZTArcH7EgsDWQjP, board C; owner 2026-11-24): the Customers tab's look —
  * its search and gold button in the page header, Bank / Status / Cardholder dropdowns on the tab row
  * (`headSlot` / `tabSlot`, portaled into the page's own header so nothing floats outside it), and its table
- * spacing. A matched line's row is green and one waiting for its receipt red; the Status column says where the
+ * spacing. Rows carry no colour (every row is a statement line); the Status column says where the
  * receipt is in its approvals (statementStage.ts). Amex and Encore stay apart (one bank at a time, no "All").
  */
 export default function StatementsPanel({ month, isPhone, canCards, onOpenCards, onSaved, headSlot = null, tabSlot = null, onCount }: {
@@ -210,9 +210,8 @@ function Lines({ rows, isPhone }: { rows: StatementLine[]; isPhone: boolean }) {
     return (
       <div className="ccr-st-plist">
         {rows.map((l) => {
-          const tone = rowTone(l.status);
           return (
-            <div key={l.reference} className={`ccr-st-pcard${tone ? ` is-${tone}` : ''}`}>
+            <div key={l.reference} className="ccr-st-pcard">
               <div className="ccr-st-ptop"><b>{holderOfLine(l) || 'No cardholder'}</b><b className={amountClass(l)}>{formatMoney(l.cents)}</b></div>
               <div className="ccr-st-sub">{l.description}</div>
               <div className="ccr-st-sub">{usDate(l.date)} · {card(l)}</div>
@@ -231,11 +230,10 @@ function Lines({ rows, isPhone }: { rows: StatementLine[]; isPhone: boolean }) {
         </thead>
         <tbody>
           {rows.map((l) => {
-            const tone = rowTone(l.status);
             const who = holderOfLine(l);
             const cat = categoryParts(l.amexCategory);
             return (
-              <tr key={l.reference} className={tone ? `is-${tone}` : undefined}>
+              <tr key={l.reference}>
                 <td className="ccr-st-date">{usDate(l.date)}</td>
                 <td>
                   <div className="ccr-st-who"><span className="ccr-av" aria-hidden="true">{(who[0] || '?').toUpperCase()}</span><span className="ccr-st-name">{who || 'No cardholder'}</span></div>

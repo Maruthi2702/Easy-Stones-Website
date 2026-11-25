@@ -45,17 +45,11 @@ export function holderCounts(lines: readonly StatementLine[]) {
 }
 
 /**
- * The words the Status filter and the row colours use (2026-11-24, "Statement row colours" board C): a matched
- * line is green; the rest keep the statuses' own words.
+ * The words the Status filter uses (2026-11-24, "Statement row colours" board C): a matched
+ * line says Matched; the rest keep the statuses' own words.
  */
 export const STATUS_WORDS: Partial<Record<LineStatus, string>> = { matched: 'Matched', missing: 'Waiting for receipt' };
 export const statusWord = (s: LineStatus, fallback: string) => STATUS_WORDS[s] ?? fallback;
-
-/** A row's background: green for matched, faded for lines that need no receipt (red for waiting was taken off, owner 2026-11-24). */
-export function rowTone(s: LineStatus): 'ok' | 'quiet' | '' {
-  if (s === 'matched') return 'ok';
-  return s === 'no_receipt' || s === 'refunded' || s === 'before_start' ? 'quiet' : '';
-}
 
 /** "Transportation-Fuel" → the category and its kind, as the bank prints them. */
 export function categoryParts(amexCategory: string) {

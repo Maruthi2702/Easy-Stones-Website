@@ -11,19 +11,16 @@
 .ccr-st-meta .is-miss { color: var(--ccr-miss); font-weight: 600; }
 
 /* ── The lines (2026-11-24, claude.ai artifact "Statement row colours", board C) ──
-   The Customers table's look: the row says matched (green) by its background,
-   lines that need no receipt fade, the Status column is a dot and a word with a grey line under it. */
-/* On the page (.ccr), not just this tab: Expenses' Missing receipt rows use the same red. */
+   The Customers table's look. Every row here is a statement line, so rows carry no colour; the Status column
+   is a dot and a word with a grey line under it. */
+/* The green tint is defined here on the page (.ccr) but only Expenses' rows use it (CardReceipts.css). */
 .ccr {
   --ccr-row-ok: rgba(74, 222, 128, 0.08); --ccr-row-ok-line: rgba(74, 222, 128, 0.22);
 }
 body.light-theme-active .ccr {
   --ccr-row-ok: #edf8f1; --ccr-row-ok-line: #cfe9d8;
 }
-.ccr-st-lines tr.is-ok td { background: var(--ccr-row-ok); border-bottom-color: var(--ccr-row-ok-line); }
-.ccr-st-lines tr.is-quiet td { opacity: 0.72; }
 .ccr-st-lines tbody tr:hover td { background: var(--ccr-hover); }
-.ccr-st-lines tr.is-ok:hover td { background: var(--ccr-row-ok); }
 .ccr-st-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ccr-st-who { display: flex; align-items: center; gap: 7px; font-size: 13px; white-space: nowrap; min-width: 0; }
 .ccr-st-name { overflow: hidden; text-overflow: ellipsis; }
@@ -50,12 +47,10 @@ body.light-theme-active .ccr-branch.is-dallas { background: rgba(154, 52, 18, 0.
 .ccr-sdot { width: 9px; height: 9px; border-radius: 50%; flex: none; box-sizing: border-box; display: inline-block; }
 .ccr-sdot.is-ok { background: #16a34a; } .ccr-sdot.is-wait { background: #d4af37; } .ccr-sdot.is-back { background: #e08a00; }
 .ccr-sdot.is-miss { background: #dc2626; } .ccr-sdot.is-none { background: transparent; border: 2px solid var(--ccr-muted); }
-/* Phone: one list box with divider lines (the Customers list on a phone), the same row colours. */
+/* Phone: one list box with divider lines (the Customers list on a phone). */
 .ccr-st-plist { display: flex; flex-direction: column; }
 .ccr-st-pcard { display: grid; gap: 2px; padding: 12px 14px; border-bottom: 1px solid var(--ccr-line-soft); }
 .ccr-st-pcard:last-child { border-bottom: 0; }
-.ccr-st-pcard.is-ok { background: var(--ccr-row-ok); border-bottom-color: var(--ccr-row-ok-line); }
-.ccr-st-pcard.is-quiet { opacity: 0.72; }
 .ccr-st-ptop { display: flex; align-items: baseline; gap: 10px; }
 .ccr-st-ptop b:first-child { flex: 1; min-width: 0; font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ccr-st-ptop b:last-child { font-weight: 650; font-variant-numeric: tabular-nums; }

@@ -1663,7 +1663,7 @@ opens on the chosen bank. **Cards not set up moved to the Cards tab** (`statemen
 needs the Amex-check switch); Statements keeps a one-line "2 Encore cards not set up · Set up in Cards" notice and an orange dot on the
 tab. A login with the Amex check but **no Cards tab** (`canCards` false) still gets the box on Statements, so nobody is stranded.
 
-**The whole page in the Customers tab's look; Statements rows coloured by match** (2026-11-24, on `feat/ccr-customers-look`; claude.ai
+**The whole page in the Customers tab's look; Statements rows have NO colour since 2026-11-24 (owner: every row there is a statement line, so green / fade says nothing — the Status column is the only signal; the green below is Expenses' only)** (2026-11-24, on `feat/ccr-customers-look`; claude.ai
 artifact **Statement row colours**, https://claude.ai/artifact/GSbdExUZTArcH7EgsDWQjP, board C — the owner's comments on it set every
 rule here). Every tab uses the Customers spacing (`CustomerList.css`): the title 22px / 750 with a gold count (`.ccr-hcount`), 44px tabs
 with icons and Customers' count pill, a 42px table header and 60px rows (`.ccr-table th/td`), a 44px checkbox and 48px ⋯ column, 12px

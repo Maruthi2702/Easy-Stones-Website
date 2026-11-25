@@ -70,11 +70,9 @@ describe('the Statements tab', () => {
     expect(text()).toContain('SRINI MANAM');
     expect(text()).not.toContain('LAMPLIGHTE');
     expect(document.querySelectorAll('.ccr-st-lines tbody tr')).toHaveLength(4);
-    // The row's background says matched (green) or waiting for its receipt (red); the Status column the approval stage.
+    // Rows carry no colour (every row is a statement line); the Status column says the approval stage.
     const rowOf = (merchant: string) => [...document.querySelectorAll('.ccr-st-lines tbody tr')].find((r) => r.textContent?.includes(merchant))!;
-    expect(rowOf('JINYA RAMEN BAR').className).toBe('is-ok');
-    expect(rowOf('CHEVRON').className).toBe('');
-    expect(rowOf('ONLINE PAYMENT').className).toBe('is-quiet');
+    for (const r of document.querySelectorAll('.ccr-st-lines tbody tr')) expect(r.className).toBe('');
     expect(rowOf('JINYA RAMEN BAR').textContent).toContain('Waiting for Accounting');
     expect(rowOf('JINYA RAMEN BAR').textContent).toContain('Receipt of 11-05');
     expect(rowOf('JINYA RAMEN BAR').querySelector('.ccr-branch')?.textContent).toBe('Seattle');
