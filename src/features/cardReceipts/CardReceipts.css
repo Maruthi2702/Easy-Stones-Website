@@ -675,7 +675,7 @@ body.light-theme-active .ccr-drawer-root { --dr-sheet: #f8fafc; --dr-card: #ffff
 .ccr-sorted { margin-left: 4px; color: var(--ccr-text); font-weight: 700; }
 .ccr-bank { display: inline-block; padding: 0 6px; border-radius: 5px; font-size: 11px; font-weight: 700; line-height: 17px; }
 .ccr-bank.is-amex { background: rgba(37, 99, 235, 0.14); color: #2563eb; }
-.ccr-bank.is-encore { background: rgba(124, 58, 237, 0.14); color: #7c3aed; }
+.ccr-bank.is-encore { background: rgba(124, 58, 237, 0.18); color: #a78bfa; }
 body.light-theme-active .ccr-bank.is-amex { background: #e4efff; color: #1747a6; }
 body.light-theme-active .ccr-bank.is-encore { background: #f1e9ff; color: #5b21b6; }
 .ccr-hold-head { display: flex; align-items: center; gap: 10px; min-width: 0; }

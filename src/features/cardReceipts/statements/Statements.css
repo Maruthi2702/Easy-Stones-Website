@@ -103,8 +103,8 @@ body.light-theme-active .ccr-branch.is-dallas { background: rgba(154, 52, 18, 0.
 .ccr-bank-sw { width: 8px; height: 8px; border-radius: 50%; background: #2a6fd6; }
 .ccr-bank-sw.is-encore { background: #7a4bc4; }
 .ccr-bank-flag { width: 7px; height: 7px; border-radius: 50%; background: #c76a12; }
-.ccr-bank { display: inline-block; padding: 1px 6px; border-radius: 5px; font-size: 11px; font-weight: 700; color: #fff; background: #2a6fd6; }
-.ccr-bank.is-encore { background: #7a4bc4; }
+/* .ccr-bank (the Amex / Encore pill) lives in CardReceipts.css only — a second copy here
+   gave Encore a solid purple background under CardReceipts.css's purple text (2026-11-25). */
 .ccr-st-warn { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; background: rgba(199, 106, 18, 0.12); font-size: 13px; }
 .ccr-st-warn > span { min-width: 0; }
 
