@@ -1490,7 +1490,10 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   **Upload Photo**, **Upload File**, **Lost Receipt** (opens the form on the lost reason), and a drop box with a mouse. A
   chosen file reaches the form as `initialFile`, uploads and is read as it opens. `receiptFileProblem`
   (`src/utils/receiptFile.ts`, tested) turns away anything but a photo / PDF ≤10 MB in the window and in the form. On a phone
-  the choice is the form template's full-screen sheet, not the canvas's bottom sheet. Not built: the canvas's step list while
+  the choice is the form template's full-screen sheet, not the canvas's bottom sheet, laid out as option A of the claude.ai artifact
+  **Add receipt on a phone** (https://claude.ai/artifact/1H3ocgSPHYgeCzKaNBycDK, 2026-11-24, owner's pick): one big gold **Take a photo** card, **Photo library** and **Files**
+  side by side, **Lost receipt** under "No receipt?" and **Add several** under "For accounting" (`useIsPhone` branch in `AddReceiptChoice.tsx`, `.ccr-choice-phone` on the form's
+  `--fm-*` tokens so both themes follow; desktop keeps its list). Not seen on a real iPhone. Not built: the canvas's step list while
   reading. **Never tried on a real iPhone** (camera permission text is in Info.plist; test the shutter there).
 - **Review of 2026-11-20 (on `main`, owner's calls):** the **$150 second step stays a fixed limit** (no per-role
   dollar limit yet; since 2026-11-23 it is `needsSecondApproval` in `receiptApproval.ts`, and the old
@@ -1551,8 +1554,12 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
   call), a row that looks like a repeat waits for its own Save anyway. A save carries `batch: {n, of}`: the server
   needs both switches for it and the history says "added in a batch (3 of 5)". The one-person rule is the screen's (the
   server can't see across requests). Screen `src/features/cardReceipts/bulk/` (`useReceiptBatch`, `BulkReceiptsForm`).
-- **Custom date range** (2026-11-24): the Expenses tab's month stepper has a **Custom** button — From / To days
-  (shared `DatePicker`, at most a year, both ends included) in place of the month; **Month** goes back. The server
+- **Custom date range** (2026-11-24; moved 2026-11-25): the Expenses period is a **Period** field at the top of the Filters panel
+  (`components/PeriodField.tsx`, owner: "move this to filter icon, match it with the dashboard custom filter"): **Month | Custom**. Month is
+  the shared month calendar (nothing after this month); Custom is From / To (shared `DatePicker`, at most a year, both ends included)
+  and changes nothing until **Apply**, like the dashboard's. A month other than this one, or a range, counts as a filter (gold dot, the
+  count) and Clear all goes back to this month. The tab row keeps no period on Expenses; Statements still has its ‹ month › there.
+  A shared month calendar's `min` / `max` are **days**, never `YYYY-MM` (a month string crashes the panel). The server
   answers `GET /expenses?scope=…&from=&to=` (rules `rangeProblem` / `inRange` / `rangeLabel` in `src/utils/cardReceipts.ts`;
   filter kind `range` in `src/db/cardReceipts`, Mongo and Postgres, parity-tested) with the same people rules as a month.
   Waiting for me, To do, Statements and Export… are unchanged (Export still asks for a month or all months).
@@ -1669,11 +1676,13 @@ Draft, Approved (last approver · day) — else "No receipt · N days", "Waiting
 Not built: checkboxes / bulk actions and a row ⋯ on Statements (reminder emails stay off until the owner says). Phone: one list box
 with dividers, the same row colours.
 
-**Expenses / Waiting for me follow it** (2026-11-24, same branch, owner: "build it to match"): on a computer the tiles and the Filters
-panel are gone — **Queue** (approvers, Waiting for me), **Card**, **Status**, **Category** and **Cardholder** are dropdowns on the tab row
-(`components/FilterMenu.tsx`, shared with Statements; each choice carries its count given the others, **Clear all** appears once one
-narrows the list), and what the tiles held — each status's money and the month's total — sits in the pager's bar (`.ccr-pg-totals`).
-A **phone keeps the Filters panel**. Rows: Cardholder & card (avatar, branch pill), Status as the dot + word with the approvals / what's
+**Expenses / Waiting for me follow it** (2026-11-24, same branch, owner: "build it to match"): the status tiles are gone, and
+**every filter is in the one round Filters button in the header, on every screen size** (owner, 2026-11-24, taking back the same day's
+tab-row dropdowns): **Queue** (approvers, Waiting for me), **Card**, then **People** (the shared
+`PeopleField`, the dashboard's — branch headings with All / None, "Me", "My team"; labelled Cardholder; second so its list has room below it), **Status**, **Statement** and **Category**, each choice with its count
+given the others, Clear all in the panel, a gold dot / count when one narrows the list. The tab row holds only the Month / Custom
+period. What the tiles held — each status's money and the month's total — sits in the pager's bar (`.ccr-pg-totals`). Statements still has its Bank / Status /
+Cardholder dropdowns on the tab row (`components/FilterMenu.tsx`). Rows: Cardholder & card (avatar, branch pill), Status as the dot + word with the approvals / what's
 owed under it (`ExpenseStatus`), a Missing receipt row is green like any row on the report (its red dot in Status stays). Dropped
 `StatusTiles.tsx`. An empty list with a filter on says "Nothing matches", never "No receipts for <month>".
 

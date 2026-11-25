@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, FileText, FileX, Image as ImageIcon, Layers } from 'lucide-react';
+import { Camera, ChevronRight, FileText, FileX, Image as ImageIcon, Layers } from 'lucide-react';
 import FormModal from '../../../components/shared/form/FormModal';
+import useIsPhone from '../../../components/shared/form/useIsPhone';
 import { receiptFileProblem } from '../../../utils/receiptFile';
 
 type Props = {
@@ -19,6 +20,9 @@ type Props = {
  * Upload Photo, Upload File, Lost Receipt — as a size-S form (✕, no footer). Each
  * then leads into the same Add receipt form: a camera shot, a picked photo or file
  * arrives as `initialFile`, Lost Receipt opens it on the lost-receipt reason.
+ * On a phone (2026-11-24, claude.ai artifact "Add receipt on a phone", option A) the camera is one
+ * big gold card and the rest are compact: Photo library and Files side by side, Lost receipt under
+ * "No receipt?", Add several under "For accounting". Same handlers, same words on desktop.
  * Desktop also takes a dropped or pasted file. A wrong file type is refused here, in the
  * window, before anything uploads.
  */
@@ -27,6 +31,7 @@ export default function AddReceiptChoice({ onCamera, onLost, onSeveral, onFile, 
   const fileRef = useRef<HTMLInputElement>(null);
   const [problem, setProblem] = useState('');
   const [over, setOver] = useState(false);
+  const isPhone = useIsPhone();
 
   const take = (file: File | undefined) => {
     if (!file) return;
@@ -52,6 +57,49 @@ export default function AddReceiptChoice({ onCamera, onLost, onSeveral, onFile, 
 
   return (
     <FormModal title="Add receipt" size="s" onClose={onClose} hideSubmit hideFooter>
+      {isPhone ? (
+        <div className="ccr-choice ccr-choice-phone">
+          {problem ? <div className="ccr-form-error" role="alert">{problem}</div> : null}
+
+          <button type="button" className="ccr-choice-hero" onClick={onCamera}>
+            <span className="ccr-choice-hero-icon"><Camera size={34} aria-hidden="true" /></span>
+            <b>Take a photo</b>
+            <small>Lay the receipt flat in good light. We read the details for you.</small>
+          </button>
+
+          <div className="ccr-choice-pair">
+            <button type="button" className="ccr-choice-tile" onClick={() => photoRef.current?.click()}>
+              <span className="ccr-choice-icon"><ImageIcon size={22} aria-hidden="true" /></span>
+              <span className="ccr-choice-text"><b>Photo library</b><small>Pick a photo</small></span>
+            </button>
+            <button type="button" className="ccr-choice-tile" onClick={() => fileRef.current?.click()}>
+              <span className="ccr-choice-icon"><FileText size={22} aria-hidden="true" /></span>
+              <span className="ccr-choice-text"><b>Files</b><small>PDF or image</small></span>
+            </button>
+          </div>
+
+          <div className="ccr-choice-label">No receipt?</div>
+          <button type="button" className="ccr-choice-opt ccr-choice-row" onClick={onLost}>
+            <span className="ccr-choice-icon"><FileX size={22} aria-hidden="true" /></span>
+            <span className="ccr-choice-text"><b>Lost receipt</b><small>Say why and enter the details</small></span>
+            <ChevronRight size={20} className="ccr-choice-chev" aria-hidden="true" />
+          </button>
+
+          {onSeveral ? (
+            <>
+              <div className="ccr-choice-label">For accounting</div>
+              <button type="button" className="ccr-choice-opt ccr-choice-row" onClick={onSeveral}>
+                <span className="ccr-choice-icon"><Layers size={22} aria-hidden="true" /></span>
+                <span className="ccr-choice-text"><b>Add several</b><small>A pile of receipts for one cardholder</small></span>
+                <ChevronRight size={20} className="ccr-choice-chev" aria-hidden="true" />
+              </button>
+            </>
+          ) : null}
+
+          <input ref={photoRef} type="file" accept="image/*" hidden onChange={(e) => { take(e.target.files?.[0]); e.target.value = ''; }} />
+          <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={(e) => { take(e.target.files?.[0]); e.target.value = ''; }} />
+        </div>
+      ) : (
       <div className="ccr-choice">
         {problem ? <div className="ccr-form-error" role="alert">{problem}</div> : null}
 
@@ -90,6 +138,7 @@ export default function AddReceiptChoice({ onCamera, onLost, onSeveral, onFile, 
         <input ref={photoRef} type="file" accept="image/*" hidden onChange={(e) => { take(e.target.files?.[0]); e.target.value = ''; }} />
         <input ref={fileRef} type="file" accept="application/pdf,image/*" hidden onChange={(e) => { take(e.target.files?.[0]); e.target.value = ''; }} />
       </div>
+      )}
     </FormModal>
   );
 }

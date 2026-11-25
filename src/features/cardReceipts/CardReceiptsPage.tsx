@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { AlertTriangle, Ban, Camera, CalendarRange, ChevronLeft, ChevronRight, Clock, CreditCard, Download, FileText, Info, ReceiptText, Trash2 } from 'lucide-react';
+import { AlertTriangle, Ban, Camera, ChevronLeft, ChevronRight, Clock, CreditCard, Download, FileText, Info, ReceiptText, Trash2 } from 'lucide-react';
 import useIsPhone from '../../components/shared/form/useIsPhone';
 import DashboardSearch from '../../components/shared/DashboardSearch';
 import LocationFilter from '../../components/shared/LocationFilter';
@@ -10,16 +10,13 @@ import { useStaffList } from '../../api/salesRepOptions';
 import usePeopleFilter from '../../components/shared/people/usePeopleFilter';
 import RowMenu from '../../components/shared/RowMenu';
 import Pagination from '../../components/shared/Pagination';
-import { DatePicker } from '../../components/shared/calendar/Calendar';
-import { shiftDay } from '../../components/shared/calendar/calendarDates';
 import { usePagination } from '../../components/shared/paginationConfig';
-import { BANK_FILTERS, CARD_RECEIPTS, MAX_RANGE_DAYS, STATUSES, can, formatMoney, inRange, rangeLabel, shortDay, holderMayEdit, anyoneMayEdit, managerMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
+import { BANK_FILTERS, CARD_RECEIPTS, STATUSES, can, formatMoney, inRange, rangeLabel, holderMayEdit, anyoneMayEdit, managerMayEdit, onBank, monthLabel, shiftMonth, monthOf, usDate } from '../../utils/cardReceipts';
 import { useCardReceipts } from './useCardReceipts';
 import { getAddForHolders, listAllExpenses, listMonthForExport } from './cardReceiptsApi';
 import { exportFileName, exportScope, type ExportChoice } from '../../utils/cardReceiptsExport';
 import { writeExcel, writePdf } from './exportFiles';
 import { NO_FILTERS, STATEMENT_FILTERS, TODO_SHOWN, WAIT_FILTERS, byWaitFilter, holderPeople, remindable, statusLine, visibleExpenses, waitCounts, type ReceiptFilters, type WaitFilter } from './cardReceiptsView';
-import FilterMenu from './components/FilterMenu';
 import ExpenseList, { type ListSelection } from './components/ExpenseList';
 import ExpenseDrawer from './components/ExpenseDrawer';
 import AskForm from './components/AskForm';
@@ -29,6 +26,7 @@ import ExpenseForm from './components/ExpenseForm';
 import AddReceiptChoice from './components/AddReceiptChoice';
 import BulkReceiptsForm from './bulk/BulkReceiptsForm';
 import ExportDialog from './components/ExportDialog';
+import PeriodField from './components/PeriodField';
 import CameraCapture from './components/CameraCapture';
 import VoidExpenseForm from './components/VoidExpenseForm';
 import DeleteExpenseForm from './components/DeleteExpenseForm';
@@ -165,42 +163,12 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   const queueField = tab === 'waiting' && data.approver;
   const queueActive = queueField && waitFilter !== 'all';
   const filtered = Boolean(peopleFilter.active || filters.category || filters.bank || filters.statement || filters.status !== 'all' || queueActive);
-  const clearFilters = () => { setFilters((f) => ({ ...NO_FILTERS, search: f.search })); peopleFilter.reset(); setWaitFilter('all'); };
-
-  // A computer's filters (2026-11-24, the Customers tab's look): one dropdown per Filters field on the tab row, each
-  // choice with how many receipts it would show given the others, and Clear all once something narrows the list.
-  const peopleValue = peopleFilter.value;
-  const holderValue = peopleValue.length === 0 ? '' : peopleValue.length === 1 ? peopleValue[0]! : '__several';
-  const holderChoices = [
-    { value: '', label: data.teamOnly ? 'My team' : 'All cardholders' },
-    ...(meId ? [{ value: meId, label: 'Me' }] : []),
-    ...[...people].filter((p) => p.value !== meId).sort((a, b) => a.label.localeCompare(b.label)).map((p) => ({ value: p.value, label: p.label })),
-    ...(holderValue === '__several' ? [{ value: '__several', label: `${peopleValue.length} people` }] : [])
-  ];
-  const expenseFilterMenus = (
-    <>
-      {queueField ? (
-        <FilterMenu label="Queue" value={waitFilter} clearTo="all" onChange={(v) => setWaitFilter(v as WaitFilter)}
-          choices={WAIT_FILTERS.map((f) => ({ value: f.key, label: f.label, count: waitN[f.key] }))} />
-      ) : null}
-      {data.viewAll || canExport || canExportAll ? (
-        <FilterMenu label="Card" value={filters.bank} clearTo="" onChange={(bank) => patchFilters({ bank })}
-          choices={[{ value: '', label: 'All', count: counts.bank[''] }, ...BANK_FILTERS.map((b) => ({ value: b.key, label: b.label, count: counts.bank[b.key] }))]} />
-      ) : null}
-      <FilterMenu label="Status" value={filters.status} clearTo="all" onChange={(status) => patchFilters({ status })}
-        choices={[{ value: 'all', label: 'All', count: counts.status.all }, ...STATUSES.map((s) => ({ value: s.key, label: s.label, count: counts.status[s.key], dot: s.colour }))]} />
-      {/* Matched with a line on a bank statement: green rows are on it, amber rows aren't yet (2026-11-24). */}
-      <FilterMenu label="Statement" value={filters.statement} clearTo="" onChange={(statement) => patchFilters({ statement })}
-        choices={[{ value: '', label: 'All', count: counts.statement[''] }, ...STATEMENT_FILTERS.map((s) => ({ value: s.key, label: s.label, count: counts.statement[s.key], dot: s.dot }))]} />
-      <FilterMenu label="Category" value={filters.category} clearTo="" onChange={(category) => patchFilters({ category })} searchable={categories.length > 8}
-        choices={[{ value: '', label: 'All', count: counts.category[''] }, ...categories.map((c) => ({ value: c.name, label: c.label, count: counts.category[c.name] ?? 0 }))]} />
-      {people.length > 1 ? (
-        <FilterMenu label="Cardholder" value={holderValue} clearTo="" align="right" searchable={people.length > 8} choices={holderChoices}
-          onChange={(v) => { if (v !== '__several') peopleFilter.field.onChange(v ? [v] : []); }} />
-      ) : null}
-      {filtered ? <button type="button" className="ccr-clear-all" onClick={clearFilters}>Clear all</button> : null}
-    </>
-  );
+  // The period lives in the Filters panel on the Expenses tab (2026-11-25); it counts as a filter when it isn't this month.
+  const periodOn = tab === 'expenses' && Boolean(data.month) && (Boolean(data.range) || Boolean(me?.today && data.month !== monthOf(me.today)));
+  const clearFilters = () => {
+    setFilters((f) => ({ ...NO_FILTERS, search: f.search })); peopleFilter.reset(); setWaitFilter('all');
+    if (tab === 'expenses') { data.setRange(null); if (me?.today) data.setMonth(monthOf(me.today)); }
+  };
 
   // Export…: one pop-up (Card, Months, Format). "This month" is that month's receipts for the bank picked,
   // whatever the other filters say; "All months" asks the server and needs the Export all switch.
@@ -276,21 +244,23 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
             <div className="ccr-tools">
               <DashboardSearch value={filters.search} onChange={(search) => patchFilters({ search })} label="Search expenses"
                 placeholder="Search merchant, cardholder, note" count={filters.search ? `${rows.length} of ${base.length}` : null} />
-              {/* A phone keeps the Filters panel; a computer has the same fields as dropdowns on the tab row (Customers' look). */}
-              {isPhone ? <LocationFilter
+              {/* One round Filters button on every screen size (the dashboard's), holding Queue, Card, Status, Statement,
+                  Category and People (2026-11-24, owner: the tab-row dropdowns moved into it). */}
+              <LocationFilter
                 options={[]}
                 value=""
                 onChange={() => {}}
                 user={currentUser}
-                active={filtered}
+                active={filtered || periodOn}
                 wide
                 onClear={clearFilters}
-                activeCount={(queueActive ? 1 : 0) + (peopleFilter.active ? 1 : 0) + (filters.category ? 1 : 0) + (filters.bank ? 1 : 0) + (filters.statement ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
+                activeCount={(periodOn ? 1 : 0) + (queueActive ? 1 : 0) + (peopleFilter.active ? 1 : 0) + (filters.category ? 1 : 0) + (filters.bank ? 1 : 0) + (filters.statement ? 1 : 0) + (filters.status !== 'all' ? 1 : 0)}
                 doneLabel={rows.length ? `Show ${rows.length} receipt${rows.length === 1 ? '' : 's'}` : 'No receipts match'}
               >
                 {/* Card, Status, Category, Cardholder — each choice says how many receipts it would show
                     given the others (the Follow-ups panel's "Label · 3" format). */}
                 <div className="fm-tokens ccr-fields">
+                  {tab === 'expenses' && data.month ? <PeriodField month={data.month} range={data.range} today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /> : null}
                   {queueField ? (
                     <div className="lf-group">
                       <label className="lf-group-label" htmlFor="ccr-f-queue">Queue</label>
@@ -310,6 +280,8 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                       />
                     </div>
                   ) : null}
+                  {/* Cardholder is second, right under Card, so its list has the panel's room below it. */}
+                  {people.length > 1 ? <PeopleField {...peopleFilter.field} /> : null}
                   <div className="lf-group">
                     <label className="lf-group-label" htmlFor="ccr-f-status">Status</label>
                     <FormPicker id="ccr-f-status" value={filters.status} onChange={(status) => patchFilters({ status })}
@@ -328,9 +300,8 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                       options={[{ value: '', label: `Every category · ${counts.category['']}` }, ...categories.map((c) => ({ value: c.name, label: `${c.label} · ${counts.category[c.name] ?? 0}` }))]}
                       sheetTitle="Category" keepInForm />
                   </div>
-                  {people.length > 1 ? <PeopleField {...peopleFilter.field} /> : null}
                 </div>
-              </LocationFilter> : null}
+              </LocationFilter>
               {exportItems.length || bulkItems.length ? <RowMenu label="More" items={[...exportItems, ...bulkItems.map((it, i) => (i === 0 && exportItems.length ? { ...it, divider: true } : it))]} /> : null}
             </div>
           ) : null}
@@ -356,11 +327,10 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
                 <CreditCard size={17} aria-hidden="true" />Cards
               </button>
             ) : null}
-            {(tab === 'expenses' || tab === 'statements') && data.month ? <PeriodBar month={data.month} range={tab === 'expenses' ? data.range : null} custom={tab === 'expenses'} today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /> : null}
+            {tab === 'statements' && data.month ? <PeriodBar month={data.month} today={me?.today || ''} onMonth={data.setMonth} /> : null}
             {tab === 'statements' && !isPhone ? <span className="ccr-tab-tools" ref={setTabSlot} /> : null}
-            {(tab === 'expenses' || tab === 'waiting') && !isPhone ? <span className="ccr-tab-tools">{expenseFilterMenus}</span> : null}
           </div>
-        ) : data.month ? <div className="ccr-tabs"><PeriodBar month={data.month} range={data.range} custom today={me?.today || ''} onMonth={data.setMonth} onRange={data.setRange} /></div> : null}
+        ) : null}
 
         {data.error ? <div className="ccr-note is-error" role="alert">{data.error}</div> : null}
         {tab === 'waiting' && data.waitingError ? (
@@ -603,49 +573,9 @@ export default function CardReceiptsPage({ currentUser, sidebarToggle = null }: 
   );
 }
 
-/**
- * The Expenses tab's period: ‹ October 2026 › with a Custom button, or — once Custom is
- * picked — From and To days (at most a year) and a button back to the month.
- */
-function PeriodBar({ month, range, custom, today, onMonth, onRange }: {
-  month: string; range: { from: string; to: string } | null; custom: boolean; today: string;
-  onMonth: (m: string) => void; onRange: (r: { from: string; to: string } | null) => void;
-}) {
-  if (!range) {
-    return (
-      <div className="ccr-month">
-        <MonthStepper month={month} today={today} onMonth={onMonth} />
-        {custom ? (
-          <button type="button" className="ccr-btn is-small" onClick={() => {
-            // Opens on the month that was showing, never past today.
-            const last = shiftDay(`${shiftMonth(month, 1)}-01`, -1);
-            onRange({ from: `${month}-01`, to: today && last > today ? today : last });
-          }}><CalendarRange size={15} aria-hidden="true" /> Custom</button>
-        ) : null}
-      </div>
-    );
-  }
-  const span = MAX_RANGE_DAYS - 1;
-  const setFrom = (from: string) => {
-    if (!from) return;
-    let to = range.to < from ? from : range.to;
-    if (to > shiftDay(from, span)) to = shiftDay(from, span);
-    onRange({ from, to });
-  };
-  const setTo = (to: string) => {
-    if (!to) return;
-    let from = range.from > to ? to : range.from;
-    if (from < shiftDay(to, -span)) from = shiftDay(to, -span);
-    onRange({ from, to });
-  };
-  return (
-    <div className="ccr-month is-range">
-      <div className="ccr-range-field"><DatePicker id="ccr-range-from" ariaLabel="From" formatText={shortDay} value={range.from} max={today || range.to} today={today} onChange={setFrom} sheetTitle="From" /></div>
-      <i aria-hidden="true">–</i>
-      <div className="ccr-range-field"><DatePicker id="ccr-range-to" ariaLabel="To" formatText={shortDay} value={range.to} min={range.from} max={today || undefined} today={today} onChange={setTo} sheetTitle="To" /></div>
-      <button type="button" className="ccr-btn is-small" onClick={() => onMonth(monthOf(range.to))}>Month</button>
-    </div>
-  );
+/** The Statements tab's month, on its tab row. (The Expenses tab's period is a field in its Filters panel: components/PeriodField.tsx.) */
+function PeriodBar({ month, today, onMonth }: { month: string; today: string; onMonth: (m: string) => void }) {
+  return <div className="ccr-month"><MonthStepper month={month} today={today} onMonth={onMonth} /></div>;
 }
 
 /** ‹ October 2026 › — no month after this one. */
