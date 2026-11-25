@@ -155,12 +155,9 @@ body.light-theme-active .fm-overlay {
 .ccr-table tbody tr:last-child td { border-bottom: 0; }
 .ccr-table tbody tr { cursor: pointer; }
 .ccr-table tbody tr:hover td { background: var(--ccr-hover); }
-/* Expenses: a Missing receipt row is red, as a charge waiting for its receipt is on Statements (2026-11-24). */
-/* Matched with a line on a bank statement = green; a charge still waiting for its receipt = red; anything else stays plain. */
-.ccr-table tbody tr.is-miss td { background: var(--ccr-row-miss); border-bottom-color: var(--ccr-row-miss-line); }
+/* Matched with a line on a bank statement = green. Nothing else colours a row (owner, 2026-11-24: red and amber removed). */
 .ccr-table tbody tr.is-ok td { background: var(--ccr-row-ok); border-bottom-color: var(--ccr-row-ok-line); }
-.ccr-table tbody tr.is-miss:hover td, .ccr-table tbody tr.is-ok:hover td { filter: brightness(0.97); }
-.ccr-card.is-miss { background: var(--ccr-row-miss); }
+.ccr-table tbody tr.is-ok:hover td { filter: brightness(0.97); }
 .ccr-card.is-ok { background: var(--ccr-row-ok); }
 .ccr-sdot.is-draft { background: #9aa3af; }
 .ccr-stage-l .ccr-tag { margin-left: 2px; }

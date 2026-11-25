@@ -73,7 +73,7 @@ describe('the Statements tab', () => {
     // The row's background says matched (green) or waiting for its receipt (red); the Status column the approval stage.
     const rowOf = (merchant: string) => [...document.querySelectorAll('.ccr-st-lines tbody tr')].find((r) => r.textContent?.includes(merchant))!;
     expect(rowOf('JINYA RAMEN BAR').className).toBe('is-ok');
-    expect(rowOf('CHEVRON').className).toBe('is-miss');
+    expect(rowOf('CHEVRON').className).toBe('');
     expect(rowOf('ONLINE PAYMENT').className).toBe('is-quiet');
     expect(rowOf('JINYA RAMEN BAR').textContent).toContain('Waiting for Accounting');
     expect(rowOf('JINYA RAMEN BAR').textContent).toContain('Receipt of 11-05');

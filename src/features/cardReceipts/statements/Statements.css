@@ -11,23 +11,19 @@
 .ccr-st-meta .is-miss { color: var(--ccr-miss); font-weight: 600; }
 
 /* ── The lines (2026-11-24, claude.ai artifact "Statement row colours", board C) ──
-   The Customers table's look: the row says matched (green) or waiting for its receipt (red) by its background,
+   The Customers table's look: the row says matched (green) by its background,
    lines that need no receipt fade, the Status column is a dot and a word with a grey line under it. */
 /* On the page (.ccr), not just this tab: Expenses' Missing receipt rows use the same red. */
 .ccr {
   --ccr-row-ok: rgba(74, 222, 128, 0.08); --ccr-row-ok-line: rgba(74, 222, 128, 0.22);
-  --ccr-row-miss: rgba(248, 113, 113, 0.11); --ccr-row-miss-line: rgba(248, 113, 113, 0.28);
 }
 body.light-theme-active .ccr {
   --ccr-row-ok: #edf8f1; --ccr-row-ok-line: #cfe9d8;
-  --ccr-row-miss: #fdeeec; --ccr-row-miss-line: #f5cdc7;
 }
 .ccr-st-lines tr.is-ok td { background: var(--ccr-row-ok); border-bottom-color: var(--ccr-row-ok-line); }
-.ccr-st-lines tr.is-miss td { background: var(--ccr-row-miss); border-bottom-color: var(--ccr-row-miss-line); }
 .ccr-st-lines tr.is-quiet td { opacity: 0.72; }
 .ccr-st-lines tbody tr:hover td { background: var(--ccr-hover); }
 .ccr-st-lines tr.is-ok:hover td { background: var(--ccr-row-ok); }
-.ccr-st-lines tr.is-miss:hover td { background: var(--ccr-row-miss); }
 .ccr-st-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ccr-st-who { display: flex; align-items: center; gap: 7px; font-size: 13px; white-space: nowrap; min-width: 0; }
 .ccr-st-name { overflow: hidden; text-overflow: ellipsis; }
@@ -35,7 +31,6 @@ body.light-theme-active .ccr {
 .ccr-st-card { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--ccr-muted); white-space: nowrap; }
 .ccr-st-m { font-weight: 650; overflow-wrap: anywhere; }
 .ccr-st-sub { font-size: 12.5px; color: var(--ccr-muted); margin-top: 2px; overflow-wrap: anywhere; }
-.ccr-amt.is-miss { color: var(--ccr-miss); }
 /* The branch pill: the Customers tab's location badge (PartnersSheet.css), same four colours. */
 .ccr-branch { padding: 1px 8px; border-radius: 20px; font-size: 11.5px; font-weight: 600; white-space: nowrap; background: rgba(255, 255, 255, 0.05); color: #a0aec0; border: 1px solid rgba(255, 255, 255, 0.12); }
 .ccr-branch.is-seattle { background: rgba(129, 140, 248, 0.12); color: #818cf8; border-color: rgba(129, 140, 248, 0.3); }
@@ -60,7 +55,6 @@ body.light-theme-active .ccr-branch.is-dallas { background: rgba(154, 52, 18, 0.
 .ccr-st-pcard { display: grid; gap: 2px; padding: 12px 14px; border-bottom: 1px solid var(--ccr-line-soft); }
 .ccr-st-pcard:last-child { border-bottom: 0; }
 .ccr-st-pcard.is-ok { background: var(--ccr-row-ok); border-bottom-color: var(--ccr-row-ok-line); }
-.ccr-st-pcard.is-miss { background: var(--ccr-row-miss); border-bottom-color: var(--ccr-row-miss-line); }
 .ccr-st-pcard.is-quiet { opacity: 0.72; }
 .ccr-st-ptop { display: flex; align-items: baseline; gap: 10px; }
 .ccr-st-ptop b:first-child { flex: 1; min-width: 0; font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

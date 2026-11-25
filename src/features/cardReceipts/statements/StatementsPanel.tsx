@@ -205,7 +205,7 @@ function Stage({ stage }: { stage: LineStage }) {
 /** Date · Cardholder & card · Merchant · Category · Amount · Status (owner's order, 2026-11-24). */
 function Lines({ rows, isPhone }: { rows: StatementLine[]; isPhone: boolean }) {
   const card = (l: StatementLine) => l.cardLabel || (l.digits ? `…${l.digits}` : 'no card');
-  const amountClass = (l: StatementLine) => `ccr-amt${l.status === 'missing' ? ' is-miss' : l.cents < 0 ? ' ccr-st-credit' : ''}`;
+  const amountClass = (l: StatementLine) => `ccr-amt${l.cents < 0 ? ' ccr-st-credit' : ''}`;
   if (isPhone) {
     return (
       <div className="ccr-st-plist">
