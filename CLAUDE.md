@@ -1862,6 +1862,15 @@ against these, on a real iPhone (the emulator has no keyboard):
   focus.
 - **Text boxes are 16px** (or iOS zooms) and get `no-capitalize` when they
   shouldn't take the global capitalize (index.css), e.g. search boxes.
+- **In the app, the web view itself must never scroll for the keyboard** (2026-11-24: forms lost their header and
+  search sheets went blank when the keyboard opened in the React Native app). Every rule above assumes the page stays at
+  offset 0 while the keyboard is up, because the site pins forms and sheets to the screen. A WKWebView left alone pans
+  its scroll view (and adds a bottom inset) to clear the keyboard, taking everything pinned with it. The Capacitor app
+  stopped that (`scrollEnabled: false`, its Keyboard plugin zeroing offset and inset); the React Native app does it with
+  `keyboardSafeProps` in `mobile/src/host/webViewSettings.ts` (tested), used by `WebHost.tsx` — don't remove those props.
+  FormModal's keyboard maths is `keyboardInset.ts` (tested): in the app the form is the screen minus the keyboard,
+  whether or not the web view's own viewport also shrinks. **Never tried on a real iPhone** — check Add receipt's Category
+  search, a visit's note and the sign-in-adjacent forms with the keyboard up.
 
 ## Incident: CustomSelect portal broke dropdowns inside modals (2026-08-13)
 

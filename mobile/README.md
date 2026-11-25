@@ -49,6 +49,9 @@ It cannot run in Expo Go (background location, secure store with biometrics and 
 3. **Push:** iOS gives the APNs token (the server's existing sender works). **Android needs Firebase Cloud Messaging** (a
    `google-services.json` and a server sender) — not built.
 4. **Keyboard:** the website pads itself by the keyboard height (it was told the native resize is "none"); on Android check the page
-   isn't resized twice (`android.softwareKeyboardLayoutMode`).
+   isn't resized twice (`android.softwareKeyboardLayoutMode`). **On iOS the WebView must not scroll for the keyboard**
+   (`scrollEnabled={false}` and no automatic insets, `src/host/webViewSettings.ts`): without them WKWebView pans the whole page up
+   when a text box takes focus, so forms lose their header and full-screen search sheets go blank (found 2026-11-24).
+   Android's equivalent is untested.
 5. **Never run on a real phone yet.** Face ID / fingerprint prompts, the cookie hand-over to the WebView on both platforms, the
    foreground-service notification and file upload / camera inside the WebView all need a real-device test.

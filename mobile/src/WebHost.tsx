@@ -7,6 +7,7 @@ import { shimFor } from './host/protocol';
 import { GEOLOCATION_SHIM } from './host/geolocationShim';
 import HostRouter from './host/router';
 import { PLUGINS } from './host/plugins';
+import { keyboardSafeProps } from './host/webViewSettings';
 
 /**
  * The site keeps its theme in `checkin_theme` (useSalesTheme.ts). In the app: a theme the person picked with the toggle is kept
@@ -65,6 +66,7 @@ export default function WebHost({ onSignedOut }: { onSignedOut: () => void }) {
       mediaCapturePermissionGrantType="grant"
       setSupportMultipleWindows={false}
       bounces={false}
+      {...keyboardSafeProps(Platform.OS)}                     // the web view must never scroll for the keyboard — see webViewSettings.ts
       overScrollMode="never"
       allowsBackForwardNavigationGestures
       webviewDebuggingEnabled={false}

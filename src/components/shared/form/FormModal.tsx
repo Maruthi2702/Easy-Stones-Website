@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { X, AlertCircle } from 'lucide-react';
 import useIsPhone, { prefersReducedMotion } from './useIsPhone';
 import { goToField, trapTab } from './formFocus';
+import { phoneViewportFor } from './keyboardInset';
 import { FormLayerContext } from './formLayer';
 import { lockPage, unlockPage } from '../pageLock';
 import { usePortalVisibility } from './usePortalVisibility';
@@ -197,14 +198,17 @@ export default function FormModal({
         let frame = 0;
         const apply = () => {
             frame = 0;
-            const zoomed = vv.scale > 1.01;
-            const browserKb = zoomed ? 0 : Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height));
-            // The iOS app's web view doesn't resize for the keyboard, so the viewport above never shows it;
-            // NativeKeyboard reports its height (--native-kb) instead.
-            const nativeKb = parseInt(document.documentElement.style.getPropertyValue('--native-kb'), 10) || 0;
-            const kb = Math.max(browserKb, nativeKb);
-            const viewH = Capacitor.isNativePlatform() ? window.innerHeight : vv.height;
-            dialog.style.setProperty('--fm-vvh', `${Math.max(0, viewH - (browserKb ? 0 : nativeKb))}px`);
+            // The iOS app's web view doesn't resize for the keyboard, so the viewport never shows it reliably;
+            // NativeKeyboard reports its height (--native-kb) instead. The rules are keyboardInset.ts (tested).
+            const { kb, viewHeight } = phoneViewportFor({
+                innerHeight: window.innerHeight,
+                vvHeight: vv.height,
+                vvOffsetTop: vv.offsetTop,
+                vvScale: vv.scale,
+                nativeKb: parseInt(document.documentElement.style.getPropertyValue('--native-kb'), 10) || 0,
+                native: Capacitor.isNativePlatform()
+            });
+            dialog.style.setProperty('--fm-vvh', `${viewHeight}px`);
             // In the iOS app the web view is already inset below the status bar and never scrolls, but
             // visualViewport.offsetTop reports that inset (or a stale value), which pushed the form and
             // the search pages down by a blank strip. There the top is always 0.
