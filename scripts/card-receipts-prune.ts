@@ -4,6 +4,7 @@
  *   node scripts/card-receipts-prune.ts --keep=krish,karunakar            dry run: who made what, what would go
  *   node scripts/card-receipts-prune.ts --keep=krish,karunakar --apply    saves each to card_expense_deletions, then deletes
  *   node scripts/card-receipts-prune.ts --delete=krish,karunakar          the other way round: only what THOSE people made
+ *   … --status=missing                                                    limit either to one status (missing, draft, waiting, sent_back)
  *
  * "Made by" is the name an expense was created under (the cardholder for a receipt they uploaded; the statement's
  * uploader for a Missing row). A name is kept when it holds the whole word (krish ≠ Krishna). Approved receipts and rows
@@ -18,6 +19,7 @@ const list = (flag: string) => (process.argv.find(a => a.startsWith(`--${flag}=`
 const mode = list('delete').length ? 'delete' as const : 'keep' as const;
 const keep = mode === 'delete' ? list('delete') : list('keep');
 const apply = process.argv.includes('--apply');
+const status = process.argv.find(a => a.startsWith('--status='))?.slice(9).trim() ?? '';
 const url = process.env.DATABASE_URL;
 if (!url || !keep.length || (list('delete').length && list('keep').length)) { console.error('Usage: DATABASE_URL=… node scripts/card-receipts-prune.ts (--keep=name,name | --delete=name,name) [--apply]'); process.exit(1); }
 
@@ -26,14 +28,14 @@ const tally = (rows: string[]) => [...rows.reduce((m, r) => m.set(r, (m.get(r) ?
 const { db, close } = await openDb(url);
 try {
   const d = db as unknown as Db;
-  const plan = apply ? await applyPrune(d, keep, `Cleanup 2026-11-24: ${mode === 'delete' ? 'made by' : 'not made by'} ${keep.join(' or ')}, not approved`, 'script', mode) : await planPrune(d, keep, mode);
+  const plan = apply ? await applyPrune(d, keep, `Cleanup 2026-11-24: ${mode === 'delete' ? 'made by' : 'not made by'} ${keep.join(' or ')}, ${status ? `${status} only` : 'not approved'}`, 'script', mode, status) : await planPrune(d, keep, mode, status);
   const days = plan.remove.map(r => r.day).sort();
   console.log(`${apply ? 'Deleted' : 'Would delete'}: ${plan.remove.length} receipts${days.length ? ` (charge days ${days[0]} to ${days.at(-1)})` : ''}`);
   console.log(`\nBy who made them:\n${tally(plan.remove.map(r => r.createdBy))}`);
   console.log(`\nBy status:\n${tally(plan.remove.map(r => r.status))}`);
   console.log(`\nBy cardholder:\n${tally(plan.remove.map(r => r.holderName))}`);
   console.log(`\nOf these, answering a bank statement line: ${plan.remove.filter(r => r.onStatement).length}${apply ? ' (unlinked)' : ' (would be unlinked)'}`);
-  console.log(`Kept: ${plan.keptByName} ${mode === 'delete' ? 'made by anyone else' : `made by ${keep.join(' / ')}`}, ${plan.keptApproved} approved, ${plan.noCreator} with no creator name`);
+  console.log(`Kept: ${plan.keptByName} ${mode === 'delete' ? 'made by anyone else' : `made by ${keep.join(' / ')}`}, ${plan.keptApproved} approved, ${plan.noCreator} with no creator name${status ? `, ${plan.keptOtherStatus} not ${status}` : ''}`);
   if (!apply) console.log('\nDry run. Check "By who made them" for any name that should stay, then run again with --apply.');
   else console.log('\nEach one was saved whole to card_expense_deletions first.');
 } finally {

@@ -127,6 +127,8 @@ export interface PrunePlan {
   keptByName: number;
   keptApproved: number;
   noCreator: number;
+  /** Left because the run was limited to one status. */
+  keptOtherStatus: number;
 }
 
 const words = (name: string) => name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
@@ -141,26 +143,27 @@ export const isKeptName = (createdBy: string, keep: string[]) => {
  */
 export type PruneMode = 'keep' | 'delete';
 
-export async function planPrune(db: Db, keep: string[], mode: PruneMode = 'keep'): Promise<PrunePlan> {
+export async function planPrune(db: Db, keep: string[], mode: PruneMode = 'keep', onlyStatus = ''): Promise<PrunePlan> {
   if (!keep.length) throw new Error('Say whose receipts.');
   const rows = await db.select({
     id: cardExpenses.id, createdBy: cardExpenses.createdBy, holderName: cardExpenses.holderName, status: cardExpenses.status,
     day: cardExpenses.day, cents: cardExpenses.cents, merchant: cardExpenses.merchant,
     onStatement: sql<boolean>`exists (select 1 from ${lines} l where l.expense_id = ${cardExpenses.id})`
   }).from(cardExpenses);
-  const plan: PrunePlan = { remove: [], keptByName: 0, keptApproved: 0, noCreator: 0 };
+  const plan: PrunePlan = { remove: [], keptByName: 0, keptApproved: 0, noCreator: 0, keptOtherStatus: 0 };
   for (const r of rows) {
     if (r.status === 'approved') plan.keptApproved += 1;
     else if (!r.createdBy.trim()) plan.noCreator += 1;
     else if (isKeptName(r.createdBy, keep) === (mode === 'keep')) plan.keptByName += 1;
+    else if (onlyStatus && r.status !== onlyStatus) plan.keptOtherStatus += 1;
     else plan.remove.push({ ...r, day: String(r.day) });
   }
   return plan;
 }
 
-export async function applyPrune(db: Db, keep: string[], reason: string, by = 'script', mode: PruneMode = 'keep'): Promise<PrunePlan> {
+export async function applyPrune(db: Db, keep: string[], reason: string, by = 'script', mode: PruneMode = 'keep', onlyStatus = ''): Promise<PrunePlan> {
   return db.transaction(async (tx: Db) => {
-    const plan = await planPrune(tx, keep, mode);
+    const plan = await planPrune(tx, keep, mode, onlyStatus);
     for (const r of plan.remove) {
       const existing = await findExpense(tx, r.id);
       if (!existing) continue;

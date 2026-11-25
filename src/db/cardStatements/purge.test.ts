@@ -138,4 +138,17 @@ describe('receipts by anyone but the people to keep', () => {
     expect((await db.select().from(cardExpenses)).map(e => e.id).sort()).toEqual([hex(20), hex(22), hex(23), hex(24), hex(25), hex(26)]);
     expect((await db.select().from(cardExpenseDeletions)).map(d => d.expenseId)).toEqual([hex(21)]);
   });
+
+  it('can be limited to one status', async () => {
+    const plan = await planPrune(db, ['ann'], 'delete', 'missing');
+    expect(plan.remove).toEqual([]);
+    const k = await planPrune(db, ['krish', 'karunakar'], 'delete', 'missing');
+    expect(k.remove.map(r => r.id)).toEqual([hex(21)]);
+    await db.update(cardExpenses).set({ status: 'waiting' }).where(eq(cardExpenses.id, hex(20)));
+    const both = await planPrune(db, ['krish', 'karunakar'], 'delete', 'missing');
+    expect(both).toMatchObject({ keptOtherStatus: 1 });
+    await applyPrune(db, ['krish', 'karunakar'], 'cleanup', 'script', 'delete', 'missing');
+    expect((await db.select().from(cardExpenses)).map(e => e.id)).toContain(hex(20));
+    expect((await db.select().from(cardExpenses)).map(e => e.id)).not.toContain(hex(21));
+  });
 });
