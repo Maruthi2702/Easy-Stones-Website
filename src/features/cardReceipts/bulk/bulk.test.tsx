@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, act, renderHook, waitFor } from '@testing-library/react';
 import { createHash } from 'node:crypto';
+import type { UploadResult } from '../cardReceiptsApi';
 
 vi.mock('../../../utils/attachmentFiles', () => ({ compressImage: async () => 'data:image/jpeg;base64,xx', fileToBase64: async () => 'data:application/pdf;base64,xx' }));
 vi.mock('../../../api/customerOptions', () => ({ useCustomerOptions: () => ({ options: [], loading: false }) }));
@@ -23,7 +24,7 @@ const FILE_NO = new Map(['a.jpg', 'b.jpg', 'c.jpg'].map((f, i) => [sha(f), i + 1
 const scanFor = (merchant: string, cents: number) => ({ scan: { isReceipt: true, date: '2026-10-03', merchant, totalCents: cents, subtotalCents: null, taxCents: null, tipCents: null, category: '' } });
 
 const deps = () => {
-  const upload = vi.fn(async (_data: string, opts?: { hash?: string }): Promise<{ url: string; duplicate?: Record<string, unknown> | null }> =>
+  const upload = vi.fn(async (_data: string, opts?: { hash?: string }): Promise<UploadResult> =>
     ({ url: `https://files/${FILE_NO.get(opts?.hash ?? '') ?? 0}.jpg` }));
   const names = ['Shell', 'Staples', 'Jinya'];
   const scan = vi.fn(async (url: string) => { const n = Number(/(\d+)\.jpg$/.exec(url)?.[1]); return scanFor(names[n - 1]!, 1000 * n); });
