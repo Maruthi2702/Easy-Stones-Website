@@ -1674,9 +1674,9 @@ expenses as well"). The server adds `onStatement` to every expense it sends (`vi
 (an upload matched to its charge, or the Missing receipt row made for it), **false** when none does and the expense is on an Amex / Encore
 card dated **2026-11-01 or later** (`MISSING_FROM`; the same start as the check), **null** otherwise (earlier days, another bank, or
 Credit Card Receipts still on MongoDB / the lookup failed — nothing is claimed). The row's background says it (`rowTone` in
-`ExpenseList.tsx`): **green** on the statement, **red** a Missing receipt row (on the statement, no receipt yet), **amber** not on a
-statement yet (with a "Not on statement" tag, so colour isn't the only signal), plain = not known; a hover `title` says the same. A
-**Statement** dropdown (All / On the statement / Not on the statement, with counts; a field in the phone's Filters panel too) filters
+`ExpenseList.tsx`): **green** on the statement, **red** a Missing receipt row (on the statement, no receipt yet), **plain for everything
+else** — not matched (owner, same day: "which are not matched don't keep any color", so the amber and its tag were removed) or not known;
+a hover `title` says what green / red mean. A **Statement** dropdown (All / On the statement / Not on the statement, with counts; a field in the phone's Filters panel too) filters
 them (`ReceiptFilters.statement`, `statementState`). The MongoDB / Postgres parity test leaves `onStatement` out (Postgres-only data).
 
 ## Supplier POs and the supplier portal (2026-11-07, on `feat/supplier-portal`)

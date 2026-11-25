@@ -17,12 +17,10 @@
 .ccr {
   --ccr-row-ok: rgba(74, 222, 128, 0.08); --ccr-row-ok-line: rgba(74, 222, 128, 0.22);
   --ccr-row-miss: rgba(248, 113, 113, 0.11); --ccr-row-miss-line: rgba(248, 113, 113, 0.28);
-  --ccr-row-off: rgba(212, 175, 55, 0.10); --ccr-row-off-line: rgba(212, 175, 55, 0.26);
 }
 body.light-theme-active .ccr {
   --ccr-row-ok: #edf8f1; --ccr-row-ok-line: #cfe9d8;
   --ccr-row-miss: #fdeeec; --ccr-row-miss-line: #f5cdc7;
-  --ccr-row-off: #fdf6e0; --ccr-row-off-line: #f0e0a8;
 }
 .ccr-st-lines tr.is-ok td { background: var(--ccr-row-ok); border-bottom-color: var(--ccr-row-ok-line); }
 .ccr-st-lines tr.is-miss td { background: var(--ccr-row-miss); border-bottom-color: var(--ccr-row-miss-line); }

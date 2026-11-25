@@ -126,11 +126,11 @@ describe('the Credit Card Receipts page', () => {
   it('colours each row by whether a bank statement line answers it, and filters by it', async () => {
     await show(['view_all_card_receipts', 'export_card_receipts']);
     const rowOf = (merchant: string) => [...document.querySelectorAll('.ccr-table tbody tr')].find((r) => r.textContent?.includes(merchant))!;
-    // Matched = green, not on a statement yet = amber (with a words tag, so colour isn't the only signal), not known = plain.
+    // Matched = green; not on a statement yet and not known stay plain (owner: no colour for what isn't matched).
     expect(rowOf('Kashish').className).toBe('');
-    expect(rowOf('JINYA').className).toBe('is-off');
-    expect(rowOf('JINYA').textContent).toContain('Not on statement');
-    expect(rowOf('JINYA').getAttribute('title')).toBe('Not on a statement yet');
+    expect(rowOf('JINYA').className).toBe('');
+    expect(rowOf('JINYA').textContent).not.toContain('Not on statement');
+    expect(rowOf('JINYA').getAttribute('title')).toBeNull();
     const green = [...document.querySelectorAll('.ccr-table tbody tr.is-ok')];
     expect(green).toHaveLength(1);
     expect(green[0]!.getAttribute('title')).toBe('Matched with a line on the statement');

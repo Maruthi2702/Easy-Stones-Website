@@ -35,17 +35,15 @@ export function Thumb({ e }: { e: Expense }) {
 }
 
 /**
- * A row's background says whether a line on a bank statement answers it (2026-11-24): green = matched, red = a
- * charge still waiting for its receipt (Missing receipt, which is on the statement by definition), amber = not on
- * a statement yet, none = not known (before the check began, or off Postgres).
+ * A row's background (2026-11-24; owner: a receipt that is not matched stays plain): green = a line on a bank
+ * statement answers it, red = a charge still waiting for its receipt (Missing receipt, on the statement by
+ * definition), plain = anything else — not matched, or not known. The Statement filter still lists the unmatched.
  */
-const rowTone = (e: Expense) => (e.status === 'missing' ? 'is-miss' : e.onStatement === true ? 'is-ok' : e.onStatement === false ? 'is-off' : '');
-const toneTitle = (e: Expense) => (e.status === 'missing' ? 'On the statement, no receipt yet' : e.onStatement === true ? 'Matched with a line on the statement'
-  : e.onStatement === false ? 'Not on a statement yet' : undefined);
+const rowTone = (e: Expense) => (e.status === 'missing' ? 'is-miss' : e.onStatement === true ? 'is-ok' : '');
+const toneTitle = (e: Expense) => (e.status === 'missing' ? 'On the statement, no receipt yet' : e.onStatement === true ? 'Matched with a line on the statement' : undefined);
 
 const Tags = ({ e }: { e: Expense }) => (
   <>
-    {e.onStatement === false && e.status !== 'missing' ? <span className="ccr-tag">Not on statement</span> : null}
     {e.lostReason ? <span className="ccr-tag">Lost receipt</span> : null}
     {e.recurring ? <span className="ccr-tag">Recurring</span> : null}
     {askIsOpen(e) ? <span className="ccr-tag is-ask">Asked {firstName(e.ask!.toName)}</span> : null}
