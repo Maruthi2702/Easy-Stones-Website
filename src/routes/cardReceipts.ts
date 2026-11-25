@@ -355,16 +355,21 @@ export default function createCardReceiptsRouter({ authenticate, processBase64Im
 
   // ── Cards ─────────────────────────────────────────────────────────────────
 
-  router.get('/cards', authenticate, anyOf(CARD_RECEIPTS.MANAGE_CARDS, CARD_RECEIPTS.VIEW_ALL), async (_req: Request, res: Response) => {
+  router.get('/cards', authenticate, anyOf(CARD_RECEIPTS.MANAGE_CARDS, CARD_RECEIPTS.VIEW_ALL), async (req: Request, res: Response) => {
     try {
       const [cards, people, amexName] = await Promise.all([
         db.listCards(),
         staffData.findUsers({}, { select: 'username displayName role location assignedLocations isActive', sort: { displayName: 1 } }),
         amexNameLookup()
       ]);
+      const viewer = approvalViewerOf(req);
+      const roleOf = new Map(people.map((p) => [String(p._id), String(p.role || '')]));
       res.json({
         // statementName: the Card Member name on the uploaded Amex statements for this card, the starting value for amexName (Amex check).
-        cards: cards.map((c) => ({ ...cardView(c), statementName: amexName(String(c.lastDigits || ''), String(c.issuer || 'amex')) })),
+        // View all without Manage cards (a director): an Admin's cards stay with Accounting and Admins, like their receipts.
+        cards: cards
+          .filter((c) => !c.userId || has(req, CARD_RECEIPTS.MANAGE_CARDS) || mayViewHolderReceipts(viewer, roleOf.get(String(c.userId)), c.userId))
+          .map((c) => ({ ...cardView(c), statementName: amexName(String(c.lastDigits || ''), String(c.issuer || 'amex')) })),
         people: people.filter((p) => p.username !== 'admin').map((p) => ({
           id: String(p._id), name: nameOf(p), role: p.role || '', location: homeOf(p), active: p.isActive !== false
         }))

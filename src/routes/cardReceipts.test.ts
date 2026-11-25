@@ -359,6 +359,9 @@ describe('who sees what', () => {
     expect(await merchantsFor(viewAllDir, '/expenses/export?month=2026-10')).toEqual(["McDonald's, Kent"]);
     const holders = (await as(viewAllDir).get('/cardholders').expect(200)).body.holders.map((h: Loose) => h.name);
     expect(holders).not.toContain('Ada Min');
+    // Cards tab: View all alone hides an Admin's card; Manage cards (Accounting) still sees every card.
+    expect((await as(viewAllDir).get('/cards').expect(200)).body.cards.map((c: Loose) => c.label)).not.toContain('ADAM11111');
+    expect((await as(ACCOUNTING).get('/cards').expect(200)).body.cards.map((c: Loose) => c.label)).toContain('ADAM11111');
     expect(await merchantsFor(ACCOUNTING)).toEqual(['Costco', "McDonald's, Kent"]);
     expect(await merchantsFor({ ...ADMIN2, permissions: [...ADMIN2.permissions, 'view_all_card_receipts'] })).toEqual(['Costco', "McDonald's, Kent"]);
     expect(await merchantsFor(ADMIN1, '/expenses?month=2026-10')).toEqual(['Costco']);
