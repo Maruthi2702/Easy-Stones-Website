@@ -1449,7 +1449,8 @@ models `src/models/CardReceipts.ts` (`CompanyCard`, `ReceiptCategory`, `CardExpe
 - Switches (Users & Roles → Accounting · Credit Card Receipts and Admin ·
   Receipt Categories, `CARD_RECEIPTS`): My receipts, View all, Approve, Export,
   Manage cards; categories add / edit / reorder / delete. Admin gets them through
-  `ALL_ACCOUNTING_PERMISSIONS`; nobody else until an admin turns them on.
+  `ALL_ACCOUNTING_PERMISSIONS`; nobody else until an admin turns them on — except **View all**, given once to
+  the Director role (owner, 2026-11-25: View branch hid managers at branches the director isn't assigned).
 - **Reading the receipt** (2026-11-20, on `feat/receipt-scan`): after an upload the
   form asks `POST /api/card-receipts/scan` (`src/routes/cardReceiptScan.ts`, its own
   router; tested with a fake scanner) and Claude reads the photo / PDF

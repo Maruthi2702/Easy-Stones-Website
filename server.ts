@@ -931,6 +931,10 @@ async function startServer() {
         // branch manager / director gives the second approval at $150+, so all three need Approve (the reminders switch
         // follows from it, in ACTION_MIGRATIONS). Given once; an admin can switch it off under Users & Roles.
         { roles: ['accounting', 'manager', 'director'], permissions: [CARD_RECEIPTS.APPROVE] },
+        // Directors see every cardholder's receipts (owner, 2026-11-25): View branch only showed people at the director's
+        // own assigned branches, so branch managers elsewhere were hidden. Given once; an admin can switch it off under
+        // Users & Roles. Ship only with the rule that keeps an Admin's own receipts from directors (mayViewHolderReceipts).
+        { roles: ['director'], permissions: [CARD_RECEIPTS.VIEW_ALL] },
         { roles: ['director'], permissions: [...DIRECTOR_SUPPLIER_GRANTS] }
       ];
 
